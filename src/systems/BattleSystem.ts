@@ -128,7 +128,7 @@ export class BattleSystem {
       ? Math.floor(target.stats.defense / 2)
       : Math.floor(target.stats.defense / 4)
 
-    let damage = Math.max(1, damageRoll.total + strMod - defenseReduction)
+    const damage = Math.max(1, damageRoll.total + strMod - defenseReduction)
 
     // Apply damage
     target.stats.hp = Math.max(0, target.stats.hp - damage)

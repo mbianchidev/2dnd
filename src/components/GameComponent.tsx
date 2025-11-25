@@ -180,9 +180,9 @@ const GameComponent: React.FC = () => {
       
       {player && <PlayerStats player={player} />}
       
-      {inBattle && currentMonster && (
+      {inBattle && currentMonster && player && (
         <BattleUI
-          player={player!}
+          player={player}
           monster={currentMonster}
           battleLog={battleLog}
           onAttack={handleAttack}
@@ -191,10 +191,10 @@ const GameComponent: React.FC = () => {
         />
       )}
       
-      {currentLocation && (
+      {currentLocation && player && (
         <LocationUI
           location={currentLocation}
-          player={player!}
+          player={player}
           shopSystem={shopSystemRef.current}
           onClose={handleCloseLocation}
           onBuyItem={handleBuyItem}

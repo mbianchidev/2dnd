@@ -19,6 +19,10 @@ export class MainScene extends Phaser.Scene {
   private onBattleStart?: (monsterId: string) => void;
   private onLocationInteract?: (location: Location) => void;
 
+  // Encounter constants
+  private readonly STEPS_BETWEEN_ENCOUNTERS = 60;
+  private readonly ENCOUNTER_CHANCE = 0.05;
+
   constructor() {
     super({ key: 'MainScene' });
     
@@ -175,10 +179,10 @@ export class MainScene extends Phaser.Scene {
   }
 
   private checkRandomEncounter() {
-    if (this.stepCounter < 60) return; // Encounter every ~60 steps
+    if (this.stepCounter < this.STEPS_BETWEEN_ENCOUNTERS) return;
     
     const encounterChance = Math.random();
-    if (encounterChance < 0.05) { // 5% chance per check
+    if (encounterChance < this.ENCOUNTER_CHANCE) {
       this.stepCounter = 0;
       
       // Select random monster

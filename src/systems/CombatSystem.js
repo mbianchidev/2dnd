@@ -4,6 +4,8 @@
 export class CombatSystem {
     constructor() {
         this.combatants = [];
+        this.party = [];
+        this.enemies = [];
         this.currentTurnIndex = 0;
         this.turnOrder = [];
         this.battleLog = [];
@@ -14,6 +16,8 @@ export class CombatSystem {
      * Initialize a new battle
      */
     startBattle(party, enemies) {
+        this.party = party;
+        this.enemies = enemies;
         this.combatants = [...party, ...enemies];
         this.battleActive = true;
         this.battleLog = [];
@@ -152,12 +156,8 @@ export class CombatSystem {
      * Check if the battle is over
      */
     checkBattleEnd() {
-        const aliveParty = this.combatants.filter((c, i) => 
-            i < this.combatants.length / 2 && c.isAlive()
-        );
-        const aliveEnemies = this.combatants.filter((c, i) => 
-            i >= this.combatants.length / 2 && c.isAlive()
-        );
+        const aliveParty = this.party.filter(c => c.isAlive());
+        const aliveEnemies = this.enemies.filter(c => c.isAlive());
         
         if (aliveEnemies.length === 0) {
             this.battleActive = false;

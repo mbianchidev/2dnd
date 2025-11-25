@@ -33,6 +33,7 @@ export class Game {
         
         // Debug mode
         this.debug = GAME_CONFIG.debug;
+        this.fpsUpdateInterval = null;
         
         // Initialize the game
         this.init();
@@ -176,12 +177,14 @@ export class Game {
                 stateElement.textContent = stateName;
             }
             
-            // Update FPS continuously
-            setInterval(() => {
-                if (fpsElement) {
-                    fpsElement.textContent = this.engine.getFPS();
-                }
-            }, 100);
+            // Update FPS continuously (only create interval once)
+            if (!this.fpsUpdateInterval && fpsElement) {
+                this.fpsUpdateInterval = setInterval(() => {
+                    if (fpsElement) {
+                        fpsElement.textContent = this.engine.getFPS();
+                    }
+                }, 100);
+            }
         }
     }
     

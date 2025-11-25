@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.cache/
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test outputs
+coverage/
+playwright-report/
+test-results/
+
+# Build artifacts
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local

@@ -1,0 +1,40 @@
+{
+  "name": "2dnd",
+  "version": "0.1.0",
+  "description": "A web-native JRPG with DQ-style combat and D&D dice mechanics",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,json}\"",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "jsdom": "^27.0.1",
+    "prettier": "^3.4.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

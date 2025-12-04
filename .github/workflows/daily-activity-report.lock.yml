@@ -23,11 +23,13 @@
 # on:
 #   schedule:
 #     - cron: "0 14 * * 1-5"  # 2 PM UTC, weekdays only (Mon-Fri)
+#   workflow_dispatch:
+# name: Daily Activity Report
 # permissions: read-all
 # timeout-minutes: 10
 # safe-outputs:
 #   create-issue:
-#     title-prefix: "[Daily Report] "
+#     title-prefix: "[Daily Report 2DND] "
 #     labels: [report, automated]
 # engine: copilot
 # tools:
@@ -118,17 +120,18 @@
 #   - actions/upload-artifact@v5 (330a01c490aca151604b8cf639adc76d48f6c5d4)
 #     https://github.com/actions/upload-artifact/commit/330a01c490aca151604b8cf639adc76d48f6c5d4
 
-name: "Daily Repository Activity Report"
+name: "Daily Activity Report"
 "on":
   schedule:
   - cron: "0 14 * * 1-5"
+  workflow_dispatch: null
 
 permissions: read-all
 
 concurrency:
   group: "gh-aw-${{ github.workflow }}"
 
-run-name: "Daily Repository Activity Report"
+run-name: "Daily Activity Report"
 
 jobs:
   activation:
@@ -351,7 +354,7 @@ jobs:
           cat > /tmp/gh-aw/safeoutputs/tools.json << 'EOF'
           [
             {
-              "description": "Create a new GitHub issue for tracking bugs, feature requests, or tasks. Use this for actionable work items that need assignment, labeling, and status tracking. For reports, announcements, or status updates that don't require task tracking, use create_discussion instead. CONSTRAINTS: Maximum 1 issue(s) can be created. Title will be prefixed with \"[Daily Report] \". Labels [report automated] will be automatically added.",
+              "description": "Create a new GitHub issue for tracking bugs, feature requests, or tasks. Use this for actionable work items that need assignment, labeling, and status tracking. For reports, announcements, or status updates that don't require task tracking, use create_discussion instead. CONSTRAINTS: Maximum 1 issue(s) can be created. Title will be prefixed with \"[Daily Report 2DND] \". Labels [report automated] will be automatically added.",
               "inputSchema": {
                 "additionalProperties": false,
                 "properties": {
@@ -1533,7 +1536,7 @@ jobs:
               model: "",
               version: "",
               agent_version: "0.0.365",
-              workflow_name: "Daily Repository Activity Report",
+              workflow_name: "Daily Activity Report",
               experimental: false,
               supports_tools_allowlist: true,
               supports_http_transport: true,
@@ -4208,7 +4211,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
-          name: firewall-logs-daily-repository-activity-report
+          name: firewall-logs-daily-activity-report
           path: /tmp/gh-aw/sandbox/firewall/logs/
           if-no-files-found: ignore
       - name: Parse firewall logs for step summary
@@ -4808,7 +4811,7 @@ jobs:
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
           GH_AW_NOOP_MAX: 1
-          GH_AW_WORKFLOW_NAME: "Daily Repository Activity Report"
+          GH_AW_WORKFLOW_NAME: "Daily Activity Report"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
@@ -4900,7 +4903,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "Daily Repository Activity Report"
+          GH_AW_WORKFLOW_NAME: "Daily Activity Report"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
@@ -5013,7 +5016,7 @@ jobs:
           GH_AW_COMMENT_ID: ${{ needs.activation.outputs.comment_id }}
           GH_AW_COMMENT_REPO: ${{ needs.activation.outputs.comment_repo }}
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          GH_AW_WORKFLOW_NAME: "Daily Repository Activity Report"
+          GH_AW_WORKFLOW_NAME: "Daily Activity Report"
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
@@ -5265,9 +5268,9 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_ISSUE_TITLE_PREFIX: "[Daily Report] "
+          GH_AW_ISSUE_TITLE_PREFIX: "[Daily Report 2DND] "
           GH_AW_ISSUE_LABELS: "report,automated"
-          GH_AW_WORKFLOW_NAME: "Daily Repository Activity Report"
+          GH_AW_WORKFLOW_NAME: "Daily Activity Report"
           GH_AW_ENGINE_ID: "copilot"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
@@ -5861,7 +5864,7 @@ jobs:
       - name: Setup threat detection
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          WORKFLOW_NAME: "Daily Repository Activity Report"
+          WORKFLOW_NAME: "Daily Activity Report"
           WORKFLOW_DESCRIPTION: "No description provided"
         with:
           script: |

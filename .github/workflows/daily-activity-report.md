@@ -2,6 +2,8 @@
 on:
   schedule:
     - cron: "0 14 * * 1-5"  # 2 PM UTC, weekdays only (Mon-Fri)
+  workflow_dispatch:
+name: Daily Activity Report
 permissions: read-all
 timeout-minutes: 10
 safe-outputs:

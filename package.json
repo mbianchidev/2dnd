@@ -1,0 +1,24 @@
+{
+  "name": "2dnd",
+  "version": "0.1.0",
+  "description": "A 2D browser JRPG inspired by Dragon Quest and D&D lore",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "game",
+    "jrpg",
+    "rpg",
+    "2d",
+    "browser"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

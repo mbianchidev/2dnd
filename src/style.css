@@ -1,0 +1,13 @@
+body {
+  margin: 0;
+  background-color: #111;
+  font-family: 'Press Start 2P', system-ui, sans-serif;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}

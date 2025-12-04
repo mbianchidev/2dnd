@@ -1,6 +1,7 @@
 ---
 on:
-  command: /joke
+  command:
+    name: joke
 name: D&D Joke Responder
 permissions: read-all
 timeout-minutes: 5

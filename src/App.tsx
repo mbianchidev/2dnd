@@ -265,7 +265,7 @@ const initialPlayer: Player = {
 }
 
 const rollDice = (notation: string) => {
-  const match = notation.match(/(\\d+)d(\\d+)([+-]\\d+)?/i)
+  const match = notation.match(/(\d+)d(\d+)([+-]\d+)?/i)
   if (!match) return 0
   const [, countStr, sidesStr, modStr] = match
   const count = Number(countStr)
@@ -582,7 +582,7 @@ function App() {
     }
   }, [currentEnemy, player.stats.dexterity, pushLog])
 
-const enemyTurn = useCallback(() => {
+  const enemyTurn = useCallback(() => {
     if (!currentEnemy || mode !== 'battle') return
     const attackRoll = rollDice('1d20') + currentEnemy.attackBonus
     const hit = attackRoll >= player.stats.armorClass

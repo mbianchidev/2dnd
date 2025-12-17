@@ -9,7 +9,10 @@ name: Issue Triage
 permissions: read-all
 timeout-minutes: 10
 safe-outputs:
-  update-issue:
+  add-labels:
+    allowed: [bug, feature]
+    max: 2
+    target: "*"
 engine: copilot
 tools:
   github:

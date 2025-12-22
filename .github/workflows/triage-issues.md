@@ -3,7 +3,7 @@ on:
   issues:
     types: [opened]
   schedule:
-    - cron: "0 9 * * 1-5"
+    - cron: "0 9 * * 1,3,5"  # Monday, Wednesday, Friday to reduce API quota usage
   workflow_dispatch:
 name: Issue Triage
 permissions: read-all

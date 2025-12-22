@@ -11,8 +11,9 @@ timeout-minutes: 10
 safe-outputs:
   add-labels:
     allowed: [bug, feature]
-    max: 2
+    max: 10
     target: "*"
+  noop:
 engine: copilot
 tools:
   github:
@@ -57,3 +58,5 @@ Analyze GitHub issues and automatically label them as either "feature" or "bug" 
 ## Output
 
 For each issue you label, provide a brief explanation of why you classified it as a feature or bug.
+
+**Important**: If there are no issues to triage (all open issues already have "feature" or "bug" labels), use the `noop` tool to report "No issues require triaging - all open issues are already labeled."

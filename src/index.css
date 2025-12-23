@@ -1,0 +1,16 @@
+:root {
+  font-family: 'Karla', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0b1520;
+}
+
+p {
+  margin: 0;
+}

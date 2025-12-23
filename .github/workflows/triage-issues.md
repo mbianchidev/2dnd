@@ -51,7 +51,7 @@ Analyze GitHub issues and automatically label them as either "feature" or "bug" 
 
 - Be conservative: only apply labels when you are confident
 - Look for keywords like:
-  - Feature: "add", "implement", "support for", "enhancement", "feature request", "would be great", "could we", "suggestion"
+  - Feature: "add", "implement", "support for", "enhancement", "feature request", "would be great", "could we", "suggestion", "develop", "design", "build"
   - Bug: "error", "broken", "doesn't work", "crash", "failure", "issue with", "problem", "unexpected", "incorrect"
 - Consider the overall context and intent of the issue
 - Do not remove existing labels, only add new ones

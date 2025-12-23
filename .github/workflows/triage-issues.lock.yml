@@ -19,103 +19,6 @@
 #   gh aw compile
 # For more information: https://github.com/githubnext/gh-aw/blob/main/.github/aw/github-agentic-workflows.md
 #
-#
-# Original Frontmatter:
-# ```yaml
-# on:
-#   issues:
-#     types: [opened]
-#   schedule:
-#     - cron: "0 9 * * 1,3,5"  # Monday, Wednesday, Friday
-#   workflow_dispatch:
-# name: Issue Triage
-# permissions: read-all
-# timeout-minutes: 10
-# safe-outputs:
-#   add-labels:
-#     allowed: [bug, feature]
-#     max: 10
-#     target: "*"
-#   noop:
-# engine: copilot
-# tools:
-#   github:
-#     toolsets: [default]
-# ```
-#
-# Job Dependency Graph:
-# ```mermaid
-# graph LR
-#   activation["activation"]
-#   add_labels["add_labels"]
-#   agent["agent"]
-#   conclusion["conclusion"]
-#   detection["detection"]
-#   pre_activation["pre_activation"]
-#   activation --> agent
-#   activation --> conclusion
-#   add_labels --> conclusion
-#   agent --> add_labels
-#   agent --> conclusion
-#   agent --> detection
-#   detection --> add_labels
-#   detection --> conclusion
-#   pre_activation --> activation
-# ```
-#
-# Original Prompt:
-# ```markdown
-# # Issue Triage Agent
-#
-# You are an expert issue triager for a GitHub repository.
-#
-# ## Your Task
-#
-# Analyze GitHub issues and automatically label them as either "feature" or "bug" based on their content.
-#
-# ## Instructions
-#
-# 1. **Get the issue details**:
-#    - If this workflow was triggered by an `issues` event (new issue opened), analyze that specific issue
-#    - If this workflow was triggered by `schedule` or `workflow_dispatch`, fetch all open issues that don't have either "feature" or "bug" labels
-#
-# 2. **Analyze each issue**:
-#    - Read the issue title and body carefully
-#    - Determine if it describes:
-#      - **Feature Request**: New functionality, enhancements, improvements, feature requests, "it would be nice if...", suggestions for additions
-#      - **Bug Report**: Problems, errors, unexpected behavior, things not working correctly, crashes, failures
-#
-# 3. **Apply labels**:
-#    - If the issue is clearly a feature request, add the label "feature"
-#    - If the issue is clearly a bug report, add the label "bug"
-#    - If the issue already has both labels or one of these labels, skip it
-#    - If the issue is ambiguous and you cannot confidently determine the type, skip it (do not guess)
-#
-# ## Guidelines
-#
-# - Be conservative: only apply labels when you are confident
-# - Look for keywords like:
-#   - Feature: "add", "implement", "support for", "enhancement", "feature request", "would be great", "could we", "suggestion"
-#   - Bug: "error", "broken", "doesn't work", "crash", "failure", "issue with", "problem", "unexpected", "incorrect"
-# - Consider the overall context and intent of the issue
-# - Do not remove existing labels, only add new ones
-#
-# ## Output
-#
-# For each issue you label, provide a brief explanation of why you classified it as a feature or bug.
-#
-# **Important**: If there are no issues to triage (all open issues already have "feature" or "bug" labels), use the `noop` tool to report "No issues require triaging - all open issues are already labeled."
-# ```
-#
-# Pinned GitHub Actions:
-#   - actions/checkout@v5 (93cb6efe18208431cddfb8368fd83d5badbf9bfd)
-#     https://github.com/actions/checkout/commit/93cb6efe18208431cddfb8368fd83d5badbf9bfd
-#   - actions/download-artifact@v6 (018cc2cf5baa6db3ef3c5f8a56943fffe632ef53)
-#     https://github.com/actions/download-artifact/commit/018cc2cf5baa6db3ef3c5f8a56943fffe632ef53
-#   - actions/github-script@v8 (ed597411d8f924073f98dfc5c65a23a2325f34cd)
-#     https://github.com/actions/github-script/commit/ed597411d8f924073f98dfc5c65a23a2325f34cd
-#   - actions/upload-artifact@v5 (330a01c490aca151604b8cf639adc76d48f6c5d4)
-#     https://github.com/actions/upload-artifact/commit/330a01c490aca151604b8cf639adc76d48f6c5d4
 
 name: "Issue Triage"
 "on":
@@ -123,8 +26,8 @@ name: "Issue Triage"
     types:
     - opened
   schedule:
-  - cron: "0 9 * * 1,3,5"  # Monday, Wednesday, Friday to reduce API quota usage
-  workflow_dispatch: null
+  - cron: "0 9 * * 1,3,5"
+  workflow_dispatch:
 
 permissions: {}
 
@@ -145,7 +48,7 @@ jobs:
       comment_repo: ""
     steps:
       - name: Check workflow file timestamps
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_WORKFLOW_FILE: "triage-issues.lock.yml"
         with:
@@ -214,9 +117,7 @@ jobs:
                   .addRaw("**Files:**\n")
                   .addRaw(`- Source: \`${workflowMdPath}\`\n`)
                   .addRaw(`  - Last commit: ${workflowTimestamp}\n`)
-                  .addRaw(
-                    `  - Commit SHA: [\`${workflowCommit.sha.substring(0, 7)}\`](https://github.com/${owner}/${repo}/commit/${workflowCommit.sha})\n`
-                  )
+                  .addRaw(`  - Commit SHA: [\`${workflowCommit.sha.substring(0, 7)}\`](https://github.com/${owner}/${repo}/commit/${workflowCommit.sha})\n`)
                   .addRaw(`- Lock: \`${lockFilePath}\`\n`)
                   .addRaw(`  - Last commit: ${lockTimestamp}\n`)
                   .addRaw(`  - Commit SHA: [\`${lockCommit.sha.substring(0, 7)}\`](https://github.com/${owner}/${repo}/commit/${lockCommit.sha})\n\n`)
@@ -231,568 +132,6 @@ jobs:
             main().catch(error => {
               core.setFailed(error instanceof Error ? error.message : String(error));
             });
-
-  add_labels:
-    needs:
-      - agent
-      - detection
-    if: >
-      (((!cancelled()) && (needs.agent.result != 'skipped')) && (contains(needs.agent.outputs.output_types, 'add_labels'))) &&
-      (needs.detection.outputs.success == 'true')
-    runs-on: ubuntu-slim
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-    timeout-minutes: 10
-    outputs:
-      labels_added: ${{ steps.add_labels.outputs.labels_added }}
-    steps:
-      - name: Download agent output artifact
-        continue-on-error: true
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
-        with:
-          name: agent_output.json
-          path: /tmp/gh-aw/safeoutputs/
-      - name: Setup agent output environment variable
-        run: |
-          mkdir -p /tmp/gh-aw/safeoutputs/
-          find "/tmp/gh-aw/safeoutputs/" -type f -print
-          echo "GH_AW_AGENT_OUTPUT=/tmp/gh-aw/safeoutputs/agent_output.json" >> "$GITHUB_ENV"
-      - name: Add Labels
-        id: add_labels
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        env:
-          GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_LABELS_ALLOWED: "bug,feature"
-          GH_AW_LABELS_MAX_COUNT: 10
-          GH_AW_LABELS_TARGET: "*"
-          GH_AW_WORKFLOW_NAME: "Issue Triage"
-          GH_AW_ENGINE_ID: "copilot"
-        with:
-          github-token: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN || secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require("fs");
-            const MAX_LOG_CONTENT_LENGTH = 10000;
-            function truncateForLogging(content) {
-              if (content.length <= MAX_LOG_CONTENT_LENGTH) {
-                return content;
-              }
-              return content.substring(0, MAX_LOG_CONTENT_LENGTH) + `\n... (truncated, total length: ${content.length})`;
-            }
-            function loadAgentOutput() {
-              const agentOutputFile = process.env.GH_AW_AGENT_OUTPUT;
-              if (!agentOutputFile) {
-                core.info("No GH_AW_AGENT_OUTPUT environment variable found");
-                return { success: false };
-              }
-              let outputContent;
-              try {
-                outputContent = fs.readFileSync(agentOutputFile, "utf8");
-              } catch (error) {
-                const errorMessage = `Error reading agent output file: ${error instanceof Error ? error.message : String(error)}`;
-                core.error(errorMessage);
-                return { success: false, error: errorMessage };
-              }
-              if (outputContent.trim() === "") {
-                core.info("Agent output content is empty");
-                return { success: false };
-              }
-              core.info(`Agent output content length: ${outputContent.length}`);
-              let validatedOutput;
-              try {
-                validatedOutput = JSON.parse(outputContent);
-              } catch (error) {
-                const errorMessage = `Error parsing agent output JSON: ${error instanceof Error ? error.message : String(error)}`;
-                core.error(errorMessage);
-                core.info(`Failed to parse content:\n${truncateForLogging(outputContent)}`);
-                return { success: false, error: errorMessage };
-              }
-              if (!validatedOutput.items || !Array.isArray(validatedOutput.items)) {
-                core.info("No valid items found in agent output");
-                core.info(`Parsed content: ${truncateForLogging(JSON.stringify(validatedOutput))}`);
-                return { success: false };
-              }
-              return { success: true, items: validatedOutput.items };
-            }
-            async function generateStagedPreview(options) {
-              const { title, description, items, renderItem } = options;
-              let summaryContent = `## 🎭 Staged Mode: ${title} Preview\n\n`;
-              summaryContent += `${description}\n\n`;
-              for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                summaryContent += renderItem(item, i);
-                summaryContent += "---\n\n";
-              }
-              try {
-                await core.summary.addRaw(summaryContent).write();
-                core.info(summaryContent);
-                core.info(`📝 ${title} preview written to step summary`);
-              } catch (error) {
-                core.setFailed(error instanceof Error ? error : String(error));
-              }
-            }
-            function parseAllowedItems(envValue) {
-              const trimmed = envValue?.trim();
-              if (!trimmed) {
-                return undefined;
-              }
-              return trimmed
-                .split(",")
-                .map(item => item.trim())
-                .filter(item => item);
-            }
-            function parseMaxCount(envValue, defaultValue = 3) {
-              if (!envValue) {
-                return { valid: true, value: defaultValue };
-              }
-              const parsed = parseInt(envValue, 10);
-              if (isNaN(parsed) || parsed < 1) {
-                return {
-                  valid: false,
-                  error: `Invalid max value: ${envValue}. Must be a positive integer`,
-                };
-              }
-              return { valid: true, value: parsed };
-            }
-            function resolveTarget(params) {
-              const { targetConfig, item, context, itemType, supportsPR = false } = params;
-              const isIssueContext = context.eventName === "issues" || context.eventName === "issue_comment";
-              const isPRContext =
-                context.eventName === "pull_request" ||
-                context.eventName === "pull_request_review" ||
-                context.eventName === "pull_request_review_comment";
-              const target = targetConfig || "triggering";
-              if (target === "triggering") {
-                if (supportsPR) {
-                  if (!isIssueContext && !isPRContext) {
-                    return {
-                      success: false,
-                      error: `Target is "triggering" but not running in issue or pull request context, skipping ${itemType}`,
-                      shouldFail: false, 
-                    };
-                  }
-                } else {
-                  if (!isPRContext) {
-                    return {
-                      success: false,
-                      error: `Target is "triggering" but not running in pull request context, skipping ${itemType}`,
-                      shouldFail: false, 
-                    };
-                  }
-                }
-              }
-              let itemNumber;
-              let contextType;
-              if (target === "*") {
-                const numberField = supportsPR ? item.item_number || item.issue_number || item.pull_request_number : item.pull_request_number;
-                if (numberField) {
-                  itemNumber = typeof numberField === "number" ? numberField : parseInt(String(numberField), 10);
-                  if (isNaN(itemNumber) || itemNumber <= 0) {
-                    return {
-                      success: false,
-                      error: `Invalid ${supportsPR ? "item_number/issue_number/pull_request_number" : "pull_request_number"} specified: ${numberField}`,
-                      shouldFail: true,
-                    };
-                  }
-                  contextType = supportsPR && (item.item_number || item.issue_number) ? "issue" : "pull request";
-                } else {
-                  return {
-                    success: false,
-                    error: `Target is "*" but no ${supportsPR ? "item_number/issue_number" : "pull_request_number"} specified in ${itemType} item`,
-                    shouldFail: true,
-                  };
-                }
-              } else if (target !== "triggering") {
-                itemNumber = parseInt(target, 10);
-                if (isNaN(itemNumber) || itemNumber <= 0) {
-                  return {
-                    success: false,
-                    error: `Invalid ${supportsPR ? "issue" : "pull request"} number in target configuration: ${target}`,
-                    shouldFail: true,
-                  };
-                }
-                contextType = supportsPR ? "issue" : "pull request";
-              } else {
-                if (isIssueContext) {
-                  if (context.payload.issue) {
-                    itemNumber = context.payload.issue.number;
-                    contextType = "issue";
-                  } else {
-                    return {
-                      success: false,
-                      error: "Issue context detected but no issue found in payload",
-                      shouldFail: true,
-                    };
-                  }
-                } else if (isPRContext) {
-                  if (context.payload.pull_request) {
-                    itemNumber = context.payload.pull_request.number;
-                    contextType = "pull request";
-                  } else {
-                    return {
-                      success: false,
-                      error: "Pull request context detected but no pull request found in payload",
-                      shouldFail: true,
-                    };
-                  }
-                }
-              }
-              if (!itemNumber) {
-                return {
-                  success: false,
-                  error: `Could not determine ${supportsPR ? "issue or pull request" : "pull request"} number`,
-                  shouldFail: true,
-                };
-              }
-              return {
-                success: true,
-                number: itemNumber,
-                contextType: contextType || (supportsPR ? "issue" : "pull request"),
-              };
-            }
-            function sanitizeLabelContent(content) {
-              if (!content || typeof content !== "string") {
-                return "";
-              }
-              let sanitized = content.trim();
-              sanitized = sanitized.replace(/\x1b\[[0-9;]*[mGKH]/g, "");
-              sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
-              sanitized = sanitized.replace(
-                /(^|[^\w`])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?(?:\/[A-Za-z0-9._-]+)?)/g,
-                (_m, p1, p2) => `${p1}\`@${p2}\``
-              );
-              sanitized = sanitized.replace(/[<>&'"]/g, "");
-              return sanitized.trim();
-            }
-            function loadSafeOutputsConfig() {
-              const configPath = "/tmp/gh-aw/safeoutputs/config.json";
-              try {
-                if (!fs.existsSync(configPath)) {
-                  core.warning(`Config file not found at ${configPath}, using defaults`);
-                  return {};
-                }
-                const configContent = fs.readFileSync(configPath, "utf8");
-                return JSON.parse(configContent);
-              } catch (error) {
-                core.warning(`Failed to load config: ${error instanceof Error ? error.message : String(error)}`);
-                return {};
-              }
-            }
-            function getSafeOutputConfig(outputType) {
-              const config = loadSafeOutputsConfig();
-              return config[outputType] || {};
-            }
-            function validateTitle(title, fieldName = "title") {
-              if (title === undefined || title === null) {
-                return { valid: false, error: `${fieldName} is required` };
-              }
-              if (typeof title !== "string") {
-                return { valid: false, error: `${fieldName} must be a string` };
-              }
-              const trimmed = title.trim();
-              if (trimmed.length === 0) {
-                return { valid: false, error: `${fieldName} cannot be empty` };
-              }
-              return { valid: true, value: trimmed };
-            }
-            function validateBody(body, fieldName = "body", required = false) {
-              if (body === undefined || body === null) {
-                if (required) {
-                  return { valid: false, error: `${fieldName} is required` };
-                }
-                return { valid: true, value: "" };
-              }
-              if (typeof body !== "string") {
-                return { valid: false, error: `${fieldName} must be a string` };
-              }
-              return { valid: true, value: body };
-            }
-            function validateLabels(labels, allowedLabels = undefined, maxCount = 3) {
-              if (!labels || !Array.isArray(labels)) {
-                return { valid: false, error: "labels must be an array" };
-              }
-              for (const label of labels) {
-                if (label && typeof label === "string" && label.startsWith("-")) {
-                  return { valid: false, error: `Label removal is not permitted. Found line starting with '-': ${label}` };
-                }
-              }
-              let validLabels = labels;
-              if (allowedLabels && allowedLabels.length > 0) {
-                validLabels = labels.filter(label => allowedLabels.includes(label));
-              }
-              const uniqueLabels = validLabels
-                .filter(label => label != null && label !== false && label !== 0)
-                .map(label => String(label).trim())
-                .filter(label => label)
-                .map(label => sanitizeLabelContent(label))
-                .filter(label => label)
-                .map(label => (label.length > 64 ? label.substring(0, 64) : label))
-                .filter((label, index, arr) => arr.indexOf(label) === index);
-              if (uniqueLabels.length > maxCount) {
-                core.info(`Too many labels (${uniqueLabels.length}), limiting to ${maxCount}`);
-                return { valid: true, value: uniqueLabels.slice(0, maxCount) };
-              }
-              if (uniqueLabels.length === 0) {
-                return { valid: false, error: "No valid labels found after sanitization" };
-              }
-              return { valid: true, value: uniqueLabels };
-            }
-            function validateMaxCount(envValue, configDefault, fallbackDefault = 1) {
-              const defaultValue = configDefault !== undefined ? configDefault : fallbackDefault;
-              if (!envValue) {
-                return { valid: true, value: defaultValue };
-              }
-              const parsed = parseInt(envValue, 10);
-              if (isNaN(parsed) || parsed < 1) {
-                return {
-                  valid: false,
-                  error: `Invalid max value: ${envValue}. Must be a positive integer`,
-                };
-              }
-              return { valid: true, value: parsed };
-            }
-            async function processSafeOutput(config, stagedPreviewOptions) {
-              const {
-                itemType,
-                configKey,
-                displayName,
-                itemTypeName,
-                supportsPR = false,
-                supportsIssue = false,
-                findMultiple = false,
-                envVars,
-              } = config;
-              const result = loadAgentOutput();
-              if (!result.success) {
-                return { success: false, reason: "Agent output not available" };
-              }
-              let items;
-              if (findMultiple) {
-                items = result.items.filter(item => item.type === itemType);
-                if (items.length === 0) {
-                  core.info(`No ${itemType} items found in agent output`);
-                  return { success: false, reason: `No ${itemType} items found` };
-                }
-                core.info(`Found ${items.length} ${itemType} item(s)`);
-              } else {
-                const item = result.items.find(item => item.type === itemType);
-                if (!item) {
-                  core.warning(`No ${itemType.replace(/_/g, "-")} item found in agent output`);
-                  return { success: false, reason: `No ${itemType} item found` };
-                }
-                items = [item];
-                const itemDetails = getItemDetails(item);
-                if (itemDetails) {
-                  core.info(`Found ${itemType.replace(/_/g, "-")} item with ${itemDetails}`);
-                }
-              }
-              if (process.env.GH_AW_SAFE_OUTPUTS_STAGED === "true") {
-                await generateStagedPreview({
-                  title: stagedPreviewOptions.title,
-                  description: stagedPreviewOptions.description,
-                  items: items,
-                  renderItem: stagedPreviewOptions.renderItem,
-                });
-                return { success: false, reason: "Staged mode - preview generated" };
-              }
-              const safeOutputConfig = getSafeOutputConfig(configKey);
-              const allowedEnvValue = envVars.allowed ? process.env[envVars.allowed] : undefined;
-              const allowed = parseAllowedItems(allowedEnvValue) || safeOutputConfig.allowed;
-              if (allowed) {
-                core.info(`Allowed ${itemTypeName}s: ${JSON.stringify(allowed)}`);
-              } else {
-                core.info(`No ${itemTypeName} restrictions - any ${itemTypeName}s are allowed`);
-              }
-              const maxCountEnvValue = envVars.maxCount ? process.env[envVars.maxCount] : undefined;
-              const maxCountResult = validateMaxCount(maxCountEnvValue, safeOutputConfig.max);
-              if (!maxCountResult.valid) {
-                core.setFailed(maxCountResult.error);
-                return { success: false, reason: "Invalid max count configuration" };
-              }
-              const maxCount = maxCountResult.value;
-              core.info(`Max count: ${maxCount}`);
-              const target = envVars.target ? process.env[envVars.target] || "triggering" : "triggering";
-              core.info(`${displayName} target configuration: ${target}`);
-              if (findMultiple) {
-                return {
-                  success: true,
-                  items: items,
-                  config: {
-                    allowed,
-                    maxCount,
-                    target,
-                  },
-                };
-              }
-              const item = items[0];
-              const targetResult = resolveTarget({
-                targetConfig: target,
-                item: item,
-                context,
-                itemType: itemTypeName,
-                supportsPR: supportsPR || supportsIssue,
-              });
-              if (!targetResult.success) {
-                if (targetResult.shouldFail) {
-                  core.setFailed(targetResult.error);
-                } else {
-                  core.info(targetResult.error);
-                }
-                return { success: false, reason: targetResult.error };
-              }
-              return {
-                success: true,
-                item: item,
-                config: {
-                  allowed,
-                  maxCount,
-                  target,
-                },
-                targetResult: {
-                  number: targetResult.number,
-                  contextType: targetResult.contextType,
-                },
-              };
-            }
-            function getItemDetails(item) {
-              if (item.labels && Array.isArray(item.labels)) {
-                return `${item.labels.length} labels`;
-              }
-              if (item.reviewers && Array.isArray(item.reviewers)) {
-                return `${item.reviewers.length} reviewers`;
-              }
-              return null;
-            }
-            function sanitizeItems(items) {
-              return items
-                .filter(item => item != null && item !== false && item !== 0)
-                .map(item => String(item).trim())
-                .filter(item => item)
-                .filter((item, index, arr) => arr.indexOf(item) === index);
-            }
-            function filterByAllowed(items, allowed) {
-              if (!allowed || allowed.length === 0) {
-                return items;
-              }
-              return items.filter(item => allowed.includes(item));
-            }
-            function limitToMaxCount(items, maxCount) {
-              if (items.length > maxCount) {
-                core.info(`Too many items (${items.length}), limiting to ${maxCount}`);
-                return items.slice(0, maxCount);
-              }
-              return items;
-            }
-            function processItems(rawItems, allowed, maxCount) {
-              const filtered = filterByAllowed(rawItems, allowed);
-              const sanitized = sanitizeItems(filtered);
-              return limitToMaxCount(sanitized, maxCount);
-            }
-            async function main() {
-              const result = await processSafeOutput(
-                {
-                  itemType: "add_labels",
-                  configKey: "add_labels",
-                  displayName: "Labels",
-                  itemTypeName: "label addition",
-                  supportsPR: true,
-                  supportsIssue: true,
-                  envVars: {
-                    allowed: "GH_AW_LABELS_ALLOWED",
-                    maxCount: "GH_AW_LABELS_MAX_COUNT",
-                    target: "GH_AW_LABELS_TARGET",
-                  },
-                },
-                {
-                  title: "Add Labels",
-                  description: "The following labels would be added if staged mode was disabled:",
-                  renderItem: item => {
-                    let content = "";
-                    if (item.item_number) {
-                      content += `**Target Issue:** #${item.item_number}\n\n`;
-                    } else {
-                      content += `**Target:** Current issue/PR\n\n`;
-                    }
-                    if (item.labels && item.labels.length > 0) {
-                      content += `**Labels to add:** ${item.labels.join(", ")}\n\n`;
-                    }
-                    return content;
-                  },
-                }
-              );
-              if (!result.success) {
-                return;
-              }
-              const { item: labelsItem, config, targetResult } = result;
-              if (!config || !targetResult || targetResult.number === undefined) {
-                core.setFailed("Internal error: config, targetResult, or targetResult.number is undefined");
-                return;
-              }
-              const { allowed: allowedLabels, maxCount } = config;
-              const itemNumber = targetResult.number;
-              const { contextType } = targetResult;
-              const requestedLabels = labelsItem.labels || [];
-              core.info(`Requested labels: ${JSON.stringify(requestedLabels)}`);
-              const labelsResult = validateLabels(requestedLabels, allowedLabels, maxCount);
-              if (!labelsResult.valid) {
-                if (labelsResult.error && labelsResult.error.includes("No valid labels")) {
-                  core.info("No labels to add");
-                  core.setOutput("labels_added", "");
-                  await core.summary
-                    .addRaw(
-                      `
-            ## Label Addition
-            No labels were added (no valid labels found in agent output).
-            `
-                    )
-                    .write();
-                  return;
-                }
-                core.setFailed(labelsResult.error || "Invalid labels");
-                return;
-              }
-              const uniqueLabels = labelsResult.value || [];
-              if (uniqueLabels.length === 0) {
-                core.info("No labels to add");
-                core.setOutput("labels_added", "");
-                await core.summary
-                  .addRaw(
-                    `
-            ## Label Addition
-            No labels were added (no valid labels found in agent output).
-            `
-                  )
-                  .write();
-                return;
-              }
-              core.info(`Adding ${uniqueLabels.length} labels to ${contextType} #${itemNumber}: ${JSON.stringify(uniqueLabels)}`);
-              try {
-                await github.rest.issues.addLabels({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: itemNumber,
-                  labels: uniqueLabels,
-                });
-                core.info(`Successfully added ${uniqueLabels.length} labels to ${contextType} #${itemNumber}`);
-                core.setOutput("labels_added", uniqueLabels.join("\n"));
-                const labelsListMarkdown = uniqueLabels.map(label => `- \`${label}\``).join("\n");
-                await core.summary
-                  .addRaw(
-                    `
-            ## Label Addition
-            Successfully added ${uniqueLabels.length} label(s) to ${contextType} #${itemNumber}:
-            ${labelsListMarkdown}
-            `
-                  )
-                  .write();
-              } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                core.error(`Failed to add labels: ${errorMessage}`);
-                core.setFailed(`Failed to add labels: ${errorMessage}`);
-              }
-            }
-            await main();
 
   agent:
     needs: activation
@@ -810,7 +149,7 @@ jobs:
       output_types: ${{ steps.collect_output.outputs.output_types }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           persist-credentials: false
       - name: Create gh-aw temp directory
@@ -832,7 +171,7 @@ jobs:
       - name: Checkout PR branch
         if: |
           github.event.pull_request
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN || secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         with:
@@ -899,7 +238,7 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/github/copilot-cli/main/install.sh -o /tmp/copilot-install.sh
           
           # Execute the installer with the specified version
-          export VERSION=0.0.369 && sudo bash /tmp/copilot-install.sh
+          export VERSION=0.0.372 && sudo bash /tmp/copilot-install.sh
           
           # Cleanup
           rm -f /tmp/copilot-install.sh
@@ -908,27 +247,51 @@ jobs:
           copilot --version
       - name: Install awf binary
         run: |
-          echo "Installing awf from release: v0.6.0"
-          curl -L https://github.com/githubnext/gh-aw-firewall/releases/download/v0.6.0/awf-linux-x64 -o awf
-          chmod +x awf
-          sudo mv awf /usr/local/bin/
+          echo "Installing awf via installer script (requested version: v0.7.0)"
+          curl -sSL https://raw.githubusercontent.com/githubnext/gh-aw-firewall/main/install.sh | sudo AWF_VERSION=v0.7.0 bash
           which awf
           awf --version
       - name: Downloading container images
         run: |
           set -e
-          docker pull ghcr.io/github/github-mcp-server:v0.25.0
+          # Helper function to pull Docker images with retry logic
+          docker_pull_with_retry() {
+            local image="$1"
+            local max_attempts=3
+            local attempt=1
+            local wait_time=5
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt of $max_attempts: Pulling $image..."
+              if docker pull --quiet "$image"; then
+                echo "Successfully pulled $image"
+                return 0
+              fi
+              
+              if [ $attempt -lt $max_attempts ]; then
+                echo "Failed to pull $image. Retrying in ${wait_time}s..."
+                sleep $wait_time
+                wait_time=$((wait_time * 2))  # Exponential backoff
+              else
+                echo "Failed to pull $image after $max_attempts attempts"
+                return 1
+              fi
+              attempt=$((attempt + 1))
+            done
+          }
+          
+          docker_pull_with_retry ghcr.io/github/github-mcp-server:v0.26.3
       - name: Write Safe Outputs Config
         run: |
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
           cat > /tmp/gh-aw/safeoutputs/config.json << 'EOF'
-          {"add_labels":{"allowed":["bug","feature"],"max":10},"missing_tool":{"max":0},"noop":{"max":1}}
+          {"add_labels":{"allowed":["bug","feature","triaged-by-copilot"],"max":10},"missing_tool":{"max":0},"noop":{"max":1}}
           EOF
           cat > /tmp/gh-aw/safeoutputs/tools.json << 'EOF'
           [
             {
-              "description": "Add labels to an existing GitHub issue or pull request for categorization and filtering. Labels must already exist in the repository. For creating new issues with labels, use create_issue with the labels property instead. CONSTRAINTS: Maximum 10 label(s) can be added. Only these labels are allowed: [bug feature]. Target: *.",
+              "description": "Add labels to an existing GitHub issue or pull request for categorization and filtering. Labels must already exist in the repository. For creating new issues with labels, use create_issue with the labels property instead. CONSTRAINTS: Maximum 10 label(s) can be added. Only these labels are allowed: [bug feature triaged-by-copilot]. Target: *.",
               "inputSchema": {
                 "additionalProperties": false,
                 "properties": {
@@ -1229,9 +592,7 @@ jobs:
                 server.debug(`  [${toolName}] Python handler args: ${JSON.stringify(args)}`);
                 server.debug(`  [${toolName}] Timeout: ${timeoutSeconds}s`);
                 const inputJson = JSON.stringify(args || {});
-                server.debug(
-                  `  [${toolName}] Input JSON (${inputJson.length} bytes): ${inputJson.substring(0, 200)}${inputJson.length > 200 ? "..." : ""}`
-                );
+                server.debug(`  [${toolName}] Input JSON (${inputJson.length} bytes): ${inputJson.substring(0, 200)}${inputJson.length > 200 ? "..." : ""}`);
                 return new Promise((resolve, reject) => {
                   server.debug(`  [${toolName}] Executing Python script...`);
                   const child = execFile(
@@ -1339,9 +700,7 @@ jobs:
                       try {
                         if (fs.existsSync(outputFile)) {
                           const outputContent = fs.readFileSync(outputFile, "utf-8");
-                          server.debug(
-                            `  [${toolName}] Output file content: ${outputContent.substring(0, 500)}${outputContent.length > 500 ? "..." : ""}`
-                          );
+                          server.debug(`  [${toolName}] Output file content: ${outputContent.substring(0, 500)}${outputContent.length > 500 ? "..." : ""}`);
                           const lines = outputContent.split("\n");
                           for (const line of lines) {
                             const trimmed = line.trim();
@@ -1399,10 +758,7 @@ jobs:
                   fs.mkdirSync(server.logDir, { recursive: true });
                 }
                 const timestamp = new Date().toISOString();
-                fs.writeFileSync(
-                  server.logFilePath,
-                  `# ${server.serverInfo.name} MCP Server Log\n# Started: ${timestamp}\n# Version: ${server.serverInfo.version}\n\n`
-                );
+                fs.writeFileSync(server.logFilePath, `# ${server.serverInfo.name} MCP Server Log\n# Started: ${timestamp}\n# Version: ${server.serverInfo.version}\n\n`);
                 server.logFileInitialized = true;
               } catch {
               }
@@ -2062,10 +1418,7 @@ jobs:
                 const isInWorkspace = absolutePath.startsWith(path.resolve(workspaceDir));
                 const isInTmp = absolutePath.startsWith(tmpDir);
                 if (!isInWorkspace && !isInTmp) {
-                  throw new Error(
-                    `File path must be within workspace directory (${workspaceDir}) or /tmp directory. ` +
-                      `Provided path: ${filePath} (resolved to: ${absolutePath})`
-                  );
+                  throw new Error(`File path must be within workspace directory (${workspaceDir}) or /tmp directory. ` + `Provided path: ${filePath} (resolved to: ${absolutePath})`);
                 }
                 if (!fs.existsSync(filePath)) {
                   throw new Error(`File not found: ${filePath}`);
@@ -2260,36 +1613,36 @@ jobs:
             const fs = require("fs");
             function loadTools(server) {
               const toolsPath = process.env.GH_AW_SAFE_OUTPUTS_TOOLS_PATH || "/tmp/gh-aw/safeoutputs/tools.json";
-              let ALL_TOOLS = [];
               server.debug(`Reading tools from file: ${toolsPath}`);
+              if (!fs.existsSync(toolsPath)) {
+                server.debug(`Tools file does not exist at: ${toolsPath}`);
+                server.debug(`Using empty tools array`);
+                return [];
+              }
               try {
-                if (fs.existsSync(toolsPath)) {
-                  server.debug(`Tools file exists at: ${toolsPath}`);
-                  const toolsFileContent = fs.readFileSync(toolsPath, "utf8");
-                  server.debug(`Tools file content length: ${toolsFileContent.length} characters`);
-                  server.debug(`Tools file read successfully, attempting to parse JSON`);
-                  ALL_TOOLS = JSON.parse(toolsFileContent);
-                  server.debug(`Successfully parsed ${ALL_TOOLS.length} tools from file`);
-                } else {
-                  server.debug(`Tools file does not exist at: ${toolsPath}`);
-                  server.debug(`Using empty tools array`);
-                  ALL_TOOLS = [];
-                }
+                server.debug(`Tools file exists at: ${toolsPath}`);
+                const toolsFileContent = fs.readFileSync(toolsPath, "utf8");
+                server.debug(`Tools file content length: ${toolsFileContent.length} characters`);
+                server.debug(`Tools file read successfully, attempting to parse JSON`);
+                const tools = JSON.parse(toolsFileContent);
+                server.debug(`Successfully parsed ${tools.length} tools from file`);
+                return tools;
               } catch (error) {
                 server.debug(`Error reading tools file: ${error instanceof Error ? error.message : String(error)}`);
                 server.debug(`Falling back to empty tools array`);
-                ALL_TOOLS = [];
+                return [];
               }
-              return ALL_TOOLS;
             }
             function attachHandlers(tools, handlers) {
+              const handlerMap = {
+                create_pull_request: handlers.createPullRequestHandler,
+                push_to_pull_request_branch: handlers.pushToPullRequestBranchHandler,
+                upload_asset: handlers.uploadAssetHandler,
+              };
               tools.forEach(tool => {
-                if (tool.name === "create_pull_request") {
-                  tool.handler = handlers.createPullRequestHandler;
-                } else if (tool.name === "push_to_pull_request_branch") {
-                  tool.handler = handlers.pushToPullRequestBranchHandler;
-                } else if (tool.name === "upload_asset") {
-                  tool.handler = handlers.uploadAssetHandler;
+                const handler = handlerMap[tool.name];
+                if (handler) {
+                  tool.handler = handler;
                 }
               });
               return tools;
@@ -2304,60 +1657,50 @@ jobs:
             function registerDynamicTools(server, tools, config, outputFile, registerTool, normalizeTool) {
               Object.keys(config).forEach(configKey => {
                 const normalizedKey = normalizeTool(configKey);
-                if (server.tools[normalizedKey]) {
+                if (server.tools[normalizedKey] || tools.find(t => t.name === normalizedKey)) {
                   return;
                 }
-                if (!tools.find(t => t.name === normalizedKey)) {
-                  const jobConfig = config[configKey];
-                  const dynamicTool = {
-                    name: normalizedKey,
-                    description: jobConfig && jobConfig.description ? jobConfig.description : `Custom safe-job: ${configKey}`,
-                    inputSchema: {
-                      type: "object",
-                      properties: {},
-                      additionalProperties: true, 
-                    },
-                    handler: args => {
-                      const entry = {
-                        type: normalizedKey,
-                        ...args,
-                      };
-                      const entryJSON = JSON.stringify(entry);
-                      fs.appendFileSync(outputFile, entryJSON + "\n");
-                      const outputText =
-                        jobConfig && jobConfig.output
-                          ? jobConfig.output
-                          : `Safe-job '${configKey}' executed successfully with arguments: ${JSON.stringify(args)}`;
-                      return {
-                        content: [
-                          {
-                            type: "text",
-                            text: JSON.stringify({ result: outputText }),
-                          },
-                        ],
-                      };
-                    },
-                  };
-                  if (jobConfig && jobConfig.inputs) {
-                    dynamicTool.inputSchema.properties = {};
-                    dynamicTool.inputSchema.required = [];
-                    Object.keys(jobConfig.inputs).forEach(inputName => {
-                      const inputDef = jobConfig.inputs[inputName];
-                      const propSchema = {
-                        type: inputDef.type || "string",
-                        description: inputDef.description || `Input parameter: ${inputName}`,
-                      };
-                      if (inputDef.options && Array.isArray(inputDef.options)) {
-                        propSchema.enum = inputDef.options;
-                      }
-                      dynamicTool.inputSchema.properties[inputName] = propSchema;
-                      if (inputDef.required) {
-                        dynamicTool.inputSchema.required.push(inputName);
-                      }
-                    });
-                  }
-                  registerTool(server, dynamicTool);
+                const jobConfig = config[configKey];
+                const dynamicTool = {
+                  name: normalizedKey,
+                  description: jobConfig?.description ?? `Custom safe-job: ${configKey}`,
+                  inputSchema: {
+                    type: "object",
+                    properties: {},
+                    additionalProperties: true, 
+                  },
+                  handler: args => {
+                    const entry = { type: normalizedKey, ...args };
+                    fs.appendFileSync(outputFile, `${JSON.stringify(entry)}\n`);
+                    const outputText = jobConfig?.output ?? `Safe-job '${configKey}' executed successfully with arguments: ${JSON.stringify(args)}`;
+                    return {
+                      content: [{ type: "text", text: JSON.stringify({ result: outputText }) }],
+                    };
+                  },
+                };
+                if (jobConfig?.inputs) {
+                  dynamicTool.inputSchema.properties = {};
+                  dynamicTool.inputSchema.required = [];
+                  Object.keys(jobConfig.inputs).forEach(inputName => {
+                    const inputDef = jobConfig.inputs[inputName];
+                    let jsonSchemaType = inputDef.type || "string";
+                    if (jsonSchemaType === "choice") {
+                      jsonSchemaType = "string";
+                    }
+                    const propSchema = {
+                      type: jsonSchemaType,
+                      description: inputDef.description || `Input parameter: ${inputName}`,
+                    };
+                    if (Array.isArray(inputDef.options)) {
+                      propSchema.enum = inputDef.options;
+                    }
+                    dynamicTool.inputSchema.properties[inputName] = propSchema;
+                    if (inputDef.required) {
+                      dynamicTool.inputSchema.required.push(inputName);
+                    }
+                  });
                 }
+                registerTool(server, dynamicTool);
               });
             }
             module.exports = {
@@ -2428,7 +1771,7 @@ jobs:
                   "GITHUB_READ_ONLY=1",
                   "-e",
                   "GITHUB_TOOLSETS=context,repos,issues,pull_requests",
-                  "ghcr.io/github/github-mcp-server:v0.25.0"
+                  "ghcr.io/github/github-mcp-server:v0.26.3"
                 ],
                 "tools": ["*"],
                 "env": {
@@ -2467,7 +1810,7 @@ jobs:
           echo "GITHUB_COPILOT_CLI_MODE: $GITHUB_COPILOT_CLI_MODE"
       - name: Generate agentic run info
         id: generate_aw_info
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             const fs = require('fs');
@@ -2477,7 +1820,7 @@ jobs:
               engine_name: "GitHub Copilot CLI",
               model: process.env.GH_AW_MODEL_AGENT_COPILOT || "",
               version: "",
-              agent_version: "0.0.369",
+              agent_version: "0.0.372",
               workflow_name: "Issue Triage",
               experimental: false,
               supports_tools_allowlist: true,
@@ -2494,7 +1837,7 @@ jobs:
               network_mode: "defaults",
               allowed_domains: [],
               firewall_enabled: true,
-              firewall_version: "",
+              awf_version: "v0.7.0",
               steps: {
                 firewall: "squid"
               },
@@ -2510,7 +1853,7 @@ jobs:
             // Set model as output for reuse in other steps/jobs
             core.setOutput('model', awInfo.model);
       - name: Generate workflow overview
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             const fs = require('fs');
@@ -2541,7 +1884,7 @@ jobs:
               '|----------|-------|\n' +
               `| Mode | ${awInfo.network_mode || 'defaults'} |\n` +
               `| Firewall | ${awInfo.firewall_enabled ? '✅ Enabled' : '❌ Disabled'} |\n` +
-              `| Firewall Version | ${awInfo.firewall_version || '(latest)'} |\n` +
+              `| Firewall Version | ${awInfo.awf_version || '(latest)'} |\n` +
               '\n' +
               (networkDetails ? `##### Allowed Domains\n${networkDetails}\n` : '') +
               '</details>';
@@ -2581,6 +1924,7 @@ jobs:
              - If the issue is clearly a bug report, add the label "bug"
              - If the issue already has both labels or one of these labels, skip it
              - If the issue is ambiguous and you cannot confidently determine the type, skip it (do not guess)
+             - **After successfully triaging an issue** (adding "feature" or "bug"), also add the "triaged-by-copilot" label to mark it as triaged. Skip adding this label if the issue already has a label that starts with "triaged" (e.g., "triaged", "triaged-manually"). You can add both labels ("feature"/"bug" and "triaged-by-copilot") in a single add_labels call.
           
           ## Guidelines
           
@@ -2693,7 +2037,7 @@ jobs:
           
           PROMPT_EOF
       - name: Substitute placeholders
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GH_AW_GITHUB_ACTOR: ${{ github.actor }}
@@ -2706,55 +2050,27 @@ jobs:
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
         with:
           script: |
-            /**
-             * @fileoverview Safe template placeholder substitution for GitHub Actions workflows.
-             * Replaces __VAR__ placeholders in a file with environment variable values without
-             * allowing shell expansion, preventing template injection attacks.
-             *
-             * @param {object} params - The parameters object
-             * @param {string} params.file - Path to the file to process
-             * @param {object} params.substitutions - Map of placeholder names to values (without __ prefix/suffix)
-             */
-            
-            const fs = require("fs");
-            
-            const substitutePlaceholders = async ({ file, substitutions }) => {
-              // Validate inputs
-              if (!file) {
-                throw new Error("file parameter is required");
-              }
-              if (!substitutions || typeof substitutions !== "object") {
-                throw new Error("substitutions parameter must be an object");
-              }
-            
-              // Read the file content
-              let content;
-              try {
-                content = fs.readFileSync(file, "utf8");
-              } catch (error) {
-                throw new Error(`Failed to read file ${file}: ${error.message}`);
-              }
-            
-              // Perform substitutions
-              // Each placeholder is in the format __VARIABLE_NAME__
-              // We replace it with the corresponding value from the substitutions object
-              for (const [key, value] of Object.entries(substitutions)) {
-                const placeholder = `__${key}__`;
-                // Use a simple string replacement - no regex to avoid any potential issues
-                // with special characters in the value
-                content = content.split(placeholder).join(value);
-              }
-            
-              // Write the updated content back to the file
-              try {
-                fs.writeFileSync(file, content, "utf8");
-              } catch (error) {
-                throw new Error(`Failed to write file ${file}: ${error.message}`);
-              }
-            
-              return `Successfully substituted ${Object.keys(substitutions).length} placeholder(s) in ${file}`;
-            };
-            
+            const fs = require("fs"),
+              substitutePlaceholders = async ({ file, substitutions }) => {
+                if (!file) throw new Error("file parameter is required");
+                if (!substitutions || "object" != typeof substitutions) throw new Error("substitutions parameter must be an object");
+                let content;
+                try {
+                  content = fs.readFileSync(file, "utf8");
+                } catch (error) {
+                  throw new Error(`Failed to read file ${file}: ${error.message}`);
+                }
+                for (const [key, value] of Object.entries(substitutions)) {
+                  const placeholder = `__${key}__`;
+                  content = content.split(placeholder).join(value);
+                }
+                try {
+                  fs.writeFileSync(file, content, "utf8");
+                } catch (error) {
+                  throw new Error(`Failed to write file ${file}: ${error.message}`);
+                }
+                return `Successfully substituted ${Object.keys(substitutions).length} placeholder(s) in ${file}`;
+              };
             
             
             // Call the substitution function
@@ -2772,7 +2088,7 @@ jobs:
               }
             });
       - name: Interpolate variables and render templates
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
         with:
@@ -2863,16 +2179,13 @@ jobs:
               return result;
             }
             function renderMarkdownTemplate(markdown) {
-              let result = markdown.replace(
-                /(\n?)([ \t]*{{#if\s+([^}]*)}}[ \t]*\n)([\s\S]*?)([ \t]*{{\/if}}[ \t]*)(\n?)/g,
-                (match, leadNL, openLine, cond, body, closeLine, trailNL) => {
-                  if (isTruthy(cond)) {
-                    return leadNL + body;
-                  } else {
-                    return "";
-                  }
+              let result = markdown.replace(/(\n?)([ \t]*{{#if\s+([^}]*)}}[ \t]*\n)([\s\S]*?)([ \t]*{{\/if}}[ \t]*)(\n?)/g, (match, leadNL, openLine, cond, body, closeLine, trailNL) => {
+                if (isTruthy(cond)) {
+                  return leadNL + body;
+                } else {
+                  return "";
                 }
-              );
+              });
               result = result.replace(/{{#if\s+([^}]*)}}([\s\S]*?){{\/if}}/g, (_, cond, body) => (isTruthy(cond) ? body : ""));
               result = result.replace(/\n{3,}/g, "\n\n");
               return result;
@@ -2946,14 +2259,14 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload prompt
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: prompt.txt
           path: /tmp/gh-aw/aw-prompts/prompt.txt
           if-no-files-found: warn
       - name: Upload agentic run info
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: aw_info.json
           path: /tmp/gh-aw/aw_info.json
@@ -2966,7 +2279,7 @@ jobs:
         timeout-minutes: 10
         run: |
           set -o pipefail
-          sudo -E awf --env-all --container-workdir "${GITHUB_WORKSPACE}" --mount /tmp:/tmp:rw --mount "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" --mount /usr/bin/date:/usr/bin/date:ro --mount /usr/bin/gh:/usr/bin/gh:ro --mount /usr/bin/yq:/usr/bin/yq:ro --mount /usr/local/bin/copilot:/usr/local/bin/copilot:ro --allow-domains api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org --log-level info --proxy-logs-dir /tmp/gh-aw/sandbox/firewall/logs \
+          sudo -E awf --env-all --container-workdir "${GITHUB_WORKSPACE}" --mount /tmp:/tmp:rw --mount "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" --mount /usr/bin/date:/usr/bin/date:ro --mount /usr/bin/gh:/usr/bin/gh:ro --mount /usr/bin/yq:/usr/bin/yq:ro --mount /usr/local/bin/copilot:/usr/local/bin/copilot:ro --allow-domains api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org --log-level info --proxy-logs-dir /tmp/gh-aw/sandbox/firewall/logs --image-tag 0.7.0 \
             -- /usr/local/bin/copilot --add-dir /tmp/gh-aw/ --log-level all --log-dir /tmp/gh-aw/sandbox/agent/logs/ --add-dir "${GITHUB_WORKSPACE}" --disable-builtin-mcps --allow-tool github --allow-tool safeoutputs --prompt "$(cat /tmp/gh-aw/aw-prompts/prompt.txt)"${GH_AW_MODEL_AGENT_COPILOT:+ --model "$GH_AW_MODEL_AGENT_COPILOT"} \
             2>&1 | tee /tmp/gh-aw/agent-stdio.log
         env:
@@ -2984,7 +2297,7 @@ jobs:
           XDG_CONFIG_HOME: /home/runner
       - name: Redact secrets in logs
         if: always()
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             const fs = require("fs");
@@ -3100,17 +2413,17 @@ jobs:
           SECRET_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Safe Outputs
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: safe_output.jsonl
           path: ${{ env.GH_AW_SAFE_OUTPUTS }}
           if-no-files-found: warn
       - name: Ingest agent output
         id: collect_output
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_SAFE_OUTPUTS: ${{ env.GH_AW_SAFE_OUTPUTS }}
-          GH_AW_ALLOWED_DOMAINS: "api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org"
+          GH_AW_ALLOWED_DOMAINS: "api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org"
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_API_URL: ${{ github.api_url }}
         with:
@@ -3162,10 +2475,7 @@ jobs:
                 return [];
               }
             }
-            function sanitizeContentCore(content, maxLength) {
-              if (!content || typeof content !== "string") {
-                return "";
-              }
+            function buildAllowedDomains() {
               const allowedDomainsEnv = process.env.GH_AW_ALLOWED_DOMAINS;
               const defaultAllowedDomains = ["github.com", "github.io", "githubusercontent.com", "githubassets.com", "github.dev", "codespaces.new"];
               let allowedDomains = allowedDomainsEnv
@@ -3184,164 +2494,141 @@ jobs:
                 const apiDomains = extractDomainsFromUrl(githubApiUrl);
                 allowedDomains = allowedDomains.concat(apiDomains);
               }
-              allowedDomains = [...new Set(allowedDomains)];
-              let sanitized = content;
-              sanitized = neutralizeCommands(sanitized);
-              sanitized = neutralizeAllMentions(sanitized);
-              sanitized = removeXmlComments(sanitized);
-              sanitized = convertXmlTags(sanitized);
-              sanitized = sanitized.replace(/\x1b\[[0-9;]*[mGKH]/g, "");
-              sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
-              sanitized = sanitizeUrlProtocols(sanitized);
-              sanitized = sanitizeUrlDomains(sanitized, allowedDomains);
-              const lines = sanitized.split("\n");
-              const maxLines = 65000;
-              maxLength = maxLength || 524288;
-              if (lines.length > maxLines) {
-                const truncationMsg = "\n[Content truncated due to line count]";
-                const truncatedLines = lines.slice(0, maxLines).join("\n") + truncationMsg;
-                if (truncatedLines.length > maxLength) {
-                  sanitized = truncatedLines.substring(0, maxLength - truncationMsg.length) + truncationMsg;
+              return [...new Set(allowedDomains)];
+            }
+            function sanitizeUrlProtocols(s) {
+              return s.replace(/((?:http|ftp|file|ssh|git):\/\/([\w.-]*)(?:[^\s]*)|(?:data|javascript|vbscript|about|mailto|tel):[^\s]+)/gi, (match, _fullMatch, domain) => {
+                if (domain) {
+                  const domainLower = domain.toLowerCase();
+                  const truncated = domainLower.length > 12 ? domainLower.substring(0, 12) + "..." : domainLower;
+                  if (typeof core !== "undefined" && core.info) {
+                    core.info(`Redacted URL: ${truncated}`);
+                  }
+                  if (typeof core !== "undefined" && core.debug) {
+                    core.debug(`Redacted URL (full): ${match}`);
+                  }
+                  addRedactedDomain(domainLower);
                 } else {
-                  sanitized = truncatedLines;
-                }
-              } else if (sanitized.length > maxLength) {
-                sanitized = sanitized.substring(0, maxLength) + "\n[Content truncated due to length]";
-              }
-              sanitized = neutralizeBotTriggers(sanitized);
-              return sanitized.trim();
-              function sanitizeUrlDomains(s, allowed) {
-                const httpsUrlRegex = /https:\/\/([\w.-]+(?::\d+)?)(\/(?:(?!https:\/\/)[^\s,])*)?/gi;
-                return s.replace(httpsUrlRegex, (match, hostnameWithPort, pathPart) => {
-                  const hostname = hostnameWithPort.split(":")[0].toLowerCase();
-                  pathPart = pathPart || "";
-                  const isAllowed = allowed.some(allowedDomain => {
-                    const normalizedAllowed = allowedDomain.toLowerCase();
-                    if (hostname === normalizedAllowed) {
-                      return true;
-                    }
-                    if (normalizedAllowed.startsWith("*.")) {
-                      const baseDomain = normalizedAllowed.substring(2); 
-                      return hostname.endsWith("." + baseDomain) || hostname === baseDomain;
-                    }
-                    return hostname.endsWith("." + normalizedAllowed);
-                  });
-                  if (isAllowed) {
-                    return match; 
-                  } else {
-                    const truncated = hostname.length > 12 ? hostname.substring(0, 12) + "..." : hostname;
+                  const protocolMatch = match.match(/^([^:]+):/);
+                  if (protocolMatch) {
+                    const protocol = protocolMatch[1] + ":";
+                    const truncated = match.length > 12 ? match.substring(0, 12) + "..." : match;
                     if (typeof core !== "undefined" && core.info) {
                       core.info(`Redacted URL: ${truncated}`);
                     }
                     if (typeof core !== "undefined" && core.debug) {
                       core.debug(`Redacted URL (full): ${match}`);
                     }
-                    addRedactedDomain(hostname);
-                    return "(redacted)";
+                    addRedactedDomain(protocol);
                   }
-                });
-              }
-              function sanitizeUrlProtocols(s) {
-                return s.replace(
-                  /\b((?:http|ftp|file|ssh|git):\/\/([\w.-]+)(?:[^\s]*)|(?:data|javascript|vbscript|about|mailto|tel):[^\s]+)/gi,
-                  (match, _fullMatch, domain) => {
-                    if (domain) {
-                      const domainLower = domain.toLowerCase();
-                      const truncated = domainLower.length > 12 ? domainLower.substring(0, 12) + "..." : domainLower;
-                      if (typeof core !== "undefined" && core.info) {
-                        core.info(`Redacted URL: ${truncated}`);
-                      }
-                      if (typeof core !== "undefined" && core.debug) {
-                        core.debug(`Redacted URL (full): ${match}`);
-                      }
-                      addRedactedDomain(domainLower);
-                    } else {
-                      const protocolMatch = match.match(/^([^:]+):/);
-                      if (protocolMatch) {
-                        const protocol = protocolMatch[1] + ":";
-                        const truncated = match.length > 12 ? match.substring(0, 12) + "..." : match;
-                        if (typeof core !== "undefined" && core.info) {
-                          core.info(`Redacted URL: ${truncated}`);
-                        }
-                        if (typeof core !== "undefined" && core.debug) {
-                          core.debug(`Redacted URL (full): ${match}`);
-                        }
-                        addRedactedDomain(protocol);
-                      }
-                    }
-                    return "(redacted)";
-                  }
-                );
-              }
-              function neutralizeCommands(s) {
-                const commandName = process.env.GH_AW_COMMAND;
-                if (!commandName) {
-                  return s;
                 }
-                const escapedCommand = commandName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-                return s.replace(new RegExp(`^(\\s*)/(${escapedCommand})\\b`, "i"), "$1`/$2`");
-              }
-              function neutralizeAllMentions(s) {
-                return s.replace(/(^|[^\w`])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?(?:\/[A-Za-z0-9._-]+)?)/g, (m, p1, p2) => {
+                return "(redacted)";
+              });
+            }
+            function sanitizeUrlDomains(s, allowed) {
+              const httpsUrlRegex = /https:\/\/([\w.-]+(?::\d+)?)(\/(?:(?!https:\/\/)[^\s,])*)?/gi;
+              return s.replace(httpsUrlRegex, (match, hostnameWithPort, pathPart) => {
+                const hostname = hostnameWithPort.split(":")[0].toLowerCase();
+                pathPart = pathPart || "";
+                const isAllowed = allowed.some(allowedDomain => {
+                  const normalizedAllowed = allowedDomain.toLowerCase();
+                  if (hostname === normalizedAllowed) {
+                    return true;
+                  }
+                  if (normalizedAllowed.startsWith("*.")) {
+                    const baseDomain = normalizedAllowed.substring(2); 
+                    return hostname.endsWith("." + baseDomain) || hostname === baseDomain;
+                  }
+                  return hostname.endsWith("." + normalizedAllowed);
+                });
+                if (isAllowed) {
+                  return match; 
+                } else {
+                  const truncated = hostname.length > 12 ? hostname.substring(0, 12) + "..." : hostname;
                   if (typeof core !== "undefined" && core.info) {
-                    core.info(`Escaped mention: @${p2} (not in allowed list)`);
+                    core.info(`Redacted URL: ${truncated}`);
                   }
-                  return `${p1}\`@${p2}\``;
-                });
-              }
-              function removeXmlComments(s) {
-                return s.replace(/<!--[\s\S]*?-->/g, "").replace(/<!--[\s\S]*?--!>/g, "");
-              }
-              function convertXmlTags(s) {
-                const allowedTags = [
-                  "b",
-                  "blockquote",
-                  "br",
-                  "code",
-                  "details",
-                  "em",
-                  "h1",
-                  "h2",
-                  "h3",
-                  "h4",
-                  "h5",
-                  "h6",
-                  "hr",
-                  "i",
-                  "li",
-                  "ol",
-                  "p",
-                  "pre",
-                  "strong",
-                  "sub",
-                  "summary",
-                  "sup",
-                  "table",
-                  "tbody",
-                  "td",
-                  "th",
-                  "thead",
-                  "tr",
-                  "ul",
-                ];
-                s = s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (match, content) => {
-                  const convertedContent = content.replace(/<(\/?[A-Za-z][A-Za-z0-9]*(?:[^>]*?))>/g, "($1)");
-                  return `(![CDATA[${convertedContent}]])`;
-                });
-                return s.replace(/<(\/?[A-Za-z!][^>]*?)>/g, (match, tagContent) => {
-                  const tagNameMatch = tagContent.match(/^\/?\s*([A-Za-z][A-Za-z0-9]*)/);
-                  if (tagNameMatch) {
-                    const tagName = tagNameMatch[1].toLowerCase();
-                    if (allowedTags.includes(tagName)) {
-                      return match; 
-                    }
+                  if (typeof core !== "undefined" && core.debug) {
+                    core.debug(`Redacted URL (full): ${match}`);
                   }
-                  return `(${tagContent})`; 
-                });
+                  addRedactedDomain(hostname);
+                  return "(redacted)";
+                }
+              });
+            }
+            function neutralizeCommands(s) {
+              const commandName = process.env.GH_AW_COMMAND;
+              if (!commandName) {
+                return s;
               }
-              function neutralizeBotTriggers(s) {
-                return s.replace(/\b(fixes?|closes?|resolves?|fix|close|resolve)\s+#(\w+)/gi, (match, action, ref) => `\`${action} #${ref}\``);
+              const escapedCommand = commandName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              return s.replace(new RegExp(`^(\\s*)/(${escapedCommand})\\b`, "i"), "$1`/$2`");
+            }
+            function neutralizeAllMentions(s) {
+              return s.replace(/(^|[^\w`])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?(?:\/[A-Za-z0-9._-]+)?)/g, (m, p1, p2) => {
+                if (typeof core !== "undefined" && core.info) {
+                  core.info(`Escaped mention: @${p2} (not in allowed list)`);
+                }
+                return `${p1}\`@${p2}\``;
+              });
+            }
+            function removeXmlComments(s) {
+              return s.replace(/<!--[\s\S]*?-->/g, "").replace(/<!--[\s\S]*?--!>/g, "");
+            }
+            function convertXmlTags(s) {
+              const allowedTags = ["b", "blockquote", "br", "code", "details", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "li", "ol", "p", "pre", "strong", "sub", "summary", "sup", "table", "tbody", "td", "th", "thead", "tr", "ul"];
+              s = s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (match, content) => {
+                const convertedContent = content.replace(/<(\/?[A-Za-z][A-Za-z0-9]*(?:[^>]*?))>/g, "($1)");
+                return `(![CDATA[${convertedContent}]])`;
+              });
+              return s.replace(/<(\/?[A-Za-z!][^>]*?)>/g, (match, tagContent) => {
+                const tagNameMatch = tagContent.match(/^\/?\s*([A-Za-z][A-Za-z0-9]*)/);
+                if (tagNameMatch) {
+                  const tagName = tagNameMatch[1].toLowerCase();
+                  if (allowedTags.includes(tagName)) {
+                    return match; 
+                  }
+                }
+                return `(${tagContent})`; 
+              });
+            }
+            function neutralizeBotTriggers(s) {
+              return s.replace(/\b(fixes?|closes?|resolves?|fix|close|resolve)\s+#(\w+)/gi, (match, action, ref) => `\`${action} #${ref}\``);
+            }
+            function applyTruncation(content, maxLength) {
+              maxLength = maxLength || 524288;
+              const lines = content.split("\n");
+              const maxLines = 65000;
+              if (lines.length > maxLines) {
+                const truncationMsg = "\n[Content truncated due to line count]";
+                const truncatedLines = lines.slice(0, maxLines).join("\n") + truncationMsg;
+                if (truncatedLines.length > maxLength) {
+                  return truncatedLines.substring(0, maxLength - truncationMsg.length) + truncationMsg;
+                } else {
+                  return truncatedLines;
+                }
+              } else if (content.length > maxLength) {
+                return content.substring(0, maxLength) + "\n[Content truncated due to length]";
               }
+              return content;
+            }
+            function sanitizeContentCore(content, maxLength) {
+              if (!content || typeof content !== "string") {
+                return "";
+              }
+              const allowedDomains = buildAllowedDomains();
+              let sanitized = content;
+              sanitized = sanitized.replace(/\x1b\[[0-9;]*[mGKH]/g, "");
+              sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+              sanitized = neutralizeCommands(sanitized);
+              sanitized = neutralizeAllMentions(sanitized);
+              sanitized = removeXmlComments(sanitized);
+              sanitized = convertXmlTags(sanitized);
+              sanitized = sanitizeUrlProtocols(sanitized);
+              sanitized = sanitizeUrlDomains(sanitized, allowedDomains);
+              sanitized = applyTruncation(sanitized, maxLength);
+              sanitized = neutralizeBotTriggers(sanitized);
+              return sanitized.trim();
             }
             function sanitizeContent(content, maxLengthOrOptions) {
               let maxLength;
@@ -3358,122 +2645,19 @@ jobs:
               if (!content || typeof content !== "string") {
                 return "";
               }
-              const allowedDomainsEnv = process.env.GH_AW_ALLOWED_DOMAINS;
-              const defaultAllowedDomains = ["github.com", "github.io", "githubusercontent.com", "githubassets.com", "github.dev", "codespaces.new"];
-              let allowedDomains = allowedDomainsEnv
-                ? allowedDomainsEnv
-                    .split(",")
-                    .map(d => d.trim())
-                    .filter(d => d)
-                : defaultAllowedDomains;
-              const githubServerUrl = process.env.GITHUB_SERVER_URL;
-              const githubApiUrl = process.env.GITHUB_API_URL;
-              if (githubServerUrl) {
-                const serverDomains = extractDomainsFromUrl(githubServerUrl);
-                allowedDomains = allowedDomains.concat(serverDomains);
-              }
-              if (githubApiUrl) {
-                const apiDomains = extractDomainsFromUrl(githubApiUrl);
-                allowedDomains = allowedDomains.concat(apiDomains);
-              }
-              allowedDomains = [...new Set(allowedDomains)];
+              const allowedDomains = buildAllowedDomains();
               let sanitized = content;
+              sanitized = sanitized.replace(/\x1b\[[0-9;]*[mGKH]/g, "");
+              sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
               sanitized = neutralizeCommands(sanitized);
               sanitized = neutralizeMentions(sanitized, allowedAliasesLowercase);
               sanitized = removeXmlComments(sanitized);
               sanitized = convertXmlTags(sanitized);
-              sanitized = sanitized.replace(/\x1b\[[0-9;]*[mGKH]/g, "");
-              sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
               sanitized = sanitizeUrlProtocols(sanitized);
               sanitized = sanitizeUrlDomains(sanitized, allowedDomains);
-              const lines = sanitized.split("\n");
-              const maxLines = 65000;
-              maxLength = maxLength || 524288;
-              if (lines.length > maxLines) {
-                const truncationMsg = "\n[Content truncated due to line count]";
-                const truncatedLines = lines.slice(0, maxLines).join("\n") + truncationMsg;
-                if (truncatedLines.length > maxLength) {
-                  sanitized = truncatedLines.substring(0, maxLength - truncationMsg.length) + truncationMsg;
-                } else {
-                  sanitized = truncatedLines;
-                }
-              } else if (sanitized.length > maxLength) {
-                sanitized = sanitized.substring(0, maxLength) + "\n[Content truncated due to length]";
-              }
+              sanitized = applyTruncation(sanitized, maxLength);
               sanitized = neutralizeBotTriggers(sanitized);
               return sanitized.trim();
-              function sanitizeUrlDomains(s, allowed) {
-                const httpsUrlRegex = /https:\/\/([\w.-]+(?::\d+)?)(\/[^\s]*)?/gi;
-                const result = s.replace(httpsUrlRegex, (match, hostnameWithPort, pathPart) => {
-                  const hostname = hostnameWithPort.split(":")[0].toLowerCase();
-                  pathPart = pathPart || "";
-                  const isAllowed = allowed.some(allowedDomain => {
-                    const normalizedAllowed = allowedDomain.toLowerCase();
-                    if (hostname === normalizedAllowed) {
-                      return true;
-                    }
-                    if (normalizedAllowed.startsWith("*.")) {
-                      const baseDomain = normalizedAllowed.substring(2);
-                      return hostname.endsWith("." + baseDomain) || hostname === baseDomain;
-                    }
-                    return hostname.endsWith("." + normalizedAllowed);
-                  });
-                  if (isAllowed) {
-                    return match;
-                  } else {
-                    const truncated = hostname.length > 12 ? hostname.substring(0, 12) + "..." : hostname;
-                    if (typeof core !== "undefined" && core.info) {
-                      core.info(`Redacted URL: ${truncated}`);
-                    }
-                    if (typeof core !== "undefined" && core.debug) {
-                      core.debug(`Redacted URL (full): ${match}`);
-                    }
-                    addRedactedDomain(hostname);
-                    return "(redacted)";
-                  }
-                });
-                return result;
-              }
-              function sanitizeUrlProtocols(s) {
-                return s.replace(
-                  /\b((?:http|ftp|file|ssh|git):\/\/([\w.-]+)(?:[^\s]*)|(?:data|javascript|vbscript|about|mailto|tel):[^\s]+)/gi,
-                  (match, _fullMatch, domain) => {
-                    if (domain) {
-                      const domainLower = domain.toLowerCase();
-                      const truncated = domainLower.length > 12 ? domainLower.substring(0, 12) + "..." : domainLower;
-                      if (typeof core !== "undefined" && core.info) {
-                        core.info(`Redacted URL: ${truncated}`);
-                      }
-                      if (typeof core !== "undefined" && core.debug) {
-                        core.debug(`Redacted URL (full): ${match}`);
-                      }
-                      addRedactedDomain(domainLower);
-                    } else {
-                      const protocolMatch = match.match(/^([^:]+):/);
-                      if (protocolMatch) {
-                        const protocol = protocolMatch[1] + ":";
-                        const truncated = match.length > 12 ? match.substring(0, 12) + "..." : match;
-                        if (typeof core !== "undefined" && core.info) {
-                          core.info(`Redacted URL: ${truncated}`);
-                        }
-                        if (typeof core !== "undefined" && core.debug) {
-                          core.debug(`Redacted URL (full): ${match}`);
-                        }
-                        addRedactedDomain(protocol);
-                      }
-                    }
-                    return "(redacted)";
-                  }
-                );
-              }
-              function neutralizeCommands(s) {
-                const commandName = process.env.GH_AW_COMMAND;
-                if (!commandName) {
-                  return s;
-                }
-                const escapedCommand = commandName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-                return s.replace(new RegExp(`^(\\s*)/(${escapedCommand})\\b`, "i"), "$1`/$2`");
-              }
               function neutralizeMentions(s, allowedLowercase) {
                 return s.replace(/(^|[^\w`])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?(?:\/[A-Za-z0-9._-]+)?)/g, (_m, p1, p2) => {
                   const isAllowed = allowedLowercase.includes(p2.toLowerCase());
@@ -3485,59 +2669,6 @@ jobs:
                   }
                   return `${p1}\`@${p2}\``; 
                 });
-              }
-              function removeXmlComments(s) {
-                return s.replace(/<!--[\s\S]*?-->/g, "").replace(/<!--[\s\S]*?--!>/g, "");
-              }
-              function convertXmlTags(s) {
-                const allowedTags = [
-                  "b",
-                  "blockquote",
-                  "br",
-                  "code",
-                  "details",
-                  "em",
-                  "h1",
-                  "h2",
-                  "h3",
-                  "h4",
-                  "h5",
-                  "h6",
-                  "hr",
-                  "i",
-                  "li",
-                  "ol",
-                  "p",
-                  "pre",
-                  "strong",
-                  "sub",
-                  "summary",
-                  "sup",
-                  "table",
-                  "tbody",
-                  "td",
-                  "th",
-                  "thead",
-                  "tr",
-                  "ul",
-                ];
-                s = s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (match, content) => {
-                  const convertedContent = content.replace(/<(\/?[A-Za-z][A-Za-z0-9]*(?:[^>]*?))>/g, "($1)");
-                  return `(![CDATA[${convertedContent}]])`;
-                });
-                return s.replace(/<(\/?[A-Za-z!][^>]*?)>/g, (match, tagContent) => {
-                  const tagNameMatch = tagContent.match(/^\/?\s*([A-Za-z][A-Za-z0-9]*)/);
-                  if (tagNameMatch) {
-                    const tagName = tagNameMatch[1].toLowerCase();
-                    if (allowedTags.includes(tagName)) {
-                      return match;
-                    }
-                  }
-                  return `(${tagContent})`;
-                });
-              }
-              function neutralizeBotTriggers(s) {
-                return s.replace(/\b(fixes?|closes?|resolves?|fix|close|resolve)\s+#(\w+)/gi, (match, action, ref) => `\`${action} #${ref}\``);
               }
             }
             const crypto = require("crypto");
@@ -4212,9 +3343,7 @@ jobs:
                   core.info(`Loaded validation config from ${validationConfigPath}`);
                 }
               } catch (error) {
-                core.warning(
-                  `Failed to read validation config from ${validationConfigPath}: ${error instanceof Error ? error.message : String(error)}`
-                );
+                core.warning(`Failed to read validation config from ${validationConfigPath}: ${error instanceof Error ? error.message : String(error)}`);
               }
               const mentionsConfig = validationConfig?.mentions || null;
               const allowedMentions = await resolveAllowedMentionsFromPayload(context, github, core, mentionsConfig);
@@ -4427,9 +3556,7 @@ jobs:
                   core.info(`[INGESTION] Line ${i + 1}: Original type='${originalType}', Normalized type='${itemType}'`);
                   item.type = itemType;
                   if (!expectedOutputTypes[itemType]) {
-                    core.warning(
-                      `[INGESTION] Line ${i + 1}: Type '${itemType}' not found in expected types: ${JSON.stringify(Object.keys(expectedOutputTypes))}`
-                    );
+                    core.warning(`[INGESTION] Line ${i + 1}: Type '${itemType}' not found in expected types: ${JSON.stringify(Object.keys(expectedOutputTypes))}`);
                     errors.push(`Line ${i + 1}: Unexpected output type '${itemType}'. Expected one of: ${Object.keys(expectedOutputTypes).join(", ")}`);
                     continue;
                   }
@@ -4511,10 +3638,7 @@ jobs:
               core.info(`Patch file ${hasPatch ? "exists" : "does not exist"} at: ${patchPath}`);
               let allowEmptyPR = false;
               if (safeOutputsConfig) {
-                if (
-                  safeOutputsConfig["create-pull-request"]?.["allow-empty"] === true ||
-                  safeOutputsConfig["create_pull_request"]?.["allow_empty"] === true
-                ) {
+                if (safeOutputsConfig["create-pull-request"]?.["allow-empty"] === true || safeOutputsConfig["create_pull_request"]?.["allow_empty"] === true) {
                   allowEmptyPR = true;
                   core.info(`allow-empty is enabled for create-pull-request`);
                 }
@@ -4529,13 +3653,13 @@ jobs:
             await main();
       - name: Upload sanitized agent output
         if: always() && env.GH_AW_AGENT_OUTPUT
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: agent_output.json
           path: ${{ env.GH_AW_AGENT_OUTPUT }}
           if-no-files-found: warn
       - name: Upload engine output files
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: agent_outputs
           path: |
@@ -4544,14 +3668,14 @@ jobs:
           if-no-files-found: ignore
       - name: Upload MCP logs
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: mcp-logs
           path: /tmp/gh-aw/mcp-logs/
           if-no-files-found: ignore
       - name: Parse agent logs for step summary
         if: always()
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_AGENT_OUTPUT: /tmp/gh-aw/sandbox/agent/logs/
         with:
@@ -4885,24 +4009,7 @@ jobs:
                   "Custom Agents": [],
                   Other: [],
                 };
-                const builtinTools = [
-                  "bash",
-                  "write_bash",
-                  "read_bash",
-                  "stop_bash",
-                  "list_bash",
-                  "grep",
-                  "glob",
-                  "view",
-                  "create",
-                  "edit",
-                  "store_memory",
-                  "code_review",
-                  "codeql_checker",
-                  "report_progress",
-                  "report_intent",
-                  "gh-advisory-database",
-                ];
+                const builtinTools = ["bash", "write_bash", "read_bash", "stop_bash", "list_bash", "grep", "glob", "view", "create", "edit", "store_memory", "code_review", "codeql_checker", "report_progress", "report_intent", "gh-advisory-database"];
                 const internalTools = ["fetch_copilot_cli_documentation"];
                 for (const tool of initEntry.tools) {
                   const toolLower = tool.toLowerCase();
@@ -5298,9 +4405,7 @@ jobs:
                   const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
                   const cacheReadTokens = usage.cache_read_input_tokens || 0;
                   const totalTokens = inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens;
-                  lines.push(
-                    `  Tokens: ${totalTokens.toLocaleString()} total (${usage.input_tokens.toLocaleString()} in / ${usage.output_tokens.toLocaleString()} out)`
-                  );
+                  lines.push(`  Tokens: ${totalTokens.toLocaleString()} total (${usage.input_tokens.toLocaleString()} in / ${usage.output_tokens.toLocaleString()} out)`);
                 }
               }
               if (lastEntry?.total_cost_usd) {
@@ -5459,9 +4564,7 @@ jobs:
                   const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
                   const cacheReadTokens = usage.cache_read_input_tokens || 0;
                   const totalTokens = inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens;
-                  lines.push(
-                    `  Tokens: ${totalTokens.toLocaleString()} total (${usage.input_tokens.toLocaleString()} in / ${usage.output_tokens.toLocaleString()} out)`
-                  );
+                  lines.push(`  Tokens: ${totalTokens.toLocaleString()} total (${usage.input_tokens.toLocaleString()} in / ${usage.output_tokens.toLocaleString()} out)`);
                 }
               }
               if (lastEntry?.total_cost_usd) {
@@ -5562,11 +4665,7 @@ jobs:
               });
             }
             function extractPremiumRequestCount(logContent) {
-              const patterns = [
-                /premium\s+requests?\s+consumed:?\s*(\d+)/i,
-                /(\d+)\s+premium\s+requests?\s+consumed/i,
-                /consumed\s+(\d+)\s+premium\s+requests?/i,
-              ];
+              const patterns = [/premium\s+requests?\s+consumed:?\s*(\d+)/i, /(\d+)\s+premium\s+requests?\s+consumed/i, /consumed\s+(\d+)\s+premium\s+requests?/i];
               for (const pattern of patterns) {
                 const match = logContent.match(pattern);
                 if (match && match[1]) {
@@ -5638,8 +4737,7 @@ jobs:
                 const initEntry = logEntries.find(entry => entry.type === "system" && entry.subtype === "init");
                 markdown += generateInformationSection(lastEntry, {
                   additionalInfoCallback: entry => {
-                    const isPremiumModel =
-                      initEntry && initEntry.model_info && initEntry.model_info.billing && initEntry.model_info.billing.is_premium === true;
+                    const isPremiumModel = initEntry && initEntry.model_info && initEntry.model_info.billing && initEntry.model_info.billing.is_premium === true;
                     if (isPremiumModel) {
                       const premiumRequestCount = extractPremiumRequestCount(logContent);
                       return `**Premium Requests Consumed:** ${premiumRequestCount}\n\n`;
@@ -6055,320 +5153,172 @@ jobs:
       - name: Upload Firewall Logs
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: firewall-logs-issue-triage
           path: /tmp/gh-aw/sandbox/firewall/logs/
           if-no-files-found: ignore
       - name: Parse firewall logs for step summary
         if: always()
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             function sanitizeWorkflowName(name) {
-
               return name
-
                 .toLowerCase()
-
                 .replace(/[:\\/\s]/g, "-")
-
                 .replace(/[^a-z0-9._-]/g, "-");
-
             }
-
             function main() {
-
               const fs = require("fs");
-
               const path = require("path");
-
               try {
-
                 const squidLogsDir = `/tmp/gh-aw/sandbox/firewall/logs/`;
-
                 if (!fs.existsSync(squidLogsDir)) {
-
                   core.info(`No firewall logs directory found at: ${squidLogsDir}`);
-
                   return;
-
                 }
-
                 const files = fs.readdirSync(squidLogsDir).filter(file => file.endsWith(".log"));
-
                 if (files.length === 0) {
-
                   core.info(`No firewall log files found in: ${squidLogsDir}`);
-
                   return;
-
                 }
-
                 core.info(`Found ${files.length} firewall log file(s)`);
-
                 let totalRequests = 0;
-
                 let allowedRequests = 0;
-
                 let deniedRequests = 0;
-
                 const allowedDomains = new Set();
-
                 const deniedDomains = new Set();
-
                 const requestsByDomain = new Map();
-
                 for (const file of files) {
-
                   const filePath = path.join(squidLogsDir, file);
-
                   core.info(`Parsing firewall log: ${file}`);
-
                   const content = fs.readFileSync(filePath, "utf8");
-
                   const lines = content.split("\n").filter(line => line.trim());
-
                   for (const line of lines) {
-
                     const entry = parseFirewallLogLine(line);
-
                     if (!entry) {
-
                       continue;
-
                     }
-
                     totalRequests++;
-
                     const isAllowed = isRequestAllowed(entry.decision, entry.status);
-
                     if (isAllowed) {
-
                       allowedRequests++;
-
                       allowedDomains.add(entry.domain);
-
                     } else {
-
                       deniedRequests++;
-
                       deniedDomains.add(entry.domain);
-
                     }
-
                     if (!requestsByDomain.has(entry.domain)) {
-
                       requestsByDomain.set(entry.domain, { allowed: 0, denied: 0 });
-
                     }
-
                     const domainStats = requestsByDomain.get(entry.domain);
-
                     if (isAllowed) {
-
                       domainStats.allowed++;
-
                     } else {
-
                       domainStats.denied++;
-
                     }
-
                   }
-
                 }
-
                 const summary = generateFirewallSummary({
-
                   totalRequests,
-
                   allowedRequests,
-
                   deniedRequests,
-
                   allowedDomains: Array.from(allowedDomains).sort(),
-
                   deniedDomains: Array.from(deniedDomains).sort(),
-
                   requestsByDomain,
-
                 });
-
                 core.summary.addRaw(summary).write();
-
                 core.info("Firewall log summary generated successfully");
-
               } catch (error) {
-
                 core.setFailed(error instanceof Error ? error : String(error));
-
               }
-
             }
-
             function parseFirewallLogLine(line) {
-
               const trimmed = line.trim();
-
               if (!trimmed || trimmed.startsWith("#")) {
-
                 return null;
-
               }
-
               const fields = trimmed.match(/(?:[^\s"]+|"[^"]*")+/g);
-
               if (!fields || fields.length < 10) {
-
                 return null;
-
               }
-
               const timestamp = fields[0];
-
               if (!/^\d+(\.\d+)?$/.test(timestamp)) {
-
                 return null;
-
               }
-
               return {
-
                 timestamp,
-
                 clientIpPort: fields[1],
-
                 domain: fields[2],
-
                 destIpPort: fields[3],
-
                 proto: fields[4],
-
                 method: fields[5],
-
                 status: fields[6],
-
                 decision: fields[7],
-
                 url: fields[8],
-
                 userAgent: fields[9]?.replace(/^"|"$/g, "") || "-",
-
               };
-
             }
-
             function isRequestAllowed(decision, status) {
-
               const statusCode = parseInt(status, 10);
-
               if (statusCode === 200 || statusCode === 206 || statusCode === 304) {
-
                 return true;
-
               }
-
               if (decision.includes("TCP_TUNNEL") || decision.includes("TCP_HIT") || decision.includes("TCP_MISS")) {
-
                 return true;
-
               }
-
               if (decision.includes("NONE_NONE") || decision.includes("TCP_DENIED") || statusCode === 403 || statusCode === 407) {
-
                 return false;
-
               }
-
               return false;
-
             }
-
             function generateFirewallSummary(analysis) {
-
               const { totalRequests, requestsByDomain } = analysis;
-
               const validDomains = Array.from(requestsByDomain.keys())
-
                 .filter(domain => domain !== "-")
-
                 .sort();
-
               const uniqueDomainCount = validDomains.length;
-
               let validAllowedRequests = 0;
-
               let validDeniedRequests = 0;
-
               for (const domain of validDomains) {
-
                 const stats = requestsByDomain.get(domain);
-
                 validAllowedRequests += stats.allowed;
-
                 validDeniedRequests += stats.denied;
-
               }
-
-              let summary = "### 🔥 Firewall Activity\n\n";
-
+              let summary = "";
               summary += "<details>\n";
-
-              summary += `<summary>📊 ${totalRequests} request${totalRequests !== 1 ? "s" : ""} | `;
-
+              summary += `<summary>sandbox agent: ${totalRequests} request${totalRequests !== 1 ? "s" : ""} | `;
               summary += `${validAllowedRequests} allowed | `;
-
               summary += `${validDeniedRequests} blocked | `;
-
               summary += `${uniqueDomainCount} unique domain${uniqueDomainCount !== 1 ? "s" : ""}</summary>\n\n`;
-
               if (uniqueDomainCount > 0) {
-
                 summary += "| Domain | Allowed | Denied |\n";
-
                 summary += "|--------|---------|--------|\n";
-
                 for (const domain of validDomains) {
-
                   const stats = requestsByDomain.get(domain);
-
                   summary += `| ${domain} | ${stats.allowed} | ${stats.denied} |\n`;
-
                 }
-
               } else {
-
                 summary += "No firewall activity detected.\n";
-
               }
-
               summary += "\n</details>\n\n";
-
               return summary;
-
             }
-
-            const isDirectExecution =
-
-              typeof module === "undefined" || (typeof require !== "undefined" && typeof require.main !== "undefined" && require.main === module);
-
+            const isDirectExecution = typeof module === "undefined" || (typeof require !== "undefined" && typeof require.main !== "undefined" && require.main === module);
             if (isDirectExecution) {
-
               main();
-
             }
-
       - name: Upload Agent Stdio
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: agent-stdio.log
           path: /tmp/gh-aw/agent-stdio.log
           if-no-files-found: warn
       - name: Validate agent logs for errors
         if: always()
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_AGENT_OUTPUT: /tmp/gh-aw/sandbox/agent/logs/
           GH_AW_ERROR_PATTERNS: "[{\"id\":\"\",\"pattern\":\"::(error)(?:\\\\s+[^:]*)?::(.+)\",\"level_group\":1,\"message_group\":2,\"description\":\"GitHub Actions workflow command - error\"},{\"id\":\"\",\"pattern\":\"::(warning)(?:\\\\s+[^:]*)?::(.+)\",\"level_group\":1,\"message_group\":2,\"description\":\"GitHub Actions workflow command - warning\"},{\"id\":\"\",\"pattern\":\"::(notice)(?:\\\\s+[^:]*)?::(.+)\",\"level_group\":1,\"message_group\":2,\"description\":\"GitHub Actions workflow command - notice\"},{\"id\":\"\",\"pattern\":\"(ERROR|Error):\\\\s+(.+)\",\"level_group\":1,\"message_group\":2,\"description\":\"Generic ERROR messages\"},{\"id\":\"\",\"pattern\":\"(WARNING|Warning):\\\\s+(.+)\",\"level_group\":1,\"message_group\":2,\"description\":\"Generic WARNING messages\"},{\"id\":\"\",\"pattern\":\"(\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d{3}Z)\\\\s+\\\\[(ERROR)\\\\]\\\\s+(.+)\",\"level_group\":2,\"message_group\":3,\"description\":\"Copilot CLI timestamped ERROR messages\"},{\"id\":\"\",\"pattern\":\"(\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d{3}Z)\\\\s+\\\\[(WARN|WARNING)\\\\]\\\\s+(.+)\",\"level_group\":2,\"message_group\":3,\"description\":\"Copilot CLI timestamped WARNING messages\"},{\"id\":\"\",\"pattern\":\"\\\\[(\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d{3}Z)\\\\]\\\\s+(CRITICAL|ERROR):\\\\s+(.+)\",\"level_group\":2,\"message_group\":3,\"description\":\"Copilot CLI bracketed critical/error messages with timestamp\"},{\"id\":\"\",\"pattern\":\"\\\\[(\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d{3}Z)\\\\]\\\\s+(WARNING):\\\\s+(.+)\",\"level_group\":2,\"message_group\":3,\"description\":\"Copilot CLI bracketed warning messages with timestamp\"},{\"id\":\"\",\"pattern\":\"✗\\\\s+(.+)\",\"level_group\":0,\"message_group\":1,\"description\":\"Copilot CLI failed command indicator\"},{\"id\":\"\",\"pattern\":\"(?:command not found|not found):\\\\s*(.+)|(.+):\\\\s*(?:command not found|not found)\",\"level_group\":0,\"message_group\":0,\"description\":\"Shell command not found error\"},{\"id\":\"\",\"pattern\":\"Cannot find module\\\\s+['\\\"](.+)['\\\"]\",\"level_group\":0,\"message_group\":1,\"description\":\"Node.js module not found error\"},{\"id\":\"\",\"pattern\":\"Permission denied and could not request permission from user\",\"level_group\":0,\"message_group\":0,\"description\":\"Copilot CLI permission denied warning (user interaction required)\"},{\"id\":\"\",\"pattern\":\"\\\\berror\\\\b.*permission.*denied\",\"level_group\":0,\"message_group\":0,\"description\":\"Permission denied error (requires error context)\"},{\"id\":\"\",\"pattern\":\"\\\\berror\\\\b.*unauthorized\",\"level_group\":0,\"message_group\":0,\"description\":\"Unauthorized access error (requires error context)\"},{\"id\":\"\",\"pattern\":\"\\\\berror\\\\b.*forbidden\",\"level_group\":0,\"message_group\":0,\"description\":\"Forbidden access error (requires error context)\"}]"
@@ -6513,9 +5463,7 @@ jobs:
                     }
                     lastIndex = regex.lastIndex;
                     if (iterationCount === ITERATION_WARNING_THRESHOLD) {
-                      core.warning(
-                        `High iteration count (${iterationCount}) on line ${lineIndex + 1} with pattern: ${pattern.description || pattern.pattern}`
-                      );
+                      core.warning(`High iteration count (${iterationCount}) on line ${lineIndex + 1} with pattern: ${pattern.description || pattern.pattern}`);
                       core.warning(`Line content (truncated): ${truncateString(line, 200)}`);
                     }
                     if (iterationCount > MAX_ITERATIONS_PER_LINE) {
@@ -6608,9 +5556,9 @@ jobs:
   conclusion:
     needs:
       - activation
-      - add_labels
       - agent
       - detection
+      - safe_outputs
     if: (always()) && (needs.agent.result != 'skipped')
     runs-on: ubuntu-slim
     permissions:
@@ -6636,7 +5584,7 @@ jobs:
           echo "Agent Conclusion: $AGENT_CONCLUSION"
       - name: Download agent output artifact
         continue-on-error: true
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: agent_output.json
           path: /tmp/gh-aw/safeoutputs/
@@ -6647,7 +5595,7 @@ jobs:
           echo "GH_AW_AGENT_OUTPUT=/tmp/gh-aw/safeoutputs/agent_output.json" >> "$GITHUB_ENV"
       - name: Process No-Op Messages
         id: noop
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
           GH_AW_NOOP_MAX: 1
@@ -6740,7 +5688,7 @@ jobs:
             await main();
       - name: Record Missing Tool
         id: missing_tool
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
           GH_AW_WORKFLOW_NAME: "Issue Triage"
@@ -6821,9 +5769,7 @@ jobs:
               core.setOutput("total_count", missingTools.length.toString());
               if (missingTools.length > 0) {
                 core.info("Missing tools summary:");
-                core.summary
-                  .addHeading("Missing Tools Report", 3)
-                  .addRaw(`Found **${missingTools.length}** missing tool${missingTools.length > 1 ? "s" : ""} in this workflow execution.\n\n`);
+                core.summary.addHeading("Missing Tools Report", 3).addRaw(`Found **${missingTools.length}** missing tool${missingTools.length > 1 ? "s" : ""} in this workflow execution.\n\n`);
                 missingTools.forEach((tool, index) => {
                   core.info(`${index + 1}. Tool: ${tool.tool}`);
                   core.info(`   Reason: ${tool.reason}`);
@@ -6850,7 +5796,7 @@ jobs:
             });
       - name: Update reaction comment with completion status
         id: conclusion
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
           GH_AW_COMMENT_ID: ${{ needs.activation.outputs.comment_id }}
@@ -6954,9 +5900,7 @@ jobs:
               const messages = getMessages();
               const templateContext = toSnakeCase(ctx);
               const defaultMessage = "⚠️ Security scanning failed for [{workflow_name}]({run_url}). Review the logs for details.";
-              return messages?.detectionFailure
-                ? renderTemplate(messages.detectionFailure, templateContext)
-                : renderTemplate(defaultMessage, templateContext);
+              return messages?.detectionFailure ? renderTemplate(messages.detectionFailure, templateContext) : renderTemplate(defaultMessage, templateContext);
             }
             function collectGeneratedAssets() {
               const assets = [];
@@ -7124,20 +6068,20 @@ jobs:
     steps:
       - name: Download prompt artifact
         continue-on-error: true
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: prompt.txt
           path: /tmp/gh-aw/threat-detection/
       - name: Download agent output artifact
         continue-on-error: true
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: agent_output.json
           path: /tmp/gh-aw/threat-detection/
       - name: Download patch artifact
         if: needs.agent.outputs.has_patch == 'true'
         continue-on-error: true
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: aw.patch
           path: /tmp/gh-aw/threat-detection/
@@ -7147,7 +6091,7 @@ jobs:
         run: |
           echo "Agent output-types: $AGENT_OUTPUT_TYPES"
       - name: Setup threat detection
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           WORKFLOW_NAME: "Issue Triage"
           WORKFLOW_DESCRIPTION: "No description provided"
@@ -7288,7 +6232,7 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/github/copilot-cli/main/install.sh -o /tmp/copilot-install.sh
           
           # Execute the installer with the specified version
-          export VERSION=0.0.369 && sudo bash /tmp/copilot-install.sh
+          export VERSION=0.0.372 && sudo bash /tmp/copilot-install.sh
           
           # Cleanup
           rm -f /tmp/copilot-install.sh
@@ -7326,7 +6270,7 @@ jobs:
           XDG_CONFIG_HOME: /home/runner
       - name: Parse threat detection results
         id: parse_results
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             const fs = require('fs');
@@ -7365,7 +6309,7 @@ jobs:
             }
       - name: Upload threat detection log
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: threat-detection.log
           path: /tmp/gh-aw/threat-detection/detection.log
@@ -7378,7 +6322,7 @@ jobs:
     steps:
       - name: Check team membership for workflow
         id: check_membership
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_REQUIRED_ROLES: admin,maintainer,write
         with:
@@ -7515,11 +6459,928 @@ jobs:
                 core.setOutput("is_team_member", "false");
                 core.setOutput("result", "insufficient_permissions");
                 core.setOutput("user_permission", result.permission);
-                core.setOutput(
-                  "error_message",
-                  `Access denied: User '${actor}' is not authorized. Required permissions: ${requiredPermissions.join(", ")}`
-                );
+                core.setOutput("error_message", `Access denied: User '${actor}' is not authorized. Required permissions: ${requiredPermissions.join(", ")}`);
               }
             }
             await main();
+
+  safe_outputs:
+    needs:
+      - agent
+      - detection
+    if: ((!cancelled()) && (needs.agent.result != 'skipped')) && (needs.detection.outputs.success == 'true')
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    timeout-minutes: 15
+    env:
+      GH_AW_ENGINE_ID: "copilot"
+      GH_AW_WORKFLOW_ID: "triage-issues"
+      GH_AW_WORKFLOW_NAME: "Issue Triage"
+    outputs:
+      add_labels_labels_added: ${{ steps.add_labels.outputs.labels_added }}
+    steps:
+      - name: Download agent output artifact
+        continue-on-error: true
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: agent_output.json
+          path: /tmp/gh-aw/safeoutputs/
+      - name: Setup agent output environment variable
+        run: |
+          mkdir -p /tmp/gh-aw/safeoutputs/
+          find "/tmp/gh-aw/safeoutputs/" -type f -print
+          echo "GH_AW_AGENT_OUTPUT=/tmp/gh-aw/safeoutputs/agent_output.json" >> "$GITHUB_ENV"
+      - name: Setup JavaScript files
+        id: setup_scripts
+        shell: bash
+        run: |
+          mkdir -p /tmp/gh-aw/scripts
+          cat > /tmp/gh-aw/scripts/load_agent_output.cjs << 'EOF_b93f537f'
+          // @ts-check
+          /// <reference types="@actions/github-script" />
+          
+          const fs = require("fs");
+          
+          /**
+           * Maximum content length to log for debugging purposes
+           * @type {number}
+           */
+          const MAX_LOG_CONTENT_LENGTH = 10000;
+          
+          /**
+           * Truncate content for logging if it exceeds the maximum length
+           * @param {string} content - Content to potentially truncate
+           * @returns {string} Truncated content with indicator if truncated
+           */
+          function truncateForLogging(content) {
+            if (content.length <= MAX_LOG_CONTENT_LENGTH) {
+              return content;
+            }
+            return content.substring(0, MAX_LOG_CONTENT_LENGTH) + `\n... (truncated, total length: ${content.length})`;
+          }
+          
+          /**
+           * Load and parse agent output from the GH_AW_AGENT_OUTPUT file
+           *
+           * This utility handles the common pattern of:
+           * 1. Reading the GH_AW_AGENT_OUTPUT environment variable
+           * 2. Loading the file content
+           * 3. Validating the JSON structure
+           * 4. Returning parsed items array
+           *
+           * @returns {{
+           *   success: true,
+           *   items: any[]
+           * } | {
+           *   success: false,
+           *   items?: undefined,
+           *   error?: string
+           * }} Result object with success flag and items array (if successful) or error message
+           */
+          function loadAgentOutput() {
+            const agentOutputFile = process.env.GH_AW_AGENT_OUTPUT;
+          
+            // No agent output file specified
+            if (!agentOutputFile) {
+              core.info("No GH_AW_AGENT_OUTPUT environment variable found");
+              return { success: false };
+            }
+          
+            // Read agent output from file
+            let outputContent;
+            try {
+              outputContent = fs.readFileSync(agentOutputFile, "utf8");
+            } catch (error) {
+              const errorMessage = `Error reading agent output file: ${error instanceof Error ? error.message : String(error)}`;
+              core.error(errorMessage);
+              return { success: false, error: errorMessage };
+            }
+          
+            // Check for empty content
+            if (outputContent.trim() === "") {
+              core.info("Agent output content is empty");
+              return { success: false };
+            }
+          
+            core.info(`Agent output content length: ${outputContent.length}`);
+          
+            // Parse the validated output JSON
+            let validatedOutput;
+            try {
+              validatedOutput = JSON.parse(outputContent);
+            } catch (error) {
+              const errorMessage = `Error parsing agent output JSON: ${error instanceof Error ? error.message : String(error)}`;
+              core.error(errorMessage);
+              core.info(`Failed to parse content:\n${truncateForLogging(outputContent)}`);
+              return { success: false, error: errorMessage };
+            }
+          
+            // Validate items array exists
+            if (!validatedOutput.items || !Array.isArray(validatedOutput.items)) {
+              core.info("No valid items found in agent output");
+              core.info(`Parsed content: ${truncateForLogging(JSON.stringify(validatedOutput))}`);
+              return { success: false };
+            }
+          
+            return { success: true, items: validatedOutput.items };
+          }
+          
+          module.exports = { loadAgentOutput, truncateForLogging, MAX_LOG_CONTENT_LENGTH };
+          
+          EOF_b93f537f
+          cat > /tmp/gh-aw/scripts/safe_output_helpers.cjs << 'EOF_80a143d8'
+          // @ts-check
+          /// <reference types="@actions/github-script" />
+          
+          /**
+           * Shared helper functions for safe-output scripts
+           * Provides common validation and target resolution logic
+           */
+          
+          /**
+           * Parse a comma-separated list of allowed items from environment variable
+           * @param {string|undefined} envValue - Environment variable value
+           * @returns {string[]|undefined} Array of allowed items, or undefined if no restrictions
+           */
+          function parseAllowedItems(envValue) {
+            const trimmed = envValue?.trim();
+            if (!trimmed) {
+              return undefined;
+            }
+            return trimmed
+              .split(",")
+              .map(item => item.trim())
+              .filter(item => item);
+          }
+          
+          /**
+           * Parse and validate max count from environment variable
+           * @param {string|undefined} envValue - Environment variable value
+           * @param {number} defaultValue - Default value if not specified
+           * @returns {{valid: true, value: number} | {valid: false, error: string}} Validation result
+           */
+          function parseMaxCount(envValue, defaultValue = 3) {
+            if (!envValue) {
+              return { valid: true, value: defaultValue };
+            }
+          
+            const parsed = parseInt(envValue, 10);
+            if (isNaN(parsed) || parsed < 1) {
+              return {
+                valid: false,
+                error: `Invalid max value: ${envValue}. Must be a positive integer`,
+              };
+            }
+          
+            return { valid: true, value: parsed };
+          }
+          
+          /**
+           * Resolve the target number (issue/PR) based on configuration and context
+           * @param {Object} params - Resolution parameters
+           * @param {string} params.targetConfig - Target configuration ("triggering", "*", or explicit number)
+           * @param {any} params.item - Safe output item with optional item_number or pull_request_number
+           * @param {any} params.context - GitHub Actions context
+           * @param {string} params.itemType - Type of item being processed (for error messages)
+           * @param {boolean} params.supportsPR - Whether this safe output supports PR context
+           * @returns {{success: true, number: number, contextType: string} | {success: false, error: string, shouldFail: boolean}} Resolution result
+           */
+          function resolveTarget(params) {
+            const { targetConfig, item, context, itemType, supportsPR = false } = params;
+          
+            // Check context type
+            const isIssueContext = context.eventName === "issues" || context.eventName === "issue_comment";
+            const isPRContext = context.eventName === "pull_request" || context.eventName === "pull_request_review" || context.eventName === "pull_request_review_comment";
+          
+            // Default target is "triggering"
+            const target = targetConfig || "triggering";
+          
+            // Validate context for triggering mode
+            if (target === "triggering") {
+              if (supportsPR) {
+                if (!isIssueContext && !isPRContext) {
+                  return {
+                    success: false,
+                    error: `Target is "triggering" but not running in issue or pull request context, skipping ${itemType}`,
+                    shouldFail: false, // Just skip, don't fail the workflow
+                  };
+                }
+              } else {
+                if (!isPRContext) {
+                  return {
+                    success: false,
+                    error: `Target is "triggering" but not running in pull request context, skipping ${itemType}`,
+                    shouldFail: false, // Just skip, don't fail the workflow
+                  };
+                }
+              }
+            }
+          
+            // Resolve target number
+            let itemNumber;
+            let contextType;
+          
+            if (target === "*") {
+              // Use item_number, issue_number, or pull_request_number from item
+              const numberField = supportsPR ? item.item_number || item.issue_number || item.pull_request_number : item.pull_request_number;
+          
+              if (numberField) {
+                itemNumber = typeof numberField === "number" ? numberField : parseInt(String(numberField), 10);
+                if (isNaN(itemNumber) || itemNumber <= 0) {
+                  return {
+                    success: false,
+                    error: `Invalid ${supportsPR ? "item_number/issue_number/pull_request_number" : "pull_request_number"} specified: ${numberField}`,
+                    shouldFail: true,
+                  };
+                }
+                contextType = supportsPR && (item.item_number || item.issue_number) ? "issue" : "pull request";
+              } else {
+                return {
+                  success: false,
+                  error: `Target is "*" but no ${supportsPR ? "item_number/issue_number" : "pull_request_number"} specified in ${itemType} item`,
+                  shouldFail: true,
+                };
+              }
+            } else if (target !== "triggering") {
+              // Explicit number
+              itemNumber = parseInt(target, 10);
+              if (isNaN(itemNumber) || itemNumber <= 0) {
+                return {
+                  success: false,
+                  error: `Invalid ${supportsPR ? "issue" : "pull request"} number in target configuration: ${target}`,
+                  shouldFail: true,
+                };
+              }
+              contextType = supportsPR ? "issue" : "pull request";
+            } else {
+              // Use triggering context
+              if (isIssueContext) {
+                if (context.payload.issue) {
+                  itemNumber = context.payload.issue.number;
+                  contextType = "issue";
+                } else {
+                  return {
+                    success: false,
+                    error: "Issue context detected but no issue found in payload",
+                    shouldFail: true,
+                  };
+                }
+              } else if (isPRContext) {
+                if (context.payload.pull_request) {
+                  itemNumber = context.payload.pull_request.number;
+                  contextType = "pull request";
+                } else {
+                  return {
+                    success: false,
+                    error: "Pull request context detected but no pull request found in payload",
+                    shouldFail: true,
+                  };
+                }
+              }
+            }
+          
+            if (!itemNumber) {
+              return {
+                success: false,
+                error: `Could not determine ${supportsPR ? "issue or pull request" : "pull request"} number`,
+                shouldFail: true,
+              };
+            }
+          
+            return {
+              success: true,
+              number: itemNumber,
+              contextType: contextType || (supportsPR ? "issue" : "pull request"),
+            };
+          }
+          
+          module.exports = {
+            parseAllowedItems,
+            parseMaxCount,
+            resolveTarget,
+          };
+          
+          EOF_80a143d8
+          cat > /tmp/gh-aw/scripts/safe_output_processor.cjs << 'EOF_8f3864e2'
+          // @ts-check
+          /// <reference types="@actions/github-script" />
+          
+          /**
+           * Shared processor for safe-output scripts
+           * Provides common pipeline: load agent output, handle staged mode, parse config, resolve target
+           */
+          
+          const { loadAgentOutput } = require('/tmp/gh-aw/scripts/load_agent_output.cjs');
+          const { generateStagedPreview } = require('/tmp/gh-aw/scripts/staged_preview.cjs');
+          const { parseAllowedItems, resolveTarget } = require('/tmp/gh-aw/scripts/safe_output_helpers.cjs');
+          const { getSafeOutputConfig, validateMaxCount } = require('/tmp/gh-aw/scripts/safe_output_validator.cjs');
+          
+          /**
+           * @typedef {Object} ProcessorConfig
+           * @property {string} itemType - The type field value to match in agent output (e.g., "add_labels")
+           * @property {string} configKey - The key to use when reading from config.json (e.g., "add_labels")
+           * @property {string} displayName - Human-readable name for logging (e.g., "Add Labels")
+           * @property {string} itemTypeName - Name used in error messages (e.g., "label addition")
+           * @property {boolean} [supportsPR] - When true, allows both issue AND PR contexts; when false, only PR context (default: false)
+           * @property {boolean} [supportsIssue] - When true, passes supportsPR=true to resolveTarget to enable both contexts (default: false)
+           * @property {boolean} [findMultiple] - Whether to find multiple items instead of just one (default: false)
+           * @property {Object} envVars - Environment variable names
+           * @property {string} [envVars.allowed] - Env var for allowed items list
+           * @property {string} [envVars.maxCount] - Env var for max count
+           * @property {string} [envVars.target] - Env var for target configuration
+           */
+          
+          /**
+           * @typedef {Object} ProcessorResult
+           * @property {boolean} success - Whether processing should continue
+           * @property {any} [item] - The found item (when findMultiple is false)
+           * @property {any[]} [items] - The found items (when findMultiple is true)
+           * @property {Object} [config] - Parsed configuration
+           * @property {string[]|undefined} [config.allowed] - Allowed items list
+           * @property {number} [config.maxCount] - Maximum count
+           * @property {string} [config.target] - Target configuration
+           * @property {Object} [targetResult] - Result from resolveTarget (when findMultiple is false)
+           * @property {number} [targetResult.number] - Target issue/PR number
+           * @property {string} [targetResult.contextType] - Type of context (issue or pull request)
+           * @property {string} [reason] - Reason why processing should not continue
+           */
+          
+          /**
+           * Process the initial steps common to safe-output scripts:
+           * 1. Load agent output
+           * 2. Find matching item(s)
+           * 3. Handle staged mode
+           * 4. Parse configuration
+           * 5. Resolve target (for single-item processors)
+           *
+           * @param {ProcessorConfig} config - Processor configuration
+           * @param {Object} stagedPreviewOptions - Options for staged preview
+           * @param {string} stagedPreviewOptions.title - Title for staged preview
+           * @param {string} stagedPreviewOptions.description - Description for staged preview
+           * @param {(item: any, index: number) => string} stagedPreviewOptions.renderItem - Function to render item in preview
+           * @returns {Promise<ProcessorResult>} Processing result
+           */
+          async function processSafeOutput(config, stagedPreviewOptions) {
+            const { itemType, configKey, displayName, itemTypeName, supportsPR = false, supportsIssue = false, findMultiple = false, envVars } = config;
+          
+            // Step 1: Load agent output
+            const result = loadAgentOutput();
+            if (!result.success) {
+              return { success: false, reason: "Agent output not available" };
+            }
+          
+            // Step 2: Find matching item(s)
+            let items;
+            if (findMultiple) {
+              items = result.items.filter(item => item.type === itemType);
+              if (items.length === 0) {
+                core.info(`No ${itemType} items found in agent output`);
+                return { success: false, reason: `No ${itemType} items found` };
+              }
+              core.info(`Found ${items.length} ${itemType} item(s)`);
+            } else {
+              const item = result.items.find(item => item.type === itemType);
+              if (!item) {
+                core.warning(`No ${itemType.replace(/_/g, "-")} item found in agent output`);
+                return { success: false, reason: `No ${itemType} item found` };
+              }
+              items = [item];
+              // Log item details based on common fields
+              const itemDetails = getItemDetails(item);
+              if (itemDetails) {
+                core.info(`Found ${itemType.replace(/_/g, "-")} item with ${itemDetails}`);
+              }
+            }
+          
+            // Step 3: Handle staged mode
+            if (process.env.GH_AW_SAFE_OUTPUTS_STAGED === "true") {
+              await generateStagedPreview({
+                title: stagedPreviewOptions.title,
+                description: stagedPreviewOptions.description,
+                items: items,
+                renderItem: stagedPreviewOptions.renderItem,
+              });
+              return { success: false, reason: "Staged mode - preview generated" };
+            }
+          
+            // Step 4: Parse configuration
+            const safeOutputConfig = getSafeOutputConfig(configKey);
+          
+            // Parse allowed items (from env or config)
+            const allowedEnvValue = envVars.allowed ? process.env[envVars.allowed] : undefined;
+            const allowed = parseAllowedItems(allowedEnvValue) || safeOutputConfig.allowed;
+            if (allowed) {
+              core.info(`Allowed ${itemTypeName}s: ${JSON.stringify(allowed)}`);
+            } else {
+              core.info(`No ${itemTypeName} restrictions - any ${itemTypeName}s are allowed`);
+            }
+          
+            // Parse max count (env takes priority, then config)
+            const maxCountEnvValue = envVars.maxCount ? process.env[envVars.maxCount] : undefined;
+            const maxCountResult = validateMaxCount(maxCountEnvValue, safeOutputConfig.max);
+            if (!maxCountResult.valid) {
+              core.setFailed(maxCountResult.error);
+              return { success: false, reason: "Invalid max count configuration" };
+            }
+            const maxCount = maxCountResult.value;
+            core.info(`Max count: ${maxCount}`);
+          
+            // Get target configuration
+            const target = envVars.target ? process.env[envVars.target] || "triggering" : "triggering";
+            core.info(`${displayName} target configuration: ${target}`);
+          
+            // For multiple items, return early without target resolution
+            if (findMultiple) {
+              return {
+                success: true,
+                items: items,
+                config: {
+                  allowed,
+                  maxCount,
+                  target,
+                },
+              };
+            }
+          
+            // Step 5: Resolve target (for single-item processors)
+            const item = items[0];
+            const targetResult = resolveTarget({
+              targetConfig: target,
+              item: item,
+              context,
+              itemType: itemTypeName,
+              // supportsPR in resolveTarget: true=both issue and PR contexts, false=PR-only
+              // If supportsIssue is true, we pass supportsPR=true to enable both contexts
+              supportsPR: supportsPR || supportsIssue,
+            });
+          
+            if (!targetResult.success) {
+              if (targetResult.shouldFail) {
+                core.setFailed(targetResult.error);
+              } else {
+                core.info(targetResult.error);
+              }
+              return { success: false, reason: targetResult.error };
+            }
+          
+            return {
+              success: true,
+              item: item,
+              config: {
+                allowed,
+                maxCount,
+                target,
+              },
+              targetResult: {
+                number: targetResult.number,
+                contextType: targetResult.contextType,
+              },
+            };
+          }
+          
+          /**
+           * Get a description of item details for logging
+           * @param {any} item - The safe output item
+           * @returns {string|null} Description string or null
+           */
+          function getItemDetails(item) {
+            if (item.labels && Array.isArray(item.labels)) {
+              return `${item.labels.length} labels`;
+            }
+            if (item.reviewers && Array.isArray(item.reviewers)) {
+              return `${item.reviewers.length} reviewers`;
+            }
+            return null;
+          }
+          
+          /**
+           * Sanitize and deduplicate an array of string items
+           * @param {any[]} items - Raw items array
+           * @returns {string[]} Sanitized and deduplicated array
+           */
+          function sanitizeItems(items) {
+            return items
+              .filter(item => item != null && item !== false && item !== 0)
+              .map(item => String(item).trim())
+              .filter(item => item)
+              .filter((item, index, arr) => arr.indexOf(item) === index);
+          }
+          
+          /**
+           * Filter items by allowed list
+           * @param {string[]} items - Items to filter
+           * @param {string[]|undefined} allowed - Allowed items list (undefined means all allowed)
+           * @returns {string[]} Filtered items
+           */
+          function filterByAllowed(items, allowed) {
+            if (!allowed || allowed.length === 0) {
+              return items;
+            }
+            return items.filter(item => allowed.includes(item));
+          }
+          
+          /**
+           * Limit items to max count
+           * @param {string[]} items - Items to limit
+           * @param {number} maxCount - Maximum number of items
+           * @returns {string[]} Limited items
+           */
+          function limitToMaxCount(items, maxCount) {
+            if (items.length > maxCount) {
+              core.info(`Too many items (${items.length}), limiting to ${maxCount}`);
+              return items.slice(0, maxCount);
+            }
+            return items;
+          }
+          
+          /**
+           * Process items through the standard pipeline: filter by allowed, sanitize, dedupe, limit
+           * @param {any[]} rawItems - Raw items array from agent output
+           * @param {string[]|undefined} allowed - Allowed items list
+           * @param {number} maxCount - Maximum number of items
+           * @returns {string[]} Processed items
+           */
+          function processItems(rawItems, allowed, maxCount) {
+            // Filter by allowed list first
+            const filtered = filterByAllowed(rawItems, allowed);
+          
+            // Sanitize and deduplicate
+            const sanitized = sanitizeItems(filtered);
+          
+            // Limit to max count
+            return limitToMaxCount(sanitized, maxCount);
+          }
+          
+          module.exports = {
+            processSafeOutput,
+            sanitizeItems,
+            filterByAllowed,
+            limitToMaxCount,
+            processItems,
+          };
+          
+          EOF_8f3864e2
+          cat > /tmp/gh-aw/scripts/safe_output_validator.cjs << 'EOF_437e6b4f'
+          // @ts-check
+          /// <reference types="@actions/github-script" />
+          
+          const fs = require("fs");
+          const { sanitizeLabelContent } = require('/tmp/gh-aw/scripts/sanitize_label_content.cjs');
+          
+          /**
+           * Load and parse the safe outputs configuration from config.json
+           * @returns {object} The parsed configuration object
+           */
+          function loadSafeOutputsConfig() {
+            const configPath = "/tmp/gh-aw/safeoutputs/config.json";
+            try {
+              if (!fs.existsSync(configPath)) {
+                core.warning(`Config file not found at ${configPath}, using defaults`);
+                return {};
+              }
+              const configContent = fs.readFileSync(configPath, "utf8");
+              return JSON.parse(configContent);
+            } catch (error) {
+              core.warning(`Failed to load config: ${error instanceof Error ? error.message : String(error)}`);
+              return {};
+            }
+          }
+          
+          /**
+           * Get configuration for a specific safe output type
+           * @param {string} outputType - The type of safe output (e.g., "add_labels", "update_issue")
+           * @returns {{max?: number, target?: string, allowed?: string[]}} The configuration for this output type
+           */
+          function getSafeOutputConfig(outputType) {
+            const config = loadSafeOutputsConfig();
+            return config[outputType] || {};
+          }
+          
+          /**
+           * Validate and sanitize a title string
+           * @param {any} title - The title to validate
+           * @param {string} fieldName - The name of the field for error messages (default: "title")
+           * @returns {{valid: boolean, value?: string, error?: string}} Validation result
+           */
+          function validateTitle(title, fieldName = "title") {
+            if (title === undefined || title === null) {
+              return { valid: false, error: `${fieldName} is required` };
+            }
+          
+            if (typeof title !== "string") {
+              return { valid: false, error: `${fieldName} must be a string` };
+            }
+          
+            const trimmed = title.trim();
+            if (trimmed.length === 0) {
+              return { valid: false, error: `${fieldName} cannot be empty` };
+            }
+          
+            return { valid: true, value: trimmed };
+          }
+          
+          /**
+           * Validate and sanitize a body/content string
+           * @param {any} body - The body to validate
+           * @param {string} fieldName - The name of the field for error messages (default: "body")
+           * @param {boolean} required - Whether the body is required (default: false)
+           * @returns {{valid: boolean, value?: string, error?: string}} Validation result
+           */
+          function validateBody(body, fieldName = "body", required = false) {
+            if (body === undefined || body === null) {
+              if (required) {
+                return { valid: false, error: `${fieldName} is required` };
+              }
+              return { valid: true, value: "" };
+            }
+          
+            if (typeof body !== "string") {
+              return { valid: false, error: `${fieldName} must be a string` };
+            }
+          
+            return { valid: true, value: body };
+          }
+          
+          /**
+           * Validate and sanitize an array of labels
+           * @param {any} labels - The labels to validate
+           * @param {string[]|undefined} allowedLabels - Optional list of allowed labels
+           * @param {number} maxCount - Maximum number of labels allowed
+           * @returns {{valid: boolean, value?: string[], error?: string}} Validation result
+           */
+          function validateLabels(labels, allowedLabels = undefined, maxCount = 3) {
+            if (!labels || !Array.isArray(labels)) {
+              return { valid: false, error: "labels must be an array" };
+            }
+          
+            // Check for removal attempts (labels starting with '-')
+            for (const label of labels) {
+              if (label && typeof label === "string" && label.startsWith("-")) {
+                return { valid: false, error: `Label removal is not permitted. Found line starting with '-': ${label}` };
+              }
+            }
+          
+            // Filter labels based on allowed list if provided
+            let validLabels = labels;
+            if (allowedLabels && allowedLabels.length > 0) {
+              validLabels = labels.filter(label => allowedLabels.includes(label));
+            }
+          
+            // Sanitize and deduplicate labels
+            const uniqueLabels = validLabels
+              .filter(label => label != null && label !== false && label !== 0)
+              .map(label => String(label).trim())
+              .filter(label => label)
+              .map(label => sanitizeLabelContent(label))
+              .filter(label => label)
+              .map(label => (label.length > 64 ? label.substring(0, 64) : label))
+              .filter((label, index, arr) => arr.indexOf(label) === index);
+          
+            // Apply max count limit
+            if (uniqueLabels.length > maxCount) {
+              core.info(`Too many labels (${uniqueLabels.length}), limiting to ${maxCount}`);
+              return { valid: true, value: uniqueLabels.slice(0, maxCount) };
+            }
+          
+            if (uniqueLabels.length === 0) {
+              return { valid: false, error: "No valid labels found after sanitization" };
+            }
+          
+            return { valid: true, value: uniqueLabels };
+          }
+          
+          /**
+           * Validate max count from environment variable with config fallback
+           * @param {string|undefined} envValue - Environment variable value
+           * @param {number|undefined} configDefault - Default from config.json
+           * @param {number} [fallbackDefault] - Fallback default for testing (optional, defaults to 1)
+           * @returns {{valid: true, value: number} | {valid: false, error: string}} Validation result
+           */
+          function validateMaxCount(envValue, configDefault, fallbackDefault = 1) {
+            // Priority: env var > config.json > fallback default
+            // In production, config.json should always have the default
+            // Fallback is provided for backward compatibility and testing
+            const defaultValue = configDefault !== undefined ? configDefault : fallbackDefault;
+          
+            if (!envValue) {
+              return { valid: true, value: defaultValue };
+            }
+          
+            const parsed = parseInt(envValue, 10);
+            if (isNaN(parsed) || parsed < 1) {
+              return {
+                valid: false,
+                error: `Invalid max value: ${envValue}. Must be a positive integer`,
+              };
+            }
+          
+            return { valid: true, value: parsed };
+          }
+          
+          module.exports = {
+            loadSafeOutputsConfig,
+            getSafeOutputConfig,
+            validateTitle,
+            validateBody,
+            validateLabels,
+            validateMaxCount,
+          };
+          
+          EOF_437e6b4f
+          cat > /tmp/gh-aw/scripts/sanitize_label_content.cjs << 'EOF_4b431e5e'
+          // @ts-check
+          /**
+           * Sanitize label content for GitHub API
+           * Removes control characters, ANSI codes, and neutralizes @mentions
+           * @module sanitize_label_content
+           */
+          
+          /**
+           * Sanitizes label content by removing control characters, ANSI escape codes,
+           * and neutralizing @mentions to prevent unintended notifications.
+           *
+           * @param {string} content - The label content to sanitize
+           * @returns {string} The sanitized label content
+           */
+          function sanitizeLabelContent(content) {
+            if (!content || typeof content !== "string") {
+              return "";
+            }
+            let sanitized = content.trim();
+            // Remove ANSI escape sequences FIRST (before removing control chars)
+            sanitized = sanitized.replace(/\x1b\[[0-9;]*[mGKH]/g, "");
+            // Then remove control characters (except newlines and tabs)
+            sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+            sanitized = sanitized.replace(/(^|[^\w`])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?(?:\/[A-Za-z0-9._-]+)?)/g, (_m, p1, p2) => `${p1}\`@${p2}\``);
+            sanitized = sanitized.replace(/[<>&'"]/g, "");
+            return sanitized.trim();
+          }
+          
+          module.exports = { sanitizeLabelContent };
+          
+          EOF_4b431e5e
+          cat > /tmp/gh-aw/scripts/staged_preview.cjs << 'EOF_8386ee20'
+          // @ts-check
+          /// <reference types="@actions/github-script" />
+          
+          /**
+           * Generate a staged mode preview summary and write it to the step summary.
+           *
+           * @param {Object} options - Configuration options for the preview
+           * @param {string} options.title - The main title for the preview (e.g., "Create Issues")
+           * @param {string} options.description - Description of what would happen if staged mode was disabled
+           * @param {Array<any>} options.items - Array of items to preview
+           * @param {(item: any, index: number) => string} options.renderItem - Function to render each item as markdown
+           * @returns {Promise<void>}
+           */
+          async function generateStagedPreview(options) {
+            const { title, description, items, renderItem } = options;
+          
+            let summaryContent = `## 🎭 Staged Mode: ${title} Preview\n\n`;
+            summaryContent += `${description}\n\n`;
+          
+            for (let i = 0; i < items.length; i++) {
+              const item = items[i];
+              summaryContent += renderItem(item, i);
+              summaryContent += "---\n\n";
+            }
+          
+            try {
+              await core.summary.addRaw(summaryContent).write();
+              core.info(summaryContent);
+              core.info(`📝 ${title} preview written to step summary`);
+            } catch (error) {
+              core.setFailed(error instanceof Error ? error : String(error));
+            }
+          }
+          
+          module.exports = { generateStagedPreview };
+          
+          EOF_8386ee20
+      - name: Add Labels
+        id: add_labels
+        if: ((!cancelled()) && (needs.agent.result != 'skipped')) && (contains(needs.agent.outputs.output_types, 'add_labels'))
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
+          GH_AW_LABELS_ALLOWED: "bug,feature,triaged-by-copilot"
+          GH_AW_LABELS_MAX_COUNT: 10
+          GH_AW_LABELS_TARGET: "*"
+        with:
+          github-token: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN || secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            globalThis.github = github;
+            globalThis.context = context;
+            globalThis.core = core;
+            globalThis.exec = exec;
+            globalThis.io = io;
+            const { processSafeOutput } = require('/tmp/gh-aw/scripts/safe_output_processor.cjs');
+            const { validateLabels } = require('/tmp/gh-aw/scripts/safe_output_validator.cjs');
+            async function main() {
+              const result = await processSafeOutput(
+                {
+                  itemType: "add_labels",
+                  configKey: "add_labels",
+                  displayName: "Labels",
+                  itemTypeName: "label addition",
+                  supportsPR: true,
+                  supportsIssue: true,
+                  envVars: {
+                    allowed: "GH_AW_LABELS_ALLOWED",
+                    maxCount: "GH_AW_LABELS_MAX_COUNT",
+                    target: "GH_AW_LABELS_TARGET",
+                  },
+                },
+                {
+                  title: "Add Labels",
+                  description: "The following labels would be added if staged mode was disabled:",
+                  renderItem: item => {
+                    let content = "";
+                    if (item.item_number) {
+                      content += `**Target Issue:** #${item.item_number}\n\n`;
+                    } else {
+                      content += `**Target:** Current issue/PR\n\n`;
+                    }
+                    if (item.labels && item.labels.length > 0) {
+                      content += `**Labels to add:** ${item.labels.join(", ")}\n\n`;
+                    }
+                    return content;
+                  },
+                }
+              );
+              if (!result.success) {
+                return;
+              }
+              const { item: labelsItem, config, targetResult } = result;
+              if (!config || !targetResult || targetResult.number === undefined) {
+                core.setFailed("Internal error: config, targetResult, or targetResult.number is undefined");
+                return;
+              }
+              const { allowed: allowedLabels, maxCount } = config;
+              const itemNumber = targetResult.number;
+              const { contextType } = targetResult;
+              const requestedLabels = labelsItem.labels || [];
+              core.info(`Requested labels: ${JSON.stringify(requestedLabels)}`);
+              const labelsResult = validateLabels(requestedLabels, allowedLabels, maxCount);
+              if (!labelsResult.valid) {
+                if (labelsResult.error && labelsResult.error.includes("No valid labels")) {
+                  core.info("No labels to add");
+                  core.setOutput("labels_added", "");
+                  await core.summary
+                    .addRaw(
+                      `
+            ## Label Addition
+            No labels were added (no valid labels found in agent output).
+            `
+                    )
+                    .write();
+                  return;
+                }
+                core.setFailed(labelsResult.error || "Invalid labels");
+                return;
+              }
+              const uniqueLabels = labelsResult.value || [];
+              if (uniqueLabels.length === 0) {
+                core.info("No labels to add");
+                core.setOutput("labels_added", "");
+                await core.summary
+                  .addRaw(
+                    `
+            ## Label Addition
+            No labels were added (no valid labels found in agent output).
+            `
+                  )
+                  .write();
+                return;
+              }
+              core.info(`Adding ${uniqueLabels.length} labels to ${contextType} #${itemNumber}: ${JSON.stringify(uniqueLabels)}`);
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: itemNumber,
+                  labels: uniqueLabels,
+                });
+                core.info(`Successfully added ${uniqueLabels.length} labels to ${contextType} #${itemNumber}`);
+                core.setOutput("labels_added", uniqueLabels.join("\n"));
+                const labelsListMarkdown = uniqueLabels.map(label => `- \`${label}\``).join("\n");
+                await core.summary
+                  .addRaw(
+                    `
+            ## Label Addition
+            Successfully added ${uniqueLabels.length} label(s) to ${contextType} #${itemNumber}:
+            ${labelsListMarkdown}
+            `
+                  )
+                  .write();
+              } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                core.error(`Failed to add labels: ${errorMessage}`);
+                core.setFailed(`Failed to add labels: ${errorMessage}`);
+              }
+            }
+            (async () => { await main(); })();
 

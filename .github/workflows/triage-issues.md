@@ -10,7 +10,7 @@ permissions: read-all
 timeout-minutes: 10
 safe-outputs:
   add-labels:
-    allowed: [bug, feature]
+    allowed: [bug, feature, triaged-by-copilot]
     max: 10
     target: "*"
   noop:
@@ -45,6 +45,7 @@ Analyze GitHub issues and automatically label them as either "feature" or "bug" 
    - If the issue is clearly a bug report, add the label "bug"
    - If the issue already has both labels or one of these labels, skip it
    - If the issue is ambiguous and you cannot confidently determine the type, skip it (do not guess)
+   - **After successfully triaging an issue** (adding "feature" or "bug"), also add the "triaged-by-copilot" label to mark it as triaged. Skip adding this label if the issue already has a label that starts with "triaged" (e.g., "triaged", "triaged-manually"). You can add both labels ("feature"/"bug" and "triaged-by-copilot") in a single add_labels call.
 
 ## Guidelines
 

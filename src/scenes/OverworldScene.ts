@@ -15,9 +15,12 @@ import {
   isWalkable,
   getTerrainAt,
   getChunk,
+  getDungeonAt,
+  getDungeon,
   type WorldChunk,
+  type DungeonData,
 } from "../data/map";
-import { getRandomEncounter, getBoss } from "../data/monsters";
+import { getRandomEncounter, getDungeonEncounter, getBoss } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
@@ -153,6 +156,51 @@ export class OverworldScene extends Phaser.Scene {
     }
     this.tileSprites = [];
 
+    // If inside a dungeon, render the dungeon interior
+    if (this.player.inDungeon) {
+      const dungeon = getDungeon(this.player.dungeonId);
+      if (!dungeon) return;
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        this.tileSprites[y] = [];
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          const terrain = dungeon.mapData[y][x];
+          const sprite = this.add.sprite(
+            x * TILE_SIZE + TILE_SIZE / 2,
+            y * TILE_SIZE + TILE_SIZE / 2,
+            `tile_${terrain}`
+          );
+          this.tileSprites[y][x] = sprite;
+        }
+      }
+      // Dungeon name label
+      this.add
+        .text(MAP_WIDTH * TILE_SIZE / 2, 4, dungeon.name, {
+          fontSize: "10px",
+          fontFamily: "monospace",
+          color: "#ff8888",
+          stroke: "#000",
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5, 0);
+      // Exit label
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (dungeon.mapData[y][x] === Terrain.DungeonExit) {
+            this.add
+              .text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE - 4, "EXIT", {
+                fontSize: "8px",
+                fontFamily: "monospace",
+                color: "#88ff88",
+                stroke: "#000",
+                strokeThickness: 2,
+              })
+              .setOrigin(0.5, 1);
+          }
+        }
+      }
+      return;
+    }
+
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     if (!chunk) return;
 
@@ -279,8 +327,14 @@ export class OverworldScene extends Phaser.Scene {
 
   private updateHUD(): void {
     const p = this.player;
-    const chunk = getChunk(p.chunkX, p.chunkY);
-    const regionName = chunk?.name ?? "Unknown";
+    let regionName: string;
+    if (p.inDungeon) {
+      const dungeon = getDungeon(p.dungeonId);
+      regionName = dungeon ? `🔻 ${dungeon.name}` : "Dungeon";
+    } else {
+      const chunk = getChunk(p.chunkX, p.chunkY);
+      regionName = chunk?.name ?? "Unknown";
+    }
     const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts [T]` : "";
     this.hudText.setText(
       `${p.name} Lv.${p.level}  —  ${regionName}\n` +
@@ -290,6 +344,19 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private updateLocationText(): void {
+    // In dungeon: show dungeon-specific text
+    if (this.player.inDungeon) {
+      const dungeon = getDungeon(this.player.dungeonId);
+      if (!dungeon) { this.locationText.setText("???"); return; }
+      const terrain = dungeon.mapData[this.player.y]?.[this.player.x];
+      if (terrain === Terrain.DungeonExit) {
+        this.locationText.setText(`${dungeon.name}\n[SPACE] Exit Dungeon`);
+      } else {
+        this.locationText.setText(dungeon.name);
+      }
+      return;
+    }
+
     const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
     const terrainNames: Record<number, string> = {
       [Terrain.Grass]: "Grassland",
@@ -316,12 +383,24 @@ export class OverworldScene extends Phaser.Scene {
     if (boss && !this.defeatedBosses.has(boss.monsterId))
       locStr = `${boss.name}'s Lair\n[SPACE] Challenge Boss`;
 
+    // Dungeon entrance hint
+    if (terrain === Terrain.Dungeon) {
+      const dungeon = getDungeonAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
+      if (dungeon) {
+        const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
+        if (hasKey) {
+          locStr = `${dungeon.name}\n[SPACE] Enter Dungeon`;
+        } else {
+          locStr = `${dungeon.name}\n(Locked — need key)`;
+        }
+      }
+    }
+
     this.locationText.setText(locStr);
   }
 
   private updateDebugPanel(): void {
     const p = this.player;
-    const terrain = getTerrainAt(p.chunkX, p.chunkY, p.x, p.y);
     const terrainNames: Record<number, string> = {
       [Terrain.Grass]: "Grass",
       [Terrain.Forest]: "Forest",
@@ -332,11 +411,24 @@ export class OverworldScene extends Phaser.Scene {
       [Terrain.Dungeon]: "Dungeon",
       [Terrain.Boss]: "Boss",
       [Terrain.Path]: "Path",
+      [Terrain.DungeonFloor]: "DFloor",
+      [Terrain.DungeonWall]: "DWall",
+      [Terrain.DungeonExit]: "DExit",
     };
+
+    let terrain: Terrain | undefined;
+    if (p.inDungeon) {
+      const dungeon = getDungeon(p.dungeonId);
+      terrain = dungeon?.mapData[p.y]?.[p.x];
+    } else {
+      terrain = getTerrainAt(p.chunkX, p.chunkY, p.x, p.y);
+    }
+
     const tName = terrainNames[terrain ?? 0] ?? "?";
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
+    const dungeonTag = p.inDungeon ? ` [DUNGEON:${p.dungeonId}]` : "";
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName} | ` +
+      `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag} | ` +
       `Enc: ${(rate * 100).toFixed(0)}% | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
@@ -371,6 +463,35 @@ export class OverworldScene extends Phaser.Scene {
   private tryMove(dx: number, dy: number, time: number): void {
     let newX = this.player.x + dx;
     let newY = this.player.y + dy;
+
+    // In dungeon: no chunk transitions, just wall checks
+    if (this.player.inDungeon) {
+      const dungeon = getDungeon(this.player.dungeonId);
+      if (!dungeon) return;
+      if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
+      const terrain = dungeon.mapData[newY][newX];
+      if (!isWalkable(terrain)) return;
+
+      this.lastMoveTime = time;
+      this.isMoving = true;
+      this.player.x = newX;
+      this.player.y = newY;
+
+      this.tweens.add({
+        targets: this.playerSprite,
+        x: newX * TILE_SIZE + TILE_SIZE / 2,
+        y: newY * TILE_SIZE + TILE_SIZE / 2,
+        duration: 120,
+        onComplete: () => {
+          this.isMoving = false;
+          this.updateHUD();
+          this.updateLocationText();
+          this.checkEncounter(terrain);
+        },
+      });
+      return;
+    }
+
     let newChunkX = this.player.chunkX;
     let newChunkY = this.player.chunkY;
 
@@ -437,16 +558,45 @@ export class OverworldScene extends Phaser.Scene {
     // Boss tile: handled by SPACE action, not random
     if (terrain === Terrain.Boss) return;
     if (terrain === Terrain.Town) return;
+    if (terrain === Terrain.DungeonExit) return;
 
     const rate = ENCOUNTER_RATES[terrain];
     if (Math.random() < rate) {
-      const monster = getRandomEncounter(this.player.level);
-      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name });
+      // Use dungeon monsters when inside a dungeon
+      const monster = this.player.inDungeon
+        ? getDungeonEncounter(this.player.level)
+        : getRandomEncounter(this.player.level);
+      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon });
       this.startBattle(monster);
     }
   }
 
   private handleAction(): void {
+    // ── Dungeon exit: pressing SPACE on an exit tile inside a dungeon ──
+    if (this.player.inDungeon) {
+      const dungeon = getDungeon(this.player.dungeonId);
+      if (!dungeon) return;
+      const terrain = dungeon.mapData[this.player.y]?.[this.player.x];
+      if (terrain === Terrain.DungeonExit) {
+        // Return to overworld at the dungeon entrance tile
+        this.player.inDungeon = false;
+        this.player.dungeonId = "";
+        this.player.chunkX = dungeon.entranceChunkX;
+        this.player.chunkY = dungeon.entranceChunkY;
+        this.player.x = dungeon.entranceTileX;
+        this.player.y = dungeon.entranceTileY;
+        this.autoSave();
+        this.cameras.main.flash(300, 255, 255, 255);
+        this.scene.restart({
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+        });
+      }
+      return;
+    }
+
+    // ── Overworld actions ──
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     if (!chunk) return;
 
@@ -463,6 +613,36 @@ export class OverworldScene extends Phaser.Scene {
         bestiary: this.bestiary,
         shopItemIds: town.shopItems,
       });
+      return;
+    }
+
+    // Check if on a dungeon entrance tile
+    const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
+    if (terrain === Terrain.Dungeon) {
+      const dungeon = getDungeonAt(
+        this.player.chunkX,
+        this.player.chunkY,
+        this.player.x,
+        this.player.y
+      );
+      if (dungeon) {
+        const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
+        if (hasKey) {
+          // Enter the dungeon
+          this.player.inDungeon = true;
+          this.player.dungeonId = dungeon.id;
+          this.player.x = dungeon.spawnX;
+          this.player.y = dungeon.spawnY;
+          this.autoSave();
+          this.cameras.main.flash(300, 100, 100, 100);
+          this.scene.restart({
+            player: this.player,
+            defeatedBosses: this.defeatedBosses,
+            bestiary: this.bestiary,
+          });
+        }
+        // No key — just do nothing (location text already hints)
+      }
       return;
     }
 

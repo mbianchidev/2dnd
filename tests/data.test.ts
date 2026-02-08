@@ -12,8 +12,11 @@ import {
   getAllTowns,
   getAllBosses,
   ENCOUNTER_RATES,
+  DUNGEONS,
+  getDungeonAt,
+  getDungeon,
 } from "../src/data/map";
-import { MONSTERS, getRandomEncounter, getBoss } from "../src/data/monsters";
+import { MONSTERS, getRandomEncounter, getBoss, DUNGEON_MONSTERS, getDungeonEncounter } from "../src/data/monsters";
 import { SPELLS, getSpell, getAvailableSpells } from "../src/data/spells";
 import { ITEMS, getItem, getShopItems, getShopItemsForTown } from "../src/data/items";
 
@@ -80,6 +83,7 @@ describe("game data", () => {
     it("water and mountain are not walkable", () => {
       expect(isWalkable(Terrain.Water)).toBe(false);
       expect(isWalkable(Terrain.Mountain)).toBe(false);
+      expect(isWalkable(Terrain.DungeonWall)).toBe(false);
     });
 
     it("towns have no random encounters", () => {
@@ -230,6 +234,124 @@ describe("game data", () => {
           expect(getItem(itemId)).toBeDefined();
         }
       }
+    });
+
+    it("dungeon key is sold only in starting area (Willowdale)", () => {
+      const towns = getAllTowns();
+      const townsWithKey = towns.filter((t) => t.shopItems.includes("dungeonKey"));
+      expect(townsWithKey).toHaveLength(1);
+      expect(townsWithKey[0].name).toBe("Willowdale");
+      expect(townsWithKey[0].chunkX).toBe(1);
+      expect(townsWithKey[0].chunkY).toBe(1);
+    });
+  });
+
+  describe("dungeons", () => {
+    it("has at least one dungeon defined", () => {
+      expect(DUNGEONS.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("dungeon maps have correct dimensions", () => {
+      for (const dungeon of DUNGEONS) {
+        expect(dungeon.mapData).toHaveLength(MAP_HEIGHT);
+        for (const row of dungeon.mapData) {
+          expect(row).toHaveLength(MAP_WIDTH);
+        }
+      }
+    });
+
+    it("dungeon entrance exists on the overworld", () => {
+      for (const dungeon of DUNGEONS) {
+        const terrain = getTerrainAt(
+          dungeon.entranceChunkX,
+          dungeon.entranceChunkY,
+          dungeon.entranceTileX,
+          dungeon.entranceTileY
+        );
+        expect(terrain).toBe(Terrain.Dungeon);
+      }
+    });
+
+    it("dungeon spawn point is walkable", () => {
+      for (const dungeon of DUNGEONS) {
+        const terrain = dungeon.mapData[dungeon.spawnY][dungeon.spawnX];
+        expect(isWalkable(terrain)).toBe(true);
+      }
+    });
+
+    it("dungeon has at least one exit tile", () => {
+      for (const dungeon of DUNGEONS) {
+        let hasExit = false;
+        for (const row of dungeon.mapData) {
+          if (row.includes(Terrain.DungeonExit)) {
+            hasExit = true;
+            break;
+          }
+        }
+        expect(hasExit).toBe(true);
+      }
+    });
+
+    it("getDungeonAt returns dungeon for valid entrance", () => {
+      const dungeon = DUNGEONS[0];
+      const found = getDungeonAt(
+        dungeon.entranceChunkX,
+        dungeon.entranceChunkY,
+        dungeon.entranceTileX,
+        dungeon.entranceTileY
+      );
+      expect(found).toBeDefined();
+      expect(found!.id).toBe(dungeon.id);
+    });
+
+    it("getDungeon returns dungeon by ID", () => {
+      const dungeon = getDungeon("heartlands_dungeon");
+      expect(dungeon).toBeDefined();
+      expect(dungeon!.name).toBe("Heartlands Crypt");
+    });
+
+    it("getDungeonAt returns undefined for non-dungeon tiles", () => {
+      expect(getDungeonAt(0, 0, 0, 0)).toBeUndefined();
+    });
+
+    it("dungeon walls are not walkable, floors and exit are", () => {
+      expect(isWalkable(Terrain.DungeonWall)).toBe(false);
+      expect(isWalkable(Terrain.DungeonFloor)).toBe(true);
+      expect(isWalkable(Terrain.DungeonExit)).toBe(true);
+    });
+  });
+
+  describe("dungeon monsters", () => {
+    it("has dungeon-exclusive monsters", () => {
+      expect(DUNGEON_MONSTERS.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("dungeon monsters are not bosses", () => {
+      for (const m of DUNGEON_MONSTERS) {
+        expect(m.isBoss).toBe(false);
+      }
+    });
+
+    it("dungeon monsters are distinct from overworld monsters", () => {
+      const overworldIds = new Set(MONSTERS.filter((m) => !m.isBoss).map((m) => m.id));
+      for (const m of DUNGEON_MONSTERS) {
+        expect(overworldIds.has(m.id)).toBe(false);
+      }
+    });
+
+    it("getDungeonEncounter returns a non-boss dungeon monster copy", () => {
+      for (let i = 0; i < 20; i++) {
+        const m = getDungeonEncounter(5);
+        expect(m.isBoss).toBe(false);
+        expect(DUNGEON_MONSTERS.some((dm) => dm.id === m.id)).toBe(true);
+      }
+    });
+
+    it("getDungeonEncounter returns a copy", () => {
+      const m1 = getDungeonEncounter(1);
+      const m2 = getDungeonEncounter(1);
+      m1.hp = 0;
+      expect(m2.hp).toBeGreaterThan(0);
     });
   });
 });

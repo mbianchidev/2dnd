@@ -14,6 +14,9 @@ export enum Terrain {
   Dungeon = 6,
   Boss = 7,
   Path = 8,
+  DungeonFloor = 9,
+  DungeonWall = 10,
+  DungeonExit = 11,
 }
 
 export interface TownData {
@@ -38,6 +41,21 @@ export interface WorldChunk {
   bosses: BossData[];
 }
 
+export interface DungeonData {
+  id: string;           // unique dungeon ID
+  name: string;
+  /** The chunk + tile where this dungeon entrance is on the overworld */
+  entranceChunkX: number;
+  entranceChunkY: number;
+  entranceTileX: number;
+  entranceTileY: number;
+  /** The interior map (same 20×15 grid) */
+  mapData: Terrain[][];
+  /** Player spawn position when entering */
+  spawnX: number;
+  spawnY: number;
+}
+
 /** Colors for each terrain type (used for procedural rendering). */
 export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.Grass]: 0x4caf50,
@@ -49,6 +67,9 @@ export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.Dungeon]: 0x616161,
   [Terrain.Boss]: 0xd32f2f,
   [Terrain.Path]: 0xbcaaa4,
+  [Terrain.DungeonFloor]: 0x555555,
+  [Terrain.DungeonWall]: 0x222222,
+  [Terrain.DungeonExit]: 0x66bb6a,
 };
 
 /** Encounter rates per terrain (0 = no encounters). */
@@ -62,6 +83,9 @@ export const ENCOUNTER_RATES: Record<Terrain, number> = {
   [Terrain.Dungeon]: 0.2,
   [Terrain.Boss]: 0,
   [Terrain.Path]: 0.04,
+  [Terrain.DungeonFloor]: 0.25,
+  [Terrain.DungeonWall]: 0,
+  [Terrain.DungeonExit]: 0,
 };
 
 /** Tile dimensions of each chunk. */
@@ -287,6 +311,70 @@ const CHUNK_2_2: Terrain[][] = [
 ];
 
 // ══════════════════════════════════════════════════════════════════
+// Dungeon Interior Maps
+// ══════════════════════════════════════════════════════════════════
+
+// W = DungeonWall (10), F = DungeonFloor (9), E = DungeonExit (11)
+const W = Terrain.DungeonWall;
+const F = Terrain.DungeonFloor;
+const E = Terrain.DungeonExit;
+
+// prettier-ignore
+const DUNGEON_HEARTLANDS: Terrain[][] = [
+  [W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W],
+  [W, F, F, W, F, F, F, F, F, W, F, F, F, F, F, F, W, F, F, W],
+  [W, F, F, W, F, W, W, W, F, W, F, W, W, W, W, F, W, F, F, W],
+  [W, F, F, W, F, W, F, F, F, F, F, F, F, W, F, F, W, F, F, W],
+  [W, F, W, W, F, W, F, W, W, W, W, W, F, W, F, W, W, F, F, W],
+  [W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
+  [W, W, W, F, W, W, W, F, W, W, W, W, F, W, W, W, F, W, W, W],
+  [W, F, F, F, F, F, F, F, W, F, F, W, F, F, F, F, F, F, F, W],
+  [W, F, W, W, F, W, W, F, W, F, F, W, F, W, W, F, W, W, F, W],
+  [W, F, F, F, F, W, F, F, F, F, F, F, F, F, W, F, F, F, F, W],
+  [W, W, W, F, W, W, F, W, W, W, W, W, W, F, W, W, F, W, W, W],
+  [W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
+  [W, F, W, W, W, F, W, W, W, F, F, W, W, W, F, W, W, W, F, W],
+  [W, E, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
+  [W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W],
+];
+
+/** All dungeon interiors in the game. */
+export const DUNGEONS: DungeonData[] = [
+  {
+    id: "heartlands_dungeon",
+    name: "Heartlands Crypt",
+    entranceChunkX: 1,
+    entranceChunkY: 1,
+    entranceTileX: 16,
+    entranceTileY: 2,
+    mapData: DUNGEON_HEARTLANDS,
+    spawnX: 1,
+    spawnY: 13,
+  },
+];
+
+/** Get a dungeon by its overworld entrance location. */
+export function getDungeonAt(
+  cx: number,
+  cy: number,
+  x: number,
+  y: number
+): DungeonData | undefined {
+  return DUNGEONS.find(
+    (d) =>
+      d.entranceChunkX === cx &&
+      d.entranceChunkY === cy &&
+      d.entranceTileX === x &&
+      d.entranceTileY === y
+  );
+}
+
+/** Get a dungeon by its ID. */
+export function getDungeon(id: string): DungeonData | undefined {
+  return DUNGEONS.find((d) => d.id === id);
+}
+
+// ══════════════════════════════════════════════════════════════════
 // World grid — WORLD_CHUNKS[chunkY][chunkX]
 // ══════════════════════════════════════════════════════════════════
 
@@ -337,7 +425,7 @@ export const WORLD_CHUNKS: WorldChunk[][] = [
           x: 2,
           y: 2,
           hasShop: true,
-          shopItems: ["potion", "ether", "shortSword", "leatherArmor"],
+          shopItems: ["potion", "ether", "shortSword", "leatherArmor", "dungeonKey"],
         },
       ],
       bosses: [],
@@ -374,7 +462,7 @@ export const WORLD_CHUNKS: WorldChunk[][] = [
           x: 10,
           y: 7,
           hasShop: true,
-          shopItems: ["potion", "ether", "greaterPotion", "longSword", "chainMail", "dungeonKey"],
+          shopItems: ["potion", "ether", "greaterPotion", "longSword", "chainMail"],
         },
       ],
       bosses: [],
@@ -400,7 +488,7 @@ export function getChunk(cx: number, cy: number): WorldChunk | undefined {
 
 /** Check if a terrain is walkable. */
 export function isWalkable(terrain: Terrain): boolean {
-  return terrain !== Terrain.Water && terrain !== Terrain.Mountain;
+  return terrain !== Terrain.Water && terrain !== Terrain.Mountain && terrain !== Terrain.DungeonWall;
 }
 
 /** Get terrain at a tile position within a chunk. Returns undefined if out of bounds. */

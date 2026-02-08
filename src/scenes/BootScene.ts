@@ -92,6 +92,39 @@ export class BootScene extends Phaser.Scene {
           gfx.fillCircle(24, 20, 2);
           gfx.fillCircle(16, 28, 2);
           break;
+        case Terrain.DungeonFloor:
+          // Dark stone floor with subtle tile pattern
+          gfx.fillStyle(0x444444, 0.4);
+          gfx.fillRect(0, 0, 15, 15);
+          gfx.fillRect(17, 17, 15, 15);
+          gfx.lineStyle(1, 0x333333, 0.5);
+          gfx.strokeRect(1, 1, 14, 14);
+          gfx.strokeRect(17, 17, 14, 14);
+          break;
+        case Terrain.DungeonWall:
+          // Dark brick wall
+          gfx.fillStyle(0x1a1a1a, 0.6);
+          gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+          gfx.lineStyle(1, 0x333333, 0.4);
+          gfx.strokeRect(2, 2, 12, 6);
+          gfx.strokeRect(16, 2, 14, 6);
+          gfx.strokeRect(0, 10, 8, 6);
+          gfx.strokeRect(10, 10, 12, 6);
+          gfx.strokeRect(24, 10, 8, 6);
+          gfx.strokeRect(2, 18, 12, 6);
+          gfx.strokeRect(16, 18, 14, 6);
+          gfx.strokeRect(0, 26, 8, 6);
+          gfx.strokeRect(10, 26, 12, 6);
+          break;
+        case Terrain.DungeonExit:
+          // Green-tinted exit door
+          gfx.fillStyle(0x2e7d32, 0.6);
+          gfx.fillRect(6, 2, 20, 28);
+          gfx.fillStyle(0x4caf50, 0.8);
+          gfx.fillRect(10, 6, 12, 22);
+          gfx.fillStyle(0xffeb3b, 1);
+          gfx.fillCircle(18, 18, 2);
+          break;
       }
 
       // Add grid border

@@ -37,6 +37,10 @@ export class ShopScene extends Phaser.Scene {
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
+    // Dungeon key is unique — hide it if already owned
+    if (this.player.inventory.some((i) => i.id === "dungeonKey")) {
+      this.shopItems = this.shopItems.filter((i) => i.id !== "dungeonKey");
+    }
   }
 
   create(): void {

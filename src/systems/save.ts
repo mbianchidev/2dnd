@@ -54,6 +54,8 @@ export function loadGame(): SaveData | null {
     if (!data.player.knownTalents) data.player.knownTalents = [];
     if (data.player.chunkX === undefined) data.player.chunkX = 1;
     if (data.player.chunkY === undefined) data.player.chunkY = 1;
+    if (data.player.inDungeon === undefined) data.player.inDungeon = false;
+    if (data.player.dungeonId === undefined) data.player.dungeonId = "";
     return data;
   } catch {
     return null;

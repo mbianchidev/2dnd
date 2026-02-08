@@ -42,6 +42,8 @@ export interface PlayerState {
   y: number;
   chunkX: number; // world chunk X coordinate
   chunkY: number; // world chunk Y coordinate
+  inDungeon: boolean;  // true when inside a dungeon interior
+  dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -110,6 +112,8 @@ export function createPlayer(name: string, appearanceId: string = "knight"): Pla
     y: 3,
     chunkX: 1,
     chunkY: 1,
+    inDungeon: false,
+    dungeonId: "",
   };
 }
 

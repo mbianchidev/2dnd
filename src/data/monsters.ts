@@ -173,6 +173,84 @@ export const MONSTERS: Monster[] = [
   },
 ];
 
+/** Dungeon-exclusive monsters — tougher than overworld, unique pool. */
+export const DUNGEON_MONSTERS: Monster[] = [
+  {
+    id: "giantRat",
+    name: "Giant Rat",
+    hp: 14,
+    ac: 11,
+    attackBonus: 3,
+    damageCount: 1,
+    damageDie: 6,
+    xpReward: 18,
+    goldReward: 5,
+    isBoss: false,
+    color: 0x8d6e63,
+    drops: [{ itemId: "potion", chance: 0.2 }],
+    abilities: [
+      { name: "Frenzy Bite", chance: 0.25, damageCount: 2, damageDie: 4, type: "damage" },
+    ],
+  },
+  {
+    id: "shadow",
+    name: "Shadow",
+    hp: 26,
+    ac: 13,
+    attackBonus: 5,
+    damageCount: 2,
+    damageDie: 6,
+    xpReward: 35,
+    goldReward: 12,
+    isBoss: false,
+    color: 0x37474f,
+    drops: [{ itemId: "ether", chance: 0.25 }],
+    abilities: [
+      { name: "Shadow Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true },
+    ],
+  },
+  {
+    id: "mimic",
+    name: "Mimic",
+    hp: 40,
+    ac: 14,
+    attackBonus: 6,
+    damageCount: 2,
+    damageDie: 8,
+    xpReward: 55,
+    goldReward: 30,
+    isBoss: false,
+    color: 0x795548,
+    drops: [
+      { itemId: "greaterPotion", chance: 0.4 },
+      { itemId: "longSword", chance: 0.15 },
+    ],
+    abilities: [
+      { name: "Chomp", chance: 0.3, damageCount: 3, damageDie: 6, type: "damage" },
+    ],
+  },
+  {
+    id: "stoneGolem",
+    name: "Stone Golem",
+    hp: 60,
+    ac: 16,
+    attackBonus: 7,
+    damageCount: 3,
+    damageDie: 8,
+    xpReward: 80,
+    goldReward: 40,
+    isBoss: false,
+    color: 0x9e9e9e,
+    drops: [
+      { itemId: "greaterPotion", chance: 0.3 },
+      { itemId: "plateArmor", chance: 0.1 },
+    ],
+    abilities: [
+      { name: "Ground Slam", chance: 0.35, damageCount: 4, damageDie: 6, type: "damage" },
+    ],
+  },
+];
+
 /** Get a random non-boss monster scaled to player level. */
 export function getRandomEncounter(playerLevel: number): Monster {
   const nonBoss = MONSTERS.filter((m) => !m.isBoss);
@@ -184,6 +262,16 @@ export function getRandomEncounter(playerLevel: number): Monster {
   const index = Math.floor(Math.random() * (maxIndex + 1));
   // Return a copy so we don't mutate the template
   return { ...nonBoss[index] };
+}
+
+/** Get a random dungeon monster scaled to player level. */
+export function getDungeonEncounter(playerLevel: number): Monster {
+  const maxIndex = Math.min(
+    DUNGEON_MONSTERS.length - 1,
+    Math.floor(playerLevel / 3) + 1
+  );
+  const index = Math.floor(Math.random() * (maxIndex + 1));
+  return { ...DUNGEON_MONSTERS[index] };
 }
 
 /** Get a specific boss by ID. */

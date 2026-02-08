@@ -15,6 +15,8 @@ export interface SaveData {
   bestiary: BestiaryData;
   appearanceId: string;
   timestamp: number;
+  /** Day/night cycle step counter (added in v1). */
+  timeStep?: number;
 }
 
 /** Save the current game state. */
@@ -22,7 +24,8 @@ export function saveGame(
   player: PlayerState,
   defeatedBosses: Set<string>,
   bestiary: BestiaryData,
-  appearanceId: string
+  appearanceId: string,
+  timeStep: number = 0
 ): void {
   const data: SaveData = {
     version: 1,
@@ -31,6 +34,7 @@ export function saveGame(
     bestiary,
     appearanceId,
     timestamp: Date.now(),
+    timeStep,
   };
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -59,6 +63,7 @@ export function loadGame(): SaveData | null {
     if (!data.player.openedChests) data.player.openedChests = [];
     if (!data.player.exploredTiles) data.player.exploredTiles = {};
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
+    if (data.timeStep === undefined) data.timeStep = 0;
     return data;
   } catch {
     return null;

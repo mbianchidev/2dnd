@@ -251,6 +251,61 @@ export const DUNGEON_MONSTERS: Monster[] = [
   },
 ];
 
+/** Night-only overworld monsters — appear during Dusk and Night. */
+export const NIGHT_MONSTERS: Monster[] = [
+  {
+    id: "nightWolf",
+    name: "Night Wolf",
+    hp: 20,
+    ac: 12,
+    attackBonus: 4,
+    damageCount: 2,
+    damageDie: 6,
+    xpReward: 60,
+    goldReward: 8,
+    isBoss: false,
+    color: 0x334466,
+    drops: [{ itemId: "potion", chance: 0.2 }],
+    abilities: [
+      { name: "Shadow Howl", chance: 0.3, damageCount: 2, damageDie: 4, type: "damage" },
+    ],
+  },
+  {
+    id: "vampire_bat",
+    name: "Vampire Bat",
+    hp: 28,
+    ac: 14,
+    attackBonus: 5,
+    damageCount: 1,
+    damageDie: 8,
+    xpReward: 80,
+    goldReward: 14,
+    isBoss: false,
+    color: 0x442244,
+    drops: [{ itemId: "ether", chance: 0.2 }],
+    abilities: [
+      { name: "Blood Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true },
+    ],
+  },
+  {
+    id: "specter",
+    name: "Specter",
+    hp: 40,
+    ac: 14,
+    attackBonus: 5,
+    damageCount: 2,
+    damageDie: 8,
+    xpReward: 120,
+    goldReward: 20,
+    isBoss: false,
+    color: 0x8888cc,
+    drops: [{ itemId: "ether", chance: 0.2 }, { itemId: "greaterPotion", chance: 0.1 }],
+    abilities: [
+      { name: "Chill Touch", chance: 0.3, damageCount: 3, damageDie: 6, type: "damage" },
+    ],
+  },
+];
+
 /** Get a random non-boss monster scaled to player level. */
 export function getRandomEncounter(playerLevel: number): Monster {
   const nonBoss = MONSTERS.filter((m) => !m.isBoss);
@@ -278,4 +333,14 @@ export function getDungeonEncounter(playerLevel: number): Monster {
 export function getBoss(id: string): Monster | undefined {
   const boss = MONSTERS.find((m) => m.id === id && m.isBoss);
   return boss ? { ...boss } : undefined;
+}
+
+/** Get a random night-only monster scaled to player level. */
+export function getNightEncounter(playerLevel: number): Monster {
+  const maxIndex = Math.min(
+    NIGHT_MONSTERS.length - 1,
+    Math.floor(playerLevel / 2) + 1
+  );
+  const index = Math.floor(Math.random() * (maxIndex + 1));
+  return { ...NIGHT_MONSTERS[index] };
 }

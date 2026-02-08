@@ -36,6 +36,7 @@ export class BattleScene extends Phaser.Scene {
   private monsterHp!: number;
   private defeatedBosses!: Set<string>;
   private bestiary!: BestiaryData;
+  private timeStep = 0;
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
@@ -69,12 +70,14 @@ export class BattleScene extends Phaser.Scene {
     monster: Monster;
     defeatedBosses: Set<string>;
     bestiary: BestiaryData;
+    timeStep?: number;
   }): void {
     this.player = data.player;
     this.monster = data.monster;
     this.monsterHp = data.monster.hp;
     this.defeatedBosses = data.defeatedBosses;
     this.bestiary = data.bestiary;
+    this.timeStep = data.timeStep ?? 0;
     this.phase = "init";
     this.logLines = [];
     this.actionButtons = [];
@@ -1016,6 +1019,7 @@ export class BattleScene extends Phaser.Scene {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        timeStep: this.timeStep,
       });
     });
   }

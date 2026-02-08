@@ -21,7 +21,7 @@ import {
   type WorldChunk,
   type DungeonData,
 } from "../data/map";
-import { getRandomEncounter, getDungeonEncounter, getBoss } from "../data/monsters";
+import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear, setDebugCommandHandler } from "../config";
@@ -29,6 +29,7 @@ import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
+import { getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
 
 const TILE_SIZE = 32;
 
@@ -58,12 +59,13 @@ export class OverworldScene extends Phaser.Scene {
   private debugEncounters = true; // debug toggle for encounters
   private debugFogDisabled = false; // debug toggle for fog of war
   private messageText: Phaser.GameObjects.Text | null = null;
+  private timeStep = 0; // day/night cycle step counter
 
   constructor() {
     super({ key: "OverworldScene" });
   }
 
-  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData }): void {
+  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; timeStep?: number }): void {
     if (data?.player) {
       this.player = data.player;
       this.isNewPlayer = false;
@@ -76,6 +78,9 @@ export class OverworldScene extends Phaser.Scene {
     }
     if (data?.bestiary) {
       this.bestiary = data.bestiary;
+    }
+    if (data?.timeStep !== undefined) {
+      this.timeStep = data.timeStep;
     }
     // Reset movement state — a tween may have been orphaned when the scene
     // switched to battle mid-move, leaving isMoving permanently true.
@@ -91,6 +96,7 @@ export class OverworldScene extends Phaser.Scene {
     this.revealAround();
 
     this.renderMap();
+    this.applyDayNightTint();
     this.createPlayer();
     this.setupInput();
     this.createHUD();
@@ -581,8 +587,9 @@ export class OverworldScene extends Phaser.Scene {
       regionName = chunk?.name ?? "Unknown";
     }
     const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts [T]` : "";
+    const timeLabel = PERIOD_LABEL[getTimePeriod(this.timeStep)];
     this.hudText.setText(
-      `${p.name} Lv.${p.level}  —  ${regionName}\n` +
+      `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}`
     );
   }
@@ -688,10 +695,14 @@ export class OverworldScene extends Phaser.Scene {
 
     const tName = terrainNames[terrain ?? 0] ?? "?";
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
+    const encMult = getEncounterMultiplier(this.timeStep);
+    const effectiveRate = rate * encMult;
     const dungeonTag = p.inDungeon ? ` [DUNGEON:${p.dungeonId}]` : "";
+    const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
       `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag} | ` +
-      `Enc: ${(rate * 100).toFixed(0)}%${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
+      `Time: ${timePeriod} (step ${this.timeStep}) | ` +
+      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
       `Bosses: ${this.defeatedBosses.size}\n` +
@@ -746,6 +757,7 @@ export class OverworldScene extends Phaser.Scene {
         duration: 120,
         onComplete: () => {
           this.isMoving = false;
+          this.advanceTime();
           this.revealAround();
           this.revealTileSprites();
           this.updateHUD();
@@ -792,11 +804,13 @@ export class OverworldScene extends Phaser.Scene {
 
     if (chunkChanged) {
       // Chunk transition — flash and re-render
+      this.advanceTime();
       this.cameras.main.flash(200, 255, 255, 255);
       this.scene.restart({
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        timeStep: this.timeStep,
       });
       return;
     }
@@ -808,6 +822,7 @@ export class OverworldScene extends Phaser.Scene {
       duration: 120,
       onComplete: () => {
         this.isMoving = false;
+        this.advanceTime();
         this.revealAround();
         this.revealTileSprites();
         this.updateHUD();
@@ -830,13 +845,18 @@ export class OverworldScene extends Phaser.Scene {
     // Debug: encounters can be toggled off
     if (isDebug() && !this.debugEncounters) return;
 
-    const rate = ENCOUNTER_RATES[terrain];
+    const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep);
     if (Math.random() < rate) {
-      // Use dungeon monsters when inside a dungeon
-      const monster = this.player.inDungeon
-        ? getDungeonEncounter(this.player.level)
-        : getRandomEncounter(this.player.level);
-      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon });
+      let monster;
+      if (this.player.inDungeon) {
+        monster = getDungeonEncounter(this.player.level);
+      } else if (isNightTime(this.timeStep) && Math.random() < 0.4) {
+        // 40% chance of a night-exclusive monster during dusk/night
+        monster = getNightEncounter(this.player.level);
+      } else {
+        monster = getRandomEncounter(this.player.level);
+      }
+      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon, time: getTimePeriod(this.timeStep) });
       this.startBattle(monster);
     }
   }
@@ -861,6 +881,7 @@ export class OverworldScene extends Phaser.Scene {
           player: this.player,
           defeatedBosses: this.defeatedBosses,
           bestiary: this.bestiary,
+          timeStep: this.timeStep,
         });
         return;
       }
@@ -912,6 +933,7 @@ export class OverworldScene extends Phaser.Scene {
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
         shopItemIds: town.shopItems,
+        timeStep: this.timeStep,
       });
       return;
     }
@@ -939,6 +961,7 @@ export class OverworldScene extends Phaser.Scene {
             player: this.player,
             defeatedBosses: this.defeatedBosses,
             bestiary: this.bestiary,
+            timeStep: this.timeStep,
           });
         }
         // No key — just do nothing (location text already hints)
@@ -995,6 +1018,7 @@ export class OverworldScene extends Phaser.Scene {
         monster,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        timeStep: this.timeStep,
       });
     });
   }
@@ -1009,11 +1033,32 @@ export class OverworldScene extends Phaser.Scene {
       player: this.player,
       defeatedBosses: this.defeatedBosses,
       bestiary: this.bestiary,
+      timeStep: this.timeStep,
     });
   }
 
   private autoSave(): void {
-    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId);
+    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId, this.timeStep);
+  }
+
+  /** Advance the day/night cycle by one step and update the map tint. */
+  private advanceTime(): void {
+    const oldPeriod = getTimePeriod(this.timeStep);
+    this.timeStep = (this.timeStep + 1) % CYCLE_LENGTH;
+    const newPeriod = getTimePeriod(this.timeStep);
+    if (oldPeriod !== newPeriod) {
+      this.applyDayNightTint();
+    }
+  }
+
+  /** Apply a color tint to all map tiles based on the current time period. */
+  private applyDayNightTint(): void {
+    const tint = PERIOD_TINT[getTimePeriod(this.timeStep)];
+    for (const row of this.tileSprites) {
+      for (const sprite of row) {
+        sprite.setTint(tint);
+      }
+    }
   }
 
   private toggleEquipOverlay(): void {

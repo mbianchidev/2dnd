@@ -13,6 +13,7 @@ export class ShopScene extends Phaser.Scene {
   private townName!: string;
   private defeatedBosses!: Set<string>;
   private bestiary!: BestiaryData;
+  private timeStep = 0;
   private shopItems!: Item[];
   private messageText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
@@ -29,11 +30,13 @@ export class ShopScene extends Phaser.Scene {
     defeatedBosses: Set<string>;
     bestiary: BestiaryData;
     shopItemIds?: string[];
+    timeStep?: number;
   }): void {
     this.player = data.player;
     this.townName = data.townName;
     this.defeatedBosses = data.defeatedBosses;
     this.bestiary = data.bestiary;
+    this.timeStep = data.timeStep ?? 0;
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -318,6 +321,7 @@ export class ShopScene extends Phaser.Scene {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        timeStep: this.timeStep,
       });
     });
   }

@@ -95,7 +95,7 @@ export const ENCOUNTER_RATES: Record<Terrain, number> = {
   [Terrain.Dungeon]: 0.2,
   [Terrain.Boss]: 0,
   [Terrain.Path]: 0.04,
-  [Terrain.DungeonFloor]: 0.25,
+  [Terrain.DungeonFloor]: 0.12,
   [Terrain.DungeonWall]: 0,
   [Terrain.DungeonExit]: 0,
   [Terrain.Chest]: 0,

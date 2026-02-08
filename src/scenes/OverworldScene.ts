@@ -354,7 +354,14 @@ export class OverworldScene extends Phaser.Scene {
         for (let x = 0; x < MAP_WIDTH; x++) {
           if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
             const terrain = dungeon.mapData[y][x];
-            this.tileSprites[y][x].setTexture(`tile_${terrain}`);
+            let texKey = `tile_${terrain}`;
+            if (terrain === Terrain.Chest) {
+              const chest = getChestAt(x, y, { type: "dungeon", dungeonId: this.player.dungeonId });
+              if (chest && this.player.openedChests.includes(chest.id)) {
+                texKey = "tile_chest_open";
+              }
+            }
+            this.tileSprites[y][x].setTexture(texKey);
           }
         }
       }
@@ -365,7 +372,14 @@ export class OverworldScene extends Phaser.Scene {
         for (let x = 0; x < MAP_WIDTH; x++) {
           if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
             const terrain = chunk.mapData[y][x];
-            this.tileSprites[y][x].setTexture(`tile_${terrain}`);
+            let texKey = `tile_${terrain}`;
+            if (terrain === Terrain.Chest) {
+              const chest = getChestAt(x, y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
+              if (chest && this.player.openedChests.includes(chest.id)) {
+                texKey = "tile_chest_open";
+              }
+            }
+            this.tileSprites[y][x].setTexture(texKey);
           }
         }
       }

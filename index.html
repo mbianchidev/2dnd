@@ -93,14 +93,6 @@
         text-align: center;
         height: 100%;
       }
-      #controls-body h3 {
-        color: #c0a060;
-        font-size: 12px;
-        margin: 8px 0 4px 0;
-        border-bottom: 1px solid #1a2a3a;
-        padding-bottom: 2px;
-      }
-      #controls-body h3:first-child { margin-top: 0; }
       #controls-body .key { color: #ffd700; }
       #controls-body .desc { color: #8899aa; }
       #debug-state {
@@ -126,28 +118,15 @@
   <body>
     <div id="game-wrapper">
       <div id="controls-panel">
-        <button id="controls-toggle">? How to Play</button>
+        <button id="controls-toggle">? Controls</button>
         <div id="controls-body">
-          <h3>Movement</h3>
-          <span class="key">W A S D</span> <span class="desc">— Move</span><br/>
-          <span class="key">SPACE</span> <span class="desc">— Interact</span><br/>
-          <h3>Menus</h3>
-          <span class="key">B</span> <span class="desc">— Bestiary</span><br/>
-          <span class="key">E</span> <span class="desc">— Equipment</span><br/>
-          <span class="key">T</span> <span class="desc">— Stats / ASI</span><br/>
-          <span class="key">M</span> <span class="desc">— Menu / Quit</span><br/>
-          <span class="key">N</span> <span class="desc">— World Map</span><br/>
-          <h3>Overworld</h3>
-          <span class="desc">Walk on grass &amp; forests to encounter monsters. Towns have shops. Use SPACE to enter shops, dungeons, open chests, or fight bosses.</span>
-          <h3>Battle</h3>
-          <span class="desc">Click actions: Attack, Spells, Abilities, Items, or Flee. Turn order is decided by initiative rolls.</span>
-          <h3>Progression</h3>
-          <span class="desc">Defeat monsters for XP &amp; gold. Level up to learn spells &amp; abilities. Allocate stat points at ASI levels (4, 8, 12, 16, 19).</span>
-          <h3>Tips</h3>
-          <span class="desc">• Buy a Dungeon Key in Willowdale to enter crypts.</span><br/>
-          <span class="desc">• Explore to reveal the fog of war.</span><br/>
-          <span class="desc">• Track enemy AC by watching your hit/miss rolls.</span><br/>
-          <span class="desc">• Equip better gear from chests &amp; shops.</span>
+          <span class="key">W A S D</span> <span class="desc">Move</span><br/>
+          <span class="key">SPACE</span> <span class="desc">Interact</span><br/>
+          <span class="key">B</span> <span class="desc">Bestiary</span><br/>
+          <span class="key">E</span> <span class="desc">Equipment</span><br/>
+          <span class="key">T</span> <span class="desc">Stats / ASI</span><br/>
+          <span class="key">M</span> <span class="desc">Menu / Quit</span><br/>
+          <span class="key">N</span> <span class="desc">World Map</span>
         </div>
       </div>
       <div id="game-inner">
@@ -170,7 +149,7 @@
       document.getElementById('controls-toggle').addEventListener('click', function() {
         const panel = document.getElementById('controls-panel');
         panel.classList.toggle('collapsed');
-        this.textContent = panel.classList.contains('collapsed') ? '?' : '? How to Play';
+        this.textContent = panel.classList.contains('collapsed') ? '?' : '? Controls';
       });
     </script>
   </body>

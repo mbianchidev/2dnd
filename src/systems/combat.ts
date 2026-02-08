@@ -60,14 +60,16 @@ export function rollInitiative(
 /** Player attacks the monster with a melee weapon. */
 export function playerAttack(
   player: PlayerState,
-  monster: Monster
+  monster: Monster,
+  monsterDefendBonus: number = 0
 ): CombatResult & { attackMod: number; totalRoll: number; targetAC: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerAttack: missing player or monster`);
   }
   const attackMod = getAttackModifier(player);
   const roll = rollD20(attackMod);
-  const extra = { attackMod, totalRoll: roll.total, targetAC: monster.ac };
+  const effectiveAC = monster.ac + monsterDefendBonus;
+  const extra = { attackMod, totalRoll: roll.total, targetAC: effectiveAC };
 
   if (roll.roll === 20) {
     // Critical hit - double dice
@@ -95,7 +97,7 @@ export function playerAttack(
     };
   }
 
-  if (roll.total >= monster.ac) {
+  if (roll.total >= effectiveAC) {
     const weaponBonus = player.equippedWeapon?.effect ?? 0;
     const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
     const damage = Math.max(1, rollDice(1, 6) + weaponBonus + talentDmg);
@@ -204,12 +206,13 @@ export function playerCastSpell(
 /** Monster attacks the player. Returns roll breakdown for debug logging. */
 export function monsterAttack(
   monster: Monster,
-  player: PlayerState
+  player: PlayerState,
+  playerDefendBonus: number = 0
 ): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
   if (!monster || !player) {
     throw new Error(`[combat] monsterAttack: missing monster or player`);
   }
-  const playerAC = getArmorClass(player);
+  const playerAC = getArmorClass(player, playerDefendBonus);
   const roll = rollD20(monster.attackBonus);
 
   if (roll.roll === 20) {

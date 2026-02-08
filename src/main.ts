@@ -9,7 +9,7 @@ import { OverworldScene } from "./scenes/OverworldScene";
 import { BattleScene } from "./scenes/BattleScene";
 import { ShopScene } from "./scenes/ShopScene";
 import { BestiaryScene } from "./scenes/BestiaryScene";
-import { GAME_WIDTH, GAME_HEIGHT, toggleDebug, isDebug, onDebugChanged } from "./config";
+import { GAME_WIDTH, GAME_HEIGHT, toggleDebug, isDebug, onDebugChanged, initDebugCommandInput } from "./config";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -53,3 +53,6 @@ if (checkbox) {
     if (panel) panel.style.display = "block";
   }
 }
+
+// Initialize debug command textbox
+initDebugCommandInput();

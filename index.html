@@ -113,6 +113,20 @@
       #debug-log div { border-bottom: 1px solid #0a1a0a; padding: 1px 0; }
       #debug-log .debug-msg { color: #888800; }
       #debug-log .roll-detail { color: #00aaaa; }
+      #debug-cmd {
+        display: block;
+        width: calc(100% - 16px);
+        margin: 4px 8px;
+        padding: 4px 6px;
+        background: #0a1a0a;
+        border: 1px solid #1a3a1a;
+        color: #33ff33;
+        font-family: monospace;
+        font-size: 11px;
+        outline: none;
+      }
+      #debug-cmd::placeholder { color: #225522; }
+      #debug-cmd:focus { border-color: #33ff33; }
     </style>
   </head>
   <body>
@@ -141,6 +155,7 @@
       </div>
       <div id="debug-panel">
         <div id="debug-state"></div>
+        <input id="debug-cmd" type="text" placeholder="/gold 1000, /exp 500, /item flameBlade..." autocomplete="off" />
         <div id="debug-log"></div>
       </div>
     </div>

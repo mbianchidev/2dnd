@@ -37,6 +37,7 @@ export interface PlayerState {
   knownTalents: string[]; // talent IDs (everyone)
   equippedWeapon: Item | null;
   equippedArmor: Item | null;
+  equippedShield: Item | null;
   appearanceId: string; // visual customization
   x: number; // overworld tile position (local to chunk)
   y: number;
@@ -109,6 +110,7 @@ export function createPlayer(name: string, appearanceId: string = "knight"): Pla
     knownTalents: [],
     equippedWeapon: null,
     equippedArmor: null,
+    equippedShield: null,
     appearanceId,
     x: 3,
     y: 3,
@@ -133,11 +135,12 @@ export function getSpellModifier(player: PlayerState): number {
   return abilityModifier(player.stats.intelligence) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
 
-/** Get the player's armor class. */
-export function getArmorClass(player: PlayerState): number {
+/** Get the player's armor class. Optionally add a temporary bonus (e.g. from defending). */
+export function getArmorClass(player: PlayerState, tempBonus: number = 0): number {
   const baseAC = 10 + abilityModifier(player.stats.dexterity);
   const armorBonus = player.equippedArmor?.effect ?? 0;
-  return baseAC + armorBonus + getTalentACBonus(player.knownTalents ?? []);
+  const shieldBonus = player.equippedShield?.effect ?? 0;
+  return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents ?? []) + tempBonus;
 }
 
 /** Award XP and handle level-ups. Returns list of new spells/abilities/talents learned. */
@@ -239,13 +242,14 @@ export function canAfford(player: PlayerState, cost: number): boolean {
   return player.gold >= cost;
 }
 
-/** Check if the player already owns a specific equipment item (weapon/armor). */
+/** Check if the player already owns a specific equipment item (weapon/armor/shield). */
 export function ownsEquipment(player: PlayerState, itemId: string): boolean {
   const equipped =
     (player.equippedWeapon?.id === itemId) ||
-    (player.equippedArmor?.id === itemId);
+    (player.equippedArmor?.id === itemId) ||
+    (player.equippedShield?.id === itemId);
   const inInventory = player.inventory.some(
-    (i) => i.id === itemId && (i.type === "weapon" || i.type === "armor")
+    (i) => i.id === itemId && (i.type === "weapon" || i.type === "armor" || i.type === "shield")
   );
   return equipped || inInventory;
 }
@@ -290,12 +294,25 @@ export function useItem(
   }
 
   if (item.type === "weapon") {
+    // If equipping a two-handed weapon, unequip shield
+    if (item.twoHanded && player.equippedShield) {
+      player.equippedShield = null;
+    }
     player.equippedWeapon = item;
-    return { used: true, message: `Equipped ${item.name}!` };
+    return { used: true, message: `Equipped ${item.name}!${item.twoHanded ? " (two-handed — shield removed)" : ""}` };
   }
 
   if (item.type === "armor") {
     player.equippedArmor = item;
+    return { used: true, message: `Equipped ${item.name}!` };
+  }
+
+  if (item.type === "shield") {
+    // Cannot equip shield with a two-handed weapon
+    if (player.equippedWeapon?.twoHanded) {
+      return { used: false, message: `Cannot equip shield with a two-handed weapon!` };
+    }
+    player.equippedShield = item;
     return { used: true, message: `Equipped ${item.name}!` };
   }
 

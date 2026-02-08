@@ -58,6 +58,7 @@ export function loadGame(): SaveData | null {
     if (data.player.dungeonId === undefined) data.player.dungeonId = "";
     if (!data.player.openedChests) data.player.openedChests = [];
     if (!data.player.exploredTiles) data.player.exploredTiles = {};
+    if (data.player.equippedShield === undefined) data.player.equippedShield = null;
     return data;
   } catch {
     return null;

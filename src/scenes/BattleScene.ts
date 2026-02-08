@@ -24,7 +24,7 @@ import {
   attemptFlee,
 } from "../systems/combat";
 import { abilityModifier } from "../utils/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear, setDebugCommandHandler } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
 
@@ -39,13 +39,18 @@ export class BattleScene extends Phaser.Scene {
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
-  private statsText!: Phaser.GameObjects.Text;
   private monsterText!: Phaser.GameObjects.Text;
   private monsterSprite!: Phaser.GameObjects.Sprite;
+  private playerSprite!: Phaser.GameObjects.Sprite;
+  private playerStatsText!: Phaser.GameObjects.Text;
   private actionButtons: Phaser.GameObjects.Container[] = [];
   private spellMenu: Phaser.GameObjects.Container | null = null;
   private itemMenu: Phaser.GameObjects.Container | null = null;
   private abilityMenu: Phaser.GameObjects.Container | null = null;
+
+  // Defend state
+  private playerDefending = false;
+  private monsterDefending = false;
 
   // AC discovery tracking
   private acHighestMiss = 0;
@@ -79,6 +84,8 @@ export class BattleScene extends Phaser.Scene {
     this.acHighestMiss = 0;
     this.acLowestHit = Infinity;
     this.acDiscovered = false;
+    this.playerDefending = false;
+    this.monsterDefending = false;
     this.droppedItemIds = [];
   }
 
@@ -99,21 +106,21 @@ export class BattleScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
 
-    // Monster display area (top half)
-    const monsterBg = this.add.graphics();
-    monsterBg.fillStyle(0x151530, 1);
-    monsterBg.fillRect(0, 0, w, h * 0.45);
+    // Full battle background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x151530, 1);
+    bg.fillRect(0, 0, w, h);
 
-    // Monster sprite (tinted with monster color)
+    // --- Monster (top-right) ---
     const textureKey = this.monster.isBoss ? "monster_boss" : "monster";
-    this.monsterSprite = this.add.sprite(w / 2, h * 0.22, textureKey);
+    this.monsterSprite = this.add.sprite(w * 0.72, h * 0.18, textureKey);
     this.monsterSprite.setTint(this.monster.color);
     this.monsterSprite.setScale(this.monster.isBoss ? 1.2 : 1.5);
 
-    // Monster name and HP
+    // Monster name and HP bar (below monster sprite)
     this.monsterText = this.add
-      .text(w / 2, h * 0.4, "", {
-        fontSize: "16px",
+      .text(w * 0.72, h * 0.32, "", {
+        fontSize: "13px",
         fontFamily: "monospace",
         color: "#ff6666",
         align: "center",
@@ -121,37 +128,40 @@ export class BattleScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.updateMonsterDisplay();
 
-    // Battle log (middle area)
+    // --- Player (bottom-left) ---
+    const playerTextureKey = `player_${this.player.appearanceId}`;
+    this.playerSprite = this.add.sprite(w * 0.25, h * 0.52, playerTextureKey);
+    this.playerSprite.setScale(1.5);
+    this.playerSprite.setFlipX(false);
+
+    // Player name + HP/MP bar (below player sprite)
+    this.playerStatsText = this.add
+      .text(w * 0.25, h * 0.64, "", {
+        fontSize: "13px",
+        fontFamily: "monospace",
+        color: "#88ccff",
+        align: "center",
+        lineSpacing: 3,
+      })
+      .setOrigin(0.5, 0);
+    this.updatePlayerStats();
+
+    // Battle log (bottom strip, above action buttons)
     const logBg = this.add.graphics();
     logBg.fillStyle(0x1a1a2e, 0.95);
-    logBg.fillRect(0, h * 0.45, w, h * 0.25);
+    logBg.fillRect(0, h * 0.78, w, h * 0.22);
     logBg.lineStyle(1, 0xc0a060, 0.5);
-    logBg.strokeRect(0, h * 0.45, w, h * 0.25);
+    logBg.strokeRect(0, h * 0.78, w, h * 0.22);
 
-    this.logText = this.add.text(10, h * 0.46, "", {
+    this.logText = this.add.text(10, h * 0.79, "", {
       fontSize: "12px",
       fontFamily: "monospace",
       color: "#ccc",
-      wordWrap: { width: w - 20 },
+      wordWrap: { width: w * 0.5 - 20 },
       lineSpacing: 3,
     });
 
-    // Player stats (bottom-left)
-    const statsBg = this.add.graphics();
-    statsBg.fillStyle(0x1a1a2e, 0.95);
-    statsBg.fillRect(0, h * 0.7, w * 0.4, h * 0.3);
-    statsBg.lineStyle(1, 0xc0a060, 0.5);
-    statsBg.strokeRect(0, h * 0.7, w * 0.4, h * 0.3);
-
-    this.statsText = this.add.text(10, h * 0.72, "", {
-      fontSize: "13px",
-      fontFamily: "monospace",
-      color: "#88ccff",
-      lineSpacing: 4,
-    });
-    this.updatePlayerStats();
-
-    // Action buttons (bottom-right)
+    // Action buttons (bottom-right area)
     this.createActionButtons();
   }
 
@@ -175,14 +185,15 @@ export class BattleScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const hasAbilities = (this.player.knownAbilities ?? []).length > 0;
-    const btnX = w * 0.4 + 20;
-    const btnY = h * 0.72;
-    const btnW = 120;
-    const btnH = 30;
-    const gap = 6;
+    const btnX = w * 0.52;
+    const btnY = h * 0.80;
+    const btnW = 110;
+    const btnH = 28;
+    const gap = 5;
 
     const actions: { label: string; action: () => void }[] = [
       { label: "⚔ Attack", action: () => this.doPlayerAttack() },
+      { label: "🛡 Defend", action: () => this.doDefend() },
     ];
     if (hasAbilities) {
       actions.push({ label: "⚡ Abilities", action: () => this.showAbilityMenu() });
@@ -249,7 +260,7 @@ export class BattleScene extends Phaser.Scene {
       .map((id) => getSpell(id))
       .filter((s): s is Spell => s !== undefined);
 
-    const container = this.add.container(w * 0.4 + 20, this.cameras.main.height * 0.45 - spells.length * 28 - 10);
+    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - spells.length * 28 - 10);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
@@ -303,7 +314,7 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    const container = this.add.container(w * 0.4 + 20, this.cameras.main.height * 0.45 - abilities.length * 28 - 10);
+    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - abilities.length * 28 - 10);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a2a1e, 0.95);
@@ -340,6 +351,8 @@ export class BattleScene extends Phaser.Scene {
 
   private doPlayerAbility(abilityId: string): void {
     if (this.phase !== "playerTurn") return;
+    this.playerDefending = false;
+    this.monsterDefending = false;
     this.phase = "monsterTurn";
 
     try {
@@ -396,7 +409,7 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    const container = this.add.container(w * 0.4 + 20, this.cameras.main.height * 0.45 - consumables.length * 28 - 10);
+    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - consumables.length * 28 - 10);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
@@ -429,9 +442,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private updateMonsterDisplay(): void {
-    const hpBar = this.getHpBar(this.monsterHp, this.monster.hp, 20);
+    const hpBar = this.getHpBar(this.monsterHp, this.monster.hp, 14);
+    const defendTag = this.monsterDefending ? " [DEF]" : "";
     this.monsterText.setText(
-      `${this.monster.name}  HP: ${this.monsterHp}/${this.monster.hp}\n${hpBar}`
+      `${this.monster.name}${defendTag}\nHP: ${this.monsterHp}/${this.monster.hp}\n${hpBar}`
     );
     // Flash monster on hit
     if (this.monsterHp <= 0) {
@@ -441,11 +455,12 @@ export class BattleScene extends Phaser.Scene {
 
   private updatePlayerStats(): void {
     const p = this.player;
-    this.statsText.setText(
-      `${p.name} Lv.${p.level}\n` +
+    const defendTag = this.playerDefending ? " [DEF]" : "";
+    this.playerStatsText.setText(
+      `${p.name} Lv.${p.level}${defendTag}\n` +
         `HP: ${p.hp}/${p.maxHp} ${this.getHpBar(p.hp, p.maxHp, 8)}\n` +
         `MP: ${p.mp}/${p.maxMp} ${this.getMpBar(p.mp, p.maxMp, 8)}\n` +
-        `AC: ${getArmorClass(p)}`
+        `AC: ${getArmorClass(p)}${this.playerDefending ? "+2" : ""}`
     );
   }
 
@@ -477,7 +492,7 @@ export class BattleScene extends Phaser.Scene {
     const debugKeys = {
       K: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K),
       H: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H),
-      M: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M),
+      P: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P),
       G: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G),
       L: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L),
       X: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X),
@@ -506,7 +521,7 @@ export class BattleScene extends Phaser.Scene {
     });
 
     // Restore MP
-    debugKeys.M.on("down", () => {
+    debugKeys.P.on("down", () => {
       if (!isDebug()) return;
       debugLog("CHEAT: Restore MP", { before: this.player.mp, max: this.player.maxMp });
       this.player.mp = this.player.maxMp;
@@ -542,16 +557,54 @@ export class BattleScene extends Phaser.Scene {
       debugLog("CHEAT: XP set to", this.player.xp);
       debugPanelLog(`[CHEAT] XP set to ${this.player.xp}`, true);
     });
+
+    // Register debug command handler for battle scene
+    setDebugCommandHandler((cmd, args) => {
+      const val = parseInt(args, 10);
+      switch (cmd) {
+        case "kill":
+          this.monsterHp = 0;
+          this.updateMonsterDisplay();
+          if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
+            this.phase = "playerTurn";
+            this.checkBattleEnd();
+          }
+          debugPanelLog(`[CMD] Monster killed!`, true);
+          break;
+        case "heal":
+          this.player.hp = this.player.maxHp;
+          this.player.mp = this.player.maxMp;
+          this.updatePlayerStats();
+          debugPanelLog(`[CMD] Fully healed!`, true);
+          break;
+        case "gold":
+          if (!isNaN(val)) { this.player.gold = val; debugPanelLog(`[CMD] Gold set to ${val}`, true); }
+          break;
+        case "hp":
+          if (!isNaN(val)) { this.player.hp = Math.min(val, this.player.maxHp); this.updatePlayerStats(); debugPanelLog(`[CMD] HP set to ${this.player.hp}`, true); }
+          break;
+        case "mp":
+          if (!isNaN(val)) { this.player.mp = Math.min(val, this.player.maxMp); this.updatePlayerStats(); debugPanelLog(`[CMD] MP set to ${this.player.mp}`, true); }
+          break;
+        case "help":
+          debugPanelLog(`Battle commands: /kill /heal /gold /hp /mp /help`, true);
+          break;
+        default:
+          debugPanelLog(`Unknown command: /${cmd}. Type /help`, true);
+      }
+    });
   }
 
   private updateDebugPanel(): void {
     const p = this.player;
+    const defInfo = this.playerDefending ? " [DEF+2]" : "";
+    const mDefInfo = this.monsterDefending ? " [DEF+2]" : "";
     debugPanelState(
       `BATTLE | Phase: ${this.phase} | ` +
-      `Monster: ${this.monster.name} HP ${this.monsterHp}/${this.monster.hp} AC ${this.monster.ac} | ` +
-      `Player: HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} AC ${getArmorClass(p)} | ` +
+      `Monster: ${this.monster.name} HP ${this.monsterHp}/${this.monster.hp} AC ${this.monster.ac}${mDefInfo} | ` +
+      `Player: HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} AC ${getArmorClass(p)}${defInfo} | ` +
       `Lv.${p.level} XP ${p.xp}/${xpForLevel(p.level + 1)} Gold ${p.gold}\n` +
-      `Cheats: K=Kill H=Heal M=MP G=+100Gold L=LvUp X=MaxXP`
+      `Cheats: K=Kill H=Heal P=MP G=+100Gold L=LvUp X=MaxXP`
     );
   }
 
@@ -596,10 +649,14 @@ export class BattleScene extends Phaser.Scene {
   private doPlayerAttack(): void {
     if (this.phase !== "playerTurn") return;
     this.closeAllSubMenus();
+    this.playerDefending = false; // reset defend on new action
     this.phase = "monsterTurn"; // prevent double actions
 
     try {
-      const result = playerAttack(this.player, this.monster);
+      const monsterDefBonus = this.monsterDefending ? 2 : 0;
+      const result = playerAttack(this.player, this.monster, monsterDefBonus);
+      // Reset monster defend after player attacks
+      this.monsterDefending = false;
       debugLog("Player attack", { roll: result.roll, hit: result.hit, critical: result.critical, damage: result.damage, monsterAC: this.monster.ac });
       debugPanelLog(
         `  ↳ [Player Attack] d20=${result.roll} +${result.attackMod} = ${result.totalRoll} vs AC ${this.monster.ac} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage}`,
@@ -625,8 +682,22 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  private doDefend(): void {
+    if (this.phase !== "playerTurn") return;
+    this.closeAllSubMenus();
+    this.monsterDefending = false; // reset monster defend
+    this.playerDefending = true;
+    this.phase = "monsterTurn";
+    this.addLog(`${this.player.name} takes a defensive stance! (+2 AC)`);
+    debugPanelLog(`  ↳ [Defend] AC ${getArmorClass(this.player)} → ${getArmorClass(this.player) + 2}`, false, "roll-detail");
+    this.updatePlayerStats();
+    this.time.delayedCall(800, () => this.doMonsterTurn());
+  }
+
   private doPlayerSpell(spellId: string): void {
     if (this.phase !== "playerTurn") return;
+    this.playerDefending = false;
+    this.monsterDefending = false;
     this.phase = "monsterTurn";
 
     try {
@@ -663,6 +734,7 @@ export class BattleScene extends Phaser.Scene {
 
   private doUseItem(itemIndex: number): void {
     if (this.phase !== "playerTurn") return;
+    this.playerDefending = false;
     this.phase = "monsterTurn";
 
     try {
@@ -717,6 +789,22 @@ export class BattleScene extends Phaser.Scene {
       return;
 
     try {
+      // Small chance (8%) the monster defends instead of attacking
+      if (Math.random() < 0.08) {
+        this.monsterDefending = true;
+        this.addLog(`${this.monster.name} takes a defensive stance!`);
+        debugPanelLog(`  ↳ [Monster Defend] AC ${this.monster.ac} → ${this.monster.ac + 2}`, false, "roll-detail");
+        this.updateMonsterDisplay();
+        this.playerDefending = false;
+        this.updatePlayerStats();
+        this.phase = "playerTurn";
+        return;
+      }
+
+      // Reset monster defend at start of their action turn
+      this.monsterDefending = false;
+      this.updateMonsterDisplay();
+
       // Check for monster ability use
       if (this.monster.abilities) {
         for (const ability of this.monster.abilities) {
@@ -746,14 +834,17 @@ export class BattleScene extends Phaser.Scene {
               return;
             }
 
+            this.playerDefending = false;
+            this.updatePlayerStats();
             this.phase = "playerTurn";
             return;
           }
         }
       }
 
-      // Normal attack
-      const result = monsterAttack(this.monster, this.player);
+      // Normal attack — pass player defend bonus
+      const defendBonus = this.playerDefending ? 2 : 0;
+      const result = monsterAttack(this.monster, this.player, defendBonus);
       debugLog("Monster attack", {
         naturalRoll: result.roll,
         attackBonus: result.attackBonus,
@@ -763,17 +854,29 @@ export class BattleScene extends Phaser.Scene {
         critical: result.critical,
         damage: result.damage,
         playerHP: this.player.hp,
+        playerDefending: this.playerDefending,
       });
       debugPanelLog(
-        `  ↳ [Monster Attack] d20=${result.roll} +${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → Player HP ${this.player.hp}`,
+        `  ↳ [Monster Attack] d20=${result.roll} +${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}${this.playerDefending ? " (DEF+2)" : ""} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → Player HP ${this.player.hp}`,
         false, "roll-detail"
       );
       // Only show the outcome message, never the enemy's roll details
       this.addLog(result.message);
+
+      // Reset player defend after monster's turn
+      this.playerDefending = false;
       this.updatePlayerStats();
 
       if (result.hit) {
         this.cameras.main.shake(150, 0.01);
+        // Shake player sprite
+        this.tweens.add({
+          targets: this.playerSprite,
+          x: this.playerSprite.x - 8,
+          duration: 50,
+          yoyo: true,
+          repeat: 2,
+        });
       }
 
       if (this.player.hp <= 0) {

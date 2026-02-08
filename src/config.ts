@@ -10,7 +10,7 @@ export const TILE_SIZE = 32;
  * Debug mode — toggled via the [debug mode] checkbox above the game canvas.
  * When enabled: shows a debug panel below the game with full action logs
  * and live state, prints to the browser console, and enables cheat keys
- * in battle (K = kill monster, H = full heal, M = restore MP,
+ * in battle (K = kill monster, H = full heal, P = restore MP,
  * G = +100 gold, L = level up, X = max XP).
  */
 let _debug = false;
@@ -68,4 +68,46 @@ export function debugPanelClear(): void {
   const el = document.getElementById("debug-log");
   if (!el) return;
   el.innerHTML = "";
+}
+
+// --- Debug Command Input ---
+
+type DebugCommandHandler = (command: string, args: string) => void;
+let _debugCommandHandler: DebugCommandHandler | null = null;
+
+/** Register a command handler for the debug text input. Called by the active scene. */
+export function setDebugCommandHandler(handler: DebugCommandHandler | null): void {
+  _debugCommandHandler = handler;
+}
+
+/** Initialize the debug command input listener (called once on startup). */
+export function initDebugCommandInput(): void {
+  const input = document.getElementById("debug-cmd") as HTMLInputElement | null;
+  if (!input) return;
+  input.addEventListener("keydown", (e) => {
+    e.stopPropagation(); // prevent Phaser from capturing keys while typing
+    if (e.key === "Enter") {
+      const raw = input.value.trim();
+      input.value = "";
+      if (!raw.startsWith("/")) {
+        debugPanelLog(`Unknown command: ${raw}. Commands start with /`, true);
+        return;
+      }
+      if (!_debug) {
+        debugPanelLog("Debug mode is off!", true);
+        return;
+      }
+      const parts = raw.slice(1).split(/\s+/);
+      const cmd = parts[0].toLowerCase();
+      const args = parts.slice(1).join(" ");
+      if (_debugCommandHandler) {
+        _debugCommandHandler(cmd, args);
+      } else {
+        debugPanelLog(`No active command handler.`, true);
+      }
+    }
+  });
+  // Prevent Phaser from stealing focus events  
+  input.addEventListener("keyup", (e) => e.stopPropagation());
+  input.addEventListener("keypress", (e) => e.stopPropagation());
 }

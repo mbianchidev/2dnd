@@ -171,7 +171,7 @@ export class ShopScene extends Phaser.Scene {
     this.itemListContainer.removeAll(true);
 
     this.shopItems.forEach((item, i) => {
-      const isEquipment = item.type === "weapon" || item.type === "armor";
+      const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield";
       const alreadyOwned = isEquipment && ownsEquipment(this.player, item.id);
       const canBuy = !alreadyOwned && this.player.gold >= item.cost;
       const color = alreadyOwned ? "#555555" : canBuy ? "#cccccc" : "#666666";
@@ -183,7 +183,9 @@ export class ShopScene extends Phaser.Scene {
             ? "⚔"
             : item.type === "armor"
               ? "🛡"
-              : "🔑";
+              : item.type === "shield"
+                ? "🛡"
+                : "🔑";
 
       const ownedTag = alreadyOwned ? " [OWNED]" : "";
 
@@ -211,7 +213,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private purchaseItem(item: Item): void {
-    const isEquipment = item.type === "weapon" || item.type === "armor";
+    const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield";
     if (isEquipment && ownsEquipment(this.player, item.id)) {
       this.setMessage(`You already own ${item.name}!`, "#ff6666");
       return;
@@ -235,6 +237,15 @@ export class ShopScene extends Phaser.Scene {
           const idx = this.player.inventory.length - 1;
           useItem(this.player, idx);
           this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
+        }
+      } else if (item.type === "shield") {
+        if (!this.player.equippedWeapon?.twoHanded) {
+          const currentEffect = this.player.equippedShield?.effect ?? 0;
+          if (item.effect > currentEffect) {
+            const idx = this.player.inventory.length - 1;
+            useItem(this.player, idx);
+            this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
+          }
         }
       }
     } else {
@@ -273,6 +284,9 @@ export class ShopScene extends Phaser.Scene {
     const armor = p.equippedArmor
       ? `${p.equippedArmor.name} (+${p.equippedArmor.effect} AC)`
       : "No Armor";
+    const shield = p.equippedShield
+      ? `${p.equippedShield.name} (+${p.equippedShield.effect} AC)`
+      : "No Shield";
     const consumables = p.inventory.filter((i) => i.type === "consumable");
     const potionCount = consumables.filter((i) => i.id === "potion").length;
     const etherCount = consumables.filter((i) => i.id === "ether").length;
@@ -285,7 +299,8 @@ export class ShopScene extends Phaser.Scene {
         `HP: ${p.hp}/${p.maxHp}\n` +
         `MP: ${p.mp}/${p.maxMp}\n\n` +
         `Weapon: ${weapon}\n` +
-        `Armor: ${armor}\n\n` +
+        `Armor: ${armor}\n` +
+        `Shield: ${shield}\n\n` +
         `Inventory:\n` +
         `  Potions: ${potionCount}\n` +
         `  Ethers: ${etherCount}\n` +

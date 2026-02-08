@@ -24,7 +24,7 @@ import {
 import { getRandomEncounter, getDungeonEncounter, getBoss } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear, setDebugCommandHandler } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
@@ -113,7 +113,7 @@ export class OverworldScene extends Phaser.Scene {
     const gKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
     const lKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L);
     const hKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
-    const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
 
     gKey.on("down", () => {
       if (!isDebug()) return;
@@ -146,7 +146,7 @@ export class OverworldScene extends Phaser.Scene {
       this.updateHUD();
     });
 
-    mKey.on("down", () => {
+    pKey.on("down", () => {
       if (!isDebug()) return;
       this.player.mp = this.player.maxMp;
       debugLog("CHEAT: Restore MP");
@@ -188,6 +188,81 @@ export class OverworldScene extends Phaser.Scene {
       this.renderMap();
       this.createPlayer();
     });
+
+    // Register debug command handler
+    setDebugCommandHandler((cmd, args) => this.handleDebugCommand(cmd, args));
+  }
+
+  private handleDebugCommand(cmd: string, args: string): void {
+    const val = parseInt(args, 10);
+    switch (cmd) {
+      case "gold":
+        if (!isNaN(val)) { this.player.gold = val; this.updateHUD(); debugPanelLog(`[CMD] Gold set to ${val}`, true); }
+        else debugPanelLog(`Usage: /gold <amount>`, true);
+        break;
+      case "exp":
+      case "xp":
+        if (!isNaN(val)) {
+          const result = awardXP(this.player, val);
+          this.updateHUD();
+          debugPanelLog(`[CMD] +${val} XP (now Lv.${result.newLevel})`, true);
+          if (result.leveledUp) debugPanelLog(`[CMD] Level up to ${result.newLevel}!`, true);
+        } else debugPanelLog(`Usage: /exp <amount>`, true);
+        break;
+      case "hp":
+        if (!isNaN(val)) { this.player.hp = Math.min(val, this.player.maxHp); this.updateHUD(); debugPanelLog(`[CMD] HP set to ${this.player.hp}`, true); }
+        else debugPanelLog(`Usage: /hp <amount>`, true);
+        break;
+      case "max_hp":
+      case "maxhp":
+        if (!isNaN(val)) { this.player.maxHp = val; this.player.hp = Math.min(this.player.hp, val); this.updateHUD(); debugPanelLog(`[CMD] Max HP set to ${val}`, true); }
+        else debugPanelLog(`Usage: /max_hp <amount>`, true);
+        break;
+      case "mp":
+        if (!isNaN(val)) { this.player.mp = Math.min(val, this.player.maxMp); this.updateHUD(); debugPanelLog(`[CMD] MP set to ${this.player.mp}`, true); }
+        else debugPanelLog(`Usage: /mp <amount>`, true);
+        break;
+      case "max_mp":
+      case "maxmp":
+        if (!isNaN(val)) { this.player.maxMp = val; this.player.mp = Math.min(this.player.mp, val); this.updateHUD(); debugPanelLog(`[CMD] Max MP set to ${val}`, true); }
+        else debugPanelLog(`Usage: /max_mp <amount>`, true);
+        break;
+      case "level":
+      case "lvl":
+        if (!isNaN(val) && val >= 1 && val <= 20) {
+          while (this.player.level < val) {
+            const needed = xpForLevel(this.player.level + 1) - this.player.xp;
+            awardXP(this.player, Math.max(needed, 0));
+          }
+          this.updateHUD();
+          debugPanelLog(`[CMD] Level set to ${this.player.level}`, true);
+        } else debugPanelLog(`Usage: /level <1-20>`, true);
+        break;
+      case "item": {
+        const itemId = args.trim();
+        if (itemId) {
+          const item = getItem(itemId);
+          if (item) {
+            this.player.inventory.push({ ...item });
+            debugPanelLog(`[CMD] Added ${item.name} to inventory`, true);
+          } else {
+            debugPanelLog(`[CMD] Unknown item: ${itemId}`, true);
+          }
+        } else debugPanelLog(`Usage: /item <itemId>`, true);
+        break;
+      }
+      case "heal":
+        this.player.hp = this.player.maxHp;
+        this.player.mp = this.player.maxMp;
+        this.updateHUD();
+        debugPanelLog(`[CMD] Fully healed!`, true);
+        break;
+      case "help":
+        debugPanelLog(`Commands: /gold /exp /hp /max_hp /mp /max_mp /level /item /heal /help`, true);
+        break;
+      default:
+        debugPanelLog(`Unknown command: /${cmd}. Type /help for list.`, true);
+    }
   }
 
   private renderMap(): void {
@@ -620,7 +695,7 @@ export class OverworldScene extends Phaser.Scene {
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
       `Bosses: ${this.defeatedBosses.size}\n` +
-      `Cheats: G=Gold H=Heal M=MP L=LvUp F=EncToggle R=Reveal V=FogToggle`
+      `Cheats: G=Gold H=Heal P=MP L=LvUp F=EncToggle R=Reveal V=FogToggle`
     );
   }
 
@@ -801,9 +876,13 @@ export class OverworldScene extends Phaser.Scene {
             // Auto-equip if better
             if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
               this.player.equippedWeapon = item;
+              if (item.twoHanded) this.player.equippedShield = null;
             }
             if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
               this.player.equippedArmor = item;
+            }
+            if (item.type === "shield" && !this.player.equippedWeapon?.twoHanded && (!this.player.equippedShield || item.effect > this.player.equippedShield.effect)) {
+              this.player.equippedShield = item;
             }
             this.showMessage(`🎁 Found ${item.name}!`);
             this.updateHUD();
@@ -877,9 +956,13 @@ export class OverworldScene extends Phaser.Scene {
           this.player.inventory.push({ ...item });
           if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
             this.player.equippedWeapon = item;
+            if (item.twoHanded) this.player.equippedShield = null;
           }
           if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
             this.player.equippedArmor = item;
+          }
+          if (item.type === "shield" && !this.player.equippedWeapon?.twoHanded && (!this.player.equippedShield || item.effect > this.player.equippedShield.effect)) {
+            this.player.equippedShield = item;
           }
           this.showMessage(`🎁 Found ${item.name}!`);
           this.updateHUD();
@@ -952,7 +1035,7 @@ export class OverworldScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const panelW = 280;
-    const panelH = 360;
+    const panelH = 420;
     const px = Math.floor((w - panelW) / 2);
     const py = Math.floor((h - panelH) / 2) - 20;
 
@@ -1031,6 +1114,8 @@ export class OverworldScene extends Phaser.Scene {
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
             p.equippedWeapon = wpn;
+            // Two-handed weapons unequip shield
+            if (wpn.twoHanded) p.equippedShield = null;
             this.buildEquipOverlay();
           });
         }
@@ -1071,6 +1156,53 @@ export class OverworldScene extends Phaser.Scene {
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
             p.equippedArmor = arm;
+            this.buildEquipOverlay();
+          });
+        }
+        this.equipOverlay.add(txt);
+        cy += 16;
+      }
+    }
+    cy += 6;
+
+    // --- Shield slot ---
+    const shieldLabel = this.add.text(px + 14, cy, "Shield:", {
+      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
+    });
+    this.equipOverlay.add(shieldLabel);
+    cy += 16;
+
+    const isTwoHanded = p.equippedWeapon?.twoHanded === true;
+    const ownedShields = p.inventory.filter((i) => i.type === "shield");
+    if (isTwoHanded) {
+      const note = this.add.text(px + 20, cy, "(two-handed weapon equipped)", {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay.add(note);
+      cy += 16;
+    } else if (ownedShields.length === 0 && !p.equippedShield) {
+      const none = this.add.text(px + 20, cy, "No Shield", {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay.add(none);
+      cy += 16;
+    } else {
+      const allShields = p.equippedShield
+        ? [p.equippedShield, ...ownedShields.filter((i) => i.id !== p.equippedShield!.id)]
+        : ownedShields;
+      for (const sh of allShields) {
+        const isEquipped = p.equippedShield?.id === sh.id;
+        const prefix = isEquipped ? "► " : "  ";
+        const color = isEquipped ? "#88ff88" : "#aaddff";
+        const txt = this.add.text(px + 20, cy,
+          `${prefix}${sh.name} (+${sh.effect} AC)${isEquipped ? " [equipped]" : ""}`,
+          { fontSize: "11px", fontFamily: "monospace", color }
+        ).setInteractive({ useHandCursor: !isEquipped });
+        if (!isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ffd700"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedShield = sh;
             this.buildEquipOverlay();
           });
         }

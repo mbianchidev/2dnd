@@ -6,9 +6,10 @@ export interface Item {
   id: string;
   name: string;
   description: string;
-  type: "consumable" | "weapon" | "armor" | "key";
+  type: "consumable" | "weapon" | "armor" | "shield" | "key";
   cost: number;
   effect: number; // healing amount, attack bonus, AC bonus, etc.
+  twoHanded?: boolean; // weapons only — cannot equip a shield with a two-handed weapon
 }
 
 export const ITEMS: Item[] = [
@@ -55,10 +56,11 @@ export const ITEMS: Item[] = [
   {
     id: "greatSword",
     name: "Great Sword",
-    description: "+7 attack damage",
+    description: "+7 attack damage (two-handed)",
     type: "weapon",
     cost: 200,
     effect: 7,
+    twoHanded: true,
   },
   {
     id: "leatherArmor",
@@ -83,6 +85,30 @@ export const ITEMS: Item[] = [
     type: "armor",
     cost: 250,
     effect: 6,
+  },
+  {
+    id: "woodenShield",
+    name: "Wooden Shield",
+    description: "+1 AC",
+    type: "shield",
+    cost: 20,
+    effect: 1,
+  },
+  {
+    id: "ironShield",
+    name: "Iron Shield",
+    description: "+2 AC",
+    type: "shield",
+    cost: 60,
+    effect: 2,
+  },
+  {
+    id: "towerShield",
+    name: "Tower Shield",
+    description: "+3 AC",
+    type: "shield",
+    cost: 150,
+    effect: 3,
   },
   {
     id: "dungeonKey",
@@ -113,7 +139,7 @@ export const ITEMS: Item[] = [
     id: "cryptGuardian",
     name: "Crypt Guardian Shield",
     description: "+8 AC, ancient relic",
-    type: "armor",
+    type: "shield",
     cost: 0,
     effect: 8,
   },

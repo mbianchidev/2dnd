@@ -125,6 +125,17 @@ export class BootScene extends Phaser.Scene {
           gfx.fillStyle(0xffeb3b, 1);
           gfx.fillCircle(18, 18, 2);
           break;
+        case Terrain.Chest:
+          // Golden treasure chest on dark floor
+          gfx.fillStyle(0x555555, 1);
+          gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+          gfx.fillStyle(0xffc107, 1);
+          gfx.fillRect(8, 10, 16, 14);
+          gfx.fillStyle(0xffab00, 1);
+          gfx.fillRect(8, 10, 16, 4);
+          gfx.fillStyle(0x795548, 1);
+          gfx.fillRect(14, 12, 4, 6);
+          break;
       }
 
       // Add grid border
@@ -134,6 +145,19 @@ export class BootScene extends Phaser.Scene {
       gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
       gfx.destroy();
     }
+
+    // Fog of war tile — solid black with subtle noise
+    const fogGfx = this.add.graphics();
+    fogGfx.fillStyle(0x111111, 1);
+    fogGfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+    fogGfx.fillStyle(0x1a1a1a, 0.4);
+    fogGfx.fillRect(4, 4, 8, 8);
+    fogGfx.fillRect(20, 12, 8, 8);
+    fogGfx.fillRect(8, 20, 8, 8);
+    fogGfx.lineStyle(1, 0x000000, 0.3);
+    fogGfx.strokeRect(0, 0, TILE_SIZE, TILE_SIZE);
+    fogGfx.generateTexture("tile_fog", TILE_SIZE, TILE_SIZE);
+    fogGfx.destroy();
   }
 
   private generatePlayerTexture(): void {
@@ -459,11 +483,11 @@ export class BootScene extends Phaser.Scene {
 
     let selectedAppearance = PLAYER_APPEARANCES[0];
     const previewSprite = this.add
-      .sprite(cx, 180, `player_${selectedAppearance.id}`)
+      .sprite(cx, 170, `player_${selectedAppearance.id}`)
       .setScale(3);
 
     const selectedLabel = this.add
-      .text(cx, 210, selectedAppearance.label, {
+      .text(cx, 202, selectedAppearance.label, {
         fontSize: "14px",
         fontFamily: "monospace",
         color: "#88ff88",
@@ -475,7 +499,7 @@ export class BootScene extends Phaser.Scene {
     const optW = 72;
     const optH = 68;
     const startX = cx - ((Math.min(cols, PLAYER_APPEARANCES.length) * optW) / 2) + optW / 2;
-    const startY = 240;
+    const startY = 232;
 
     const optionHighlights: Phaser.GameObjects.Graphics[] = [];
 

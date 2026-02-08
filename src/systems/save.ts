@@ -56,6 +56,8 @@ export function loadGame(): SaveData | null {
     if (data.player.chunkY === undefined) data.player.chunkY = 1;
     if (data.player.inDungeon === undefined) data.player.inDungeon = false;
     if (data.player.dungeonId === undefined) data.player.dungeonId = "";
+    if (!data.player.openedChests) data.player.openedChests = [];
+    if (!data.player.exploredTiles) data.player.exploredTiles = {};
     return data;
   } catch {
     return null;

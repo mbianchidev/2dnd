@@ -17,6 +17,7 @@ import {
   getChunk,
   getDungeonAt,
   getDungeon,
+  getChestAt,
   type WorldChunk,
   type DungeonData,
 } from "../data/map";
@@ -27,6 +28,7 @@ import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } fr
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
+import { getItem } from "../data/items";
 
 const TILE_SIZE = 32;
 
@@ -53,6 +55,8 @@ export class OverworldScene extends Phaser.Scene {
   private menuOverlay: Phaser.GameObjects.Container | null = null;
   private worldMapOverlay: Phaser.GameObjects.Container | null = null;
   private isNewPlayer = false;
+  private debugEncounters = true; // debug toggle for encounters
+  private messageText: Phaser.GameObjects.Text | null = null;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -81,6 +85,9 @@ export class OverworldScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(0x111111);
     this.cameras.main.fadeIn(500);
+
+    // Reveal tiles around player on creation (fog of war)
+    this.revealAround();
 
     this.renderMap();
     this.createPlayer();
@@ -145,6 +152,30 @@ export class OverworldScene extends Phaser.Scene {
       debugPanelLog(`[CHEAT] MP restored to ${this.player.maxMp}!`, true);
       this.updateHUD();
     });
+
+    // F key — toggle encounters on/off
+    const fKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+    fKey.on("down", () => {
+      if (!isDebug()) return;
+      this.debugEncounters = !this.debugEncounters;
+      debugLog("CHEAT: Encounters " + (this.debugEncounters ? "ON" : "OFF"));
+      debugPanelLog(`[CHEAT] Encounters ${this.debugEncounters ? "ON" : "OFF"}`, true);
+    });
+
+    // R key — reveal full map (remove fog)
+    const rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    rKey.on("down", () => {
+      if (!isDebug()) return;
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          const key = this.exploredKey(x, y);
+          this.player.exploredTiles[key] = true;
+        }
+      }
+      this.renderMap();
+      this.createPlayer();
+      debugPanelLog(`[CHEAT] Map revealed`, true);
+    });
   }
 
   private renderMap(): void {
@@ -163,11 +194,13 @@ export class OverworldScene extends Phaser.Scene {
       for (let y = 0; y < MAP_HEIGHT; y++) {
         this.tileSprites[y] = [];
         for (let x = 0; x < MAP_WIDTH; x++) {
+          const explored = this.isExplored(x, y);
           const terrain = dungeon.mapData[y][x];
+          const texKey = explored ? `tile_${terrain}` : "tile_fog";
           const sprite = this.add.sprite(
             x * TILE_SIZE + TILE_SIZE / 2,
             y * TILE_SIZE + TILE_SIZE / 2,
-            `tile_${terrain}`
+            texKey
           );
           this.tileSprites[y][x] = sprite;
         }
@@ -182,10 +215,10 @@ export class OverworldScene extends Phaser.Scene {
           strokeThickness: 2,
         })
         .setOrigin(0.5, 0);
-      // Exit label
+      // Exit label (only if explored)
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
-          if (dungeon.mapData[y][x] === Terrain.DungeonExit) {
+          if (dungeon.mapData[y][x] === Terrain.DungeonExit && this.isExplored(x, y)) {
             this.add
               .text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE - 4, "EXIT", {
                 fontSize: "8px",
@@ -207,32 +240,36 @@ export class OverworldScene extends Phaser.Scene {
     for (let y = 0; y < MAP_HEIGHT; y++) {
       this.tileSprites[y] = [];
       for (let x = 0; x < MAP_WIDTH; x++) {
+        const explored = this.isExplored(x, y);
         const terrain = chunk.mapData[y][x];
+        const texKey = explored ? `tile_${terrain}` : "tile_fog";
         const sprite = this.add.sprite(
           x * TILE_SIZE + TILE_SIZE / 2,
           y * TILE_SIZE + TILE_SIZE / 2,
-          `tile_${terrain}`
+          texKey
         );
         this.tileSprites[y][x] = sprite;
       }
     }
 
-    // Add town labels for this chunk
+    // Add town labels for this chunk (only if explored)
     for (const town of chunk.towns) {
-      this.add
-        .text(town.x * TILE_SIZE + TILE_SIZE / 2, town.y * TILE_SIZE - 4, town.name, {
-          fontSize: "9px",
-          fontFamily: "monospace",
-          color: "#fff",
-          stroke: "#000",
-          strokeThickness: 2,
-        })
-        .setOrigin(0.5, 1);
+      if (this.isExplored(town.x, town.y)) {
+        this.add
+          .text(town.x * TILE_SIZE + TILE_SIZE / 2, town.y * TILE_SIZE - 4, town.name, {
+            fontSize: "9px",
+            fontFamily: "monospace",
+            color: "#fff",
+            stroke: "#000",
+            strokeThickness: 2,
+          })
+          .setOrigin(0.5, 1);
+      }
     }
 
-    // Add boss markers (if not defeated) for this chunk
+    // Add boss markers (if not defeated) for this chunk (only if explored)
     for (const boss of chunk.bosses) {
-      if (!this.defeatedBosses.has(boss.monsterId)) {
+      if (!this.defeatedBosses.has(boss.monsterId) && this.isExplored(boss.x, boss.y)) {
         this.add
           .text(
             boss.x * TILE_SIZE + TILE_SIZE / 2,
@@ -249,6 +286,95 @@ export class OverworldScene extends Phaser.Scene {
           .setOrigin(0.5, 1);
       }
     }
+  }
+
+  // ─── Fog of War helpers ─────────────────────────────────────────
+
+  /** Build the explored-tiles key for a position (respects dungeon vs overworld). */
+  private exploredKey(x: number, y: number): string {
+    if (this.player.inDungeon) {
+      return `d:${this.player.dungeonId},${x},${y}`;
+    }
+    return `${this.player.chunkX},${this.player.chunkY},${x},${y}`;
+  }
+
+  /** Check if a tile has been explored. */
+  private isExplored(x: number, y: number): boolean {
+    return !!this.player.exploredTiles[this.exploredKey(x, y)];
+  }
+
+  /** Reveal tiles in a radius around the player's current position. */
+  private revealAround(radius = 2): void {
+    const px = this.player.x;
+    const py = this.player.y;
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const nx = px + dx;
+        const ny = py + dy;
+        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+          this.player.exploredTiles[this.exploredKey(nx, ny)] = true;
+        }
+      }
+    }
+  }
+
+  /** Update tile sprites for newly revealed tiles without full re-render. */
+  private revealTileSprites(): void {
+    if (this.player.inDungeon) {
+      const dungeon = getDungeon(this.player.dungeonId);
+      if (!dungeon) return;
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
+            const terrain = dungeon.mapData[y][x];
+            this.tileSprites[y][x].setTexture(`tile_${terrain}`);
+          }
+        }
+      }
+    } else {
+      const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+      if (!chunk) return;
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
+            const terrain = chunk.mapData[y][x];
+            this.tileSprites[y][x].setTexture(`tile_${terrain}`);
+          }
+        }
+      }
+    }
+  }
+
+  // ─── Message display ───────────────────────────────────────────
+
+  /** Show a temporary floating message above the HUD. */
+  private showMessage(text: string, color = "#ffd700"): void {
+    if (this.messageText) {
+      this.messageText.destroy();
+      this.messageText = null;
+    }
+    this.messageText = this.add
+      .text(MAP_WIDTH * TILE_SIZE / 2, MAP_HEIGHT * TILE_SIZE - 8, text, {
+        fontSize: "12px",
+        fontFamily: "monospace",
+        color,
+        stroke: "#000",
+        strokeThickness: 3,
+        align: "center",
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(30);
+
+    this.tweens.add({
+      targets: this.messageText,
+      alpha: 0,
+      y: MAP_HEIGHT * TILE_SIZE - 30,
+      duration: 2500,
+      onComplete: () => {
+        this.messageText?.destroy();
+        this.messageText = null;
+      },
+    });
   }
 
   private createPlayer(): void {
@@ -338,8 +464,8 @@ export class OverworldScene extends Phaser.Scene {
     const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts [T]` : "";
     this.hudText.setText(
       `${p.name} Lv.${p.level}  —  ${regionName}\n` +
-        `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}\n` +
-        `Gold: ${p.gold}  XP: ${p.xp}/${(p.level + 1) * (p.level + 1) * 100}  [B] [E] [M] [N]Map${asiHint}`
+        `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}\n` +
+        `[WASD]Move [SPACE]Act [B]Bestiary [E]Equip [T]Stats [M]Menu [N]Map`
     );
   }
 
@@ -351,6 +477,13 @@ export class OverworldScene extends Phaser.Scene {
       const terrain = dungeon.mapData[this.player.y]?.[this.player.x];
       if (terrain === Terrain.DungeonExit) {
         this.locationText.setText(`${dungeon.name}\n[SPACE] Exit Dungeon`);
+      } else if (terrain === Terrain.Chest) {
+        const chest = getChestAt(this.player.x, this.player.y, { type: "dungeon", dungeonId: this.player.dungeonId });
+        if (chest && !this.player.openedChests.includes(chest.id)) {
+          this.locationText.setText(`Treasure Chest\n[SPACE] Open`);
+        } else {
+          this.locationText.setText("Opened Chest");
+        }
       } else {
         this.locationText.setText(dungeon.name);
       }
@@ -388,11 +521,21 @@ export class OverworldScene extends Phaser.Scene {
       const dungeon = getDungeonAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
       if (dungeon) {
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
-        if (hasKey) {
+        if (hasKey || isDebug()) {
           locStr = `${dungeon.name}\n[SPACE] Enter Dungeon`;
         } else {
           locStr = `${dungeon.name}\n(Locked — need key)`;
         }
+      }
+    }
+
+    // Overworld chest hint
+    if (terrain === Terrain.Chest) {
+      const chest = getChestAt(this.player.x, this.player.y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
+      if (chest && !this.player.openedChests.includes(chest.id)) {
+        locStr = `Treasure Chest\n[SPACE] Open`;
+      } else {
+        locStr = "Opened Chest";
       }
     }
 
@@ -414,6 +557,7 @@ export class OverworldScene extends Phaser.Scene {
       [Terrain.DungeonFloor]: "DFloor",
       [Terrain.DungeonWall]: "DWall",
       [Terrain.DungeonExit]: "DExit",
+      [Terrain.Chest]: "Chest",
     };
 
     let terrain: Terrain | undefined;
@@ -429,11 +573,11 @@ export class OverworldScene extends Phaser.Scene {
     const dungeonTag = p.inDungeon ? ` [DUNGEON:${p.dungeonId}]` : "";
     debugPanelState(
       `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag} | ` +
-      `Enc: ${(rate * 100).toFixed(0)}% | ` +
+      `Enc: ${(rate * 100).toFixed(0)}%${this.debugEncounters ? "" : " [OFF]"} | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
       `Bosses: ${this.defeatedBosses.size}\n` +
-      `Cheats: G=+100Gold H=Heal M=MP L=LvUp`
+      `Cheats: G=Gold H=Heal M=MP L=LvUp F=EncToggle R=Reveal`
     );
   }
 
@@ -484,6 +628,8 @@ export class OverworldScene extends Phaser.Scene {
         duration: 120,
         onComplete: () => {
           this.isMoving = false;
+          this.revealAround();
+          this.revealTileSprites();
           this.updateHUD();
           this.updateLocationText();
           this.checkEncounter(terrain);
@@ -544,6 +690,8 @@ export class OverworldScene extends Phaser.Scene {
       duration: 120,
       onComplete: () => {
         this.isMoving = false;
+        this.revealAround();
+        this.revealTileSprites();
         this.updateHUD();
         this.updateLocationText();
         this.checkEncounter(terrain);
@@ -559,6 +707,10 @@ export class OverworldScene extends Phaser.Scene {
     if (terrain === Terrain.Boss) return;
     if (terrain === Terrain.Town) return;
     if (terrain === Terrain.DungeonExit) return;
+    if (terrain === Terrain.Chest) return;
+
+    // Debug: encounters can be toggled off
+    if (isDebug() && !this.debugEncounters) return;
 
     const rate = ENCOUNTER_RATES[terrain];
     if (Math.random() < rate) {
@@ -592,6 +744,32 @@ export class OverworldScene extends Phaser.Scene {
           defeatedBosses: this.defeatedBosses,
           bestiary: this.bestiary,
         });
+        return;
+      }
+
+      // ── Chest interaction inside dungeon ──
+      if (terrain === Terrain.Chest) {
+        const chest = getChestAt(this.player.x, this.player.y, { type: "dungeon", dungeonId: this.player.dungeonId });
+        if (chest && !this.player.openedChests.includes(chest.id)) {
+          const item = getItem(chest.itemId);
+          if (item) {
+            this.player.openedChests.push(chest.id);
+            this.player.inventory.push({ ...item });
+            // Auto-equip if better
+            if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
+              this.player.equippedWeapon = item;
+            }
+            if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
+              this.player.equippedArmor = item;
+            }
+            this.showMessage(`🎁 Found ${item.name}!`);
+            this.updateHUD();
+            this.autoSave();
+          }
+        } else if (chest && this.player.openedChests.includes(chest.id)) {
+          this.showMessage("Already opened.", "#666666");
+        }
+        return;
       }
       return;
     }
@@ -627,7 +805,7 @@ export class OverworldScene extends Phaser.Scene {
       );
       if (dungeon) {
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
-        if (hasKey) {
+        if (hasKey || isDebug()) {
           // Enter the dungeon
           this.player.inDungeon = true;
           this.player.dungeonId = dungeon.id;
@@ -642,6 +820,30 @@ export class OverworldScene extends Phaser.Scene {
           });
         }
         // No key — just do nothing (location text already hints)
+      }
+      return;
+    }
+
+    // Check if on an overworld chest tile
+    if (terrain === Terrain.Chest) {
+      const chest = getChestAt(this.player.x, this.player.y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
+      if (chest && !this.player.openedChests.includes(chest.id)) {
+        const item = getItem(chest.itemId);
+        if (item) {
+          this.player.openedChests.push(chest.id);
+          this.player.inventory.push({ ...item });
+          if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
+            this.player.equippedWeapon = item;
+          }
+          if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
+            this.player.equippedArmor = item;
+          }
+          this.showMessage(`🎁 Found ${item.name}!`);
+          this.updateHUD();
+          this.autoSave();
+        }
+      } else if (chest && this.player.openedChests.includes(chest.id)) {
+        this.showMessage("Already opened.", "#666666");
       }
       return;
     }
@@ -1214,12 +1416,16 @@ export class OverworldScene extends Phaser.Scene {
         const ox = gridX + cx * (chunkW + gap);
         const oy = gridY + cy * (chunkH + gap);
 
-        // Draw terrain tiles
+        // Draw terrain tiles (fog of war applied)
         const miniGfx = this.add.graphics();
         for (let ty = 0; ty < MAP_HEIGHT; ty++) {
           for (let tx = 0; tx < MAP_WIDTH; tx++) {
             const terrain = chunk.mapData[ty][tx];
-            miniGfx.fillStyle(TERRAIN_COLORS[terrain], 1);
+            // Check if this tile has been explored
+            const exploredKey = `${cx},${cy},${tx},${ty}`;
+            const explored = !!this.player.exploredTiles[exploredKey];
+            const color = explored ? TERRAIN_COLORS[terrain] : 0x111111;
+            miniGfx.fillStyle(color, 1);
             miniGfx.fillRect(ox + tx * tilePixel, oy + ty * tilePixel, tilePixel, tilePixel);
           }
         }
@@ -1239,8 +1445,10 @@ export class OverworldScene extends Phaser.Scene {
         }).setOrigin(0.5, 0);
         this.worldMapOverlay.add(regionLabel);
 
-        // Draw town markers
+        // Draw town markers (only if explored)
         for (const town of chunk.towns) {
+          const townExploredKey = `${cx},${cy},${town.x},${town.y}`;
+          if (!this.player.exploredTiles[townExploredKey]) continue;
           const mx = ox + town.x * tilePixel + tilePixel / 2;
           const my = oy + town.y * tilePixel + tilePixel / 2;
           const townMarker = this.add.graphics();
@@ -1249,9 +1457,10 @@ export class OverworldScene extends Phaser.Scene {
           this.worldMapOverlay.add(townMarker);
         }
 
-        // Draw boss markers (if not defeated)
+        // Draw boss markers (if not defeated and explored)
         for (const boss of chunk.bosses) {
-          if (!this.defeatedBosses.has(boss.monsterId)) {
+          const bossExploredKey = `${cx},${cy},${boss.x},${boss.y}`;
+          if (!this.defeatedBosses.has(boss.monsterId) && this.player.exploredTiles[bossExploredKey]) {
             const mx = ox + boss.x * tilePixel + tilePixel / 2;
             const my = oy + boss.y * tilePixel + tilePixel / 2;
             const bossMarker = this.add.graphics();

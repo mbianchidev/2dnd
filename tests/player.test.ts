@@ -54,6 +54,8 @@ describe("player system", () => {
       expect(player.knownSpells).toContain("fireBolt");
       expect(player.inventory).toHaveLength(0);
       expect(player.pendingStatPoints).toBe(0);
+      expect(player.openedChests).toEqual([]);
+      expect(player.exploredTiles).toEqual({});
     });
   });
 

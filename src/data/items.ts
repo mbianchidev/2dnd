@@ -92,6 +92,39 @@ export const ITEMS: Item[] = [
     cost: 100,
     effect: 0,
   },
+  // --- Treasure chest unique items (not sold in shops) ---
+  {
+    id: "flameBlade",
+    name: "Flame Blade",
+    description: "+6 attack, blazing edge",
+    type: "weapon",
+    cost: 0,
+    effect: 6,
+  },
+  {
+    id: "shadowCloak",
+    name: "Shadow Cloak",
+    description: "+5 AC, woven from darkness",
+    type: "armor",
+    cost: 0,
+    effect: 5,
+  },
+  {
+    id: "cryptGuardian",
+    name: "Crypt Guardian Shield",
+    description: "+8 AC, ancient relic",
+    type: "armor",
+    cost: 0,
+    effect: 8,
+  },
+  {
+    id: "frostfang",
+    name: "Frostfang Dagger",
+    description: "+5 attack, icy bite",
+    type: "weapon",
+    cost: 0,
+    effect: 5,
+  },
 ];
 
 /** Look up an item by ID. */
@@ -99,9 +132,9 @@ export function getItem(id: string): Item | undefined {
   return ITEMS.find((item) => item.id === id);
 }
 
-/** Get all items available in shops (global fallback). */
+/** Get all items available in shops (global fallback). Excludes treasure-only items. */
 export function getShopItems(): Item[] {
-  return ITEMS.filter((item) => item.type !== "key" || item.id === "dungeonKey");
+  return ITEMS.filter((item) => item.cost > 0);
 }
 
 /** Get shop items for a specific town by looking up its shopItems list. */

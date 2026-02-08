@@ -44,6 +44,8 @@ export interface PlayerState {
   chunkY: number; // world chunk Y coordinate
   inDungeon: boolean;  // true when inside a dungeon interior
   dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
+  openedChests: string[]; // IDs of chests already opened
+  exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -114,6 +116,8 @@ export function createPlayer(name: string, appearanceId: string = "knight"): Pla
     chunkY: 1,
     inDungeon: false,
     dungeonId: "",
+    openedChests: [],
+    exploredTiles: {},
   };
 }
 

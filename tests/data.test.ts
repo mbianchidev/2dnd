@@ -15,6 +15,8 @@ import {
   DUNGEONS,
   getDungeonAt,
   getDungeon,
+  CHESTS,
+  getChestAt,
 } from "../src/data/map";
 import { MONSTERS, getRandomEncounter, getBoss, DUNGEON_MONSTERS, getDungeonEncounter } from "../src/data/monsters";
 import { SPELLS, getSpell, getAvailableSpells } from "../src/data/spells";
@@ -352,6 +354,68 @@ describe("game data", () => {
       const m2 = getDungeonEncounter(1);
       m1.hp = 0;
       expect(m2.hp).toBeGreaterThan(0);
+    });
+  });
+
+  describe("treasure chests", () => {
+    it("has at least one chest defined", () => {
+      expect(CHESTS.length).toBeGreaterThan(0);
+    });
+
+    it("each chest has a unique ID", () => {
+      const ids = CHESTS.map((c) => c.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("each chest references a valid item", () => {
+      for (const chest of CHESTS) {
+        const item = getItem(chest.itemId);
+        expect(item, `chest ${chest.id} references unknown item ${chest.itemId}`).toBeDefined();
+      }
+    });
+
+    it("chest items are treasure-only (cost 0)", () => {
+      for (const chest of CHESTS) {
+        const item = getItem(chest.itemId);
+        expect(item!.cost).toBe(0);
+      }
+    });
+
+    it("chest tiles exist on appropriate maps", () => {
+      for (const chest of CHESTS) {
+        if (chest.location.type === "dungeon") {
+          const dungeon = getDungeon(chest.location.dungeonId);
+          expect(dungeon, `dungeon ${chest.location.dungeonId} not found`).toBeDefined();
+          const terrain = dungeon!.mapData[chest.y][chest.x];
+          expect(terrain).toBe(Terrain.Chest);
+        } else {
+          const chunk = getChunk(chest.location.chunkX, chest.location.chunkY);
+          expect(chunk, `chunk ${chest.location.chunkX},${chest.location.chunkY} not found`).toBeDefined();
+          const terrain = chunk!.mapData[chest.y][chest.x];
+          expect(terrain).toBe(Terrain.Chest);
+        }
+      }
+    });
+
+    it("getChestAt returns chest for valid positions", () => {
+      for (const chest of CHESTS) {
+        const found = getChestAt(chest.x, chest.y, chest.location);
+        expect(found).toBeDefined();
+        expect(found!.id).toBe(chest.id);
+      }
+    });
+
+    it("getChestAt returns undefined for invalid positions", () => {
+      const result = getChestAt(0, 0, { type: "overworld", chunkX: 0, chunkY: 0 });
+      expect(result).toBeUndefined();
+    });
+
+    it("Chest terrain is walkable", () => {
+      expect(isWalkable(Terrain.Chest)).toBe(true);
+    });
+
+    it("Chest terrain has zero encounter rate", () => {
+      expect(ENCOUNTER_RATES[Terrain.Chest]).toBe(0);
     });
   });
 });

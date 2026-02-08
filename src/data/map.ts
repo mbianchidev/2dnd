@@ -17,6 +17,7 @@ export enum Terrain {
   DungeonFloor = 9,
   DungeonWall = 10,
   DungeonExit = 11,
+  Chest = 12,
 }
 
 export interface TownData {
@@ -56,6 +57,16 @@ export interface DungeonData {
   spawnY: number;
 }
 
+export interface ChestData {
+  id: string;         // unique chest ID (used to track opened state)
+  itemId: string;     // the item inside
+  x: number;          // tile position
+  y: number;
+  /** For overworld chests: which chunk. For dungeon chests: which dungeon ID */
+  location: { type: "overworld"; chunkX: number; chunkY: number }
+          | { type: "dungeon"; dungeonId: string };
+}
+
 /** Colors for each terrain type (used for procedural rendering). */
 export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.Grass]: 0x4caf50,
@@ -70,6 +81,7 @@ export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.DungeonFloor]: 0x555555,
   [Terrain.DungeonWall]: 0x222222,
   [Terrain.DungeonExit]: 0x66bb6a,
+  [Terrain.Chest]: 0xffc107,
 };
 
 /** Encounter rates per terrain (0 = no encounters). */
@@ -86,6 +98,7 @@ export const ENCOUNTER_RATES: Record<Terrain, number> = {
   [Terrain.DungeonFloor]: 0.25,
   [Terrain.DungeonWall]: 0,
   [Terrain.DungeonExit]: 0,
+  [Terrain.Chest]: 0,
 };
 
 /** Tile dimensions of each chunk. */
@@ -144,7 +157,7 @@ const CHUNK_1_0: Terrain[][] = [
   [1, 0, 1, 1, 0, 0, 0, 8, 8, 0, 0, 8, 8, 0, 0, 0, 1, 1, 0, 1],
   [1, 0, 0, 1, 0, 0, 0, 0, 8, 0, 0, 8, 0, 0, 0, 0, 1, 0, 0, 1],
   [1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1],
-  [1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1],
+  [1, 1, 0,12, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1],
   [1, 1, 1, 1, 1, 1, 1, 1, 8, 8, 8, 8, 1, 1, 1, 1, 1, 1, 1, 1],
 ];
 
@@ -314,27 +327,28 @@ const CHUNK_2_2: Terrain[][] = [
 // Dungeon Interior Maps
 // ══════════════════════════════════════════════════════════════════
 
-// W = DungeonWall (10), F = DungeonFloor (9), E = DungeonExit (11)
+// W = DungeonWall (10), F = DungeonFloor (9), E = DungeonExit (11), C = Chest (12)
 const W = Terrain.DungeonWall;
 const F = Terrain.DungeonFloor;
 const E = Terrain.DungeonExit;
+const C = Terrain.Chest;
 
 // prettier-ignore
 const DUNGEON_HEARTLANDS: Terrain[][] = [
   [W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W],
-  [W, F, F, W, F, F, F, F, F, W, F, F, F, F, F, F, W, F, F, W],
+  [W, F, F, W, F, F, F, F, F, W, F, F, F, F, F, F, W, F, C, W],
   [W, F, F, W, F, W, W, W, F, W, F, W, W, W, W, F, W, F, F, W],
   [W, F, F, W, F, W, F, F, F, F, F, F, F, W, F, F, W, F, F, W],
   [W, F, W, W, F, W, F, W, W, W, W, W, F, W, F, W, W, F, F, W],
   [W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
   [W, W, W, F, W, W, W, F, W, W, W, W, F, W, W, W, F, W, W, W],
-  [W, F, F, F, F, F, F, F, W, F, F, W, F, F, F, F, F, F, F, W],
+  [W, F, F, F, F, F, F, F, W, C, F, W, F, F, F, F, F, F, F, W],
   [W, F, W, W, F, W, W, F, W, F, F, W, F, W, W, F, W, W, F, W],
   [W, F, F, F, F, W, F, F, F, F, F, F, F, F, W, F, F, F, F, W],
   [W, W, W, F, W, W, F, W, W, W, W, W, W, F, W, W, F, W, W, W],
   [W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
   [W, F, W, W, W, F, W, W, W, F, F, W, W, W, F, W, W, W, F, W],
-  [W, E, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
+  [W, E, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, C, F, W],
   [W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W],
 ];
 
@@ -352,6 +366,35 @@ export const DUNGEONS: DungeonData[] = [
     spawnY: 13,
   },
 ];
+
+/** All treasure chests in the game. */
+export const CHESTS: ChestData[] = [
+  // Dungeon chests — inside Heartlands Crypt
+  { id: "crypt_flame",   itemId: "flameBlade",     x: 18, y: 1,  location: { type: "dungeon", dungeonId: "heartlands_dungeon" } },
+  { id: "crypt_guardian", itemId: "cryptGuardian", x: 9,  y: 7,  location: { type: "dungeon", dungeonId: "heartlands_dungeon" } },
+  { id: "crypt_frost",   itemId: "frostfang",      x: 17, y: 13, location: { type: "dungeon", dungeonId: "heartlands_dungeon" } },
+  // Overworld chest — hidden in Northern Forest
+  { id: "forest_shadow", itemId: "shadowCloak",    x: 3,  y: 13, location: { type: "overworld", chunkX: 1, chunkY: 0 } },
+];
+
+/** Get a chest at the given position. */
+export function getChestAt(
+  x: number,
+  y: number,
+  location: { type: "overworld"; chunkX: number; chunkY: number } | { type: "dungeon"; dungeonId: string }
+): ChestData | undefined {
+  return CHESTS.find((c) => {
+    if (c.x !== x || c.y !== y) return false;
+    if (c.location.type !== location.type) return false;
+    if (c.location.type === "overworld" && location.type === "overworld") {
+      return c.location.chunkX === location.chunkX && c.location.chunkY === location.chunkY;
+    }
+    if (c.location.type === "dungeon" && location.type === "dungeon") {
+      return c.location.dungeonId === location.dungeonId;
+    }
+    return false;
+  });
+}
 
 /** Get a dungeon by its overworld entrance location. */
 export function getDungeonAt(

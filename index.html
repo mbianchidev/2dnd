@@ -16,6 +16,11 @@
       }
       #game-wrapper {
         display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+      }
+      #game-inner {
+        display: flex;
         flex-direction: column;
         align-items: center;
       }
@@ -34,43 +39,49 @@
       }
       #debug-panel {
         display: none;
-        width: 640px;
-        max-height: 180px;
+        width: 320px;
+        height: 580px;
         background: #0a0a0a;
         border: 1px solid #1a3a1a;
         font-family: monospace;
         font-size: 11px;
         color: #00dd00;
         overflow: hidden;
+        margin-left: 4px;
+        flex-shrink: 0;
       }
       #debug-state {
         padding: 4px 8px;
         background: #0d1a0d;
         border-bottom: 1px solid #1a3a1a;
-        white-space: pre;
+        white-space: pre-wrap;
+        word-break: break-all;
         color: #33ff33;
         font-size: 10px;
       }
       #debug-log {
         padding: 4px 8px;
-        max-height: 130px;
+        height: calc(100% - 40px);
         overflow-y: auto;
         line-height: 1.5;
       }
       #debug-log div { border-bottom: 1px solid #0a1a0a; padding: 1px 0; }
       #debug-log .debug-msg { color: #888800; }
+      #debug-log .roll-detail { color: #00aaaa; }
     </style>
   </head>
   <body>
     <div id="game-wrapper">
-      <div id="game-header">
-        <span style="color: #c0a060;">2D&amp;D</span>
-        <label id="debug-toggle" style="cursor: pointer; user-select: none; color: #555;" title="Toggle debug mode">
-          <input type="checkbox" id="debug-checkbox" style="cursor: pointer; vertical-align: middle;" />
-          <span id="debug-label">debug mode</span>
-        </label>
+      <div id="game-inner">
+        <div id="game-header">
+          <span style="color: #c0a060;">2D&amp;D</span>
+          <label id="debug-toggle" style="cursor: pointer; user-select: none; color: #555;" title="Toggle debug mode">
+            <input type="checkbox" id="debug-checkbox" style="cursor: pointer; vertical-align: middle;" />
+            <span id="debug-label">debug mode</span>
+          </label>
+        </div>
+        <div id="game-container"></div>
       </div>
-      <div id="game-container"></div>
       <div id="debug-panel">
         <div id="debug-state"></div>
         <div id="debug-log"></div>

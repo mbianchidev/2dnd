@@ -15,9 +15,11 @@ import {
   getTerrainAt,
 } from "../data/map";
 import { getRandomEncounter, getBoss } from "../data/monsters";
-import { createPlayer, type PlayerState } from "../systems/player";
+import { createPlayer, getArmorClass, type PlayerState } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { debugLog, debugPanelState, debugPanelClear } from "../config";
+import type { BestiaryData } from "../systems/bestiary";
+import { createBestiary } from "../systems/bestiary";
 
 const TILE_SIZE = 32;
 
@@ -38,12 +40,14 @@ export class OverworldScene extends Phaser.Scene {
   private locationText!: Phaser.GameObjects.Text;
   private tileSprites: Phaser.GameObjects.Sprite[][] = [];
   private defeatedBosses: Set<string> = new Set();
+  private bestiary: BestiaryData = createBestiary();
+  private equipOverlay: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super({ key: "OverworldScene" });
   }
 
-  init(data?: { player?: PlayerState; defeatedBosses?: Set<string> }): void {
+  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData }): void {
     if (data?.player) {
       this.player = data.player;
     } else {
@@ -51,6 +55,9 @@ export class OverworldScene extends Phaser.Scene {
     }
     if (data?.defeatedBosses) {
       this.defeatedBosses = data.defeatedBosses;
+    }
+    if (data?.bestiary) {
+      this.bestiary = data.bestiary;
     }
     // Reset movement state — a tween may have been orphaned when the scene
     // switched to battle mid-move, leaving isMoving permanently true.
@@ -141,6 +148,14 @@ export class OverworldScene extends Phaser.Scene {
       D: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D),
       SPACE: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
+
+    // B key opens bestiary
+    const bKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.B);
+    bKey.on("down", () => this.openBestiary());
+
+    // E key toggles equipment overlay
+    const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    eKey.on("down", () => this.toggleEquipOverlay());
   }
 
   private createHUD(): void {
@@ -180,7 +195,7 @@ export class OverworldScene extends Phaser.Scene {
     this.hudText.setText(
       `${p.name} Lv.${p.level}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}\n` +
-        `Gold: ${p.gold}  XP: ${p.xp}/${(p.level + 1) * (p.level + 1) * 100}`
+        `Gold: ${p.gold}  XP: ${p.xp}/${(p.level + 1) * (p.level + 1) * 100}  [B] Bestiary [E] Equip`
     );
   }
 
@@ -313,6 +328,7 @@ export class OverworldScene extends Phaser.Scene {
         player: this.player,
         townName: town.name,
         defeatedBosses: this.defeatedBosses,
+        bestiary: this.bestiary,
       });
       return;
     }
@@ -336,7 +352,112 @@ export class OverworldScene extends Phaser.Scene {
         player: this.player,
         monster,
         defeatedBosses: this.defeatedBosses,
+        bestiary: this.bestiary,
       });
     });
+  }
+
+  private openBestiary(): void {
+    if (this.equipOverlay) {
+      this.equipOverlay.destroy();
+      this.equipOverlay = null;
+    }
+    this.scene.start("BestiaryScene", {
+      player: this.player,
+      defeatedBosses: this.defeatedBosses,
+      bestiary: this.bestiary,
+    });
+  }
+
+  private toggleEquipOverlay(): void {
+    if (this.equipOverlay) {
+      this.equipOverlay.destroy();
+      this.equipOverlay = null;
+      return;
+    }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const panelW = 260;
+    const panelH = 300;
+    const px = Math.floor((w - panelW) / 2);
+    const py = Math.floor((h - panelH) / 2) - 30;
+
+    this.equipOverlay = this.add.container(0, 0).setDepth(50);
+
+    // Dim background
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.5);
+    dim.fillRect(0, 0, w, h);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+    dim.on("pointerdown", () => this.toggleEquipOverlay());
+    this.equipOverlay.add(dim);
+
+    // Panel background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRect(px, py, panelW, panelH);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRect(px, py, panelW, panelH);
+    this.equipOverlay.add(bg);
+
+    // Title
+    const title = this.add.text(px + panelW / 2, py + 10, "⚔ Equipment", {
+      fontSize: "16px",
+      fontFamily: "monospace",
+      color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    this.equipOverlay.add(title);
+
+    const p = this.player;
+    const weapon = p.equippedWeapon
+      ? `${p.equippedWeapon.name} (+${p.equippedWeapon.effect} dmg)`
+      : "Bare Hands";
+    const armor = p.equippedArmor
+      ? `${p.equippedArmor.name} (+${p.equippedArmor.effect} AC)`
+      : "No Armor";
+    const ac = getArmorClass(p);
+
+    const consumables = p.inventory.filter((i) => i.type === "consumable");
+    const potionCount = consumables.filter((i) => i.id === "potion").length;
+    const etherCount = consumables.filter((i) => i.id === "ether").length;
+    const greaterCount = consumables.filter((i) => i.id === "greaterPotion").length;
+
+    const lines = [
+      `${p.name}  Lv.${p.level}`,
+      ``,
+      `HP: ${p.hp}/${p.maxHp}   MP: ${p.mp}/${p.maxMp}`,
+      `AC: ${ac}`,
+      ``,
+      `Weapon: ${weapon}`,
+      `Armor:  ${armor}`,
+      ``,
+      `― Stats ―`,
+      `STR ${p.stats.strength}  DEX ${p.stats.dexterity}`,
+      `CON ${p.stats.constitution}  INT ${p.stats.intelligence}`,
+      `WIS ${p.stats.wisdom}  CHA ${p.stats.charisma}`,
+      ``,
+      `― Consumables ―`,
+      `Potions: ${potionCount}  Ethers: ${etherCount}`,
+      `Greater Potions: ${greaterCount}`,
+      ``,
+      `Spells Known: ${p.knownSpells.length}`,
+    ];
+
+    const body = this.add.text(px + 14, py + 34, lines.join("\n"), {
+      fontSize: "11px",
+      fontFamily: "monospace",
+      color: "#ccc",
+      lineSpacing: 4,
+    });
+    this.equipOverlay.add(body);
+
+    // Close hint
+    const hint = this.add.text(px + panelW / 2, py + panelH - 14, "Press E or click to close", {
+      fontSize: "10px",
+      fontFamily: "monospace",
+      color: "#666",
+    }).setOrigin(0.5, 1);
+    this.equipOverlay.add(hint);
   }
 }

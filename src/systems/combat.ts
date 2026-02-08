@@ -58,12 +58,13 @@ export function rollInitiative(
 export function playerAttack(
   player: PlayerState,
   monster: Monster
-): CombatResult {
+): CombatResult & { attackMod: number; totalRoll: number; targetAC: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerAttack: missing player or monster`);
   }
   const attackMod = getAttackModifier(player);
   const roll = rollD20(attackMod);
+  const extra = { attackMod, totalRoll: roll.total, targetAC: monster.ac };
 
   if (roll.roll === 20) {
     // Critical hit - double dice
@@ -75,6 +76,7 @@ export function playerAttack(
       hit: true,
       critical: true,
       roll: roll.roll,
+      ...extra,
     };
   }
 
@@ -85,6 +87,7 @@ export function playerAttack(
       hit: false,
       critical: false,
       roll: roll.roll,
+      ...extra,
     };
   }
 
@@ -92,18 +95,20 @@ export function playerAttack(
     const weaponBonus = player.equippedWeapon?.effect ?? 0;
     const damage = Math.max(1, rollDice(1, 6) + weaponBonus);
     return {
-      message: `${player.name} hits for ${damage} damage! (rolled ${roll.roll}+${attackMod}=${roll.total} vs AC ${monster.ac})`,
+      message: `${player.name} hits for ${damage} damage!`,
       damage,
       hit: true,
       roll: roll.roll,
+      ...extra,
     };
   }
 
   return {
-    message: `${player.name} misses! (rolled ${roll.roll}+${attackMod}=${roll.total} vs AC ${monster.ac})`,
+    message: `${player.name} misses!`,
     damage: 0,
     hit: false,
     roll: roll.roll,
+    ...extra,
   };
 }
 
@@ -112,7 +117,7 @@ export function playerCastSpell(
   player: PlayerState,
   spellId: string,
   monster: Monster
-): CombatResult & { mpUsed: number } {
+): CombatResult & { mpUsed: number; spellMod?: number; totalRoll?: number; targetAC?: number; autoHit?: boolean } {
   if (!player || !monster) {
     throw new Error(`[combat] playerCastSpell: missing player or monster`);
   }
@@ -157,8 +162,9 @@ export function playerCastSpell(
   // Damage spell - use spell attack roll
   const spellMod = getSpellModifier(player);
   const roll = rollD20(spellMod);
+  const autoHit = spell.id === "magicMissile";
 
-  if (roll.total >= monster.ac || spell.id === "magicMissile") {
+  if (roll.total >= monster.ac || autoHit) {
     // Magic Missile always hits
     const damage = rollDice(spell.damageCount, spell.damageDie as DieType);
     player.mp -= spell.mpCost;
@@ -168,16 +174,24 @@ export function playerCastSpell(
       hit: true,
       mpUsed: spell.mpCost,
       roll: roll.roll,
+      spellMod,
+      totalRoll: roll.total,
+      targetAC: monster.ac,
+      autoHit,
     };
   }
 
   player.mp -= spell.mpCost;
   return {
-    message: `${player.name} casts ${spell.name} but it misses! (${roll.total} vs AC ${monster.ac})`,
+    message: `${player.name} casts ${spell.name} but it misses!`,
     damage: 0,
     hit: false,
     mpUsed: spell.mpCost,
     roll: roll.roll,
+    spellMod,
+    totalRoll: roll.total,
+    targetAC: monster.ac,
+    autoHit: false,
   };
 }
 
@@ -234,7 +248,7 @@ export function monsterAttack(
   }
 
   return {
-    message: `${monster.name} misses! (${roll.total} vs AC ${playerAC})`,
+    message: `${monster.name} misses!`,
     damage: 0,
     hit: false,
     roll: roll.roll,

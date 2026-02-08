@@ -5,6 +5,7 @@
 import Phaser from "phaser";
 import type { Monster } from "../data/monsters";
 import { getSpell, type Spell } from "../data/spells";
+import { getItem, type Item } from "../data/items";
 import type { PlayerState } from "../systems/player";
 import {
   awardXP,
@@ -21,6 +22,8 @@ import {
 } from "../systems/combat";
 import { abilityModifier } from "../utils/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
+import type { BestiaryData } from "../systems/bestiary";
+import { recordDefeat, discoverAC } from "../systems/bestiary";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -29,6 +32,7 @@ export class BattleScene extends Phaser.Scene {
   private monster!: Monster;
   private monsterHp!: number;
   private defeatedBosses!: Set<string>;
+  private bestiary!: BestiaryData;
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
@@ -39,6 +43,14 @@ export class BattleScene extends Phaser.Scene {
   private spellMenu: Phaser.GameObjects.Container | null = null;
   private itemMenu: Phaser.GameObjects.Container | null = null;
 
+  // AC discovery tracking
+  private acHighestMiss = 0;
+  private acLowestHit = Infinity;
+  private acDiscovered = false;
+
+  // Item drops collected this battle
+  private droppedItemIds: string[] = [];
+
   constructor() {
     super({ key: "BattleScene" });
   }
@@ -47,16 +59,22 @@ export class BattleScene extends Phaser.Scene {
     player: PlayerState;
     monster: Monster;
     defeatedBosses: Set<string>;
+    bestiary: BestiaryData;
   }): void {
     this.player = data.player;
     this.monster = data.monster;
     this.monsterHp = data.monster.hp;
     this.defeatedBosses = data.defeatedBosses;
+    this.bestiary = data.bestiary;
     this.phase = "init";
     this.logLines = [];
     this.actionButtons = [];
     this.spellMenu = null;
     this.itemMenu = null;
+    this.acHighestMiss = 0;
+    this.acLowestHit = Infinity;
+    this.acDiscovered = false;
+    this.droppedItemIds = [];
   }
 
   create(): void {
@@ -441,8 +459,12 @@ export class BattleScene extends Phaser.Scene {
       const dexMod = abilityModifier(this.player.stats.dexterity);
       const result = rollInitiative(dexMod, this.monster.attackBonus);
       debugLog("Initiative", { playerRoll: result.playerRoll, monsterRoll: result.monsterRoll, playerFirst: result.playerFirst });
+      debugPanelLog(
+        `  ↳ [Initiative] Player d20+mod=${result.playerRoll} vs Monster d20+mod=${result.monsterRoll}`,
+        false, "roll-detail"
+      );
       this.addLog(
-        `⚔ ${this.monster.name} appears! Initiative: You ${result.playerRoll} vs ${this.monster.name} ${result.monsterRoll}`
+        `⚔ ${this.monster.name} appears! You rolled ${result.playerRoll} for initiative.`
       );
 
       if (result.playerFirst) {
@@ -465,7 +487,11 @@ export class BattleScene extends Phaser.Scene {
     try {
       const result = playerAttack(this.player, this.monster);
       debugLog("Player attack", { roll: result.roll, hit: result.hit, critical: result.critical, damage: result.damage, monsterAC: this.monster.ac });
-      this.addLog(result.message);
+      debugPanelLog(
+        `  ↳ [Player Attack] d20=${result.roll} +${result.attackMod} = ${result.totalRoll} vs AC ${this.monster.ac} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage}`,
+        false, "roll-detail"
+      );
+      this.addLog(result.message + this.formatPlayerRoll(result.roll, result.attackMod, result.totalRoll, result.hit, result.critical));
       this.monsterHp = Math.max(0, this.monsterHp - result.damage);
       this.updateMonsterDisplay();
 
@@ -492,7 +518,21 @@ export class BattleScene extends Phaser.Scene {
     try {
       const result = playerCastSpell(this.player, spellId, this.monster);
       debugLog("Player spell", { spellId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
-      this.addLog(result.message);
+      if (result.roll !== undefined) {
+        debugPanelLog(
+          `  ↳ [Player Spell ${spellId}] d20=${result.roll} +${result.spellMod ?? 0} = ${result.totalRoll ?? 0} vs AC ${this.monster.ac} → ${result.autoHit ? "AUTO-HIT" : result.hit ? "HIT" : "MISS"} dmg=${result.damage} mp=${result.mpUsed}`,
+          false, "roll-detail"
+        );
+      } else {
+        debugPanelLog(
+          `  ↳ [Player Spell ${spellId}] ${result.hit ? "SUCCESS" : "FAIL"} dmg=${result.damage} mp=${result.mpUsed}`,
+          false, "roll-detail"
+        );
+      }
+      const rollSuffix = result.roll !== undefined && !result.autoHit
+        ? this.formatPlayerRoll(result.roll, result.spellMod ?? 0, result.totalRoll ?? 0, result.hit, false)
+        : "";
+      this.addLog(result.message + rollSuffix);
       this.monsterHp = Math.max(0, this.monsterHp - result.damage);
       this.updateMonsterDisplay();
       this.updatePlayerStats();
@@ -540,6 +580,10 @@ export class BattleScene extends Phaser.Scene {
       const dexMod = abilityModifier(this.player.stats.dexterity);
       const result = attemptFlee(dexMod);
       debugLog("Flee attempt", { success: result.success, dexMod });
+      debugPanelLog(
+        `  ↳ [Flee] dexMod=${dexMod} → ${result.success ? "ESCAPED" : "FAILED"}`,
+        false, "roll-detail"
+      );
       this.addLog(result.message);
 
       if (result.success) {
@@ -569,12 +613,12 @@ export class BattleScene extends Phaser.Scene {
         damage: result.damage,
         playerHP: this.player.hp,
       });
+      debugPanelLog(
+        `  ↳ [Monster Attack] d20=${result.roll} +${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → Player HP ${this.player.hp}`,
+        false, "roll-detail"
+      );
+      // Only show the outcome message, never the enemy's roll details
       this.addLog(result.message);
-      if (isDebug()) {
-        this.addLog(
-          `  ↳ [roll d20=${result.roll} +${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}]`
-        );
-      }
       this.updatePlayerStats();
 
       if (result.hit) {
@@ -600,12 +644,32 @@ export class BattleScene extends Phaser.Scene {
         this.phase = "victory";
         this.addLog(`${this.monster.name} is defeated!`);
 
+        // Roll for item drops
+        const droppedItems: Item[] = [];
+        if (this.monster.drops) {
+          for (const drop of this.monster.drops) {
+            if (Math.random() < drop.chance) {
+              const item = getItem(drop.itemId);
+              if (item) {
+                droppedItems.push({ ...item });
+                this.droppedItemIds.push(drop.itemId);
+              }
+            }
+          }
+        }
+
         // Award XP and gold
         this.player.gold += this.monster.goldReward;
         const xpResult = awardXP(this.player, this.monster.xpReward);
         this.addLog(
           `Gained ${this.monster.xpReward} XP and ${this.monster.goldReward} gold!`
         );
+
+        // Award dropped items
+        for (const item of droppedItems) {
+          this.player.inventory.push(item);
+          this.addLog(`🌟 Found: ${item.name}!`);
+        }
 
         if (xpResult.leveledUp) {
           this.addLog(`🎉 LEVEL UP! Now level ${xpResult.newLevel}!`);
@@ -618,6 +682,9 @@ export class BattleScene extends Phaser.Scene {
         if (this.monster.isBoss) {
           this.defeatedBosses.add(this.monster.id);
         }
+
+        // Record in bestiary
+        recordDefeat(this.bestiary, this.monster, this.acDiscovered, this.droppedItemIds);
 
         this.updatePlayerStats();
         this.time.delayedCall(2500, () => this.returnToOverworld());
@@ -641,6 +708,37 @@ export class BattleScene extends Phaser.Scene {
     this.time.delayedCall(2000, () => this.returnToOverworld());
   }
 
+  /**
+   * Format a player roll string and track AC discovery.
+   * Crits (nat 20) and fumbles (nat 1) don't reveal AC info.
+   */
+  private formatPlayerRoll(
+    naturalRoll: number | undefined,
+    mod: number,
+    total: number,
+    hit: boolean,
+    critical: boolean | undefined
+  ): string {
+    if (naturalRoll === undefined || naturalRoll === 20 || naturalRoll === 1) return "";
+
+    // Track AC discovery
+    if (hit) {
+      this.acLowestHit = Math.min(this.acLowestHit, total);
+    } else {
+      this.acHighestMiss = Math.max(this.acHighestMiss, total);
+    }
+
+    if (!this.acDiscovered && this.acLowestHit === this.acHighestMiss + 1) {
+      this.acDiscovered = true;
+      // Also update the bestiary immediately
+      discoverAC(this.bestiary, this.monster.id);
+      this.addLog(`🔍 You deduce the ${this.monster.name}'s AC is ${this.acLowestHit}!`);
+    }
+
+    const acSuffix = this.acDiscovered ? ` vs AC ${this.monster.ac}` : "";
+    return ` (d20: ${naturalRoll} +${mod} = ${total}${acSuffix})`;
+  }
+
   private handleError(context: string, err: unknown): void {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[BattleScene.${context}]`, err);
@@ -654,6 +752,7 @@ export class BattleScene extends Phaser.Scene {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
+        bestiary: this.bestiary,
       });
     });
   }

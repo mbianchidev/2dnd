@@ -145,6 +145,17 @@ export function canAfford(player: PlayerState, cost: number): boolean {
   return player.gold >= cost;
 }
 
+/** Check if the player already owns a specific equipment item (weapon/armor). */
+export function ownsEquipment(player: PlayerState, itemId: string): boolean {
+  const equipped =
+    (player.equippedWeapon?.id === itemId) ||
+    (player.equippedArmor?.id === itemId);
+  const inInventory = player.inventory.some(
+    (i) => i.id === itemId && (i.type === "weapon" || i.type === "armor")
+  );
+  return equipped || inInventory;
+}
+
 /** Buy an item: deduct gold, add to inventory. Returns success. */
 export function buyItem(player: PlayerState, item: Item): boolean {
   if (!canAfford(player, item.cost)) return false;

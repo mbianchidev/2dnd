@@ -8,6 +8,7 @@ import { BootScene } from "./scenes/BootScene";
 import { OverworldScene } from "./scenes/OverworldScene";
 import { BattleScene } from "./scenes/BattleScene";
 import { ShopScene } from "./scenes/ShopScene";
+import { BestiaryScene } from "./scenes/BestiaryScene";
 import { GAME_WIDTH, GAME_HEIGHT, toggleDebug, isDebug, onDebugChanged } from "./config";
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -21,7 +22,7 @@ const config: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, OverworldScene, BattleScene, ShopScene],
+  scene: [BootScene, OverworldScene, BattleScene, ShopScene, BestiaryScene],
 };
 
 new Phaser.Game(config);
@@ -32,9 +33,12 @@ const label = document.getElementById("debug-label") as HTMLElement | null;
 const panel = document.getElementById("debug-panel") as HTMLElement | null;
 if (checkbox) {
   checkbox.checked = isDebug();
+  // Blur on change so that pressing SPACE to start the game doesn't
+  // accidentally toggle the checkbox off.
   checkbox.addEventListener("change", () => {
     const on = toggleDebug();
     checkbox.checked = on;
+    checkbox.blur();
     if (label) label.style.color = on ? "#00ff00" : "#555";
     if (panel) panel.style.display = on ? "block" : "none";
   });
@@ -43,4 +47,9 @@ if (checkbox) {
     if (label) label.style.color = on ? "#00ff00" : "#555";
     if (panel) panel.style.display = on ? "block" : "none";
   });
+  // Sync initial state in case debug was already on
+  if (isDebug()) {
+    if (label) label.style.color = "#00ff00";
+    if (panel) panel.style.display = "block";
+  }
 }

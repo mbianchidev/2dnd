@@ -4,13 +4,15 @@
 
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
-import { buyItem, useItem } from "../systems/player";
+import { buyItem, useItem, ownsEquipment } from "../systems/player";
 import { getShopItems, type Item } from "../data/items";
+import type { BestiaryData } from "../systems/bestiary";
 
 export class ShopScene extends Phaser.Scene {
   private player!: PlayerState;
   private townName!: string;
   private defeatedBosses!: Set<string>;
+  private bestiary!: BestiaryData;
   private shopItems!: Item[];
   private messageText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
@@ -25,10 +27,12 @@ export class ShopScene extends Phaser.Scene {
     player: PlayerState;
     townName: string;
     defeatedBosses: Set<string>;
+    bestiary: BestiaryData;
   }): void {
     this.player = data.player;
     this.townName = data.townName;
     this.defeatedBosses = data.defeatedBosses;
+    this.bestiary = data.bestiary;
     this.shopItems = getShopItems();
   }
 
@@ -144,8 +148,10 @@ export class ShopScene extends Phaser.Scene {
     this.itemListContainer.removeAll(true);
 
     this.shopItems.forEach((item, i) => {
-      const canBuy = this.player.gold >= item.cost;
-      const color = canBuy ? "#cccccc" : "#666666";
+      const isEquipment = item.type === "weapon" || item.type === "armor";
+      const alreadyOwned = isEquipment && ownsEquipment(this.player, item.id);
+      const canBuy = !alreadyOwned && this.player.gold >= item.cost;
+      const color = alreadyOwned ? "#555555" : canBuy ? "#cccccc" : "#666666";
 
       const typeIcon =
         item.type === "consumable"
@@ -156,11 +162,13 @@ export class ShopScene extends Phaser.Scene {
               ? "🛡"
               : "🔑";
 
+      const ownedTag = alreadyOwned ? " [OWNED]" : "";
+
       const text = this.add
         .text(
           0,
           i * 30,
-          `${typeIcon} ${item.name} - ${item.description} (${item.cost}g)`,
+          `${typeIcon} ${item.name} - ${item.description} (${item.cost}g)${ownedTag}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",
@@ -180,6 +188,12 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private purchaseItem(item: Item): void {
+    const isEquipment = item.type === "weapon" || item.type === "armor";
+    if (isEquipment && ownsEquipment(this.player, item.id)) {
+      this.setMessage(`You already own ${item.name}!`, "#ff6666");
+      return;
+    }
+
     const success = buyItem(this.player, item);
     if (success) {
       this.setMessage(`Purchased ${item.name}!`, "#88ff88");
@@ -254,6 +268,7 @@ export class ShopScene extends Phaser.Scene {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
+        bestiary: this.bestiary,
       });
     });
   }

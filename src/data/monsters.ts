@@ -4,6 +4,11 @@
 
 import type { DieType } from "../utils/dice";
 
+export interface MonsterDrop {
+  itemId: string;
+  chance: number; // 0–1 probability
+}
+
 export interface Monster {
   id: string;
   name: string;
@@ -16,6 +21,7 @@ export interface Monster {
   goldReward: number;
   isBoss: boolean;
   color: number; // display color in battle
+  drops?: MonsterDrop[];
 }
 
 export const MONSTERS: Monster[] = [
@@ -32,6 +38,7 @@ export const MONSTERS: Monster[] = [
     goldReward: 5,
     isBoss: false,
     color: 0x44cc44,
+    drops: [{ itemId: "potion", chance: 0.15 }],
   },
   {
     id: "goblin",
@@ -45,6 +52,7 @@ export const MONSTERS: Monster[] = [
     goldReward: 10,
     isBoss: false,
     color: 0x88aa44,
+    drops: [{ itemId: "potion", chance: 0.2 }, { itemId: "ether", chance: 0.1 }],
   },
   {
     id: "skeleton",
@@ -58,6 +66,7 @@ export const MONSTERS: Monster[] = [
     goldReward: 15,
     isBoss: false,
     color: 0xcccccc,
+    drops: [{ itemId: "ether", chance: 0.15 }],
   },
   {
     id: "wolf",
@@ -71,6 +80,7 @@ export const MONSTERS: Monster[] = [
     goldReward: 12,
     isBoss: false,
     color: 0x888888,
+    drops: [{ itemId: "potion", chance: 0.25 }],
   },
   {
     id: "orc",
@@ -84,6 +94,7 @@ export const MONSTERS: Monster[] = [
     goldReward: 25,
     isBoss: false,
     color: 0x669944,
+    drops: [{ itemId: "potion", chance: 0.2 }, { itemId: "shortSword", chance: 0.05 }],
   },
   {
     id: "wraith",
@@ -97,6 +108,7 @@ export const MONSTERS: Monster[] = [
     goldReward: 30,
     isBoss: false,
     color: 0x554488,
+    drops: [{ itemId: "ether", chance: 0.25 }, { itemId: "greaterPotion", chance: 0.1 }],
   },
   // --- Fixed boss encounters ---
   {
@@ -111,6 +123,7 @@ export const MONSTERS: Monster[] = [
     goldReward: 100,
     isBoss: true,
     color: 0x447744,
+    drops: [{ itemId: "greaterPotion", chance: 0.5 }, { itemId: "chainMail", chance: 0.25 }],
   },
   {
     id: "dragon",
@@ -124,6 +137,7 @@ export const MONSTERS: Monster[] = [
     goldReward: 500,
     isBoss: true,
     color: 0xcc2222,
+    drops: [{ itemId: "greaterPotion", chance: 0.75 }, { itemId: "plateArmor", chance: 0.3 }, { itemId: "greatSword", chance: 0.2 }],
   },
 ];
 

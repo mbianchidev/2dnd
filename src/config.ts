@@ -45,12 +45,13 @@ export function debugLog(...args: unknown[]): void {
 // --- HTML Debug Panel ---
 
 /** Append a message to the HTML debug log panel. */
-export function debugPanelLog(msg: string, isDebugMsg = false): void {
+export function debugPanelLog(msg: string, isDebugMsg = false, cssClass?: string): void {
   const el = document.getElementById("debug-log");
   if (!el) return;
   const line = document.createElement("div");
   line.textContent = msg;
-  if (isDebugMsg) line.className = "debug-msg";
+  if (cssClass) line.className = cssClass;
+  else if (isDebugMsg) line.className = "debug-msg";
   el.appendChild(line);
   el.scrollTop = el.scrollHeight;
 }

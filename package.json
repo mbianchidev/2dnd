@@ -23,11 +23,11 @@
   },
   "homepage": "https://github.com/mbianchidev/2dnd#readme",
   "dependencies": {
-    "phaser": "^3.87.0"
+    "phaser": "^3.90.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.3",
-    "vite": "^6.1.0",
-    "vitest": "^3.0.5"
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   }
 }

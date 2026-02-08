@@ -814,7 +814,6 @@ export class OverworldScene extends Phaser.Scene {
     this.player.chunkY = newChunkY;
 
     if (chunkChanged) {
-      this.totalSteps++;
       // Chunk transition — flash and re-render
       this.cameras.main.flash(200, 255, 255, 255);
       this.scene.restart({

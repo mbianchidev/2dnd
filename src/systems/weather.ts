@@ -28,7 +28,7 @@ export enum TimeOfDay {
 export interface WeatherInfo {
   label: string;
   icon: string;
-  tint: number;       // colour overlay for the overworld
+  tint: number;       // color overlay for the overworld
   alpha: number;      // overlay intensity
 }
 

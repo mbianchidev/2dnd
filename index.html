@@ -7,20 +7,75 @@
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body {
-        background: #111;
+        background: #000;
         display: flex;
         justify-content: center;
         align-items: center;
         min-height: 100vh;
         overflow: hidden;
       }
+      #game-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
       #game-container {
         image-rendering: pixelated;
       }
+      #game-header {
+        width: 640px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 8px;
+        font-family: monospace;
+        color: #666;
+        font-size: 12px;
+      }
+      #debug-panel {
+        display: none;
+        width: 640px;
+        max-height: 180px;
+        background: #0a0a0a;
+        border: 1px solid #1a3a1a;
+        font-family: monospace;
+        font-size: 11px;
+        color: #00dd00;
+        overflow: hidden;
+      }
+      #debug-state {
+        padding: 4px 8px;
+        background: #0d1a0d;
+        border-bottom: 1px solid #1a3a1a;
+        white-space: pre;
+        color: #33ff33;
+        font-size: 10px;
+      }
+      #debug-log {
+        padding: 4px 8px;
+        max-height: 130px;
+        overflow-y: auto;
+        line-height: 1.5;
+      }
+      #debug-log div { border-bottom: 1px solid #0a1a0a; padding: 1px 0; }
+      #debug-log .debug-msg { color: #888800; }
     </style>
   </head>
   <body>
-    <div id="game-container"></div>
+    <div id="game-wrapper">
+      <div id="game-header">
+        <span style="color: #c0a060;">2D&amp;D</span>
+        <label id="debug-toggle" style="cursor: pointer; user-select: none; color: #555;" title="Toggle debug mode">
+          <input type="checkbox" id="debug-checkbox" style="cursor: pointer; vertical-align: middle;" />
+          <span id="debug-label">debug mode</span>
+        </label>
+      </div>
+      <div id="game-container"></div>
+      <div id="debug-panel">
+        <div id="debug-state"></div>
+        <div id="debug-log"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

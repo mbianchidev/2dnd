@@ -17,6 +17,7 @@ import {
 import { getRandomEncounter, getBoss } from "../data/monsters";
 import { createPlayer, type PlayerState } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
+import { debugLog, debugPanelState, debugPanelClear } from "../config";
 
 const TILE_SIZE = 32;
 
@@ -51,6 +52,10 @@ export class OverworldScene extends Phaser.Scene {
     if (data?.defeatedBosses) {
       this.defeatedBosses = data.defeatedBosses;
     }
+    // Reset movement state — a tween may have been orphaned when the scene
+    // switched to battle mid-move, leaving isMoving permanently true.
+    this.isMoving = false;
+    this.lastMoveTime = 0;
   }
 
   create(): void {
@@ -61,7 +66,13 @@ export class OverworldScene extends Phaser.Scene {
     this.createPlayer();
     this.setupInput();
     this.createHUD();
+    this.setupDebug();
     this.updateLocationText();
+  }
+
+  private setupDebug(): void {
+    debugPanelClear();
+    debugPanelState("OVERWORLD | Loading...");
   }
 
   private renderMap(): void {
@@ -202,7 +213,33 @@ export class OverworldScene extends Phaser.Scene {
     this.locationText.setText(locStr);
   }
 
+  private updateDebugPanel(): void {
+    const p = this.player;
+    const terrain = getTerrainAt(p.x, p.y);
+    const terrainNames: Record<number, string> = {
+      [Terrain.Grass]: "Grass",
+      [Terrain.Forest]: "Forest",
+      [Terrain.Mountain]: "Mountain",
+      [Terrain.Water]: "Water",
+      [Terrain.Sand]: "Sand",
+      [Terrain.Town]: "Town",
+      [Terrain.Dungeon]: "Dungeon",
+      [Terrain.Boss]: "Boss",
+      [Terrain.Path]: "Path",
+    };
+    const tName = terrainNames[terrain ?? 0] ?? "?";
+    const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
+    debugPanelState(
+      `OVERWORLD | Pos: (${p.x},${p.y}) ${tName} | ` +
+      `Enc: ${(rate * 100).toFixed(0)}% | ` +
+      `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
+      `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
+      `Bosses: ${this.defeatedBosses.size}`
+    );
+  }
+
   update(time: number): void {
+    this.updateDebugPanel();
     if (this.isMoving) return;
     if (time - this.lastMoveTime < this.moveDelay) return;
 
@@ -229,7 +266,10 @@ export class OverworldScene extends Phaser.Scene {
     const newY = this.player.y + dy;
 
     const terrain = getTerrainAt(newX, newY);
-    if (terrain === undefined || !isWalkable(terrain)) return;
+    if (terrain === undefined || !isWalkable(terrain)) {
+      debugLog("Blocked move", { to: { x: newX, y: newY }, terrain });
+      return;
+    }
 
     this.lastMoveTime = time;
     this.isMoving = true;
@@ -258,6 +298,7 @@ export class OverworldScene extends Phaser.Scene {
     const rate = ENCOUNTER_RATES[terrain];
     if (Math.random() < rate) {
       const monster = getRandomEncounter(this.player.level);
+      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name });
       this.startBattle(monster);
     }
   }

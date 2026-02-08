@@ -10,6 +10,7 @@ import {
   awardXP,
   getArmorClass,
   useItem,
+  xpForLevel,
 } from "../systems/player";
 import {
   rollInitiative,
@@ -19,6 +20,7 @@ import {
   attemptFlee,
 } from "../systems/combat";
 import { abilityModifier } from "../utils/dice";
+import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -62,7 +64,12 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.fadeIn(300);
 
     this.drawBattleUI();
+    this.setupDebug();
     this.rollForInitiative();
+  }
+
+  update(): void {
+    this.updateDebugPanel();
   }
 
   private drawBattleUI(): void {
@@ -312,12 +319,12 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private getHpBar(current: number, max: number, length: number): string {
-    const filled = Math.round((current / max) * length);
+    const filled = Math.max(0, Math.min(length, Math.round((current / max) * length)));
     return "[" + "█".repeat(filled) + "░".repeat(length - filled) + "]";
   }
 
   private getMpBar(current: number, max: number, length: number): string {
-    const filled = Math.round((current / max) * length);
+    const filled = Math.max(0, Math.min(length, Math.round((current / max) * length)));
     return "[" + "▓".repeat(filled) + "░".repeat(length - filled) + "]";
   }
 
@@ -325,24 +332,129 @@ export class BattleScene extends Phaser.Scene {
     this.logLines.push(msg);
     if (this.logLines.length > 6) this.logLines.shift();
     this.logText.setText(this.logLines.join("\n"));
+    // Also push to the HTML debug panel (always, panel visibility is toggled separately)
+    debugPanelLog(msg, msg.startsWith("[DEBUG]"));
+  }
+
+  // --- Debug ---
+
+  private setupDebug(): void {
+    debugPanelClear();
+    debugPanelLog(`=== Battle: ${this.player.name} vs ${this.monster.name} ===`);
+
+    // Register cheat keys (only work when debug is on)
+    const debugKeys = {
+      K: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K),
+      H: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H),
+      M: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M),
+      G: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G),
+      L: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L),
+      X: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X),
+    };
+
+    // Kill monster instantly
+    debugKeys.K.on("down", () => {
+      if (!isDebug()) return;
+      debugLog("CHEAT: Kill monster");
+      this.addLog("[DEBUG] Monster killed!");
+      this.monsterHp = 0;
+      this.updateMonsterDisplay();
+      if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
+        this.phase = "playerTurn";
+        this.checkBattleEnd();
+      }
+    });
+
+    // Full heal
+    debugKeys.H.on("down", () => {
+      if (!isDebug()) return;
+      debugLog("CHEAT: Full heal", { before: this.player.hp, max: this.player.maxHp });
+      this.player.hp = this.player.maxHp;
+      this.updatePlayerStats();
+      this.addLog(`[DEBUG] HP restored to ${this.player.maxHp}!`);
+    });
+
+    // Restore MP
+    debugKeys.M.on("down", () => {
+      if (!isDebug()) return;
+      debugLog("CHEAT: Restore MP", { before: this.player.mp, max: this.player.maxMp });
+      this.player.mp = this.player.maxMp;
+      this.updatePlayerStats();
+      this.addLog(`[DEBUG] MP restored to ${this.player.maxMp}!`);
+    });
+
+    // Add gold
+    debugKeys.G.on("down", () => {
+      if (!isDebug()) return;
+      this.player.gold += 100;
+      debugLog("CHEAT: +100 gold", { total: this.player.gold });
+      this.addLog(`[DEBUG] +100 gold (total: ${this.player.gold})`);
+    });
+
+    // Level up
+    debugKeys.L.on("down", () => {
+      if (!isDebug()) return;
+      const needed = xpForLevel(this.player.level + 1) - this.player.xp;
+      const xpResult = awardXP(this.player, Math.max(needed, 0));
+      debugLog("CHEAT: Level up", { newLevel: xpResult.newLevel, spells: xpResult.newSpells.map((s: Spell) => s.name) });
+      this.addLog(`[DEBUG] Level up! Now Lv.${xpResult.newLevel}`);
+      for (const spell of xpResult.newSpells) {
+        this.addLog(`[DEBUG] Learned ${spell.name}!`);
+      }
+      this.updatePlayerStats();
+    });
+
+    // Max XP (set XP to 1 below next level)
+    debugKeys.X.on("down", () => {
+      if (!isDebug()) return;
+      this.player.xp = xpForLevel(this.player.level + 1) - 1;
+      debugLog("CHEAT: XP set to", this.player.xp);
+      this.addLog(`[DEBUG] XP set to ${this.player.xp}`);
+    });
+  }
+
+  private updateDebugPanel(): void {
+    const p = this.player;
+    debugPanelState(
+      `BATTLE | Phase: ${this.phase} | ` +
+      `Monster: ${this.monster.name} HP ${this.monsterHp}/${this.monster.hp} AC ${this.monster.ac} | ` +
+      `Player: HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} AC ${getArmorClass(p)} | ` +
+      `Lv.${p.level} XP ${p.xp}/${xpForLevel(p.level + 1)} Gold ${p.gold} | ` +
+      `Cheats: K=Kill H=Heal M=MP G=Gold L=LvUp`
+    );
+  }
+
+  private getAttackMod(): number {
+    const profBonus = Math.floor((this.player.level - 1) / 4) + 2;
+    return abilityModifier(this.player.stats.strength) + profBonus;
+  }
+
+  private getSpellMod(): number {
+    const profBonus = Math.floor((this.player.level - 1) / 4) + 2;
+    return abilityModifier(this.player.stats.intelligence) + profBonus;
   }
 
   // --- Combat Flow ---
 
   private rollForInitiative(): void {
-    const dexMod = abilityModifier(this.player.stats.dexterity);
-    const result = rollInitiative(dexMod, this.monster.attackBonus);
-    this.addLog(
-      `⚔ ${this.monster.name} appears! Initiative: You ${result.playerRoll} vs ${this.monster.name} ${result.monsterRoll}`
-    );
+    try {
+      const dexMod = abilityModifier(this.player.stats.dexterity);
+      const result = rollInitiative(dexMod, this.monster.attackBonus);
+      debugLog("Initiative", { playerRoll: result.playerRoll, monsterRoll: result.monsterRoll, playerFirst: result.playerFirst });
+      this.addLog(
+        `⚔ ${this.monster.name} appears! Initiative: You ${result.playerRoll} vs ${this.monster.name} ${result.monsterRoll}`
+      );
 
-    if (result.playerFirst) {
-      this.addLog("You act first!");
-      this.phase = "playerTurn";
-    } else {
-      this.addLog(`${this.monster.name} acts first!`);
-      this.phase = "monsterTurn";
-      this.time.delayedCall(1000, () => this.doMonsterTurn());
+      if (result.playerFirst) {
+        this.addLog("You act first!");
+        this.phase = "playerTurn";
+      } else {
+        this.addLog(`${this.monster.name} acts first!`);
+        this.phase = "monsterTurn";
+        this.time.delayedCall(1000, () => this.doMonsterTurn());
+      }
+    } catch (err) {
+      this.handleError("rollForInitiative", err);
     }
   }
 
@@ -350,52 +462,67 @@ export class BattleScene extends Phaser.Scene {
     if (this.phase !== "playerTurn") return;
     this.phase = "monsterTurn"; // prevent double actions
 
-    const result = playerAttack(this.player, this.monster);
-    this.addLog(result.message);
-    this.monsterHp -= result.damage;
-    this.updateMonsterDisplay();
+    try {
+      const result = playerAttack(this.player, this.monster);
+      debugLog("Player attack", { roll: result.roll, hit: result.hit, critical: result.critical, damage: result.damage, monsterAC: this.monster.ac });
+      this.addLog(result.message);
+      this.monsterHp = Math.max(0, this.monsterHp - result.damage);
+      this.updateMonsterDisplay();
 
-    if (result.hit) {
-      this.tweens.add({
-        targets: this.monsterSprite,
-        x: this.monsterSprite.x + 10,
-        duration: 50,
-        yoyo: true,
-        repeat: 2,
-      });
+      if (result.hit) {
+        this.tweens.add({
+          targets: this.monsterSprite,
+          x: this.monsterSprite.x + 10,
+          duration: 50,
+          yoyo: true,
+          repeat: 2,
+        });
+      }
+
+      this.checkBattleEnd();
+    } catch (err) {
+      this.handleError("doPlayerAttack", err);
     }
-
-    this.checkBattleEnd();
   }
 
   private doPlayerSpell(spellId: string): void {
     if (this.phase !== "playerTurn") return;
     this.phase = "monsterTurn";
 
-    const result = playerCastSpell(this.player, spellId, this.monster);
-    this.addLog(result.message);
-    this.monsterHp -= result.damage;
-    this.updateMonsterDisplay();
-    this.updatePlayerStats();
+    try {
+      const result = playerCastSpell(this.player, spellId, this.monster);
+      debugLog("Player spell", { spellId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
+      this.addLog(result.message);
+      this.monsterHp = Math.max(0, this.monsterHp - result.damage);
+      this.updateMonsterDisplay();
+      this.updatePlayerStats();
 
-    if (result.hit && result.damage > 0) {
-      this.cameras.main.flash(200, 100, 100, 255);
+      if (result.hit && result.damage > 0) {
+        this.cameras.main.flash(200, 100, 100, 255);
+      }
+
+      this.checkBattleEnd();
+    } catch (err) {
+      this.handleError("doPlayerSpell", err);
     }
-
-    this.checkBattleEnd();
   }
 
   private doUseItem(itemIndex: number): void {
     if (this.phase !== "playerTurn") return;
     this.phase = "monsterTurn";
 
-    const result = useItem(this.player, itemIndex);
-    this.addLog(result.message);
-    this.updatePlayerStats();
+    try {
+      const result = useItem(this.player, itemIndex);
+      this.addLog(result.message);
+      this.updatePlayerStats();
 
-    if (result.used) {
-      this.time.delayedCall(800, () => this.doMonsterTurn());
-    } else {
+      if (result.used) {
+        this.time.delayedCall(800, () => this.doMonsterTurn());
+      } else {
+        this.phase = "playerTurn";
+      }
+    } catch (err) {
+      this.handleError("doUseItem", err);
       this.phase = "playerTurn";
     }
   }
@@ -409,15 +536,20 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.phase = "monsterTurn";
-    const dexMod = abilityModifier(this.player.stats.dexterity);
-    const result = attemptFlee(dexMod);
-    this.addLog(result.message);
+    try {
+      const dexMod = abilityModifier(this.player.stats.dexterity);
+      const result = attemptFlee(dexMod);
+      debugLog("Flee attempt", { success: result.success, dexMod });
+      this.addLog(result.message);
 
-    if (result.success) {
-      this.phase = "fled";
-      this.time.delayedCall(1000, () => this.returnToOverworld());
-    } else {
-      this.time.delayedCall(800, () => this.doMonsterTurn());
+      if (result.success) {
+        this.phase = "fled";
+        this.time.delayedCall(1000, () => this.returnToOverworld());
+      } else {
+        this.time.delayedCall(800, () => this.doMonsterTurn());
+      }
+    } catch (err) {
+      this.handleError("doFlee", err);
     }
   }
 
@@ -425,52 +557,75 @@ export class BattleScene extends Phaser.Scene {
     if (this.phase === "victory" || this.phase === "defeat" || this.phase === "fled")
       return;
 
-    const result = monsterAttack(this.monster, this.player);
-    this.addLog(result.message);
-    this.updatePlayerStats();
+    try {
+      const result = monsterAttack(this.monster, this.player);
+      debugLog("Monster attack", {
+        naturalRoll: result.roll,
+        attackBonus: result.attackBonus,
+        totalRoll: result.totalRoll,
+        targetAC: result.targetAC,
+        hit: result.hit,
+        critical: result.critical,
+        damage: result.damage,
+        playerHP: this.player.hp,
+      });
+      this.addLog(result.message);
+      if (isDebug()) {
+        this.addLog(
+          `  ↳ [roll d20=${result.roll} +${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}]`
+        );
+      }
+      this.updatePlayerStats();
 
-    if (result.hit) {
-      this.cameras.main.shake(150, 0.01);
+      if (result.hit) {
+        this.cameras.main.shake(150, 0.01);
+      }
+
+      if (this.player.hp <= 0) {
+        this.phase = "defeat";
+        this.addLog("You have been defeated...");
+        this.time.delayedCall(2000, () => this.handleDefeat());
+        return;
+      }
+
+      this.phase = "playerTurn";
+    } catch (err) {
+      this.handleError("doMonsterTurn", err);
     }
-
-    if (this.player.hp <= 0) {
-      this.phase = "defeat";
-      this.addLog("You have been defeated...");
-      this.time.delayedCall(2000, () => this.handleDefeat());
-      return;
-    }
-
-    this.phase = "playerTurn";
   }
 
   private checkBattleEnd(): void {
-    if (this.monsterHp <= 0) {
-      this.phase = "victory";
-      this.addLog(`${this.monster.name} is defeated!`);
+    try {
+      if (this.monsterHp <= 0) {
+        this.phase = "victory";
+        this.addLog(`${this.monster.name} is defeated!`);
 
-      // Award XP and gold
-      this.player.gold += this.monster.goldReward;
-      const xpResult = awardXP(this.player, this.monster.xpReward);
-      this.addLog(
-        `Gained ${this.monster.xpReward} XP and ${this.monster.goldReward} gold!`
-      );
+        // Award XP and gold
+        this.player.gold += this.monster.goldReward;
+        const xpResult = awardXP(this.player, this.monster.xpReward);
+        this.addLog(
+          `Gained ${this.monster.xpReward} XP and ${this.monster.goldReward} gold!`
+        );
 
-      if (xpResult.leveledUp) {
-        this.addLog(`🎉 LEVEL UP! Now level ${xpResult.newLevel}!`);
-        for (const spell of xpResult.newSpells) {
-          this.addLog(`✦ Learned ${spell.name}!`);
+        if (xpResult.leveledUp) {
+          this.addLog(`🎉 LEVEL UP! Now level ${xpResult.newLevel}!`);
+          for (const spell of xpResult.newSpells) {
+            this.addLog(`✦ Learned ${spell.name}!`);
+          }
         }
-      }
 
-      // Track boss defeats
-      if (this.monster.isBoss) {
-        this.defeatedBosses.add(this.monster.id);
-      }
+        // Track boss defeats
+        if (this.monster.isBoss) {
+          this.defeatedBosses.add(this.monster.id);
+        }
 
-      this.updatePlayerStats();
-      this.time.delayedCall(2500, () => this.returnToOverworld());
-    } else {
-      this.time.delayedCall(800, () => this.doMonsterTurn());
+        this.updatePlayerStats();
+        this.time.delayedCall(2500, () => this.returnToOverworld());
+      } else {
+        this.time.delayedCall(800, () => this.doMonsterTurn());
+      }
+    } catch (err) {
+      this.handleError("checkBattleEnd", err);
     }
   }
 

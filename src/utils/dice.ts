@@ -7,11 +7,20 @@ export type DieType = 4 | 6 | 8 | 10 | 12 | 20 | 100;
 
 /** Roll a single die of the given type (1 to sides inclusive). */
 export function rollDie(sides: DieType): number {
+  if (!sides || sides < 1) {
+    throw new Error(`[dice] rollDie: invalid die type ${sides}`);
+  }
   return Math.floor(Math.random() * sides) + 1;
 }
 
 /** Roll multiple dice and return the total. E.g. rollDice(2, 6) = 2d6. */
 export function rollDice(count: number, sides: DieType): number {
+  if (count < 0) {
+    throw new Error(`[dice] rollDice: invalid count ${count}`);
+  }
+  if (!sides || sides < 1) {
+    throw new Error(`[dice] rollDice: invalid die type ${sides}`);
+  }
   let total = 0;
   for (let i = 0; i < count; i++) {
     total += rollDie(sides);
@@ -24,6 +33,9 @@ export function rollDiceDetailed(
   count: number,
   sides: DieType
 ): { rolls: number[]; total: number } {
+  if (count < 0) {
+    throw new Error(`[dice] rollDiceDetailed: invalid count ${count}`);
+  }
   const rolls: number[] = [];
   for (let i = 0; i < count; i++) {
     rolls.push(rollDie(sides));

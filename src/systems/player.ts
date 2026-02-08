@@ -91,6 +91,12 @@ export function awardXP(
   player: PlayerState,
   amount: number
 ): { leveledUp: boolean; newLevel: number; newSpells: Spell[] } {
+  if (!player) {
+    throw new Error(`[player] awardXP: missing player`);
+  }
+  if (typeof amount !== "number" || amount < 0) {
+    throw new Error(`[player] awardXP: invalid XP amount ${amount}`);
+  }
   player.xp += amount;
   let leveledUp = false;
   const newSpells: Spell[] = [];
@@ -152,8 +158,16 @@ export function useItem(
   player: PlayerState,
   itemIndex: number
 ): { used: boolean; message: string } {
+  if (!player) {
+    throw new Error(`[player] useItem: missing player`);
+  }
+  if (typeof itemIndex !== "number" || itemIndex < 0) {
+    throw new Error(`[player] useItem: invalid itemIndex ${itemIndex}`);
+  }
   const item = player.inventory[itemIndex];
-  if (!item) return { used: false, message: "No item at that index." };
+  if (!item) {
+    throw new Error(`[player] useItem: no item at index ${itemIndex} (inventory size: ${player.inventory.length})`);
+  }
 
   if (item.type === "consumable") {
     if (item.id === "potion") {

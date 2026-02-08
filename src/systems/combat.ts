@@ -42,6 +42,9 @@ export function rollInitiative(
   playerDexMod: number,
   monsterBonus: number
 ): { playerFirst: boolean; playerRoll: number; monsterRoll: number } {
+  if (typeof playerDexMod !== "number" || typeof monsterBonus !== "number") {
+    throw new Error(`[combat] rollInitiative: invalid modifiers playerDex=${playerDexMod} monster=${monsterBonus}`);
+  }
   const playerInit = rollD20(playerDexMod);
   const monsterInit = rollD20(monsterBonus);
   return {
@@ -56,6 +59,9 @@ export function playerAttack(
   player: PlayerState,
   monster: Monster
 ): CombatResult {
+  if (!player || !monster) {
+    throw new Error(`[combat] playerAttack: missing player or monster`);
+  }
   const attackMod = getAttackModifier(player);
   const roll = rollD20(attackMod);
 
@@ -107,6 +113,12 @@ export function playerCastSpell(
   spellId: string,
   monster: Monster
 ): CombatResult & { mpUsed: number } {
+  if (!player || !monster) {
+    throw new Error(`[combat] playerCastSpell: missing player or monster`);
+  }
+  if (!spellId) {
+    throw new Error(`[combat] playerCastSpell: missing spellId`);
+  }
   const spell = getSpell(spellId);
   if (!spell) {
     return {
@@ -169,11 +181,14 @@ export function playerCastSpell(
   };
 }
 
-/** Monster attacks the player. */
+/** Monster attacks the player. Returns roll breakdown for debug logging. */
 export function monsterAttack(
   monster: Monster,
   player: PlayerState
-): CombatResult {
+): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
+  if (!monster || !player) {
+    throw new Error(`[combat] monsterAttack: missing monster or player`);
+  }
   const playerAC = getArmorClass(player);
   const roll = rollD20(monster.attackBonus);
 
@@ -186,6 +201,9 @@ export function monsterAttack(
       hit: true,
       critical: true,
       roll: roll.roll,
+      attackBonus: monster.attackBonus,
+      totalRoll: roll.total,
+      targetAC: playerAC,
     };
   }
 
@@ -195,6 +213,9 @@ export function monsterAttack(
       damage: 0,
       hit: false,
       roll: roll.roll,
+      attackBonus: monster.attackBonus,
+      totalRoll: roll.total,
+      targetAC: playerAC,
     };
   }
 
@@ -206,6 +227,9 @@ export function monsterAttack(
       damage,
       hit: true,
       roll: roll.roll,
+      attackBonus: monster.attackBonus,
+      totalRoll: roll.total,
+      targetAC: playerAC,
     };
   }
 
@@ -214,6 +238,9 @@ export function monsterAttack(
     damage: 0,
     hit: false,
     roll: roll.roll,
+    attackBonus: monster.attackBonus,
+    totalRoll: roll.total,
+    targetAC: playerAC,
   };
 }
 
@@ -222,6 +249,9 @@ export function attemptFlee(dexModifier: number): {
   success: boolean;
   message: string;
 } {
+  if (typeof dexModifier !== "number") {
+    throw new Error(`[combat] attemptFlee: invalid dexModifier ${dexModifier}`);
+  }
   const roll = rollD20(dexModifier);
   if (roll.total >= 10) {
     return { success: true, message: `Escaped! (rolled ${roll.total})` };

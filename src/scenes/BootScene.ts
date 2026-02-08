@@ -611,16 +611,18 @@ export class BootScene extends Phaser.Scene {
 
     const cx = this.cameras.main.centerX;
 
+    // y=8: title (22px tall) → bottom ~30
     this.add
-      .text(cx, 10, "Customize Appearance", {
+      .text(cx, 8, "Customize Appearance", {
         fontSize: "22px",
         fontFamily: "monospace",
         color: "#ffd700",
       })
       .setOrigin(0.5, 0);
 
+    // y=34: class label (12px) → bottom ~46
     this.add
-      .text(cx, 38, `Class: ${selectedClass.label}`, {
+      .text(cx, 34, `Class: ${selectedClass.label}`, {
         fontSize: "12px",
         fontFamily: "monospace",
         color: "#888",
@@ -632,7 +634,7 @@ export class BootScene extends Phaser.Scene {
     let selectedHairStyle = HAIR_STYLE_OPTIONS[0].id;
     let selectedHairColor = HAIR_COLOR_OPTIONS[0].color;
 
-    // Preview
+    // y=78: preview sprite center, scale 2 (64px tall: top=46, bottom=110)
     const previewKey = "preview_custom";
     this.generatePlayerTextureWithHair(
       previewKey,
@@ -642,7 +644,7 @@ export class BootScene extends Phaser.Scene {
       selectedHairStyle,
       selectedHairColor
     );
-    const previewSprite = this.add.sprite(cx, 85, previewKey).setScale(3);
+    const previewSprite = this.add.sprite(cx, 78, previewKey).setScale(2);
 
     const updatePreview = () => {
       if (this.textures.exists(previewKey)) this.textures.remove(previewKey);
@@ -657,16 +659,17 @@ export class BootScene extends Phaser.Scene {
       previewSprite.setTexture(previewKey);
     };
 
-    // --- Skin Color ---
+    // y=118: skin color label (13px) → bottom ~131
     this.add
-      .text(cx, 135, "Skin Color:", {
+      .text(cx, 118, "Skin Color:", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#c0a060",
       })
       .setOrigin(0.5, 0);
 
-    const skinSwatchY = 160;
+    // y=142: skin swatches center (radius 10 → top=132, bottom=152; labels at y=156 → bottom ~164)
+    const skinSwatchY = 142;
     const skinSwatchSpacing = 40;
     const skinStartX = cx - ((SKIN_COLOR_OPTIONS.length - 1) * skinSwatchSpacing) / 2;
     const skinHighlights: Phaser.GameObjects.Graphics[] = [];
@@ -677,48 +680,46 @@ export class BootScene extends Phaser.Scene {
       const hl = this.add.graphics();
       skinHighlights.push(hl);
 
-      // Swatch circle
       const gfx = this.add.graphics();
       gfx.fillStyle(opt.color, 1);
-      gfx.fillCircle(sx, skinSwatchY, 12);
+      gfx.fillCircle(sx, skinSwatchY, 10);
       gfx.lineStyle(2, i === 0 ? 0xffd700 : 0x444444, 1);
-      gfx.strokeCircle(sx, skinSwatchY, 13);
+      gfx.strokeCircle(sx, skinSwatchY, 11);
 
       this.add
-        .text(sx, skinSwatchY + 18, opt.label, {
+        .text(sx, skinSwatchY + 15, opt.label, {
           fontSize: "8px",
           fontFamily: "monospace",
           color: "#999",
         })
         .setOrigin(0.5, 0);
 
-      const hitZone = this.add.zone(sx, skinSwatchY, 28, 28).setInteractive({ useHandCursor: true });
+      const hitZone = this.add.zone(sx, skinSwatchY, 24, 24).setInteractive({ useHandCursor: true });
       hitZone.on("pointerdown", () => {
         selectedSkinColor = opt.color;
-        // Redraw all skin swatches borders
         SKIN_COLOR_OPTIONS.forEach((_, j) => {
           const hx = skinStartX + j * skinSwatchSpacing;
           skinHighlights[j].clear();
-          // Redraw the swatch with updated border
           skinHighlights[j].fillStyle(SKIN_COLOR_OPTIONS[j].color, 1);
-          skinHighlights[j].fillCircle(hx, skinSwatchY, 12);
+          skinHighlights[j].fillCircle(hx, skinSwatchY, 10);
           skinHighlights[j].lineStyle(2, j === i ? 0xffd700 : 0x444444, 1);
-          skinHighlights[j].strokeCircle(hx, skinSwatchY, 13);
+          skinHighlights[j].strokeCircle(hx, skinSwatchY, 11);
         });
         updatePreview();
       });
     });
 
-    // --- Hair Style ---
+    // y=174: hair style label (13px) → bottom ~187
     this.add
-      .text(cx, 195, "Hair Style:", {
+      .text(cx, 174, "Hair Style:", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#c0a060",
       })
       .setOrigin(0.5, 0);
 
-    const hairStyleY = 220;
+    // y=196: hair style buttons (~25px with padding) → bottom ~221
+    const hairStyleY = 196;
     const hairStyleSpacing = 80;
     const hairStyleStartX = cx - ((HAIR_STYLE_OPTIONS.length - 1) * hairStyleSpacing) / 2;
     const hairStyleTexts: Phaser.GameObjects.Text[] = [];
@@ -747,16 +748,17 @@ export class BootScene extends Phaser.Scene {
       });
     });
 
-    // --- Hair Color ---
+    // y=232: hair color label (13px) → bottom ~245
     this.add
-      .text(cx, 255, "Hair Color:", {
+      .text(cx, 232, "Hair Color:", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#c0a060",
       })
       .setOrigin(0.5, 0);
 
-    const hairSwatchY = 280;
+    // y=256: hair color swatches center (radius 10 → top=246, bottom=266; labels at y=270 → bottom ~278)
+    const hairSwatchY = 256;
     const hairSwatchSpacing = 40;
     const hairStartX = cx - ((HAIR_COLOR_OPTIONS.length - 1) * hairSwatchSpacing) / 2;
     const hairHighlights: Phaser.GameObjects.Graphics[] = [];
@@ -769,35 +771,35 @@ export class BootScene extends Phaser.Scene {
 
       const gfx = this.add.graphics();
       gfx.fillStyle(opt.color, 1);
-      gfx.fillCircle(hx, hairSwatchY, 12);
+      gfx.fillCircle(hx, hairSwatchY, 10);
       gfx.lineStyle(2, i === 0 ? 0xffd700 : 0x444444, 1);
-      gfx.strokeCircle(hx, hairSwatchY, 13);
+      gfx.strokeCircle(hx, hairSwatchY, 11);
 
       this.add
-        .text(hx, hairSwatchY + 18, opt.label, {
+        .text(hx, hairSwatchY + 15, opt.label, {
           fontSize: "8px",
           fontFamily: "monospace",
           color: "#999",
         })
         .setOrigin(0.5, 0);
 
-      const hitZone = this.add.zone(hx, hairSwatchY, 28, 28).setInteractive({ useHandCursor: true });
+      const hitZone = this.add.zone(hx, hairSwatchY, 24, 24).setInteractive({ useHandCursor: true });
       hitZone.on("pointerdown", () => {
         selectedHairColor = opt.color;
         HAIR_COLOR_OPTIONS.forEach((_, j) => {
           const hhx = hairStartX + j * hairSwatchSpacing;
           hairHighlights[j].clear();
           hairHighlights[j].fillStyle(HAIR_COLOR_OPTIONS[j].color, 1);
-          hairHighlights[j].fillCircle(hhx, hairSwatchY, 12);
+          hairHighlights[j].fillCircle(hhx, hairSwatchY, 10);
           hairHighlights[j].lineStyle(2, j === i ? 0xffd700 : 0x444444, 1);
-          hairHighlights[j].strokeCircle(hhx, hairSwatchY, 13);
+          hairHighlights[j].strokeCircle(hhx, hairSwatchY, 11);
         });
         updatePreview();
       });
     });
 
-    // --- Back and Start buttons ---
-    const btnY = 340;
+    // y=300: back/start buttons
+    const btnY = 300;
 
     const backBtn = this.add
       .text(cx - 100, btnY, "[ < Back ]", {

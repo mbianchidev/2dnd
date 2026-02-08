@@ -641,6 +641,13 @@ export class BattleScene extends Phaser.Scene {
     this.time.delayedCall(2000, () => this.returnToOverworld());
   }
 
+  private handleError(context: string, err: unknown): void {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[BattleScene.${context}]`, err);
+    debugPanelLog(`ERROR in ${context}: ${msg}`);
+    this.addLog(`⚠ Something went wrong (${context})`);
+  }
+
   private returnToOverworld(): void {
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.time.delayedCall(500, () => {

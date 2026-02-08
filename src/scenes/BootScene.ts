@@ -4,7 +4,7 @@
 
 import Phaser from "phaser";
 import { TERRAIN_COLORS, Terrain } from "../data/map";
-import { PLAYER_APPEARANCES, type PlayerAppearance } from "../systems/appearance";
+import { PLAYER_APPEARANCES, type PlayerAppearance, SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance, getAppearance } from "../systems/appearance";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer } from "../systems/player";
 
@@ -434,6 +434,20 @@ export class BootScene extends Phaser.Scene {
   private continueGame(): void {
     const save = loadGame();
     if (!save) return;
+    // Regenerate player texture with custom appearance if present
+    if (save.player.customAppearance) {
+      const app = getAppearance(save.player.appearanceId);
+      const key = `player_${save.player.appearanceId}`;
+      if (this.textures.exists(key)) this.textures.remove(key);
+      this.generatePlayerTextureWithHair(
+        key,
+        app.bodyColor,
+        save.player.customAppearance.skinColor,
+        app.legColor,
+        save.player.customAppearance.hairStyle,
+        save.player.customAppearance.hairColor
+      );
+    }
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.time.delayedCall(500, () => {
       this.scene.start("OverworldScene", {
@@ -448,12 +462,12 @@ export class BootScene extends Phaser.Scene {
     // Clear the title screen
     this.children.removeAll(true);
     this.tweens.killAll();
+    this.input.keyboard!.removeAllListeners();
 
     const cx = this.cameras.main.centerX;
-    const w = this.cameras.main.width;
 
     this.add
-      .text(cx, 20, "Create Your Hero", {
+      .text(cx, 15, "Create Your Hero", {
         fontSize: "24px",
         fontFamily: "monospace",
         color: "#ffd700",
@@ -462,7 +476,7 @@ export class BootScene extends Phaser.Scene {
 
     // Name entry
     this.add
-      .text(cx, 58, "Name:", {
+      .text(cx, 50, "Name:", {
         fontSize: "14px",
         fontFamily: "monospace",
         color: "#c0a060",
@@ -471,7 +485,7 @@ export class BootScene extends Phaser.Scene {
 
     let playerName = "Hero";
     const nameText = this.add
-      .text(cx, 78, playerName, {
+      .text(cx, 70, playerName, {
         fontSize: "18px",
         fontFamily: "monospace",
         color: "#fff",
@@ -490,9 +504,9 @@ export class BootScene extends Phaser.Scene {
       nameText.setText(playerName || "_");
     });
 
-    // Appearance selection
+    // Class selection
     this.add
-      .text(cx, 116, "Choose Appearance:", {
+      .text(cx, 105, "Choose Class:", {
         fontSize: "14px",
         fontFamily: "monospace",
         color: "#c0a060",
@@ -500,24 +514,13 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
 
     let selectedAppearance = PLAYER_APPEARANCES[0];
-    const previewSprite = this.add
-      .sprite(cx, 158, `player_${selectedAppearance.id}`)
-      .setScale(3);
 
-    const selectedLabel = this.add
-      .text(cx, 210, selectedAppearance.label, {
-        fontSize: "14px",
-        fontFamily: "monospace",
-        color: "#88ff88",
-      })
-      .setOrigin(0.5, 0);
-
-    // Appearance option grid
+    // Class option grid
     const cols = 4;
     const optW = 72;
-    const optH = 58;
+    const optH = 62;
     const startX = cx - ((Math.min(cols, PLAYER_APPEARANCES.length) * optW) / 2) + optW / 2;
-    const startY = 236;
+    const startY = 150;
 
     const optionHighlights: Phaser.GameObjects.Graphics[] = [];
 
@@ -536,9 +539,9 @@ export class BootScene extends Phaser.Scene {
       optionHighlights.push(hl);
 
       // Sprite preview
-      const spr = this.add.sprite(ox, oy, `player_${app.id}`).setScale(1.8);
+      this.add.sprite(ox, oy, `player_${app.id}`).setScale(1.8);
 
-      // Label — bigger and clearer
+      // Label
       this.add
         .text(ox, oy + 24, app.label, {
           fontSize: "10px",
@@ -553,8 +556,6 @@ export class BootScene extends Phaser.Scene {
       const hitZone = this.add.zone(ox, oy + 10, 56, 62).setInteractive({ useHandCursor: true });
       hitZone.on("pointerdown", () => {
         selectedAppearance = app;
-        previewSprite.setTexture(`player_${app.id}`);
-        selectedLabel.setText(app.label);
         // Update highlights
         optionHighlights.forEach((h, j) => {
           h.clear();
@@ -571,12 +572,249 @@ export class BootScene extends Phaser.Scene {
       });
     });
 
-    // Start Adventure button
+    // Next button
     const btnY = startY + Math.ceil(PLAYER_APPEARANCES.length / cols) * optH + 16;
 
-    const startBtn = this.add
-      .text(cx, btnY, "[ Start Adventure ]", {
+    const nextBtn = this.add
+      .text(cx, btnY, "[ Next > ]", {
         fontSize: "20px",
+        fontFamily: "monospace",
+        color: "#88ff88",
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
+    nextBtn.on("pointerout", () => nextBtn.setColor("#88ff88"));
+
+    const goNext = () => {
+      this.showAppearanceCustomization(playerName, selectedAppearance);
+    };
+
+    nextBtn.on("pointerdown", goNext);
+
+    this.tweens.add({
+      targets: nextBtn,
+      alpha: 0.4,
+      duration: 900,
+      yoyo: true,
+      repeat: -1,
+    });
+
+    this.input.keyboard!.on("keydown-ENTER", goNext);
+  }
+
+  private showAppearanceCustomization(playerName: string, selectedClass: PlayerAppearance): void {
+    this.children.removeAll(true);
+    this.tweens.killAll();
+    this.input.keyboard!.removeAllListeners();
+
+    const cx = this.cameras.main.centerX;
+
+    this.add
+      .text(cx, 10, "Customize Appearance", {
+        fontSize: "22px",
+        fontFamily: "monospace",
+        color: "#ffd700",
+      })
+      .setOrigin(0.5, 0);
+
+    this.add
+      .text(cx, 38, `Class: ${selectedClass.label}`, {
+        fontSize: "12px",
+        fontFamily: "monospace",
+        color: "#888",
+      })
+      .setOrigin(0.5, 0);
+
+    // State
+    let selectedSkinColor = SKIN_COLOR_OPTIONS[0].color;
+    let selectedHairStyle = HAIR_STYLE_OPTIONS[0].id;
+    let selectedHairColor = HAIR_COLOR_OPTIONS[0].color;
+
+    // Preview
+    const previewKey = "preview_custom";
+    this.generatePlayerTextureWithHair(
+      previewKey,
+      selectedClass.bodyColor,
+      selectedSkinColor,
+      selectedClass.legColor,
+      selectedHairStyle,
+      selectedHairColor
+    );
+    const previewSprite = this.add.sprite(cx, 85, previewKey).setScale(3);
+
+    const updatePreview = () => {
+      if (this.textures.exists(previewKey)) this.textures.remove(previewKey);
+      this.generatePlayerTextureWithHair(
+        previewKey,
+        selectedClass.bodyColor,
+        selectedSkinColor,
+        selectedClass.legColor,
+        selectedHairStyle,
+        selectedHairColor
+      );
+      previewSprite.setTexture(previewKey);
+    };
+
+    // --- Skin Color ---
+    this.add
+      .text(cx, 135, "Skin Color:", {
+        fontSize: "13px",
+        fontFamily: "monospace",
+        color: "#c0a060",
+      })
+      .setOrigin(0.5, 0);
+
+    const skinSwatchY = 160;
+    const skinSwatchSpacing = 40;
+    const skinStartX = cx - ((SKIN_COLOR_OPTIONS.length - 1) * skinSwatchSpacing) / 2;
+    const skinHighlights: Phaser.GameObjects.Graphics[] = [];
+
+    SKIN_COLOR_OPTIONS.forEach((opt, i) => {
+      const sx = skinStartX + i * skinSwatchSpacing;
+
+      const hl = this.add.graphics();
+      skinHighlights.push(hl);
+
+      // Swatch circle
+      const gfx = this.add.graphics();
+      gfx.fillStyle(opt.color, 1);
+      gfx.fillCircle(sx, skinSwatchY, 12);
+      gfx.lineStyle(2, i === 0 ? 0xffd700 : 0x444444, 1);
+      gfx.strokeCircle(sx, skinSwatchY, 13);
+
+      this.add
+        .text(sx, skinSwatchY + 18, opt.label, {
+          fontSize: "8px",
+          fontFamily: "monospace",
+          color: "#999",
+        })
+        .setOrigin(0.5, 0);
+
+      const hitZone = this.add.zone(sx, skinSwatchY, 28, 28).setInteractive({ useHandCursor: true });
+      hitZone.on("pointerdown", () => {
+        selectedSkinColor = opt.color;
+        // Redraw all skin swatches borders
+        SKIN_COLOR_OPTIONS.forEach((_, j) => {
+          const hx = skinStartX + j * skinSwatchSpacing;
+          skinHighlights[j].clear();
+          // Redraw the swatch with updated border
+          skinHighlights[j].fillStyle(SKIN_COLOR_OPTIONS[j].color, 1);
+          skinHighlights[j].fillCircle(hx, skinSwatchY, 12);
+          skinHighlights[j].lineStyle(2, j === i ? 0xffd700 : 0x444444, 1);
+          skinHighlights[j].strokeCircle(hx, skinSwatchY, 13);
+        });
+        updatePreview();
+      });
+    });
+
+    // --- Hair Style ---
+    this.add
+      .text(cx, 195, "Hair Style:", {
+        fontSize: "13px",
+        fontFamily: "monospace",
+        color: "#c0a060",
+      })
+      .setOrigin(0.5, 0);
+
+    const hairStyleY = 220;
+    const hairStyleSpacing = 80;
+    const hairStyleStartX = cx - ((HAIR_STYLE_OPTIONS.length - 1) * hairStyleSpacing) / 2;
+    const hairStyleTexts: Phaser.GameObjects.Text[] = [];
+
+    HAIR_STYLE_OPTIONS.forEach((opt, i) => {
+      const sx = hairStyleStartX + i * hairStyleSpacing;
+      const txt = this.add
+        .text(sx, hairStyleY, opt.label, {
+          fontSize: "13px",
+          fontFamily: "monospace",
+          color: i === 0 ? "#ffd700" : "#888",
+          backgroundColor: i === 0 ? "#2a2a2a" : undefined,
+          padding: { x: 6, y: 3 },
+        })
+        .setOrigin(0.5, 0)
+        .setInteractive({ useHandCursor: true });
+      hairStyleTexts.push(txt);
+
+      txt.on("pointerdown", () => {
+        selectedHairStyle = opt.id;
+        hairStyleTexts.forEach((t, j) => {
+          t.setColor(j === i ? "#ffd700" : "#888");
+          t.setBackgroundColor(j === i ? "#2a2a2a" : "");
+        });
+        updatePreview();
+      });
+    });
+
+    // --- Hair Color ---
+    this.add
+      .text(cx, 255, "Hair Color:", {
+        fontSize: "13px",
+        fontFamily: "monospace",
+        color: "#c0a060",
+      })
+      .setOrigin(0.5, 0);
+
+    const hairSwatchY = 280;
+    const hairSwatchSpacing = 40;
+    const hairStartX = cx - ((HAIR_COLOR_OPTIONS.length - 1) * hairSwatchSpacing) / 2;
+    const hairHighlights: Phaser.GameObjects.Graphics[] = [];
+
+    HAIR_COLOR_OPTIONS.forEach((opt, i) => {
+      const hx = hairStartX + i * hairSwatchSpacing;
+
+      const hl = this.add.graphics();
+      hairHighlights.push(hl);
+
+      const gfx = this.add.graphics();
+      gfx.fillStyle(opt.color, 1);
+      gfx.fillCircle(hx, hairSwatchY, 12);
+      gfx.lineStyle(2, i === 0 ? 0xffd700 : 0x444444, 1);
+      gfx.strokeCircle(hx, hairSwatchY, 13);
+
+      this.add
+        .text(hx, hairSwatchY + 18, opt.label, {
+          fontSize: "8px",
+          fontFamily: "monospace",
+          color: "#999",
+        })
+        .setOrigin(0.5, 0);
+
+      const hitZone = this.add.zone(hx, hairSwatchY, 28, 28).setInteractive({ useHandCursor: true });
+      hitZone.on("pointerdown", () => {
+        selectedHairColor = opt.color;
+        HAIR_COLOR_OPTIONS.forEach((_, j) => {
+          const hhx = hairStartX + j * hairSwatchSpacing;
+          hairHighlights[j].clear();
+          hairHighlights[j].fillStyle(HAIR_COLOR_OPTIONS[j].color, 1);
+          hairHighlights[j].fillCircle(hhx, hairSwatchY, 12);
+          hairHighlights[j].lineStyle(2, j === i ? 0xffd700 : 0x444444, 1);
+          hairHighlights[j].strokeCircle(hhx, hairSwatchY, 13);
+        });
+        updatePreview();
+      });
+    });
+
+    // --- Back and Start buttons ---
+    const btnY = 340;
+
+    const backBtn = this.add
+      .text(cx - 100, btnY, "[ < Back ]", {
+        fontSize: "16px",
+        fontFamily: "monospace",
+        color: "#aaa",
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    backBtn.on("pointerover", () => backBtn.setColor("#ffd700"));
+    backBtn.on("pointerout", () => backBtn.setColor("#aaa"));
+    backBtn.on("pointerdown", () => this.showCharacterCreation());
+
+    const startBtn = this.add
+      .text(cx + 100, btnY, "[ Start Adventure ]", {
+        fontSize: "16px",
         fontFamily: "monospace",
         color: "#88ff88",
       })
@@ -588,8 +826,26 @@ export class BootScene extends Phaser.Scene {
 
     const doStart = () => {
       const name = playerName.trim() || "Hero";
-      const player = createPlayer(name, selectedAppearance.id);
-      deleteSave(); // clear any old save for new run
+      const customAppearance: CustomAppearance = {
+        skinColor: selectedSkinColor,
+        hairStyle: selectedHairStyle,
+        hairColor: selectedHairColor,
+      };
+      const player = createPlayer(name, selectedClass.id, customAppearance);
+
+      // Generate final player texture with custom appearance
+      const texKey = `player_${selectedClass.id}`;
+      if (this.textures.exists(texKey)) this.textures.remove(texKey);
+      this.generatePlayerTextureWithHair(
+        texKey,
+        selectedClass.bodyColor,
+        selectedSkinColor,
+        selectedClass.legColor,
+        selectedHairStyle,
+        selectedHairColor
+      );
+
+      deleteSave();
       this.cameras.main.fadeOut(500, 0, 0, 0);
       this.time.delayedCall(500, () => {
         this.scene.start("OverworldScene", { player });
@@ -598,7 +854,6 @@ export class BootScene extends Phaser.Scene {
 
     startBtn.on("pointerdown", doStart);
 
-    // Blink the start btn
     this.tweens.add({
       targets: startBtn,
       alpha: 0.4,
@@ -607,7 +862,53 @@ export class BootScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    // ENTER also starts
     this.input.keyboard!.on("keydown-ENTER", doStart);
+  }
+
+  private generatePlayerTextureWithHair(
+    key: string,
+    bodyColor: number,
+    skinColor: number,
+    legColor: number,
+    hairStyle: number,
+    hairColor: number
+  ): void {
+    const gfx = this.add.graphics();
+    // Body
+    gfx.fillStyle(bodyColor, 1);
+    gfx.fillRect(8, 10, 16, 16);
+    // Head
+    gfx.fillStyle(skinColor, 1);
+    gfx.fillCircle(16, 8, 6);
+    // Hair
+    if (hairStyle > 0) {
+      gfx.fillStyle(hairColor, 1);
+      if (hairStyle === 1) {
+        // Short hair — small cap on top
+        gfx.fillRect(11, 2, 10, 4);
+      } else if (hairStyle === 2) {
+        // Medium hair — covers top and sides slightly
+        gfx.fillRect(10, 1, 12, 5);
+        gfx.fillRect(9, 4, 4, 6);
+        gfx.fillRect(19, 4, 4, 6);
+      } else if (hairStyle === 3) {
+        // Long hair — extends down to shoulders
+        gfx.fillRect(10, 1, 12, 5);
+        gfx.fillRect(8, 3, 5, 14);
+        gfx.fillRect(19, 3, 5, 14);
+      }
+    }
+    // Legs
+    gfx.fillStyle(legColor, 1);
+    gfx.fillRect(9, 26, 5, 6);
+    gfx.fillRect(18, 26, 5, 6);
+    // Sword
+    gfx.fillStyle(0xb0bec5, 1);
+    gfx.fillRect(26, 6, 3, 18);
+    gfx.fillStyle(0x795548, 1);
+    gfx.fillRect(24, 20, 7, 3);
+
+    gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
+    gfx.destroy();
   }
 }

@@ -21,7 +21,7 @@ const config: Phaser.Types.Core.GameConfig = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    zoom: 1.5,
+    zoom: 2,
   },
   scene: [BootScene, OverworldScene, BattleScene, ShopScene, BestiaryScene],
 };

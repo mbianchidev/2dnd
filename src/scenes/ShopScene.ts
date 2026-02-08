@@ -206,10 +206,21 @@ export class ShopScene extends Phaser.Scene {
     if (success) {
       this.setMessage(`Purchased ${item.name}!`, "#88ff88");
 
-      // Auto-equip weapons and armor
-      if (item.type === "weapon" || item.type === "armor") {
-        const idx = this.player.inventory.length - 1;
-        useItem(this.player, idx);
+      // Auto-equip only if the new item is better than current
+      if (item.type === "weapon") {
+        const currentEffect = this.player.equippedWeapon?.effect ?? 0;
+        if (item.effect > currentEffect) {
+          const idx = this.player.inventory.length - 1;
+          useItem(this.player, idx);
+          this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
+        }
+      } else if (item.type === "armor") {
+        const currentEffect = this.player.equippedArmor?.effect ?? 0;
+        if (item.effect > currentEffect) {
+          const idx = this.player.inventory.length - 1;
+          useItem(this.player, idx);
+          this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
+        }
       }
     } else {
       this.setMessage("Not enough gold!", "#ff6666");

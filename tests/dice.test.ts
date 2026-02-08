@@ -5,6 +5,7 @@ import {
   rollDiceDetailed,
   rollD20,
   rollWithAdvantage,
+  rollAbilityScore,
   abilityModifier,
 } from "../src/utils/dice";
 
@@ -96,6 +97,16 @@ describe("dice utilities", () => {
       expect(abilityModifier(6)).toBe(-2);
       expect(abilityModifier(20)).toBe(5);
       expect(abilityModifier(1)).toBe(-5);
+    });
+  });
+
+  describe("rollAbilityScore", () => {
+    it("returns values between 3 and 18", () => {
+      for (let i = 0; i < 200; i++) {
+        const score = rollAbilityScore();
+        expect(score).toBeGreaterThanOrEqual(3);
+        expect(score).toBeLessThanOrEqual(18);
+      }
     });
   });
 });

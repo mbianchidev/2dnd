@@ -2,7 +2,7 @@
  * Player state management: stats, leveling, experience, spell unlocks.
  */
 
-import { abilityModifier } from "../utils/dice";
+import { abilityModifier, rollAbilityScore } from "../utils/dice";
 import type { Spell } from "../data/spells";
 import { SPELLS } from "../data/spells";
 import type { Item } from "../data/items";
@@ -25,6 +25,7 @@ export interface PlayerState {
   mp: number;
   maxMp: number;
   stats: PlayerStats;
+  pendingStatPoints: number; // ASI points waiting to be allocated
   gold: number;
   inventory: Item[];
   knownSpells: string[]; // spell IDs
@@ -34,29 +35,40 @@ export interface PlayerState {
   y: number;
 }
 
+/** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
+export const ASI_LEVELS = [4, 8, 12, 16, 19];
+
 /** XP required to reach a given level. */
 export function xpForLevel(level: number): number {
   return level * level * 100;
 }
 
-/** Create a fresh level-1 player. */
+/** Create a fresh level-1 player with 4d6-drop-lowest rolled stats. */
 export function createPlayer(name: string): PlayerState {
+  const stats: PlayerStats = {
+    strength: rollAbilityScore(),
+    dexterity: rollAbilityScore(),
+    constitution: rollAbilityScore(),
+    intelligence: rollAbilityScore(),
+    wisdom: rollAbilityScore(),
+    charisma: rollAbilityScore(),
+  };
+
+  const conMod = abilityModifier(stats.constitution);
+  const intMod = abilityModifier(stats.intelligence);
+  const startHp = Math.max(10, 25 + conMod * 3);
+  const startMp = Math.max(4, 8 + intMod * 2);
+
   return {
     name,
     level: 1,
     xp: 0,
-    hp: 30,
-    maxHp: 30,
-    mp: 10,
-    maxMp: 10,
-    stats: {
-      strength: 12,
-      dexterity: 10,
-      constitution: 14,
-      intelligence: 10,
-      wisdom: 10,
-      charisma: 8,
-    },
+    hp: startHp,
+    maxHp: startHp,
+    mp: startMp,
+    maxMp: startMp,
+    stats,
+    pendingStatPoints: 0,
     gold: 50,
     inventory: [],
     knownSpells: ["fireBolt"], // start with a cantrip
@@ -90,7 +102,7 @@ export function getArmorClass(player: PlayerState): number {
 export function awardXP(
   player: PlayerState,
   amount: number
-): { leveledUp: boolean; newLevel: number; newSpells: Spell[] } {
+): { leveledUp: boolean; newLevel: number; newSpells: Spell[]; asiGained: number } {
   if (!player) {
     throw new Error(`[player] awardXP: missing player`);
   }
@@ -100,12 +112,13 @@ export function awardXP(
   player.xp += amount;
   let leveledUp = false;
   const newSpells: Spell[] = [];
+  let asiGained = 0;
 
   while (player.level < 20 && player.xp >= xpForLevel(player.level + 1)) {
     player.level++;
     leveledUp = true;
 
-    // Increase stats on level up
+    // Increase HP/MP on level up
     const conMod = abilityModifier(player.stats.constitution);
     const hpGain = Math.max(1, rollHitDie() + conMod);
     player.maxHp += hpGain;
@@ -115,10 +128,10 @@ export function awardXP(
     player.maxMp += mpGain;
     player.mp = player.maxMp;
 
-    // Boost a stat every even level
-    if (player.level % 2 === 0) {
-      player.stats.strength += 1;
-      player.stats.intelligence += 1;
+    // Grant ASI points at D&D 5e levels (4, 8, 12, 16, 19)
+    if (ASI_LEVELS.includes(player.level)) {
+      player.pendingStatPoints += 2;
+      asiGained += 2;
     }
 
     // Check for new spell unlocks
@@ -133,7 +146,7 @@ export function awardXP(
     }
   }
 
-  return { leveledUp, newLevel: player.level, newSpells };
+  return { leveledUp, newLevel: player.level, newSpells, asiGained };
 }
 
 function rollHitDie(): number {
@@ -206,4 +219,28 @@ export function useItem(
   }
 
   return { used: false, message: "Cannot use this item." };
+}
+
+/** Allocate one pending stat point to the given ability. Returns true if allocated. */
+export function allocateStatPoint(
+  player: PlayerState,
+  stat: keyof PlayerStats
+): boolean {
+  if (player.pendingStatPoints <= 0) return false;
+  player.stats[stat] += 1;
+  player.pendingStatPoints -= 1;
+
+  // Recalculate HP/MP if CON or INT changed
+  if (stat === "constitution") {
+    const bonus = player.level; // retroactive: +1 HP per level per CON bump
+    player.maxHp += bonus;
+    player.hp = Math.min(player.hp + bonus, player.maxHp);
+  }
+  if (stat === "intelligence") {
+    const bonus = Math.max(1, player.level); // +1 MP per level
+    player.maxMp += bonus;
+    player.mp = Math.min(player.mp + bonus, player.maxMp);
+  }
+
+  return true;
 }

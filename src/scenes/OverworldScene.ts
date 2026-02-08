@@ -15,7 +15,7 @@ import {
   getTerrainAt,
 } from "../data/map";
 import { getRandomEncounter, getBoss } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, xpForLevel, type PlayerState } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
@@ -42,6 +42,8 @@ export class OverworldScene extends Phaser.Scene {
   private defeatedBosses: Set<string> = new Set();
   private bestiary: BestiaryData = createBestiary();
   private equipOverlay: Phaser.GameObjects.Container | null = null;
+  private statOverlay: Phaser.GameObjects.Container | null = null;
+  private isNewPlayer = false;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -50,8 +52,10 @@ export class OverworldScene extends Phaser.Scene {
   init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData }): void {
     if (data?.player) {
       this.player = data.player;
+      this.isNewPlayer = false;
     } else {
       this.player = createPlayer("Hero");
+      this.isNewPlayer = true;
     }
     if (data?.defeatedBosses) {
       this.defeatedBosses = data.defeatedBosses;
@@ -75,6 +79,13 @@ export class OverworldScene extends Phaser.Scene {
     this.createHUD();
     this.setupDebug();
     this.updateLocationText();
+
+    // Show rolled stats on new game, or ASI overlay if points are pending
+    if (this.isNewPlayer) {
+      this.showRolledStatsOverlay();
+    } else if (this.player.pendingStatPoints > 0) {
+      this.time.delayedCall(400, () => this.showStatOverlay());
+    }
   }
 
   private setupDebug(): void {
@@ -103,6 +114,9 @@ export class OverworldScene extends Phaser.Scene {
       debugPanelLog(`[CHEAT] Level up! Now Lv.${xpResult.newLevel}`, true);
       for (const spell of xpResult.newSpells) {
         debugPanelLog(`[CHEAT] Learned ${spell.name}!`, true);
+      }
+      if (xpResult.asiGained > 0) {
+        debugPanelLog(`[CHEAT] +${xpResult.asiGained} stat points! Press T.`, true);
       }
       this.updateHUD();
     });
@@ -198,6 +212,10 @@ export class OverworldScene extends Phaser.Scene {
     // E key toggles equipment overlay
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     eKey.on("down", () => this.toggleEquipOverlay());
+
+    // T key opens stat allocation overlay when points are available
+    const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
+    tKey.on("down", () => this.toggleStatOverlay());
   }
 
   private createHUD(): void {
@@ -234,10 +252,11 @@ export class OverworldScene extends Phaser.Scene {
 
   private updateHUD(): void {
     const p = this.player;
+    const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts [T]` : "";
     this.hudText.setText(
       `${p.name} Lv.${p.level}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}\n` +
-        `Gold: ${p.gold}  XP: ${p.xp}/${(p.level + 1) * (p.level + 1) * 100}  [B] Bestiary [E] Equip`
+        `Gold: ${p.gold}  XP: ${p.xp}/${(p.level + 1) * (p.level + 1) * 100}  [B] Bestiary [E] Equip${asiHint}`
     );
   }
 
@@ -595,5 +614,195 @@ export class OverworldScene extends Phaser.Scene {
       color: "#666",
     }).setOrigin(0.5, 1);
     this.equipOverlay.add(hint);
+  }
+
+  // ─── Rolled-Stats Overlay (shown once on new game) ───────────────
+
+  private showRolledStatsOverlay(): void {
+    if (this.statOverlay) {
+      this.statOverlay.destroy();
+      this.statOverlay = null;
+    }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const panelW = 260;
+    const panelH = 240;
+    const px = Math.floor((w - panelW) / 2);
+    const py = Math.floor((h - panelH) / 2) - 20;
+
+    this.statOverlay = this.add.container(0, 0).setDepth(60);
+
+    // Dim background
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.6);
+    dim.fillRect(0, 0, w, h);
+    this.statOverlay.add(dim);
+
+    // Panel
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRect(px, py, panelW, panelH);
+    bg.lineStyle(2, 0xffd700, 1);
+    bg.strokeRect(px, py, panelW, panelH);
+    this.statOverlay.add(bg);
+
+    const title = this.add.text(px + panelW / 2, py + 12, "🎲 Your Rolled Stats", {
+      fontSize: "15px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    this.statOverlay.add(title);
+
+    const p = this.player;
+    const statNames: { key: keyof PlayerStats; label: string }[] = [
+      { key: "strength", label: "STR" },
+      { key: "dexterity", label: "DEX" },
+      { key: "constitution", label: "CON" },
+      { key: "intelligence", label: "INT" },
+      { key: "wisdom", label: "WIS" },
+      { key: "charisma", label: "CHA" },
+    ];
+
+    let cy = py + 40;
+    for (const { key, label } of statNames) {
+      const val = p.stats[key];
+      const mod = abilityModifier(val);
+      const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+      const txt = this.add.text(px + 30, cy, `${label}:  ${val}  (${modStr})`, {
+        fontSize: "13px", fontFamily: "monospace", color: "#ddd",
+      });
+      this.statOverlay.add(txt);
+      cy += 22;
+    }
+
+    cy += 8;
+    const hpMp = this.add.text(px + 30, cy, `HP: ${p.maxHp}   MP: ${p.maxMp}`, {
+      fontSize: "12px", fontFamily: "monospace", color: "#88cc88",
+    });
+    this.statOverlay.add(hpMp);
+
+    const closeHint = this.add.text(px + panelW / 2, py + panelH - 14, "Press SPACE to continue", {
+      fontSize: "11px", fontFamily: "monospace", color: "#888",
+    }).setOrigin(0.5, 1);
+    this.statOverlay.add(closeHint);
+
+    // Blink hint
+    this.tweens.add({ targets: closeHint, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
+
+    // Dismiss on SPACE
+    const handler = () => {
+      if (this.statOverlay) {
+        this.statOverlay.destroy();
+        this.statOverlay = null;
+      }
+    };
+    this.input.keyboard!.once("keydown-SPACE", handler);
+  }
+
+  // ─── ASI Stat Allocation Overlay ─────────────────────────────────
+
+  private toggleStatOverlay(): void {
+    if (this.statOverlay) {
+      this.statOverlay.destroy();
+      this.statOverlay = null;
+      return;
+    }
+    if (this.player.pendingStatPoints <= 0) return;
+    this.showStatOverlay();
+  }
+
+  private showStatOverlay(): void {
+    // Close equipment overlay first
+    if (this.equipOverlay) {
+      this.equipOverlay.destroy();
+      this.equipOverlay = null;
+    }
+    if (this.statOverlay) {
+      this.statOverlay.destroy();
+      this.statOverlay = null;
+    }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const panelW = 280;
+    const panelH = 280;
+    const px = Math.floor((w - panelW) / 2);
+    const py = Math.floor((h - panelH) / 2) - 10;
+
+    this.statOverlay = this.add.container(0, 0).setDepth(60);
+
+    // Dim background
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.6);
+    dim.fillRect(0, 0, w, h);
+    this.statOverlay.add(dim);
+
+    // Panel
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRect(px, py, panelW, panelH);
+    bg.lineStyle(2, 0xffd700, 1);
+    bg.strokeRect(px, py, panelW, panelH);
+    this.statOverlay.add(bg);
+
+    const title = this.add.text(px + panelW / 2, py + 10, "★ Ability Score Improvement", {
+      fontSize: "13px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    this.statOverlay.add(title);
+
+    const remaining = this.add.text(px + panelW / 2, py + 30, `Points remaining: ${this.player.pendingStatPoints}`, {
+      fontSize: "12px", fontFamily: "monospace", color: "#88ff88",
+    }).setOrigin(0.5, 0);
+    this.statOverlay.add(remaining);
+
+    const p = this.player;
+    const statNames: { key: keyof PlayerStats; label: string }[] = [
+      { key: "strength", label: "STR" },
+      { key: "dexterity", label: "DEX" },
+      { key: "constitution", label: "CON" },
+      { key: "intelligence", label: "INT" },
+      { key: "wisdom", label: "WIS" },
+      { key: "charisma", label: "CHA" },
+    ];
+
+    let cy = py + 54;
+    for (const { key, label } of statNames) {
+      const val = p.stats[key];
+      const mod = abilityModifier(val);
+      const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+
+      const row = this.add.text(px + 20, cy, `${label}:  ${val}  (${modStr})`, {
+        fontSize: "12px", fontFamily: "monospace", color: "#ddd",
+      });
+      this.statOverlay.add(row);
+
+      // "+" button
+      const btn = this.add.text(px + panelW - 40, cy - 2, "[+]", {
+        fontSize: "14px", fontFamily: "monospace", color: "#88ff88",
+      }).setInteractive({ useHandCursor: true });
+
+      btn.on("pointerover", () => btn.setColor("#ffd700"));
+      btn.on("pointerout", () => btn.setColor("#88ff88"));
+      btn.on("pointerdown", () => {
+        if (allocateStatPoint(p, key)) {
+          this.updateHUD();
+          if (p.pendingStatPoints > 0) {
+            this.showStatOverlay(); // rebuild
+          } else {
+            this.statOverlay?.destroy();
+            this.statOverlay = null;
+          }
+        }
+      });
+
+      this.statOverlay.add(btn);
+      cy += 28;
+    }
+
+    // Close hint
+    const hint = this.add.text(px + panelW / 2, py + panelH - 14,
+      p.pendingStatPoints > 0 ? "Click [+] to allocate  |  T to close" : "Press T or click to close", {
+        fontSize: "10px", fontFamily: "monospace", color: "#666",
+      }).setOrigin(0.5, 1);
+    this.statOverlay.add(hint);
   }
 }

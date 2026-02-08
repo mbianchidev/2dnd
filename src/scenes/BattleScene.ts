@@ -676,6 +676,9 @@ export class BattleScene extends Phaser.Scene {
           for (const spell of xpResult.newSpells) {
             this.addLog(`✦ Learned ${spell.name}!`);
           }
+          if (xpResult.asiGained > 0) {
+            this.addLog(`★ +${xpResult.asiGained} stat points to spend! Press T on the map.`);
+          }
         }
 
         // Track boss defeats

@@ -57,6 +57,19 @@ export function rollWithAdvantage(modifier: number = 0) {
   return { roll1, roll2, chosen: best, modifier, total: best + modifier };
 }
 
+/**
+ * Roll a single ability score using the classic 4d6-drop-lowest method.
+ * Rolls 4d6 and sums the highest 3.
+ */
+export function rollAbilityScore(): number {
+  const rolls: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    rolls.push(rollDie(6));
+  }
+  rolls.sort((a, b) => b - a); // descending
+  return rolls[0] + rolls[1] + rolls[2]; // sum top 3
+}
+
 /** Calculate ability modifier from ability score (D&D 5e formula). */
 export function abilityModifier(score: number): number {
   return Math.floor((score - 10) / 2);

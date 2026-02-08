@@ -101,7 +101,7 @@ export function awardXP(
   let leveledUp = false;
   const newSpells: Spell[] = [];
 
-  while (player.xp >= xpForLevel(player.level + 1)) {
+  while (player.level < 20 && player.xp >= xpForLevel(player.level + 1)) {
     player.level++;
     leveledUp = true;
 

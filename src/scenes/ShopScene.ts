@@ -54,20 +54,37 @@ export class ShopScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
+    // Gold display — prominent bar below title
+    const goldBg = this.add.graphics();
+    goldBg.fillStyle(0x2a2a1a, 0.95);
+    goldBg.fillRect(0, 42, w, 22);
+    goldBg.lineStyle(1, 0xc0a060, 0.6);
+    goldBg.strokeRect(0, 42, w, 22);
+
+    this.goldText = this.add
+      .text(w / 2, 44, "", {
+        fontSize: "16px",
+        fontFamily: "monospace",
+        color: "#ffd700",
+        stroke: "#000",
+        strokeThickness: 1,
+      })
+      .setOrigin(0.5, 0);
+
     // Player stats panel (left)
     const statsBg = this.add.graphics();
     statsBg.fillStyle(0x222244, 0.9);
-    statsBg.fillRect(10, 55, w * 0.35, h - 110);
+    statsBg.fillRect(10, 68, w * 0.35, h - 122);
     statsBg.lineStyle(1, 0xc0a060, 1);
-    statsBg.strokeRect(10, 55, w * 0.35, h - 110);
+    statsBg.strokeRect(10, 68, w * 0.35, h - 122);
 
-    this.add.text(20, 60, "Your Equipment", {
+    this.add.text(20, 72, "Your Equipment", {
       fontSize: "14px",
       fontFamily: "monospace",
       color: "#ffd700",
     });
 
-    this.statsText = this.add.text(20, 82, "", {
+    this.statsText = this.add.text(20, 94, "", {
       fontSize: "12px",
       fontFamily: "monospace",
       color: "#aaa",
@@ -75,29 +92,20 @@ export class ShopScene extends Phaser.Scene {
       wordWrap: { width: w * 0.35 - 20 },
     });
 
-    // Gold display
-    this.goldText = this.add
-      .text(w / 2, 48, "", {
-        fontSize: "14px",
-        fontFamily: "monospace",
-        color: "#ffcc00",
-      })
-      .setOrigin(0.5, 0);
-
     // Shop items panel (right)
     const shopBg = this.add.graphics();
     shopBg.fillStyle(0x222244, 0.9);
-    shopBg.fillRect(w * 0.38, 55, w * 0.6, h - 110);
+    shopBg.fillRect(w * 0.38, 68, w * 0.6, h - 122);
     shopBg.lineStyle(1, 0xc0a060, 1);
-    shopBg.strokeRect(w * 0.38, 55, w * 0.6, h - 110);
+    shopBg.strokeRect(w * 0.38, 68, w * 0.6, h - 122);
 
-    this.add.text(w * 0.39 + 10, 60, "Items for Sale", {
+    this.add.text(w * 0.39 + 10, 72, "Items for Sale", {
       fontSize: "14px",
       fontFamily: "monospace",
       color: "#ffd700",
     });
 
-    this.itemListContainer = this.add.container(w * 0.39 + 10, 82);
+    this.itemListContainer = this.add.container(w * 0.39 + 10, 94);
     this.renderShopItems();
 
     // Message area
@@ -231,7 +239,7 @@ export class ShopScene extends Phaser.Scene {
 
   private updateDisplay(): void {
     const p = this.player;
-    this.goldText.setText(`Gold: ${p.gold}`);
+    this.goldText.setText(`💰 Gold: ${p.gold}`);
 
     const weapon = p.equippedWeapon
       ? `${p.equippedWeapon.name} (+${p.equippedWeapon.effect})`

@@ -419,12 +419,21 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    this.buildEquipOverlay();
+  }
+
+  private buildEquipOverlay(): void {
+    if (this.equipOverlay) {
+      this.equipOverlay.destroy();
+      this.equipOverlay = null;
+    }
+
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
-    const panelW = 260;
-    const panelH = 300;
+    const panelW = 280;
+    const panelH = 360;
     const px = Math.floor((w - panelW) / 2);
-    const py = Math.floor((h - panelH) / 2) - 30;
+    const py = Math.floor((h - panelH) / 2) - 20;
 
     this.equipOverlay = this.add.container(0, 0).setDepth(50);
 
@@ -453,47 +462,131 @@ export class OverworldScene extends Phaser.Scene {
     this.equipOverlay.add(title);
 
     const p = this.player;
-    const weapon = p.equippedWeapon
-      ? `${p.equippedWeapon.name} (+${p.equippedWeapon.effect} dmg)`
-      : "Bare Hands";
-    const armor = p.equippedArmor
-      ? `${p.equippedArmor.name} (+${p.equippedArmor.effect} AC)`
-      : "No Armor";
     const ac = getArmorClass(p);
+    let cy = py + 34;
 
-    const consumables = p.inventory.filter((i) => i.type === "consumable");
-    const potionCount = consumables.filter((i) => i.id === "potion").length;
-    const etherCount = consumables.filter((i) => i.id === "ether").length;
-    const greaterCount = consumables.filter((i) => i.id === "greaterPotion").length;
-
-    const lines = [
+    // --- Header stats ---
+    const header = this.add.text(px + 14, cy, [
       `${p.name}  Lv.${p.level}`,
-      ``,
-      `HP: ${p.hp}/${p.maxHp}   MP: ${p.mp}/${p.maxMp}`,
-      `AC: ${ac}`,
-      ``,
-      `Weapon: ${weapon}`,
-      `Armor:  ${armor}`,
-      ``,
-      `― Stats ―`,
-      `STR ${p.stats.strength}  DEX ${p.stats.dexterity}`,
-      `CON ${p.stats.constitution}  INT ${p.stats.intelligence}`,
-      `WIS ${p.stats.wisdom}  CHA ${p.stats.charisma}`,
-      ``,
-      `― Consumables ―`,
-      `Potions: ${potionCount}  Ethers: ${etherCount}`,
-      `Greater Potions: ${greaterCount}`,
-      ``,
-      `Spells Known: ${p.knownSpells.length}`,
-    ];
-
-    const body = this.add.text(px + 14, py + 34, lines.join("\n"), {
+      `HP: ${p.hp}/${p.maxHp}   MP: ${p.mp}/${p.maxMp}   AC: ${ac}`,
+    ].join("\n"), {
       fontSize: "11px",
       fontFamily: "monospace",
       color: "#ccc",
       lineSpacing: 4,
     });
-    this.equipOverlay.add(body);
+    this.equipOverlay.add(header);
+    cy += 38;
+
+    // --- Weapon slot ---
+    const weaponLabel = this.add.text(px + 14, cy, "Weapon:", {
+      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
+    });
+    this.equipOverlay.add(weaponLabel);
+    cy += 16;
+
+    const ownedWeapons = p.inventory.filter((i) => i.type === "weapon");
+    if (ownedWeapons.length === 0 && !p.equippedWeapon) {
+      const bare = this.add.text(px + 20, cy, "Bare Hands", {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay.add(bare);
+      cy += 16;
+    } else {
+      // Show equipped weapon and owned alternatives
+      const allWeapons = p.equippedWeapon
+        ? [p.equippedWeapon, ...ownedWeapons.filter((i) => i.id !== p.equippedWeapon!.id)]
+        : ownedWeapons;
+      for (const wpn of allWeapons) {
+        const isEquipped = p.equippedWeapon?.id === wpn.id;
+        const prefix = isEquipped ? "► " : "  ";
+        const color = isEquipped ? "#88ff88" : "#aaddff";
+        const txt = this.add.text(px + 20, cy,
+          `${prefix}${wpn.name} (+${wpn.effect} dmg)${isEquipped ? " [equipped]" : ""}`,
+          { fontSize: "11px", fontFamily: "monospace", color }
+        ).setInteractive({ useHandCursor: !isEquipped });
+        if (!isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ffd700"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedWeapon = wpn;
+            this.buildEquipOverlay();
+          });
+        }
+        this.equipOverlay.add(txt);
+        cy += 16;
+      }
+    }
+    cy += 6;
+
+    // --- Armor slot ---
+    const armorLabel = this.add.text(px + 14, cy, "Armor:", {
+      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
+    });
+    this.equipOverlay.add(armorLabel);
+    cy += 16;
+
+    const ownedArmor = p.inventory.filter((i) => i.type === "armor");
+    if (ownedArmor.length === 0 && !p.equippedArmor) {
+      const none = this.add.text(px + 20, cy, "No Armor", {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay.add(none);
+      cy += 16;
+    } else {
+      const allArmor = p.equippedArmor
+        ? [p.equippedArmor, ...ownedArmor.filter((i) => i.id !== p.equippedArmor!.id)]
+        : ownedArmor;
+      for (const arm of allArmor) {
+        const isEquipped = p.equippedArmor?.id === arm.id;
+        const prefix = isEquipped ? "► " : "  ";
+        const color = isEquipped ? "#88ff88" : "#aaddff";
+        const txt = this.add.text(px + 20, cy,
+          `${prefix}${arm.name} (+${arm.effect} AC)${isEquipped ? " [equipped]" : ""}`,
+          { fontSize: "11px", fontFamily: "monospace", color }
+        ).setInteractive({ useHandCursor: !isEquipped });
+        if (!isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ffd700"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedArmor = arm;
+            this.buildEquipOverlay();
+          });
+        }
+        this.equipOverlay.add(txt);
+        cy += 16;
+      }
+    }
+    cy += 6;
+
+    // --- Ability Scores ---
+    const statsBlock = this.add.text(px + 14, cy, [
+      `― Stats ―`,
+      `STR ${p.stats.strength}  DEX ${p.stats.dexterity}`,
+      `CON ${p.stats.constitution}  INT ${p.stats.intelligence}`,
+      `WIS ${p.stats.wisdom}  CHA ${p.stats.charisma}`,
+    ].join("\n"), {
+      fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
+    });
+    this.equipOverlay.add(statsBlock);
+    cy += 66;
+
+    // --- Consumables ---
+    const consumables = p.inventory.filter((i) => i.type === "consumable");
+    const potionCount = consumables.filter((i) => i.id === "potion").length;
+    const etherCount = consumables.filter((i) => i.id === "ether").length;
+    const greaterCount = consumables.filter((i) => i.id === "greaterPotion").length;
+
+    const consBlock = this.add.text(px + 14, cy, [
+      `― Consumables ―`,
+      `Potions: ${potionCount}  Ethers: ${etherCount}`,
+      `Greater Potions: ${greaterCount}`,
+      ``,
+      `Spells Known: ${p.knownSpells.length}`,
+    ].join("\n"), {
+      fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
+    });
+    this.equipOverlay.add(consBlock);
 
     // Close hint
     const hint = this.add.text(px + panelW / 2, py + panelH - 14, "Press E or click to close", {

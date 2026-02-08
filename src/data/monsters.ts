@@ -9,6 +9,16 @@ export interface MonsterDrop {
   chance: number; // 0–1 probability
 }
 
+export interface MonsterAbility {
+  name: string;
+  chance: number;       // 0–1 probability of using instead of basic attack
+  damageCount: number;
+  damageDie: DieType;
+  type: "damage" | "heal";
+  /** If true AND type is "damage", the monster also heals for the damage dealt. */
+  selfHeal?: boolean;
+}
+
 export interface Monster {
   id: string;
   name: string;
@@ -22,6 +32,7 @@ export interface Monster {
   isBoss: boolean;
   color: number; // display color in battle
   drops?: MonsterDrop[];
+  abilities?: MonsterAbility[];
 }
 
 export const MONSTERS: Monster[] = [
@@ -67,6 +78,9 @@ export const MONSTERS: Monster[] = [
     isBoss: false,
     color: 0xcccccc,
     drops: [{ itemId: "ether", chance: 0.15 }],
+    abilities: [
+      { name: "Bone Throw", chance: 0.25, damageCount: 2, damageDie: 4, type: "damage" },
+    ],
   },
   {
     id: "wolf",
@@ -81,6 +95,9 @@ export const MONSTERS: Monster[] = [
     isBoss: false,
     color: 0x888888,
     drops: [{ itemId: "potion", chance: 0.25 }],
+    abilities: [
+      { name: "Pounce", chance: 0.30, damageCount: 3, damageDie: 6, type: "damage" },
+    ],
   },
   {
     id: "orc",
@@ -95,6 +112,9 @@ export const MONSTERS: Monster[] = [
     isBoss: false,
     color: 0x669944,
     drops: [{ itemId: "potion", chance: 0.2 }, { itemId: "shortSword", chance: 0.05 }],
+    abilities: [
+      { name: "Cleave", chance: 0.35, damageCount: 2, damageDie: 10, type: "damage" },
+    ],
   },
   {
     id: "wraith",
@@ -109,6 +129,10 @@ export const MONSTERS: Monster[] = [
     isBoss: false,
     color: 0x554488,
     drops: [{ itemId: "ether", chance: 0.25 }, { itemId: "greaterPotion", chance: 0.1 }],
+    abilities: [
+      { name: "Life Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true },
+      { name: "Necrotic Bolt", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage" },
+    ],
   },
   // --- Fixed boss encounters ---
   {
@@ -124,6 +148,10 @@ export const MONSTERS: Monster[] = [
     isBoss: true,
     color: 0x447744,
     drops: [{ itemId: "greaterPotion", chance: 0.5 }, { itemId: "chainMail", chance: 0.25 }],
+    abilities: [
+      { name: "Regenerate", chance: 0.25, damageCount: 3, damageDie: 8, type: "heal" },
+      { name: "Rock Slam", chance: 0.35, damageCount: 3, damageDie: 10, type: "damage" },
+    ],
   },
   {
     id: "dragon",
@@ -138,6 +166,10 @@ export const MONSTERS: Monster[] = [
     isBoss: true,
     color: 0xcc2222,
     drops: [{ itemId: "greaterPotion", chance: 0.75 }, { itemId: "plateArmor", chance: 0.3 }, { itemId: "greatSword", chance: 0.2 }],
+    abilities: [
+      { name: "Fire Breath", chance: 0.40, damageCount: 6, damageDie: 8, type: "damage" },
+      { name: "Tail Sweep", chance: 0.25, damageCount: 3, damageDie: 10, type: "damage" },
+    ],
   },
 ];
 

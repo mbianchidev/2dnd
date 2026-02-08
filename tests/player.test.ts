@@ -42,10 +42,10 @@ describe("player system", () => {
       expect(player.name).toBe("TestHero");
       expect(player.level).toBe(1);
       expect(player.xp).toBe(0);
-      // Rolled stats should be in 3-18 range
+      // Rolled stats should be in 3-20 range (base 3-17, +0/+1/+2 class boost)
       for (const val of Object.values(player.stats)) {
         expect(val).toBeGreaterThanOrEqual(3);
-        expect(val).toBeLessThanOrEqual(18);
+        expect(val).toBeLessThanOrEqual(20);
       }
       // HP and MP are derived from CON/INT
       expect(player.maxHp).toBeGreaterThanOrEqual(10);

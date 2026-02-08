@@ -49,6 +49,9 @@ export function loadGame(): SaveData | null {
     // Ensure bestiary exists (may be missing from old saves)
     if (!data.bestiary) data.bestiary = createBestiary();
     if (!data.appearanceId) data.appearanceId = "knight";
+    // Backward compat for new fields
+    if (!data.player.knownAbilities) data.player.knownAbilities = [];
+    if (!data.player.knownTalents) data.player.knownTalents = [];
     return data;
   } catch {
     return null;

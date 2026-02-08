@@ -3,15 +3,18 @@
  */
 
 import { rollD20, rollDice, type DieType } from "../utils/dice";
-import type { Monster } from "../data/monsters";
+import type { Monster, MonsterAbility } from "../data/monsters";
 import type { Spell } from "../data/spells";
 import { getSpell } from "../data/spells";
+import { getAbility } from "../data/abilities";
+import { getTalentAttackBonus, getTalentDamageBonus } from "../data/talents";
 import {
   getAttackModifier,
   getSpellModifier,
   getArmorClass,
   type PlayerState,
 } from "./player";
+import { abilityModifier } from "../utils/dice";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -69,7 +72,8 @@ export function playerAttack(
   if (roll.roll === 20) {
     // Critical hit - double dice
     const weaponBonus = player.equippedWeapon?.effect ?? 0;
-    const damage = rollDice(2, 6) + weaponBonus; // 2d6 crit + weapon
+    const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
+    const damage = rollDice(2, 6) + weaponBonus + talentDmg; // 2d6 crit + weapon + talent
     return {
       message: `CRITICAL HIT! ${player.name} strikes for ${damage} damage!`,
       damage,
@@ -93,7 +97,8 @@ export function playerAttack(
 
   if (roll.total >= monster.ac) {
     const weaponBonus = player.equippedWeapon?.effect ?? 0;
-    const damage = Math.max(1, rollDice(1, 6) + weaponBonus);
+    const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
+    const damage = Math.max(1, rollDice(1, 6) + weaponBonus + talentDmg);
     return {
       message: `${player.name} hits for ${damage} damage!`,
       damage,
@@ -166,7 +171,8 @@ export function playerCastSpell(
 
   if (roll.total >= monster.ac || autoHit) {
     // Magic Missile always hits
-    const damage = rollDice(spell.damageCount, spell.damageDie as DieType);
+    const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
+    const damage = rollDice(spell.damageCount, spell.damageDie as DieType) + talentDmg;
     player.mp -= spell.mpCost;
     return {
       message: `${player.name} casts ${spell.name}! ${damage} damage!`,
@@ -273,5 +279,115 @@ export function attemptFlee(dexModifier: number): {
   return {
     success: false,
     message: `Failed to escape! (rolled ${roll.total}, needed 10)`,
+  };
+}
+
+// ── Player Ability (martial / non-caster) ──────────────────────
+
+/** Player uses a martial ability. */
+export function playerUseAbility(
+  player: PlayerState,
+  abilityId: string,
+  monster: Monster
+): CombatResult & { mpUsed: number; attackMod?: number; totalRoll?: number; targetAC?: number } {
+  if (!player || !monster) {
+    throw new Error(`[combat] playerUseAbility: missing player or monster`);
+  }
+  const ability = getAbility(abilityId);
+  if (!ability) {
+    return { message: "Unknown ability!", damage: 0, hit: false, mpUsed: 0 };
+  }
+
+  if (player.mp < ability.mpCost) {
+    return { message: "Not enough MP!", damage: 0, hit: false, mpUsed: 0 };
+  }
+
+  // Heal abilities
+  if (ability.type === "heal") {
+    const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
+    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
+    player.hp += actualHeal;
+    player.mp -= ability.mpCost;
+    return {
+      message: `${player.name} uses ${ability.name}! Healed ${actualHeal} HP!`,
+      damage: 0, hit: true, mpUsed: ability.mpCost,
+    };
+  }
+
+  // Damage ability — uses STR or DEX
+  const stat = ability.statKey === "strength"
+    ? player.stats.strength
+    : player.stats.dexterity;
+  const profBonus = Math.floor((player.level - 1) / 4) + 2;
+  const talentAtk = getTalentAttackBonus(player.knownTalents ?? []);
+  const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
+  const attackMod = abilityModifier(stat) + profBonus + talentAtk;
+  const roll = rollD20(attackMod);
+
+  if (roll.roll === 1) {
+    player.mp -= ability.mpCost;
+    return {
+      message: `${player.name} uses ${ability.name} but fumbles!`,
+      damage: 0, hit: false, critical: false, roll: 1,
+      mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: monster.ac,
+    };
+  }
+
+  if (roll.roll === 20 || roll.total >= monster.ac) {
+    const isCrit = roll.roll === 20;
+    const dice = isCrit ? ability.damageCount * 2 : ability.damageCount;
+    const damage = rollDice(dice, ability.damageDie as DieType) + talentDmg;
+    player.mp -= ability.mpCost;
+    return {
+      message: `${isCrit ? "CRITICAL! " : ""}${player.name} uses ${ability.name}! ${damage} damage!`,
+      damage, hit: true, critical: isCrit, roll: roll.roll,
+      mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: monster.ac,
+    };
+  }
+
+  player.mp -= ability.mpCost;
+  return {
+    message: `${player.name} uses ${ability.name} but misses!`,
+    damage: 0, hit: false, roll: roll.roll,
+    mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: monster.ac,
+  };
+}
+
+// ── Monster Ability ────────────────────────────────────────────
+
+export interface MonsterAbilityResult {
+  message: string;
+  damage: number;
+  healing: number;
+  abilityName: string;
+}
+
+/** Monster uses a special ability instead of its basic attack. */
+export function monsterUseAbility(
+  ability: MonsterAbility,
+  monster: Monster,
+  player: PlayerState
+): MonsterAbilityResult {
+  if (ability.type === "heal") {
+    const healing = rollDice(ability.damageCount, ability.damageDie);
+    return {
+      message: `${monster.name} uses ${ability.name}! Recovers ${healing} HP!`,
+      damage: 0, healing, abilityName: ability.name,
+    };
+  }
+
+  // Damage ability (bypasses AC — like breath weapons)
+  const damage = rollDice(ability.damageCount, ability.damageDie);
+  player.hp = Math.max(0, player.hp - damage);
+
+  const selfHealMsg = ability.selfHeal
+    ? ` ${monster.name} absorbs the life force!`
+    : "";
+
+  return {
+    message: `${monster.name} uses ${ability.name}! ${damage} damage!${selfHealMsg}`,
+    damage,
+    healing: ability.selfHeal ? damage : 0,
+    abilityName: ability.name,
   };
 }

@@ -5,7 +5,11 @@
 import { abilityModifier, rollAbilityScore } from "../utils/dice";
 import type { Spell } from "../data/spells";
 import { SPELLS } from "../data/spells";
+import type { Ability } from "../data/abilities";
+import { ABILITIES, getAbility } from "../data/abilities";
+import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "../data/talents";
 import type { Item } from "../data/items";
+import { getAppearance, getClassSpells, getClassAbilities } from "./appearance";
 
 export interface PlayerStats {
   strength: number;
@@ -29,6 +33,8 @@ export interface PlayerState {
   gold: number;
   inventory: Item[];
   knownSpells: string[]; // spell IDs
+  knownAbilities: string[]; // martial ability IDs (non-casters)
+  knownTalents: string[]; // talent IDs (everyone)
   equippedWeapon: Item | null;
   equippedArmor: Item | null;
   appearanceId: string; // visual customization
@@ -44,21 +50,41 @@ export function xpForLevel(level: number): number {
   return level * level * 100;
 }
 
-/** Create a fresh level-1 player with 4d6-drop-lowest rolled stats. */
-export function createPlayer(name: string): PlayerState {
+/** Create a fresh level-1 player with 4d6-drop-lowest rolled stats + class boosts. */
+export function createPlayer(name: string, appearanceId: string = "knight"): PlayerState {
+  const appearance = getAppearance(appearanceId);
+
+  // Roll base stats — subtract 1 from each to compensate for class bonuses
+  const roll = () => Math.max(3, rollAbilityScore() - 1);
+
   const stats: PlayerStats = {
-    strength: rollAbilityScore(),
-    dexterity: rollAbilityScore(),
-    constitution: rollAbilityScore(),
-    intelligence: rollAbilityScore(),
-    wisdom: rollAbilityScore(),
-    charisma: rollAbilityScore(),
+    strength: roll(),
+    dexterity: roll(),
+    constitution: roll(),
+    intelligence: roll(),
+    wisdom: roll(),
+    charisma: roll(),
   };
+
+  // Apply class stat boosts
+  for (const [key, bonus] of Object.entries(appearance.statBoosts)) {
+    stats[key as keyof PlayerStats] += bonus as number;
+  }
 
   const conMod = abilityModifier(stats.constitution);
   const intMod = abilityModifier(stats.intelligence);
   const startHp = Math.max(10, 25 + conMod * 3);
   const startMp = Math.max(4, 8 + intMod * 2);
+
+  // Starting spell — first spell in the class list
+  const startingSpell = appearance.spells[0] ?? "fireBolt";
+
+  // Starting abilities — all class abilities available at level 1
+  const classAbilities = appearance.abilities ?? [];
+  const startingAbilities = classAbilities.filter((id) => {
+    const ab = getAbility(id);
+    return ab && ab.levelRequired <= 1;
+  });
 
   return {
     name,
@@ -72,10 +98,12 @@ export function createPlayer(name: string): PlayerState {
     pendingStatPoints: 0,
     gold: 50,
     inventory: [],
-    knownSpells: ["fireBolt"], // start with a cantrip
+    knownSpells: [startingSpell],
+    knownAbilities: startingAbilities,
+    knownTalents: [],
     equippedWeapon: null,
     equippedArmor: null,
-    appearanceId: "knight",
+    appearanceId,
     x: 7,
     y: 7,
   };
@@ -84,27 +112,27 @@ export function createPlayer(name: string): PlayerState {
 /** Get the attack modifier for the player (STR-based melee). */
 export function getAttackModifier(player: PlayerState): number {
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(player.stats.strength) + proficiencyBonus;
+  return abilityModifier(player.stats.strength) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
 
 /** Get the spell attack modifier (INT-based). */
 export function getSpellModifier(player: PlayerState): number {
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(player.stats.intelligence) + proficiencyBonus;
+  return abilityModifier(player.stats.intelligence) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
 
 /** Get the player's armor class. */
 export function getArmorClass(player: PlayerState): number {
   const baseAC = 10 + abilityModifier(player.stats.dexterity);
   const armorBonus = player.equippedArmor?.effect ?? 0;
-  return baseAC + armorBonus;
+  return baseAC + armorBonus + getTalentACBonus(player.knownTalents ?? []);
 }
 
-/** Award XP and handle level-ups. Returns list of new spells learned. */
+/** Award XP and handle level-ups. Returns list of new spells/abilities/talents learned. */
 export function awardXP(
   player: PlayerState,
   amount: number
-): { leveledUp: boolean; newLevel: number; newSpells: Spell[]; asiGained: number } {
+): { leveledUp: boolean; newLevel: number; newSpells: Spell[]; newAbilities: Ability[]; newTalents: Talent[]; asiGained: number } {
   if (!player) {
     throw new Error(`[player] awardXP: missing player`);
   }
@@ -114,6 +142,8 @@ export function awardXP(
   player.xp += amount;
   let leveledUp = false;
   const newSpells: Spell[] = [];
+  const newAbilities: Ability[] = [];
+  const newTalents: Talent[] = [];
   let asiGained = 0;
 
   while (player.level < 20 && player.xp >= xpForLevel(player.level + 1)) {
@@ -136,19 +166,56 @@ export function awardXP(
       asiGained += 2;
     }
 
-    // Check for new spell unlocks
+    // Check for new spell unlocks (class-filtered)
+    const classSpells = getClassSpells(player.appearanceId);
     for (const spell of SPELLS) {
       if (
         spell.levelRequired <= player.level &&
-        !player.knownSpells.includes(spell.id)
+        !player.knownSpells.includes(spell.id) &&
+        classSpells.includes(spell.id)
       ) {
         player.knownSpells.push(spell.id);
         newSpells.push(spell);
       }
     }
+
+    // Check for new ability unlocks (class-filtered)
+    const classAbilityIds = getClassAbilities(player.appearanceId);
+    for (const ability of ABILITIES) {
+      if (
+        ability.levelRequired <= player.level &&
+        !(player.knownAbilities ?? []).includes(ability.id) &&
+        classAbilityIds.includes(ability.id)
+      ) {
+        if (!player.knownAbilities) player.knownAbilities = [];
+        player.knownAbilities.push(ability.id);
+        newAbilities.push(ability);
+      }
+    }
+
+    // Check for new talent unlocks (everyone)
+    for (const talent of TALENTS) {
+      if (
+        talent.levelRequired <= player.level &&
+        !(player.knownTalents ?? []).includes(talent.id)
+      ) {
+        if (!player.knownTalents) player.knownTalents = [];
+        player.knownTalents.push(talent.id);
+        newTalents.push(talent);
+        // Apply one-time stat bonuses
+        if (talent.maxHpBonus) {
+          player.maxHp += talent.maxHpBonus;
+          player.hp += talent.maxHpBonus;
+        }
+        if (talent.maxMpBonus) {
+          player.maxMp += talent.maxMpBonus;
+          player.mp += talent.maxMpBonus;
+        }
+      }
+    }
   }
 
-  return { leveledUp, newLevel: player.level, newSpells, asiGained };
+  return { leveledUp, newLevel: player.level, newSpells, newAbilities, newTalents, asiGained };
 }
 
 function rollHitDie(): number {

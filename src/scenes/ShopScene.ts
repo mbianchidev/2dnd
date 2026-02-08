@@ -74,9 +74,9 @@ export class ShopScene extends Phaser.Scene {
     // Player stats panel (left)
     const statsBg = this.add.graphics();
     statsBg.fillStyle(0x222244, 0.9);
-    statsBg.fillRect(10, 68, w * 0.35, h - 122);
+    statsBg.fillRect(10, 68, w * 0.35, h - 132);
     statsBg.lineStyle(1, 0xc0a060, 1);
-    statsBg.strokeRect(10, 68, w * 0.35, h - 122);
+    statsBg.strokeRect(10, 68, w * 0.35, h - 132);
 
     this.add.text(20, 72, "Your Equipment", {
       fontSize: "14px",
@@ -95,9 +95,9 @@ export class ShopScene extends Phaser.Scene {
     // Shop items panel (right)
     const shopBg = this.add.graphics();
     shopBg.fillStyle(0x222244, 0.9);
-    shopBg.fillRect(w * 0.38, 68, w * 0.6, h - 122);
+    shopBg.fillRect(w * 0.38, 68, w * 0.6, h - 132);
     shopBg.lineStyle(1, 0xc0a060, 1);
-    shopBg.strokeRect(w * 0.38, 68, w * 0.6, h - 122);
+    shopBg.strokeRect(w * 0.38, 68, w * 0.6, h - 132);
 
     this.add.text(w * 0.39 + 10, 72, "Items for Sale", {
       fontSize: "14px",
@@ -108,18 +108,26 @@ export class ShopScene extends Phaser.Scene {
     this.itemListContainer = this.add.container(w * 0.39 + 10, 94);
     this.renderShopItems();
 
-    // Message area
+    // Bottom bar background
+    const bottomBarY = h - 56;
+    const barBg = this.add.graphics();
+    barBg.fillStyle(0x111122, 0.95);
+    barBg.fillRect(0, bottomBarY, w, 56);
+    barBg.lineStyle(1, 0xc0a060, 0.5);
+    barBg.strokeRect(0, bottomBarY, w, 56);
+
+    // Message area (top of bottom bar)
     this.messageText = this.add
-      .text(w / 2, h - 40, "Welcome! Click an item to purchase.", {
-        fontSize: "13px",
+      .text(w / 2, bottomBarY + 4, "Welcome! Click an item to purchase.", {
+        fontSize: "12px",
         fontFamily: "monospace",
         color: "#88ff88",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5, 0);
 
     // Rest at Inn button
     const restBtn = this.add
-      .text(20, h - 40, "🏨 Rest at Inn (10 gold)", {
+      .text(20, bottomBarY + 28, "🏨 Rest at Inn (10g)", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#aaddff",
@@ -134,7 +142,7 @@ export class ShopScene extends Phaser.Scene {
 
     // Leave button
     const leaveBtn = this.add
-      .text(w - 20, h - 40, "← Leave Shop (ESC)", {
+      .text(w - 20, bottomBarY + 28, "← Leave (ESC)", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#ff8888",

@@ -44,6 +44,7 @@ export class OverworldScene extends Phaser.Scene {
   private bestiary: BestiaryData = createBestiary();
   private equipOverlay: Phaser.GameObjects.Container | null = null;
   private statOverlay: Phaser.GameObjects.Container | null = null;
+  private menuOverlay: Phaser.GameObjects.Container | null = null;
   private isNewPlayer = false;
 
   constructor() {
@@ -220,6 +221,10 @@ export class OverworldScene extends Phaser.Scene {
     // T key opens stat allocation overlay when points are available
     const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
     tKey.on("down", () => this.toggleStatOverlay());
+
+    // M key opens game menu
+    const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    mKey.on("down", () => this.toggleMenuOverlay());
   }
 
   private createHUD(): void {
@@ -260,7 +265,7 @@ export class OverworldScene extends Phaser.Scene {
     this.hudText.setText(
       `${p.name} Lv.${p.level}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}\n` +
-        `Gold: ${p.gold}  XP: ${p.xp}/${(p.level + 1) * (p.level + 1) * 100}  [B] Bestiary [E] Equip${asiHint}`
+        `Gold: ${p.gold}  XP: ${p.xp}/${(p.level + 1) * (p.level + 1) * 100}  [B] Bestiary [E] Equip [M] Menu${asiHint}`
     );
   }
 
@@ -710,6 +715,87 @@ export class OverworldScene extends Phaser.Scene {
       }
     };
     this.input.keyboard!.once("keydown-SPACE", handler);
+  }
+
+  // ─── Game Menu Overlay ───────────────────────────────────────────
+
+  private toggleMenuOverlay(): void {
+    if (this.menuOverlay) {
+      this.menuOverlay.destroy();
+      this.menuOverlay = null;
+      return;
+    }
+    this.showMenuOverlay();
+  }
+
+  private showMenuOverlay(): void {
+    // Close other overlays
+    if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
+    if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const panelW = 220;
+    const panelH = 160;
+    const px = Math.floor((w - panelW) / 2);
+    const py = Math.floor((h - panelH) / 2) - 10;
+
+    this.menuOverlay = this.add.container(0, 0).setDepth(70);
+
+    // Dim background
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.6);
+    dim.fillRect(0, 0, w, h);
+    this.menuOverlay.add(dim);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+    dim.on("pointerdown", () => this.toggleMenuOverlay());
+
+    // Panel
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRect(px, py, panelW, panelH);
+    bg.lineStyle(2, 0xffd700, 1);
+    bg.strokeRect(px, py, panelW, panelH);
+    this.menuOverlay.add(bg);
+
+    // Title
+    const title = this.add.text(px + panelW / 2, py + 14, "⚙ Menu", {
+      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    this.menuOverlay.add(title);
+
+    // Resume button
+    const resumeBtn = this.add.text(px + panelW / 2, py + 56, "▶ Resume", {
+      fontSize: "14px", fontFamily: "monospace", color: "#88ff88",
+      backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    resumeBtn.on("pointerover", () => resumeBtn.setColor("#ffd700"));
+    resumeBtn.on("pointerout", () => resumeBtn.setColor("#88ff88"));
+    resumeBtn.on("pointerdown", () => this.toggleMenuOverlay());
+    this.menuOverlay.add(resumeBtn);
+
+    // Quit to Title button
+    const quitBtn = this.add.text(px + panelW / 2, py + 100, "✕ Quit to Title", {
+      fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
+      backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    quitBtn.on("pointerover", () => quitBtn.setColor("#ff4444"));
+    quitBtn.on("pointerout", () => quitBtn.setColor("#ff6666"));
+    quitBtn.on("pointerdown", () => {
+      // Save before quitting
+      saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId);
+      this.cameras.main.fadeOut(400, 0, 0, 0);
+      this.time.delayedCall(400, () => {
+        this.scene.start("BootScene");
+      });
+    });
+    this.menuOverlay.add(quitBtn);
+
+    // Close hint
+    const hint = this.add.text(px + panelW / 2, py + panelH - 8, "Press M to close", {
+      fontSize: "10px", fontFamily: "monospace", color: "#666",
+    }).setOrigin(0.5, 1);
+    this.menuOverlay.add(hint);
   }
 
   // ─── ASI Stat Allocation Overlay ─────────────────────────────────

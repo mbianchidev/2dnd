@@ -439,8 +439,8 @@ export class BootScene extends Phaser.Scene {
 
     // Appearance option grid
     const cols = 4;
-    const optW = 60;
-    const optH = 56;
+    const optW = 72;
+    const optH = 68;
     const startX = cx - ((Math.min(cols, PLAYER_APPEARANCES.length) * optW) / 2) + optW / 2;
     const startY = 240;
 
@@ -452,41 +452,52 @@ export class BootScene extends Phaser.Scene {
 
       // Highlight box
       const hl = this.add.graphics();
-      hl.lineStyle(2, app.id === selectedAppearance.id ? 0xffd700 : 0x333333, 1);
-      hl.strokeRect(ox - 22, oy - 20, 44, 48);
+      hl.lineStyle(2, app.id === selectedAppearance.id ? 0xffd700 : 0x444444, 1);
+      if (app.id === selectedAppearance.id) {
+        hl.fillStyle(0xffd700, 0.1);
+        hl.fillRect(ox - 28, oy - 22, 56, 62);
+      }
+      hl.strokeRect(ox - 28, oy - 22, 56, 62);
       optionHighlights.push(hl);
 
       // Sprite preview
-      const spr = this.add.sprite(ox, oy, `player_${app.id}`).setScale(1.5);
+      const spr = this.add.sprite(ox, oy, `player_${app.id}`).setScale(1.8);
 
-      // Label
-      const lbl = this.add
-        .text(ox, oy + 20, app.label, {
-          fontSize: "8px",
+      // Label — bigger and clearer
+      this.add
+        .text(ox, oy + 24, app.label, {
+          fontSize: "10px",
           fontFamily: "monospace",
-          color: "#aaa",
+          color: "#ccc",
+          stroke: "#000",
+          strokeThickness: 2,
         })
         .setOrigin(0.5, 0);
 
-      // Make clickable
-      spr.setInteractive({ useHandCursor: true });
-      spr.on("pointerdown", () => {
+      // Make the whole box clickable
+      const hitZone = this.add.zone(ox, oy + 10, 56, 62).setInteractive({ useHandCursor: true });
+      hitZone.on("pointerdown", () => {
         selectedAppearance = app;
         previewSprite.setTexture(`player_${app.id}`);
         selectedLabel.setText(app.label);
         // Update highlights
         optionHighlights.forEach((h, j) => {
           h.clear();
-          h.lineStyle(2, PLAYER_APPEARANCES[j].id === app.id ? 0xffd700 : 0x333333, 1);
+          const isSelected = PLAYER_APPEARANCES[j].id === app.id;
+          h.lineStyle(2, isSelected ? 0xffd700 : 0x444444, 1);
+          if (isSelected) {
+            h.fillStyle(0xffd700, 0.1);
+          }
           const hx = startX + (j % cols) * optW;
           const hy = startY + Math.floor(j / cols) * optH;
-          h.strokeRect(hx - 22, hy - 20, 44, 48);
+          if (isSelected) h.fillRect(hx - 28, hy - 22, 56, 62);
+          h.strokeRect(hx - 28, hy - 22, 56, 62);
         });
       });
     });
 
     // Start Adventure button
-    const btnY = startY + Math.ceil(PLAYER_APPEARANCES.length / cols) * optH + 20;
+    const btnY = startY + Math.ceil(PLAYER_APPEARANCES.length / cols) * optH + 16;
 
     const startBtn = this.add
       .text(cx, btnY, "[ Start Adventure ]", {
@@ -502,8 +513,7 @@ export class BootScene extends Phaser.Scene {
 
     const doStart = () => {
       const name = playerName.trim() || "Hero";
-      const player = createPlayer(name);
-      player.appearanceId = selectedAppearance.id;
+      const player = createPlayer(name, selectedAppearance.id);
       deleteSave(); // clear any old save for new run
       this.cameras.main.fadeOut(500, 0, 0, 0);
       this.time.delayedCall(500, () => {

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>2D&amp;D - A Browser JRPG</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        background: #000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        overflow: hidden;
+      }
+      #game-wrapper {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+      }
+      #game-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      #game-container {
+        image-rendering: pixelated;
+      }
+      #game-header {
+        width: 640px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 8px;
+        font-family: monospace;
+        color: #666;
+        font-size: 12px;
+      }
+      #debug-panel {
+        display: none;
+        width: 320px;
+        height: 580px;
+        background: #0a0a0a;
+        border: 1px solid #1a3a1a;
+        font-family: monospace;
+        font-size: 11px;
+        color: #00dd00;
+        overflow: hidden;
+        margin-left: 4px;
+        flex-shrink: 0;
+      }
+      #controls-panel {
+        width: 200px;
+        height: 580px;
+        background: #0a0a0a;
+        border: 1px solid #1a2a3a;
+        font-family: monospace;
+        font-size: 11px;
+        color: #aabbcc;
+        overflow-y: auto;
+        margin-right: 4px;
+        flex-shrink: 0;
+      }
+      #controls-panel.collapsed {
+        width: 28px;
+        overflow: hidden;
+      }
+      #controls-toggle {
+        display: block;
+        width: 100%;
+        background: #0d1520;
+        border: none;
+        border-bottom: 1px solid #1a2a3a;
+        color: #6688aa;
+        font-family: monospace;
+        font-size: 11px;
+        padding: 6px 8px;
+        cursor: pointer;
+        text-align: left;
+        white-space: nowrap;
+      }
+      #controls-toggle:hover { color: #aaccee; }
+      #controls-body {
+        padding: 8px;
+        line-height: 1.6;
+      }
+      #controls-panel.collapsed #controls-body { display: none; }
+      #controls-panel.collapsed #controls-toggle {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        padding: 8px 6px;
+        text-align: center;
+        height: 100%;
+      }
+      #controls-body .key { color: #ffd700; }
+      #controls-body .desc { color: #8899aa; }
+      #debug-state {
+        padding: 4px 8px;
+        background: #0d1a0d;
+        border-bottom: 1px solid #1a3a1a;
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: #33ff33;
+        font-size: 10px;
+      }
+      #debug-log {
+        padding: 4px 8px;
+        height: calc(100% - 40px);
+        overflow-y: auto;
+        line-height: 1.5;
+      }
+      #debug-log div { border-bottom: 1px solid #0a1a0a; padding: 1px 0; }
+      #debug-log .debug-msg { color: #888800; }
+      #debug-log .roll-detail { color: #00aaaa; }
+      #debug-cmd {
+        display: block;
+        width: calc(100% - 16px);
+        margin: 4px 8px;
+        padding: 4px 6px;
+        background: #0a1a0a;
+        border: 1px solid #1a3a1a;
+        color: #33ff33;
+        font-family: monospace;
+        font-size: 11px;
+        outline: none;
+      }
+      #debug-cmd::placeholder { color: #225522; }
+      #debug-cmd:focus { border-color: #33ff33; }
+    </style>
+  </head>
+  <body>
+    <div id="game-wrapper">
+      <div id="controls-panel">
+        <button id="controls-toggle">? Controls</button>
+        <div id="controls-body">
+          <span class="key">W A S D</span> <span class="desc">Move</span><br/>
+          <span class="key">SPACE</span> <span class="desc">Interact</span><br/>
+          <span class="key">B</span> <span class="desc">Bestiary</span><br/>
+          <span class="key">E</span> <span class="desc">Equipment</span><br/>
+          <span class="key">T</span> <span class="desc">Stats / ASI</span><br/>
+          <span class="key">M</span> <span class="desc">Menu / Quit</span><br/>
+          <span class="key">N</span> <span class="desc">World Map</span>
+        </div>
+      </div>
+      <div id="game-inner">
+        <div id="game-header">
+          <span style="color: #c0a060;">2D&amp;D</span>
+          <label id="debug-toggle" style="cursor: pointer; user-select: none; color: #555;" title="Toggle debug mode">
+            <input type="checkbox" id="debug-checkbox" style="cursor: pointer; vertical-align: middle;" />
+            <span id="debug-label">debug mode</span>
+          </label>
+        </div>
+        <div id="game-container"></div>
+      </div>
+      <div id="debug-panel">
+        <div id="debug-state"></div>
+        <input id="debug-cmd" type="text" placeholder="/gold 1000, /exp 500, /item flameBlade..." autocomplete="off" />
+        <div id="debug-log"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+    <script>
+      document.getElementById('controls-toggle').addEventListener('click', function() {
+        const panel = document.getElementById('controls-panel');
+        panel.classList.toggle('collapsed');
+        this.textContent = panel.classList.contains('collapsed') ? '?' : '? Controls';
+      });
+    </script>
+  </body>
+</html>

@@ -39,6 +39,7 @@ export interface PlayerState {
   equippedArmor: Item | null;
   equippedShield: Item | null;
   appearanceId: string; // visual customization
+  customAppearance?: { skinColor: number; hairStyle: number; hairColor: number };
   x: number; // overworld tile position (local to chunk)
   y: number;
   chunkX: number; // world chunk X coordinate
@@ -58,7 +59,11 @@ export function xpForLevel(level: number): number {
 }
 
 /** Create a fresh level-1 player with 4d6-drop-lowest rolled stats + class boosts. */
-export function createPlayer(name: string, appearanceId: string = "knight"): PlayerState {
+export function createPlayer(
+  name: string,
+  appearanceId: string = "knight",
+  customAppearance?: { skinColor: number; hairStyle: number; hairColor: number }
+): PlayerState {
   const appearance = getAppearance(appearanceId);
 
   // Roll base stats — subtract 1 from each to compensate for class bonuses
@@ -112,6 +117,7 @@ export function createPlayer(name: string, appearanceId: string = "knight"): Pla
     equippedArmor: null,
     equippedShield: null,
     appearanceId,
+    customAppearance,
     x: 3,
     y: 3,
     chunkX: 1,

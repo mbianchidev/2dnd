@@ -508,8 +508,7 @@ export class OverworldScene extends Phaser.Scene {
     const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts [T]` : "";
     this.hudText.setText(
       `${p.name} Lv.${p.level}  —  ${regionName}\n` +
-        `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}\n` +
-        `[WASD]Move [SPACE]Act [B]Bestiary [E]Equip [T]Stats [M]Menu [N]Map`
+        `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}`
     );
   }
 
@@ -1462,13 +1461,15 @@ export class OverworldScene extends Phaser.Scene {
 
         // Draw terrain tiles (fog of war applied)
         const miniGfx = this.add.graphics();
+        let hasExplored = false;
         for (let ty = 0; ty < MAP_HEIGHT; ty++) {
           for (let tx = 0; tx < MAP_WIDTH; tx++) {
             const terrain = chunk.mapData[ty][tx];
             // Check if this tile has been explored
             const exploredKey = `${cx},${cy},${tx},${ty}`;
             const explored = !!this.player.exploredTiles[exploredKey];
-            const color = explored ? TERRAIN_COLORS[terrain] : 0x111111;
+            if (explored) hasExplored = true;
+            const color = explored ? TERRAIN_COLORS[terrain] : 0x0a0a0a;
             miniGfx.fillStyle(color, 1);
             miniGfx.fillRect(ox + tx * tilePixel, oy + ty * tilePixel, tilePixel, tilePixel);
           }
@@ -1478,16 +1479,18 @@ export class OverworldScene extends Phaser.Scene {
         // Border
         const border = this.add.graphics();
         const isCurrent = cx === this.player.chunkX && cy === this.player.chunkY;
-        border.lineStyle(isCurrent ? 2 : 1, isCurrent ? 0xffd700 : 0x666666, 1);
+        border.lineStyle(isCurrent ? 2 : 1, isCurrent ? 0xffd700 : 0x333333, 1);
         border.strokeRect(ox, oy, chunkW, chunkH);
         this.worldMapOverlay.add(border);
 
-        // Region name below this mini-chunk
-        const regionLabel = this.add.text(ox + chunkW / 2, oy + chunkH + 1, chunk.name, {
-          fontSize: "7px", fontFamily: "monospace",
-          color: isCurrent ? "#ffd700" : "#999",
-        }).setOrigin(0.5, 0);
-        this.worldMapOverlay.add(regionLabel);
+        // Region name below this mini-chunk (only if player has explored at least one tile)
+        if (hasExplored) {
+          const regionLabel = this.add.text(ox + chunkW / 2, oy + chunkH + 1, chunk.name, {
+            fontSize: "7px", fontFamily: "monospace",
+            color: isCurrent ? "#ffd700" : "#999",
+          }).setOrigin(0.5, 0);
+          this.worldMapOverlay.add(regionLabel);
+        }
 
         // Draw town markers (only if explored)
         for (const town of chunk.towns) {

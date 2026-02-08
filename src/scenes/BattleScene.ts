@@ -451,12 +451,12 @@ export class BattleScene extends Phaser.Scene {
 
   private getHpBar(current: number, max: number, length: number): string {
     const filled = Math.max(0, Math.min(length, Math.round((current / max) * length)));
-    return "[" + "█".repeat(filled) + "░".repeat(length - filled) + "]";
+    return "[" + "=".repeat(filled) + "-".repeat(length - filled) + "]";
   }
 
   private getMpBar(current: number, max: number, length: number): string {
     const filled = Math.max(0, Math.min(length, Math.round((current / max) * length)));
-    return "[" + "▓".repeat(filled) + "░".repeat(length - filled) + "]";
+    return "[" + "#".repeat(filled) + "-".repeat(length - filled) + "]";
   }
 
   private addLog(msg: string): void {

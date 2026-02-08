@@ -227,6 +227,12 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
+  private closeAllSubMenus(): void {
+    if (this.spellMenu) { this.spellMenu.destroy(); this.spellMenu = null; }
+    if (this.itemMenu) { this.itemMenu.destroy(); this.itemMenu = null; }
+    if (this.abilityMenu) { this.abilityMenu.destroy(); this.abilityMenu = null; }
+  }
+
   private showSpellMenu(): void {
     if (this.spellMenu) {
       this.spellMenu.destroy();
@@ -437,8 +443,8 @@ export class BattleScene extends Phaser.Scene {
     const p = this.player;
     this.statsText.setText(
       `${p.name} Lv.${p.level}\n` +
-        `HP: ${p.hp}/${p.maxHp} ${this.getHpBar(p.hp, p.maxHp, 12)}\n` +
-        `MP: ${p.mp}/${p.maxMp} ${this.getMpBar(p.mp, p.maxMp, 12)}\n` +
+        `HP: ${p.hp}/${p.maxHp} ${this.getHpBar(p.hp, p.maxHp, 8)}\n` +
+        `MP: ${p.mp}/${p.maxMp} ${this.getMpBar(p.mp, p.maxMp, 8)}\n` +
         `AC: ${getArmorClass(p)}`
     );
   }
@@ -481,7 +487,7 @@ export class BattleScene extends Phaser.Scene {
     debugKeys.K.on("down", () => {
       if (!isDebug()) return;
       debugLog("CHEAT: Kill monster");
-      this.addLog("[DEBUG] Monster killed!");
+      debugPanelLog("[CHEAT] Monster killed!", true);
       this.monsterHp = 0;
       this.updateMonsterDisplay();
       if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
@@ -496,7 +502,7 @@ export class BattleScene extends Phaser.Scene {
       debugLog("CHEAT: Full heal", { before: this.player.hp, max: this.player.maxHp });
       this.player.hp = this.player.maxHp;
       this.updatePlayerStats();
-      this.addLog(`[DEBUG] HP restored to ${this.player.maxHp}!`);
+      debugPanelLog(`[CHEAT] HP restored to ${this.player.maxHp}!`, true);
     });
 
     // Restore MP
@@ -505,7 +511,7 @@ export class BattleScene extends Phaser.Scene {
       debugLog("CHEAT: Restore MP", { before: this.player.mp, max: this.player.maxMp });
       this.player.mp = this.player.maxMp;
       this.updatePlayerStats();
-      this.addLog(`[DEBUG] MP restored to ${this.player.maxMp}!`);
+      debugPanelLog(`[CHEAT] MP restored to ${this.player.maxMp}!`, true);
     });
 
     // Add gold
@@ -513,7 +519,7 @@ export class BattleScene extends Phaser.Scene {
       if (!isDebug()) return;
       this.player.gold += 100;
       debugLog("CHEAT: +100 gold", { total: this.player.gold });
-      this.addLog(`[DEBUG] +100 gold (total: ${this.player.gold})`);
+      debugPanelLog(`[CHEAT] +100 gold (total: ${this.player.gold})`, true);
     });
 
     // Level up
@@ -522,9 +528,9 @@ export class BattleScene extends Phaser.Scene {
       const needed = xpForLevel(this.player.level + 1) - this.player.xp;
       const xpResult = awardXP(this.player, Math.max(needed, 0));
       debugLog("CHEAT: Level up", { newLevel: xpResult.newLevel, spells: xpResult.newSpells.map((s: Spell) => s.name) });
-      this.addLog(`[DEBUG] Level up! Now Lv.${xpResult.newLevel}`);
+      debugPanelLog(`[CHEAT] Level up! Now Lv.${xpResult.newLevel}`, true);
       for (const spell of xpResult.newSpells) {
-        this.addLog(`[DEBUG] Learned ${spell.name}!`);
+        debugPanelLog(`[CHEAT] Learned ${spell.name}!`, true);
       }
       this.updatePlayerStats();
     });
@@ -534,7 +540,7 @@ export class BattleScene extends Phaser.Scene {
       if (!isDebug()) return;
       this.player.xp = xpForLevel(this.player.level + 1) - 1;
       debugLog("CHEAT: XP set to", this.player.xp);
-      this.addLog(`[DEBUG] XP set to ${this.player.xp}`);
+      debugPanelLog(`[CHEAT] XP set to ${this.player.xp}`, true);
     });
   }
 
@@ -589,6 +595,7 @@ export class BattleScene extends Phaser.Scene {
 
   private doPlayerAttack(): void {
     if (this.phase !== "playerTurn") return;
+    this.closeAllSubMenus();
     this.phase = "monsterTurn"; // prevent double actions
 
     try {
@@ -682,6 +689,7 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
+    this.closeAllSubMenus();
     this.phase = "monsterTurn";
     try {
       const dexMod = abilityModifier(this.player.stats.dexterity);

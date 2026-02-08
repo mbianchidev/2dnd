@@ -158,6 +158,24 @@ export class BootScene extends Phaser.Scene {
     fogGfx.strokeRect(0, 0, TILE_SIZE, TILE_SIZE);
     fogGfx.generateTexture("tile_fog", TILE_SIZE, TILE_SIZE);
     fogGfx.destroy();
+
+    // Open chest tile — opened lid, empty box on dark floor
+    const openChestGfx = this.add.graphics();
+    openChestGfx.fillStyle(0x555555, 1);
+    openChestGfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+    // Open box (darker, empty)
+    openChestGfx.fillStyle(0x8d6e63, 1);
+    openChestGfx.fillRect(8, 14, 16, 10);
+    // Open lid tilted back
+    openChestGfx.fillStyle(0xa1887f, 1);
+    openChestGfx.fillRect(8, 8, 16, 6);
+    // Dark interior
+    openChestGfx.fillStyle(0x3e2723, 1);
+    openChestGfx.fillRect(10, 16, 12, 6);
+    openChestGfx.lineStyle(1, 0x000000, 0.15);
+    openChestGfx.strokeRect(0, 0, TILE_SIZE, TILE_SIZE);
+    openChestGfx.generateTexture("tile_chest_open", TILE_SIZE, TILE_SIZE);
+    openChestGfx.destroy();
   }
 
   private generatePlayerTexture(): void {
@@ -483,11 +501,11 @@ export class BootScene extends Phaser.Scene {
 
     let selectedAppearance = PLAYER_APPEARANCES[0];
     const previewSprite = this.add
-      .sprite(cx, 170, `player_${selectedAppearance.id}`)
+      .sprite(cx, 158, `player_${selectedAppearance.id}`)
       .setScale(3);
 
     const selectedLabel = this.add
-      .text(cx, 202, selectedAppearance.label, {
+      .text(cx, 210, selectedAppearance.label, {
         fontSize: "14px",
         fontFamily: "monospace",
         color: "#88ff88",
@@ -497,9 +515,9 @@ export class BootScene extends Phaser.Scene {
     // Appearance option grid
     const cols = 4;
     const optW = 72;
-    const optH = 68;
+    const optH = 58;
     const startX = cx - ((Math.min(cols, PLAYER_APPEARANCES.length) * optW) / 2) + optW / 2;
-    const startY = 232;
+    const startY = 236;
 
     const optionHighlights: Phaser.GameObjects.Graphics[] = [];
 

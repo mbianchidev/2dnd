@@ -56,6 +56,7 @@ export class OverworldScene extends Phaser.Scene {
   private worldMapOverlay: Phaser.GameObjects.Container | null = null;
   private isNewPlayer = false;
   private debugEncounters = true; // debug toggle for encounters
+  private debugFogDisabled = false; // debug toggle for fog of war
   private messageText: Phaser.GameObjects.Text | null = null;
 
   constructor() {
@@ -176,6 +177,17 @@ export class OverworldScene extends Phaser.Scene {
       this.createPlayer();
       debugPanelLog(`[CHEAT] Map revealed`, true);
     });
+
+    // V key — toggle fog of war on/off
+    const vKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.V);
+    vKey.on("down", () => {
+      if (!isDebug()) return;
+      this.debugFogDisabled = !this.debugFogDisabled;
+      debugLog("CHEAT: Fog " + (this.debugFogDisabled ? "OFF" : "ON"));
+      debugPanelLog(`[CHEAT] Fog of War ${this.debugFogDisabled ? "OFF" : "ON"}`, true);
+      this.renderMap();
+      this.createPlayer();
+    });
   }
 
   private renderMap(): void {
@@ -196,7 +208,14 @@ export class OverworldScene extends Phaser.Scene {
         for (let x = 0; x < MAP_WIDTH; x++) {
           const explored = this.isExplored(x, y);
           const terrain = dungeon.mapData[y][x];
-          const texKey = explored ? `tile_${terrain}` : "tile_fog";
+          let texKey = explored ? `tile_${terrain}` : "tile_fog";
+          // Show open chest texture for opened chests
+          if (explored && terrain === Terrain.Chest) {
+            const chest = getChestAt(x, y, { type: "dungeon", dungeonId: this.player.dungeonId });
+            if (chest && this.player.openedChests.includes(chest.id)) {
+              texKey = "tile_chest_open";
+            }
+          }
           const sprite = this.add.sprite(
             x * TILE_SIZE + TILE_SIZE / 2,
             y * TILE_SIZE + TILE_SIZE / 2,
@@ -242,7 +261,14 @@ export class OverworldScene extends Phaser.Scene {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const explored = this.isExplored(x, y);
         const terrain = chunk.mapData[y][x];
-        const texKey = explored ? `tile_${terrain}` : "tile_fog";
+        let texKey = explored ? `tile_${terrain}` : "tile_fog";
+        // Show open chest texture for opened chests
+        if (explored && terrain === Terrain.Chest) {
+          const chest = getChestAt(x, y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
+          if (chest && this.player.openedChests.includes(chest.id)) {
+            texKey = "tile_chest_open";
+          }
+        }
         const sprite = this.add.sprite(
           x * TILE_SIZE + TILE_SIZE / 2,
           y * TILE_SIZE + TILE_SIZE / 2,
@@ -300,6 +326,7 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Check if a tile has been explored. */
   private isExplored(x: number, y: number): boolean {
+    if (isDebug() && this.debugFogDisabled) return true;
     return !!this.player.exploredTiles[this.exploredKey(x, y)];
   }
 
@@ -573,11 +600,11 @@ export class OverworldScene extends Phaser.Scene {
     const dungeonTag = p.inDungeon ? ` [DUNGEON:${p.dungeonId}]` : "";
     debugPanelState(
       `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag} | ` +
-      `Enc: ${(rate * 100).toFixed(0)}%${this.debugEncounters ? "" : " [OFF]"} | ` +
+      `Enc: ${(rate * 100).toFixed(0)}%${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
       `Bosses: ${this.defeatedBosses.size}\n` +
-      `Cheats: G=Gold H=Heal M=MP L=LvUp F=EncToggle R=Reveal`
+      `Cheats: G=Gold H=Heal M=MP L=LvUp F=EncToggle R=Reveal V=FogToggle`
     );
   }
 

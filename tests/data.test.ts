@@ -46,7 +46,7 @@ describe("game data", () => {
 
     it("has walkable town tiles in their chunks", () => {
       const towns = getAllTowns();
-      expect(towns.length).toBeGreaterThanOrEqual(4);
+      expect(towns.length).toBeGreaterThanOrEqual(12);
       for (const town of towns) {
         const terrain = getTerrainAt(town.chunkX, town.chunkY, town.x, town.y);
         expect(terrain).toBe(Terrain.Town);
@@ -56,7 +56,7 @@ describe("game data", () => {
 
     it("has boss tiles at boss locations", () => {
       const bosses = getAllBosses();
-      expect(bosses.length).toBeGreaterThanOrEqual(2);
+      expect(bosses.length).toBeGreaterThanOrEqual(6);
       for (const boss of bosses) {
         const terrain = getTerrainAt(boss.chunkX, boss.chunkY, boss.x, boss.y);
         expect(terrain).toBe(Terrain.Boss);
@@ -82,10 +82,11 @@ describe("game data", () => {
       expect(getTerrainAt(1, 1, 0, MAP_HEIGHT)).toBeUndefined();
     });
 
-    it("water and mountain are not walkable", () => {
+    it("water, mountain, and volcanic are not walkable", () => {
       expect(isWalkable(Terrain.Water)).toBe(false);
       expect(isWalkable(Terrain.Mountain)).toBe(false);
       expect(isWalkable(Terrain.DungeonWall)).toBe(false);
+      expect(isWalkable(Terrain.Volcanic)).toBe(false);
     });
 
     it("towns have no random encounters", () => {
@@ -243,8 +244,8 @@ describe("game data", () => {
       const townsWithKey = towns.filter((t) => t.shopItems.includes("dungeonKey"));
       expect(townsWithKey).toHaveLength(1);
       expect(townsWithKey[0].name).toBe("Willowdale");
-      expect(townsWithKey[0].chunkX).toBe(1);
-      expect(townsWithKey[0].chunkY).toBe(1);
+      expect(townsWithKey[0].chunkX).toBe(4);
+      expect(townsWithKey[0].chunkY).toBe(2);
     });
   });
 

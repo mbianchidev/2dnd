@@ -619,6 +619,11 @@ export class OverworldScene extends Phaser.Scene {
       [Terrain.Dungeon]: "Dungeon",
       [Terrain.Boss]: "Boss Lair",
       [Terrain.Path]: "Road",
+      [Terrain.Tundra]: "Tundra",
+      [Terrain.Swamp]: "Swamp",
+      [Terrain.DeepForest]: "Deep Forest",
+      [Terrain.Volcanic]: "Volcanic",
+      [Terrain.Canyon]: "Canyon",
     };
 
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
@@ -676,6 +681,11 @@ export class OverworldScene extends Phaser.Scene {
       [Terrain.DungeonWall]: "DWall",
       [Terrain.DungeonExit]: "DExit",
       [Terrain.Chest]: "Chest",
+      [Terrain.Tundra]: "Tundra",
+      [Terrain.Swamp]: "Swamp",
+      [Terrain.DeepForest]: "DForest",
+      [Terrain.Volcanic]: "Volcanic",
+      [Terrain.Canyon]: "Canyon",
     };
 
     let terrain: Terrain | undefined;

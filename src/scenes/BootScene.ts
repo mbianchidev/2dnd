@@ -136,6 +136,48 @@ export class BootScene extends Phaser.Scene {
           gfx.fillStyle(0x795548, 1);
           gfx.fillRect(14, 12, 4, 6);
           break;
+        case Terrain.Tundra:
+          // Snowy terrain with frost specks
+          gfx.fillStyle(0xe0e0e0, 0.4);
+          gfx.fillCircle(6, 6, 3);
+          gfx.fillCircle(22, 14, 2);
+          gfx.fillCircle(12, 26, 3);
+          gfx.fillCircle(28, 28, 2);
+          break;
+        case Terrain.Swamp:
+          // Murky terrain with puddle patches
+          gfx.fillStyle(0x33691e, 0.5);
+          gfx.fillCircle(10, 10, 6);
+          gfx.fillCircle(24, 22, 5);
+          gfx.fillStyle(0x1b5e20, 0.4);
+          gfx.fillRect(2, 20, 8, 4);
+          break;
+        case Terrain.DeepForest:
+          // Dense canopy with overlapping tree shapes
+          gfx.fillStyle(0x0d3b0d, 0.6);
+          gfx.fillCircle(10, 10, 8);
+          gfx.fillCircle(22, 14, 7);
+          gfx.fillCircle(14, 24, 6);
+          gfx.fillStyle(0x3e2723, 1);
+          gfx.fillRect(9, 18, 3, 10);
+          gfx.fillRect(21, 20, 3, 8);
+          break;
+        case Terrain.Volcanic:
+          // Lava-like terrain with hot glow
+          gfx.fillStyle(0xff6f00, 0.5);
+          gfx.fillRect(4, 4, 10, 6);
+          gfx.fillRect(18, 18, 10, 8);
+          gfx.fillStyle(0xdd2c00, 0.4);
+          gfx.fillCircle(16, 16, 4);
+          break;
+        case Terrain.Canyon:
+          // Rocky canyon floor with layered stone
+          gfx.fillStyle(0x8d6e63, 0.4);
+          gfx.fillRect(0, 6, 32, 4);
+          gfx.fillRect(0, 18, 32, 4);
+          gfx.fillStyle(0x6d4c41, 0.3);
+          gfx.fillRect(4, 12, 24, 3);
+          break;
       }
 
       // Add grid border

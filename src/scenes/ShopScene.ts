@@ -5,7 +5,7 @@
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import { buyItem, useItem, ownsEquipment } from "../systems/player";
-import { getShopItems, type Item } from "../data/items";
+import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
 
 export class ShopScene extends Phaser.Scene {
@@ -28,12 +28,15 @@ export class ShopScene extends Phaser.Scene {
     townName: string;
     defeatedBosses: Set<string>;
     bestiary: BestiaryData;
+    shopItemIds?: string[];
   }): void {
     this.player = data.player;
     this.townName = data.townName;
     this.defeatedBosses = data.defeatedBosses;
     this.bestiary = data.bestiary;
-    this.shopItems = getShopItems();
+    this.shopItems = data.shopItemIds
+      ? getShopItemsForTown(data.shopItemIds)
+      : getShopItems();
   }
 
   create(): void {

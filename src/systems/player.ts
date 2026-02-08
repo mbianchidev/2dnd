@@ -38,8 +38,10 @@ export interface PlayerState {
   equippedWeapon: Item | null;
   equippedArmor: Item | null;
   appearanceId: string; // visual customization
-  x: number; // overworld tile position
+  x: number; // overworld tile position (local to chunk)
   y: number;
+  chunkX: number; // world chunk X coordinate
+  chunkY: number; // world chunk Y coordinate
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -104,8 +106,10 @@ export function createPlayer(name: string, appearanceId: string = "knight"): Pla
     equippedWeapon: null,
     equippedArmor: null,
     appearanceId,
-    x: 7,
-    y: 7,
+    x: 3,
+    y: 3,
+    chunkX: 1,
+    chunkY: 1,
   };
 }
 

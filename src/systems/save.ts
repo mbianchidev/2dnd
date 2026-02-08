@@ -52,6 +52,8 @@ export function loadGame(): SaveData | null {
     // Backward compat for new fields
     if (!data.player.knownAbilities) data.player.knownAbilities = [];
     if (!data.player.knownTalents) data.player.knownTalents = [];
+    if (data.player.chunkX === undefined) data.player.chunkX = 1;
+    if (data.player.chunkY === undefined) data.player.chunkY = 1;
     return data;
   } catch {
     return null;

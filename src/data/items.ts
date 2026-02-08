@@ -99,7 +99,14 @@ export function getItem(id: string): Item | undefined {
   return ITEMS.find((item) => item.id === id);
 }
 
-/** Get all items available in shops. */
+/** Get all items available in shops (global fallback). */
 export function getShopItems(): Item[] {
   return ITEMS.filter((item) => item.type !== "key" || item.id === "dungeonKey");
+}
+
+/** Get shop items for a specific town by looking up its shopItems list. */
+export function getShopItemsForTown(shopItemIds: string[]): Item[] {
+  return shopItemIds
+    .map((id) => getItem(id))
+    .filter((item): item is Item => item !== undefined);
 }

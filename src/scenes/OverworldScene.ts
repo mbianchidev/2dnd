@@ -4,15 +4,18 @@
 
 import Phaser from "phaser";
 import {
-  MAP_DATA,
   MAP_WIDTH,
   MAP_HEIGHT,
-  TOWNS,
-  BOSSES,
+  WORLD_WIDTH,
+  WORLD_HEIGHT,
+  WORLD_CHUNKS,
   ENCOUNTER_RATES,
+  TERRAIN_COLORS,
   Terrain,
   isWalkable,
   getTerrainAt,
+  getChunk,
+  type WorldChunk,
 } from "../data/map";
 import { getRandomEncounter, getBoss } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
@@ -45,6 +48,7 @@ export class OverworldScene extends Phaser.Scene {
   private equipOverlay: Phaser.GameObjects.Container | null = null;
   private statOverlay: Phaser.GameObjects.Container | null = null;
   private menuOverlay: Phaser.GameObjects.Container | null = null;
+  private worldMapOverlay: Phaser.GameObjects.Container | null = null;
   private isNewPlayer = false;
 
   constructor() {
@@ -141,11 +145,21 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private renderMap(): void {
+    // Clear old tile sprites if re-rendering (chunk transition)
+    for (const row of this.tileSprites) {
+      for (const sprite of row) {
+        sprite.destroy();
+      }
+    }
     this.tileSprites = [];
+
+    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    if (!chunk) return;
+
     for (let y = 0; y < MAP_HEIGHT; y++) {
       this.tileSprites[y] = [];
       for (let x = 0; x < MAP_WIDTH; x++) {
-        const terrain = MAP_DATA[y][x];
+        const terrain = chunk.mapData[y][x];
         const sprite = this.add.sprite(
           x * TILE_SIZE + TILE_SIZE / 2,
           y * TILE_SIZE + TILE_SIZE / 2,
@@ -155,8 +169,8 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    // Add town labels
-    for (const town of TOWNS) {
+    // Add town labels for this chunk
+    for (const town of chunk.towns) {
       this.add
         .text(town.x * TILE_SIZE + TILE_SIZE / 2, town.y * TILE_SIZE - 4, town.name, {
           fontSize: "9px",
@@ -168,8 +182,8 @@ export class OverworldScene extends Phaser.Scene {
         .setOrigin(0.5, 1);
     }
 
-    // Add boss markers (if not defeated)
-    for (const boss of BOSSES) {
+    // Add boss markers (if not defeated) for this chunk
+    for (const boss of chunk.bosses) {
       if (!this.defeatedBosses.has(boss.monsterId)) {
         this.add
           .text(
@@ -225,6 +239,10 @@ export class OverworldScene extends Phaser.Scene {
     // M key opens game menu
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     mKey.on("down", () => this.toggleMenuOverlay());
+
+    // N key opens world map overlay
+    const nKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.N);
+    nKey.on("down", () => this.toggleWorldMap());
   }
 
   private createHUD(): void {
@@ -261,16 +279,18 @@ export class OverworldScene extends Phaser.Scene {
 
   private updateHUD(): void {
     const p = this.player;
+    const chunk = getChunk(p.chunkX, p.chunkY);
+    const regionName = chunk?.name ?? "Unknown";
     const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts [T]` : "";
     this.hudText.setText(
-      `${p.name} Lv.${p.level}\n` +
+      `${p.name} Lv.${p.level}  —  ${regionName}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}\n` +
-        `Gold: ${p.gold}  XP: ${p.xp}/${(p.level + 1) * (p.level + 1) * 100}  [B] Bestiary [E] Equip [M] Menu${asiHint}`
+        `Gold: ${p.gold}  XP: ${p.xp}/${(p.level + 1) * (p.level + 1) * 100}  [B] [E] [M] [N]Map${asiHint}`
     );
   }
 
   private updateLocationText(): void {
-    const terrain = getTerrainAt(this.player.x, this.player.y);
+    const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
     const terrainNames: Record<number, string> = {
       [Terrain.Grass]: "Grassland",
       [Terrain.Forest]: "Forest",
@@ -283,10 +303,11 @@ export class OverworldScene extends Phaser.Scene {
       [Terrain.Path]: "Road",
     };
 
-    const town = TOWNS.find(
+    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    const town = chunk?.towns.find(
       (t) => t.x === this.player.x && t.y === this.player.y
     );
-    const boss = BOSSES.find(
+    const boss = chunk?.bosses.find(
       (b) => b.x === this.player.x && b.y === this.player.y
     );
 
@@ -300,7 +321,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private updateDebugPanel(): void {
     const p = this.player;
-    const terrain = getTerrainAt(p.x, p.y);
+    const terrain = getTerrainAt(p.chunkX, p.chunkY, p.x, p.y);
     const terrainNames: Record<number, string> = {
       [Terrain.Grass]: "Grass",
       [Terrain.Forest]: "Forest",
@@ -315,7 +336,7 @@ export class OverworldScene extends Phaser.Scene {
     const tName = terrainNames[terrain ?? 0] ?? "?";
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
     debugPanelState(
-      `OVERWORLD | Pos: (${p.x},${p.y}) ${tName} | ` +
+      `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName} | ` +
       `Enc: ${(rate * 100).toFixed(0)}% | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
@@ -348,19 +369,52 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private tryMove(dx: number, dy: number, time: number): void {
-    const newX = this.player.x + dx;
-    const newY = this.player.y + dy;
+    let newX = this.player.x + dx;
+    let newY = this.player.y + dy;
+    let newChunkX = this.player.chunkX;
+    let newChunkY = this.player.chunkY;
 
-    const terrain = getTerrainAt(newX, newY);
+    // Chunk transition detection
+    if (newX < 0) {
+      newChunkX--;
+      newX = MAP_WIDTH - 1;
+    } else if (newX >= MAP_WIDTH) {
+      newChunkX++;
+      newX = 0;
+    }
+    if (newY < 0) {
+      newChunkY--;
+      newY = MAP_HEIGHT - 1;
+    } else if (newY >= MAP_HEIGHT) {
+      newChunkY++;
+      newY = 0;
+    }
+
+    const terrain = getTerrainAt(newChunkX, newChunkY, newX, newY);
     if (terrain === undefined || !isWalkable(terrain)) {
-      debugLog("Blocked move", { to: { x: newX, y: newY }, terrain });
+      debugLog("Blocked move", { to: { x: newX, y: newY, cx: newChunkX, cy: newChunkY }, terrain });
       return;
     }
+
+    const chunkChanged = newChunkX !== this.player.chunkX || newChunkY !== this.player.chunkY;
 
     this.lastMoveTime = time;
     this.isMoving = true;
     this.player.x = newX;
     this.player.y = newY;
+    this.player.chunkX = newChunkX;
+    this.player.chunkY = newChunkY;
+
+    if (chunkChanged) {
+      // Chunk transition — flash and re-render
+      this.cameras.main.flash(200, 255, 255, 255);
+      this.scene.restart({
+        player: this.player,
+        defeatedBosses: this.defeatedBosses,
+        bestiary: this.bestiary,
+      });
+      return;
+    }
 
     this.tweens.add({
       targets: this.playerSprite,
@@ -393,8 +447,11 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handleAction(): void {
+    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    if (!chunk) return;
+
     // Check if on a town
-    const town = TOWNS.find(
+    const town = chunk.towns.find(
       (t) => t.x === this.player.x && t.y === this.player.y
     );
     if (town?.hasShop) {
@@ -404,12 +461,13 @@ export class OverworldScene extends Phaser.Scene {
         townName: town.name,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        shopItemIds: town.shopItems,
       });
       return;
     }
 
     // Check if on a boss tile
-    const boss = BOSSES.find(
+    const boss = chunk.bosses.find(
       (b) => b.x === this.player.x && b.y === this.player.y
     );
     if (boss && !this.defeatedBosses.has(boss.monsterId)) {
@@ -904,5 +962,147 @@ export class OverworldScene extends Phaser.Scene {
         fontSize: "10px", fontFamily: "monospace", color: "#666",
       }).setOrigin(0.5, 1);
     this.statOverlay.add(hint);
+  }
+
+  // ─── World Map Overlay ───────────────────────────────────────────
+
+  private toggleWorldMap(): void {
+    if (this.worldMapOverlay) {
+      this.worldMapOverlay.destroy();
+      this.worldMapOverlay = null;
+      return;
+    }
+    this.showWorldMap();
+  }
+
+  private showWorldMap(): void {
+    // Close other overlays
+    if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
+    if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
+    if (this.menuOverlay) { this.menuOverlay.destroy(); this.menuOverlay = null; }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+
+    // Each mini-chunk is rendered at 4px per tile → 80×60 px per chunk
+    const tilePixel = 4;
+    const chunkW = MAP_WIDTH * tilePixel;  // 80
+    const chunkH = MAP_HEIGHT * tilePixel; // 60
+    const gap = 4;
+    const gridW = WORLD_WIDTH * chunkW + (WORLD_WIDTH - 1) * gap;   // 248
+    const gridH = WORLD_HEIGHT * chunkH + (WORLD_HEIGHT - 1) * gap; // 188
+    const panelPad = 16;
+    const titleH = 30;
+    const panelW = gridW + panelPad * 2;
+    const panelH = gridH + panelPad * 2 + titleH + 24; // extra for hint text
+    const px = Math.floor((w - panelW) / 2);
+    const py = Math.floor((h - panelH) / 2) - 10;
+
+    this.worldMapOverlay = this.add.container(0, 0).setDepth(80);
+
+    // Dim background
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.6);
+    dim.fillRect(0, 0, w, h);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+    dim.on("pointerdown", () => this.toggleWorldMap());
+    this.worldMapOverlay.add(dim);
+
+    // Panel background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRect(px, py, panelW, panelH);
+    bg.lineStyle(2, 0xffd700, 1);
+    bg.strokeRect(px, py, panelW, panelH);
+    this.worldMapOverlay.add(bg);
+
+    // Title
+    const title = this.add.text(px + panelW / 2, py + 10, "🗺 World Map", {
+      fontSize: "15px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    this.worldMapOverlay.add(title);
+
+    const gridX = px + panelPad;
+    const gridY = py + titleH + panelPad;
+
+    // Draw each chunk as a mini-map
+    for (let cy = 0; cy < WORLD_HEIGHT; cy++) {
+      for (let cx = 0; cx < WORLD_WIDTH; cx++) {
+        const chunk = getChunk(cx, cy);
+        if (!chunk) continue;
+
+        const ox = gridX + cx * (chunkW + gap);
+        const oy = gridY + cy * (chunkH + gap);
+
+        // Draw terrain tiles
+        const miniGfx = this.add.graphics();
+        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+          for (let tx = 0; tx < MAP_WIDTH; tx++) {
+            const terrain = chunk.mapData[ty][tx];
+            miniGfx.fillStyle(TERRAIN_COLORS[terrain], 1);
+            miniGfx.fillRect(ox + tx * tilePixel, oy + ty * tilePixel, tilePixel, tilePixel);
+          }
+        }
+        this.worldMapOverlay.add(miniGfx);
+
+        // Border
+        const border = this.add.graphics();
+        const isCurrent = cx === this.player.chunkX && cy === this.player.chunkY;
+        border.lineStyle(isCurrent ? 2 : 1, isCurrent ? 0xffd700 : 0x666666, 1);
+        border.strokeRect(ox, oy, chunkW, chunkH);
+        this.worldMapOverlay.add(border);
+
+        // Region name below this mini-chunk
+        const regionLabel = this.add.text(ox + chunkW / 2, oy + chunkH + 1, chunk.name, {
+          fontSize: "7px", fontFamily: "monospace",
+          color: isCurrent ? "#ffd700" : "#999",
+        }).setOrigin(0.5, 0);
+        this.worldMapOverlay.add(regionLabel);
+
+        // Draw town markers
+        for (const town of chunk.towns) {
+          const mx = ox + town.x * tilePixel + tilePixel / 2;
+          const my = oy + town.y * tilePixel + tilePixel / 2;
+          const townMarker = this.add.graphics();
+          townMarker.fillStyle(0xff9800, 1);
+          townMarker.fillCircle(mx, my, 3);
+          this.worldMapOverlay.add(townMarker);
+        }
+
+        // Draw boss markers (if not defeated)
+        for (const boss of chunk.bosses) {
+          if (!this.defeatedBosses.has(boss.monsterId)) {
+            const mx = ox + boss.x * tilePixel + tilePixel / 2;
+            const my = oy + boss.y * tilePixel + tilePixel / 2;
+            const bossMarker = this.add.graphics();
+            bossMarker.fillStyle(0xff0000, 1);
+            bossMarker.fillCircle(mx, my, 3);
+            bossMarker.lineStyle(1, 0xffffff, 1);
+            bossMarker.strokeCircle(mx, my, 3);
+            this.worldMapOverlay.add(bossMarker);
+          }
+        }
+
+        // Draw player marker on current chunk
+        if (isCurrent) {
+          const pmx = ox + this.player.x * tilePixel + tilePixel / 2;
+          const pmy = oy + this.player.y * tilePixel + tilePixel / 2;
+          const playerMarker = this.add.graphics();
+          playerMarker.fillStyle(0x00ff00, 1);
+          playerMarker.fillCircle(pmx, pmy, 3);
+          playerMarker.lineStyle(1, 0xffffff, 1);
+          playerMarker.strokeCircle(pmx, pmy, 3);
+          this.worldMapOverlay.add(playerMarker);
+        }
+      }
+    }
+
+    // Legend
+    const legendY = gridY + gridH + 14;
+    const legend = this.add.text(px + panelW / 2, legendY,
+      "● You   ● Town   ● Boss      Press N to close", {
+        fontSize: "9px", fontFamily: "monospace", color: "#aaa",
+      }).setOrigin(0.5, 0);
+    this.worldMapOverlay.add(legend);
   }
 }

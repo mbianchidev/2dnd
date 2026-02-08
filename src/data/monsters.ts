@@ -271,7 +271,7 @@ export const NIGHT_MONSTERS: Monster[] = [
     ],
   },
   {
-    id: "vampire_bat",
+    id: "vampireBat",
     name: "Vampire Bat",
     hp: 28,
     ac: 14,

@@ -15,9 +15,9 @@ import {
   getTerrainAt,
 } from "../data/map";
 import { getRandomEncounter, getBoss } from "../data/monsters";
-import { createPlayer, getArmorClass, type PlayerState } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, xpForLevel, type PlayerState } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { debugLog, debugPanelState, debugPanelClear } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 
@@ -80,6 +80,48 @@ export class OverworldScene extends Phaser.Scene {
   private setupDebug(): void {
     debugPanelClear();
     debugPanelState("OVERWORLD | Loading...");
+
+    // Cheat keys (only work when debug is on)
+    const gKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
+    const lKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L);
+    const hKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
+    const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+
+    gKey.on("down", () => {
+      if (!isDebug()) return;
+      this.player.gold += 100;
+      debugLog("CHEAT: +100 gold", { total: this.player.gold });
+      debugPanelLog(`[CHEAT] +100 gold (total: ${this.player.gold})`, true);
+      this.updateHUD();
+    });
+
+    lKey.on("down", () => {
+      if (!isDebug()) return;
+      const needed = xpForLevel(this.player.level + 1) - this.player.xp;
+      const xpResult = awardXP(this.player, Math.max(needed, 0));
+      debugLog("CHEAT: Level up", { newLevel: xpResult.newLevel });
+      debugPanelLog(`[CHEAT] Level up! Now Lv.${xpResult.newLevel}`, true);
+      for (const spell of xpResult.newSpells) {
+        debugPanelLog(`[CHEAT] Learned ${spell.name}!`, true);
+      }
+      this.updateHUD();
+    });
+
+    hKey.on("down", () => {
+      if (!isDebug()) return;
+      this.player.hp = this.player.maxHp;
+      debugLog("CHEAT: Full heal");
+      debugPanelLog(`[CHEAT] HP restored to ${this.player.maxHp}!`, true);
+      this.updateHUD();
+    });
+
+    mKey.on("down", () => {
+      if (!isDebug()) return;
+      this.player.mp = this.player.maxMp;
+      debugLog("CHEAT: Restore MP");
+      debugPanelLog(`[CHEAT] MP restored to ${this.player.maxMp}!`, true);
+      this.updateHUD();
+    });
   }
 
   private renderMap(): void {
@@ -249,7 +291,8 @@ export class OverworldScene extends Phaser.Scene {
       `Enc: ${(rate * 100).toFixed(0)}% | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
-      `Bosses: ${this.defeatedBosses.size}`
+      `Bosses: ${this.defeatedBosses.size}\n` +
+      `Cheats: G=+100Gold H=Heal M=MP L=LvUp`
     );
   }
 

@@ -437,8 +437,8 @@ export class BattleScene extends Phaser.Scene {
       `BATTLE | Phase: ${this.phase} | ` +
       `Monster: ${this.monster.name} HP ${this.monsterHp}/${this.monster.hp} AC ${this.monster.ac} | ` +
       `Player: HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} AC ${getArmorClass(p)} | ` +
-      `Lv.${p.level} XP ${p.xp}/${xpForLevel(p.level + 1)} Gold ${p.gold} | ` +
-      `Cheats: K=Kill H=Heal M=MP G=Gold L=LvUp`
+      `Lv.${p.level} XP ${p.xp}/${xpForLevel(p.level + 1)} Gold ${p.gold}\n` +
+      `Cheats: K=Kill H=Heal M=MP G=+100Gold L=LvUp X=MaxXP`
     );
   }
 

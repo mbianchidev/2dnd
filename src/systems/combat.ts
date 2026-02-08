@@ -61,7 +61,8 @@ export function rollInitiative(
 export function playerAttack(
   player: PlayerState,
   monster: Monster,
-  monsterDefendBonus: number = 0
+  monsterDefendBonus: number = 0,
+  weatherPenalty: number = 0
 ): CombatResult & { attackMod: number; totalRoll: number; targetAC: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerAttack: missing player or monster`);
@@ -97,7 +98,7 @@ export function playerAttack(
     };
   }
 
-  if (roll.total >= effectiveAC) {
+  if (roll.total - weatherPenalty >= effectiveAC) {
     const weaponBonus = player.equippedWeapon?.effect ?? 0;
     const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
     const damage = Math.max(1, rollDice(1, 6) + weaponBonus + talentDmg);
@@ -123,7 +124,8 @@ export function playerAttack(
 export function playerCastSpell(
   player: PlayerState,
   spellId: string,
-  monster: Monster
+  monster: Monster,
+  weatherPenalty: number = 0
 ): CombatResult & { mpUsed: number; spellMod?: number; totalRoll?: number; targetAC?: number; autoHit?: boolean } {
   if (!player || !monster) {
     throw new Error(`[combat] playerCastSpell: missing player or monster`);
@@ -171,7 +173,7 @@ export function playerCastSpell(
   const roll = rollD20(spellMod);
   const autoHit = spell.id === "magicMissile";
 
-  if (roll.total >= monster.ac || autoHit) {
+  if (roll.total - weatherPenalty >= monster.ac || autoHit) {
     // Magic Missile always hits
     const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
     const damage = rollDice(spell.damageCount, spell.damageDie as DieType) + talentDmg;
@@ -207,7 +209,8 @@ export function playerCastSpell(
 export function monsterAttack(
   monster: Monster,
   player: PlayerState,
-  playerDefendBonus: number = 0
+  playerDefendBonus: number = 0,
+  weatherPenalty: number = 0
 ): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
   if (!monster || !player) {
     throw new Error(`[combat] monsterAttack: missing monster or player`);
@@ -242,7 +245,7 @@ export function monsterAttack(
     };
   }
 
-  if (roll.total >= playerAC) {
+  if (roll.total - weatherPenalty >= playerAC) {
     const damage = rollDice(monster.damageCount, monster.damageDie);
     player.hp = Math.max(0, player.hp - damage);
     return {
@@ -291,7 +294,8 @@ export function attemptFlee(dexModifier: number): {
 export function playerUseAbility(
   player: PlayerState,
   abilityId: string,
-  monster: Monster
+  monster: Monster,
+  weatherPenalty: number = 0
 ): CombatResult & { mpUsed: number; attackMod?: number; totalRoll?: number; targetAC?: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerUseAbility: missing player or monster`);
@@ -336,7 +340,7 @@ export function playerUseAbility(
     };
   }
 
-  if (roll.roll === 20 || roll.total >= monster.ac) {
+  if (roll.roll === 20 || roll.total - weatherPenalty >= monster.ac) {
     const isCrit = roll.roll === 20;
     const dice = isCrit ? ability.damageCount * 2 : ability.damageCount;
     const damage = rollDice(dice, ability.damageDie as DieType) + talentDmg;

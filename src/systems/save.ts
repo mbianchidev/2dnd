@@ -5,6 +5,8 @@
 import type { PlayerState } from "./player";
 import type { BestiaryData } from "./bestiary";
 import { createBestiary } from "./bestiary";
+import type { WeatherState } from "./weather";
+import { createWeatherState } from "./weather";
 
 const SAVE_KEY = "2dnd_save";
 
@@ -15,6 +17,8 @@ export interface SaveData {
   bestiary: BestiaryData;
   appearanceId: string;
   timestamp: number;
+  weatherState?: WeatherState;
+  totalSteps?: number;
 }
 
 /** Save the current game state. */
@@ -22,7 +26,9 @@ export function saveGame(
   player: PlayerState,
   defeatedBosses: Set<string>,
   bestiary: BestiaryData,
-  appearanceId: string
+  appearanceId: string,
+  weatherState?: WeatherState,
+  totalSteps?: number
 ): void {
   const data: SaveData = {
     version: 1,
@@ -31,6 +37,8 @@ export function saveGame(
     bestiary,
     appearanceId,
     timestamp: Date.now(),
+    weatherState,
+    totalSteps,
   };
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -59,6 +67,8 @@ export function loadGame(): SaveData | null {
     if (!data.player.openedChests) data.player.openedChests = [];
     if (!data.player.exploredTiles) data.player.exploredTiles = {};
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
+    if (!data.weatherState) data.weatherState = createWeatherState();
+    if (data.totalSteps === undefined) data.totalSteps = 0;
     return data;
   } catch {
     return null;

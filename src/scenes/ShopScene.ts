@@ -7,6 +7,7 @@ import type { PlayerState } from "../systems/player";
 import { buyItem, useItem, ownsEquipment } from "../systems/player";
 import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
+import type { WeatherState } from "../systems/weather";
 
 export class ShopScene extends Phaser.Scene {
   private player!: PlayerState;
@@ -18,6 +19,8 @@ export class ShopScene extends Phaser.Scene {
   private goldText!: Phaser.GameObjects.Text;
   private statsText!: Phaser.GameObjects.Text;
   private itemListContainer!: Phaser.GameObjects.Container;
+  private weatherState?: WeatherState;
+  private totalSteps = 0;
 
   constructor() {
     super({ key: "ShopScene" });
@@ -29,11 +32,15 @@ export class ShopScene extends Phaser.Scene {
     defeatedBosses: Set<string>;
     bestiary: BestiaryData;
     shopItemIds?: string[];
+    weatherState?: WeatherState;
+    totalSteps?: number;
   }): void {
     this.player = data.player;
     this.townName = data.townName;
     this.defeatedBosses = data.defeatedBosses;
     this.bestiary = data.bestiary;
+    this.weatherState = data.weatherState;
+    this.totalSteps = data.totalSteps ?? 0;
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -318,6 +325,8 @@ export class ShopScene extends Phaser.Scene {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        weatherState: this.weatherState,
+        totalSteps: this.totalSteps,
       });
     });
   }

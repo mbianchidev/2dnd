@@ -29,6 +29,16 @@ import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
+import {
+  type WeatherState,
+  WeatherType,
+  WEATHER_INFO,
+  createWeatherState,
+  updateWeather,
+  getDominantTerrain,
+  getWeatherAccuracyPenalty,
+  getWeatherEncounterMult,
+} from "../systems/weather";
 
 const TILE_SIZE = 32;
 
@@ -58,12 +68,17 @@ export class OverworldScene extends Phaser.Scene {
   private debugEncounters = true; // debug toggle for encounters
   private debugFogDisabled = false; // debug toggle for fog of war
   private messageText: Phaser.GameObjects.Text | null = null;
+  private weatherState: WeatherState = createWeatherState();
+  private totalSteps = 0;
+  private weatherOverlay: Phaser.GameObjects.Graphics | null = null;
+  private weatherParticles: Phaser.GameObjects.Graphics | null = null;
+  private weatherText: Phaser.GameObjects.Text | null = null;
 
   constructor() {
     super({ key: "OverworldScene" });
   }
 
-  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData }): void {
+  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; weatherState?: WeatherState; totalSteps?: number }): void {
     if (data?.player) {
       this.player = data.player;
       this.isNewPlayer = false;
@@ -76,6 +91,12 @@ export class OverworldScene extends Phaser.Scene {
     }
     if (data?.bestiary) {
       this.bestiary = data.bestiary;
+    }
+    if (data?.weatherState) {
+      this.weatherState = data.weatherState;
+    }
+    if (data?.totalSteps !== undefined) {
+      this.totalSteps = data.totalSteps;
     }
     // Reset movement state — a tween may have been orphaned when the scene
     // switched to battle mid-move, leaving isMoving permanently true.
@@ -96,6 +117,7 @@ export class OverworldScene extends Phaser.Scene {
     this.createHUD();
     this.setupDebug();
     this.updateLocationText();
+    this.renderWeatherOverlay();
 
     // Show rolled stats on new game, or ASI overlay if points are pending
     if (this.isNewPlayer) {
@@ -748,6 +770,7 @@ export class OverworldScene extends Phaser.Scene {
           this.isMoving = false;
           this.revealAround();
           this.revealTileSprites();
+          this.stepWeather();
           this.updateHUD();
           this.updateLocationText();
           this.checkEncounter(terrain);
@@ -791,12 +814,15 @@ export class OverworldScene extends Phaser.Scene {
     this.player.chunkY = newChunkY;
 
     if (chunkChanged) {
+      this.totalSteps++;
       // Chunk transition — flash and re-render
       this.cameras.main.flash(200, 255, 255, 255);
       this.scene.restart({
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        weatherState: this.weatherState,
+        totalSteps: this.totalSteps,
       });
       return;
     }
@@ -810,6 +836,7 @@ export class OverworldScene extends Phaser.Scene {
         this.isMoving = false;
         this.revealAround();
         this.revealTileSprites();
+        this.stepWeather();
         this.updateHUD();
         this.updateLocationText();
         this.checkEncounter(terrain);
@@ -830,7 +857,7 @@ export class OverworldScene extends Phaser.Scene {
     // Debug: encounters can be toggled off
     if (isDebug() && !this.debugEncounters) return;
 
-    const rate = ENCOUNTER_RATES[terrain];
+    const rate = ENCOUNTER_RATES[terrain] * getWeatherEncounterMult(this.weatherState.current);
     if (Math.random() < rate) {
       // Use dungeon monsters when inside a dungeon
       const monster = this.player.inDungeon
@@ -861,6 +888,8 @@ export class OverworldScene extends Phaser.Scene {
           player: this.player,
           defeatedBosses: this.defeatedBosses,
           bestiary: this.bestiary,
+          weatherState: this.weatherState,
+          totalSteps: this.totalSteps,
         });
         return;
       }
@@ -912,6 +941,8 @@ export class OverworldScene extends Phaser.Scene {
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
         shopItemIds: town.shopItems,
+        weatherState: this.weatherState,
+        totalSteps: this.totalSteps,
       });
       return;
     }
@@ -939,6 +970,8 @@ export class OverworldScene extends Phaser.Scene {
             player: this.player,
             defeatedBosses: this.defeatedBosses,
             bestiary: this.bestiary,
+            weatherState: this.weatherState,
+            totalSteps: this.totalSteps,
           });
         }
         // No key — just do nothing (location text already hints)
@@ -995,6 +1028,8 @@ export class OverworldScene extends Phaser.Scene {
         monster,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        weatherState: this.weatherState,
+        totalSteps: this.totalSteps,
       });
     });
   }
@@ -1009,11 +1044,13 @@ export class OverworldScene extends Phaser.Scene {
       player: this.player,
       defeatedBosses: this.defeatedBosses,
       bestiary: this.bestiary,
+      weatherState: this.weatherState,
+      totalSteps: this.totalSteps,
     });
   }
 
   private autoSave(): void {
-    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId);
+    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId, this.weatherState, this.totalSteps);
   }
 
   private toggleEquipOverlay(): void {
@@ -1672,5 +1709,88 @@ export class OverworldScene extends Phaser.Scene {
         fontSize: "9px", fontFamily: "monospace", color: "#aaa",
       }).setOrigin(0.5, 0);
     this.worldMapOverlay.add(legend);
+  }
+
+  // ── Weather ──────────────────────────────────────────────────
+
+  /** Advance weather on each player step. */
+  private stepWeather(): void {
+    this.totalSteps++;
+    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    const dominant = chunk ? getDominantTerrain(chunk.mapData) : Terrain.Grass;
+    const changed = updateWeather(this.weatherState, dominant, this.totalSteps);
+    if (changed) {
+      const info = WEATHER_INFO[this.weatherState.current];
+      this.showMessage(`${info.icon} Weather: ${info.label}`);
+      debugLog("Weather changed", { weather: this.weatherState.current, time: this.weatherState.timeOfDay });
+    }
+    this.renderWeatherOverlay();
+  }
+
+  /** Draw (or update) the weather tint overlay and particle-like effect. */
+  private renderWeatherOverlay(): void {
+    const mapW = MAP_WIDTH * TILE_SIZE;
+    const mapH = MAP_HEIGHT * TILE_SIZE;
+    const info = WEATHER_INFO[this.weatherState.current];
+
+    // Tint overlay
+    if (this.weatherOverlay) this.weatherOverlay.destroy();
+    this.weatherOverlay = this.add.graphics().setDepth(15);
+    if (info.alpha > 0) {
+      this.weatherOverlay.fillStyle(info.tint, info.alpha);
+      this.weatherOverlay.fillRect(0, 0, mapW, mapH);
+    }
+
+    // Particle-like dots
+    if (this.weatherParticles) this.weatherParticles.destroy();
+    this.weatherParticles = this.add.graphics().setDepth(16);
+    const weather = this.weatherState.current;
+
+    if (weather === WeatherType.Rain || weather === WeatherType.Storm) {
+      this.weatherParticles.lineStyle(1, 0x6688cc, 0.5);
+      for (let i = 0; i < (weather === WeatherType.Storm ? 80 : 40); i++) {
+        const x = Math.random() * mapW;
+        const y = Math.random() * mapH;
+        this.weatherParticles.lineBetween(x, y, x - 2, y + 6);
+      }
+    } else if (weather === WeatherType.Snow) {
+      this.weatherParticles.fillStyle(0xffffff, 0.7);
+      for (let i = 0; i < 30; i++) {
+        const x = Math.random() * mapW;
+        const y = Math.random() * mapH;
+        this.weatherParticles.fillCircle(x, y, 1.5);
+      }
+    } else if (weather === WeatherType.Sandstorm) {
+      this.weatherParticles.fillStyle(0xddaa44, 0.4);
+      for (let i = 0; i < 50; i++) {
+        const x = Math.random() * mapW;
+        const y = Math.random() * mapH;
+        this.weatherParticles.fillRect(x, y, 4, 1);
+      }
+    } else if (weather === WeatherType.Fog) {
+      this.weatherParticles.fillStyle(0xdddddd, 0.08);
+      for (let i = 0; i < 20; i++) {
+        const x = Math.random() * mapW;
+        const y = Math.random() * mapH;
+        this.weatherParticles.fillCircle(x, y, 12 + Math.random() * 16);
+      }
+    }
+
+    // Weather text indicator
+    if (this.weatherText) this.weatherText.destroy();
+    if (weather !== WeatherType.Clear) {
+      this.weatherText = this.add
+        .text(mapW - 4, 4, `${info.icon} ${info.label}`, {
+          fontSize: "11px",
+          fontFamily: "monospace",
+          color: "#ddd",
+          backgroundColor: "rgba(0,0,0,0.5)",
+          padding: { x: 4, y: 2 },
+        })
+        .setOrigin(1, 0)
+        .setDepth(22);
+    } else {
+      this.weatherText = null;
+    }
   }
 }

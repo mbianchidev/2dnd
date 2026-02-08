@@ -7,6 +7,7 @@ import type { PlayerState } from "../systems/player";
 import type { BestiaryData, BestiaryEntry } from "../systems/bestiary";
 import { getBestiaryEntries } from "../systems/bestiary";
 import { getItem } from "../data/items";
+import type { WeatherState } from "../systems/weather";
 
 export class BestiaryScene extends Phaser.Scene {
   private player!: PlayerState;
@@ -19,6 +20,8 @@ export class BestiaryScene extends Phaser.Scene {
   private detailText!: Phaser.GameObjects.Text;
   private selectedIndex = 0;
   private listContainer!: Phaser.GameObjects.Container;
+  private weatherState?: WeatherState;
+  private totalSteps = 0;
 
   constructor() {
     super({ key: "BestiaryScene" });
@@ -28,10 +31,14 @@ export class BestiaryScene extends Phaser.Scene {
     player: PlayerState;
     defeatedBosses: Set<string>;
     bestiary: BestiaryData;
+    weatherState?: WeatherState;
+    totalSteps?: number;
   }): void {
     this.player = data.player;
     this.defeatedBosses = data.defeatedBosses;
     this.bestiary = data.bestiary;
+    this.weatherState = data.weatherState;
+    this.totalSteps = data.totalSteps ?? 0;
     this.entries = getBestiaryEntries(this.bestiary);
     this.scrollOffset = 0;
     this.selectedIndex = 0;
@@ -268,6 +275,8 @@ export class BestiaryScene extends Phaser.Scene {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        weatherState: this.weatherState,
+        totalSteps: this.totalSteps,
       });
     });
   }

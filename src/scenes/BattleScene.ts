@@ -27,6 +27,7 @@ import { abilityModifier } from "../utils/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear, setDebugCommandHandler } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
+import { type WeatherState, WeatherType, WEATHER_INFO, getWeatherAccuracyPenalty, createWeatherState } from "../systems/weather";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -60,6 +61,11 @@ export class BattleScene extends Phaser.Scene {
   // Item drops collected this battle
   private droppedItemIds: string[] = [];
 
+  // Weather state
+  private weatherState: WeatherState = createWeatherState();
+  private totalSteps = 0;
+  private weatherPenalty = 0;
+
   constructor() {
     super({ key: "BattleScene" });
   }
@@ -69,6 +75,8 @@ export class BattleScene extends Phaser.Scene {
     monster: Monster;
     defeatedBosses: Set<string>;
     bestiary: BestiaryData;
+    weatherState?: WeatherState;
+    totalSteps?: number;
   }): void {
     this.player = data.player;
     this.monster = data.monster;
@@ -87,6 +95,9 @@ export class BattleScene extends Phaser.Scene {
     this.playerDefending = false;
     this.monsterDefending = false;
     this.droppedItemIds = [];
+    this.weatherState = data.weatherState ?? createWeatherState();
+    this.totalSteps = data.totalSteps ?? 0;
+    this.weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
   }
 
   create(): void {
@@ -110,6 +121,23 @@ export class BattleScene extends Phaser.Scene {
     const bg = this.add.graphics();
     bg.fillStyle(0x151530, 1);
     bg.fillRect(0, 0, w, h);
+
+    // Weather indicator (top-left)
+    if (this.weatherState.current !== WeatherType.Clear) {
+      const info = WEATHER_INFO[this.weatherState.current];
+      // Tint overlay on battle background
+      const weatherBg = this.add.graphics();
+      weatherBg.fillStyle(info.tint, info.alpha * 0.6);
+      weatherBg.fillRect(0, 0, w, h * 0.78);
+      // Weather label
+      this.add.text(8, 6, `${info.icon} ${info.label} (accuracy −${this.weatherPenalty})`, {
+        fontSize: "11px",
+        fontFamily: "monospace",
+        color: "#cccc88",
+        backgroundColor: "rgba(0,0,0,0.5)",
+        padding: { x: 4, y: 2 },
+      });
+    }
 
     // --- Monster (top-right) ---
     const textureKey = this.monster.isBoss ? "monster_boss" : "monster";
@@ -356,7 +384,7 @@ export class BattleScene extends Phaser.Scene {
     this.phase = "monsterTurn";
 
     try {
-      const result = playerUseAbility(this.player, abilityId, this.monster);
+      const result = playerUseAbility(this.player, abilityId, this.monster, this.weatherPenalty);
       debugLog("Player ability", { abilityId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
       if (result.roll !== undefined) {
         debugPanelLog(
@@ -632,6 +660,10 @@ export class BattleScene extends Phaser.Scene {
       this.addLog(
         `⚔ ${this.monster.name} appears! You rolled ${result.playerRoll} for initiative.`
       );
+      if (this.weatherPenalty > 0) {
+        const info = WEATHER_INFO[this.weatherState.current];
+        this.addLog(`${info.icon} ${info.label} hampers accuracy (−${this.weatherPenalty}).`);
+      }
 
       if (result.playerFirst) {
         this.addLog("You act first!");
@@ -654,7 +686,7 @@ export class BattleScene extends Phaser.Scene {
 
     try {
       const monsterDefBonus = this.monsterDefending ? 2 : 0;
-      const result = playerAttack(this.player, this.monster, monsterDefBonus);
+      const result = playerAttack(this.player, this.monster, monsterDefBonus, this.weatherPenalty);
       // Reset monster defend after player attacks
       this.monsterDefending = false;
       debugLog("Player attack", { roll: result.roll, hit: result.hit, critical: result.critical, damage: result.damage, monsterAC: this.monster.ac });
@@ -701,7 +733,7 @@ export class BattleScene extends Phaser.Scene {
     this.phase = "monsterTurn";
 
     try {
-      const result = playerCastSpell(this.player, spellId, this.monster);
+      const result = playerCastSpell(this.player, spellId, this.monster, this.weatherPenalty);
       debugLog("Player spell", { spellId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
       if (result.roll !== undefined) {
         debugPanelLog(
@@ -844,7 +876,7 @@ export class BattleScene extends Phaser.Scene {
 
       // Normal attack — pass player defend bonus
       const defendBonus = this.playerDefending ? 2 : 0;
-      const result = monsterAttack(this.monster, this.player, defendBonus);
+      const result = monsterAttack(this.monster, this.player, defendBonus, this.weatherPenalty);
       debugLog("Monster attack", {
         naturalRoll: result.roll,
         attackBonus: result.attackBonus,
@@ -1016,6 +1048,8 @@ export class BattleScene extends Phaser.Scene {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        weatherState: this.weatherState,
+        totalSteps: this.totalSteps,
       });
     });
   }

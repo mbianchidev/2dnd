@@ -100,9 +100,10 @@ export class BattleScene extends Phaser.Scene {
     monsterBg.fillRect(0, 0, w, h * 0.45);
 
     // Monster sprite (tinted with monster color)
-    this.monsterSprite = this.add.sprite(w / 2, h * 0.22, "monster");
+    const textureKey = this.monster.isBoss ? "monster_boss" : "monster";
+    this.monsterSprite = this.add.sprite(w / 2, h * 0.22, textureKey);
     this.monsterSprite.setTint(this.monster.color);
-    this.monsterSprite.setScale(1.5);
+    this.monsterSprite.setScale(this.monster.isBoss ? 1.2 : 1.5);
 
     // Monster name and HP
     this.monsterText = this.add

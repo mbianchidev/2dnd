@@ -31,6 +31,7 @@ export interface PlayerState {
   knownSpells: string[]; // spell IDs
   equippedWeapon: Item | null;
   equippedArmor: Item | null;
+  appearanceId: string; // visual customization
   x: number; // overworld tile position
   y: number;
 }
@@ -74,6 +75,7 @@ export function createPlayer(name: string): PlayerState {
     knownSpells: ["fireBolt"], // start with a cantrip
     equippedWeapon: null,
     equippedArmor: null,
+    appearanceId: "knight",
     x: 7,
     y: 7,
   };

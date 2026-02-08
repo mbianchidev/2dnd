@@ -4,6 +4,9 @@
 
 import Phaser from "phaser";
 import { TERRAIN_COLORS, Terrain } from "../data/map";
+import { PLAYER_APPEARANCES, type PlayerAppearance } from "../systems/appearance";
+import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
+import { createPlayer } from "../systems/player";
 
 const TILE_SIZE = 32;
 
@@ -19,7 +22,9 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.generateTileTextures();
     this.generatePlayerTexture();
+    this.generatePlayerTextures();
     this.generateMonsterTexture();
+    this.generateBossTexture();
     this.generateUITextures();
     this.showTitleScreen();
   }
@@ -99,15 +104,36 @@ export class BootScene extends Phaser.Scene {
   }
 
   private generatePlayerTexture(): void {
+    // Default player texture (used as fallback)
+    this.generatePlayerTextureWithColors("player", 0x3f51b5, 0xffccbc, 0x1a237e);
+  }
+
+  private generatePlayerTextures(): void {
+    for (const app of PLAYER_APPEARANCES) {
+      this.generatePlayerTextureWithColors(
+        `player_${app.id}`,
+        app.bodyColor,
+        app.skinColor,
+        app.legColor
+      );
+    }
+  }
+
+  private generatePlayerTextureWithColors(
+    key: string,
+    bodyColor: number,
+    skinColor: number,
+    legColor: number
+  ): void {
     const gfx = this.add.graphics();
     // Body
-    gfx.fillStyle(0x3f51b5, 1);
+    gfx.fillStyle(bodyColor, 1);
     gfx.fillRect(8, 10, 16, 16);
     // Head
-    gfx.fillStyle(0xffccbc, 1);
+    gfx.fillStyle(skinColor, 1);
     gfx.fillCircle(16, 8, 6);
     // Legs
-    gfx.fillStyle(0x1a237e, 1);
+    gfx.fillStyle(legColor, 1);
     gfx.fillRect(9, 26, 5, 6);
     gfx.fillRect(18, 26, 5, 6);
     // Sword
@@ -116,7 +142,7 @@ export class BootScene extends Phaser.Scene {
     gfx.fillStyle(0x795548, 1);
     gfx.fillRect(24, 20, 7, 3);
 
-    gfx.generateTexture("player", TILE_SIZE, TILE_SIZE);
+    gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
     gfx.destroy();
   }
 
@@ -139,6 +165,64 @@ export class BootScene extends Phaser.Scene {
     gfx.fillTriangle(54, 42, 58, 42, 56, 50);
 
     gfx.generateTexture("monster", 96, 80);
+    gfx.destroy();
+  }
+
+  private generateBossTexture(): void {
+    const W = 128;
+    const H = 110;
+    const gfx = this.add.graphics();
+
+    // --- Larger, more menacing boss silhouette ---
+
+    // Wings (behind body)
+    gfx.fillStyle(0xffffff, 0.4);
+    gfx.fillTriangle(4, 50, 30, 20, 40, 60);
+    gfx.fillTriangle(W - 4, 50, W - 30, 20, W - 40, 60);
+
+    // Body (large oval)
+    gfx.fillStyle(0xffffff, 1);
+    gfx.fillCircle(W / 2, 40, 36);
+    gfx.fillRect(W / 2 - 36, 40, 72, 48);
+
+    // Horns
+    gfx.fillStyle(0xffffff, 0.85);
+    gfx.fillTriangle(W / 2 - 20, 12, W / 2 - 30, -8, W / 2 - 14, 8);
+    gfx.fillTriangle(W / 2 + 20, 12, W / 2 + 30, -8, W / 2 + 14, 8);
+
+    // Eyes — larger, glowing
+    gfx.fillStyle(0xff0000, 1);
+    gfx.fillCircle(W / 2 - 14, 34, 8);
+    gfx.fillCircle(W / 2 + 14, 34, 8);
+    // Pupils
+    gfx.fillStyle(0xffff00, 1);
+    gfx.fillCircle(W / 2 - 14, 34, 4);
+    gfx.fillCircle(W / 2 + 14, 34, 4);
+
+    // Mouth with many fangs
+    gfx.fillStyle(0x220000, 1);
+    gfx.fillRect(W / 2 - 18, 52, 36, 10);
+    gfx.fillStyle(0xffffff, 1);
+    for (let i = 0; i < 5; i++) {
+      const fx = W / 2 - 16 + i * 8;
+      gfx.fillTriangle(fx, 52, fx + 4, 52, fx + 2, 64);
+    }
+
+    // Crown / spikes on top
+    gfx.fillStyle(0xffffff, 0.7);
+    for (let i = -2; i <= 2; i++) {
+      const sx = W / 2 + i * 10;
+      gfx.fillTriangle(sx - 4, 10, sx + 4, 10, sx, -2);
+    }
+
+    // Claws at bottom
+    gfx.fillStyle(0xffffff, 0.9);
+    gfx.fillTriangle(W / 2 - 28, 88, W / 2 - 22, 88, W / 2 - 25, H);
+    gfx.fillTriangle(W / 2 - 16, 88, W / 2 - 10, 88, W / 2 - 13, H);
+    gfx.fillTriangle(W / 2 + 10, 88, W / 2 + 16, 88, W / 2 + 13, H);
+    gfx.fillTriangle(W / 2 + 22, 88, W / 2 + 28, 88, W / 2 + 25, H);
+
+    gfx.generateTexture("monster_boss", W, H);
     gfx.destroy();
   }
 
@@ -175,12 +259,11 @@ export class BootScene extends Phaser.Scene {
     const cx = this.cameras.main.centerX;
     const cy = this.cameras.main.centerY;
 
-    // Background
     this.cameras.main.setBackgroundColor(0x0a0a1a);
 
     // Title
     this.add
-      .text(cx, cy - 80, "2D&D", {
+      .text(cx, cy - 100, "2D&D", {
         fontSize: "64px",
         fontFamily: "monospace",
         color: "#ffd700",
@@ -190,7 +273,7 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(cx, cy - 20, "A Browser JRPG", {
+      .text(cx, cy - 40, "A Browser JRPG", {
         fontSize: "20px",
         fontFamily: "monospace",
         color: "#c0a060",
@@ -198,46 +281,248 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(cx, cy + 30, "Dragon Quest meets Dungeons & Dragons", {
+      .text(cx, cy + 4, "Dragon Quest meets Dungeons & Dragons", {
         fontSize: "14px",
         fontFamily: "monospace",
         color: "#888",
       })
       .setOrigin(0.5);
 
-    // Start button
-    const startText = this.add
-      .text(cx, cy + 90, "[ Press SPACE to Start ]", {
+    // Menu options
+    let menuY = cy + 50;
+
+    const saveExists = hasSave();
+
+    if (saveExists) {
+      const summary = getSaveSummary() ?? "Saved game";
+      const continueBtn = this.add
+        .text(cx, menuY, "▶ Continue", {
+          fontSize: "22px",
+          fontFamily: "monospace",
+          color: "#88ff88",
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+      continueBtn.on("pointerover", () => continueBtn.setColor("#ffd700"));
+      continueBtn.on("pointerout", () => continueBtn.setColor("#88ff88"));
+      continueBtn.on("pointerdown", () => this.continueGame());
+
+      this.add
+        .text(cx, menuY + 24, summary, {
+          fontSize: "10px",
+          fontFamily: "monospace",
+          color: "#666",
+        })
+        .setOrigin(0.5);
+
+      menuY += 54;
+    }
+
+    const newBtn = this.add
+      .text(cx, menuY, "★ New Game", {
         fontSize: "22px",
         fontFamily: "monospace",
         color: "#fff",
       })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    newBtn.on("pointerover", () => newBtn.setColor("#ffd700"));
+    newBtn.on("pointerout", () => newBtn.setColor("#fff"));
+    newBtn.on("pointerdown", () => this.showCharacterCreation());
+
+    // Controls info
+    this.add
+      .text(cx, cy + 180, "WASD: Move  |  SPACE: Action  |  B: Bestiary  |  E: Equip", {
+        fontSize: "11px",
+        fontFamily: "monospace",
+        color: "#555",
+      })
       .setOrigin(0.5);
 
-    // Blink effect
+    // Keyboard shortcuts
+    if (saveExists) {
+      this.input.keyboard!.once("keydown-SPACE", () => this.continueGame());
+      this.input.keyboard!.once("keydown-N", () => this.showCharacterCreation());
+
+      this.add
+        .text(cx, menuY + 36, "(SPACE = Continue  |  N = New Game)", {
+          fontSize: "10px",
+          fontFamily: "monospace",
+          color: "#555",
+        })
+        .setOrigin(0.5);
+    } else {
+      this.input.keyboard!.once("keydown-SPACE", () => this.showCharacterCreation());
+    }
+  }
+
+  private continueGame(): void {
+    const save = loadGame();
+    if (!save) return;
+    this.cameras.main.fadeOut(500, 0, 0, 0);
+    this.time.delayedCall(500, () => {
+      this.scene.start("OverworldScene", {
+        player: save.player,
+        defeatedBosses: new Set(save.defeatedBosses),
+        bestiary: save.bestiary,
+      });
+    });
+  }
+
+  private showCharacterCreation(): void {
+    // Clear the title screen
+    this.children.removeAll(true);
+    this.tweens.killAll();
+
+    const cx = this.cameras.main.centerX;
+    const w = this.cameras.main.width;
+
+    this.add
+      .text(cx, 20, "Create Your Hero", {
+        fontSize: "24px",
+        fontFamily: "monospace",
+        color: "#ffd700",
+      })
+      .setOrigin(0.5, 0);
+
+    // Name entry
+    this.add
+      .text(cx, 58, "Name:", {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#c0a060",
+      })
+      .setOrigin(0.5, 0);
+
+    let playerName = "Hero";
+    const nameText = this.add
+      .text(cx, 78, playerName, {
+        fontSize: "18px",
+        fontFamily: "monospace",
+        color: "#fff",
+        backgroundColor: "#1a1a2e",
+        padding: { x: 12, y: 4 },
+      })
+      .setOrigin(0.5, 0);
+
+    // Handle typing for name
+    this.input.keyboard!.on("keydown", (event: KeyboardEvent) => {
+      if (event.key === "Backspace") {
+        playerName = playerName.slice(0, -1);
+      } else if (event.key.length === 1 && playerName.length < 12 && /[a-zA-Z0-9 ]/.test(event.key)) {
+        playerName += event.key;
+      }
+      nameText.setText(playerName || "_");
+    });
+
+    // Appearance selection
+    this.add
+      .text(cx, 116, "Choose Appearance:", {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#c0a060",
+      })
+      .setOrigin(0.5, 0);
+
+    let selectedAppearance = PLAYER_APPEARANCES[0];
+    const previewSprite = this.add
+      .sprite(cx, 180, `player_${selectedAppearance.id}`)
+      .setScale(3);
+
+    const selectedLabel = this.add
+      .text(cx, 210, selectedAppearance.label, {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#88ff88",
+      })
+      .setOrigin(0.5, 0);
+
+    // Appearance option grid
+    const cols = 4;
+    const optW = 60;
+    const optH = 56;
+    const startX = cx - ((Math.min(cols, PLAYER_APPEARANCES.length) * optW) / 2) + optW / 2;
+    const startY = 240;
+
+    const optionHighlights: Phaser.GameObjects.Graphics[] = [];
+
+    PLAYER_APPEARANCES.forEach((app, i) => {
+      const ox = startX + (i % cols) * optW;
+      const oy = startY + Math.floor(i / cols) * optH;
+
+      // Highlight box
+      const hl = this.add.graphics();
+      hl.lineStyle(2, app.id === selectedAppearance.id ? 0xffd700 : 0x333333, 1);
+      hl.strokeRect(ox - 22, oy - 20, 44, 48);
+      optionHighlights.push(hl);
+
+      // Sprite preview
+      const spr = this.add.sprite(ox, oy, `player_${app.id}`).setScale(1.5);
+
+      // Label
+      const lbl = this.add
+        .text(ox, oy + 20, app.label, {
+          fontSize: "8px",
+          fontFamily: "monospace",
+          color: "#aaa",
+        })
+        .setOrigin(0.5, 0);
+
+      // Make clickable
+      spr.setInteractive({ useHandCursor: true });
+      spr.on("pointerdown", () => {
+        selectedAppearance = app;
+        previewSprite.setTexture(`player_${app.id}`);
+        selectedLabel.setText(app.label);
+        // Update highlights
+        optionHighlights.forEach((h, j) => {
+          h.clear();
+          h.lineStyle(2, PLAYER_APPEARANCES[j].id === app.id ? 0xffd700 : 0x333333, 1);
+          const hx = startX + (j % cols) * optW;
+          const hy = startY + Math.floor(j / cols) * optH;
+          h.strokeRect(hx - 22, hy - 20, 44, 48);
+        });
+      });
+    });
+
+    // Start Adventure button
+    const btnY = startY + Math.ceil(PLAYER_APPEARANCES.length / cols) * optH + 20;
+
+    const startBtn = this.add
+      .text(cx, btnY, "[ Start Adventure ]", {
+        fontSize: "20px",
+        fontFamily: "monospace",
+        color: "#88ff88",
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    startBtn.on("pointerover", () => startBtn.setColor("#ffd700"));
+    startBtn.on("pointerout", () => startBtn.setColor("#88ff88"));
+
+    const doStart = () => {
+      const name = playerName.trim() || "Hero";
+      const player = createPlayer(name);
+      player.appearanceId = selectedAppearance.id;
+      deleteSave(); // clear any old save for new run
+      this.cameras.main.fadeOut(500, 0, 0, 0);
+      this.time.delayedCall(500, () => {
+        this.scene.start("OverworldScene", { player });
+      });
+    };
+
+    startBtn.on("pointerdown", doStart);
+
+    // Blink the start btn
     this.tweens.add({
-      targets: startText,
-      alpha: 0.3,
-      duration: 800,
+      targets: startBtn,
+      alpha: 0.4,
+      duration: 900,
       yoyo: true,
       repeat: -1,
     });
 
-    // Controls info
-    this.add
-      .text(cx, cy + 150, "WASD: Move  |  SPACE: Action  |  ESC: Menu", {
-        fontSize: "12px",
-        fontFamily: "monospace",
-        color: "#666",
-      })
-      .setOrigin(0.5);
-
-    // Wait for space to start
-    this.input.keyboard!.once("keydown-SPACE", () => {
-      this.cameras.main.fadeOut(500, 0, 0, 0);
-      this.time.delayedCall(500, () => {
-        this.scene.start("OverworldScene");
-      });
-    });
+    // ENTER also starts
+    this.input.keyboard!.on("keydown-ENTER", doStart);
   }
 }

@@ -20,6 +20,7 @@ import { abilityModifier } from "../utils/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
+import { saveGame } from "../systems/save";
 
 const TILE_SIZE = 32;
 
@@ -188,10 +189,13 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private createPlayer(): void {
+    const texKey = `player_${this.player.appearanceId}`;
+    // Use the appearance texture if it exists, else fall back to default
+    const key = this.textures.exists(texKey) ? texKey : "player";
     this.playerSprite = this.add.sprite(
       this.player.x * TILE_SIZE + TILE_SIZE / 2,
       this.player.y * TILE_SIZE + TILE_SIZE / 2,
-      "player"
+      key
     );
     this.playerSprite.setDepth(10);
   }
@@ -368,6 +372,9 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private checkEncounter(terrain: Terrain): void {
+    // Auto-save after each step
+    this.autoSave();
+
     // Boss tile: handled by SPACE action, not random
     if (terrain === Terrain.Boss) return;
     if (terrain === Terrain.Town) return;
@@ -386,6 +393,7 @@ export class OverworldScene extends Phaser.Scene {
       (t) => t.x === this.player.x && t.y === this.player.y
     );
     if (town?.hasShop) {
+      this.autoSave();
       this.scene.start("ShopScene", {
         player: this.player,
         townName: town.name,
@@ -408,6 +416,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private startBattle(monster: ReturnType<typeof getRandomEncounter>): void {
+    this.autoSave();
     this.cameras.main.flash(300, 255, 255, 255);
     this.time.delayedCall(300, () => {
       this.scene.start("BattleScene", {
@@ -424,11 +433,16 @@ export class OverworldScene extends Phaser.Scene {
       this.equipOverlay.destroy();
       this.equipOverlay = null;
     }
+    this.autoSave();
     this.scene.start("BestiaryScene", {
       player: this.player,
       defeatedBosses: this.defeatedBosses,
       bestiary: this.bestiary,
     });
+  }
+
+  private autoSave(): void {
+    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId);
   }
 
   private toggleEquipOverlay(): void {

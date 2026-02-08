@@ -405,6 +405,9 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private createPlayer(): void {
+    if (this.playerSprite) {
+      this.playerSprite.destroy();
+    }
     const texKey = `player_${this.player.appearanceId}`;
     // Use the appearance texture if it exists, else fall back to default
     const key = this.textures.exists(texKey) ? texKey : "player";

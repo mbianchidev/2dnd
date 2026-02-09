@@ -29,7 +29,7 @@ import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
-import { getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
+import { TimePeriod, getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
 import {
   type WeatherState,
   WeatherType,
@@ -288,8 +288,48 @@ export class OverworldScene extends Phaser.Scene {
         this.updateHUD();
         debugPanelLog(`[CMD] Fully healed!`, true);
         break;
+      case "weather": {
+        const weatherArg = args.trim().toLowerCase();
+        const weatherMap: Record<string, WeatherType> = {
+          clear: WeatherType.Clear,
+          rain: WeatherType.Rain,
+          snow: WeatherType.Snow,
+          sandstorm: WeatherType.Sandstorm,
+          storm: WeatherType.Storm,
+          fog: WeatherType.Fog,
+        };
+        const wt = weatherMap[weatherArg];
+        if (wt) {
+          this.weatherState.current = wt;
+          this.applyDayNightTint();
+          this.updateHUD();
+          debugPanelLog(`[CMD] Weather set to ${wt}`, true);
+        } else {
+          debugPanelLog(`Usage: /weather <clear|rain|snow|sandstorm|storm|fog>`, true);
+        }
+        break;
+      }
+      case "time": {
+        const timeArg = args.trim().toLowerCase();
+        const timeMap: Record<string, number> = {
+          dawn: 0,
+          day: 15,
+          dusk: 75,
+          night: 90,
+        };
+        const step = timeMap[timeArg];
+        if (step !== undefined) {
+          this.timeStep = step;
+          this.applyDayNightTint();
+          this.updateHUD();
+          debugPanelLog(`[CMD] Time set to ${timeArg} (step ${step})`, true);
+        } else {
+          debugPanelLog(`Usage: /time <dawn|day|dusk|night>`, true);
+        }
+        break;
+      }
       case "help":
-        debugPanelLog(`Commands: /gold /exp /hp /max_hp /mp /max_mp /level /item /heal /help`, true);
+        debugPanelLog(`Commands: /gold /exp /hp /max_hp /mp /max_mp /level /item /heal /weather /time /help`, true);
         break;
       default:
         debugPanelLog(`Unknown command: /${cmd}. Type /help for list.`, true);

@@ -646,7 +646,7 @@ export class BattleScene extends Phaser.Scene {
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
       const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
       if (this.weatherState.current !== WeatherType.Clear) {
-        this.addLog(`${WEATHER_LABEL[this.weatherState.current]} — accuracy penalty: -${weatherPenalty}`);
+        this.addLog(`${WEATHER_LABEL[this.weatherState.current]} — attacks are harder to land (penalty: ${weatherPenalty})`);
       }
       if (boost.acBonus > 0) {
         this.addLog(`${this.monster.name} thrives in this weather! (+${boost.acBonus} AC, +${boost.attackBonus} ATK, +${boost.damageBonus} DMG)`);

@@ -596,7 +596,13 @@ export class BattleScene extends Phaser.Scene {
           if (!isNaN(val)) { this.player.mp = Math.min(val, this.player.maxMp); this.updatePlayerStats(); debugPanelLog(`[CMD] MP set to ${this.player.mp}`, true); }
           break;
         case "help":
-          debugPanelLog(`Battle commands: /kill /heal /gold /hp /mp /help`, true);
+          debugPanelLog(`── Debug Commands (Battle) ──`, true);
+          debugPanelLog(`/kill         Kill monster instantly`, true);
+          debugPanelLog(`/heal         Restore full HP & MP`, true);
+          debugPanelLog(`/gold <n>     Set gold amount`, true);
+          debugPanelLog(`/hp <n>       Set current HP`, true);
+          debugPanelLog(`/mp <n>       Set current MP`, true);
+          debugPanelLog(`── Hotkeys: K=Kill H=Heal P=MP G=Gold L=LvUp X=MaxXP ──`, true);
           break;
         default:
           debugPanelLog(`Unknown command: /${cmd}. Type /help`, true);

@@ -329,7 +329,19 @@ export class OverworldScene extends Phaser.Scene {
         break;
       }
       case "help":
-        debugPanelLog(`Commands: /gold /exp /hp /max_hp /mp /max_mp /level /item /heal /weather /time /help`, true);
+        debugPanelLog(`── Debug Commands (Overworld) ──`, true);
+        debugPanelLog(`/gold <n>     Set gold amount`, true);
+        debugPanelLog(`/exp <n>      Award XP (alias: /xp)`, true);
+        debugPanelLog(`/hp <n>       Set current HP`, true);
+        debugPanelLog(`/max_hp <n>   Set max HP (alias: /maxhp)`, true);
+        debugPanelLog(`/mp <n>       Set current MP`, true);
+        debugPanelLog(`/max_mp <n>   Set max MP (alias: /maxmp)`, true);
+        debugPanelLog(`/level <1-20> Set level (alias: /lvl)`, true);
+        debugPanelLog(`/item <id>    Add item to inventory`, true);
+        debugPanelLog(`/heal         Restore full HP & MP`, true);
+        debugPanelLog(`/weather <w>  Set weather (clear|rain|snow|sandstorm|storm|fog)`, true);
+        debugPanelLog(`/time <t>     Set time (dawn|day|dusk|night)`, true);
+        debugPanelLog(`── Hotkeys: G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog ──`, true);
         break;
       default:
         debugPanelLog(`Unknown command: /${cmd}. Type /help for list.`, true);

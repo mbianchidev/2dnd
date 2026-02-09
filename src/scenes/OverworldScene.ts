@@ -30,8 +30,29 @@ import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
 import { getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
+import {
+  type WeatherState,
+  WeatherType,
+  createWeatherState,
+  advanceWeather,
+  getWeatherAccuracyPenalty,
+  getWeatherEncounterMultiplier,
+  getMonsterWeatherBoost,
+  WEATHER_TINT,
+  WEATHER_LABEL,
+} from "../systems/weather";
 
 const TILE_SIZE = 32;
+
+/** Blend two 0xRRGGBB tint values by averaging each channel. */
+function blendTints(a: number, b: number): number {
+  const rA = (a >> 16) & 0xff, gA = (a >> 8) & 0xff, bA = a & 0xff;
+  const rB = (b >> 16) & 0xff, gB = (b >> 8) & 0xff, bB = b & 0xff;
+  const r = Math.round((rA + rB) / 2);
+  const g = Math.round((gA + gB) / 2);
+  const bl = Math.round((bA + bB) / 2);
+  return (r << 16) | (g << 8) | bl;
+}
 
 export class OverworldScene extends Phaser.Scene {
   private player!: PlayerState;
@@ -60,12 +81,13 @@ export class OverworldScene extends Phaser.Scene {
   private debugFogDisabled = false; // debug toggle for fog of war
   private messageText: Phaser.GameObjects.Text | null = null;
   private timeStep = 0; // day/night cycle step counter
+  private weatherState: WeatherState = createWeatherState();
 
   constructor() {
     super({ key: "OverworldScene" });
   }
 
-  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; timeStep?: number }): void {
+  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; timeStep?: number; weatherState?: WeatherState }): void {
     if (data?.player) {
       this.player = data.player;
       this.isNewPlayer = false;
@@ -81,6 +103,9 @@ export class OverworldScene extends Phaser.Scene {
     }
     if (data?.timeStep !== undefined) {
       this.timeStep = data.timeStep;
+    }
+    if (data?.weatherState) {
+      this.weatherState = data.weatherState;
     }
     // Reset movement state — a tween may have been orphaned when the scene
     // switched to battle mid-move, leaving isMoving permanently true.
@@ -588,8 +613,9 @@ export class OverworldScene extends Phaser.Scene {
     }
     const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts [T]` : "";
     const timeLabel = PERIOD_LABEL[getTimePeriod(this.timeStep)];
+    const weatherLabel = WEATHER_LABEL[this.weatherState.current];
     this.hudText.setText(
-      `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}\n` +
+      `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}  ${weatherLabel}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}`
     );
   }
@@ -696,13 +722,14 @@ export class OverworldScene extends Phaser.Scene {
     const tName = terrainNames[terrain ?? 0] ?? "?";
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
     const encMult = getEncounterMultiplier(this.timeStep);
-    const effectiveRate = rate * encMult;
+    const weatherEncMult = getWeatherEncounterMultiplier(this.weatherState.current);
+    const effectiveRate = rate * encMult * weatherEncMult;
     const dungeonTag = p.inDungeon ? ` [DUNGEON:${p.dungeonId}]` : "";
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
       `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag} | ` +
-      `Time: ${timePeriod} (step ${this.timeStep}) | ` +
-      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
+      `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
+      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
       `Bosses: ${this.defeatedBosses.size}\n` +
@@ -811,6 +838,7 @@ export class OverworldScene extends Phaser.Scene {
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
         timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
       return;
     }
@@ -845,7 +873,7 @@ export class OverworldScene extends Phaser.Scene {
     // Debug: encounters can be toggled off
     if (isDebug() && !this.debugEncounters) return;
 
-    const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep);
+    const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep) * getWeatherEncounterMultiplier(this.weatherState.current);
     if (Math.random() < rate) {
       let monster;
       if (this.player.inDungeon) {
@@ -882,6 +910,7 @@ export class OverworldScene extends Phaser.Scene {
           defeatedBosses: this.defeatedBosses,
           bestiary: this.bestiary,
           timeStep: this.timeStep,
+          weatherState: this.weatherState,
         });
         return;
       }
@@ -934,6 +963,7 @@ export class OverworldScene extends Phaser.Scene {
         bestiary: this.bestiary,
         shopItemIds: town.shopItems,
         timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
       return;
     }
@@ -962,6 +992,7 @@ export class OverworldScene extends Phaser.Scene {
             defeatedBosses: this.defeatedBosses,
             bestiary: this.bestiary,
             timeStep: this.timeStep,
+            weatherState: this.weatherState,
           });
         }
         // No key — just do nothing (location text already hints)
@@ -1019,6 +1050,7 @@ export class OverworldScene extends Phaser.Scene {
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
         timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
     });
   }
@@ -1034,11 +1066,12 @@ export class OverworldScene extends Phaser.Scene {
       defeatedBosses: this.defeatedBosses,
       bestiary: this.bestiary,
       timeStep: this.timeStep,
+      weatherState: this.weatherState,
     });
   }
 
   private autoSave(): void {
-    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId, this.timeStep);
+    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId, this.timeStep, this.weatherState);
   }
 
   /** Advance the day/night cycle by one step and update the map tint. */
@@ -1046,14 +1079,24 @@ export class OverworldScene extends Phaser.Scene {
     const oldPeriod = getTimePeriod(this.timeStep);
     this.timeStep = (this.timeStep + 1) % CYCLE_LENGTH;
     const newPeriod = getTimePeriod(this.timeStep);
-    if (oldPeriod !== newPeriod) {
+
+    // Advance weather
+    const biomeName = this.player.inDungeon
+      ? "Heartlands" // default for dungeons
+      : (getChunk(this.player.chunkX, this.player.chunkY)?.name ?? "Heartlands");
+    const weatherChanged = advanceWeather(this.weatherState, biomeName, this.timeStep);
+
+    if (oldPeriod !== newPeriod || weatherChanged) {
       this.applyDayNightTint();
     }
   }
 
-  /** Apply a color tint to all map tiles based on the current time period. */
+  /** Apply a color tint to all map tiles based on time period + weather. */
   private applyDayNightTint(): void {
-    const tint = PERIOD_TINT[getTimePeriod(this.timeStep)];
+    const dayTint = PERIOD_TINT[getTimePeriod(this.timeStep)];
+    const weatherTint = WEATHER_TINT[this.weatherState.current];
+    // Blend: average the two tint values per channel
+    const tint = blendTints(dayTint, weatherTint);
     for (const row of this.tileSprites) {
       for (const sprite of row) {
         sprite.setTint(tint);

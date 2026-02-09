@@ -7,6 +7,7 @@ import type { PlayerState } from "../systems/player";
 import { buyItem, useItem, ownsEquipment } from "../systems/player";
 import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
+import { type WeatherState, createWeatherState } from "../systems/weather";
 
 export class ShopScene extends Phaser.Scene {
   private player!: PlayerState;
@@ -14,6 +15,7 @@ export class ShopScene extends Phaser.Scene {
   private defeatedBosses!: Set<string>;
   private bestiary!: BestiaryData;
   private timeStep = 0;
+  private weatherState: WeatherState = createWeatherState();
   private shopItems!: Item[];
   private messageText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
@@ -31,12 +33,14 @@ export class ShopScene extends Phaser.Scene {
     bestiary: BestiaryData;
     shopItemIds?: string[];
     timeStep?: number;
+    weatherState?: WeatherState;
   }): void {
     this.player = data.player;
     this.townName = data.townName;
     this.defeatedBosses = data.defeatedBosses;
     this.bestiary = data.bestiary;
     this.timeStep = data.timeStep ?? 0;
+    this.weatherState = data.weatherState ?? createWeatherState();
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -322,6 +326,7 @@ export class ShopScene extends Phaser.Scene {
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
         timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
     });
   }

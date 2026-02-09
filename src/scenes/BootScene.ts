@@ -455,6 +455,7 @@ export class BootScene extends Phaser.Scene {
         defeatedBosses: new Set(save.defeatedBosses),
         bestiary: save.bestiary,
         timeStep: save.timeStep ?? 0,
+        weatherState: save.weatherState,
       });
     });
   }

@@ -19,8 +19,13 @@ import {
   getDungeon,
   getChestAt,
   DUNGEONS,
+  CITIES,
+  getCity,
+  getCityForTown,
+  getCityShopAt,
   type WorldChunk,
   type DungeonData,
+  type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
@@ -414,6 +419,67 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // If inside a city, render the city interior
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        this.tileSprites[y] = [];
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          const explored = this.isExplored(x, y);
+          const terrain = city.mapData[y][x];
+          const texKey = explored ? `tile_${terrain}` : "tile_fog";
+          const sprite = this.add.sprite(
+            x * TILE_SIZE + TILE_SIZE / 2,
+            y * TILE_SIZE + TILE_SIZE / 2,
+            texKey
+          );
+          this.tileSprites[y][x] = sprite;
+        }
+      }
+      // City name label
+      this.add
+        .text(MAP_WIDTH * TILE_SIZE / 2, 4, city.name, {
+          fontSize: "10px",
+          fontFamily: "monospace",
+          color: "#dda0dd",
+          stroke: "#000",
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5, 0);
+      // Shop labels and exit label
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (city.mapData[y][x] === Terrain.CityExit && this.isExplored(x, y)) {
+            this.add
+              .text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE - 4, "EXIT", {
+                fontSize: "8px",
+                fontFamily: "monospace",
+                color: "#88ff88",
+                stroke: "#000",
+                strokeThickness: 2,
+              })
+              .setOrigin(0.5, 1);
+          }
+        }
+      }
+      for (const shop of city.shops) {
+        if (this.isExplored(shop.x, shop.y)) {
+          const icon = shop.type === "weapon" ? "⚔" : shop.type === "armor" ? "🛡" : shop.type === "inn" ? "🏨" : shop.type === "bank" ? "🏦" : "🏪";
+          this.add
+            .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 4, `${icon} ${shop.name}`, {
+              fontSize: "7px",
+              fontFamily: "monospace",
+              color: "#ffd700",
+              stroke: "#000",
+              strokeThickness: 2,
+            })
+            .setOrigin(0.5, 1);
+        }
+      }
+      return;
+    }
+
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     if (!chunk) return;
 
@@ -484,10 +550,13 @@ export class OverworldScene extends Phaser.Scene {
 
   // ─── Fog of War helpers ─────────────────────────────────────────
 
-  /** Build the explored-tiles key for a position (respects dungeon vs overworld). */
+  /** Build the explored-tiles key for a position (respects dungeon/city vs overworld). */
   private exploredKey(x: number, y: number): string {
     if (this.player.inDungeon) {
       return `d:${this.player.dungeonId},${x},${y}`;
+    }
+    if (this.player.inCity) {
+      return `c:${this.player.cityId},${x},${y}`;
     }
     return `${this.player.chunkX},${this.player.chunkY},${x},${y}`;
   }
@@ -530,6 +599,17 @@ export class OverworldScene extends Phaser.Scene {
               }
             }
             this.tileSprites[y][x].setTexture(texKey);
+          }
+        }
+      }
+    } else if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
+            const terrain = city.mapData[y][x];
+            this.tileSprites[y][x].setTexture(`tile_${terrain}`);
           }
         }
       }
@@ -729,6 +809,24 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // In city: show city-specific text
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) { this.locationText.setText("???"); return; }
+      const terrain = city.mapData[this.player.y]?.[this.player.x];
+      if (terrain === Terrain.CityExit) {
+        this.locationText.setText(`${city.name}\n[SPACE] Leave City`);
+      } else {
+        const shop = getCityShopAt(city, this.player.x, this.player.y);
+        if (shop) {
+          this.locationText.setText(`${shop.name}\n[SPACE] Enter`);
+        } else {
+          this.locationText.setText(city.name);
+        }
+      }
+      return;
+    }
+
     const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
     const terrainNames: Record<number, string> = {
       [Terrain.Grass]: "Grassland",
@@ -757,7 +855,10 @@ export class OverworldScene extends Phaser.Scene {
     );
 
     let locStr = terrainNames[terrain ?? 0] ?? "Unknown";
-    if (town) locStr = `${town.name}\n[SPACE] Enter Shop`;
+    if (town) {
+      const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
+      locStr = city ? `${town.name}\n[SPACE] Enter City` : `${town.name}\n[SPACE] Enter Shop`;
+    }
     if (boss && !this.defeatedBosses.has(boss.monsterId))
       locStr = `${boss.name}'s Lair\n[SPACE] Challenge Boss`;
 
@@ -896,6 +997,37 @@ export class OverworldScene extends Phaser.Scene {
           this.updateHUD();
           this.updateLocationText();
           this.checkEncounter(terrain);
+        },
+      });
+      return;
+    }
+
+    // In city: no chunk transitions, no encounters
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
+      const terrain = city.mapData[newY][newX];
+      if (!isWalkable(terrain)) return;
+
+      this.lastMoveTime = time;
+      this.isMoving = true;
+      this.player.x = newX;
+      this.player.y = newY;
+
+      this.tweens.add({
+        targets: this.playerSprite,
+        x: newX * TILE_SIZE + TILE_SIZE / 2,
+        y: newY * TILE_SIZE + TILE_SIZE / 2,
+        duration: 120,
+        onComplete: () => {
+          this.isMoving = false;
+          this.advanceTime();
+          this.revealAround();
+          this.revealTileSprites();
+          this.updateHUD();
+          this.updateLocationText();
+          // No encounters in cities
         },
       });
       return;
@@ -1085,6 +1217,71 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // ── City actions: exit and shop interaction ──
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      const terrain = city.mapData[this.player.y]?.[this.player.x];
+      if (terrain === Terrain.CityExit) {
+        // Return to overworld at the town tile
+        this.player.inCity = false;
+        this.player.cityId = "";
+        this.player.chunkX = city.chunkX;
+        this.player.chunkY = city.chunkY;
+        this.player.x = city.tileX;
+        this.player.y = city.tileY;
+        this.rerollWeather();
+        this.autoSave();
+        this.cameras.main.flash(300, 255, 255, 255);
+        this.scene.restart({
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+        });
+        return;
+      }
+
+      // Check if on a shop location
+      const shop = getCityShopAt(city, this.player.x, this.player.y);
+      if (shop) {
+        if (shop.type === "inn") {
+          // Inn: heal directly without opening shop
+          if (this.player.gold < 10) {
+            this.showMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
+          } else {
+            this.player.gold -= 10;
+            this.player.hp = this.player.maxHp;
+            this.player.mp = this.player.maxMp;
+            this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
+            this.updateHUD();
+            this.autoSave();
+          }
+          return;
+        }
+        if (shop.type === "bank") {
+          this.showMessage(`💰 The bank holds your gold safe. Balance: ${this.player.gold}g`, "#ffd700");
+          return;
+        }
+        // Open shop with specific items
+        this.autoSave();
+        this.scene.start("ShopScene", {
+          player: this.player,
+          townName: `${city.name} - ${shop.name}`,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          shopItemIds: shop.shopItems,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+          fromCity: true,
+          cityId: city.id,
+        });
+        return;
+      }
+      return;
+    }
+
     // ── Overworld actions ──
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     if (!chunk) return;
@@ -1099,7 +1296,29 @@ export class OverworldScene extends Phaser.Scene {
       this.player.lastTownY = town.y;
       this.player.lastTownChunkX = this.player.chunkX;
       this.player.lastTownChunkY = this.player.chunkY;
-      // Re-roll weather so it changes when the player leaves town
+
+      // Check if this town has an explorable city layout
+      const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
+      if (city) {
+        // Enter the city interior
+        this.player.inCity = true;
+        this.player.cityId = city.id;
+        this.player.x = city.spawnX;
+        this.player.y = city.spawnY;
+        this.weatherState.current = WeatherType.Clear;
+        this.autoSave();
+        this.cameras.main.flash(300, 200, 180, 160);
+        this.scene.restart({
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+        });
+        return;
+      }
+
+      // No city layout — open shop directly (legacy behavior)
       this.rerollWeather();
       this.autoSave();
       this.scene.start("ShopScene", {
@@ -1227,8 +1446,8 @@ export class OverworldScene extends Phaser.Scene {
     this.timeStep = (this.timeStep + 1) % CYCLE_LENGTH;
     const newPeriod = getTimePeriod(this.timeStep);
 
-    // Dungeons are enclosed — weather stays Clear, only advance time-of-day tint.
-    if (this.player.inDungeon) {
+    // Dungeons and cities are enclosed — weather stays Clear, only advance time-of-day tint.
+    if (this.player.inDungeon || this.player.inCity) {
       if (oldPeriod !== newPeriod) this.applyDayNightTint();
       return;
     }

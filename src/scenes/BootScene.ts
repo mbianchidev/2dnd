@@ -199,6 +199,42 @@ export class BootScene extends Phaser.Scene {
           gfx.fillCircle(10, 22, 1.5);
           gfx.fillCircle(22, 22, 1.5);
           break;
+        case Terrain.CityFloor:
+          // Cobblestone floor
+          gfx.fillStyle(0xa1887f, 0.3);
+          gfx.fillRect(0, 0, 15, 15);
+          gfx.fillRect(17, 17, 15, 15);
+          gfx.lineStyle(1, 0x8d6e63, 0.4);
+          gfx.strokeRect(1, 1, 14, 14);
+          gfx.strokeRect(17, 17, 14, 14);
+          gfx.strokeRect(1, 17, 14, 14);
+          gfx.strokeRect(17, 1, 14, 14);
+          break;
+        case Terrain.CityWall:
+          // Stone building wall
+          gfx.fillStyle(0x3e2723, 0.8);
+          gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+          gfx.lineStyle(1, 0x4e342e, 0.5);
+          gfx.strokeRect(2, 2, 12, 8);
+          gfx.strokeRect(16, 2, 14, 8);
+          gfx.strokeRect(0, 12, 10, 8);
+          gfx.strokeRect(12, 12, 10, 8);
+          gfx.strokeRect(24, 12, 8, 8);
+          gfx.strokeRect(2, 22, 12, 8);
+          gfx.strokeRect(16, 22, 14, 8);
+          break;
+        case Terrain.CityExit:
+          // City gate / exit
+          gfx.fillStyle(0x2e7d32, 0.5);
+          gfx.fillRect(4, 2, 24, 28);
+          gfx.fillStyle(0x4caf50, 0.7);
+          gfx.fillRect(8, 4, 16, 24);
+          gfx.fillStyle(0x8d6e63, 1);
+          gfx.fillRect(4, 0, 4, 32);
+          gfx.fillRect(24, 0, 4, 32);
+          gfx.fillStyle(0xffeb3b, 1);
+          gfx.fillCircle(16, 18, 2);
+          break;
       }
 
       // Add grid border

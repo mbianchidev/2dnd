@@ -24,6 +24,9 @@ export enum Terrain {
   Volcanic = 16,
   Canyon = 17,
   MinorTreasure = 18,
+  CityFloor = 19,
+  CityWall = 20,
+  CityExit = 21,
 }
 
 export interface TownData {
@@ -69,6 +72,27 @@ export interface ChestData {
           | { type: "dungeon"; dungeonId: string };
 }
 
+export interface CityShopData {
+  type: "weapon" | "armor" | "magic" | "inn" | "bank" | "general";
+  name: string;
+  x: number;
+  y: number;
+  shopItems: string[];
+}
+
+export interface CityData {
+  id: string;
+  name: string;
+  chunkX: number;
+  chunkY: number;
+  tileX: number;
+  tileY: number;
+  mapData: Terrain[][];
+  spawnX: number;
+  spawnY: number;
+  shops: CityShopData[];
+}
+
 /** Colors for each terrain type (used for procedural rendering). */
 export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.Grass]: 0x4caf50,
@@ -90,6 +114,9 @@ export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.Volcanic]: 0xbf360c,
   [Terrain.Canyon]: 0xa1887f,
   [Terrain.MinorTreasure]: 0x4fc3f7,
+  [Terrain.CityFloor]: 0xbcaaa4,
+  [Terrain.CityWall]: 0x5d4037,
+  [Terrain.CityExit]: 0x66bb6a,
 };
 
 /** Encounter rates per terrain (0 = no encounters). */
@@ -113,6 +140,9 @@ export const ENCOUNTER_RATES: Record<Terrain, number> = {
   [Terrain.Volcanic]: 0,
   [Terrain.Canyon]: 0.1,
   [Terrain.MinorTreasure]: 0,
+  [Terrain.CityFloor]: 0,
+  [Terrain.CityWall]: 0,
+  [Terrain.CityExit]: 0,
 };
 
 export const MAP_WIDTH = 20;
@@ -126,7 +156,8 @@ export function isWalkable(terrain: Terrain): boolean {
     terrain !== Terrain.Water &&
     terrain !== Terrain.Mountain &&
     terrain !== Terrain.DungeonWall &&
-    terrain !== Terrain.Volcanic
+    terrain !== Terrain.Volcanic &&
+    terrain !== Terrain.CityWall
   );
 }
 
@@ -135,7 +166,8 @@ function isSpecialTerrain(t: Terrain): boolean {
   return t === Terrain.Town || t === Terrain.Boss || t === Terrain.Dungeon ||
     t === Terrain.Chest || t === Terrain.DungeonExit || t === Terrain.DungeonFloor ||
     t === Terrain.DungeonWall || t === Terrain.Water || t === Terrain.Mountain ||
-    t === Terrain.Volcanic || t === Terrain.MinorTreasure;
+    t === Terrain.Volcanic || t === Terrain.MinorTreasure ||
+    t === Terrain.CityFloor || t === Terrain.CityWall || t === Terrain.CityExit;
 }
 
 const dW = Terrain.DungeonWall;
@@ -205,6 +237,147 @@ export const DUNGEONS: DungeonData[] = [
   { id: "frost_cavern", name: "Frost Cavern", entranceChunkX: 2, entranceChunkY: 0, entranceTileX: 14, entranceTileY: 5, mapData: FROST_CAVERN_INTERIOR, spawnX: 1, spawnY: 13 },
   { id: "volcanic_forge", name: "Volcanic Forge", entranceChunkX: 6, entranceChunkY: 5, entranceTileX: 14, entranceTileY: 5, mapData: VOLCANIC_FORGE_INTERIOR, spawnX: 1, spawnY: 13 },
 ];
+
+// ─── City Interior Maps ─────────────────────────────────────────
+const cW = Terrain.CityWall;
+const cF = Terrain.CityFloor;
+const cE = Terrain.CityExit;
+
+// Willowdale — friendly village with central square, scattered houses
+// prettier-ignore
+const WILLOWDALE_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// Ironhold — industrial forge city with dense buildings and narrow alleys
+// prettier-ignore
+const IRONHOLD_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cW,cW,cW,cF,cF,cF,cF,cF,cF,cF,cW,cW,cW,cF,cF,cF,cW],
+  [cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cW,cW,cF,cW,cW,cW,cF,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cF,cW],
+  [cW,cW,cW,cF,cW,cW,cW,cW,cF,cW,cW,cF,cW,cW,cW,cW,cF,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cF,cW,cW,cW,cF,cW,cW,cF,cW,cW,cW,cF,cW,cW,cF,cW],
+  [cW,cF,cW,cW,cF,cW,cW,cW,cF,cW,cW,cF,cW,cW,cW,cF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cW,cW,cF,cW,cW,cW,cW,cW,cW,cF,cW,cW,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// Sandport — open desert trading bazaar with wide market streets
+// prettier-ignore
+const SANDPORT_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cF,cF,cF,cW,cW,cF,cF,cW,cW,cF,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cW,cW,cF,cF,cF,cW,cW,cF,cF,cW,cW,cF,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cF,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cF,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cF,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cW,cW,cF,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// Frostheim — compact northern town with winding icy paths
+// prettier-ignore
+const FROSTHEIM_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cF,cF,cF,cW],
+  [cW,cF,cW,cF,cW,cF,cW,cW,cW,cW,cW,cW,cW,cW,cF,cW,cF,cW,cF,cW],
+  [cW,cF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cF,cW,cW,cW,cF,cF,cF,cF,cF,cF,cW,cW,cW,cF,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cW,cW,cF,cF,cF,cF,cW,cW,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cF,cW,cW,cW,cF,cW,cW,cW,cW,cF,cW,cW,cW,cF,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+export const CITIES: CityData[] = [
+  {
+    id: "willowdale_city", name: "Willowdale", chunkX: 4, chunkY: 2, tileX: 2, tileY: 2,
+    mapData: WILLOWDALE_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "weapon", name: "Blade & Bow", x: 5, y: 2, shopItems: ["shortSword", "longSword"] },
+      { type: "armor", name: "Hide & Mail", x: 14, y: 2, shopItems: ["leatherArmor", "woodenShield"] },
+      { type: "general", name: "General Store", x: 5, y: 10, shopItems: ["potion", "ether", "dungeonKey"] },
+      { type: "inn", name: "Willow Inn", x: 14, y: 10, shopItems: [] },
+    ],
+  },
+  {
+    id: "ironhold_city", name: "Ironhold", chunkX: 3, chunkY: 2, tileX: 5, tileY: 7,
+    mapData: IRONHOLD_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "weapon", name: "The Iron Anvil", x: 6, y: 1, shopItems: ["longSword", "greatSword"] },
+      { type: "armor", name: "Fortress Armory", x: 16, y: 1, shopItems: ["chainMail", "plateArmor", "ironShield", "towerShield"] },
+      { type: "general", name: "Ironhold Supply", x: 5, y: 6, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "inn", name: "Anvil Rest", x: 14, y: 6, shopItems: [] },
+    ],
+  },
+  {
+    id: "sandport_city", name: "Sandport", chunkX: 5, chunkY: 2, tileX: 12, tileY: 6,
+    mapData: SANDPORT_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "weapon", name: "Desert Arms", x: 4, y: 2, shopItems: ["shortSword", "longSword", "greatSword"] },
+      { type: "armor", name: "Sandport Outfitter", x: 13, y: 2, shopItems: ["leatherArmor", "chainMail", "ironShield"] },
+      { type: "magic", name: "Oasis Arcana", x: 5, y: 10, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "inn", name: "Desert Rose Inn", x: 14, y: 10, shopItems: [] },
+      { type: "bank", name: "Merchant's Bank", x: 3, y: 7, shopItems: [] },
+    ],
+  },
+  {
+    id: "frostheim_city", name: "Frostheim", chunkX: 1, chunkY: 0, tileX: 10, tileY: 7,
+    mapData: FROSTHEIM_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "magic", name: "Frost Apothecary", x: 5, y: 1, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "weapon", name: "Frostbite Arms", x: 14, y: 4, shopItems: ["longSword", "greatSword"] },
+      { type: "armor", name: "Fur & Steel", x: 5, y: 8, shopItems: ["chainMail", "plateArmor", "ironShield", "towerShield"] },
+      { type: "inn", name: "Hearthstone Inn", x: 14, y: 8, shopItems: [] },
+    ],
+  },
+];
+
+export function getCity(id: string): CityData | undefined {
+  return CITIES.find((c) => c.id === id);
+}
+
+export function getCityForTown(chunkX: number, chunkY: number, tileX: number, tileY: number): CityData | undefined {
+  return CITIES.find((c) => c.chunkX === chunkX && c.chunkY === chunkY && c.tileX === tileX && c.tileY === tileY);
+}
+
+export function getCityShopAt(city: CityData, x: number, y: number): CityShopData | undefined {
+  return city.shops.find((s) => s.x === x && s.y === y);
+}
 
 export const CHESTS: ChestData[] = [
   { id: "crypt_flame", itemId: "flameBlade", x: 18, y: 1, location: { type: "dungeon", dungeonId: "heartlands_dungeon" } },

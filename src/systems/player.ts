@@ -46,6 +46,8 @@ export interface PlayerState {
   chunkY: number; // world chunk Y coordinate
   inDungeon: boolean;  // true when inside a dungeon interior
   dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
+  inCity: boolean;     // true when inside a city interior
+  cityId: string;      // ID of the current city (empty if not in city)
   openedChests: string[]; // IDs of chests already opened
   collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
@@ -129,6 +131,8 @@ export function createPlayer(
     chunkY: 2,
     inDungeon: false,
     dungeonId: "",
+    inCity: false,
+    cityId: "",
     openedChests: [],
     collectedTreasures: [],
     exploredTiles: {},

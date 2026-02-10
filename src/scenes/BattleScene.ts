@@ -24,10 +24,11 @@ import {
   attemptFlee,
 } from "../systems/combat";
 import { abilityModifier } from "../utils/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear, setDebugCommandHandler } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
+import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -497,18 +498,14 @@ export class BattleScene extends Phaser.Scene {
     debugPanelClear();
     debugPanelLog(`=== Battle: ${this.player.name} vs ${this.monster.name} ===`);
 
-    // Register cheat keys (only work when debug is on)
-    const debugKeys = {
-      K: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K),
-      H: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H),
-      P: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P),
-      G: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G),
-      L: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L),
-      X: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X),
-    };
+    const cb = { updateUI: () => this.updatePlayerStats() };
 
-    // Kill monster instantly
-    debugKeys.K.on("down", () => {
+    // Shared hotkeys: G=Gold, H=Heal, P=MP, L=LvUp
+    registerSharedHotkeys(this, this.player, cb);
+
+    // Battle-only hotkeys
+    const kKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K);
+    kKey.on("down", () => {
       if (!isDebug()) return;
       debugLog("CHEAT: Kill monster");
       debugPanelLog("[CHEAT] Monster killed!", true);
@@ -520,94 +517,34 @@ export class BattleScene extends Phaser.Scene {
       }
     });
 
-    // Full heal
-    debugKeys.H.on("down", () => {
-      if (!isDebug()) return;
-      debugLog("CHEAT: Full heal", { before: this.player.hp, max: this.player.maxHp });
-      this.player.hp = this.player.maxHp;
-      this.updatePlayerStats();
-      debugPanelLog(`[CHEAT] HP restored to ${this.player.maxHp}!`, true);
-    });
-
-    // Restore MP
-    debugKeys.P.on("down", () => {
-      if (!isDebug()) return;
-      debugLog("CHEAT: Restore MP", { before: this.player.mp, max: this.player.maxMp });
-      this.player.mp = this.player.maxMp;
-      this.updatePlayerStats();
-      debugPanelLog(`[CHEAT] MP restored to ${this.player.maxMp}!`, true);
-    });
-
-    // Add gold
-    debugKeys.G.on("down", () => {
-      if (!isDebug()) return;
-      this.player.gold += 100;
-      debugLog("CHEAT: +100 gold", { total: this.player.gold });
-      debugPanelLog(`[CHEAT] +100 gold (total: ${this.player.gold})`, true);
-    });
-
-    // Level up
-    debugKeys.L.on("down", () => {
-      if (!isDebug()) return;
-      const needed = xpForLevel(this.player.level + 1) - this.player.xp;
-      const xpResult = awardXP(this.player, Math.max(needed, 0));
-      debugLog("CHEAT: Level up", { newLevel: xpResult.newLevel, spells: xpResult.newSpells.map((s: Spell) => s.name) });
-      debugPanelLog(`[CHEAT] Level up! Now Lv.${xpResult.newLevel}`, true);
-      for (const spell of xpResult.newSpells) {
-        debugPanelLog(`[CHEAT] Learned ${spell.name}!`, true);
-      }
-      this.updatePlayerStats();
-    });
-
-    // Max XP (set XP to 1 below next level)
-    debugKeys.X.on("down", () => {
+    const xKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+    xKey.on("down", () => {
       if (!isDebug()) return;
       this.player.xp = xpForLevel(this.player.level + 1) - 1;
       debugLog("CHEAT: XP set to", this.player.xp);
       debugPanelLog(`[CHEAT] XP set to ${this.player.xp}`, true);
     });
 
-    // Register debug command handler for battle scene
-    setDebugCommandHandler((cmd, args) => {
-      const val = parseInt(args, 10);
-      switch (cmd) {
-        case "kill":
-          this.monsterHp = 0;
-          this.updateMonsterDisplay();
-          if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
-            this.phase = "playerTurn";
-            this.checkBattleEnd();
-          }
-          debugPanelLog(`[CMD] Monster killed!`, true);
-          break;
-        case "heal":
-          this.player.hp = this.player.maxHp;
-          this.player.mp = this.player.maxMp;
-          this.updatePlayerStats();
-          debugPanelLog(`[CMD] Fully healed!`, true);
-          break;
-        case "gold":
-          if (!isNaN(val)) { this.player.gold = val; debugPanelLog(`[CMD] Gold set to ${val}`, true); }
-          break;
-        case "hp":
-          if (!isNaN(val)) { this.player.hp = Math.min(val, this.player.maxHp); this.updatePlayerStats(); debugPanelLog(`[CMD] HP set to ${this.player.hp}`, true); }
-          break;
-        case "mp":
-          if (!isNaN(val)) { this.player.mp = Math.min(val, this.player.maxMp); this.updatePlayerStats(); debugPanelLog(`[CMD] MP set to ${this.player.mp}`, true); }
-          break;
-        case "help":
-          debugPanelLog(`── Debug Commands (Battle) ──`, true);
-          debugPanelLog(`/kill         Kill monster instantly`, true);
-          debugPanelLog(`/heal         Restore full HP & MP`, true);
-          debugPanelLog(`/gold <n>     Set gold amount`, true);
-          debugPanelLog(`/hp <n>       Set current HP`, true);
-          debugPanelLog(`/mp <n>       Set current MP`, true);
-          debugPanelLog(`── Hotkeys: K=Kill H=Heal P=MP G=Gold L=LvUp X=MaxXP ──`, true);
-          break;
-        default:
-          debugPanelLog(`Unknown command: /${cmd}. Type /help`, true);
+    // Slash commands: shared + battle-specific
+    const cmds = buildSharedCommands(this.player, cb);
+
+    cmds.set("kill", () => {
+      this.monsterHp = 0;
+      this.updateMonsterDisplay();
+      if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
+        this.phase = "playerTurn";
+        this.checkBattleEnd();
       }
+      debugPanelLog(`[CMD] Monster killed!`, true);
     });
+
+    // Help entries
+    const helpEntries: HelpEntry[] = [
+      { usage: "/kill", desc: "Kill monster instantly" },
+      ...SHARED_HELP,
+    ];
+
+    registerCommandRouter(cmds, "Battle", helpEntries, "K=Kill H=Heal P=MP G=Gold L=LvUp X=MaxXP");
   }
 
   private updateDebugPanel(): void {

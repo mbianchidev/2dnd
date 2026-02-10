@@ -24,12 +24,13 @@ import {
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear, setDebugCommandHandler } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
 import { TimePeriod, getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
+import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 import {
   type WeatherState,
   WeatherType,
@@ -140,52 +141,12 @@ export class OverworldScene extends Phaser.Scene {
     debugPanelClear();
     debugPanelState("OVERWORLD | Loading...");
 
-    // Cheat keys (only work when debug is on)
-    const gKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
-    const lKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L);
-    const hKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
-    const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+    const cb = { updateUI: () => this.updateHUD() };
 
-    gKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.gold += 100;
-      debugLog("CHEAT: +100 gold", { total: this.player.gold });
-      debugPanelLog(`[CHEAT] +100 gold (total: ${this.player.gold})`, true);
-      this.updateHUD();
-    });
+    // Shared hotkeys: G=Gold, H=Heal, P=MP, L=LvUp
+    registerSharedHotkeys(this, this.player, cb);
 
-    lKey.on("down", () => {
-      if (!isDebug()) return;
-      const needed = xpForLevel(this.player.level + 1) - this.player.xp;
-      const xpResult = awardXP(this.player, Math.max(needed, 0));
-      debugLog("CHEAT: Level up", { newLevel: xpResult.newLevel });
-      debugPanelLog(`[CHEAT] Level up! Now Lv.${xpResult.newLevel}`, true);
-      for (const spell of xpResult.newSpells) {
-        debugPanelLog(`[CHEAT] Learned ${spell.name}!`, true);
-      }
-      if (xpResult.asiGained > 0) {
-        debugPanelLog(`[CHEAT] +${xpResult.asiGained} stat points! Press T.`, true);
-      }
-      this.updateHUD();
-    });
-
-    hKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.hp = this.player.maxHp;
-      debugLog("CHEAT: Full heal");
-      debugPanelLog(`[CHEAT] HP restored to ${this.player.maxHp}!`, true);
-      this.updateHUD();
-    });
-
-    pKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.mp = this.player.maxMp;
-      debugLog("CHEAT: Restore MP");
-      debugPanelLog(`[CHEAT] MP restored to ${this.player.maxMp}!`, true);
-      this.updateHUD();
-    });
-
-    // F key — toggle encounters on/off
+    // Overworld-only hotkeys
     const fKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     fKey.on("down", () => {
       if (!isDebug()) return;
@@ -194,7 +155,6 @@ export class OverworldScene extends Phaser.Scene {
       debugPanelLog(`[CHEAT] Encounters ${this.debugEncounters ? "ON" : "OFF"}`, true);
     });
 
-    // R key — reveal full map (remove fog)
     const rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     rKey.on("down", () => {
       if (!isDebug()) return;
@@ -209,7 +169,6 @@ export class OverworldScene extends Phaser.Scene {
       debugPanelLog(`[CHEAT] Map revealed`, true);
     });
 
-    // V key — toggle fog of war on/off
     const vKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     vKey.on("down", () => {
       if (!isDebug()) return;
@@ -220,132 +179,102 @@ export class OverworldScene extends Phaser.Scene {
       this.createPlayer();
     });
 
-    // Register debug command handler
-    setDebugCommandHandler((cmd, args) => this.handleDebugCommand(cmd, args));
-  }
+    // Slash commands: shared + overworld-specific
+    const cmds = buildSharedCommands(this.player, cb);
 
-  private handleDebugCommand(cmd: string, args: string): void {
-    const val = parseInt(args, 10);
-    switch (cmd) {
-      case "gold":
-        if (!isNaN(val)) { this.player.gold = val; this.updateHUD(); debugPanelLog(`[CMD] Gold set to ${val}`, true); }
-        else debugPanelLog(`Usage: /gold <amount>`, true);
-        break;
-      case "exp":
-      case "xp":
-        if (!isNaN(val)) {
-          const result = awardXP(this.player, val);
-          this.updateHUD();
-          debugPanelLog(`[CMD] +${val} XP (now Lv.${result.newLevel})`, true);
-          if (result.leveledUp) debugPanelLog(`[CMD] Level up to ${result.newLevel}!`, true);
-        } else debugPanelLog(`Usage: /exp <amount>`, true);
-        break;
-      case "hp":
-        if (!isNaN(val)) { this.player.hp = Math.min(val, this.player.maxHp); this.updateHUD(); debugPanelLog(`[CMD] HP set to ${this.player.hp}`, true); }
-        else debugPanelLog(`Usage: /hp <amount>`, true);
-        break;
-      case "max_hp":
-      case "maxhp":
-        if (!isNaN(val)) { this.player.maxHp = val; this.player.hp = Math.min(this.player.hp, val); this.updateHUD(); debugPanelLog(`[CMD] Max HP set to ${val}`, true); }
-        else debugPanelLog(`Usage: /max_hp <amount>`, true);
-        break;
-      case "mp":
-        if (!isNaN(val)) { this.player.mp = Math.min(val, this.player.maxMp); this.updateHUD(); debugPanelLog(`[CMD] MP set to ${this.player.mp}`, true); }
-        else debugPanelLog(`Usage: /mp <amount>`, true);
-        break;
-      case "max_mp":
-      case "maxmp":
-        if (!isNaN(val)) { this.player.maxMp = val; this.player.mp = Math.min(this.player.mp, val); this.updateHUD(); debugPanelLog(`[CMD] Max MP set to ${val}`, true); }
-        else debugPanelLog(`Usage: /max_mp <amount>`, true);
-        break;
-      case "level":
-      case "lvl":
-        if (!isNaN(val) && val >= 1 && val <= 20) {
-          while (this.player.level < val) {
-            const needed = xpForLevel(this.player.level + 1) - this.player.xp;
-            awardXP(this.player, Math.max(needed, 0));
-          }
-          this.updateHUD();
-          debugPanelLog(`[CMD] Level set to ${this.player.level}`, true);
-        } else debugPanelLog(`Usage: /level <1-20>`, true);
-        break;
-      case "item": {
-        const itemId = args.trim();
-        if (itemId) {
-          const item = getItem(itemId);
-          if (item) {
-            this.player.inventory.push({ ...item });
-            debugPanelLog(`[CMD] Added ${item.name} to inventory`, true);
-          } else {
-            debugPanelLog(`[CMD] Unknown item: ${itemId}`, true);
-          }
-        } else debugPanelLog(`Usage: /item <itemId>`, true);
-        break;
-      }
-      case "heal":
-        this.player.hp = this.player.maxHp;
-        this.player.mp = this.player.maxMp;
+    // Overworld-only commands
+    cmds.set("max_hp", (args) => {
+      const val = parseInt(args, 10);
+      if (!isNaN(val)) { this.player.maxHp = val; this.player.hp = Math.min(this.player.hp, val); this.updateHUD(); debugPanelLog(`[CMD] Max HP set to ${val}`, true); }
+      else debugPanelLog(`Usage: /max_hp <amount>`, true);
+    });
+    cmds.set("maxhp", cmds.get("max_hp")!);
+
+    cmds.set("max_mp", (args) => {
+      const val = parseInt(args, 10);
+      if (!isNaN(val)) { this.player.maxMp = val; this.player.mp = Math.min(this.player.mp, val); this.updateHUD(); debugPanelLog(`[CMD] Max MP set to ${val}`, true); }
+      else debugPanelLog(`Usage: /max_mp <amount>`, true);
+    });
+    cmds.set("maxmp", cmds.get("max_mp")!);
+
+    cmds.set("level", (args) => {
+      const val = parseInt(args, 10);
+      if (!isNaN(val) && val >= 1 && val <= 20) {
+        while (this.player.level < val) {
+          const needed = xpForLevel(this.player.level + 1) - this.player.xp;
+          awardXP(this.player, Math.max(needed, 0));
+        }
         this.updateHUD();
-        debugPanelLog(`[CMD] Fully healed!`, true);
-        break;
-      case "weather": {
-        const weatherArg = args.trim().toLowerCase();
-        const weatherMap: Record<string, WeatherType> = {
-          clear: WeatherType.Clear,
-          rain: WeatherType.Rain,
-          snow: WeatherType.Snow,
-          sandstorm: WeatherType.Sandstorm,
-          storm: WeatherType.Storm,
-          fog: WeatherType.Fog,
-        };
-        const wt = weatherMap[weatherArg];
-        if (wt) {
-          this.weatherState.current = wt;
-          this.applyDayNightTint();
-          this.updateHUD();
-          debugPanelLog(`[CMD] Weather set to ${wt}`, true);
+        debugPanelLog(`[CMD] Level set to ${this.player.level}`, true);
+      } else debugPanelLog(`Usage: /level <1-20>`, true);
+    });
+    cmds.set("lvl", cmds.get("level")!);
+
+    cmds.set("item", (args) => {
+      const itemId = args.trim();
+      if (itemId) {
+        const item = getItem(itemId);
+        if (item) {
+          this.player.inventory.push({ ...item });
+          debugPanelLog(`[CMD] Added ${item.name} to inventory`, true);
         } else {
-          debugPanelLog(`Usage: /weather <clear|rain|snow|sandstorm|storm|fog>`, true);
+          debugPanelLog(`[CMD] Unknown item: ${itemId}`, true);
         }
-        break;
+      } else debugPanelLog(`Usage: /item <itemId>`, true);
+    });
+
+    cmds.set("weather", (args) => {
+      const weatherArg = args.trim().toLowerCase();
+      const weatherMap: Record<string, WeatherType> = {
+        clear: WeatherType.Clear,
+        rain: WeatherType.Rain,
+        snow: WeatherType.Snow,
+        sandstorm: WeatherType.Sandstorm,
+        storm: WeatherType.Storm,
+        fog: WeatherType.Fog,
+      };
+      const wt = weatherMap[weatherArg];
+      if (wt) {
+        this.weatherState.current = wt;
+        this.applyDayNightTint();
+        this.updateHUD();
+        debugPanelLog(`[CMD] Weather set to ${wt}`, true);
+      } else {
+        debugPanelLog(`Usage: /weather <clear|rain|snow|sandstorm|storm|fog>`, true);
       }
-      case "time": {
-        const timeArg = args.trim().toLowerCase();
-        const timeMap: Record<string, number> = {
-          dawn: 0,
-          day: 15,
-          dusk: 75,
-          night: 90,
-        };
-        const step = timeMap[timeArg];
-        if (step !== undefined) {
-          this.timeStep = step;
-          this.applyDayNightTint();
-          this.updateHUD();
-          debugPanelLog(`[CMD] Time set to ${timeArg} (step ${step})`, true);
-        } else {
-          debugPanelLog(`Usage: /time <dawn|day|dusk|night>`, true);
-        }
-        break;
+    });
+
+    cmds.set("time", (args) => {
+      const timeArg = args.trim().toLowerCase();
+      const timeMap: Record<string, number> = {
+        dawn: 0,
+        day: 15,
+        dusk: 75,
+        night: 90,
+      };
+      const step = timeMap[timeArg];
+      if (step !== undefined) {
+        this.timeStep = step;
+        this.applyDayNightTint();
+        this.updateHUD();
+        debugPanelLog(`[CMD] Time set to ${timeArg} (step ${step})`, true);
+      } else {
+        debugPanelLog(`Usage: /time <dawn|day|dusk|night>`, true);
       }
-      case "help":
-        debugPanelLog(`── Debug Commands (Overworld) ──`, true);
-        debugPanelLog(`/gold <n>     Set gold amount`, true);
-        debugPanelLog(`/exp <n>      Award XP (alias: /xp)`, true);
-        debugPanelLog(`/hp <n>       Set current HP`, true);
-        debugPanelLog(`/max_hp <n>   Set max HP (alias: /maxhp)`, true);
-        debugPanelLog(`/mp <n>       Set current MP`, true);
-        debugPanelLog(`/max_mp <n>   Set max MP (alias: /maxmp)`, true);
-        debugPanelLog(`/level <1-20> Set level (alias: /lvl)`, true);
-        debugPanelLog(`/item <id>    Add item to inventory`, true);
-        debugPanelLog(`/heal         Restore full HP & MP`, true);
-        debugPanelLog(`/weather <w>  Set weather (clear|rain|snow|sandstorm|storm|fog)`, true);
-        debugPanelLog(`/time <t>     Set time (dawn|day|dusk|night)`, true);
-        debugPanelLog(`── Hotkeys: G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog ──`, true);
-        break;
-      default:
-        debugPanelLog(`Unknown command: /${cmd}. Type /help for list.`, true);
-    }
+    });
+
+    // Help entries
+    const helpEntries: HelpEntry[] = [
+      ...SHARED_HELP,
+      { usage: "/max_hp <n>", desc: "Set max HP (alias: /maxhp)" },
+      { usage: "/max_mp <n>", desc: "Set max MP (alias: /maxmp)" },
+      { usage: "/level <1-20>", desc: "Set level (alias: /lvl)" },
+      { usage: "/item <id>", desc: "Add item to inventory" },
+      { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
+      { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
+    ];
+
+    registerCommandRouter(cmds, "Overworld", helpEntries, "G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog");
   }
 
   private renderMap(): void {

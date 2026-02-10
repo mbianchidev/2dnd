@@ -276,9 +276,9 @@ export class OverworldScene extends Phaser.Scene {
       const timeArg = args.trim().toLowerCase();
       const timeMap: Record<string, number> = {
         dawn: 0,
-        day: 15,
-        dusk: 75,
-        night: 90,
+        day: 45,
+        dusk: 220,
+        night: 265,
       };
       const step = timeMap[timeArg];
       if (step !== undefined) {

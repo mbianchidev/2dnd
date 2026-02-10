@@ -14,17 +14,17 @@ export enum TimePeriod {
 
 /**
  * Total steps in one full day/night cycle.
- * With a ~150 ms move delay this gives roughly 3 minutes per cycle
+ * With a ~150 ms move delay this gives roughly 9 minutes per cycle
  * at sustained walking speed.
  */
-export const CYCLE_LENGTH = 120;
+export const CYCLE_LENGTH = 360;
 
 /** Step ranges for each period within one cycle (0-indexed). */
 const PERIOD_RANGES: { period: TimePeriod; start: number; end: number }[] = [
-  { period: TimePeriod.Dawn, start: 0, end: 14 },     // 15 steps
-  { period: TimePeriod.Day, start: 15, end: 74 },      // 60 steps
-  { period: TimePeriod.Dusk, start: 75, end: 89 },     // 15 steps
-  { period: TimePeriod.Night, start: 90, end: 119 },   // 30 steps
+  { period: TimePeriod.Dawn, start: 0, end: 44 },       // 45 steps
+  { period: TimePeriod.Day, start: 45, end: 219 },      // 175 steps
+  { period: TimePeriod.Dusk, start: 220, end: 264 },    // 45 steps
+  { period: TimePeriod.Night, start: 265, end: 359 },   // 95 steps
 ];
 
 /** Get the current time period from the step counter. */

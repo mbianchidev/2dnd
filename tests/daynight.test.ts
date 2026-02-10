@@ -16,21 +16,21 @@ describe("day/night cycle", () => {
       expect(getTimePeriod(0)).toBe(TimePeriod.Dawn);
     });
 
-    it("returns Day at step 15", () => {
-      expect(getTimePeriod(15)).toBe(TimePeriod.Day);
+    it("returns Day at step 45", () => {
+      expect(getTimePeriod(45)).toBe(TimePeriod.Day);
     });
 
-    it("returns Dusk at step 75", () => {
-      expect(getTimePeriod(75)).toBe(TimePeriod.Dusk);
+    it("returns Dusk at step 220", () => {
+      expect(getTimePeriod(220)).toBe(TimePeriod.Dusk);
     });
 
-    it("returns Night at step 90", () => {
-      expect(getTimePeriod(90)).toBe(TimePeriod.Night);
+    it("returns Night at step 265", () => {
+      expect(getTimePeriod(265)).toBe(TimePeriod.Night);
     });
 
     it("wraps around at CYCLE_LENGTH", () => {
       expect(getTimePeriod(CYCLE_LENGTH)).toBe(getTimePeriod(0));
-      expect(getTimePeriod(CYCLE_LENGTH + 15)).toBe(getTimePeriod(15));
+      expect(getTimePeriod(CYCLE_LENGTH + 45)).toBe(getTimePeriod(45));
     });
 
     it("handles negative steps via modulo", () => {
@@ -52,7 +52,7 @@ describe("day/night cycle", () => {
 
   describe("getEncounterMultiplier", () => {
     it("returns 1.0 during Day", () => {
-      expect(getEncounterMultiplier(15)).toBe(1.0);
+      expect(getEncounterMultiplier(45)).toBe(1.0);
     });
 
     it("returns 1.0 during Dawn", () => {
@@ -60,11 +60,11 @@ describe("day/night cycle", () => {
     });
 
     it("returns 1.25 during Dusk", () => {
-      expect(getEncounterMultiplier(75)).toBe(1.25);
+      expect(getEncounterMultiplier(220)).toBe(1.25);
     });
 
     it("returns 1.5 during Night", () => {
-      expect(getEncounterMultiplier(90)).toBe(1.5);
+      expect(getEncounterMultiplier(265)).toBe(1.5);
     });
   });
 
@@ -74,15 +74,15 @@ describe("day/night cycle", () => {
     });
 
     it("returns false during Day", () => {
-      expect(isNightTime(50)).toBe(false);
+      expect(isNightTime(100)).toBe(false);
     });
 
     it("returns true during Dusk", () => {
-      expect(isNightTime(75)).toBe(true);
+      expect(isNightTime(220)).toBe(true);
     });
 
     it("returns true during Night", () => {
-      expect(isNightTime(100)).toBe(true);
+      expect(isNightTime(300)).toBe(true);
     });
   });
 

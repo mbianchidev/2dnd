@@ -44,27 +44,27 @@ type WeatherWeights = Partial<Record<WeatherType, number>>;
 /** Base weather weights by dominant terrain in the chunk. */
 const BIOME_WEATHER: Record<string, WeatherWeights> = {
   // Mountain Peak  – snow, fog, storm
-  "Mountain Peak":    { [WeatherType.Snow]: 0.25, [WeatherType.Fog]: 0.15, [WeatherType.Storm]: 0.10 },
+  "Mountain Peak":    { [WeatherType.Snow]: 0.25, [WeatherType.Fog]: 0.05, [WeatherType.Storm]: 0.05 },
   // Northern Forest – rain, fog
-  "Northern Forest":  { [WeatherType.Rain]: 0.20, [WeatherType.Fog]: 0.15 },
+  "Northern Forest":  { [WeatherType.Rain]: 0.05, [WeatherType.Fog]: 0.05 },
   // Misty Highlands – fog heavy, rain
-  "Misty Highlands":  { [WeatherType.Fog]: 0.30, [WeatherType.Rain]: 0.15 },
+  "Misty Highlands":  { [WeatherType.Fog]: 0.10, [WeatherType.Rain]: 0.05 },
   // Western Plains  – rain, storm
-  "Western Plains":   { [WeatherType.Rain]: 0.15, [WeatherType.Storm]: 0.08 },
+  "Western Plains":   { [WeatherType.Rain]: 0.05, [WeatherType.Storm]: 0.05 },
   // Heartlands      – mild rain
-  "Heartlands":       { [WeatherType.Rain]: 0.10, [WeatherType.Fog]: 0.05 },
+  "Heartlands":       { [WeatherType.Rain]: 0.05 },
   // Eastern Desert  – sandstorm dominant
-  "Eastern Desert":   { [WeatherType.Sandstorm]: 0.30, [WeatherType.Storm]: 0.05 },
+  "Eastern Desert":   { [WeatherType.Sandstorm]: 0.25, [WeatherType.Storm]: 0.05 },
   // Marshlands      – fog, rain
-  "Marshlands":       { [WeatherType.Fog]: 0.25, [WeatherType.Rain]: 0.20 },
+  "Marshlands":       { [WeatherType.Fog]: 0.10, [WeatherType.Rain]: 0.05 },
   // Southern Forest – rain, fog
-  "Southern Forest":  { [WeatherType.Rain]: 0.20, [WeatherType.Fog]: 0.10 },
+  "Southern Forest":  { [WeatherType.Rain]: 0.05, [WeatherType.Fog]: 0.05 },
   // Dragon's Domain – storm, fog
-  "Dragon's Domain":  { [WeatherType.Storm]: 0.20, [WeatherType.Fog]: 0.10, [WeatherType.Rain]: 0.10 },
+  "Dragon's Domain":  { [WeatherType.Storm]: 0.10, [WeatherType.Fog]: 0.05, [WeatherType.Rain]: 0.05 },
 };
 
 /** Fallback for unknown or dungeon biomes. */
-const DEFAULT_WEIGHTS: WeatherWeights = { [WeatherType.Rain]: 0.08 };
+const DEFAULT_WEIGHTS: WeatherWeights = { [WeatherType.Rain]: 0.05 };
 
 // ── Time-of-Day Modifiers ──────────────────────────────────────
 //

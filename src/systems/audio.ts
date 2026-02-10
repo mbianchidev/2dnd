@@ -202,6 +202,8 @@ class AudioEngine {
   // Currently playing music nodes
   private musicNodes: AudioNode[] = [];
   private musicTimer: ReturnType<typeof setInterval> | null = null;
+  private musicFadeTimer: ReturnType<typeof setTimeout> | null = null;
+  private musicStartTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Weather ambient nodes
   private weatherNodes: AudioNode[] = [];
@@ -265,6 +267,15 @@ class AudioEngine {
       clearInterval(this.musicTimer);
       this.musicTimer = null;
     }
+    // Cancel any pending fade-cleanup or delayed start
+    if (this.musicFadeTimer) {
+      clearTimeout(this.musicFadeTimer);
+      this.musicFadeTimer = null;
+    }
+    if (this.musicStartTimer) {
+      clearTimeout(this.musicStartTimer);
+      this.musicStartTimer = null;
+    }
     if (!immediate && this.musicGain && this.ctx) {
       // Smooth fade-out
       try {
@@ -274,7 +285,8 @@ class AudioEngine {
       // Schedule node cleanup after fade completes
       const staleNodes = [...this.musicNodes];
       this.musicNodes = [];
-      setTimeout(() => {
+      this.musicFadeTimer = setTimeout(() => {
+        this.musicFadeTimer = null;
         for (const n of staleNodes) {
           try { (n as OscillatorNode).stop?.(); } catch { /* ok */ }
           try { n.disconnect(); } catch { /* ok */ }
@@ -410,7 +422,10 @@ class AudioEngine {
     };
 
     // Delay new track start by the crossfade duration so the old one fades out
-    setTimeout(startPlayback, CROSSFADE_DURATION * 1000);
+    this.musicStartTimer = setTimeout(() => {
+      this.musicStartTimer = null;
+      startPlayback();
+    }, CROSSFADE_DURATION * 1000);
   }
 
   // ─── Public music API ─────────────────────────────────────

@@ -441,7 +441,7 @@ export class BootScene extends Phaser.Scene {
       audioEngine.init();
       audioEngine.playTitleMusic();
     });
-    // Also initialise on first keyboard press
+    // Also initialize on first keyboard press
     this.input.keyboard!.once("keydown", () => {
       audioEngine.init();
       audioEngine.playTitleMusic();

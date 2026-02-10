@@ -21,16 +21,44 @@ import {
   type WorldChunk,
   type DungeonData,
 } from "../data/map";
-import { getRandomEncounter, getDungeonEncounter, getBoss } from "../data/monsters";
+import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear, setDebugCommandHandler } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
+import { TimePeriod, getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
+import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
+import {
+  type WeatherState,
+  WeatherType,
+  createWeatherState,
+  advanceWeather,
+  changeZoneWeather,
+  getWeatherAccuracyPenalty,
+  getWeatherEncounterMultiplier,
+  getMonsterWeatherBoost,
+  WEATHER_TINT,
+  WEATHER_LABEL,
+} from "../systems/weather";
 
 const TILE_SIZE = 32;
+
+/**
+ * Blend two 0xRRGGBB tint values, weighting the first (day/night) at 75%
+ * and the second (weather) at 25%.  This keeps the day/night cycle clearly
+ * visible through any weather condition.
+ */
+function blendTints(a: number, b: number): number {
+  const rA = (a >> 16) & 0xff, gA = (a >> 8) & 0xff, bA = a & 0xff;
+  const rB = (b >> 16) & 0xff, gB = (b >> 8) & 0xff, bB = b & 0xff;
+  const r = Math.round(rA * 0.75 + rB * 0.25);
+  const g = Math.round(gA * 0.75 + gB * 0.25);
+  const bl = Math.round(bA * 0.75 + bB * 0.25);
+  return (r << 16) | (g << 8) | bl;
+}
 
 export class OverworldScene extends Phaser.Scene {
   private player!: PlayerState;
@@ -58,12 +86,16 @@ export class OverworldScene extends Phaser.Scene {
   private debugEncounters = true; // debug toggle for encounters
   private debugFogDisabled = false; // debug toggle for fog of war
   private messageText: Phaser.GameObjects.Text | null = null;
+  private timeStep = 0; // day/night cycle step counter
+  private weatherState: WeatherState = createWeatherState();
+  private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor() {
     super({ key: "OverworldScene" });
   }
 
-  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData }): void {
+  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; timeStep?: number; weatherState?: WeatherState }): void {
     if (data?.player) {
       this.player = data.player;
       this.isNewPlayer = false;
@@ -77,25 +109,42 @@ export class OverworldScene extends Phaser.Scene {
     if (data?.bestiary) {
       this.bestiary = data.bestiary;
     }
+    if (data?.timeStep !== undefined) {
+      this.timeStep = data.timeStep;
+    }
+    if (data?.weatherState) {
+      this.weatherState = data.weatherState;
+    }
     // Reset movement state — a tween may have been orphaned when the scene
     // switched to battle mid-move, leaving isMoving permanently true.
     this.isMoving = false;
     this.lastMoveTime = 0;
+    // Clear stale particle reference — scene.restart destroys all game objects
+    // but doesn't re-run class property initialisers.
+    this.weatherParticles = null;
+    this.stormLightningTimer = null;
   }
 
   create(): void {
     this.cameras.main.setBackgroundColor(0x111111);
     this.cameras.main.fadeIn(500);
 
+    // Dungeons are enclosed — always force clear weather
+    if (this.player.inDungeon) {
+      this.weatherState.current = WeatherType.Clear;
+    }
+
     // Reveal tiles around player on creation (fog of war)
     this.revealAround();
 
     this.renderMap();
+    this.applyDayNightTint();
     this.createPlayer();
     this.setupInput();
     this.createHUD();
     this.setupDebug();
     this.updateLocationText();
+    this.updateWeatherParticles();
 
     // Show rolled stats on new game, or ASI overlay if points are pending
     if (this.isNewPlayer) {
@@ -109,52 +158,19 @@ export class OverworldScene extends Phaser.Scene {
     debugPanelClear();
     debugPanelState("OVERWORLD | Loading...");
 
-    // Cheat keys (only work when debug is on)
-    const gKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
-    const lKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L);
-    const hKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
-    const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+    const cb = {
+      updateUI: () => this.updateHUD(),
+      onLevelUp: (_asiGained: number) => {
+        this.time.delayedCall(200, () => {
+          if (this.player.pendingStatPoints > 0) this.showStatOverlay();
+        });
+      },
+    };
 
-    gKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.gold += 100;
-      debugLog("CHEAT: +100 gold", { total: this.player.gold });
-      debugPanelLog(`[CHEAT] +100 gold (total: ${this.player.gold})`, true);
-      this.updateHUD();
-    });
+    // Shared hotkeys: G=Gold, H=Heal, P=MP, L=LvUp
+    registerSharedHotkeys(this, this.player, cb);
 
-    lKey.on("down", () => {
-      if (!isDebug()) return;
-      const needed = xpForLevel(this.player.level + 1) - this.player.xp;
-      const xpResult = awardXP(this.player, Math.max(needed, 0));
-      debugLog("CHEAT: Level up", { newLevel: xpResult.newLevel });
-      debugPanelLog(`[CHEAT] Level up! Now Lv.${xpResult.newLevel}`, true);
-      for (const spell of xpResult.newSpells) {
-        debugPanelLog(`[CHEAT] Learned ${spell.name}!`, true);
-      }
-      if (xpResult.asiGained > 0) {
-        debugPanelLog(`[CHEAT] +${xpResult.asiGained} stat points! Press T.`, true);
-      }
-      this.updateHUD();
-    });
-
-    hKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.hp = this.player.maxHp;
-      debugLog("CHEAT: Full heal");
-      debugPanelLog(`[CHEAT] HP restored to ${this.player.maxHp}!`, true);
-      this.updateHUD();
-    });
-
-    pKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.mp = this.player.maxMp;
-      debugLog("CHEAT: Restore MP");
-      debugPanelLog(`[CHEAT] MP restored to ${this.player.maxMp}!`, true);
-      this.updateHUD();
-    });
-
-    // F key — toggle encounters on/off
+    // Overworld-only hotkeys
     const fKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     fKey.on("down", () => {
       if (!isDebug()) return;
@@ -163,7 +179,6 @@ export class OverworldScene extends Phaser.Scene {
       debugPanelLog(`[CHEAT] Encounters ${this.debugEncounters ? "ON" : "OFF"}`, true);
     });
 
-    // R key — reveal full map (remove fog)
     const rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     rKey.on("down", () => {
       if (!isDebug()) return;
@@ -178,7 +193,6 @@ export class OverworldScene extends Phaser.Scene {
       debugPanelLog(`[CHEAT] Map revealed`, true);
     });
 
-    // V key — toggle fog of war on/off
     const vKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     vKey.on("down", () => {
       if (!isDebug()) return;
@@ -189,80 +203,106 @@ export class OverworldScene extends Phaser.Scene {
       this.createPlayer();
     });
 
-    // Register debug command handler
-    setDebugCommandHandler((cmd, args) => this.handleDebugCommand(cmd, args));
-  }
+    // Slash commands: shared + overworld-specific
+    const cmds = buildSharedCommands(this.player, cb);
 
-  private handleDebugCommand(cmd: string, args: string): void {
-    const val = parseInt(args, 10);
-    switch (cmd) {
-      case "gold":
-        if (!isNaN(val)) { this.player.gold = val; this.updateHUD(); debugPanelLog(`[CMD] Gold set to ${val}`, true); }
-        else debugPanelLog(`Usage: /gold <amount>`, true);
-        break;
-      case "exp":
-      case "xp":
-        if (!isNaN(val)) {
-          const result = awardXP(this.player, val);
-          this.updateHUD();
-          debugPanelLog(`[CMD] +${val} XP (now Lv.${result.newLevel})`, true);
-          if (result.leveledUp) debugPanelLog(`[CMD] Level up to ${result.newLevel}!`, true);
-        } else debugPanelLog(`Usage: /exp <amount>`, true);
-        break;
-      case "hp":
-        if (!isNaN(val)) { this.player.hp = Math.min(val, this.player.maxHp); this.updateHUD(); debugPanelLog(`[CMD] HP set to ${this.player.hp}`, true); }
-        else debugPanelLog(`Usage: /hp <amount>`, true);
-        break;
-      case "max_hp":
-      case "maxhp":
-        if (!isNaN(val)) { this.player.maxHp = val; this.player.hp = Math.min(this.player.hp, val); this.updateHUD(); debugPanelLog(`[CMD] Max HP set to ${val}`, true); }
-        else debugPanelLog(`Usage: /max_hp <amount>`, true);
-        break;
-      case "mp":
-        if (!isNaN(val)) { this.player.mp = Math.min(val, this.player.maxMp); this.updateHUD(); debugPanelLog(`[CMD] MP set to ${this.player.mp}`, true); }
-        else debugPanelLog(`Usage: /mp <amount>`, true);
-        break;
-      case "max_mp":
-      case "maxmp":
-        if (!isNaN(val)) { this.player.maxMp = val; this.player.mp = Math.min(this.player.mp, val); this.updateHUD(); debugPanelLog(`[CMD] Max MP set to ${val}`, true); }
-        else debugPanelLog(`Usage: /max_mp <amount>`, true);
-        break;
-      case "level":
-      case "lvl":
-        if (!isNaN(val) && val >= 1 && val <= 20) {
-          while (this.player.level < val) {
-            const needed = xpForLevel(this.player.level + 1) - this.player.xp;
-            awardXP(this.player, Math.max(needed, 0));
-          }
-          this.updateHUD();
-          debugPanelLog(`[CMD] Level set to ${this.player.level}`, true);
-        } else debugPanelLog(`Usage: /level <1-20>`, true);
-        break;
-      case "item": {
-        const itemId = args.trim();
-        if (itemId) {
-          const item = getItem(itemId);
-          if (item) {
-            this.player.inventory.push({ ...item });
-            debugPanelLog(`[CMD] Added ${item.name} to inventory`, true);
-          } else {
-            debugPanelLog(`[CMD] Unknown item: ${itemId}`, true);
-          }
-        } else debugPanelLog(`Usage: /item <itemId>`, true);
-        break;
-      }
-      case "heal":
-        this.player.hp = this.player.maxHp;
-        this.player.mp = this.player.maxMp;
+    // Overworld-only commands
+    cmds.set("max_hp", (args) => {
+      const val = parseInt(args, 10);
+      if (!isNaN(val)) { this.player.maxHp = val; this.player.hp = Math.min(this.player.hp, val); this.updateHUD(); debugPanelLog(`[CMD] Max HP set to ${val}`, true); }
+      else debugPanelLog(`Usage: /max_hp <amount>`, true);
+    });
+    cmds.set("maxhp", cmds.get("max_hp")!);
+
+    cmds.set("max_mp", (args) => {
+      const val = parseInt(args, 10);
+      if (!isNaN(val)) { this.player.maxMp = val; this.player.mp = Math.min(this.player.mp, val); this.updateHUD(); debugPanelLog(`[CMD] Max MP set to ${val}`, true); }
+      else debugPanelLog(`Usage: /max_mp <amount>`, true);
+    });
+    cmds.set("maxmp", cmds.get("max_mp")!);
+
+    cmds.set("level", (args) => {
+      const val = parseInt(args, 10);
+      if (!isNaN(val) && val >= 1 && val <= 20) {
+        while (this.player.level < val) {
+          const needed = xpForLevel(this.player.level + 1) - this.player.xp;
+          awardXP(this.player, Math.max(needed, 0));
+        }
         this.updateHUD();
-        debugPanelLog(`[CMD] Fully healed!`, true);
-        break;
-      case "help":
-        debugPanelLog(`Commands: /gold /exp /hp /max_hp /mp /max_mp /level /item /heal /help`, true);
-        break;
-      default:
-        debugPanelLog(`Unknown command: /${cmd}. Type /help for list.`, true);
-    }
+        debugPanelLog(`[CMD] Level set to ${this.player.level}`, true);
+        if (this.player.pendingStatPoints > 0) {
+          this.time.delayedCall(200, () => this.showStatOverlay());
+        }
+      } else debugPanelLog(`Usage: /level <1-20>`, true);
+    });
+    cmds.set("lvl", cmds.get("level")!);
+
+    cmds.set("item", (args) => {
+      const itemId = args.trim();
+      if (itemId) {
+        const item = getItem(itemId);
+        if (item) {
+          this.player.inventory.push({ ...item });
+          debugPanelLog(`[CMD] Added ${item.name} to inventory`, true);
+        } else {
+          debugPanelLog(`[CMD] Unknown item: ${itemId}`, true);
+        }
+      } else debugPanelLog(`Usage: /item <itemId>`, true);
+    });
+
+    cmds.set("weather", (args) => {
+      const weatherArg = args.trim().toLowerCase();
+      const weatherMap: Record<string, WeatherType> = {
+        clear: WeatherType.Clear,
+        rain: WeatherType.Rain,
+        snow: WeatherType.Snow,
+        sandstorm: WeatherType.Sandstorm,
+        storm: WeatherType.Storm,
+        fog: WeatherType.Fog,
+      };
+      const wt = weatherMap[weatherArg];
+      if (wt) {
+        this.weatherState.current = wt;
+        this.applyDayNightTint();
+        this.updateWeatherParticles();
+        this.updateHUD();
+        debugPanelLog(`[CMD] Weather set to ${wt}`, true);
+      } else {
+        debugPanelLog(`Usage: /weather <clear|rain|snow|sandstorm|storm|fog>`, true);
+      }
+    });
+
+    cmds.set("time", (args) => {
+      const timeArg = args.trim().toLowerCase();
+      const timeMap: Record<string, number> = {
+        dawn: 0,
+        day: 45,
+        dusk: 220,
+        night: 265,
+      };
+      const step = timeMap[timeArg];
+      if (step !== undefined) {
+        this.timeStep = step;
+        this.applyDayNightTint();
+        this.updateHUD();
+        debugPanelLog(`[CMD] Time set to ${timeArg} (step ${step})`, true);
+      } else {
+        debugPanelLog(`Usage: /time <dawn|day|dusk|night>`, true);
+      }
+    });
+
+    // Help entries
+    const helpEntries: HelpEntry[] = [
+      ...SHARED_HELP,
+      { usage: "/max_hp <n>", desc: "Set max HP (alias: /maxhp)" },
+      { usage: "/max_mp <n>", desc: "Set max MP (alias: /maxmp)" },
+      { usage: "/level <1-20>", desc: "Set level (alias: /lvl)" },
+      { usage: "/item <id>", desc: "Add item to inventory" },
+      { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
+      { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
+    ];
+
+    registerCommandRouter(cmds, "Overworld", helpEntries, "G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog");
   }
 
   private renderMap(): void {
@@ -525,10 +565,6 @@ export class OverworldScene extends Phaser.Scene {
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     eKey.on("down", () => this.toggleEquipOverlay());
 
-    // T key opens stat allocation overlay when points are available
-    const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
-    tKey.on("down", () => this.toggleStatOverlay());
-
     // M key opens game menu
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     mKey.on("down", () => this.toggleMenuOverlay());
@@ -580,9 +616,11 @@ export class OverworldScene extends Phaser.Scene {
       const chunk = getChunk(p.chunkX, p.chunkY);
       regionName = chunk?.name ?? "Unknown";
     }
-    const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts [T]` : "";
+    const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts` : "";
+    const timeLabel = PERIOD_LABEL[getTimePeriod(this.timeStep)];
+    const weatherLabel = WEATHER_LABEL[this.weatherState.current];
     this.hudText.setText(
-      `${p.name} Lv.${p.level}  —  ${regionName}\n` +
+      `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}  ${weatherLabel}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}`
     );
   }
@@ -688,10 +726,15 @@ export class OverworldScene extends Phaser.Scene {
 
     const tName = terrainNames[terrain ?? 0] ?? "?";
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
+    const encMult = getEncounterMultiplier(this.timeStep);
+    const weatherEncMult = getWeatherEncounterMultiplier(this.weatherState.current);
+    const effectiveRate = rate * encMult * weatherEncMult;
     const dungeonTag = p.inDungeon ? ` [DUNGEON:${p.dungeonId}]` : "";
+    const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
       `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag} | ` +
-      `Enc: ${(rate * 100).toFixed(0)}%${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
+      `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
+      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
       `Bosses: ${this.defeatedBosses.size}\n` +
@@ -746,6 +789,7 @@ export class OverworldScene extends Phaser.Scene {
         duration: 120,
         onComplete: () => {
           this.isMoving = false;
+          this.advanceTime();
           this.revealAround();
           this.revealTileSprites();
           this.updateHUD();
@@ -791,12 +835,16 @@ export class OverworldScene extends Phaser.Scene {
     this.player.chunkY = newChunkY;
 
     if (chunkChanged) {
-      // Chunk transition — flash and re-render
+      // Chunk transition — flash, re-roll weather for the new zone, and re-render
+      this.advanceTime();
+      this.rerollWeather();
       this.cameras.main.flash(200, 255, 255, 255);
       this.scene.restart({
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
       return;
     }
@@ -808,6 +856,7 @@ export class OverworldScene extends Phaser.Scene {
       duration: 120,
       onComplete: () => {
         this.isMoving = false;
+        this.advanceTime();
         this.revealAround();
         this.revealTileSprites();
         this.updateHUD();
@@ -830,13 +879,18 @@ export class OverworldScene extends Phaser.Scene {
     // Debug: encounters can be toggled off
     if (isDebug() && !this.debugEncounters) return;
 
-    const rate = ENCOUNTER_RATES[terrain];
+    const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep) * getWeatherEncounterMultiplier(this.weatherState.current);
     if (Math.random() < rate) {
-      // Use dungeon monsters when inside a dungeon
-      const monster = this.player.inDungeon
-        ? getDungeonEncounter(this.player.level)
-        : getRandomEncounter(this.player.level);
-      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon });
+      let monster;
+      if (this.player.inDungeon) {
+        monster = getDungeonEncounter(this.player.level);
+      } else if (isNightTime(this.timeStep) && Math.random() < 0.4) {
+        // 40% chance of a night-exclusive monster during dusk/night
+        monster = getNightEncounter(this.player.level);
+      } else {
+        monster = getRandomEncounter(this.player.level);
+      }
+      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon, time: getTimePeriod(this.timeStep) });
       this.startBattle(monster);
     }
   }
@@ -855,12 +909,16 @@ export class OverworldScene extends Phaser.Scene {
         this.player.chunkY = dungeon.entranceChunkY;
         this.player.x = dungeon.entranceTileX;
         this.player.y = dungeon.entranceTileY;
+        // Roll outdoor weather for the biome the player emerges into
+        this.rerollWeather();
         this.autoSave();
         this.cameras.main.flash(300, 255, 255, 255);
         this.scene.restart({
           player: this.player,
           defeatedBosses: this.defeatedBosses,
           bestiary: this.bestiary,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
         });
         return;
       }
@@ -905,6 +963,13 @@ export class OverworldScene extends Phaser.Scene {
       (t) => t.x === this.player.x && t.y === this.player.y
     );
     if (town?.hasShop) {
+      // Track this town as the last visited (respawn point on death)
+      this.player.lastTownX = town.x;
+      this.player.lastTownY = town.y;
+      this.player.lastTownChunkX = this.player.chunkX;
+      this.player.lastTownChunkY = this.player.chunkY;
+      // Re-roll weather so it changes when the player leaves town
+      this.rerollWeather();
       this.autoSave();
       this.scene.start("ShopScene", {
         player: this.player,
@@ -912,6 +977,8 @@ export class OverworldScene extends Phaser.Scene {
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
         shopItemIds: town.shopItems,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
       return;
     }
@@ -928,17 +995,20 @@ export class OverworldScene extends Phaser.Scene {
       if (dungeon) {
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
         if (hasKey || isDebug()) {
-          // Enter the dungeon
+          // Enter the dungeon — force clear weather (closed space)
           this.player.inDungeon = true;
           this.player.dungeonId = dungeon.id;
           this.player.x = dungeon.spawnX;
           this.player.y = dungeon.spawnY;
+          this.weatherState.current = WeatherType.Clear;
           this.autoSave();
           this.cameras.main.flash(300, 100, 100, 100);
           this.scene.restart({
             player: this.player,
             defeatedBosses: this.defeatedBosses,
             bestiary: this.bestiary,
+            timeStep: this.timeStep,
+            weatherState: this.weatherState,
           });
         }
         // No key — just do nothing (location text already hints)
@@ -995,6 +1065,8 @@ export class OverworldScene extends Phaser.Scene {
         monster,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
     });
   }
@@ -1009,11 +1081,155 @@ export class OverworldScene extends Phaser.Scene {
       player: this.player,
       defeatedBosses: this.defeatedBosses,
       bestiary: this.bestiary,
+      timeStep: this.timeStep,
+      weatherState: this.weatherState,
     });
   }
 
   private autoSave(): void {
-    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId);
+    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId, this.timeStep, this.weatherState);
+  }
+
+  /** Advance the day/night cycle by one step and update the map tint. */
+  private advanceTime(): void {
+    const oldPeriod = getTimePeriod(this.timeStep);
+    this.timeStep = (this.timeStep + 1) % CYCLE_LENGTH;
+    const newPeriod = getTimePeriod(this.timeStep);
+
+    // Dungeons are enclosed — weather stays Clear, only advance time-of-day tint.
+    if (this.player.inDungeon) {
+      if (oldPeriod !== newPeriod) this.applyDayNightTint();
+      return;
+    }
+
+    // Advance weather step countdown (can also shift naturally over time)
+    const biomeName = getChunk(this.player.chunkX, this.player.chunkY)?.name ?? "Heartlands";
+    const weatherChanged = advanceWeather(this.weatherState, biomeName, this.timeStep);
+
+    if (oldPeriod !== newPeriod || weatherChanged) {
+      this.applyDayNightTint();
+      if (weatherChanged) this.updateWeatherParticles();
+    }
+  }
+
+  /**
+   * Re-roll weather for the current biome (called on chunk transition and town entry).
+   * Updates tint and particle effects if the weather changed.
+   */
+  private rerollWeather(): void {
+    const biomeName = getChunk(this.player.chunkX, this.player.chunkY)?.name ?? "Heartlands";
+    const weatherChanged = changeZoneWeather(this.weatherState, biomeName, this.timeStep);
+    if (weatherChanged) {
+      this.applyDayNightTint();
+      this.updateWeatherParticles();
+    }
+  }
+
+  /** Apply a color tint to all map tiles based on time period + weather. */
+  private applyDayNightTint(): void {
+    const dayTint = PERIOD_TINT[getTimePeriod(this.timeStep)];
+    const weatherTint = WEATHER_TINT[this.weatherState.current];
+    // Blend: average the two tint values per channel
+    const tint = blendTints(dayTint, weatherTint);
+    for (const row of this.tileSprites) {
+      for (const sprite of row) {
+        sprite.setTint(tint);
+      }
+    }
+  }
+
+  /** Create or update weather particle effects based on current weather. */
+  private updateWeatherParticles(): void {
+    // Destroy existing emitter
+    if (this.weatherParticles) {
+      this.weatherParticles.destroy();
+      this.weatherParticles = null;
+    }
+    // Stop lightning timer
+    if (this.stormLightningTimer) {
+      this.stormLightningTimer.destroy();
+      this.stormLightningTimer = null;
+    }
+
+    const w = MAP_WIDTH * TILE_SIZE;
+    const h = MAP_HEIGHT * TILE_SIZE;
+    const weather = this.weatherState.current;
+
+    if (weather === WeatherType.Clear) return;
+
+    const configs: Record<string, () => Phaser.GameObjects.Particles.ParticleEmitter> = {
+      [WeatherType.Rain]: () => this.add.particles(0, -20, "particle_rain", {
+        x: { min: 0, max: w },
+        quantity: 4,
+        lifespan: 2200,
+        speedY: { min: 220, max: 360 },
+        speedX: { min: -20, max: -40 },
+        scale: { start: 1, end: 0.5 },
+        alpha: { start: 0.9, end: 0.25 },
+        frequency: 16,
+      }),
+      [WeatherType.Snow]: () => this.add.particles(0, -20, "particle_snow", {
+        x: { min: 0, max: w },
+        quantity: 2,
+        lifespan: 8000,
+        speedY: { min: 40, max: 80 },
+        speedX: { min: -25, max: 25 },
+        scale: { start: 1, end: 0.3 },
+        alpha: { start: 0.95, end: 0.1 },
+        frequency: 50,
+      }),
+      [WeatherType.Sandstorm]: () => this.add.particles(w + 10, 0, "particle_sand", {
+        y: { min: 0, max: h },
+        quantity: 6,
+        lifespan: 2400,
+        speedX: { min: -450, max: -280 },
+        speedY: { min: -30, max: 50 },
+        scale: { start: 1.3, end: 0.5 },
+        alpha: { start: 0.95, end: 0.2 },
+        frequency: 10,
+      }),
+      [WeatherType.Storm]: () => this.add.particles(0, -20, "particle_storm", {
+        x: { min: 0, max: w },
+        quantity: 6,
+        lifespan: 1600,
+        speedY: { min: 350, max: 550 },
+        speedX: { min: -60, max: -100 },
+        scale: { start: 1, end: 0.5 },
+        alpha: { start: 0.9, end: 0.2 },
+        frequency: 12,
+      }),
+      [WeatherType.Fog]: () => this.add.particles(0, 0, "particle_fog", {
+        x: { min: 0, max: w },
+        y: { min: 0, max: h },
+        quantity: 2,
+        lifespan: 6000,
+        speedX: { min: 8, max: 25 },
+        speedY: { min: -5, max: 5 },
+        scale: { start: 2.5, end: 6 },
+        alpha: { start: 0.4, end: 0.05 },
+        frequency: 100,
+      }),
+    };
+
+    const factory = configs[weather];
+    if (factory) {
+      this.weatherParticles = factory();
+      this.weatherParticles.setDepth(15);
+    }
+
+    // Sporadic lightning flashes during storms
+    if (weather === WeatherType.Storm) {
+      const scheduleFlash = () => {
+        this.stormLightningTimer = this.time.delayedCall(
+          2000 + Math.random() * 6000,  // 2-8 seconds between strikes
+          () => {
+            this.cameras.main.flash(120, 255, 255, 255, true);
+            scheduleFlash();
+          },
+        );
+      };
+      scheduleFlash();
+    }
   }
 
   private toggleEquipOverlay(): void {
@@ -1070,9 +1286,11 @@ export class OverworldScene extends Phaser.Scene {
     let cy = py + 34;
 
     // --- Header stats ---
+    const xpNeeded = xpForLevel(p.level + 1);
     const header = this.add.text(px + 14, cy, [
       `${p.name}  Lv.${p.level}`,
       `HP: ${p.hp}/${p.maxHp}   MP: ${p.mp}/${p.maxMp}   AC: ${ac}`,
+      `EXP: ${p.xp}/${xpNeeded}  (${xpNeeded - p.xp} to next)`,
     ].join("\n"), {
       fontSize: "11px",
       fontFamily: "monospace",
@@ -1080,7 +1298,7 @@ export class OverworldScene extends Phaser.Scene {
       lineSpacing: 4,
     });
     this.equipOverlay.add(header);
-    cy += 38;
+    cy += 52;
 
     // --- Weapon slot ---
     const weaponLabel = this.add.text(px + 14, cy, "Weapon:", {
@@ -1415,16 +1633,6 @@ export class OverworldScene extends Phaser.Scene {
 
   // ─── ASI Stat Allocation Overlay ─────────────────────────────────
 
-  private toggleStatOverlay(): void {
-    if (this.statOverlay) {
-      this.statOverlay.destroy();
-      this.statOverlay = null;
-      return;
-    }
-    if (this.player.pendingStatPoints <= 0) return;
-    this.showStatOverlay();
-  }
-
   private showStatOverlay(): void {
     // Close equipment overlay first
     if (this.equipOverlay) {
@@ -1515,7 +1723,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // Close hint
     const hint = this.add.text(px + panelW / 2, py + panelH - 14,
-      p.pendingStatPoints > 0 ? "Click [+] to allocate  |  T to close" : "Press T or click to close", {
+      p.pendingStatPoints > 0 ? "Click [+] to allocate" : "All points allocated!", {
         fontSize: "10px", fontFamily: "monospace", color: "#666",
       }).setOrigin(0.5, 1);
     this.statOverlay.add(hint);

@@ -61,14 +61,15 @@ export function rollInitiative(
 export function playerAttack(
   player: PlayerState,
   monster: Monster,
-  monsterDefendBonus: number = 0
+  monsterDefendBonus: number = 0,
+  weatherPenalty: number = 0
 ): CombatResult & { attackMod: number; totalRoll: number; targetAC: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerAttack: missing player or monster`);
   }
   const attackMod = getAttackModifier(player);
   const roll = rollD20(attackMod);
-  const effectiveAC = monster.ac + monsterDefendBonus;
+  const effectiveAC = monster.ac + monsterDefendBonus + weatherPenalty;
   const extra = { attackMod, totalRoll: roll.total, targetAC: effectiveAC };
 
   if (roll.roll === 20) {
@@ -123,7 +124,8 @@ export function playerAttack(
 export function playerCastSpell(
   player: PlayerState,
   spellId: string,
-  monster: Monster
+  monster: Monster,
+  weatherPenalty: number = 0
 ): CombatResult & { mpUsed: number; spellMod?: number; totalRoll?: number; targetAC?: number; autoHit?: boolean } {
   if (!player || !monster) {
     throw new Error(`[combat] playerCastSpell: missing player or monster`);
@@ -170,8 +172,9 @@ export function playerCastSpell(
   const spellMod = getSpellModifier(player);
   const roll = rollD20(spellMod);
   const autoHit = spell.id === "magicMissile";
+  const effectiveAC = monster.ac + weatherPenalty;
 
-  if (roll.total >= monster.ac || autoHit) {
+  if (roll.total >= effectiveAC || autoHit) {
     // Magic Missile always hits
     const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
     const damage = rollDice(spell.damageCount, spell.damageDie as DieType) + talentDmg;
@@ -184,7 +187,7 @@ export function playerCastSpell(
       roll: roll.roll,
       spellMod,
       totalRoll: roll.total,
-      targetAC: monster.ac,
+      targetAC: effectiveAC,
       autoHit,
     };
   }
@@ -198,25 +201,31 @@ export function playerCastSpell(
     roll: roll.roll,
     spellMod,
     totalRoll: roll.total,
-    targetAC: monster.ac,
+    targetAC: effectiveAC,
     autoHit: false,
   };
 }
 
-/** Monster attacks the player. Returns roll breakdown for debug logging. */
+/** Monster attacks the player. Returns roll breakdown for debug logging.
+ *  weatherPenalty raises the effective AC the monster must beat.
+ *  monsterAtkBoost/monsterDmgBoost come from weather affinity. */
 export function monsterAttack(
   monster: Monster,
   player: PlayerState,
-  playerDefendBonus: number = 0
+  playerDefendBonus: number = 0,
+  weatherPenalty: number = 0,
+  monsterAtkBoost: number = 0,
+  monsterDmgBoost: number = 0
 ): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
   if (!monster || !player) {
     throw new Error(`[combat] monsterAttack: missing monster or player`);
   }
-  const playerAC = getArmorClass(player, playerDefendBonus);
-  const roll = rollD20(monster.attackBonus);
+  const playerAC = getArmorClass(player, playerDefendBonus) + weatherPenalty;
+  const effectiveAtkBonus = monster.attackBonus + monsterAtkBoost;
+  const roll = rollD20(effectiveAtkBonus);
 
   if (roll.roll === 20) {
-    const damage = rollDice(monster.damageCount * 2, monster.damageDie);
+    const damage = rollDice(monster.damageCount * 2, monster.damageDie) + monsterDmgBoost;
     player.hp = Math.max(0, player.hp - damage);
     return {
       message: `CRITICAL! ${monster.name} savages you for ${damage} damage!`,
@@ -224,7 +233,7 @@ export function monsterAttack(
       hit: true,
       critical: true,
       roll: roll.roll,
-      attackBonus: monster.attackBonus,
+      attackBonus: effectiveAtkBonus,
       totalRoll: roll.total,
       targetAC: playerAC,
     };
@@ -236,21 +245,21 @@ export function monsterAttack(
       damage: 0,
       hit: false,
       roll: roll.roll,
-      attackBonus: monster.attackBonus,
+      attackBonus: effectiveAtkBonus,
       totalRoll: roll.total,
       targetAC: playerAC,
     };
   }
 
   if (roll.total >= playerAC) {
-    const damage = rollDice(monster.damageCount, monster.damageDie);
+    const damage = rollDice(monster.damageCount, monster.damageDie) + monsterDmgBoost;
     player.hp = Math.max(0, player.hp - damage);
     return {
       message: `${monster.name} hits you for ${damage} damage!`,
       damage,
       hit: true,
       roll: roll.roll,
-      attackBonus: monster.attackBonus,
+      attackBonus: effectiveAtkBonus,
       totalRoll: roll.total,
       targetAC: playerAC,
     };
@@ -261,7 +270,7 @@ export function monsterAttack(
     damage: 0,
     hit: false,
     roll: roll.roll,
-    attackBonus: monster.attackBonus,
+    attackBonus: effectiveAtkBonus,
     totalRoll: roll.total,
     targetAC: playerAC,
   };
@@ -291,7 +300,8 @@ export function attemptFlee(dexModifier: number): {
 export function playerUseAbility(
   player: PlayerState,
   abilityId: string,
-  monster: Monster
+  monster: Monster,
+  weatherPenalty: number = 0
 ): CombatResult & { mpUsed: number; attackMod?: number; totalRoll?: number; targetAC?: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerUseAbility: missing player or monster`);
@@ -326,17 +336,18 @@ export function playerUseAbility(
   const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
   const attackMod = abilityModifier(stat) + profBonus + talentAtk;
   const roll = rollD20(attackMod);
+  const effectiveAC = monster.ac + weatherPenalty;
 
   if (roll.roll === 1) {
     player.mp -= ability.mpCost;
     return {
       message: `${player.name} uses ${ability.name} but fumbles!`,
       damage: 0, hit: false, critical: false, roll: 1,
-      mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: monster.ac,
+      mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: effectiveAC,
     };
   }
 
-  if (roll.roll === 20 || roll.total >= monster.ac) {
+  if (roll.roll === 20 || roll.total >= effectiveAC) {
     const isCrit = roll.roll === 20;
     const dice = isCrit ? ability.damageCount * 2 : ability.damageCount;
     const damage = rollDice(dice, ability.damageDie as DieType) + talentDmg;
@@ -344,7 +355,7 @@ export function playerUseAbility(
     return {
       message: `${isCrit ? "CRITICAL! " : ""}${player.name} uses ${ability.name}! ${damage} damage!`,
       damage, hit: true, critical: isCrit, roll: roll.roll,
-      mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: monster.ac,
+      mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: effectiveAC,
     };
   }
 
@@ -352,7 +363,7 @@ export function playerUseAbility(
   return {
     message: `${player.name} uses ${ability.name} but misses!`,
     damage: 0, hit: false, roll: roll.roll,
-    mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: monster.ac,
+    mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: effectiveAC,
   };
 }
 

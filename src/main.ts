@@ -57,3 +57,15 @@ if (checkbox) {
 
 // Initialize debug command textbox
 initDebugCommandInput();
+
+// Clicking on the game canvas should blur the debug command input
+// so that Phaser regains keyboard focus
+const gameContainer = document.getElementById("game-container");
+const debugCmd = document.getElementById("debug-cmd") as HTMLInputElement | null;
+if (gameContainer && debugCmd) {
+  gameContainer.addEventListener("pointerdown", () => {
+    if (document.activeElement === debugCmd) {
+      debugCmd.blur();
+    }
+  });
+}

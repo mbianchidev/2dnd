@@ -17,6 +17,10 @@ import {
   getDungeon,
   CHESTS,
   getChestAt,
+  CITIES,
+  getCity,
+  getCityForTown,
+  getCityShopAt,
 } from "../src/data/map";
 import { MONSTERS, getRandomEncounter, getBoss, DUNGEON_MONSTERS, getDungeonEncounter, DUNGEON_MONSTER_POOLS, HEARTLANDS_CRYPT_MONSTERS, FROST_CAVERN_MONSTERS, VOLCANIC_FORGE_MONSTERS, NIGHT_MONSTERS, getNightEncounter, TUNDRA_NIGHT_MONSTERS, SWAMP_NIGHT_MONSTERS, FOREST_NIGHT_MONSTERS, CANYON_NIGHT_MONSTERS } from "../src/data/monsters";
 import { SPELLS, getSpell, getAvailableSpells } from "../src/data/spells";
@@ -500,6 +504,122 @@ describe("game data", () => {
 
     it("Chest terrain has zero encounter rate", () => {
       expect(ENCOUNTER_RATES[Terrain.Chest]).toBe(0);
+    });
+  });
+
+  describe("cities", () => {
+    it("has at least one city defined", () => {
+      expect(CITIES.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("city maps have correct dimensions", () => {
+      for (const city of CITIES) {
+        expect(city.mapData).toHaveLength(MAP_HEIGHT);
+        for (const row of city.mapData) {
+          expect(row).toHaveLength(MAP_WIDTH);
+        }
+      }
+    });
+
+    it("city spawn point is walkable", () => {
+      for (const city of CITIES) {
+        const terrain = city.mapData[city.spawnY][city.spawnX];
+        expect(isWalkable(terrain)).toBe(true);
+      }
+    });
+
+    it("city has at least one exit tile", () => {
+      for (const city of CITIES) {
+        let hasExit = false;
+        for (const row of city.mapData) {
+          if (row.includes(Terrain.CityExit)) {
+            hasExit = true;
+            break;
+          }
+        }
+        expect(hasExit).toBe(true);
+      }
+    });
+
+    it("city has at least one shop", () => {
+      for (const city of CITIES) {
+        expect(city.shops.length).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    it("city shop locations are on walkable tiles", () => {
+      for (const city of CITIES) {
+        for (const shop of city.shops) {
+          const terrain = city.mapData[shop.y][shop.x];
+          expect(isWalkable(terrain), `shop ${shop.name} at (${shop.x},${shop.y}) in ${city.name} is on non-walkable tile`).toBe(true);
+        }
+      }
+    });
+
+    it("city shop item IDs resolve to real items", () => {
+      for (const city of CITIES) {
+        for (const shop of city.shops) {
+          for (const itemId of shop.shopItems) {
+            expect(getItem(itemId), `shop ${shop.name} references unknown item ${itemId}`).toBeDefined();
+          }
+        }
+      }
+    });
+
+    it("getCity returns city by ID", () => {
+      const city = getCity("willowdale_city");
+      expect(city).toBeDefined();
+      expect(city!.name).toBe("Willowdale");
+    });
+
+    it("getCity returns undefined for non-existent ID", () => {
+      expect(getCity("nonexistent")).toBeUndefined();
+    });
+
+    it("getCityForTown returns city for valid town location", () => {
+      const city = getCityForTown(4, 2, 2, 2);
+      expect(city).toBeDefined();
+      expect(city!.id).toBe("willowdale_city");
+    });
+
+    it("getCityForTown returns undefined for non-city towns", () => {
+      expect(getCityForTown(0, 0, 0, 0)).toBeUndefined();
+    });
+
+    it("getCityShopAt returns shop for valid position", () => {
+      const city = getCity("willowdale_city")!;
+      const shop = getCityShopAt(city, city.shops[0].x, city.shops[0].y);
+      expect(shop).toBeDefined();
+      expect(shop!.name).toBe(city.shops[0].name);
+    });
+
+    it("getCityShopAt returns undefined for non-shop position", () => {
+      const city = getCity("willowdale_city")!;
+      expect(getCityShopAt(city, 0, 0)).toBeUndefined();
+    });
+
+    it("city terrain types have correct properties", () => {
+      expect(isWalkable(Terrain.CityFloor)).toBe(true);
+      expect(isWalkable(Terrain.CityExit)).toBe(true);
+      expect(isWalkable(Terrain.CityWall)).toBe(false);
+      expect(ENCOUNTER_RATES[Terrain.CityFloor]).toBe(0);
+      expect(ENCOUNTER_RATES[Terrain.CityWall]).toBe(0);
+      expect(ENCOUNTER_RATES[Terrain.CityExit]).toBe(0);
+    });
+
+    it("each city has a unique ID", () => {
+      const ids = CITIES.map((c) => c.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("cities correspond to existing town locations", () => {
+      const towns = getAllTowns();
+      for (const city of CITIES) {
+        const town = towns.find(
+          (t) => t.chunkX === city.chunkX && t.chunkY === city.chunkY && t.x === city.tileX && t.y === city.tileY
+        );
+        expect(town, `city ${city.name} has no matching town`).toBeDefined();
+      }
     });
   });
 });

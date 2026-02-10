@@ -19,8 +19,16 @@ import {
   getDungeon,
   getChestAt,
   DUNGEONS,
+  CITIES,
+  getCity,
+  getCityForTown,
+  getCityShopAt,
+  getCityShopNearby,
+  getTownBiome,
+  hasSparkleAt,
   type WorldChunk,
   type DungeonData,
+  type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
@@ -92,6 +100,9 @@ export class OverworldScene extends Phaser.Scene {
   private weatherState: WeatherState = createWeatherState();
   private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
+  private biomeDecoEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
+  private cityAnimals: Phaser.GameObjects.Sprite[] = [];
+  private cityAnimalTimers: Phaser.Time.TimerEvent[] = [];
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -312,7 +323,54 @@ export class OverworldScene extends Phaser.Scene {
 
     cmds.set("teleport", (args) => {
       const parts = args.trim().split(/\s+/);
-      if (parts.length !== 2) { debugPanelLog(`Usage: /teleport <chunkX> <chunkY>`, true); return; }
+      // Try name-based teleport first (city or dungeon)
+      const nameArg = args.trim().toLowerCase();
+      if (nameArg && (parts.length !== 2 || isNaN(parseInt(parts[0], 10)))) {
+        // Search cities
+        const city = CITIES.find((c) => c.name.toLowerCase() === nameArg || c.id.toLowerCase() === nameArg);
+        if (city) {
+          this.player.chunkX = city.chunkX;
+          this.player.chunkY = city.chunkY;
+          this.player.x = city.tileX;
+          this.player.y = city.tileY;
+          if (this.player.inDungeon) { this.player.inDungeon = false; this.player.dungeonId = ""; }
+          if (this.player.inCity) { this.player.inCity = false; this.player.cityId = ""; }
+          this.renderMap();
+          this.createPlayer();
+          this.updateHUD();
+          debugPanelLog(`[CMD] Teleported to city ${city.name}`, true);
+          return;
+        }
+        // Search dungeons
+        const dungeon = DUNGEONS.find((d) => d.name.toLowerCase() === nameArg || d.id.toLowerCase() === nameArg);
+        if (dungeon) {
+          this.player.chunkX = dungeon.entranceChunkX;
+          this.player.chunkY = dungeon.entranceChunkY;
+          this.player.x = dungeon.entranceTileX;
+          this.player.y = dungeon.entranceTileY;
+          if (this.player.inDungeon) { this.player.inDungeon = false; this.player.dungeonId = ""; }
+          if (this.player.inCity) { this.player.inCity = false; this.player.cityId = ""; }
+          this.renderMap();
+          this.createPlayer();
+          this.updateHUD();
+          debugPanelLog(`[CMD] Teleported to dungeon ${dungeon.name}`, true);
+          return;
+        }
+        // Fuzzy match
+        const allNames = [
+          ...CITIES.map((c) => ({ label: c.name, type: "city" })),
+          ...DUNGEONS.map((d) => ({ label: d.name, type: "dungeon" })),
+        ];
+        const match = allNames.find((n) => n.label.toLowerCase().includes(nameArg));
+        if (match) {
+          // Re-run with exact name
+          cmds.get("teleport")!(match.label);
+          return;
+        }
+        debugPanelLog(`[CMD] No city or dungeon matching "${args.trim()}". Use /tp <name> or /tp <x> <y>`, true);
+        return;
+      }
+      if (parts.length !== 2) { debugPanelLog(`Usage: /teleport <chunkX> <chunkY> or /teleport <cityName>`, true); return; }
       const cx = parseInt(parts[0], 10);
       const cy = parseInt(parts[1], 10);
       if (isNaN(cx) || isNaN(cy) || cx < 0 || cx >= WORLD_WIDTH || cy < 0 || cy >= WORLD_HEIGHT) {
@@ -369,8 +427,8 @@ export class OverworldScene extends Phaser.Scene {
       { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
       { usage: "/spawn <name>", desc: "Spawn a monster battle by name/id" },
-      { usage: "/teleport <x> <y>", desc: "Teleport to chunk (alias: /tp)" },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
+      { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
     ];
 
     registerCommandRouter(cmds, "Overworld", helpEntries, "G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog");
@@ -384,6 +442,14 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     this.tileSprites = [];
+    // Clear biome decoration emitters
+    for (const em of this.biomeDecoEmitters) em.destroy();
+    this.biomeDecoEmitters = [];
+    // Clear city animals
+    for (const a of this.cityAnimals) a.destroy();
+    this.cityAnimals = [];
+    for (const t of this.cityAnimalTimers) t.destroy();
+    this.cityAnimalTimers = [];
 
     // If inside a dungeon, render the dungeon interior
     if (this.player.inDungeon) {
@@ -439,6 +505,76 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // If inside a city, render the city interior
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      // Determine surrounding biome so city floor matches the landscape
+      const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
+      const biomeFloorTex = `tile_${cityBiome}`;
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        this.tileSprites[y] = [];
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          const explored = this.isExplored(x, y);
+          const terrain = city.mapData[y][x];
+          let texKey = explored ? `tile_${terrain}` : "tile_fog";
+          // City floor uses the biome ground texture instead of cobblestone
+          if (explored && terrain === Terrain.CityFloor) {
+            texKey = biomeFloorTex;
+          }
+          const sprite = this.add.sprite(
+            x * TILE_SIZE + TILE_SIZE / 2,
+            y * TILE_SIZE + TILE_SIZE / 2,
+            texKey
+          );
+          this.tileSprites[y][x] = sprite;
+        }
+      }
+      // City name label
+      this.add
+        .text(MAP_WIDTH * TILE_SIZE / 2, 4, city.name, {
+          fontSize: "10px",
+          fontFamily: "monospace",
+          color: "#dda0dd",
+          stroke: "#000",
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5, 0);
+      // Shop labels and exit label
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (city.mapData[y][x] === Terrain.CityExit && this.isExplored(x, y)) {
+            this.add
+              .text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE - 4, "EXIT", {
+                fontSize: "8px",
+                fontFamily: "monospace",
+                color: "#88ff88",
+                stroke: "#000",
+                strokeThickness: 2,
+              })
+              .setOrigin(0.5, 1);
+          }
+        }
+      }
+      for (const shop of city.shops) {
+        if (this.isExplored(shop.x, shop.y)) {
+          const icon = shop.type === "weapon" ? "⚔" : shop.type === "armor" ? "🛡" : shop.type === "inn" ? "🏨" : shop.type === "bank" ? "🏦" : "🏪";
+          this.add
+            .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 4, `${icon} ${shop.name}`, {
+              fontSize: "7px",
+              fontFamily: "monospace",
+              color: "#ffd700",
+              stroke: "#000",
+              strokeThickness: 2,
+            })
+            .setOrigin(0.5, 1);
+        }
+      }
+      // Spawn city animals
+      this.spawnCityAnimals(city);
+      return;
+    }
+
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     if (!chunk) return;
 
@@ -448,6 +584,11 @@ export class OverworldScene extends Phaser.Scene {
         const explored = this.isExplored(x, y);
         const terrain = chunk.mapData[y][x];
         let texKey = explored ? `tile_${terrain}` : "tile_fog";
+        // Use biome-colored town texture
+        if (explored && terrain === Terrain.Town) {
+          const biome = getTownBiome(this.player.chunkX, this.player.chunkY, x, y);
+          texKey = `tile_town_${biome}`;
+        }
         // Show open chest texture for opened chests
         if (explored && terrain === Terrain.Chest) {
           const chest = getChestAt(x, y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
@@ -455,11 +596,11 @@ export class OverworldScene extends Phaser.Scene {
             texKey = "tile_chest_open";
           }
         }
-        // Show grass for collected minor treasures
-        if (explored && terrain === Terrain.MinorTreasure) {
+        // Show sparkle for uncollected minor treasures
+        if (explored && hasSparkleAt(this.player.chunkX, this.player.chunkY, x, y)) {
           const tKey = `${this.player.chunkX},${this.player.chunkY},${x},${y}`;
-          if (this.player.collectedTreasures.includes(tKey)) {
-            texKey = "tile_0";
+          if (!this.player.collectedTreasures.includes(tKey)) {
+            texKey = `tile_${Terrain.MinorTreasure}`;
           }
         }
         const sprite = this.add.sprite(
@@ -505,14 +646,203 @@ export class OverworldScene extends Phaser.Scene {
           .setOrigin(0.5, 1);
       }
     }
+
+    // Biome decoration creature emitters (butterflies, snakes, smoke, mosquitos)
+    this.spawnBiomeCreatures(chunk);
+  }
+
+  /** Spawn animated animal sprites in cities. Animals wander on walkable tiles. */
+  private spawnCityAnimals(city: CityData): void {
+    // Animal definitions per city
+    const CITY_ANIMALS: Record<string, Array<{ sprite: string; x: number; y: number; moves: boolean }>> = {
+      willowdale_city: [
+        { sprite: "sprite_chicken", x: 8, y: 5, moves: true },
+        { sprite: "sprite_chicken", x: 11, y: 8, moves: true },
+        { sprite: "sprite_chicken", x: 14, y: 5, moves: true },
+      ],
+      frostheim_city: [
+        { sprite: "sprite_cat", x: 5, y: 7, moves: false },
+        { sprite: "sprite_cat", x: 14, y: 7, moves: false },
+      ],
+      deeproot_city: [
+        { sprite: "sprite_cat", x: 9, y: 6, moves: false },
+        { sprite: "sprite_sheep", x: 7, y: 12, moves: true },
+      ],
+      sandport_city: [
+        { sprite: "sprite_cat", x: 12, y: 9, moves: false },
+      ],
+      bogtown_city: [
+        { sprite: "sprite_mouse", x: 8, y: 7, moves: true },
+        { sprite: "sprite_mouse", x: 12, y: 6, moves: true },
+      ],
+      thornvale_city: [
+        { sprite: "sprite_frog", x: 9, y: 8, moves: true },
+        { sprite: "sprite_frog", x: 11, y: 7, moves: true },
+        { sprite: "sprite_cow", x: 8, y: 12, moves: true },
+        { sprite: "sprite_cow", x: 13, y: 8, moves: true },
+      ],
+      canyonwatch_city: [
+        { sprite: "sprite_dog", x: 10, y: 8, moves: true },
+      ],
+      ridgewatch_city: [
+        { sprite: "sprite_sheep", x: 8, y: 7, moves: true },
+        { sprite: "sprite_sheep", x: 11, y: 7, moves: true },
+      ],
+      ashfall_city: [
+        { sprite: "sprite_lizard", x: 9, y: 8, moves: true },
+        { sprite: "sprite_lizard", x: 12, y: 5, moves: true },
+      ],
+      dunerest_city: [
+        { sprite: "sprite_lizard", x: 7, y: 7, moves: true },
+      ],
+    };
+
+    const animals = CITY_ANIMALS[city.id];
+    if (!animals) return;
+
+    for (const def of animals) {
+      if (!this.isExplored(def.x, def.y)) continue;
+
+      const sprite = this.add.sprite(
+        def.x * TILE_SIZE + TILE_SIZE / 2,
+        def.y * TILE_SIZE + TILE_SIZE / 2,
+        def.sprite
+      );
+      sprite.setDepth(11);
+      this.cityAnimals.push(sprite);
+
+      if (def.moves) {
+        // Wander: periodically move to a random adjacent walkable tile
+        const wander = () => {
+          const dirs = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+          ];
+          const pick = dirs[Math.floor(Math.random() * dirs.length)];
+          const curTileX = Math.floor(sprite.x / TILE_SIZE);
+          const curTileY = Math.floor(sprite.y / TILE_SIZE);
+          const nx = curTileX + pick.dx;
+          const ny = curTileY + pick.dy;
+          if (
+            nx >= 1 && nx < MAP_WIDTH - 1 &&
+            ny >= 1 && ny < MAP_HEIGHT - 1 &&
+            isWalkable(city.mapData[ny][nx])
+          ) {
+            this.tweens.add({
+              targets: sprite,
+              x: nx * TILE_SIZE + TILE_SIZE / 2,
+              y: ny * TILE_SIZE + TILE_SIZE / 2,
+              duration: 600 + Math.random() * 400,
+              ease: "Sine.easeInOut",
+              onUpdate: () => {
+                // Flip sprite based on movement direction
+                if (pick.dx !== 0) sprite.setFlipX(pick.dx < 0);
+              },
+            });
+          }
+        };
+        const delay = 1500 + Math.random() * 2000;
+        const timer = this.time.addEvent({
+          delay,
+          callback: wander,
+          loop: true,
+        });
+        this.cityAnimalTimers.push(timer);
+      } else {
+        // Sleeping animal: subtle breathing animation
+        this.tweens.add({
+          targets: sprite,
+          scaleY: 0.9,
+          duration: 1200,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      }
+    }
+  }
+
+  /** Spawn small animated creature emitters near biome decoration tiles. */
+  private spawnBiomeCreatures(chunk: WorldChunk): void {
+    const DECO_CREATURES: Record<number, { texture: string; config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig }> = {
+      [Terrain.Flower]: {
+        texture: "particle_butterfly",
+        config: {
+          lifespan: 3000,
+          speed: { min: 8, max: 20 },
+          angle: { min: 200, max: 340 },
+          scale: { start: 0.9, end: 0.4 },
+          alpha: { start: 0.9, end: 0.2 },
+          quantity: 1,
+          frequency: 1200,
+          gravityY: -5,
+        },
+      },
+      [Terrain.Cactus]: {
+        texture: "particle_snake",
+        config: {
+          lifespan: 4000,
+          speedX: { min: -8, max: 8 },
+          speedY: { min: -2, max: 2 },
+          scale: { start: 0.8, end: 0.8 },
+          alpha: { start: 0.85, end: 0.0 },
+          quantity: 1,
+          frequency: 3000,
+          gravityY: 0,
+        },
+      },
+      [Terrain.Geyser]: {
+        texture: "particle_smoke",
+        config: {
+          lifespan: 2000,
+          speedY: { min: -30, max: -60 },
+          speedX: { min: -6, max: 6 },
+          scale: { start: 0.5, end: 1.8 },
+          alpha: { start: 0.7, end: 0.0 },
+          quantity: 1,
+          frequency: 400,
+          gravityY: -8,
+        },
+      },
+      [Terrain.Mushroom]: {
+        texture: "particle_mosquito",
+        config: {
+          lifespan: 2500,
+          speed: { min: 10, max: 25 },
+          angle: { min: 0, max: 360 },
+          scale: { start: 0.7, end: 0.3 },
+          alpha: { start: 0.9, end: 0.15 },
+          quantity: 1,
+          frequency: 900,
+          gravityY: 0,
+        },
+      },
+    };
+
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        if (!this.isExplored(x, y)) continue;
+        const terrain = chunk.mapData[y][x];
+        const entry = DECO_CREATURES[terrain];
+        if (!entry) continue;
+        const px = x * TILE_SIZE + TILE_SIZE / 2;
+        const py = y * TILE_SIZE + TILE_SIZE / 2;
+        const em = this.add.particles(px, py, entry.texture, entry.config);
+        em.setDepth(12);
+        this.biomeDecoEmitters.push(em);
+      }
+    }
   }
 
   // ─── Fog of War helpers ─────────────────────────────────────────
 
-  /** Build the explored-tiles key for a position (respects dungeon vs overworld). */
+  /** Build the explored-tiles key for a position (respects dungeon/city vs overworld). */
   private exploredKey(x: number, y: number): string {
     if (this.player.inDungeon) {
       return `d:${this.player.dungeonId},${x},${y}`;
+    }
+    if (this.player.inCity) {
+      return `c:${this.player.cityId},${x},${y}`;
     }
     return `${this.player.chunkX},${this.player.chunkY},${x},${y}`;
   }
@@ -558,6 +888,20 @@ export class OverworldScene extends Phaser.Scene {
           }
         }
       }
+    } else if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
+      const biomeFloorTex = `tile_${cityBiome}`;
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
+            const terrain = city.mapData[y][x];
+            const texKey = terrain === Terrain.CityFloor ? biomeFloorTex : `tile_${terrain}`;
+            this.tileSprites[y][x].setTexture(texKey);
+          }
+        }
+      }
     } else {
       const chunk = getChunk(this.player.chunkX, this.player.chunkY);
       if (!chunk) return;
@@ -566,16 +910,22 @@ export class OverworldScene extends Phaser.Scene {
           if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
             const terrain = chunk.mapData[y][x];
             let texKey = `tile_${terrain}`;
+            // Use biome-colored town texture
+            if (terrain === Terrain.Town) {
+              const biome = getTownBiome(this.player.chunkX, this.player.chunkY, x, y);
+              texKey = `tile_town_${biome}`;
+            }
             if (terrain === Terrain.Chest) {
               const chest = getChestAt(x, y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
               if (chest && this.player.openedChests.includes(chest.id)) {
                 texKey = "tile_chest_open";
               }
             }
-            if (terrain === Terrain.MinorTreasure) {
+            // Show sparkle overlay if uncollected, otherwise real terrain
+            if (hasSparkleAt(this.player.chunkX, this.player.chunkY, x, y)) {
               const tKey = `${this.player.chunkX},${this.player.chunkY},${x},${y}`;
-              if (this.player.collectedTreasures.includes(tKey)) {
-                texKey = "tile_0";
+              if (!this.player.collectedTreasures.includes(tKey)) {
+                texKey = `tile_${Terrain.MinorTreasure}`;
               }
             }
             this.tileSprites[y][x].setTexture(texKey);
@@ -754,6 +1104,24 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // In city: show city-specific text
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) { this.locationText.setText("???"); return; }
+      const terrain = city.mapData[this.player.y]?.[this.player.x];
+      if (terrain === Terrain.CityExit) {
+        this.locationText.setText(`${city.name}\n[SPACE] Leave City`);
+      } else {
+        const shop = getCityShopNearby(city, this.player.x, this.player.y);
+        if (shop) {
+          this.locationText.setText(`${shop.name}\n[SPACE] Enter`);
+        } else {
+          this.locationText.setText(city.name);
+        }
+      }
+      return;
+    }
+
     const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
     const terrainNames: Record<number, string> = {
       [Terrain.Grass]: "Grassland",
@@ -770,7 +1138,15 @@ export class OverworldScene extends Phaser.Scene {
       [Terrain.DeepForest]: "Deep Forest",
       [Terrain.Volcanic]: "Volcanic",
       [Terrain.Canyon]: "Canyon",
-      [Terrain.MinorTreasure]: "Sparkle",
+      [Terrain.Flower]: "Grassland",
+      [Terrain.Cactus]: "Desert",
+      [Terrain.Geyser]: "Volcanic",
+      [Terrain.Mushroom]: "Swamp",
+      [Terrain.River]: "River",
+      [Terrain.Mill]: "Grassland",
+      [Terrain.CropField]: "Grassland",
+      [Terrain.Casino]: "Town",
+      [Terrain.House]: "Town",
     };
 
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
@@ -782,7 +1158,10 @@ export class OverworldScene extends Phaser.Scene {
     );
 
     let locStr = terrainNames[terrain ?? 0] ?? "Unknown";
-    if (town) locStr = `${town.name}\n[SPACE] Enter Shop`;
+    if (town) {
+      const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
+      locStr = city ? `${town.name}\n[SPACE] Enter City` : `${town.name}\n[SPACE] Enter Shop`;
+    }
     if (boss && !this.defeatedBosses.has(boss.monsterId))
       locStr = `${boss.name}'s Lair\n[SPACE] Challenge Boss`;
 
@@ -926,6 +1305,37 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // In city: no chunk transitions, no encounters
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
+      const terrain = city.mapData[newY][newX];
+      if (!isWalkable(terrain)) return;
+
+      this.lastMoveTime = time;
+      this.isMoving = true;
+      this.player.x = newX;
+      this.player.y = newY;
+
+      this.tweens.add({
+        targets: this.playerSprite,
+        x: newX * TILE_SIZE + TILE_SIZE / 2,
+        y: newY * TILE_SIZE + TILE_SIZE / 2,
+        duration: 120,
+        onComplete: () => {
+          this.isMoving = false;
+          this.advanceTime();
+          this.revealAround();
+          this.revealTileSprites();
+          this.updateHUD();
+          this.updateLocationText();
+          // No encounters in cities
+        },
+      });
+      return;
+    }
+
     let newChunkX = this.player.chunkX;
     let newChunkY = this.player.chunkY;
 
@@ -997,12 +1407,10 @@ export class OverworldScene extends Phaser.Scene {
   private collectMinorTreasure(): void {
     const px = this.player.x;
     const py = this.player.y;
-    let terrain: Terrain | undefined;
 
     if (this.player.inDungeon) return; // no minor treasures in dungeons
 
-    terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, px, py);
-    if (terrain !== Terrain.MinorTreasure) return;
+    if (!hasSparkleAt(this.player.chunkX, this.player.chunkY, px, py)) return;
 
     const key = `${this.player.chunkX},${this.player.chunkY},${px},${py}`;
     if (this.player.collectedTreasures.includes(key)) return;
@@ -1011,9 +1419,13 @@ export class OverworldScene extends Phaser.Scene {
     const goldAmount = 5 + Math.floor(Math.random() * 21); // 5-25
     this.player.gold += goldAmount;
 
-    // Update tile sprite to show collected state (plain grass)
-    if (this.tileSprites[py]?.[px]) {
-      this.tileSprites[py][px].setTexture("tile_0"); // grass texture
+    // Update tile sprite to show real terrain underneath
+    const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, px, py);
+    if (this.tileSprites[py]?.[px] && terrain !== undefined) {
+      const realTexKey = terrain === Terrain.Town
+        ? `tile_town_${getTownBiome(this.player.chunkX, this.player.chunkY, px, py)}`
+        : `tile_${terrain}`;
+      this.tileSprites[py][px].setTexture(realTexKey);
     }
 
     this.showMessage(`✨ Found ${goldAmount} gold!`, "#4fc3f7");
@@ -1029,7 +1441,6 @@ export class OverworldScene extends Phaser.Scene {
     if (terrain === Terrain.Town) return;
     if (terrain === Terrain.DungeonExit) return;
     if (terrain === Terrain.Chest) return;
-    if (terrain === Terrain.MinorTreasure) return;
 
     // Debug: encounters can be toggled off
     if (isDebug() && !this.debugEncounters) return;
@@ -1047,7 +1458,7 @@ export class OverworldScene extends Phaser.Scene {
         monster = getRandomEncounter(this.player.level);
       }
       debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon, time: getTimePeriod(this.timeStep) });
-      this.startBattle(monster);
+      this.startBattle(monster, terrain);
     }
   }
 
@@ -1110,6 +1521,71 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // ── City actions: exit and shop interaction ──
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      const terrain = city.mapData[this.player.y]?.[this.player.x];
+      if (terrain === Terrain.CityExit) {
+        // Return to overworld at the town tile
+        this.player.inCity = false;
+        this.player.cityId = "";
+        this.player.chunkX = city.chunkX;
+        this.player.chunkY = city.chunkY;
+        this.player.x = city.tileX;
+        this.player.y = city.tileY;
+        this.rerollWeather();
+        this.autoSave();
+        this.cameras.main.flash(300, 255, 255, 255);
+        this.scene.restart({
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+        });
+        return;
+      }
+
+      // Check if on or near a shop location
+      const shop = getCityShopNearby(city, this.player.x, this.player.y);
+      if (shop) {
+        if (shop.type === "inn") {
+          // Inn: heal directly without opening shop
+          if (this.player.gold < 10) {
+            this.showMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
+          } else {
+            this.player.gold -= 10;
+            this.player.hp = this.player.maxHp;
+            this.player.mp = this.player.maxMp;
+            this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
+            this.updateHUD();
+            this.autoSave();
+          }
+          return;
+        }
+        if (shop.type === "bank") {
+          this.showMessage(`💰 The bank holds your gold safe. Balance: ${this.player.gold}g`, "#ffd700");
+          return;
+        }
+        // Open shop with specific items
+        this.autoSave();
+        this.scene.start("ShopScene", {
+          player: this.player,
+          townName: `${city.name} - ${shop.name}`,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          shopItemIds: shop.shopItems,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+          fromCity: true,
+          cityId: city.id,
+        });
+        return;
+      }
+      return;
+    }
+
     // ── Overworld actions ──
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     if (!chunk) return;
@@ -1124,7 +1600,29 @@ export class OverworldScene extends Phaser.Scene {
       this.player.lastTownY = town.y;
       this.player.lastTownChunkX = this.player.chunkX;
       this.player.lastTownChunkY = this.player.chunkY;
-      // Re-roll weather so it changes when the player leaves town
+
+      // Check if this town has an explorable city layout
+      const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
+      if (city) {
+        // Enter the city interior
+        this.player.inCity = true;
+        this.player.cityId = city.id;
+        this.player.x = city.spawnX;
+        this.player.y = city.spawnY;
+        this.weatherState.current = WeatherType.Clear;
+        this.autoSave();
+        this.cameras.main.flash(300, 200, 180, 160);
+        this.scene.restart({
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+        });
+        return;
+      }
+
+      // No city layout — open shop directly (legacy behavior)
       this.rerollWeather();
       this.autoSave();
       this.scene.start("ShopScene", {
@@ -1207,12 +1705,27 @@ export class OverworldScene extends Phaser.Scene {
     if (boss && !this.defeatedBosses.has(boss.monsterId)) {
       const monster = getBoss(boss.monsterId);
       if (monster) {
-        this.startBattle(monster);
+        this.startBattle(monster, Terrain.Boss);
       }
     }
   }
 
-  private startBattle(monster: ReturnType<typeof getRandomEncounter>): void {
+  /** Map terrain to a biome string for battle backgrounds. */
+  private terrainToBiome(terrain?: Terrain): string {
+    if (this.player.inDungeon) return "dungeon";
+    switch (terrain) {
+      case Terrain.Forest: return "forest";
+      case Terrain.DeepForest: return "deep_forest";
+      case Terrain.Sand: case Terrain.Cactus: return "sand";
+      case Terrain.Tundra: return "tundra";
+      case Terrain.Swamp: case Terrain.Mushroom: return "swamp";
+      case Terrain.Volcanic: case Terrain.Geyser: return "volcanic";
+      case Terrain.Canyon: return "canyon";
+      default: return "grass";
+    }
+  }
+
+  private startBattle(monster: ReturnType<typeof getRandomEncounter>, terrain?: Terrain): void {
     this.autoSave();
     this.cameras.main.flash(300, 255, 255, 255);
     this.time.delayedCall(300, () => {
@@ -1223,6 +1736,7 @@ export class OverworldScene extends Phaser.Scene {
         bestiary: this.bestiary,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
+        biome: this.terrainToBiome(terrain),
       });
     });
   }
@@ -1252,8 +1766,8 @@ export class OverworldScene extends Phaser.Scene {
     this.timeStep = (this.timeStep + 1) % CYCLE_LENGTH;
     const newPeriod = getTimePeriod(this.timeStep);
 
-    // Dungeons are enclosed — weather stays Clear, only advance time-of-day tint.
-    if (this.player.inDungeon) {
+    // Dungeons and cities are enclosed — weather stays Clear, only advance time-of-day tint.
+    if (this.player.inDungeon || this.player.inCity) {
       if (oldPeriod !== newPeriod) this.applyDayNightTint();
       return;
     }
@@ -2122,8 +2636,8 @@ export class OverworldScene extends Phaser.Scene {
               let color: number;
               if (!explored) {
                 color = 0x0a0a0a;
-              } else if (terrain === Terrain.MinorTreasure && this.player.collectedTreasures.includes(exploredKey)) {
-                color = TERRAIN_COLORS[Terrain.Grass];
+              } else if (hasSparkleAt(cx, cy, tx, ty) && !this.player.collectedTreasures.includes(exploredKey)) {
+                color = TERRAIN_COLORS[Terrain.MinorTreasure];
               } else {
                 color = TERRAIN_COLORS[terrain];
               }

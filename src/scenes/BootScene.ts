@@ -136,6 +136,69 @@ export class BootScene extends Phaser.Scene {
           gfx.fillStyle(0x795548, 1);
           gfx.fillRect(14, 12, 4, 6);
           break;
+        case Terrain.Tundra:
+          // Snowy terrain with frost specks
+          gfx.fillStyle(0xe0e0e0, 0.4);
+          gfx.fillCircle(6, 6, 3);
+          gfx.fillCircle(22, 14, 2);
+          gfx.fillCircle(12, 26, 3);
+          gfx.fillCircle(28, 28, 2);
+          break;
+        case Terrain.Swamp:
+          // Murky terrain with puddle patches
+          gfx.fillStyle(0x33691e, 0.5);
+          gfx.fillCircle(10, 10, 6);
+          gfx.fillCircle(24, 22, 5);
+          gfx.fillStyle(0x1b5e20, 0.4);
+          gfx.fillRect(2, 20, 8, 4);
+          break;
+        case Terrain.DeepForest:
+          // Dense canopy with overlapping tree shapes
+          gfx.fillStyle(0x0d3b0d, 0.6);
+          gfx.fillCircle(10, 10, 8);
+          gfx.fillCircle(22, 14, 7);
+          gfx.fillCircle(14, 24, 6);
+          gfx.fillStyle(0x3e2723, 1);
+          gfx.fillRect(9, 18, 3, 10);
+          gfx.fillRect(21, 20, 3, 8);
+          break;
+        case Terrain.Volcanic:
+          // Lava-like terrain with hot glow
+          gfx.fillStyle(0xff6f00, 0.5);
+          gfx.fillRect(4, 4, 10, 6);
+          gfx.fillRect(18, 18, 10, 8);
+          gfx.fillStyle(0xdd2c00, 0.4);
+          gfx.fillCircle(16, 16, 4);
+          break;
+        case Terrain.Canyon:
+          // Rocky canyon floor with layered stone
+          gfx.fillStyle(0x8d6e63, 0.4);
+          gfx.fillRect(0, 6, 32, 4);
+          gfx.fillRect(0, 18, 32, 4);
+          gfx.fillStyle(0x6d4c41, 0.3);
+          gfx.fillRect(4, 12, 24, 3);
+          break;
+        case Terrain.MinorTreasure:
+          // Blue sparkle on terrain
+          gfx.fillStyle(0x4fc3f7, 0.9);
+          gfx.fillCircle(16, 16, 4);
+          gfx.fillStyle(0x81d4fa, 0.7);
+          gfx.fillCircle(16, 16, 2);
+          gfx.fillStyle(0xe1f5fe, 1);
+          gfx.fillCircle(16, 16, 1);
+          // Sparkle rays
+          gfx.fillStyle(0x4fc3f7, 0.5);
+          gfx.fillRect(14, 8, 4, 4);   // top
+          gfx.fillRect(14, 20, 4, 4);  // bottom
+          gfx.fillRect(8, 14, 4, 4);   // left
+          gfx.fillRect(20, 14, 4, 4);  // right
+          // Diagonal sparkle dots
+          gfx.fillStyle(0x81d4fa, 0.4);
+          gfx.fillCircle(10, 10, 1.5);
+          gfx.fillCircle(22, 10, 1.5);
+          gfx.fillCircle(10, 22, 1.5);
+          gfx.fillCircle(22, 22, 1.5);
+          break;
       }
 
       // Add grid border
@@ -715,14 +778,12 @@ export class BootScene extends Phaser.Scene {
     SKIN_COLOR_OPTIONS.forEach((opt, i) => {
       const sx = skinStartX + i * skinSwatchSpacing;
 
-      const hl = this.add.graphics();
-      skinHighlights.push(hl);
-
       const gfx = this.add.graphics();
       gfx.fillStyle(opt.color, 1);
       gfx.fillCircle(sx, skinSwatchY, 10);
       gfx.lineStyle(2, i === 0 ? 0xffd700 : 0x444444, 1);
       gfx.strokeCircle(sx, skinSwatchY, 11);
+      skinHighlights.push(gfx);
 
       this.add
         .text(sx, skinSwatchY + 15, opt.label, {
@@ -804,14 +865,12 @@ export class BootScene extends Phaser.Scene {
     HAIR_COLOR_OPTIONS.forEach((opt, i) => {
       const hx = hairStartX + i * hairSwatchSpacing;
 
-      const hl = this.add.graphics();
-      hairHighlights.push(hl);
-
       const gfx = this.add.graphics();
       gfx.fillStyle(opt.color, 1);
       gfx.fillCircle(hx, hairSwatchY, 10);
       gfx.lineStyle(2, i === 0 ? 0xffd700 : 0x444444, 1);
       gfx.strokeCircle(hx, hairSwatchY, 11);
+      hairHighlights.push(gfx);
 
       this.add
         .text(hx, hairSwatchY + 15, opt.label, {

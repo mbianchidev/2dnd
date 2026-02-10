@@ -47,6 +47,7 @@ export interface PlayerState {
   inDungeon: boolean;  // true when inside a dungeon interior
   dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
   openedChests: string[]; // IDs of chests already opened
+  collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
   lastTownX: number;      // last town tile x (respawn point on death)
   lastTownY: number;      // last town tile y
@@ -124,16 +125,17 @@ export function createPlayer(
     customAppearance,
     x: 3,
     y: 3,
-    chunkX: 1,
-    chunkY: 1,
+    chunkX: 4,
+    chunkY: 2,
     inDungeon: false,
     dungeonId: "",
     openedChests: [],
+    collectedTreasures: [],
     exploredTiles: {},
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,
-    lastTownChunkX: 1,
-    lastTownChunkY: 1,
+    lastTownChunkX: 4,
+    lastTownChunkY: 2,
   };
 }
 

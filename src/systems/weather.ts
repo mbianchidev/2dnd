@@ -43,6 +43,7 @@ type WeatherWeights = Partial<Record<WeatherType, number>>;
 
 /** Base weather weights by dominant terrain in the chunk. */
 const BIOME_WEATHER: Record<string, WeatherWeights> = {
+  // ── Original hand-crafted regions ────────────────────────────
   // Mountain Peak  – snow, fog, storm
   "Mountain Peak":    { [WeatherType.Snow]: 0.25, [WeatherType.Fog]: 0.05, [WeatherType.Storm]: 0.05 },
   // Northern Forest – rain, fog
@@ -61,6 +62,89 @@ const BIOME_WEATHER: Record<string, WeatherWeights> = {
   "Southern Forest":  { [WeatherType.Rain]: 0.05, [WeatherType.Fog]: 0.05 },
   // Dragon's Domain – storm, fog
   "Dragon's Domain":  { [WeatherType.Storm]: 0.10, [WeatherType.Fog]: 0.05, [WeatherType.Rain]: 0.05 },
+  // Frozen / Tundra biomes – snow heavy, storm
+  "Frozen Expanse":   { [WeatherType.Snow]: 0.30, [WeatherType.Storm]: 0.05 },
+  "Frozen Flats":     { [WeatherType.Snow]: 0.25, [WeatherType.Storm]: 0.05 },
+  "Frozen Frontier":  { [WeatherType.Snow]: 0.25, [WeatherType.Fog]: 0.05 },
+  "Frozen Hollow":    { [WeatherType.Snow]: 0.20, [WeatherType.Fog]: 0.10 },
+  "Frozen Passage":   { [WeatherType.Snow]: 0.25, [WeatherType.Storm]: 0.05 },
+  "Frozen Reach":     { [WeatherType.Snow]: 0.25, [WeatherType.Fog]: 0.05 },
+  "Frozen Vale":      { [WeatherType.Snow]: 0.20, [WeatherType.Storm]: 0.10 },
+  // Murky / Swamp biomes – fog, rain heavy
+  "Murky Crossing":   { [WeatherType.Fog]: 0.15, [WeatherType.Rain]: 0.10 },
+  "Murky Expanse":    { [WeatherType.Fog]: 0.20, [WeatherType.Rain]: 0.10 },
+  "Murky Flats":      { [WeatherType.Fog]: 0.15, [WeatherType.Rain]: 0.10 },
+  "Murky Passage":    { [WeatherType.Fog]: 0.15, [WeatherType.Rain]: 0.10 },
+  "Murky Ridge":      { [WeatherType.Fog]: 0.10, [WeatherType.Rain]: 0.05 },
+  "Murky Wilds":      { [WeatherType.Fog]: 0.20, [WeatherType.Rain]: 0.15 },
+  // Woodland / Deep Forest biomes – rain, fog
+  "Woodland Crossing": { [WeatherType.Rain]: 0.10, [WeatherType.Fog]: 0.05 },
+  "Woodland Expanse":  { [WeatherType.Rain]: 0.10, [WeatherType.Fog]: 0.05 },
+  "Woodland Flats":    { [WeatherType.Rain]: 0.10, [WeatherType.Fog]: 0.05 },
+  "Woodland Frontier": { [WeatherType.Rain]: 0.05, [WeatherType.Fog]: 0.05 },
+  "Woodland Hollow":   { [WeatherType.Rain]: 0.10, [WeatherType.Fog]: 0.10 },
+  "Woodland Passage":  { [WeatherType.Rain]: 0.05, [WeatherType.Fog]: 0.05 },
+  "Woodland Reach":    { [WeatherType.Rain]: 0.10, [WeatherType.Fog]: 0.05 },
+  "Woodland Ridge":    { [WeatherType.Rain]: 0.05, [WeatherType.Fog]: 0.05 },
+  "Woodland Wilds":    { [WeatherType.Rain]: 0.10, [WeatherType.Fog]: 0.10 },
+  // Scorched / Volcanic biomes – sandstorm, storm
+  "Scorched Expanse":  { [WeatherType.Sandstorm]: 0.20, [WeatherType.Storm]: 0.10 },
+  "Scorched Hollow":   { [WeatherType.Sandstorm]: 0.15, [WeatherType.Storm]: 0.10 },
+  // Highland biomes – fog, storm
+  "Highland Crossing":  { [WeatherType.Fog]: 0.10, [WeatherType.Storm]: 0.05 },
+  "Highland Ridge":     { [WeatherType.Fog]: 0.05, [WeatherType.Storm]: 0.10, [WeatherType.Snow]: 0.05 },
+  "Highland Wilds":     { [WeatherType.Fog]: 0.10, [WeatherType.Storm]: 0.05 },
+  // Rocky / Canyon / Arid biomes – sandstorm, storm
+  "Rocky Crossing":   { [WeatherType.Sandstorm]: 0.10, [WeatherType.Storm]: 0.05 },
+  "Rocky Expanse":    { [WeatherType.Sandstorm]: 0.10, [WeatherType.Storm]: 0.05 },
+  "Rocky Flats":      { [WeatherType.Sandstorm]: 0.10 },
+  "Rocky Frontier":   { [WeatherType.Sandstorm]: 0.05, [WeatherType.Storm]: 0.05 },
+  "Rocky Hollow":     { [WeatherType.Sandstorm]: 0.05, [WeatherType.Fog]: 0.05 },
+  "Rocky Passage":    { [WeatherType.Sandstorm]: 0.10 },
+  "Rocky Reach":      { [WeatherType.Sandstorm]: 0.10, [WeatherType.Storm]: 0.05 },
+  "Rocky Vale":       { [WeatherType.Sandstorm]: 0.05, [WeatherType.Fog]: 0.05 },
+  "Rocky Wilds":      { [WeatherType.Sandstorm]: 0.10, [WeatherType.Storm]: 0.05 },
+  "Arid Crossing":    { [WeatherType.Sandstorm]: 0.20 },
+  "Arid Expanse":     { [WeatherType.Sandstorm]: 0.25, [WeatherType.Storm]: 0.05 },
+  "Arid Flats":       { [WeatherType.Sandstorm]: 0.20 },
+  "Arid Frontier":    { [WeatherType.Sandstorm]: 0.15 },
+  "Arid Hollow":      { [WeatherType.Sandstorm]: 0.15, [WeatherType.Fog]: 0.05 },
+  "Arid Passage":     { [WeatherType.Sandstorm]: 0.20 },
+  "Arid Reach":       { [WeatherType.Sandstorm]: 0.20, [WeatherType.Storm]: 0.05 },
+  "Arid Ridge":       { [WeatherType.Sandstorm]: 0.20, [WeatherType.Storm]: 0.05 },
+  "Arid Vale":        { [WeatherType.Sandstorm]: 0.15, [WeatherType.Storm]: 0.05 },
+  // Ancient biomes – mild mixed weather
+  "Ancient Flats":    { [WeatherType.Rain]: 0.05, [WeatherType.Fog]: 0.05 },
+  "Ancient Frontier": { [WeatherType.Rain]: 0.05 },
+  "Ancient Passage":  { [WeatherType.Fog]: 0.05 },
+  "Ancient Reach":    { [WeatherType.Rain]: 0.05, [WeatherType.Fog]: 0.05 },
+  "Ancient Vale":     { [WeatherType.Fog]: 0.10 },
+};
+
+/**
+ * Weather weights by biome prefix.  Procedurally generated chunks use names
+ * like "Frozen Reach", "Murky Expanse", etc.  We match on the first word so
+ * every chunk in a biome shares the same weather profile.
+ */
+const BIOME_PREFIX_WEATHER: Record<string, WeatherWeights> = {
+  // Frozen / Tundra – heavy snow, blizzards
+  "Frozen":   { [WeatherType.Snow]: 0.30, [WeatherType.Storm]: 0.08, [WeatherType.Fog]: 0.05 },
+  // Murky / Swamp – fog, rain, storms
+  "Murky":    { [WeatherType.Fog]: 0.15, [WeatherType.Rain]: 0.15, [WeatherType.Storm]: 0.05 },
+  // Ancient / Deep Forest – fog, rain
+  "Ancient":  { [WeatherType.Fog]: 0.10, [WeatherType.Rain]: 0.10 },
+  // Scorched / Volcanic – sandstorms, storms (ash clouds)
+  "Scorched": { [WeatherType.Sandstorm]: 0.20, [WeatherType.Storm]: 0.10 },
+  // Rocky / Canyon – sandstorms, fog in crevasses
+  "Rocky":    { [WeatherType.Sandstorm]: 0.10, [WeatherType.Fog]: 0.08, [WeatherType.Storm]: 0.05 },
+  // Arid / Desert – sandstorm dominant
+  "Arid":     { [WeatherType.Sandstorm]: 0.25, [WeatherType.Storm]: 0.05 },
+  // Woodland / Forest – rain, fog
+  "Woodland": { [WeatherType.Rain]: 0.08, [WeatherType.Fog]: 0.05 },
+  // Highland / Mountain – snow, fog
+  "Highland": { [WeatherType.Snow]: 0.15, [WeatherType.Fog]: 0.08, [WeatherType.Storm]: 0.05 },
+  // Rolling / Plains – rain, storm
+  "Rolling":  { [WeatherType.Rain]: 0.08, [WeatherType.Storm]: 0.05 },
 };
 
 /** Fallback for unknown or dungeon biomes. */
@@ -77,6 +161,19 @@ const TIME_MULTIPLIERS: Record<TimePeriod, Partial<Record<WeatherType, number>>>
   Night: { [WeatherType.Storm]: 1.3, [WeatherType.Snow]: 1.2 },
 };
 
+/**
+ * Resolve weather weights for a biome name.
+ * Tries exact match first, then falls back to biome prefix, then default.
+ */
+function resolveWeatherWeights(biomeName: string): WeatherWeights {
+  // Exact match (hand-crafted regions)
+  if (BIOME_WEATHER[biomeName]) return BIOME_WEATHER[biomeName];
+  // Prefix match (procedural chunks like "Frozen Reach", "Murky Expanse")
+  const prefix = biomeName.split(" ")[0];
+  if (BIOME_PREFIX_WEATHER[prefix]) return BIOME_PREFIX_WEATHER[prefix];
+  return DEFAULT_WEIGHTS;
+}
+
 // ── Weather Roll ───────────────────────────────────────────────
 
 /**
@@ -85,7 +182,7 @@ const TIME_MULTIPLIERS: Record<TimePeriod, Partial<Record<WeatherType, number>>>
  */
 export function rollWeather(biomeName: string, timeStep: number): WeatherType {
   const period = getTimePeriod(timeStep);
-  const baseWeights = BIOME_WEATHER[biomeName] ?? DEFAULT_WEIGHTS;
+  const baseWeights = resolveWeatherWeights(biomeName);
   const timeMods = TIME_MULTIPLIERS[period] ?? {};
 
   // Build effective probability list
@@ -206,7 +303,7 @@ export function getWeatherEncounterMultiplier(weather: WeatherType): number {
 // bonus and +2 damage.
 
 const MONSTER_WEATHER_AFFINITY: Record<string, WeatherType[]> = {
-  // Sandstorm-loving creatures
+  // Overworld random encounters
   slime:     [WeatherType.Rain],
   wolf:      [WeatherType.Snow],
   nightWolf: [WeatherType.Snow, WeatherType.Fog],
@@ -214,8 +311,33 @@ const MONSTER_WEATHER_AFFINITY: Record<string, WeatherType[]> = {
   specter:   [WeatherType.Fog, WeatherType.Storm],
   skeleton:  [WeatherType.Sandstorm],
   orc:       [WeatherType.Sandstorm, WeatherType.Storm],
+  // Bosses
   dragon:    [WeatherType.Storm],
   troll:     [WeatherType.Rain],
+  frostGiant:   [WeatherType.Snow, WeatherType.Storm],
+  swampHydra:   [WeatherType.Rain, WeatherType.Fog],
+  volcanicWyrm: [WeatherType.Storm, WeatherType.Sandstorm],
+  canyonDrake:  [WeatherType.Sandstorm, WeatherType.Storm],
+  // Biome night monsters
+  frostWraith:  [WeatherType.Snow, WeatherType.Fog],
+  snowStalker:  [WeatherType.Snow],
+  willOWisp:    [WeatherType.Fog, WeatherType.Rain],
+  bogCreeper:   [WeatherType.Rain, WeatherType.Fog],
+  darkTreent:   [WeatherType.Rain, WeatherType.Fog],
+  gloomSprite:  [WeatherType.Fog],
+  stoneLurker:  [WeatherType.Sandstorm],
+  dustDevil:    [WeatherType.Sandstorm, WeatherType.Storm],
+  vampireBat:   [WeatherType.Fog, WeatherType.Storm],
+  // Dungeon-specific monsters
+  cryptSkeleton:  [WeatherType.Fog],
+  tombWraith:     [WeatherType.Fog, WeatherType.Storm],
+  bonePile:       [WeatherType.Storm],
+  iceElemental:   [WeatherType.Snow, WeatherType.Fog],
+  frostSpider:    [WeatherType.Snow],
+  glacialBear:    [WeatherType.Snow, WeatherType.Storm],
+  magmaSlime:     [WeatherType.Storm],
+  cinderWraith:   [WeatherType.Storm, WeatherType.Sandstorm],
+  obsidianGolem:  [WeatherType.Sandstorm],
 };
 
 export interface WeatherBoost {

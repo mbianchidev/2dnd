@@ -4,6 +4,7 @@ import {
   createWeatherState,
   rollWeather,
   advanceWeather,
+  changeZoneWeather,
   getWeatherAccuracyPenalty,
   getWeatherEncounterMultiplier,
   getMonsterWeatherBoost,
@@ -89,9 +90,9 @@ describe("weather system", () => {
       const state = createWeatherState();
       state.stepsUntilChange = 1;
       advanceWeather(state, "Heartlands", 0);
-      // After rolling, stepsUntilChange should be reset to 10-25
-      expect(state.stepsUntilChange).toBeGreaterThanOrEqual(10);
-      expect(state.stepsUntilChange).toBeLessThanOrEqual(25);
+      // After rolling, stepsUntilChange should be reset to 40-80
+      expect(state.stepsUntilChange).toBeGreaterThanOrEqual(40);
+      expect(state.stepsUntilChange).toBeLessThanOrEqual(80);
     });
 
     it("returns true when weather changes", () => {
@@ -113,6 +114,52 @@ describe("weather system", () => {
       state.stepsUntilChange = 10;
       const result = advanceWeather(state, "Heartlands", 0);
       expect(result).toBe(false);
+    });
+  });
+
+  describe("changeZoneWeather", () => {
+    it("immediately rolls new weather regardless of countdown", () => {
+      const state = createWeatherState();
+      state.stepsUntilChange = 999; // would never trigger advanceWeather
+      changeZoneWeather(state, "Mountain Peak", 100);
+      // stepsUntilChange should reset to 40-80
+      expect(state.stepsUntilChange).toBeGreaterThanOrEqual(40);
+      expect(state.stepsUntilChange).toBeLessThanOrEqual(80);
+    });
+
+    it("can change weather from Clear", () => {
+      let changed = false;
+      for (let i = 0; i < 200; i++) {
+        const state = createWeatherState(); // starts Clear
+        if (changeZoneWeather(state, "Mountain Peak", 100)) {
+          changed = true;
+          expect(state.current).not.toBe(WeatherType.Clear);
+          break;
+        }
+      }
+      expect(changed).toBe(true);
+    });
+
+    it("returns false when weather stays the same after re-roll", () => {
+      // Use heartlands = low weather probability, run many times
+      let gotFalse = false;
+      for (let i = 0; i < 200; i++) {
+        const state = createWeatherState();
+        if (!changeZoneWeather(state, "Heartlands", 0)) {
+          gotFalse = true;
+          break;
+        }
+      }
+      expect(gotFalse).toBe(true);
+    });
+
+    it("returns a valid WeatherType after zone change", () => {
+      const validTypes = Object.values(WeatherType);
+      for (let i = 0; i < 50; i++) {
+        const state = createWeatherState();
+        changeZoneWeather(state, "Eastern Desert", 30);
+        expect(validTypes).toContain(state.current);
+      }
     });
   });
 

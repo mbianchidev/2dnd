@@ -71,6 +71,11 @@ export function loadGame(): SaveData | null {
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
     if (data.timeStep === undefined) data.timeStep = 0;
     if (!data.weatherState) data.weatherState = createWeatherState();
+    // Backward compat: last town defaults to Willowdale
+    if (data.player.lastTownX === undefined) data.player.lastTownX = 2;
+    if (data.player.lastTownY === undefined) data.player.lastTownY = 2;
+    if (data.player.lastTownChunkX === undefined) data.player.lastTownChunkX = 1;
+    if (data.player.lastTownChunkY === undefined) data.player.lastTownChunkY = 1;
     return data;
   } catch {
     return null;

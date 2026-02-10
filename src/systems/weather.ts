@@ -30,7 +30,7 @@ export interface WeatherState {
 
 /** Create a fresh weather state (starts clear). */
 export function createWeatherState(): WeatherState {
-  return { current: WeatherType.Clear, stepsUntilChange: 15 };
+  return { current: WeatherType.Clear, stepsUntilChange: 40 };
 }
 
 // ── Biome → Weather Probabilities ──────────────────────────────
@@ -119,8 +119,8 @@ export function rollWeather(biomeName: string, timeStep: number): WeatherType {
 // ── Step-Based Update ──────────────────────────────────────────
 
 /** Minimum and maximum steps between weather checks. */
-const MIN_CHANGE_STEPS = 10;
-const MAX_CHANGE_STEPS = 25;
+const MIN_CHANGE_STEPS = 40;
+const MAX_CHANGE_STEPS = 80;
 
 /**
  * Advance weather by one step.  When the countdown reaches zero, a new
@@ -140,6 +140,25 @@ export function advanceWeather(
   state.stepsUntilChange =
     MIN_CHANGE_STEPS + Math.floor(Math.random() * (MAX_CHANGE_STEPS - MIN_CHANGE_STEPS + 1));
 
+  return state.current !== previous;
+}
+
+/**
+ * Immediately re-roll weather for a new zone/biome.
+ * Called on chunk transitions and town entry — weather persists within
+ * a zone and only changes when the player moves to a different area.
+ * Returns true if the weather actually changed.
+ */
+export function changeZoneWeather(
+  state: WeatherState,
+  biomeName: string,
+  timeStep: number,
+): boolean {
+  const previous = state.current;
+  state.current = rollWeather(biomeName, timeStep);
+  // Reset the legacy countdown in case advanceWeather is still used elsewhere
+  state.stepsUntilChange =
+    MIN_CHANGE_STEPS + Math.floor(Math.random() * (MAX_CHANGE_STEPS - MIN_CHANGE_STEPS + 1));
   return state.current !== previous;
 }
 

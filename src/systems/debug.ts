@@ -18,6 +18,8 @@ import { getItem } from "../data/items";
 export interface DebugCallbacks {
   /** Refresh the HUD / player stats display after a cheat. */
   updateUI: () => void;
+  /** Called when a level-up grants stat points (optional). */
+  onLevelUp?: (asiGained: number) => void;
 }
 
 /** A single scene-specific slash command handler. */
@@ -81,9 +83,12 @@ export function registerSharedHotkeys(
       debugPanelLog(`[CHEAT] Learned ${spell.name}!`, true);
     }
     if (xpResult.asiGained > 0) {
-      debugPanelLog(`[CHEAT] +${xpResult.asiGained} stat points! Press T.`, true);
+      debugPanelLog(`[CHEAT] +${xpResult.asiGained} stat points!`, true);
     }
     cb.updateUI();
+    if (xpResult.asiGained > 0 && cb.onLevelUp) {
+      cb.onLevelUp(xpResult.asiGained);
+    }
   });
 }
 
@@ -114,6 +119,7 @@ export function buildSharedCommands(
       cb.updateUI();
       debugPanelLog(`[CMD] +${val} XP (now Lv.${result.newLevel})`, true);
       if (result.leveledUp) debugPanelLog(`[CMD] Level up to ${result.newLevel}!`, true);
+      if (result.asiGained > 0 && cb.onLevelUp) cb.onLevelUp(result.asiGained);
     } else debugPanelLog(`Usage: /exp <amount>`, true);
   };
   cmds.set("exp", expHandler);

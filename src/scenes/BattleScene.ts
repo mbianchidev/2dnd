@@ -63,6 +63,8 @@ export class BattleScene extends Phaser.Scene {
 
   // Item drops collected this battle
   private droppedItemIds: string[] = [];
+  private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor() {
     super({ key: "BattleScene" });
@@ -103,6 +105,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.drawBattleUI();
     this.setupDebug();
+    this.createWeatherParticles();
     this.rollForInitiative();
   }
 
@@ -905,7 +908,7 @@ export class BattleScene extends Phaser.Scene {
             this.addLog(`🏅 Talent: ${talent.name} — ${talent.description}`);
           }
           if (xpResult.asiGained > 0) {
-            this.addLog(`★ +${xpResult.asiGained} stat points to spend! Press T on the map.`);
+            this.addLog(`★ +${xpResult.asiGained} stat points to spend!`);
           }
         }
 
@@ -928,13 +931,17 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private handleDefeat(): void {
-    // On defeat: restore half HP, lose some gold, return to nearest town
+    // On defeat: restore half HP, lose some gold, return to last visited town
     this.player.hp = Math.floor(this.player.maxHp / 2);
     this.player.mp = Math.floor(this.player.maxMp / 2);
     this.player.gold = Math.floor(this.player.gold * 0.7);
-    // Return to first town
-    this.player.x = 2;
-    this.player.y = 2;
+    // Return to last town (or Willowdale as fallback)
+    this.player.x = this.player.lastTownX ?? 2;
+    this.player.y = this.player.lastTownY ?? 2;
+    this.player.chunkX = this.player.lastTownChunkX ?? 1;
+    this.player.chunkY = this.player.lastTownChunkY ?? 1;
+    this.player.inDungeon = false;
+    this.player.dungeonId = "";
     this.addLog("You wake up in town, bruised but alive...");
     this.time.delayedCall(2000, () => this.returnToOverworld());
   }
@@ -975,6 +982,98 @@ export class BattleScene extends Phaser.Scene {
     console.error(`[BattleScene.${context}]`, err);
     debugPanelLog(`ERROR in ${context}: ${msg}`);
     this.addLog(`⚠ Something went wrong (${context})`);
+  }
+
+  /** Create weather particle effects for the battle scene. */
+  private createWeatherParticles(): void {
+    if (this.weatherParticles) {
+      this.weatherParticles.destroy();
+      this.weatherParticles = null;
+    }
+    if (this.stormLightningTimer) {
+      this.stormLightningTimer.destroy();
+      this.stormLightningTimer = null;
+    }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const weather = this.weatherState.current;
+
+    if (weather === WeatherType.Clear) return;
+
+    const configs: Record<string, () => Phaser.GameObjects.Particles.ParticleEmitter> = {
+      [WeatherType.Rain]: () => this.add.particles(0, -10, "particle_rain", {
+        x: { min: 0, max: w },
+        quantity: 3,
+        lifespan: 1800,
+        speedY: { min: 220, max: 380 },
+        speedX: { min: -20, max: -40 },
+        scale: { start: 1, end: 0.5 },
+        alpha: { start: 0.7, end: 0.15 },
+        frequency: 25,
+      }),
+      [WeatherType.Snow]: () => this.add.particles(0, -10, "particle_snow", {
+        x: { min: 0, max: w },
+        quantity: 1,
+        lifespan: 5000,
+        speedY: { min: 25, max: 70 },
+        speedX: { min: -25, max: 25 },
+        scale: { start: 1, end: 0.3 },
+        alpha: { start: 0.8, end: 0.1 },
+        frequency: 70,
+      }),
+      [WeatherType.Sandstorm]: () => this.add.particles(w + 10, 0, "particle_sand", {
+        y: { min: 0, max: h },
+        quantity: 3,
+        lifespan: 1400,
+        speedX: { min: -280, max: -140 },
+        speedY: { min: -20, max: 30 },
+        scale: { start: 1.2, end: 0.4 },
+        alpha: { start: 0.7, end: 0.1 },
+        frequency: 22,
+      }),
+      [WeatherType.Storm]: () => this.add.particles(0, -10, "particle_storm", {
+        x: { min: 0, max: w },
+        quantity: 5,
+        lifespan: 1200,
+        speedY: { min: 380, max: 520 },
+        speedX: { min: -70, max: -110 },
+        scale: { start: 1, end: 0.5 },
+        alpha: { start: 0.85, end: 0.2 },
+        frequency: 14,
+      }),
+      [WeatherType.Fog]: () => this.add.particles(0, 0, "particle_fog", {
+        x: { min: 0, max: w },
+        y: { min: 0, max: h },
+        quantity: 1,
+        lifespan: 5000,
+        speedX: { min: 5, max: 15 },
+        speedY: { min: -5, max: 5 },
+        scale: { start: 2, end: 4 },
+        alpha: { start: 0.15, end: 0 },
+        frequency: 280,
+      }),
+    };
+
+    const factory = configs[weather];
+    if (factory) {
+      this.weatherParticles = factory();
+      this.weatherParticles.setDepth(5);
+    }
+
+    // Sporadic lightning flashes during storms
+    if (weather === WeatherType.Storm) {
+      const scheduleFlash = () => {
+        this.stormLightningTimer = this.time.delayedCall(
+          2000 + Math.random() * 6000,
+          () => {
+            this.cameras.main.flash(120, 255, 255, 255, true);
+            scheduleFlash();
+          },
+        );
+      };
+      scheduleFlash();
+    }
   }
 
   private returnToOverworld(): void {

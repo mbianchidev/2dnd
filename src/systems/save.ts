@@ -66,6 +66,8 @@ export function loadGame(): SaveData | null {
     if (data.player.chunkY === undefined) data.player.chunkY = 1;
     if (data.player.inDungeon === undefined) data.player.inDungeon = false;
     if (data.player.dungeonId === undefined) data.player.dungeonId = "";
+    if (data.player.inCity === undefined) data.player.inCity = false;
+    if (data.player.cityId === undefined) data.player.cityId = "";
     if (!data.player.openedChests) data.player.openedChests = [];
     if (!data.player.collectedTreasures) data.player.collectedTreasures = [];
     if (!data.player.exploredTiles) data.player.exploredTiles = {};

@@ -21,6 +21,8 @@ export class ShopScene extends Phaser.Scene {
   private goldText!: Phaser.GameObjects.Text;
   private statsText!: Phaser.GameObjects.Text;
   private itemListContainer!: Phaser.GameObjects.Container;
+  private fromCity = false;
+  private cityId = "";
 
   constructor() {
     super({ key: "ShopScene" });
@@ -34,6 +36,8 @@ export class ShopScene extends Phaser.Scene {
     shopItemIds?: string[];
     timeStep?: number;
     weatherState?: WeatherState;
+    fromCity?: boolean;
+    cityId?: string;
   }): void {
     this.player = data.player;
     this.townName = data.townName;
@@ -41,6 +45,8 @@ export class ShopScene extends Phaser.Scene {
     this.bestiary = data.bestiary;
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
+    this.fromCity = data.fromCity ?? false;
+    this.cityId = data.cityId ?? "";
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -58,8 +64,9 @@ export class ShopScene extends Phaser.Scene {
     this.cameras.main.fadeIn(300);
 
     // Title
+    const titleText = this.fromCity ? this.townName : `${this.townName} - General Store`;
     this.add
-      .text(w / 2, 20, `${this.townName} - General Store`, {
+      .text(w / 2, 20, titleText, {
         fontSize: "22px",
         fontFamily: "monospace",
         color: "#ffd700",
@@ -139,20 +146,22 @@ export class ShopScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    // Rest at Inn button
-    const restBtn = this.add
-      .text(20, bottomBarY + 28, "🏨 Rest at Inn (10g)", {
-        fontSize: "13px",
-        fontFamily: "monospace",
-        color: "#aaddff",
-        backgroundColor: "#2a2a4e",
-        padding: { x: 8, y: 4 },
-      })
-      .setInteractive({ useHandCursor: true });
+    // Rest at Inn button (only in standalone shop mode, not from city)
+    if (!this.fromCity) {
+      const restBtn = this.add
+        .text(20, bottomBarY + 28, "🏨 Rest at Inn (10g)", {
+          fontSize: "13px",
+          fontFamily: "monospace",
+          color: "#aaddff",
+          backgroundColor: "#2a2a4e",
+          padding: { x: 8, y: 4 },
+        })
+        .setInteractive({ useHandCursor: true });
 
-    restBtn.on("pointerover", () => restBtn.setColor("#ffd700"));
-    restBtn.on("pointerout", () => restBtn.setColor("#aaddff"));
-    restBtn.on("pointerdown", () => this.restAtInn());
+      restBtn.on("pointerover", () => restBtn.setColor("#ffd700"));
+      restBtn.on("pointerout", () => restBtn.setColor("#aaddff"));
+      restBtn.on("pointerdown", () => this.restAtInn());
+    }
 
     // Leave button
     const leaveBtn = this.add

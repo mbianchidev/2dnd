@@ -1993,14 +1993,6 @@ export class OverworldScene extends Phaser.Scene {
           mapContainer.add(pm);
         }
 
-        // Region name
-        const nameLabel = this.add.text(
-          ox + mapW / 2, oy - 8, chunk.name, {
-            fontSize: "12px", fontFamily: "monospace", color: "#ffd700",
-          }
-        ).setOrigin(0.5, 1);
-        mapContainer.add(nameLabel);
-
         // Back button
         const back = this.add.text(contentX + 4, contentY + 4, "◀ Back to World", {
           fontSize: "11px", fontFamily: "monospace", color: "#88ff88",
@@ -2077,16 +2069,6 @@ export class OverworldScene extends Phaser.Scene {
           });
           mapContainer.add(clickZone);
 
-          // Region name (only if explored)
-          if (hasExplored && zoomLevel >= 0.7) {
-            const fontSize = Math.max(5, Math.round(7 * zoomLevel));
-            const regionLabel = this.add.text(ox + chunkW / 2, oy + chunkH + 1, chunk.name, {
-              fontSize: `${fontSize}px`, fontFamily: "monospace",
-              color: isCurrent ? "#ffd700" : "#999",
-            }).setOrigin(0.5, 0);
-            mapContainer.add(regionLabel);
-          }
-
           // Town markers
           for (const town of chunk.towns) {
             const tKey = `${cx},${cy},${town.x},${town.y}`;
@@ -2132,7 +2114,7 @@ export class OverworldScene extends Phaser.Scene {
     redraw();
 
     // ── Mouse wheel zoom ──
-    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gx: number[], _gy: number, _gz: number, _gw: number, deltaY: number) => {
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
       if (!this.worldMapOverlay || detailChunk) return;
       const oldZoom = zoomLevel;
       zoomLevel = Phaser.Math.Clamp(zoomLevel - deltaY * 0.001, minZoom, maxZoom);

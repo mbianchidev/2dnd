@@ -5,6 +5,6 @@
   <line x1="32" y1="2" x2="32" y2="62" stroke="#ffd700" stroke-width="1" opacity="0.4"/>
   <line x1="6" y1="18" x2="58" y2="46" stroke="#ffd700" stroke-width="1" opacity="0.4"/>
   <line x1="58" y1="18" x2="6" y2="46" stroke="#ffd700" stroke-width="1" opacity="0.4"/>
-  <!-- "20" text -->
-  <text x="32" y="38" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="20" fill="#ffd700">20</text>
+  <!-- "2D" text -->
+  <text x="32" y="38" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="20" fill="#ffd700">2D</text>
 </svg>

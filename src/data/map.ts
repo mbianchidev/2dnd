@@ -76,7 +76,7 @@ export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.Mountain]: 0x795548,
   [Terrain.Water]: 0x2196f3,
   [Terrain.Sand]: 0xfdd835,
-  [Terrain.Town]: 0xff9800,
+  [Terrain.Town]: 0xab47bc,
   [Terrain.Dungeon]: 0x616161,
   [Terrain.Boss]: 0xd32f2f,
   [Terrain.Path]: 0xbcaaa4,

@@ -1997,7 +1997,7 @@ export class OverworldScene extends Phaser.Scene {
           const mx = ox + town.x * detailTile + detailTile / 2;
           const my = oy + town.y * detailTile + detailTile / 2;
           const marker = this.add.graphics();
-          marker.fillStyle(0xff9800, 1);
+          marker.fillStyle(0xab47bc, 1);
           marker.fillCircle(mx, my, Math.max(4, detailTile / 3));
           mapContainer.add(marker);
           const label = this.add.text(mx, my - detailTile / 2 - 2, town.name, {
@@ -2122,7 +2122,7 @@ export class OverworldScene extends Phaser.Scene {
             const mx = ox + town.x * tp + tp / 2;
             const my = oy + town.y * tp + tp / 2;
             const m = this.add.graphics();
-            m.fillStyle(0xff9800, 1);
+            m.fillStyle(0xab47bc, 1);
             m.fillCircle(mx, my, Math.max(2, 3 * zoomLevel));
             mapContainer.add(m);
           }
@@ -2191,11 +2191,23 @@ export class OverworldScene extends Phaser.Scene {
 
     // ── Legend ──
     const legendY = py + panelH - legendH + 4;
-    const legend = this.add.text(px + panelW / 2, legendY,
-      "● You  ● Town  ● Boss  |  Scroll to zoom · Drag to pan · Click chunk for detail  |  N to close", {
-        fontSize: "8px", fontFamily: "monospace", color: "#aaa",
-      }).setOrigin(0.5, 0);
-    this.worldMapOverlay.add(legend);
+    const legendParts: { text: string; color: string }[] = [
+      { text: "● ", color: "#00ff00" }, { text: "You  ", color: "#aaa" },
+      { text: "● ", color: "#ff4444" }, { text: "Boss  ", color: "#aaa" },
+      { text: "● ", color: "#ab47bc" }, { text: "Town  ", color: "#aaa" },
+      { text: "|  Scroll to zoom · Drag to pan · Click chunk for detail  |  N to close", color: "#aaa" },
+    ];
+    let legendCursorX = 0;
+    const legendContainer = this.add.container(0, legendY);
+    for (const part of legendParts) {
+      const t = this.add.text(legendCursorX, 0, part.text, {
+        fontSize: "10px", fontFamily: "monospace", color: part.color,
+      });
+      legendContainer.add(t);
+      legendCursorX += t.width;
+    }
+    legendContainer.setX(px + panelW / 2 - legendCursorX / 2);
+    this.worldMapOverlay.add(legendContainer);
 
     // Zoom controls
     const zoomIn = this.add.text(px + panelW - panelPad - 40, legendY,

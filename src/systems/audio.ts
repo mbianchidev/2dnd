@@ -165,7 +165,10 @@ export function getProfileForBiome(chunkName: string): BiomeProfile {
 // ── Audio Engine ──────────────────────────────────────────────
 
 /** Current track identifier so we avoid restarting the same music. */
-export type TrackKind = "biome" | "battle" | "boss" | "city" | "title" | "defeat" | "none";
+export type TrackKind = "biome" | "battle" | "boss" | "city" | "title" | "defeat" | "victory" | "none";
+
+/** Duration in seconds for crossfade between tracks. */
+const CROSSFADE_DURATION = 1.0;
 
 export interface AudioState {
   trackKind: TrackKind;
@@ -253,16 +256,37 @@ class AudioEngine {
 
   // ─── Stop helpers ─────────────────────────────────────────
 
-  private stopMusic(): void {
+  /**
+   * Fade out and stop the currently playing music track.
+   * If `immediate` is true, stops instantly with no fade.
+   */
+  private stopMusic(immediate = false): void {
     if (this.musicTimer) {
       clearInterval(this.musicTimer);
       this.musicTimer = null;
     }
-    for (const n of this.musicNodes) {
-      try { (n as OscillatorNode).stop?.(); } catch { /* already stopped */ }
-      try { n.disconnect(); } catch { /* ok */ }
+    if (!immediate && this.musicGain && this.ctx) {
+      // Smooth fade-out
+      try {
+        this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, this.ctx.currentTime);
+        this.musicGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + CROSSFADE_DURATION);
+      } catch { /* context may be closed */ }
+      // Schedule node cleanup after fade completes
+      const staleNodes = [...this.musicNodes];
+      this.musicNodes = [];
+      setTimeout(() => {
+        for (const n of staleNodes) {
+          try { (n as OscillatorNode).stop?.(); } catch { /* ok */ }
+          try { n.disconnect(); } catch { /* ok */ }
+        }
+      }, CROSSFADE_DURATION * 1000 + 50);
+    } else {
+      for (const n of this.musicNodes) {
+        try { (n as OscillatorNode).stop?.(); } catch { /* already stopped */ }
+        try { n.disconnect(); } catch { /* ok */ }
+      }
+      this.musicNodes = [];
     }
-    this.musicNodes = [];
   }
 
   private stopWeather(): void {
@@ -278,7 +302,7 @@ class AudioEngine {
   }
 
   stopAll(): void {
-    this.stopMusic();
+    this.stopMusic(true);
     this.stopWeather();
     this.state.trackKind = "none";
     this.state.trackId = "";
@@ -287,63 +311,106 @@ class AudioEngine {
   // ─── Music playback ───────────────────────────────────────
 
   /**
+   * Build a 16-note melodic phrase from the given scale, with variation.
+   *
+   * The phrase walks through the scale across two octaves, using a mix of
+   * ascending runs, descending steps, and occasional leaps so the loop
+   * feels musical rather than robotic.
+   */
+  private buildPhrase(scale: Scale, baseNote: number): number[] {
+    const phrase: number[] = [];
+    const len = scale.length;
+
+    // Section A (4 notes): ascending root octave
+    for (let i = 0; i < 4; i++) {
+      phrase.push(noteFreq(baseNote + scale[i % len]));
+    }
+    // Section B (4 notes): upper octave descending
+    for (let i = 3; i >= 0; i--) {
+      phrase.push(noteFreq(baseNote + scale[i % len] + 12));
+    }
+    // Section C (4 notes): mixed — leap up, step down, step up, root
+    phrase.push(noteFreq(baseNote + scale[2 % len]));
+    phrase.push(noteFreq(baseNote + scale[(len - 1) % len] + 12));
+    phrase.push(noteFreq(baseNote + scale[1 % len] + 12));
+    phrase.push(noteFreq(baseNote + scale[3 % len]));
+    // Section D (4 notes): resolve back toward root with passing tones
+    phrase.push(noteFreq(baseNote + scale[(len - 2) % len]));
+    phrase.push(noteFreq(baseNote + scale[0] + 12));
+    phrase.push(noteFreq(baseNote + scale[1 % len]));
+    phrase.push(noteFreq(baseNote + scale[0]));
+
+    return phrase;
+  }
+
+  /**
    * Start a looping procedural melody from the given profile.
-   * Returns immediately — the melody loops via setInterval.
+   * Crossfades out the previous track, then fades in the new one.
    */
   private playProfile(profile: BiomeProfile, isNight: boolean): void {
     if (!this.ctx || !this.musicGain) return;
-    this.stopMusic();
+
+    // Crossfade: fade out old track, then start new one
+    this.stopMusic(); // initiates fade-out
 
     const { scale, baseNote } = isNight ? nightScale(profile) : { scale: profile.scale, baseNote: profile.baseNote };
     const secPerBeat = 60 / profile.bpm;
     const ctx = this.ctx;
     const dest = this.musicGain;
 
-    // Generate a looping 8-note phrase from the scale
-    const phrase: number[] = [];
-    for (let i = 0; i < 8; i++) {
-      const idx = i % scale.length;
-      const octaveShift = i < 4 ? 0 : 12;
-      phrase.push(noteFreq(baseNote + scale[idx] + octaveShift));
-    }
+    // Build a 16-note phrase for a longer, less repetitive loop
+    const phrase = this.buildPhrase(scale, baseNote);
 
-    let step = 0;
-    const playNote = () => {
+    const startPlayback = () => {
       if (!this.ctx || this.ctx.state === "closed") return;
-      const freq = phrase[step % phrase.length];
 
-      // Lead note
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = profile.wave;
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.18, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + secPerBeat * 0.9);
-      osc.connect(gain);
-      gain.connect(dest);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + secPerBeat);
+      // Fade music gain back in
+      try {
+        dest.gain.setValueAtTime(0, ctx.currentTime);
+        dest.gain.linearRampToValueAtTime(0.6, ctx.currentTime + CROSSFADE_DURATION);
+      } catch { /* ok */ }
 
-      // Soft pad / bass every other beat
-      if (step % 2 === 0) {
-        const pad = ctx.createOscillator();
-        const pGain = ctx.createGain();
-        pad.type = profile.padWave;
-        pad.frequency.value = freq / 2;
-        pGain.gain.setValueAtTime(0.08, ctx.currentTime);
-        pGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + secPerBeat * 1.8);
-        pad.connect(pGain);
-        pGain.connect(dest);
-        pad.start(ctx.currentTime);
-        pad.stop(ctx.currentTime + secPerBeat * 2);
-      }
+      let step = 0;
+      const playNote = () => {
+        if (!this.ctx || this.ctx.state === "closed") return;
+        const freq = phrase[step % phrase.length];
 
-      step++;
+        // Lead note
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = profile.wave;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + secPerBeat * 0.9);
+        osc.connect(gain);
+        gain.connect(dest);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + secPerBeat);
+
+        // Soft pad / bass every other beat
+        if (step % 2 === 0) {
+          const pad = ctx.createOscillator();
+          const pGain = ctx.createGain();
+          pad.type = profile.padWave;
+          pad.frequency.value = freq / 2;
+          pGain.gain.setValueAtTime(0.08, ctx.currentTime);
+          pGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + secPerBeat * 1.8);
+          pad.connect(pGain);
+          pGain.connect(dest);
+          pad.start(ctx.currentTime);
+          pad.stop(ctx.currentTime + secPerBeat * 2);
+        }
+
+        step++;
+      };
+
+      // Play the first note immediately, then loop
+      playNote();
+      this.musicTimer = setInterval(playNote, secPerBeat * 1000);
     };
 
-    // Play the first note immediately, then loop
-    playNote();
-    this.musicTimer = setInterval(playNote, secPerBeat * 1000);
+    // Delay new track start by the crossfade duration so the old one fades out
+    setTimeout(startPlayback, CROSSFADE_DURATION * 1000);
   }
 
   // ─── Public music API ─────────────────────────────────────
@@ -416,6 +483,61 @@ class AudioEngine {
     this.state.trackId = "defeat";
     this.state.nightMode = false;
     this.playProfile(DEFEAT_PROFILE, false);
+  }
+
+  /**
+   * Play a short victory fanfare (ascending arpeggio).
+   * Stops the current music, plays the jingle, then goes silent.
+   */
+  playVictoryJingle(): void {
+    if (!this.ctx || !this.musicGain) return;
+    this.stopMusic(true);
+    this.state.trackKind = "victory";
+    this.state.trackId = "victory";
+
+    const ctx = this.ctx;
+    const dest = this.musicGain;
+    // Restore gain immediately for the jingle
+    try {
+      dest.gain.setValueAtTime(0.6, ctx.currentTime);
+    } catch { /* ok */ }
+
+    // Ascending major arpeggio: root, 3rd, 5th, octave, high 3rd, high 5th
+    const jingleNotes = [0, 4, 7, 12, 16, 19];
+    const noteDuration = 0.15;
+    const holdDuration = 0.6;
+
+    for (let i = 0; i < jingleNotes.length; i++) {
+      const freq = noteFreq(jingleNotes[i]);
+      const startTime = ctx.currentTime + i * noteDuration;
+      const isLast = i === jingleNotes.length - 1;
+      const dur = isLast ? holdDuration : noteDuration * 0.95;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.22, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+      osc.connect(gain);
+      gain.connect(dest);
+      osc.start(startTime);
+      osc.stop(startTime + dur + 0.05);
+
+      // Harmony on even notes
+      if (i % 2 === 0) {
+        const harm = ctx.createOscillator();
+        const hGain = ctx.createGain();
+        harm.type = "sine";
+        harm.frequency.value = freq / 2;
+        hGain.gain.setValueAtTime(0.10, startTime);
+        hGain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+        harm.connect(hGain);
+        hGain.connect(dest);
+        harm.start(startTime);
+        harm.stop(startTime + dur + 0.05);
+      }
+    }
   }
 
   // ─── Weather SFX ──────────────────────────────────────────
@@ -591,10 +713,11 @@ class AudioEngine {
       { label: "Battle",         fn: () => this.playBattleMusic() },
       { label: "Boss: dragon",   fn: () => this.playBossMusic("dragon") },
       { label: "Boss: frostGiant", fn: () => this.playBossMusic("frostGiant") },
+      { label: "Victory jingle", fn: () => this.playVictoryJingle() },
       { label: "City: Willowdale", fn: () => this.playCityMusic("Willowdale") },
       { label: "City: Frostheim", fn: () => this.playCityMusic("Frostheim") },
       { label: "Defeat",         fn: () => this.playDefeatMusic() },
-      { label: "Weather: Rain",  fn: () => { this.stopMusic(); this.playWeatherSFX(WeatherType.Rain); } },
+      { label: "Weather: Rain",  fn: () => { this.stopMusic(true); this.playWeatherSFX(WeatherType.Rain); } },
       { label: "Weather: Storm", fn: () => { this.playWeatherSFX(WeatherType.Storm); } },
       { label: "Weather: Snow",  fn: () => { this.playWeatherSFX(WeatherType.Snow); } },
       { label: "Weather: Sandstorm", fn: () => { this.playWeatherSFX(WeatherType.Sandstorm); } },

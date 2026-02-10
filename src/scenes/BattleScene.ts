@@ -930,6 +930,11 @@ export class BattleScene extends Phaser.Scene {
         // Record in bestiary
         recordDefeat(this.bestiary, this.monster, this.acDiscovered, this.droppedItemIds);
 
+        // Play victory jingle
+        if (audioEngine.initialized) {
+          audioEngine.playVictoryJingle();
+        }
+
         this.updatePlayerStats();
         this.time.delayedCall(2500, () => this.returnToOverworld());
       } else {
@@ -941,6 +946,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private handleDefeat(): void {
+    // Play defeat music
+    if (audioEngine.initialized) {
+      audioEngine.playDefeatMusic();
+    }
     // On defeat: restore half HP, lose some gold, return to last visited town
     this.player.hp = Math.floor(this.player.maxHp / 2);
     this.player.mp = Math.floor(this.player.maxMp / 2);

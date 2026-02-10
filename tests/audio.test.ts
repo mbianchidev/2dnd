@@ -99,6 +99,7 @@ describe("audio system", () => {
       expect(typeof audioEngine.playCityMusic).toBe("function");
       expect(typeof audioEngine.playTitleMusic).toBe("function");
       expect(typeof audioEngine.playDefeatMusic).toBe("function");
+      expect(typeof audioEngine.playVictoryJingle).toBe("function");
       expect(typeof audioEngine.playWeatherSFX).toBe("function");
       expect(typeof audioEngine.playDialogueBlip).toBe("function");
       expect(typeof audioEngine.playAllSounds).toBe("function");
@@ -121,6 +122,7 @@ describe("audio system", () => {
       expect(() => audioEngine.playCityMusic("Willowdale")).not.toThrow();
       expect(() => audioEngine.playTitleMusic()).not.toThrow();
       expect(() => audioEngine.playDefeatMusic()).not.toThrow();
+      expect(() => audioEngine.playVictoryJingle()).not.toThrow();
       expect(() => audioEngine.playWeatherSFX("Rain" as any)).not.toThrow();
       expect(() => audioEngine.playDialogueBlip()).not.toThrow();
       expect(() => audioEngine.stopAll()).not.toThrow();

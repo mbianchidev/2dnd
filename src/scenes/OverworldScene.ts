@@ -484,12 +484,19 @@ export class OverworldScene extends Phaser.Scene {
     if (this.player.inCity) {
       const city = getCity(this.player.cityId);
       if (!city) return;
+      // Determine surrounding biome so city floor matches the landscape
+      const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
+      const biomeFloorTex = `tile_${cityBiome}`;
       for (let y = 0; y < MAP_HEIGHT; y++) {
         this.tileSprites[y] = [];
         for (let x = 0; x < MAP_WIDTH; x++) {
           const explored = this.isExplored(x, y);
           const terrain = city.mapData[y][x];
-          const texKey = explored ? `tile_${terrain}` : "tile_fog";
+          let texKey = explored ? `tile_${terrain}` : "tile_fog";
+          // City floor uses the biome ground texture instead of cobblestone
+          if (explored && terrain === Terrain.CityFloor) {
+            texKey = biomeFloorTex;
+          }
           const sprite = this.add.sprite(
             x * TILE_SIZE + TILE_SIZE / 2,
             y * TILE_SIZE + TILE_SIZE / 2,
@@ -859,11 +866,14 @@ export class OverworldScene extends Phaser.Scene {
     } else if (this.player.inCity) {
       const city = getCity(this.player.cityId);
       if (!city) return;
+      const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
+      const biomeFloorTex = `tile_${cityBiome}`;
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
           if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
             const terrain = city.mapData[y][x];
-            this.tileSprites[y][x].setTexture(`tile_${terrain}`);
+            const texKey = terrain === Terrain.CityFloor ? biomeFloorTex : `tile_${terrain}`;
+            this.tileSprites[y][x].setTexture(texKey);
           }
         }
       }
@@ -1103,6 +1113,15 @@ export class OverworldScene extends Phaser.Scene {
       [Terrain.DeepForest]: "Deep Forest",
       [Terrain.Volcanic]: "Volcanic",
       [Terrain.Canyon]: "Canyon",
+      [Terrain.Flower]: "Grassland",
+      [Terrain.Cactus]: "Desert",
+      [Terrain.Geyser]: "Volcanic",
+      [Terrain.Mushroom]: "Swamp",
+      [Terrain.River]: "River",
+      [Terrain.Mill]: "Grassland",
+      [Terrain.CropField]: "Grassland",
+      [Terrain.Casino]: "Town",
+      [Terrain.House]: "Town",
     };
 
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);

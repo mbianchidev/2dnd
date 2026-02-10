@@ -212,33 +212,30 @@ export class BootScene extends Phaser.Scene {
           gfx.strokeRect(17, 1, 14, 14);
           break;
         case Terrain.CityWall:
-          // Medieval building with roof, windows, and brickwork
+          // Solid stone wall with brick pattern (no roof)
           gfx.fillStyle(0x5d4037, 1);
           gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-          // Stone brickwork pattern
-          gfx.fillStyle(0x4e342e, 0.6);
+          // Brick layers
+          gfx.fillStyle(0x4e342e, 0.8);
           gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-          gfx.lineStyle(1, 0x3e2723, 0.5);
+          gfx.lineStyle(1, 0x3e2723, 0.6);
+          // Row 1
           gfx.strokeRect(1, 1, 14, 7);
           gfx.strokeRect(17, 1, 14, 7);
+          // Row 2 (offset)
           gfx.strokeRect(8, 9, 14, 7);
-          gfx.strokeRect(0, 17, 14, 7);
-          gfx.strokeRect(16, 17, 14, 7);
+          gfx.strokeRect(0, 9, 7, 7);
+          gfx.strokeRect(23, 9, 8, 7);
+          // Row 3
+          gfx.strokeRect(1, 17, 14, 7);
+          gfx.strokeRect(17, 17, 14, 7);
+          // Row 4 (offset)
           gfx.strokeRect(8, 25, 14, 7);
-          // Peaked roof top
-          gfx.fillStyle(0x8b0000, 0.9);
-          gfx.fillTriangle(0, 8, 32, 8, 16, 0);
-          gfx.fillStyle(0xa52a2a, 0.7);
-          gfx.fillTriangle(2, 8, 30, 8, 16, 2);
-          // Window
-          gfx.fillStyle(0xfff9c4, 0.8);
-          gfx.fillRect(12, 12, 8, 7);
-          gfx.lineStyle(1, 0x5d4037, 0.9);
-          gfx.lineBetween(16, 12, 16, 19);
-          gfx.lineBetween(12, 15, 20, 15);
-          // Window frame
-          gfx.lineStyle(1, 0x3e2723, 0.8);
-          gfx.strokeRect(12, 12, 8, 7);
+          gfx.strokeRect(0, 25, 7, 7);
+          gfx.strokeRect(23, 25, 8, 7);
+          // Top edge shadow
+          gfx.fillStyle(0x3e2723, 0.4);
+          gfx.fillRect(0, 0, TILE_SIZE, 2);
           break;
         case Terrain.CityExit:
           // City gate / exit
@@ -477,41 +474,66 @@ export class BootScene extends Phaser.Scene {
           gfx.fillRect(26, 6, 3, 20);
           break;
         case Terrain.House:
-          // Small house on cobblestone
-          gfx.fillStyle(0xbcaaa4, 1);
-          gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-          // Building
-          gfx.fillStyle(0x6d4c41, 1);
-          gfx.fillRect(4, 10, 24, 18);
-          // Roof
-          gfx.fillStyle(0xcc0000, 1);
-          gfx.fillTriangle(2, 12, 30, 12, 16, 2);
-          gfx.fillStyle(0xaa0000, 0.7);
-          gfx.fillTriangle(4, 12, 28, 12, 16, 4);
+          // Cottage footprint — wooden walls, thatched roof, small window
+          // Foundation
+          gfx.fillStyle(0x8d6e63, 1);
+          gfx.fillRect(3, 6, 26, 22);
+          // Wooden wall texture
+          gfx.fillStyle(0x795548, 1);
+          gfx.fillRect(4, 7, 24, 20);
+          gfx.lineStyle(1, 0x6d4c41, 0.4);
+          gfx.lineBetween(4, 12, 28, 12);
+          gfx.lineBetween(4, 17, 28, 17);
+          gfx.lineBetween(4, 22, 28, 22);
+          // Thatched roof (brown/tan, not red)
+          gfx.fillStyle(0xa08060, 1);
+          gfx.fillTriangle(1, 9, 31, 9, 16, 0);
+          gfx.fillStyle(0xb89870, 0.8);
+          gfx.fillTriangle(3, 9, 29, 9, 16, 2);
+          // Roof texture lines
+          gfx.lineStyle(1, 0x8a7050, 0.5);
+          gfx.lineBetween(8, 5, 16, 1);
+          gfx.lineBetween(24, 5, 16, 1);
           // Door
-          gfx.fillStyle(0x3e2723, 1);
-          gfx.fillRect(14, 22, 5, 6);
-          // Windows
-          gfx.fillStyle(0xfff9c4, 0.8);
-          gfx.fillRect(7, 14, 5, 4);
-          gfx.fillRect(21, 14, 5, 4);
+          gfx.fillStyle(0x4e342e, 1);
+          gfx.fillRect(13, 19, 6, 8);
+          gfx.fillStyle(0xdaa520, 1);
+          gfx.fillRect(17, 22, 1, 2); // door handle
+          // Window
+          gfx.fillStyle(0xfff9c4, 0.85);
+          gfx.fillRect(6, 13, 5, 4);
+          gfx.fillRect(21, 13, 5, 4);
+          gfx.lineStyle(1, 0x5d4037, 0.7);
+          gfx.lineBetween(8, 13, 8, 17);
+          gfx.lineBetween(23, 13, 23, 17);
           break;
         case Terrain.Flower:
-          // Colorful flowers on grass
-          gfx.fillStyle(0xff80ab, 0.5);
-          gfx.fillCircle(8, 10, 3);
-          gfx.fillCircle(22, 8, 3);
-          gfx.fillStyle(0xffab40, 0.5);
-          gfx.fillCircle(14, 22, 3);
-          gfx.fillCircle(26, 24, 3);
-          gfx.fillStyle(0xb388ff, 0.5);
-          gfx.fillCircle(6, 26, 3);
-          gfx.fillCircle(18, 14, 3);
+          // Green grass with 3 small simple flowers
+          // Grass texture variation
+          gfx.fillStyle(0x43a047, 0.4);
+          gfx.fillCircle(6, 8, 4);
+          gfx.fillCircle(20, 22, 5);
+          gfx.fillCircle(28, 10, 3);
           // Stems
-          gfx.fillStyle(0x388e3c, 0.6);
-          gfx.fillRect(7, 12, 2, 6);
-          gfx.fillRect(21, 10, 2, 6);
-          gfx.fillRect(13, 24, 2, 6);
+          gfx.fillStyle(0x2e7d32, 0.8);
+          gfx.fillRect(9, 12, 1, 6);
+          gfx.fillRect(20, 8, 1, 5);
+          gfx.fillRect(15, 20, 1, 5);
+          // Flower 1 — red
+          gfx.fillStyle(0xdd3333, 1);
+          gfx.fillCircle(9, 11, 2);
+          gfx.fillStyle(0xff6666, 1);
+          gfx.fillCircle(9, 11, 1);
+          // Flower 2 — yellow
+          gfx.fillStyle(0xddcc22, 1);
+          gfx.fillCircle(20, 7, 2);
+          gfx.fillStyle(0xffee66, 1);
+          gfx.fillCircle(20, 7, 1);
+          // Flower 3 — white
+          gfx.fillStyle(0xeeeeee, 1);
+          gfx.fillCircle(15, 19, 2);
+          gfx.fillStyle(0xffffcc, 1);
+          gfx.fillCircle(15, 19, 1);
           break;
         case Terrain.Cactus:
           // Cactus on sand
@@ -541,23 +563,27 @@ export class BootScene extends Phaser.Scene {
           gfx.fillCircle(16, 2, 3);
           break;
         case Terrain.Mushroom:
-          // Glowing mushrooms on swamp ground
+          // Brown/red mushrooms on swamp ground
           gfx.fillStyle(0x4e342e, 0.3);
           gfx.fillRect(6, 6, 8, 4);
           gfx.fillRect(20, 16, 6, 3);
-          // Large mushroom
+          // Large mushroom — brown cap
           gfx.fillStyle(0x8d6e63, 1);
           gfx.fillRect(9, 14, 3, 10);
-          gfx.fillStyle(0xce93d8, 1);
+          gfx.fillStyle(0x8b4513, 1);
           gfx.fillCircle(10, 12, 6);
-          gfx.fillStyle(0xe1bee7, 0.5);
+          gfx.fillStyle(0xa0522d, 0.5);
           gfx.fillCircle(8, 10, 2);
           gfx.fillCircle(13, 11, 2);
-          // Small mushroom
+          // Small mushroom — red cap
           gfx.fillStyle(0x8d6e63, 1);
           gfx.fillRect(22, 22, 2, 6);
-          gfx.fillStyle(0xba68c8, 1);
+          gfx.fillStyle(0xcc3333, 1);
           gfx.fillCircle(23, 20, 4);
+          // White spots on red cap
+          gfx.fillStyle(0xeeeeee, 0.8);
+          gfx.fillCircle(22, 19, 1);
+          gfx.fillCircle(24, 21, 1);
           break;
         case Terrain.Casino:
           // Casino building on cobblestone — gold/red facade
@@ -859,14 +885,23 @@ export class BootScene extends Phaser.Scene {
     fog.destroy();
 
     // --- Biome decoration creature particles ---
-    // Butterfly — tiny colorful wings (V shape)
+    // Butterfly — soft pastel wings with dark body
     const bfly = this.add.graphics();
-    bfly.fillStyle(0xff88cc, 1);
-    bfly.fillTriangle(0, 0, 3, 3, 0, 6); // left wing
-    bfly.fillStyle(0xffaa44, 1);
-    bfly.fillTriangle(6, 0, 3, 3, 6, 6); // right wing
-    bfly.fillStyle(0x332211, 1);
-    bfly.fillRect(2, 2, 2, 3); // body
+    // Left wing (light blue)
+    bfly.fillStyle(0x88ccee, 0.85);
+    bfly.fillCircle(1, 2, 2); // upper left
+    bfly.fillCircle(1, 5, 1.5); // lower left
+    // Right wing (light blue)
+    bfly.fillStyle(0x88ccee, 0.85);
+    bfly.fillCircle(5, 2, 2); // upper right
+    bfly.fillCircle(5, 5, 1.5); // lower right
+    // Wing spots (white)
+    bfly.fillStyle(0xffffff, 0.5);
+    bfly.fillCircle(1, 2, 1);
+    bfly.fillCircle(5, 2, 1);
+    // Body (dark)
+    bfly.fillStyle(0x222222, 1);
+    bfly.fillRect(3, 1, 1, 5);
     bfly.generateTexture("particle_butterfly", 7, 7);
     bfly.destroy();
 

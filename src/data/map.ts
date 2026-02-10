@@ -148,10 +148,10 @@ export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.CropField]: 0xaed581,
   [Terrain.Fence]: 0x795548,
   [Terrain.House]: 0x6d4c41,
-  [Terrain.Flower]: 0xff80ab,
+  [Terrain.Flower]: 0x4caf50,
   [Terrain.Cactus]: 0x558b2f,
   [Terrain.Geyser]: 0x90a4ae,
-  [Terrain.Mushroom]: 0xce93d8,
+  [Terrain.Mushroom]: 0x558b2f,
   [Terrain.Casino]: 0xdaa520,
 };
 
@@ -2988,6 +2988,18 @@ function placeBiomeDecorations(): void {
               }
             }
           } else {
+            // Don't place flowers on grass tiles adjacent to sand/desert
+            if (t === Terrain.Grass && deco === Terrain.Flower) {
+              let nearSand = false;
+              for (const [dx, dy] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+                const nx = tx + dx, ny = ty + dy;
+                if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+                  const nt = md[ny][nx];
+                  if (nt === Terrain.Sand || nt === Terrain.Cactus) { nearSand = true; break; }
+                }
+              }
+              if (nearSand) continue;
+            }
             md[ty][tx] = deco;
           }
         }

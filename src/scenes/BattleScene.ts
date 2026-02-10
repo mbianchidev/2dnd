@@ -65,6 +65,7 @@ export class BattleScene extends Phaser.Scene {
   private droppedItemIds: string[] = [];
   private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
+  private biome = "grass";
 
   constructor() {
     super({ key: "BattleScene" });
@@ -77,6 +78,7 @@ export class BattleScene extends Phaser.Scene {
     bestiary: BestiaryData;
     timeStep?: number;
     weatherState?: WeatherState;
+    biome?: string;
   }): void {
     this.player = data.player;
     this.monster = data.monster;
@@ -85,6 +87,7 @@ export class BattleScene extends Phaser.Scene {
     this.bestiary = data.bestiary;
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
+    this.biome = data.biome ?? "grass";
     this.phase = "init";
     this.logLines = [];
     this.actionButtons = [];
@@ -117,10 +120,18 @@ export class BattleScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
 
-    // Full battle background
-    const bg = this.add.graphics();
-    bg.fillStyle(0x151530, 1);
-    bg.fillRect(0, 0, w, h);
+    // Full battle background — biome or boss-specific
+    const bgKey = this.monster.isBoss
+      ? `bg_boss_${this.monster.id}`
+      : `bg_${this.biome}`;
+    if (this.textures.exists(bgKey)) {
+      this.add.image(w / 2, h / 2, bgKey);
+    } else {
+      // Fallback flat fill
+      const bg = this.add.graphics();
+      bg.fillStyle(0x151530, 1);
+      bg.fillRect(0, 0, w, h);
+    }
 
     // --- Monster (top-right) ---
     const textureKey = this.monster.isBoss ? "monster_boss" : "monster";

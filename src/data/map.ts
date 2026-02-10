@@ -27,6 +27,24 @@ export enum Terrain {
   CityFloor = 19,
   CityWall = 20,
   CityExit = 21,
+  Carpet = 22,
+  Well = 23,
+  Fountain = 24,
+  Crate = 25,
+  Barrel = 26,
+  ShopFloor = 27,
+  Temple = 28,
+  Statue = 29,
+  River = 30,
+  Mill = 31,
+  CropField = 32,
+  Fence = 33,
+  House = 34,
+  Flower = 35,
+  Cactus = 36,
+  Geyser = 37,
+  Mushroom = 38,
+  Casino = 39,
 }
 
 export interface TownData {
@@ -117,6 +135,24 @@ export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.CityFloor]: 0xbcaaa4,
   [Terrain.CityWall]: 0x5d4037,
   [Terrain.CityExit]: 0x66bb6a,
+  [Terrain.Carpet]: 0x8b1a1a,
+  [Terrain.Well]: 0x607d8b,
+  [Terrain.Fountain]: 0x4fc3f7,
+  [Terrain.Crate]: 0x8d6e63,
+  [Terrain.Barrel]: 0x6d4c41,
+  [Terrain.ShopFloor]: 0xa1887f,
+  [Terrain.Temple]: 0xd4af37,
+  [Terrain.Statue]: 0x9e9e9e,
+  [Terrain.River]: 0x42a5f5,
+  [Terrain.Mill]: 0x8d6e63,
+  [Terrain.CropField]: 0xaed581,
+  [Terrain.Fence]: 0x795548,
+  [Terrain.House]: 0x6d4c41,
+  [Terrain.Flower]: 0xff80ab,
+  [Terrain.Cactus]: 0x558b2f,
+  [Terrain.Geyser]: 0x90a4ae,
+  [Terrain.Mushroom]: 0xce93d8,
+  [Terrain.Casino]: 0xdaa520,
 };
 
 /** Encounter rates per terrain (0 = no encounters). */
@@ -143,6 +179,24 @@ export const ENCOUNTER_RATES: Record<Terrain, number> = {
   [Terrain.CityFloor]: 0,
   [Terrain.CityWall]: 0,
   [Terrain.CityExit]: 0,
+  [Terrain.Carpet]: 0,
+  [Terrain.Well]: 0,
+  [Terrain.Fountain]: 0,
+  [Terrain.Crate]: 0,
+  [Terrain.Barrel]: 0,
+  [Terrain.ShopFloor]: 0,
+  [Terrain.Temple]: 0,
+  [Terrain.Statue]: 0,
+  [Terrain.River]: 0,
+  [Terrain.Mill]: 0,
+  [Terrain.CropField]: 0,
+  [Terrain.Fence]: 0,
+  [Terrain.House]: 0,
+  [Terrain.Flower]: 0.06,
+  [Terrain.Cactus]: 0.05,
+  [Terrain.Geyser]: 0,
+  [Terrain.Mushroom]: 0.08,
+  [Terrain.Casino]: 0,
 };
 
 export const MAP_WIDTH = 20;
@@ -157,7 +211,19 @@ export function isWalkable(terrain: Terrain): boolean {
     terrain !== Terrain.Mountain &&
     terrain !== Terrain.DungeonWall &&
     terrain !== Terrain.Volcanic &&
-    terrain !== Terrain.CityWall
+    terrain !== Terrain.CityWall &&
+    terrain !== Terrain.Well &&
+    terrain !== Terrain.Fountain &&
+    terrain !== Terrain.Crate &&
+    terrain !== Terrain.Barrel &&
+    terrain !== Terrain.Temple &&
+    terrain !== Terrain.Statue &&
+    terrain !== Terrain.River &&
+    terrain !== Terrain.Mill &&
+    terrain !== Terrain.Fence &&
+    terrain !== Terrain.House &&
+    terrain !== Terrain.Geyser &&
+    terrain !== Terrain.Casino
   );
 }
 
@@ -166,8 +232,15 @@ function isSpecialTerrain(t: Terrain): boolean {
   return t === Terrain.Town || t === Terrain.Boss || t === Terrain.Dungeon ||
     t === Terrain.Chest || t === Terrain.DungeonExit || t === Terrain.DungeonFloor ||
     t === Terrain.DungeonWall || t === Terrain.Water || t === Terrain.Mountain ||
-    t === Terrain.Volcanic || t === Terrain.MinorTreasure ||
-    t === Terrain.CityFloor || t === Terrain.CityWall || t === Terrain.CityExit;
+    t === Terrain.Volcanic ||
+    t === Terrain.CityFloor || t === Terrain.CityWall || t === Terrain.CityExit ||
+    t === Terrain.Carpet || t === Terrain.Well || t === Terrain.Fountain ||
+    t === Terrain.Crate || t === Terrain.Barrel || t === Terrain.ShopFloor ||
+    t === Terrain.Temple || t === Terrain.Statue ||
+    t === Terrain.River || t === Terrain.Mill || t === Terrain.CropField ||
+    t === Terrain.Fence || t === Terrain.House ||
+    t === Terrain.Flower || t === Terrain.Cactus || t === Terrain.Geyser || t === Terrain.Mushroom ||
+    t === Terrain.Casino;
 }
 
 const dW = Terrain.DungeonWall;
@@ -242,83 +315,257 @@ export const DUNGEONS: DungeonData[] = [
 const cW = Terrain.CityWall;
 const cF = Terrain.CityFloor;
 const cE = Terrain.CityExit;
+const cP = Terrain.Carpet;
+const wL = Terrain.Well;
+const fT = Terrain.Fountain;
+const kR = Terrain.Crate;
+const bR = Terrain.Barrel;
+const sF = Terrain.ShopFloor;
+const tP = Terrain.Temple;
+const sT = Terrain.Statue;
+const rV = Terrain.River;
+const mL = Terrain.Mill;
+const cR = Terrain.CropField;
+const fN = Terrain.Fence;
+const hS = Terrain.House;
+const cA = Terrain.Casino;
 
-// Willowdale — friendly village with central square, scattered houses
+// ── Willowdale — Quaint village with river, houses, and fountain ──
 // prettier-ignore
 const WILLOWDALE_INTERIOR: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,rV,rV,cF,cF,cF,cF,rV,rV,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cW,cF,rV,rV,cF,hS,cF,cF,rV,rV,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cW,sF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cF,cF,cP,cF,cF,cF,cF,cF,sT,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
-  [cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
+  [cW,cF,kR,cF,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cF,kR,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,wL,cF,fT,fT,cF,wL,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cF,cW],
-  [cW,cF,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
-  [cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cF,cF,cF,hS,cF,cF,cF,cF,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cW,sF,cW,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
-// Ironhold — industrial forge city with dense buildings and narrow alleys
+// ── Ironhold — Dense forge city with narrow alleys and workshops ──
 // prettier-ignore
 const IRONHOLD_INTERIOR: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
-  [cW,cF,cF,cW,cW,cW,cF,cF,cF,cF,cF,cF,cF,cW,cW,cW,cF,cF,cF,cW],
-  [cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cW,cW,cF,cW,cW,cW,cF,cW,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cF,cW],
-  [cW,cW,cW,cF,cW,cW,cW,cW,cF,cW,cW,cF,cW,cW,cW,cW,cF,cW,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,sF,cW,cF,kR,cF,cF,sT,cF,cF,cF,kR,cF,cW,sF,cW,cF,cW],
+  [cW,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cW,cW,cW,cF,cF,cF,cF,cW,cW,cW,cF,cF,cF,cF,cW],
+  [cW,cF,bR,cF,cF,cW,sF,sF,cF,cF,cF,cF,sF,sF,cW,cF,cF,bR,cF,cW],
+  [cW,cF,cF,cF,cF,cW,cW,cP,cF,cF,cF,cF,cP,cW,cW,cF,cF,cF,cF,cW],
+  [cW,hS,cW,cW,cF,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cF,cW,cW,hS,cW],
+  [cW,cF,cW,cW,cF,kR,cF,bR,cF,cF,cF,bR,cF,kR,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,sT,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cW],
-  [cW,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cW,sF,sF,cF,cW,sF,sF,cF,cF,sF,sF,cW,cF,sF,sF,cW,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cW,cW,cF,cW,cW,cW,cF,cW,cW,cF,cW,cW,cW,cF,cW,cW,cF,cW],
-  [cW,cF,cW,cW,cF,cW,cW,cW,cF,cW,cW,cF,cW,cW,cW,cF,cW,cW,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cW,cW,cW,cW,cF,cW,cW,cW,cW,cW,cW,cF,cW,cW,cW,cW,cF,cW],
+  [cW,cF,kR,cF,bR,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,bR,cF,kR,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
-// Sandport — open desert trading bazaar with wide market streets
+// ── Sandport — Open desert bazaar with big casino, sun temple ──
 // prettier-ignore
 const SANDPORT_INTERIOR: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cW,cW,cF,cF,cF,cW,cW,cF,cF,cW,cW,cF,cF,cF,cW,cW,cF,cW],
-  [cW,cF,cW,cW,cF,cF,cF,cW,cW,cF,cF,cW,cW,cF,cF,cF,cW,cW,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cF,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cF,cW,cW,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cW,cW,cF,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
-  [cW,cF,cW,cW,cF,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,tP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,sF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cF,cF,cP,cF,cF,bR,cF,cF,cF,cF,cF,cF,bR,cF,cF,cP,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cA,cA,cA,cA,cA,cA,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,hS,cF,cF,kR,cF,cA,cA,cA,cA,cA,cA,cF,kR,cF,cF,hS,cF,cW],
+  [cW,cF,cW,sF,cW,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cF,cF,cP,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cP,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,bR,cF,cF,cF,cF,cF,cF,bR,cF,cF,cF,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cF,cF,hS,cF,cW],
+  [cW,cF,cW,cW,sF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cW,sF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cP,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,cP,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
-// Frostheim — compact northern town with winding icy paths
+// ── Frostheim — Sturdy northern town with central hearth and frost temple ──
 // prettier-ignore
 const FROSTHEIM_INTERIOR: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
-  [cW,cF,cF,cF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cF,cF,cF,cW],
-  [cW,cF,cW,cF,cW,cF,cW,cW,cW,cW,cW,cW,cW,cW,cF,cW,cF,cW,cF,cW],
-  [cW,cF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cF,cW],
-  [cW,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cF,cW,cW,cW,cF,cF,cF,cF,cF,cF,cW,cW,cW,cF,cW,cW,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cW,cF,cF,cF,cF,tP,cF,cF,cF,cF,cF,cW,cF,cF,cF,cW],
+  [cW,cF,cW,sF,cW,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cF,cF,hS,cF,cW],
+  [cW,cF,sT,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sT,cF,cW],
+  [cW,cW,cW,cF,cW,cW,cF,cF,cF,fT,fT,cF,cF,cF,cW,cW,cF,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cW,cW,cW,cF,cW,cW,cF,cF,cF,cF,cW,cW,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cW,sF,sF,cF,cW,sF,cF,cF,cF,cF,sF,cW,cF,sF,sF,cW,cF,cW],
+  [cW,cF,cF,cP,cF,cF,cF,cP,cF,cF,cF,cF,cP,cF,cF,cP,cF,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cF,cF,hS,cF,cW],
+  [cW,cF,kR,cF,cF,bR,cF,cF,cF,cF,cF,cF,cF,cF,bR,cF,cF,kR,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// ── Deeproot — Forest village with mill, nature shrine and ancient tree ──
+// prettier-ignore
+const DEEPROOT_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cF,cW,cW,cW,cF,cW,cW,cW,cW,cF,cW,cW,cW,cF,cW,cW,cW],
+  [cW,cF,cW,cW,sF,cW,cF,cF,cF,cF,cF,cF,cF,mL,cW,sF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cP,cF,cF,cF,cF,tP,cF,cF,cF,cF,cF,cP,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cF,cF,hS,cF,cW],
+  [cW,cF,kR,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,kR,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cF,cF,hS,cF,cW],
+  [cW,cF,cW,cW,sF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cW,sF,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cW,cW,cW,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// ── Canyonwatch — Cliff-carved outpost with ancient cliff statues ──
+// prettier-ignore
+const CANYONWATCH_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cF,cF,cW],
+  [cW,cF,cW,sF,cW,cF,cF,kR,cF,sT,cF,cF,kR,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,hS,cF,cW],
+  [cW,cW,cF,cF,cF,cW,cW,cF,cF,cF,cF,cF,cF,cW,cW,cF,cF,cF,cW,cW],
+  [cW,cF,cF,cF,cF,cW,sF,cF,cF,wL,cF,cF,cF,sF,cW,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cP,cF,cF,cF,cF,cF,cF,cP,cF,cF,cF,cF,cF,cW],
+  [cW,cF,bR,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,bR,cF,cW],
+  [cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,hS,cF,kR,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,kR,cF,hS,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// ── Bogtown — Ramshackle swamp settlement with weathered statue ──
+// prettier-ignore
+const BOGTOWN_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,sF,sF,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,sF,sF,cW],
+  [cW,sF,cW,cW,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,cW,cW,sF,cW],
+  [cW,sF,cW,sF,sF,cF,cF,cF,cF,sT,cF,cF,cF,cF,cF,sF,sF,cW,sF,cW],
+  [cW,sF,cF,cP,cF,cF,bR,cF,cF,cF,cF,cF,cF,bR,cF,cF,cP,cF,sF,cW],
+  [cW,cF,cF,cF,cF,hS,cF,cF,cF,cF,cF,cF,cF,cF,hS,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,hS,bR,cF,cF,cF,cF,cF,cF,bR,hS,cF,cF,cF,cF,cW],
+  [cW,sF,cW,cW,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,cW,cW,sF,cW],
+  [cW,sF,cW,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,cW,sF,cW],
+  [cW,sF,cF,cP,cF,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,cF,cP,cF,sF,cW],
+  [cW,sF,sF,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,sF,sF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// ── Thornvale — Fortified woodland town with crop fields and garden statues ──
+// prettier-ignore
+const THORNVALE_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,fN,cR,cR,cR,cR,cR,cR,fN,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cW,sF,cF,cR,cR,cR,cR,cR,cR,cF,sF,cW,cW,cW,cF,cW],
+  [cW,cF,cW,sF,sF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cP,sF,sF,cW,cF,cW],
+  [cW,cF,cW,cW,cW,cW,cF,sT,cF,cF,cF,cF,sT,cF,cW,cW,cW,cW,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cF,hS,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,wL,cF,fT,fT,cF,wL,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,bR,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,bR,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cW,cW,cF,cF,bR,cF,cF,bR,cF,cF,cW,cW,cW,cW,cF,cW],
+  [cW,cF,cW,sF,sF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cP,sF,sF,cW,cF,cW],
+  [cW,cF,cW,cW,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cW,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// ── Ashfall — Heat-scarred town with fire temple and small casino ──
+// prettier-ignore
+const ASHFALL_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,tP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,cW,cF,bR,cF,cF,cF,cF,cF,cF,bR,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cW,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,cW,cF,cW],
+  [cW,cF,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cW,cW,cF,cF,cF,cF,cW,cW,cF,cF,cF,hS,cF,cW],
+  [cW,cF,kR,cF,cF,cF,cW,sF,cF,cF,cF,cF,sF,cW,cF,cF,cF,kR,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cP,cF,wL,cF,cF,cP,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cA,cA,cF,cF,cW],
+  [cW,cF,cW,cW,cW,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cA,cA,cW,cF,cW],
+  [cW,cF,cW,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,cW,cF,cW],
+  [cW,cF,cF,cF,cP,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,cP,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// ── Dunerest — Desert oasis outpost with oasis shrine ──
+// prettier-ignore
+const DUNEREST_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,sF,cW,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cF,cF,cF,sT,cF,cF,cF,cF,cF,cF,cF,hS,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,kR,cF,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cF,kR,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,bR,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,bR,cF,cW],
+  [cW,cF,cW,sF,cW,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cF,cF,cP,cF,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,cF,cP,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// ── Ridgewatch — Mountain fortress with guardian statues and houses ──
+// prettier-ignore
+const RIDGEWATCH_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cW,cW,cW,cF,cF,cF,cF,sT,cF,cF,cF,cF,cF,cW,cW,cW,cF,cW],
+  [cW,cF,cW,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,cW,cF,cW],
+  [cW,cF,cF,cF,cP,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,cP,cF,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,hS,cF,cW],
+  [cW,cW,cW,cF,cF,cF,fN,fN,fN,cF,cF,fN,fN,fN,cF,cF,cF,cW,cW,cW],
+  [cW,cF,cF,cF,cF,sT,cF,cF,cF,wL,cF,cF,cF,cF,sT,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,bR,cF,cF,cF,bR,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cF,cF,cF,fN,fN,fN,cF,cF,fN,fN,fN,cF,cF,cF,cW,cW,cW],
+  [cW,cF,hS,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,hS,cF,cW],
+  [cW,cF,cW,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,cW,cF,cW],
+  [cW,cF,cF,cF,cP,cF,bR,cF,cF,cF,cF,cF,cF,bR,cF,cP,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+];
+
+// ── Shadowfen — Mysterious swamp town with dark temple ──
+// prettier-ignore
+const SHADOWFEN_INTERIOR: Terrain[][] = [
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,tP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,cW,cW,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,cW,cW,cF,cW],
+  [cW,cF,cW,sF,cP,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cP,sF,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,kR,cF,cF,cF,cF,cF,cF,kR,cF,cF,cF,hS,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,sT,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cF,hS,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,hS,cF,cW],
+  [cW,cF,cW,cW,sF,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,sF,cW,cW,cF,cW],
+  [cW,cF,cW,sF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,sF,cW,cF,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
@@ -328,41 +575,126 @@ export const CITIES: CityData[] = [
     id: "willowdale_city", name: "Willowdale", chunkX: 4, chunkY: 2, tileX: 2, tileY: 2,
     mapData: WILLOWDALE_INTERIOR, spawnX: 10, spawnY: 13,
     shops: [
-      { type: "weapon", name: "Blade & Bow", x: 5, y: 2, shopItems: ["shortSword", "longSword"] },
-      { type: "armor", name: "Hide & Mail", x: 14, y: 2, shopItems: ["leatherArmor", "woodenShield"] },
-      { type: "general", name: "General Store", x: 5, y: 10, shopItems: ["potion", "ether", "dungeonKey"] },
-      { type: "inn", name: "Willow Inn", x: 14, y: 10, shopItems: [] },
+      { type: "weapon", name: "Blade & Bow", x: 3, y: 4, shopItems: ["shortSword", "longSword"] },
+      { type: "armor", name: "Hide & Mail", x: 16, y: 4, shopItems: ["leatherArmor", "woodenShield"] },
+      { type: "general", name: "General Store", x: 3, y: 11, shopItems: ["potion", "ether", "dungeonKey"] },
+      { type: "inn", name: "Willow Inn", x: 16, y: 11, shopItems: [] },
     ],
   },
   {
     id: "ironhold_city", name: "Ironhold", chunkX: 3, chunkY: 2, tileX: 5, tileY: 7,
     mapData: IRONHOLD_INTERIOR, spawnX: 10, spawnY: 13,
     shops: [
-      { type: "weapon", name: "The Iron Anvil", x: 6, y: 1, shopItems: ["longSword", "greatSword"] },
-      { type: "armor", name: "Fortress Armory", x: 16, y: 1, shopItems: ["chainMail", "plateArmor", "ironShield", "towerShield"] },
-      { type: "general", name: "Ironhold Supply", x: 5, y: 6, shopItems: ["potion", "ether", "greaterPotion"] },
-      { type: "inn", name: "Anvil Rest", x: 14, y: 6, shopItems: [] },
+      { type: "weapon", name: "The Iron Anvil", x: 3, y: 2, shopItems: ["longSword", "greatSword"] },
+      { type: "armor", name: "Fortress Armory", x: 16, y: 2, shopItems: ["chainMail", "plateArmor", "ironShield", "towerShield"] },
+      { type: "general", name: "Ironhold Supply", x: 7, y: 5, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "inn", name: "Anvil Rest", x: 12, y: 5, shopItems: [] },
     ],
   },
   {
     id: "sandport_city", name: "Sandport", chunkX: 5, chunkY: 2, tileX: 12, tileY: 6,
     mapData: SANDPORT_INTERIOR, spawnX: 10, spawnY: 13,
     shops: [
-      { type: "weapon", name: "Desert Arms", x: 4, y: 2, shopItems: ["shortSword", "longSword", "greatSword"] },
-      { type: "armor", name: "Sandport Outfitter", x: 13, y: 2, shopItems: ["leatherArmor", "chainMail", "ironShield"] },
-      { type: "magic", name: "Oasis Arcana", x: 5, y: 10, shopItems: ["potion", "ether", "greaterPotion"] },
-      { type: "inn", name: "Desert Rose Inn", x: 14, y: 10, shopItems: [] },
-      { type: "bank", name: "Merchant's Bank", x: 3, y: 7, shopItems: [] },
+      { type: "weapon", name: "Desert Arms", x: 3, y: 3, shopItems: ["shortSword", "longSword", "greatSword"] },
+      { type: "armor", name: "Sandport Outfitter", x: 16, y: 3, shopItems: ["leatherArmor", "chainMail", "ironShield"] },
+      { type: "magic", name: "Oasis Arcana", x: 3, y: 7, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "inn", name: "Desert Rose Inn", x: 16, y: 7, shopItems: [] },
+      { type: "bank", name: "Merchant's Bank", x: 4, y: 11, shopItems: [] },
+      { type: "general", name: "Bazaar Goods", x: 15, y: 11, shopItems: ["potion", "ether", "dungeonKey"] },
     ],
   },
   {
     id: "frostheim_city", name: "Frostheim", chunkX: 1, chunkY: 0, tileX: 10, tileY: 7,
     mapData: FROSTHEIM_INTERIOR, spawnX: 10, spawnY: 13,
     shops: [
-      { type: "magic", name: "Frost Apothecary", x: 5, y: 1, shopItems: ["potion", "ether", "greaterPotion"] },
-      { type: "weapon", name: "Frostbite Arms", x: 14, y: 4, shopItems: ["longSword", "greatSword"] },
-      { type: "armor", name: "Fur & Steel", x: 5, y: 8, shopItems: ["chainMail", "plateArmor", "ironShield", "towerShield"] },
-      { type: "inn", name: "Hearthstone Inn", x: 14, y: 8, shopItems: [] },
+      { type: "magic", name: "Frost Apothecary", x: 3, y: 3, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "armor", name: "Fur & Steel", x: 16, y: 3, shopItems: ["chainMail", "plateArmor", "ironShield", "towerShield"] },
+      { type: "weapon", name: "Frostbite Arms", x: 3, y: 10, shopItems: ["longSword", "greatSword"] },
+      { type: "inn", name: "Hearthstone Inn", x: 7, y: 10, shopItems: [] },
+      { type: "general", name: "Frostheim Supply", x: 12, y: 10, shopItems: ["potion", "ether", "dungeonKey"] },
+      { type: "weapon", name: "Ice Forge", x: 15, y: 10, shopItems: ["shortSword", "longSword"] },
+    ],
+  },
+  {
+    id: "deeproot_city", name: "Deeproot", chunkX: 2, chunkY: 1, tileX: 10, tileY: 7,
+    mapData: DEEPROOT_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "weapon", name: "Rootwood Arms", x: 4, y: 3, shopItems: ["shortSword", "longSword"] },
+      { type: "armor", name: "Bark & Bough", x: 15, y: 3, shopItems: ["leatherArmor", "woodenShield"] },
+      { type: "general", name: "Forest Provisions", x: 4, y: 11, shopItems: ["potion", "ether"] },
+      { type: "inn", name: "Canopy Rest", x: 15, y: 11, shopItems: [] },
+    ],
+  },
+  {
+    id: "canyonwatch_city", name: "Canyonwatch", chunkX: 7, chunkY: 2, tileX: 10, tileY: 7,
+    mapData: CANYONWATCH_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "weapon", name: "Clifftop Blades", x: 3, y: 3, shopItems: ["longSword", "greatSword"] },
+      { type: "armor", name: "Canyon Outfitter", x: 16, y: 3, shopItems: ["chainMail", "ironShield"] },
+      { type: "general", name: "Ridge Supplies", x: 6, y: 7, shopItems: ["potion", "greaterPotion"] },
+      { type: "inn", name: "Ledgeside Lodge", x: 13, y: 7, shopItems: [] },
+    ],
+  },
+  {
+    id: "bogtown_city", name: "Bogtown", chunkX: 1, chunkY: 3, tileX: 10, tileY: 7,
+    mapData: BOGTOWN_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "magic", name: "Swamp Remedies", x: 3, y: 4, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "general", name: "Bog Trader", x: 16, y: 4, shopItems: ["potion", "ether"] },
+      { type: "weapon", name: "Marshblade Smith", x: 3, y: 11, shopItems: ["shortSword", "longSword"] },
+      { type: "inn", name: "Murky Rest", x: 16, y: 11, shopItems: [] },
+    ],
+  },
+  {
+    id: "thornvale_city", name: "Thornvale", chunkX: 4, chunkY: 3, tileX: 10, tileY: 7,
+    mapData: THORNVALE_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "weapon", name: "Briar Arsenal", x: 5, y: 3, shopItems: ["longSword", "greatSword"] },
+      { type: "armor", name: "Thornguard Armory", x: 14, y: 3, shopItems: ["chainMail", "plateArmor", "ironShield"] },
+      { type: "general", name: "Thornvale Goods", x: 5, y: 10, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "inn", name: "Vine & Rest", x: 14, y: 10, shopItems: [] },
+    ],
+  },
+  {
+    id: "ashfall_city", name: "Ashfall", chunkX: 6, chunkY: 4, tileX: 10, tileY: 7,
+    mapData: ASHFALL_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "weapon", name: "Ember Forge", x: 4, y: 4, shopItems: ["greatSword", "longSword"] },
+      { type: "armor", name: "Cindershield Armory", x: 15, y: 4, shopItems: ["plateArmor", "towerShield"] },
+      { type: "general", name: "Ashfall Provisions", x: 7, y: 7, shopItems: ["greaterPotion", "ether"] },
+      { type: "inn", name: "Obsidian Hearth", x: 12, y: 7, shopItems: [] },
+      { type: "magic", name: "Flamecaller's Den", x: 4, y: 11, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "general", name: "Soot & Ore", x: 15, y: 11, shopItems: ["potion", "greaterPotion", "dungeonKey"] },
+    ],
+  },
+  {
+    id: "dunerest_city", name: "Dunerest", chunkX: 8, chunkY: 4, tileX: 10, tileY: 7,
+    mapData: DUNEREST_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "weapon", name: "Sandsteel Arms", x: 3, y: 3, shopItems: ["shortSword", "longSword"] },
+      { type: "armor", name: "Dune Outfitter", x: 16, y: 3, shopItems: ["leatherArmor", "chainMail"] },
+      { type: "general", name: "Oasis Supplies", x: 3, y: 11, shopItems: ["potion", "greaterPotion"] },
+      { type: "inn", name: "Mirage Inn", x: 16, y: 11, shopItems: [] },
+    ],
+  },
+  {
+    id: "ridgewatch_city", name: "Ridgewatch", chunkX: 9, chunkY: 6, tileX: 10, tileY: 7,
+    mapData: RIDGEWATCH_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "weapon", name: "Summit Forge", x: 4, y: 3, shopItems: ["longSword", "greatSword"] },
+      { type: "armor", name: "Ridgeguard Armory", x: 15, y: 3, shopItems: ["chainMail", "plateArmor", "ironShield"] },
+      { type: "general", name: "Ridgewatch Goods", x: 4, y: 11, shopItems: ["greaterPotion", "ether", "dungeonKey"] },
+      { type: "inn", name: "Eagle's Perch Inn", x: 15, y: 11, shopItems: [] },
+    ],
+  },
+  {
+    id: "shadowfen_city", name: "Shadowfen", chunkX: 3, chunkY: 7, tileX: 10, tileY: 7,
+    mapData: SHADOWFEN_INTERIOR, spawnX: 10, spawnY: 13,
+    shops: [
+      { type: "magic", name: "Fen Apothecary", x: 4, y: 3, shopItems: ["potion", "ether"] },
+      { type: "weapon", name: "Shadowblade Smithy", x: 15, y: 3, shopItems: ["shortSword", "longSword"] },
+      { type: "general", name: "Shadowfen Trader", x: 4, y: 11, shopItems: ["potion", "ether"] },
+      { type: "inn", name: "Fog Lantern Inn", x: 15, y: 11, shopItems: [] },
     ],
   },
 ];
@@ -377,6 +709,74 @@ export function getCityForTown(chunkX: number, chunkY: number, tileX: number, ti
 
 export function getCityShopAt(city: CityData, x: number, y: number): CityShopData | undefined {
   return city.shops.find((s) => s.x === x && s.y === y);
+}
+
+/**
+ * Find a shop accessible from an adjacent carpet tile.
+ * When the player is on a Carpet tile, look at the 4 neighbours for a shop.
+ * When the player is on any tile, look at the 4 neighbours for a carpet that
+ * leads to a shop.
+ */
+export function getCityShopNearby(city: CityData, x: number, y: number): CityShopData | undefined {
+  // Direct match first
+  const direct = getCityShopAt(city, x, y);
+  if (direct) return direct;
+  // If player is on a carpet, check adjacent tiles for a shop
+  const terrain = city.mapData[y]?.[x];
+  if (terrain === Terrain.Carpet || terrain === Terrain.ShopFloor) {
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dx, dy] of dirs) {
+      const shop = getCityShopAt(city, x + dx, y + dy);
+      if (shop) return shop;
+    }
+  }
+  // If player is adjacent to a carpet that leads to a shop
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+  for (const [dx, dy] of dirs) {
+    const nx = x + dx;
+    const ny = y + dy;
+    const adj = city.mapData[ny]?.[nx];
+    if (adj === Terrain.Carpet) {
+      const shop = getCityShopAt(city, nx, ny);
+      if (shop) return shop;
+      // Also check the tile beyond the carpet
+      for (const [dx2, dy2] of dirs) {
+        const shop2 = getCityShopAt(city, nx + dx2, ny + dy2);
+        if (shop2) return shop2;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Get the dominant biome terrain surrounding a town tile.
+ * Used to colour the town icon with the local biome instead of always purple.
+ */
+export function getTownBiome(chunkX: number, chunkY: number, tileX: number, tileY: number): Terrain {
+  const chunk = getChunk(chunkX, chunkY);
+  if (!chunk) return Terrain.Grass;
+  const counts: Record<number, number> = {};
+  const biomes = [Terrain.Grass, Terrain.Forest, Terrain.Sand, Terrain.Tundra, Terrain.Swamp, Terrain.DeepForest, Terrain.Canyon];
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = tileX + dx;
+      const ny = tileY + dy;
+      if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+        const t = chunk.mapData[ny][nx];
+        if (biomes.includes(t)) {
+          counts[t] = (counts[t] ?? 0) + 1;
+        }
+      }
+    }
+  }
+  let best = Terrain.Grass;
+  let bestCount = 0;
+  for (const [t, c] of Object.entries(counts)) {
+    if (c > bestCount) { bestCount = c; best = Number(t) as Terrain; }
+  }
+  return best;
 }
 
 export const CHESTS: ChestData[] = [
@@ -2516,6 +2916,14 @@ function seededRand(seed: number): () => number {
   return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
 }
 
+/** Sparkle positions stored as overlay — terrain data is never modified. */
+export const SPARKLE_POSITIONS: Set<string> = new Set();
+
+/** Check if a tile has a sparkle overlay. */
+export function hasSparkleAt(cx: number, cy: number, x: number, y: number): boolean {
+  return SPARKLE_POSITIONS.has(`${cx},${cy},${x},${y}`);
+}
+
 function placeMinorTreasures(): void {
   const rng = seededRand(42);
   for (let cy = 0; cy < WORLD_HEIGHT; cy++) {
@@ -2533,8 +2941,55 @@ function placeMinorTreasures(): void {
         const t = md[ty][tx];
         // Only place on walkable, non-special, non-path tiles
         if (isWalkable(t) && !isSpecialTerrain(t) && t !== Terrain.Path) {
-          md[ty][tx] = Terrain.MinorTreasure;
+          SPARKLE_POSITIONS.add(`${cx},${cy},${tx},${ty}`);
           placed++;
+        }
+      }
+    }
+  }
+}
+
+// ─── Biome Decorations ──────────────────────────────────────────
+// Scatter themed decoration tiles on overworld biome terrains.
+
+/** Map from biome terrain to the decoration terrain to scatter. */
+const BIOME_DECORATION_MAP: Partial<Record<Terrain, Terrain>> = {
+  [Terrain.Grass]: Terrain.Flower,
+  [Terrain.Sand]: Terrain.Cactus,
+  [Terrain.Volcanic]: Terrain.Geyser,  // placed on adjacent walkable tiles
+  [Terrain.Swamp]: Terrain.Mushroom,
+};
+
+function placeBiomeDecorations(): void {
+  const rng = seededRand(7777);
+  for (let cy = 0; cy < WORLD_HEIGHT; cy++) {
+    for (let cx = 0; cx < WORLD_WIDTH; cx++) {
+      const chunk = WORLD_CHUNKS[cy][cx];
+      const md = chunk.mapData;
+      // Count biome tiles to determine dominant biome(s)
+      for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+        for (let tx = 0; tx < MAP_WIDTH; tx++) {
+          const t = md[ty][tx];
+          const deco = BIOME_DECORATION_MAP[t];
+          if (!deco) continue;
+          // Sparse placement: ~4% chance per matching tile
+          if (rng() > 0.04) continue;
+          // For Volcanic: place on a walkable neighbour rather than the tile itself
+          if (t === Terrain.Volcanic) {
+            const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            for (const [dx, dy] of dirs) {
+              const nx = tx + dx, ny = ty + dy;
+              if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+                const nt = md[ny][nx];
+                if (isWalkable(nt) && !isSpecialTerrain(nt) && nt !== Terrain.Path) {
+                  md[ny][nx] = deco;
+                  break;
+                }
+              }
+            }
+          } else {
+            md[ty][tx] = deco;
+          }
         }
       }
     }
@@ -2543,4 +2998,5 @@ function placeMinorTreasures(): void {
 
 // Execute at module load
 diversifyRoads();
+placeBiomeDecorations();
 placeMinorTreasures();

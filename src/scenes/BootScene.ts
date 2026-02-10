@@ -7,6 +7,7 @@ import { TERRAIN_COLORS, Terrain } from "../data/map";
 import { PLAYER_APPEARANCES, type PlayerAppearance, SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance, getAppearance } from "../systems/appearance";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer } from "../systems/player";
+import { audioEngine } from "../systems/audio";
 
 const TILE_SIZE = 32;
 
@@ -434,6 +435,17 @@ export class BootScene extends Phaser.Scene {
     const cy = this.cameras.main.centerY;
 
     this.cameras.main.setBackgroundColor(0x0a0a1a);
+
+    // Initialize audio on first pointer interaction (browsers require user gesture)
+    this.input.once("pointerdown", () => {
+      audioEngine.init();
+      audioEngine.playTitleMusic();
+    });
+    // Also initialise on first keyboard press
+    this.input.keyboard!.once("keydown", () => {
+      audioEngine.init();
+      audioEngine.playTitleMusic();
+    });
 
     // Title
     this.add

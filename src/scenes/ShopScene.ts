@@ -8,6 +8,7 @@ import { buyItem, useItem, ownsEquipment } from "../systems/player";
 import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
 import { type WeatherState, createWeatherState } from "../systems/weather";
+import { audioEngine } from "../systems/audio";
 
 export class ShopScene extends Phaser.Scene {
   private player!: PlayerState;
@@ -56,6 +57,11 @@ export class ShopScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(0x1a1a2e);
     this.cameras.main.fadeIn(300);
+
+    // Play city music for this town
+    if (audioEngine.initialized) {
+      audioEngine.playCityMusic(this.townName);
+    }
 
     // Title
     this.add

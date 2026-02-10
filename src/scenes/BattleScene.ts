@@ -29,6 +29,7 @@ import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
+import { audioEngine } from "../systems/audio";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -107,6 +108,15 @@ export class BattleScene extends Phaser.Scene {
     this.setupDebug();
     this.createWeatherParticles();
     this.rollForInitiative();
+
+    // Start battle or boss music
+    if (audioEngine.initialized) {
+      if (this.monster.isBoss) {
+        audioEngine.playBossMusic(this.monster.id);
+      } else {
+        audioEngine.playBattleMusic();
+      }
+    }
   }
 
   update(): void {

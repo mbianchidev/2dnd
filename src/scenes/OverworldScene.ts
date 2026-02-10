@@ -44,6 +44,7 @@ import {
   WEATHER_TINT,
   WEATHER_LABEL,
 } from "../systems/weather";
+import { audioEngine } from "../systems/audio";
 
 const TILE_SIZE = 32;
 
@@ -146,6 +147,9 @@ export class OverworldScene extends Phaser.Scene {
     this.setupDebug();
     this.updateLocationText();
     this.updateWeatherParticles();
+
+    // Start audio: biome music + weather SFX
+    this.updateAudio();
 
     // Show rolled stats on new game, or ASI overlay if points are pending
     if (this.isNewPlayer) {
@@ -334,6 +338,26 @@ export class OverworldScene extends Phaser.Scene {
     });
     cmds.set("tp", cmds.get("teleport")!);
 
+    cmds.set("audio", (args) => {
+      const sub = args.trim().toLowerCase();
+      if (sub === "play" || sub === "demo") {
+        debugPanelLog(`[CMD] Playing audio demo... (each sound ~3s)`, true);
+        audioEngine.init();
+        audioEngine.playAllSounds().then(() => {
+          debugPanelLog(`[CMD] Audio demo complete.`, true);
+          this.updateAudio();
+        });
+      } else if (sub === "mute") {
+        const muted = audioEngine.toggleMute();
+        debugPanelLog(`[CMD] Audio ${muted ? "muted" : "unmuted"}`, true);
+      } else if (sub === "stop") {
+        audioEngine.stopAll();
+        debugPanelLog(`[CMD] Audio stopped`, true);
+      } else {
+        debugPanelLog(`Usage: /audio <play|mute|stop>`, true);
+      }
+    });
+
     // Help entries
     const helpEntries: HelpEntry[] = [
       ...SHARED_HELP,
@@ -346,6 +370,7 @@ export class OverworldScene extends Phaser.Scene {
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
       { usage: "/spawn <name>", desc: "Spawn a monster battle by name/id" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk (alias: /tp)" },
+      { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
     ];
 
     registerCommandRouter(cmds, "Overworld", helpEntries, "G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog");
@@ -1240,6 +1265,7 @@ export class OverworldScene extends Phaser.Scene {
     if (oldPeriod !== newPeriod || weatherChanged) {
       this.applyDayNightTint();
       if (weatherChanged) this.updateWeatherParticles();
+      this.updateAudio();
     }
   }
 
@@ -1253,7 +1279,18 @@ export class OverworldScene extends Phaser.Scene {
     if (weatherChanged) {
       this.applyDayNightTint();
       this.updateWeatherParticles();
+      this.updateAudio();
     }
+  }
+
+  /** Start or update biome music and weather SFX to match the current state. */
+  private updateAudio(): void {
+    if (!audioEngine.initialized) return;
+    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    const biomeName = chunk?.name ?? "Heartlands";
+    const period = getTimePeriod(this.timeStep);
+    audioEngine.playBiomeMusic(biomeName, period);
+    audioEngine.playWeatherSFX(this.weatherState.current);
   }
 
   /** Apply a color tint to all map tiles based on time period + weather. */

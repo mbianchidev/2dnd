@@ -23,6 +23,7 @@ export enum Terrain {
   DeepForest = 15,
   Volcanic = 16,
   Canyon = 17,
+  MinorTreasure = 18,
 }
 
 export interface TownData {
@@ -88,6 +89,7 @@ export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.DeepForest]: 0x1b5e20,
   [Terrain.Volcanic]: 0xbf360c,
   [Terrain.Canyon]: 0xa1887f,
+  [Terrain.MinorTreasure]: 0x4fc3f7,
 };
 
 /** Encounter rates per terrain (0 = no encounters). */
@@ -110,6 +112,7 @@ export const ENCOUNTER_RATES: Record<Terrain, number> = {
   [Terrain.DeepForest]: 0.2,
   [Terrain.Volcanic]: 0,
   [Terrain.Canyon]: 0.1,
+  [Terrain.MinorTreasure]: 0,
 };
 
 export const MAP_WIDTH = 20;
@@ -125,6 +128,14 @@ export function isWalkable(terrain: Terrain): boolean {
     terrain !== Terrain.DungeonWall &&
     terrain !== Terrain.Volcanic
   );
+}
+
+/** Terrain types that should not be replaced by road diversification or treasure placement. */
+function isSpecialTerrain(t: Terrain): boolean {
+  return t === Terrain.Town || t === Terrain.Boss || t === Terrain.Dungeon ||
+    t === Terrain.Chest || t === Terrain.DungeonExit || t === Terrain.DungeonFloor ||
+    t === Terrain.DungeonWall || t === Terrain.Water || t === Terrain.Mountain ||
+    t === Terrain.Volcanic || t === Terrain.MinorTreasure;
 }
 
 const dW = Terrain.DungeonWall;
@@ -2162,3 +2173,201 @@ export const REGION_COLORS: Record<string, number> = {
   "Murky Ridge": 0x558b2f,
   "Arid Flats": 0xfdd835,
 };
+
+// ─── Road Diversification ─────────────────────────────────────────
+// Post-processes chunk map data at module load to vary road patterns.
+
+/** Find the most common non-special terrain in a chunk (used to fill removed roads). */
+function dominantFill(md: Terrain[][]): Terrain {
+  const counts = new Map<Terrain, number>();
+  for (const row of md) {
+    for (const t of row) {
+      if (t === Terrain.Path || isSpecialTerrain(t)) continue;
+      counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+  }
+  let best = Terrain.Grass;
+  let bestCount = 0;
+  for (const [t, c] of counts) {
+    if (c > bestCount) { best = t; bestCount = c; }
+  }
+  return best;
+}
+
+/** Set a tile to Path if it isn't special terrain. */
+function setPath(md: Terrain[][], y: number, x: number): void {
+  if (y < 0 || y >= md.length || x < 0 || x >= md[0].length) return;
+  if (!isSpecialTerrain(md[y][x])) md[y][x] = Terrain.Path;
+}
+
+/** Replace path tile with fill terrain if it currently is a path. */
+function clearPath(md: Terrain[][], y: number, x: number, fill: Terrain): void {
+  if (y < 0 || y >= md.length || x < 0 || x >= md[0].length) return;
+  if (md[y][x] === Terrain.Path) md[y][x] = fill;
+}
+
+function diversifyRoads(): void {
+  for (let cy = 0; cy < WORLD_HEIGHT; cy++) {
+    for (let cx = 0; cx < WORLD_WIDTH; cx++) {
+      const chunk = WORLD_CHUNKS[cy][cx];
+      const md = chunk.mapData;
+      const H = md.length;
+      const W = md[0].length;
+      const fill = dominantFill(md);
+
+      const isTop = cy === 0;
+      const isBot = cy === WORLD_HEIGHT - 1;
+      const isLeft = cx === 0;
+      const isRight = cx === WORLD_WIDTH - 1;
+
+      // ── Edge chunks: remove the arm that goes off-map ──
+      if (isTop) {
+        for (let y = 0; y < 7; y++) { clearPath(md, y, 9, fill); clearPath(md, y, 10, fill); }
+      }
+      if (isBot) {
+        for (let y = 8; y < H; y++) { clearPath(md, y, 9, fill); clearPath(md, y, 10, fill); }
+      }
+      if (isLeft) {
+        for (let x = 0; x < 9; x++) clearPath(md, 7, x, fill);
+      }
+      if (isRight) {
+        for (let x = 11; x < W; x++) clearPath(md, 7, x, fill);
+      }
+
+      // ── Interior variety for empty chunks (no towns/bosses) ──
+      if (chunk.towns.length > 0 || chunk.bosses.length > 0) continue;
+
+      const seed = (cx * 31 + cy * 17 + cx * cy * 7) % 7;
+      switch (seed) {
+        case 0: // Keep straight cross (no change)
+          break;
+
+        case 1: { // Wide plaza at intersection (5×5 clear area)
+          for (let y = 5; y <= 9; y++) {
+            for (let x = 7; x <= 12; x++) setPath(md, y, x);
+          }
+          break;
+        }
+
+        case 2: { // Winding horizontal — road snakes through rows 5-9
+          // Clear the straight horizontal (except at intersection cols)
+          for (let x = 1; x < W - 1; x++) {
+            if (x >= 8 && x <= 11) continue;
+            clearPath(md, 7, x, fill);
+          }
+          const rowWind = [7, 6, 6, 5, 6, 7, 8, 9, 8, /* 9,10 junction */ 7, 7, 8, 9, 9, 8, 7, 6, 6, 7, 7];
+          for (let x = 0; x < W; x++) {
+            const wy = rowWind[x];
+            setPath(md, wy, x);
+            // Connect winding row to the fixed junction row
+            if (x >= 8 && x <= 11) {
+              for (let y = Math.min(wy, 7); y <= Math.max(wy, 7); y++) setPath(md, y, x);
+            }
+          }
+          break;
+        }
+
+        case 3: { // Winding vertical — road snakes through cols 7-12
+          for (let y = 1; y < H - 1; y++) {
+            if (y >= 6 && y <= 8) continue;
+            clearPath(md, y, 9, fill);
+            clearPath(md, y, 10, fill);
+          }
+          const colWind = [9, 10, 11, 11, 10, 9, /* 6-8 junction */ 9, 9, 9, 8, 8, 9, 10, 10, 9];
+          for (let y = 0; y < H; y++) {
+            const wx = colWind[y];
+            setPath(md, y, wx);
+            setPath(md, y, wx + 1);
+            if (y >= 6 && y <= 8) {
+              for (let x = Math.min(wx, 9); x <= Math.max(wx + 1, 10); x++) setPath(md, y, x);
+            }
+          }
+          break;
+        }
+
+        case 4: { // Side branches — short dead-end roads
+          // Branch NW from vertical at y=3
+          for (let x = 6; x <= 9; x++) setPath(md, 3, x);
+          // Branch SE from vertical at y=11
+          for (let x = 10; x <= 14; x++) setPath(md, 11, x);
+          // Branch N from horizontal at x=4
+          for (let y = 4; y <= 7; y++) setPath(md, y, 4);
+          // Branch S from horizontal at x=15
+          for (let y = 7; y <= 11; y++) setPath(md, y, 15);
+          break;
+        }
+
+        case 5: { // Roundabout — circular clearing at the intersection
+          const cx2 = 9.5, cy2 = 7;
+          for (let y = 4; y <= 10; y++) {
+            for (let x = 6; x <= 13; x++) {
+              const dx = x - cx2, dy = y - cy2;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist >= 2.2 && dist <= 3.8) setPath(md, y, x);
+            }
+          }
+          break;
+        }
+
+        case 6: { // Diagonal offset — road shifts by 2 tiles in each quadrant
+          // NW quadrant: vertical shifted left
+          for (let y = 0; y < 7; y++) {
+            clearPath(md, y, 9, fill);
+            clearPath(md, y, 10, fill);
+            setPath(md, y, 7);
+            setPath(md, y, 8);
+          }
+          // Connect shifted vertical to junction
+          for (let x = 7; x <= 10; x++) { setPath(md, 6, x); setPath(md, 7, x); }
+          // SE quadrant: vertical shifted right
+          for (let y = 8; y < H; y++) {
+            clearPath(md, y, 9, fill);
+            clearPath(md, y, 10, fill);
+            setPath(md, y, 11);
+            setPath(md, y, 12);
+          }
+          for (let x = 9; x <= 12; x++) { setPath(md, 7, x); setPath(md, 8, x); }
+          break;
+        }
+      }
+    }
+  }
+}
+
+// ─── Minor Treasure Placement ─────────────────────────────────────
+// Scatter small blue sparkle treasures across overworld chunks on walkable tiles.
+
+/** Deterministic pseudo-random number based on seed. */
+function seededRand(seed: number): () => number {
+  let s = seed;
+  return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+}
+
+function placeMinorTreasures(): void {
+  const rng = seededRand(42);
+  for (let cy = 0; cy < WORLD_HEIGHT; cy++) {
+    for (let cx = 0; cx < WORLD_WIDTH; cx++) {
+      const chunk = WORLD_CHUNKS[cy][cx];
+      const md = chunk.mapData;
+      // Place 1-3 minor treasures per chunk on walkable non-special tiles
+      const count = 1 + Math.floor(rng() * 3);
+      let placed = 0;
+      let attempts = 0;
+      while (placed < count && attempts < 60) {
+        attempts++;
+        const tx = Math.floor(rng() * MAP_WIDTH);
+        const ty = Math.floor(rng() * MAP_HEIGHT);
+        const t = md[ty][tx];
+        // Only place on walkable, non-special, non-path tiles
+        if (isWalkable(t) && !isSpecialTerrain(t) && t !== Terrain.Path) {
+          md[ty][tx] = Terrain.MinorTreasure;
+          placed++;
+        }
+      }
+    }
+  }
+}
+
+// Execute at module load
+diversifyRoads();
+placeMinorTreasures();

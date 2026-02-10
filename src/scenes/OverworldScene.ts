@@ -22,7 +22,7 @@ import {
   type WorldChunk,
   type DungeonData,
 } from "../data/map";
-import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter } from "../data/monsters";
+import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
@@ -290,6 +290,50 @@ export class OverworldScene extends Phaser.Scene {
       }
     });
 
+    cmds.set("spawn", (args) => {
+      const query = args.trim().toLowerCase();
+      if (!query) { debugPanelLog(`Usage: /spawn <monster name or id>`, true); return; }
+      // Search all monster pools by id or name (case-insensitive partial match)
+      const allMonsters: Monster[] = [...MONSTERS, ...DUNGEON_MONSTERS, ...NIGHT_MONSTERS];
+      let found = allMonsters.find(m => m.id.toLowerCase() === query);
+      if (!found) found = allMonsters.find(m => m.name.toLowerCase() === query);
+      if (!found) found = allMonsters.find(m => m.name.toLowerCase().includes(query) || m.id.toLowerCase().includes(query));
+      if (found) {
+        debugPanelLog(`[CMD] Spawning ${found.name}...`, true);
+        this.startBattle({ ...found });
+      } else {
+        debugPanelLog(`[CMD] Unknown monster: "${args.trim()}". Try a partial name or id.`, true);
+      }
+    });
+
+    cmds.set("teleport", (args) => {
+      const parts = args.trim().split(/\s+/);
+      if (parts.length !== 2) { debugPanelLog(`Usage: /teleport <chunkX> <chunkY>`, true); return; }
+      const cx = parseInt(parts[0], 10);
+      const cy = parseInt(parts[1], 10);
+      if (isNaN(cx) || isNaN(cy) || cx < 0 || cx >= WORLD_WIDTH || cy < 0 || cy >= WORLD_HEIGHT) {
+        debugPanelLog(`[CMD] Invalid chunk coords. Range: 0-${WORLD_WIDTH - 1} x 0-${WORLD_HEIGHT - 1}`, true);
+        return;
+      }
+      const chunk = getChunk(cx, cy);
+      if (!chunk) { debugPanelLog(`[CMD] No chunk at (${cx}, ${cy})`, true); return; }
+      this.player.chunkX = cx;
+      this.player.chunkY = cy;
+      // Place player at center of chunk
+      this.player.x = Math.floor(MAP_WIDTH / 2);
+      this.player.y = Math.floor(MAP_HEIGHT / 2);
+      // Exit dungeon if inside one
+      if (this.player.inDungeon) {
+        this.player.inDungeon = false;
+        this.player.dungeonId = "";
+      }
+      this.renderMap();
+      this.createPlayer();
+      this.updateHUD();
+      debugPanelLog(`[CMD] Teleported to chunk (${cx}, ${cy}) — ${chunk.name}`, true);
+    });
+    cmds.set("tp", cmds.get("teleport")!);
+
     // Help entries
     const helpEntries: HelpEntry[] = [
       ...SHARED_HELP,
@@ -300,6 +344,8 @@ export class OverworldScene extends Phaser.Scene {
       { usage: "/item <id>", desc: "Add item to inventory" },
       { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
+      { usage: "/spawn <name>", desc: "Spawn a monster battle by name/id" },
+      { usage: "/teleport <x> <y>", desc: "Teleport to chunk (alias: /tp)" },
     ];
 
     registerCommandRouter(cmds, "Overworld", helpEntries, "G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog");

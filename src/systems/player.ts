@@ -48,6 +48,10 @@ export interface PlayerState {
   dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
   openedChests: string[]; // IDs of chests already opened
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
+  lastTownX: number;      // last town tile x (respawn point on death)
+  lastTownY: number;      // last town tile y
+  lastTownChunkX: number; // last town chunk x
+  lastTownChunkY: number; // last town chunk y
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -126,6 +130,10 @@ export function createPlayer(
     dungeonId: "",
     openedChests: [],
     exploredTiles: {},
+    lastTownX: 2,       // Willowdale default
+    lastTownY: 2,
+    lastTownChunkX: 1,
+    lastTownChunkY: 1,
   };
 }
 

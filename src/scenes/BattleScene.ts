@@ -24,9 +24,11 @@ import {
   attemptFlee,
 } from "../systems/combat";
 import { abilityModifier } from "../utils/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear, setDebugCommandHandler } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
+import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
+import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -36,6 +38,8 @@ export class BattleScene extends Phaser.Scene {
   private monsterHp!: number;
   private defeatedBosses!: Set<string>;
   private bestiary!: BestiaryData;
+  private timeStep = 0;
+  private weatherState: WeatherState = createWeatherState();
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
@@ -59,6 +63,8 @@ export class BattleScene extends Phaser.Scene {
 
   // Item drops collected this battle
   private droppedItemIds: string[] = [];
+  private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor() {
     super({ key: "BattleScene" });
@@ -69,12 +75,16 @@ export class BattleScene extends Phaser.Scene {
     monster: Monster;
     defeatedBosses: Set<string>;
     bestiary: BestiaryData;
+    timeStep?: number;
+    weatherState?: WeatherState;
   }): void {
     this.player = data.player;
     this.monster = data.monster;
     this.monsterHp = data.monster.hp;
     this.defeatedBosses = data.defeatedBosses;
     this.bestiary = data.bestiary;
+    this.timeStep = data.timeStep ?? 0;
+    this.weatherState = data.weatherState ?? createWeatherState();
     this.phase = "init";
     this.logLines = [];
     this.actionButtons = [];
@@ -95,6 +105,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.drawBattleUI();
     this.setupDebug();
+    this.createWeatherParticles();
     this.rollForInitiative();
   }
 
@@ -356,7 +367,9 @@ export class BattleScene extends Phaser.Scene {
     this.phase = "monsterTurn";
 
     try {
-      const result = playerUseAbility(this.player, abilityId, this.monster);
+      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
+      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
+      const result = playerUseAbility(this.player, abilityId, this.monster, weatherPenalty + boost.acBonus);
       debugLog("Player ability", { abilityId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
       if (result.roll !== undefined) {
         debugPanelLog(
@@ -488,18 +501,14 @@ export class BattleScene extends Phaser.Scene {
     debugPanelClear();
     debugPanelLog(`=== Battle: ${this.player.name} vs ${this.monster.name} ===`);
 
-    // Register cheat keys (only work when debug is on)
-    const debugKeys = {
-      K: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K),
-      H: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H),
-      P: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P),
-      G: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G),
-      L: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L),
-      X: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X),
-    };
+    const cb = { updateUI: () => this.updatePlayerStats() };
 
-    // Kill monster instantly
-    debugKeys.K.on("down", () => {
+    // Shared hotkeys: G=Gold, H=Heal, P=MP, L=LvUp
+    registerSharedHotkeys(this, this.player, cb);
+
+    // Battle-only hotkeys
+    const kKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K);
+    kKey.on("down", () => {
       if (!isDebug()) return;
       debugLog("CHEAT: Kill monster");
       debugPanelLog("[CHEAT] Monster killed!", true);
@@ -511,88 +520,34 @@ export class BattleScene extends Phaser.Scene {
       }
     });
 
-    // Full heal
-    debugKeys.H.on("down", () => {
-      if (!isDebug()) return;
-      debugLog("CHEAT: Full heal", { before: this.player.hp, max: this.player.maxHp });
-      this.player.hp = this.player.maxHp;
-      this.updatePlayerStats();
-      debugPanelLog(`[CHEAT] HP restored to ${this.player.maxHp}!`, true);
-    });
-
-    // Restore MP
-    debugKeys.P.on("down", () => {
-      if (!isDebug()) return;
-      debugLog("CHEAT: Restore MP", { before: this.player.mp, max: this.player.maxMp });
-      this.player.mp = this.player.maxMp;
-      this.updatePlayerStats();
-      debugPanelLog(`[CHEAT] MP restored to ${this.player.maxMp}!`, true);
-    });
-
-    // Add gold
-    debugKeys.G.on("down", () => {
-      if (!isDebug()) return;
-      this.player.gold += 100;
-      debugLog("CHEAT: +100 gold", { total: this.player.gold });
-      debugPanelLog(`[CHEAT] +100 gold (total: ${this.player.gold})`, true);
-    });
-
-    // Level up
-    debugKeys.L.on("down", () => {
-      if (!isDebug()) return;
-      const needed = xpForLevel(this.player.level + 1) - this.player.xp;
-      const xpResult = awardXP(this.player, Math.max(needed, 0));
-      debugLog("CHEAT: Level up", { newLevel: xpResult.newLevel, spells: xpResult.newSpells.map((s: Spell) => s.name) });
-      debugPanelLog(`[CHEAT] Level up! Now Lv.${xpResult.newLevel}`, true);
-      for (const spell of xpResult.newSpells) {
-        debugPanelLog(`[CHEAT] Learned ${spell.name}!`, true);
-      }
-      this.updatePlayerStats();
-    });
-
-    // Max XP (set XP to 1 below next level)
-    debugKeys.X.on("down", () => {
+    const xKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+    xKey.on("down", () => {
       if (!isDebug()) return;
       this.player.xp = xpForLevel(this.player.level + 1) - 1;
       debugLog("CHEAT: XP set to", this.player.xp);
       debugPanelLog(`[CHEAT] XP set to ${this.player.xp}`, true);
     });
 
-    // Register debug command handler for battle scene
-    setDebugCommandHandler((cmd, args) => {
-      const val = parseInt(args, 10);
-      switch (cmd) {
-        case "kill":
-          this.monsterHp = 0;
-          this.updateMonsterDisplay();
-          if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
-            this.phase = "playerTurn";
-            this.checkBattleEnd();
-          }
-          debugPanelLog(`[CMD] Monster killed!`, true);
-          break;
-        case "heal":
-          this.player.hp = this.player.maxHp;
-          this.player.mp = this.player.maxMp;
-          this.updatePlayerStats();
-          debugPanelLog(`[CMD] Fully healed!`, true);
-          break;
-        case "gold":
-          if (!isNaN(val)) { this.player.gold = val; debugPanelLog(`[CMD] Gold set to ${val}`, true); }
-          break;
-        case "hp":
-          if (!isNaN(val)) { this.player.hp = Math.min(val, this.player.maxHp); this.updatePlayerStats(); debugPanelLog(`[CMD] HP set to ${this.player.hp}`, true); }
-          break;
-        case "mp":
-          if (!isNaN(val)) { this.player.mp = Math.min(val, this.player.maxMp); this.updatePlayerStats(); debugPanelLog(`[CMD] MP set to ${this.player.mp}`, true); }
-          break;
-        case "help":
-          debugPanelLog(`Battle commands: /kill /heal /gold /hp /mp /help`, true);
-          break;
-        default:
-          debugPanelLog(`Unknown command: /${cmd}. Type /help`, true);
+    // Slash commands: shared + battle-specific
+    const cmds = buildSharedCommands(this.player, cb);
+
+    cmds.set("kill", () => {
+      this.monsterHp = 0;
+      this.updateMonsterDisplay();
+      if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
+        this.phase = "playerTurn";
+        this.checkBattleEnd();
       }
+      debugPanelLog(`[CMD] Monster killed!`, true);
     });
+
+    // Help entries
+    const helpEntries: HelpEntry[] = [
+      { usage: "/kill", desc: "Kill monster instantly" },
+      ...SHARED_HELP,
+    ];
+
+    registerCommandRouter(cmds, "Battle", helpEntries, "K=Kill H=Heal P=MP G=Gold L=LvUp X=MaxXP");
   }
 
   private updateDebugPanel(): void {
@@ -633,6 +588,16 @@ export class BattleScene extends Phaser.Scene {
         `⚔ ${this.monster.name} appears! You rolled ${result.playerRoll} for initiative.`
       );
 
+      // Announce weather effects and monster boost
+      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
+      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
+      if (this.weatherState.current !== WeatherType.Clear) {
+        this.addLog(`${WEATHER_LABEL[this.weatherState.current]} — attacks are harder to land (penalty: ${weatherPenalty})`);
+      }
+      if (boost.acBonus > 0) {
+        this.addLog(`${this.monster.name} thrives in this weather! (+${boost.acBonus} AC, +${boost.attackBonus} ATK, +${boost.damageBonus} DMG)`);
+      }
+
       if (result.playerFirst) {
         this.addLog("You act first!");
         this.phase = "playerTurn";
@@ -654,7 +619,9 @@ export class BattleScene extends Phaser.Scene {
 
     try {
       const monsterDefBonus = this.monsterDefending ? 2 : 0;
-      const result = playerAttack(this.player, this.monster, monsterDefBonus);
+      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
+      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
+      const result = playerAttack(this.player, this.monster, monsterDefBonus + boost.acBonus, weatherPenalty);
       // Reset monster defend after player attacks
       this.monsterDefending = false;
       debugLog("Player attack", { roll: result.roll, hit: result.hit, critical: result.critical, damage: result.damage, monsterAC: this.monster.ac });
@@ -701,7 +668,9 @@ export class BattleScene extends Phaser.Scene {
     this.phase = "monsterTurn";
 
     try {
-      const result = playerCastSpell(this.player, spellId, this.monster);
+      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
+      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
+      const result = playerCastSpell(this.player, spellId, this.monster, weatherPenalty + boost.acBonus);
       debugLog("Player spell", { spellId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
       if (result.roll !== undefined) {
         debugPanelLog(
@@ -842,9 +811,11 @@ export class BattleScene extends Phaser.Scene {
         }
       }
 
-      // Normal attack — pass player defend bonus
+      // Normal attack — pass player defend bonus + weather effects
       const defendBonus = this.playerDefending ? 2 : 0;
-      const result = monsterAttack(this.monster, this.player, defendBonus);
+      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
+      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
+      const result = monsterAttack(this.monster, this.player, defendBonus, weatherPenalty, boost.attackBonus, boost.damageBonus);
       debugLog("Monster attack", {
         naturalRoll: result.roll,
         attackBonus: result.attackBonus,
@@ -937,7 +908,7 @@ export class BattleScene extends Phaser.Scene {
             this.addLog(`🏅 Talent: ${talent.name} — ${talent.description}`);
           }
           if (xpResult.asiGained > 0) {
-            this.addLog(`★ +${xpResult.asiGained} stat points to spend! Press T on the map.`);
+            this.addLog(`★ +${xpResult.asiGained} stat points to spend!`);
           }
         }
 
@@ -960,13 +931,17 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private handleDefeat(): void {
-    // On defeat: restore half HP, lose some gold, return to nearest town
+    // On defeat: restore half HP, lose some gold, return to last visited town
     this.player.hp = Math.floor(this.player.maxHp / 2);
     this.player.mp = Math.floor(this.player.maxMp / 2);
     this.player.gold = Math.floor(this.player.gold * 0.7);
-    // Return to first town
-    this.player.x = 2;
-    this.player.y = 2;
+    // Return to last town (or Willowdale as fallback)
+    this.player.x = this.player.lastTownX ?? 2;
+    this.player.y = this.player.lastTownY ?? 2;
+    this.player.chunkX = this.player.lastTownChunkX ?? 1;
+    this.player.chunkY = this.player.lastTownChunkY ?? 1;
+    this.player.inDungeon = false;
+    this.player.dungeonId = "";
     this.addLog("You wake up in town, bruised but alive...");
     this.time.delayedCall(2000, () => this.returnToOverworld());
   }
@@ -1009,6 +984,98 @@ export class BattleScene extends Phaser.Scene {
     this.addLog(`⚠ Something went wrong (${context})`);
   }
 
+  /** Create weather particle effects for the battle scene. */
+  private createWeatherParticles(): void {
+    if (this.weatherParticles) {
+      this.weatherParticles.destroy();
+      this.weatherParticles = null;
+    }
+    if (this.stormLightningTimer) {
+      this.stormLightningTimer.destroy();
+      this.stormLightningTimer = null;
+    }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const weather = this.weatherState.current;
+
+    if (weather === WeatherType.Clear) return;
+
+    const configs: Record<string, () => Phaser.GameObjects.Particles.ParticleEmitter> = {
+      [WeatherType.Rain]: () => this.add.particles(0, -10, "particle_rain", {
+        x: { min: 0, max: w },
+        quantity: 3,
+        lifespan: 1800,
+        speedY: { min: 220, max: 380 },
+        speedX: { min: -20, max: -40 },
+        scale: { start: 1, end: 0.5 },
+        alpha: { start: 0.7, end: 0.15 },
+        frequency: 25,
+      }),
+      [WeatherType.Snow]: () => this.add.particles(0, -10, "particle_snow", {
+        x: { min: 0, max: w },
+        quantity: 1,
+        lifespan: 5000,
+        speedY: { min: 25, max: 70 },
+        speedX: { min: -25, max: 25 },
+        scale: { start: 1, end: 0.3 },
+        alpha: { start: 0.8, end: 0.1 },
+        frequency: 70,
+      }),
+      [WeatherType.Sandstorm]: () => this.add.particles(w + 10, 0, "particle_sand", {
+        y: { min: 0, max: h },
+        quantity: 5,
+        lifespan: 2200,
+        speedX: { min: -420, max: -260 },
+        speedY: { min: -20, max: 30 },
+        scale: { start: 1.3, end: 0.5 },
+        alpha: { start: 0.9, end: 0.15 },
+        frequency: 14,
+      }),
+      [WeatherType.Storm]: () => this.add.particles(0, -10, "particle_storm", {
+        x: { min: 0, max: w },
+        quantity: 5,
+        lifespan: 1200,
+        speedY: { min: 380, max: 520 },
+        speedX: { min: -70, max: -110 },
+        scale: { start: 1, end: 0.5 },
+        alpha: { start: 0.85, end: 0.2 },
+        frequency: 14,
+      }),
+      [WeatherType.Fog]: () => this.add.particles(0, 0, "particle_fog", {
+        x: { min: 0, max: w },
+        y: { min: 0, max: h },
+        quantity: 2,
+        lifespan: 5000,
+        speedX: { min: 5, max: 15 },
+        speedY: { min: -5, max: 5 },
+        scale: { start: 2.5, end: 5 },
+        alpha: { start: 0.35, end: 0.04 },
+        frequency: 140,
+      }),
+    };
+
+    const factory = configs[weather];
+    if (factory) {
+      this.weatherParticles = factory();
+      this.weatherParticles.setDepth(5);
+    }
+
+    // Sporadic lightning flashes during storms
+    if (weather === WeatherType.Storm) {
+      const scheduleFlash = () => {
+        this.stormLightningTimer = this.time.delayedCall(
+          2000 + Math.random() * 6000,
+          () => {
+            this.cameras.main.flash(120, 255, 255, 255, true);
+            scheduleFlash();
+          },
+        );
+      };
+      scheduleFlash();
+    }
+  }
+
   private returnToOverworld(): void {
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.time.delayedCall(500, () => {
@@ -1016,6 +1083,8 @@ export class BattleScene extends Phaser.Scene {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
     });
   }

@@ -370,6 +370,42 @@ export class BootScene extends Phaser.Scene {
     btnHover.strokeRect(0, 0, 160, 36);
     btnHover.generateTexture("buttonHover", 160, 36);
     btnHover.destroy();
+
+    // Weather particle textures (sized to be visible at game scale)
+    // Rain drop — tall narrow streak
+    const rain = this.add.graphics();
+    rain.fillStyle(0x88aaee, 1);
+    rain.fillRect(0, 0, 3, 14);
+    rain.generateTexture("particle_rain", 3, 14);
+    rain.destroy();
+
+    // Snow flake — soft circle
+    const snow = this.add.graphics();
+    snow.fillStyle(0xffffff, 1);
+    snow.fillCircle(4, 4, 4);
+    snow.generateTexture("particle_snow", 8, 8);
+    snow.destroy();
+
+    // Sand particle — small grit
+    const sand = this.add.graphics();
+    sand.fillStyle(0xddbb66, 1);
+    sand.fillRect(0, 0, 5, 5);
+    sand.generateTexture("particle_sand", 5, 5);
+    sand.destroy();
+
+    // Storm rain (heavier / wider streaks)
+    const storm = this.add.graphics();
+    storm.fillStyle(0x99aadd, 1);
+    storm.fillRect(0, 0, 4, 18);
+    storm.generateTexture("particle_storm", 4, 18);
+    storm.destroy();
+
+    // Fog wisp — large translucent blob
+    const fog = this.add.graphics();
+    fog.fillStyle(0xcccccc, 0.5);
+    fog.fillCircle(10, 10, 10);
+    fog.generateTexture("particle_fog", 20, 20);
+    fog.destroy();
   }
 
   private showTitleScreen(): void {
@@ -496,6 +532,8 @@ export class BootScene extends Phaser.Scene {
         player: save.player,
         defeatedBosses: new Set(save.defeatedBosses),
         bestiary: save.bestiary,
+        timeStep: save.timeStep ?? 0,
+        weatherState: save.weatherState,
       });
     });
   }

@@ -74,6 +74,61 @@ describe("weather system", () => {
       }
       expect(foundFog).toBe(true);
     });
+
+    it("can produce Snow in Frozen biomes via prefix matching", () => {
+      let foundSnow = false;
+      for (let i = 0; i < 200; i++) {
+        if (rollWeather("Frozen Reach", 50) === WeatherType.Snow) {
+          foundSnow = true;
+          break;
+        }
+      }
+      expect(foundSnow).toBe(true);
+    });
+
+    it("can produce Fog in Murky biomes via prefix matching", () => {
+      let foundFog = false;
+      for (let i = 0; i < 200; i++) {
+        if (rollWeather("Murky Expanse", 0) === WeatherType.Fog) {
+          foundFog = true;
+          break;
+        }
+      }
+      expect(foundFog).toBe(true);
+    });
+
+    it("can produce Sandstorm in Scorched biomes via prefix matching", () => {
+      let foundSandstorm = false;
+      for (let i = 0; i < 200; i++) {
+        if (rollWeather("Scorched Hollow", 30) === WeatherType.Sandstorm) {
+          foundSandstorm = true;
+          break;
+        }
+      }
+      expect(foundSandstorm).toBe(true);
+    });
+
+    it("can produce Sandstorm in Rocky biomes via prefix matching", () => {
+      let foundSandstorm = false;
+      for (let i = 0; i < 200; i++) {
+        if (rollWeather("Rocky Crossing", 30) === WeatherType.Sandstorm) {
+          foundSandstorm = true;
+          break;
+        }
+      }
+      expect(foundSandstorm).toBe(true);
+    });
+
+    it("can produce Rain in Woodland biomes via prefix matching", () => {
+      let foundRain = false;
+      for (let i = 0; i < 200; i++) {
+        if (rollWeather("Woodland Frontier", 50) === WeatherType.Rain) {
+          foundRain = true;
+          break;
+        }
+      }
+      expect(foundRain).toBe(true);
+    });
   });
 
   describe("advanceWeather", () => {
@@ -245,6 +300,27 @@ describe("weather system", () => {
       const boost2 = getMonsterWeatherBoost("wolf", WeatherType.Snow);
       boost1.acBonus = 99;
       expect(boost2.acBonus).toBe(2);
+    });
+
+    it("returns boost for frostGiant in Snow", () => {
+      const boost = getMonsterWeatherBoost("frostGiant", WeatherType.Snow);
+      expect(boost.acBonus).toBe(2);
+      expect(boost.attackBonus).toBe(1);
+    });
+
+    it("returns boost for swampHydra in Fog", () => {
+      const boost = getMonsterWeatherBoost("swampHydra", WeatherType.Fog);
+      expect(boost.acBonus).toBe(2);
+    });
+
+    it("returns boost for volcanicWyrm in Sandstorm", () => {
+      const boost = getMonsterWeatherBoost("volcanicWyrm", WeatherType.Sandstorm);
+      expect(boost.acBonus).toBe(2);
+    });
+
+    it("returns boost for canyonDrake in Sandstorm", () => {
+      const boost = getMonsterWeatherBoost("canyonDrake", WeatherType.Sandstorm);
+      expect(boost.acBonus).toBe(2);
     });
   });
 

@@ -132,8 +132,8 @@ export function createPlayer(
     exploredTiles: {},
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,
-    lastTownChunkX: 1,
-    lastTownChunkY: 1,
+    lastTownChunkX: 4,
+    lastTownChunkY: 2,
   };
 }
 

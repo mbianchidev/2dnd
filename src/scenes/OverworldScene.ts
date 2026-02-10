@@ -752,9 +752,15 @@ export class OverworldScene extends Phaser.Scene {
     );
   }
 
+  /** Check whether any overlay (menu, map, equip, stat allocation) is currently open. */
+  private isOverlayOpen(): boolean {
+    return !!(this.menuOverlay || this.worldMapOverlay || this.equipOverlay || this.statOverlay);
+  }
+
   update(time: number): void {
     this.updateDebugPanel();
     if (this.isMoving) return;
+    if (this.isOverlayOpen()) return; // block movement when menus/maps are open
     if (time - this.lastMoveTime < this.moveDelay) return;
 
     let dx = 0;
@@ -893,10 +899,11 @@ export class OverworldScene extends Phaser.Scene {
     if (Math.random() < rate) {
       let monster;
       if (this.player.inDungeon) {
-        monster = getDungeonEncounter(this.player.level);
+        monster = getDungeonEncounter(this.player.level, this.player.dungeonId);
       } else if (isNightTime(this.timeStep) && Math.random() < 0.4) {
         // 40% chance of a night-exclusive monster during dusk/night
-        monster = getNightEncounter(this.player.level);
+        const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+        monster = getNightEncounter(this.player.level, chunk?.name);
       } else {
         monster = getRandomEncounter(this.player.level);
       }

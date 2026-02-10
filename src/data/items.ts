@@ -169,6 +169,14 @@ export const ITEMS: Item[] = [
     effect: 3,
   },
   {
+    id: "glacialAegis",
+    name: "Glacial Aegis",
+    description: "+5 AC, frozen crystalline shield",
+    type: "shield",
+    cost: 0,
+    effect: 5,
+  },
+  {
     id: "magmaCore",
     name: "Magma Core Mace",
     description: "+8 attack, molten heart",

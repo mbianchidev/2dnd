@@ -1024,13 +1024,13 @@ export class BattleScene extends Phaser.Scene {
       }),
       [WeatherType.Sandstorm]: () => this.add.particles(w + 10, 0, "particle_sand", {
         y: { min: 0, max: h },
-        quantity: 3,
-        lifespan: 1400,
-        speedX: { min: -280, max: -140 },
+        quantity: 5,
+        lifespan: 2200,
+        speedX: { min: -420, max: -260 },
         speedY: { min: -20, max: 30 },
-        scale: { start: 1.2, end: 0.4 },
-        alpha: { start: 0.7, end: 0.1 },
-        frequency: 22,
+        scale: { start: 1.3, end: 0.5 },
+        alpha: { start: 0.9, end: 0.15 },
+        frequency: 14,
       }),
       [WeatherType.Storm]: () => this.add.particles(0, -10, "particle_storm", {
         x: { min: 0, max: w },
@@ -1045,13 +1045,13 @@ export class BattleScene extends Phaser.Scene {
       [WeatherType.Fog]: () => this.add.particles(0, 0, "particle_fog", {
         x: { min: 0, max: w },
         y: { min: 0, max: h },
-        quantity: 1,
+        quantity: 2,
         lifespan: 5000,
         speedX: { min: 5, max: 15 },
         speedY: { min: -5, max: 5 },
-        scale: { start: 2, end: 4 },
-        alpha: { start: 0.15, end: 0 },
-        frequency: 280,
+        scale: { start: 2.5, end: 5 },
+        alpha: { start: 0.35, end: 0.04 },
+        frequency: 140,
       }),
     };
 

@@ -1180,13 +1180,13 @@ export class OverworldScene extends Phaser.Scene {
       }),
       [WeatherType.Sandstorm]: () => this.add.particles(w + 10, 0, "particle_sand", {
         y: { min: 0, max: h },
-        quantity: 5,
-        lifespan: 1800,
-        speedX: { min: -380, max: -200 },
+        quantity: 6,
+        lifespan: 2400,
+        speedX: { min: -450, max: -280 },
         speedY: { min: -30, max: 50 },
-        scale: { start: 1.2, end: 0.5 },
-        alpha: { start: 0.9, end: 0.15 },
-        frequency: 14,
+        scale: { start: 1.3, end: 0.5 },
+        alpha: { start: 0.95, end: 0.2 },
+        frequency: 10,
       }),
       [WeatherType.Storm]: () => this.add.particles(0, -20, "particle_storm", {
         x: { min: 0, max: w },
@@ -1201,13 +1201,13 @@ export class OverworldScene extends Phaser.Scene {
       [WeatherType.Fog]: () => this.add.particles(0, 0, "particle_fog", {
         x: { min: 0, max: w },
         y: { min: 0, max: h },
-        quantity: 1,
+        quantity: 2,
         lifespan: 6000,
         speedX: { min: 8, max: 25 },
         speedY: { min: -5, max: 5 },
-        scale: { start: 2, end: 5 },
-        alpha: { start: 0.22, end: 0 },
-        frequency: 160,
+        scale: { start: 2.5, end: 6 },
+        alpha: { start: 0.4, end: 0.05 },
+        frequency: 100,
       }),
     };
 

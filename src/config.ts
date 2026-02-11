@@ -54,11 +54,20 @@ export function debugLog(...args: unknown[]): void {
 export function debugPanelLog(msg: string, isDebugMsg = false, cssClass?: string): void {
   const el = document.getElementById("debug-log");
   if (!el) return;
+  // Remove previous spacer if present
+  const oldSpacer = el.querySelector(".log-spacer");
+  if (oldSpacer) oldSpacer.remove();
+  // Add the log line
   const line = document.createElement("div");
   line.textContent = msg;
   if (cssClass) line.className = cssClass;
   else if (isDebugMsg) line.className = "debug-msg";
   el.appendChild(line);
+  // Add trailing spacer for readability
+  const spacer = document.createElement("div");
+  spacer.className = "log-spacer";
+  el.appendChild(spacer);
+  // Auto-scroll to bottom
   el.scrollTop = el.scrollHeight;
 }
 

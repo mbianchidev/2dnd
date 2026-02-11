@@ -107,13 +107,15 @@
       }
       #debug-log {
         padding: 4px 8px;
-        height: calc(100% - 40px);
+        height: calc(100% - 80px);
         overflow-y: auto;
-        line-height: 1.5;
+        line-spacing: 1.5;
+        scroll-behavior: smooth;
       }
-      #debug-log div { border-bottom: 1px solid #0a1a0a; padding: 1px 0; }
+      #debug-log div { border-bottom: 1px solid #0a1a0a; padding: 2px 0; }
       #debug-log .debug-msg { color: #888800; }
       #debug-log .roll-detail { color: #00aaaa; }
+      #debug-log .log-spacer { border: none; height: 24px; }
       #debug-cmd {
         display: block;
         width: calc(100% - 16px);

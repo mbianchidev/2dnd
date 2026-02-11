@@ -104,29 +104,47 @@ const DEFEAT_PROFILE: BiomeProfile = {
 // ── Boss-specific tuning overrides ─────────────────────────────
 
 const BOSS_OVERRIDES: Record<string, Partial<BiomeProfile>> = {
-  troll:        { baseNote: -10, bpm: 130 },
-  dragon:       { baseNote: -12, bpm: 150, wave: "sawtooth" },
-  frostGiant:   { baseNote: -5,  bpm: 125, wave: "triangle" },
-  swampHydra:   { baseNote: -8,  bpm: 135, wave: "sawtooth" },
-  volcanicWyrm: { baseNote: -14, bpm: 155, wave: "square" },
-  canyonDrake:  { baseNote: -9,  bpm: 145, wave: "sawtooth" },
+  // Cave Troll — brutish, stomping rhythm, heavy and slow
+  troll:        { baseNote: -10, bpm: 120, scale: NATURAL_MINOR,   wave: "square",   padWave: "sawtooth" },
+  // Young Red Dragon — blazing fast, dissonant, fiery
+  dragon:       { baseNote: -12, bpm: 155, scale: PHRYGIAN_DOM,    wave: "sawtooth", padWave: "square" },
+  // Frost Giant — glacial, powerful, cold and wide
+  frostGiant:   { baseNote: -5,  bpm: 110, scale: MINOR_PENTA,     wave: "triangle", padWave: "sine" },
+  // Swamp Hydra — chaotic, slithering, eerie multi-headed
+  swampHydra:   { baseNote: -8,  bpm: 135, scale: DIMINISHED,      wave: "sawtooth", padWave: "triangle" },
+  // Volcanic Wyrm — explosive, intense, relentless
+  volcanicWyrm: { baseNote: -14, bpm: 160, scale: HARMONIC_MINOR,  wave: "square",   padWave: "sawtooth" },
+  // Canyon Drake — agile, soaring, sharp attacks
+  canyonDrake:  { baseNote: -7,  bpm: 145, scale: HARMONIC_MINOR,  wave: "sawtooth", padWave: "triangle" },
 };
 
 // ── City-specific tuning overrides ─────────────────────────────
 
 const CITY_OVERRIDES: Record<string, Partial<BiomeProfile>> = {
-  Willowdale:  { baseNote: 4,  bpm: 96 },
-  Ironhold:    { baseNote: 0,  bpm: 104, wave: "square" },
-  Frostheim:   { baseNote: 2,  bpm: 88, scale: MINOR_PENTA },
-  Deeproot:    { baseNote: -2, bpm: 92 },
-  Sandport:    { baseNote: 5,  bpm: 100, scale: HARMONIC_MINOR },
-  Canyonwatch: { baseNote: 3,  bpm: 98, scale: HARMONIC_MINOR },
-  Ashfall:     { baseNote: -4, bpm: 90, scale: NATURAL_MINOR },
-  Dunerest:    { baseNote: 5,  bpm: 94 },
-  Thornvale:   { baseNote: 0,  bpm: 96 },
-  Bogtown:     { baseNote: -3, bpm: 80, scale: DIMINISHED },
-  Shadowfen:   { baseNote: -5, bpm: 76, scale: DIMINISHED },
-  Ridgewatch:  { baseNote: 1,  bpm: 100 },
+  // Willowdale — peaceful pastoral village, warm and gentle
+  Willowdale:  { baseNote: 4,  bpm: 92,  scale: MAJOR_PENTA,      wave: "sine",     padWave: "triangle" },
+  // Ironhold — industrial fortress city, strong and rhythmic
+  Ironhold:    { baseNote: -1, bpm: 108, scale: NATURAL_MINOR,     wave: "square",   padWave: "sawtooth" },
+  // Frostheim — frozen northern town, melancholic and quiet
+  Frostheim:   { baseNote: 2,  bpm: 76,  scale: MINOR_PENTA,       wave: "triangle", padWave: "sine" },
+  // Deeproot — ancient forest settlement, mystical and organic
+  Deeproot:    { baseNote: -2, bpm: 84,  scale: MINOR_PENTA,       wave: "triangle", padWave: "triangle" },
+  // Sandport — bustling desert trade hub, exotic and lively
+  Sandport:    { baseNote: 5,  bpm: 104, scale: HARMONIC_MINOR,    wave: "sawtooth", padWave: "sine" },
+  // Canyonwatch — rugged mountain outpost, adventurous
+  Canyonwatch: { baseNote: 3,  bpm: 96,  scale: HARMONIC_MINOR,    wave: "triangle", padWave: "square" },
+  // Ashfall — volcanic settlement, ominous and smoky
+  Ashfall:     { baseNote: -4, bpm: 88,  scale: PHRYGIAN_DOM,      wave: "sawtooth", padWave: "square" },
+  // Dunerest — quiet desert oasis town, relaxed and warm
+  Dunerest:    { baseNote: 5,  bpm: 90,  scale: MAJOR_PENTA,       wave: "sine",     padWave: "sine" },
+  // Thornvale — dark forest town, tense and alert
+  Thornvale:   { baseNote: 0,  bpm: 94,  scale: NATURAL_MINOR,     wave: "triangle", padWave: "sawtooth" },
+  // Bogtown — murky swamp village, unsettling and damp
+  Bogtown:     { baseNote: -3, bpm: 72,  scale: DIMINISHED,         wave: "sawtooth", padWave: "triangle" },
+  // Shadowfen — sinister swamp enclave, dark and creeping
+  Shadowfen:   { baseNote: -5, bpm: 68,  scale: DIMINISHED,         wave: "square",   padWave: "sawtooth" },
+  // Ridgewatch — highland fortress, proud and bright
+  Ridgewatch:  { baseNote: 2,  bpm: 100, scale: MAJOR_PENTA,       wave: "triangle", padWave: "sine" },
 };
 
 // ── Night mode helpers ─────────────────────────────────────────

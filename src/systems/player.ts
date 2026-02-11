@@ -2,7 +2,7 @@
  * Player state management: stats, leveling, experience, spell unlocks.
  */
 
-import { abilityModifier, rollAbilityScore } from "../utils/dice";
+import { abilityModifier } from "../utils/dice";
 import type { Spell } from "../data/spells";
 import { SPELLS } from "../data/spells";
 import type { Ability } from "../data/abilities";
@@ -18,6 +18,30 @@ export interface PlayerStats {
   intelligence: number;
   wisdom: number;
   charisma: number;
+}
+
+// ── Point Buy System (D&D 5e) ─────────────────────────────────
+
+/** Cost for each ability score value in the Point Buy system. */
+export const POINT_BUY_COSTS: Record<number, number> = {
+  8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9,
+};
+
+/** Total points available in Point Buy. */
+export const POINT_BUY_TOTAL = 27;
+
+/** Calculate total points spent for a given stat distribution. */
+export function calculatePointsSpent(stats: PlayerStats): number {
+  return Object.values(stats).reduce((sum, val) => sum + (POINT_BUY_COSTS[val] ?? 0), 0);
+}
+
+/** Check if a stat distribution is a valid Point Buy allocation. */
+export function isValidPointBuy(stats: PlayerStats): boolean {
+  const values = Object.values(stats);
+  return (
+    values.every(v => v >= 8 && v <= 15) &&
+    calculatePointsSpent(stats) === POINT_BUY_TOTAL
+  );
 }
 
 export interface PlayerState {
@@ -65,25 +89,17 @@ export function xpForLevel(level: number): number {
   return level * level * 100;
 }
 
-/** Create a fresh level-1 player with 4d6-drop-lowest rolled stats + class boosts. */
+/** Create a fresh level-1 player with provided base stats + class boosts. */
 export function createPlayer(
   name: string,
+  baseStats: PlayerStats,
   appearanceId: string = "knight",
   customAppearance?: { skinColor: number; hairStyle: number; hairColor: number }
 ): PlayerState {
   const appearance = getAppearance(appearanceId);
 
-  // Roll base stats — subtract 1 from each to compensate for class bonuses
-  const roll = () => Math.max(3, rollAbilityScore() - 1);
-
-  const stats: PlayerStats = {
-    strength: roll(),
-    dexterity: roll(),
-    constitution: roll(),
-    intelligence: roll(),
-    wisdom: roll(),
-    charisma: roll(),
-  };
+  // Copy base stats
+  const stats: PlayerStats = { ...baseStats };
 
   // Apply class stat boosts
   for (const [key, bonus] of Object.entries(appearance.statBoosts)) {

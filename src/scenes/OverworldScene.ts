@@ -33,6 +33,7 @@ import {
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
+import { getAppearance } from "../systems/appearance";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
@@ -114,7 +115,10 @@ export class OverworldScene extends Phaser.Scene {
       this.player = data.player;
       this.isNewPlayer = false;
     } else {
-      this.player = createPlayer("Hero");
+      this.player = createPlayer("Hero", {
+        strength: 10, dexterity: 10, constitution: 10,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      });
       this.isNewPlayer = true;
     }
     if (data?.defeatedBosses) {
@@ -1037,7 +1041,13 @@ export class OverworldScene extends Phaser.Scene {
 
     // M key opens game menu
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
-    mKey.on("down", () => this.toggleMenuOverlay());
+    mKey.on("down", () => {
+      if (this.settingsOverlay) {
+        this.toggleSettingsOverlay();
+      } else {
+        this.toggleMenuOverlay();
+      }
+    });
 
     // N key opens world map overlay
     const nKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.N);
@@ -2032,8 +2042,15 @@ export class OverworldScene extends Phaser.Scene {
         const txt = this.add.text(px + 20, cy,
           `${prefix}${wpn.name} (+${wpn.effect} dmg)${isEquipped ? " [equipped]" : ""}`,
           { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: !isEquipped });
-        if (!isEquipped) {
+        ).setInteractive({ useHandCursor: true });
+        if (isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ff6666"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedWeapon = null;
+            this.buildEquipOverlay();
+          });
+        } else {
           txt.on("pointerover", () => txt.setColor("#ffd700"));
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
@@ -2074,8 +2091,15 @@ export class OverworldScene extends Phaser.Scene {
         const txt = this.add.text(px + 20, cy,
           `${prefix}${arm.name} (+${arm.effect} AC)${isEquipped ? " [equipped]" : ""}`,
           { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: !isEquipped });
-        if (!isEquipped) {
+        ).setInteractive({ useHandCursor: true });
+        if (isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ff6666"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedArmor = null;
+            this.buildEquipOverlay();
+          });
+        } else {
           txt.on("pointerover", () => txt.setColor("#ffd700"));
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
@@ -2121,8 +2145,15 @@ export class OverworldScene extends Phaser.Scene {
         const txt = this.add.text(px + 20, cy,
           `${prefix}${sh.name} (+${sh.effect} AC)${isEquipped ? " [equipped]" : ""}`,
           { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: !isEquipped });
-        if (!isEquipped) {
+        ).setInteractive({ useHandCursor: true });
+        if (isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ff6666"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedShield = null;
+            this.buildEquipOverlay();
+          });
+        } else {
           txt.on("pointerover", () => txt.setColor("#ffd700"));
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
@@ -2137,11 +2168,23 @@ export class OverworldScene extends Phaser.Scene {
     cy += 6;
 
     // --- Ability Scores ---
+    const fmtStat = (label: string, val: number) => {
+      const mod = abilityModifier(val);
+      const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+      const padVal = val < 10 ? ` ${val}` : `${val}`;
+      return `${label} ${padVal} (${modStr})`;
+    };
+    const appearance = getAppearance(p.appearanceId);
+    const primaryVal = p.stats[appearance.primaryStat];
+    const primaryMod = abilityModifier(primaryVal);
+    const profBonus = Math.floor((p.level - 1) / 4) + 2;
+    const toHit = primaryMod + profBonus;
+    const toHitStr = toHit >= 0 ? `+${toHit}` : `${toHit}`;
     const statsBlock = this.add.text(px + 14, cy, [
-      `― Stats ―`,
-      `STR ${p.stats.strength}  DEX ${p.stats.dexterity}`,
-      `CON ${p.stats.constitution}  INT ${p.stats.intelligence}`,
-      `WIS ${p.stats.wisdom}  CHA ${p.stats.charisma}`,
+      `― Stats ―  To-Hit: ${toHitStr}`,
+      `${fmtStat("STR", p.stats.strength)}  ${fmtStat("DEX", p.stats.dexterity)}`,
+      `${fmtStat("CON", p.stats.constitution)}  ${fmtStat("INT", p.stats.intelligence)}`,
+      `${fmtStat("WIS", p.stats.wisdom)}  ${fmtStat("CHA", p.stats.charisma)}`,
     ].join("\n"), {
       fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
     });
@@ -2205,7 +2248,7 @@ export class OverworldScene extends Phaser.Scene {
     bg.strokeRect(px, py, panelW, panelH);
     this.statOverlay.add(bg);
 
-    const title = this.add.text(px + panelW / 2, py + 12, "🎲 Your Rolled Stats", {
+    const title = this.add.text(px + panelW / 2, py + 12, "📊 Your Stats", {
       fontSize: "15px", fontFamily: "monospace", color: "#ffd700",
     }).setOrigin(0.5, 0);
     this.statOverlay.add(title);
@@ -2371,26 +2414,32 @@ export class OverworldScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const panelW = 300;
-    const panelH = 260;
+    const panelH = 290;
     const px = Math.floor((w - panelW) / 2);
     const py = Math.floor((h - panelH) / 2) - 10;
 
     this.settingsOverlay = this.add.container(0, 0).setDepth(75);
 
-    // Dim
+    // Dim — only closes when clicking outside the panel
     const dim = this.add.graphics();
     dim.fillStyle(0x000000, 0.6);
     dim.fillRect(0, 0, w, h);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
-    dim.on("pointerdown", () => this.toggleSettingsOverlay());
+    dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      // Only close if the click is outside the panel area
+      if (pointer.x < px || pointer.x > px + panelW || pointer.y < py || pointer.y > py + panelH) {
+        this.toggleSettingsOverlay();
+      }
+    });
     this.settingsOverlay.add(dim);
 
-    // Panel
+    // Panel background — absorb clicks so they don't reach the dim layer
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a2e, 0.95);
     bg.fillRect(px, py, panelW, panelH);
     bg.lineStyle(2, 0xffd700, 1);
     bg.strokeRect(px, py, panelW, panelH);
+    bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
     this.settingsOverlay.add(bg);
 
     // Title
@@ -2441,7 +2490,7 @@ export class OverworldScene extends Phaser.Scene {
       this.settingsOverlay!.add(fill);
 
       // Knob
-      const knobX = sliderX + sliderW * ch.value;
+      let currentKnobX = sliderX + sliderW * ch.value;
       const knob = this.add.graphics();
       const drawKnob = (kx: number) => {
         knob.clear();
@@ -2450,25 +2499,25 @@ export class OverworldScene extends Phaser.Scene {
         knob.lineStyle(1, 0xaa8800, 1);
         knob.strokeCircle(kx, y + 14 + barH / 2, 7);
       };
-      drawKnob(knobX);
+      drawKnob(currentKnobX);
       this.settingsOverlay!.add(knob);
 
-      // Invisible interactive zone for the entire slider row
-      const hitZone = this.add.zone(sliderX + sliderW / 2, y + 14 + barH / 2, sliderW + 20, barH + 16)
+      // Draggable zone centered on the knob only
+      const knobZone = this.add.zone(currentKnobX, y + 14 + barH / 2, 22, 22)
         .setInteractive({ useHandCursor: true, draggable: true });
-      this.settingsOverlay!.add(hitZone);
+      this.settingsOverlay!.add(knobZone);
 
-      const updateFromPointer = (pointerX: number) => {
-        const ratio = Math.max(0, Math.min(1, (pointerX - sliderX) / sliderW));
+      knobZone.on("drag", (_pointer: Phaser.Input.Pointer, dragX: number) => {
+        const clampedX = Phaser.Math.Clamp(dragX, sliderX, sliderX + sliderW);
+        const ratio = (clampedX - sliderX) / sliderW;
         ch.setter(ratio);
         ch.value = ratio;
+        currentKnobX = clampedX;
         drawFill(ratio);
-        drawKnob(sliderX + sliderW * ratio);
+        drawKnob(clampedX);
+        knobZone.setPosition(clampedX, y + 14 + barH / 2);
         valText.setText(`${ch.label}: ${Math.round(ratio * 100)}%`);
-      };
-
-      hitZone.on("pointerdown", (pointer: Phaser.Input.Pointer) => updateFromPointer(pointer.x));
-      hitZone.on("drag", (_pointer: Phaser.Input.Pointer, dragX: number) => updateFromPointer(dragX));
+      });
     });
 
     // Mute toggle
@@ -2485,7 +2534,7 @@ export class OverworldScene extends Phaser.Scene {
     this.settingsOverlay.add(muteBtn);
 
     // Close hint
-    const hint = this.add.text(px + panelW / 2, py + panelH - 8, "Click outside to close", {
+    const hint = this.add.text(px + panelW / 2, py + panelH - 10, "Click outside or press M to close", {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
     this.settingsOverlay.add(hint);

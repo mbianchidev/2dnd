@@ -29,6 +29,7 @@ import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
+import { getTimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
@@ -114,6 +115,18 @@ export class BattleScene extends Phaser.Scene {
     this.drawBattleUI();
     this.setupDebug();
     this.createWeatherParticles();
+
+    // Apply day/night tint to the battle scene
+    const period = getTimePeriod(this.timeStep);
+    const tint = PERIOD_TINT[period];
+    if (tint !== 0xffffff) {
+      // Semi-transparent tint overlay on the battle area (above bg, below UI)
+      const tintOverlay = this.add.graphics();
+      tintOverlay.fillStyle(tint, 0.2);
+      tintOverlay.fillRect(0, 0, this.cameras.main.width, this.cameras.main.height * 0.78);
+      tintOverlay.setDepth(1);
+    }
+
     this.rollForInitiative();
 
     // Start battle or boss music
@@ -128,6 +141,7 @@ export class BattleScene extends Phaser.Scene {
 
   update(): void {
     this.updateDebugPanel();
+    this.updateButtonStates();
   }
 
   private drawBattleUI(): void {
@@ -295,6 +309,17 @@ export class BattleScene extends Phaser.Scene {
       container.add([bg, label]);
       this.actionButtons.push(container);
     });
+
+    // Set initial visual state
+    this.updateButtonStates();
+  }
+
+  /** Dim or enable action buttons based on current phase. */
+  private updateButtonStates(): void {
+    const enabled = this.phase === "playerTurn";
+    for (const btn of this.actionButtons) {
+      btn.setAlpha(enabled ? 1 : 0.4);
+    }
   }
 
   private closeAllSubMenus(): void {

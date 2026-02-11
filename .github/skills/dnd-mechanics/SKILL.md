@@ -32,9 +32,30 @@ const strModifier = abilityModifier(playerStats.strength);
 
 ### Rolling Ability Scores
 ```typescript
-// 4d6 drop lowest - standard D&D character generation
+// 4d6 drop lowest - standard D&D character generation (Random mode)
 const strength = rollAbilityScore();  // Returns 3-18, average ~12
 ```
+
+### Point Buy System (default in character creation)
+```typescript
+import { POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent, isValidPointBuy } from "../systems/player";
+
+// 27 points total, scores range 8-15
+// Cost: 8→0, 9→1, 10→2, 11→3, 12→4, 13→5, 14→7, 15→9
+const baseStats: PlayerStats = { strength: 15, dexterity: 14, constitution: 13, intelligence: 12, wisdom: 10, charisma: 8 };
+calculatePointsSpent(baseStats); // → 27
+isValidPointBuy(baseStats);      // → true
+
+// Class boosts applied on top (can push above 15):
+const player = createPlayer("Hero", baseStats, "knight"); // STR becomes 17 (15+2)
+```
+
+### Classes & Primary Stats
+Each class has a `primaryStat` for to-hit calculations:
+- Knight (STR+2, CON+1) → STR | Ranger (DEX+2, WIS+1) → DEX
+- Mage (INT+2, WIS+1) → INT | Rogue (DEX+2, CHA+1) → DEX
+- Paladin (STR+1, CHA+2) → CHA | Warlock (CHA+2, INT+1) → CHA
+- Cleric (WIS+2, CON+1) → WIS | Barbarian (STR+2, CON+1) → STR
 
 ## Combat Mechanics
 

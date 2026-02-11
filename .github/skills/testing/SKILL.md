@@ -284,28 +284,43 @@ describe("spell data integrity", () => {
 
 ### Helper Functions
 ```typescript
-// Create test fixtures with sensible defaults
-export function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
-  return {
-    name: "TestHero",
-    level: 1,
-    xp: 0,
-    hp: 10,
-    maxHp: 10,
-    mp: 5,
-    maxMp: 5,
-    gold: 100,
-    stats: {
-      strength: 10,
-      dexterity: 10,
-      constitution: 10,
-      intelligence: 10,
-      wisdom: 10,
-      charisma: 10,
-    },
-    ...overrides,
+// createPlayer now requires baseStats — never called without them
+const defaultStats: PlayerStats = {
+  strength: 10, dexterity: 10, constitution: 10,
+  intelligence: 10, wisdom: 10, charisma: 10,
+};
+
+function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
+  const player = createPlayer("Test", {
+    strength: 10, dexterity: 8, constitution: 12,
+    intelligence: 8, wisdom: 8, charisma: 8,
+  });
+  // Pin stats for deterministic tests
+  player.stats = {
+    strength: 12, dexterity: 10, constitution: 14,
+    intelligence: 10, wisdom: 10, charisma: 8,
   };
+  player.maxHp = 30; player.hp = 30;
+  player.maxMp = 10; player.mp = 10;
+  if (overrides) Object.assign(player, overrides);
+  return player;
 }
+```
+
+### Point Buy Tests
+```typescript
+import { calculatePointsSpent, isValidPointBuy, POINT_BUY_TOTAL } from "../src/systems/player";
+
+// Standard array costs exactly 27
+expect(calculatePointsSpent({ strength: 15, dexterity: 14, constitution: 13, intelligence: 12, wisdom: 10, charisma: 8 })).toBe(27);
+
+// All 8s costs 0
+expect(calculatePointsSpent({ strength: 8, dexterity: 8, constitution: 8, intelligence: 8, wisdom: 8, charisma: 8 })).toBe(0);
+
+// Validates correctly
+expect(isValidPointBuy({ strength: 15, dexterity: 14, constitution: 13, intelligence: 12, wisdom: 10, charisma: 8 })).toBe(true);
+expect(isValidPointBuy({ strength: 16, dexterity: 8, constitution: 8, intelligence: 8, wisdom: 8, charisma: 8 })).toBe(false); // >15
+```
 
 export function createTestMonster(overrides?: Partial<MonsterInstance>): MonsterInstance {
   return {

@@ -1,7 +1,7 @@
 # 2D&D Project - GitHub Copilot Instructions
 
 ## Project Overview
-2D&D is a browser-based JRPG that combines Dragon Quest-style gameplay with Dungeons & Dragons mechanics. The game features turn-based combat, spell system, leveling, shops, and random encounters, all rendered with procedurally-generated graphics.
+2D&D is a browser-based JRPG that combines Dragon Quest-style gameplay with Dungeons & Dragons 5E mechanics. The game features turn-based combat, a D&D point-buy stat system, procedural audio, weather, day/night cycles, multi-chunk world exploration, cities, dungeons, and boss fights — all rendered with procedurally-generated graphics and synthesized audio.
 
 ## Tech Stack
 - **Frontend Framework:** Phaser 3 (game engine)
@@ -14,29 +14,41 @@
 ```
 src/
 ├── main.ts              # Entry point & Phaser config
-├── config.ts            # Game constants and debug system
+├── config.ts            # Game constants, debug system, HTML debug panel API
 ├── scenes/              # Phaser game scenes
-│   ├── BootScene.ts     # Asset generation & title screen
-│   ├── OverworldScene.ts # Tile map, movement, encounters
-│   ├── BattleScene.ts   # Turn-based combat
+│   ├── BootScene.ts     # Asset generation, title screen, character creation (name → class → stat allocation → appearance)
+│   ├── OverworldScene.ts # Multi-chunk tile map, movement, encounters, fog of war, overlays (equip, menu, settings, world map, stat allocation)
+│   ├── BattleScene.ts   # Turn-based combat with scrollable log, day/night tint, celestial bodies, weather particles
 │   ├── ShopScene.ts     # Item shops & inn
 │   └── BestiaryScene.ts # Monster encyclopedia
 ├── systems/             # Core game systems
-│   ├── combat.ts        # D&D combat mechanics
-│   ├── player.ts        # Player state, leveling, inventory
-│   ├── save.ts          # Save/load functionality
-│   ├── appearance.ts    # Character customization
-│   ├── bestiary.ts      # Monster tracking
-│   └── daynight.ts      # Day/night cycle
+│   ├── combat.ts        # D&D combat mechanics (attack, spell, ability, flee)
+│   ├── player.ts        # Player state, leveling, inventory, Point Buy system
+│   ├── save.ts          # Save/load functionality (localStorage)
+│   ├── appearance.ts    # Character classes & cosmetic customization (primaryStat per class)
+│   ├── bestiary.ts      # Monster tracking & AC discovery
+│   ├── daynight.ts      # Day/night cycle (360-step: Dawn/Day/Dusk/Night)
+│   ├── weather.ts       # Weather system (Clear/Rain/Snow/Sandstorm/Storm/Fog)
+│   ├── audio.ts         # Procedural Web Audio API engine (biome/battle/boss/city music, SFX, footsteps, volume settings with localStorage persistence)
+│   └── debug.ts         # Shared debug hotkeys & slash commands
 ├── data/                # Game data definitions
-│   ├── map.ts           # Overworld map grid & terrain
-│   ├── monsters.ts      # Monster definitions & encounters
-│   ├── spells.ts        # Spell definitions & requirements
+│   ├── map.ts           # 10×9 chunk world, 20×15 tile chunks, terrain, cities, dungeons, chests
+│   ├── monsters.ts      # Monster definitions, encounter tables, boss encounters
+│   ├── spells.ts        # Spell definitions & level requirements
 │   ├── items.ts         # Item definitions & shop inventory
-│   ├── abilities.ts     # Character abilities
-│   └── talents.ts       # Character talents/perks
+│   ├── abilities.ts     # Martial ability definitions
+│   └── talents.ts       # Talent/perk definitions
 └── utils/
-    └── dice.ts          # D&D dice rolling utilities
+    └── dice.ts          # D&D dice rolling utilities (d20, 4d6-drop-lowest, ability modifiers)
+tests/
+├── audio.test.ts        # Audio system API surface & state tests
+├── combat.test.ts       # Combat calculations & attack rolls
+├── config.test.ts       # Debug system tests
+├── data.test.ts         # Game data integrity tests
+├── daynight.test.ts     # Day/night cycle tests
+├── dice.test.ts         # Dice utility tests
+├── player.test.ts       # Player system, Point Buy, leveling tests
+└── weather.test.ts      # Weather system tests
 ```
 
 ## Coding Standards
@@ -64,14 +76,36 @@ src/
 - **Imports:** Group by external → internal → types
 
 ### Phaser-Specific Patterns
-- **Scene data passing:** All scene transitions pass data object with `player`, `defeatedBosses`, `bestiary`, and `timeStep`
+- **Scene data passing:** All scene transitions pass data object with `player`, `defeatedBosses`, `bestiary`, `timeStep`, and `weatherState`
 - **Scene init method:** Always accept and store scene data in `init(data: SceneData)`
 - **Asset generation:** All graphics are procedurally generated in `BootScene.ts` - never use external image files
+- **Audio:** All sound is procedurally synthesized via Web Audio API in `audio.ts` - never use external audio files
 - **Game objects:** Store references to Phaser objects as class properties for later access
 - **UI positioning:** Always calculate actual pixel bounds (including scale) to prevent text overlap
 - **Zoom level:** Default game zoom is 2x for better visibility
 
 ## D&D Game Mechanics
+
+### Character Creation Flow
+**Name → Class Selection → Stat Allocation → Appearance Customization → Start Adventure**
+
+### Stat Allocation (Point Buy)
+- D&D 5E Point Buy: 27 points, scores range 8–15
+- Cost table: 8→0, 9→1, 10→2, 11→3, 12→4, 13→5, 14→7, 15→9
+- Alternative: Random mode (4d6-drop-lowest, unlimited re-rolls)
+- Class boosts applied on top of base stats (can push above 15)
+- `createPlayer(name, baseStats, appearanceId, customAppearance)` — stats are NOT rolled internally
+
+### Classes & Primary Stats
+Each class has a `primaryStat` used for to-hit calculations:
+- **Knight** (STR+2, CON+1) → primary: STR
+- **Ranger** (DEX+2, WIS+1) → primary: DEX
+- **Mage** (INT+2, WIS+1) → primary: INT
+- **Rogue** (DEX+2, CHA+1) → primary: DEX
+- **Paladin** (STR+1, CHA+2) → primary: CHA
+- **Warlock** (CHA+2, INT+1) → primary: CHA
+- **Cleric** (WIS+2, CON+1) → primary: WIS
+- **Barbarian** (STR+2, CON+1) → primary: STR
 
 ### Combat System
 - **D20 system:** Attack rolls, skill checks, saving throws use d20
@@ -80,26 +114,45 @@ src/
 - **Initiative:** Roll d20 + dexterity modifier to determine turn order
 - **Spell slots:** MP (mana points) system instead of traditional spell slots
 - **Ability modifiers:** Used for attack/damage bonuses (see `dice.ts`)
+- **Distinct SFX:** Hit, miss, and critical hit each have unique sounds
+- **Action buttons:** Visually disabled (dimmed) when not the player's turn
 
 ### Monster System
 - **Monster IDs:** Use camelCase (e.g., `nightWolf`, `vampireBat`)
 - **Encounter tables:** Defined per terrain type with spawn weights
-- **Boss monsters:** Fixed positions on map, tracked in `defeatedBosses` array
-- **Night monsters:** Separate spawn table for nighttime encounters (90-119 in cycle)
-- **Bestiary:** Track discovered monsters with `foundAt` timestamp
+- **Boss monsters:** Fixed map positions, each with unique battle music profile
+- **Night monsters:** Separate spawn table for nighttime encounters
+- **Bestiary:** Track discovered monsters, AC discovery via combat rolls
 
 ### Day/Night Cycle
-- **120-step cycle:** Dawn (0-14), Day (15-74), Dusk (75-89), Night (90-119)
+- **360-step cycle:** Dawn (0-44), Day (45-219), Dusk (220-264), Night (265-359)
 - **Time advances:** One step per player movement
+- **Visual effects:** Tint applied to overworld tiles AND battle backgrounds
+- **Battle sky:** Sun/moon drawn at different positions per time period
 - **Night encounters:** Different monster table during night hours
 - **Persistence:** `timeStep` stored in save data
 
-### Character System
-- **Classes:** Multiple character classes with unique abilities and spells
-- **Appearance:** Optional `customAppearance` with `skinColor`, `hairStyle`, `hairColor`
-- **Stats:** Six D&D ability scores (STR, DEX, CON, INT, WIS, CHA)
-- **Leveling:** XP-based with stat increases and spell unlocks
-- **Inventory:** Items, weapons, armor with D&D-style bonuses
+### Weather System
+- **Six types:** Clear, Rain, Snow, Sandstorm, Storm, Fog
+- **Biome-weighted:** Each biome has different weather probabilities
+- **Combat effects:** Weather applies accuracy penalties and monster boosts
+- **Audio:** Weather ambient SFX overlay (rain patter, thunder, wind, etc.)
+- **Particles:** Visual weather effects in both overworld and battle scenes
+
+### Audio System
+- **Procedural synthesis:** All music and SFX generated via Web Audio API at runtime
+- **Biome music:** Each biome has unique scale, tempo, and instrument combination
+- **Orchestral layers:** Strings (vibrato sine), brass (sawtooth stabs), kick drum, hihat on all tracks
+- **Boss music:** Each boss has a unique musical profile (scale, BPM, wave types)
+- **City music:** Each city has distinct vibe (pastoral, industrial, mystical, exotic, etc.)
+- **SFX:** Attack (swoosh+impact+clang), miss (airy whiff), critical hit (slam+sting+bell), chest open, dungeon enter, potion drink, terrain footsteps
+- **Volume settings:** Per-channel sliders (Master, Music, SFX, Dialog) with localStorage persistence
+- **Settings UI:** Available on both title screen and in-game menu (M → Settings)
+
+### Equipment System
+- **Unequip:** Click equipped items to unequip
+- **Stats display:** Shows ability modifiers and to-hit value in equip overlay
+- **Stacked items:** Battle inventory groups consumables by type (e.g., "Potion x3")
 
 ## Development Commands
 ```bash
@@ -116,8 +169,12 @@ npm run typecheck  # TypeScript type checking only
 - **What to test:**
   - Dice rolling utilities (probability distributions, edge cases)
   - Combat calculations (attack rolls, damage, modifiers)
-  - Player leveling and XP progression
+  - Player leveling, XP progression, Point Buy validation
   - Data integrity (monsters, spells, items)
+  - Day/night cycle transitions
+  - Weather system state changes
+  - Audio engine API surface and state
+  - Debug system configuration
 - **What NOT to test:**
   - Phaser rendering (visual/UI elements)
   - Scene transitions (integration tests)
@@ -126,60 +183,59 @@ npm run typecheck  # TypeScript type checking only
 ## Debug System
 - **Debug mode:** Toggled via checkbox above game canvas
 - **Debug features:**
-  - Debug panel below game with action logs and live state
+  - Scrollable debug panel with action logs, live state, and trailing spacer
   - Console logging with `debugLog()` function
   - Cheat keys in battle (K=kill, H=heal, P=restore MP, G=gold, L=level up, X=max XP)
-- **Debug commands:** Text input with `/command` syntax
+  - Overworld cheats: R=reveal map, V=toggle fog, F=toggle encounters
+- **Debug commands:** Text input with `/command` syntax (gold, exp, hp, mp, heal, reveal, teleport, spawn, weather, time, audio, item, level)
 - **Usage:** Use `isDebug()` to check state, `debugLog()` for conditional logging
 
 ## Common Patterns
 
 ### Scene Transitions
 ```typescript
-// Correct way to transition scenes
 this.scene.start("NextScene", {
   player: this.player,
   defeatedBosses: this.defeatedBosses,
   bestiary: this.bestiary,
   timeStep: this.timeStep,
+  weatherState: this.weatherState,
 });
+```
+
+### Player Creation (Point Buy)
+```typescript
+const baseStats: PlayerStats = {
+  strength: 15, dexterity: 14, constitution: 13,
+  intelligence: 12, wisdom: 10, charisma: 8,
+};
+const player = createPlayer("Hero", baseStats, "knight", customAppearance);
+// Class boosts applied on top: Knight gets STR+2, CON+1
+```
+
+### Audio Engine Usage
+```typescript
+audioEngine.init(); // Must be called from user gesture
+audioEngine.playBiomeMusic(chunkName, timePeriod);
+audioEngine.playBattleMusic();
+audioEngine.playAttackSFX();        // Normal hit
+audioEngine.playMissSFX();          // Whiff
+audioEngine.playCriticalHitSFX();   // Critical hit
+audioEngine.playFootstepSFX(terrainType);
+audioEngine.setMasterVolume(0.8);   // Persisted to localStorage
 ```
 
 ### Dice Rolling
 ```typescript
-// Use utility functions from dice.ts
 import { rollDice, rollD20, abilityModifier } from "../utils/dice";
-
 const damage = rollDice(2, 6) + abilityModifier(strength);
 const attackRoll = rollD20() + proficiencyBonus + abilityModifier(dexterity);
 ```
 
-### Entity IDs
-```typescript
-// Correct: camelCase for all entity IDs
-const monster = getMonster("nightWolf");
-const spell = getSpell("fireBolt");
-
-// Incorrect: kebab-case or snake_case
-const monster = getMonster("night-wolf");  // ❌
-const spell = getSpell("fire_bolt");       // ❌
-```
-
-### UI Positioning
-```typescript
-// Always calculate bounds to prevent overlap
-const title = this.add.text(x, y, "Title", { fontSize: "32px" });
-title.setOrigin(0.5);
-const titleHeight = title.height * title.scaleY;
-
-const subtitle = this.add.text(x, y + titleHeight + 20, "Subtitle", { fontSize: "16px" });
-// Add proper gap (20px here) between elements
-```
-
 ## Security & Best Practices
-- **No external assets:** All graphics generated procedurally
+- **No external assets:** All graphics generated procedurally, all audio synthesized
 - **No network calls:** Pure client-side game
-- **LocalStorage only:** Save data stored locally, not on server
+- **LocalStorage only:** Save data and audio preferences stored locally
 - **Input validation:** Validate all user input before processing
 - **Type safety:** Leverage TypeScript to prevent runtime errors
 

@@ -24,13 +24,14 @@ The game uses five main scenes:
 ```typescript
 interface SceneData {
   player: PlayerState;
-  defeatedBosses: string[];
-  bestiary: Bestiary;
+  defeatedBosses: Set<string>;
+  bestiary: BestiaryData;
   timeStep: number;
+  weatherState: WeatherState;
 }
 ```
 
-This ensures consistent game state across all scenes.
+This ensures consistent game state across all scenes. The `weatherState` tracks current weather type and countdown to next change.
 
 ## Creating a New Scene
 

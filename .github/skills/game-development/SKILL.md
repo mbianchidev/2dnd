@@ -182,14 +182,62 @@ function applyStatusEffects(entity: PlayerState | MonsterInstance) {
 - **Performance** - Cache calculations, reuse objects, minimize allocations
 - **Testability** - Write unit tests for game logic, not UI
 
+## Audio System
+
+All audio is procedurally synthesized — no external audio files.
+
+```typescript
+import { audioEngine } from "../systems/audio";
+
+// Initialize from user gesture
+audioEngine.init();
+
+// Music (auto-crossfade between tracks)
+audioEngine.playBiomeMusic(chunkName, timePeriod);  // Overworld
+audioEngine.playBattleMusic();                       // Non-boss battles
+audioEngine.playBossMusic(bossId);                   // Boss-specific music
+audioEngine.playCityMusic(cityName);                 // City-specific vibe
+audioEngine.playTitleMusic();                        // Title screen
+
+// SFX (distinct sounds for combat outcomes)
+audioEngine.playAttackSFX();        // Normal hit: swoosh + impact + clang
+audioEngine.playMissSFX();          // Miss: airy whiff + descending pitch
+audioEngine.playCriticalHitSFX();   // Critical: slam + rising sting + bell
+audioEngine.playChestOpenSFX();     // Chest: ascending twinkle
+audioEngine.playDungeonEnterSFX();  // Dungeon: deep boom + eerie tone
+audioEngine.playPotionSFX();        // Potion: glug bubbles + shimmer
+audioEngine.playFootstepSFX(terrain); // Terrain-specific footstep noise
+
+// Volume (persisted to localStorage)
+audioEngine.setMasterVolume(0.8);
+audioEngine.setMusicVolume(0.6);
+audioEngine.setSFXVolume(0.4);
+audioEngine.setDialogVolume(0.5);
+```
+
+## Weather & Day/Night
+
+```typescript
+import { WeatherType, advanceWeather, getWeatherAccuracyPenalty } from "../systems/weather";
+import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
+
+// 360-step cycle: Dawn(0-44), Day(45-219), Dusk(220-264), Night(265-359)
+const period = getTimePeriod(timeStep);
+
+// 6 weather types with biome-weighted probabilities
+// Clear, Rain, Snow, Sandstorm, Storm, Fog
+const penalty = getWeatherAccuracyPenalty(weather); // Combat effect
+```
+
 ## Common Pitfalls to Avoid
 
-- ❌ Forgetting to pass scene data during transitions
+- ❌ Forgetting to pass scene data during transitions (include weatherState)
 - ❌ Using inconsistent ID naming conventions
 - ❌ Hardcoding values instead of using config constants
 - ❌ Modifying shared data objects directly
 - ❌ Overlapping UI elements without bound checking
-- ❌ Adding external asset files (use procedural generation)
+- ❌ Adding external asset/audio files (use procedural generation)
+- ❌ Calling createPlayer without baseStats parameter
 
 ## Testing Your Changes
 

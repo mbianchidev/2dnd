@@ -82,6 +82,10 @@ describe("audio system", () => {
       expect(state.muted).toBe(false);
       expect(state.volume).toBeGreaterThan(0);
       expect(state.volume).toBeLessThanOrEqual(1);
+      expect(state.masterVolume).toBe(1.0);
+      expect(state.musicVolume).toBe(0.6);
+      expect(state.sfxVolume).toBe(0.4);
+      expect(state.dialogVolume).toBe(0.5);
     });
   });
 
@@ -92,6 +96,10 @@ describe("audio system", () => {
       expect(typeof audioEngine.setVolume).toBe("function");
       expect(typeof audioEngine.setMuted).toBe("function");
       expect(typeof audioEngine.toggleMute).toBe("function");
+      expect(typeof audioEngine.setMasterVolume).toBe("function");
+      expect(typeof audioEngine.setMusicVolume).toBe("function");
+      expect(typeof audioEngine.setSFXVolume).toBe("function");
+      expect(typeof audioEngine.setDialogVolume).toBe("function");
       expect(typeof audioEngine.stopAll).toBe("function");
       expect(typeof audioEngine.playBiomeMusic).toBe("function");
       expect(typeof audioEngine.playBattleMusic).toBe("function");
@@ -102,6 +110,11 @@ describe("audio system", () => {
       expect(typeof audioEngine.playVictoryJingle).toBe("function");
       expect(typeof audioEngine.playWeatherSFX).toBe("function");
       expect(typeof audioEngine.playDialogueBlip).toBe("function");
+      expect(typeof audioEngine.playAttackSFX).toBe("function");
+      expect(typeof audioEngine.playChestOpenSFX).toBe("function");
+      expect(typeof audioEngine.playDungeonEnterSFX).toBe("function");
+      expect(typeof audioEngine.playPotionSFX).toBe("function");
+      expect(typeof audioEngine.playFootstepSFX).toBe("function");
       expect(typeof audioEngine.playAllSounds).toBe("function");
     });
 
@@ -125,6 +138,11 @@ describe("audio system", () => {
       expect(() => audioEngine.playVictoryJingle()).not.toThrow();
       expect(() => audioEngine.playWeatherSFX("Rain" as any)).not.toThrow();
       expect(() => audioEngine.playDialogueBlip()).not.toThrow();
+      expect(() => audioEngine.playAttackSFX()).not.toThrow();
+      expect(() => audioEngine.playChestOpenSFX()).not.toThrow();
+      expect(() => audioEngine.playDungeonEnterSFX()).not.toThrow();
+      expect(() => audioEngine.playPotionSFX()).not.toThrow();
+      expect(() => audioEngine.playFootstepSFX(0)).not.toThrow();
       expect(() => audioEngine.stopAll()).not.toThrow();
     });
   });

@@ -1403,10 +1403,46 @@ export class BootScene extends Phaser.Scene {
       audioEngine.playTitleMusic();
     });
 
-    // Title
+    // ── Favicon / Logo: procedurally draw the D20 die ──
+    const logoSize = 72;
+    const lx = cx;
+    const ly = cy - 120;
+    const logo = this.add.graphics();
+    // D20 hexagon shape
+    const pts = [
+      { x: 0, y: -logoSize / 2 },
+      { x: logoSize * 0.45, y: -logoSize / 4 },
+      { x: logoSize * 0.45, y: logoSize / 4 },
+      { x: 0, y: logoSize / 2 },
+      { x: -logoSize * 0.45, y: logoSize / 4 },
+      { x: -logoSize * 0.45, y: -logoSize / 4 },
+    ];
+    logo.fillStyle(0x1a1a2e, 1);
+    logo.beginPath();
+    logo.moveTo(lx + pts[0].x, ly + pts[0].y);
+    for (let i = 1; i < pts.length; i++) logo.lineTo(lx + pts[i].x, ly + pts[i].y);
+    logo.closePath();
+    logo.fillPath();
+    logo.lineStyle(2.5, 0xffd700, 1);
+    logo.beginPath();
+    logo.moveTo(lx + pts[0].x, ly + pts[0].y);
+    for (let i = 1; i < pts.length; i++) logo.lineTo(lx + pts[i].x, ly + pts[i].y);
+    logo.closePath();
+    logo.strokePath();
+    // Inner facet lines
+    logo.lineStyle(1, 0xffd700, 0.4);
+    logo.lineBetween(lx + pts[0].x, ly + pts[0].y, lx + pts[3].x, ly + pts[3].y);
+    logo.lineBetween(lx + pts[5].x, ly + pts[5].y, lx + pts[2].x, ly + pts[2].y);
+    logo.lineBetween(lx + pts[4].x, ly + pts[4].y, lx + pts[1].x, ly + pts[1].y);
+    // "2D" text on the die
+    this.add.text(lx, ly + 4, "2D", {
+      fontSize: "24px", fontFamily: "monospace", fontStyle: "bold", color: "#ffd700",
+    }).setOrigin(0.5);
+
+    // Game title below logo
     this.add
-      .text(cx, cy - 100, "2D&D", {
-        fontSize: "64px",
+      .text(cx, ly + logoSize / 2 + 18, "2D&D", {
+        fontSize: "48px",
         fontFamily: "monospace",
         color: "#ffd700",
         stroke: "#000",
@@ -1415,23 +1451,15 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(cx, cy - 40, "A Browser JRPG", {
-        fontSize: "20px",
-        fontFamily: "monospace",
-        color: "#c0a060",
-      })
-      .setOrigin(0.5);
-
-    this.add
-      .text(cx, cy + 4, "Dragon Quest meets Dungeons & Dragons", {
-        fontSize: "14px",
+      .text(cx, ly + logoSize / 2 + 60, "An epic tale of magic and dice, in 2d!", {
+        fontSize: "13px",
         fontFamily: "monospace",
         color: "#888",
       })
       .setOrigin(0.5);
 
     // Menu options
-    let menuY = cy + 50;
+    let menuY = cy + 60;
 
     const saveExists = hasSave();
 
@@ -1472,27 +1500,10 @@ export class BootScene extends Phaser.Scene {
     newBtn.on("pointerout", () => newBtn.setColor("#fff"));
     newBtn.on("pointerdown", () => this.showCharacterCreation());
 
-    // Controls info
-    this.add
-      .text(cx, cy + 180, "WASD: Move  |  SPACE: Action  |  B: Bestiary  |  E: Equip", {
-        fontSize: "11px",
-        fontFamily: "monospace",
-        color: "#555",
-      })
-      .setOrigin(0.5);
-
     // Keyboard shortcuts
     if (saveExists) {
       this.input.keyboard!.once("keydown-SPACE", () => this.continueGame());
       this.input.keyboard!.once("keydown-N", () => this.showCharacterCreation());
-
-      this.add
-        .text(cx, menuY + 36, "(SPACE = Continue  |  N = New Game)", {
-          fontSize: "10px",
-          fontFamily: "monospace",
-          color: "#555",
-        })
-        .setOrigin(0.5);
     } else {
       this.input.keyboard!.once("keydown-SPACE", () => this.showCharacterCreation());
     }

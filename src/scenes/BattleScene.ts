@@ -407,6 +407,7 @@ export class BattleScene extends Phaser.Scene {
       this.updatePlayerStats();
 
       if (result.hit && result.damage > 0) {
+        if (audioEngine.initialized) audioEngine.playAttackSFX();
         this.tweens.add({
           targets: this.monsterSprite,
           x: this.monsterSprite.x + 10,
@@ -655,6 +656,7 @@ export class BattleScene extends Phaser.Scene {
       this.updateMonsterDisplay();
 
       if (result.hit) {
+        if (audioEngine.initialized) audioEngine.playAttackSFX();
         this.tweens.add({
           targets: this.monsterSprite,
           x: this.monsterSprite.x + 10,
@@ -713,6 +715,7 @@ export class BattleScene extends Phaser.Scene {
       this.updatePlayerStats();
 
       if (result.hit && result.damage > 0) {
+        if (audioEngine.initialized) audioEngine.playAttackSFX();
         this.cameras.main.flash(200, 100, 100, 255);
       }
 
@@ -730,6 +733,7 @@ export class BattleScene extends Phaser.Scene {
     try {
       const result = useItem(this.player, itemIndex);
       this.addLog(result.message);
+      if (result.used && audioEngine.initialized) audioEngine.playPotionSFX();
       this.updatePlayerStats();
 
       if (result.used) {
@@ -860,6 +864,7 @@ export class BattleScene extends Phaser.Scene {
       this.updatePlayerStats();
 
       if (result.hit) {
+        if (audioEngine.initialized) audioEngine.playAttackSFX();
         this.cameras.main.shake(150, 0.01);
         // Shake player sprite
         this.tweens.add({

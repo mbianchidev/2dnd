@@ -9,6 +9,7 @@ import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
 import { abilityModifier, rollAbilityScore } from "../utils/dice";
 import { audioEngine } from "../systems/audio";
+import { MOUNTS } from "../data/mounts";
 
 const TILE_SIZE = 32;
 
@@ -25,6 +26,7 @@ export class BootScene extends Phaser.Scene {
     this.generateTileTextures();
     this.generatePlayerTexture();
     this.generatePlayerTextures();
+    this.generateMountTextures();
     this.generateMonsterTexture();
     this.generateBossTexture();
     this.generateUITextures();
@@ -712,6 +714,42 @@ export class BootScene extends Phaser.Scene {
         app.skinColor,
         app.legColor
       );
+    }
+  }
+
+  /** Generate small horse-like mount sprites for overworld display. */
+  private generateMountTextures(): void {
+    const mountColors: Record<string, number> = {
+      donkey: 0x8d6e63,
+      horse: 0x795548,
+      warHorse: 0x4e342e,
+      shadowSteed: 0x311b92,
+    };
+    for (const mount of MOUNTS) {
+      const key = `mount_${mount.id}`;
+      const color = mountColors[mount.id] ?? 0x6d4c41;
+      const gfx = this.add.graphics();
+      // Body (horizontal rectangle)
+      gfx.fillStyle(color, 1);
+      gfx.fillRect(6, 14, 20, 10);
+      // Head/neck
+      gfx.fillStyle(color, 1);
+      gfx.fillRect(24, 8, 6, 10);
+      // Ears
+      gfx.fillRect(26, 4, 2, 5);
+      gfx.fillRect(29, 4, 2, 5);
+      // Legs
+      const legColor = (color & 0xfefefe) >> 1; // darker shade
+      gfx.fillStyle(legColor, 1);
+      gfx.fillRect(8, 24, 3, 6);
+      gfx.fillRect(14, 24, 3, 6);
+      gfx.fillRect(20, 24, 3, 6);
+      // Tail
+      gfx.fillStyle(color, 1);
+      gfx.fillRect(3, 12, 4, 3);
+
+      gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
+      gfx.destroy();
     }
   }
 

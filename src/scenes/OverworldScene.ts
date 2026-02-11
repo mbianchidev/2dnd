@@ -54,6 +54,7 @@ import {
   WEATHER_LABEL,
 } from "../systems/weather";
 import { audioEngine } from "../systems/audio";
+import { getMount } from "../data/mounts";
 
 const TILE_SIZE = 32;
 
@@ -105,6 +106,7 @@ export class OverworldScene extends Phaser.Scene {
   private biomeDecoEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
   private cityAnimals: Phaser.GameObjects.Sprite[] = [];
   private cityAnimalTimers: Phaser.Time.TimerEvent[] = [];
+  private mountSprite: Phaser.GameObjects.Sprite | null = null;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -421,6 +423,29 @@ export class OverworldScene extends Phaser.Scene {
       }
     });
 
+    cmds.set("mount", (args) => {
+      const id = args.trim().toLowerCase();
+      if (!id || id === "none" || id === "off") {
+        this.player.mountId = "";
+        debugPanelLog(`[CMD] Dismounted`, true);
+      } else {
+        const mount = getMount(id);
+        if (mount) {
+          this.player.mountId = mount.id;
+          debugPanelLog(`[CMD] Mounted ${mount.name} (speed ×${mount.speedMultiplier})`, true);
+        } else {
+          debugPanelLog(`Unknown mount: ${id}. Available: donkey, horse, warHorse, shadowSteed`, true);
+        }
+      }
+      this.scene.restart({
+        player: this.player,
+        defeatedBosses: this.defeatedBosses,
+        bestiary: this.bestiary,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
+      });
+    });
+
     // Help entries
     const helpEntries: HelpEntry[] = [
       ...SHARED_HELP,
@@ -434,6 +459,7 @@ export class OverworldScene extends Phaser.Scene {
       { usage: "/spawn <name>", desc: "Spawn a monster battle by name/id" },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
+      { usage: "/mount <id>", desc: "Mount: donkey|horse|warHorse|shadowSteed|none" },
     ];
 
     registerCommandRouter(cmds, "Overworld", helpEntries, "G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog");
@@ -1011,6 +1037,10 @@ export class OverworldScene extends Phaser.Scene {
     if (this.playerSprite) {
       this.playerSprite.destroy();
     }
+    if (this.mountSprite) {
+      this.mountSprite.destroy();
+      this.mountSprite = null;
+    }
     const texKey = `player_${this.player.appearanceId}`;
     // Use the appearance texture if it exists, else fall back to default
     const key = this.textures.exists(texKey) ? texKey : "player";
@@ -1020,6 +1050,19 @@ export class OverworldScene extends Phaser.Scene {
       key
     );
     this.playerSprite.setDepth(10);
+
+    // Render mount sprite underneath the player when mounted on overworld
+    if (this.player.mountId && !this.player.inDungeon && !this.player.inCity) {
+      const mountTexKey = `mount_${this.player.mountId}`;
+      if (this.textures.exists(mountTexKey)) {
+        this.mountSprite = this.add.sprite(
+          this.player.x * TILE_SIZE + TILE_SIZE / 2,
+          this.player.y * TILE_SIZE + TILE_SIZE / 2,
+          mountTexKey
+        );
+        this.mountSprite.setDepth(9); // just below the player
+      }
+    }
   }
 
   private setupInput(): void {
@@ -1099,8 +1142,9 @@ export class OverworldScene extends Phaser.Scene {
     const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts` : "";
     const timeLabel = PERIOD_LABEL[getTimePeriod(this.timeStep)];
     const weatherLabel = WEATHER_LABEL[this.weatherState.current];
+    const mountLabel = (p.mountId && !p.inDungeon && !p.inCity) ? `  🐴 ${getMount(p.mountId)?.name ?? "Mount"}` : "";
     this.hudText.setText(
-      `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}  ${weatherLabel}\n` +
+      `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}  ${weatherLabel}${mountLabel}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}`
     );
   }
@@ -1248,13 +1292,15 @@ export class OverworldScene extends Phaser.Scene {
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
     const encMult = getEncounterMultiplier(this.timeStep);
     const weatherEncMult = getWeatherEncounterMultiplier(this.weatherState.current);
-    const effectiveRate = rate * encMult * weatherEncMult;
+    const mountEncMult = (!p.inDungeon && p.mountId) ? (getMount(p.mountId)?.encounterMultiplier ?? 1) : 1;
+    const effectiveRate = rate * encMult * weatherEncMult * mountEncMult;
     const dungeonTag = p.inDungeon ? ` [DUNGEON:${p.dungeonId}]` : "";
+    const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag} | ` +
+      `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag}${mountTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
-      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
+      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
       `Bosses: ${this.defeatedBosses.size}\n` +
@@ -1267,11 +1313,22 @@ export class OverworldScene extends Phaser.Scene {
     return !!(this.menuOverlay || this.worldMapOverlay || this.equipOverlay || this.statOverlay || this.settingsOverlay);
   }
 
+  /** Get move delay adjusted for mount speed. Mounts only apply on the overworld (not in dungeons/cities). */
+  private getEffectiveMoveDelay(): number {
+    if (this.player.inDungeon || this.player.inCity || !this.player.mountId) {
+      return this.moveDelay;
+    }
+    const mount = getMount(this.player.mountId);
+    if (!mount) return this.moveDelay;
+    return Math.round(this.moveDelay / mount.speedMultiplier);
+  }
+
   update(time: number): void {
     this.updateDebugPanel();
     if (this.isMoving) return;
     if (this.isOverlayOpen()) return; // block movement when menus/maps are open
-    if (time - this.lastMoveTime < this.moveDelay) return;
+    const effectiveDelay = this.getEffectiveMoveDelay();
+    if (time - this.lastMoveTime < effectiveDelay) return;
 
     let dx = 0;
     let dy = 0;
@@ -1432,6 +1489,15 @@ export class OverworldScene extends Phaser.Scene {
         this.checkEncounter(terrain);
       },
     });
+    // Tween mount sprite alongside player
+    if (this.mountSprite) {
+      this.tweens.add({
+        targets: this.mountSprite,
+        x: newX * TILE_SIZE + TILE_SIZE / 2,
+        y: newY * TILE_SIZE + TILE_SIZE / 2,
+        duration: 120,
+      });
+    }
   }
 
   /** Auto-collect minor treasure when stepping on it. Awards 5-25 gold. */
@@ -1476,7 +1542,10 @@ export class OverworldScene extends Phaser.Scene {
     // Debug: encounters can be toggled off
     if (isDebug() && !this.debugEncounters) return;
 
-    const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep) * getWeatherEncounterMultiplier(this.weatherState.current);
+    const mountEncMult = (!this.player.inDungeon && this.player.mountId)
+      ? (getMount(this.player.mountId)?.encounterMultiplier ?? 1)
+      : 1;
+    const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep) * getWeatherEncounterMultiplier(this.weatherState.current) * mountEncMult;
     if (Math.random() < rate) {
       let monster;
       if (this.player.inDungeon) {
@@ -1973,7 +2042,7 @@ export class OverworldScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const panelW = 280;
-    const panelH = 420;
+    const panelH = 470;
     const px = Math.floor((w - panelW) / 2);
     const py = Math.floor((h - panelH) / 2) - 20;
 
@@ -2168,6 +2237,76 @@ export class OverworldScene extends Phaser.Scene {
           });
         }
         this.equipOverlay.add(txt);
+        cy += 16;
+      }
+    }
+    cy += 6;
+
+    // --- Mount slot ---
+    const mountLabel = this.add.text(px + 14, cy, "Mount:", {
+      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
+    });
+    this.equipOverlay.add(mountLabel);
+    cy += 16;
+
+    const ownedMounts = p.inventory.filter((i) => i.type === "mount");
+    const currentMount = p.mountId ? getMount(p.mountId) : undefined;
+
+    if (ownedMounts.length === 0 && !currentMount) {
+      const none = this.add.text(px + 20, cy, "On Foot", {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay.add(none);
+      cy += 16;
+    } else {
+      // Build list: current mount first, then alternatives
+      const mountEntries: { mountId: string; name: string; speed: number; isActive: boolean }[] = [];
+      if (currentMount) {
+        mountEntries.push({ mountId: currentMount.id, name: currentMount.name, speed: currentMount.speedMultiplier, isActive: true });
+      }
+      for (const mi of ownedMounts) {
+        if (mi.mountId && mi.mountId !== p.mountId) {
+          const md = getMount(mi.mountId);
+          if (md) mountEntries.push({ mountId: md.id, name: md.name, speed: md.speedMultiplier, isActive: false });
+        }
+      }
+      for (const me of mountEntries) {
+        const prefix = me.isActive ? "► " : "  ";
+        const color = me.isActive ? "#88ff88" : "#aaddff";
+        const txt = this.add.text(px + 20, cy,
+          `${prefix}${me.name} (×${me.speed} speed)${me.isActive ? " [riding]" : ""}`,
+          { fontSize: "11px", fontFamily: "monospace", color }
+        ).setInteractive({ useHandCursor: true });
+        if (me.isActive) {
+          txt.on("pointerover", () => txt.setColor("#ff6666"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.mountId = "";
+            this.buildEquipOverlay();
+          });
+        } else {
+          txt.on("pointerover", () => txt.setColor("#ffd700"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.mountId = me.mountId;
+            this.buildEquipOverlay();
+          });
+        }
+        this.equipOverlay.add(txt);
+        cy += 16;
+      }
+      // On foot option
+      if (currentMount) {
+        const dismountTxt = this.add.text(px + 20, cy, "  Dismount (on foot)", {
+          fontSize: "11px", fontFamily: "monospace", color: "#aaddff",
+        }).setInteractive({ useHandCursor: true });
+        dismountTxt.on("pointerover", () => dismountTxt.setColor("#ffd700"));
+        dismountTxt.on("pointerout", () => dismountTxt.setColor("#aaddff"));
+        dismountTxt.on("pointerdown", () => {
+          p.mountId = "";
+          this.buildEquipOverlay();
+        });
+        this.equipOverlay.add(dismountTxt);
         cy += 16;
       }
     }

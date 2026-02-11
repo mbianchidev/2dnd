@@ -9,6 +9,7 @@ import type { Ability } from "../data/abilities";
 import { ABILITIES, getAbility } from "../data/abilities";
 import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "../data/talents";
 import type { Item } from "../data/items";
+import { getMount } from "../data/mounts";
 import { getAppearance, getClassSpells, getClassAbilities } from "./appearance";
 
 export interface PlayerStats {
@@ -79,6 +80,7 @@ export interface PlayerState {
   lastTownY: number;      // last town tile y
   lastTownChunkX: number; // last town chunk x
   lastTownChunkY: number; // last town chunk y
+  mountId: string;        // ID of the currently active mount (empty = on foot)
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -156,6 +158,7 @@ export function createPlayer(
     lastTownY: 2,
     lastTownChunkX: 4,
     lastTownChunkY: 2,
+    mountId: "",
   };
 }
 
@@ -278,14 +281,14 @@ export function canAfford(player: PlayerState, cost: number): boolean {
   return player.gold >= cost;
 }
 
-/** Check if the player already owns a specific equipment item (weapon/armor/shield). */
+/** Check if the player already owns a specific equipment item (weapon/armor/shield) or mount. */
 export function ownsEquipment(player: PlayerState, itemId: string): boolean {
   const equipped =
     (player.equippedWeapon?.id === itemId) ||
     (player.equippedArmor?.id === itemId) ||
     (player.equippedShield?.id === itemId);
   const inInventory = player.inventory.some(
-    (i) => i.id === itemId && (i.type === "weapon" || i.type === "armor" || i.type === "shield")
+    (i) => i.id === itemId && (i.type === "weapon" || i.type === "armor" || i.type === "shield" || i.type === "mount")
   );
   return equipped || inInventory;
 }
@@ -350,6 +353,13 @@ export function useItem(
     }
     player.equippedShield = item;
     return { used: true, message: `Equipped ${item.name}!` };
+  }
+
+  if (item.type === "mount") {
+    const mount = item.mountId ? getMount(item.mountId) : undefined;
+    if (!mount) return { used: false, message: "Unknown mount." };
+    player.mountId = mount.id;
+    return { used: true, message: `You mount the ${mount.name}!` };
   }
 
   return { used: false, message: "Cannot use this item." };

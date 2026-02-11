@@ -1,5 +1,5 @@
 ---
-name: 2dnd-testing
+name: testing
 description: Write effective tests for 2D&D game logic using Vitest
 license: MIT
 ---

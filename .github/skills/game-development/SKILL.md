@@ -1,5 +1,5 @@
 ---
-name: 2dnd-game-development
+name: game-development
 description: Develop game features for 2D&D with Phaser 3, TypeScript, and D&D mechanics
 license: MIT
 ---

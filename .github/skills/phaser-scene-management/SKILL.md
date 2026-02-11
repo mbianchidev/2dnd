@@ -1,5 +1,5 @@
 ---
-name: 2dnd-phaser-scenes
+name: phaser-scene-management
 description: Manage Phaser 3 scenes in 2D&D game with proper data flow and transitions
 license: MIT
 ---

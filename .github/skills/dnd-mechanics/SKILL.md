@@ -1,5 +1,5 @@
 ---
-name: 2dnd-dnd-mechanics
+name: dnd-mechanics
 description: Implement D&D 5E mechanics correctly in the 2D&D game system
 license: MIT
 ---

@@ -210,6 +210,41 @@ export function createAudioState(): AudioState {
   };
 }
 
+// ── Audio preferences persistence ──────────────────────────────
+
+const AUDIO_PREFS_KEY = "2dnd_audio_prefs";
+
+interface AudioPrefs {
+  masterVolume: number;
+  musicVolume: number;
+  sfxVolume: number;
+  dialogVolume: number;
+  muted: boolean;
+}
+
+function loadAudioPrefs(): AudioPrefs | null {
+  try {
+    const raw = localStorage.getItem(AUDIO_PREFS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.masterVolume === "number") return parsed as AudioPrefs;
+    return null;
+  } catch { return null; }
+}
+
+function saveAudioPrefs(state: AudioState): void {
+  try {
+    const prefs: AudioPrefs = {
+      masterVolume: state.masterVolume,
+      musicVolume: state.musicVolume,
+      sfxVolume: state.sfxVolume,
+      dialogVolume: state.dialogVolume,
+      muted: state.muted,
+    };
+    localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify(prefs));
+  } catch { /* localStorage may be unavailable in tests */ }
+}
+
 /**
  * The global audio engine instance.
  *
@@ -239,6 +274,19 @@ class AudioEngine {
 
   // State
   state: AudioState = createAudioState();
+
+  constructor() {
+    // Restore saved preferences from localStorage
+    const prefs = loadAudioPrefs();
+    if (prefs) {
+      this.state.masterVolume = prefs.masterVolume;
+      this.state.musicVolume = prefs.musicVolume;
+      this.state.sfxVolume = prefs.sfxVolume;
+      this.state.dialogVolume = prefs.dialogVolume;
+      this.state.muted = prefs.muted;
+      this.state.volume = prefs.masterVolume * 0.35;
+    }
+  }
 
   // ─── Init ──────────────────────────────────────────────────
 
@@ -285,6 +333,7 @@ class AudioEngine {
     if (this.masterGain) {
       this.masterGain.gain.value = m ? 0 : this.state.volume;
     }
+    saveAudioPrefs(this.state);
   }
 
   toggleMute(): boolean {
@@ -296,6 +345,7 @@ class AudioEngine {
   setMasterVolume(v: number): void {
     this.state.masterVolume = Math.max(0, Math.min(1, v));
     this.setVolume(this.state.masterVolume * 0.35);
+    saveAudioPrefs(this.state);
   }
 
   /** Set music volume (0–1). */
@@ -304,6 +354,7 @@ class AudioEngine {
     if (this.musicGain) {
       this.musicGain.gain.value = this.state.musicVolume;
     }
+    saveAudioPrefs(this.state);
   }
 
   /** Set SFX volume (0–1). */
@@ -315,6 +366,7 @@ class AudioEngine {
     if (this.footstepGain) {
       this.footstepGain.gain.value = this.state.sfxVolume * 0.3;
     }
+    saveAudioPrefs(this.state);
   }
 
   /** Set dialog volume (0–1). */
@@ -323,6 +375,7 @@ class AudioEngine {
     if (this.dialogGain) {
       this.dialogGain.gain.value = this.state.dialogVolume;
     }
+    saveAudioPrefs(this.state);
   }
 
   // ─── Stop helpers ─────────────────────────────────────────

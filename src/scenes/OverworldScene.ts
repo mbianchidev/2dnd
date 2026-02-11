@@ -54,6 +54,15 @@ import {
   WEATHER_LABEL,
 } from "../systems/weather";
 import { audioEngine } from "../systems/audio";
+import {
+  CITY_NPCS,
+  getNpcTemplate,
+  getNpcColors,
+  getNpcDialogue,
+  getShopkeeperDialogue,
+  SHOPKEEPER_DIALOGUES,
+  type NpcInstance,
+} from "../data/npcs";
 
 const TILE_SIZE = 32;
 
@@ -105,6 +114,11 @@ export class OverworldScene extends Phaser.Scene {
   private biomeDecoEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
   private cityAnimals: Phaser.GameObjects.Sprite[] = [];
   private cityAnimalTimers: Phaser.Time.TimerEvent[] = [];
+  private cityNpcSprites: Phaser.GameObjects.Sprite[] = [];
+  private cityNpcTimers: Phaser.Time.TimerEvent[] = [];
+  private cityNpcData: NpcInstance[] = [];
+  private dialogueOverlay: Phaser.GameObjects.Container | null = null;
+  private innConfirmOverlay: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -455,6 +469,12 @@ export class OverworldScene extends Phaser.Scene {
     this.cityAnimals = [];
     for (const t of this.cityAnimalTimers) t.destroy();
     this.cityAnimalTimers = [];
+    // Clear city NPCs
+    for (const s of this.cityNpcSprites) s.destroy();
+    this.cityNpcSprites = [];
+    for (const t of this.cityNpcTimers) t.destroy();
+    this.cityNpcTimers = [];
+    this.cityNpcData = [];
 
     // If inside a dungeon, render the dungeon interior
     if (this.player.inDungeon) {
@@ -577,6 +597,8 @@ export class OverworldScene extends Phaser.Scene {
       }
       // Spawn city animals
       this.spawnCityAnimals(city);
+      // Spawn city NPCs
+      this.spawnCityNpcs(city);
       return;
     }
 
@@ -764,6 +786,274 @@ export class OverworldScene extends Phaser.Scene {
           ease: "Sine.easeInOut",
         });
       }
+    }
+  }
+
+  /** Spawn NPC sprites in cities with wandering / stationary behaviour. */
+  private spawnCityNpcs(city: CityData): void {
+    const npcs = CITY_NPCS[city.id];
+    if (!npcs) return;
+
+    this.cityNpcData = npcs;
+
+    for (let i = 0; i < npcs.length; i++) {
+      const def = npcs[i];
+      const tpl = getNpcTemplate(def.templateId);
+      if (!tpl) continue;
+      if (!this.isExplored(def.x, def.y)) continue;
+
+      const texKey = `npc_${tpl.id}`;
+      const sprite = this.add.sprite(
+        def.x * TILE_SIZE + TILE_SIZE / 2,
+        def.y * TILE_SIZE + TILE_SIZE / 2,
+        texKey
+      );
+      sprite.setDepth(11);
+
+      // Apply per-instance colour variation via tint
+      const colors = getNpcColors(city.id, i);
+      sprite.setTint(colors.dressColor);
+
+      // Scale children smaller
+      if (tpl.heightScale < 1) {
+        sprite.setScale(tpl.heightScale);
+      }
+
+      this.cityNpcSprites.push(sprite);
+
+      if (def.moves) {
+        const wander = (): void => {
+          const dirs = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+          ];
+          const pick = dirs[Math.floor(Math.random() * dirs.length)];
+          const curTileX = Math.floor(sprite.x / TILE_SIZE);
+          const curTileY = Math.floor(sprite.y / TILE_SIZE);
+          const nx = curTileX + pick.dx;
+          const ny = curTileY + pick.dy;
+          if (
+            nx >= 1 && nx < MAP_WIDTH - 1 &&
+            ny >= 1 && ny < MAP_HEIGHT - 1 &&
+            isWalkable(city.mapData[ny][nx])
+          ) {
+            this.tweens.add({
+              targets: sprite,
+              x: nx * TILE_SIZE + TILE_SIZE / 2,
+              y: ny * TILE_SIZE + TILE_SIZE / 2,
+              duration: 800 + Math.random() * 400,
+              ease: "Sine.easeInOut",
+              onUpdate: () => {
+                if (pick.dx !== 0) sprite.setFlipX(pick.dx < 0);
+              },
+            });
+          }
+        };
+        const delay = 2000 + Math.random() * 2000;
+        const timer = this.time.addEvent({
+          delay,
+          callback: wander,
+          loop: true,
+        });
+        this.cityNpcTimers.push(timer);
+      } else {
+        // Idle breathing for stationary NPCs
+        this.tweens.add({
+          targets: sprite,
+          scaleY: (tpl.heightScale < 1 ? tpl.heightScale : 1) * 0.97,
+          duration: 1500,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      }
+    }
+  }
+
+  /**
+   * Find an NPC adjacent to or on the player's current position.
+   * Checks the player's tile and all four cardinal neighbours.
+   */
+  private findAdjacentNpc(city: CityData): { npcDef: NpcInstance; npcIndex: number } | null {
+    const npcs = CITY_NPCS[city.id];
+    if (!npcs) return null;
+
+    const px = this.player.x;
+    const py = this.player.y;
+    const checks = [
+      { x: px, y: py },
+      { x: px - 1, y: py }, { x: px + 1, y: py },
+      { x: px, y: py - 1 }, { x: px, y: py + 1 },
+    ];
+
+    for (let i = 0; i < npcs.length; i++) {
+      const npc = npcs[i];
+      // For stationary NPCs check defined position; for wandering NPCs check current sprite position
+      let nx: number;
+      let ny: number;
+      if (npc.moves && this.cityNpcSprites[i]) {
+        nx = Math.floor(this.cityNpcSprites[i].x / TILE_SIZE);
+        ny = Math.floor(this.cityNpcSprites[i].y / TILE_SIZE);
+      } else {
+        nx = npc.x;
+        ny = npc.y;
+      }
+      for (const c of checks) {
+        if (c.x === nx && c.y === ny) {
+          return { npcDef: npc, npcIndex: i };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Show a dialogue box when the player interacts with an NPC. */
+  private showNpcDialogue(npcDef: NpcInstance, npcIndex: number, city: CityData): void {
+    if (this.dialogueOverlay) {
+      this.dialogueOverlay.destroy();
+      this.dialogueOverlay = null;
+    }
+
+    const tpl = getNpcTemplate(npcDef.templateId);
+    if (!tpl) return;
+
+    let speakerName: string;
+    let line: string;
+
+    if (npcDef.shopIndex !== undefined) {
+      const shop = city.shops[npcDef.shopIndex];
+      if (shop) {
+        speakerName = shop.name;
+        line = getShopkeeperDialogue(shop.type, npcIndex);
+      } else {
+        speakerName = tpl.label;
+        line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup);
+      }
+    } else {
+      speakerName = tpl.label;
+      line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup);
+    }
+
+    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+
+    const container = this.add.container(0, 0).setDepth(50);
+    const boxW = MAP_WIDTH * TILE_SIZE - 40;
+    const boxH = 52;
+    const boxX = 20;
+    const boxY = MAP_HEIGHT * TILE_SIZE - boxH - 10;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 6);
+    container.add(bg);
+
+    const nameText = this.add.text(boxX + 10, boxY + 6, speakerName, {
+      fontSize: "10px",
+      fontFamily: "monospace",
+      color: "#ffd700",
+      stroke: "#000",
+      strokeThickness: 1,
+    });
+    container.add(nameText);
+
+    const lineText = this.add.text(boxX + 10, boxY + 22, line, {
+      fontSize: "11px",
+      fontFamily: "monospace",
+      color: "#ddd",
+      wordWrap: { width: boxW - 20 },
+    });
+    container.add(lineText);
+
+    const hint = this.add.text(boxX + boxW - 10, boxY + boxH - 14, "[SPACE]", {
+      fontSize: "8px",
+      fontFamily: "monospace",
+      color: "#888",
+    }).setOrigin(1, 0);
+    container.add(hint);
+
+    this.dialogueOverlay = container;
+  }
+
+  /** Dismiss the current dialogue overlay. */
+  private dismissDialogue(): void {
+    if (this.dialogueOverlay) {
+      this.dialogueOverlay.destroy();
+      this.dialogueOverlay = null;
+    }
+  }
+
+  /** Show inn confirmation overlay. */
+  private showInnConfirmation(): void {
+    if (this.innConfirmOverlay) return;
+    const container = this.add.container(0, 0).setDepth(55);
+    const boxW = 260;
+    const boxH = 70;
+    const boxX = (MAP_WIDTH * TILE_SIZE - boxW) / 2;
+    const boxY = (MAP_HEIGHT * TILE_SIZE - boxH) / 2;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
+    container.add(bg);
+
+    const prompt = this.add.text(boxX + boxW / 2, boxY + 12, "Rest at the inn for 10g?", {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    container.add(prompt);
+
+    const yesBtn = this.add.text(boxX + boxW / 2 - 50, boxY + 40, "Yes", {
+      fontSize: "13px",
+      fontFamily: "monospace",
+      color: "#88ff88",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    yesBtn.on("pointerover", () => yesBtn.setColor("#ffd700"));
+    yesBtn.on("pointerout", () => yesBtn.setColor("#88ff88"));
+    yesBtn.on("pointerdown", () => this.confirmInnRest());
+    container.add(yesBtn);
+
+    const noBtn = this.add.text(boxX + boxW / 2 + 50, boxY + 40, "No", {
+      fontSize: "13px",
+      fontFamily: "monospace",
+      color: "#ff8888",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    noBtn.on("pointerover", () => noBtn.setColor("#ffd700"));
+    noBtn.on("pointerout", () => noBtn.setColor("#ff8888"));
+    noBtn.on("pointerdown", () => this.dismissInnConfirmation());
+    container.add(noBtn);
+
+    this.innConfirmOverlay = container;
+  }
+
+  /** Execute inn rest after confirmation. */
+  private confirmInnRest(): void {
+    this.dismissInnConfirmation();
+    if (this.player.gold < 10) {
+      this.showMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
+      return;
+    }
+    this.player.gold -= 10;
+    this.player.hp = this.player.maxHp;
+    this.player.mp = this.player.maxMp;
+    this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
+    this.updateHUD();
+    this.autoSave();
+  }
+
+  /** Dismiss inn confirmation overlay. */
+  private dismissInnConfirmation(): void {
+    if (this.innConfirmOverlay) {
+      this.innConfirmOverlay.destroy();
+      this.innConfirmOverlay = null;
     }
   }
 
@@ -1332,6 +1622,10 @@ export class OverworldScene extends Phaser.Scene {
 
     // In city: no chunk transitions, no encounters
     if (this.player.inCity) {
+      // Dismiss any open overlays when moving
+      this.dismissDialogue();
+      this.dismissInnConfirmation();
+
       const city = getCity(this.player.cityId);
       if (!city) return;
       if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
@@ -1553,8 +1847,19 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    // ── City actions: exit and shop interaction ──
+    // ── City actions: exit, NPC dialogue, and shop interaction ──
     if (this.player.inCity) {
+      // If a dialogue is showing, dismiss it
+      if (this.dialogueOverlay) {
+        this.dismissDialogue();
+        return;
+      }
+      // If inn confirmation is showing, dismiss it
+      if (this.innConfirmOverlay) {
+        this.dismissInnConfirmation();
+        return;
+      }
+
       const city = getCity(this.player.cityId);
       if (!city) return;
       const terrain = city.mapData[this.player.y]?.[this.player.x];
@@ -1579,21 +1884,61 @@ export class OverworldScene extends Phaser.Scene {
         return;
       }
 
-      // Check if on or near a shop location
+      // Check if adjacent to or on an NPC
+      const npcResult = this.findAdjacentNpc(city);
+      if (npcResult) {
+        const { npcDef, npcIndex } = npcResult;
+        // Shopkeeper NPC → show dialogue, then open shop
+        if (npcDef.shopIndex !== undefined) {
+          const shop = city.shops[npcDef.shopIndex];
+          if (shop) {
+            if (shop.type === "inn") {
+              this.showNpcDialogue(npcDef, npcIndex, city);
+              // After a short delay, show inn confirmation
+              this.time.delayedCall(300, () => {
+                this.dismissDialogue();
+                this.showInnConfirmation();
+              });
+              return;
+            }
+            if (shop.type === "bank") {
+              this.showNpcDialogue(npcDef, npcIndex, city);
+              this.time.delayedCall(1200, () => {
+                this.dismissDialogue();
+                this.showMessage(`💰 The bank holds your gold safe. Balance: ${this.player.gold}g`, "#ffd700");
+              });
+              return;
+            }
+            // Other shopkeepers → dialogue then open shop
+            this.showNpcDialogue(npcDef, npcIndex, city);
+            this.time.delayedCall(800, () => {
+              this.dismissDialogue();
+              this.autoSave();
+              this.scene.start("ShopScene", {
+                player: this.player,
+                townName: `${city.name} - ${shop.name}`,
+                defeatedBosses: this.defeatedBosses,
+                bestiary: this.bestiary,
+                shopItemIds: shop.shopItems,
+                timeStep: this.timeStep,
+                weatherState: this.weatherState,
+                fromCity: true,
+                cityId: city.id,
+              });
+            });
+            return;
+          }
+        }
+        // Regular NPC → show dialogue
+        this.showNpcDialogue(npcDef, npcIndex, city);
+        return;
+      }
+
+      // Fallback: check if on or near a shop location (tile-based, no NPC)
       const shop = getCityShopNearby(city, this.player.x, this.player.y);
       if (shop) {
         if (shop.type === "inn") {
-          // Inn: heal directly without opening shop
-          if (this.player.gold < 10) {
-            this.showMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
-          } else {
-            this.player.gold -= 10;
-            this.player.hp = this.player.maxHp;
-            this.player.mp = this.player.maxMp;
-            this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
-            this.updateHUD();
-            this.autoSave();
-          }
+          this.showInnConfirmation();
           return;
         }
         if (shop.type === "bank") {

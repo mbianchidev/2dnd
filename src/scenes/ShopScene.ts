@@ -283,7 +283,64 @@ export class ShopScene extends Phaser.Scene {
       this.setMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
       return;
     }
+    this.showInnConfirmation();
+  }
 
+  /** Show a confirmation prompt before spending gold at the inn. */
+  private showInnConfirmation(): void {
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const boxW = 260;
+    const boxH = 70;
+    const boxX = (w - boxW) / 2;
+    const boxY = (h - boxH) / 2;
+
+    const container = this.add.container(0, 0).setDepth(50);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
+    container.add(bg);
+
+    const prompt = this.add.text(boxX + boxW / 2, boxY + 12, "Rest at the inn for 10g?", {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    container.add(prompt);
+
+    const yesBtn = this.add.text(boxX + boxW / 2 - 50, boxY + 40, "Yes", {
+      fontSize: "13px",
+      fontFamily: "monospace",
+      color: "#88ff88",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    yesBtn.on("pointerover", () => yesBtn.setColor("#ffd700"));
+    yesBtn.on("pointerout", () => yesBtn.setColor("#88ff88"));
+    yesBtn.on("pointerdown", () => {
+      container.destroy();
+      this.confirmInnRest();
+    });
+    container.add(yesBtn);
+
+    const noBtn = this.add.text(boxX + boxW / 2 + 50, boxY + 40, "No", {
+      fontSize: "13px",
+      fontFamily: "monospace",
+      color: "#ff8888",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    noBtn.on("pointerover", () => noBtn.setColor("#ffd700"));
+    noBtn.on("pointerout", () => noBtn.setColor("#ff8888"));
+    noBtn.on("pointerdown", () => container.destroy());
+    container.add(noBtn);
+  }
+
+  /** Execute the inn rest after the player confirms. */
+  private confirmInnRest(): void {
     this.player.gold -= 10;
     this.player.hp = this.player.maxHp;
     this.player.mp = this.player.maxMp;

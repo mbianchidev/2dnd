@@ -833,7 +833,7 @@ class AudioEngine {
 
   // ─── Interaction SFX ──────────────────────────────────────
 
-  /** Play a weapon attack swoosh + impact. */
+  /** Play a weapon attack swoosh + impact (normal hit). */
   playAttackSFX(): void {
     if (!this.ctx || !this.sfxGain) return;
     const ctx = this.ctx;
@@ -852,8 +852,8 @@ class AudioEngine {
     swFilter.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.12);
     swFilter.Q.value = 2;
     const swGain = ctx.createGain();
-    swGain.gain.setValueAtTime(0.15, ctx.currentTime);
-    swGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    swGain.gain.setValueAtTime(0.25, ctx.currentTime);
+    swGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
     swSrc.connect(swFilter);
     swFilter.connect(swGain);
     swGain.connect(dest);
@@ -864,14 +864,133 @@ class AudioEngine {
     const impGain = ctx.createGain();
     impOsc.type = "sine";
     impOsc.frequency.setValueAtTime(120, ctx.currentTime + 0.08);
-    impOsc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.2);
+    impOsc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.22);
     impGain.gain.setValueAtTime(0, ctx.currentTime);
-    impGain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.08);
-    impGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    impGain.gain.linearRampToValueAtTime(0.20, ctx.currentTime + 0.08);
+    impGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
     impOsc.connect(impGain);
     impGain.connect(dest);
     impOsc.start(ctx.currentTime);
-    impOsc.stop(ctx.currentTime + 0.3);
+    impOsc.stop(ctx.currentTime + 0.35);
+
+    // Metallic clang overtone for extra audibility
+    const clang = ctx.createOscillator();
+    const clGain = ctx.createGain();
+    clang.type = "square";
+    clang.frequency.value = 800;
+    clGain.gain.setValueAtTime(0.06, ctx.currentTime + 0.06);
+    clGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    clang.connect(clGain);
+    clGain.connect(dest);
+    clang.start(ctx.currentTime + 0.06);
+    clang.stop(ctx.currentTime + 0.2);
+  }
+
+  /** Play a miss / whiff sound — swoosh with no impact. */
+  playMissSFX(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const ctx = this.ctx;
+    const dest = this.sfxGain;
+
+    // Airy swoosh that fades to nothing — high to low sweep
+    const swBufSize = Math.floor(ctx.sampleRate * 0.2);
+    const swBuf = ctx.createBuffer(1, swBufSize, ctx.sampleRate);
+    const swData = swBuf.getChannelData(0);
+    for (let i = 0; i < swBufSize; i++) swData[i] = Math.random() * 2 - 1;
+    const swSrc = ctx.createBufferSource();
+    swSrc.buffer = swBuf;
+    const swFilter = ctx.createBiquadFilter();
+    swFilter.type = "highpass";
+    swFilter.frequency.setValueAtTime(4000, ctx.currentTime);
+    swFilter.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.2);
+    const swGain = ctx.createGain();
+    swGain.gain.setValueAtTime(0.18, ctx.currentTime);
+    swGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    swSrc.connect(swFilter);
+    swFilter.connect(swGain);
+    swGain.connect(dest);
+    swSrc.start(ctx.currentTime);
+
+    // Descending "whoop" — sine pitch drop that conveys a miss
+    const whoop = ctx.createOscillator();
+    const wGain = ctx.createGain();
+    whoop.type = "sine";
+    whoop.frequency.setValueAtTime(500, ctx.currentTime + 0.05);
+    whoop.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.25);
+    wGain.gain.setValueAtTime(0.08, ctx.currentTime + 0.05);
+    wGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    whoop.connect(wGain);
+    wGain.connect(dest);
+    whoop.start(ctx.currentTime + 0.05);
+    whoop.stop(ctx.currentTime + 0.3);
+  }
+
+  /** Play a critical hit sound — powerful slam with rising sting. */
+  playCriticalHitSFX(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const ctx = this.ctx;
+    const dest = this.sfxGain;
+
+    // Heavy impact — deep and loud
+    const impOsc = ctx.createOscillator();
+    const impGain = ctx.createGain();
+    impOsc.type = "sine";
+    impOsc.frequency.setValueAtTime(180, ctx.currentTime);
+    impOsc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.3);
+    impGain.gain.setValueAtTime(0.30, ctx.currentTime);
+    impGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    impOsc.connect(impGain);
+    impGain.connect(dest);
+    impOsc.start(ctx.currentTime);
+    impOsc.stop(ctx.currentTime + 0.4);
+
+    // Crunchy noise layer — distorted impact
+    const crBufSize = Math.floor(ctx.sampleRate * 0.12);
+    const crBuf = ctx.createBuffer(1, crBufSize, ctx.sampleRate);
+    const crData = crBuf.getChannelData(0);
+    for (let i = 0; i < crBufSize; i++) crData[i] = Math.random() * 2 - 1;
+    const crSrc = ctx.createBufferSource();
+    crSrc.buffer = crBuf;
+    const crFilter = ctx.createBiquadFilter();
+    crFilter.type = "lowpass";
+    crFilter.frequency.value = 1200;
+    const crGain = ctx.createGain();
+    crGain.gain.setValueAtTime(0.22, ctx.currentTime);
+    crGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    crSrc.connect(crFilter);
+    crFilter.connect(crGain);
+    crGain.connect(dest);
+    crSrc.start(ctx.currentTime);
+
+    // Rising metallic sting — ascending pitch for "critical!" emphasis
+    const sting = ctx.createOscillator();
+    const stGain = ctx.createGain();
+    sting.type = "sawtooth";
+    sting.frequency.setValueAtTime(400, ctx.currentTime + 0.08);
+    sting.frequency.exponentialRampToValueAtTime(1600, ctx.currentTime + 0.25);
+    const stFilter = ctx.createBiquadFilter();
+    stFilter.type = "bandpass";
+    stFilter.frequency.value = 1000;
+    stFilter.Q.value = 2;
+    stGain.gain.setValueAtTime(0.10, ctx.currentTime + 0.08);
+    stGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    sting.connect(stFilter);
+    stFilter.connect(stGain);
+    stGain.connect(dest);
+    sting.start(ctx.currentTime + 0.08);
+    sting.stop(ctx.currentTime + 0.35);
+
+    // High-pitched bell accent
+    const bell = ctx.createOscillator();
+    const bGain = ctx.createGain();
+    bell.type = "triangle";
+    bell.frequency.value = noteFreq(19); // high G#
+    bGain.gain.setValueAtTime(0.12, ctx.currentTime + 0.12);
+    bGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    bell.connect(bGain);
+    bGain.connect(dest);
+    bell.start(ctx.currentTime + 0.12);
+    bell.stop(ctx.currentTime + 0.45);
   }
 
   /** Play a chest-opening jingle — ascending twinkle. */
@@ -1112,6 +1231,8 @@ class AudioEngine {
       { label: "City: Frostheim", fn: () => this.playCityMusic("Frostheim") },
       { label: "Defeat",         fn: () => this.playDefeatMusic() },
       { label: "SFX: Attack",    fn: () => { this.stopMusic(true); this.playAttackSFX(); } },
+      { label: "SFX: Miss",      fn: () => this.playMissSFX() },
+      { label: "SFX: Crit Hit",  fn: () => this.playCriticalHitSFX() },
       { label: "SFX: Chest",     fn: () => this.playChestOpenSFX() },
       { label: "SFX: Dungeon",   fn: () => this.playDungeonEnterSFX() },
       { label: "SFX: Potion",    fn: () => this.playPotionSFX() },

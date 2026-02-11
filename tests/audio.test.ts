@@ -111,6 +111,8 @@ describe("audio system", () => {
       expect(typeof audioEngine.playWeatherSFX).toBe("function");
       expect(typeof audioEngine.playDialogueBlip).toBe("function");
       expect(typeof audioEngine.playAttackSFX).toBe("function");
+      expect(typeof audioEngine.playMissSFX).toBe("function");
+      expect(typeof audioEngine.playCriticalHitSFX).toBe("function");
       expect(typeof audioEngine.playChestOpenSFX).toBe("function");
       expect(typeof audioEngine.playDungeonEnterSFX).toBe("function");
       expect(typeof audioEngine.playPotionSFX).toBe("function");
@@ -139,6 +141,8 @@ describe("audio system", () => {
       expect(() => audioEngine.playWeatherSFX("Rain" as any)).not.toThrow();
       expect(() => audioEngine.playDialogueBlip()).not.toThrow();
       expect(() => audioEngine.playAttackSFX()).not.toThrow();
+      expect(() => audioEngine.playMissSFX()).not.toThrow();
+      expect(() => audioEngine.playCriticalHitSFX()).not.toThrow();
       expect(() => audioEngine.playChestOpenSFX()).not.toThrow();
       expect(() => audioEngine.playDungeonEnterSFX()).not.toThrow();
       expect(() => audioEngine.playPotionSFX()).not.toThrow();

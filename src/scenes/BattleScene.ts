@@ -44,6 +44,10 @@ export class BattleScene extends Phaser.Scene {
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
+  private logContainer!: Phaser.GameObjects.Container;
+  private logMaskGraphics!: Phaser.GameObjects.Graphics;
+  private logAreaY = 0;
+  private logAreaH = 0;
   private monsterText!: Phaser.GameObjects.Text;
   private monsterSprite!: Phaser.GameObjects.Sprite;
   private playerSprite!: Phaser.GameObjects.Sprite;
@@ -178,19 +182,42 @@ export class BattleScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
     this.updatePlayerStats();
 
-    // Battle log (bottom strip, above action buttons)
+    // Battle log (bottom strip, above action buttons) — scrollable
+    this.logAreaY = h * 0.78;
+    this.logAreaH = h * 0.22;
     const logBg = this.add.graphics();
     logBg.fillStyle(0x1a1a2e, 0.95);
-    logBg.fillRect(0, h * 0.78, w, h * 0.22);
+    logBg.fillRect(0, this.logAreaY, w, this.logAreaH);
     logBg.lineStyle(1, 0xc0a060, 0.5);
-    logBg.strokeRect(0, h * 0.78, w, h * 0.22);
+    logBg.strokeRect(0, this.logAreaY, w, this.logAreaH);
 
-    this.logText = this.add.text(10, h * 0.79, "", {
+    // Scrollable container for log text
+    this.logContainer = this.add.container(0, 0);
+    this.logText = this.add.text(10, this.logAreaY + 4, "", {
       fontSize: "12px",
       fontFamily: "monospace",
       color: "#ccc",
       wordWrap: { width: w * 0.5 - 20 },
-      lineSpacing: 3,
+      lineSpacing: 5,
+    });
+    this.logContainer.add(this.logText);
+
+    // Mask to clip log to the log area
+    this.logMaskGraphics = this.make.graphics({ x: 0, y: 0 });
+    this.logMaskGraphics.fillStyle(0xffffff);
+    this.logMaskGraphics.fillRect(0, this.logAreaY, w * 0.52, this.logAreaH);
+    const logMask = this.logMaskGraphics.createGeometryMask();
+    this.logContainer.setMask(logMask);
+
+    // Mouse wheel scrolling on the log area
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gos: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
+      const textHeight = this.logText.height;
+      const visibleH = this.logAreaH - 8;
+      const maxScroll = Math.max(0, textHeight - visibleH);
+      if (maxScroll <= 0) return;
+      const currentY = this.logText.y - (this.logAreaY + 4);
+      const newY = Phaser.Math.Clamp(currentY - dy * 0.5, -maxScroll, 0);
+      this.logText.setY(this.logAreaY + 4 + newY);
     });
 
     // Action buttons (bottom-right area)
@@ -406,8 +433,18 @@ export class BattleScene extends Phaser.Scene {
       this.updateMonsterDisplay();
       this.updatePlayerStats();
 
+      // Play distinct sounds for ability outcomes
+      if (audioEngine.initialized) {
+        if (result.critical) {
+          audioEngine.playCriticalHitSFX();
+        } else if (result.hit && result.damage > 0) {
+          audioEngine.playAttackSFX();
+        } else if (!result.hit) {
+          audioEngine.playMissSFX();
+        }
+      }
+
       if (result.hit && result.damage > 0) {
-        if (audioEngine.initialized) audioEngine.playAttackSFX();
         this.tweens.add({
           targets: this.monsterSprite,
           x: this.monsterSprite.x + 10,
@@ -511,8 +548,14 @@ export class BattleScene extends Phaser.Scene {
 
   private addLog(msg: string): void {
     this.logLines.push(msg);
-    if (this.logLines.length > 6) this.logLines.shift();
-    this.logText.setText(this.logLines.join("\n"));
+    // Show all log lines with a blank line at the end for readability
+    this.logText.setText(this.logLines.join("\n") + "\n ");
+    // Auto-scroll to bottom
+    const textHeight = this.logText.height;
+    const visibleH = this.logAreaH - 8;
+    if (textHeight > visibleH) {
+      this.logText.setY(this.logAreaY + 4 - (textHeight - visibleH));
+    }
     // Also push to the HTML debug panel (always, panel visibility is toggled separately)
     debugPanelLog(msg, msg.startsWith("[DEBUG]"));
   }
@@ -655,8 +698,18 @@ export class BattleScene extends Phaser.Scene {
       this.monsterHp = Math.max(0, this.monsterHp - result.damage);
       this.updateMonsterDisplay();
 
+      // Play distinct attack sounds based on outcome
+      if (audioEngine.initialized) {
+        if (result.critical) {
+          audioEngine.playCriticalHitSFX();
+        } else if (result.hit) {
+          audioEngine.playAttackSFX();
+        } else {
+          audioEngine.playMissSFX();
+        }
+      }
+
       if (result.hit) {
-        if (audioEngine.initialized) audioEngine.playAttackSFX();
         this.tweens.add({
           targets: this.monsterSprite,
           x: this.monsterSprite.x + 10,
@@ -717,6 +770,8 @@ export class BattleScene extends Phaser.Scene {
       if (result.hit && result.damage > 0) {
         if (audioEngine.initialized) audioEngine.playAttackSFX();
         this.cameras.main.flash(200, 100, 100, 255);
+      } else if (!result.hit && audioEngine.initialized) {
+        audioEngine.playMissSFX();
       }
 
       this.checkBattleEnd();
@@ -864,7 +919,13 @@ export class BattleScene extends Phaser.Scene {
       this.updatePlayerStats();
 
       if (result.hit) {
-        if (audioEngine.initialized) audioEngine.playAttackSFX();
+        if (audioEngine.initialized) {
+          if (result.critical) {
+            audioEngine.playCriticalHitSFX();
+          } else {
+            audioEngine.playAttackSFX();
+          }
+        }
         this.cameras.main.shake(150, 0.01);
         // Shake player sprite
         this.tweens.add({
@@ -874,6 +935,8 @@ export class BattleScene extends Phaser.Scene {
           yoyo: true,
           repeat: 2,
         });
+      } else if (audioEngine.initialized) {
+        audioEngine.playMissSFX();
       }
 
       if (this.player.hp <= 0) {

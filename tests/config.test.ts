@@ -20,4 +20,14 @@ describe("isLocalDev", () => {
     vi.stubGlobal("location", undefined);
     expect(isLocalDev()).toBe(true);
   });
+
+  it("returns false for a subdomain of github.io", () => {
+    vi.stubGlobal("location", { hostname: "org.github.io" });
+    expect(isLocalDev()).toBe(false);
+  });
+
+  it("returns true for a domain that contains but does not end with github.io", () => {
+    vi.stubGlobal("location", { hostname: "github.io.example.com" });
+    expect(isLocalDev()).toBe(true);
+  });
 });

@@ -3,6 +3,7 @@ import {
   rollInitiative,
   playerAttack,
   playerCastSpell,
+  playerUseAbility,
   monsterAttack,
   attemptFlee,
 } from "../src/systems/combat";
@@ -170,6 +171,34 @@ describe("combat system", () => {
       // With 100 attempts and DC 10, we should see both outcomes
       expect(escaped).toBe(true);
       expect(failed).toBe(true);
+    });
+  });
+
+  describe("utility spells and abilities in combat", () => {
+    it("utility spell cannot be used in battle", () => {
+      const player = createPlayer("Test", defaultStats);
+      player.mp = 50;
+      player.knownSpells.push("teleport");
+      const monster = createTestMonster();
+
+      const result = playerCastSpell(player, "teleport", monster);
+      expect(result.hit).toBe(false);
+      expect(result.damage).toBe(0);
+      expect(result.mpUsed).toBe(0);
+      expect(result.message).toContain("cannot be used in battle");
+    });
+
+    it("utility ability cannot be used in battle", () => {
+      const player = createPlayer("Test", defaultStats);
+      player.mp = 50;
+      player.knownAbilities = ["fastTravel"];
+      const monster = createTestMonster();
+
+      const result = playerUseAbility(player, "fastTravel", monster);
+      expect(result.hit).toBe(false);
+      expect(result.damage).toBe(0);
+      expect(result.mpUsed).toBe(0);
+      expect(result.message).toContain("cannot be used in battle");
     });
   });
 });

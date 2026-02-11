@@ -25,6 +25,8 @@ import {
 import { MONSTERS, getRandomEncounter, getBoss, DUNGEON_MONSTERS, getDungeonEncounter, DUNGEON_MONSTER_POOLS, HEARTLANDS_CRYPT_MONSTERS, FROST_CAVERN_MONSTERS, VOLCANIC_FORGE_MONSTERS, NIGHT_MONSTERS, getNightEncounter, TUNDRA_NIGHT_MONSTERS, SWAMP_NIGHT_MONSTERS, FOREST_NIGHT_MONSTERS, CANYON_NIGHT_MONSTERS } from "../src/data/monsters";
 import { SPELLS, getSpell, getAvailableSpells } from "../src/data/spells";
 import { ITEMS, getItem, getShopItems, getShopItemsForTown } from "../src/data/items";
+import { ABILITIES, getAbility } from "../src/data/abilities";
+import { PLAYER_APPEARANCES, CASTER_CLASSES } from "../src/systems/appearance";
 
 describe("game data", () => {
   describe("world map", () => {
@@ -620,6 +622,104 @@ describe("game data", () => {
         );
         expect(town, `city ${city.name} has no matching town`).toBeDefined();
       }
+    });
+  });
+
+  describe("fast travel system", () => {
+    it("Chimaera Wing item exists and is a consumable", () => {
+      const wing = getItem("chimaeraWing");
+      expect(wing).toBeDefined();
+      expect(wing!.name).toBe("Chimaera Wing");
+      expect(wing!.type).toBe("consumable");
+      expect(wing!.cost).toBeGreaterThan(0);
+    });
+
+    it("Chimaera Wing is available in some shops", () => {
+      const towns = getAllTowns();
+      const townsWithWing = towns.filter((t) => t.shopItems.includes("chimaeraWing"));
+      expect(townsWithWing.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("Chimaera Wing is available in some city shops", () => {
+      let found = false;
+      for (const city of CITIES) {
+        for (const shop of city.shops) {
+          if (shop.shopItems.includes("chimaeraWing")) {
+            found = true;
+            break;
+          }
+        }
+      }
+      expect(found).toBe(true);
+    });
+
+    it("Chimaera monster exists with wing drop", () => {
+      const chimaera = MONSTERS.find((m) => m.id === "chimaera");
+      expect(chimaera).toBeDefined();
+      expect(chimaera!.name).toBe("Chimaera");
+      expect(chimaera!.isBoss).toBe(false);
+      expect(chimaera!.drops).toBeDefined();
+      expect(chimaera!.drops!.some((d) => d.itemId === "chimaeraWing")).toBe(true);
+    });
+
+    it("Great Chimaera monster exists with higher wing drop rate", () => {
+      const great = MONSTERS.find((m) => m.id === "greatChimaera");
+      expect(great).toBeDefined();
+      expect(great!.name).toBe("Great Chimaera");
+      expect(great!.isBoss).toBe(false);
+      expect(great!.drops).toBeDefined();
+      const wingDrop = great!.drops!.find((d) => d.itemId === "chimaeraWing");
+      expect(wingDrop).toBeDefined();
+      const chimaeraWingDrop = MONSTERS.find((m) => m.id === "chimaera")!.drops!.find((d) => d.itemId === "chimaeraWing");
+      expect(wingDrop!.chance).toBeGreaterThan(chimaeraWingDrop!.chance);
+    });
+
+    it("Great Chimaera is tougher than regular Chimaera", () => {
+      const chimaera = MONSTERS.find((m) => m.id === "chimaera")!;
+      const great = MONSTERS.find((m) => m.id === "greatChimaera")!;
+      expect(great.hp).toBeGreaterThan(chimaera.hp);
+      expect(great.xpReward).toBeGreaterThan(chimaera.xpReward);
+    });
+
+    it("Teleport spell exists as utility type at level 5", () => {
+      const teleport = getSpell("teleport");
+      expect(teleport).toBeDefined();
+      expect(teleport!.name).toBe("Teleport");
+      expect(teleport!.type).toBe("utility");
+      expect(teleport!.levelRequired).toBe(5);
+      expect(teleport!.mpCost).toBeGreaterThan(0);
+    });
+
+    it("Teleport spell is available to caster classes only", () => {
+      for (const appearance of PLAYER_APPEARANCES) {
+        if (CASTER_CLASSES.includes(appearance.id)) {
+          expect(appearance.spells, `${appearance.label} should have teleport`).toContain("teleport");
+        } else {
+          expect(appearance.spells, `${appearance.label} should not have teleport`).not.toContain("teleport");
+        }
+      }
+    });
+
+    it("Fast Travel ability exists as utility type at level 5", () => {
+      const fastTravel = getAbility("fastTravel");
+      expect(fastTravel).toBeDefined();
+      expect(fastTravel!.name).toBe("Fast Travel");
+      expect(fastTravel!.type).toBe("utility");
+      expect(fastTravel!.levelRequired).toBe(5);
+      expect(fastTravel!.mpCost).toBeGreaterThan(0);
+    });
+
+    it("Fast Travel ability is available to all classes", () => {
+      for (const appearance of PLAYER_APPEARANCES) {
+        expect(appearance.abilities, `${appearance.label} should have fastTravel`).toContain("fastTravel");
+      }
+    });
+
+    it("Teleport spell is included in getAvailableSpells at level 5+", () => {
+      const level4Spells = getAvailableSpells(4);
+      const level5Spells = getAvailableSpells(5);
+      expect(level4Spells.some((s) => s.id === "teleport")).toBe(false);
+      expect(level5Spells.some((s) => s.id === "teleport")).toBe(true);
     });
   });
 });

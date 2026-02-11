@@ -282,6 +282,29 @@ describe("player system", () => {
       expect(result.used).toBe(true);
       expect(player.equippedWeapon?.id).toBe("shortSword");
     });
+
+    it("uses greater healing potions", () => {
+      const player = createTestPlayer();
+      player.hp = 10;
+      const greaterPotion = ITEMS.find((i) => i.id === "greaterPotion")!;
+      player.inventory.push({ ...greaterPotion });
+
+      const result = useItem(player, 0);
+      expect(result.used).toBe(true);
+      expect(player.hp).toBe(Math.min(10 + 50, player.maxHp));
+      expect(player.inventory).toHaveLength(0);
+    });
+
+    it("uses Chimaera Wing item", () => {
+      const player = createTestPlayer();
+      const wing = ITEMS.find((i) => i.id === "chimaeraWing")!;
+      player.inventory.push({ ...wing });
+
+      const result = useItem(player, 0);
+      expect(result.used).toBe(true);
+      expect(result.message).toContain("Chimaera Wing");
+      expect(player.inventory).toHaveLength(0);
+    });
   });
 
   describe("allocateStatPoint", () => {

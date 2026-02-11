@@ -72,6 +72,7 @@ export class BattleScene extends Phaser.Scene {
   private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
   private biome = "grass";
+  private bgImage: Phaser.GameObjects.Image | null = null;
 
   constructor() {
     super({ key: "BattleScene" });
@@ -115,18 +116,7 @@ export class BattleScene extends Phaser.Scene {
     this.drawBattleUI();
     this.setupDebug();
     this.createWeatherParticles();
-
-    // Apply day/night tint to the battle scene
-    const period = getTimePeriod(this.timeStep);
-    const tint = PERIOD_TINT[period];
-    if (tint !== 0xffffff) {
-      // Semi-transparent tint overlay on the battle area (above bg, below UI)
-      const tintOverlay = this.add.graphics();
-      tintOverlay.fillStyle(tint, 0.2);
-      tintOverlay.fillRect(0, 0, this.cameras.main.width, this.cameras.main.height * 0.78);
-      tintOverlay.setDepth(1);
-    }
-
+    this.applyDayNightTint();
     this.rollForInitiative();
 
     // Start battle or boss music
@@ -153,11 +143,13 @@ export class BattleScene extends Phaser.Scene {
       ? `bg_boss_${this.monster.id}`
       : `bg_${this.biome}`;
     if (this.textures.exists(bgKey)) {
-      this.add.image(w / 2, h / 2, bgKey);
+      this.bgImage = this.add.image(w / 2, h / 2, bgKey);
     } else {
       // Fallback flat fill
       const bg = this.add.graphics();
       bg.fillStyle(0x151530, 1);
+      bg.fillRect(0, 0, w, h);
+      this.bgImage = null;
       bg.fillRect(0, 0, w, h);
     }
 
@@ -1105,6 +1097,35 @@ export class BattleScene extends Phaser.Scene {
     console.error(`[BattleScene.${context}]`, err);
     debugPanelLog(`ERROR in ${context}: ${msg}`);
     this.addLog(`⚠ Something went wrong (${context})`);
+  }
+
+  /** Apply day/night tint to the battle background, monster, and player sprites. */
+  private applyDayNightTint(): void {
+    const period = getTimePeriod(this.timeStep);
+    const tint = PERIOD_TINT[period];
+    // Tint the background image
+    if (this.bgImage) {
+      this.bgImage.setTint(tint);
+    }
+    // Tint monster sprite (blend with its color tint)
+    if (tint !== 0xffffff) {
+      // Blend the monster's base color with the time-of-day tint
+      const monsterColor = this.monster.color;
+      const blended = this.blendTints(monsterColor, tint);
+      this.monsterSprite.setTint(blended);
+      // Player sprite gets pure time tint
+      this.playerSprite.setTint(tint);
+    }
+  }
+
+  /** Blend two 0xRRGGBB colors — 70% first, 30% second. */
+  private blendTints(a: number, b: number): number {
+    const rA = (a >> 16) & 0xff, gA = (a >> 8) & 0xff, bA = a & 0xff;
+    const rB = (b >> 16) & 0xff, gB = (b >> 8) & 0xff, bB = b & 0xff;
+    const r = Math.round(rA * 0.7 + rB * 0.3);
+    const g = Math.round(gA * 0.7 + gB * 0.3);
+    const bl = Math.round(bA * 0.7 + bB * 0.3);
+    return (r << 16) | (g << 8) | bl;
   }
 
   /** Create weather particle effects for the battle scene. */

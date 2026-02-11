@@ -33,6 +33,7 @@ import {
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
+import { getAppearance } from "../systems/appearance";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
@@ -52,6 +53,7 @@ import {
   WEATHER_TINT,
   WEATHER_LABEL,
 } from "../systems/weather";
+import { audioEngine } from "../systems/audio";
 
 const TILE_SIZE = 32;
 
@@ -91,6 +93,7 @@ export class OverworldScene extends Phaser.Scene {
   private statOverlay: Phaser.GameObjects.Container | null = null;
   private menuOverlay: Phaser.GameObjects.Container | null = null;
   private worldMapOverlay: Phaser.GameObjects.Container | null = null;
+  private settingsOverlay: Phaser.GameObjects.Container | null = null;
   private isNewPlayer = false;
   private debugEncounters = true; // debug toggle for encounters
   private debugFogDisabled = false; // debug toggle for fog of war
@@ -112,7 +115,10 @@ export class OverworldScene extends Phaser.Scene {
       this.player = data.player;
       this.isNewPlayer = false;
     } else {
-      this.player = createPlayer("Hero");
+      this.player = createPlayer("Hero", {
+        strength: 10, dexterity: 10, constitution: 10,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      });
       this.isNewPlayer = true;
     }
     if (data?.defeatedBosses) {
@@ -157,6 +163,9 @@ export class OverworldScene extends Phaser.Scene {
     this.setupDebug();
     this.updateLocationText();
     this.updateWeatherParticles();
+
+    // Start audio: biome music + weather SFX
+    this.updateAudio();
 
     // Show rolled stats on new game, or ASI overlay if points are pending
     if (this.isNewPlayer) {
@@ -392,6 +401,26 @@ export class OverworldScene extends Phaser.Scene {
     });
     cmds.set("tp", cmds.get("teleport")!);
 
+    cmds.set("audio", (args) => {
+      const sub = args.trim().toLowerCase();
+      if (sub === "play" || sub === "demo") {
+        debugPanelLog(`[CMD] Playing audio demo... (each sound ~3s)`, true);
+        audioEngine.init();
+        audioEngine.playAllSounds().then(() => {
+          debugPanelLog(`[CMD] Audio demo complete.`, true);
+          this.updateAudio();
+        });
+      } else if (sub === "mute") {
+        const muted = audioEngine.toggleMute();
+        debugPanelLog(`[CMD] Audio ${muted ? "muted" : "unmuted"}`, true);
+      } else if (sub === "stop") {
+        audioEngine.stopAll();
+        debugPanelLog(`[CMD] Audio stopped`, true);
+      } else {
+        debugPanelLog(`Usage: /audio <play|mute|stop>`, true);
+      }
+    });
+
     // Help entries
     const helpEntries: HelpEntry[] = [
       ...SHARED_HELP,
@@ -403,6 +432,7 @@ export class OverworldScene extends Phaser.Scene {
       { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
       { usage: "/spawn <name>", desc: "Spawn a monster battle by name/id" },
+      { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
     ];
 
@@ -932,6 +962,17 @@ export class OverworldScene extends Phaser.Scene {
     }
     this.renderMap();
     this.createPlayer();
+
+    // If the world map overlay is open, close and reopen it so it re-renders
+    // with all tiles now revealed.
+    if (this.worldMapOverlay) {
+      this.worldMapOverlay.destroy();
+      this.worldMapOverlay = null;
+      this.input.off("wheel");
+      this.input.off("pointermove");
+      this.input.off("pointerup");
+      this.showWorldMap();
+    }
   }
 
   // ─── Message display ───────────────────────────────────────────
@@ -1000,7 +1041,13 @@ export class OverworldScene extends Phaser.Scene {
 
     // M key opens game menu
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
-    mKey.on("down", () => this.toggleMenuOverlay());
+    mKey.on("down", () => {
+      if (this.settingsOverlay) {
+        this.toggleSettingsOverlay();
+      } else {
+        this.toggleMenuOverlay();
+      }
+    });
 
     // N key opens world map overlay
     const nKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.N);
@@ -1217,7 +1264,7 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Check whether any overlay (menu, map, equip, stat allocation) is currently open. */
   private isOverlayOpen(): boolean {
-    return !!(this.menuOverlay || this.worldMapOverlay || this.equipOverlay || this.statOverlay);
+    return !!(this.menuOverlay || this.worldMapOverlay || this.equipOverlay || this.statOverlay || this.settingsOverlay);
   }
 
   update(time: number): void {
@@ -1261,6 +1308,9 @@ export class OverworldScene extends Phaser.Scene {
       this.player.x = newX;
       this.player.y = newY;
 
+      // Footstep sound for dungeon terrain
+      if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
+
       this.tweens.add({
         targets: this.playerSprite,
         x: newX * TILE_SIZE + TILE_SIZE / 2,
@@ -1292,6 +1342,9 @@ export class OverworldScene extends Phaser.Scene {
       this.isMoving = true;
       this.player.x = newX;
       this.player.y = newY;
+
+      // Footstep sound for city terrain
+      if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
 
       this.tweens.add({
         targets: this.playerSprite,
@@ -1359,6 +1412,9 @@ export class OverworldScene extends Phaser.Scene {
       });
       return;
     }
+
+    // Footstep sound for overworld terrain
+    if (audioEngine.initialized && terrain !== undefined) audioEngine.playFootstepSFX(terrain);
 
     this.tweens.add({
       targets: this.playerSprite,
@@ -1473,6 +1529,7 @@ export class OverworldScene extends Phaser.Scene {
           if (item) {
             this.player.openedChests.push(chest.id);
             this.player.inventory.push({ ...item });
+            if (audioEngine.initialized) audioEngine.playChestOpenSFX();
             // Auto-equip if better
             if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
               this.player.equippedWeapon = item;
@@ -1630,6 +1687,7 @@ export class OverworldScene extends Phaser.Scene {
           this.player.x = dungeon.spawnX;
           this.player.y = dungeon.spawnY;
           this.weatherState.current = WeatherType.Clear;
+          if (audioEngine.initialized) audioEngine.playDungeonEnterSFX();
           this.autoSave();
           this.cameras.main.flash(300, 100, 100, 100);
           this.scene.restart({
@@ -1653,6 +1711,7 @@ export class OverworldScene extends Phaser.Scene {
         if (item) {
           this.player.openedChests.push(chest.id);
           this.player.inventory.push({ ...item });
+          if (audioEngine.initialized) audioEngine.playChestOpenSFX();
           if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
             this.player.equippedWeapon = item;
             if (item.twoHanded) this.player.equippedShield = null;
@@ -1754,6 +1813,7 @@ export class OverworldScene extends Phaser.Scene {
     if (oldPeriod !== newPeriod || weatherChanged) {
       this.applyDayNightTint();
       if (weatherChanged) this.updateWeatherParticles();
+      this.updateAudio();
     }
   }
 
@@ -1767,7 +1827,18 @@ export class OverworldScene extends Phaser.Scene {
     if (weatherChanged) {
       this.applyDayNightTint();
       this.updateWeatherParticles();
+      this.updateAudio();
     }
+  }
+
+  /** Start or update biome music and weather SFX to match the current state. */
+  private updateAudio(): void {
+    if (!audioEngine.initialized) return;
+    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    const biomeName = chunk?.name ?? "Heartlands";
+    const period = getTimePeriod(this.timeStep);
+    audioEngine.playBiomeMusic(biomeName, period);
+    audioEngine.playWeatherSFX(this.weatherState.current);
   }
 
   /** Apply a color tint to all map tiles based on time period + weather. */
@@ -1971,8 +2042,15 @@ export class OverworldScene extends Phaser.Scene {
         const txt = this.add.text(px + 20, cy,
           `${prefix}${wpn.name} (+${wpn.effect} dmg)${isEquipped ? " [equipped]" : ""}`,
           { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: !isEquipped });
-        if (!isEquipped) {
+        ).setInteractive({ useHandCursor: true });
+        if (isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ff6666"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedWeapon = null;
+            this.buildEquipOverlay();
+          });
+        } else {
           txt.on("pointerover", () => txt.setColor("#ffd700"));
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
@@ -2013,8 +2091,15 @@ export class OverworldScene extends Phaser.Scene {
         const txt = this.add.text(px + 20, cy,
           `${prefix}${arm.name} (+${arm.effect} AC)${isEquipped ? " [equipped]" : ""}`,
           { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: !isEquipped });
-        if (!isEquipped) {
+        ).setInteractive({ useHandCursor: true });
+        if (isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ff6666"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedArmor = null;
+            this.buildEquipOverlay();
+          });
+        } else {
           txt.on("pointerover", () => txt.setColor("#ffd700"));
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
@@ -2060,8 +2145,15 @@ export class OverworldScene extends Phaser.Scene {
         const txt = this.add.text(px + 20, cy,
           `${prefix}${sh.name} (+${sh.effect} AC)${isEquipped ? " [equipped]" : ""}`,
           { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: !isEquipped });
-        if (!isEquipped) {
+        ).setInteractive({ useHandCursor: true });
+        if (isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ff6666"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedShield = null;
+            this.buildEquipOverlay();
+          });
+        } else {
           txt.on("pointerover", () => txt.setColor("#ffd700"));
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
@@ -2076,11 +2168,23 @@ export class OverworldScene extends Phaser.Scene {
     cy += 6;
 
     // --- Ability Scores ---
+    const fmtStat = (label: string, val: number) => {
+      const mod = abilityModifier(val);
+      const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+      const padVal = val < 10 ? ` ${val}` : `${val}`;
+      return `${label} ${padVal} (${modStr})`;
+    };
+    const appearance = getAppearance(p.appearanceId);
+    const primaryVal = p.stats[appearance.primaryStat];
+    const primaryMod = abilityModifier(primaryVal);
+    const profBonus = Math.floor((p.level - 1) / 4) + 2;
+    const toHit = primaryMod + profBonus;
+    const toHitStr = toHit >= 0 ? `+${toHit}` : `${toHit}`;
     const statsBlock = this.add.text(px + 14, cy, [
-      `― Stats ―`,
-      `STR ${p.stats.strength}  DEX ${p.stats.dexterity}`,
-      `CON ${p.stats.constitution}  INT ${p.stats.intelligence}`,
-      `WIS ${p.stats.wisdom}  CHA ${p.stats.charisma}`,
+      `― Stats ―  To-Hit: ${toHitStr}`,
+      `${fmtStat("STR", p.stats.strength)}  ${fmtStat("DEX", p.stats.dexterity)}`,
+      `${fmtStat("CON", p.stats.constitution)}  ${fmtStat("INT", p.stats.intelligence)}`,
+      `${fmtStat("WIS", p.stats.wisdom)}  ${fmtStat("CHA", p.stats.charisma)}`,
     ].join("\n"), {
       fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
     });
@@ -2144,7 +2248,7 @@ export class OverworldScene extends Phaser.Scene {
     bg.strokeRect(px, py, panelW, panelH);
     this.statOverlay.add(bg);
 
-    const title = this.add.text(px + panelW / 2, py + 12, "🎲 Your Rolled Stats", {
+    const title = this.add.text(px + panelW / 2, py + 12, "📊 Your Stats", {
       fontSize: "15px", fontFamily: "monospace", color: "#ffd700",
     }).setOrigin(0.5, 0);
     this.statOverlay.add(title);
@@ -2214,7 +2318,7 @@ export class OverworldScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const panelW = 220;
-    const panelH = 160;
+    const panelH = 200;
     const px = Math.floor((w - panelW) / 2);
     const py = Math.floor((h - panelH) / 2) - 10;
 
@@ -2243,7 +2347,7 @@ export class OverworldScene extends Phaser.Scene {
     this.menuOverlay.add(title);
 
     // Resume button
-    const resumeBtn = this.add.text(px + panelW / 2, py + 56, "▶ Resume", {
+    const resumeBtn = this.add.text(px + panelW / 2, py + 48, "▶ Resume", {
       fontSize: "14px", fontFamily: "monospace", color: "#88ff88",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
@@ -2252,8 +2356,21 @@ export class OverworldScene extends Phaser.Scene {
     resumeBtn.on("pointerdown", () => this.toggleMenuOverlay());
     this.menuOverlay.add(resumeBtn);
 
+    // Settings button
+    const settingsBtn = this.add.text(px + panelW / 2, py + 90, "🔊 Settings", {
+      fontSize: "14px", fontFamily: "monospace", color: "#aabbff",
+      backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    settingsBtn.on("pointerover", () => settingsBtn.setColor("#ffd700"));
+    settingsBtn.on("pointerout", () => settingsBtn.setColor("#aabbff"));
+    settingsBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay();
+      this.showSettingsOverlay();
+    });
+    this.menuOverlay.add(settingsBtn);
+
     // Quit to Title button
-    const quitBtn = this.add.text(px + panelW / 2, py + 100, "✕ Quit to Title", {
+    const quitBtn = this.add.text(px + panelW / 2, py + 132, "✕ Quit to Title", {
       fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
@@ -2274,6 +2391,153 @@ export class OverworldScene extends Phaser.Scene {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
     this.menuOverlay.add(hint);
+  }
+
+  // ─── Settings Overlay ────────────────────────────────────────────
+
+  private toggleSettingsOverlay(): void {
+    if (this.settingsOverlay) {
+      this.settingsOverlay.destroy();
+      this.settingsOverlay = null;
+      return;
+    }
+    this.showSettingsOverlay();
+  }
+
+  private showSettingsOverlay(): void {
+    // Close other overlays
+    if (this.menuOverlay) { this.menuOverlay.destroy(); this.menuOverlay = null; }
+    if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
+    if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
+    if (this.settingsOverlay) { this.settingsOverlay.destroy(); this.settingsOverlay = null; }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const panelW = 300;
+    const panelH = 290;
+    const px = Math.floor((w - panelW) / 2);
+    const py = Math.floor((h - panelH) / 2) - 10;
+
+    this.settingsOverlay = this.add.container(0, 0).setDepth(75);
+
+    // Dim — only closes when clicking outside the panel
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.6);
+    dim.fillRect(0, 0, w, h);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+    dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      // Only close if the click is outside the panel area
+      if (pointer.x < px || pointer.x > px + panelW || pointer.y < py || pointer.y > py + panelH) {
+        this.toggleSettingsOverlay();
+      }
+    });
+    this.settingsOverlay.add(dim);
+
+    // Panel background — absorb clicks so they don't reach the dim layer
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRect(px, py, panelW, panelH);
+    bg.lineStyle(2, 0xffd700, 1);
+    bg.strokeRect(px, py, panelW, panelH);
+    bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
+    this.settingsOverlay.add(bg);
+
+    // Title
+    const title = this.add.text(px + panelW / 2, py + 12, "🔊 Audio Settings", {
+      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    this.settingsOverlay.add(title);
+
+    // Volume slider helper
+    const sliderY = py + 44;
+    const sliderX = px + 16;
+    const sliderW = panelW - 32;
+    const barH = 10;
+    const sliderSpacing = 48;
+
+    const channels: { label: string; value: number; setter: (v: number) => void }[] = [
+      { label: "Master", value: audioEngine.state.masterVolume, setter: (v) => audioEngine.setMasterVolume(v) },
+      { label: "Music",  value: audioEngine.state.musicVolume,  setter: (v) => audioEngine.setMusicVolume(v) },
+      { label: "SFX",    value: audioEngine.state.sfxVolume,    setter: (v) => audioEngine.setSFXVolume(v) },
+      { label: "Dialog", value: audioEngine.state.dialogVolume, setter: (v) => audioEngine.setDialogVolume(v) },
+    ];
+
+    channels.forEach((ch, i) => {
+      const y = sliderY + i * sliderSpacing;
+
+      // Label + value text
+      const valText = this.add.text(sliderX + sliderW, y - 2, `${ch.label}: ${Math.round(ch.value * 100)}%`, {
+        fontSize: "11px", fontFamily: "monospace", color: "#ccc",
+      }).setOrigin(1, 0);
+      this.settingsOverlay!.add(valText);
+
+      // Slider track
+      const track = this.add.graphics();
+      track.fillStyle(0x333355, 1);
+      track.fillRect(sliderX, y + 14, sliderW, barH);
+      track.lineStyle(1, 0x555577, 1);
+      track.strokeRect(sliderX, y + 14, sliderW, barH);
+      this.settingsOverlay!.add(track);
+
+      // Filled portion
+      const fill = this.add.graphics();
+      const drawFill = (v: number) => {
+        fill.clear();
+        fill.fillStyle(0x4488ff, 1);
+        fill.fillRect(sliderX, y + 14, sliderW * v, barH);
+      };
+      drawFill(ch.value);
+      this.settingsOverlay!.add(fill);
+
+      // Knob
+      let currentKnobX = sliderX + sliderW * ch.value;
+      const knob = this.add.graphics();
+      const drawKnob = (kx: number) => {
+        knob.clear();
+        knob.fillStyle(0xffd700, 1);
+        knob.fillCircle(kx, y + 14 + barH / 2, 7);
+        knob.lineStyle(1, 0xaa8800, 1);
+        knob.strokeCircle(kx, y + 14 + barH / 2, 7);
+      };
+      drawKnob(currentKnobX);
+      this.settingsOverlay!.add(knob);
+
+      // Draggable zone centered on the knob only
+      const knobZone = this.add.zone(currentKnobX, y + 14 + barH / 2, 22, 22)
+        .setInteractive({ useHandCursor: true, draggable: true });
+      this.settingsOverlay!.add(knobZone);
+
+      knobZone.on("drag", (_pointer: Phaser.Input.Pointer, dragX: number) => {
+        const clampedX = Phaser.Math.Clamp(dragX, sliderX, sliderX + sliderW);
+        const ratio = (clampedX - sliderX) / sliderW;
+        ch.setter(ratio);
+        ch.value = ratio;
+        currentKnobX = clampedX;
+        drawFill(ratio);
+        drawKnob(clampedX);
+        knobZone.setPosition(clampedX, y + 14 + barH / 2);
+        valText.setText(`${ch.label}: ${Math.round(ratio * 100)}%`);
+      });
+    });
+
+    // Mute toggle
+    const muteY = sliderY + channels.length * sliderSpacing + 4;
+    const muteBtn = this.add.text(px + panelW / 2, muteY, audioEngine.state.muted ? "🔇 Unmute" : "🔊 Mute All", {
+      fontSize: "13px", fontFamily: "monospace", color: audioEngine.state.muted ? "#ff6666" : "#88ccff",
+      backgroundColor: "#2a2a4e", padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    muteBtn.on("pointerdown", () => {
+      const muted = audioEngine.toggleMute();
+      muteBtn.setText(muted ? "🔇 Unmute" : "🔊 Mute All");
+      muteBtn.setColor(muted ? "#ff6666" : "#88ccff");
+    });
+    this.settingsOverlay.add(muteBtn);
+
+    // Close hint
+    const hint = this.add.text(px + panelW / 2, py + panelH - 10, "Click outside or press M to close", {
+      fontSize: "10px", fontFamily: "monospace", color: "#666",
+    }).setOrigin(0.5, 1);
+    this.settingsOverlay.add(hint);
   }
 
   // ─── ASI Stat Allocation Overlay ─────────────────────────────────

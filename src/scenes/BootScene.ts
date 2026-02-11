@@ -6,7 +6,9 @@ import Phaser from "phaser";
 import { TERRAIN_COLORS, Terrain, WORLD_CHUNKS, WORLD_WIDTH, WORLD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, getTownBiome } from "../data/map";
 import { PLAYER_APPEARANCES, type PlayerAppearance, SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance, getAppearance } from "../systems/appearance";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
-import { createPlayer } from "../systems/player";
+import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
+import { abilityModifier, rollAbilityScore } from "../utils/dice";
+import { audioEngine } from "../systems/audio";
 
 const TILE_SIZE = 32;
 
@@ -1391,10 +1393,57 @@ export class BootScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(0x0a0a1a);
 
-    // Title
+    // Initialize audio on first pointer interaction (browsers require user gesture)
+    this.input.once("pointerdown", () => {
+      audioEngine.init();
+      audioEngine.playTitleMusic();
+    });
+    // Also initialize on first keyboard press
+    this.input.keyboard!.once("keydown", () => {
+      audioEngine.init();
+      audioEngine.playTitleMusic();
+    });
+
+    // ── Favicon / Logo: procedurally draw the D20 die ──
+    const logoSize = 72;
+    const lx = cx;
+    const ly = cy - 120;
+    const logo = this.add.graphics();
+    // D20 hexagon shape
+    const pts = [
+      { x: 0, y: -logoSize / 2 },
+      { x: logoSize * 0.45, y: -logoSize / 4 },
+      { x: logoSize * 0.45, y: logoSize / 4 },
+      { x: 0, y: logoSize / 2 },
+      { x: -logoSize * 0.45, y: logoSize / 4 },
+      { x: -logoSize * 0.45, y: -logoSize / 4 },
+    ];
+    logo.fillStyle(0x1a1a2e, 1);
+    logo.beginPath();
+    logo.moveTo(lx + pts[0].x, ly + pts[0].y);
+    for (let i = 1; i < pts.length; i++) logo.lineTo(lx + pts[i].x, ly + pts[i].y);
+    logo.closePath();
+    logo.fillPath();
+    logo.lineStyle(2.5, 0xffd700, 1);
+    logo.beginPath();
+    logo.moveTo(lx + pts[0].x, ly + pts[0].y);
+    for (let i = 1; i < pts.length; i++) logo.lineTo(lx + pts[i].x, ly + pts[i].y);
+    logo.closePath();
+    logo.strokePath();
+    // Inner facet lines
+    logo.lineStyle(1, 0xffd700, 0.4);
+    logo.lineBetween(lx + pts[0].x, ly + pts[0].y, lx + pts[3].x, ly + pts[3].y);
+    logo.lineBetween(lx + pts[5].x, ly + pts[5].y, lx + pts[2].x, ly + pts[2].y);
+    logo.lineBetween(lx + pts[4].x, ly + pts[4].y, lx + pts[1].x, ly + pts[1].y);
+    // "2D" text on the die
+    this.add.text(lx, ly + 4, "2D", {
+      fontSize: "24px", fontFamily: "monospace", fontStyle: "bold", color: "#ffd700",
+    }).setOrigin(0.5);
+
+    // Game title below logo
     this.add
-      .text(cx, cy - 100, "2D&D", {
-        fontSize: "64px",
+      .text(cx, ly + logoSize / 2 + 18, "2D&D", {
+        fontSize: "48px",
         fontFamily: "monospace",
         color: "#ffd700",
         stroke: "#000",
@@ -1403,23 +1452,15 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(cx, cy - 40, "A Browser JRPG", {
-        fontSize: "20px",
-        fontFamily: "monospace",
-        color: "#c0a060",
-      })
-      .setOrigin(0.5);
-
-    this.add
-      .text(cx, cy + 4, "Dragon Quest meets Dungeons & Dragons", {
-        fontSize: "14px",
+      .text(cx, ly + logoSize / 2 + 60, "An epic tale of magic and dice, in 2d!", {
+        fontSize: "13px",
         fontFamily: "monospace",
         color: "#888",
       })
       .setOrigin(0.5);
 
     // Menu options
-    let menuY = cy + 50;
+    let menuY = cy + 60;
 
     const saveExists = hasSave();
 
@@ -1460,30 +1501,159 @@ export class BootScene extends Phaser.Scene {
     newBtn.on("pointerout", () => newBtn.setColor("#fff"));
     newBtn.on("pointerdown", () => this.showCharacterCreation());
 
-    // Controls info
-    this.add
-      .text(cx, cy + 180, "WASD: Move  |  SPACE: Action  |  B: Bestiary  |  E: Equip", {
-        fontSize: "11px",
+    menuY += 40;
+
+    // Settings button
+    const settingsBtn = this.add
+      .text(cx, menuY, "🔊 Settings", {
+        fontSize: "16px",
         fontFamily: "monospace",
-        color: "#555",
+        color: "#aabbcc",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    settingsBtn.on("pointerover", () => settingsBtn.setColor("#ffd700"));
+    settingsBtn.on("pointerout", () => settingsBtn.setColor("#aabbcc"));
+    settingsBtn.on("pointerdown", () => this.showTitleSettings());
 
     // Keyboard shortcuts
     if (saveExists) {
       this.input.keyboard!.once("keydown-SPACE", () => this.continueGame());
       this.input.keyboard!.once("keydown-N", () => this.showCharacterCreation());
-
-      this.add
-        .text(cx, menuY + 36, "(SPACE = Continue  |  N = New Game)", {
-          fontSize: "10px",
-          fontFamily: "monospace",
-          color: "#555",
-        })
-        .setOrigin(0.5);
     } else {
       this.input.keyboard!.once("keydown-SPACE", () => this.showCharacterCreation());
     }
+  }
+
+  /** Show a settings overlay on the title screen with volume sliders. */
+  private showTitleSettings(): void {
+    const cx = this.cameras.main.centerX;
+    const cy = this.cameras.main.centerY;
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const panelW = 300;
+    const panelH = 290;
+    const px = Math.floor((w - panelW) / 2);
+    const py = Math.floor((h - panelH) / 2);
+
+    const container = this.add.container(0, 0).setDepth(90);
+
+    // Dim — only closes when clicking outside the panel
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.7);
+    dim.fillRect(0, 0, w, h);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+    dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (pointer.x < px || pointer.x > px + panelW || pointer.y < py || pointer.y > py + panelH) {
+        container.destroy();
+      }
+    });
+    container.add(dim);
+
+    // Panel background — absorb clicks so they don't reach the dim layer
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRect(px, py, panelW, panelH);
+    bg.lineStyle(2, 0xffd700, 1);
+    bg.strokeRect(px, py, panelW, panelH);
+    bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
+    container.add(bg);
+
+    // Title
+    const title = this.add.text(px + panelW / 2, py + 12, "🔊 Audio Settings", {
+      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    container.add(title);
+
+    // Volume sliders
+    const sliderY = py + 44;
+    const sliderX = px + 16;
+    const sliderW = panelW - 32;
+    const barH = 10;
+    const sliderSpacing = 48;
+
+    const channels: { label: string; value: number; setter: (v: number) => void }[] = [
+      { label: "Master", value: audioEngine.state.masterVolume, setter: (v) => audioEngine.setMasterVolume(v) },
+      { label: "Music",  value: audioEngine.state.musicVolume,  setter: (v) => audioEngine.setMusicVolume(v) },
+      { label: "SFX",    value: audioEngine.state.sfxVolume,    setter: (v) => audioEngine.setSFXVolume(v) },
+      { label: "Dialog", value: audioEngine.state.dialogVolume, setter: (v) => audioEngine.setDialogVolume(v) },
+    ];
+
+    channels.forEach((ch, i) => {
+      const y = sliderY + i * sliderSpacing;
+
+      const valText = this.add.text(sliderX + sliderW, y - 2, `${ch.label}: ${Math.round(ch.value * 100)}%`, {
+        fontSize: "11px", fontFamily: "monospace", color: "#ccc",
+      }).setOrigin(1, 0);
+      container.add(valText);
+
+      // Track
+      const track = this.add.graphics();
+      track.fillStyle(0x333355, 1);
+      track.fillRect(sliderX, y + 14, sliderW, barH);
+      track.lineStyle(1, 0x555577, 1);
+      track.strokeRect(sliderX, y + 14, sliderW, barH);
+      container.add(track);
+
+      // Fill
+      const fill = this.add.graphics();
+      const drawFill = (v: number) => {
+        fill.clear();
+        fill.fillStyle(0x4488ff, 1);
+        fill.fillRect(sliderX, y + 14, sliderW * v, barH);
+      };
+      drawFill(ch.value);
+      container.add(fill);
+
+      // Knob
+      let currentKnobX = sliderX + sliderW * ch.value;
+      const knob = this.add.graphics();
+      const drawKnob = (kx: number) => {
+        knob.clear();
+        knob.fillStyle(0xffd700, 1);
+        knob.fillCircle(kx, y + 14 + barH / 2, 7);
+        knob.lineStyle(1, 0xaa8800, 1);
+        knob.strokeCircle(kx, y + 14 + barH / 2, 7);
+      };
+      drawKnob(currentKnobX);
+      container.add(knob);
+
+      // Draggable zone centered on the knob only
+      const knobZone = this.add.zone(currentKnobX, y + 14 + barH / 2, 22, 22)
+        .setInteractive({ useHandCursor: true, draggable: true });
+      container.add(knobZone);
+
+      knobZone.on("drag", (_pointer: Phaser.Input.Pointer, dragX: number) => {
+        const clampedX = Phaser.Math.Clamp(dragX, sliderX, sliderX + sliderW);
+        const ratio = (clampedX - sliderX) / sliderW;
+        ch.setter(ratio);
+        ch.value = ratio;
+        currentKnobX = clampedX;
+        drawFill(ratio);
+        drawKnob(clampedX);
+        knobZone.setPosition(clampedX, y + 14 + barH / 2);
+        valText.setText(`${ch.label}: ${Math.round(ratio * 100)}%`);
+      });
+    });
+
+    // Mute toggle
+    const muteY = sliderY + channels.length * sliderSpacing + 4;
+    const muteBtn = this.add.text(px + panelW / 2, muteY, audioEngine.state.muted ? "🔇 Unmute" : "🔊 Mute All", {
+      fontSize: "13px", fontFamily: "monospace", color: audioEngine.state.muted ? "#ff6666" : "#88ccff",
+      backgroundColor: "#2a2a4e", padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    muteBtn.on("pointerdown", () => {
+      const muted = audioEngine.toggleMute();
+      muteBtn.setText(muted ? "🔇 Unmute" : "🔊 Mute All");
+      muteBtn.setColor(muted ? "#ff6666" : "#88ccff");
+    });
+    container.add(muteBtn);
+
+    // Close hint
+    const hint = this.add.text(px + panelW / 2, py + panelH - 10, "Click outside to close", {
+      fontSize: "10px", fontFamily: "monospace", color: "#666",
+    }).setOrigin(0.5, 1);
+    container.add(hint);
   }
 
   private continueGame(): void {
@@ -1645,7 +1815,7 @@ export class BootScene extends Phaser.Scene {
     nextBtn.on("pointerout", () => nextBtn.setColor("#88ff88"));
 
     const goNext = () => {
-      this.showAppearanceCustomization(playerName, selectedAppearance);
+      this.showStatAllocation(playerName, selectedAppearance);
     };
 
     nextBtn.on("pointerdown", goNext);
@@ -1661,7 +1831,264 @@ export class BootScene extends Phaser.Scene {
     this.input.keyboard!.on("keydown-ENTER", goNext);
   }
 
-  private showAppearanceCustomization(playerName: string, selectedClass: PlayerAppearance): void {
+  private showStatAllocation(playerName: string, selectedClass: PlayerAppearance): void {
+    this.children.removeAll(true);
+    this.tweens.killAll();
+    this.input.keyboard!.removeAllListeners();
+
+    const cx = this.cameras.main.centerX;
+    const w = this.cameras.main.width;
+
+    // Title
+    this.add.text(cx, 8, "Allocate Stats", {
+      fontSize: "22px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+
+    // Class info with bonuses
+    const boostParts = Object.entries(selectedClass.statBoosts)
+      .map(([k, v]) => `${k.slice(0, 3).toUpperCase()}+${v}`)
+      .join(", ");
+    this.add.text(cx, 36, `Class: ${selectedClass.label} (${boostParts})`, {
+      fontSize: "11px", fontFamily: "monospace", color: "#888",
+    }).setOrigin(0.5, 0);
+
+    // State
+    type Mode = "pointbuy" | "random";
+    let mode: Mode = "pointbuy";
+
+    const statKeys: (keyof PlayerStats)[] = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
+    const statLabels: Record<keyof PlayerStats, string> = {
+      strength: "STR", dexterity: "DEX", constitution: "CON",
+      intelligence: "INT", wisdom: "WIS", charisma: "CHA",
+    };
+
+    let currentStats: PlayerStats = {
+      strength: 8, dexterity: 8, constitution: 8,
+      intelligence: 8, wisdom: 8, charisma: 8,
+    };
+
+    // UI containers — built by render()
+    const uiObjects: Phaser.GameObjects.GameObject[] = [];
+    const clearUI = () => {
+      for (const obj of uiObjects) obj.destroy();
+      uiObjects.length = 0;
+    };
+
+    // Mode toggle tabs
+    const tabY = 56;
+    const pointBuyTab = this.add.text(cx - 70, tabY, "[ Point Buy ]", {
+      fontSize: "13px", fontFamily: "monospace", color: "#ffd700",
+      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+
+    const randomTab = this.add.text(cx + 70, tabY, "[ 🎲 Random ]", {
+      fontSize: "13px", fontFamily: "monospace", color: "#888",
+      padding: { x: 8, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+
+    const setMode = (m: Mode) => {
+      mode = m;
+      if (m === "pointbuy") {
+        pointBuyTab.setColor("#ffd700").setBackgroundColor("#2a2a4e");
+        randomTab.setColor("#888").setBackgroundColor("");
+        currentStats = { strength: 8, dexterity: 8, constitution: 8, intelligence: 8, wisdom: 8, charisma: 8 };
+      } else {
+        randomTab.setColor("#ffd700").setBackgroundColor("#2a2a4e");
+        pointBuyTab.setColor("#888").setBackgroundColor("");
+        // Roll fresh random stats
+        for (const k of statKeys) currentStats[k] = rollAbilityScore();
+      }
+      renderStats();
+    };
+
+    pointBuyTab.on("pointerdown", () => setMode("pointbuy"));
+    randomTab.on("pointerdown", () => setMode("random"));
+
+    // Next button (always present, enabled/disabled)
+    const nextBtn = this.add.text(cx + 80, 460, "[ Next > ]", {
+      fontSize: "18px", fontFamily: "monospace", color: "#88ff88",
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    nextBtn.on("pointerover", () => { if (nextBtn.alpha === 1) nextBtn.setColor("#ffd700"); });
+    nextBtn.on("pointerout", () => { if (nextBtn.alpha === 1) nextBtn.setColor("#88ff88"); });
+    nextBtn.on("pointerdown", () => {
+      if (nextBtn.alpha < 1) return;
+      this.showAppearanceCustomization(playerName, selectedClass, currentStats);
+    });
+
+    // Back button
+    const backBtn = this.add.text(cx - 80, 460, "[ < Back ]", {
+      fontSize: "16px", fontFamily: "monospace", color: "#aaa",
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    backBtn.on("pointerover", () => backBtn.setColor("#ffd700"));
+    backBtn.on("pointerout", () => backBtn.setColor("#aaa"));
+    backBtn.on("pointerdown", () => this.showCharacterCreation());
+
+    const renderStats = () => {
+      clearUI();
+
+      const spent = calculatePointsSpent(currentStats);
+      const remaining = POINT_BUY_TOTAL - spent;
+
+      // Points remaining / reroll button
+      if (mode === "pointbuy") {
+        const ptText = this.add.text(cx, 84, `Points: ${remaining} / ${POINT_BUY_TOTAL}`, {
+          fontSize: "13px", fontFamily: "monospace",
+          color: remaining === 0 ? "#88ff88" : remaining < 0 ? "#ff6666" : "#ffd700",
+        }).setOrigin(0.5, 0);
+        uiObjects.push(ptText);
+      } else {
+        const rerollBtn = this.add.text(cx, 84, "[ 🎲 Re-Roll ]", {
+          fontSize: "14px", fontFamily: "monospace", color: "#aaddff",
+          backgroundColor: "#2a2a4e", padding: { x: 10, y: 3 },
+        }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+        rerollBtn.on("pointerover", () => rerollBtn.setColor("#ffd700"));
+        rerollBtn.on("pointerout", () => rerollBtn.setColor("#aaddff"));
+        rerollBtn.on("pointerdown", () => {
+          for (const k of statKeys) currentStats[k] = rollAbilityScore();
+          renderStats();
+        });
+        uiObjects.push(rerollBtn);
+      }
+
+      // Stat rows
+      const startY = 112;
+      const rowH = 42;
+      const leftX = cx - 120;
+
+      statKeys.forEach((key, i) => {
+        const y = startY + i * rowH;
+        const val = currentStats[key];
+        const mod = abilityModifier(val);
+        const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+        const classBoost = (selectedClass.statBoosts[key] ?? 0) as number;
+        const finalVal = val + classBoost;
+        const finalMod = abilityModifier(finalVal);
+        const finalModStr = finalMod >= 0 ? `+${finalMod}` : `${finalMod}`;
+        const isPrimary = selectedClass.primaryStat === key;
+
+        // Label
+        const label = this.add.text(leftX, y, `${statLabels[key]}:`, {
+          fontSize: "14px", fontFamily: "monospace",
+          color: isPrimary ? "#ffd700" : "#c0a060",
+        });
+        uiObjects.push(label);
+
+        // Base value
+        const valTxt = this.add.text(leftX + 50, y, `${val}`, {
+          fontSize: "14px", fontFamily: "monospace", color: "#fff",
+        });
+        uiObjects.push(valTxt);
+
+        // Class boost indicator
+        if (classBoost > 0) {
+          const boostTxt = this.add.text(leftX + 72, y, `+${classBoost}→${finalVal}`, {
+            fontSize: "11px", fontFamily: "monospace", color: "#88ff88",
+          });
+          uiObjects.push(boostTxt);
+        }
+
+        // Modifier (final)
+        const modTxt = this.add.text(leftX + 130, y, `(${finalModStr})`, {
+          fontSize: "13px", fontFamily: "monospace", color: "#aaa",
+        });
+        uiObjects.push(modTxt);
+
+        // +/- buttons (Point Buy only)
+        if (mode === "pointbuy") {
+          // Cost display for next increment
+          const nextVal = val + 1;
+          const currentCost = POINT_BUY_COSTS[val] ?? 0;
+          const nextCost = POINT_BUY_COSTS[nextVal];
+          const incrementCost = nextCost !== undefined ? nextCost - currentCost : -1;
+
+          // [-] button
+          const canDecrease = val > 8;
+          const minusBtn = this.add.text(leftX + 170, y - 2, "[-]", {
+            fontSize: "16px", fontFamily: "monospace",
+            color: canDecrease ? "#ff8888" : "#444",
+            backgroundColor: canDecrease ? "#2a1a1a" : undefined,
+            padding: { x: 4, y: 1 },
+          }).setOrigin(0, 0);
+          if (canDecrease) {
+            minusBtn.setInteractive({ useHandCursor: true });
+            minusBtn.on("pointerdown", () => {
+              currentStats[key]--;
+              renderStats();
+            });
+          }
+          uiObjects.push(minusBtn);
+
+          // [+] button
+          const canIncrease = val < 15 && incrementCost >= 0 && incrementCost <= remaining;
+          const plusBtn = this.add.text(leftX + 208, y - 2, "[+]", {
+            fontSize: "16px", fontFamily: "monospace",
+            color: canIncrease ? "#88ff88" : "#444",
+            backgroundColor: canIncrease ? "#1a2a1a" : undefined,
+            padding: { x: 4, y: 1 },
+          }).setOrigin(0, 0);
+          if (canIncrease) {
+            plusBtn.setInteractive({ useHandCursor: true });
+            plusBtn.on("pointerdown", () => {
+              currentStats[key]++;
+              renderStats();
+            });
+          }
+          uiObjects.push(plusBtn);
+
+          // Cost hint
+          if (incrementCost > 0 && canIncrease) {
+            const costHint = this.add.text(leftX + 248, y + 2, `(${incrementCost}pt)`, {
+              fontSize: "9px", fontFamily: "monospace", color: "#666",
+            });
+            uiObjects.push(costHint);
+          }
+        }
+
+        // Primary stat indicator
+        if (isPrimary) {
+          const starTxt = this.add.text(leftX - 14, y, "★", {
+            fontSize: "12px", fontFamily: "monospace", color: "#ffd700",
+          });
+          uiObjects.push(starTxt);
+        }
+      });
+
+      // Summary: total HP/MP preview
+      const previewY = startY + statKeys.length * rowH + 8;
+      const finalStats: PlayerStats = { ...currentStats };
+      for (const [k, v] of Object.entries(selectedClass.statBoosts)) {
+        finalStats[k as keyof PlayerStats] += v as number;
+      }
+      const previewHp = Math.max(10, 25 + abilityModifier(finalStats.constitution) * 3);
+      const previewMp = Math.max(4, 8 + abilityModifier(finalStats.intelligence) * 2);
+      const primaryMod = abilityModifier(finalStats[selectedClass.primaryStat]);
+      const profBonus = 2;
+      const toHit = primaryMod + profBonus;
+      const toHitStr = toHit >= 0 ? `+${toHit}` : `${toHit}`;
+
+      const previewText = this.add.text(cx, previewY, [
+        `HP: ${previewHp}   MP: ${previewMp}   To-Hit: ${toHitStr}`,
+        `★ Primary: ${statLabels[selectedClass.primaryStat]}`,
+      ].join("\n"), {
+        fontSize: "11px", fontFamily: "monospace", color: "#aaa",
+        align: "center", lineSpacing: 4,
+      }).setOrigin(0.5, 0);
+      uiObjects.push(previewText);
+
+      // Enable/disable Next button
+      if (mode === "pointbuy") {
+        const valid = remaining === 0;
+        nextBtn.setAlpha(valid ? 1 : 0.4);
+      } else {
+        nextBtn.setAlpha(1);
+      }
+    };
+
+    renderStats();
+  }
+
+  private showAppearanceCustomization(playerName: string, selectedClass: PlayerAppearance, baseStats: PlayerStats): void {
     this.children.removeAll(true);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();
@@ -1865,7 +2292,7 @@ export class BootScene extends Phaser.Scene {
 
     backBtn.on("pointerover", () => backBtn.setColor("#ffd700"));
     backBtn.on("pointerout", () => backBtn.setColor("#aaa"));
-    backBtn.on("pointerdown", () => this.showCharacterCreation());
+    backBtn.on("pointerdown", () => this.showStatAllocation(playerName, selectedClass));
 
     const startBtn = this.add
       .text(cx + 100, btnY, "[ Start Adventure ]", {
@@ -1886,7 +2313,7 @@ export class BootScene extends Phaser.Scene {
         hairStyle: selectedHairStyle,
         hairColor: selectedHairColor,
       };
-      const player = createPlayer(name, selectedClass.id, customAppearance);
+      const player = createPlayer(name, baseStats, selectedClass.id, customAppearance);
 
       // Generate final player texture with custom appearance
       const texKey = `player_${selectedClass.id}`;

@@ -29,6 +29,8 @@ import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
+import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
+import { audioEngine } from "../systems/audio";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -43,6 +45,10 @@ export class BattleScene extends Phaser.Scene {
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
+  private logContainer!: Phaser.GameObjects.Container;
+  private logMaskGraphics!: Phaser.GameObjects.Graphics;
+  private logAreaY = 0;
+  private logAreaH = 0;
   private monsterText!: Phaser.GameObjects.Text;
   private monsterSprite!: Phaser.GameObjects.Sprite;
   private playerSprite!: Phaser.GameObjects.Sprite;
@@ -66,6 +72,7 @@ export class BattleScene extends Phaser.Scene {
   private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
   private biome = "grass";
+  private bgImage: Phaser.GameObjects.Image | null = null;
 
   constructor() {
     super({ key: "BattleScene" });
@@ -107,13 +114,25 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.fadeIn(300);
 
     this.drawBattleUI();
+    this.drawCelestialBody();
     this.setupDebug();
     this.createWeatherParticles();
+    this.applyDayNightTint();
     this.rollForInitiative();
+
+    // Start battle or boss music
+    if (audioEngine.initialized) {
+      if (this.monster.isBoss) {
+        audioEngine.playBossMusic(this.monster.id);
+      } else {
+        audioEngine.playBattleMusic();
+      }
+    }
   }
 
   update(): void {
     this.updateDebugPanel();
+    this.updateButtonStates();
   }
 
   private drawBattleUI(): void {
@@ -125,11 +144,13 @@ export class BattleScene extends Phaser.Scene {
       ? `bg_boss_${this.monster.id}`
       : `bg_${this.biome}`;
     if (this.textures.exists(bgKey)) {
-      this.add.image(w / 2, h / 2, bgKey);
+      this.bgImage = this.add.image(w / 2, h / 2, bgKey);
     } else {
       // Fallback flat fill
       const bg = this.add.graphics();
       bg.fillStyle(0x151530, 1);
+      bg.fillRect(0, 0, w, h);
+      this.bgImage = null;
       bg.fillRect(0, 0, w, h);
     }
 
@@ -168,19 +189,42 @@ export class BattleScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
     this.updatePlayerStats();
 
-    // Battle log (bottom strip, above action buttons)
+    // Battle log (bottom strip, above action buttons) — scrollable
+    this.logAreaY = h * 0.78;
+    this.logAreaH = h * 0.22;
     const logBg = this.add.graphics();
     logBg.fillStyle(0x1a1a2e, 0.95);
-    logBg.fillRect(0, h * 0.78, w, h * 0.22);
+    logBg.fillRect(0, this.logAreaY, w, this.logAreaH);
     logBg.lineStyle(1, 0xc0a060, 0.5);
-    logBg.strokeRect(0, h * 0.78, w, h * 0.22);
+    logBg.strokeRect(0, this.logAreaY, w, this.logAreaH);
 
-    this.logText = this.add.text(10, h * 0.79, "", {
+    // Scrollable container for log text
+    this.logContainer = this.add.container(0, 0);
+    this.logText = this.add.text(10, this.logAreaY + 4, "", {
       fontSize: "12px",
       fontFamily: "monospace",
       color: "#ccc",
       wordWrap: { width: w * 0.5 - 20 },
-      lineSpacing: 3,
+      lineSpacing: 5,
+    });
+    this.logContainer.add(this.logText);
+
+    // Mask to clip log to the log area
+    this.logMaskGraphics = this.make.graphics({ x: 0, y: 0 });
+    this.logMaskGraphics.fillStyle(0xffffff);
+    this.logMaskGraphics.fillRect(0, this.logAreaY, w * 0.52, this.logAreaH);
+    const logMask = this.logMaskGraphics.createGeometryMask();
+    this.logContainer.setMask(logMask);
+
+    // Mouse wheel scrolling on the log area
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gos: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
+      const textHeight = this.logText.height;
+      const visibleH = this.logAreaH - 8;
+      const maxScroll = Math.max(0, textHeight - visibleH);
+      if (maxScroll <= 0) return;
+      const currentY = this.logText.y - (this.logAreaY + 4);
+      const newY = Phaser.Math.Clamp(currentY - dy * 0.5, -maxScroll, 0);
+      this.logText.setY(this.logAreaY + 4 + newY);
     });
 
     // Action buttons (bottom-right area)
@@ -258,6 +302,17 @@ export class BattleScene extends Phaser.Scene {
       container.add([bg, label]);
       this.actionButtons.push(container);
     });
+
+    // Set initial visual state
+    this.updateButtonStates();
+  }
+
+  /** Dim or enable action buttons based on current phase. */
+  private updateButtonStates(): void {
+    const enabled = this.phase === "playerTurn";
+    for (const btn of this.actionButtons) {
+      btn.setAlpha(enabled ? 1 : 0.4);
+    }
   }
 
   private closeAllSubMenus(): void {
@@ -396,6 +451,17 @@ export class BattleScene extends Phaser.Scene {
       this.updateMonsterDisplay();
       this.updatePlayerStats();
 
+      // Play distinct sounds for ability outcomes
+      if (audioEngine.initialized) {
+        if (result.critical) {
+          audioEngine.playCriticalHitSFX();
+        } else if (result.hit && result.damage > 0) {
+          audioEngine.playAttackSFX();
+        } else if (!result.hit) {
+          audioEngine.playMissSFX();
+        }
+      }
+
       if (result.hit && result.damage > 0) {
         this.tweens.add({
           targets: this.monsterSprite,
@@ -500,8 +566,14 @@ export class BattleScene extends Phaser.Scene {
 
   private addLog(msg: string): void {
     this.logLines.push(msg);
-    if (this.logLines.length > 6) this.logLines.shift();
-    this.logText.setText(this.logLines.join("\n"));
+    // Show all log lines with a blank line at the end for readability
+    this.logText.setText(this.logLines.join("\n") + "\n ");
+    // Auto-scroll to bottom
+    const textHeight = this.logText.height;
+    const visibleH = this.logAreaH - 8;
+    if (textHeight > visibleH) {
+      this.logText.setY(this.logAreaY + 4 - (textHeight - visibleH));
+    }
     // Also push to the HTML debug panel (always, panel visibility is toggled separately)
     debugPanelLog(msg, msg.startsWith("[DEBUG]"));
   }
@@ -644,6 +716,17 @@ export class BattleScene extends Phaser.Scene {
       this.monsterHp = Math.max(0, this.monsterHp - result.damage);
       this.updateMonsterDisplay();
 
+      // Play distinct attack sounds based on outcome
+      if (audioEngine.initialized) {
+        if (result.critical) {
+          audioEngine.playCriticalHitSFX();
+        } else if (result.hit) {
+          audioEngine.playAttackSFX();
+        } else {
+          audioEngine.playMissSFX();
+        }
+      }
+
       if (result.hit) {
         this.tweens.add({
           targets: this.monsterSprite,
@@ -703,7 +786,10 @@ export class BattleScene extends Phaser.Scene {
       this.updatePlayerStats();
 
       if (result.hit && result.damage > 0) {
+        if (audioEngine.initialized) audioEngine.playAttackSFX();
         this.cameras.main.flash(200, 100, 100, 255);
+      } else if (!result.hit && audioEngine.initialized) {
+        audioEngine.playMissSFX();
       }
 
       this.checkBattleEnd();
@@ -720,6 +806,7 @@ export class BattleScene extends Phaser.Scene {
     try {
       const result = useItem(this.player, itemIndex);
       this.addLog(result.message);
+      if (result.used && audioEngine.initialized) audioEngine.playPotionSFX();
       this.updatePlayerStats();
 
       if (result.used) {
@@ -850,6 +937,13 @@ export class BattleScene extends Phaser.Scene {
       this.updatePlayerStats();
 
       if (result.hit) {
+        if (audioEngine.initialized) {
+          if (result.critical) {
+            audioEngine.playCriticalHitSFX();
+          } else {
+            audioEngine.playAttackSFX();
+          }
+        }
         this.cameras.main.shake(150, 0.01);
         // Shake player sprite
         this.tweens.add({
@@ -859,6 +953,8 @@ export class BattleScene extends Phaser.Scene {
           yoyo: true,
           repeat: 2,
         });
+      } else if (audioEngine.initialized) {
+        audioEngine.playMissSFX();
       }
 
       if (this.player.hp <= 0) {
@@ -931,6 +1027,11 @@ export class BattleScene extends Phaser.Scene {
         // Record in bestiary
         recordDefeat(this.bestiary, this.monster, this.acDiscovered, this.droppedItemIds);
 
+        // Play victory jingle
+        if (audioEngine.initialized) {
+          audioEngine.playVictoryJingle();
+        }
+
         this.updatePlayerStats();
         this.time.delayedCall(2500, () => this.returnToOverworld());
       } else {
@@ -942,6 +1043,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private handleDefeat(): void {
+    // Play defeat music
+    if (audioEngine.initialized) {
+      audioEngine.playDefeatMusic();
+    }
     // On defeat: restore half HP, lose some gold, return to last visited town
     this.player.hp = Math.floor(this.player.maxHp / 2);
     this.player.mp = Math.floor(this.player.maxMp / 2);
@@ -993,6 +1098,137 @@ export class BattleScene extends Phaser.Scene {
     console.error(`[BattleScene.${context}]`, err);
     debugPanelLog(`ERROR in ${context}: ${msg}`);
     this.addLog(`⚠ Something went wrong (${context})`);
+  }
+
+  /**
+   * Draw a sun or moon in the sky area of the battle background.
+   * Positioned on the LEFT side of the sky to avoid overlapping the monster
+   * sprite (which sits at top-right ~72% x, ~18% y).
+   *   Dawn  → sun low-left (rising)
+   *   Day   → sun upper-left
+   *   Dusk  → sun mid-left (setting)
+   *   Night → moon upper-left + stars
+   */
+  private drawCelestialBody(): void {
+    // Skip for dungeons — no sky visible
+    if (this.biome === "dungeon") return;
+
+    const w = this.cameras.main.width;
+    const skyH = this.cameras.main.height * 0.45; // sky occupies roughly top 45%
+    const period = getTimePeriod(this.timeStep);
+    const gfx = this.add.graphics();
+    gfx.setDepth(0.5); // above bg image, below sprites
+
+    switch (period) {
+      case TimePeriod.Dawn: {
+        // Sun rising — low left
+        const sx = w * 0.12;
+        const sy = skyH * 0.78;
+        gfx.fillStyle(0xffcc66, 0.15);
+        gfx.fillCircle(sx, sy, 50);
+        gfx.fillStyle(0xffaa33, 0.2);
+        gfx.fillCircle(sx, sy, 30);
+        gfx.fillStyle(0xffdd44, 1);
+        gfx.fillCircle(sx, sy, 16);
+        gfx.fillStyle(0xffee88, 1);
+        gfx.fillCircle(sx - 3, sy - 3, 10);
+        break;
+      }
+      case TimePeriod.Day: {
+        // Sun high — upper-left quadrant
+        const sx = w * 0.22;
+        const sy = skyH * 0.18;
+        gfx.fillStyle(0xffffcc, 0.12);
+        gfx.fillCircle(sx, sy, 60);
+        gfx.fillStyle(0xffff88, 0.18);
+        gfx.fillCircle(sx, sy, 35);
+        gfx.fillStyle(0xffee44, 1);
+        gfx.fillCircle(sx, sy, 18);
+        gfx.fillStyle(0xffff99, 1);
+        gfx.fillCircle(sx - 3, sy - 3, 12);
+        gfx.lineStyle(1.5, 0xffee44, 0.3);
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+          gfx.lineBetween(
+            sx + Math.cos(a) * 22, sy + Math.sin(a) * 22,
+            sx + Math.cos(a) * 40, sy + Math.sin(a) * 40,
+          );
+        }
+        break;
+      }
+      case TimePeriod.Dusk: {
+        // Sun setting — mid-left, dropping lower
+        const sx = w * 0.15;
+        const sy = skyH * 0.72;
+        gfx.fillStyle(0xff6633, 0.15);
+        gfx.fillCircle(sx, sy, 55);
+        gfx.fillStyle(0xff8844, 0.2);
+        gfx.fillCircle(sx, sy, 32);
+        gfx.fillStyle(0xff7733, 1);
+        gfx.fillCircle(sx, sy, 17);
+        gfx.fillStyle(0xffaa55, 1);
+        gfx.fillCircle(sx - 2, sy - 2, 11);
+        break;
+      }
+      case TimePeriod.Night: {
+        // Moon — upper-left area (well away from monster at top-right)
+        const mx = w * 0.18;
+        const my = skyH * 0.2;
+        gfx.fillStyle(0xaabbdd, 0.1);
+        gfx.fillCircle(mx, my, 45);
+        gfx.fillStyle(0xccddff, 0.12);
+        gfx.fillCircle(mx, my, 28);
+        gfx.fillStyle(0xe8eeff, 1);
+        gfx.fillCircle(mx, my, 14);
+        gfx.fillStyle(0x0a0a1a, 1);
+        gfx.fillCircle(mx + 6, my - 4, 11);
+        // Stars — scattered across sky but avoiding monster area (right 60-90% x)
+        gfx.fillStyle(0xffffff, 0.7);
+        const starPositions = [
+          [w * 0.05, skyH * 0.12], [w * 0.15, skyH * 0.42],
+          [w * 0.28, skyH * 0.08], [w * 0.38, skyH * 0.3],
+          [w * 0.42, skyH * 0.05], [w * 0.08, skyH * 0.28],
+          [w * 0.32, skyH * 0.4], [w * 0.48, skyH * 0.15],
+        ];
+        for (const [sx, sy] of starPositions) {
+          gfx.fillCircle(sx, sy, 1.5);
+        }
+        gfx.fillStyle(0xccccee, 0.4);
+        gfx.fillCircle(w * 0.03, skyH * 0.35, 1);
+        gfx.fillCircle(w * 0.25, skyH * 0.48, 1);
+        gfx.fillCircle(w * 0.45, skyH * 0.38, 1);
+        gfx.fillCircle(w * 0.35, skyH * 0.18, 1);
+        break;
+      }
+    }
+  }
+
+  /** Apply day/night tint to the battle background, monster, and player sprites. */
+  private applyDayNightTint(): void {
+    const period = getTimePeriod(this.timeStep);
+    const tint = PERIOD_TINT[period];
+    // Tint the background image
+    if (this.bgImage) {
+      this.bgImage.setTint(tint);
+    }
+    // Tint monster sprite (blend with its color tint)
+    if (tint !== 0xffffff) {
+      // Blend the monster's base color with the time-of-day tint
+      const monsterColor = this.monster.color;
+      const blended = this.blendTints(monsterColor, tint);
+      this.monsterSprite.setTint(blended);
+      // Player sprite gets pure time tint
+      this.playerSprite.setTint(tint);
+    }
+  }
+
+  /** Blend two 0xRRGGBB colors — 70% first, 30% second. */
+  private blendTints(a: number, b: number): number {
+    const rA = (a >> 16) & 0xff, gA = (a >> 8) & 0xff, bA = a & 0xff;
+    const rB = (b >> 16) & 0xff, gB = (b >> 8) & 0xff, bB = b & 0xff;
+    const r = Math.round(rA * 0.7 + rB * 0.3);
+    const g = Math.round(gA * 0.7 + gB * 0.3);
+    const bl = Math.round(bA * 0.7 + bB * 0.3);
+    return (r << 16) | (g << 8) | bl;
   }
 
   /** Create weather particle effects for the battle scene. */

@@ -25,6 +25,8 @@ import {
 import { MONSTERS, getRandomEncounter, getBoss, DUNGEON_MONSTERS, getDungeonEncounter, DUNGEON_MONSTER_POOLS, HEARTLANDS_CRYPT_MONSTERS, FROST_CAVERN_MONSTERS, VOLCANIC_FORGE_MONSTERS, NIGHT_MONSTERS, getNightEncounter, TUNDRA_NIGHT_MONSTERS, SWAMP_NIGHT_MONSTERS, FOREST_NIGHT_MONSTERS, CANYON_NIGHT_MONSTERS } from "../src/data/monsters";
 import { SPELLS, getSpell, getAvailableSpells } from "../src/data/spells";
 import { ITEMS, getItem, getShopItems, getShopItemsForTown } from "../src/data/items";
+import { ABILITIES, getAbility } from "../src/data/abilities";
+import { PLAYER_APPEARANCES, getAppearance, CASTER_CLASSES } from "../src/systems/appearance";
 
 describe("game data", () => {
   describe("world map", () => {
@@ -195,6 +197,23 @@ describe("game data", () => {
       const types = new Set(SPELLS.map((s) => s.type));
       expect(types.has("damage")).toBe(true);
       expect(types.has("heal")).toBe(true);
+    });
+
+    it("has class-specific spells", () => {
+      // Warlock-specific spells
+      expect(getSpell("eldritchBlast")).toBeDefined();
+      expect(getSpell("hexCurse")).toBeDefined();
+      expect(getSpell("hungerOfHadar")).toBeDefined();
+      // Cleric-specific spells
+      expect(getSpell("sacredFlame")).toBeDefined();
+      expect(getSpell("spiritGuardians")).toBeDefined();
+      // Mage-specific spells
+      expect(getSpell("arcaneRecovery")).toBeDefined();
+    });
+
+    it("each spell has a unique ID", () => {
+      const ids = SPELLS.map((s) => s.id);
+      expect(new Set(ids).size).toBe(ids.length);
     });
   });
 
@@ -620,6 +639,84 @@ describe("game data", () => {
         );
         expect(town, `city ${city.name} has no matching town`).toBeDefined();
       }
+    });
+  });
+
+  describe("class system", () => {
+    it("has 8 distinct classes", () => {
+      expect(PLAYER_APPEARANCES).toHaveLength(8);
+      const ids = PLAYER_APPEARANCES.map((a) => a.id);
+      expect(new Set(ids).size).toBe(8);
+    });
+
+    it("each class has description and playstyle", () => {
+      for (const app of PLAYER_APPEARANCES) {
+        expect(app.description.length).toBeGreaterThan(10);
+        expect(app.playstyle.length).toBeGreaterThan(3);
+      }
+    });
+
+    it("each class has a hit die between 6 and 12", () => {
+      for (const app of PLAYER_APPEARANCES) {
+        expect(app.hitDie).toBeGreaterThanOrEqual(6);
+        expect(app.hitDie).toBeLessThanOrEqual(12);
+      }
+    });
+
+    it("barbarian has the highest hit die (d12)", () => {
+      const barbarian = getAppearance("barbarian");
+      expect(barbarian.hitDie).toBe(12);
+    });
+
+    it("mage has the lowest hit die (d6)", () => {
+      const mage = getAppearance("mage");
+      expect(mage.hitDie).toBe(6);
+    });
+
+    it("each class has a weapon sprite type", () => {
+      const weaponTypes = new Set(PLAYER_APPEARANCES.map((a) => a.weaponSprite));
+      expect(weaponTypes.size).toBeGreaterThanOrEqual(4);
+    });
+
+    it("pure caster classes have no martial abilities", () => {
+      for (const casterId of CASTER_CLASSES) {
+        const app = getAppearance(casterId);
+        expect(app.abilities, `${app.label} should have no abilities`).toHaveLength(0);
+      }
+    });
+
+    it("martial classes have at least 3 abilities", () => {
+      const martialClasses = ["knight", "ranger", "rogue", "paladin", "barbarian"];
+      for (const classId of martialClasses) {
+        const app = getAppearance(classId);
+        expect(app.abilities.length, `${app.label} should have abilities`).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it("all class spell IDs reference valid spells", () => {
+      for (const app of PLAYER_APPEARANCES) {
+        for (const spellId of app.spells) {
+          expect(getSpell(spellId), `${app.label} references unknown spell ${spellId}`).toBeDefined();
+        }
+      }
+    });
+
+    it("all class ability IDs reference valid abilities", () => {
+      for (const app of PLAYER_APPEARANCES) {
+        for (const abilityId of app.abilities) {
+          expect(getAbility(abilityId), `${app.label} references unknown ability ${abilityId}`).toBeDefined();
+        }
+      }
+    });
+
+    it("rogue and barbarian have no spells", () => {
+      expect(getAppearance("rogue").spells).toHaveLength(0);
+      expect(getAppearance("barbarian").spells).toHaveLength(0);
+    });
+
+    it("each ability has a unique ID", () => {
+      const ids = ABILITIES.map((a) => a.id);
+      expect(new Set(ids).size).toBe(ids.length);
     });
   });
 });

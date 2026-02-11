@@ -312,4 +312,58 @@ describe("player system", () => {
       expect(player.maxMp).toBe(prevMaxMp + 4); // +1 per level
     });
   });
+
+  describe("class differentiation", () => {
+    it("each class has unique starting spell or ability", () => {
+      const startingSpells = new Set<string>();
+      const startingAbilities = new Set<string>();
+      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian"]) {
+        const player = createPlayer("Test", defaultStats, classId);
+        if (player.knownSpells.length > 0) startingSpells.add(player.knownSpells[0]);
+        if (player.knownAbilities.length > 0) startingAbilities.add(player.knownAbilities[0]);
+      }
+      // At least 3 distinct starting spells/abilities across classes
+      expect(startingSpells.size + startingAbilities.size).toBeGreaterThanOrEqual(3);
+    });
+
+    it("rogue and barbarian have no spells (pure martial)", () => {
+      const rogue = createPlayer("Rogue", defaultStats, "rogue");
+      const barbarian = createPlayer("Barb", defaultStats, "barbarian");
+      expect(rogue.knownSpells).toHaveLength(0);
+      expect(barbarian.knownSpells).toHaveLength(0);
+    });
+
+    it("mage has no martial abilities", () => {
+      const mage = createPlayer("Mage", defaultStats, "mage");
+      expect(mage.knownAbilities).toHaveLength(0);
+    });
+
+    it("attack modifier uses class primary stat", () => {
+      // Mage has primaryStat=intelligence, so attack mod depends on INT
+      const mageStats = { ...defaultStats, intelligence: 16 };
+      const mage = createPlayer("Mage", mageStats, "mage");
+      // INT 16+2=18 -> mod +4, proficiency +2 = 6
+      expect(getAttackModifier(mage)).toBe(6);
+
+      // Knight has primaryStat=strength, so attack mod depends on STR
+      const knightStats = { ...defaultStats, strength: 16 };
+      const knight = createPlayer("Knight", knightStats, "knight");
+      // STR 16+2=18 -> mod +4, proficiency +2 = 6
+      expect(getAttackModifier(knight)).toBe(6);
+    });
+
+    it("spell modifier uses class primary stat", () => {
+      // Warlock has primaryStat=charisma
+      const warlockStats = { ...defaultStats, charisma: 14 };
+      const warlock = createPlayer("Warlock", warlockStats, "warlock");
+      // CHA 14+2=16 -> mod +3, proficiency +2 = 5
+      expect(getSpellModifier(warlock)).toBe(5);
+
+      // Cleric has primaryStat=wisdom
+      const clericStats = { ...defaultStats, wisdom: 14 };
+      const cleric = createPlayer("Cleric", clericStats, "cleric");
+      // WIS 14+2=16 -> mod +3, proficiency +2 = 5
+      expect(getSpellModifier(cleric)).toBe(5);
+    });
+  });
 });

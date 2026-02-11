@@ -111,8 +111,8 @@ export function createPlayer(
   const startHp = Math.max(10, 25 + conMod * 3);
   const startMp = Math.max(4, 8 + intMod * 2);
 
-  // Starting spell — first spell in the class list
-  const startingSpell = appearance.spells[0] ?? "fireBolt";
+  // Starting spell — first spell in the class list (empty for pure martial)
+  const startingSpells: string[] = appearance.spells.length > 0 ? [appearance.spells[0]] : [];
 
   // Starting abilities — all class abilities available at level 1
   const classAbilities = appearance.abilities ?? [];
@@ -133,7 +133,7 @@ export function createPlayer(
     pendingStatPoints: 0,
     gold: 50,
     inventory: [],
-    knownSpells: [startingSpell],
+    knownSpells: startingSpells,
     knownAbilities: startingAbilities,
     knownTalents: [],
     equippedWeapon: null,

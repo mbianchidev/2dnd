@@ -25,7 +25,7 @@ export interface MountData {
   cost: number;
   /**
    * Movement speed multiplier.
-   * 1.0 = normal, 1.5 = 50 % faster, 2.0 = double speed.
+   * 1.0 = normal, 1.5 = 50% faster, 2.0 = double speed.
    * Applied by halving `moveDelay` proportionally.
    */
   speedMultiplier: number;

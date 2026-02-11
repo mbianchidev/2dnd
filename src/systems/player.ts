@@ -315,7 +315,7 @@ export function useItem(
   }
 
   if (item.type === "consumable") {
-    if (item.id === "potion") {
+    if (item.id === "potion" || item.id === "greaterPotion") {
       const healed = Math.min(item.effect, player.maxHp - player.hp);
       player.hp += healed;
       player.inventory.splice(itemIndex, 1);
@@ -326,6 +326,12 @@ export function useItem(
       player.mp += restored;
       player.inventory.splice(itemIndex, 1);
       return { used: true, message: `Restored ${restored} MP!` };
+    }
+    if (item.id === "chimaeraWing") {
+      // Chimaera Wing teleportation is handled by the scene;
+      // here we just consume the item and signal success.
+      player.inventory.splice(itemIndex, 1);
+      return { used: true, message: "The Chimaera Wing glows and whisks you away!" };
     }
   }
 

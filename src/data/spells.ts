@@ -12,7 +12,7 @@ export interface Spell {
   levelRequired: number;
   damageCount: number; // number of dice
   damageDie: DieType; // die type
-  type: "damage" | "heal";
+  type: "damage" | "heal" | "utility";
 }
 
 export const SPELLS: Spell[] = [
@@ -65,6 +65,16 @@ export const SPELLS: Spell[] = [
     damageCount: 2,
     damageDie: 8,
     type: "heal",
+  },
+  {
+    id: "teleport",
+    name: "Teleport",
+    description: "Teleport to a known town",
+    mpCost: 8,
+    levelRequired: 5,
+    damageCount: 0,
+    damageDie: 4,
+    type: "utility",
   },
   {
     id: "fireball",

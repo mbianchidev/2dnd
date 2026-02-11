@@ -39,7 +39,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
       "fireball", "greaterHeal", "iceStorm", "heal",
       "chainLightning", "meteorSwarm",
     ],
-    abilities: ["shieldBash", "powerAttack", "secondWind", "championStrike"],
+    abilities: ["shieldBash", "powerAttack", "secondWind", "championStrike", "fastTravel"],
   },
   {
     id: "ranger", label: "Ranger",
@@ -51,7 +51,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
       "fireball", "lightningBolt", "greaterHeal", "massHealingWord",
       "heal", "regenerate",
     ],
-    abilities: ["aimedShot", "huntersMark", "naturesRemedy", "deadeye"],
+    abilities: ["aimedShot", "huntersMark", "naturesRemedy", "deadeye", "fastTravel"],
   },
   {
     id: "mage", label: "Mage",
@@ -59,11 +59,11 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { intelligence: 2, wisdom: 1 },
     primaryStat: "intelligence",
     spells: [
-      "fireBolt", "magicMissile", "thunderwave", "healingWord",
+      "fireBolt", "magicMissile", "thunderwave", "healingWord", "teleport",
       "fireball", "lightningBolt", "iceStorm", "coneOfCold",
       "chainLightning", "disintegrate", "heal", "meteorSwarm",
     ],
-    abilities: [],
+    abilities: ["fastTravel"],
   },
   {
     id: "rogue", label: "Rogue",
@@ -75,7 +75,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
       "healingWord", "lightningBolt", "iceStorm", "coneOfCold",
       "chainLightning", "disintegrate",
     ],
-    abilities: ["sneakAttack", "cunningStrike", "shadowStep", "assassinate"],
+    abilities: ["sneakAttack", "cunningStrike", "shadowStep", "assassinate", "fastTravel"],
   },
   {
     id: "paladin", label: "Paladin",
@@ -87,7 +87,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
       "fireball", "greaterHeal", "massHealingWord", "heal",
       "regenerate", "powerWordHeal",
     ],
-    abilities: ["smite", "layOnHands", "holyStrike", "greaterSmite"],
+    abilities: ["smite", "layOnHands", "holyStrike", "greaterSmite", "fastTravel"],
   },
   {
     id: "warlock", label: "Warlock",
@@ -95,11 +95,11 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { charisma: 2, intelligence: 1 },
     primaryStat: "charisma",
     spells: [
-      "fireBolt", "magicMissile", "cureWounds", "thunderwave",
+      "fireBolt", "magicMissile", "cureWounds", "thunderwave", "teleport",
       "fireball", "lightningBolt", "greaterHeal", "coneOfCold",
       "disintegrate", "meteorSwarm",
     ],
-    abilities: [],
+    abilities: ["fastTravel"],
   },
   {
     id: "cleric", label: "Cleric",
@@ -107,11 +107,11 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { wisdom: 2, constitution: 1 },
     primaryStat: "wisdom",
     spells: [
-      "fireBolt", "cureWounds", "healingWord", "thunderwave",
+      "fireBolt", "cureWounds", "healingWord", "thunderwave", "teleport",
       "greaterHeal", "iceStorm", "massHealingWord", "heal",
       "regenerate", "powerWordHeal",
     ],
-    abilities: [],
+    abilities: ["fastTravel"],
   },
   {
     id: "barbarian", label: "Barbarian",
@@ -123,7 +123,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
       "healingWord", "lightningBolt", "iceStorm", "greaterHeal",
       "chainLightning", "meteorSwarm",
     ],
-    abilities: ["recklessStrike", "rage", "endure", "titansBlow"],
+    abilities: ["recklessStrike", "rage", "endure", "titansBlow", "fastTravel"],
   },
 ];
 

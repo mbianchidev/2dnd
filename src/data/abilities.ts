@@ -13,7 +13,7 @@ export interface Ability {
   levelRequired: number;
   damageCount: number;
   damageDie: DieType;
-  type: "damage" | "heal";
+  type: "damage" | "heal" | "utility";
   /** Which stat drives the attack roll. */
   statKey: "strength" | "dexterity";
 }
@@ -147,6 +147,14 @@ export const ABILITIES: Ability[] = [
     description: "A strike that shakes the earth",
     mpCost: 12, levelRequired: 15, damageCount: 5, damageDie: 10,
     type: "damage", statKey: "strength",
+  },
+
+  // ── Fast Travel (all classes) ────────────────────────────────
+  {
+    id: "fastTravel", name: "Fast Travel",
+    description: "Travel instantly to a known town",
+    mpCost: 5, levelRequired: 5, damageCount: 0, damageDie: 4,
+    type: "utility", statKey: "dexterity",
   },
 ];
 

@@ -38,6 +38,14 @@ export const ITEMS: Item[] = [
     effect: 50,
   },
   {
+    id: "chimaeraWing",
+    name: "Chimaera Wing",
+    description: "Teleports to a known town",
+    type: "consumable",
+    cost: 75,
+    effect: 0,
+  },
+  {
     id: "shortSword",
     name: "Short Sword",
     description: "+2 attack damage",

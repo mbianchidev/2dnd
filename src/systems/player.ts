@@ -2,7 +2,7 @@
  * Player state management: stats, leveling, experience, spell unlocks.
  */
 
-import { abilityModifier, rollAbilityScore } from "../utils/dice";
+import { abilityModifier } from "../utils/dice";
 import type { Spell } from "../data/spells";
 import { SPELLS } from "../data/spells";
 import type { Ability } from "../data/abilities";
@@ -18,6 +18,30 @@ export interface PlayerStats {
   intelligence: number;
   wisdom: number;
   charisma: number;
+}
+
+// ── Point Buy System (D&D 5e) ─────────────────────────────────
+
+/** Cost for each ability score value in the Point Buy system. */
+export const POINT_BUY_COSTS: Record<number, number> = {
+  8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9,
+};
+
+/** Total points available in Point Buy. */
+export const POINT_BUY_TOTAL = 27;
+
+/** Calculate total points spent for a given stat distribution. */
+export function calculatePointsSpent(stats: PlayerStats): number {
+  return Object.values(stats).reduce((sum, val) => sum + (POINT_BUY_COSTS[val] ?? 0), 0);
+}
+
+/** Check if a stat distribution is a valid Point Buy allocation. */
+export function isValidPointBuy(stats: PlayerStats): boolean {
+  const values = Object.values(stats);
+  return (
+    values.every(v => v >= 8 && v <= 15) &&
+    calculatePointsSpent(stats) === POINT_BUY_TOTAL
+  );
 }
 
 export interface PlayerState {
@@ -46,8 +70,15 @@ export interface PlayerState {
   chunkY: number; // world chunk Y coordinate
   inDungeon: boolean;  // true when inside a dungeon interior
   dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
+  inCity: boolean;     // true when inside a city interior
+  cityId: string;      // ID of the current city (empty if not in city)
   openedChests: string[]; // IDs of chests already opened
+  collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
+  lastTownX: number;      // last town tile x (respawn point on death)
+  lastTownY: number;      // last town tile y
+  lastTownChunkX: number; // last town chunk x
+  lastTownChunkY: number; // last town chunk y
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -58,25 +89,17 @@ export function xpForLevel(level: number): number {
   return level * level * 100;
 }
 
-/** Create a fresh level-1 player with 4d6-drop-lowest rolled stats + class boosts. */
+/** Create a fresh level-1 player with provided base stats + class boosts. */
 export function createPlayer(
   name: string,
+  baseStats: PlayerStats,
   appearanceId: string = "knight",
   customAppearance?: { skinColor: number; hairStyle: number; hairColor: number }
 ): PlayerState {
   const appearance = getAppearance(appearanceId);
 
-  // Roll base stats — subtract 1 from each to compensate for class bonuses
-  const roll = () => Math.max(3, rollAbilityScore() - 1);
-
-  const stats: PlayerStats = {
-    strength: roll(),
-    dexterity: roll(),
-    constitution: roll(),
-    intelligence: roll(),
-    wisdom: roll(),
-    charisma: roll(),
-  };
+  // Copy base stats
+  const stats: PlayerStats = { ...baseStats };
 
   // Apply class stat boosts
   for (const [key, bonus] of Object.entries(appearance.statBoosts)) {
@@ -120,12 +143,19 @@ export function createPlayer(
     customAppearance,
     x: 3,
     y: 3,
-    chunkX: 1,
-    chunkY: 1,
+    chunkX: 4,
+    chunkY: 2,
     inDungeon: false,
     dungeonId: "",
+    inCity: false,
+    cityId: "",
     openedChests: [],
+    collectedTreasures: [],
     exploredTiles: {},
+    lastTownX: 2,       // Willowdale default
+    lastTownY: 2,
+    lastTownChunkX: 4,
+    lastTownChunkY: 2,
   };
 }
 

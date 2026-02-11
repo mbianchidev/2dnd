@@ -17,8 +17,12 @@ import {
   getDungeon,
   CHESTS,
   getChestAt,
+  CITIES,
+  getCity,
+  getCityForTown,
+  getCityShopAt,
 } from "../src/data/map";
-import { MONSTERS, getRandomEncounter, getBoss, DUNGEON_MONSTERS, getDungeonEncounter } from "../src/data/monsters";
+import { MONSTERS, getRandomEncounter, getBoss, DUNGEON_MONSTERS, getDungeonEncounter, DUNGEON_MONSTER_POOLS, HEARTLANDS_CRYPT_MONSTERS, FROST_CAVERN_MONSTERS, VOLCANIC_FORGE_MONSTERS, NIGHT_MONSTERS, getNightEncounter, TUNDRA_NIGHT_MONSTERS, SWAMP_NIGHT_MONSTERS, FOREST_NIGHT_MONSTERS, CANYON_NIGHT_MONSTERS } from "../src/data/monsters";
 import { SPELLS, getSpell, getAvailableSpells } from "../src/data/spells";
 import { ITEMS, getItem, getShopItems, getShopItemsForTown } from "../src/data/items";
 
@@ -46,7 +50,7 @@ describe("game data", () => {
 
     it("has walkable town tiles in their chunks", () => {
       const towns = getAllTowns();
-      expect(towns.length).toBeGreaterThanOrEqual(4);
+      expect(towns.length).toBeGreaterThanOrEqual(12);
       for (const town of towns) {
         const terrain = getTerrainAt(town.chunkX, town.chunkY, town.x, town.y);
         expect(terrain).toBe(Terrain.Town);
@@ -56,7 +60,7 @@ describe("game data", () => {
 
     it("has boss tiles at boss locations", () => {
       const bosses = getAllBosses();
-      expect(bosses.length).toBeGreaterThanOrEqual(2);
+      expect(bosses.length).toBeGreaterThanOrEqual(6);
       for (const boss of bosses) {
         const terrain = getTerrainAt(boss.chunkX, boss.chunkY, boss.x, boss.y);
         expect(terrain).toBe(Terrain.Boss);
@@ -82,10 +86,11 @@ describe("game data", () => {
       expect(getTerrainAt(1, 1, 0, MAP_HEIGHT)).toBeUndefined();
     });
 
-    it("water and mountain are not walkable", () => {
+    it("water, mountain, and volcanic are not walkable", () => {
       expect(isWalkable(Terrain.Water)).toBe(false);
       expect(isWalkable(Terrain.Mountain)).toBe(false);
       expect(isWalkable(Terrain.DungeonWall)).toBe(false);
+      expect(isWalkable(Terrain.Volcanic)).toBe(false);
     });
 
     it("towns have no random encounters", () => {
@@ -243,8 +248,8 @@ describe("game data", () => {
       const townsWithKey = towns.filter((t) => t.shopItems.includes("dungeonKey"));
       expect(townsWithKey).toHaveLength(1);
       expect(townsWithKey[0].name).toBe("Willowdale");
-      expect(townsWithKey[0].chunkX).toBe(1);
-      expect(townsWithKey[0].chunkY).toBe(1);
+      expect(townsWithKey[0].chunkX).toBe(4);
+      expect(townsWithKey[0].chunkY).toBe(2);
     });
   });
 
@@ -341,11 +346,10 @@ describe("game data", () => {
       }
     });
 
-    it("getDungeonEncounter returns a non-boss dungeon monster copy", () => {
+    it("getDungeonEncounter returns a non-boss monster copy", () => {
       for (let i = 0; i < 20; i++) {
         const m = getDungeonEncounter(5);
         expect(m.isBoss).toBe(false);
-        expect(DUNGEON_MONSTERS.some((dm) => dm.id === m.id)).toBe(true);
       }
     });
 
@@ -354,6 +358,90 @@ describe("game data", () => {
       const m2 = getDungeonEncounter(1);
       m1.hp = 0;
       expect(m2.hp).toBeGreaterThan(0);
+    });
+
+    it("each dungeon has a unique monster pool", () => {
+      expect(HEARTLANDS_CRYPT_MONSTERS.length).toBeGreaterThanOrEqual(2);
+      expect(FROST_CAVERN_MONSTERS.length).toBeGreaterThanOrEqual(2);
+      expect(VOLCANIC_FORGE_MONSTERS.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("dungeon-specific monsters have unique IDs", () => {
+      const allIds = [
+        ...HEARTLANDS_CRYPT_MONSTERS.map((m) => m.id),
+        ...FROST_CAVERN_MONSTERS.map((m) => m.id),
+        ...VOLCANIC_FORGE_MONSTERS.map((m) => m.id),
+      ];
+      expect(new Set(allIds).size).toBe(allIds.length);
+    });
+
+    it("dungeon-specific monsters are not bosses", () => {
+      for (const m of [...HEARTLANDS_CRYPT_MONSTERS, ...FROST_CAVERN_MONSTERS, ...VOLCANIC_FORGE_MONSTERS]) {
+        expect(m.isBoss).toBe(false);
+      }
+    });
+
+    it("getDungeonEncounter with dungeonId uses correct pool", () => {
+      for (let i = 0; i < 30; i++) {
+        const m = getDungeonEncounter(10, "heartlands_dungeon");
+        const pool = DUNGEON_MONSTER_POOLS["heartlands_dungeon"];
+        expect(pool.some((dm) => dm.id === m.id)).toBe(true);
+      }
+    });
+
+    it("getDungeonEncounter without dungeonId uses generic pool", () => {
+      for (let i = 0; i < 20; i++) {
+        const m = getDungeonEncounter(5);
+        expect(DUNGEON_MONSTERS.some((dm) => dm.id === m.id)).toBe(true);
+      }
+    });
+  });
+
+  describe("night monsters", () => {
+    it("has generic night monsters", () => {
+      expect(NIGHT_MONSTERS.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("has biome-specific night monsters", () => {
+      expect(TUNDRA_NIGHT_MONSTERS.length).toBeGreaterThanOrEqual(2);
+      expect(SWAMP_NIGHT_MONSTERS.length).toBeGreaterThanOrEqual(2);
+      expect(FOREST_NIGHT_MONSTERS.length).toBeGreaterThanOrEqual(2);
+      expect(CANYON_NIGHT_MONSTERS.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("biome night monsters are not bosses", () => {
+      for (const m of [...TUNDRA_NIGHT_MONSTERS, ...SWAMP_NIGHT_MONSTERS, ...FOREST_NIGHT_MONSTERS, ...CANYON_NIGHT_MONSTERS]) {
+        expect(m.isBoss).toBe(false);
+      }
+    });
+
+    it("getNightEncounter returns a non-boss copy", () => {
+      for (let i = 0; i < 20; i++) {
+        const m = getNightEncounter(5);
+        expect(m.isBoss).toBe(false);
+        expect(m.hp).toBeGreaterThan(0);
+      }
+    });
+
+    it("getNightEncounter with tundra biome uses tundra pool", () => {
+      for (let i = 0; i < 20; i++) {
+        const m = getNightEncounter(10, "Frozen Expanse");
+        expect(TUNDRA_NIGHT_MONSTERS.some((nm) => nm.id === m.id)).toBe(true);
+      }
+    });
+
+    it("getNightEncounter with swamp biome uses swamp pool", () => {
+      for (let i = 0; i < 20; i++) {
+        const m = getNightEncounter(10, "Murky Wilds");
+        expect(SWAMP_NIGHT_MONSTERS.some((nm) => nm.id === m.id)).toBe(true);
+      }
+    });
+
+    it("getNightEncounter with unknown biome falls back to generic", () => {
+      for (let i = 0; i < 20; i++) {
+        const m = getNightEncounter(5, "Heartlands");
+        expect(NIGHT_MONSTERS.some((nm) => nm.id === m.id)).toBe(true);
+      }
     });
   });
 
@@ -416,6 +504,122 @@ describe("game data", () => {
 
     it("Chest terrain has zero encounter rate", () => {
       expect(ENCOUNTER_RATES[Terrain.Chest]).toBe(0);
+    });
+  });
+
+  describe("cities", () => {
+    it("has at least one city defined", () => {
+      expect(CITIES.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("city maps have correct dimensions", () => {
+      for (const city of CITIES) {
+        expect(city.mapData).toHaveLength(MAP_HEIGHT);
+        for (const row of city.mapData) {
+          expect(row).toHaveLength(MAP_WIDTH);
+        }
+      }
+    });
+
+    it("city spawn point is walkable", () => {
+      for (const city of CITIES) {
+        const terrain = city.mapData[city.spawnY][city.spawnX];
+        expect(isWalkable(terrain)).toBe(true);
+      }
+    });
+
+    it("city has at least one exit tile", () => {
+      for (const city of CITIES) {
+        let hasExit = false;
+        for (const row of city.mapData) {
+          if (row.includes(Terrain.CityExit)) {
+            hasExit = true;
+            break;
+          }
+        }
+        expect(hasExit).toBe(true);
+      }
+    });
+
+    it("city has at least one shop", () => {
+      for (const city of CITIES) {
+        expect(city.shops.length).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    it("city shop locations are on walkable tiles", () => {
+      for (const city of CITIES) {
+        for (const shop of city.shops) {
+          const terrain = city.mapData[shop.y][shop.x];
+          expect(isWalkable(terrain), `shop ${shop.name} at (${shop.x},${shop.y}) in ${city.name} is on non-walkable tile`).toBe(true);
+        }
+      }
+    });
+
+    it("city shop item IDs resolve to real items", () => {
+      for (const city of CITIES) {
+        for (const shop of city.shops) {
+          for (const itemId of shop.shopItems) {
+            expect(getItem(itemId), `shop ${shop.name} references unknown item ${itemId}`).toBeDefined();
+          }
+        }
+      }
+    });
+
+    it("getCity returns city by ID", () => {
+      const city = getCity("willowdale_city");
+      expect(city).toBeDefined();
+      expect(city!.name).toBe("Willowdale");
+    });
+
+    it("getCity returns undefined for non-existent ID", () => {
+      expect(getCity("nonexistent")).toBeUndefined();
+    });
+
+    it("getCityForTown returns city for valid town location", () => {
+      const city = getCityForTown(4, 2, 2, 2);
+      expect(city).toBeDefined();
+      expect(city!.id).toBe("willowdale_city");
+    });
+
+    it("getCityForTown returns undefined for non-city towns", () => {
+      expect(getCityForTown(0, 0, 0, 0)).toBeUndefined();
+    });
+
+    it("getCityShopAt returns shop for valid position", () => {
+      const city = getCity("willowdale_city")!;
+      const shop = getCityShopAt(city, city.shops[0].x, city.shops[0].y);
+      expect(shop).toBeDefined();
+      expect(shop!.name).toBe(city.shops[0].name);
+    });
+
+    it("getCityShopAt returns undefined for non-shop position", () => {
+      const city = getCity("willowdale_city")!;
+      expect(getCityShopAt(city, 0, 0)).toBeUndefined();
+    });
+
+    it("city terrain types have correct properties", () => {
+      expect(isWalkable(Terrain.CityFloor)).toBe(true);
+      expect(isWalkable(Terrain.CityExit)).toBe(true);
+      expect(isWalkable(Terrain.CityWall)).toBe(false);
+      expect(ENCOUNTER_RATES[Terrain.CityFloor]).toBe(0);
+      expect(ENCOUNTER_RATES[Terrain.CityWall]).toBe(0);
+      expect(ENCOUNTER_RATES[Terrain.CityExit]).toBe(0);
+    });
+
+    it("each city has a unique ID", () => {
+      const ids = CITIES.map((c) => c.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("cities correspond to existing town locations", () => {
+      const towns = getAllTowns();
+      for (const city of CITIES) {
+        const town = towns.find(
+          (t) => t.chunkX === city.chunkX && t.chunkY === city.chunkY && t.x === city.tileX && t.y === city.tileY
+        );
+        expect(town, `city ${city.name} has no matching town`).toBeDefined();
+      }
     });
   });
 });

@@ -5,6 +5,8 @@
 import type { PlayerState } from "./player";
 import type { BestiaryData } from "./bestiary";
 import { createBestiary } from "./bestiary";
+import type { WeatherState } from "./weather";
+import { createWeatherState } from "./weather";
 
 const SAVE_KEY = "2dnd_save";
 
@@ -15,6 +17,10 @@ export interface SaveData {
   bestiary: BestiaryData;
   appearanceId: string;
   timestamp: number;
+  /** Day/night cycle step counter (added in v1). */
+  timeStep?: number;
+  /** Weather state (added in v1). */
+  weatherState?: WeatherState;
 }
 
 /** Save the current game state. */
@@ -22,7 +28,9 @@ export function saveGame(
   player: PlayerState,
   defeatedBosses: Set<string>,
   bestiary: BestiaryData,
-  appearanceId: string
+  appearanceId: string,
+  timeStep: number = 0,
+  weatherState?: WeatherState
 ): void {
   const data: SaveData = {
     version: 1,
@@ -31,6 +39,8 @@ export function saveGame(
     bestiary,
     appearanceId,
     timestamp: Date.now(),
+    timeStep,
+    weatherState,
   };
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -56,9 +66,19 @@ export function loadGame(): SaveData | null {
     if (data.player.chunkY === undefined) data.player.chunkY = 1;
     if (data.player.inDungeon === undefined) data.player.inDungeon = false;
     if (data.player.dungeonId === undefined) data.player.dungeonId = "";
+    if (data.player.inCity === undefined) data.player.inCity = false;
+    if (data.player.cityId === undefined) data.player.cityId = "";
     if (!data.player.openedChests) data.player.openedChests = [];
+    if (!data.player.collectedTreasures) data.player.collectedTreasures = [];
     if (!data.player.exploredTiles) data.player.exploredTiles = {};
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
+    if (data.timeStep === undefined) data.timeStep = 0;
+    if (!data.weatherState) data.weatherState = createWeatherState();
+    // Backward compat: last town defaults to Willowdale
+    if (data.player.lastTownX === undefined) data.player.lastTownX = 2;
+    if (data.player.lastTownY === undefined) data.player.lastTownY = 2;
+    if (data.player.lastTownChunkX === undefined) data.player.lastTownChunkX = 1;
+    if (data.player.lastTownChunkY === undefined) data.player.lastTownChunkY = 1;
     return data;
   } catch {
     return null;

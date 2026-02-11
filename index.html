@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>2D&amp;D - A Browser JRPG</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -106,13 +107,15 @@
       }
       #debug-log {
         padding: 4px 8px;
-        height: calc(100% - 40px);
+        height: calc(100% - 80px);
         overflow-y: auto;
-        line-height: 1.5;
+        line-spacing: 1.5;
+        scroll-behavior: smooth;
       }
-      #debug-log div { border-bottom: 1px solid #0a1a0a; padding: 1px 0; }
+      #debug-log div { border-bottom: 1px solid #0a1a0a; padding: 2px 0; }
       #debug-log .debug-msg { color: #888800; }
       #debug-log .roll-detail { color: #00aaaa; }
+      #debug-log .log-spacer { border: none; height: 24px; }
       #debug-cmd {
         display: block;
         width: calc(100% - 16px);
@@ -138,7 +141,6 @@
           <span class="key">SPACE</span> <span class="desc">Interact</span><br/>
           <span class="key">B</span> <span class="desc">Bestiary</span><br/>
           <span class="key">E</span> <span class="desc">Equipment</span><br/>
-          <span class="key">T</span> <span class="desc">Stats / ASI</span><br/>
           <span class="key">M</span> <span class="desc">Menu / Quit</span><br/>
           <span class="key">N</span> <span class="desc">World Map</span>
         </div>

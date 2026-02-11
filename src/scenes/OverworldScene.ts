@@ -18,19 +18,58 @@ import {
   getDungeonAt,
   getDungeon,
   getChestAt,
+  DUNGEONS,
+  CITIES,
+  getCity,
+  getCityForTown,
+  getCityShopAt,
+  getCityShopNearby,
+  getTownBiome,
+  hasSparkleAt,
   type WorldChunk,
   type DungeonData,
+  type CityData,
 } from "../data/map";
-import { getRandomEncounter, getDungeonEncounter, getBoss } from "../data/monsters";
+import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear, setDebugCommandHandler } from "../config";
+import { getAppearance } from "../systems/appearance";
+import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
+import { TimePeriod, getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
+import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
+import {
+  type WeatherState,
+  WeatherType,
+  createWeatherState,
+  advanceWeather,
+  changeZoneWeather,
+  getWeatherAccuracyPenalty,
+  getWeatherEncounterMultiplier,
+  getMonsterWeatherBoost,
+  WEATHER_TINT,
+  WEATHER_LABEL,
+} from "../systems/weather";
+import { audioEngine } from "../systems/audio";
 
 const TILE_SIZE = 32;
+
+/**
+ * Blend two 0xRRGGBB tint values, weighting the first (day/night) at 75%
+ * and the second (weather) at 25%.  This keeps the day/night cycle clearly
+ * visible through any weather condition.
+ */
+function blendTints(a: number, b: number): number {
+  const rA = (a >> 16) & 0xff, gA = (a >> 8) & 0xff, bA = a & 0xff;
+  const rB = (b >> 16) & 0xff, gB = (b >> 8) & 0xff, bB = b & 0xff;
+  const r = Math.round(rA * 0.75 + rB * 0.25);
+  const g = Math.round(gA * 0.75 + gB * 0.25);
+  const bl = Math.round(bA * 0.75 + bB * 0.25);
+  return (r << 16) | (g << 8) | bl;
+}
 
 export class OverworldScene extends Phaser.Scene {
   private player!: PlayerState;
@@ -54,21 +93,32 @@ export class OverworldScene extends Phaser.Scene {
   private statOverlay: Phaser.GameObjects.Container | null = null;
   private menuOverlay: Phaser.GameObjects.Container | null = null;
   private worldMapOverlay: Phaser.GameObjects.Container | null = null;
+  private settingsOverlay: Phaser.GameObjects.Container | null = null;
   private isNewPlayer = false;
   private debugEncounters = true; // debug toggle for encounters
   private debugFogDisabled = false; // debug toggle for fog of war
   private messageText: Phaser.GameObjects.Text | null = null;
+  private timeStep = 0; // day/night cycle step counter
+  private weatherState: WeatherState = createWeatherState();
+  private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
+  private biomeDecoEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
+  private cityAnimals: Phaser.GameObjects.Sprite[] = [];
+  private cityAnimalTimers: Phaser.Time.TimerEvent[] = [];
 
   constructor() {
     super({ key: "OverworldScene" });
   }
 
-  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData }): void {
+  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; timeStep?: number; weatherState?: WeatherState }): void {
     if (data?.player) {
       this.player = data.player;
       this.isNewPlayer = false;
     } else {
-      this.player = createPlayer("Hero");
+      this.player = createPlayer("Hero", {
+        strength: 10, dexterity: 10, constitution: 10,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      });
       this.isNewPlayer = true;
     }
     if (data?.defeatedBosses) {
@@ -77,25 +127,45 @@ export class OverworldScene extends Phaser.Scene {
     if (data?.bestiary) {
       this.bestiary = data.bestiary;
     }
+    if (data?.timeStep !== undefined) {
+      this.timeStep = data.timeStep;
+    }
+    if (data?.weatherState) {
+      this.weatherState = data.weatherState;
+    }
     // Reset movement state — a tween may have been orphaned when the scene
     // switched to battle mid-move, leaving isMoving permanently true.
     this.isMoving = false;
     this.lastMoveTime = 0;
+    // Clear stale particle reference — scene.restart destroys all game objects
+    // but doesn't re-run class property initialisers.
+    this.weatherParticles = null;
+    this.stormLightningTimer = null;
   }
 
   create(): void {
     this.cameras.main.setBackgroundColor(0x111111);
     this.cameras.main.fadeIn(500);
 
+    // Dungeons are enclosed — always force clear weather
+    if (this.player.inDungeon) {
+      this.weatherState.current = WeatherType.Clear;
+    }
+
     // Reveal tiles around player on creation (fog of war)
     this.revealAround();
 
     this.renderMap();
+    this.applyDayNightTint();
     this.createPlayer();
     this.setupInput();
     this.createHUD();
     this.setupDebug();
     this.updateLocationText();
+    this.updateWeatherParticles();
+
+    // Start audio: biome music + weather SFX
+    this.updateAudio();
 
     // Show rolled stats on new game, or ASI overlay if points are pending
     if (this.isNewPlayer) {
@@ -109,52 +179,19 @@ export class OverworldScene extends Phaser.Scene {
     debugPanelClear();
     debugPanelState("OVERWORLD | Loading...");
 
-    // Cheat keys (only work when debug is on)
-    const gKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
-    const lKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L);
-    const hKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
-    const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+    const cb = {
+      updateUI: () => this.updateHUD(),
+      onLevelUp: (_asiGained: number) => {
+        this.time.delayedCall(200, () => {
+          if (this.player.pendingStatPoints > 0) this.showStatOverlay();
+        });
+      },
+    };
 
-    gKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.gold += 100;
-      debugLog("CHEAT: +100 gold", { total: this.player.gold });
-      debugPanelLog(`[CHEAT] +100 gold (total: ${this.player.gold})`, true);
-      this.updateHUD();
-    });
+    // Shared hotkeys: G=Gold, H=Heal, P=MP, L=LvUp
+    registerSharedHotkeys(this, this.player, cb);
 
-    lKey.on("down", () => {
-      if (!isDebug()) return;
-      const needed = xpForLevel(this.player.level + 1) - this.player.xp;
-      const xpResult = awardXP(this.player, Math.max(needed, 0));
-      debugLog("CHEAT: Level up", { newLevel: xpResult.newLevel });
-      debugPanelLog(`[CHEAT] Level up! Now Lv.${xpResult.newLevel}`, true);
-      for (const spell of xpResult.newSpells) {
-        debugPanelLog(`[CHEAT] Learned ${spell.name}!`, true);
-      }
-      if (xpResult.asiGained > 0) {
-        debugPanelLog(`[CHEAT] +${xpResult.asiGained} stat points! Press T.`, true);
-      }
-      this.updateHUD();
-    });
-
-    hKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.hp = this.player.maxHp;
-      debugLog("CHEAT: Full heal");
-      debugPanelLog(`[CHEAT] HP restored to ${this.player.maxHp}!`, true);
-      this.updateHUD();
-    });
-
-    pKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.mp = this.player.maxMp;
-      debugLog("CHEAT: Restore MP");
-      debugPanelLog(`[CHEAT] MP restored to ${this.player.maxMp}!`, true);
-      this.updateHUD();
-    });
-
-    // F key — toggle encounters on/off
+    // Overworld-only hotkeys
     const fKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     fKey.on("down", () => {
       if (!isDebug()) return;
@@ -163,22 +200,13 @@ export class OverworldScene extends Phaser.Scene {
       debugPanelLog(`[CHEAT] Encounters ${this.debugEncounters ? "ON" : "OFF"}`, true);
     });
 
-    // R key — reveal full map (remove fog)
     const rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     rKey.on("down", () => {
       if (!isDebug()) return;
-      for (let y = 0; y < MAP_HEIGHT; y++) {
-        for (let x = 0; x < MAP_WIDTH; x++) {
-          const key = this.exploredKey(x, y);
-          this.player.exploredTiles[key] = true;
-        }
-      }
-      this.renderMap();
-      this.createPlayer();
+      this.revealEntireWorld();
       debugPanelLog(`[CHEAT] Map revealed`, true);
     });
 
-    // V key — toggle fog of war on/off
     const vKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     vKey.on("down", () => {
       if (!isDebug()) return;
@@ -189,80 +217,226 @@ export class OverworldScene extends Phaser.Scene {
       this.createPlayer();
     });
 
-    // Register debug command handler
-    setDebugCommandHandler((cmd, args) => this.handleDebugCommand(cmd, args));
-  }
+    // Slash commands: shared + overworld-specific
+    const cmds = buildSharedCommands(this.player, cb);
 
-  private handleDebugCommand(cmd: string, args: string): void {
-    const val = parseInt(args, 10);
-    switch (cmd) {
-      case "gold":
-        if (!isNaN(val)) { this.player.gold = val; this.updateHUD(); debugPanelLog(`[CMD] Gold set to ${val}`, true); }
-        else debugPanelLog(`Usage: /gold <amount>`, true);
-        break;
-      case "exp":
-      case "xp":
-        if (!isNaN(val)) {
-          const result = awardXP(this.player, val);
-          this.updateHUD();
-          debugPanelLog(`[CMD] +${val} XP (now Lv.${result.newLevel})`, true);
-          if (result.leveledUp) debugPanelLog(`[CMD] Level up to ${result.newLevel}!`, true);
-        } else debugPanelLog(`Usage: /exp <amount>`, true);
-        break;
-      case "hp":
-        if (!isNaN(val)) { this.player.hp = Math.min(val, this.player.maxHp); this.updateHUD(); debugPanelLog(`[CMD] HP set to ${this.player.hp}`, true); }
-        else debugPanelLog(`Usage: /hp <amount>`, true);
-        break;
-      case "max_hp":
-      case "maxhp":
-        if (!isNaN(val)) { this.player.maxHp = val; this.player.hp = Math.min(this.player.hp, val); this.updateHUD(); debugPanelLog(`[CMD] Max HP set to ${val}`, true); }
-        else debugPanelLog(`Usage: /max_hp <amount>`, true);
-        break;
-      case "mp":
-        if (!isNaN(val)) { this.player.mp = Math.min(val, this.player.maxMp); this.updateHUD(); debugPanelLog(`[CMD] MP set to ${this.player.mp}`, true); }
-        else debugPanelLog(`Usage: /mp <amount>`, true);
-        break;
-      case "max_mp":
-      case "maxmp":
-        if (!isNaN(val)) { this.player.maxMp = val; this.player.mp = Math.min(this.player.mp, val); this.updateHUD(); debugPanelLog(`[CMD] Max MP set to ${val}`, true); }
-        else debugPanelLog(`Usage: /max_mp <amount>`, true);
-        break;
-      case "level":
-      case "lvl":
-        if (!isNaN(val) && val >= 1 && val <= 20) {
-          while (this.player.level < val) {
-            const needed = xpForLevel(this.player.level + 1) - this.player.xp;
-            awardXP(this.player, Math.max(needed, 0));
-          }
-          this.updateHUD();
-          debugPanelLog(`[CMD] Level set to ${this.player.level}`, true);
-        } else debugPanelLog(`Usage: /level <1-20>`, true);
-        break;
-      case "item": {
-        const itemId = args.trim();
-        if (itemId) {
-          const item = getItem(itemId);
-          if (item) {
-            this.player.inventory.push({ ...item });
-            debugPanelLog(`[CMD] Added ${item.name} to inventory`, true);
-          } else {
-            debugPanelLog(`[CMD] Unknown item: ${itemId}`, true);
-          }
-        } else debugPanelLog(`Usage: /item <itemId>`, true);
-        break;
-      }
-      case "heal":
-        this.player.hp = this.player.maxHp;
-        this.player.mp = this.player.maxMp;
+    // Overworld-only commands
+    cmds.set("reveal", () => {
+      this.revealEntireWorld();
+      debugPanelLog(`[CMD] Entire world map revealed`, true);
+    });
+
+    cmds.set("max_hp", (args) => {
+      const val = parseInt(args, 10);
+      if (!isNaN(val)) { this.player.maxHp = val; this.player.hp = Math.min(this.player.hp, val); this.updateHUD(); debugPanelLog(`[CMD] Max HP set to ${val}`, true); }
+      else debugPanelLog(`Usage: /max_hp <amount>`, true);
+    });
+    cmds.set("maxhp", cmds.get("max_hp")!);
+
+    cmds.set("max_mp", (args) => {
+      const val = parseInt(args, 10);
+      if (!isNaN(val)) { this.player.maxMp = val; this.player.mp = Math.min(this.player.mp, val); this.updateHUD(); debugPanelLog(`[CMD] Max MP set to ${val}`, true); }
+      else debugPanelLog(`Usage: /max_mp <amount>`, true);
+    });
+    cmds.set("maxmp", cmds.get("max_mp")!);
+
+    cmds.set("level", (args) => {
+      const val = parseInt(args, 10);
+      if (!isNaN(val) && val >= 1 && val <= 20) {
+        while (this.player.level < val) {
+          const needed = xpForLevel(this.player.level + 1) - this.player.xp;
+          awardXP(this.player, Math.max(needed, 0));
+        }
         this.updateHUD();
-        debugPanelLog(`[CMD] Fully healed!`, true);
-        break;
-      case "help":
-        debugPanelLog(`Commands: /gold /exp /hp /max_hp /mp /max_mp /level /item /heal /help`, true);
-        break;
-      default:
-        debugPanelLog(`Unknown command: /${cmd}. Type /help for list.`, true);
-    }
+        debugPanelLog(`[CMD] Level set to ${this.player.level}`, true);
+        if (this.player.pendingStatPoints > 0) {
+          this.time.delayedCall(200, () => this.showStatOverlay());
+        }
+      } else debugPanelLog(`Usage: /level <1-20>`, true);
+    });
+    cmds.set("lvl", cmds.get("level")!);
+
+    cmds.set("item", (args) => {
+      const itemId = args.trim();
+      if (itemId) {
+        const item = getItem(itemId);
+        if (item) {
+          this.player.inventory.push({ ...item });
+          debugPanelLog(`[CMD] Added ${item.name} to inventory`, true);
+        } else {
+          debugPanelLog(`[CMD] Unknown item: ${itemId}`, true);
+        }
+      } else debugPanelLog(`Usage: /item <itemId>`, true);
+    });
+
+    cmds.set("weather", (args) => {
+      const weatherArg = args.trim().toLowerCase();
+      const weatherMap: Record<string, WeatherType> = {
+        clear: WeatherType.Clear,
+        rain: WeatherType.Rain,
+        snow: WeatherType.Snow,
+        sandstorm: WeatherType.Sandstorm,
+        storm: WeatherType.Storm,
+        fog: WeatherType.Fog,
+      };
+      const wt = weatherMap[weatherArg];
+      if (wt) {
+        this.weatherState.current = wt;
+        this.applyDayNightTint();
+        this.updateWeatherParticles();
+        this.updateHUD();
+        debugPanelLog(`[CMD] Weather set to ${wt}`, true);
+      } else {
+        debugPanelLog(`Usage: /weather <clear|rain|snow|sandstorm|storm|fog>`, true);
+      }
+    });
+
+    cmds.set("time", (args) => {
+      const timeArg = args.trim().toLowerCase();
+      const timeMap: Record<string, number> = {
+        dawn: 0,
+        day: 45,
+        dusk: 220,
+        night: 265,
+      };
+      const step = timeMap[timeArg];
+      if (step !== undefined) {
+        this.timeStep = step;
+        this.applyDayNightTint();
+        this.updateHUD();
+        debugPanelLog(`[CMD] Time set to ${timeArg} (step ${step})`, true);
+      } else {
+        debugPanelLog(`Usage: /time <dawn|day|dusk|night>`, true);
+      }
+    });
+
+    cmds.set("spawn", (args) => {
+      const query = args.trim().toLowerCase();
+      if (!query) { debugPanelLog(`Usage: /spawn <monster name or id>`, true); return; }
+      // Search all monster pools by id or name (case-insensitive partial match)
+      const allMonsters: Monster[] = [...MONSTERS, ...DUNGEON_MONSTERS, ...NIGHT_MONSTERS];
+      let found = allMonsters.find(m => m.id.toLowerCase() === query);
+      if (!found) found = allMonsters.find(m => m.name.toLowerCase() === query);
+      if (!found) found = allMonsters.find(m => m.name.toLowerCase().includes(query) || m.id.toLowerCase().includes(query));
+      if (found) {
+        debugPanelLog(`[CMD] Spawning ${found.name}...`, true);
+        this.startBattle({ ...found });
+      } else {
+        debugPanelLog(`[CMD] Unknown monster: "${args.trim()}". Try a partial name or id.`, true);
+      }
+    });
+
+    cmds.set("teleport", (args) => {
+      const parts = args.trim().split(/\s+/);
+      // Try name-based teleport first (city or dungeon)
+      const nameArg = args.trim().toLowerCase();
+      if (nameArg && (parts.length !== 2 || isNaN(parseInt(parts[0], 10)))) {
+        // Search cities
+        const city = CITIES.find((c) => c.name.toLowerCase() === nameArg || c.id.toLowerCase() === nameArg);
+        if (city) {
+          this.player.chunkX = city.chunkX;
+          this.player.chunkY = city.chunkY;
+          this.player.x = city.tileX;
+          this.player.y = city.tileY;
+          if (this.player.inDungeon) { this.player.inDungeon = false; this.player.dungeonId = ""; }
+          if (this.player.inCity) { this.player.inCity = false; this.player.cityId = ""; }
+          this.renderMap();
+          this.createPlayer();
+          this.updateHUD();
+          debugPanelLog(`[CMD] Teleported to city ${city.name}`, true);
+          return;
+        }
+        // Search dungeons
+        const dungeon = DUNGEONS.find((d) => d.name.toLowerCase() === nameArg || d.id.toLowerCase() === nameArg);
+        if (dungeon) {
+          this.player.chunkX = dungeon.entranceChunkX;
+          this.player.chunkY = dungeon.entranceChunkY;
+          this.player.x = dungeon.entranceTileX;
+          this.player.y = dungeon.entranceTileY;
+          if (this.player.inDungeon) { this.player.inDungeon = false; this.player.dungeonId = ""; }
+          if (this.player.inCity) { this.player.inCity = false; this.player.cityId = ""; }
+          this.renderMap();
+          this.createPlayer();
+          this.updateHUD();
+          debugPanelLog(`[CMD] Teleported to dungeon ${dungeon.name}`, true);
+          return;
+        }
+        // Fuzzy match
+        const allNames = [
+          ...CITIES.map((c) => ({ label: c.name, type: "city" })),
+          ...DUNGEONS.map((d) => ({ label: d.name, type: "dungeon" })),
+        ];
+        const match = allNames.find((n) => n.label.toLowerCase().includes(nameArg));
+        if (match) {
+          // Re-run with exact name
+          cmds.get("teleport")!(match.label);
+          return;
+        }
+        debugPanelLog(`[CMD] No city or dungeon matching "${args.trim()}". Use /tp <name> or /tp <x> <y>`, true);
+        return;
+      }
+      if (parts.length !== 2) { debugPanelLog(`Usage: /teleport <chunkX> <chunkY> or /teleport <cityName>`, true); return; }
+      const cx = parseInt(parts[0], 10);
+      const cy = parseInt(parts[1], 10);
+      if (isNaN(cx) || isNaN(cy) || cx < 0 || cx >= WORLD_WIDTH || cy < 0 || cy >= WORLD_HEIGHT) {
+        debugPanelLog(`[CMD] Invalid chunk coords. Range: 0-${WORLD_WIDTH - 1} x 0-${WORLD_HEIGHT - 1}`, true);
+        return;
+      }
+      const chunk = getChunk(cx, cy);
+      if (!chunk) { debugPanelLog(`[CMD] No chunk at (${cx}, ${cy})`, true); return; }
+      this.player.chunkX = cx;
+      this.player.chunkY = cy;
+      // Place player at center of chunk
+      this.player.x = Math.floor(MAP_WIDTH / 2);
+      this.player.y = Math.floor(MAP_HEIGHT / 2);
+      // Exit dungeon if inside one
+      if (this.player.inDungeon) {
+        this.player.inDungeon = false;
+        this.player.dungeonId = "";
+      }
+      this.renderMap();
+      this.createPlayer();
+      this.updateHUD();
+      debugPanelLog(`[CMD] Teleported to chunk (${cx}, ${cy}) — ${chunk.name}`, true);
+    });
+    cmds.set("tp", cmds.get("teleport")!);
+
+    cmds.set("audio", (args) => {
+      const sub = args.trim().toLowerCase();
+      if (sub === "play" || sub === "demo") {
+        debugPanelLog(`[CMD] Playing audio demo... (each sound ~3s)`, true);
+        audioEngine.init();
+        audioEngine.playAllSounds().then(() => {
+          debugPanelLog(`[CMD] Audio demo complete.`, true);
+          this.updateAudio();
+        });
+      } else if (sub === "mute") {
+        const muted = audioEngine.toggleMute();
+        debugPanelLog(`[CMD] Audio ${muted ? "muted" : "unmuted"}`, true);
+      } else if (sub === "stop") {
+        audioEngine.stopAll();
+        debugPanelLog(`[CMD] Audio stopped`, true);
+      } else {
+        debugPanelLog(`Usage: /audio <play|mute|stop>`, true);
+      }
+    });
+
+    // Help entries
+    const helpEntries: HelpEntry[] = [
+      ...SHARED_HELP,
+      { usage: "/reveal", desc: "Reveal entire world map" },
+      { usage: "/max_hp <n>", desc: "Set max HP (alias: /maxhp)" },
+      { usage: "/max_mp <n>", desc: "Set max MP (alias: /maxmp)" },
+      { usage: "/level <1-20>", desc: "Set level (alias: /lvl)" },
+      { usage: "/item <id>", desc: "Add item to inventory" },
+      { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
+      { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
+      { usage: "/spawn <name>", desc: "Spawn a monster battle by name/id" },
+      { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
+      { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
+    ];
+
+    registerCommandRouter(cmds, "Overworld", helpEntries, "G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog");
   }
 
   private renderMap(): void {
@@ -273,6 +447,14 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     this.tileSprites = [];
+    // Clear biome decoration emitters
+    for (const em of this.biomeDecoEmitters) em.destroy();
+    this.biomeDecoEmitters = [];
+    // Clear city animals
+    for (const a of this.cityAnimals) a.destroy();
+    this.cityAnimals = [];
+    for (const t of this.cityAnimalTimers) t.destroy();
+    this.cityAnimalTimers = [];
 
     // If inside a dungeon, render the dungeon interior
     if (this.player.inDungeon) {
@@ -328,6 +510,76 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // If inside a city, render the city interior
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      // Determine surrounding biome so city floor matches the landscape
+      const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
+      const biomeFloorTex = `tile_${cityBiome}`;
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        this.tileSprites[y] = [];
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          const explored = this.isExplored(x, y);
+          const terrain = city.mapData[y][x];
+          let texKey = explored ? `tile_${terrain}` : "tile_fog";
+          // City floor uses the biome ground texture instead of cobblestone
+          if (explored && terrain === Terrain.CityFloor) {
+            texKey = biomeFloorTex;
+          }
+          const sprite = this.add.sprite(
+            x * TILE_SIZE + TILE_SIZE / 2,
+            y * TILE_SIZE + TILE_SIZE / 2,
+            texKey
+          );
+          this.tileSprites[y][x] = sprite;
+        }
+      }
+      // City name label
+      this.add
+        .text(MAP_WIDTH * TILE_SIZE / 2, 4, city.name, {
+          fontSize: "10px",
+          fontFamily: "monospace",
+          color: "#dda0dd",
+          stroke: "#000",
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5, 0);
+      // Shop labels and exit label
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (city.mapData[y][x] === Terrain.CityExit && this.isExplored(x, y)) {
+            this.add
+              .text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE - 4, "EXIT", {
+                fontSize: "8px",
+                fontFamily: "monospace",
+                color: "#88ff88",
+                stroke: "#000",
+                strokeThickness: 2,
+              })
+              .setOrigin(0.5, 1);
+          }
+        }
+      }
+      for (const shop of city.shops) {
+        if (this.isExplored(shop.x, shop.y)) {
+          const icon = shop.type === "weapon" ? "⚔" : shop.type === "armor" ? "🛡" : shop.type === "inn" ? "🏨" : shop.type === "bank" ? "🏦" : "🏪";
+          this.add
+            .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 4, `${icon} ${shop.name}`, {
+              fontSize: "7px",
+              fontFamily: "monospace",
+              color: "#ffd700",
+              stroke: "#000",
+              strokeThickness: 2,
+            })
+            .setOrigin(0.5, 1);
+        }
+      }
+      // Spawn city animals
+      this.spawnCityAnimals(city);
+      return;
+    }
+
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     if (!chunk) return;
 
@@ -337,11 +589,23 @@ export class OverworldScene extends Phaser.Scene {
         const explored = this.isExplored(x, y);
         const terrain = chunk.mapData[y][x];
         let texKey = explored ? `tile_${terrain}` : "tile_fog";
+        // Use biome-colored town texture
+        if (explored && terrain === Terrain.Town) {
+          const biome = getTownBiome(this.player.chunkX, this.player.chunkY, x, y);
+          texKey = `tile_town_${biome}`;
+        }
         // Show open chest texture for opened chests
         if (explored && terrain === Terrain.Chest) {
           const chest = getChestAt(x, y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
           if (chest && this.player.openedChests.includes(chest.id)) {
             texKey = "tile_chest_open";
+          }
+        }
+        // Show sparkle for uncollected minor treasures
+        if (explored && hasSparkleAt(this.player.chunkX, this.player.chunkY, x, y)) {
+          const tKey = `${this.player.chunkX},${this.player.chunkY},${x},${y}`;
+          if (!this.player.collectedTreasures.includes(tKey)) {
+            texKey = `tile_${Terrain.MinorTreasure}`;
           }
         }
         const sprite = this.add.sprite(
@@ -387,14 +651,203 @@ export class OverworldScene extends Phaser.Scene {
           .setOrigin(0.5, 1);
       }
     }
+
+    // Biome decoration creature emitters (butterflies, snakes, smoke, mosquitos)
+    this.spawnBiomeCreatures(chunk);
+  }
+
+  /** Spawn animated animal sprites in cities. Animals wander on walkable tiles. */
+  private spawnCityAnimals(city: CityData): void {
+    // Animal definitions per city
+    const CITY_ANIMALS: Record<string, Array<{ sprite: string; x: number; y: number; moves: boolean }>> = {
+      willowdale_city: [
+        { sprite: "sprite_chicken", x: 8, y: 5, moves: true },
+        { sprite: "sprite_chicken", x: 11, y: 8, moves: true },
+        { sprite: "sprite_chicken", x: 14, y: 5, moves: true },
+      ],
+      frostheim_city: [
+        { sprite: "sprite_cat", x: 5, y: 7, moves: false },
+        { sprite: "sprite_cat", x: 14, y: 7, moves: false },
+      ],
+      deeproot_city: [
+        { sprite: "sprite_cat", x: 9, y: 6, moves: false },
+        { sprite: "sprite_sheep", x: 7, y: 12, moves: true },
+      ],
+      sandport_city: [
+        { sprite: "sprite_cat", x: 12, y: 9, moves: false },
+      ],
+      bogtown_city: [
+        { sprite: "sprite_mouse", x: 8, y: 7, moves: true },
+        { sprite: "sprite_mouse", x: 12, y: 6, moves: true },
+      ],
+      thornvale_city: [
+        { sprite: "sprite_frog", x: 9, y: 8, moves: true },
+        { sprite: "sprite_frog", x: 11, y: 7, moves: true },
+        { sprite: "sprite_cow", x: 8, y: 12, moves: true },
+        { sprite: "sprite_cow", x: 13, y: 8, moves: true },
+      ],
+      canyonwatch_city: [
+        { sprite: "sprite_dog", x: 10, y: 8, moves: true },
+      ],
+      ridgewatch_city: [
+        { sprite: "sprite_sheep", x: 8, y: 7, moves: true },
+        { sprite: "sprite_sheep", x: 11, y: 7, moves: true },
+      ],
+      ashfall_city: [
+        { sprite: "sprite_lizard", x: 9, y: 8, moves: true },
+        { sprite: "sprite_lizard", x: 12, y: 5, moves: true },
+      ],
+      dunerest_city: [
+        { sprite: "sprite_lizard", x: 7, y: 7, moves: true },
+      ],
+    };
+
+    const animals = CITY_ANIMALS[city.id];
+    if (!animals) return;
+
+    for (const def of animals) {
+      if (!this.isExplored(def.x, def.y)) continue;
+
+      const sprite = this.add.sprite(
+        def.x * TILE_SIZE + TILE_SIZE / 2,
+        def.y * TILE_SIZE + TILE_SIZE / 2,
+        def.sprite
+      );
+      sprite.setDepth(11);
+      this.cityAnimals.push(sprite);
+
+      if (def.moves) {
+        // Wander: periodically move to a random adjacent walkable tile
+        const wander = () => {
+          const dirs = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+          ];
+          const pick = dirs[Math.floor(Math.random() * dirs.length)];
+          const curTileX = Math.floor(sprite.x / TILE_SIZE);
+          const curTileY = Math.floor(sprite.y / TILE_SIZE);
+          const nx = curTileX + pick.dx;
+          const ny = curTileY + pick.dy;
+          if (
+            nx >= 1 && nx < MAP_WIDTH - 1 &&
+            ny >= 1 && ny < MAP_HEIGHT - 1 &&
+            isWalkable(city.mapData[ny][nx])
+          ) {
+            this.tweens.add({
+              targets: sprite,
+              x: nx * TILE_SIZE + TILE_SIZE / 2,
+              y: ny * TILE_SIZE + TILE_SIZE / 2,
+              duration: 600 + Math.random() * 400,
+              ease: "Sine.easeInOut",
+              onUpdate: () => {
+                // Flip sprite based on movement direction
+                if (pick.dx !== 0) sprite.setFlipX(pick.dx < 0);
+              },
+            });
+          }
+        };
+        const delay = 1500 + Math.random() * 2000;
+        const timer = this.time.addEvent({
+          delay,
+          callback: wander,
+          loop: true,
+        });
+        this.cityAnimalTimers.push(timer);
+      } else {
+        // Sleeping animal: subtle breathing animation
+        this.tweens.add({
+          targets: sprite,
+          scaleY: 0.9,
+          duration: 1200,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      }
+    }
+  }
+
+  /** Spawn small animated creature emitters near biome decoration tiles. */
+  private spawnBiomeCreatures(chunk: WorldChunk): void {
+    const DECO_CREATURES: Record<number, { texture: string; config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig }> = {
+      [Terrain.Flower]: {
+        texture: "particle_butterfly",
+        config: {
+          lifespan: 3000,
+          speed: { min: 8, max: 20 },
+          angle: { min: 200, max: 340 },
+          scale: { start: 0.9, end: 0.4 },
+          alpha: { start: 0.9, end: 0.2 },
+          quantity: 1,
+          frequency: 1200,
+          gravityY: -5,
+        },
+      },
+      [Terrain.Cactus]: {
+        texture: "particle_snake",
+        config: {
+          lifespan: 4000,
+          speedX: { min: -8, max: 8 },
+          speedY: { min: -2, max: 2 },
+          scale: { start: 0.8, end: 0.8 },
+          alpha: { start: 0.85, end: 0.0 },
+          quantity: 1,
+          frequency: 3000,
+          gravityY: 0,
+        },
+      },
+      [Terrain.Geyser]: {
+        texture: "particle_smoke",
+        config: {
+          lifespan: 2000,
+          speedY: { min: -30, max: -60 },
+          speedX: { min: -6, max: 6 },
+          scale: { start: 0.5, end: 1.8 },
+          alpha: { start: 0.7, end: 0.0 },
+          quantity: 1,
+          frequency: 400,
+          gravityY: -8,
+        },
+      },
+      [Terrain.Mushroom]: {
+        texture: "particle_mosquito",
+        config: {
+          lifespan: 2500,
+          speed: { min: 10, max: 25 },
+          angle: { min: 0, max: 360 },
+          scale: { start: 0.7, end: 0.3 },
+          alpha: { start: 0.9, end: 0.15 },
+          quantity: 1,
+          frequency: 900,
+          gravityY: 0,
+        },
+      },
+    };
+
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        if (!this.isExplored(x, y)) continue;
+        const terrain = chunk.mapData[y][x];
+        const entry = DECO_CREATURES[terrain];
+        if (!entry) continue;
+        const px = x * TILE_SIZE + TILE_SIZE / 2;
+        const py = y * TILE_SIZE + TILE_SIZE / 2;
+        const em = this.add.particles(px, py, entry.texture, entry.config);
+        em.setDepth(12);
+        this.biomeDecoEmitters.push(em);
+      }
+    }
   }
 
   // ─── Fog of War helpers ─────────────────────────────────────────
 
-  /** Build the explored-tiles key for a position (respects dungeon vs overworld). */
+  /** Build the explored-tiles key for a position (respects dungeon/city vs overworld). */
   private exploredKey(x: number, y: number): string {
     if (this.player.inDungeon) {
       return `d:${this.player.dungeonId},${x},${y}`;
+    }
+    if (this.player.inCity) {
+      return `c:${this.player.cityId},${x},${y}`;
     }
     return `${this.player.chunkX},${this.player.chunkY},${x},${y}`;
   }
@@ -440,6 +893,20 @@ export class OverworldScene extends Phaser.Scene {
           }
         }
       }
+    } else if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
+      const biomeFloorTex = `tile_${cityBiome}`;
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
+            const terrain = city.mapData[y][x];
+            const texKey = terrain === Terrain.CityFloor ? biomeFloorTex : `tile_${terrain}`;
+            this.tileSprites[y][x].setTexture(texKey);
+          }
+        }
+      }
     } else {
       const chunk = getChunk(this.player.chunkX, this.player.chunkY);
       if (!chunk) return;
@@ -448,16 +915,63 @@ export class OverworldScene extends Phaser.Scene {
           if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
             const terrain = chunk.mapData[y][x];
             let texKey = `tile_${terrain}`;
+            // Use biome-colored town texture
+            if (terrain === Terrain.Town) {
+              const biome = getTownBiome(this.player.chunkX, this.player.chunkY, x, y);
+              texKey = `tile_town_${biome}`;
+            }
             if (terrain === Terrain.Chest) {
               const chest = getChestAt(x, y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
               if (chest && this.player.openedChests.includes(chest.id)) {
                 texKey = "tile_chest_open";
               }
             }
+            // Show sparkle overlay if uncollected, otherwise real terrain
+            if (hasSparkleAt(this.player.chunkX, this.player.chunkY, x, y)) {
+              const tKey = `${this.player.chunkX},${this.player.chunkY},${x},${y}`;
+              if (!this.player.collectedTreasures.includes(tKey)) {
+                texKey = `tile_${Terrain.MinorTreasure}`;
+              }
+            }
             this.tileSprites[y][x].setTexture(texKey);
           }
         }
       }
+    }
+  }
+
+  /** Reveal every tile in every overworld chunk and every dungeon. */
+  private revealEntireWorld(): void {
+    // Reveal all overworld chunks
+    for (let cy = 0; cy < WORLD_HEIGHT; cy++) {
+      for (let cx = 0; cx < WORLD_WIDTH; cx++) {
+        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+          for (let tx = 0; tx < MAP_WIDTH; tx++) {
+            this.player.exploredTiles[`${cx},${cy},${tx},${ty}`] = true;
+          }
+        }
+      }
+    }
+    // Reveal all dungeon tiles
+    for (const dungeon of DUNGEONS) {
+      for (let ty = 0; ty < dungeon.mapData.length; ty++) {
+        for (let tx = 0; tx < dungeon.mapData[ty].length; tx++) {
+          this.player.exploredTiles[`d:${dungeon.id},${tx},${ty}`] = true;
+        }
+      }
+    }
+    this.renderMap();
+    this.createPlayer();
+
+    // If the world map overlay is open, close and reopen it so it re-renders
+    // with all tiles now revealed.
+    if (this.worldMapOverlay) {
+      this.worldMapOverlay.destroy();
+      this.worldMapOverlay = null;
+      this.input.off("wheel");
+      this.input.off("pointermove");
+      this.input.off("pointerup");
+      this.showWorldMap();
     }
   }
 
@@ -525,13 +1039,15 @@ export class OverworldScene extends Phaser.Scene {
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     eKey.on("down", () => this.toggleEquipOverlay());
 
-    // T key opens stat allocation overlay when points are available
-    const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
-    tKey.on("down", () => this.toggleStatOverlay());
-
     // M key opens game menu
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
-    mKey.on("down", () => this.toggleMenuOverlay());
+    mKey.on("down", () => {
+      if (this.settingsOverlay) {
+        this.toggleSettingsOverlay();
+      } else {
+        this.toggleMenuOverlay();
+      }
+    });
 
     // N key opens world map overlay
     const nKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.N);
@@ -580,9 +1096,11 @@ export class OverworldScene extends Phaser.Scene {
       const chunk = getChunk(p.chunkX, p.chunkY);
       regionName = chunk?.name ?? "Unknown";
     }
-    const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts [T]` : "";
+    const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts` : "";
+    const timeLabel = PERIOD_LABEL[getTimePeriod(this.timeStep)];
+    const weatherLabel = WEATHER_LABEL[this.weatherState.current];
     this.hudText.setText(
-      `${p.name} Lv.${p.level}  —  ${regionName}\n` +
+      `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}  ${weatherLabel}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}`
     );
   }
@@ -608,6 +1126,24 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // In city: show city-specific text
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) { this.locationText.setText("???"); return; }
+      const terrain = city.mapData[this.player.y]?.[this.player.x];
+      if (terrain === Terrain.CityExit) {
+        this.locationText.setText(`${city.name}\n[SPACE] Leave City`);
+      } else {
+        const shop = getCityShopNearby(city, this.player.x, this.player.y);
+        if (shop) {
+          this.locationText.setText(`${shop.name}\n[SPACE] Enter`);
+        } else {
+          this.locationText.setText(city.name);
+        }
+      }
+      return;
+    }
+
     const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
     const terrainNames: Record<number, string> = {
       [Terrain.Grass]: "Grassland",
@@ -619,6 +1155,20 @@ export class OverworldScene extends Phaser.Scene {
       [Terrain.Dungeon]: "Dungeon",
       [Terrain.Boss]: "Boss Lair",
       [Terrain.Path]: "Road",
+      [Terrain.Tundra]: "Tundra",
+      [Terrain.Swamp]: "Swamp",
+      [Terrain.DeepForest]: "Deep Forest",
+      [Terrain.Volcanic]: "Volcanic",
+      [Terrain.Canyon]: "Canyon",
+      [Terrain.Flower]: "Grassland",
+      [Terrain.Cactus]: "Desert",
+      [Terrain.Geyser]: "Volcanic",
+      [Terrain.Mushroom]: "Swamp",
+      [Terrain.River]: "River",
+      [Terrain.Mill]: "Grassland",
+      [Terrain.CropField]: "Grassland",
+      [Terrain.Casino]: "Town",
+      [Terrain.House]: "Town",
     };
 
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
@@ -630,7 +1180,10 @@ export class OverworldScene extends Phaser.Scene {
     );
 
     let locStr = terrainNames[terrain ?? 0] ?? "Unknown";
-    if (town) locStr = `${town.name}\n[SPACE] Enter Shop`;
+    if (town) {
+      const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
+      locStr = city ? `${town.name}\n[SPACE] Enter City` : `${town.name}\n[SPACE] Enter Shop`;
+    }
     if (boss && !this.defeatedBosses.has(boss.monsterId))
       locStr = `${boss.name}'s Lair\n[SPACE] Challenge Boss`;
 
@@ -676,6 +1229,11 @@ export class OverworldScene extends Phaser.Scene {
       [Terrain.DungeonWall]: "DWall",
       [Terrain.DungeonExit]: "DExit",
       [Terrain.Chest]: "Chest",
+      [Terrain.Tundra]: "Tundra",
+      [Terrain.Swamp]: "Swamp",
+      [Terrain.DeepForest]: "DForest",
+      [Terrain.Volcanic]: "Volcanic",
+      [Terrain.Canyon]: "Canyon",
     };
 
     let terrain: Terrain | undefined;
@@ -688,10 +1246,15 @@ export class OverworldScene extends Phaser.Scene {
 
     const tName = terrainNames[terrain ?? 0] ?? "?";
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
+    const encMult = getEncounterMultiplier(this.timeStep);
+    const weatherEncMult = getWeatherEncounterMultiplier(this.weatherState.current);
+    const effectiveRate = rate * encMult * weatherEncMult;
     const dungeonTag = p.inDungeon ? ` [DUNGEON:${p.dungeonId}]` : "";
+    const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
       `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag} | ` +
-      `Enc: ${(rate * 100).toFixed(0)}%${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
+      `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
+      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
       `Bosses: ${this.defeatedBosses.size}\n` +
@@ -699,9 +1262,15 @@ export class OverworldScene extends Phaser.Scene {
     );
   }
 
+  /** Check whether any overlay (menu, map, equip, stat allocation) is currently open. */
+  private isOverlayOpen(): boolean {
+    return !!(this.menuOverlay || this.worldMapOverlay || this.equipOverlay || this.statOverlay || this.settingsOverlay);
+  }
+
   update(time: number): void {
     this.updateDebugPanel();
     if (this.isMoving) return;
+    if (this.isOverlayOpen()) return; // block movement when menus/maps are open
     if (time - this.lastMoveTime < this.moveDelay) return;
 
     let dx = 0;
@@ -739,6 +1308,9 @@ export class OverworldScene extends Phaser.Scene {
       this.player.x = newX;
       this.player.y = newY;
 
+      // Footstep sound for dungeon terrain
+      if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
+
       this.tweens.add({
         targets: this.playerSprite,
         x: newX * TILE_SIZE + TILE_SIZE / 2,
@@ -746,11 +1318,47 @@ export class OverworldScene extends Phaser.Scene {
         duration: 120,
         onComplete: () => {
           this.isMoving = false;
+          this.advanceTime();
+          this.revealAround();
+          this.revealTileSprites();
+          this.collectMinorTreasure();
+          this.updateHUD();
+          this.updateLocationText();
+          this.checkEncounter(terrain);
+        },
+      });
+      return;
+    }
+
+    // In city: no chunk transitions, no encounters
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
+      const terrain = city.mapData[newY][newX];
+      if (!isWalkable(terrain)) return;
+
+      this.lastMoveTime = time;
+      this.isMoving = true;
+      this.player.x = newX;
+      this.player.y = newY;
+
+      // Footstep sound for city terrain
+      if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
+
+      this.tweens.add({
+        targets: this.playerSprite,
+        x: newX * TILE_SIZE + TILE_SIZE / 2,
+        y: newY * TILE_SIZE + TILE_SIZE / 2,
+        duration: 120,
+        onComplete: () => {
+          this.isMoving = false;
+          this.advanceTime();
           this.revealAround();
           this.revealTileSprites();
           this.updateHUD();
           this.updateLocationText();
-          this.checkEncounter(terrain);
+          // No encounters in cities
         },
       });
       return;
@@ -791,15 +1399,22 @@ export class OverworldScene extends Phaser.Scene {
     this.player.chunkY = newChunkY;
 
     if (chunkChanged) {
-      // Chunk transition — flash and re-render
+      // Chunk transition — flash, re-roll weather for the new zone, and re-render
+      this.advanceTime();
+      this.rerollWeather();
       this.cameras.main.flash(200, 255, 255, 255);
       this.scene.restart({
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
       return;
     }
+
+    // Footstep sound for overworld terrain
+    if (audioEngine.initialized && terrain !== undefined) audioEngine.playFootstepSFX(terrain);
 
     this.tweens.add({
       targets: this.playerSprite,
@@ -808,13 +1423,44 @@ export class OverworldScene extends Phaser.Scene {
       duration: 120,
       onComplete: () => {
         this.isMoving = false;
+        this.advanceTime();
         this.revealAround();
         this.revealTileSprites();
+        this.collectMinorTreasure();
         this.updateHUD();
         this.updateLocationText();
         this.checkEncounter(terrain);
       },
     });
+  }
+
+  /** Auto-collect minor treasure when stepping on it. Awards 5-25 gold. */
+  private collectMinorTreasure(): void {
+    const px = this.player.x;
+    const py = this.player.y;
+
+    if (this.player.inDungeon) return; // no minor treasures in dungeons
+
+    if (!hasSparkleAt(this.player.chunkX, this.player.chunkY, px, py)) return;
+
+    const key = `${this.player.chunkX},${this.player.chunkY},${px},${py}`;
+    if (this.player.collectedTreasures.includes(key)) return;
+
+    this.player.collectedTreasures.push(key);
+    const goldAmount = 5 + Math.floor(Math.random() * 21); // 5-25
+    this.player.gold += goldAmount;
+
+    // Update tile sprite to show real terrain underneath
+    const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, px, py);
+    if (this.tileSprites[py]?.[px] && terrain !== undefined) {
+      const realTexKey = terrain === Terrain.Town
+        ? `tile_town_${getTownBiome(this.player.chunkX, this.player.chunkY, px, py)}`
+        : `tile_${terrain}`;
+      this.tileSprites[py][px].setTexture(realTexKey);
+    }
+
+    this.showMessage(`✨ Found ${goldAmount} gold!`, "#4fc3f7");
+    this.updateHUD();
   }
 
   private checkEncounter(terrain: Terrain): void {
@@ -830,14 +1476,20 @@ export class OverworldScene extends Phaser.Scene {
     // Debug: encounters can be toggled off
     if (isDebug() && !this.debugEncounters) return;
 
-    const rate = ENCOUNTER_RATES[terrain];
+    const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep) * getWeatherEncounterMultiplier(this.weatherState.current);
     if (Math.random() < rate) {
-      // Use dungeon monsters when inside a dungeon
-      const monster = this.player.inDungeon
-        ? getDungeonEncounter(this.player.level)
-        : getRandomEncounter(this.player.level);
-      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon });
-      this.startBattle(monster);
+      let monster;
+      if (this.player.inDungeon) {
+        monster = getDungeonEncounter(this.player.level, this.player.dungeonId);
+      } else if (isNightTime(this.timeStep) && Math.random() < 0.4) {
+        // 40% chance of a night-exclusive monster during dusk/night
+        const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+        monster = getNightEncounter(this.player.level, chunk?.name);
+      } else {
+        monster = getRandomEncounter(this.player.level);
+      }
+      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon, time: getTimePeriod(this.timeStep) });
+      this.startBattle(monster, terrain);
     }
   }
 
@@ -855,12 +1507,16 @@ export class OverworldScene extends Phaser.Scene {
         this.player.chunkY = dungeon.entranceChunkY;
         this.player.x = dungeon.entranceTileX;
         this.player.y = dungeon.entranceTileY;
+        // Roll outdoor weather for the biome the player emerges into
+        this.rerollWeather();
         this.autoSave();
         this.cameras.main.flash(300, 255, 255, 255);
         this.scene.restart({
           player: this.player,
           defeatedBosses: this.defeatedBosses,
           bestiary: this.bestiary,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
         });
         return;
       }
@@ -873,6 +1529,7 @@ export class OverworldScene extends Phaser.Scene {
           if (item) {
             this.player.openedChests.push(chest.id);
             this.player.inventory.push({ ...item });
+            if (audioEngine.initialized) audioEngine.playChestOpenSFX();
             // Auto-equip if better
             if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
               this.player.equippedWeapon = item;
@@ -896,6 +1553,71 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // ── City actions: exit and shop interaction ──
+    if (this.player.inCity) {
+      const city = getCity(this.player.cityId);
+      if (!city) return;
+      const terrain = city.mapData[this.player.y]?.[this.player.x];
+      if (terrain === Terrain.CityExit) {
+        // Return to overworld at the town tile
+        this.player.inCity = false;
+        this.player.cityId = "";
+        this.player.chunkX = city.chunkX;
+        this.player.chunkY = city.chunkY;
+        this.player.x = city.tileX;
+        this.player.y = city.tileY;
+        this.rerollWeather();
+        this.autoSave();
+        this.cameras.main.flash(300, 255, 255, 255);
+        this.scene.restart({
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+        });
+        return;
+      }
+
+      // Check if on or near a shop location
+      const shop = getCityShopNearby(city, this.player.x, this.player.y);
+      if (shop) {
+        if (shop.type === "inn") {
+          // Inn: heal directly without opening shop
+          if (this.player.gold < 10) {
+            this.showMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
+          } else {
+            this.player.gold -= 10;
+            this.player.hp = this.player.maxHp;
+            this.player.mp = this.player.maxMp;
+            this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
+            this.updateHUD();
+            this.autoSave();
+          }
+          return;
+        }
+        if (shop.type === "bank") {
+          this.showMessage(`💰 The bank holds your gold safe. Balance: ${this.player.gold}g`, "#ffd700");
+          return;
+        }
+        // Open shop with specific items
+        this.autoSave();
+        this.scene.start("ShopScene", {
+          player: this.player,
+          townName: `${city.name} - ${shop.name}`,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          shopItemIds: shop.shopItems,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+          fromCity: true,
+          cityId: city.id,
+        });
+        return;
+      }
+      return;
+    }
+
     // ── Overworld actions ──
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     if (!chunk) return;
@@ -905,6 +1627,41 @@ export class OverworldScene extends Phaser.Scene {
       (t) => t.x === this.player.x && t.y === this.player.y
     );
     if (town?.hasShop) {
+      // Track this town as the last visited (respawn point on death)
+      this.player.lastTownX = town.x;
+      this.player.lastTownY = town.y;
+      this.player.lastTownChunkX = this.player.chunkX;
+      this.player.lastTownChunkY = this.player.chunkY;
+
+      // Check if this town has an explorable city layout
+      const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
+      if (city) {
+        // Enter the city interior
+        this.player.inCity = true;
+        this.player.cityId = city.id;
+        this.player.x = city.spawnX;
+        this.player.y = city.spawnY;
+        this.weatherState.current = WeatherType.Clear;
+        // Reveal all city tiles — cities are always fully visible
+        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+          for (let tx = 0; tx < MAP_WIDTH; tx++) {
+            this.player.exploredTiles[`c:${city.id},${tx},${ty}`] = true;
+          }
+        }
+        this.autoSave();
+        this.cameras.main.flash(300, 200, 180, 160);
+        this.scene.restart({
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+        });
+        return;
+      }
+
+      // No city layout — open shop directly (legacy behavior)
+      this.rerollWeather();
       this.autoSave();
       this.scene.start("ShopScene", {
         player: this.player,
@@ -912,6 +1669,8 @@ export class OverworldScene extends Phaser.Scene {
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
         shopItemIds: town.shopItems,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
       return;
     }
@@ -928,17 +1687,21 @@ export class OverworldScene extends Phaser.Scene {
       if (dungeon) {
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
         if (hasKey || isDebug()) {
-          // Enter the dungeon
+          // Enter the dungeon — force clear weather (closed space)
           this.player.inDungeon = true;
           this.player.dungeonId = dungeon.id;
           this.player.x = dungeon.spawnX;
           this.player.y = dungeon.spawnY;
+          this.weatherState.current = WeatherType.Clear;
+          if (audioEngine.initialized) audioEngine.playDungeonEnterSFX();
           this.autoSave();
           this.cameras.main.flash(300, 100, 100, 100);
           this.scene.restart({
             player: this.player,
             defeatedBosses: this.defeatedBosses,
             bestiary: this.bestiary,
+            timeStep: this.timeStep,
+            weatherState: this.weatherState,
           });
         }
         // No key — just do nothing (location text already hints)
@@ -954,6 +1717,7 @@ export class OverworldScene extends Phaser.Scene {
         if (item) {
           this.player.openedChests.push(chest.id);
           this.player.inventory.push({ ...item });
+          if (audioEngine.initialized) audioEngine.playChestOpenSFX();
           if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
             this.player.equippedWeapon = item;
             if (item.twoHanded) this.player.equippedShield = null;
@@ -981,12 +1745,27 @@ export class OverworldScene extends Phaser.Scene {
     if (boss && !this.defeatedBosses.has(boss.monsterId)) {
       const monster = getBoss(boss.monsterId);
       if (monster) {
-        this.startBattle(monster);
+        this.startBattle(monster, Terrain.Boss);
       }
     }
   }
 
-  private startBattle(monster: ReturnType<typeof getRandomEncounter>): void {
+  /** Map terrain to a biome string for battle backgrounds. */
+  private terrainToBiome(terrain?: Terrain): string {
+    if (this.player.inDungeon) return "dungeon";
+    switch (terrain) {
+      case Terrain.Forest: return "forest";
+      case Terrain.DeepForest: return "deep_forest";
+      case Terrain.Sand: case Terrain.Cactus: return "sand";
+      case Terrain.Tundra: return "tundra";
+      case Terrain.Swamp: case Terrain.Mushroom: return "swamp";
+      case Terrain.Volcanic: case Terrain.Geyser: return "volcanic";
+      case Terrain.Canyon: return "canyon";
+      default: return "grass";
+    }
+  }
+
+  private startBattle(monster: ReturnType<typeof getRandomEncounter>, terrain?: Terrain): void {
     this.autoSave();
     this.cameras.main.flash(300, 255, 255, 255);
     this.time.delayedCall(300, () => {
@@ -995,6 +1774,9 @@ export class OverworldScene extends Phaser.Scene {
         monster,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
+        biome: this.terrainToBiome(terrain),
       });
     });
   }
@@ -1009,11 +1791,167 @@ export class OverworldScene extends Phaser.Scene {
       player: this.player,
       defeatedBosses: this.defeatedBosses,
       bestiary: this.bestiary,
+      timeStep: this.timeStep,
+      weatherState: this.weatherState,
     });
   }
 
   private autoSave(): void {
-    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId);
+    saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId, this.timeStep, this.weatherState);
+  }
+
+  /** Advance the day/night cycle by one step and update the map tint. */
+  private advanceTime(): void {
+    const oldPeriod = getTimePeriod(this.timeStep);
+    this.timeStep = (this.timeStep + 1) % CYCLE_LENGTH;
+    const newPeriod = getTimePeriod(this.timeStep);
+
+    // Dungeons and cities are enclosed — weather stays Clear, only advance time-of-day tint.
+    if (this.player.inDungeon || this.player.inCity) {
+      if (oldPeriod !== newPeriod) this.applyDayNightTint();
+      return;
+    }
+
+    // Advance weather step countdown (can also shift naturally over time)
+    const biomeName = getChunk(this.player.chunkX, this.player.chunkY)?.name ?? "Heartlands";
+    const weatherChanged = advanceWeather(this.weatherState, biomeName, this.timeStep);
+
+    if (oldPeriod !== newPeriod || weatherChanged) {
+      this.applyDayNightTint();
+      if (weatherChanged) this.updateWeatherParticles();
+      this.updateAudio();
+    }
+  }
+
+  /**
+   * Re-roll weather for the current biome (called on chunk transition and town entry).
+   * Updates tint and particle effects if the weather changed.
+   */
+  private rerollWeather(): void {
+    const biomeName = getChunk(this.player.chunkX, this.player.chunkY)?.name ?? "Heartlands";
+    const weatherChanged = changeZoneWeather(this.weatherState, biomeName, this.timeStep);
+    if (weatherChanged) {
+      this.applyDayNightTint();
+      this.updateWeatherParticles();
+      this.updateAudio();
+    }
+  }
+
+  /** Start or update biome music and weather SFX to match the current state. */
+  private updateAudio(): void {
+    if (!audioEngine.initialized) return;
+    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    const biomeName = chunk?.name ?? "Heartlands";
+    const period = getTimePeriod(this.timeStep);
+    audioEngine.playBiomeMusic(biomeName, period);
+    audioEngine.playWeatherSFX(this.weatherState.current);
+  }
+
+  /** Apply a color tint to all map tiles based on time period + weather. */
+  private applyDayNightTint(): void {
+    const dayTint = PERIOD_TINT[getTimePeriod(this.timeStep)];
+    const weatherTint = WEATHER_TINT[this.weatherState.current];
+    // Blend: average the two tint values per channel
+    const tint = blendTints(dayTint, weatherTint);
+    for (const row of this.tileSprites) {
+      for (const sprite of row) {
+        sprite.setTint(tint);
+      }
+    }
+  }
+
+  /** Create or update weather particle effects based on current weather. */
+  private updateWeatherParticles(): void {
+    // Destroy existing emitter
+    if (this.weatherParticles) {
+      this.weatherParticles.destroy();
+      this.weatherParticles = null;
+    }
+    // Stop lightning timer
+    if (this.stormLightningTimer) {
+      this.stormLightningTimer.destroy();
+      this.stormLightningTimer = null;
+    }
+
+    const w = MAP_WIDTH * TILE_SIZE;
+    const h = MAP_HEIGHT * TILE_SIZE;
+    const weather = this.weatherState.current;
+
+    if (weather === WeatherType.Clear) return;
+
+    const configs: Record<string, () => Phaser.GameObjects.Particles.ParticleEmitter> = {
+      [WeatherType.Rain]: () => this.add.particles(0, -20, "particle_rain", {
+        x: { min: 0, max: w },
+        quantity: 4,
+        lifespan: 2200,
+        speedY: { min: 220, max: 360 },
+        speedX: { min: -20, max: -40 },
+        scale: { start: 1, end: 0.5 },
+        alpha: { start: 0.9, end: 0.25 },
+        frequency: 16,
+      }),
+      [WeatherType.Snow]: () => this.add.particles(0, -20, "particle_snow", {
+        x: { min: 0, max: w },
+        quantity: 2,
+        lifespan: 8000,
+        speedY: { min: 40, max: 80 },
+        speedX: { min: -25, max: 25 },
+        scale: { start: 1, end: 0.3 },
+        alpha: { start: 0.95, end: 0.1 },
+        frequency: 50,
+      }),
+      [WeatherType.Sandstorm]: () => this.add.particles(w + 10, 0, "particle_sand", {
+        y: { min: 0, max: h },
+        quantity: 6,
+        lifespan: 2400,
+        speedX: { min: -450, max: -280 },
+        speedY: { min: -30, max: 50 },
+        scale: { start: 1.3, end: 0.5 },
+        alpha: { start: 0.95, end: 0.2 },
+        frequency: 10,
+      }),
+      [WeatherType.Storm]: () => this.add.particles(0, -20, "particle_storm", {
+        x: { min: 0, max: w },
+        quantity: 6,
+        lifespan: 1600,
+        speedY: { min: 350, max: 550 },
+        speedX: { min: -60, max: -100 },
+        scale: { start: 1, end: 0.5 },
+        alpha: { start: 0.9, end: 0.2 },
+        frequency: 12,
+      }),
+      [WeatherType.Fog]: () => this.add.particles(0, 0, "particle_fog", {
+        x: { min: 0, max: w },
+        y: { min: 0, max: h },
+        quantity: 2,
+        lifespan: 6000,
+        speedX: { min: 8, max: 25 },
+        speedY: { min: -5, max: 5 },
+        scale: { start: 2.5, end: 6 },
+        alpha: { start: 0.4, end: 0.05 },
+        frequency: 100,
+      }),
+    };
+
+    const factory = configs[weather];
+    if (factory) {
+      this.weatherParticles = factory();
+      this.weatherParticles.setDepth(15);
+    }
+
+    // Sporadic lightning flashes during storms
+    if (weather === WeatherType.Storm) {
+      const scheduleFlash = () => {
+        this.stormLightningTimer = this.time.delayedCall(
+          2000 + Math.random() * 6000,  // 2-8 seconds between strikes
+          () => {
+            this.cameras.main.flash(120, 255, 255, 255, true);
+            scheduleFlash();
+          },
+        );
+      };
+      scheduleFlash();
+    }
   }
 
   private toggleEquipOverlay(): void {
@@ -1070,9 +2008,11 @@ export class OverworldScene extends Phaser.Scene {
     let cy = py + 34;
 
     // --- Header stats ---
+    const xpNeeded = xpForLevel(p.level + 1);
     const header = this.add.text(px + 14, cy, [
       `${p.name}  Lv.${p.level}`,
       `HP: ${p.hp}/${p.maxHp}   MP: ${p.mp}/${p.maxMp}   AC: ${ac}`,
+      `EXP: ${p.xp}/${xpNeeded}  (${xpNeeded - p.xp} to next)`,
     ].join("\n"), {
       fontSize: "11px",
       fontFamily: "monospace",
@@ -1080,7 +2020,7 @@ export class OverworldScene extends Phaser.Scene {
       lineSpacing: 4,
     });
     this.equipOverlay.add(header);
-    cy += 38;
+    cy += 52;
 
     // --- Weapon slot ---
     const weaponLabel = this.add.text(px + 14, cy, "Weapon:", {
@@ -1108,8 +2048,15 @@ export class OverworldScene extends Phaser.Scene {
         const txt = this.add.text(px + 20, cy,
           `${prefix}${wpn.name} (+${wpn.effect} dmg)${isEquipped ? " [equipped]" : ""}`,
           { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: !isEquipped });
-        if (!isEquipped) {
+        ).setInteractive({ useHandCursor: true });
+        if (isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ff6666"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedWeapon = null;
+            this.buildEquipOverlay();
+          });
+        } else {
           txt.on("pointerover", () => txt.setColor("#ffd700"));
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
@@ -1150,8 +2097,15 @@ export class OverworldScene extends Phaser.Scene {
         const txt = this.add.text(px + 20, cy,
           `${prefix}${arm.name} (+${arm.effect} AC)${isEquipped ? " [equipped]" : ""}`,
           { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: !isEquipped });
-        if (!isEquipped) {
+        ).setInteractive({ useHandCursor: true });
+        if (isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ff6666"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedArmor = null;
+            this.buildEquipOverlay();
+          });
+        } else {
           txt.on("pointerover", () => txt.setColor("#ffd700"));
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
@@ -1197,8 +2151,15 @@ export class OverworldScene extends Phaser.Scene {
         const txt = this.add.text(px + 20, cy,
           `${prefix}${sh.name} (+${sh.effect} AC)${isEquipped ? " [equipped]" : ""}`,
           { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: !isEquipped });
-        if (!isEquipped) {
+        ).setInteractive({ useHandCursor: true });
+        if (isEquipped) {
+          txt.on("pointerover", () => txt.setColor("#ff6666"));
+          txt.on("pointerout", () => txt.setColor(color));
+          txt.on("pointerdown", () => {
+            p.equippedShield = null;
+            this.buildEquipOverlay();
+          });
+        } else {
           txt.on("pointerover", () => txt.setColor("#ffd700"));
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
@@ -1213,11 +2174,23 @@ export class OverworldScene extends Phaser.Scene {
     cy += 6;
 
     // --- Ability Scores ---
+    const fmtStat = (label: string, val: number) => {
+      const mod = abilityModifier(val);
+      const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+      const padVal = val < 10 ? ` ${val}` : `${val}`;
+      return `${label} ${padVal} (${modStr})`;
+    };
+    const appearance = getAppearance(p.appearanceId);
+    const primaryVal = p.stats[appearance.primaryStat];
+    const primaryMod = abilityModifier(primaryVal);
+    const profBonus = Math.floor((p.level - 1) / 4) + 2;
+    const toHit = primaryMod + profBonus;
+    const toHitStr = toHit >= 0 ? `+${toHit}` : `${toHit}`;
     const statsBlock = this.add.text(px + 14, cy, [
-      `― Stats ―`,
-      `STR ${p.stats.strength}  DEX ${p.stats.dexterity}`,
-      `CON ${p.stats.constitution}  INT ${p.stats.intelligence}`,
-      `WIS ${p.stats.wisdom}  CHA ${p.stats.charisma}`,
+      `― Stats ―  To-Hit: ${toHitStr}`,
+      `${fmtStat("STR", p.stats.strength)}  ${fmtStat("DEX", p.stats.dexterity)}`,
+      `${fmtStat("CON", p.stats.constitution)}  ${fmtStat("INT", p.stats.intelligence)}`,
+      `${fmtStat("WIS", p.stats.wisdom)}  ${fmtStat("CHA", p.stats.charisma)}`,
     ].join("\n"), {
       fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
     });
@@ -1281,7 +2254,7 @@ export class OverworldScene extends Phaser.Scene {
     bg.strokeRect(px, py, panelW, panelH);
     this.statOverlay.add(bg);
 
-    const title = this.add.text(px + panelW / 2, py + 12, "🎲 Your Rolled Stats", {
+    const title = this.add.text(px + panelW / 2, py + 12, "📊 Your Stats", {
       fontSize: "15px", fontFamily: "monospace", color: "#ffd700",
     }).setOrigin(0.5, 0);
     this.statOverlay.add(title);
@@ -1351,7 +2324,7 @@ export class OverworldScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const panelW = 220;
-    const panelH = 160;
+    const panelH = 200;
     const px = Math.floor((w - panelW) / 2);
     const py = Math.floor((h - panelH) / 2) - 10;
 
@@ -1380,7 +2353,7 @@ export class OverworldScene extends Phaser.Scene {
     this.menuOverlay.add(title);
 
     // Resume button
-    const resumeBtn = this.add.text(px + panelW / 2, py + 56, "▶ Resume", {
+    const resumeBtn = this.add.text(px + panelW / 2, py + 48, "▶ Resume", {
       fontSize: "14px", fontFamily: "monospace", color: "#88ff88",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
@@ -1389,8 +2362,21 @@ export class OverworldScene extends Phaser.Scene {
     resumeBtn.on("pointerdown", () => this.toggleMenuOverlay());
     this.menuOverlay.add(resumeBtn);
 
+    // Settings button
+    const settingsBtn = this.add.text(px + panelW / 2, py + 90, "🔊 Settings", {
+      fontSize: "14px", fontFamily: "monospace", color: "#aabbff",
+      backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    settingsBtn.on("pointerover", () => settingsBtn.setColor("#ffd700"));
+    settingsBtn.on("pointerout", () => settingsBtn.setColor("#aabbff"));
+    settingsBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay();
+      this.showSettingsOverlay();
+    });
+    this.menuOverlay.add(settingsBtn);
+
     // Quit to Title button
-    const quitBtn = this.add.text(px + panelW / 2, py + 100, "✕ Quit to Title", {
+    const quitBtn = this.add.text(px + panelW / 2, py + 132, "✕ Quit to Title", {
       fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
@@ -1413,17 +2399,154 @@ export class OverworldScene extends Phaser.Scene {
     this.menuOverlay.add(hint);
   }
 
-  // ─── ASI Stat Allocation Overlay ─────────────────────────────────
+  // ─── Settings Overlay ────────────────────────────────────────────
 
-  private toggleStatOverlay(): void {
-    if (this.statOverlay) {
-      this.statOverlay.destroy();
-      this.statOverlay = null;
+  private toggleSettingsOverlay(): void {
+    if (this.settingsOverlay) {
+      this.settingsOverlay.destroy();
+      this.settingsOverlay = null;
       return;
     }
-    if (this.player.pendingStatPoints <= 0) return;
-    this.showStatOverlay();
+    this.showSettingsOverlay();
   }
+
+  private showSettingsOverlay(): void {
+    // Close other overlays
+    if (this.menuOverlay) { this.menuOverlay.destroy(); this.menuOverlay = null; }
+    if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
+    if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
+    if (this.settingsOverlay) { this.settingsOverlay.destroy(); this.settingsOverlay = null; }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const panelW = 300;
+    const panelH = 290;
+    const px = Math.floor((w - panelW) / 2);
+    const py = Math.floor((h - panelH) / 2) - 10;
+
+    this.settingsOverlay = this.add.container(0, 0).setDepth(75);
+
+    // Dim — only closes when clicking outside the panel
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.6);
+    dim.fillRect(0, 0, w, h);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+    dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      // Only close if the click is outside the panel area
+      if (pointer.x < px || pointer.x > px + panelW || pointer.y < py || pointer.y > py + panelH) {
+        this.toggleSettingsOverlay();
+      }
+    });
+    this.settingsOverlay.add(dim);
+
+    // Panel background — absorb clicks so they don't reach the dim layer
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRect(px, py, panelW, panelH);
+    bg.lineStyle(2, 0xffd700, 1);
+    bg.strokeRect(px, py, panelW, panelH);
+    bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
+    this.settingsOverlay.add(bg);
+
+    // Title
+    const title = this.add.text(px + panelW / 2, py + 12, "🔊 Audio Settings", {
+      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    this.settingsOverlay.add(title);
+
+    // Volume slider helper
+    const sliderY = py + 44;
+    const sliderX = px + 16;
+    const sliderW = panelW - 32;
+    const barH = 10;
+    const sliderSpacing = 48;
+
+    const channels: { label: string; value: number; setter: (v: number) => void }[] = [
+      { label: "Master", value: audioEngine.state.masterVolume, setter: (v) => audioEngine.setMasterVolume(v) },
+      { label: "Music",  value: audioEngine.state.musicVolume,  setter: (v) => audioEngine.setMusicVolume(v) },
+      { label: "SFX",    value: audioEngine.state.sfxVolume,    setter: (v) => audioEngine.setSFXVolume(v) },
+      { label: "Dialog", value: audioEngine.state.dialogVolume, setter: (v) => audioEngine.setDialogVolume(v) },
+    ];
+
+    channels.forEach((ch, i) => {
+      const y = sliderY + i * sliderSpacing;
+
+      // Label + value text
+      const valText = this.add.text(sliderX + sliderW, y - 2, `${ch.label}: ${Math.round(ch.value * 100)}%`, {
+        fontSize: "11px", fontFamily: "monospace", color: "#ccc",
+      }).setOrigin(1, 0);
+      this.settingsOverlay!.add(valText);
+
+      // Slider track
+      const track = this.add.graphics();
+      track.fillStyle(0x333355, 1);
+      track.fillRect(sliderX, y + 14, sliderW, barH);
+      track.lineStyle(1, 0x555577, 1);
+      track.strokeRect(sliderX, y + 14, sliderW, barH);
+      this.settingsOverlay!.add(track);
+
+      // Filled portion
+      const fill = this.add.graphics();
+      const drawFill = (v: number) => {
+        fill.clear();
+        fill.fillStyle(0x4488ff, 1);
+        fill.fillRect(sliderX, y + 14, sliderW * v, barH);
+      };
+      drawFill(ch.value);
+      this.settingsOverlay!.add(fill);
+
+      // Knob
+      let currentKnobX = sliderX + sliderW * ch.value;
+      const knob = this.add.graphics();
+      const drawKnob = (kx: number) => {
+        knob.clear();
+        knob.fillStyle(0xffd700, 1);
+        knob.fillCircle(kx, y + 14 + barH / 2, 7);
+        knob.lineStyle(1, 0xaa8800, 1);
+        knob.strokeCircle(kx, y + 14 + barH / 2, 7);
+      };
+      drawKnob(currentKnobX);
+      this.settingsOverlay!.add(knob);
+
+      // Draggable zone centered on the knob only
+      const knobZone = this.add.zone(currentKnobX, y + 14 + barH / 2, 22, 22)
+        .setInteractive({ useHandCursor: true, draggable: true });
+      this.settingsOverlay!.add(knobZone);
+
+      knobZone.on("drag", (_pointer: Phaser.Input.Pointer, dragX: number) => {
+        const clampedX = Phaser.Math.Clamp(dragX, sliderX, sliderX + sliderW);
+        const ratio = (clampedX - sliderX) / sliderW;
+        ch.setter(ratio);
+        ch.value = ratio;
+        currentKnobX = clampedX;
+        drawFill(ratio);
+        drawKnob(clampedX);
+        knobZone.setPosition(clampedX, y + 14 + barH / 2);
+        valText.setText(`${ch.label}: ${Math.round(ratio * 100)}%`);
+      });
+    });
+
+    // Mute toggle
+    const muteY = sliderY + channels.length * sliderSpacing + 4;
+    const muteBtn = this.add.text(px + panelW / 2, muteY, audioEngine.state.muted ? "🔇 Unmute" : "🔊 Mute All", {
+      fontSize: "13px", fontFamily: "monospace", color: audioEngine.state.muted ? "#ff6666" : "#88ccff",
+      backgroundColor: "#2a2a4e", padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    muteBtn.on("pointerdown", () => {
+      const muted = audioEngine.toggleMute();
+      muteBtn.setText(muted ? "🔇 Unmute" : "🔊 Mute All");
+      muteBtn.setColor(muted ? "#ff6666" : "#88ccff");
+    });
+    this.settingsOverlay.add(muteBtn);
+
+    // Close hint
+    const hint = this.add.text(px + panelW / 2, py + panelH - 10, "Click outside or press M to close", {
+      fontSize: "10px", fontFamily: "monospace", color: "#666",
+    }).setOrigin(0.5, 1);
+    this.settingsOverlay.add(hint);
+  }
+
+  // ─── ASI Stat Allocation Overlay ─────────────────────────────────
 
   private showStatOverlay(): void {
     // Close equipment overlay first
@@ -1515,7 +2638,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // Close hint
     const hint = this.add.text(px + panelW / 2, py + panelH - 14,
-      p.pendingStatPoints > 0 ? "Click [+] to allocate  |  T to close" : "Press T or click to close", {
+      p.pendingStatPoints > 0 ? "Click [+] to allocate" : "All points allocated!", {
         fontSize: "10px", fontFamily: "monospace", color: "#666",
       }).setOrigin(0.5, 1);
     this.statOverlay.add(hint);
@@ -1527,6 +2650,10 @@ export class OverworldScene extends Phaser.Scene {
     if (this.worldMapOverlay) {
       this.worldMapOverlay.destroy();
       this.worldMapOverlay = null;
+      // Remove map-specific input listeners
+      this.input.off("wheel");
+      this.input.off("pointermove");
+      this.input.off("pointerup");
       return;
     }
     this.showWorldMap();
@@ -1541,23 +2668,9 @@ export class OverworldScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
 
-    // Each mini-chunk is rendered at 4px per tile → 80×60 px per chunk
-    const tilePixel = 4;
-    const chunkW = MAP_WIDTH * tilePixel;  // 80
-    const chunkH = MAP_HEIGHT * tilePixel; // 60
-    const gap = 4;
-    const gridW = WORLD_WIDTH * chunkW + (WORLD_WIDTH - 1) * gap;   // 248
-    const gridH = WORLD_HEIGHT * chunkH + (WORLD_HEIGHT - 1) * gap; // 188
-    const panelPad = 16;
-    const titleH = 30;
-    const panelW = gridW + panelPad * 2;
-    const panelH = gridH + panelPad * 2 + titleH + 24; // extra for hint text
-    const px = Math.floor((w - panelW) / 2);
-    const py = Math.floor((h - panelH) / 2) - 10;
-
     this.worldMapOverlay = this.add.container(0, 0).setDepth(80);
 
-    // Dim background
+    // Dim background (click to close)
     const dim = this.add.graphics();
     dim.fillStyle(0x000000, 0.6);
     dim.fillRect(0, 0, w, h);
@@ -1565,112 +2678,340 @@ export class OverworldScene extends Phaser.Scene {
     dim.on("pointerdown", () => this.toggleWorldMap());
     this.worldMapOverlay.add(dim);
 
+    // Panel sizing
+    const panelPad = 12;
+    const titleH = 28;
+    const legendH = 36;
+    const panelW = w - 20;
+    const panelH = h - 20;
+    const px = 10;
+    const py = 10;
+
     // Panel background
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a2e, 0.95);
     bg.fillRect(px, py, panelW, panelH);
     bg.lineStyle(2, 0xffd700, 1);
     bg.strokeRect(px, py, panelW, panelH);
+    bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
     this.worldMapOverlay.add(bg);
 
     // Title
-    const title = this.add.text(px + panelW / 2, py + 10, "🗺 World Map", {
-      fontSize: "15px", fontFamily: "monospace", color: "#ffd700",
+    const title = this.add.text(px + panelW / 2, py + 6, "🗺 World Map", {
+      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
     }).setOrigin(0.5, 0);
     this.worldMapOverlay.add(title);
 
-    const gridX = px + panelPad;
-    const gridY = py + titleH + panelPad;
+    // Content area bounds (clipped region)
+    const contentX = px + panelPad;
+    const contentY = py + titleH + panelPad;
+    const contentW = panelW - panelPad * 2;
+    const contentH = panelH - titleH - panelPad * 2 - legendH;
 
-    // Draw each chunk as a mini-map
-    for (let cy = 0; cy < WORLD_HEIGHT; cy++) {
-      for (let cx = 0; cx < WORLD_WIDTH; cx++) {
-        const chunk = getChunk(cx, cy);
-        if (!chunk) continue;
+    // Scrollable/zoomable map container
+    const mapContainer = this.add.container(0, 0);
+    this.worldMapOverlay.add(mapContainer);
 
-        const ox = gridX + cx * (chunkW + gap);
-        const oy = gridY + cy * (chunkH + gap);
+    // Mask to clip content to panel area
+    const maskShape = this.make.graphics({ x: 0, y: 0 });
+    maskShape.fillStyle(0xffffff);
+    maskShape.fillRect(contentX, contentY, contentW, contentH);
+    const mask = maskShape.createGeometryMask();
+    mapContainer.setMask(mask);
 
-        // Draw terrain tiles (fog of war applied)
-        const miniGfx = this.add.graphics();
-        let hasExplored = false;
+    // ── Zoom / Pan state ──
+    let zoomLevel = 1;
+    const minZoom = 0.5;
+    const maxZoom = 3;
+    let panX = 0;
+    let panY = 0;
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let panStartX = 0;
+    let panStartY = 0;
+    let detailChunk: { cx: number; cy: number } | null = null;
+
+    // Base tile scale for the overview
+    const baseTilePixel = 4;
+    const gap = 3;
+
+    // ── Draw function (called on zoom/pan/detail change) ──
+    const redraw = () => {
+      mapContainer.removeAll(true);
+
+      if (detailChunk) {
+        // ── DETAIL VIEW: single chunk zoomed in ──
+        const { cx: dcx, cy: dcy } = detailChunk;
+        const chunk = getChunk(dcx, dcy);
+        if (!chunk) return;
+
+        const detailTile = Math.min(
+          Math.floor(contentW / MAP_WIDTH),
+          Math.floor(contentH / MAP_HEIGHT)
+        );
+        const mapW = MAP_WIDTH * detailTile;
+        const mapH = MAP_HEIGHT * detailTile;
+        const ox = contentX + Math.floor((contentW - mapW) / 2);
+        const oy = contentY + Math.floor((contentH - mapH) / 2);
+
+        // Draw terrain
+        const gfx = this.add.graphics();
         for (let ty = 0; ty < MAP_HEIGHT; ty++) {
           for (let tx = 0; tx < MAP_WIDTH; tx++) {
             const terrain = chunk.mapData[ty][tx];
-            // Check if this tile has been explored
-            const exploredKey = `${cx},${cy},${tx},${ty}`;
+            const exploredKey = `${dcx},${dcy},${tx},${ty}`;
             const explored = !!this.player.exploredTiles[exploredKey];
-            if (explored) hasExplored = true;
             const color = explored ? TERRAIN_COLORS[terrain] : 0x0a0a0a;
-            miniGfx.fillStyle(color, 1);
-            miniGfx.fillRect(ox + tx * tilePixel, oy + ty * tilePixel, tilePixel, tilePixel);
+            gfx.fillStyle(color, 1);
+            gfx.fillRect(ox + tx * detailTile, oy + ty * detailTile, detailTile, detailTile);
+            // Grid lines
+            if (detailTile >= 6) {
+              gfx.lineStyle(1, 0x000000, 0.15);
+              gfx.strokeRect(ox + tx * detailTile, oy + ty * detailTile, detailTile, detailTile);
+            }
           }
         }
-        this.worldMapOverlay.add(miniGfx);
+        mapContainer.add(gfx);
 
-        // Border
-        const border = this.add.graphics();
-        const isCurrent = cx === this.player.chunkX && cy === this.player.chunkY;
-        border.lineStyle(isCurrent ? 2 : 1, isCurrent ? 0xffd700 : 0x333333, 1);
-        border.strokeRect(ox, oy, chunkW, chunkH);
-        this.worldMapOverlay.add(border);
-
-        // Region name below this mini-chunk (only if player has explored at least one tile)
-        if (hasExplored) {
-          const regionLabel = this.add.text(ox + chunkW / 2, oy + chunkH + 1, chunk.name, {
-            fontSize: "7px", fontFamily: "monospace",
-            color: isCurrent ? "#ffd700" : "#999",
-          }).setOrigin(0.5, 0);
-          this.worldMapOverlay.add(regionLabel);
-        }
-
-        // Draw town markers (only if explored)
+        // Town labels
         for (const town of chunk.towns) {
-          const townExploredKey = `${cx},${cy},${town.x},${town.y}`;
-          if (!this.player.exploredTiles[townExploredKey]) continue;
-          const mx = ox + town.x * tilePixel + tilePixel / 2;
-          const my = oy + town.y * tilePixel + tilePixel / 2;
-          const townMarker = this.add.graphics();
-          townMarker.fillStyle(0xff9800, 1);
-          townMarker.fillCircle(mx, my, 3);
-          this.worldMapOverlay.add(townMarker);
+          const eKey = `${dcx},${dcy},${town.x},${town.y}`;
+          if (!this.player.exploredTiles[eKey]) continue;
+          const mx = ox + town.x * detailTile + detailTile / 2;
+          const my = oy + town.y * detailTile + detailTile / 2;
+          const marker = this.add.graphics();
+          marker.fillStyle(0xab47bc, 1);
+          marker.fillCircle(mx, my, Math.max(4, detailTile / 3));
+          mapContainer.add(marker);
+          const label = this.add.text(mx, my - detailTile / 2 - 2, town.name, {
+            fontSize: "9px", fontFamily: "monospace", color: "#fff",
+            stroke: "#000", strokeThickness: 2,
+          }).setOrigin(0.5, 1);
+          mapContainer.add(label);
         }
 
-        // Draw boss markers (if not defeated and explored)
+        // Boss markers
         for (const boss of chunk.bosses) {
-          const bossExploredKey = `${cx},${cy},${boss.x},${boss.y}`;
-          if (!this.defeatedBosses.has(boss.monsterId) && this.player.exploredTiles[bossExploredKey]) {
-            const mx = ox + boss.x * tilePixel + tilePixel / 2;
-            const my = oy + boss.y * tilePixel + tilePixel / 2;
-            const bossMarker = this.add.graphics();
-            bossMarker.fillStyle(0xff0000, 1);
-            bossMarker.fillCircle(mx, my, 3);
-            bossMarker.lineStyle(1, 0xffffff, 1);
-            bossMarker.strokeCircle(mx, my, 3);
-            this.worldMapOverlay.add(bossMarker);
-          }
+          const eKey = `${dcx},${dcy},${boss.x},${boss.y}`;
+          if (!this.player.exploredTiles[eKey]) continue;
+          if (this.defeatedBosses.has(boss.monsterId)) continue;
+          const mx = ox + boss.x * detailTile + detailTile / 2;
+          const my = oy + boss.y * detailTile + detailTile / 2;
+          const marker = this.add.graphics();
+          marker.fillStyle(0xff0000, 1);
+          marker.fillCircle(mx, my, Math.max(4, detailTile / 3));
+          marker.lineStyle(1, 0xffffff, 1);
+          marker.strokeCircle(mx, my, Math.max(4, detailTile / 3));
+          mapContainer.add(marker);
+          const label = this.add.text(mx, my - detailTile / 2 - 2, "☠ " + boss.name, {
+            fontSize: "8px", fontFamily: "monospace", color: "#ff4444",
+            stroke: "#000", strokeThickness: 2,
+          }).setOrigin(0.5, 1);
+          mapContainer.add(label);
         }
 
-        // Draw player marker on current chunk
-        if (isCurrent) {
-          const pmx = ox + this.player.x * tilePixel + tilePixel / 2;
-          const pmy = oy + this.player.y * tilePixel + tilePixel / 2;
-          const playerMarker = this.add.graphics();
-          playerMarker.fillStyle(0x00ff00, 1);
-          playerMarker.fillCircle(pmx, pmy, 3);
-          playerMarker.lineStyle(1, 0xffffff, 1);
-          playerMarker.strokeCircle(pmx, pmy, 3);
-          this.worldMapOverlay.add(playerMarker);
+        // Player marker if on this chunk
+        if (dcx === this.player.chunkX && dcy === this.player.chunkY) {
+          const pmx = ox + this.player.x * detailTile + detailTile / 2;
+          const pmy = oy + this.player.y * detailTile + detailTile / 2;
+          const pm = this.add.graphics();
+          pm.fillStyle(0x00ff00, 1);
+          pm.fillCircle(pmx, pmy, Math.max(4, detailTile / 3));
+          pm.lineStyle(1, 0xffffff, 1);
+          pm.strokeCircle(pmx, pmy, Math.max(4, detailTile / 3));
+          mapContainer.add(pm);
+        }
+
+        // Back button
+        const back = this.add.text(contentX + 4, contentY + 4, "◀ Back to World", {
+          fontSize: "11px", fontFamily: "monospace", color: "#88ff88",
+          backgroundColor: "#1a1a2e", padding: { x: 6, y: 3 },
+        }).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        back.on("pointerover", () => back.setColor("#ffd700"));
+        back.on("pointerout", () => back.setColor("#88ff88"));
+        back.on("pointerdown", () => { detailChunk = null; redraw(); });
+        mapContainer.add(back);
+
+        return;
+      }
+
+      // ── OVERVIEW: all chunks ──
+      const tp = baseTilePixel * zoomLevel;
+      const chunkW = MAP_WIDTH * tp;
+      const chunkH = MAP_HEIGHT * tp;
+      const gapZ = gap * zoomLevel;
+      const gridW = WORLD_WIDTH * chunkW + (WORLD_WIDTH - 1) * gapZ;
+      const gridH = WORLD_HEIGHT * chunkH + (WORLD_HEIGHT - 1) * gapZ;
+
+      // Center the grid, then apply pan offset
+      const baseX = contentX + (contentW - gridW) / 2 + panX;
+      const baseY = contentY + (contentH - gridH) / 2 + panY;
+
+      for (let cy = 0; cy < WORLD_HEIGHT; cy++) {
+        for (let cx = 0; cx < WORLD_WIDTH; cx++) {
+          const chunk = getChunk(cx, cy);
+          if (!chunk) continue;
+
+          const ox = baseX + cx * (chunkW + gapZ);
+          const oy = baseY + cy * (chunkH + gapZ);
+
+          // Draw terrain
+          const miniGfx = this.add.graphics();
+          let hasExplored = false;
+          for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+            for (let tx = 0; tx < MAP_WIDTH; tx++) {
+              const terrain = chunk.mapData[ty][tx];
+              const exploredKey = `${cx},${cy},${tx},${ty}`;
+              const explored = !!this.player.exploredTiles[exploredKey];
+              if (explored) hasExplored = true;
+              // Show collected minor treasures as their base terrain color
+              let color: number;
+              if (!explored) {
+                color = 0x0a0a0a;
+              } else if (hasSparkleAt(cx, cy, tx, ty) && !this.player.collectedTreasures.includes(exploredKey)) {
+                color = TERRAIN_COLORS[Terrain.MinorTreasure];
+              } else {
+                color = TERRAIN_COLORS[terrain];
+              }
+              miniGfx.fillStyle(color, 1);
+              miniGfx.fillRect(ox + tx * tp, oy + ty * tp, tp, tp);
+            }
+          }
+          mapContainer.add(miniGfx);
+
+          // Border (gold for current chunk)
+          const border = this.add.graphics();
+          const isCurrent = cx === this.player.chunkX && cy === this.player.chunkY;
+          border.lineStyle(isCurrent ? 2 : 1, isCurrent ? 0xffd700 : 0x333333, 1);
+          border.strokeRect(ox, oy, chunkW, chunkH);
+          mapContainer.add(border);
+
+          // Click zone for detail view
+          const clickZone = this.add.zone(ox + chunkW / 2, oy + chunkH / 2, chunkW, chunkH)
+            .setInteractive({ useHandCursor: true });
+          clickZone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+            // Only on short click (not drag)
+            if (pointer.getDistance() < 5) {
+              detailChunk = { cx, cy };
+              redraw();
+            }
+          });
+          mapContainer.add(clickZone);
+
+          // Town markers
+          for (const town of chunk.towns) {
+            const tKey = `${cx},${cy},${town.x},${town.y}`;
+            if (!this.player.exploredTiles[tKey]) continue;
+            const mx = ox + town.x * tp + tp / 2;
+            const my = oy + town.y * tp + tp / 2;
+            const m = this.add.graphics();
+            m.fillStyle(0xab47bc, 1);
+            m.fillCircle(mx, my, Math.max(2, 3 * zoomLevel));
+            mapContainer.add(m);
+          }
+
+          // Boss markers
+          for (const boss of chunk.bosses) {
+            const bKey = `${cx},${cy},${boss.x},${boss.y}`;
+            if (!this.player.exploredTiles[bKey] || this.defeatedBosses.has(boss.monsterId)) continue;
+            const mx = ox + boss.x * tp + tp / 2;
+            const my = oy + boss.y * tp + tp / 2;
+            const m = this.add.graphics();
+            m.fillStyle(0xff0000, 1);
+            m.fillCircle(mx, my, Math.max(2, 3 * zoomLevel));
+            m.lineStyle(1, 0xffffff, 1);
+            m.strokeCircle(mx, my, Math.max(2, 3 * zoomLevel));
+            mapContainer.add(m);
+          }
+
+          // Player marker
+          if (isCurrent) {
+            const pmx = ox + this.player.x * tp + tp / 2;
+            const pmy = oy + this.player.y * tp + tp / 2;
+            const pm = this.add.graphics();
+            pm.fillStyle(0x00ff00, 1);
+            pm.fillCircle(pmx, pmy, Math.max(2, 3 * zoomLevel));
+            pm.lineStyle(1, 0xffffff, 1);
+            pm.strokeCircle(pmx, pmy, Math.max(2, 3 * zoomLevel));
+            mapContainer.add(pm);
+          }
         }
       }
-    }
+    };
 
-    // Legend
-    const legendY = gridY + gridH + 14;
-    const legend = this.add.text(px + panelW / 2, legendY,
-      "● You   ● Town   ● Boss      Press N to close", {
-        fontSize: "9px", fontFamily: "monospace", color: "#aaa",
-      }).setOrigin(0.5, 0);
-    this.worldMapOverlay.add(legend);
+    // Initial draw
+    redraw();
+
+    // ── Mouse wheel zoom ──
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
+      if (!this.worldMapOverlay || detailChunk) return;
+      const oldZoom = zoomLevel;
+      zoomLevel = Phaser.Math.Clamp(zoomLevel - deltaY * 0.001, minZoom, maxZoom);
+      if (zoomLevel !== oldZoom) {
+        // Scale pan to maintain center point
+        panX = panX * (zoomLevel / oldZoom);
+        panY = panY * (zoomLevel / oldZoom);
+        redraw();
+      }
+    });
+
+    // ── Drag to pan ──
+    bg.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (detailChunk) return;
+      isDragging = true;
+      dragStartX = pointer.x;
+      dragStartY = pointer.y;
+      panStartX = panX;
+      panStartY = panY;
+    });
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (!isDragging || !this.worldMapOverlay) return;
+      panX = panStartX + (pointer.x - dragStartX);
+      panY = panStartY + (pointer.y - dragStartY);
+      redraw();
+    });
+    this.input.on("pointerup", () => { isDragging = false; });
+
+    // ── Legend ──
+    const legendY = py + panelH - legendH + 4;
+    const legendParts: { text: string; color: string }[] = [
+      { text: "● ", color: "#00ff00" }, { text: "You  ", color: "#aaa" },
+      { text: "● ", color: "#ff4444" }, { text: "Boss  ", color: "#aaa" },
+      { text: "● ", color: "#ab47bc" }, { text: "Town  ", color: "#aaa" },
+      { text: "|  Scroll to zoom · Drag to pan · Click chunk for detail  |  N to close", color: "#aaa" },
+    ];
+    let legendCursorX = 0;
+    const legendContainer = this.add.container(0, legendY);
+    for (const part of legendParts) {
+      const t = this.add.text(legendCursorX, 0, part.text, {
+        fontSize: "10px", fontFamily: "monospace", color: part.color,
+      });
+      legendContainer.add(t);
+      legendCursorX += t.width;
+    }
+    legendContainer.setX(px + panelW / 2 - legendCursorX / 2);
+    this.worldMapOverlay.add(legendContainer);
+
+    // Zoom controls
+    const zoomIn = this.add.text(px + panelW - panelPad - 40, legendY,
+      "[+]", { fontSize: "12px", fontFamily: "monospace", color: "#88ff88" })
+      .setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    zoomIn.on("pointerdown", () => {
+      if (detailChunk) return;
+      zoomLevel = Phaser.Math.Clamp(zoomLevel + 0.3, minZoom, maxZoom);
+      redraw();
+    });
+    this.worldMapOverlay.add(zoomIn);
+
+    const zoomOut = this.add.text(px + panelW - panelPad - 20, legendY,
+      "[-]", { fontSize: "12px", fontFamily: "monospace", color: "#88ff88" })
+      .setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    zoomOut.on("pointerdown", () => {
+      if (detailChunk) return;
+      zoomLevel = Phaser.Math.Clamp(zoomLevel - 0.3, minZoom, maxZoom);
+      redraw();
+    });
+    this.worldMapOverlay.add(zoomOut);
   }
 }

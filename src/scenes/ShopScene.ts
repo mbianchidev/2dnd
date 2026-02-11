@@ -7,17 +7,23 @@ import type { PlayerState } from "../systems/player";
 import { buyItem, useItem, ownsEquipment } from "../systems/player";
 import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
+import { type WeatherState, createWeatherState } from "../systems/weather";
+import { audioEngine } from "../systems/audio";
 
 export class ShopScene extends Phaser.Scene {
   private player!: PlayerState;
   private townName!: string;
   private defeatedBosses!: Set<string>;
   private bestiary!: BestiaryData;
+  private timeStep = 0;
+  private weatherState: WeatherState = createWeatherState();
   private shopItems!: Item[];
   private messageText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
   private statsText!: Phaser.GameObjects.Text;
   private itemListContainer!: Phaser.GameObjects.Container;
+  private fromCity = false;
+  private cityId = "";
 
   constructor() {
     super({ key: "ShopScene" });
@@ -29,11 +35,19 @@ export class ShopScene extends Phaser.Scene {
     defeatedBosses: Set<string>;
     bestiary: BestiaryData;
     shopItemIds?: string[];
+    timeStep?: number;
+    weatherState?: WeatherState;
+    fromCity?: boolean;
+    cityId?: string;
   }): void {
     this.player = data.player;
     this.townName = data.townName;
     this.defeatedBosses = data.defeatedBosses;
     this.bestiary = data.bestiary;
+    this.timeStep = data.timeStep ?? 0;
+    this.weatherState = data.weatherState ?? createWeatherState();
+    this.fromCity = data.fromCity ?? false;
+    this.cityId = data.cityId ?? "";
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -50,9 +64,15 @@ export class ShopScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x1a1a2e);
     this.cameras.main.fadeIn(300);
 
+    // Play city music for this town
+    if (audioEngine.initialized) {
+      audioEngine.playCityMusic(this.townName);
+    }
+
     // Title
+    const titleText = this.fromCity ? this.townName : `${this.townName} - General Store`;
     this.add
-      .text(w / 2, 20, `${this.townName} - General Store`, {
+      .text(w / 2, 20, titleText, {
         fontSize: "22px",
         fontFamily: "monospace",
         color: "#ffd700",
@@ -132,20 +152,22 @@ export class ShopScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    // Rest at Inn button
-    const restBtn = this.add
-      .text(20, bottomBarY + 28, "🏨 Rest at Inn (10g)", {
-        fontSize: "13px",
-        fontFamily: "monospace",
-        color: "#aaddff",
-        backgroundColor: "#2a2a4e",
-        padding: { x: 8, y: 4 },
-      })
-      .setInteractive({ useHandCursor: true });
+    // Rest at Inn button (only in standalone shop mode, not from city)
+    if (!this.fromCity) {
+      const restBtn = this.add
+        .text(20, bottomBarY + 28, "🏨 Rest at Inn (10g)", {
+          fontSize: "13px",
+          fontFamily: "monospace",
+          color: "#aaddff",
+          backgroundColor: "#2a2a4e",
+          padding: { x: 8, y: 4 },
+        })
+        .setInteractive({ useHandCursor: true });
 
-    restBtn.on("pointerover", () => restBtn.setColor("#ffd700"));
-    restBtn.on("pointerout", () => restBtn.setColor("#aaddff"));
-    restBtn.on("pointerdown", () => this.restAtInn());
+      restBtn.on("pointerover", () => restBtn.setColor("#ffd700"));
+      restBtn.on("pointerout", () => restBtn.setColor("#aaddff"));
+      restBtn.on("pointerdown", () => this.restAtInn());
+    }
 
     // Leave button
     const leaveBtn = this.add
@@ -318,6 +340,8 @@ export class ShopScene extends Phaser.Scene {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         bestiary: this.bestiary,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
       });
     });
   }

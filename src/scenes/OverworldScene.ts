@@ -1642,6 +1642,12 @@ export class OverworldScene extends Phaser.Scene {
         this.player.x = city.spawnX;
         this.player.y = city.spawnY;
         this.weatherState.current = WeatherType.Clear;
+        // Reveal all city tiles — cities are always fully visible
+        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+          for (let tx = 0; tx < MAP_WIDTH; tx++) {
+            this.player.exploredTiles[`c:${city.id},${tx},${ty}`] = true;
+          }
+        }
         this.autoSave();
         this.cameras.main.flash(300, 200, 180, 160);
         this.scene.restart({

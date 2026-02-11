@@ -499,19 +499,32 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - consumables.length * 28 - 10);
+    // Stack consumables by id — group into { item, count, firstIndex }
+    const stacks: { item: typeof consumables[0]; count: number; firstIndex: number }[] = [];
+    const seen = new Map<string, number>(); // id → index in stacks[]
+    for (const item of consumables) {
+      const existing = seen.get(item.id);
+      if (existing !== undefined) {
+        stacks[existing].count++;
+      } else {
+        seen.set(item.id, stacks.length);
+        stacks.push({ item, count: 1, firstIndex: this.player.inventory.indexOf(item) });
+      }
+    }
+
+    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - stacks.length * 28 - 10);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
-    bg.fillRect(-5, -5, 260, consumables.length * 28 + 10);
+    bg.fillRect(-5, -5, 260, stacks.length * 28 + 10);
     bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, consumables.length * 28 + 10);
+    bg.strokeRect(-5, -5, 260, stacks.length * 28 + 10);
     container.add(bg);
 
-    consumables.forEach((item, i) => {
-      const realIndex = this.player.inventory.indexOf(item);
+    stacks.forEach((stack, i) => {
+      const countLabel = stack.count > 1 ? ` x${stack.count}` : "";
       const text = this.add
-        .text(0, i * 28, `${item.name} - ${item.description}`, {
+        .text(0, i * 28, `${stack.item.name}${countLabel} - ${stack.item.description}`, {
           fontSize: "12px",
           fontFamily: "monospace",
           color: "#aaffaa",
@@ -521,9 +534,11 @@ export class BattleScene extends Phaser.Scene {
       text.on("pointerover", () => text.setColor("#ffd700"));
       text.on("pointerout", () => text.setColor("#aaffaa"));
       text.on("pointerdown", () => {
+        // Find the first inventory index for this item id
+        const realIndex = this.player.inventory.findIndex(it => it.id === stack.item.id && it.type === "consumable");
         this.itemMenu?.destroy();
         this.itemMenu = null;
-        this.doUseItem(realIndex);
+        if (realIndex >= 0) this.doUseItem(realIndex);
       });
       container.add(text);
     });

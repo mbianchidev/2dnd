@@ -13,6 +13,12 @@ export const TILE_SIZE = 32;
  * in battle (K = kill monster, H = full heal, P = restore MP,
  * G = +100 gold, L = level up, X = max XP).
  */
+/** Returns true when running locally (not on a *.github.io deployment). */
+export function isLocalDev(): boolean {
+  const host = globalThis.location?.hostname ?? "localhost";
+  return !host.endsWith(".github.io");
+}
+
 let _debug = false;
 type DebugListener = (on: boolean) => void;
 const _listeners: DebugListener[] = [];

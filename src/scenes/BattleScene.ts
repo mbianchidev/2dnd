@@ -29,7 +29,7 @@ import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
-import { getTimePeriod, PERIOD_TINT } from "../systems/daynight";
+import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
@@ -114,6 +114,7 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.fadeIn(300);
 
     this.drawBattleUI();
+    this.drawCelestialBody();
     this.setupDebug();
     this.createWeatherParticles();
     this.applyDayNightTint();
@@ -1097,6 +1098,118 @@ export class BattleScene extends Phaser.Scene {
     console.error(`[BattleScene.${context}]`, err);
     debugPanelLog(`ERROR in ${context}: ${msg}`);
     this.addLog(`⚠ Something went wrong (${context})`);
+  }
+
+  /**
+   * Draw a sun or moon in the sky area of the battle background.
+   * Position varies by time of day:
+   *   Dawn  → sun low-left (rising)
+   *   Day   → sun high-center
+   *   Dusk  → sun low-right (setting)
+   *   Night → moon upper area
+   */
+  private drawCelestialBody(): void {
+    // Skip for dungeons — no sky visible
+    if (this.biome === "dungeon") return;
+
+    const w = this.cameras.main.width;
+    const skyH = this.cameras.main.height * 0.45; // sky occupies roughly top 45%
+    const period = getTimePeriod(this.timeStep);
+    const gfx = this.add.graphics();
+    gfx.setDepth(0.5); // above bg image, below sprites
+
+    switch (period) {
+      case TimePeriod.Dawn: {
+        // Sun rising — low left, warm orange glow
+        const sx = w * 0.15;
+        const sy = skyH * 0.8;
+        // Outer glow
+        gfx.fillStyle(0xffcc66, 0.15);
+        gfx.fillCircle(sx, sy, 50);
+        gfx.fillStyle(0xffaa33, 0.2);
+        gfx.fillCircle(sx, sy, 30);
+        // Sun disc
+        gfx.fillStyle(0xffdd44, 1);
+        gfx.fillCircle(sx, sy, 16);
+        gfx.fillStyle(0xffee88, 1);
+        gfx.fillCircle(sx - 3, sy - 3, 10);
+        break;
+      }
+      case TimePeriod.Day: {
+        // Sun high center
+        const sx = w * 0.5;
+        const sy = skyH * 0.2;
+        // Bright glow
+        gfx.fillStyle(0xffffcc, 0.12);
+        gfx.fillCircle(sx, sy, 60);
+        gfx.fillStyle(0xffff88, 0.18);
+        gfx.fillCircle(sx, sy, 35);
+        // Sun disc
+        gfx.fillStyle(0xffee44, 1);
+        gfx.fillCircle(sx, sy, 18);
+        gfx.fillStyle(0xffff99, 1);
+        gfx.fillCircle(sx - 3, sy - 3, 12);
+        // Rays
+        gfx.lineStyle(1.5, 0xffee44, 0.3);
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+          gfx.lineBetween(
+            sx + Math.cos(a) * 22, sy + Math.sin(a) * 22,
+            sx + Math.cos(a) * 40, sy + Math.sin(a) * 40,
+          );
+        }
+        break;
+      }
+      case TimePeriod.Dusk: {
+        // Sun setting — low right, deep orange/red
+        const sx = w * 0.85;
+        const sy = skyH * 0.75;
+        // Warm glow
+        gfx.fillStyle(0xff6633, 0.15);
+        gfx.fillCircle(sx, sy, 55);
+        gfx.fillStyle(0xff8844, 0.2);
+        gfx.fillCircle(sx, sy, 32);
+        // Sun disc (redder)
+        gfx.fillStyle(0xff7733, 1);
+        gfx.fillCircle(sx, sy, 17);
+        gfx.fillStyle(0xffaa55, 1);
+        gfx.fillCircle(sx - 2, sy - 2, 11);
+        break;
+      }
+      case TimePeriod.Night: {
+        // Moon — upper right area
+        const mx = w * 0.78;
+        const my = skyH * 0.25;
+        // Moonlight glow
+        gfx.fillStyle(0xaabbdd, 0.1);
+        gfx.fillCircle(mx, my, 45);
+        gfx.fillStyle(0xccddff, 0.12);
+        gfx.fillCircle(mx, my, 28);
+        // Moon disc (crescent: full circle + dark overlay)
+        gfx.fillStyle(0xe8eeff, 1);
+        gfx.fillCircle(mx, my, 14);
+        // Dark circle offset to create crescent
+        gfx.fillStyle(0x0a0a1a, 1);
+        gfx.fillCircle(mx + 6, my - 4, 11);
+        // Stars
+        gfx.fillStyle(0xffffff, 0.7);
+        const starPositions = [
+          [w * 0.1, skyH * 0.15], [w * 0.25, skyH * 0.08],
+          [w * 0.4, skyH * 0.22], [w * 0.55, skyH * 0.1],
+          [w * 0.65, skyH * 0.35], [w * 0.92, skyH * 0.18],
+          [w * 0.35, skyH * 0.38], [w * 0.18, skyH * 0.42],
+        ];
+        for (const [sx, sy] of starPositions) {
+          gfx.fillCircle(sx, sy, 1.5);
+        }
+        // A few dimmer stars
+        gfx.fillStyle(0xccccee, 0.4);
+        gfx.fillCircle(w * 0.08, skyH * 0.32, 1);
+        gfx.fillCircle(w * 0.48, skyH * 0.05, 1);
+        gfx.fillCircle(w * 0.72, skyH * 0.42, 1);
+        gfx.fillCircle(w * 0.88, skyH * 0.38, 1);
+        break;
+      }
+    }
   }
 
   /** Apply day/night tint to the battle background, monster, and player sprites. */

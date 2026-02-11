@@ -159,16 +159,20 @@ export function createPlayer(
   };
 }
 
-/** Get the attack modifier for the player (STR-based melee). */
+/** Get the attack modifier for the player (uses class primary stat for melee). */
 export function getAttackModifier(player: PlayerState): number {
+  const appearance = getAppearance(player.appearanceId);
+  const primaryStatValue = player.stats[appearance.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(player.stats.strength) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
+  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
 
-/** Get the spell attack modifier (INT-based). */
+/** Get the spell attack modifier (uses class primary stat for casters). */
 export function getSpellModifier(player: PlayerState): number {
+  const appearance = getAppearance(player.appearanceId);
+  const primaryStatValue = player.stats[appearance.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(player.stats.intelligence) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
+  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
 
 /** Get the player's armor class. Optionally add a temporary bonus (e.g. from defending). */
@@ -203,7 +207,7 @@ export function awardXP(
 
     // Increase HP/MP on level up
     const conMod = abilityModifier(player.stats.constitution);
-    const hpGain = Math.max(1, rollHitDie() + conMod);
+    const hpGain = Math.max(1, rollHitDie(player.appearanceId) + conMod);
     player.maxHp += hpGain;
     player.hp = player.maxHp;
 
@@ -269,8 +273,9 @@ export function awardXP(
   return { leveledUp, newLevel: player.level, newSpells, newAbilities, newTalents, asiGained };
 }
 
-function rollHitDie(): number {
-  return Math.floor(Math.random() * 8) + 1; // d8 hit die
+function rollHitDie(appearanceId: string = "knight"): number {
+  const appearance = getAppearance(appearanceId);
+  return Math.floor(Math.random() * appearance.hitDie) + 1;
 }
 
 /** Check if the player can afford an item. */

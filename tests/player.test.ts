@@ -63,7 +63,7 @@ describe("player system", () => {
       expect(player.maxHp).toBeGreaterThanOrEqual(10);
       expect(player.maxMp).toBeGreaterThanOrEqual(4);
       expect(player.gold).toBe(50);
-      expect(player.knownSpells).toContain("fireBolt");
+      expect(player.knownSpells).toContain("cureWounds");
       expect(player.inventory).toHaveLength(0);
       expect(player.pendingStatPoints).toBe(0);
       expect(player.openedChests).toEqual([]);
@@ -178,11 +178,11 @@ describe("player system", () => {
 
     it("unlocks spells on level up", () => {
       const player = createTestPlayer();
-      // Level up to 3 to unlock cureWounds
-      const result = awardXP(player, 900);
+      // Level up to 5 to unlock healingWord (Knight spell)
+      const result = awardXP(player, xpForLevel(5 + 1));
       const spellIds = result.newSpells.map((s) => s.id);
-      expect(spellIds).toContain("cureWounds");
-      expect(player.knownSpells).toContain("cureWounds");
+      expect(spellIds).toContain("healingWord");
+      expect(player.knownSpells).toContain("healingWord");
     });
 
     it("grants ASI points at D&D levels 4, 8, 12, 16, 19", () => {
@@ -211,8 +211,8 @@ describe("player system", () => {
 
     it("calculates spell modifier correctly", () => {
       const player = createTestPlayer();
-      // INT 10 -> mod 0, proficiency = +2, total = +2
-      expect(getSpellModifier(player)).toBe(2);
+      // Knight: primary stat is STR (12 -> mod +1), proficiency = +2, total = +3
+      expect(getSpellModifier(player)).toBe(3);
     });
 
     it("calculates armor class correctly", () => {

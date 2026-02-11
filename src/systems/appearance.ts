@@ -8,6 +8,10 @@ import type { PlayerStats } from "./player";
 export interface PlayerAppearance {
   id: string;
   label: string;
+  /** Short class description shown during character creation. */
+  description: string;
+  /** Playstyle hint shown during class selection. */
+  playstyle: string;
   bodyColor: number;
   skinColor: number;
   legColor: number;
@@ -15,13 +19,17 @@ export interface PlayerAppearance {
   statBoosts: Partial<PlayerStats>;
   /** The primary ability stat used for to-hit calculations. */
   primaryStat: keyof PlayerStats;
+  /** Hit die size (e.g. 12 = d12 for Barbarian, 6 = d6 for Mage). */
+  hitDie: number;
   /** Spell IDs this class can learn (order doesn't matter — unlocked by level). */
   spells: string[];
   /** Martial ability IDs for non-caster classes (empty for casters). */
   abilities: string[];
+  /** Weapon type drawn on the class sprite ("sword", "staff", "dagger", "bow", "mace", "axe"). */
+  weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe";
 }
 
-/** Classes that rely on spells rather than martial abilities. */
+/** Classes that rely primarily on spells rather than martial abilities. */
 export const CASTER_CLASSES = ["mage", "warlock", "cleric"];
 
 export function isCasterClass(appearanceId: string): boolean {
@@ -31,99 +39,122 @@ export function isCasterClass(appearanceId: string): boolean {
 export const PLAYER_APPEARANCES: PlayerAppearance[] = [
   {
     id: "knight", label: "Knight",
+    description: "A stalwart warrior clad in heavy armor, master of sword and shield.",
+    playstyle: "Tank / Melee DPS",
     bodyColor: 0x3f51b5, skinColor: 0xffccbc, legColor: 0x1a237e,
     statBoosts: { strength: 2, constitution: 1 },
     primaryStat: "strength",
+    hitDie: 10,
     spells: [
-      "fireBolt", "cureWounds", "thunderwave", "healingWord",
-      "fireball", "greaterHeal", "iceStorm", "heal",
-      "chainLightning", "meteorSwarm",
+      "cureWounds", "healingWord",
+      "greaterHeal", "heal",
     ],
-    abilities: ["shieldBash", "powerAttack", "secondWind", "championStrike"],
+    abilities: ["shieldBash", "actionSurge", "secondWind", "championStrike"],
+    weaponSprite: "sword",
   },
   {
     id: "ranger", label: "Ranger",
+    description: "A skilled hunter and tracker who wields nature magic and deadly aim.",
+    playstyle: "Ranged DPS / Scout",
     bodyColor: 0x2e7d32, skinColor: 0xffccbc, legColor: 0x1b5e20,
     statBoosts: { dexterity: 2, wisdom: 1 },
     primaryStat: "dexterity",
+    hitDie: 10,
     spells: [
-      "fireBolt", "cureWounds", "magicMissile", "healingWord",
-      "fireball", "lightningBolt", "greaterHeal", "massHealingWord",
-      "heal", "regenerate",
+      "cureWounds", "healingWord",
+      "greaterHeal", "heal",
     ],
     abilities: ["aimedShot", "huntersMark", "naturesRemedy", "deadeye"],
+    weaponSprite: "bow",
   },
   {
     id: "mage", label: "Mage",
+    description: "A scholarly arcanist who commands devastating elemental magic.",
+    playstyle: "Ranged Magic DPS",
     bodyColor: 0x6a1b9a, skinColor: 0xffccbc, legColor: 0x4a148c,
     statBoosts: { intelligence: 2, wisdom: 1 },
     primaryStat: "intelligence",
+    hitDie: 6,
     spells: [
-      "fireBolt", "magicMissile", "thunderwave", "healingWord",
+      "fireBolt", "magicMissile", "thunderwave",
       "fireball", "lightningBolt", "iceStorm", "coneOfCold",
-      "chainLightning", "disintegrate", "heal", "meteorSwarm",
+      "chainLightning", "disintegrate", "meteorSwarm",
+      "arcaneRecovery",
     ],
     abilities: [],
+    weaponSprite: "staff",
   },
   {
     id: "rogue", label: "Rogue",
+    description: "A cunning scoundrel who strikes from the shadows with lethal precision.",
+    playstyle: "Burst DPS / Skirmisher",
     bodyColor: 0x37474f, skinColor: 0xffccbc, legColor: 0x263238,
     statBoosts: { dexterity: 2, charisma: 1 },
     primaryStat: "dexterity",
-    spells: [
-      "fireBolt", "magicMissile", "cureWounds", "thunderwave",
-      "healingWord", "lightningBolt", "iceStorm", "coneOfCold",
-      "chainLightning", "disintegrate",
-    ],
+    hitDie: 8,
+    spells: [],
     abilities: ["sneakAttack", "cunningStrike", "shadowStep", "assassinate"],
+    weaponSprite: "dagger",
   },
   {
     id: "paladin", label: "Paladin",
+    description: "A holy warrior who channels divine power to smite evil and heal allies.",
+    playstyle: "Melee / Healer Hybrid",
     bodyColor: 0xffd600, skinColor: 0xffccbc, legColor: 0xc0a060,
     statBoosts: { strength: 1, charisma: 2 },
     primaryStat: "charisma",
+    hitDie: 10,
     spells: [
-      "fireBolt", "cureWounds", "thunderwave", "healingWord",
-      "fireball", "greaterHeal", "massHealingWord", "heal",
+      "cureWounds", "healingWord",
+      "greaterHeal", "massHealingWord", "heal",
       "regenerate", "powerWordHeal",
     ],
     abilities: ["smite", "layOnHands", "holyStrike", "greaterSmite"],
+    weaponSprite: "sword",
   },
   {
     id: "warlock", label: "Warlock",
+    description: "An occultist bound to an otherworldly patron, wielding eldritch power.",
+    playstyle: "Ranged Magic DPS / Hex",
     bodyColor: 0xb71c1c, skinColor: 0xd7ccc8, legColor: 0x880e4f,
     statBoosts: { charisma: 2, intelligence: 1 },
     primaryStat: "charisma",
+    hitDie: 8,
     spells: [
-      "fireBolt", "magicMissile", "cureWounds", "thunderwave",
-      "fireball", "lightningBolt", "greaterHeal", "coneOfCold",
-      "disintegrate", "meteorSwarm",
+      "eldritchBlast", "hexCurse",
+      "fireball", "hungerOfHadar",
+      "coneOfCold", "disintegrate", "meteorSwarm",
     ],
     abilities: [],
+    weaponSprite: "staff",
   },
   {
     id: "cleric", label: "Cleric",
+    description: "A divine servant who heals the faithful and punishes the wicked.",
+    playstyle: "Healer / Support",
     bodyColor: 0xeeeeee, skinColor: 0x8d6e63, legColor: 0xbdbdbd,
     statBoosts: { wisdom: 2, constitution: 1 },
     primaryStat: "wisdom",
+    hitDie: 8,
     spells: [
-      "fireBolt", "cureWounds", "healingWord", "thunderwave",
-      "greaterHeal", "iceStorm", "massHealingWord", "heal",
+      "sacredFlame", "cureWounds", "healingWord",
+      "spiritGuardians", "greaterHeal", "massHealingWord", "heal",
       "regenerate", "powerWordHeal",
     ],
     abilities: [],
+    weaponSprite: "mace",
   },
   {
     id: "barbarian", label: "Barbarian",
+    description: "A primal warrior fueled by rage, shrugging off blows that fell lesser fighters.",
+    playstyle: "Melee DPS / Tank",
     bodyColor: 0x795548, skinColor: 0xa1887f, legColor: 0x4e342e,
     statBoosts: { strength: 2, constitution: 1 },
     primaryStat: "strength",
-    spells: [
-      "fireBolt", "cureWounds", "thunderwave", "fireball",
-      "healingWord", "lightningBolt", "iceStorm", "greaterHeal",
-      "chainLightning", "meteorSwarm",
-    ],
+    hitDie: 12,
+    spells: [],
     abilities: ["recklessStrike", "rage", "endure", "titansBlow"],
+    weaponSprite: "axe",
   },
 ];
 

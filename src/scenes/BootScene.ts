@@ -710,7 +710,8 @@ export class BootScene extends Phaser.Scene {
         `player_${app.id}`,
         app.bodyColor,
         app.skinColor,
-        app.legColor
+        app.legColor,
+        app.weaponSprite
       );
     }
   }
@@ -719,7 +720,8 @@ export class BootScene extends Phaser.Scene {
     key: string,
     bodyColor: number,
     skinColor: number,
-    legColor: number
+    legColor: number,
+    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" = "sword"
   ): void {
     const gfx = this.add.graphics();
     // Body
@@ -732,14 +734,70 @@ export class BootScene extends Phaser.Scene {
     gfx.fillStyle(legColor, 1);
     gfx.fillRect(9, 26, 5, 6);
     gfx.fillRect(18, 26, 5, 6);
-    // Sword
-    gfx.fillStyle(0xb0bec5, 1);
-    gfx.fillRect(26, 6, 3, 18);
-    gfx.fillStyle(0x795548, 1);
-    gfx.fillRect(24, 20, 7, 3);
+    // Weapon (class-specific)
+    this.drawWeapon(gfx, weaponSprite);
 
     gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
     gfx.destroy();
+  }
+
+  /** Format class info string for the selection panel. */
+  private formatClassInfo(app: PlayerAppearance): string {
+    const boostParts = Object.entries(app.statBoosts)
+      .map(([k, v]) => `${k.slice(0, 3).toUpperCase()}+${v}`)
+      .join(", ");
+    return `${app.playstyle} | ${boostParts} | d${app.hitDie} HP`;
+  }
+
+  /** Draw class-specific weapon on the sprite. */
+  private drawWeapon(
+    gfx: Phaser.GameObjects.Graphics,
+    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe"
+  ): void {
+    switch (weaponSprite) {
+      case "sword":
+        // Long blade + crossguard
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(26, 6, 3, 18);
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(24, 20, 7, 3);
+        break;
+      case "staff":
+        // Tall wooden staff with glowing tip
+        gfx.fillStyle(0x5d4037, 1);
+        gfx.fillRect(27, 4, 2, 22);
+        gfx.fillStyle(0x64ffda, 1);
+        gfx.fillCircle(28, 4, 3);
+        break;
+      case "dagger":
+        // Short blade
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(26, 14, 2, 10);
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(25, 22, 4, 2);
+        break;
+      case "bow":
+        // Curved bow + string
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(27, 5, 2, 20);
+        gfx.fillStyle(0xbdbdbd, 1);
+        gfx.fillRect(29, 7, 1, 16);
+        break;
+      case "mace":
+        // Handle + heavy head
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(27, 12, 2, 14);
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(25, 8, 6, 6);
+        break;
+      case "axe":
+        // Handle + axe head
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(27, 6, 2, 18);
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(24, 6, 5, 8);
+        break;
+    }
   }
 
   private generateMonsterTexture(): void {
@@ -1670,7 +1728,8 @@ export class BootScene extends Phaser.Scene {
         save.player.customAppearance.skinColor,
         app.legColor,
         save.player.customAppearance.hairStyle,
-        save.player.customAppearance.hairColor
+        save.player.customAppearance.hairColor,
+        app.weaponSprite
       );
     }
     this.cameras.main.fadeOut(500, 0, 0, 0);
@@ -1799,8 +1858,53 @@ export class BootScene extends Phaser.Scene {
       });
     });
 
+    // Class info panel (description + playstyle + stat boosts)
+    const infoPanelY = startY + Math.ceil(PLAYER_APPEARANCES.length / cols) * optH + 4;
+    const classDescText = this.add
+      .text(cx, infoPanelY, selectedAppearance.description, {
+        fontSize: "9px", fontFamily: "monospace", color: "#ccc",
+        wordWrap: { width: 280 },
+        align: "center",
+      })
+      .setOrigin(0.5, 0);
+
+    const classBoostText = this.add
+      .text(cx, infoPanelY + 22, this.formatClassInfo(selectedAppearance), {
+        fontSize: "9px", fontFamily: "monospace", color: "#c0a060",
+      })
+      .setOrigin(0.5, 0);
+
+    // Update info panel when class changes
+    const updateInfoPanel = (app: PlayerAppearance) => {
+      classDescText.setText(app.description);
+      classBoostText.setText(this.formatClassInfo(app));
+    };
+
+    // Re-wire class selection to also update info panel
+    PLAYER_APPEARANCES.forEach((app, i) => {
+      const ox = startX + (i % cols) * optW;
+      const oy = startY + Math.floor(i / cols) * optH;
+      const hitZone = this.add.zone(ox, oy + 10, 56, 62).setInteractive({ useHandCursor: true });
+      hitZone.on("pointerdown", () => {
+        selectedAppearance = app;
+        optionHighlights.forEach((h, j) => {
+          h.clear();
+          const isSelected = PLAYER_APPEARANCES[j].id === app.id;
+          h.lineStyle(2, isSelected ? 0xffd700 : 0x444444, 1);
+          if (isSelected) {
+            h.fillStyle(0xffd700, 0.1);
+          }
+          const hx = startX + (j % cols) * optW;
+          const hy = startY + Math.floor(j / cols) * optH;
+          if (isSelected) h.fillRect(hx - 28, hy - 22, 56, 62);
+          h.strokeRect(hx - 28, hy - 22, 56, 62);
+        });
+        updateInfoPanel(app);
+      });
+    });
+
     // Next button
-    const btnY = startY + Math.ceil(PLAYER_APPEARANCES.length / cols) * optH + 16;
+    const btnY = infoPanelY + 46;
 
     const nextBtn = this.add
       .text(cx, btnY, "[ Next > ]", {
@@ -2126,7 +2230,8 @@ export class BootScene extends Phaser.Scene {
       selectedSkinColor,
       selectedClass.legColor,
       selectedHairStyle,
-      selectedHairColor
+      selectedHairColor,
+      selectedClass.weaponSprite
     );
     const previewSprite = this.add.sprite(cx, 78, previewKey).setScale(2);
 
@@ -2138,7 +2243,8 @@ export class BootScene extends Phaser.Scene {
         selectedSkinColor,
         selectedClass.legColor,
         selectedHairStyle,
-        selectedHairColor
+        selectedHairColor,
+        selectedClass.weaponSprite
       );
       previewSprite.setTexture(previewKey);
     };
@@ -2324,7 +2430,8 @@ export class BootScene extends Phaser.Scene {
         selectedSkinColor,
         selectedClass.legColor,
         selectedHairStyle,
-        selectedHairColor
+        selectedHairColor,
+        selectedClass.weaponSprite
       );
 
       deleteSave();
@@ -2353,7 +2460,8 @@ export class BootScene extends Phaser.Scene {
     skinColor: number,
     legColor: number,
     hairStyle: number,
-    hairColor: number
+    hairColor: number,
+    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" = "sword"
   ): void {
     const gfx = this.add.graphics();
     // Body
@@ -2384,11 +2492,8 @@ export class BootScene extends Phaser.Scene {
     gfx.fillStyle(legColor, 1);
     gfx.fillRect(9, 26, 5, 6);
     gfx.fillRect(18, 26, 5, 6);
-    // Sword
-    gfx.fillStyle(0xb0bec5, 1);
-    gfx.fillRect(26, 6, 3, 18);
-    gfx.fillStyle(0x795548, 1);
-    gfx.fillRect(24, 20, 7, 3);
+    // Weapon (class-specific)
+    this.drawWeapon(gfx, weaponSprite);
 
     gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
     gfx.destroy();

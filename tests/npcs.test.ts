@@ -187,7 +187,7 @@ describe("NPC system", () => {
       }
     });
 
-    it("each city should have at least one child NPC, one male NPC, and one female NPC", () => {
+    it("each city should have at least two different NPC age groups", () => {
       for (const city of CITIES) {
         const npcs = CITY_NPCS[city.id];
         if (!npcs) continue;

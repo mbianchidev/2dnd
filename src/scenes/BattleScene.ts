@@ -1102,11 +1102,12 @@ export class BattleScene extends Phaser.Scene {
 
   /**
    * Draw a sun or moon in the sky area of the battle background.
-   * Position varies by time of day:
+   * Positioned on the LEFT side of the sky to avoid overlapping the monster
+   * sprite (which sits at top-right ~72% x, ~18% y).
    *   Dawn  → sun low-left (rising)
-   *   Day   → sun high-center
-   *   Dusk  → sun low-right (setting)
-   *   Night → moon upper area
+   *   Day   → sun upper-left
+   *   Dusk  → sun mid-left (setting)
+   *   Night → moon upper-left + stars
    */
   private drawCelestialBody(): void {
     // Skip for dungeons — no sky visible
@@ -1120,15 +1121,13 @@ export class BattleScene extends Phaser.Scene {
 
     switch (period) {
       case TimePeriod.Dawn: {
-        // Sun rising — low left, warm orange glow
-        const sx = w * 0.15;
-        const sy = skyH * 0.8;
-        // Outer glow
+        // Sun rising — low left
+        const sx = w * 0.12;
+        const sy = skyH * 0.78;
         gfx.fillStyle(0xffcc66, 0.15);
         gfx.fillCircle(sx, sy, 50);
         gfx.fillStyle(0xffaa33, 0.2);
         gfx.fillCircle(sx, sy, 30);
-        // Sun disc
         gfx.fillStyle(0xffdd44, 1);
         gfx.fillCircle(sx, sy, 16);
         gfx.fillStyle(0xffee88, 1);
@@ -1136,20 +1135,17 @@ export class BattleScene extends Phaser.Scene {
         break;
       }
       case TimePeriod.Day: {
-        // Sun high center
-        const sx = w * 0.5;
-        const sy = skyH * 0.2;
-        // Bright glow
+        // Sun high — upper-left quadrant
+        const sx = w * 0.22;
+        const sy = skyH * 0.18;
         gfx.fillStyle(0xffffcc, 0.12);
         gfx.fillCircle(sx, sy, 60);
         gfx.fillStyle(0xffff88, 0.18);
         gfx.fillCircle(sx, sy, 35);
-        // Sun disc
         gfx.fillStyle(0xffee44, 1);
         gfx.fillCircle(sx, sy, 18);
         gfx.fillStyle(0xffff99, 1);
         gfx.fillCircle(sx - 3, sy - 3, 12);
-        // Rays
         gfx.lineStyle(1.5, 0xffee44, 0.3);
         for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
           gfx.lineBetween(
@@ -1160,15 +1156,13 @@ export class BattleScene extends Phaser.Scene {
         break;
       }
       case TimePeriod.Dusk: {
-        // Sun setting — low right, deep orange/red
-        const sx = w * 0.85;
-        const sy = skyH * 0.75;
-        // Warm glow
+        // Sun setting — mid-left, dropping lower
+        const sx = w * 0.15;
+        const sy = skyH * 0.72;
         gfx.fillStyle(0xff6633, 0.15);
         gfx.fillCircle(sx, sy, 55);
         gfx.fillStyle(0xff8844, 0.2);
         gfx.fillCircle(sx, sy, 32);
-        // Sun disc (redder)
         gfx.fillStyle(0xff7733, 1);
         gfx.fillCircle(sx, sy, 17);
         gfx.fillStyle(0xffaa55, 1);
@@ -1176,37 +1170,33 @@ export class BattleScene extends Phaser.Scene {
         break;
       }
       case TimePeriod.Night: {
-        // Moon — upper right area
-        const mx = w * 0.78;
-        const my = skyH * 0.25;
-        // Moonlight glow
+        // Moon — upper-left area (well away from monster at top-right)
+        const mx = w * 0.18;
+        const my = skyH * 0.2;
         gfx.fillStyle(0xaabbdd, 0.1);
         gfx.fillCircle(mx, my, 45);
         gfx.fillStyle(0xccddff, 0.12);
         gfx.fillCircle(mx, my, 28);
-        // Moon disc (crescent: full circle + dark overlay)
         gfx.fillStyle(0xe8eeff, 1);
         gfx.fillCircle(mx, my, 14);
-        // Dark circle offset to create crescent
         gfx.fillStyle(0x0a0a1a, 1);
         gfx.fillCircle(mx + 6, my - 4, 11);
-        // Stars
+        // Stars — scattered across sky but avoiding monster area (right 60-90% x)
         gfx.fillStyle(0xffffff, 0.7);
         const starPositions = [
-          [w * 0.1, skyH * 0.15], [w * 0.25, skyH * 0.08],
-          [w * 0.4, skyH * 0.22], [w * 0.55, skyH * 0.1],
-          [w * 0.65, skyH * 0.35], [w * 0.92, skyH * 0.18],
-          [w * 0.35, skyH * 0.38], [w * 0.18, skyH * 0.42],
+          [w * 0.05, skyH * 0.12], [w * 0.15, skyH * 0.42],
+          [w * 0.28, skyH * 0.08], [w * 0.38, skyH * 0.3],
+          [w * 0.42, skyH * 0.05], [w * 0.08, skyH * 0.28],
+          [w * 0.32, skyH * 0.4], [w * 0.48, skyH * 0.15],
         ];
         for (const [sx, sy] of starPositions) {
           gfx.fillCircle(sx, sy, 1.5);
         }
-        // A few dimmer stars
         gfx.fillStyle(0xccccee, 0.4);
-        gfx.fillCircle(w * 0.08, skyH * 0.32, 1);
-        gfx.fillCircle(w * 0.48, skyH * 0.05, 1);
-        gfx.fillCircle(w * 0.72, skyH * 0.42, 1);
-        gfx.fillCircle(w * 0.88, skyH * 0.38, 1);
+        gfx.fillCircle(w * 0.03, skyH * 0.35, 1);
+        gfx.fillCircle(w * 0.25, skyH * 0.48, 1);
+        gfx.fillCircle(w * 0.45, skyH * 0.38, 1);
+        gfx.fillCircle(w * 0.35, skyH * 0.18, 1);
         break;
       }
     }

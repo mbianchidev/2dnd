@@ -79,7 +79,7 @@ export const ABILITIES: Ability[] = [
     type: "damage", statKey: "dexterity",
   },
   {
-    id: "cunningStrike", name: "Cunning Action",
+    id: "cunningStrike", name: "Cunning Strike",
     description: "Exploit an opening with lightning reflexes",
     mpCost: 5, levelRequired: 5, damageCount: 3, damageDie: 6,
     type: "damage", statKey: "dexterity",

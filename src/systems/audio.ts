@@ -1283,7 +1283,7 @@ class AudioEngine {
     const dest = this.footstepGain;
 
     for (let tap = 0; tap < 2; tap++) {
-      const offset = tap * 0.06; // two rapid taps
+      const offset = tap * 0.06; // delay second tap by 60ms for trotting rhythm
       const duration = 0.04;
       const bufSize = Math.floor(ctx.sampleRate * duration);
       const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);

@@ -1041,6 +1041,46 @@ export class OverworldScene extends Phaser.Scene {
     });
   }
 
+  /** Toggle mount / dismount with the T key. */
+  private toggleMount(): void {
+    if (this.isOverlayOpen()) return;
+    if (this.player.inDungeon || this.player.inCity) {
+      this.showMessage("Cannot ride mounts here.", "#ff6666");
+      return;
+    }
+
+    if (this.player.mountId) {
+      // Dismount
+      const mount = getMount(this.player.mountId);
+      this.player.mountId = "";
+      this.createPlayer();
+      this.updateHUD();
+      this.showMessage(`Dismounted${mount ? ` ${mount.name}` : ""}.`);
+    } else {
+      // Find the best mount in inventory
+      const ownedMounts = this.player.inventory.filter((i) => i.type === "mount" && i.mountId);
+      if (ownedMounts.length === 0) {
+        this.showMessage("No mount owned. Visit a stable!", "#ff6666");
+        return;
+      }
+      // Pick the fastest mount available
+      let bestItem = ownedMounts[0];
+      let bestSpeed = 0;
+      for (const mi of ownedMounts) {
+        const md = getMount(mi.mountId!);
+        if (md && md.speedMultiplier > bestSpeed) {
+          bestSpeed = md.speedMultiplier;
+          bestItem = mi;
+        }
+      }
+      this.player.mountId = bestItem.mountId!;
+      const mount = getMount(this.player.mountId);
+      this.createPlayer();
+      this.updateHUD();
+      this.showMessage(`🐴 Mounted ${mount?.name ?? "mount"}!`, "#88ff88");
+    }
+  }
+
   private createPlayer(): void {
     if (this.playerSprite) {
       this.playerSprite.destroy();
@@ -1099,6 +1139,10 @@ export class OverworldScene extends Phaser.Scene {
     // N key opens world map overlay
     const nKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.N);
     nKey.on("down", () => this.toggleWorldMap());
+
+    // T key toggles mount / dismount
+    const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
+    tKey.on("down", () => this.toggleMount());
   }
 
   private createHUD(): void {

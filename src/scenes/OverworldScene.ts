@@ -1065,12 +1065,12 @@ export class OverworldScene extends Phaser.Scene {
       }
       // Pick the fastest mount available
       let bestItem = ownedMounts[0];
-      let bestSpeed = 0;
-      for (const mi of ownedMounts) {
-        const md = getMount(mi.mountId!);
+      let bestSpeed = getMount(bestItem.mountId!)?.speedMultiplier ?? 0;
+      for (let i = 1; i < ownedMounts.length; i++) {
+        const md = getMount(ownedMounts[i].mountId!);
         if (md && md.speedMultiplier > bestSpeed) {
           bestSpeed = md.speedMultiplier;
-          bestItem = mi;
+          bestItem = ownedMounts[i];
         }
       }
       this.player.mountId = bestItem.mountId!;

@@ -263,64 +263,62 @@ describe("weather system", () => {
   describe("getMonsterWeatherBoost", () => {
     it("returns no boost for unknown monster", () => {
       const boost = getMonsterWeatherBoost("nonexistent", WeatherType.Rain);
-      expect(boost.acBonus).toBe(0);
+      expect(boost.initiativeBonus).toBe(0);
       expect(boost.attackBonus).toBe(0);
-      expect(boost.damageBonus).toBe(0);
     });
 
     it("returns boost for wolf in Snow", () => {
       const boost = getMonsterWeatherBoost("wolf", WeatherType.Snow);
-      expect(boost.acBonus).toBe(2);
+      expect(boost.initiativeBonus).toBe(2);
       expect(boost.attackBonus).toBe(1);
-      expect(boost.damageBonus).toBe(2);
     });
 
     it("returns no boost for wolf in Clear", () => {
       const boost = getMonsterWeatherBoost("wolf", WeatherType.Clear);
-      expect(boost.acBonus).toBe(0);
+      expect(boost.initiativeBonus).toBe(0);
     });
 
     it("returns boost for skeleton in Sandstorm", () => {
       const boost = getMonsterWeatherBoost("skeleton", WeatherType.Sandstorm);
-      expect(boost.acBonus).toBe(2);
+      expect(boost.initiativeBonus).toBe(2);
     });
 
     it("returns boost for wraith in Fog", () => {
       const boost = getMonsterWeatherBoost("wraith", WeatherType.Fog);
-      expect(boost.acBonus).toBe(2);
+      expect(boost.initiativeBonus).toBe(2);
     });
 
     it("returns boost for slime in Rain", () => {
       const boost = getMonsterWeatherBoost("slime", WeatherType.Rain);
-      expect(boost.acBonus).toBe(2);
+      expect(boost.initiativeBonus).toBe(2);
     });
 
     it("returns a copy of the boost object", () => {
       const boost1 = getMonsterWeatherBoost("wolf", WeatherType.Snow);
       const boost2 = getMonsterWeatherBoost("wolf", WeatherType.Snow);
-      boost1.acBonus = 99;
-      expect(boost2.acBonus).toBe(2);
+      boost1.initiativeBonus = 99;
+      expect(boost2.initiativeBonus).toBe(2);
     });
 
     it("returns boost for frostGiant in Snow", () => {
       const boost = getMonsterWeatherBoost("frostGiant", WeatherType.Snow);
-      expect(boost.acBonus).toBe(2);
+      expect(boost.initiativeBonus).toBe(2);
       expect(boost.attackBonus).toBe(1);
     });
 
     it("returns boost for swampHydra in Fog", () => {
       const boost = getMonsterWeatherBoost("swampHydra", WeatherType.Fog);
-      expect(boost.acBonus).toBe(2);
+      expect(boost.initiativeBonus).toBe(2);
     });
 
     it("returns boost for volcanicWyrm in Sandstorm", () => {
       const boost = getMonsterWeatherBoost("volcanicWyrm", WeatherType.Sandstorm);
-      expect(boost.acBonus).toBe(2);
+      expect(boost.initiativeBonus).toBe(2);
     });
 
     it("returns boost for canyonDrake in Sandstorm", () => {
       const boost = getMonsterWeatherBoost("canyonDrake", WeatherType.Sandstorm);
-      expect(boost.acBonus).toBe(2);
+      expect(boost.initiativeBonus).toBe(2);
     });
   });
 

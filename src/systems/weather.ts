@@ -7,7 +7,6 @@
  */
 
 import { type TimePeriod, getTimePeriod } from "./daynight";
-import { Terrain } from "../data/map";
 
 // ── Weather Types ──────────────────────────────────────────────
 
@@ -341,13 +340,12 @@ const MONSTER_WEATHER_AFFINITY: Record<string, WeatherType[]> = {
 };
 
 export interface WeatherBoost {
-  acBonus: number;
+  initiativeBonus: number;
   attackBonus: number;
-  damageBonus: number;
 }
 
-const NO_BOOST: WeatherBoost = { acBonus: 0, attackBonus: 0, damageBonus: 0 };
-const ACTIVE_BOOST: WeatherBoost = { acBonus: 2, attackBonus: 1, damageBonus: 2 };
+const NO_BOOST: WeatherBoost = { initiativeBonus: 0, attackBonus: 0 };
+const ACTIVE_BOOST: WeatherBoost = { initiativeBonus: 2, attackBonus: 1 };
 
 /** Check if a monster gets a weather boost, and return the stat deltas. */
 export function getMonsterWeatherBoost(monsterId: string, weather: WeatherType): WeatherBoost {

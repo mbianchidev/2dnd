@@ -1393,6 +1393,7 @@ export class OverworldScene extends Phaser.Scene {
             shopItemIds: entry.def.shopItems ?? ["potion", "ether"],
             timeStep: this.timeStep,
             weatherState: this.weatherState,
+            discount: 0.2,
             savedSpecialNpcs: this.snapshotSpecialNpcs().filter((s) => s.kind !== entry.def.kind),
           });
         });
@@ -1431,6 +1432,7 @@ export class OverworldScene extends Phaser.Scene {
           shopItemIds: entry.def.shopItems ?? ["potion", "ether"],
           timeStep: this.timeStep,
           weatherState: this.weatherState,
+          discount: 0.2,
           savedSpecialNpcs: this.snapshotSpecialNpcs(),
         });
       });

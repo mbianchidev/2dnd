@@ -4,7 +4,7 @@
 
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
-import { buyItem, useItem, ownsEquipment } from "../systems/player";
+import { useItem, ownsEquipment } from "../systems/player";
 import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
 import { type WeatherState, createWeatherState } from "../systems/weather";
@@ -31,6 +31,7 @@ export class ShopScene extends Phaser.Scene {
   private listVisibleH = 0;
   private fromCity = false;
   private cityId = "";
+  private discount = 0;
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
 
   constructor() {
@@ -47,6 +48,7 @@ export class ShopScene extends Phaser.Scene {
     weatherState?: WeatherState;
     fromCity?: boolean;
     cityId?: string;
+    discount?: number;
     savedSpecialNpcs?: SavedSpecialNpc[];
   }): void {
     this.player = data.player;
@@ -57,6 +59,7 @@ export class ShopScene extends Phaser.Scene {
     this.weatherState = data.weatherState ?? createWeatherState();
     this.fromCity = data.fromCity ?? false;
     this.cityId = data.cityId ?? "";
+    this.discount = data.discount ?? 0;
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
@@ -239,7 +242,8 @@ export class ShopScene extends Phaser.Scene {
       const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield";
       const alreadyOwned = isEquipment && ownsEquipment(this.player, item.id);
       const levelLocked = (item.levelReq ?? 0) > this.player.level;
-      const canBuy = !alreadyOwned && !levelLocked && this.player.gold >= item.cost;
+      const discountedCost = Math.max(1, Math.floor(item.cost * (1 - this.discount)));
+      const canBuy = !alreadyOwned && !levelLocked && this.player.gold >= discountedCost;
       const color = alreadyOwned ? "#555555" : levelLocked ? "#884444" : canBuy ? "#cccccc" : "#666666";
 
       const typeIcon =
@@ -255,11 +259,15 @@ export class ShopScene extends Phaser.Scene {
 
       const tag = alreadyOwned ? " [OWNED]" : levelLocked ? ` [Lv.${item.levelReq}]` : "";
 
+      const priceLabel = this.discount > 0
+        ? `~~${item.cost}g~~ ${discountedCost}g`
+        : `${item.cost}g`;
+
       const text = this.add
         .text(
           0,
           yOffset,
-          `${typeIcon} ${item.name} ${item.cost}g ${item.description}${tag}`,
+          `${typeIcon} ${item.name} ${priceLabel} ${item.description}${tag}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",
@@ -296,37 +304,39 @@ export class ShopScene extends Phaser.Scene {
       return;
     }
 
-    const success = buyItem(this.player, item);
-    if (success) {
-      this.setMessage(`Purchased ${item.name}!`, "#88ff88");
+    const discountedCost = Math.max(1, Math.floor(item.cost * (1 - this.discount)));
+    if (this.player.gold < discountedCost) {
+      this.setMessage(`Not enough gold!`, "#ff6666");
+      return;
+    }
+    this.player.gold -= discountedCost;
+    this.player.inventory.push({ ...item });
+    this.setMessage(`Purchased ${item.name}!`, "#88ff88");
 
-      // Auto-equip only if the new item is better than current
-      if (item.type === "weapon") {
-        const currentEffect = this.player.equippedWeapon?.effect ?? 0;
+    // Auto-equip only if the new item is better than current
+    if (item.type === "weapon") {
+      const currentEffect = this.player.equippedWeapon?.effect ?? 0;
+      if (item.effect > currentEffect) {
+        const idx = this.player.inventory.length - 1;
+        useItem(this.player, idx);
+        this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
+      }
+    } else if (item.type === "armor") {
+      const currentEffect = this.player.equippedArmor?.effect ?? 0;
+      if (item.effect > currentEffect) {
+        const idx = this.player.inventory.length - 1;
+        useItem(this.player, idx);
+        this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
+      }
+    } else if (item.type === "shield") {
+      if (!this.player.equippedWeapon?.twoHanded) {
+        const currentEffect = this.player.equippedShield?.effect ?? 0;
         if (item.effect > currentEffect) {
           const idx = this.player.inventory.length - 1;
           useItem(this.player, idx);
           this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
-        }
-      } else if (item.type === "armor") {
-        const currentEffect = this.player.equippedArmor?.effect ?? 0;
-        if (item.effect > currentEffect) {
-          const idx = this.player.inventory.length - 1;
-          useItem(this.player, idx);
-          this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
-        }
-      } else if (item.type === "shield") {
-        if (!this.player.equippedWeapon?.twoHanded) {
-          const currentEffect = this.player.equippedShield?.effect ?? 0;
-          if (item.effect > currentEffect) {
-            const idx = this.player.inventory.length - 1;
-            useItem(this.player, idx);
-            this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
-          }
         }
       }
-    } else {
-      this.setMessage("Not enough gold!", "#ff6666");
     }
 
     this.updateDisplay();

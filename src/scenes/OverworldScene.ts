@@ -609,6 +609,25 @@ export class OverworldScene extends Phaser.Scene {
         [Terrain.Canyon]: "tile_citywall_sand",
       };
       const biomeWallTex = BIOME_WALL_MAP[cityBiome] ?? `tile_${Terrain.CityWall}`;
+      // Build a map of shop entrance positions → shop-type colored carpet texture
+      const shopCarpetMap = new Map<string, string>();
+      const SHOP_CARPET_TEX: Record<string, string> = {
+        weapon: "tile_carpet_weapon",
+        armor: "tile_carpet_armor",
+        general: "tile_carpet_general",
+        magic: "tile_carpet_magic",
+        bank: "tile_carpet_bank",
+        inn: "tile_carpet_inn",
+      };
+      for (const shop of city.shops) {
+        const carpetTex = SHOP_CARPET_TEX[shop.type];
+        if (carpetTex) {
+          shopCarpetMap.set(`${shop.x},${shop.y}`, carpetTex);
+        } else {
+          // Unknown shop types: no carpet, use biome floor
+          shopCarpetMap.set(`${shop.x},${shop.y}`, biomeFloorTex);
+        }
+      }
       for (let y = 0; y < MAP_HEIGHT; y++) {
         this.tileSprites[y] = [];
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -622,6 +641,13 @@ export class OverworldScene extends Phaser.Scene {
           // City walls use biome-appropriate material
           if (explored && terrain === Terrain.CityWall) {
             texKey = biomeWallTex;
+          }
+          // Shop entrance carpets use shop-type color (or biome floor for inn/other)
+          if (explored && terrain === Terrain.Carpet) {
+            const carpetOverride = shopCarpetMap.get(`${x},${y}`);
+            if (carpetOverride) {
+              texKey = carpetOverride;
+            }
           }
           const sprite = this.add.sprite(
             x * TILE_SIZE + TILE_SIZE / 2,
@@ -661,12 +687,14 @@ export class OverworldScene extends Phaser.Scene {
         if (this.isExplored(shop.x, shop.y)) {
           const icon = shop.type === "weapon" ? "⚔" : shop.type === "armor" ? "🛡" : shop.type === "inn" ? "🏨" : shop.type === "bank" ? "🏦" : "🏪";
           this.add
-            .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 4, `${icon} ${shop.name}`, {
-              fontSize: "7px",
+            .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 6, `${icon} ${shop.name}`, {
+              fontSize: "9px",
               fontFamily: "monospace",
-              color: "#ffd700",
-              stroke: "#000",
-              strokeThickness: 2,
+              color: "#ffffff",
+              stroke: "#000000",
+              strokeThickness: 3,
+              backgroundColor: "#00000088",
+              padding: { x: 3, y: 1 },
             })
             .setOrigin(0.5, 1)
             .setDepth(15); // above roof overlays
@@ -1147,7 +1175,9 @@ export class OverworldScene extends Phaser.Scene {
 
       // Generate a per-instance texture with proper skin/hair/dress colours
       const colors = getNpcColors(city.id, i);
-      const texKey = this.getOrCreateNpcTexture(tpl, colors.skinColor, colors.hairColor, colors.dressColor);
+      // Elders always have grey hair
+      const hairColor = def.templateId.includes("elder") ? 0xaaaaaa : colors.hairColor;
+      const texKey = this.getOrCreateNpcTexture(tpl, colors.skinColor, hairColor, colors.dressColor);
       const sprite = this.add.sprite(
         spawnX * TILE_SIZE + TILE_SIZE / 2,
         spawnY * TILE_SIZE + TILE_SIZE / 2,
@@ -2004,11 +2034,40 @@ export class OverworldScene extends Phaser.Scene {
       if (!city) return;
       const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
       const biomeFloorTex = `tile_${cityBiome}`;
+      // Biome-appropriate wall texture
+      const BIOME_WALL_MAP: Record<number, string> = {
+        [Terrain.Grass]: "tile_citywall_wood",
+        [Terrain.Forest]: "tile_citywall_moss",
+        [Terrain.DeepForest]: "tile_citywall_moss",
+        [Terrain.Sand]: "tile_citywall_sand",
+        [Terrain.Tundra]: "tile_citywall_ice",
+        [Terrain.Swamp]: "tile_citywall_dark",
+        [Terrain.Volcanic]: "tile_citywall_volcanic",
+        [Terrain.Canyon]: "tile_citywall_sand",
+      };
+      const biomeWallTex = BIOME_WALL_MAP[cityBiome] ?? `tile_${Terrain.CityWall}`;
+      // Shop-type colored carpet lookup
+      const SHOP_CARPET_TEX: Record<string, string> = {
+        weapon: "tile_carpet_weapon", armor: "tile_carpet_armor",
+        general: "tile_carpet_general", magic: "tile_carpet_magic",
+        bank: "tile_carpet_bank", inn: "tile_carpet_inn",
+      };
+      const shopCarpetMap = new Map<string, string>();
+      for (const shop of city.shops) {
+        const ct = SHOP_CARPET_TEX[shop.type];
+        shopCarpetMap.set(`${shop.x},${shop.y}`, ct ?? biomeFloorTex);
+      }
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
           if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
             const terrain = city.mapData[y][x];
-            const texKey = terrain === Terrain.CityFloor ? biomeFloorTex : `tile_${terrain}`;
+            let texKey = `tile_${terrain}`;
+            if (terrain === Terrain.CityFloor) texKey = biomeFloorTex;
+            if (terrain === Terrain.CityWall) texKey = biomeWallTex;
+            if (terrain === Terrain.Carpet) {
+              const override = shopCarpetMap.get(`${x},${y}`);
+              if (override) texKey = override;
+            }
             this.tileSprites[y][x].setTexture(texKey);
           }
         }
@@ -2242,7 +2301,7 @@ export class OverworldScene extends Phaser.Scene {
       } else {
         const shop = getCityShopNearby(city, this.player.x, this.player.y);
         if (shop) {
-          this.locationText.setText(`${shop.name}\n[SPACE] Enter`);
+          this.locationText.setText(`${shop.name}`);
         } else {
           this.locationText.setText(city.name);
         }
@@ -2767,32 +2826,7 @@ export class OverworldScene extends Phaser.Scene {
         return;
       }
 
-      // Fallback: check if on or near a shop location (tile-based, no NPC)
-      const shop = getCityShopNearby(city, this.player.x, this.player.y);
-      if (shop) {
-        if (shop.type === "inn") {
-          this.showInnConfirmation();
-          return;
-        }
-        if (shop.type === "bank") {
-          this.showBankOverlay();
-          return;
-        }
-        // Open shop with specific items
-        this.autoSave();
-        this.scene.start("ShopScene", {
-          player: this.player,
-          townName: `${city.name} - ${shop.name}`,
-          defeatedBosses: this.defeatedBosses,
-          bestiary: this.bestiary,
-          shopItemIds: shop.shopItems,
-          timeStep: this.timeStep,
-          weatherState: this.weatherState,
-          fromCity: true,
-          cityId: city.id,
-        });
-        return;
-      }
+      // No fallback tile-based shop opening — shops only open via shopkeeper NPCs
       return;
     }
 

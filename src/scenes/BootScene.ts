@@ -257,7 +257,7 @@ export class BootScene extends Phaser.Scene {
           gfx.fillCircle(16, 18, 2);
           break;
         case Terrain.Carpet:
-          // Rich red carpet / doormat marking shop entrances
+          // Default red carpet (used for decorative paths; shop entrances get colored variants)
           gfx.fillStyle(0x8b1a1a, 1);
           gfx.fillRect(2, 2, 28, 28);
           gfx.fillStyle(0xa52a2a, 0.7);
@@ -1117,6 +1117,33 @@ export class BootScene extends Phaser.Scene {
       wg.fillRect(0, 0, TILE_SIZE, 2);
       wg.generateTexture(v.key, TILE_SIZE, TILE_SIZE);
       wg.destroy();
+    }
+
+    // --- Shop-type colored carpet textures ---
+    const carpetVariants: { key: string; baseColor: number; borderColor: number; motifColor: number }[] = [
+      { key: "tile_carpet_weapon",  baseColor: 0x8b1a1a, borderColor: 0xdaa520, motifColor: 0xcc3333 },  // red
+      { key: "tile_carpet_armor",   baseColor: 0x1a3a6b, borderColor: 0x88aacc, motifColor: 0x3366aa },  // blue
+      { key: "tile_carpet_general", baseColor: 0x1a6b2a, borderColor: 0x88cc66, motifColor: 0x33aa44 },  // green
+      { key: "tile_carpet_magic",   baseColor: 0x1a6b2a, borderColor: 0x88cc66, motifColor: 0x33aa44 },  // green (items)
+      { key: "tile_carpet_bank",    baseColor: 0x6b6b1a, borderColor: 0xdddd44, motifColor: 0xaaaa33 },  // yellow
+      { key: "tile_carpet_inn",     baseColor: 0x4a1a6b, borderColor: 0xaa66cc, motifColor: 0x7733aa },  // violet
+    ];
+    for (const cv of carpetVariants) {
+      const cg = this.add.graphics();
+      cg.fillStyle(cv.baseColor, 1);
+      cg.fillRect(2, 2, 28, 28);
+      cg.fillStyle(cv.motifColor, 0.7);
+      cg.fillRect(4, 4, 24, 24);
+      cg.fillStyle(cv.borderColor, 0.8);
+      cg.fillRect(2, 2, 28, 2);
+      cg.fillRect(2, 28, 28, 2);
+      cg.fillRect(2, 2, 2, 28);
+      cg.fillRect(28, 2, 2, 28);
+      cg.fillStyle(cv.borderColor, 0.6);
+      cg.fillTriangle(16, 10, 12, 16, 16, 22);
+      cg.fillTriangle(16, 10, 20, 16, 16, 22);
+      cg.generateTexture(cv.key, TILE_SIZE, TILE_SIZE);
+      cg.destroy();
     }
   }
 

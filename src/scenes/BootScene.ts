@@ -621,6 +621,31 @@ export class BootScene extends Phaser.Scene {
           gfx.fillTriangle(16, 8, 13, 13, 19, 13);
           gfx.fillTriangle(16, 18, 13, 13, 19, 13);
           break;
+        case Terrain.CityPath:
+          // Default cobblestone path (biome variants generated separately)
+          gfx.fillStyle(0x9e9e9e, 1);
+          gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+          gfx.fillStyle(0x8a8a8a, 0.6);
+          gfx.fillRect(1, 1, 10, 6);
+          gfx.fillRect(13, 1, 8, 6);
+          gfx.fillRect(23, 1, 8, 6);
+          gfx.fillRect(5, 9, 12, 6);
+          gfx.fillRect(19, 9, 8, 6);
+          gfx.fillRect(1, 9, 3, 6);
+          gfx.fillRect(1, 17, 8, 7);
+          gfx.fillRect(11, 17, 10, 7);
+          gfx.fillRect(23, 17, 8, 7);
+          gfx.fillRect(3, 26, 12, 5);
+          gfx.fillRect(17, 26, 6, 5);
+          gfx.fillRect(25, 26, 6, 5);
+          gfx.lineStyle(1, 0x757575, 0.4);
+          gfx.strokeRect(1, 1, 10, 6);
+          gfx.strokeRect(13, 1, 8, 6);
+          gfx.strokeRect(5, 9, 12, 6);
+          gfx.strokeRect(19, 9, 8, 6);
+          gfx.strokeRect(1, 17, 8, 7);
+          gfx.strokeRect(11, 17, 10, 7);
+          break;
       }
 
       // Add grid border
@@ -1144,6 +1169,39 @@ export class BootScene extends Phaser.Scene {
       cg.fillTriangle(16, 10, 20, 16, 16, 22);
       cg.generateTexture(cv.key, TILE_SIZE, TILE_SIZE);
       cg.destroy();
+    }
+
+    // --- Biome-specific city path texture variants ---
+    const pathVariants: { key: string; baseColor: number; stoneColor: number; gapColor: number }[] = [
+      { key: "tile_path_cobble",  baseColor: 0x9e9e9e, stoneColor: 0x8a8a8a, gapColor: 0x757575 },  // stone cobble
+      { key: "tile_path_wood",    baseColor: 0xa1887f, stoneColor: 0x8d6e63, gapColor: 0x6d4c41 },  // wood planks
+      { key: "tile_path_sand",    baseColor: 0xd4b876, stoneColor: 0xc0a060, gapColor: 0xa08840 },  // packed sand
+      { key: "tile_path_gravel",  baseColor: 0x78909c, stoneColor: 0x607d8b, gapColor: 0x546e7a },  // gravel
+      { key: "tile_path_moss",    baseColor: 0x6d8b5e, stoneColor: 0x587a48, gapColor: 0x4a6838 },  // mossy stone
+      { key: "tile_path_dark",    baseColor: 0x5a5a4a, stoneColor: 0x484838, gapColor: 0x3a3a2a },  // dark flagstone
+      { key: "tile_path_lava",    baseColor: 0x6a4a3a, stoneColor: 0x5a3a2a, gapColor: 0x4a2a1a },  // cracked volcanic
+    ];
+    for (const pv of pathVariants) {
+      const pg = this.add.graphics();
+      pg.fillStyle(pv.baseColor, 1);
+      pg.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+      pg.fillStyle(pv.stoneColor, 0.7);
+      pg.fillRect(1, 1, 10, 6);
+      pg.fillRect(13, 1, 8, 6);
+      pg.fillRect(23, 1, 8, 6);
+      pg.fillRect(5, 9, 12, 6);
+      pg.fillRect(19, 9, 8, 6);
+      pg.fillRect(1, 17, 8, 7);
+      pg.fillRect(11, 17, 10, 7);
+      pg.fillRect(23, 17, 8, 7);
+      pg.lineStyle(1, pv.gapColor, 0.5);
+      pg.strokeRect(1, 1, 10, 6);
+      pg.strokeRect(13, 1, 8, 6);
+      pg.strokeRect(5, 9, 12, 6);
+      pg.strokeRect(1, 17, 8, 7);
+      pg.strokeRect(11, 17, 10, 7);
+      pg.generateTexture(pv.key, TILE_SIZE, TILE_SIZE);
+      pg.destroy();
     }
   }
 

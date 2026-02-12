@@ -609,6 +609,18 @@ export class OverworldScene extends Phaser.Scene {
         [Terrain.Canyon]: "tile_citywall_sand",
       };
       const biomeWallTex = BIOME_WALL_MAP[cityBiome] ?? `tile_${Terrain.CityWall}`;
+      // Pick biome-appropriate path texture
+      const BIOME_PATH_MAP: Record<number, string> = {
+        [Terrain.Grass]: "tile_path_wood",
+        [Terrain.Forest]: "tile_path_moss",
+        [Terrain.DeepForest]: "tile_path_moss",
+        [Terrain.Sand]: "tile_path_sand",
+        [Terrain.Tundra]: "tile_path_gravel",
+        [Terrain.Swamp]: "tile_path_dark",
+        [Terrain.Volcanic]: "tile_path_lava",
+        [Terrain.Canyon]: "tile_path_sand",
+      };
+      const biomePathTex = BIOME_PATH_MAP[cityBiome] ?? "tile_path_cobble";
       // Build a map of shop entrance positions → shop-type colored carpet texture
       const shopCarpetMap = new Map<string, string>();
       const SHOP_CARPET_TEX: Record<string, string> = {
@@ -642,12 +654,16 @@ export class OverworldScene extends Phaser.Scene {
           if (explored && terrain === Terrain.CityWall) {
             texKey = biomeWallTex;
           }
-          // Shop entrance carpets use shop-type color (or biome floor for inn/other)
+          // Shop entrance carpets use shop-type color
           if (explored && terrain === Terrain.Carpet) {
             const carpetOverride = shopCarpetMap.get(`${x},${y}`);
             if (carpetOverride) {
               texKey = carpetOverride;
             }
+          }
+          // City paths use biome-appropriate material
+          if (explored && terrain === Terrain.CityPath) {
+            texKey = biomePathTex;
           }
           const sprite = this.add.sprite(
             x * TILE_SIZE + TILE_SIZE / 2,
@@ -1522,7 +1538,8 @@ export class OverworldScene extends Phaser.Scene {
 
   /**
    * Find an NPC adjacent to or on the player's current position.
-   * Checks the player's tile and all four cardinal neighbours.
+   * Shopkeeper NPCs can only be talked to from inside their shop
+   * (player must be on a ShopFloor tile, not the carpet entrance).
    */
   private findAdjacentNpc(): { npcDef: NpcInstance; npcIndex: number } | null {
     const npcs = this.cityNpcData;
@@ -1530,6 +1547,12 @@ export class OverworldScene extends Phaser.Scene {
 
     const px = this.player.x;
     const py = this.player.y;
+
+    // Check what tile the player is standing on
+    const city = getCity(this.player.cityId);
+    const playerTerrain = city?.mapData[py]?.[px];
+    const playerInsideShop = playerTerrain === Terrain.ShopFloor;
+
     const checks = [
       { x: px, y: py },
       { x: px - 1, y: py }, { x: px + 1, y: py },
@@ -1538,10 +1561,13 @@ export class OverworldScene extends Phaser.Scene {
 
     for (let i = 0; i < npcs.length; i++) {
       const npc = npcs[i];
-      // For stationary NPCs check defined position; for wandering NPCs check current sprite position
+      // Shopkeeper NPCs require the player to be inside the shop
+      if (npc.shopIndex !== undefined && !playerInsideShop) continue;
+
+      // For wandering NPCs or shopkeepers (placed programmatically), use sprite position
       let nx: number;
       let ny: number;
-      if (npc.moves && this.cityNpcSprites[i]) {
+      if (this.cityNpcSprites[i]) {
         nx = Math.floor(this.cityNpcSprites[i].x / TILE_SIZE);
         ny = Math.floor(this.cityNpcSprites[i].y / TILE_SIZE);
       } else {
@@ -1650,11 +1676,11 @@ export class OverworldScene extends Phaser.Scene {
         line = getShopkeeperDialogue(shop.type, npcIndex);
       } else {
         speakerName = tpl.label;
-        line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup);
+        line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId);
       }
     } else {
       speakerName = tpl.label;
-      line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup);
+      line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId);
     }
 
     if (audioEngine.initialized) audioEngine.playDialogueBlip();
@@ -2046,6 +2072,14 @@ export class OverworldScene extends Phaser.Scene {
         [Terrain.Canyon]: "tile_citywall_sand",
       };
       const biomeWallTex = BIOME_WALL_MAP[cityBiome] ?? `tile_${Terrain.CityWall}`;
+      // Biome path texture
+      const BIOME_PATH_MAP2: Record<number, string> = {
+        [Terrain.Grass]: "tile_path_wood", [Terrain.Forest]: "tile_path_moss",
+        [Terrain.DeepForest]: "tile_path_moss", [Terrain.Sand]: "tile_path_sand",
+        [Terrain.Tundra]: "tile_path_gravel", [Terrain.Swamp]: "tile_path_dark",
+        [Terrain.Volcanic]: "tile_path_lava", [Terrain.Canyon]: "tile_path_sand",
+      };
+      const biomePathTex = BIOME_PATH_MAP2[cityBiome] ?? "tile_path_cobble";
       // Shop-type colored carpet lookup
       const SHOP_CARPET_TEX: Record<string, string> = {
         weapon: "tile_carpet_weapon", armor: "tile_carpet_armor",
@@ -2068,6 +2102,7 @@ export class OverworldScene extends Phaser.Scene {
               const override = shopCarpetMap.get(`${x},${y}`);
               if (override) texKey = override;
             }
+            if (terrain === Terrain.CityPath) texKey = biomePathTex;
             this.tileSprites[y][x].setTexture(texKey);
           }
         }

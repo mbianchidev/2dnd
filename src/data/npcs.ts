@@ -43,6 +43,10 @@ export const NPC_TEMPLATES: NpcTemplate[] = [
   { id: "female_thin",  ageGroup: "female", label: "Woman",       bodyColor: 0x29b6f6, heightScale: 1.0 },
   { id: "female_elder", ageGroup: "female", label: "Old Woman",   bodyColor: 0x8d6e63, heightScale: 1.0 },
   { id: "female_young", ageGroup: "female", label: "Young Woman", bodyColor: 0x26c6da, heightScale: 1.0 },
+
+  // ── Guards (2) ──
+  { id: "guard_male",   ageGroup: "male",   label: "Guard",       bodyColor: 0x546e7a, heightScale: 1.0 },
+  { id: "guard_female", ageGroup: "female", label: "Guard",       bodyColor: 0x546e7a, heightScale: 1.0 },
 ];
 
 // ── Jobs ──
@@ -53,7 +57,8 @@ export type NpcJob =
   | "farmer"
   | "merchant"
   | "cook"
-  | "villager";
+  | "villager"
+  | "guard";
 
 /** Accent colour applied to the NPC's apron / accessory based on job. */
 export const JOB_ACCENT_COLORS: Record<NpcJob, number> = {
@@ -63,6 +68,7 @@ export const JOB_ACCENT_COLORS: Record<NpcJob, number> = {
   merchant: 0xf9a825,
   cook: 0xfafafa,
   villager: 0x90a4ae,
+  guard: 0x455a64,
 };
 
 // ── Skin / Hair / Dress colour palettes ──
@@ -192,6 +198,20 @@ export const CHILD_DIALOGUES: string[] = [
   "I'm not scared of the dark... much.",
 ];
 
+/** Guard NPC dialogue pool. */
+export const GUARD_DIALOGUES: string[] = [
+  "Move along, citizen.",
+  "Stay out of trouble.",
+  "The city is under our protection.",
+  "No funny business on my watch.",
+  "Keep your weapons sheathed in town.",
+  "Report any suspicious activity.",
+  "Halt! ...oh, you're just an adventurer. Carry on.",
+  "The roads outside are dangerous. Be careful.",
+  "I've been on duty since dawn. Ugh.",
+  "We don't tolerate troublemakers here.",
+];
+
 // ── Per-city NPC placement ──
 
 export interface NpcInstance {
@@ -230,6 +250,8 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "villager",    x: 10, y: 8,  moves: true },
     { templateId: "child_boy2",   job: "villager",    x: 8,  y: 8,  moves: true },
     { templateId: "female_elder", job: "farmer",      x: 14, y: 10, moves: false },
+    { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
+    { templateId: "guard_female", job: "guard",       x: 11, y: 12, moves: false },
   ],
   sandport_city: [
     { templateId: "male_thin",    job: "blacksmith",  x: 4,  y: 4,  moves: false, shopIndex: 0 },
@@ -251,6 +273,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_tall",  job: "blacksmith",  x: 14, y: 11, moves: false, shopIndex: 5 },
     { templateId: "child_boy1",   job: "villager",    x: 10, y: 5,  moves: true },
     { templateId: "male_elder",   job: "farmer",      x: 6,  y: 8,  moves: false },
+    { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
   ],
   deeproot_city: [
     { templateId: "male_tall",    job: "blacksmith",  x: 5,  y: 4,  moves: false, shopIndex: 0 },
@@ -268,6 +291,8 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_tall",  job: "innkeeper",   x: 12, y: 8,  moves: false, shopIndex: 3 },
     { templateId: "child_kid",    job: "villager",    x: 10, y: 6,  moves: true },
     { templateId: "male_elder",   job: "villager",    x: 6,  y: 10, moves: false },
+    { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
+    { templateId: "guard_female", job: "guard",       x: 11, y: 12, moves: false },
   ],
   bogtown_city: [
     { templateId: "female_thin",  job: "merchant",    x: 4,  y: 5,  moves: false, shopIndex: 0 },
@@ -296,6 +321,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_tall",    job: "merchant",    x: 15, y: 11, moves: false, shopIndex: 5 },
     { templateId: "child_boy1",   job: "villager",    x: 10, y: 9,  moves: true },
     { templateId: "male_elder",   job: "villager",    x: 7,  y: 9,  moves: false },
+    { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
   ],
   dunerest_city: [
     { templateId: "male_thin",    job: "blacksmith",  x: 4,  y: 4,  moves: false, shopIndex: 0 },
@@ -314,6 +340,8 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "child_kid",    job: "villager",    x: 10, y: 8,  moves: true },
     { templateId: "male_elder",   job: "villager",    x: 8,  y: 6,  moves: false },
     { templateId: "female_young", job: "farmer",      x: 12, y: 6,  moves: true },
+    { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
+    { templateId: "guard_female", job: "guard",       x: 11, y: 12, moves: false },
   ],
   shadowfen_city: [
     { templateId: "female_thin",  job: "merchant",    x: 5,  y: 4,  moves: false, shopIndex: 0 },
@@ -526,8 +554,15 @@ export function getNpcColors(cityId: string, index: number): {
  * Pick a dialogue line for a regular (non-shopkeeper) NPC.
  * Uses deterministic selection so the same NPC always says the same thing.
  */
-export function getNpcDialogue(cityId: string, index: number, ageGroup: NpcAgeGroup): string {
-  const pool = ageGroup === "child" ? CHILD_DIALOGUES : VILLAGER_DIALOGUES;
+export function getNpcDialogue(cityId: string, index: number, ageGroup: NpcAgeGroup, templateId?: string): string {
+  let pool: string[];
+  if (templateId?.startsWith("guard_")) {
+    pool = GUARD_DIALOGUES;
+  } else if (ageGroup === "child") {
+    pool = CHILD_DIALOGUES;
+  } else {
+    pool = VILLAGER_DIALOGUES;
+  }
   let hash = index * 13;
   for (let i = 0; i < cityId.length; i++) {
     hash = ((hash << 5) - hash + cityId.charCodeAt(i)) | 0;

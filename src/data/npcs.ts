@@ -166,6 +166,20 @@ export const SHOPKEEPER_DIALOGUES: Record<string, string[]> = {
   ],
 };
 
+/** Dialogue for animal NPCs — simple sounds. */
+/** Dialogue sounds for city animals, keyed by sprite name. */
+export const ANIMAL_DIALOGUES: Record<string, string[]> = {
+  sprite_cow:     ["Moo!", "Mooo...", "*chews cud*"],
+  sprite_cat:     ["Meow!", "Mrrrow.", "Purrrr...", "*licks paw*"],
+  sprite_dog:     ["Woof!", "Bark bark!", "*wags tail*", "Arf!"],
+  sprite_chicken: ["Bawk bawk!", "Cluck cluck.", "*pecks at ground*"],
+  sprite_horse:   ["Neigh!", "*snorts*", "*stomps hoof*", "Whinny!"],
+  sprite_sheep:   ["Baa!", "Baaah...", "*nibbles grass*"],
+  sprite_mouse:   ["Squeak!", "*scurries*", "Eek!"],
+  sprite_frog:    ["Ribbit!", "Croak.", "*splash*"],
+  sprite_lizard:  ["*blinks slowly*", "*flicks tongue*", "..."],
+};
+
 /** Dialogue for child NPCs. */
 export const CHILD_DIALOGUES: string[] = [
   "Wow, are you a real hero?",
@@ -430,16 +444,6 @@ export const SPECIAL_NPC_FAREWELLS: Record<SpecialNpcKind, string> = {
   wanderingMerchant: "I must move on to the next town. Farewell!",
   hermit: HERMIT_FAREWELL,
 };
-
-/** Total unique dialogue lines per special NPC kind (excluding farewell). */
-export function getSpecialNpcDialogueCount(kind: SpecialNpcKind): number {
-  switch (kind) {
-    case "traveler": return TRAVELER_DIALOGUES.length;
-    case "adventurer": return ADVENTURER_DIALOGUES.length;
-    case "wanderingMerchant": return WANDERING_MERCHANT_DIALOGUES.length;
-    case "hermit": return HERMIT_DIALOGUES.length;
-  }
-}
 
 /**
  * Get a dialogue line for a special NPC.  Returns the farewell line once

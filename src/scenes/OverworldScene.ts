@@ -8,7 +8,6 @@ import {
   MAP_HEIGHT,
   WORLD_WIDTH,
   WORLD_HEIGHT,
-  WORLD_CHUNKS,
   ENCOUNTER_RATES,
   TERRAIN_COLORS,
   Terrain,
@@ -22,12 +21,11 @@ import {
   CITIES,
   getCity,
   getCityForTown,
-  getCityShopAt,
   getCityShopNearby,
+  getInnCost,
   getTownBiome,
   hasSparkleAt,
   type WorldChunk,
-  type DungeonData,
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
@@ -39,7 +37,7 @@ import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
-import { TimePeriod, getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
+import { getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 import {
   type WeatherState,
@@ -47,9 +45,7 @@ import {
   createWeatherState,
   advanceWeather,
   changeZoneWeather,
-  getWeatherAccuracyPenalty,
   getWeatherEncounterMultiplier,
-  getMonsterWeatherBoost,
   WEATHER_TINT,
   WEATHER_LABEL,
 } from "../systems/weather";
@@ -61,13 +57,10 @@ import {
   getNpcDialogue,
   getShopkeeperDialogue,
   getSpecialNpcDialogue,
-  getSpecialNpcDialogueCount,
   rollSpecialNpcSpawns,
   SPECIAL_NPC_DEFS,
-  SPECIAL_NPC_KINDS,
   SPECIAL_NPC_FAREWELLS,
-  HERMIT_FAREWELL,
-  SHOPKEEPER_DIALOGUES,
+  ANIMAL_DIALOGUES,
   NPC_SKIN_COLORS,
   type NpcInstance,
   type NpcTemplate,
@@ -749,34 +742,50 @@ export class OverworldScene extends Phaser.Scene {
         { sprite: "sprite_chicken", x: 8, y: 5, moves: true },
         { sprite: "sprite_chicken", x: 11, y: 8, moves: true },
         { sprite: "sprite_chicken", x: 14, y: 5, moves: true },
+        { sprite: "sprite_dog", x: 9, y: 10, moves: true },
+      ],
+      ironhold_city: [
+        { sprite: "sprite_cow", x: 12, y: 8, moves: true },
+        { sprite: "sprite_sheep", x: 10, y: 9, moves: true },
       ],
       frostheim_city: [
         { sprite: "sprite_cat", x: 5, y: 7, moves: false },
         { sprite: "sprite_cat", x: 14, y: 7, moves: false },
+        { sprite: "sprite_sheep", x: 10, y: 9, moves: true },
       ],
       deeproot_city: [
         { sprite: "sprite_cat", x: 9, y: 6, moves: false },
+        { sprite: "sprite_cat", x: 11, y: 8, moves: false },
         { sprite: "sprite_sheep", x: 7, y: 12, moves: true },
+        { sprite: "sprite_sheep", x: 9, y: 12, moves: true },
       ],
       sandport_city: [
         { sprite: "sprite_cat", x: 12, y: 9, moves: false },
+        { sprite: "sprite_chicken", x: 7, y: 7, moves: true },
+        { sprite: "sprite_chicken", x: 9, y: 6, moves: true },
       ],
       bogtown_city: [
         { sprite: "sprite_mouse", x: 8, y: 7, moves: true },
         { sprite: "sprite_mouse", x: 12, y: 6, moves: true },
+        { sprite: "sprite_frog", x: 10, y: 10, moves: true },
       ],
       thornvale_city: [
         { sprite: "sprite_frog", x: 9, y: 8, moves: true },
         { sprite: "sprite_frog", x: 11, y: 7, moves: true },
         { sprite: "sprite_cow", x: 8, y: 12, moves: true },
         { sprite: "sprite_cow", x: 13, y: 8, moves: true },
+        { sprite: "sprite_sheep", x: 10, y: 10, moves: true },
       ],
       canyonwatch_city: [
         { sprite: "sprite_dog", x: 10, y: 8, moves: true },
+        { sprite: "sprite_chicken", x: 8, y: 6, moves: true },
+        { sprite: "sprite_chicken", x: 12, y: 6, moves: true },
       ],
       ridgewatch_city: [
         { sprite: "sprite_sheep", x: 8, y: 7, moves: true },
         { sprite: "sprite_sheep", x: 11, y: 7, moves: true },
+        { sprite: "sprite_sheep", x: 9, y: 9, moves: true },
+        { sprite: "sprite_dog", x: 13, y: 8, moves: true },
       ],
       ashfall_city: [
         { sprite: "sprite_lizard", x: 9, y: 8, moves: true },
@@ -784,6 +793,11 @@ export class OverworldScene extends Phaser.Scene {
       ],
       dunerest_city: [
         { sprite: "sprite_lizard", x: 7, y: 7, moves: true },
+        { sprite: "sprite_cat", x: 10, y: 9, moves: false },
+      ],
+      shadowfen_city: [
+        { sprite: "sprite_frog", x: 8, y: 8, moves: true },
+        { sprite: "sprite_mouse", x: 11, y: 10, moves: true },
       ],
     };
 
@@ -1272,9 +1286,9 @@ export class OverworldScene extends Phaser.Scene {
    * Find an NPC adjacent to or on the player's current position.
    * Checks the player's tile and all four cardinal neighbours.
    */
-  private findAdjacentNpc(city: CityData): { npcDef: NpcInstance; npcIndex: number } | null {
-    const npcs = CITY_NPCS[city.id];
-    if (!npcs) return null;
+  private findAdjacentNpc(): { npcDef: NpcInstance; npcIndex: number } | null {
+    const npcs = this.cityNpcData;
+    if (!npcs.length) return null;
 
     const px = this.player.x;
     const py = this.player.y;
@@ -1303,6 +1317,79 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     return null;
+  }
+
+  /** Check if the player is adjacent to a city animal sprite. */
+  private findAdjacentAnimal(): { spriteName: string } | null {
+    const px = this.player.x;
+    const py = this.player.y;
+    const checks = [
+      { x: px, y: py },
+      { x: px - 1, y: py }, { x: px + 1, y: py },
+      { x: px, y: py - 1 }, { x: px, y: py + 1 },
+    ];
+
+    for (const sprite of this.cityAnimals) {
+      if (!sprite.active) continue;
+      const ax = Math.floor(sprite.x / TILE_SIZE);
+      const ay = Math.floor(sprite.y / TILE_SIZE);
+      for (const c of checks) {
+        if (c.x === ax && c.y === ay) {
+          return { spriteName: sprite.texture.key };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Show an animal dialogue bubble with a simple sound/verse. */
+  private showAnimalDialogue(spriteName: string): void {
+    if (this.dialogueOverlay) {
+      this.dialogueOverlay.destroy();
+      this.dialogueOverlay = null;
+    }
+
+    const pool = ANIMAL_DIALOGUES[spriteName];
+    if (!pool) return;
+
+    const line = pool[Math.floor(Math.random() * pool.length)];
+    // Derive a display name from the sprite key (e.g. "sprite_cow" → "Cow")
+    const rawName = spriteName.replace("sprite_", "");
+    const speakerName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+
+    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+
+    const container = this.add.container(0, 0).setDepth(50);
+    const boxW = MAP_WIDTH * TILE_SIZE - 40;
+    const boxH = 52;
+    const boxX = 20;
+    const boxY = MAP_HEIGHT * TILE_SIZE - boxH - 10;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 6);
+    container.add(bg);
+
+    const nameText = this.add.text(boxX + 10, boxY + 6, speakerName, {
+      fontSize: "11px", fontFamily: "monospace", color: "#ffd700", fontStyle: "bold",
+    });
+    container.add(nameText);
+
+    const lineText = this.add.text(boxX + 10, boxY + 22, line, {
+      fontSize: "12px", fontFamily: "monospace", color: "#ffffff",
+      wordWrap: { width: boxW - 20 },
+    });
+    container.add(lineText);
+
+    this.dialogueOverlay = container;
+    this.time.delayedCall(2000, () => {
+      if (this.dialogueOverlay === container) {
+        container.destroy();
+        this.dialogueOverlay = null;
+      }
+    });
   }
 
   /** Show a dialogue box when the player interacts with an NPC. */
@@ -1385,6 +1472,7 @@ export class OverworldScene extends Phaser.Scene {
   /** Show inn confirmation overlay. */
   private showInnConfirmation(): void {
     if (this.innConfirmOverlay) return;
+    const innCost = getInnCost(this.player.cityId);
     const container = this.add.container(0, 0).setDepth(55);
     const boxW = 260;
     const boxH = 70;
@@ -1398,7 +1486,7 @@ export class OverworldScene extends Phaser.Scene {
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
     container.add(bg);
 
-    const prompt = this.add.text(boxX + boxW / 2, boxY + 12, "Rest at the inn for 10g?", {
+    const prompt = this.add.text(boxX + boxW / 2, boxY + 12, `Rest at the inn for ${innCost}g?`, {
       fontSize: "12px",
       fontFamily: "monospace",
       color: "#ffd700",
@@ -1435,11 +1523,12 @@ export class OverworldScene extends Phaser.Scene {
   /** Execute inn rest after confirmation. */
   private confirmInnRest(): void {
     this.dismissInnConfirmation();
-    if (this.player.gold < 10) {
-      this.showMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
+    const innCost = getInnCost(this.player.cityId);
+    if (this.player.gold < innCost) {
+      this.showMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
       return;
     }
-    this.player.gold -= 10;
+    this.player.gold -= innCost;
     this.player.hp = this.player.maxHp;
     this.player.mp = this.player.maxMp;
     this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
@@ -2286,7 +2375,7 @@ export class OverworldScene extends Phaser.Scene {
       }
 
       // Check if adjacent to or on an NPC
-      const npcResult = this.findAdjacentNpc(city);
+      const npcResult = this.findAdjacentNpc();
       if (npcResult) {
         const { npcDef, npcIndex } = npcResult;
         // Shopkeeper NPC → show dialogue, then open shop
@@ -2332,6 +2421,13 @@ export class OverworldScene extends Phaser.Scene {
         }
         // Regular NPC → show dialogue
         this.showNpcDialogue(npcDef, npcIndex, city);
+        return;
+      }
+
+      // Check if adjacent to a city animal
+      const animalResult = this.findAdjacentAnimal();
+      if (animalResult) {
+        this.showAnimalDialogue(animalResult.spriteName);
         return;
       }
 

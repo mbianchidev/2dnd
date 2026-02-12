@@ -9,6 +9,7 @@ import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import { CYCLE_LENGTH } from "../systems/daynight";
+import { getInnCost } from "../data/map";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { audioEngine } from "../systems/audio";
 
@@ -186,8 +187,9 @@ export class ShopScene extends Phaser.Scene {
 
     // Rest at Inn button (only in standalone shop mode, not from city)
     if (!this.fromCity) {
+      const innCost = getInnCost(this.cityId);
       const restBtn = this.add
-        .text(20, bottomBarY + 28, "🏨 Rest at Inn (10g)", {
+        .text(20, bottomBarY + 28, `🏨 Rest at Inn (${innCost}g)`, {
           fontSize: "13px",
           fontFamily: "monospace",
           color: "#aaddff",
@@ -332,8 +334,9 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private restAtInn(): void {
-    if (this.player.gold < 10) {
-      this.setMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
+    const innCost = getInnCost(this.cityId);
+    if (this.player.gold < innCost) {
+      this.setMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
       return;
     }
     this.showInnConfirmation();
@@ -357,7 +360,7 @@ export class ShopScene extends Phaser.Scene {
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
     container.add(bg);
 
-    const prompt = this.add.text(boxX + boxW / 2, boxY + 10, "Rest at the inn for 10g?", {
+    const prompt = this.add.text(boxX + boxW / 2, boxY + 10, `Rest at the inn for ${getInnCost(this.cityId)}g?`, {
       fontSize: "12px",
       fontFamily: "monospace",
       color: "#ffd700",
@@ -424,7 +427,8 @@ export class ShopScene extends Phaser.Scene {
 
   /** Execute the inn rest: heal the player and advance time to the target step. */
   private confirmInnRest(targetTimeStep: number, message: string): void {
-    this.player.gold -= 10;
+    const innCost = getInnCost(this.cityId);
+    this.player.gold -= innCost;
     this.player.hp = this.player.maxHp;
     this.player.mp = this.player.maxMp;
     this.timeStep = targetTimeStep;
@@ -458,19 +462,13 @@ export class ShopScene extends Phaser.Scene {
     ).length;
 
     this.statsText.setText(
-      `${p.name} Lv.${p.level}\n` +
-        `HP: ${p.hp}/${p.maxHp}\n` +
-        `MP: ${p.mp}/${p.maxMp}\n\n` +
-        `Weapon: ${weapon}\n` +
+      `Weapon: ${weapon}\n` +
         `Armor: ${armor}\n` +
         `Shield: ${shield}\n\n` +
         `Inventory:\n` +
         `  Potions: ${potionCount}\n` +
         `  Ethers: ${etherCount}\n` +
-        `  Greater Potions: ${greaterCount}\n\n` +
-        `Spells: ${p.knownSpells.length}\n` +
-        `STR ${p.stats.strength} DEX ${p.stats.dexterity}\n` +
-        `CON ${p.stats.constitution} INT ${p.stats.intelligence}`
+        `  Greater Potions: ${greaterCount}`
     );
   }
 

@@ -1,5 +1,7 @@
 # 2D&D Project - GitHub Copilot Instructions
 
+KEEP THIS FILE AND SKILLS UPDATED IF ANYTHING CHANGES IN THE GAME DESIGN, CODE STYLE, OR PROJECT STRUCTURE. THIS FILE SERVES AS THE SINGLE SOURCE OF TRUTH FOR ALL CODING STANDARDS AND GAME MECHANICS. COPILOT RELIES ON THIS DOCUMENT TO PROVIDE ACCURATE AND CONSISTENT SUGGESTIONS THROUGHOUT THE CODEBASE.
+
 ## Project Overview
 2D&D is a browser-based JRPG that combines Dragon Quest-style gameplay with Dungeons & Dragons 5E mechanics. The game features turn-based combat, a D&D point-buy stat system, procedural audio, weather, day/night cycles, multi-chunk world exploration, cities, dungeons, and boss fights — all rendered with procedurally-generated graphics and synthesized audio.
 

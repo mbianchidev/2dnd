@@ -699,6 +699,27 @@ export const CITIES: CityData[] = [
   },
 ];
 
+/** Inn costs per city — increasing with city progression/difficulty. */
+export const INN_COSTS: Record<string, number> = {
+  willowdale_city:  10,
+  deeproot_city:    10,
+  bogtown_city:     15,
+  ironhold_city:    20,
+  sandport_city:    20,
+  frostheim_city:   25,
+  thornvale_city:   25,
+  canyonwatch_city: 30,
+  dunerest_city:    35,
+  ashfall_city:     40,
+  ridgewatch_city:  45,
+  shadowfen_city:   50,
+};
+
+/** Get the inn cost for a city (defaults to 10g if unknown). */
+export function getInnCost(cityId: string): number {
+  return INN_COSTS[cityId] ?? 10;
+}
+
 export function getCity(id: string): CityData | undefined {
   return CITIES.find((c) => c.id === id);
 }

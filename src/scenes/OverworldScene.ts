@@ -29,7 +29,7 @@ import {
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, applyBankInterest, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { getAppearance } from "../systems/appearance";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
@@ -126,6 +126,7 @@ export class OverworldScene extends Phaser.Scene {
   private shopRoofBounds: { x: number; y: number; w: number; h: number; shopX: number; shopY: number }[] = [];
   private dialogueOverlay: Phaser.GameObjects.Container | null = null;
   private innConfirmOverlay: Phaser.GameObjects.Container | null = null;
+  private bankOverlay: Phaser.GameObjects.Container | null = null;
   /** Active special (rare) NPCs in the current city visit. */
   private specialNpcSprites: Phaser.GameObjects.Sprite[] = [];
   private specialNpcTimers: Phaser.Time.TimerEvent[] = [];
@@ -676,7 +677,7 @@ export class OverworldScene extends Phaser.Scene {
       // Spawn city NPCs
       this.spawnCityNpcs(city);
       // Draw shop building roofs (above NPCs so they hide interiors)
-      this.createShopRoofs(city);
+      this.createShopRoofs(city, cityBiome);
       // Set initial roof transparency based on player position
       this.updateShopRoofAlpha();
       return;
@@ -912,7 +913,20 @@ export class OverworldScene extends Phaser.Scene {
    * CityWall + ShopFloor tiles that form the structure; the roof covers
    * them and fades out when the player is nearby.
    */
-  private createShopRoofs(city: CityData): void {
+  private createShopRoofs(city: CityData, biome: Terrain): void {
+    // Biome-based roof colour palettes
+    const BIOME_ROOF_COLORS: Record<number, { base: number; ridge: number; border: number }> = {
+      [Terrain.Grass]:      { base: 0x8d6e63, ridge: 0x6d4c41, border: 0x4e342e },  // warm brown thatch
+      [Terrain.Forest]:     { base: 0x5d7a4f, ridge: 0x3e5a30, border: 0x2e4420 },  // mossy green
+      [Terrain.DeepForest]: { base: 0x4a6040, ridge: 0x334830, border: 0x223420 },  // dark green
+      [Terrain.Sand]:       { base: 0xc8a864, ridge: 0xa08844, border: 0x806830 },  // sandstone
+      [Terrain.Tundra]:     { base: 0x8899aa, ridge: 0x667788, border: 0x445566 },  // slate blue
+      [Terrain.Swamp]:      { base: 0x5a5a4a, ridge: 0x3e3e30, border: 0x2a2a20 },  // murky grey
+      [Terrain.Volcanic]:   { base: 0x6a3a2a, ridge: 0x4a2a1a, border: 0x3a1a0a },  // charred red
+      [Terrain.Canyon]:     { base: 0xb07050, ridge: 0x905838, border: 0x704028 },  // terracotta
+    };
+    const palette = BIOME_ROOF_COLORS[biome] ?? BIOME_ROOF_COLORS[Terrain.Grass];
+
     for (const shop of city.shops) {
       // Find building bounds by flood-filling from the ShopFloor tile above the carpet entrance
       const visited = new Set<string>();
@@ -980,23 +994,24 @@ export class OverworldScene extends Phaser.Scene {
       const gfx = this.add.graphics();
       gfx.setDepth(14); // above NPCs (11) and animals (11) but below HUD
 
-      // Main roof colour
-      const roofColor = shop.type === "inn" ? 0x6d4c41 : shop.type === "weapon" ? 0x5d4037 : shop.type === "armor" ? 0x4e342e : 0x795548;
+      // Main roof colour — vary slightly by shop type
+      const typeShift = shop.type === "inn" ? 0x101010 : shop.type === "weapon" ? -0x080808 : 0;
+      const roofColor = Math.max(0, palette.base + typeShift);
       gfx.fillStyle(roofColor, 1);
       gfx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
 
       // Ridge lines for a tiled-roof look
-      gfx.lineStyle(1, 0x3e2723, 0.6);
+      gfx.lineStyle(1, palette.ridge, 0.6);
       for (let ry = by; ry < by + bh; ry += 6) {
         gfx.lineBetween(bx - 2, ry, bx + bw + 2, ry);
       }
 
       // Roof border
-      gfx.lineStyle(2, 0x3e2723, 0.9);
+      gfx.lineStyle(2, palette.border, 0.9);
       gfx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
 
       // Ridge cap (center horizontal line)
-      gfx.lineStyle(2, 0x4e342e, 0.8);
+      gfx.lineStyle(2, palette.ridge, 0.8);
       gfx.lineBetween(bx - 2, by + bh / 2, bx + bw + 2, by + bh / 2);
 
       this.shopRoofGraphics.push(gfx);
@@ -1735,6 +1750,127 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  /** Show bank deposit/withdraw overlay with interest info. */
+  private showBankOverlay(): void {
+    if (this.bankOverlay) return;
+
+    // Apply interest before showing balance
+    const currentDay = Math.floor(this.timeStep / CYCLE_LENGTH);
+    const interest = applyBankInterest(this.player, currentDay);
+
+    const container = this.add.container(0, 0).setDepth(55);
+    const boxW = 280;
+    const boxH = 140;
+    const boxX = (MAP_WIDTH * TILE_SIZE - boxW) / 2;
+    const boxY = (MAP_HEIGHT * TILE_SIZE - boxH) / 2;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
+    container.add(bg);
+
+    this.add.text(boxX + boxW / 2, boxY + 10, "🏦 Bank", {
+      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0).setDepth(56);
+    container.add(container.last!);
+
+    let statusText = `Balance: ${this.player.bankBalance}g  |  Gold: ${this.player.gold}g`;
+    if (interest > 0) {
+      statusText += `\n+${interest}g interest earned!`;
+    }
+    statusText += "\n2% daily interest on deposits";
+
+    const info = this.add.text(boxX + boxW / 2, boxY + 30, statusText, {
+      fontSize: "10px", fontFamily: "monospace", color: "#ccc", align: "center", lineSpacing: 3,
+    }).setOrigin(0.5, 0);
+    container.add(info);
+
+    const btnY = boxY + 78;
+
+    // Deposit button
+    const depositBtn = this.add.text(boxX + boxW / 2 - 70, btnY, "Deposit 10g", {
+      fontSize: "12px", fontFamily: "monospace", color: "#88ff88",
+      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    depositBtn.on("pointerover", () => depositBtn.setColor("#ffd700"));
+    depositBtn.on("pointerout", () => depositBtn.setColor("#88ff88"));
+    depositBtn.on("pointerdown", () => {
+      const amount = Math.min(10, this.player.gold);
+      if (amount > 0) {
+        this.player.gold -= amount;
+        this.player.bankBalance += amount;
+        if (this.player.lastBankDay === 0) this.player.lastBankDay = currentDay;
+        this.dismissBankOverlay();
+        this.showBankOverlay();
+        this.updateHUD();
+        this.autoSave();
+      }
+    });
+    container.add(depositBtn);
+
+    // Deposit All button
+    const depositAllBtn = this.add.text(boxX + boxW / 2, btnY, "Deposit All", {
+      fontSize: "12px", fontFamily: "monospace", color: "#66dd66",
+      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    depositAllBtn.on("pointerover", () => depositAllBtn.setColor("#ffd700"));
+    depositAllBtn.on("pointerout", () => depositAllBtn.setColor("#66dd66"));
+    depositAllBtn.on("pointerdown", () => {
+      if (this.player.gold > 0) {
+        this.player.bankBalance += this.player.gold;
+        this.player.gold = 0;
+        if (this.player.lastBankDay === 0) this.player.lastBankDay = currentDay;
+        this.dismissBankOverlay();
+        this.showBankOverlay();
+        this.updateHUD();
+        this.autoSave();
+      }
+    });
+    container.add(depositAllBtn);
+
+    // Withdraw button
+    const withdrawBtn = this.add.text(boxX + boxW / 2 + 70, btnY, "Withdraw 10g", {
+      fontSize: "12px", fontFamily: "monospace", color: "#ffaa66",
+      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    withdrawBtn.on("pointerover", () => withdrawBtn.setColor("#ffd700"));
+    withdrawBtn.on("pointerout", () => withdrawBtn.setColor("#ffaa66"));
+    withdrawBtn.on("pointerdown", () => {
+      const amount = Math.min(10, this.player.bankBalance);
+      if (amount > 0) {
+        this.player.bankBalance -= amount;
+        this.player.gold += amount;
+        this.dismissBankOverlay();
+        this.showBankOverlay();
+        this.updateHUD();
+        this.autoSave();
+      }
+    });
+    container.add(withdrawBtn);
+
+    // Close button
+    const closeBtn = this.add.text(boxX + boxW / 2, btnY + 30, "Close", {
+      fontSize: "12px", fontFamily: "monospace", color: "#ff8888",
+      backgroundColor: "#2a2a4e", padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    closeBtn.on("pointerover", () => closeBtn.setColor("#ffd700"));
+    closeBtn.on("pointerout", () => closeBtn.setColor("#ff8888"));
+    closeBtn.on("pointerdown", () => this.dismissBankOverlay());
+    container.add(closeBtn);
+
+    this.bankOverlay = container;
+  }
+
+  /** Dismiss bank overlay. */
+  private dismissBankOverlay(): void {
+    if (this.bankOverlay) {
+      this.bankOverlay.destroy();
+      this.bankOverlay = null;
+    }
+  }
+
   /** Spawn small animated creature emitters near biome decoration tiles. */
   private spawnBiomeCreatures(chunk: WorldChunk): void {
     const DECO_CREATURES: Record<number, { texture: string; config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig }> = {
@@ -2303,6 +2439,7 @@ export class OverworldScene extends Phaser.Scene {
       // Dismiss any open overlays when moving
       this.dismissDialogue();
       this.dismissInnConfirmation();
+      this.dismissBankOverlay();
 
       const city = getCity(this.player.cityId);
       if (!city) return;
@@ -2541,6 +2678,11 @@ export class OverworldScene extends Phaser.Scene {
         this.dismissInnConfirmation();
         return;
       }
+      // If bank overlay is showing, dismiss it
+      if (this.bankOverlay) {
+        this.dismissBankOverlay();
+        return;
+      }
 
       const city = getCity(this.player.cityId);
       if (!city) return;
@@ -2585,9 +2727,9 @@ export class OverworldScene extends Phaser.Scene {
             }
             if (shop.type === "bank") {
               this.showNpcDialogue(npcDef, npcIndex, city);
-              this.time.delayedCall(1200, () => {
+              this.time.delayedCall(800, () => {
                 this.dismissDialogue();
-                this.showMessage(`💰 The bank holds your gold safe. Balance: ${this.player.gold}g`, "#ffd700");
+                this.showBankOverlay();
               });
               return;
             }
@@ -2631,7 +2773,7 @@ export class OverworldScene extends Phaser.Scene {
           return;
         }
         if (shop.type === "bank") {
-          this.showMessage(`💰 The bank holds your gold safe. Balance: ${this.player.gold}g`, "#ffd700");
+          this.showBankOverlay();
           return;
         }
         // Open shop with specific items

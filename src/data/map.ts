@@ -345,15 +345,15 @@ const WILLOWDALE_INTERIOR: Terrain[][] = [
   [cW,cF,cW,sF,sF,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,sF,sF,cW,cF,cW],
   [cW,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Ironhold — Dense forge city with narrow alleys and workshops ──
 // prettier-ignore
 const IRONHOLD_INTERIOR: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
-  [cW,cW,sF,sF,cW,cF,kR,cF,cF,sT,cF,cF,cF,kR,cF,cW,sF,cW,cF,cW],
+  [cW,cW,sF,sF,cW,cF,kR,cF,cF,sT,cF,cF,cF,kR,cF,cW,sF,sF,cW,cW],
   [cW,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
   [cW,cF,cF,cF,cF,cW,cW,cW,cF,cF,cF,cF,cW,cW,cW,cF,cF,cF,cF,cW],
   [cW,cF,bR,cF,cF,cW,sF,sF,cF,cF,cF,cF,sF,sF,cW,cF,cF,bR,cF,cW],
@@ -365,8 +365,8 @@ const IRONHOLD_INTERIOR: Terrain[][] = [
   [cW,cF,cW,sF,sF,cF,cW,sF,sF,cF,cF,sF,sF,cW,cF,sF,sF,cW,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,kR,cF,bR,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,bR,cF,kR,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Sandport — Open desert bazaar with big casino, sun temple ──
@@ -374,19 +374,19 @@ const IRONHOLD_INTERIOR: Terrain[][] = [
 const SANDPORT_INTERIOR: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,tP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,sF,sF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cW,sF,sF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,sF,sF,cW,cW],
   [cW,cF,cF,cP,cF,cF,bR,cF,cF,cF,cF,cF,cF,bR,cF,cF,cP,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cA,cA,cA,cA,cA,cA,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,kR,cF,cA,cA,cA,cA,cA,cA,cF,kR,cF,cF,cF,cF,cW],
-  [cW,cW,sF,sF,cW,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cW,sF,sF,cW,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cW,sF,sF,cW,cW],
   [cW,cF,cF,cP,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cP,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,bR,cF,cF,cF,cF,cF,cF,bR,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,sF,sF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cW,sF,cW,cW,cF,cW],
+  [cW,cW,cW,sF,sF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cW,sF,sF,cW,cW,cW],
   [cW,cF,cF,cF,cP,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,cP,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Frostheim — Sturdy northern town with central hearth and frost temple ──
@@ -394,7 +394,7 @@ const SANDPORT_INTERIOR: Terrain[][] = [
 const FROSTHEIM_INTERIOR: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
   [cW,cF,cF,cF,cW,cF,cF,cF,cF,tP,cF,cF,cF,cF,cF,cW,cF,cF,cF,cW],
-  [cW,cW,sF,sF,cW,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cW,sF,sF,cW,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cW,sF,sF,cW,cW],
   [cW,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cW,cW,cW,cF,cF,cW,cW,cW,cF,cF,cF,cF,cF,cW],
   [cW,cF,sT,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sT,cF,cW],
@@ -405,8 +405,8 @@ const FROSTHEIM_INTERIOR: Terrain[][] = [
   [cW,cF,cF,cP,cF,cF,cF,cP,cF,cF,cF,cF,cP,cF,cF,cP,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,kR,cF,cF,bR,cF,cF,cF,cF,cF,cF,cF,cF,bR,cF,cF,kR,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Deeproot — Forest village with mill, nature shrine and ancient tree ──
@@ -414,7 +414,7 @@ const FROSTHEIM_INTERIOR: Terrain[][] = [
 const DEEPROOT_INTERIOR: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,sF,sF,cW,cF,cF,cF,cF,cF,cF,cF,mL,cW,sF,cW,cW,cF,cW],
+  [cW,cW,cW,sF,sF,cW,cF,cF,cF,cF,cF,cF,cF,mL,cW,sF,sF,cW,cW,cW],
   [cW,cF,cF,cF,cP,cF,cF,cF,cF,tP,cF,cF,cF,cF,cF,cP,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cF,cF,cF,cF,cW],
@@ -422,11 +422,11 @@ const DEEPROOT_INTERIOR: Terrain[][] = [
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,sF,sF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cW,sF,cW,cW,cF,cW],
+  [cW,cW,cW,sF,sF,cW,cF,cF,cF,cF,cF,cF,cF,cF,cW,sF,sF,cW,cW,cW],
   [cW,cF,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Canyonwatch — Cliff-carved outpost with ancient cliff statues ──
@@ -434,7 +434,7 @@ const DEEPROOT_INTERIOR: Terrain[][] = [
 const CANYONWATCH_INTERIOR: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
   [cW,cF,cF,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cF,cF,cW],
-  [cW,cW,sF,sF,cW,cF,cF,kR,cF,sT,cF,cF,kR,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cW,sF,sF,cW,cF,cF,kR,cF,sT,cF,cF,kR,cF,cF,cW,sF,sF,cW,cW],
   [cW,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cW,cF,cF,cF,cW,cW,cF,cF,cF,cF,cF,cF,cW,cW,cF,cF,cF,cW,cW],
@@ -445,8 +445,8 @@ const CANYONWATCH_INTERIOR: Terrain[][] = [
   [cW,cF,cF,cF,cF,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,kR,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,kR,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Bogtown — Ramshackle swamp settlement with weathered statue ──
@@ -465,8 +465,8 @@ const BOGTOWN_INTERIOR: Terrain[][] = [
   [cW,sF,cW,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,cW,sF,cW],
   [cW,sF,cF,cP,cF,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,cF,cP,cF,sF,cW],
   [cW,sF,sF,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,sF,sF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Thornvale — Fortified woodland town with crop fields and garden statues ──
@@ -485,8 +485,8 @@ const THORNVALE_INTERIOR: Terrain[][] = [
   [cW,cF,cW,sF,sF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cP,sF,sF,cW,cF,cW],
   [cW,cF,cW,cW,cW,cW,cF,cF,cF,cF,cF,cF,cF,cF,cW,cW,cW,cW,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Ashfall — Heat-scarred town with fire temple and small casino ──
@@ -505,8 +505,8 @@ const ASHFALL_INTERIOR: Terrain[][] = [
   [cW,cF,cW,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,cW,cF,cW],
   [cW,cF,cF,cF,cP,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,cP,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Dunerest — Desert oasis outpost with oasis shrine ──
@@ -514,7 +514,7 @@ const ASHFALL_INTERIOR: Terrain[][] = [
 const DUNEREST_INTERIOR: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,sF,sF,cW,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cW,sF,sF,cW,cF,cF,bR,cF,cF,cF,cF,bR,cF,cF,cW,sF,sF,cW,cW],
   [cW,cF,cF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,sT,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,fT,fT,cF,cF,cF,cF,cF,cF,cF,cF,cW],
@@ -522,11 +522,11 @@ const DUNEREST_INTERIOR: Terrain[][] = [
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
   [cW,cF,bR,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,bR,cF,cW],
-  [cW,cW,sF,sF,cW,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cW,sF,cW,cF,cW],
+  [cW,cW,sF,sF,cW,cF,cF,cF,cF,wL,cF,cF,cF,cF,cF,cW,sF,sF,cW,cW],
   [cW,cF,cF,cP,cF,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,cF,cP,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Ridgewatch — Mountain fortress with guardian statues and houses ──
@@ -545,8 +545,8 @@ const RIDGEWATCH_INTERIOR: Terrain[][] = [
   [cW,cF,cW,sF,sF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,sF,sF,cW,cF,cW],
   [cW,cF,cF,cF,cP,cF,bR,cF,cF,cF,cF,cF,cF,bR,cF,cP,cF,cF,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 // ── Shadowfen — Mysterious swamp town with dark temple ──
@@ -565,8 +565,8 @@ const SHADOWFEN_INTERIOR: Terrain[][] = [
   [cW,cF,cW,cW,sF,cF,cF,kR,cF,cF,cF,cF,kR,cF,cF,sF,cW,cW,cF,cW],
   [cW,cF,cW,sF,cP,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cP,sF,cW,cF,cW],
   [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cE,cF,cF,cF,cF,cF,cF,cF,cF,cW],
-  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
+  [cW,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cF,cW],
+  [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cE,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
 export const CITIES: CityData[] = [

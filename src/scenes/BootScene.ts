@@ -241,6 +241,9 @@ export class BootScene extends Phaser.Scene {
           gfx.fillStyle(0x3e2723, 0.4);
           gfx.fillRect(0, 0, TILE_SIZE, 2);
           break;
+
+        // At the end of tile generation we also create biome wall variants
+        // (wood, sandstone, mossy, ice) — see generateBiomeWallTextures() below.
         case Terrain.CityExit:
           // City gate / exit
           gfx.fillStyle(0x2e7d32, 0.5);
@@ -1083,6 +1086,38 @@ export class BootScene extends Phaser.Scene {
     liz.fillRect(7, 5, 1, 3); // back leg down
     liz.generateTexture("sprite_lizard", 12, 8);
     liz.destroy();
+
+    // --- Biome-specific city wall texture variants ---
+    const wallVariants: { key: string; baseColor: number; mortarColor: number; shadowColor: number }[] = [
+      { key: "tile_citywall_wood", baseColor: 0x8d6e63, mortarColor: 0x6d4c41, shadowColor: 0x4e342e },
+      { key: "tile_citywall_sand", baseColor: 0xc8b060, mortarColor: 0xa89040, shadowColor: 0x887020 },
+      { key: "tile_citywall_moss", baseColor: 0x5d734f, mortarColor: 0x4e6040, shadowColor: 0x3a4830 },
+      { key: "tile_citywall_ice",  baseColor: 0x8eaabb, mortarColor: 0x6e8899, shadowColor: 0x506878 },
+      { key: "tile_citywall_dark", baseColor: 0x3e3838, mortarColor: 0x2e2828, shadowColor: 0x1e1818 },
+      { key: "tile_citywall_volcanic", baseColor: 0x5a3a2a, mortarColor: 0x4a2a1a, shadowColor: 0x3a1a0a },
+    ];
+    for (const v of wallVariants) {
+      const wg = this.add.graphics();
+      wg.fillStyle(v.baseColor, 1);
+      wg.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+      wg.fillStyle(v.mortarColor, 0.8);
+      wg.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+      wg.lineStyle(1, v.shadowColor, 0.6);
+      wg.strokeRect(1, 1, 14, 7);
+      wg.strokeRect(17, 1, 14, 7);
+      wg.strokeRect(8, 9, 14, 7);
+      wg.strokeRect(0, 9, 7, 7);
+      wg.strokeRect(23, 9, 8, 7);
+      wg.strokeRect(1, 17, 14, 7);
+      wg.strokeRect(17, 17, 14, 7);
+      wg.strokeRect(8, 25, 14, 7);
+      wg.strokeRect(0, 25, 7, 7);
+      wg.strokeRect(23, 25, 8, 7);
+      wg.fillStyle(v.shadowColor, 0.4);
+      wg.fillRect(0, 0, TILE_SIZE, 2);
+      wg.generateTexture(v.key, TILE_SIZE, TILE_SIZE);
+      wg.destroy();
+    }
   }
 
   /** Generate procedural 640×560 battle backgrounds for each biome and boss. */
@@ -2146,7 +2181,7 @@ export class BootScene extends Phaser.Scene {
     renderStats();
   }
 
-  private showAppearanceCustomization(playerName: string, selectedClass: PlayerAppearance, baseStats: PlayerStats): void {
+  private showAppearanceCustomization(playerName: string, selectedClass: PlayerAppearance, baseStats: PlayerStats, preset?: { skinColor: number; hairStyle: number; hairColor: number }): void {
     this.children.removeAll(true);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();
@@ -2171,10 +2206,10 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    // State
-    let selectedSkinColor = SKIN_COLOR_OPTIONS[0].color;
-    let selectedHairStyle = HAIR_STYLE_OPTIONS[0].id;
-    let selectedHairColor = HAIR_COLOR_OPTIONS[0].color;
+    // State — use preset values from randomize if provided
+    let selectedSkinColor = preset?.skinColor ?? SKIN_COLOR_OPTIONS[0].color;
+    let selectedHairStyle = preset?.hairStyle ?? HAIR_STYLE_OPTIONS[0].id;
+    let selectedHairColor = preset?.hairColor ?? HAIR_COLOR_OPTIONS[0].color;
 
     // y=78: preview sprite center, scale 2 (64px tall: top=46, bottom=110)
     const previewKey = "preview_custom";
@@ -2201,6 +2236,30 @@ export class BootScene extends Phaser.Scene {
       previewSprite.setTexture(previewKey);
     };
 
+    // Randomize button — picks random skin, hair style, and hair colour
+    const randomizeAll = () => {
+      const rndSkin = SKIN_COLOR_OPTIONS[Math.floor(Math.random() * SKIN_COLOR_OPTIONS.length)].color;
+      const rndStyle = HAIR_STYLE_OPTIONS[Math.floor(Math.random() * HAIR_STYLE_OPTIONS.length)].id;
+      const rndHairColor = HAIR_COLOR_OPTIONS[Math.floor(Math.random() * HAIR_COLOR_OPTIONS.length)].color;
+      // Rebuild the whole screen so selection highlights update
+      this.showAppearanceCustomization(playerName, selectedClass, baseStats,
+        { skinColor: rndSkin, hairStyle: rndStyle, hairColor: rndHairColor });
+    };
+
+    const rndBtn = this.add
+      .text(cx, 104, "🎲 Randomize", {
+        fontSize: "12px",
+        fontFamily: "monospace",
+        color: "#88ccff",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 10, y: 3 },
+      })
+      .setOrigin(0.5, 0)
+      .setInteractive({ useHandCursor: true });
+    rndBtn.on("pointerover", () => rndBtn.setColor("#ffd700"));
+    rndBtn.on("pointerout", () => rndBtn.setColor("#88ccff"));
+    rndBtn.on("pointerdown", randomizeAll);
+
     // y=118: skin color label (13px) → bottom ~131
     this.add
       .text(cx, 118, "Skin Color:", {
@@ -2222,7 +2281,7 @@ export class BootScene extends Phaser.Scene {
       const gfx = this.add.graphics();
       gfx.fillStyle(opt.color, 1);
       gfx.fillCircle(sx, skinSwatchY, 10);
-      gfx.lineStyle(2, i === 0 ? 0xffd700 : 0x444444, 1);
+      gfx.lineStyle(2, opt.color === selectedSkinColor ? 0xffd700 : 0x444444, 1);
       gfx.strokeCircle(sx, skinSwatchY, 11);
       skinHighlights.push(gfx);
 
@@ -2270,8 +2329,8 @@ export class BootScene extends Phaser.Scene {
         .text(sx, hairStyleY, opt.label, {
           fontSize: "13px",
           fontFamily: "monospace",
-          color: i === 0 ? "#ffd700" : "#888",
-          backgroundColor: i === 0 ? "#2a2a2a" : undefined,
+          color: opt.id === selectedHairStyle ? "#ffd700" : "#888",
+          backgroundColor: opt.id === selectedHairStyle ? "#2a2a2a" : undefined,
           padding: { x: 6, y: 3 },
         })
         .setOrigin(0.5, 0)
@@ -2309,7 +2368,7 @@ export class BootScene extends Phaser.Scene {
       const gfx = this.add.graphics();
       gfx.fillStyle(opt.color, 1);
       gfx.fillCircle(hx, hairSwatchY, 10);
-      gfx.lineStyle(2, i === 0 ? 0xffd700 : 0x444444, 1);
+      gfx.lineStyle(2, opt.color === selectedHairColor ? 0xffd700 : 0x444444, 1);
       gfx.strokeCircle(hx, hairSwatchY, 11);
       hairHighlights.push(gfx);
 

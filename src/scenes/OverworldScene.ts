@@ -596,6 +596,18 @@ export class OverworldScene extends Phaser.Scene {
       // Determine surrounding biome so city floor matches the landscape
       const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
       const biomeFloorTex = `tile_${cityBiome}`;
+      // Pick biome-appropriate wall texture
+      const BIOME_WALL_MAP: Record<number, string> = {
+        [Terrain.Grass]: "tile_citywall_wood",
+        [Terrain.Forest]: "tile_citywall_moss",
+        [Terrain.DeepForest]: "tile_citywall_moss",
+        [Terrain.Sand]: "tile_citywall_sand",
+        [Terrain.Tundra]: "tile_citywall_ice",
+        [Terrain.Swamp]: "tile_citywall_dark",
+        [Terrain.Volcanic]: "tile_citywall_volcanic",
+        [Terrain.Canyon]: "tile_citywall_sand",
+      };
+      const biomeWallTex = BIOME_WALL_MAP[cityBiome] ?? `tile_${Terrain.CityWall}`;
       for (let y = 0; y < MAP_HEIGHT; y++) {
         this.tileSprites[y] = [];
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -605,6 +617,10 @@ export class OverworldScene extends Phaser.Scene {
           // City floor uses the biome ground texture instead of cobblestone
           if (explored && terrain === Terrain.CityFloor) {
             texKey = biomeFloorTex;
+          }
+          // City walls use biome-appropriate material
+          if (explored && terrain === Terrain.CityWall) {
+            texKey = biomeWallTex;
           }
           const sprite = this.add.sprite(
             x * TILE_SIZE + TILE_SIZE / 2,

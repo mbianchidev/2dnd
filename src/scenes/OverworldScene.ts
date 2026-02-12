@@ -2507,12 +2507,15 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Advance the day/night cycle by one step and update the map tint. */
   private advanceTime(): void {
+    // Time stands still inside cities.
+    if (this.player.inCity) return;
+
     const oldPeriod = getTimePeriod(this.timeStep);
     this.timeStep = (this.timeStep + 1) % CYCLE_LENGTH;
     const newPeriod = getTimePeriod(this.timeStep);
 
-    // Dungeons and cities are enclosed — weather stays Clear, only advance time-of-day tint.
-    if (this.player.inDungeon || this.player.inCity) {
+    // Dungeons are enclosed — weather stays Clear, only advance time-of-day tint.
+    if (this.player.inDungeon) {
       if (oldPeriod !== newPeriod) this.applyDayNightTint();
       return;
     }

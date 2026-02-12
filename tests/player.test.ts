@@ -65,7 +65,9 @@ describe("player system", () => {
       expect(player.maxMp).toBeGreaterThanOrEqual(4);
       expect(player.gold).toBe(50);
       expect(player.knownSpells).toContain("cureWounds");
-      expect(player.inventory).toHaveLength(0);
+      expect(player.inventory).toHaveLength(1); // starting weapon
+      expect(player.equippedWeapon).not.toBeNull();
+      expect(player.equippedWeapon?.id).toBe("startSword"); // Knight default
       expect(player.pendingStatPoints).toBe(0);
       expect(player.openedChests).toEqual([]);
       expect(player.exploredTiles).toEqual({});
@@ -237,11 +239,12 @@ describe("player system", () => {
 
     it("buys items and deducts gold", () => {
       const player = createTestPlayer();
+      const startingItems = player.inventory.length;
       const potion = ITEMS.find((i) => i.id === "potion")!;
       expect(buyItem(player, potion)).toBe(true);
       expect(player.gold).toBe(35);
-      expect(player.inventory).toHaveLength(1);
-      expect(player.inventory[0].id).toBe("potion");
+      expect(player.inventory).toHaveLength(startingItems + 1);
+      expect(player.inventory[startingItems].id).toBe("potion");
     });
 
     it("fails to buy when insufficient gold", () => {
@@ -255,6 +258,7 @@ describe("player system", () => {
     it("uses healing potions", () => {
       const player = createTestPlayer();
       player.hp = 10;
+      player.inventory = []; // clear starting weapon for this test
       const potion = ITEMS.find((i) => i.id === "potion")!;
       player.inventory.push({ ...potion });
 
@@ -267,6 +271,7 @@ describe("player system", () => {
     it("caps healing at max HP", () => {
       const player = createTestPlayer();
       player.hp = 25; // 5 below max
+      player.inventory = []; // clear starting weapon for this test
       const potion = ITEMS.find((i) => i.id === "potion")!; // heals 20
       player.inventory.push({ ...potion });
 
@@ -278,8 +283,9 @@ describe("player system", () => {
       const player = createTestPlayer();
       const sword = ITEMS.find((i) => i.id === "shortSword")!;
       player.inventory.push({ ...sword });
+      const swordIndex = player.inventory.findIndex((i) => i.id === "shortSword");
 
-      const result = useItem(player, 0);
+      const result = useItem(player, swordIndex);
       expect(result.used).toBe(true);
       expect(player.equippedWeapon?.id).toBe("shortSword");
     });
@@ -384,6 +390,23 @@ describe("player system", () => {
       const enrage = getAbility("enrage");
       expect(enrage).toBeDefined();
       expect(enrage!.bonusAction).toBe(true);
+    });
+
+    it("each class starts with a weapon equipped", () => {
+      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk"]) {
+        const player = createPlayer("Test", defaultStats, classId);
+        expect(player.equippedWeapon, `${classId} should start with a weapon`).not.toBeNull();
+        expect(player.inventory.length, `${classId} should have weapon in inventory`).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    it("different classes start with different weapons", () => {
+      const knight = createPlayer("K", defaultStats, "knight");
+      const mage = createPlayer("M", defaultStats, "mage");
+      const rogue = createPlayer("R", defaultStats, "rogue");
+      expect(knight.equippedWeapon?.id).toBe("startSword");
+      expect(mage.equippedWeapon?.id).toBe("startStaff");
+      expect(rogue.equippedWeapon?.id).toBe("startDagger");
     });
   });
 });

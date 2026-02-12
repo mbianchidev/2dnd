@@ -9,6 +9,7 @@ import type { Ability } from "../data/abilities";
 import { ABILITIES, getAbility } from "../data/abilities";
 import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "../data/talents";
 import type { Item } from "../data/items";
+import { getItem } from "../data/items";
 import { getAppearance, getClassSpells, getClassAbilities } from "./appearance";
 
 export interface PlayerStats {
@@ -121,6 +122,9 @@ export function createPlayer(
     return ab && ab.levelRequired <= 1;
   });
 
+  // Starting weapon from class definition
+  const startWeapon = getItem(appearance.startingWeaponId) ?? null;
+
   return {
     name,
     level: 1,
@@ -132,11 +136,11 @@ export function createPlayer(
     stats,
     pendingStatPoints: 0,
     gold: 50,
-    inventory: [],
+    inventory: startWeapon ? [startWeapon] : [],
     knownSpells: startingSpells,
     knownAbilities: startingAbilities,
     knownTalents: [],
-    equippedWeapon: null,
+    equippedWeapon: startWeapon,
     equippedArmor: null,
     equippedShield: null,
     appearanceId,

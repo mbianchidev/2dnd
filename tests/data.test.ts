@@ -719,5 +719,29 @@ describe("game data", () => {
       const ids = ABILITIES.map((a) => a.id);
       expect(new Set(ids).size).toBe(ids.length);
     });
+
+    it("each class has a valid starting weapon", () => {
+      for (const app of PLAYER_APPEARANCES) {
+        const weapon = getItem(app.startingWeaponId);
+        expect(weapon, `${app.label} starting weapon ${app.startingWeaponId} not found`).toBeDefined();
+        expect(weapon!.type).toBe("weapon");
+      }
+    });
+
+    it("each class has a clothing style", () => {
+      const validStyles = ["heavy", "robe", "leather", "vestment", "bare", "wrap"];
+      for (const app of PLAYER_APPEARANCES) {
+        expect(validStyles).toContain(app.clothingStyle);
+      }
+    });
+
+    it("weapon items have weaponSprite field", () => {
+      const weapons = ITEMS.filter((i) => i.type === "weapon");
+      const validSprites = ["sword", "staff", "dagger", "bow", "mace", "axe", "fist"];
+      for (const wpn of weapons) {
+        expect(wpn.weaponSprite, `${wpn.name} missing weaponSprite`).toBeDefined();
+        expect(validSprites).toContain(wpn.weaponSprite);
+      }
+    });
   });
 });

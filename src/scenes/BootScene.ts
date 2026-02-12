@@ -4,7 +4,7 @@
 
 import Phaser from "phaser";
 import { TERRAIN_COLORS, Terrain, WORLD_CHUNKS, WORLD_WIDTH, WORLD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, getTownBiome } from "../data/map";
-import { PLAYER_APPEARANCES, type PlayerAppearance, SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance, getAppearance } from "../systems/appearance";
+import { PLAYER_APPEARANCES, type PlayerAppearance, SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance, getAppearance, getActiveWeaponSprite } from "../systems/appearance";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
 import { abilityModifier, rollAbilityScore } from "../utils/dice";
@@ -711,7 +711,8 @@ export class BootScene extends Phaser.Scene {
         app.bodyColor,
         app.skinColor,
         app.legColor,
-        app.weaponSprite
+        app.weaponSprite,
+        app.clothingStyle
       );
     }
   }
@@ -721,12 +722,15 @@ export class BootScene extends Phaser.Scene {
     bodyColor: number,
     skinColor: number,
     legColor: number,
-    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" = "sword"
+    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" = "sword",
+    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" = "heavy"
   ): void {
     const gfx = this.add.graphics();
     // Body
     gfx.fillStyle(bodyColor, 1);
     gfx.fillRect(8, 10, 16, 16);
+    // Clothing details (class-specific)
+    this.drawClothing(gfx, bodyColor, clothingStyle);
     // Head
     gfx.fillStyle(skinColor, 1);
     gfx.fillCircle(16, 8, 6);
@@ -747,6 +751,84 @@ export class BootScene extends Phaser.Scene {
       .map(([k, v]) => `${k.slice(0, 3).toUpperCase()}+${v}`)
       .join(", ");
     return `${app.playstyle} | ${boostParts} | d${app.hitDie} HP`;
+  }
+
+  /** Draw class-specific clothing details on the sprite body. */
+  private drawClothing(
+    gfx: Phaser.GameObjects.Graphics,
+    bodyColor: number,
+    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap"
+  ): void {
+    // Darken/lighten helper
+    const darker = (c: number) => {
+      const r = Math.max(0, ((c >> 16) & 0xff) - 40);
+      const g = Math.max(0, ((c >> 8) & 0xff) - 40);
+      const b = Math.max(0, (c & 0xff) - 40);
+      return (r << 16) | (g << 8) | b;
+    };
+    const lighter = (c: number) => {
+      const r = Math.min(255, ((c >> 16) & 0xff) + 50);
+      const g = Math.min(255, ((c >> 8) & 0xff) + 50);
+      const b = Math.min(255, (c & 0xff) + 50);
+      return (r << 16) | (g << 8) | b;
+    };
+
+    switch (clothingStyle) {
+      case "heavy":
+        // Armor plates — pauldrons on shoulders + chest plate line
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(6, 10, 4, 5);   // left pauldron
+        gfx.fillRect(22, 10, 4, 5);  // right pauldron
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(12, 14, 8, 2);  // belt/chest plate line
+        gfx.fillRect(14, 10, 4, 2);  // gorget
+        break;
+      case "robe":
+        // Flowing robe — side panels + bottom hem
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(6, 12, 3, 16);  // left robe panel
+        gfx.fillRect(23, 12, 3, 16); // right robe panel
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(13, 10, 6, 1);  // collar trim
+        gfx.fillRect(10, 25, 12, 2); // hem
+        break;
+      case "leather":
+        // Leather armor — straps + hood shadow
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(10, 12, 2, 10); // left strap
+        gfx.fillRect(20, 12, 2, 10); // right strap
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(12, 22, 8, 2);  // belt
+        break;
+      case "vestment":
+        // Clerical vestments — stole/sash + holy symbol
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(13, 10, 2, 14); // left stole
+        gfx.fillRect(17, 10, 2, 14); // right stole
+        gfx.fillStyle(0xffd700, 1);   // gold holy symbol
+        gfx.fillRect(14, 12, 4, 4);
+        gfx.fillRect(15, 11, 2, 1);  // symbol top
+        break;
+      case "bare":
+        // Bare chest — fur straps + exposed skin
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(10, 11, 12, 1); // collar bone line
+        gfx.fillRect(11, 12, 2, 8);  // left strap
+        gfx.fillRect(19, 12, 2, 8);  // right strap
+        gfx.fillStyle(0x5d4037, 1);   // fur trim
+        gfx.fillRect(8, 10, 3, 2);
+        gfx.fillRect(21, 10, 3, 2);
+        break;
+      case "wrap":
+        // Monk wraps — sash + arm wraps
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(10, 20, 12, 3); // waist sash
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(8, 14, 2, 6);   // left arm wrap
+        gfx.fillRect(22, 14, 2, 6);  // right arm wrap
+        gfx.fillRect(14, 10, 4, 1);  // collar
+        break;
+    }
   }
 
   /** Draw class-specific weapon on the sprite. */
@@ -1737,7 +1819,8 @@ export class BootScene extends Phaser.Scene {
         app.legColor,
         save.player.customAppearance.hairStyle,
         save.player.customAppearance.hairColor,
-        app.weaponSprite
+        getActiveWeaponSprite(save.player.appearanceId, save.player.equippedWeapon),
+        app.clothingStyle
       );
     }
     this.cameras.main.fadeOut(500, 0, 0, 0);
@@ -2239,7 +2322,8 @@ export class BootScene extends Phaser.Scene {
       selectedClass.legColor,
       selectedHairStyle,
       selectedHairColor,
-      selectedClass.weaponSprite
+      selectedClass.weaponSprite,
+      selectedClass.clothingStyle
     );
     const previewSprite = this.add.sprite(cx, 78, previewKey).setScale(2);
 
@@ -2252,7 +2336,8 @@ export class BootScene extends Phaser.Scene {
         selectedClass.legColor,
         selectedHairStyle,
         selectedHairColor,
-        selectedClass.weaponSprite
+        selectedClass.weaponSprite,
+        selectedClass.clothingStyle
       );
       previewSprite.setTexture(previewKey);
     };
@@ -2439,7 +2524,8 @@ export class BootScene extends Phaser.Scene {
         selectedClass.legColor,
         selectedHairStyle,
         selectedHairColor,
-        selectedClass.weaponSprite
+        getActiveWeaponSprite(selectedClass.id, player.equippedWeapon),
+        selectedClass.clothingStyle
       );
 
       deleteSave();
@@ -2469,12 +2555,15 @@ export class BootScene extends Phaser.Scene {
     legColor: number,
     hairStyle: number,
     hairColor: number,
-    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" = "sword"
+    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" = "sword",
+    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" = "heavy"
   ): void {
     const gfx = this.add.graphics();
     // Body
     gfx.fillStyle(bodyColor, 1);
     gfx.fillRect(8, 10, 16, 16);
+    // Clothing details (class-specific)
+    this.drawClothing(gfx, bodyColor, clothingStyle);
     // Head
     gfx.fillStyle(skinColor, 1);
     gfx.fillCircle(16, 8, 6);

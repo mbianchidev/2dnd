@@ -33,7 +33,7 @@ import {
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { getAppearance } from "../systems/appearance";
+import { getAppearance, getActiveWeaponSprite } from "../systems/appearance";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
@@ -1022,6 +1022,175 @@ export class OverworldScene extends Phaser.Scene {
     this.playerSprite.setDepth(10);
   }
 
+  /** Regenerate the player texture to reflect current equipment (weapon sprite). */
+  private refreshPlayerSprite(): void {
+    const app = getAppearance(this.player.appearanceId);
+    const texKey = `player_${this.player.appearanceId}`;
+    const weaponSpr = getActiveWeaponSprite(this.player.appearanceId, this.player.equippedWeapon);
+    if (this.textures.exists(texKey)) this.textures.remove(texKey);
+
+    const gfx = this.add.graphics();
+    // Body
+    gfx.fillStyle(app.bodyColor, 1);
+    gfx.fillRect(8, 10, 16, 16);
+    // Clothing details
+    this.drawClothingInline(gfx, app.bodyColor, app.clothingStyle);
+    // Head (use custom appearance if set)
+    const skinColor = this.player.customAppearance?.skinColor ?? app.skinColor;
+    gfx.fillStyle(skinColor, 1);
+    gfx.fillCircle(16, 8, 6);
+    // Hair
+    if (this.player.customAppearance && this.player.customAppearance.hairStyle > 0) {
+      gfx.fillStyle(this.player.customAppearance.hairColor, 1);
+      const hs = this.player.customAppearance.hairStyle;
+      if (hs === 1) {
+        gfx.fillRect(11, 2, 10, 4);
+      } else if (hs === 2) {
+        gfx.fillRect(10, 1, 12, 5);
+        gfx.fillRect(9, 4, 4, 6);
+        gfx.fillRect(19, 4, 4, 6);
+      } else if (hs === 3) {
+        gfx.fillRect(10, 1, 12, 5);
+        gfx.fillRect(8, 3, 5, 14);
+        gfx.fillRect(19, 3, 5, 14);
+      }
+    }
+    // Legs
+    gfx.fillStyle(app.legColor, 1);
+    gfx.fillRect(9, 26, 5, 6);
+    gfx.fillRect(18, 26, 5, 6);
+    // Weapon from current equipment
+    this.drawWeaponInline(gfx, weaponSpr);
+
+    gfx.generateTexture(texKey, TILE_SIZE, TILE_SIZE);
+    gfx.destroy();
+
+    this.playerSprite.setTexture(texKey);
+  }
+
+  /** Inline clothing drawing for OverworldScene sprite refresh. */
+  private drawClothingInline(
+    gfx: Phaser.GameObjects.Graphics,
+    bodyColor: number,
+    clothingStyle: string
+  ): void {
+    const darker = (c: number) => {
+      const r = Math.max(0, ((c >> 16) & 0xff) - 40);
+      const g = Math.max(0, ((c >> 8) & 0xff) - 40);
+      const b = Math.max(0, (c & 0xff) - 40);
+      return (r << 16) | (g << 8) | b;
+    };
+    const lighter = (c: number) => {
+      const r = Math.min(255, ((c >> 16) & 0xff) + 50);
+      const g = Math.min(255, ((c >> 8) & 0xff) + 50);
+      const b = Math.min(255, (c & 0xff) + 50);
+      return (r << 16) | (g << 8) | b;
+    };
+
+    switch (clothingStyle) {
+      case "heavy":
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(6, 10, 4, 5);
+        gfx.fillRect(22, 10, 4, 5);
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(12, 14, 8, 2);
+        gfx.fillRect(14, 10, 4, 2);
+        break;
+      case "robe":
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(6, 12, 3, 16);
+        gfx.fillRect(23, 12, 3, 16);
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(13, 10, 6, 1);
+        gfx.fillRect(10, 25, 12, 2);
+        break;
+      case "leather":
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(10, 12, 2, 10);
+        gfx.fillRect(20, 12, 2, 10);
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(12, 22, 8, 2);
+        break;
+      case "vestment":
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(13, 10, 2, 14);
+        gfx.fillRect(17, 10, 2, 14);
+        gfx.fillStyle(0xffd700, 1);
+        gfx.fillRect(14, 12, 4, 4);
+        gfx.fillRect(15, 11, 2, 1);
+        break;
+      case "bare":
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(10, 11, 12, 1);
+        gfx.fillRect(11, 12, 2, 8);
+        gfx.fillRect(19, 12, 2, 8);
+        gfx.fillStyle(0x5d4037, 1);
+        gfx.fillRect(8, 10, 3, 2);
+        gfx.fillRect(21, 10, 3, 2);
+        break;
+      case "wrap":
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(10, 20, 12, 3);
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(8, 14, 2, 6);
+        gfx.fillRect(22, 14, 2, 6);
+        gfx.fillRect(14, 10, 4, 1);
+        break;
+    }
+  }
+
+  /** Inline weapon drawing for OverworldScene sprite refresh. */
+  private drawWeaponInline(
+    gfx: Phaser.GameObjects.Graphics,
+    weaponSprite: string
+  ): void {
+    switch (weaponSprite) {
+      case "sword":
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(26, 6, 3, 18);
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(24, 20, 7, 3);
+        break;
+      case "staff":
+        gfx.fillStyle(0x5d4037, 1);
+        gfx.fillRect(27, 4, 2, 22);
+        gfx.fillStyle(0x64ffda, 1);
+        gfx.fillCircle(28, 4, 3);
+        break;
+      case "dagger":
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(26, 14, 2, 10);
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(25, 22, 4, 2);
+        break;
+      case "bow":
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(27, 5, 2, 20);
+        gfx.fillStyle(0xbdbdbd, 1);
+        gfx.fillRect(29, 7, 1, 16);
+        break;
+      case "mace":
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(27, 12, 2, 14);
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(25, 8, 6, 6);
+        break;
+      case "axe":
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(27, 6, 2, 18);
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(24, 6, 5, 8);
+        break;
+      case "fist":
+        gfx.fillStyle(0xbdbdbd, 1);
+        gfx.fillRect(25, 16, 6, 6);
+        gfx.fillStyle(0x9e9e9e, 1);
+        gfx.fillRect(25, 17, 6, 1);
+        gfx.fillRect(25, 19, 6, 1);
+        break;
+    }
+  }
+
   private setupInput(): void {
     this.keys = {
       W: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W),
@@ -1534,6 +1703,7 @@ export class OverworldScene extends Phaser.Scene {
             if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
               this.player.equippedWeapon = item;
               if (item.twoHanded) this.player.equippedShield = null;
+              this.refreshPlayerSprite();
             }
             if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
               this.player.equippedArmor = item;
@@ -1721,6 +1891,7 @@ export class OverworldScene extends Phaser.Scene {
           if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
             this.player.equippedWeapon = item;
             if (item.twoHanded) this.player.equippedShield = null;
+            this.refreshPlayerSprite();
           }
           if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
             this.player.equippedArmor = item;
@@ -2054,6 +2225,7 @@ export class OverworldScene extends Phaser.Scene {
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
             p.equippedWeapon = null;
+            this.refreshPlayerSprite();
             this.buildEquipOverlay();
           });
         } else {
@@ -2063,6 +2235,7 @@ export class OverworldScene extends Phaser.Scene {
             p.equippedWeapon = wpn;
             // Two-handed weapons unequip shield
             if (wpn.twoHanded) p.equippedShield = null;
+            this.refreshPlayerSprite();
             this.buildEquipOverlay();
           });
         }

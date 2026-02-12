@@ -25,8 +25,12 @@ export interface PlayerAppearance {
   spells: string[];
   /** Martial ability IDs for non-caster classes (empty for casters). */
   abilities: string[];
-  /** Weapon type drawn on the class sprite ("sword", "staff", "dagger", "bow", "mace", "axe", "fist"). */
+  /** Default weapon type drawn on the class sprite. */
   weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist";
+  /** Item ID of the starting weapon given at character creation. */
+  startingWeaponId: string;
+  /** Class clothing style for distinct sprite appearance. */
+  clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap";
 }
 
 /** Classes that rely primarily on spells rather than martial abilities. */
@@ -51,6 +55,8 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     ],
     abilities: ["shieldBash", "actionSurge", "secondWind", "championStrike"],
     weaponSprite: "sword",
+    startingWeaponId: "startSword",
+    clothingStyle: "heavy",
   },
   {
     id: "ranger", label: "Ranger",
@@ -66,6 +72,8 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     ],
     abilities: ["aimedShot", "huntersMark", "naturesRemedy", "deadeye"],
     weaponSprite: "bow",
+    startingWeaponId: "startBow",
+    clothingStyle: "leather",
   },
   {
     id: "mage", label: "Mage",
@@ -83,6 +91,8 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     ],
     abilities: [],
     weaponSprite: "staff",
+    startingWeaponId: "startStaff",
+    clothingStyle: "robe",
   },
   {
     id: "rogue", label: "Rogue",
@@ -95,6 +105,8 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     spells: [],
     abilities: ["sneakAttack", "cunningStrike", "shadowStep", "assassinate"],
     weaponSprite: "dagger",
+    startingWeaponId: "startDagger",
+    clothingStyle: "leather",
   },
   {
     id: "paladin", label: "Paladin",
@@ -111,6 +123,8 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     ],
     abilities: ["smite", "layOnHands", "holyStrike", "greaterSmite"],
     weaponSprite: "sword",
+    startingWeaponId: "startSword",
+    clothingStyle: "heavy",
   },
   {
     id: "warlock", label: "Warlock",
@@ -127,6 +141,8 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     ],
     abilities: [],
     weaponSprite: "staff",
+    startingWeaponId: "startStaff",
+    clothingStyle: "robe",
   },
   {
     id: "cleric", label: "Cleric",
@@ -143,6 +159,8 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     ],
     abilities: [],
     weaponSprite: "mace",
+    startingWeaponId: "startMace",
+    clothingStyle: "vestment",
   },
   {
     id: "barbarian", label: "Barbarian",
@@ -155,6 +173,8 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     spells: [],
     abilities: ["recklessStrike", "enrage", "rage", "endure", "titansBlow"],
     weaponSprite: "axe",
+    startingWeaponId: "startAxe",
+    clothingStyle: "bare",
   },
   {
     id: "monk", label: "Monk",
@@ -167,6 +187,8 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     spells: [],
     abilities: ["flurryOfBlows", "kiStrike", "patientDefense", "stunningStrike"],
     weaponSprite: "fist",
+    startingWeaponId: "startDagger",
+    clothingStyle: "wrap",
   },
 ];
 
@@ -213,4 +235,15 @@ export function getClassSpells(appearanceId: string): string[] {
 /** Get the ability IDs available for a class. */
 export function getClassAbilities(appearanceId: string): string[] {
   return getAppearance(appearanceId).abilities;
+}
+
+/** Determine the weapon sprite type for the player's current equipment. */
+export function getActiveWeaponSprite(
+  appearanceId: string,
+  equippedWeapon: { weaponSprite?: string } | null | undefined
+): "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" {
+  if (equippedWeapon?.weaponSprite) {
+    return equippedWeapon.weaponSprite as "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist";
+  }
+  return getAppearance(appearanceId).weaponSprite;
 }

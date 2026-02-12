@@ -132,6 +132,9 @@ export class OverworldScene extends Phaser.Scene {
   private specialNpcDefs: { def: SpecialNpcDef; x: number; y: number; interactions: number }[] = [];
   /** Queue of special NPC kinds to force-spawn via /spawn command. */
   private pendingSpecialSpawns: SpecialNpcKind[] = [];
+  /** Day number (timeStep / CYCLE_LENGTH) when a special NPC last spawned naturally.
+   *  Spawn chance drops to 0 for the rest of that day, resetting at dawn. */
+  private lastSpecialSpawnDay = -1;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -926,7 +929,13 @@ export class OverworldScene extends Phaser.Scene {
       toSpawn = [...this.pendingSpecialSpawns];
       this.pendingSpecialSpawns = [];
     } else {
-      toSpawn = rollSpecialNpcSpawns();
+      // After a special NPC spawns, drop chance to 0 until the next day
+      const currentDay = Math.floor(this.timeStep / CYCLE_LENGTH);
+      const multiplier = currentDay === this.lastSpecialSpawnDay ? 0 : 1;
+      toSpawn = rollSpecialNpcSpawns(multiplier);
+      if (toSpawn.length > 0) {
+        this.lastSpecialSpawnDay = currentDay;
+      }
     }
     if (toSpawn.length === 0) return;
 

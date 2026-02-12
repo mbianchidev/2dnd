@@ -273,5 +273,12 @@ describe("NPC system", () => {
         }
       }
     });
+
+    it("rollSpecialNpcSpawns with multiplier 0 never spawns", () => {
+      for (let i = 0; i < 100; i++) {
+        const result = rollSpecialNpcSpawns(0);
+        expect(result).toEqual([]);
+      }
+    });
   });
 });

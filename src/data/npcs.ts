@@ -441,11 +441,14 @@ export function getSpecialNpcDialogue(
 /**
  * Roll for which (if any) special NPCs should appear on the overworld.
  * Each kind is rolled independently.
+ * @param chanceMultiplier  Scales the base spawn chance (default 1).
+ *   After a special NPC has already appeared today the caller should
+ *   pass a reduced value (e.g. 0) until the next dawn.
  */
-export function rollSpecialNpcSpawns(): SpecialNpcKind[] {
+export function rollSpecialNpcSpawns(chanceMultiplier = 1): SpecialNpcKind[] {
   const result: SpecialNpcKind[] = [];
   for (const kind of SPECIAL_NPC_KINDS) {
-    if (Math.random() < SPECIAL_NPC_DEFS[kind].spawnChance) {
+    if (Math.random() < SPECIAL_NPC_DEFS[kind].spawnChance * chanceMultiplier) {
       result.push(kind);
     }
   }

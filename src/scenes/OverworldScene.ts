@@ -61,14 +61,17 @@ import {
   getNpcDialogue,
   getShopkeeperDialogue,
   getSpecialNpcDialogue,
+  getSpecialNpcDialogueCount,
   rollSpecialNpcSpawns,
   SPECIAL_NPC_DEFS,
   SPECIAL_NPC_KINDS,
+  SPECIAL_NPC_FAREWELLS,
   HERMIT_FAREWELL,
   SHOPKEEPER_DIALOGUES,
   NPC_SKIN_COLORS,
   type NpcInstance,
   type NpcTemplate,
+  type SavedSpecialNpc,
   type SpecialNpcKind,
   type SpecialNpcDef,
 } from "../data/npcs";
@@ -134,6 +137,8 @@ export class OverworldScene extends Phaser.Scene {
   private specialNpcDefs: { def: SpecialNpcDef; x: number; y: number; interactions: number }[] = [];
   /** Queue of special NPC kinds to force-spawn via /spawn command. */
   private pendingSpecialSpawns: SpecialNpcKind[] = [];
+  /** Saved special NPC state to restore after scene transitions (battles, shops, etc.). */
+  private savedSpecialNpcs: SavedSpecialNpc[] = [];
   /** Day number (timeStep / CYCLE_LENGTH) when a special NPC last spawned naturally.
    *  Spawn chance drops to 0 for the rest of that day, resetting at dawn. */
   private lastSpecialSpawnDay = -1;
@@ -142,7 +147,7 @@ export class OverworldScene extends Phaser.Scene {
     super({ key: "OverworldScene" });
   }
 
-  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; timeStep?: number; weatherState?: WeatherState }): void {
+  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; timeStep?: number; weatherState?: WeatherState; savedSpecialNpcs?: SavedSpecialNpc[] }): void {
     if (data?.player) {
       this.player = data.player;
       this.isNewPlayer = false;
@@ -164,6 +169,11 @@ export class OverworldScene extends Phaser.Scene {
     }
     if (data?.weatherState) {
       this.weatherState = data.weatherState;
+    }
+    if (data?.savedSpecialNpcs) {
+      this.savedSpecialNpcs = data.savedSpecialNpcs;
+    } else {
+      this.savedSpecialNpcs = [];
     }
     // Reset movement state — a tween may have been orphaned when the scene
     // switched to battle mid-move, leaving isMoving permanently true.
@@ -983,6 +993,16 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Spawn rare special NPCs on the overworld (traveler, adventurer, wandering merchant, hermit). */
   private spawnSpecialNpcs(chunk: WorldChunk): void {
+    // If we have saved special NPCs from a scene transition, restore them.
+    if (this.savedSpecialNpcs.length > 0) {
+      for (const saved of this.savedSpecialNpcs) {
+        const def = SPECIAL_NPC_DEFS[saved.kind];
+        this.placeSpecialNpcSprite(def, chunk, saved.x, saved.y, saved.interactions);
+      }
+      this.savedSpecialNpcs = [];
+      return;
+    }
+
     // Determine which specials to spawn — use forced queue or random roll
     let toSpawn: SpecialNpcKind[];
     if (this.pendingSpecialSpawns.length > 0) {
@@ -1019,71 +1039,81 @@ export class OverworldScene extends Phaser.Scene {
 
     for (const kind of toSpawn) {
       const def = SPECIAL_NPC_DEFS[kind];
-      const tpl = getNpcTemplate(def.templateId);
-      if (!tpl) continue;
 
       // Pick a random spawn position
       const posIdx = Math.floor(Math.random() * walkable.length);
       const pos = walkable[posIdx];
       walkable.splice(posIdx, 1);
 
-      // Generate per-instance texture for special NPC with proper body colours
-      const specialSkin = NPC_SKIN_COLORS[Math.abs(kind.length * 7) % NPC_SKIN_COLORS.length];
-      const texKey = this.getOrCreateNpcTexture(tpl, specialSkin, 0x5d4037, def.tintColor);
-      const sprite = this.add.sprite(
-        pos.x * TILE_SIZE + TILE_SIZE / 2,
-        pos.y * TILE_SIZE + TILE_SIZE / 2,
-        texKey
-      );
-      sprite.setDepth(11);
-
-      this.specialNpcSprites.push(sprite);
-      this.specialNpcDefs.push({ def, x: pos.x, y: pos.y, interactions: 0 });
-
-      if (def.moves) {
-        const wander = (): void => {
-          const dirs = [
-            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
-            { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
-          ];
-          const pick = dirs[Math.floor(Math.random() * dirs.length)];
-          const curTileX = Math.floor(sprite.x / TILE_SIZE);
-          const curTileY = Math.floor(sprite.y / TILE_SIZE);
-          const nx = curTileX + pick.dx;
-          const ny = curTileY + pick.dy;
-          if (
-            nx >= 1 && nx < MAP_WIDTH - 1 &&
-            ny >= 1 && ny < MAP_HEIGHT - 1 &&
-            isWalkable(chunk.mapData[ny][nx])
-          ) {
-            this.tweens.add({
-              targets: sprite,
-              x: nx * TILE_SIZE + TILE_SIZE / 2,
-              y: ny * TILE_SIZE + TILE_SIZE / 2,
-              duration: 800 + Math.random() * 400,
-              ease: "Sine.easeInOut",
-              onUpdate: () => {
-                if (pick.dx !== 0) sprite.setFlipX(pick.dx < 0);
-              },
-            });
-          }
-        };
-        const delay = 2000 + Math.random() * 2000;
-        const timer = this.time.addEvent({ delay, callback: wander, loop: true });
-        this.specialNpcTimers.push(timer);
-      } else {
-        this.tweens.add({
-          targets: sprite,
-          scaleY: 0.97,
-          duration: 1500,
-          yoyo: true,
-          repeat: -1,
-          ease: "Sine.easeInOut",
-        });
-      }
-
+      this.placeSpecialNpcSprite(def, chunk, pos.x, pos.y, 0);
       this.showMessage(`A ${def.label} has appeared!`, "#4dd0e1");
       if (walkable.length === 0) break;
+    }
+  }
+
+  /** Create a special NPC sprite + wander logic at the given tile position. */
+  private placeSpecialNpcSprite(
+    def: SpecialNpcDef,
+    chunk: WorldChunk,
+    tx: number,
+    ty: number,
+    interactions: number,
+  ): void {
+    const tpl = getNpcTemplate(def.templateId);
+    if (!tpl) return;
+
+    const specialSkin = NPC_SKIN_COLORS[Math.abs(def.kind.length * 7) % NPC_SKIN_COLORS.length];
+    const texKey = this.getOrCreateNpcTexture(tpl, specialSkin, 0x5d4037, def.tintColor);
+    const sprite = this.add.sprite(
+      tx * TILE_SIZE + TILE_SIZE / 2,
+      ty * TILE_SIZE + TILE_SIZE / 2,
+      texKey
+    );
+    sprite.setDepth(11);
+
+    this.specialNpcSprites.push(sprite);
+    this.specialNpcDefs.push({ def, x: tx, y: ty, interactions });
+
+    if (def.moves) {
+      const wander = (): void => {
+        const dirs = [
+          { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+          { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+        ];
+        const pick = dirs[Math.floor(Math.random() * dirs.length)];
+        const curTileX = Math.floor(sprite.x / TILE_SIZE);
+        const curTileY = Math.floor(sprite.y / TILE_SIZE);
+        const nx = curTileX + pick.dx;
+        const ny = curTileY + pick.dy;
+        if (
+          nx >= 1 && nx < MAP_WIDTH - 1 &&
+          ny >= 1 && ny < MAP_HEIGHT - 1 &&
+          isWalkable(chunk.mapData[ny][nx])
+        ) {
+          this.tweens.add({
+            targets: sprite,
+            x: nx * TILE_SIZE + TILE_SIZE / 2,
+            y: ny * TILE_SIZE + TILE_SIZE / 2,
+            duration: 800 + Math.random() * 400,
+            ease: "Sine.easeInOut",
+            onUpdate: () => {
+              if (pick.dx !== 0) sprite.setFlipX(pick.dx < 0);
+            },
+          });
+        }
+      };
+      const delay = 2000 + Math.random() * 2000;
+      const timer = this.time.addEvent({ delay, callback: wander, loop: true });
+      this.specialNpcTimers.push(timer);
+    } else {
+      this.tweens.add({
+        targets: sprite,
+        scaleY: 0.97,
+        duration: 1500,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
     }
   }
 
@@ -1113,20 +1143,43 @@ export class OverworldScene extends Phaser.Scene {
     return null;
   }
 
-  /** Show dialogue for a special NPC and handle hermit despawn / merchant shop. */
+  /** Show dialogue for a special NPC; despawn after all unique lines are exhausted. */
   private interactSpecialNpc(index: number): void {
     const entry = this.specialNpcDefs[index];
     if (!entry) return;
 
     const line = getSpecialNpcDialogue(entry.def.kind, entry.interactions);
+    const farewell = SPECIAL_NPC_FAREWELLS[entry.def.kind];
+    const isFarewell = line === farewell;
     entry.interactions++;
 
     if (audioEngine.initialized) audioEngine.playDialogueBlip();
 
-    // Check if hermit should leave
-    if (entry.def.kind === "hermit" && line === HERMIT_FAREWELL) {
+    // If this is the farewell line, show it then despawn after a short delay.
+    if (isFarewell) {
+      // Wandering merchant still opens shop on farewell, but despawns after.
+      if (entry.def.kind === "wanderingMerchant") {
+        this.showSpecialDialogue(entry.def.label, line);
+        this.time.delayedCall(800, () => {
+          this.dismissDialogue();
+          const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+          const regionName = chunk?.name ?? "Overworld";
+          this.autoSave();
+          this.scene.start("ShopScene", {
+            player: this.player,
+            townName: `${regionName} - Wandering Merchant`,
+            defeatedBosses: this.defeatedBosses,
+            bestiary: this.bestiary,
+            shopItemIds: entry.def.shopItems ?? ["potion", "ether"],
+            timeStep: this.timeStep,
+            weatherState: this.weatherState,
+            savedSpecialNpcs: this.snapshotSpecialNpcs().filter((s) => s.kind !== entry.def.kind),
+          });
+        });
+        return;
+      }
+
       this.showSpecialDialogue(entry.def.label, line);
-      // Despawn the hermit after a short delay
       this.time.delayedCall(1500, () => {
         this.dismissDialogue();
         const spr = this.specialNpcSprites[index];
@@ -1142,7 +1195,7 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    // Wandering merchant — show dialogue then open shop
+    // Wandering merchant — show dialogue then open shop (preserving special NPCs)
     if (entry.def.kind === "wanderingMerchant") {
       this.showSpecialDialogue(entry.def.label, line);
       this.time.delayedCall(800, () => {
@@ -1158,12 +1211,13 @@ export class OverworldScene extends Phaser.Scene {
           shopItemIds: entry.def.shopItems ?? ["potion", "ether"],
           timeStep: this.timeStep,
           weatherState: this.weatherState,
+          savedSpecialNpcs: this.snapshotSpecialNpcs(),
         });
       });
       return;
     }
 
-    // Regular dialogue for traveler / adventurer
+    // Regular dialogue for traveler / adventurer / hermit
     this.showSpecialDialogue(entry.def.label, line);
   }
 
@@ -2376,6 +2430,7 @@ export class OverworldScene extends Phaser.Scene {
         shopItemIds: town.shopItems,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
+        savedSpecialNpcs: this.snapshotSpecialNpcs(),
       });
       return;
     }
@@ -2482,6 +2537,7 @@ export class OverworldScene extends Phaser.Scene {
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         biome: this.terrainToBiome(terrain),
+        savedSpecialNpcs: this.snapshotSpecialNpcs(),
       });
     });
   }
@@ -2498,11 +2554,27 @@ export class OverworldScene extends Phaser.Scene {
       bestiary: this.bestiary,
       timeStep: this.timeStep,
       weatherState: this.weatherState,
+      savedSpecialNpcs: this.snapshotSpecialNpcs(),
     });
   }
 
   private autoSave(): void {
     saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId, this.timeStep, this.weatherState);
+  }
+
+  /** Snapshot active special NPCs so they survive scene transitions. */
+  private snapshotSpecialNpcs(): SavedSpecialNpc[] {
+    return this.specialNpcDefs
+      .filter((_entry, i) => {
+        const spr = this.specialNpcSprites[i];
+        return spr && spr.active;
+      })
+      .map((entry) => ({
+        kind: entry.def.kind,
+        x: entry.x,
+        y: entry.y,
+        interactions: entry.interactions,
+      }));
   }
 
   /** Advance the day/night cycle by one step and update the map tint. */

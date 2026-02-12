@@ -20,6 +20,7 @@ import {
   WANDERING_MERCHANT_DIALOGUES,
   HERMIT_DIALOGUES,
   HERMIT_FAREWELL,
+  SPECIAL_NPC_FAREWELLS,
   getSpecialNpcDialogue,
   rollSpecialNpcSpawns,
   type NpcAgeGroup,
@@ -257,10 +258,9 @@ describe("NPC system", () => {
       expect(farewell).toBe(HERMIT_FAREWELL);
     });
 
-    it("getSpecialNpcDialogue wraps around for non-hermit kinds", () => {
-      const first = getSpecialNpcDialogue("traveler", 0);
-      const wrapped = getSpecialNpcDialogue("traveler", TRAVELER_DIALOGUES.length);
-      expect(first).toBe(wrapped);
+    it("non-hermit kinds return farewell after exhausting dialogue lines", () => {
+      const farewell = getSpecialNpcDialogue("traveler", TRAVELER_DIALOGUES.length);
+      expect(farewell).toBe(SPECIAL_NPC_FAREWELLS.traveler);
     });
 
     it("rollSpecialNpcSpawns returns an array of valid kinds", () => {

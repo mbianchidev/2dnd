@@ -9,6 +9,7 @@ import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import { CYCLE_LENGTH } from "../systems/daynight";
+import type { SavedSpecialNpc } from "../data/npcs";
 import { audioEngine } from "../systems/audio";
 
 export class ShopScene extends Phaser.Scene {
@@ -23,8 +24,13 @@ export class ShopScene extends Phaser.Scene {
   private goldText!: Phaser.GameObjects.Text;
   private statsText!: Phaser.GameObjects.Text;
   private itemListContainer!: Phaser.GameObjects.Container;
+  private scrollMask!: Phaser.GameObjects.Graphics;
+  private scrollY = 0;
+  private maxScrollY = 0;
+  private listVisibleH = 0;
   private fromCity = false;
   private cityId = "";
+  private savedSpecialNpcs: SavedSpecialNpc[] = [];
 
   constructor() {
     super({ key: "ShopScene" });
@@ -40,6 +46,7 @@ export class ShopScene extends Phaser.Scene {
     weatherState?: WeatherState;
     fromCity?: boolean;
     cityId?: string;
+    savedSpecialNpcs?: SavedSpecialNpc[];
   }): void {
     this.player = data.player;
     this.townName = data.townName;
@@ -49,6 +56,7 @@ export class ShopScene extends Phaser.Scene {
     this.weatherState = data.weatherState ?? createWeatherState();
     this.fromCity = data.fromCity ?? false;
     this.cityId = data.cityId ?? "";
+    this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -133,8 +141,31 @@ export class ShopScene extends Phaser.Scene {
       color: "#ffd700",
     });
 
-    this.itemListContainer = this.add.container(w * 0.39 + 10, 94);
+    const listTop = 94;
+    const listBottom = h - 64;
+    this.listVisibleH = listBottom - listTop;
+
+    this.itemListContainer = this.add.container(w * 0.39 + 10, listTop);
+
+    // Mask to clip items to visible area
+    this.scrollMask = this.make.graphics({});
+    this.scrollMask.fillStyle(0xffffff);
+    this.scrollMask.fillRect(w * 0.38, listTop, w * 0.6, this.listVisibleH);
+    this.itemListContainer.setMask(
+      new Phaser.Display.Masks.GeometryMask(this, this.scrollMask)
+    );
+
+    this.scrollY = 0;
     this.renderShopItems();
+
+    // Scroll with mouse wheel
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
+      this.scrollList(deltaY > 0 ? 30 : -30);
+    });
+
+    // Scroll with arrow keys
+    this.input.keyboard!.on("keydown-DOWN", () => this.scrollList(30));
+    this.input.keyboard!.on("keydown-UP", () => this.scrollList(-30));
 
     // Bottom bar background
     const bottomBarY = h - 56;
@@ -190,14 +221,24 @@ export class ShopScene extends Phaser.Scene {
     this.updateDisplay();
   }
 
+  private scrollList(delta: number): void {
+    this.scrollY = Phaser.Math.Clamp(this.scrollY + delta, 0, this.maxScrollY);
+    this.itemListContainer.y = 94 - this.scrollY;
+  }
+
   private renderShopItems(): void {
     this.itemListContainer.removeAll(true);
 
-    this.shopItems.forEach((item, i) => {
+    const w = this.cameras.main.width;
+    const maxTextW = w * 0.6 - 20;
+    let yOffset = 0;
+
+    this.shopItems.forEach((item) => {
       const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield";
       const alreadyOwned = isEquipment && ownsEquipment(this.player, item.id);
-      const canBuy = !alreadyOwned && this.player.gold >= item.cost;
-      const color = alreadyOwned ? "#555555" : canBuy ? "#cccccc" : "#666666";
+      const levelLocked = (item.levelReq ?? 0) > this.player.level;
+      const canBuy = !alreadyOwned && !levelLocked && this.player.gold >= item.cost;
+      const color = alreadyOwned ? "#555555" : levelLocked ? "#884444" : canBuy ? "#cccccc" : "#666666";
 
       const typeIcon =
         item.type === "consumable"
@@ -210,17 +251,18 @@ export class ShopScene extends Phaser.Scene {
                 ? "🛡"
                 : "🔑";
 
-      const ownedTag = alreadyOwned ? " [OWNED]" : "";
+      const tag = alreadyOwned ? " [OWNED]" : levelLocked ? ` [Lv.${item.levelReq}]` : "";
 
       const text = this.add
         .text(
           0,
-          i * 30,
-          `${typeIcon} ${item.name} - ${item.description} (${item.cost}g)${ownedTag}`,
+          yOffset,
+          `${typeIcon} ${item.name} ${item.cost}g ${item.description}${tag}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",
             color,
+            wordWrap: { width: maxTextW },
           }
         )
         .setInteractive({ useHandCursor: canBuy });
@@ -232,13 +274,23 @@ export class ShopScene extends Phaser.Scene {
       }
 
       this.itemListContainer.add(text);
+      yOffset += text.height + 6;
     });
+
+    const totalContentH = yOffset;
+    this.maxScrollY = Math.max(0, totalContentH - this.listVisibleH);
+    this.scrollY = 0;
+    this.itemListContainer.y = 94;
   }
 
   private purchaseItem(item: Item): void {
     const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield";
     if (isEquipment && ownsEquipment(this.player, item.id)) {
       this.setMessage(`You already own ${item.name}!`, "#ff6666");
+      return;
+    }
+    if ((item.levelReq ?? 0) > this.player.level) {
+      this.setMessage(`You need to be level ${item.levelReq} to buy ${item.name}!`, "#ff6666");
       return;
     }
 
@@ -431,6 +483,7 @@ export class ShopScene extends Phaser.Scene {
         bestiary: this.bestiary,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
+        savedSpecialNpcs: this.savedSpecialNpcs,
       });
     });
   }

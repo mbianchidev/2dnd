@@ -337,6 +337,14 @@ export interface SpecialNpcDef {
   shopItems?: string[];
 }
 
+/** Serialisable snapshot of a special NPC for persistence across scene transitions. */
+export interface SavedSpecialNpc {
+  kind: SpecialNpcKind;
+  x: number;
+  y: number;
+  interactions: number;
+}
+
 export const SPECIAL_NPC_DEFS: Record<SpecialNpcKind, SpecialNpcDef> = {
   traveler: {
     kind: "traveler",
@@ -415,9 +423,27 @@ export const HERMIT_DIALOGUES: string[] = [
 /** The hermit's farewell line when they leave. */
 export const HERMIT_FAREWELL = "I said LEAVE. *walks away*";
 
+/** Farewell lines for each special NPC kind (shown before despawn). */
+export const SPECIAL_NPC_FAREWELLS: Record<SpecialNpcKind, string> = {
+  traveler: "Well, I should be off! Safe travels, friend!",
+  adventurer: "That's all I've got for you. Now scram.",
+  wanderingMerchant: "I must move on to the next town. Farewell!",
+  hermit: HERMIT_FAREWELL,
+};
+
+/** Total unique dialogue lines per special NPC kind (excluding farewell). */
+export function getSpecialNpcDialogueCount(kind: SpecialNpcKind): number {
+  switch (kind) {
+    case "traveler": return TRAVELER_DIALOGUES.length;
+    case "adventurer": return ADVENTURER_DIALOGUES.length;
+    case "wanderingMerchant": return WANDERING_MERCHANT_DIALOGUES.length;
+    case "hermit": return HERMIT_DIALOGUES.length;
+  }
+}
+
 /**
- * Get a dialogue line for a special NPC.  For the hermit, `interactionCount`
- * tracks how many times the player has spoken to them this visit.
+ * Get a dialogue line for a special NPC.  Returns the farewell line once
+ * all unique lines have been spoken.
  */
 export function getSpecialNpcDialogue(
   kind: SpecialNpcKind,
@@ -425,11 +451,20 @@ export function getSpecialNpcDialogue(
 ): string {
   switch (kind) {
     case "traveler":
-      return TRAVELER_DIALOGUES[interactionCount % TRAVELER_DIALOGUES.length];
+      if (interactionCount < TRAVELER_DIALOGUES.length) {
+        return TRAVELER_DIALOGUES[interactionCount];
+      }
+      return SPECIAL_NPC_FAREWELLS.traveler;
     case "adventurer":
-      return ADVENTURER_DIALOGUES[interactionCount % ADVENTURER_DIALOGUES.length];
+      if (interactionCount < ADVENTURER_DIALOGUES.length) {
+        return ADVENTURER_DIALOGUES[interactionCount];
+      }
+      return SPECIAL_NPC_FAREWELLS.adventurer;
     case "wanderingMerchant":
-      return WANDERING_MERCHANT_DIALOGUES[interactionCount % WANDERING_MERCHANT_DIALOGUES.length];
+      if (interactionCount < WANDERING_MERCHANT_DIALOGUES.length) {
+        return WANDERING_MERCHANT_DIALOGUES[interactionCount];
+      }
+      return SPECIAL_NPC_FAREWELLS.wanderingMerchant;
     case "hermit":
       if (interactionCount < HERMIT_DIALOGUES.length) {
         return HERMIT_DIALOGUES[interactionCount];

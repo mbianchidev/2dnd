@@ -28,6 +28,7 @@ import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } fr
 import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
+import type { SavedSpecialNpc } from "../data/npcs";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
@@ -42,6 +43,7 @@ export class BattleScene extends Phaser.Scene {
   private bestiary!: BestiaryData;
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
+  private savedSpecialNpcs: SavedSpecialNpc[] = [];
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
@@ -86,6 +88,7 @@ export class BattleScene extends Phaser.Scene {
     timeStep?: number;
     weatherState?: WeatherState;
     biome?: string;
+    savedSpecialNpcs?: SavedSpecialNpc[];
   }): void {
     this.player = data.player;
     this.monster = data.monster;
@@ -95,6 +98,7 @@ export class BattleScene extends Phaser.Scene {
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
     this.biome = data.biome ?? "grass";
+    this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.phase = "init";
     this.logLines = [];
     this.actionButtons = [];
@@ -1347,6 +1351,7 @@ export class BattleScene extends Phaser.Scene {
         bestiary: this.bestiary,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
+        savedSpecialNpcs: this.savedSpecialNpcs,
       });
     });
   }

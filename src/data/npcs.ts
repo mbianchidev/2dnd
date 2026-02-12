@@ -329,7 +329,7 @@ export interface SpecialNpcDef {
   templateId: string;
   /** Tint colour for the special NPC sprite. */
   tintColor: number;
-  /** Base spawn probability when entering a city (0–1). */
+  /** Base spawn probability when entering a new overworld chunk (0–1). */
   spawnChance: number;
   /** Whether this NPC wanders. */
   moves: boolean;
@@ -439,7 +439,7 @@ export function getSpecialNpcDialogue(
 }
 
 /**
- * Roll for which (if any) special NPCs should appear when entering a city.
+ * Roll for which (if any) special NPCs should appear on the overworld.
  * Each kind is rolled independently.
  */
 export function rollSpecialNpcSpawns(): SpecialNpcKind[] {

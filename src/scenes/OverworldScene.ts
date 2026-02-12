@@ -353,16 +353,16 @@ export class OverworldScene extends Phaser.Scene {
       };
       const specialKind = specialAliases[query];
       if (specialKind) {
-        if (!this.player.inCity) {
-          debugPanelLog(`[CMD] Must be in a city to spawn special NPCs. Enter a city first.`, true);
+        if (this.player.inCity || this.player.inDungeon) {
+          debugPanelLog(`[CMD] Must be on the overworld to spawn special NPCs. Leave the city/dungeon first.`, true);
           return;
         }
         this.pendingSpecialSpawns.push(specialKind);
-        const city = getCity(this.player.cityId);
-        if (city) {
-          this.spawnSpecialNpcs(city);
+        const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+        if (chunk) {
+          this.spawnSpecialNpcs(chunk);
         }
-        debugPanelLog(`[CMD] Spawned ${SPECIAL_NPC_DEFS[specialKind].label} in the city!`, true);
+        debugPanelLog(`[CMD] Spawned ${SPECIAL_NPC_DEFS[specialKind].label} on the overworld!`, true);
         return;
       }
 
@@ -644,8 +644,6 @@ export class OverworldScene extends Phaser.Scene {
       this.spawnCityAnimals(city);
       // Spawn city NPCs
       this.spawnCityNpcs(city);
-      // Spawn rare special NPCs (random or forced via /spawn)
-      this.spawnSpecialNpcs(city);
       return;
     }
 
@@ -723,6 +721,9 @@ export class OverworldScene extends Phaser.Scene {
 
     // Biome decoration creature emitters (butterflies, snakes, smoke, mosquitos)
     this.spawnBiomeCreatures(chunk);
+
+    // Spawn rare special NPCs on the overworld (random or forced via /spawn)
+    this.spawnSpecialNpcs(chunk);
   }
 
   /** Spawn animated animal sprites in cities. Animals wander on walkable tiles. */
@@ -917,8 +918,8 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  /** Spawn rare special NPCs in a city (traveler, adventurer, wandering merchant, hermit). */
-  private spawnSpecialNpcs(city: CityData): void {
+  /** Spawn rare special NPCs on the overworld (traveler, adventurer, wandering merchant, hermit). */
+  private spawnSpecialNpcs(chunk: WorldChunk): void {
     // Determine which specials to spawn — use forced queue or random roll
     let toSpawn: SpecialNpcKind[];
     if (this.pendingSpecialSpawns.length > 0) {
@@ -929,15 +930,18 @@ export class OverworldScene extends Phaser.Scene {
     }
     if (toSpawn.length === 0) return;
 
-    // Find walkable positions that aren't occupied by existing NPCs
+    // Find walkable positions that aren't occupied by towns, bosses, etc.
     const occupied = new Set<string>();
-    for (const npc of (CITY_NPCS[city.id] ?? [])) {
-      occupied.add(`${npc.x},${npc.y}`);
-    }
+    for (const town of chunk.towns) occupied.add(`${town.x},${town.y}`);
+    for (const boss of chunk.bosses) occupied.add(`${boss.x},${boss.y}`);
     const walkable: { x: number; y: number }[] = [];
-    for (let y = 2; y < MAP_HEIGHT - 2; y++) {
-      for (let x = 2; x < MAP_WIDTH - 2; x++) {
-        if (isWalkable(city.mapData[y][x]) && !occupied.has(`${x},${y}`)) {
+    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+      for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        if (
+          isWalkable(chunk.mapData[y][x]) &&
+          !occupied.has(`${x},${y}`) &&
+          this.isExplored(x, y)
+        ) {
           walkable.push({ x, y });
         }
       }
@@ -978,9 +982,9 @@ export class OverworldScene extends Phaser.Scene {
           const nx = curTileX + pick.dx;
           const ny = curTileY + pick.dy;
           if (
-            nx >= 2 && nx < MAP_WIDTH - 2 &&
-            ny >= 2 && ny < MAP_HEIGHT - 2 &&
-            isWalkable(city.mapData[ny][nx])
+            nx >= 1 && nx < MAP_WIDTH - 1 &&
+            ny >= 1 && ny < MAP_HEIGHT - 1 &&
+            isWalkable(chunk.mapData[ny][nx])
           ) {
             this.tweens.add({
               targets: sprite,
@@ -1073,19 +1077,17 @@ export class OverworldScene extends Phaser.Scene {
       this.showSpecialDialogue(entry.def.label, line);
       this.time.delayedCall(800, () => {
         this.dismissDialogue();
-        const city = getCity(this.player.cityId);
-        if (!city) return;
+        const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+        const regionName = chunk?.name ?? "Overworld";
         this.autoSave();
         this.scene.start("ShopScene", {
           player: this.player,
-          townName: `${city.name} - Wandering Merchant`,
+          townName: `${regionName} - Wandering Merchant`,
           defeatedBosses: this.defeatedBosses,
           bestiary: this.bestiary,
           shopItemIds: entry.def.shopItems ?? ["potion", "ether"],
           timeStep: this.timeStep,
           weatherState: this.weatherState,
-          fromCity: true,
-          cityId: city.id,
         });
       });
       return;
@@ -1933,6 +1935,9 @@ export class OverworldScene extends Phaser.Scene {
     let newChunkX = this.player.chunkX;
     let newChunkY = this.player.chunkY;
 
+    // Dismiss any open dialogue overlay when moving on the overworld
+    this.dismissDialogue();
+
     // Chunk transition detection
     if (newX < 0) {
       newChunkX--;
@@ -2156,13 +2161,6 @@ export class OverworldScene extends Phaser.Scene {
         return;
       }
 
-      // Check if adjacent to a special (rare) NPC first
-      const specialResult = this.findAdjacentSpecialNpc();
-      if (specialResult) {
-        this.interactSpecialNpc(specialResult.index);
-        return;
-      }
-
       // Check if adjacent to or on an NPC
       const npcResult = this.findAdjacentNpc(city);
       if (npcResult) {
@@ -2245,6 +2243,19 @@ export class OverworldScene extends Phaser.Scene {
     // ── Overworld actions ──
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     if (!chunk) return;
+
+    // If a dialogue is showing, dismiss it
+    if (this.dialogueOverlay) {
+      this.dismissDialogue();
+      return;
+    }
+
+    // Check if adjacent to a special (rare) NPC on the overworld
+    const specialResult = this.findAdjacentSpecialNpc();
+    if (specialResult) {
+      this.interactSpecialNpc(specialResult.index);
+      return;
+    }
 
     // Check if on a town
     const town = chunk.towns.find(

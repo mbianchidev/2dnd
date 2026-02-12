@@ -717,39 +717,67 @@ export class BootScene extends Phaser.Scene {
     }
   }
 
-  /** Generate small horse-like mount sprites for overworld display. */
+  /** Mount body colors keyed by mount ID. */
+  private static readonly MOUNT_COLORS: Record<string, number> = {
+    donkey: 0x8d6e63,
+    horse: 0x795548,
+    warHorse: 0x4e342e,
+    shadowSteed: 0x311b92,
+  };
+
+  /** Draw a mount body onto a graphics object (shared by standalone & mounted textures). */
+  private drawMountBody(gfx: Phaser.GameObjects.Graphics, mountId: string): void {
+    const color = BootScene.MOUNT_COLORS[mountId] ?? 0x6d4c41;
+    // Body
+    gfx.fillStyle(color, 1);
+    gfx.fillRect(6, 14, 20, 10);
+    // Head/neck
+    gfx.fillRect(24, 8, 6, 10);
+    // Ears
+    gfx.fillRect(26, 4, 2, 5);
+    gfx.fillRect(29, 4, 2, 5);
+    // Legs
+    const legColor = (color & 0xfefefe) >> 1; // darker shade
+    gfx.fillStyle(legColor, 1);
+    gfx.fillRect(8, 24, 3, 6);
+    gfx.fillRect(14, 24, 3, 6);
+    gfx.fillRect(20, 24, 3, 6);
+    // Tail
+    gfx.fillStyle(color, 1);
+    gfx.fillRect(3, 12, 4, 3);
+  }
+
+  /** Generate standalone mount sprites for overworld display. */
   private generateMountTextures(): void {
-    const mountColors: Record<string, number> = {
-      donkey: 0x8d6e63,
-      horse: 0x795548,
-      warHorse: 0x4e342e,
-      shadowSteed: 0x311b92,
-    };
     for (const mount of MOUNTS) {
       const key = `mount_${mount.id}`;
-      const color = mountColors[mount.id] ?? 0x6d4c41;
       const gfx = this.add.graphics();
-      // Body (horizontal rectangle)
-      gfx.fillStyle(color, 1);
-      gfx.fillRect(6, 14, 20, 10);
-      // Head/neck
-      gfx.fillStyle(color, 1);
-      gfx.fillRect(24, 8, 6, 10);
-      // Ears
-      gfx.fillRect(26, 4, 2, 5);
-      gfx.fillRect(29, 4, 2, 5);
-      // Legs
-      const legColor = (color & 0xfefefe) >> 1; // darker shade
-      gfx.fillStyle(legColor, 1);
-      gfx.fillRect(8, 24, 3, 6);
-      gfx.fillRect(14, 24, 3, 6);
-      gfx.fillRect(20, 24, 3, 6);
-      // Tail
-      gfx.fillStyle(color, 1);
-      gfx.fillRect(3, 12, 4, 3);
-
+      this.drawMountBody(gfx, mount.id);
       gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
       gfx.destroy();
+    }
+
+    // Generate "mounted_<classId>_<mountId>" textures — rider sitting on mount
+    for (const app of PLAYER_APPEARANCES) {
+      for (const mount of MOUNTS) {
+        const key = `mounted_${app.id}_${mount.id}`;
+        const gfx = this.add.graphics();
+        // Draw mount body first (lower layer)
+        this.drawMountBody(gfx, mount.id);
+        // Draw a smaller rider on top of the mount (shifted up)
+        // Rider torso
+        gfx.fillStyle(app.bodyColor, 1);
+        gfx.fillRect(11, 6, 10, 9);
+        // Rider head
+        gfx.fillStyle(app.skinColor, 1);
+        gfx.fillCircle(16, 3, 4);
+        // Rider legs straddling mount
+        gfx.fillStyle(app.legColor, 1);
+        gfx.fillRect(9, 14, 4, 4);
+        gfx.fillRect(19, 14, 4, 4);
+        gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
+        gfx.destroy();
+      }
     }
   }
 

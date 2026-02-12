@@ -1276,6 +1276,35 @@ class AudioEngine {
     src.start(ctx.currentTime);
   }
 
+  /** Play a hoofbeat sound for mounted movement. Two rapid taps to mimic a trotting gait. */
+  playMountedFootstepSFX(): void {
+    if (!this.ctx || !this.footstepGain) return;
+    const ctx = this.ctx;
+    const dest = this.footstepGain;
+
+    for (let tap = 0; tap < 2; tap++) {
+      const offset = tap * 0.06; // two rapid taps
+      const duration = 0.04;
+      const bufSize = Math.floor(ctx.sampleRate * duration);
+      const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 500; // deep thud for hooves
+      filter.Q.value = 5;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.18, ctx.currentTime + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + duration);
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(dest);
+      src.start(ctx.currentTime + offset);
+    }
+  }
+
   // ─── Debug: play all sounds ───────────────────────────────
 
   /**
@@ -1310,6 +1339,7 @@ class AudioEngine {
       { label: "SFX: Footstep (grass)", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(0), i * 200); } },
       { label: "SFX: Footstep (stone)", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(9), i * 200); } },
       { label: "SFX: Footstep (sand)",  fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(4), i * 200); } },
+      { label: "SFX: Mounted hoofbeat", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playMountedFootstepSFX(), i * 200); } },
       { label: "Weather: Rain",  fn: () => { this.playWeatherSFX(WeatherType.Rain); } },
       { label: "Weather: Storm", fn: () => { this.playWeatherSFX(WeatherType.Storm); } },
       { label: "Weather: Snow",  fn: () => { this.playWeatherSFX(WeatherType.Snow); } },

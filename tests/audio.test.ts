@@ -117,6 +117,7 @@ describe("audio system", () => {
       expect(typeof audioEngine.playDungeonEnterSFX).toBe("function");
       expect(typeof audioEngine.playPotionSFX).toBe("function");
       expect(typeof audioEngine.playFootstepSFX).toBe("function");
+      expect(typeof audioEngine.playMountedFootstepSFX).toBe("function");
       expect(typeof audioEngine.playAllSounds).toBe("function");
     });
 
@@ -147,6 +148,7 @@ describe("audio system", () => {
       expect(() => audioEngine.playDungeonEnterSFX()).not.toThrow();
       expect(() => audioEngine.playPotionSFX()).not.toThrow();
       expect(() => audioEngine.playFootstepSFX(0)).not.toThrow();
+      expect(() => audioEngine.playMountedFootstepSFX()).not.toThrow();
       expect(() => audioEngine.stopAll()).not.toThrow();
     });
   });

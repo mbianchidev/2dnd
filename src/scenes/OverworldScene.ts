@@ -432,7 +432,15 @@ export class OverworldScene extends Phaser.Scene {
         const mount = getMount(id);
         if (mount) {
           this.player.mountId = mount.id;
-          debugPanelLog(`[CMD] Mounted ${mount.name} (speed ×${mount.speedMultiplier})`, true);
+          // Also add the mount item to inventory if not already owned
+          const mountItemId = `mount${mount.id.charAt(0).toUpperCase()}${mount.id.slice(1)}`;
+          const mountItem = getItem(mountItemId);
+          if (mountItem && !this.player.inventory.some((i) => i.id === mountItemId)) {
+            this.player.inventory.push({ ...mountItem });
+            debugPanelLog(`[CMD] Spawned ${mount.name} item & mounted (speed ×${mount.speedMultiplier})`, true);
+          } else {
+            debugPanelLog(`[CMD] Mounted ${mount.name} (speed ×${mount.speedMultiplier})`, true);
+          }
         } else {
           debugPanelLog(`Unknown mount: ${id}. Available: donkey, horse, warHorse, shadowSteed`, true);
         }
@@ -1041,28 +1049,24 @@ export class OverworldScene extends Phaser.Scene {
       this.mountSprite.destroy();
       this.mountSprite = null;
     }
-    const texKey = `player_${this.player.appearanceId}`;
-    // Use the appearance texture if it exists, else fall back to default
-    const key = this.textures.exists(texKey) ? texKey : "player";
+
+    // When mounted on overworld, use the combined mounted texture
+    const isMounted = this.player.mountId && !this.player.inDungeon && !this.player.inCity;
+    let key: string;
+    if (isMounted) {
+      const mountedKey = `mounted_${this.player.appearanceId}_${this.player.mountId}`;
+      key = this.textures.exists(mountedKey) ? mountedKey : `mount_${this.player.mountId}`;
+    } else {
+      const texKey = `player_${this.player.appearanceId}`;
+      key = this.textures.exists(texKey) ? texKey : "player";
+    }
+
     this.playerSprite = this.add.sprite(
       this.player.x * TILE_SIZE + TILE_SIZE / 2,
       this.player.y * TILE_SIZE + TILE_SIZE / 2,
       key
     );
     this.playerSprite.setDepth(10);
-
-    // Render mount sprite underneath the player when mounted on overworld
-    if (this.player.mountId && !this.player.inDungeon && !this.player.inCity) {
-      const mountTexKey = `mount_${this.player.mountId}`;
-      if (this.textures.exists(mountTexKey)) {
-        this.mountSprite = this.add.sprite(
-          this.player.x * TILE_SIZE + TILE_SIZE / 2,
-          this.player.y * TILE_SIZE + TILE_SIZE / 2,
-          mountTexKey
-        );
-        this.mountSprite.setDepth(9); // just below the player
-      }
-    }
   }
 
   private setupInput(): void {
@@ -1470,8 +1474,14 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    // Footstep sound for overworld terrain
-    if (audioEngine.initialized && terrain !== undefined) audioEngine.playFootstepSFX(terrain);
+    // Footstep sound — hoofbeats when mounted, terrain SFX when on foot
+    if (audioEngine.initialized && terrain !== undefined) {
+      if (this.player.mountId) {
+        audioEngine.playMountedFootstepSFX();
+      } else {
+        audioEngine.playFootstepSFX(terrain);
+      }
+    }
 
     this.tweens.add({
       targets: this.playerSprite,
@@ -1489,15 +1499,6 @@ export class OverworldScene extends Phaser.Scene {
         this.checkEncounter(terrain);
       },
     });
-    // Tween mount sprite alongside player
-    if (this.mountSprite) {
-      this.tweens.add({
-        targets: this.mountSprite,
-        x: newX * TILE_SIZE + TILE_SIZE / 2,
-        y: newY * TILE_SIZE + TILE_SIZE / 2,
-        duration: 120,
-      });
-    }
   }
 
   /** Auto-collect minor treasure when stepping on it. Awards 5-25 gold. */

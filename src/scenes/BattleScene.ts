@@ -878,12 +878,12 @@ export class BattleScene extends Phaser.Scene {
     if (this.phase !== "playerTurn") return;
 
     // Items are bonus actions: 1st item is free, 2nd item sacrifices turn action
-    if (this.bonusActionUsed && this.turnActionUsed) {
-      this.addLog("No actions remaining this turn!");
-      return;
-    }
     if (this.itemsUsedThisTurn >= 2) {
       this.addLog("Cannot use more than 2 items per turn!");
+      return;
+    }
+    if (this.itemsUsedThisTurn === 1 && this.turnActionUsed) {
+      this.addLog("No actions remaining this turn!");
       return;
     }
 
@@ -895,9 +895,8 @@ export class BattleScene extends Phaser.Scene {
 
       if (result.used) {
         this.itemsUsedThisTurn++;
-        if (this.itemsUsedThisTurn === 1 && !this.bonusActionUsed) {
+        if (this.itemsUsedThisTurn === 1) {
           // First item: bonus action used, player still has turn action
-          this.bonusActionUsed = true;
           this.addLog("(Bonus action — you can still act this turn)");
           this.closeAllSubMenus();
         } else {

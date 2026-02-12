@@ -134,7 +134,7 @@ export const ABILITIES: Ability[] = [
   },
   {
     id: "enrage", name: "Enrage",
-    description: "Enter a furious rage, boosting your next attack (bonus action)",
+    description: "Channel fury to recover health through sheer rage (bonus action)",
     mpCost: 3, levelRequired: 3, damageCount: 2, damageDie: 6,
     type: "heal", statKey: "strength",
     bonusAction: true,

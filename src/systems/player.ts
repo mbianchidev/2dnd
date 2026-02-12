@@ -397,8 +397,9 @@ export function allocateStatPoint(
 }
 
 /**
- * Perform a long rest at an inn. Restores 50% of max HP and 50% of max MP.
- * Increments longRestCount. Returns the amounts restored.
+ * Perform a long rest at an inn. Restores up to 50% of max HP and 50% of max MP,
+ * capped at the player's current maximum. Increments longRestCount.
+ * Returns the actual amounts restored.
  */
 export function longRest(player: PlayerState): { hpRestored: number; mpRestored: number } {
   const hpRestore = Math.floor(player.maxHp * 0.5);

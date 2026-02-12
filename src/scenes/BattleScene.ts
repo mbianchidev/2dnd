@@ -28,6 +28,7 @@ import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } fr
 import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
+import type { SavedSpecialNpc } from "../data/npcs";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
@@ -42,6 +43,7 @@ export class BattleScene extends Phaser.Scene {
   private bestiary!: BestiaryData;
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
+  private savedSpecialNpcs: SavedSpecialNpc[] = [];
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
@@ -86,6 +88,7 @@ export class BattleScene extends Phaser.Scene {
     timeStep?: number;
     weatherState?: WeatherState;
     biome?: string;
+    savedSpecialNpcs?: SavedSpecialNpc[];
   }): void {
     this.player = data.player;
     this.monster = data.monster;
@@ -95,6 +98,7 @@ export class BattleScene extends Phaser.Scene {
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
     this.biome = data.biome ?? "grass";
+    this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.phase = "init";
     this.logLines = [];
     this.actionButtons = [];
@@ -434,8 +438,7 @@ export class BattleScene extends Phaser.Scene {
 
     try {
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
-      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
-      const result = playerUseAbility(this.player, abilityId, this.monster, weatherPenalty + boost.acBonus);
+      const result = playerUseAbility(this.player, abilityId, this.monster, weatherPenalty);
       debugLog("Player ability", { abilityId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
       if (result.roll !== undefined) {
         debugPanelLog(
@@ -676,7 +679,8 @@ export class BattleScene extends Phaser.Scene {
   private rollForInitiative(): void {
     try {
       const dexMod = abilityModifier(this.player.stats.dexterity);
-      const result = rollInitiative(dexMod, this.monster.attackBonus);
+      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
+      const result = rollInitiative(dexMod, this.monster.attackBonus + boost.initiativeBonus);
       debugLog("Initiative", { playerRoll: result.playerRoll, monsterRoll: result.monsterRoll, playerFirst: result.playerFirst });
       debugPanelLog(
         `  ↳ [Initiative] Player d20+mod=${result.playerRoll} vs Monster d20+mod=${result.monsterRoll}`,
@@ -688,12 +692,11 @@ export class BattleScene extends Phaser.Scene {
 
       // Announce weather effects and monster boost
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
-      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
       if (this.weatherState.current !== WeatherType.Clear) {
         this.addLog(`${WEATHER_LABEL[this.weatherState.current]} — attacks are harder to land (penalty: ${weatherPenalty})`);
       }
-      if (boost.acBonus > 0) {
-        this.addLog(`${this.monster.name} thrives in this weather! (+${boost.acBonus} AC, +${boost.attackBonus} ATK, +${boost.damageBonus} DMG)`);
+      if (boost.attackBonus > 0) {
+        this.addLog(`${this.monster.name} thrives in this weather! (+${boost.initiativeBonus} Initiative, +${boost.attackBonus} ATK)`);
       }
 
       if (result.playerFirst) {
@@ -718,8 +721,7 @@ export class BattleScene extends Phaser.Scene {
     try {
       const monsterDefBonus = this.monsterDefending ? 2 : 0;
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
-      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
-      const result = playerAttack(this.player, this.monster, monsterDefBonus + boost.acBonus, weatherPenalty);
+      const result = playerAttack(this.player, this.monster, monsterDefBonus, weatherPenalty);
       // Reset monster defend after player attacks
       this.monsterDefending = false;
       debugLog("Player attack", { roll: result.roll, hit: result.hit, critical: result.critical, damage: result.damage, monsterAC: this.monster.ac });
@@ -778,8 +780,7 @@ export class BattleScene extends Phaser.Scene {
 
     try {
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
-      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
-      const result = playerCastSpell(this.player, spellId, this.monster, weatherPenalty + boost.acBonus);
+      const result = playerCastSpell(this.player, spellId, this.monster, weatherPenalty);
       debugLog("Player spell", { spellId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
       if (result.roll !== undefined) {
         debugPanelLog(
@@ -928,7 +929,7 @@ export class BattleScene extends Phaser.Scene {
       const defendBonus = this.playerDefending ? 2 : 0;
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
       const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
-      const result = monsterAttack(this.monster, this.player, defendBonus, weatherPenalty, boost.attackBonus, boost.damageBonus);
+      const result = monsterAttack(this.monster, this.player, defendBonus, weatherPenalty, boost.attackBonus);
       debugLog("Monster attack", {
         naturalRoll: result.roll,
         attackBonus: result.attackBonus,
@@ -1347,6 +1348,7 @@ export class BattleScene extends Phaser.Scene {
         bestiary: this.bestiary,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
+        savedSpecialNpcs: this.savedSpecialNpcs,
       });
     });
   }

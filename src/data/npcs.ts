@@ -399,7 +399,7 @@ export const ADVENTURER_DIALOGUES: string[] = [
 
 /** Dialogue pool for the Wandering Merchant. */
 export const WANDERING_MERCHANT_DIALOGUES: string[] = [
-  "Psst! Rare wares, traveller. Take a look!",
+  "Psst! Rare wares, traveler. Take a look!",
   "I carry only the finest portable goods.",
   "Special prices, just for you!",
   "My pack is light today—buy something, won't you?",

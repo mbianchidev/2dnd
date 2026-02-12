@@ -1006,7 +1006,6 @@ export class OverworldScene extends Phaser.Scene {
           repeat: -1,
           ease: "Sine.easeInOut",
         });
-        this.specialNpcTimers.push(this.time.addEvent({ delay: 99999, callback: () => {}, loop: false }));
       }
 
       this.showMessage(`A ${def.label} has appeared!`, "#4dd0e1");

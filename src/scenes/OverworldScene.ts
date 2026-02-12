@@ -122,6 +122,8 @@ export class OverworldScene extends Phaser.Scene {
   private cityNpcSprites: Phaser.GameObjects.Sprite[] = [];
   private cityNpcTimers: Phaser.Time.TimerEvent[] = [];
   private cityNpcData: NpcInstance[] = [];
+  private shopRoofGraphics: Phaser.GameObjects.Graphics[] = [];
+  private shopRoofBounds: { x: number; y: number; w: number; h: number; shopX: number; shopY: number }[] = [];
   private dialogueOverlay: Phaser.GameObjects.Container | null = null;
   private innConfirmOverlay: Phaser.GameObjects.Container | null = null;
   /** Active special (rare) NPCs in the current city visit. */
@@ -522,6 +524,10 @@ export class OverworldScene extends Phaser.Scene {
     for (const t of this.cityNpcTimers) t.destroy();
     this.cityNpcTimers = [];
     this.cityNpcData = [];
+    // Clear shop roofs
+    for (const g of this.shopRoofGraphics) g.destroy();
+    this.shopRoofGraphics = [];
+    this.shopRoofBounds = [];
     // Clear special NPCs
     for (const s of this.specialNpcSprites) s.destroy();
     this.specialNpcSprites = [];
@@ -645,13 +651,18 @@ export class OverworldScene extends Phaser.Scene {
               stroke: "#000",
               strokeThickness: 2,
             })
-            .setOrigin(0.5, 1);
+            .setOrigin(0.5, 1)
+            .setDepth(15); // above roof overlays
         }
       }
       // Spawn city animals
       this.spawnCityAnimals(city);
       // Spawn city NPCs
       this.spawnCityNpcs(city);
+      // Draw shop building roofs (above NPCs so they hide interiors)
+      this.createShopRoofs(city);
+      // Set initial roof transparency based on player position
+      this.updateShopRoofAlpha();
       return;
     }
 
@@ -804,6 +815,18 @@ export class OverworldScene extends Phaser.Scene {
     const animals = CITY_ANIMALS[city.id];
     if (!animals) return;
 
+    // Credible animal sizes relative to a human NPC (32px tile)
+    const ANIMAL_SCALE: Record<string, number> = {
+      sprite_cow: 2.5,
+      sprite_dog: 1.6,
+      sprite_sheep: 1.8,
+      sprite_cat: 1.3,
+      sprite_chicken: 1.0,
+      sprite_frog: 0.8,
+      sprite_mouse: 0.7,
+      sprite_lizard: 0.9,
+    };
+
     for (const def of animals) {
       if (!this.isExplored(def.x, def.y)) continue;
 
@@ -812,6 +835,8 @@ export class OverworldScene extends Phaser.Scene {
         def.y * TILE_SIZE + TILE_SIZE / 2,
         def.sprite
       );
+      const animalScale = ANIMAL_SCALE[def.sprite] ?? 1.0;
+      sprite.setScale(animalScale);
       sprite.setDepth(11);
       this.cityAnimals.push(sprite);
 
@@ -856,12 +881,139 @@ export class OverworldScene extends Phaser.Scene {
         // Sleeping animal: subtle breathing animation
         this.tweens.add({
           targets: sprite,
-          scaleY: 0.9,
+          scaleY: animalScale * 0.9,
           duration: 1200,
           yoyo: true,
           repeat: -1,
           ease: "Sine.easeInOut",
         });
+      }
+    }
+  }
+
+  /**
+   * Draw roof overlays over shop buildings.  Each shop has a cluster of
+   * CityWall + ShopFloor tiles that form the structure; the roof covers
+   * them and fades out when the player is nearby.
+   */
+  private createShopRoofs(city: CityData): void {
+    for (const shop of city.shops) {
+      // Find building bounds by flood-filling from the ShopFloor tile above the carpet entrance
+      const visited = new Set<string>();
+      const tiles: { x: number; y: number }[] = [];
+      const queue: { x: number; y: number }[] = [];
+
+      // Seed: scan a small area around the shop entrance for ShopFloor tiles
+      for (let dy = -3; dy <= 0; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const tx = shop.x + dx;
+          const ty = shop.y + dy;
+          if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
+            const t = city.mapData[ty][tx];
+            if (t === Terrain.ShopFloor) {
+              const key = `${tx},${ty}`;
+              if (!visited.has(key)) {
+                visited.add(key);
+                queue.push({ x: tx, y: ty });
+                tiles.push({ x: tx, y: ty });
+              }
+            }
+          }
+        }
+      }
+
+      // Expand to include surrounding CityWall tiles
+      while (queue.length > 0) {
+        const cur = queue.pop()!;
+        for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+          const nx = cur.x + ddx;
+          const ny = cur.y + ddy;
+          const key = `${nx},${ny}`;
+          if (visited.has(key)) continue;
+          if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+          const t = city.mapData[ny][nx];
+          if (t === Terrain.ShopFloor) {
+            visited.add(key);
+            queue.push({ x: nx, y: ny });
+            tiles.push({ x: nx, y: ny });
+          } else if (t === Terrain.CityWall) {
+            // Only include wall tiles adjacent to shop floor (building walls, not city walls)
+            visited.add(key);
+            tiles.push({ x: nx, y: ny });
+          }
+        }
+      }
+
+      if (tiles.length === 0) continue;
+
+      // Compute bounding box
+      let minX = tiles[0].x, maxX = tiles[0].x, minY = tiles[0].y, maxY = tiles[0].y;
+      for (const t of tiles) {
+        if (t.x < minX) minX = t.x;
+        if (t.x > maxX) maxX = t.x;
+        if (t.y < minY) minY = t.y;
+        if (t.y > maxY) maxY = t.y;
+      }
+
+      const bx = minX * TILE_SIZE;
+      const by = minY * TILE_SIZE;
+      const bw = (maxX - minX + 1) * TILE_SIZE;
+      const bh = (maxY - minY + 1) * TILE_SIZE;
+
+      // Draw a roof graphic over the building area
+      const gfx = this.add.graphics();
+      gfx.setDepth(14); // above NPCs (11) and animals (11) but below HUD
+
+      // Main roof colour
+      const roofColor = shop.type === "inn" ? 0x6d4c41 : shop.type === "weapon" ? 0x5d4037 : shop.type === "armor" ? 0x4e342e : 0x795548;
+      gfx.fillStyle(roofColor, 1);
+      gfx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+
+      // Ridge lines for a tiled-roof look
+      gfx.lineStyle(1, 0x3e2723, 0.6);
+      for (let ry = by; ry < by + bh; ry += 6) {
+        gfx.lineBetween(bx - 2, ry, bx + bw + 2, ry);
+      }
+
+      // Roof border
+      gfx.lineStyle(2, 0x3e2723, 0.9);
+      gfx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+
+      // Ridge cap (center horizontal line)
+      gfx.lineStyle(2, 0x4e342e, 0.8);
+      gfx.lineBetween(bx - 2, by + bh / 2, bx + bw + 2, by + bh / 2);
+
+      this.shopRoofGraphics.push(gfx);
+      this.shopRoofBounds.push({
+        x: minX, y: minY,
+        w: maxX - minX + 1, h: maxY - minY + 1,
+        shopX: shop.x, shopY: shop.y,
+      });
+    }
+  }
+
+  /** Fade shop roofs based on player proximity. Close = transparent, far = solid. */
+  private updateShopRoofAlpha(): void {
+    const px = this.player.x;
+    const py = this.player.y;
+    for (let i = 0; i < this.shopRoofBounds.length; i++) {
+      const b = this.shopRoofBounds[i];
+      const gfx = this.shopRoofGraphics[i];
+      if (!gfx) continue;
+
+      // Distance from player to the shop entrance
+      const dist = Math.abs(px - b.shopX) + Math.abs(py - b.shopY);
+      // Also check if player is inside the building bounds
+      const inside = px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h;
+
+      if (inside || dist <= 1) {
+        gfx.setAlpha(0.1);
+      } else if (dist <= 2) {
+        gfx.setAlpha(0.35);
+      } else if (dist <= 3) {
+        gfx.setAlpha(0.65);
+      } else {
+        gfx.setAlpha(1);
       }
     }
   }
@@ -937,14 +1089,37 @@ export class OverworldScene extends Phaser.Scene {
       const def = npcs[i];
       const tpl = getNpcTemplate(def.templateId);
       if (!tpl) continue;
-      if (!this.isExplored(def.x, def.y)) continue;
+
+      // Shopkeeper NPCs are placed inside their shop (on the nearest ShopFloor tile)
+      let spawnX = def.x;
+      let spawnY = def.y;
+      if (def.shopIndex !== undefined) {
+        const shop = city.shops[def.shopIndex];
+        if (shop) {
+          // Search for a ShopFloor tile near the shop entrance (carpet)
+          for (let dy = -2; dy <= 0; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const tx = shop.x + dx;
+              const ty = shop.y + dy;
+              if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
+                if (city.mapData[ty][tx] === Terrain.ShopFloor) {
+                  spawnX = tx;
+                  spawnY = ty;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (!this.isExplored(spawnX, spawnY)) continue;
 
       // Generate a per-instance texture with proper skin/hair/dress colours
       const colors = getNpcColors(city.id, i);
       const texKey = this.getOrCreateNpcTexture(tpl, colors.skinColor, colors.hairColor, colors.dressColor);
       const sprite = this.add.sprite(
-        def.x * TILE_SIZE + TILE_SIZE / 2,
-        def.y * TILE_SIZE + TILE_SIZE / 2,
+        spawnX * TILE_SIZE + TILE_SIZE / 2,
+        spawnY * TILE_SIZE + TILE_SIZE / 2,
         texKey
       );
       sprite.setDepth(11);
@@ -2139,6 +2314,7 @@ export class OverworldScene extends Phaser.Scene {
           this.revealTileSprites();
           this.updateHUD();
           this.updateLocationText();
+          this.updateShopRoofAlpha();
           // No encounters in cities
         },
       });

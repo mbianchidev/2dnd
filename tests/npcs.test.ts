@@ -13,6 +13,15 @@ import {
   NPC_HAIR_COLORS,
   NPC_DRESS_COLORS,
   JOB_ACCENT_COLORS,
+  SPECIAL_NPC_KINDS,
+  SPECIAL_NPC_DEFS,
+  TRAVELER_DIALOGUES,
+  ADVENTURER_DIALOGUES,
+  WANDERING_MERCHANT_DIALOGUES,
+  HERMIT_DIALOGUES,
+  HERMIT_FAREWELL,
+  getSpecialNpcDialogue,
+  rollSpecialNpcSpawns,
   type NpcAgeGroup,
 } from "../src/data/npcs";
 import { CITIES } from "../src/data/map";
@@ -194,6 +203,74 @@ describe("NPC system", () => {
         const ageGroups = new Set(npcs.map((n) => getNpcTemplate(n.templateId)?.ageGroup));
         // At least two different age groups
         expect(ageGroups.size).toBeGreaterThanOrEqual(2);
+      }
+    });
+  });
+
+  describe("special (rare) NPCs", () => {
+    it("should define all 4 special NPC kinds", () => {
+      expect(SPECIAL_NPC_KINDS).toEqual(["traveler", "adventurer", "wanderingMerchant", "hermit"]);
+    });
+
+    it("each kind should have a valid definition", () => {
+      for (const kind of SPECIAL_NPC_KINDS) {
+        const def = SPECIAL_NPC_DEFS[kind];
+        expect(def).toBeDefined();
+        expect(def.label).toBeTruthy();
+        expect(def.spawnChance).toBeGreaterThan(0);
+        expect(def.spawnChance).toBeLessThanOrEqual(1);
+        expect(getNpcTemplate(def.templateId)).toBeDefined();
+      }
+    });
+
+    it("wandering merchant should have shop items", () => {
+      const def = SPECIAL_NPC_DEFS.wanderingMerchant;
+      expect(def.shopItems).toBeDefined();
+      expect(def.shopItems!.length).toBeGreaterThan(0);
+    });
+
+    it("traveler dialogue pool should be non-empty", () => {
+      expect(TRAVELER_DIALOGUES.length).toBeGreaterThan(0);
+    });
+
+    it("adventurer dialogue pool should be non-empty", () => {
+      expect(ADVENTURER_DIALOGUES.length).toBeGreaterThan(0);
+    });
+
+    it("wandering merchant dialogue pool should be non-empty", () => {
+      expect(WANDERING_MERCHANT_DIALOGUES.length).toBeGreaterThan(0);
+    });
+
+    it("hermit dialogue pool should be non-empty", () => {
+      expect(HERMIT_DIALOGUES.length).toBeGreaterThan(0);
+    });
+
+    it("getSpecialNpcDialogue returns correct pool for each kind", () => {
+      expect(TRAVELER_DIALOGUES).toContain(getSpecialNpcDialogue("traveler", 0));
+      expect(ADVENTURER_DIALOGUES).toContain(getSpecialNpcDialogue("adventurer", 0));
+      expect(WANDERING_MERCHANT_DIALOGUES).toContain(getSpecialNpcDialogue("wanderingMerchant", 0));
+      expect(HERMIT_DIALOGUES).toContain(getSpecialNpcDialogue("hermit", 0));
+    });
+
+    it("hermit returns farewell after exhausting dialogue lines", () => {
+      const farewell = getSpecialNpcDialogue("hermit", HERMIT_DIALOGUES.length);
+      expect(farewell).toBe(HERMIT_FAREWELL);
+    });
+
+    it("getSpecialNpcDialogue wraps around for non-hermit kinds", () => {
+      const first = getSpecialNpcDialogue("traveler", 0);
+      const wrapped = getSpecialNpcDialogue("traveler", TRAVELER_DIALOGUES.length);
+      expect(first).toBe(wrapped);
+    });
+
+    it("rollSpecialNpcSpawns returns an array of valid kinds", () => {
+      // Run it many times to test it doesn't crash
+      for (let i = 0; i < 50; i++) {
+        const result = rollSpecialNpcSpawns();
+        expect(Array.isArray(result)).toBe(true);
+        for (const kind of result) {
+          expect(SPECIAL_NPC_KINDS).toContain(kind);
+        }
       }
     });
   });

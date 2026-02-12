@@ -312,6 +312,146 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
   ],
 };
 
+// ── Special / Rare NPC types ──
+
+export type SpecialNpcKind = "traveler" | "adventurer" | "wanderingMerchant" | "hermit";
+
+export const SPECIAL_NPC_KINDS: SpecialNpcKind[] = [
+  "traveler",
+  "adventurer",
+  "wanderingMerchant",
+  "hermit",
+];
+
+export interface SpecialNpcDef {
+  kind: SpecialNpcKind;
+  label: string;
+  templateId: string;
+  /** Tint colour for the special NPC sprite. */
+  tintColor: number;
+  /** Base spawn probability when entering a city (0–1). */
+  spawnChance: number;
+  /** Whether this NPC wanders. */
+  moves: boolean;
+  /** For wanderingMerchant — item IDs available to buy. */
+  shopItems?: string[];
+}
+
+export const SPECIAL_NPC_DEFS: Record<SpecialNpcKind, SpecialNpcDef> = {
+  traveler: {
+    kind: "traveler",
+    label: "Traveler",
+    templateId: "male_young",
+    tintColor: 0x4dd0e1,
+    spawnChance: 0.05,
+    moves: true,
+  },
+  adventurer: {
+    kind: "adventurer",
+    label: "Adventurer",
+    templateId: "male_stout",
+    tintColor: 0xffa000,
+    spawnChance: 0.05,
+    moves: false,
+  },
+  wanderingMerchant: {
+    kind: "wanderingMerchant",
+    label: "Wandering Merchant",
+    templateId: "female_stout",
+    tintColor: 0xffd740,
+    spawnChance: 0.05,
+    moves: false,
+    shopItems: ["potion", "ether"],
+  },
+  hermit: {
+    kind: "hermit",
+    label: "Hermit",
+    templateId: "male_elder",
+    tintColor: 0x90a4ae,
+    spawnChance: 0.05,
+    moves: false,
+  },
+};
+
+/** Dialogue pool for the friendly but clueless Traveler. */
+export const TRAVELER_DIALOGUES: string[] = [
+  "Oh hello! I'm just passing through.",
+  "Is this the road to... anywhere?",
+  "I've been walking for days! Lovely scenery though.",
+  "Do you know where the nearest inn is? I forgot.",
+  "I thought I saw a dragon! ...It was a cloud.",
+  "Traveling is so exciting! And confusing.",
+  "I'm sure this map is upside down.",
+  "The stars are beautiful out here. No idea which way is north, though!",
+];
+
+/** Dialogue pool for the grumpy but wise Adventurer. */
+export const ADVENTURER_DIALOGUES: string[] = [
+  "Hmph. Another rookie. Fine, listen up...",
+  "Save before a boss fight. Trust me.",
+  "Don't waste gold on weak gear. Save for plate armour.",
+  "Night monsters are tougher. Travel during the day if you're weak.",
+  "Always keep potions stocked. You'll thank me later.",
+  "The dungeons get harder the further east you go.",
+  "Grumble... I've cleared more dungeons than you've had hot meals.",
+  "Check the bestiary. Knowing your enemy's AC helps you plan.",
+];
+
+/** Dialogue pool for the Wandering Merchant. */
+export const WANDERING_MERCHANT_DIALOGUES: string[] = [
+  "Psst! Rare wares, traveller. Take a look!",
+  "I carry only the finest portable goods.",
+  "Special prices, just for you!",
+  "My pack is light today—buy something, won't you?",
+];
+
+/** Dialogue pool for the reclusive Hermit. Lines cycle, then dismissal. */
+export const HERMIT_DIALOGUES: string[] = [
+  "...what do you want?",
+  "Leave me alone. I came here to be alone.",
+  "Fine. One thing: beware the eastern wastes. Now go away.",
+];
+
+/** The hermit's farewell line when they leave. */
+export const HERMIT_FAREWELL = "I said LEAVE. *walks away*";
+
+/**
+ * Get a dialogue line for a special NPC.  For the hermit, `interactionCount`
+ * tracks how many times the player has spoken to them this visit.
+ */
+export function getSpecialNpcDialogue(
+  kind: SpecialNpcKind,
+  interactionCount: number,
+): string {
+  switch (kind) {
+    case "traveler":
+      return TRAVELER_DIALOGUES[interactionCount % TRAVELER_DIALOGUES.length];
+    case "adventurer":
+      return ADVENTURER_DIALOGUES[interactionCount % ADVENTURER_DIALOGUES.length];
+    case "wanderingMerchant":
+      return WANDERING_MERCHANT_DIALOGUES[interactionCount % WANDERING_MERCHANT_DIALOGUES.length];
+    case "hermit":
+      if (interactionCount < HERMIT_DIALOGUES.length) {
+        return HERMIT_DIALOGUES[interactionCount];
+      }
+      return HERMIT_FAREWELL;
+  }
+}
+
+/**
+ * Roll for which (if any) special NPCs should appear when entering a city.
+ * Each kind is rolled independently.
+ */
+export function rollSpecialNpcSpawns(): SpecialNpcKind[] {
+  const result: SpecialNpcKind[] = [];
+  for (const kind of SPECIAL_NPC_KINDS) {
+    if (Math.random() < SPECIAL_NPC_DEFS[kind].spawnChance) {
+      result.push(kind);
+    }
+  }
+  return result;
+}
+
 // ── Helpers ──
 
 export function getNpcTemplate(id: string): NpcTemplate | undefined {

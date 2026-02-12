@@ -60,8 +60,15 @@ import {
   getNpcColors,
   getNpcDialogue,
   getShopkeeperDialogue,
+  getSpecialNpcDialogue,
+  rollSpecialNpcSpawns,
+  SPECIAL_NPC_DEFS,
+  SPECIAL_NPC_KINDS,
+  HERMIT_FAREWELL,
   SHOPKEEPER_DIALOGUES,
   type NpcInstance,
+  type SpecialNpcKind,
+  type SpecialNpcDef,
 } from "../data/npcs";
 
 const TILE_SIZE = 32;
@@ -119,6 +126,12 @@ export class OverworldScene extends Phaser.Scene {
   private cityNpcData: NpcInstance[] = [];
   private dialogueOverlay: Phaser.GameObjects.Container | null = null;
   private innConfirmOverlay: Phaser.GameObjects.Container | null = null;
+  /** Active special (rare) NPCs in the current city visit. */
+  private specialNpcSprites: Phaser.GameObjects.Sprite[] = [];
+  private specialNpcTimers: Phaser.Time.TimerEvent[] = [];
+  private specialNpcDefs: { def: SpecialNpcDef; x: number; y: number; interactions: number }[] = [];
+  /** Queue of special NPC kinds to force-spawn via /spawn command. */
+  private pendingSpecialSpawns: SpecialNpcKind[] = [];
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -326,7 +339,33 @@ export class OverworldScene extends Phaser.Scene {
 
     cmds.set("spawn", (args) => {
       const query = args.trim().toLowerCase();
-      if (!query) { debugPanelLog(`Usage: /spawn <monster name or id>`, true); return; }
+      if (!query) { debugPanelLog(`Usage: /spawn <monster|traveler|adventurer|merchant|hermit>`, true); return; }
+
+      // Check for special NPC spawn
+      const specialAliases: Record<string, SpecialNpcKind> = {
+        traveler: "traveler",
+        traveller: "traveler",
+        adventurer: "adventurer",
+        merchant: "wanderingMerchant",
+        "wandering merchant": "wanderingMerchant",
+        wanderingmerchant: "wanderingMerchant",
+        hermit: "hermit",
+      };
+      const specialKind = specialAliases[query];
+      if (specialKind) {
+        if (!this.player.inCity) {
+          debugPanelLog(`[CMD] Must be in a city to spawn special NPCs. Enter a city first.`, true);
+          return;
+        }
+        this.pendingSpecialSpawns.push(specialKind);
+        const city = getCity(this.player.cityId);
+        if (city) {
+          this.spawnSpecialNpcs(city);
+        }
+        debugPanelLog(`[CMD] Spawned ${SPECIAL_NPC_DEFS[specialKind].label} in the city!`, true);
+        return;
+      }
+
       // Search all monster pools by id or name (case-insensitive partial match)
       const allMonsters: Monster[] = [...MONSTERS, ...DUNGEON_MONSTERS, ...NIGHT_MONSTERS];
       let found = allMonsters.find(m => m.id.toLowerCase() === query);
@@ -336,7 +375,7 @@ export class OverworldScene extends Phaser.Scene {
         debugPanelLog(`[CMD] Spawning ${found.name}...`, true);
         this.startBattle({ ...found });
       } else {
-        debugPanelLog(`[CMD] Unknown monster: "${args.trim()}". Try a partial name or id.`, true);
+        debugPanelLog(`[CMD] Unknown: "${args.trim()}". Try a monster name/id, or: traveler, adventurer, merchant, hermit`, true);
       }
     });
 
@@ -445,7 +484,7 @@ export class OverworldScene extends Phaser.Scene {
       { usage: "/item <id>", desc: "Add item to inventory" },
       { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
-      { usage: "/spawn <name>", desc: "Spawn a monster battle by name/id" },
+      { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
     ];
@@ -475,6 +514,12 @@ export class OverworldScene extends Phaser.Scene {
     for (const t of this.cityNpcTimers) t.destroy();
     this.cityNpcTimers = [];
     this.cityNpcData = [];
+    // Clear special NPCs
+    for (const s of this.specialNpcSprites) s.destroy();
+    this.specialNpcSprites = [];
+    for (const t of this.specialNpcTimers) t.destroy();
+    this.specialNpcTimers = [];
+    this.specialNpcDefs = [];
 
     // If inside a dungeon, render the dungeon interior
     if (this.player.inDungeon) {
@@ -599,6 +644,8 @@ export class OverworldScene extends Phaser.Scene {
       this.spawnCityAnimals(city);
       // Spawn city NPCs
       this.spawnCityNpcs(city);
+      // Spawn rare special NPCs (random or forced via /spawn)
+      this.spawnSpecialNpcs(city);
       return;
     }
 
@@ -868,6 +915,232 @@ export class OverworldScene extends Phaser.Scene {
         });
       }
     }
+  }
+
+  /** Spawn rare special NPCs in a city (traveler, adventurer, wandering merchant, hermit). */
+  private spawnSpecialNpcs(city: CityData): void {
+    // Determine which specials to spawn — use forced queue or random roll
+    let toSpawn: SpecialNpcKind[];
+    if (this.pendingSpecialSpawns.length > 0) {
+      toSpawn = [...this.pendingSpecialSpawns];
+      this.pendingSpecialSpawns = [];
+    } else {
+      toSpawn = rollSpecialNpcSpawns();
+    }
+    if (toSpawn.length === 0) return;
+
+    // Find walkable positions that aren't occupied by existing NPCs
+    const occupied = new Set<string>();
+    for (const npc of (CITY_NPCS[city.id] ?? [])) {
+      occupied.add(`${npc.x},${npc.y}`);
+    }
+    const walkable: { x: number; y: number }[] = [];
+    for (let y = 2; y < MAP_HEIGHT - 2; y++) {
+      for (let x = 2; x < MAP_WIDTH - 2; x++) {
+        if (isWalkable(city.mapData[y][x]) && !occupied.has(`${x},${y}`)) {
+          walkable.push({ x, y });
+        }
+      }
+    }
+    if (walkable.length === 0) return;
+
+    for (const kind of toSpawn) {
+      const def = SPECIAL_NPC_DEFS[kind];
+      const tpl = getNpcTemplate(def.templateId);
+      if (!tpl) continue;
+
+      // Pick a random spawn position
+      const posIdx = Math.floor(Math.random() * walkable.length);
+      const pos = walkable[posIdx];
+      walkable.splice(posIdx, 1);
+
+      const texKey = `npc_${tpl.id}`;
+      const sprite = this.add.sprite(
+        pos.x * TILE_SIZE + TILE_SIZE / 2,
+        pos.y * TILE_SIZE + TILE_SIZE / 2,
+        texKey
+      );
+      sprite.setDepth(11);
+      sprite.setTint(def.tintColor);
+
+      this.specialNpcSprites.push(sprite);
+      this.specialNpcDefs.push({ def, x: pos.x, y: pos.y, interactions: 0 });
+
+      if (def.moves) {
+        const wander = (): void => {
+          const dirs = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+          ];
+          const pick = dirs[Math.floor(Math.random() * dirs.length)];
+          const curTileX = Math.floor(sprite.x / TILE_SIZE);
+          const curTileY = Math.floor(sprite.y / TILE_SIZE);
+          const nx = curTileX + pick.dx;
+          const ny = curTileY + pick.dy;
+          if (
+            nx >= 2 && nx < MAP_WIDTH - 2 &&
+            ny >= 2 && ny < MAP_HEIGHT - 2 &&
+            isWalkable(city.mapData[ny][nx])
+          ) {
+            this.tweens.add({
+              targets: sprite,
+              x: nx * TILE_SIZE + TILE_SIZE / 2,
+              y: ny * TILE_SIZE + TILE_SIZE / 2,
+              duration: 800 + Math.random() * 400,
+              ease: "Sine.easeInOut",
+              onUpdate: () => {
+                if (pick.dx !== 0) sprite.setFlipX(pick.dx < 0);
+              },
+            });
+          }
+        };
+        const delay = 2000 + Math.random() * 2000;
+        const timer = this.time.addEvent({ delay, callback: wander, loop: true });
+        this.specialNpcTimers.push(timer);
+      } else {
+        this.tweens.add({
+          targets: sprite,
+          scaleY: 0.97,
+          duration: 1500,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+        this.specialNpcTimers.push(this.time.addEvent({ delay: 99999, callback: () => {}, loop: false }));
+      }
+
+      this.showMessage(`A ${def.label} has appeared!`, "#4dd0e1");
+      if (walkable.length === 0) break;
+    }
+  }
+
+  /**
+   * Find a special NPC adjacent to or on the player's current position.
+   */
+  private findAdjacentSpecialNpc(): { index: number; def: SpecialNpcDef } | null {
+    const px = this.player.x;
+    const py = this.player.y;
+    const checks = [
+      { x: px, y: py },
+      { x: px - 1, y: py }, { x: px + 1, y: py },
+      { x: px, y: py - 1 }, { x: px, y: py + 1 },
+    ];
+
+    for (let i = 0; i < this.specialNpcDefs.length; i++) {
+      const spr = this.specialNpcSprites[i];
+      if (!spr || !spr.active) continue;
+      const nx = Math.floor(spr.x / TILE_SIZE);
+      const ny = Math.floor(spr.y / TILE_SIZE);
+      for (const c of checks) {
+        if (c.x === nx && c.y === ny) {
+          return { index: i, def: this.specialNpcDefs[i].def };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Show dialogue for a special NPC and handle hermit despawn / merchant shop. */
+  private interactSpecialNpc(index: number): void {
+    const entry = this.specialNpcDefs[index];
+    if (!entry) return;
+
+    const line = getSpecialNpcDialogue(entry.def.kind, entry.interactions);
+    entry.interactions++;
+
+    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+
+    // Check if hermit should leave
+    if (entry.def.kind === "hermit" && line === HERMIT_FAREWELL) {
+      this.showSpecialDialogue(entry.def.label, line);
+      // Despawn the hermit after a short delay
+      this.time.delayedCall(1500, () => {
+        this.dismissDialogue();
+        const spr = this.specialNpcSprites[index];
+        if (spr && spr.active) {
+          this.tweens.add({
+            targets: spr,
+            alpha: 0,
+            duration: 600,
+            onComplete: () => spr.destroy(),
+          });
+        }
+      });
+      return;
+    }
+
+    // Wandering merchant — show dialogue then open shop
+    if (entry.def.kind === "wanderingMerchant") {
+      this.showSpecialDialogue(entry.def.label, line);
+      this.time.delayedCall(800, () => {
+        this.dismissDialogue();
+        const city = getCity(this.player.cityId);
+        if (!city) return;
+        this.autoSave();
+        this.scene.start("ShopScene", {
+          player: this.player,
+          townName: `${city.name} - Wandering Merchant`,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          shopItemIds: entry.def.shopItems ?? ["potion", "ether"],
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+          fromCity: true,
+          cityId: city.id,
+        });
+      });
+      return;
+    }
+
+    // Regular dialogue for traveler / adventurer
+    this.showSpecialDialogue(entry.def.label, line);
+  }
+
+  /** Show a dialogue overlay for a special NPC. */
+  private showSpecialDialogue(speakerName: string, line: string): void {
+    if (this.dialogueOverlay) {
+      this.dialogueOverlay.destroy();
+      this.dialogueOverlay = null;
+    }
+
+    const container = this.add.container(0, 0).setDepth(50);
+    const boxW = MAP_WIDTH * TILE_SIZE - 40;
+    const boxH = 52;
+    const boxX = 20;
+    const boxY = MAP_HEIGHT * TILE_SIZE - boxH - 10;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.lineStyle(2, 0x4dd0e1, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 6);
+    container.add(bg);
+
+    const nameText = this.add.text(boxX + 10, boxY + 6, `✦ ${speakerName}`, {
+      fontSize: "10px",
+      fontFamily: "monospace",
+      color: "#4dd0e1",
+      stroke: "#000",
+      strokeThickness: 1,
+    });
+    container.add(nameText);
+
+    const lineText = this.add.text(boxX + 10, boxY + 22, line, {
+      fontSize: "11px",
+      fontFamily: "monospace",
+      color: "#ddd",
+      wordWrap: { width: boxW - 20 },
+    });
+    container.add(lineText);
+
+    const hint = this.add.text(boxX + boxW - 10, boxY + boxH - 14, "[SPACE]", {
+      fontSize: "8px",
+      fontFamily: "monospace",
+      color: "#888",
+    }).setOrigin(1, 0);
+    container.add(hint);
+
+    this.dialogueOverlay = container;
   }
 
   /**
@@ -1881,6 +2154,13 @@ export class OverworldScene extends Phaser.Scene {
           timeStep: this.timeStep,
           weatherState: this.weatherState,
         });
+        return;
+      }
+
+      // Check if adjacent to a special (rare) NPC first
+      const specialResult = this.findAdjacentSpecialNpc();
+      if (specialResult) {
+        this.interactSpecialNpc(specialResult.index);
         return;
       }
 

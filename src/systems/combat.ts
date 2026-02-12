@@ -327,10 +327,8 @@ export function playerUseAbility(
     };
   }
 
-  // Damage ability — uses STR or DEX
-  const stat = ability.statKey === "strength"
-    ? player.stats.strength
-    : player.stats.dexterity;
+  // Damage ability — uses STR, DEX, or WIS
+  const stat = player.stats[ability.statKey];
   const profBonus = Math.floor((player.level - 1) / 4) + 2;
   const talentAtk = getTalentAttackBonus(player.knownTalents ?? []);
   const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);

@@ -62,6 +62,11 @@ export class BattleScene extends Phaser.Scene {
   private playerDefending = false;
   private monsterDefending = false;
 
+  // Bonus action tracking (items are bonus actions, not turn actions)
+  private bonusActionUsed = false;
+  private itemsUsedThisTurn = 0;
+  private turnActionUsed = false;
+
   // AC discovery tracking
   private acHighestMiss = 0;
   private acLowestHit = Infinity;
@@ -315,6 +320,14 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  /** Reset bonus action tracking for a new player turn. */
+  private startPlayerTurn(): void {
+    this.bonusActionUsed = false;
+    this.itemsUsedThisTurn = 0;
+    this.turnActionUsed = false;
+    this.phase = "playerTurn";
+  }
+
   private closeAllSubMenus(): void {
     if (this.spellMenu) { this.spellMenu.destroy(); this.spellMenu = null; }
     if (this.itemMenu) { this.itemMenu.destroy(); this.itemMenu = null; }
@@ -402,9 +415,11 @@ export class BattleScene extends Phaser.Scene {
 
     abilities.forEach((ability, i) => {
       const canUse = this.player.mp >= ability.mpCost;
-      const color = canUse ? "#ffddaa" : "#666";
+      const isBonusAction = ability.bonusAction ?? false;
+      const bonusTag = isBonusAction ? " [BA]" : "";
+      const color = canUse ? (isBonusAction ? "#aaffaa" : "#ffddaa") : "#666";
       const text = this.add
-        .text(0, i * 28, `${ability.name} (${ability.mpCost} MP) - ${ability.type}`, {
+        .text(0, i * 28, `${ability.name}${bonusTag} (${ability.mpCost} MP) - ${ability.type}`, {
           fontSize: "12px",
           fontFamily: "monospace",
           color,
@@ -428,9 +443,34 @@ export class BattleScene extends Phaser.Scene {
 
   private doPlayerAbility(abilityId: string): void {
     if (this.phase !== "playerTurn") return;
+
+    const ability = getAbility(abilityId);
+    if (!ability) return;
+
+    // Bonus action abilities don't use the turn action
+    if (ability.bonusAction) {
+      if (this.bonusActionUsed) {
+        this.addLog("Bonus action already used this turn!");
+        return;
+      }
+    } else {
+      if (this.turnActionUsed) {
+        this.addLog("Turn action already used!");
+        return;
+      }
+    }
+
     this.playerDefending = false;
     this.monsterDefending = false;
-    this.phase = "monsterTurn";
+
+    if (ability.bonusAction) {
+      // Bonus action ability — doesn't end the turn
+      this.bonusActionUsed = true;
+    } else {
+      // Regular ability — ends the turn
+      this.turnActionUsed = true;
+      this.phase = "monsterTurn";
+    }
 
     try {
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
@@ -473,6 +513,12 @@ export class BattleScene extends Phaser.Scene {
       }
 
       this.checkBattleEnd();
+
+      // For bonus action abilities, add a log hint if player still has actions
+      if (ability.bonusAction && this.phase === "playerTurn") {
+        this.addLog("(Bonus action — you can still act this turn)");
+        this.closeAllSubMenus();
+      }
     } catch (err) {
       this.handleError("doPlayerAbility", err);
     }
@@ -698,7 +744,7 @@ export class BattleScene extends Phaser.Scene {
 
       if (result.playerFirst) {
         this.addLog("You act first!");
-        this.phase = "playerTurn";
+        this.startPlayerTurn();
       } else {
         this.addLog(`${this.monster.name} acts first!`);
         this.phase = "monsterTurn";
@@ -711,8 +757,13 @@ export class BattleScene extends Phaser.Scene {
 
   private doPlayerAttack(): void {
     if (this.phase !== "playerTurn") return;
+    if (this.turnActionUsed) {
+      this.addLog("Turn action already used!");
+      return;
+    }
     this.closeAllSubMenus();
     this.playerDefending = false; // reset defend on new action
+    this.turnActionUsed = true;
     this.phase = "monsterTurn"; // prevent double actions
 
     try {
@@ -760,9 +811,14 @@ export class BattleScene extends Phaser.Scene {
 
   private doDefend(): void {
     if (this.phase !== "playerTurn") return;
+    if (this.turnActionUsed) {
+      this.addLog("Turn action already used!");
+      return;
+    }
     this.closeAllSubMenus();
     this.monsterDefending = false; // reset monster defend
     this.playerDefending = true;
+    this.turnActionUsed = true;
     this.phase = "monsterTurn";
     this.addLog(`${this.player.name} takes a defensive stance! (+2 AC)`);
     debugPanelLog(`  ↳ [Defend] AC ${getArmorClass(this.player)} → ${getArmorClass(this.player) + 2}`, false, "roll-detail");
@@ -772,8 +828,13 @@ export class BattleScene extends Phaser.Scene {
 
   private doPlayerSpell(spellId: string): void {
     if (this.phase !== "playerTurn") return;
+    if (this.turnActionUsed) {
+      this.addLog("Turn action already used!");
+      return;
+    }
     this.playerDefending = false;
     this.monsterDefending = false;
+    this.turnActionUsed = true;
     this.phase = "monsterTurn";
 
     try {
@@ -815,8 +876,16 @@ export class BattleScene extends Phaser.Scene {
 
   private doUseItem(itemIndex: number): void {
     if (this.phase !== "playerTurn") return;
-    this.playerDefending = false;
-    this.phase = "monsterTurn";
+
+    // Items are bonus actions: 1st item is free, 2nd item sacrifices turn action
+    if (this.bonusActionUsed && this.turnActionUsed) {
+      this.addLog("No actions remaining this turn!");
+      return;
+    }
+    if (this.itemsUsedThisTurn >= 2) {
+      this.addLog("Cannot use more than 2 items per turn!");
+      return;
+    }
 
     try {
       const result = useItem(this.player, itemIndex);
@@ -825,18 +894,32 @@ export class BattleScene extends Phaser.Scene {
       this.updatePlayerStats();
 
       if (result.used) {
-        this.time.delayedCall(800, () => this.doMonsterTurn());
-      } else {
-        this.phase = "playerTurn";
+        this.itemsUsedThisTurn++;
+        if (this.itemsUsedThisTurn === 1 && !this.bonusActionUsed) {
+          // First item: bonus action used, player still has turn action
+          this.bonusActionUsed = true;
+          this.addLog("(Bonus action — you can still act this turn)");
+          this.closeAllSubMenus();
+        } else {
+          // Second item: sacrifices turn action, end turn
+          this.turnActionUsed = true;
+          this.addLog("(Used 2 items — turn action spent)");
+          this.closeAllSubMenus();
+          this.phase = "monsterTurn";
+          this.time.delayedCall(800, () => this.doMonsterTurn());
+        }
       }
     } catch (err) {
       this.handleError("doUseItem", err);
-      this.phase = "playerTurn";
     }
   }
 
   private doFlee(): void {
     if (this.phase !== "playerTurn") return;
+    if (this.turnActionUsed) {
+      this.addLog("Turn action already used!");
+      return;
+    }
 
     if (this.monster.isBoss) {
       this.addLog("Cannot flee from a boss fight!");
@@ -844,6 +927,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.closeAllSubMenus();
+    this.turnActionUsed = true;
     this.phase = "monsterTurn";
     try {
       const dexMod = abilityModifier(this.player.stats.dexterity);
@@ -879,7 +963,7 @@ export class BattleScene extends Phaser.Scene {
         this.updateMonsterDisplay();
         this.playerDefending = false;
         this.updatePlayerStats();
-        this.phase = "playerTurn";
+        this.startPlayerTurn();
         return;
       }
 
@@ -918,7 +1002,7 @@ export class BattleScene extends Phaser.Scene {
 
             this.playerDefending = false;
             this.updatePlayerStats();
-            this.phase = "playerTurn";
+            this.startPlayerTurn();
             return;
           }
         }
@@ -979,7 +1063,7 @@ export class BattleScene extends Phaser.Scene {
         return;
       }
 
-      this.phase = "playerTurn";
+      this.startPlayerTurn();
     } catch (err) {
       this.handleError("doMonsterTurn", err);
     }

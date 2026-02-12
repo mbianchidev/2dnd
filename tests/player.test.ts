@@ -19,6 +19,7 @@ import {
   type PlayerStats,
 } from "../src/systems/player";
 import { ITEMS, getItem } from "../src/data/items";
+import { getAbility } from "../src/data/abilities";
 
 const defaultStats: PlayerStats = {
   strength: 10, dexterity: 10, constitution: 10,
@@ -317,7 +318,7 @@ describe("player system", () => {
     it("each class has unique starting spell or ability", () => {
       const startingSpells = new Set<string>();
       const startingAbilities = new Set<string>();
-      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian"]) {
+      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk"]) {
         const player = createPlayer("Test", defaultStats, classId);
         if (player.knownSpells.length > 0) startingSpells.add(player.knownSpells[0]);
         if (player.knownAbilities.length > 0) startingAbilities.add(player.knownAbilities[0]);
@@ -326,11 +327,13 @@ describe("player system", () => {
       expect(startingSpells.size + startingAbilities.size).toBeGreaterThanOrEqual(3);
     });
 
-    it("rogue and barbarian have no spells (pure martial)", () => {
+    it("rogue, barbarian, and monk have no spells (pure martial)", () => {
       const rogue = createPlayer("Rogue", defaultStats, "rogue");
       const barbarian = createPlayer("Barb", defaultStats, "barbarian");
+      const monk = createPlayer("Monk", defaultStats, "monk");
       expect(rogue.knownSpells).toHaveLength(0);
       expect(barbarian.knownSpells).toHaveLength(0);
+      expect(monk.knownSpells).toHaveLength(0);
     });
 
     it("mage has no martial abilities", () => {
@@ -364,6 +367,23 @@ describe("player system", () => {
       const cleric = createPlayer("Cleric", clericStats, "cleric");
       // WIS 14+2=16 -> mod +3, proficiency +2 = 5
       expect(getSpellModifier(cleric)).toBe(5);
+    });
+
+    it("monk has martial abilities and no spells", () => {
+      const monk = createPlayer("Monk", defaultStats, "monk");
+      expect(monk.knownAbilities.length).toBeGreaterThan(0);
+      expect(monk.knownSpells).toHaveLength(0);
+    });
+
+    it("barbarian has enrage as a bonus action ability", () => {
+      const barbarian = createPlayer("Barb", defaultStats, "barbarian");
+      // Level up to unlock enrage (level 3)
+      const result = awardXP(barbarian, xpForLevel(4));
+      const newAbilityIds = result.newAbilities.map((a) => a.id);
+      expect(newAbilityIds).toContain("enrage");
+      const enrage = getAbility("enrage");
+      expect(enrage).toBeDefined();
+      expect(enrage!.bonusAction).toBe(true);
     });
   });
 });

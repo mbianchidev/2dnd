@@ -15,7 +15,9 @@ export interface Ability {
   damageDie: DieType;
   type: "damage" | "heal";
   /** Which stat drives the attack roll. */
-  statKey: "strength" | "dexterity";
+  statKey: "strength" | "dexterity" | "wisdom";
+  /** If true, this ability is a bonus action and does not end the turn. */
+  bonusAction?: boolean;
 }
 
 export const ABILITIES: Ability[] = [
@@ -131,6 +133,13 @@ export const ABILITIES: Ability[] = [
     type: "damage", statKey: "strength",
   },
   {
+    id: "enrage", name: "Enrage",
+    description: "Enter a furious rage, boosting your next attack (bonus action)",
+    mpCost: 3, levelRequired: 3, damageCount: 2, damageDie: 6,
+    type: "heal", statKey: "strength",
+    bonusAction: true,
+  },
+  {
     id: "rage", name: "Rage",
     description: "Enter a berserker fury, dealing massive damage",
     mpCost: 5, levelRequired: 5, damageCount: 3, damageDie: 8,
@@ -147,6 +156,32 @@ export const ABILITIES: Ability[] = [
     description: "A strike that shakes the earth itself",
     mpCost: 12, levelRequired: 15, damageCount: 5, damageDie: 10,
     type: "damage", statKey: "strength",
+  },
+
+  // ── Monk (DEX / WIS) ─────────────────────────────────────────
+  {
+    id: "flurryOfBlows", name: "Flurry of Blows",
+    description: "Unleash a rapid series of unarmed strikes",
+    mpCost: 2, levelRequired: 1, damageCount: 2, damageDie: 6,
+    type: "damage", statKey: "dexterity",
+  },
+  {
+    id: "kiStrike", name: "Ki Strike",
+    description: "Channel ki energy into a powerful blow",
+    mpCost: 5, levelRequired: 5, damageCount: 3, damageDie: 6,
+    type: "damage", statKey: "dexterity",
+  },
+  {
+    id: "patientDefense", name: "Patient Defense",
+    description: "Focus your ki to mend body and spirit",
+    mpCost: 6, levelRequired: 9, damageCount: 3, damageDie: 6,
+    type: "heal", statKey: "wisdom",
+  },
+  {
+    id: "stunningStrike", name: "Stunning Strike",
+    description: "Strike a pressure point with devastating precision",
+    mpCost: 10, levelRequired: 15, damageCount: 5, damageDie: 8,
+    type: "damage", statKey: "dexterity",
   },
 ];
 

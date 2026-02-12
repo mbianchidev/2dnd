@@ -643,10 +643,10 @@ describe("game data", () => {
   });
 
   describe("class system", () => {
-    it("has 8 distinct classes", () => {
-      expect(PLAYER_APPEARANCES).toHaveLength(8);
+    it("has 9 distinct classes", () => {
+      expect(PLAYER_APPEARANCES).toHaveLength(9);
       const ids = PLAYER_APPEARANCES.map((a) => a.id);
-      expect(new Set(ids).size).toBe(8);
+      expect(new Set(ids).size).toBe(9);
     });
 
     it("each class has description and playstyle", () => {
@@ -686,7 +686,7 @@ describe("game data", () => {
     });
 
     it("martial classes have at least 3 abilities", () => {
-      const martialClasses = ["knight", "ranger", "rogue", "paladin", "barbarian"];
+      const martialClasses = ["knight", "ranger", "rogue", "paladin", "barbarian", "monk"];
       for (const classId of martialClasses) {
         const app = getAppearance(classId);
         expect(app.abilities.length, `${app.label} should have abilities`).toBeGreaterThanOrEqual(3);
@@ -709,9 +709,10 @@ describe("game data", () => {
       }
     });
 
-    it("rogue and barbarian have no spells", () => {
+    it("rogue, barbarian, and monk have no spells", () => {
       expect(getAppearance("rogue").spells).toHaveLength(0);
       expect(getAppearance("barbarian").spells).toHaveLength(0);
+      expect(getAppearance("monk").spells).toHaveLength(0);
     });
 
     it("each ability has a unique ID", () => {

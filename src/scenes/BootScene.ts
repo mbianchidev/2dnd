@@ -721,7 +721,7 @@ export class BootScene extends Phaser.Scene {
     bodyColor: number,
     skinColor: number,
     legColor: number,
-    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" = "sword"
+    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" = "sword"
   ): void {
     const gfx = this.add.graphics();
     // Body
@@ -752,7 +752,7 @@ export class BootScene extends Phaser.Scene {
   /** Draw class-specific weapon on the sprite. */
   private drawWeapon(
     gfx: Phaser.GameObjects.Graphics,
-    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe"
+    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist"
   ): void {
     switch (weaponSprite) {
       case "sword":
@@ -796,6 +796,14 @@ export class BootScene extends Phaser.Scene {
         gfx.fillRect(27, 6, 2, 18);
         gfx.fillStyle(0xb0bec5, 1);
         gfx.fillRect(24, 6, 5, 8);
+        break;
+      case "fist":
+        // Wrapped fist / knuckle
+        gfx.fillStyle(0xbdbdbd, 1);
+        gfx.fillRect(25, 16, 6, 6);
+        gfx.fillStyle(0x9e9e9e, 1);
+        gfx.fillRect(25, 17, 6, 1);
+        gfx.fillRect(25, 19, 6, 1);
         break;
     }
   }
@@ -2461,7 +2469,7 @@ export class BootScene extends Phaser.Scene {
     legColor: number,
     hairStyle: number,
     hairColor: number,
-    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" = "sword"
+    weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" = "sword"
   ): void {
     const gfx = this.add.graphics();
     // Body

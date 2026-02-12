@@ -25,8 +25,8 @@ export interface PlayerAppearance {
   spells: string[];
   /** Martial ability IDs for non-caster classes (empty for casters). */
   abilities: string[];
-  /** Weapon type drawn on the class sprite ("sword", "staff", "dagger", "bow", "mace", "axe"). */
-  weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe";
+  /** Weapon type drawn on the class sprite ("sword", "staff", "dagger", "bow", "mace", "axe", "fist"). */
+  weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist";
 }
 
 /** Classes that rely primarily on spells rather than martial abilities. */
@@ -153,8 +153,20 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     primaryStat: "strength",
     hitDie: 12,
     spells: [],
-    abilities: ["recklessStrike", "rage", "endure", "titansBlow"],
+    abilities: ["recklessStrike", "enrage", "rage", "endure", "titansBlow"],
     weaponSprite: "axe",
+  },
+  {
+    id: "monk", label: "Monk",
+    description: "A disciplined martial artist who channels ki through unarmed combat.",
+    playstyle: "Melee DPS / Skirmisher",
+    bodyColor: 0xff8f00, skinColor: 0xffccbc, legColor: 0xe65100,
+    statBoosts: { dexterity: 2, wisdom: 1 },
+    primaryStat: "dexterity",
+    hitDie: 8,
+    spells: [],
+    abilities: ["flurryOfBlows", "kiStrike", "patientDefense", "stunningStrike"],
+    weaponSprite: "fist",
   },
 ];
 

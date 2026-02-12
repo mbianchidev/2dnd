@@ -66,7 +66,9 @@ import {
   SPECIAL_NPC_KINDS,
   HERMIT_FAREWELL,
   SHOPKEEPER_DIALOGUES,
+  NPC_SKIN_COLORS,
   type NpcInstance,
+  type NpcTemplate,
   type SpecialNpcKind,
   type SpecialNpcDef,
 } from "../data/npcs";
@@ -840,6 +842,66 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Generate (or retrieve from cache) an NPC texture with skin, hair, and
+   * dress colours baked in so that `setTint` isn't needed.  This prevents the
+   * entire sprite — skin, hair, legs — from being tinted a single colour.
+   */
+  private getOrCreateNpcTexture(
+    tpl: NpcTemplate,
+    skinColor: number,
+    hairColor: number,
+    dressColor: number,
+  ): string {
+    const key = `npc_${tpl.id}_${skinColor.toString(16)}_${hairColor.toString(16)}_${dressColor.toString(16)}`;
+    if (this.textures.exists(key)) return key;
+
+    const S = TILE_SIZE;
+    const gfx = this.add.graphics();
+    const isChild = tpl.ageGroup === "child";
+    const bodyW = isChild ? 10 : 14;
+    const bodyH = isChild ? 10 : 14;
+    const headR = isChild ? 5 : 6;
+    const legW = isChild ? 3 : 4;
+    const legH = isChild ? 4 : 5;
+    const bx = Math.floor((S - bodyW) / 2);
+    const by = isChild ? 14 : 10;
+
+    // Body / dress — uses the per-instance dress colour
+    gfx.fillStyle(dressColor, 1);
+    gfx.fillRect(bx, by, bodyW, bodyH);
+
+    // Head — real skin colour
+    gfx.fillStyle(skinColor, 1);
+    gfx.fillCircle(S / 2, by - headR + 2, headR);
+
+    // Hair
+    gfx.fillStyle(hairColor, 1);
+    if (tpl.ageGroup === "child") {
+      gfx.fillRect(S / 2 - headR + 1, by - headR * 2 + 3, headR * 2 - 2, 3);
+    } else if (tpl.ageGroup === "female") {
+      gfx.fillRect(S / 2 - headR, by - headR * 2 + 2, headR * 2, 4);
+      gfx.fillRect(S / 2 - headR, by - headR + 4, 2, headR);
+      gfx.fillRect(S / 2 + headR - 2, by - headR + 4, 2, headR);
+    } else {
+      gfx.fillRect(S / 2 - headR + 1, by - headR * 2 + 2, headR * 2 - 2, 4);
+    }
+
+    // Eyes
+    gfx.fillStyle(0x111111, 1);
+    gfx.fillRect(S / 2 - 2, by - headR + 3, 1, 1);
+    gfx.fillRect(S / 2 + 2, by - headR + 3, 1, 1);
+
+    // Legs — neutral brown
+    gfx.fillStyle(0x6d4c41, 1);
+    gfx.fillRect(bx + 1, by + bodyH, legW, legH);
+    gfx.fillRect(bx + bodyW - legW - 1, by + bodyH, legW, legH);
+
+    gfx.generateTexture(key, S, S);
+    gfx.destroy();
+    return key;
+  }
+
   /** Spawn NPC sprites in cities with wandering / stationary behaviour. */
   private spawnCityNpcs(city: CityData): void {
     const npcs = CITY_NPCS[city.id];
@@ -853,17 +915,15 @@ export class OverworldScene extends Phaser.Scene {
       if (!tpl) continue;
       if (!this.isExplored(def.x, def.y)) continue;
 
-      const texKey = `npc_${tpl.id}`;
+      // Generate a per-instance texture with proper skin/hair/dress colours
+      const colors = getNpcColors(city.id, i);
+      const texKey = this.getOrCreateNpcTexture(tpl, colors.skinColor, colors.hairColor, colors.dressColor);
       const sprite = this.add.sprite(
         def.x * TILE_SIZE + TILE_SIZE / 2,
         def.y * TILE_SIZE + TILE_SIZE / 2,
         texKey
       );
       sprite.setDepth(11);
-
-      // Apply per-instance colour variation via tint
-      const colors = getNpcColors(city.id, i);
-      sprite.setTint(colors.dressColor);
 
       // Scale children smaller
       if (tpl.heightScale < 1) {
@@ -967,14 +1027,15 @@ export class OverworldScene extends Phaser.Scene {
       const pos = walkable[posIdx];
       walkable.splice(posIdx, 1);
 
-      const texKey = `npc_${tpl.id}`;
+      // Generate per-instance texture for special NPC with proper body colours
+      const specialSkin = NPC_SKIN_COLORS[Math.abs(kind.length * 7) % NPC_SKIN_COLORS.length];
+      const texKey = this.getOrCreateNpcTexture(tpl, specialSkin, 0x5d4037, def.tintColor);
       const sprite = this.add.sprite(
         pos.x * TILE_SIZE + TILE_SIZE / 2,
         pos.y * TILE_SIZE + TILE_SIZE / 2,
         texKey
       );
       sprite.setDepth(11);
-      sprite.setTint(def.tintColor);
 
       this.specialNpcSprites.push(sprite);
       this.specialNpcDefs.push({ def, x: pos.x, y: pos.y, interactions: 0 });

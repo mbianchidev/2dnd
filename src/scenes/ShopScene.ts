@@ -8,6 +8,7 @@ import { buyItem, useItem, ownsEquipment } from "../systems/player";
 import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
 import { type WeatherState, createWeatherState } from "../systems/weather";
+import { CYCLE_LENGTH } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
 
 export class ShopScene extends Phaser.Scene {
@@ -286,12 +287,12 @@ export class ShopScene extends Phaser.Scene {
     this.showInnConfirmation();
   }
 
-  /** Show a confirmation prompt before spending gold at the inn. */
+  /** Show a prompt with two rest options: sleep until morning or wait until night. */
   private showInnConfirmation(): void {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
-    const boxW = 260;
-    const boxH = 70;
+    const boxW = 300;
+    const boxH = 110;
     const boxX = (w - boxW) / 2;
     const boxY = (h - boxH) / 2;
 
@@ -304,47 +305,78 @@ export class ShopScene extends Phaser.Scene {
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
     container.add(bg);
 
-    const prompt = this.add.text(boxX + boxW / 2, boxY + 12, "Rest at the inn for 10g?", {
+    const prompt = this.add.text(boxX + boxW / 2, boxY + 10, "Rest at the inn for 10g?", {
       fontSize: "12px",
       fontFamily: "monospace",
       color: "#ffd700",
     }).setOrigin(0.5, 0);
     container.add(prompt);
 
-    const yesBtn = this.add.text(boxX + boxW / 2 - 50, boxY + 40, "Yes", {
-      fontSize: "13px",
+    // Dawn = step 0 of the next cycle
+    const DAWN_STEP = 0;
+    // Night starts at step 265
+    const NIGHT_STEP = 265;
+
+    const sleepBtn = this.add.text(boxX + boxW / 2, boxY + 32, "🌅 Sleep Until Morning", {
+      fontSize: "12px",
       fontFamily: "monospace",
       color: "#88ff88",
       backgroundColor: "#2a2a4e",
-      padding: { x: 12, y: 4 },
+      padding: { x: 10, y: 4 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    yesBtn.on("pointerover", () => yesBtn.setColor("#ffd700"));
-    yesBtn.on("pointerout", () => yesBtn.setColor("#88ff88"));
-    yesBtn.on("pointerdown", () => {
+    sleepBtn.on("pointerover", () => sleepBtn.setColor("#ffd700"));
+    sleepBtn.on("pointerout", () => sleepBtn.setColor("#88ff88"));
+    sleepBtn.on("pointerdown", () => {
       container.destroy();
-      this.confirmInnRest();
+      // Advance to Dawn (step 0) of the next cycle
+      const currentCycle = Math.floor(this.timeStep / CYCLE_LENGTH);
+      this.confirmInnRest((currentCycle + 1) * CYCLE_LENGTH + DAWN_STEP,
+        "You sleep soundly at the inn. Good morning! HP and MP restored.");
     });
-    container.add(yesBtn);
+    container.add(sleepBtn);
 
-    const noBtn = this.add.text(boxX + boxW / 2 + 50, boxY + 40, "No", {
-      fontSize: "13px",
+    const waitBtn = this.add.text(boxX + boxW / 2, boxY + 56, "🌙 Wait Until Night", {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#aaaaff",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 10, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    waitBtn.on("pointerover", () => waitBtn.setColor("#ffd700"));
+    waitBtn.on("pointerout", () => waitBtn.setColor("#aaaaff"));
+    waitBtn.on("pointerdown", () => {
+      container.destroy();
+      // Set to Night start of the current or next cycle
+      const currentPos = ((this.timeStep % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH;
+      const currentCycle = Math.floor(this.timeStep / CYCLE_LENGTH);
+      const targetStep = currentPos < NIGHT_STEP
+        ? currentCycle * CYCLE_LENGTH + NIGHT_STEP
+        : (currentCycle + 1) * CYCLE_LENGTH + NIGHT_STEP;
+      this.confirmInnRest(targetStep,
+        "You rest at the inn and wait for nightfall. HP and MP restored.");
+    });
+    container.add(waitBtn);
+
+    const cancelBtn = this.add.text(boxX + boxW / 2, boxY + 82, "Cancel", {
+      fontSize: "12px",
       fontFamily: "monospace",
       color: "#ff8888",
       backgroundColor: "#2a2a4e",
       padding: { x: 12, y: 4 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    noBtn.on("pointerover", () => noBtn.setColor("#ffd700"));
-    noBtn.on("pointerout", () => noBtn.setColor("#ff8888"));
-    noBtn.on("pointerdown", () => container.destroy());
-    container.add(noBtn);
+    cancelBtn.on("pointerover", () => cancelBtn.setColor("#ffd700"));
+    cancelBtn.on("pointerout", () => cancelBtn.setColor("#ff8888"));
+    cancelBtn.on("pointerdown", () => container.destroy());
+    container.add(cancelBtn);
   }
 
-  /** Execute the inn rest after the player confirms. */
-  private confirmInnRest(): void {
+  /** Execute the inn rest: heal the player and advance time to the target step. */
+  private confirmInnRest(targetTimeStep: number, message: string): void {
     this.player.gold -= 10;
     this.player.hp = this.player.maxHp;
     this.player.mp = this.player.maxMp;
-    this.setMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
+    this.timeStep = targetTimeStep;
+    this.setMessage(message, "#88ff88");
     this.updateDisplay();
     this.renderShopItems();
   }

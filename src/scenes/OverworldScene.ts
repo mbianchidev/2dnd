@@ -31,7 +31,7 @@ import {
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, castSpellOutsideCombat, useAbilityOutsideCombat, type PlayerState, type PlayerStats } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, castSpellOutsideCombat, useAbilityOutsideCombat, longRest, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { getAppearance, getClassSpells, getClassAbilities } from "../systems/appearance";
 import { getSpell } from "../data/spells";
@@ -1590,14 +1590,16 @@ export class OverworldScene extends Phaser.Scene {
       const shop = getCityShopNearby(city, this.player.x, this.player.y);
       if (shop) {
         if (shop.type === "inn") {
-          // Inn: heal directly without opening shop
+          // Inn: long rest restores 50% HP and 50% MP
           if (this.player.gold < 10) {
             this.showMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
           } else {
             this.player.gold -= 10;
-            this.player.hp = this.player.maxHp;
-            this.player.mp = this.player.maxMp;
-            this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
+            this.player.longRestCount = 0; // reset for new inn visit
+            const { hpRestored, mpRestored } = longRest(this.player);
+            const hasLongRest = this.player.knownSpells.includes("longRest");
+            const hint = hasLongRest ? " Use Long Rest (Q) to rest again!" : "";
+            this.showMessage(`You rest at the inn. +${hpRestored} HP, +${mpRestored} MP.${hint}`, "#88ff88");
             this.updateHUD();
             this.autoSave();
           }
@@ -2021,6 +2023,16 @@ export class OverworldScene extends Phaser.Scene {
 
     let cy = py + 48;
 
+    // Detect if player is at an inn (in a city near an inn shop)
+    let atInn = false;
+    if (p.inCity) {
+      const city = getCity(p.cityId);
+      if (city) {
+        const shop = getCityShopNearby(city, p.x, p.y);
+        if (shop && shop.type === "inn") atInn = true;
+      }
+    }
+
     // --- Healing / Utility Spells ---
     const classSpells = getClassSpells(p.appearanceId);
     const usableSpells = p.knownSpells
@@ -2036,8 +2048,13 @@ export class OverworldScene extends Phaser.Scene {
       cy += 18;
 
       for (const spell of usableSpells) {
-        const canCast = p.mp >= spell.mpCost && (spell.type !== "heal" || p.hp < p.maxHp);
-        const label = `${spell.name} (${spell.mpCost} MP) - ${spell.type}`;
+        let canCast = p.mp >= spell.mpCost && (spell.type !== "heal" || p.hp < p.maxHp);
+        // Long Rest has special conditions
+        if (spell.id === "longRest") {
+          canCast = atInn && p.longRestCount >= 1 && p.longRestCount < 2;
+        }
+        const innTag = spell.id === "longRest" ? " (inn only)" : "";
+        const label = `${spell.name} (${spell.mpCost} MP) - ${spell.type}${innTag}`;
         const color = canCast ? "#ccffcc" : "#666";
         const btn = this.add.text(px + 14, cy, label, {
           fontSize: "11px", fontFamily: "monospace", color,
@@ -2047,7 +2064,7 @@ export class OverworldScene extends Phaser.Scene {
           btn.on("pointerover", () => btn.setColor("#ffd700"));
           btn.on("pointerout", () => btn.setColor(color));
           btn.on("pointerdown", () => {
-            const result = castSpellOutsideCombat(p, spell.id);
+            const result = castSpellOutsideCombat(p, spell.id, atInn);
             this.showMessage(result.message);
             audioEngine.playPotionSFX();
             // Rebuild overlay to update MP and state

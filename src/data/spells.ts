@@ -196,6 +196,16 @@ export const SPELLS: Spell[] = [
     damageDie: 10,
     type: "heal",
   },
+  {
+    id: "longRest",
+    name: "Long Rest",
+    description: "Rest deeply at an inn to recover again",
+    mpCost: 0,
+    levelRequired: 1,
+    damageCount: 0,
+    damageDie: 4,
+    type: "utility",
+  },
 ];
 
 /** Look up a spell by ID. */

@@ -13,6 +13,7 @@ import {
   useItem,
   castSpellOutsideCombat,
   useAbilityOutsideCombat,
+  longRest,
   calculatePointsSpent,
   isValidPointBuy,
   POINT_BUY_COSTS,
@@ -461,6 +462,111 @@ describe("player system", () => {
       const player = createTestPlayer();
       const result = useAbilityOutsideCombat(player, "nonexistent");
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe("longRest", () => {
+    it("restores 50% HP and 50% MP", () => {
+      const player = createTestPlayer();
+      player.hp = 10;
+      player.mp = 2;
+
+      const { hpRestored, mpRestored } = longRest(player);
+      expect(hpRestored).toBe(Math.floor(player.maxHp * 0.5));
+      expect(mpRestored).toBe(Math.floor(player.maxMp * 0.5));
+      expect(player.longRestCount).toBe(1);
+    });
+
+    it("caps restoration at max values", () => {
+      const player = createTestPlayer();
+      // Already near max — should not exceed maxHp/maxMp
+      player.hp = player.maxHp - 1;
+      player.mp = player.maxMp - 1;
+
+      const { hpRestored, mpRestored } = longRest(player);
+      expect(hpRestored).toBe(1);
+      expect(mpRestored).toBe(1);
+      expect(player.hp).toBe(player.maxHp);
+      expect(player.mp).toBe(player.maxMp);
+    });
+
+    it("increments longRestCount each call", () => {
+      const player = createTestPlayer();
+      player.hp = 1;
+      player.mp = 1;
+      longRest(player);
+      expect(player.longRestCount).toBe(1);
+      player.hp = 1;
+      player.mp = 1;
+      longRest(player);
+      expect(player.longRestCount).toBe(2);
+    });
+  });
+
+  describe("Long Rest spell via castSpellOutsideCombat", () => {
+    it("fails when not at an inn", () => {
+      const player = createTestPlayer();
+      player.knownSpells.push("longRest");
+      player.longRestCount = 1;
+
+      const result = castSpellOutsideCombat(player, "longRest", false);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("inn");
+    });
+
+    it("fails when no first rest taken yet", () => {
+      const player = createTestPlayer();
+      player.knownSpells.push("longRest");
+      player.longRestCount = 0;
+
+      const result = castSpellOutsideCombat(player, "longRest", true);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("rest first");
+    });
+
+    it("succeeds at inn after first rest", () => {
+      const player = createTestPlayer();
+      player.knownSpells.push("longRest");
+      player.longRestCount = 1;
+      player.hp = 10;
+      player.mp = 2;
+
+      const result = castSpellOutsideCombat(player, "longRest", true);
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("Long Rest");
+      expect(player.longRestCount).toBe(2);
+      expect(player.hp).toBeGreaterThan(10);
+      expect(player.mp).toBeGreaterThan(2);
+    });
+
+    it("fails when already rested twice", () => {
+      const player = createTestPlayer();
+      player.knownSpells.push("longRest");
+      player.longRestCount = 2;
+
+      const result = castSpellOutsideCombat(player, "longRest", true);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("twice");
+    });
+  });
+
+  describe("createPlayer starts with longRest spell", () => {
+    it("new player knows longRest spell", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      expect(player.knownSpells).toContain("longRest");
+    });
+
+    it("all classes start with longRest", () => {
+      const classes = ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian"];
+      for (const cls of classes) {
+        const player = createPlayer("Test", defaultStats, cls);
+        expect(player.knownSpells, `${cls} should know longRest`).toContain("longRest");
+      }
+    });
+
+    it("new player also knows fireBolt", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      expect(player.knownSpells).toContain("fireBolt");
     });
   });
 });

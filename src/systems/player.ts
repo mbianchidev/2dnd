@@ -80,6 +80,7 @@ export interface PlayerState {
   lastTownY: number;      // last town tile y
   lastTownChunkX: number; // last town chunk x
   lastTownChunkY: number; // last town chunk y
+  longRestCount: number;  // how many long rests taken at current inn visit (max 2 with spell)
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -112,8 +113,16 @@ export function createPlayer(
   const startHp = Math.max(10, 25 + conMod * 3);
   const startMp = Math.max(4, 8 + intMod * 2);
 
-  // Starting spell — first spell in the class list
-  const startingSpell = appearance.spells[0] ?? "fireBolt";
+  // Starting spells — all class spells available at level 1
+  const classSpellIds = appearance.spells;
+  const startingSpells = classSpellIds.filter((id) => {
+    const sp = getSpell(id);
+    return sp && sp.levelRequired <= 1;
+  });
+  // Fallback to first spell if no level-1 spells found
+  if (startingSpells.length === 0) {
+    startingSpells.push(appearance.spells[0] ?? "fireBolt");
+  }
 
   // Starting abilities — all class abilities available at level 1
   const classAbilities = appearance.abilities ?? [];
@@ -134,7 +143,7 @@ export function createPlayer(
     pendingStatPoints: 0,
     gold: 50,
     inventory: [],
-    knownSpells: [startingSpell],
+    knownSpells: startingSpells,
     knownAbilities: startingAbilities,
     knownTalents: [],
     equippedWeapon: null,
@@ -157,6 +166,7 @@ export function createPlayer(
     lastTownY: 2,
     lastTownChunkX: 4,
     lastTownChunkY: 2,
+    longRestCount: 0,
   };
 }
 
@@ -386,10 +396,26 @@ export function allocateStatPoint(
   return true;
 }
 
+/**
+ * Perform a long rest at an inn. Restores 50% of max HP and 50% of max MP.
+ * Increments longRestCount. Returns the amounts restored.
+ */
+export function longRest(player: PlayerState): { hpRestored: number; mpRestored: number } {
+  const hpRestore = Math.floor(player.maxHp * 0.5);
+  const mpRestore = Math.floor(player.maxMp * 0.5);
+  const actualHp = Math.min(hpRestore, player.maxHp - player.hp);
+  const actualMp = Math.min(mpRestore, player.maxMp - player.mp);
+  player.hp += actualHp;
+  player.mp += actualMp;
+  player.longRestCount++;
+  return { hpRestored: actualHp, mpRestored: actualMp };
+}
+
 /** Cast a heal or utility spell outside of combat. Returns result. */
 export function castSpellOutsideCombat(
   player: PlayerState,
-  spellId: string
+  spellId: string,
+  atInn: boolean = false
 ): { success: boolean; message: string } {
   const spell = getSpell(spellId);
   if (!spell) return { success: false, message: "Unknown spell!" };
@@ -400,6 +426,21 @@ export function castSpellOutsideCombat(
 
   if (player.mp < spell.mpCost) {
     return { success: false, message: "Not enough MP!" };
+  }
+
+  // Long Rest spell — only usable at an inn after the first rest
+  if (spellId === "longRest") {
+    if (!atInn) {
+      return { success: false, message: "Long Rest can only be used at an inn!" };
+    }
+    if (player.longRestCount < 1) {
+      return { success: false, message: "You must rest first before using Long Rest!" };
+    }
+    if (player.longRestCount >= 2) {
+      return { success: false, message: "You have already rested twice!" };
+    }
+    const { hpRestored, mpRestored } = longRest(player);
+    return { success: true, message: `Long Rest! Recovered ${hpRestored} HP and ${mpRestored} MP.` };
   }
 
   if (spell.type === "heal") {

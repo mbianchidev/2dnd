@@ -31,9 +31,11 @@ import {
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, castSpellOutsideCombat, useAbilityOutsideCombat, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { getAppearance } from "../systems/appearance";
+import { getAppearance, getClassSpells, getClassAbilities } from "../systems/appearance";
+import { getSpell } from "../data/spells";
+import { getAbility } from "../data/abilities";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
@@ -94,6 +96,7 @@ export class OverworldScene extends Phaser.Scene {
   private menuOverlay: Phaser.GameObjects.Container | null = null;
   private worldMapOverlay: Phaser.GameObjects.Container | null = null;
   private settingsOverlay: Phaser.GameObjects.Container | null = null;
+  private spellOverlay: Phaser.GameObjects.Container | null = null;
   private isNewPlayer = false;
   private debugEncounters = true; // debug toggle for encounters
   private debugFogDisabled = false; // debug toggle for fog of war
@@ -1052,6 +1055,10 @@ export class OverworldScene extends Phaser.Scene {
     // N key opens world map overlay
     const nKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.N);
     nKey.on("down", () => this.toggleWorldMap());
+
+    // Q key opens spells & abilities overlay
+    const qKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
+    qKey.on("down", () => this.toggleSpellOverlay());
   }
 
   private createHUD(): void {
@@ -1264,7 +1271,7 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Check whether any overlay (menu, map, equip, stat allocation) is currently open. */
   private isOverlayOpen(): boolean {
-    return !!(this.menuOverlay || this.worldMapOverlay || this.equipOverlay || this.statOverlay || this.settingsOverlay);
+    return !!(this.menuOverlay || this.worldMapOverlay || this.equipOverlay || this.statOverlay || this.settingsOverlay || this.spellOverlay);
   }
 
   update(time: number): void {
@@ -1952,6 +1959,165 @@ export class OverworldScene extends Phaser.Scene {
       };
       scheduleFlash();
     }
+  }
+
+  // ─── Spells & Abilities Overlay ─────────────────────────────────
+
+  private toggleSpellOverlay(): void {
+    if (this.spellOverlay) {
+      this.spellOverlay.destroy();
+      this.spellOverlay = null;
+      return;
+    }
+    this.buildSpellOverlay();
+  }
+
+  private buildSpellOverlay(): void {
+    if (this.spellOverlay) {
+      this.spellOverlay.destroy();
+      this.spellOverlay = null;
+    }
+    // Close other overlays
+    if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
+    if (this.menuOverlay) { this.menuOverlay.destroy(); this.menuOverlay = null; }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const panelW = 280;
+    const panelH = 380;
+    const px = Math.floor((w - panelW) / 2);
+    const py = Math.floor((h - panelH) / 2) - 20;
+    const p = this.player;
+
+    this.spellOverlay = this.add.container(0, 0).setDepth(55);
+
+    // Dim background
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.6);
+    dim.fillRect(0, 0, w, h);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+    dim.on("pointerdown", () => this.toggleSpellOverlay());
+    this.spellOverlay.add(dim);
+
+    // Panel
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a3e, 0.95);
+    bg.fillRect(px, py, panelW, panelH);
+    bg.lineStyle(2, 0xffd700, 1);
+    bg.strokeRect(px, py, panelW, panelH);
+    this.spellOverlay.add(bg);
+
+    // Title
+    const title = this.add.text(px + panelW / 2, py + 10, "✦ Spells & Abilities", {
+      fontSize: "13px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    this.spellOverlay.add(title);
+
+    // MP display
+    const mpText = this.add.text(px + panelW / 2, py + 28, `MP: ${p.mp}/${p.maxMp}`, {
+      fontSize: "11px", fontFamily: "monospace", color: "#88aaff",
+    }).setOrigin(0.5, 0);
+    this.spellOverlay.add(mpText);
+
+    let cy = py + 48;
+
+    // --- Healing / Utility Spells ---
+    const classSpells = getClassSpells(p.appearanceId);
+    const usableSpells = p.knownSpells
+      .filter((id) => classSpells.includes(id))
+      .map((id) => getSpell(id))
+      .filter((s): s is NonNullable<typeof s> => s !== undefined && (s.type === "heal" || s.type === "utility"));
+
+    if (usableSpells.length > 0) {
+      const spellHeader = this.add.text(px + 10, cy, "― Spells ―", {
+        fontSize: "11px", fontFamily: "monospace", color: "#aaddff",
+      });
+      this.spellOverlay.add(spellHeader);
+      cy += 18;
+
+      for (const spell of usableSpells) {
+        const canCast = p.mp >= spell.mpCost && (spell.type !== "heal" || p.hp < p.maxHp);
+        const label = `${spell.name} (${spell.mpCost} MP) - ${spell.type}`;
+        const color = canCast ? "#ccffcc" : "#666";
+        const btn = this.add.text(px + 14, cy, label, {
+          fontSize: "11px", fontFamily: "monospace", color,
+        }).setInteractive({ useHandCursor: canCast });
+
+        if (canCast) {
+          btn.on("pointerover", () => btn.setColor("#ffd700"));
+          btn.on("pointerout", () => btn.setColor(color));
+          btn.on("pointerdown", () => {
+            const result = castSpellOutsideCombat(p, spell.id);
+            this.showMessage(result.message);
+            audioEngine.playPotionSFX();
+            // Rebuild overlay to update MP and state
+            this.buildSpellOverlay();
+            this.updateHUD();
+          });
+        }
+        this.spellOverlay.add(btn);
+        cy += 16;
+      }
+      cy += 6;
+    }
+
+    // --- Healing / Utility Abilities ---
+    const classAbilityIds = getClassAbilities(p.appearanceId);
+    const usableAbilities = (p.knownAbilities ?? [])
+      .filter((id) => classAbilityIds.includes(id))
+      .map((id) => getAbility(id))
+      .filter((a): a is NonNullable<typeof a> => a !== undefined && (a.type === "heal" || a.type === "utility"));
+
+    if (usableAbilities.length > 0) {
+      const abilityHeader = this.add.text(px + 10, cy, "― Abilities ―", {
+        fontSize: "11px", fontFamily: "monospace", color: "#ffddaa",
+      });
+      this.spellOverlay.add(abilityHeader);
+      cy += 18;
+
+      for (const ability of usableAbilities) {
+        const canUse = p.mp >= ability.mpCost && (ability.type !== "heal" || p.hp < p.maxHp);
+        const label = `${ability.name} (${ability.mpCost} MP) - ${ability.type}`;
+        const color = canUse ? "#ffffaa" : "#666";
+        const btn = this.add.text(px + 14, cy, label, {
+          fontSize: "11px", fontFamily: "monospace", color,
+        }).setInteractive({ useHandCursor: canUse });
+
+        if (canUse) {
+          btn.on("pointerover", () => btn.setColor("#ffd700"));
+          btn.on("pointerout", () => btn.setColor(color));
+          btn.on("pointerdown", () => {
+            const result = useAbilityOutsideCombat(p, ability.id);
+            this.showMessage(result.message);
+            audioEngine.playPotionSFX();
+            // Rebuild overlay to update MP and state
+            this.buildSpellOverlay();
+            this.updateHUD();
+          });
+        }
+        this.spellOverlay.add(btn);
+        cy += 16;
+      }
+    }
+
+    if (usableSpells.length === 0 && usableAbilities.length === 0) {
+      const noItems = this.add.text(px + panelW / 2, cy + 10, "No heal or utility\nspells/abilities known", {
+        fontSize: "11px", fontFamily: "monospace", color: "#888", align: "center",
+      }).setOrigin(0.5, 0);
+      this.spellOverlay.add(noItems);
+    }
+
+    // Tip
+    const tip = this.add.text(px + panelW / 2, py + panelH - 26, "💡 Heal and travel spells\nwork outside of combat", {
+      fontSize: "9px", fontFamily: "monospace", color: "#666", align: "center",
+    }).setOrigin(0.5, 0);
+    this.spellOverlay.add(tip);
+
+    // Close hint
+    const hint = this.add.text(px + panelW / 2, py + panelH - 8, "Press Q or click to close", {
+      fontSize: "10px", fontFamily: "monospace", color: "#666",
+    }).setOrigin(0.5, 1);
+    this.spellOverlay.add(hint);
   }
 
   private toggleEquipOverlay(): void {

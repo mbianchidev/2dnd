@@ -2,9 +2,10 @@
  * Player state management: stats, leveling, experience, spell unlocks.
  */
 
-import { abilityModifier } from "../utils/dice";
+import { abilityModifier, rollDice } from "../utils/dice";
+import type { DieType } from "../utils/dice";
 import type { Spell } from "../data/spells";
-import { SPELLS } from "../data/spells";
+import { SPELLS, getSpell } from "../data/spells";
 import type { Ability } from "../data/abilities";
 import { ABILITIES, getAbility } from "../data/abilities";
 import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "../data/talents";
@@ -383,4 +384,74 @@ export function allocateStatPoint(
   }
 
   return true;
+}
+
+/** Cast a heal or utility spell outside of combat. Returns result. */
+export function castSpellOutsideCombat(
+  player: PlayerState,
+  spellId: string
+): { success: boolean; message: string } {
+  const spell = getSpell(spellId);
+  if (!spell) return { success: false, message: "Unknown spell!" };
+
+  if (spell.type === "damage") {
+    return { success: false, message: "Cannot use damage spells outside battle!" };
+  }
+
+  if (player.mp < spell.mpCost) {
+    return { success: false, message: "Not enough MP!" };
+  }
+
+  if (spell.type === "heal") {
+    if (player.hp >= player.maxHp) {
+      return { success: false, message: "HP is already full!" };
+    }
+    const healAmount = rollDice(spell.damageCount, spell.damageDie as DieType);
+    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
+    player.hp += actualHeal;
+    player.mp -= spell.mpCost;
+    return { success: true, message: `${spell.name} healed ${actualHeal} HP! (${spell.mpCost} MP)` };
+  }
+
+  if (spell.type === "utility") {
+    player.mp -= spell.mpCost;
+    return { success: true, message: `${spell.name} cast! (${spell.mpCost} MP)` };
+  }
+
+  return { success: false, message: "Cannot use this spell here." };
+}
+
+/** Use a heal or utility ability outside of combat. Returns result. */
+export function useAbilityOutsideCombat(
+  player: PlayerState,
+  abilityId: string
+): { success: boolean; message: string } {
+  const ability = getAbility(abilityId);
+  if (!ability) return { success: false, message: "Unknown ability!" };
+
+  if (ability.type === "damage") {
+    return { success: false, message: "Cannot use damage abilities outside battle!" };
+  }
+
+  if (player.mp < ability.mpCost) {
+    return { success: false, message: "Not enough MP!" };
+  }
+
+  if (ability.type === "heal") {
+    if (player.hp >= player.maxHp) {
+      return { success: false, message: "HP is already full!" };
+    }
+    const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
+    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
+    player.hp += actualHeal;
+    player.mp -= ability.mpCost;
+    return { success: true, message: `${ability.name} healed ${actualHeal} HP! (${ability.mpCost} MP)` };
+  }
+
+  if (ability.type === "utility") {
+    player.mp -= ability.mpCost;
+    return { success: true, message: `${ability.name} used! (${ability.mpCost} MP)` };
+  }
+
+  return { success: false, message: "Cannot use this ability here." };
 }

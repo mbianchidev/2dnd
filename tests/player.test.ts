@@ -11,6 +11,8 @@ import {
   buyItem,
   canAfford,
   useItem,
+  castSpellOutsideCombat,
+  useAbilityOutsideCombat,
   calculatePointsSpent,
   isValidPointBuy,
   POINT_BUY_COSTS,
@@ -333,6 +335,132 @@ describe("player system", () => {
       const prevMaxMp = player.maxMp;
       allocateStatPoint(player, "intelligence");
       expect(player.maxMp).toBe(prevMaxMp + 4); // +1 per level
+    });
+  });
+
+  describe("castSpellOutsideCombat", () => {
+    it("heals with a heal spell outside combat", () => {
+      const player = createTestPlayer();
+      player.hp = 10;
+      player.mp = 20;
+      player.knownSpells.push("cureWounds");
+
+      const result = castSpellOutsideCombat(player, "cureWounds");
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("healed");
+      expect(player.hp).toBeGreaterThan(10);
+      expect(player.mp).toBeLessThan(20);
+    });
+
+    it("rejects damage spells outside combat", () => {
+      const player = createTestPlayer();
+      player.mp = 20;
+      player.knownSpells.push("fireBolt");
+
+      const result = castSpellOutsideCombat(player, "fireBolt");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("damage");
+    });
+
+    it("rejects heal spells when HP is full", () => {
+      const player = createTestPlayer();
+      player.mp = 20;
+      player.knownSpells.push("cureWounds");
+
+      const result = castSpellOutsideCombat(player, "cureWounds");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("full");
+    });
+
+    it("rejects spells when not enough MP", () => {
+      const player = createTestPlayer();
+      player.hp = 10;
+      player.mp = 0;
+      player.knownSpells.push("cureWounds");
+
+      const result = castSpellOutsideCombat(player, "cureWounds");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("MP");
+    });
+
+    it("casts utility spell (Teleport) outside combat", () => {
+      const player = createTestPlayer();
+      player.mp = 20;
+      player.knownSpells.push("teleport");
+
+      const result = castSpellOutsideCombat(player, "teleport");
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("Teleport");
+      expect(player.mp).toBe(12); // 20 - 8
+    });
+
+    it("returns failure for unknown spell", () => {
+      const player = createTestPlayer();
+      const result = castSpellOutsideCombat(player, "nonexistent");
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("useAbilityOutsideCombat", () => {
+    it("heals with a heal ability outside combat", () => {
+      const player = createTestPlayer();
+      player.hp = 10;
+      player.mp = 20;
+      player.knownAbilities = ["secondWind"];
+
+      const result = useAbilityOutsideCombat(player, "secondWind");
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("healed");
+      expect(player.hp).toBeGreaterThan(10);
+      expect(player.mp).toBeLessThan(20);
+    });
+
+    it("rejects damage abilities outside combat", () => {
+      const player = createTestPlayer();
+      player.mp = 20;
+      player.knownAbilities = ["shieldBash"];
+
+      const result = useAbilityOutsideCombat(player, "shieldBash");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("damage");
+    });
+
+    it("rejects heal abilities when HP is full", () => {
+      const player = createTestPlayer();
+      player.mp = 20;
+      player.knownAbilities = ["secondWind"];
+
+      const result = useAbilityOutsideCombat(player, "secondWind");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("full");
+    });
+
+    it("rejects abilities when not enough MP", () => {
+      const player = createTestPlayer();
+      player.hp = 10;
+      player.mp = 0;
+      player.knownAbilities = ["secondWind"];
+
+      const result = useAbilityOutsideCombat(player, "secondWind");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("MP");
+    });
+
+    it("uses utility ability (Fast Travel) outside combat", () => {
+      const player = createTestPlayer();
+      player.mp = 20;
+      player.knownAbilities = ["fastTravel"];
+
+      const result = useAbilityOutsideCombat(player, "fastTravel");
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("Fast Travel");
+      expect(player.mp).toBe(15); // 20 - 5
+    });
+
+    it("returns failure for unknown ability", () => {
+      const player = createTestPlayer();
+      const result = useAbilityOutsideCombat(player, "nonexistent");
+      expect(result.success).toBe(false);
     });
   });
 });

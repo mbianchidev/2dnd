@@ -8,6 +8,7 @@ import type { BestiaryData, BestiaryEntry } from "../systems/bestiary";
 import { getBestiaryEntries } from "../systems/bestiary";
 import { getItem } from "../data/items";
 import { type WeatherState, createWeatherState } from "../systems/weather";
+import type { SavedSpecialNpc } from "../data/npcs";
 
 export class BestiaryScene extends Phaser.Scene {
   private player!: PlayerState;
@@ -15,6 +16,7 @@ export class BestiaryScene extends Phaser.Scene {
   private bestiary!: BestiaryData;
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
+  private savedSpecialNpcs: SavedSpecialNpc[] = [];
   private entries: BestiaryEntry[] = [];
   private scrollOffset = 0;
   private maxVisible = 0;
@@ -33,12 +35,14 @@ export class BestiaryScene extends Phaser.Scene {
     bestiary: BestiaryData;
     timeStep?: number;
     weatherState?: WeatherState;
+    savedSpecialNpcs?: SavedSpecialNpc[];
   }): void {
     this.player = data.player;
     this.defeatedBosses = data.defeatedBosses;
     this.bestiary = data.bestiary;
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
+    this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.entries = getBestiaryEntries(this.bestiary);
     this.scrollOffset = 0;
     this.selectedIndex = 0;
@@ -277,6 +281,7 @@ export class BestiaryScene extends Phaser.Scene {
         bestiary: this.bestiary,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
+        savedSpecialNpcs: this.savedSpecialNpcs,
       });
     });
   }

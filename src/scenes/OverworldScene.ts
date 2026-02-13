@@ -8,7 +8,6 @@ import {
   MAP_HEIGHT,
   WORLD_WIDTH,
   WORLD_HEIGHT,
-  WORLD_CHUNKS,
   ENCOUNTER_RATES,
   TERRAIN_COLORS,
   Terrain,
@@ -22,16 +21,15 @@ import {
   CITIES,
   getCity,
   getCityForTown,
-  getCityShopAt,
   getCityShopNearby,
+  getInnCost,
   getTownBiome,
   hasSparkleAt,
   type WorldChunk,
-  type DungeonData,
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, applyBankInterest, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { getAppearance, getActiveWeaponSprite } from "../systems/appearance";
 import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
@@ -39,7 +37,7 @@ import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
-import { TimePeriod, getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
+import { getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 import {
   type WeatherState,
@@ -47,13 +45,29 @@ import {
   createWeatherState,
   advanceWeather,
   changeZoneWeather,
-  getWeatherAccuracyPenalty,
   getWeatherEncounterMultiplier,
-  getMonsterWeatherBoost,
   WEATHER_TINT,
   WEATHER_LABEL,
 } from "../systems/weather";
 import { audioEngine } from "../systems/audio";
+import {
+  CITY_NPCS,
+  getNpcTemplate,
+  getNpcColors,
+  getNpcDialogue,
+  getShopkeeperDialogue,
+  getSpecialNpcDialogue,
+  rollSpecialNpcSpawns,
+  SPECIAL_NPC_DEFS,
+  SPECIAL_NPC_FAREWELLS,
+  ANIMAL_DIALOGUES,
+  NPC_SKIN_COLORS,
+  type NpcInstance,
+  type NpcTemplate,
+  type SavedSpecialNpc,
+  type SpecialNpcKind,
+  type SpecialNpcDef,
+} from "../data/npcs";
 
 const TILE_SIZE = 32;
 
@@ -105,12 +119,31 @@ export class OverworldScene extends Phaser.Scene {
   private biomeDecoEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
   private cityAnimals: Phaser.GameObjects.Sprite[] = [];
   private cityAnimalTimers: Phaser.Time.TimerEvent[] = [];
+  private cityNpcSprites: Phaser.GameObjects.Sprite[] = [];
+  private cityNpcTimers: Phaser.Time.TimerEvent[] = [];
+  private cityNpcData: NpcInstance[] = [];
+  private shopRoofGraphics: Phaser.GameObjects.Graphics[] = [];
+  private shopRoofBounds: { x: number; y: number; w: number; h: number; shopX: number; shopY: number }[] = [];
+  private dialogueOverlay: Phaser.GameObjects.Container | null = null;
+  private innConfirmOverlay: Phaser.GameObjects.Container | null = null;
+  private bankOverlay: Phaser.GameObjects.Container | null = null;
+  /** Active special (rare) NPCs in the current city visit. */
+  private specialNpcSprites: Phaser.GameObjects.Sprite[] = [];
+  private specialNpcTimers: Phaser.Time.TimerEvent[] = [];
+  private specialNpcDefs: { def: SpecialNpcDef; x: number; y: number; interactions: number }[] = [];
+  /** Queue of special NPC kinds to force-spawn via /spawn command. */
+  private pendingSpecialSpawns: SpecialNpcKind[] = [];
+  /** Saved special NPC state to restore after scene transitions (battles, shops, etc.). */
+  private savedSpecialNpcs: SavedSpecialNpc[] = [];
+  /** Day number (timeStep / CYCLE_LENGTH) when a special NPC last spawned naturally.
+   *  Spawn chance drops to 0 for the rest of that day, resetting at dawn. */
+  private lastSpecialSpawnDay = -1;
 
   constructor() {
     super({ key: "OverworldScene" });
   }
 
-  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; timeStep?: number; weatherState?: WeatherState }): void {
+  init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; timeStep?: number; weatherState?: WeatherState; savedSpecialNpcs?: SavedSpecialNpc[] }): void {
     if (data?.player) {
       this.player = data.player;
       this.isNewPlayer = false;
@@ -132,6 +165,11 @@ export class OverworldScene extends Phaser.Scene {
     }
     if (data?.weatherState) {
       this.weatherState = data.weatherState;
+    }
+    if (data?.savedSpecialNpcs) {
+      this.savedSpecialNpcs = data.savedSpecialNpcs;
+    } else {
+      this.savedSpecialNpcs = [];
     }
     // Reset movement state — a tween may have been orphaned when the scene
     // switched to battle mid-move, leaving isMoving permanently true.
@@ -312,7 +350,33 @@ export class OverworldScene extends Phaser.Scene {
 
     cmds.set("spawn", (args) => {
       const query = args.trim().toLowerCase();
-      if (!query) { debugPanelLog(`Usage: /spawn <monster name or id>`, true); return; }
+      if (!query) { debugPanelLog(`Usage: /spawn <monster|traveler|adventurer|merchant|hermit>`, true); return; }
+
+      // Check for special NPC spawn
+      const specialAliases: Record<string, SpecialNpcKind> = {
+        traveler: "traveler",
+        traveller: "traveler",
+        adventurer: "adventurer",
+        merchant: "wanderingMerchant",
+        "wandering merchant": "wanderingMerchant",
+        wanderingmerchant: "wanderingMerchant",
+        hermit: "hermit",
+      };
+      const specialKind = specialAliases[query];
+      if (specialKind) {
+        if (this.player.inCity || this.player.inDungeon) {
+          debugPanelLog(`[CMD] Must be on the overworld to spawn special NPCs. Leave the city/dungeon first.`, true);
+          return;
+        }
+        this.pendingSpecialSpawns.push(specialKind);
+        const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+        if (chunk) {
+          this.spawnSpecialNpcs(chunk);
+        }
+        debugPanelLog(`[CMD] Spawned ${SPECIAL_NPC_DEFS[specialKind].label} on the overworld!`, true);
+        return;
+      }
+
       // Search all monster pools by id or name (case-insensitive partial match)
       const allMonsters: Monster[] = [...MONSTERS, ...DUNGEON_MONSTERS, ...NIGHT_MONSTERS];
       let found = allMonsters.find(m => m.id.toLowerCase() === query);
@@ -322,7 +386,7 @@ export class OverworldScene extends Phaser.Scene {
         debugPanelLog(`[CMD] Spawning ${found.name}...`, true);
         this.startBattle({ ...found });
       } else {
-        debugPanelLog(`[CMD] Unknown monster: "${args.trim()}". Try a partial name or id.`, true);
+        debugPanelLog(`[CMD] Unknown: "${args.trim()}". Try a monster name/id, or: traveler, adventurer, merchant, hermit`, true);
       }
     });
 
@@ -431,7 +495,7 @@ export class OverworldScene extends Phaser.Scene {
       { usage: "/item <id>", desc: "Add item to inventory" },
       { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
-      { usage: "/spawn <name>", desc: "Spawn a monster battle by name/id" },
+      { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
     ];
@@ -455,6 +519,22 @@ export class OverworldScene extends Phaser.Scene {
     this.cityAnimals = [];
     for (const t of this.cityAnimalTimers) t.destroy();
     this.cityAnimalTimers = [];
+    // Clear city NPCs
+    for (const s of this.cityNpcSprites) s.destroy();
+    this.cityNpcSprites = [];
+    for (const t of this.cityNpcTimers) t.destroy();
+    this.cityNpcTimers = [];
+    this.cityNpcData = [];
+    // Clear shop roofs
+    for (const g of this.shopRoofGraphics) g.destroy();
+    this.shopRoofGraphics = [];
+    this.shopRoofBounds = [];
+    // Clear special NPCs
+    for (const s of this.specialNpcSprites) s.destroy();
+    this.specialNpcSprites = [];
+    for (const t of this.specialNpcTimers) t.destroy();
+    this.specialNpcTimers = [];
+    this.specialNpcDefs = [];
 
     // If inside a dungeon, render the dungeon interior
     if (this.player.inDungeon) {
@@ -517,6 +597,49 @@ export class OverworldScene extends Phaser.Scene {
       // Determine surrounding biome so city floor matches the landscape
       const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
       const biomeFloorTex = `tile_${cityBiome}`;
+      // Pick biome-appropriate wall texture
+      const BIOME_WALL_MAP: Record<number, string> = {
+        [Terrain.Grass]: "tile_citywall_wood",
+        [Terrain.Forest]: "tile_citywall_moss",
+        [Terrain.DeepForest]: "tile_citywall_moss",
+        [Terrain.Sand]: "tile_citywall_sand",
+        [Terrain.Tundra]: "tile_citywall_ice",
+        [Terrain.Swamp]: "tile_citywall_dark",
+        [Terrain.Volcanic]: "tile_citywall_volcanic",
+        [Terrain.Canyon]: "tile_citywall_sand",
+      };
+      const biomeWallTex = BIOME_WALL_MAP[cityBiome] ?? `tile_${Terrain.CityWall}`;
+      // Pick biome-appropriate path texture
+      const BIOME_PATH_MAP: Record<number, string> = {
+        [Terrain.Grass]: "tile_path_wood",
+        [Terrain.Forest]: "tile_path_moss",
+        [Terrain.DeepForest]: "tile_path_moss",
+        [Terrain.Sand]: "tile_path_sand",
+        [Terrain.Tundra]: "tile_path_gravel",
+        [Terrain.Swamp]: "tile_path_dark",
+        [Terrain.Volcanic]: "tile_path_lava",
+        [Terrain.Canyon]: "tile_path_sand",
+      };
+      const biomePathTex = BIOME_PATH_MAP[cityBiome] ?? "tile_path_cobble";
+      // Build a map of shop entrance positions → shop-type colored carpet texture
+      const shopCarpetMap = new Map<string, string>();
+      const SHOP_CARPET_TEX: Record<string, string> = {
+        weapon: "tile_carpet_weapon",
+        armor: "tile_carpet_armor",
+        general: "tile_carpet_general",
+        magic: "tile_carpet_magic",
+        bank: "tile_carpet_bank",
+        inn: "tile_carpet_inn",
+      };
+      for (const shop of city.shops) {
+        const carpetTex = SHOP_CARPET_TEX[shop.type];
+        if (carpetTex) {
+          shopCarpetMap.set(`${shop.x},${shop.y}`, carpetTex);
+        } else {
+          // Unknown shop types: no carpet, use biome floor
+          shopCarpetMap.set(`${shop.x},${shop.y}`, biomeFloorTex);
+        }
+      }
       for (let y = 0; y < MAP_HEIGHT; y++) {
         this.tileSprites[y] = [];
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -526,6 +649,21 @@ export class OverworldScene extends Phaser.Scene {
           // City floor uses the biome ground texture instead of cobblestone
           if (explored && terrain === Terrain.CityFloor) {
             texKey = biomeFloorTex;
+          }
+          // City walls use biome-appropriate material
+          if (explored && terrain === Terrain.CityWall) {
+            texKey = biomeWallTex;
+          }
+          // Shop entrance carpets use shop-type color
+          if (explored && terrain === Terrain.Carpet) {
+            const carpetOverride = shopCarpetMap.get(`${x},${y}`);
+            if (carpetOverride) {
+              texKey = carpetOverride;
+            }
+          }
+          // City paths use biome-appropriate material
+          if (explored && terrain === Terrain.CityPath) {
+            texKey = biomePathTex;
           }
           const sprite = this.add.sprite(
             x * TILE_SIZE + TILE_SIZE / 2,
@@ -565,18 +703,27 @@ export class OverworldScene extends Phaser.Scene {
         if (this.isExplored(shop.x, shop.y)) {
           const icon = shop.type === "weapon" ? "⚔" : shop.type === "armor" ? "🛡" : shop.type === "inn" ? "🏨" : shop.type === "bank" ? "🏦" : "🏪";
           this.add
-            .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 4, `${icon} ${shop.name}`, {
-              fontSize: "7px",
+            .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 6, `${icon} ${shop.name}`, {
+              fontSize: "9px",
               fontFamily: "monospace",
-              color: "#ffd700",
-              stroke: "#000",
-              strokeThickness: 2,
+              color: "#ffffff",
+              stroke: "#000000",
+              strokeThickness: 3,
+              backgroundColor: "#00000088",
+              padding: { x: 3, y: 1 },
             })
-            .setOrigin(0.5, 1);
+            .setOrigin(0.5, 1)
+            .setDepth(15); // above roof overlays
         }
       }
       // Spawn city animals
       this.spawnCityAnimals(city);
+      // Spawn city NPCs
+      this.spawnCityNpcs(city);
+      // Draw shop building roofs (above NPCs so they hide interiors)
+      this.createShopRoofs(city, cityBiome);
+      // Set initial roof transparency based on player position
+      this.updateShopRoofAlpha();
       return;
     }
 
@@ -654,6 +801,9 @@ export class OverworldScene extends Phaser.Scene {
 
     // Biome decoration creature emitters (butterflies, snakes, smoke, mosquitos)
     this.spawnBiomeCreatures(chunk);
+
+    // Spawn rare special NPCs on the overworld (random or forced via /spawn)
+    this.spawnSpecialNpcs(chunk);
   }
 
   /** Spawn animated animal sprites in cities. Animals wander on walkable tiles. */
@@ -664,34 +814,50 @@ export class OverworldScene extends Phaser.Scene {
         { sprite: "sprite_chicken", x: 8, y: 5, moves: true },
         { sprite: "sprite_chicken", x: 11, y: 8, moves: true },
         { sprite: "sprite_chicken", x: 14, y: 5, moves: true },
+        { sprite: "sprite_dog", x: 9, y: 10, moves: true },
+      ],
+      ironhold_city: [
+        { sprite: "sprite_cow", x: 12, y: 8, moves: true },
+        { sprite: "sprite_sheep", x: 10, y: 9, moves: true },
       ],
       frostheim_city: [
         { sprite: "sprite_cat", x: 5, y: 7, moves: false },
         { sprite: "sprite_cat", x: 14, y: 7, moves: false },
+        { sprite: "sprite_sheep", x: 10, y: 9, moves: true },
       ],
       deeproot_city: [
         { sprite: "sprite_cat", x: 9, y: 6, moves: false },
+        { sprite: "sprite_cat", x: 11, y: 8, moves: false },
         { sprite: "sprite_sheep", x: 7, y: 12, moves: true },
+        { sprite: "sprite_sheep", x: 9, y: 12, moves: true },
       ],
       sandport_city: [
         { sprite: "sprite_cat", x: 12, y: 9, moves: false },
+        { sprite: "sprite_chicken", x: 7, y: 7, moves: true },
+        { sprite: "sprite_chicken", x: 9, y: 6, moves: true },
       ],
       bogtown_city: [
         { sprite: "sprite_mouse", x: 8, y: 7, moves: true },
         { sprite: "sprite_mouse", x: 12, y: 6, moves: true },
+        { sprite: "sprite_frog", x: 10, y: 10, moves: true },
       ],
       thornvale_city: [
         { sprite: "sprite_frog", x: 9, y: 8, moves: true },
         { sprite: "sprite_frog", x: 11, y: 7, moves: true },
         { sprite: "sprite_cow", x: 8, y: 12, moves: true },
         { sprite: "sprite_cow", x: 13, y: 8, moves: true },
+        { sprite: "sprite_sheep", x: 10, y: 10, moves: true },
       ],
       canyonwatch_city: [
         { sprite: "sprite_dog", x: 10, y: 8, moves: true },
+        { sprite: "sprite_chicken", x: 8, y: 6, moves: true },
+        { sprite: "sprite_chicken", x: 12, y: 6, moves: true },
       ],
       ridgewatch_city: [
         { sprite: "sprite_sheep", x: 8, y: 7, moves: true },
         { sprite: "sprite_sheep", x: 11, y: 7, moves: true },
+        { sprite: "sprite_sheep", x: 9, y: 9, moves: true },
+        { sprite: "sprite_dog", x: 13, y: 8, moves: true },
       ],
       ashfall_city: [
         { sprite: "sprite_lizard", x: 9, y: 8, moves: true },
@@ -699,11 +865,28 @@ export class OverworldScene extends Phaser.Scene {
       ],
       dunerest_city: [
         { sprite: "sprite_lizard", x: 7, y: 7, moves: true },
+        { sprite: "sprite_cat", x: 10, y: 9, moves: false },
+      ],
+      shadowfen_city: [
+        { sprite: "sprite_frog", x: 8, y: 8, moves: true },
+        { sprite: "sprite_mouse", x: 11, y: 10, moves: true },
       ],
     };
 
     const animals = CITY_ANIMALS[city.id];
     if (!animals) return;
+
+    // Credible animal sizes relative to a human NPC (32px tile)
+    const ANIMAL_SCALE: Record<string, number> = {
+      sprite_cow: 2.5,
+      sprite_dog: 1.6,
+      sprite_sheep: 1.8,
+      sprite_cat: 1.3,
+      sprite_chicken: 1.0,
+      sprite_frog: 0.8,
+      sprite_mouse: 0.7,
+      sprite_lizard: 0.9,
+    };
 
     for (const def of animals) {
       if (!this.isExplored(def.x, def.y)) continue;
@@ -713,6 +896,8 @@ export class OverworldScene extends Phaser.Scene {
         def.y * TILE_SIZE + TILE_SIZE / 2,
         def.sprite
       );
+      const animalScale = ANIMAL_SCALE[def.sprite] ?? 1.0;
+      sprite.setScale(animalScale);
       sprite.setDepth(11);
       this.cityAnimals.push(sprite);
 
@@ -757,13 +942,990 @@ export class OverworldScene extends Phaser.Scene {
         // Sleeping animal: subtle breathing animation
         this.tweens.add({
           targets: sprite,
-          scaleY: 0.9,
+          scaleY: animalScale * 0.9,
           duration: 1200,
           yoyo: true,
           repeat: -1,
           ease: "Sine.easeInOut",
         });
       }
+    }
+  }
+
+  /**
+   * Draw roof overlays over shop buildings.  Each shop has a cluster of
+   * CityWall + ShopFloor tiles that form the structure; the roof covers
+   * them and fades out when the player is nearby.
+   */
+  private createShopRoofs(city: CityData, biome: Terrain): void {
+    // Biome-based roof colour palettes
+    const BIOME_ROOF_COLORS: Record<number, { base: number; ridge: number; border: number }> = {
+      [Terrain.Grass]:      { base: 0x8d6e63, ridge: 0x6d4c41, border: 0x4e342e },  // warm brown thatch
+      [Terrain.Forest]:     { base: 0x5d7a4f, ridge: 0x3e5a30, border: 0x2e4420 },  // mossy green
+      [Terrain.DeepForest]: { base: 0x4a6040, ridge: 0x334830, border: 0x223420 },  // dark green
+      [Terrain.Sand]:       { base: 0xc8a864, ridge: 0xa08844, border: 0x806830 },  // sandstone
+      [Terrain.Tundra]:     { base: 0x8899aa, ridge: 0x667788, border: 0x445566 },  // slate blue
+      [Terrain.Swamp]:      { base: 0x5a5a4a, ridge: 0x3e3e30, border: 0x2a2a20 },  // murky grey
+      [Terrain.Volcanic]:   { base: 0x6a3a2a, ridge: 0x4a2a1a, border: 0x3a1a0a },  // charred red
+      [Terrain.Canyon]:     { base: 0xb07050, ridge: 0x905838, border: 0x704028 },  // terracotta
+    };
+    const palette = BIOME_ROOF_COLORS[biome] ?? BIOME_ROOF_COLORS[Terrain.Grass];
+
+    for (const shop of city.shops) {
+      // Find building bounds by flood-filling from the ShopFloor tile above the carpet entrance
+      const visited = new Set<string>();
+      const tiles: { x: number; y: number }[] = [];
+      const queue: { x: number; y: number }[] = [];
+
+      // Seed: scan a small area around the shop entrance for ShopFloor tiles
+      for (let dy = -3; dy <= 0; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const tx = shop.x + dx;
+          const ty = shop.y + dy;
+          if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
+            const t = city.mapData[ty][tx];
+            if (t === Terrain.ShopFloor) {
+              const key = `${tx},${ty}`;
+              if (!visited.has(key)) {
+                visited.add(key);
+                queue.push({ x: tx, y: ty });
+                tiles.push({ x: tx, y: ty });
+              }
+            }
+          }
+        }
+      }
+
+      // Expand to include surrounding CityWall tiles
+      while (queue.length > 0) {
+        const cur = queue.pop()!;
+        for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+          const nx = cur.x + ddx;
+          const ny = cur.y + ddy;
+          const key = `${nx},${ny}`;
+          if (visited.has(key)) continue;
+          if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+          const t = city.mapData[ny][nx];
+          if (t === Terrain.ShopFloor) {
+            visited.add(key);
+            queue.push({ x: nx, y: ny });
+            tiles.push({ x: nx, y: ny });
+          } else if (t === Terrain.CityWall) {
+            // Only include wall tiles adjacent to shop floor (building walls, not city walls)
+            visited.add(key);
+            tiles.push({ x: nx, y: ny });
+          }
+        }
+      }
+
+      if (tiles.length === 0) continue;
+
+      // Compute bounding box
+      let minX = tiles[0].x, maxX = tiles[0].x, minY = tiles[0].y, maxY = tiles[0].y;
+      for (const t of tiles) {
+        if (t.x < minX) minX = t.x;
+        if (t.x > maxX) maxX = t.x;
+        if (t.y < minY) minY = t.y;
+        if (t.y > maxY) maxY = t.y;
+      }
+
+      const bx = minX * TILE_SIZE;
+      const by = minY * TILE_SIZE;
+      const bw = (maxX - minX + 1) * TILE_SIZE;
+      const bh = (maxY - minY + 1) * TILE_SIZE;
+
+      // Draw a roof graphic over the building area
+      const gfx = this.add.graphics();
+      gfx.setDepth(14); // above NPCs (11) and animals (11) but below HUD
+
+      // Main roof colour — vary slightly by shop type
+      const typeShift = shop.type === "inn" ? 0x101010 : shop.type === "weapon" ? -0x080808 : 0;
+      const roofColor = Math.max(0, palette.base + typeShift);
+      gfx.fillStyle(roofColor, 1);
+      gfx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+
+      // Ridge lines for a tiled-roof look
+      gfx.lineStyle(1, palette.ridge, 0.6);
+      for (let ry = by; ry < by + bh; ry += 6) {
+        gfx.lineBetween(bx - 2, ry, bx + bw + 2, ry);
+      }
+
+      // Roof border
+      gfx.lineStyle(2, palette.border, 0.9);
+      gfx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+
+      // Ridge cap (center horizontal line)
+      gfx.lineStyle(2, palette.ridge, 0.8);
+      gfx.lineBetween(bx - 2, by + bh / 2, bx + bw + 2, by + bh / 2);
+
+      this.shopRoofGraphics.push(gfx);
+      this.shopRoofBounds.push({
+        x: minX, y: minY,
+        w: maxX - minX + 1, h: maxY - minY + 1,
+        shopX: shop.x, shopY: shop.y,
+      });
+    }
+  }
+
+  /** Fade shop roofs based on player proximity. Close = transparent, far = solid. */
+  private updateShopRoofAlpha(): void {
+    const px = this.player.x;
+    const py = this.player.y;
+    for (let i = 0; i < this.shopRoofBounds.length; i++) {
+      const b = this.shopRoofBounds[i];
+      const gfx = this.shopRoofGraphics[i];
+      if (!gfx) continue;
+
+      // Distance from player to the shop entrance
+      const dist = Math.abs(px - b.shopX) + Math.abs(py - b.shopY);
+      // Also check if player is inside the building bounds
+      const inside = px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h;
+
+      if (inside || dist <= 1) {
+        gfx.setAlpha(0.1);
+      } else if (dist <= 2) {
+        gfx.setAlpha(0.35);
+      } else if (dist <= 3) {
+        gfx.setAlpha(0.65);
+      } else {
+        gfx.setAlpha(1);
+      }
+    }
+  }
+
+  /**
+   * Generate (or retrieve from cache) an NPC texture with skin, hair, and
+   * dress colours baked in so that `setTint` isn't needed.  This prevents the
+   * entire sprite — skin, hair, legs — from being tinted a single colour.
+   */
+  private getOrCreateNpcTexture(
+    tpl: NpcTemplate,
+    skinColor: number,
+    hairColor: number,
+    dressColor: number,
+  ): string {
+    const key = `npc_${tpl.id}_${skinColor.toString(16)}_${hairColor.toString(16)}_${dressColor.toString(16)}`;
+    if (this.textures.exists(key)) return key;
+
+    const S = TILE_SIZE;
+    const gfx = this.add.graphics();
+    const isChild = tpl.ageGroup === "child";
+    const bodyW = isChild ? 10 : 14;
+    const bodyH = isChild ? 10 : 14;
+    const headR = isChild ? 5 : 6;
+    const legW = isChild ? 3 : 4;
+    const legH = isChild ? 4 : 5;
+    const bx = Math.floor((S - bodyW) / 2);
+    const by = isChild ? 14 : 10;
+
+    // Body / dress — uses the per-instance dress colour
+    gfx.fillStyle(dressColor, 1);
+    gfx.fillRect(bx, by, bodyW, bodyH);
+
+    // Head — real skin colour
+    gfx.fillStyle(skinColor, 1);
+    gfx.fillCircle(S / 2, by - headR + 2, headR);
+
+    // Hair
+    gfx.fillStyle(hairColor, 1);
+    if (tpl.ageGroup === "child") {
+      gfx.fillRect(S / 2 - headR + 1, by - headR * 2 + 3, headR * 2 - 2, 3);
+    } else if (tpl.ageGroup === "female") {
+      gfx.fillRect(S / 2 - headR, by - headR * 2 + 2, headR * 2, 4);
+      gfx.fillRect(S / 2 - headR, by - headR + 4, 2, headR);
+      gfx.fillRect(S / 2 + headR - 2, by - headR + 4, 2, headR);
+    } else {
+      gfx.fillRect(S / 2 - headR + 1, by - headR * 2 + 2, headR * 2 - 2, 4);
+    }
+
+    // Eyes
+    gfx.fillStyle(0x111111, 1);
+    gfx.fillRect(S / 2 - 2, by - headR + 3, 1, 1);
+    gfx.fillRect(S / 2 + 2, by - headR + 3, 1, 1);
+
+    // Legs — neutral brown
+    gfx.fillStyle(0x6d4c41, 1);
+    gfx.fillRect(bx + 1, by + bodyH, legW, legH);
+    gfx.fillRect(bx + bodyW - legW - 1, by + bodyH, legW, legH);
+
+    gfx.generateTexture(key, S, S);
+    gfx.destroy();
+    return key;
+  }
+
+  /** Spawn NPC sprites in cities with wandering / stationary behaviour. */
+  private spawnCityNpcs(city: CityData): void {
+    const npcs = CITY_NPCS[city.id];
+    if (!npcs) return;
+
+    this.cityNpcData = npcs;
+
+    for (let i = 0; i < npcs.length; i++) {
+      const def = npcs[i];
+      const tpl = getNpcTemplate(def.templateId);
+      if (!tpl) continue;
+
+      // Shopkeeper NPCs are placed inside their shop (on the nearest ShopFloor tile)
+      let spawnX = def.x;
+      let spawnY = def.y;
+      if (def.shopIndex !== undefined) {
+        const shop = city.shops[def.shopIndex];
+        if (shop) {
+          // Search for a ShopFloor tile near the shop entrance (carpet)
+          for (let dy = -2; dy <= 0; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const tx = shop.x + dx;
+              const ty = shop.y + dy;
+              if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
+                if (city.mapData[ty][tx] === Terrain.ShopFloor) {
+                  spawnX = tx;
+                  spawnY = ty;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (!this.isExplored(spawnX, spawnY)) continue;
+
+      // Generate a per-instance texture with proper skin/hair/dress colours
+      const colors = getNpcColors(city.id, i);
+      // Elders always have grey hair
+      const hairColor = def.templateId.includes("elder") ? 0xaaaaaa : colors.hairColor;
+      const texKey = this.getOrCreateNpcTexture(tpl, colors.skinColor, hairColor, colors.dressColor);
+      const sprite = this.add.sprite(
+        spawnX * TILE_SIZE + TILE_SIZE / 2,
+        spawnY * TILE_SIZE + TILE_SIZE / 2,
+        texKey
+      );
+      sprite.setDepth(11);
+
+      // Scale children smaller
+      if (tpl.heightScale < 1) {
+        sprite.setScale(tpl.heightScale);
+      }
+
+      this.cityNpcSprites.push(sprite);
+
+      if (def.moves) {
+        const wander = (): void => {
+          const dirs = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+          ];
+          const pick = dirs[Math.floor(Math.random() * dirs.length)];
+          const curTileX = Math.floor(sprite.x / TILE_SIZE);
+          const curTileY = Math.floor(sprite.y / TILE_SIZE);
+          const nx = curTileX + pick.dx;
+          const ny = curTileY + pick.dy;
+          if (
+            nx >= 1 && nx < MAP_WIDTH - 1 &&
+            ny >= 1 && ny < MAP_HEIGHT - 1 &&
+            isWalkable(city.mapData[ny][nx])
+          ) {
+            this.tweens.add({
+              targets: sprite,
+              x: nx * TILE_SIZE + TILE_SIZE / 2,
+              y: ny * TILE_SIZE + TILE_SIZE / 2,
+              duration: 800 + Math.random() * 400,
+              ease: "Sine.easeInOut",
+              onUpdate: () => {
+                if (pick.dx !== 0) sprite.setFlipX(pick.dx < 0);
+              },
+            });
+          }
+        };
+        const delay = 2000 + Math.random() * 2000;
+        const timer = this.time.addEvent({
+          delay,
+          callback: wander,
+          loop: true,
+        });
+        this.cityNpcTimers.push(timer);
+      } else {
+        // Idle breathing for stationary NPCs
+        this.tweens.add({
+          targets: sprite,
+          scaleY: (tpl.heightScale < 1 ? tpl.heightScale : 1) * 0.97,
+          duration: 1500,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      }
+    }
+  }
+
+  /** Spawn rare special NPCs on the overworld (traveler, adventurer, wandering merchant, hermit). */
+  private spawnSpecialNpcs(chunk: WorldChunk): void {
+    // If we have saved special NPCs from a scene transition, restore them.
+    if (this.savedSpecialNpcs.length > 0) {
+      for (const saved of this.savedSpecialNpcs) {
+        const def = SPECIAL_NPC_DEFS[saved.kind];
+        this.placeSpecialNpcSprite(def, chunk, saved.x, saved.y, saved.interactions);
+      }
+      this.savedSpecialNpcs = [];
+      return;
+    }
+
+    // Determine which specials to spawn — use forced queue or random roll
+    let toSpawn: SpecialNpcKind[];
+    if (this.pendingSpecialSpawns.length > 0) {
+      toSpawn = [...this.pendingSpecialSpawns];
+      this.pendingSpecialSpawns = [];
+    } else {
+      // After a special NPC spawns, drop chance to 0 until the next day
+      const currentDay = Math.floor(this.timeStep / CYCLE_LENGTH);
+      const multiplier = currentDay === this.lastSpecialSpawnDay ? 0 : 1;
+      toSpawn = rollSpecialNpcSpawns(multiplier);
+      if (toSpawn.length > 0) {
+        this.lastSpecialSpawnDay = currentDay;
+      }
+    }
+    if (toSpawn.length === 0) return;
+
+    // Find walkable positions that aren't occupied by towns, bosses, etc.
+    const occupied = new Set<string>();
+    for (const town of chunk.towns) occupied.add(`${town.x},${town.y}`);
+    for (const boss of chunk.bosses) occupied.add(`${boss.x},${boss.y}`);
+    const walkable: { x: number; y: number }[] = [];
+    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+      for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        if (
+          isWalkable(chunk.mapData[y][x]) &&
+          !occupied.has(`${x},${y}`) &&
+          this.isExplored(x, y)
+        ) {
+          walkable.push({ x, y });
+        }
+      }
+    }
+    if (walkable.length === 0) return;
+
+    for (const kind of toSpawn) {
+      const def = SPECIAL_NPC_DEFS[kind];
+
+      // Pick a random spawn position
+      const posIdx = Math.floor(Math.random() * walkable.length);
+      const pos = walkable[posIdx];
+      walkable.splice(posIdx, 1);
+
+      this.placeSpecialNpcSprite(def, chunk, pos.x, pos.y, 0);
+      this.showMessage(`A ${def.label} has appeared!`, "#4dd0e1");
+      if (walkable.length === 0) break;
+    }
+  }
+
+  /** Create a special NPC sprite + wander logic at the given tile position. */
+  private placeSpecialNpcSprite(
+    def: SpecialNpcDef,
+    chunk: WorldChunk,
+    tx: number,
+    ty: number,
+    interactions: number,
+  ): void {
+    const tpl = getNpcTemplate(def.templateId);
+    if (!tpl) return;
+
+    const specialSkin = NPC_SKIN_COLORS[Math.abs(def.kind.length * 7) % NPC_SKIN_COLORS.length];
+    const texKey = this.getOrCreateNpcTexture(tpl, specialSkin, 0x5d4037, def.tintColor);
+    const sprite = this.add.sprite(
+      tx * TILE_SIZE + TILE_SIZE / 2,
+      ty * TILE_SIZE + TILE_SIZE / 2,
+      texKey
+    );
+    sprite.setDepth(11);
+
+    this.specialNpcSprites.push(sprite);
+    this.specialNpcDefs.push({ def, x: tx, y: ty, interactions });
+
+    if (def.moves) {
+      const wander = (): void => {
+        const dirs = [
+          { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+          { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+        ];
+        const pick = dirs[Math.floor(Math.random() * dirs.length)];
+        const curTileX = Math.floor(sprite.x / TILE_SIZE);
+        const curTileY = Math.floor(sprite.y / TILE_SIZE);
+        const nx = curTileX + pick.dx;
+        const ny = curTileY + pick.dy;
+        if (
+          nx >= 1 && nx < MAP_WIDTH - 1 &&
+          ny >= 1 && ny < MAP_HEIGHT - 1 &&
+          isWalkable(chunk.mapData[ny][nx])
+        ) {
+          this.tweens.add({
+            targets: sprite,
+            x: nx * TILE_SIZE + TILE_SIZE / 2,
+            y: ny * TILE_SIZE + TILE_SIZE / 2,
+            duration: 800 + Math.random() * 400,
+            ease: "Sine.easeInOut",
+            onUpdate: () => {
+              if (pick.dx !== 0) sprite.setFlipX(pick.dx < 0);
+            },
+          });
+        }
+      };
+      const delay = 2000 + Math.random() * 2000;
+      const timer = this.time.addEvent({ delay, callback: wander, loop: true });
+      this.specialNpcTimers.push(timer);
+    } else {
+      this.tweens.add({
+        targets: sprite,
+        scaleY: 0.97,
+        duration: 1500,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+    }
+  }
+
+  /**
+   * Find a special NPC adjacent to or on the player's current position.
+   */
+  private findAdjacentSpecialNpc(): { index: number; def: SpecialNpcDef } | null {
+    const px = this.player.x;
+    const py = this.player.y;
+    const checks = [
+      { x: px, y: py },
+      { x: px - 1, y: py }, { x: px + 1, y: py },
+      { x: px, y: py - 1 }, { x: px, y: py + 1 },
+    ];
+
+    for (let i = 0; i < this.specialNpcDefs.length; i++) {
+      const spr = this.specialNpcSprites[i];
+      if (!spr || !spr.active) continue;
+      const nx = Math.floor(spr.x / TILE_SIZE);
+      const ny = Math.floor(spr.y / TILE_SIZE);
+      for (const c of checks) {
+        if (c.x === nx && c.y === ny) {
+          return { index: i, def: this.specialNpcDefs[i].def };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Show dialogue for a special NPC; despawn after all unique lines are exhausted. */
+  private interactSpecialNpc(index: number): void {
+    const entry = this.specialNpcDefs[index];
+    if (!entry) return;
+
+    const line = getSpecialNpcDialogue(entry.def.kind, entry.interactions);
+    const farewell = SPECIAL_NPC_FAREWELLS[entry.def.kind];
+    const isFarewell = line === farewell;
+    entry.interactions++;
+
+    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+
+    // If this is the farewell line, show it then despawn after a short delay.
+    if (isFarewell) {
+      // Wandering merchant still opens shop on farewell, but despawns after.
+      if (entry.def.kind === "wanderingMerchant") {
+        this.showSpecialDialogue(entry.def.label, line);
+        this.time.delayedCall(800, () => {
+          this.dismissDialogue();
+          const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+          const regionName = chunk?.name ?? "Overworld";
+          this.autoSave();
+          this.scene.start("ShopScene", {
+            player: this.player,
+            townName: `${regionName} - Wandering Merchant`,
+            defeatedBosses: this.defeatedBosses,
+            bestiary: this.bestiary,
+            shopItemIds: entry.def.shopItems ?? ["potion", "ether"],
+            timeStep: this.timeStep,
+            weatherState: this.weatherState,
+            discount: 0.2,
+            savedSpecialNpcs: this.snapshotSpecialNpcs().filter((s) => s.kind !== entry.def.kind),
+          });
+        });
+        return;
+      }
+
+      this.showSpecialDialogue(entry.def.label, line);
+      this.time.delayedCall(1500, () => {
+        this.dismissDialogue();
+        const spr = this.specialNpcSprites[index];
+        if (spr && spr.active) {
+          this.tweens.add({
+            targets: spr,
+            alpha: 0,
+            duration: 600,
+            onComplete: () => spr.destroy(),
+          });
+        }
+      });
+      return;
+    }
+
+    // Wandering merchant — show dialogue then open shop (preserving special NPCs)
+    if (entry.def.kind === "wanderingMerchant") {
+      this.showSpecialDialogue(entry.def.label, line);
+      this.time.delayedCall(800, () => {
+        this.dismissDialogue();
+        const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+        const regionName = chunk?.name ?? "Overworld";
+        this.autoSave();
+        this.scene.start("ShopScene", {
+          player: this.player,
+          townName: `${regionName} - Wandering Merchant`,
+          defeatedBosses: this.defeatedBosses,
+          bestiary: this.bestiary,
+          shopItemIds: entry.def.shopItems ?? ["potion", "ether"],
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+          discount: 0.2,
+          savedSpecialNpcs: this.snapshotSpecialNpcs(),
+        });
+      });
+      return;
+    }
+
+    // Regular dialogue for traveler / adventurer / hermit
+    this.showSpecialDialogue(entry.def.label, line);
+  }
+
+  /** Show a dialogue overlay for a special NPC. */
+  private showSpecialDialogue(speakerName: string, line: string): void {
+    if (this.dialogueOverlay) {
+      this.dialogueOverlay.destroy();
+      this.dialogueOverlay = null;
+    }
+
+    const container = this.add.container(0, 0).setDepth(50);
+    const boxW = MAP_WIDTH * TILE_SIZE - 40;
+    const boxH = 52;
+    const boxX = 20;
+    const boxY = MAP_HEIGHT * TILE_SIZE - boxH - 10;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.lineStyle(2, 0x4dd0e1, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 6);
+    container.add(bg);
+
+    const nameText = this.add.text(boxX + 10, boxY + 6, `✦ ${speakerName}`, {
+      fontSize: "10px",
+      fontFamily: "monospace",
+      color: "#4dd0e1",
+      stroke: "#000",
+      strokeThickness: 1,
+    });
+    container.add(nameText);
+
+    const lineText = this.add.text(boxX + 10, boxY + 22, line, {
+      fontSize: "11px",
+      fontFamily: "monospace",
+      color: "#ddd",
+      wordWrap: { width: boxW - 20 },
+    });
+    container.add(lineText);
+
+    const hint = this.add.text(boxX + boxW - 10, boxY + boxH - 14, "[SPACE]", {
+      fontSize: "8px",
+      fontFamily: "monospace",
+      color: "#888",
+    }).setOrigin(1, 0);
+    container.add(hint);
+
+    this.dialogueOverlay = container;
+  }
+
+  /**
+   * Find an NPC adjacent to or on the player's current position.
+   * Shopkeeper NPCs can only be talked to from inside their shop
+   * (player must be on a ShopFloor tile, not the carpet entrance).
+   */
+  private findAdjacentNpc(): { npcDef: NpcInstance; npcIndex: number } | null {
+    const npcs = this.cityNpcData;
+    if (!npcs.length) return null;
+
+    const px = this.player.x;
+    const py = this.player.y;
+
+    // Check what tile the player is standing on
+    const city = getCity(this.player.cityId);
+    const playerTerrain = city?.mapData[py]?.[px];
+    const playerInsideShop = playerTerrain === Terrain.ShopFloor;
+
+    const checks = [
+      { x: px, y: py },
+      { x: px - 1, y: py }, { x: px + 1, y: py },
+      { x: px, y: py - 1 }, { x: px, y: py + 1 },
+    ];
+
+    for (let i = 0; i < npcs.length; i++) {
+      const npc = npcs[i];
+      // Shopkeeper NPCs require the player to be inside the shop
+      if (npc.shopIndex !== undefined && !playerInsideShop) continue;
+
+      // For wandering NPCs or shopkeepers (placed programmatically), use sprite position
+      let nx: number;
+      let ny: number;
+      if (this.cityNpcSprites[i]) {
+        nx = Math.floor(this.cityNpcSprites[i].x / TILE_SIZE);
+        ny = Math.floor(this.cityNpcSprites[i].y / TILE_SIZE);
+      } else {
+        nx = npc.x;
+        ny = npc.y;
+      }
+      for (const c of checks) {
+        if (c.x === nx && c.y === ny) {
+          return { npcDef: npc, npcIndex: i };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Check if the player is adjacent to a city animal sprite. */
+  private findAdjacentAnimal(): { spriteName: string } | null {
+    const px = this.player.x;
+    const py = this.player.y;
+    const checks = [
+      { x: px, y: py },
+      { x: px - 1, y: py }, { x: px + 1, y: py },
+      { x: px, y: py - 1 }, { x: px, y: py + 1 },
+    ];
+
+    for (const sprite of this.cityAnimals) {
+      if (!sprite.active) continue;
+      const ax = Math.floor(sprite.x / TILE_SIZE);
+      const ay = Math.floor(sprite.y / TILE_SIZE);
+      for (const c of checks) {
+        if (c.x === ax && c.y === ay) {
+          return { spriteName: sprite.texture.key };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Show an animal dialogue bubble with a simple sound/verse. */
+  private showAnimalDialogue(spriteName: string): void {
+    if (this.dialogueOverlay) {
+      this.dialogueOverlay.destroy();
+      this.dialogueOverlay = null;
+    }
+
+    const pool = ANIMAL_DIALOGUES[spriteName];
+    if (!pool) return;
+
+    const line = pool[Math.floor(Math.random() * pool.length)];
+    // Derive a display name from the sprite key (e.g. "sprite_cow" → "Cow")
+    const rawName = spriteName.replace("sprite_", "");
+    const speakerName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+
+    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+
+    const container = this.add.container(0, 0).setDepth(50);
+    const boxW = MAP_WIDTH * TILE_SIZE - 40;
+    const boxH = 52;
+    const boxX = 20;
+    const boxY = MAP_HEIGHT * TILE_SIZE - boxH - 10;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 6);
+    container.add(bg);
+
+    const nameText = this.add.text(boxX + 10, boxY + 6, speakerName, {
+      fontSize: "11px", fontFamily: "monospace", color: "#ffd700", fontStyle: "bold",
+    });
+    container.add(nameText);
+
+    const lineText = this.add.text(boxX + 10, boxY + 22, line, {
+      fontSize: "12px", fontFamily: "monospace", color: "#ffffff",
+      wordWrap: { width: boxW - 20 },
+    });
+    container.add(lineText);
+
+    this.dialogueOverlay = container;
+    this.time.delayedCall(2000, () => {
+      if (this.dialogueOverlay === container) {
+        container.destroy();
+        this.dialogueOverlay = null;
+      }
+    });
+  }
+
+  /** Show a dialogue box when the player interacts with an NPC. */
+  private showNpcDialogue(npcDef: NpcInstance, npcIndex: number, city: CityData): void {
+    if (this.dialogueOverlay) {
+      this.dialogueOverlay.destroy();
+      this.dialogueOverlay = null;
+    }
+
+    const tpl = getNpcTemplate(npcDef.templateId);
+    if (!tpl) return;
+
+    let speakerName: string;
+    let line: string;
+
+    if (npcDef.shopIndex !== undefined) {
+      const shop = city.shops[npcDef.shopIndex];
+      if (shop) {
+        speakerName = shop.name;
+        line = getShopkeeperDialogue(shop.type, npcIndex);
+      } else {
+        speakerName = tpl.label;
+        line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId);
+      }
+    } else {
+      speakerName = tpl.label;
+      line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId);
+    }
+
+    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+
+    const container = this.add.container(0, 0).setDepth(50);
+    const boxW = MAP_WIDTH * TILE_SIZE - 40;
+    const boxH = 52;
+    const boxX = 20;
+    const boxY = MAP_HEIGHT * TILE_SIZE - boxH - 10;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 6);
+    container.add(bg);
+
+    const nameText = this.add.text(boxX + 10, boxY + 6, speakerName, {
+      fontSize: "10px",
+      fontFamily: "monospace",
+      color: "#ffd700",
+      stroke: "#000",
+      strokeThickness: 1,
+    });
+    container.add(nameText);
+
+    const lineText = this.add.text(boxX + 10, boxY + 22, line, {
+      fontSize: "11px",
+      fontFamily: "monospace",
+      color: "#ddd",
+      wordWrap: { width: boxW - 20 },
+    });
+    container.add(lineText);
+
+    const hint = this.add.text(boxX + boxW - 10, boxY + boxH - 14, "[SPACE]", {
+      fontSize: "8px",
+      fontFamily: "monospace",
+      color: "#888",
+    }).setOrigin(1, 0);
+    container.add(hint);
+
+    this.dialogueOverlay = container;
+  }
+
+  /** Dismiss the current dialogue overlay. */
+  private dismissDialogue(): void {
+    if (this.dialogueOverlay) {
+      this.dialogueOverlay.destroy();
+      this.dialogueOverlay = null;
+    }
+  }
+
+  /** Show inn confirmation overlay. */
+  private showInnConfirmation(): void {
+    if (this.innConfirmOverlay) return;
+    const innCost = getInnCost(this.player.cityId);
+    const container = this.add.container(0, 0).setDepth(55);
+    const boxW = 260;
+    const boxH = 70;
+    const boxX = (MAP_WIDTH * TILE_SIZE - boxW) / 2;
+    const boxY = (MAP_HEIGHT * TILE_SIZE - boxH) / 2;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
+    container.add(bg);
+
+    const prompt = this.add.text(boxX + boxW / 2, boxY + 12, `Rest at the inn for ${innCost}g?`, {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    container.add(prompt);
+
+    const yesBtn = this.add.text(boxX + boxW / 2 - 50, boxY + 40, "Yes", {
+      fontSize: "13px",
+      fontFamily: "monospace",
+      color: "#88ff88",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    yesBtn.on("pointerover", () => yesBtn.setColor("#ffd700"));
+    yesBtn.on("pointerout", () => yesBtn.setColor("#88ff88"));
+    yesBtn.on("pointerdown", () => this.confirmInnRest());
+    container.add(yesBtn);
+
+    const noBtn = this.add.text(boxX + boxW / 2 + 50, boxY + 40, "No", {
+      fontSize: "13px",
+      fontFamily: "monospace",
+      color: "#ff8888",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    noBtn.on("pointerover", () => noBtn.setColor("#ffd700"));
+    noBtn.on("pointerout", () => noBtn.setColor("#ff8888"));
+    noBtn.on("pointerdown", () => this.dismissInnConfirmation());
+    container.add(noBtn);
+
+    this.innConfirmOverlay = container;
+  }
+
+  /** Execute inn rest after confirmation. */
+  private confirmInnRest(): void {
+    this.dismissInnConfirmation();
+    const innCost = getInnCost(this.player.cityId);
+    if (this.player.gold < innCost) {
+      this.showMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
+      return;
+    }
+    this.player.gold -= innCost;
+    this.player.hp = this.player.maxHp;
+    this.player.mp = this.player.maxMp;
+    this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
+    this.updateHUD();
+    this.autoSave();
+  }
+
+  /** Dismiss inn confirmation overlay. */
+  private dismissInnConfirmation(): void {
+    if (this.innConfirmOverlay) {
+      this.innConfirmOverlay.destroy();
+      this.innConfirmOverlay = null;
+    }
+  }
+
+  /** Show bank deposit/withdraw overlay with interest info. */
+  private showBankOverlay(): void {
+    if (this.bankOverlay) return;
+
+    // Apply interest before showing balance
+    const currentDay = Math.floor(this.timeStep / CYCLE_LENGTH);
+    const interest = applyBankInterest(this.player, currentDay);
+
+    const container = this.add.container(0, 0).setDepth(55);
+    const boxW = 280;
+    const boxH = 140;
+    const boxX = (MAP_WIDTH * TILE_SIZE - boxW) / 2;
+    const boxY = (MAP_HEIGHT * TILE_SIZE - boxH) / 2;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
+    container.add(bg);
+
+    this.add.text(boxX + boxW / 2, boxY + 10, "🏦 Bank", {
+      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0).setDepth(56);
+    container.add(container.last!);
+
+    let statusText = `Balance: ${this.player.bankBalance}g  |  Gold: ${this.player.gold}g`;
+    if (interest > 0) {
+      statusText += `\n+${interest}g interest earned!`;
+    }
+    statusText += "\n2% daily interest on deposits";
+
+    const info = this.add.text(boxX + boxW / 2, boxY + 30, statusText, {
+      fontSize: "10px", fontFamily: "monospace", color: "#ccc", align: "center", lineSpacing: 3,
+    }).setOrigin(0.5, 0);
+    container.add(info);
+
+    const btnY = boxY + 78;
+
+    // Deposit button
+    const depositBtn = this.add.text(boxX + boxW / 2 - 70, btnY, "Deposit 10g", {
+      fontSize: "12px", fontFamily: "monospace", color: "#88ff88",
+      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    depositBtn.on("pointerover", () => depositBtn.setColor("#ffd700"));
+    depositBtn.on("pointerout", () => depositBtn.setColor("#88ff88"));
+    depositBtn.on("pointerdown", () => {
+      const amount = Math.min(10, this.player.gold);
+      if (amount > 0) {
+        this.player.gold -= amount;
+        this.player.bankBalance += amount;
+        if (this.player.lastBankDay === 0) this.player.lastBankDay = currentDay;
+        this.dismissBankOverlay();
+        this.showBankOverlay();
+        this.updateHUD();
+        this.autoSave();
+      }
+    });
+    container.add(depositBtn);
+
+    // Deposit All button
+    const depositAllBtn = this.add.text(boxX + boxW / 2, btnY, "Deposit All", {
+      fontSize: "12px", fontFamily: "monospace", color: "#66dd66",
+      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    depositAllBtn.on("pointerover", () => depositAllBtn.setColor("#ffd700"));
+    depositAllBtn.on("pointerout", () => depositAllBtn.setColor("#66dd66"));
+    depositAllBtn.on("pointerdown", () => {
+      if (this.player.gold > 0) {
+        this.player.bankBalance += this.player.gold;
+        this.player.gold = 0;
+        if (this.player.lastBankDay === 0) this.player.lastBankDay = currentDay;
+        this.dismissBankOverlay();
+        this.showBankOverlay();
+        this.updateHUD();
+        this.autoSave();
+      }
+    });
+    container.add(depositAllBtn);
+
+    // Withdraw button
+    const withdrawBtn = this.add.text(boxX + boxW / 2 + 70, btnY, "Withdraw 10g", {
+      fontSize: "12px", fontFamily: "monospace", color: "#ffaa66",
+      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    withdrawBtn.on("pointerover", () => withdrawBtn.setColor("#ffd700"));
+    withdrawBtn.on("pointerout", () => withdrawBtn.setColor("#ffaa66"));
+    withdrawBtn.on("pointerdown", () => {
+      const amount = Math.min(10, this.player.bankBalance);
+      if (amount > 0) {
+        this.player.bankBalance -= amount;
+        this.player.gold += amount;
+        this.dismissBankOverlay();
+        this.showBankOverlay();
+        this.updateHUD();
+        this.autoSave();
+      }
+    });
+    container.add(withdrawBtn);
+
+    // Close button
+    const closeBtn = this.add.text(boxX + boxW / 2, btnY + 30, "Close", {
+      fontSize: "12px", fontFamily: "monospace", color: "#ff8888",
+      backgroundColor: "#2a2a4e", padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    closeBtn.on("pointerover", () => closeBtn.setColor("#ffd700"));
+    closeBtn.on("pointerout", () => closeBtn.setColor("#ff8888"));
+    closeBtn.on("pointerdown", () => this.dismissBankOverlay());
+    container.add(closeBtn);
+
+    this.bankOverlay = container;
+  }
+
+  /** Dismiss bank overlay. */
+  private dismissBankOverlay(): void {
+    if (this.bankOverlay) {
+      this.bankOverlay.destroy();
+      this.bankOverlay = null;
     }
   }
 
@@ -898,11 +2060,49 @@ export class OverworldScene extends Phaser.Scene {
       if (!city) return;
       const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
       const biomeFloorTex = `tile_${cityBiome}`;
+      // Biome-appropriate wall texture
+      const BIOME_WALL_MAP: Record<number, string> = {
+        [Terrain.Grass]: "tile_citywall_wood",
+        [Terrain.Forest]: "tile_citywall_moss",
+        [Terrain.DeepForest]: "tile_citywall_moss",
+        [Terrain.Sand]: "tile_citywall_sand",
+        [Terrain.Tundra]: "tile_citywall_ice",
+        [Terrain.Swamp]: "tile_citywall_dark",
+        [Terrain.Volcanic]: "tile_citywall_volcanic",
+        [Terrain.Canyon]: "tile_citywall_sand",
+      };
+      const biomeWallTex = BIOME_WALL_MAP[cityBiome] ?? `tile_${Terrain.CityWall}`;
+      // Biome path texture
+      const BIOME_PATH_MAP2: Record<number, string> = {
+        [Terrain.Grass]: "tile_path_wood", [Terrain.Forest]: "tile_path_moss",
+        [Terrain.DeepForest]: "tile_path_moss", [Terrain.Sand]: "tile_path_sand",
+        [Terrain.Tundra]: "tile_path_gravel", [Terrain.Swamp]: "tile_path_dark",
+        [Terrain.Volcanic]: "tile_path_lava", [Terrain.Canyon]: "tile_path_sand",
+      };
+      const biomePathTex = BIOME_PATH_MAP2[cityBiome] ?? "tile_path_cobble";
+      // Shop-type colored carpet lookup
+      const SHOP_CARPET_TEX: Record<string, string> = {
+        weapon: "tile_carpet_weapon", armor: "tile_carpet_armor",
+        general: "tile_carpet_general", magic: "tile_carpet_magic",
+        bank: "tile_carpet_bank", inn: "tile_carpet_inn",
+      };
+      const shopCarpetMap = new Map<string, string>();
+      for (const shop of city.shops) {
+        const ct = SHOP_CARPET_TEX[shop.type];
+        shopCarpetMap.set(`${shop.x},${shop.y}`, ct ?? biomeFloorTex);
+      }
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
           if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
             const terrain = city.mapData[y][x];
-            const texKey = terrain === Terrain.CityFloor ? biomeFloorTex : `tile_${terrain}`;
+            let texKey = `tile_${terrain}`;
+            if (terrain === Terrain.CityFloor) texKey = biomeFloorTex;
+            if (terrain === Terrain.CityWall) texKey = biomeWallTex;
+            if (terrain === Terrain.Carpet) {
+              const override = shopCarpetMap.get(`${x},${y}`);
+              if (override) texKey = override;
+            }
+            if (terrain === Terrain.CityPath) texKey = biomePathTex;
             this.tileSprites[y][x].setTexture(texKey);
           }
         }
@@ -1305,7 +2505,7 @@ export class OverworldScene extends Phaser.Scene {
       } else {
         const shop = getCityShopNearby(city, this.player.x, this.player.y);
         if (shop) {
-          this.locationText.setText(`${shop.name}\n[SPACE] Enter`);
+          this.locationText.setText(`${shop.name}`);
         } else {
           this.locationText.setText(city.name);
         }
@@ -1501,6 +2701,11 @@ export class OverworldScene extends Phaser.Scene {
 
     // In city: no chunk transitions, no encounters
     if (this.player.inCity) {
+      // Dismiss any open overlays when moving
+      this.dismissDialogue();
+      this.dismissInnConfirmation();
+      this.dismissBankOverlay();
+
       const city = getCity(this.player.cityId);
       if (!city) return;
       if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
@@ -1527,6 +2732,7 @@ export class OverworldScene extends Phaser.Scene {
           this.revealTileSprites();
           this.updateHUD();
           this.updateLocationText();
+          this.updateShopRoofAlpha();
           // No encounters in cities
         },
       });
@@ -1535,6 +2741,9 @@ export class OverworldScene extends Phaser.Scene {
 
     let newChunkX = this.player.chunkX;
     let newChunkY = this.player.chunkY;
+
+    // Dismiss any open dialogue overlay when moving on the overworld
+    this.dismissDialogue();
 
     // Chunk transition detection
     if (newX < 0) {
@@ -1723,8 +2932,24 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    // ── City actions: exit and shop interaction ──
+    // ── City actions: exit, NPC dialogue, and shop interaction ──
     if (this.player.inCity) {
+      // If a dialogue is showing, dismiss it
+      if (this.dialogueOverlay) {
+        this.dismissDialogue();
+        return;
+      }
+      // If inn confirmation is showing, dismiss it
+      if (this.innConfirmOverlay) {
+        this.dismissInnConfirmation();
+        return;
+      }
+      // If bank overlay is showing, dismiss it
+      if (this.bankOverlay) {
+        this.dismissBankOverlay();
+        return;
+      }
+
       const city = getCity(this.player.cityId);
       if (!city) return;
       const terrain = city.mapData[this.player.y]?.[this.player.x];
@@ -1749,48 +2974,83 @@ export class OverworldScene extends Phaser.Scene {
         return;
       }
 
-      // Check if on or near a shop location
-      const shop = getCityShopNearby(city, this.player.x, this.player.y);
-      if (shop) {
-        if (shop.type === "inn") {
-          // Inn: heal directly without opening shop
-          if (this.player.gold < 10) {
-            this.showMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
-          } else {
-            this.player.gold -= 10;
-            this.player.hp = this.player.maxHp;
-            this.player.mp = this.player.maxMp;
-            this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
-            this.updateHUD();
-            this.autoSave();
+      // Check if adjacent to or on an NPC
+      const npcResult = this.findAdjacentNpc();
+      if (npcResult) {
+        const { npcDef, npcIndex } = npcResult;
+        // Shopkeeper NPC → show dialogue, then open shop
+        if (npcDef.shopIndex !== undefined) {
+          const shop = city.shops[npcDef.shopIndex];
+          if (shop) {
+            if (shop.type === "inn") {
+              this.showNpcDialogue(npcDef, npcIndex, city);
+              // After a short delay, show inn confirmation
+              this.time.delayedCall(300, () => {
+                this.dismissDialogue();
+                this.showInnConfirmation();
+              });
+              return;
+            }
+            if (shop.type === "bank") {
+              this.showNpcDialogue(npcDef, npcIndex, city);
+              this.time.delayedCall(800, () => {
+                this.dismissDialogue();
+                this.showBankOverlay();
+              });
+              return;
+            }
+            // Other shopkeepers → dialogue then open shop
+            this.showNpcDialogue(npcDef, npcIndex, city);
+            this.time.delayedCall(800, () => {
+              this.dismissDialogue();
+              this.autoSave();
+              this.scene.start("ShopScene", {
+                player: this.player,
+                townName: `${city.name} - ${shop.name}`,
+                defeatedBosses: this.defeatedBosses,
+                bestiary: this.bestiary,
+                shopItemIds: shop.shopItems,
+                timeStep: this.timeStep,
+                weatherState: this.weatherState,
+                fromCity: true,
+                cityId: city.id,
+              });
+            });
+            return;
           }
-          return;
         }
-        if (shop.type === "bank") {
-          this.showMessage(`💰 The bank holds your gold safe. Balance: ${this.player.gold}g`, "#ffd700");
-          return;
-        }
-        // Open shop with specific items
-        this.autoSave();
-        this.scene.start("ShopScene", {
-          player: this.player,
-          townName: `${city.name} - ${shop.name}`,
-          defeatedBosses: this.defeatedBosses,
-          bestiary: this.bestiary,
-          shopItemIds: shop.shopItems,
-          timeStep: this.timeStep,
-          weatherState: this.weatherState,
-          fromCity: true,
-          cityId: city.id,
-        });
+        // Regular NPC → show dialogue
+        this.showNpcDialogue(npcDef, npcIndex, city);
         return;
       }
+
+      // Check if adjacent to a city animal
+      const animalResult = this.findAdjacentAnimal();
+      if (animalResult) {
+        this.showAnimalDialogue(animalResult.spriteName);
+        return;
+      }
+
+      // No fallback tile-based shop opening — shops only open via shopkeeper NPCs
       return;
     }
 
     // ── Overworld actions ──
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     if (!chunk) return;
+
+    // If a dialogue is showing, dismiss it
+    if (this.dialogueOverlay) {
+      this.dismissDialogue();
+      return;
+    }
+
+    // Check if adjacent to a special (rare) NPC on the overworld
+    const specialResult = this.findAdjacentSpecialNpc();
+    if (specialResult) {
+      this.interactSpecialNpc(specialResult.index);
+      return;
+    }
 
     // Check if on a town
     const town = chunk.towns.find(
@@ -1841,6 +3101,7 @@ export class OverworldScene extends Phaser.Scene {
         shopItemIds: town.shopItems,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
+        savedSpecialNpcs: this.snapshotSpecialNpcs(),
       });
       return;
     }
@@ -1948,6 +3209,7 @@ export class OverworldScene extends Phaser.Scene {
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         biome: this.terrainToBiome(terrain),
+        savedSpecialNpcs: this.snapshotSpecialNpcs(),
       });
     });
   }
@@ -1964,6 +3226,7 @@ export class OverworldScene extends Phaser.Scene {
       bestiary: this.bestiary,
       timeStep: this.timeStep,
       weatherState: this.weatherState,
+      savedSpecialNpcs: this.snapshotSpecialNpcs(),
     });
   }
 
@@ -1971,14 +3234,32 @@ export class OverworldScene extends Phaser.Scene {
     saveGame(this.player, this.defeatedBosses, this.bestiary, this.player.appearanceId, this.timeStep, this.weatherState);
   }
 
+  /** Snapshot active special NPCs so they survive scene transitions. */
+  private snapshotSpecialNpcs(): SavedSpecialNpc[] {
+    return this.specialNpcDefs
+      .filter((_entry, i) => {
+        const spr = this.specialNpcSprites[i];
+        return spr && spr.active;
+      })
+      .map((entry) => ({
+        kind: entry.def.kind,
+        x: entry.x,
+        y: entry.y,
+        interactions: entry.interactions,
+      }));
+  }
+
   /** Advance the day/night cycle by one step and update the map tint. */
   private advanceTime(): void {
+    // Time stands still inside cities.
+    if (this.player.inCity) return;
+
     const oldPeriod = getTimePeriod(this.timeStep);
     this.timeStep = (this.timeStep + 1) % CYCLE_LENGTH;
     const newPeriod = getTimePeriod(this.timeStep);
 
-    // Dungeons and cities are enclosed — weather stays Clear, only advance time-of-day tint.
-    if (this.player.inDungeon || this.player.inCity) {
+    // Dungeons are enclosed — weather stays Clear, only advance time-of-day tint.
+    if (this.player.inDungeon) {
       if (oldPeriod !== newPeriod) this.applyDayNightTint();
       return;
     }

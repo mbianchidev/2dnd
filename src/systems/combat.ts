@@ -208,14 +208,13 @@ export function playerCastSpell(
 
 /** Monster attacks the player. Returns roll breakdown for debug logging.
  *  weatherPenalty raises the effective AC the monster must beat.
- *  monsterAtkBoost/monsterDmgBoost come from weather affinity. */
+ *  monsterAtkBoost comes from weather affinity. */
 export function monsterAttack(
   monster: Monster,
   player: PlayerState,
   playerDefendBonus: number = 0,
   weatherPenalty: number = 0,
   monsterAtkBoost: number = 0,
-  monsterDmgBoost: number = 0
 ): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
   if (!monster || !player) {
     throw new Error(`[combat] monsterAttack: missing monster or player`);
@@ -225,7 +224,7 @@ export function monsterAttack(
   const roll = rollD20(effectiveAtkBonus);
 
   if (roll.roll === 20) {
-    const damage = rollDice(monster.damageCount * 2, monster.damageDie) + monsterDmgBoost;
+    const damage = rollDice(monster.damageCount * 2, monster.damageDie);
     player.hp = Math.max(0, player.hp - damage);
     return {
       message: `CRITICAL! ${monster.name} savages you for ${damage} damage!`,
@@ -252,7 +251,7 @@ export function monsterAttack(
   }
 
   if (roll.total >= playerAC) {
-    const damage = rollDice(monster.damageCount, monster.damageDie) + monsterDmgBoost;
+    const damage = rollDice(monster.damageCount, monster.damageDie);
     player.hp = Math.max(0, player.hp - damage);
     return {
       message: `${monster.name} hits you for ${damage} damage!`,

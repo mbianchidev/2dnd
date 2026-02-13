@@ -80,6 +80,8 @@ export interface PlayerState {
   lastTownY: number;      // last town tile y
   lastTownChunkX: number; // last town chunk x
   lastTownChunkY: number; // last town chunk y
+  bankBalance: number;    // gold stored in the bank (accessible across all banks)
+  lastBankDay: number;    // last day interest was applied (timeStep / CYCLE_LENGTH)
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -160,7 +162,24 @@ export function createPlayer(
     lastTownY: 2,
     lastTownChunkX: 4,
     lastTownChunkY: 2,
+    bankBalance: 0,
+    lastBankDay: 0,
   };
+}
+
+/**
+ * Apply 2% daily compound interest to the player's bank balance.
+ * Should be called when the player visits a bank.
+ * @returns the interest earned (0 if none).
+ */
+export function applyBankInterest(player: PlayerState, currentDay: number): number {
+  if (player.bankBalance <= 0 || currentDay <= player.lastBankDay) return 0;
+  const days = currentDay - player.lastBankDay;
+  const rate = 0.02; // 2% per day
+  const oldBalance = player.bankBalance;
+  player.bankBalance = Math.floor(oldBalance * Math.pow(1 + rate, days));
+  player.lastBankDay = currentDay;
+  return player.bankBalance - oldBalance;
 }
 
 /** Get the attack modifier for the player (uses class primary stat for melee). */

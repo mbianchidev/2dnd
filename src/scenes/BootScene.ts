@@ -5,6 +5,7 @@
 import Phaser from "phaser";
 import { TERRAIN_COLORS, Terrain, WORLD_CHUNKS, WORLD_WIDTH, WORLD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, getTownBiome } from "../data/map";
 import { PLAYER_APPEARANCES, type PlayerAppearance, SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance, getAppearance, getActiveWeaponSprite } from "../systems/appearance";
+import { NPC_TEMPLATES, type NpcTemplate, NPC_SKIN_COLORS, NPC_HAIR_COLORS, NPC_DRESS_COLORS, JOB_ACCENT_COLORS } from "../data/npcs";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
 import { abilityModifier, rollAbilityScore } from "../utils/dice";
@@ -29,6 +30,7 @@ export class BootScene extends Phaser.Scene {
     this.generateBossTexture();
     this.generateUITextures();
     this.generateBattleBackgrounds();
+    this.generateNpcTextures();
     this.showTitleScreen();
   }
 
@@ -239,6 +241,9 @@ export class BootScene extends Phaser.Scene {
           gfx.fillStyle(0x3e2723, 0.4);
           gfx.fillRect(0, 0, TILE_SIZE, 2);
           break;
+
+        // At the end of tile generation we also create biome wall variants
+        // (wood, sandstone, mossy, ice) — see generateBiomeWallTextures() below.
         case Terrain.CityExit:
           // City gate / exit
           gfx.fillStyle(0x2e7d32, 0.5);
@@ -1533,6 +1538,57 @@ export class BootScene extends Phaser.Scene {
     }
     bdrake.generateTexture("bg_boss_canyonDrake", W, H);
     bdrake.destroy();
+  }
+
+  private generateNpcTextures(): void {
+    const S = TILE_SIZE;
+
+    for (const tpl of NPC_TEMPLATES) {
+      const gfx = this.add.graphics();
+      const isChild = tpl.ageGroup === "child";
+      const bodyW = isChild ? 10 : 14;
+      const bodyH = isChild ? 10 : 14;
+      const headR = isChild ? 5 : 6;
+      const legW = isChild ? 3 : 4;
+      const legH = isChild ? 4 : 5;
+      // Centering offsets
+      const bx = Math.floor((S - bodyW) / 2);
+      const by = isChild ? 14 : 10;
+
+      // Body / dress
+      gfx.fillStyle(tpl.bodyColor, 1);
+      gfx.fillRect(bx, by, bodyW, bodyH);
+
+      // Head (skin placeholder — tinted at spawn)
+      gfx.fillStyle(0xffccbc, 1);
+      gfx.fillCircle(S / 2, by - headR + 2, headR);
+
+      // Hair (on top of head — short default)
+      gfx.fillStyle(0x5d4037, 1);
+      if (tpl.ageGroup === "child") {
+        gfx.fillRect(S / 2 - headR + 1, by - headR * 2 + 3, headR * 2 - 2, 3);
+      } else if (tpl.ageGroup === "female") {
+        // Longer hair for female templates
+        gfx.fillRect(S / 2 - headR, by - headR * 2 + 2, headR * 2, 4);
+        gfx.fillRect(S / 2 - headR, by - headR + 4, 2, headR);
+        gfx.fillRect(S / 2 + headR - 2, by - headR + 4, 2, headR);
+      } else {
+        gfx.fillRect(S / 2 - headR + 1, by - headR * 2 + 2, headR * 2 - 2, 4);
+      }
+
+      // Eyes
+      gfx.fillStyle(0x111111, 1);
+      gfx.fillRect(S / 2 - 2, by - headR + 3, 1, 1);
+      gfx.fillRect(S / 2 + 2, by - headR + 3, 1, 1);
+
+      // Legs
+      gfx.fillStyle(0x6d4c41, 1);
+      gfx.fillRect(bx + 1, by + bodyH, legW, legH);
+      gfx.fillRect(bx + bodyW - legW - 1, by + bodyH, legW, legH);
+
+      gfx.generateTexture(`npc_${tpl.id}`, S, S);
+      gfx.destroy();
+    }
   }
 
   private showTitleScreen(): void {

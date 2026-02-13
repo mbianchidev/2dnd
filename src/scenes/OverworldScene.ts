@@ -3007,6 +3007,10 @@ export class OverworldScene extends Phaser.Scene {
       // Check if this town has an explorable city layout
       const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
       if (city) {
+        // Auto-dismount when entering a city
+        if (this.player.mountId) {
+          this.player.mountId = "";
+        }
         // Enter the city interior
         this.player.inCity = true;
         this.player.cityId = city.id;
@@ -3032,6 +3036,10 @@ export class OverworldScene extends Phaser.Scene {
       }
 
       // No city layout — open shop directly (legacy behavior)
+      // Auto-dismount when entering a shop
+      if (this.player.mountId) {
+        this.player.mountId = "";
+      }
       this.rerollWeather();
       this.autoSave();
       this.scene.start("ShopScene", {
@@ -3059,6 +3067,10 @@ export class OverworldScene extends Phaser.Scene {
       if (dungeon) {
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
         if (hasKey || isDebug()) {
+          // Auto-dismount when entering a dungeon
+          if (this.player.mountId) {
+            this.player.mountId = "";
+          }
           // Enter the dungeon — force clear weather (closed space)
           this.player.inDungeon = true;
           this.player.dungeonId = dungeon.id;

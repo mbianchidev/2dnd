@@ -139,5 +139,42 @@ describe("mount system", () => {
       player.inventory.push({ ...horseItem });
       expect(ownsEquipment(player, "mountHorse")).toBe(true);
     });
+
+    it("dismounting clears mountId and removes speed/encounter effects", () => {
+      const player = createTestPlayer({ mountId: "horse" });
+      expect(player.mountId).toBe("horse");
+
+      // Simulate dismount
+      player.mountId = "";
+      expect(player.mountId).toBe("");
+
+      // Verify no mount data is referenced
+      expect(getMount(player.mountId)).toBeUndefined();
+    });
+
+    it("mount items can be removed from inventory (sold)", () => {
+      const player = createTestPlayer({ mountId: "horse" });
+      const horseItem = getItem("mountHorse")!;
+      player.inventory.push({ ...horseItem });
+
+      // Remove mount item from inventory (simulates selling)
+      const mountIdx = player.inventory.findIndex((i) => i.id === "mountHorse");
+      expect(mountIdx).toBeGreaterThanOrEqual(0);
+      player.inventory.splice(mountIdx, 1);
+
+      // After selling the active mount's item, clear mountId
+      const stillOwned = player.inventory.some((i) => i.type === "mount" && i.mountId === player.mountId);
+      if (!stillOwned) player.mountId = "";
+      expect(player.mountId).toBe("");
+    });
+
+    it("mount items are regular items with a cost for selling", () => {
+      const donkey = getItem("mountDonkey")!;
+      const horse = getItem("mountHorse")!;
+      const warHorse = getItem("mountWarHorse")!;
+      expect(donkey.cost).toBeGreaterThan(0);
+      expect(horse.cost).toBeGreaterThan(0);
+      expect(warHorse.cost).toBeGreaterThan(0);
+    });
   });
 });

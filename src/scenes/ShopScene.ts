@@ -294,7 +294,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private purchaseItem(item: Item): void {
-    const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield";
+    const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield" || item.type === "mount";
     if (isEquipment && ownsEquipment(this.player, item.id)) {
       this.setMessage(`You already own ${item.name}!`, "#ff6666");
       return;

@@ -152,6 +152,7 @@ export function playerCastSpell(
     };
   }
 
+  // Utility spells cannot be used in combat
   if (spell.type === "utility") {
     return {
       message: `${spell.name} cannot be used in battle!`,
@@ -224,7 +225,6 @@ export function monsterAttack(
   playerDefendBonus: number = 0,
   weatherPenalty: number = 0,
   monsterAtkBoost: number = 0,
-  monsterDmgBoost: number = 0
 ): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
   if (!monster || !player) {
     throw new Error(`[combat] monsterAttack: missing monster or player`);
@@ -234,7 +234,7 @@ export function monsterAttack(
   const roll = rollD20(effectiveAtkBonus);
 
   if (roll.roll === 20) {
-    const damage = rollDice(monster.damageCount * 2, monster.damageDie) + monsterDmgBoost;
+    const damage = rollDice(monster.damageCount * 2, monster.damageDie);
     player.hp = Math.max(0, player.hp - damage);
     return {
       message: `CRITICAL! ${monster.name} savages you for ${damage} damage!`,
@@ -261,7 +261,7 @@ export function monsterAttack(
   }
 
   if (roll.total >= playerAC) {
-    const damage = rollDice(monster.damageCount, monster.damageDie) + monsterDmgBoost;
+    const damage = rollDice(monster.damageCount, monster.damageDie);
     player.hp = Math.max(0, player.hp - damage);
     return {
       message: `${monster.name} hits you for ${damage} damage!`,
@@ -324,6 +324,7 @@ export function playerUseAbility(
     return { message: "Not enough MP!", damage: 0, hit: false, mpUsed: 0 };
   }
 
+  // Utility abilities cannot be used in combat
   if (ability.type === "utility") {
     return { message: `${ability.name} cannot be used in battle!`, damage: 0, hit: false, mpUsed: 0 };
   }

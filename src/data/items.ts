@@ -10,6 +10,7 @@ export interface Item {
   cost: number;
   effect: number; // healing amount, attack bonus, AC bonus, etc.
   twoHanded?: boolean; // weapons only — cannot equip a shield with a two-handed weapon
+  levelReq?: number; // minimum player level to purchase
 }
 
 export const ITEMS: Item[] = [
@@ -36,11 +37,12 @@ export const ITEMS: Item[] = [
     type: "consumable",
     cost: 50,
     effect: 50,
+    levelReq: 5,
   },
   {
     id: "chimaeraWing",
     name: "Chimaera Wing",
-    description: "Teleports to a known town",
+    description: "Teleport to a known town",
     type: "consumable",
     cost: 75,
     effect: 0,
@@ -60,6 +62,7 @@ export const ITEMS: Item[] = [
     type: "weapon",
     cost: 80,
     effect: 4,
+    levelReq: 3,
   },
   {
     id: "greatSword",
@@ -69,6 +72,7 @@ export const ITEMS: Item[] = [
     cost: 200,
     effect: 7,
     twoHanded: true,
+    levelReq: 5,
   },
   {
     id: "leatherArmor",
@@ -85,6 +89,7 @@ export const ITEMS: Item[] = [
     type: "armor",
     cost: 75,
     effect: 4,
+    levelReq: 3,
   },
   {
     id: "plateArmor",
@@ -93,6 +98,7 @@ export const ITEMS: Item[] = [
     type: "armor",
     cost: 250,
     effect: 6,
+    levelReq: 5,
   },
   {
     id: "woodenShield",
@@ -109,6 +115,7 @@ export const ITEMS: Item[] = [
     type: "shield",
     cost: 60,
     effect: 2,
+    levelReq: 3,
   },
   {
     id: "towerShield",
@@ -117,6 +124,7 @@ export const ITEMS: Item[] = [
     type: "shield",
     cost: 150,
     effect: 3,
+    levelReq: 5,
   },
   {
     id: "dungeonKey",

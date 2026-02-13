@@ -4,10 +4,13 @@
 
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
-import { buyItem, useItem, ownsEquipment, longRest } from "../systems/player";
+import { useItem, ownsEquipment, longRest } from "../systems/player";
 import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
 import { type WeatherState, createWeatherState } from "../systems/weather";
+import { CYCLE_LENGTH } from "../systems/daynight";
+import { getInnCost } from "../data/map";
+import type { SavedSpecialNpc } from "../data/npcs";
 import { audioEngine } from "../systems/audio";
 
 export class ShopScene extends Phaser.Scene {
@@ -22,8 +25,14 @@ export class ShopScene extends Phaser.Scene {
   private goldText!: Phaser.GameObjects.Text;
   private statsText!: Phaser.GameObjects.Text;
   private itemListContainer!: Phaser.GameObjects.Container;
+  private scrollMask!: Phaser.GameObjects.Graphics;
+  private scrollY = 0;
+  private maxScrollY = 0;
+  private listVisibleH = 0;
   private fromCity = false;
   private cityId = "";
+  private discount = 0;
+  private savedSpecialNpcs: SavedSpecialNpc[] = [];
 
   constructor() {
     super({ key: "ShopScene" });
@@ -39,6 +48,8 @@ export class ShopScene extends Phaser.Scene {
     weatherState?: WeatherState;
     fromCity?: boolean;
     cityId?: string;
+    discount?: number;
+    savedSpecialNpcs?: SavedSpecialNpc[];
   }): void {
     this.player = data.player;
     this.townName = data.townName;
@@ -48,6 +59,8 @@ export class ShopScene extends Phaser.Scene {
     this.weatherState = data.weatherState ?? createWeatherState();
     this.fromCity = data.fromCity ?? false;
     this.cityId = data.cityId ?? "";
+    this.discount = data.discount ?? 0;
+    this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -132,8 +145,31 @@ export class ShopScene extends Phaser.Scene {
       color: "#ffd700",
     });
 
-    this.itemListContainer = this.add.container(w * 0.39 + 10, 94);
+    const listTop = 94;
+    const listBottom = h - 64;
+    this.listVisibleH = listBottom - listTop;
+
+    this.itemListContainer = this.add.container(w * 0.39 + 10, listTop);
+
+    // Mask to clip items to visible area
+    this.scrollMask = this.make.graphics({});
+    this.scrollMask.fillStyle(0xffffff);
+    this.scrollMask.fillRect(w * 0.38, listTop, w * 0.6, this.listVisibleH);
+    this.itemListContainer.setMask(
+      new Phaser.Display.Masks.GeometryMask(this, this.scrollMask)
+    );
+
+    this.scrollY = 0;
     this.renderShopItems();
+
+    // Scroll with mouse wheel
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
+      this.scrollList(deltaY > 0 ? 30 : -30);
+    });
+
+    // Scroll with arrow keys
+    this.input.keyboard!.on("keydown-DOWN", () => this.scrollList(30));
+    this.input.keyboard!.on("keydown-UP", () => this.scrollList(-30));
 
     // Bottom bar background
     const bottomBarY = h - 56;
@@ -154,8 +190,9 @@ export class ShopScene extends Phaser.Scene {
 
     // Rest at Inn button (only in standalone shop mode, not from city)
     if (!this.fromCity) {
+      const innCost = getInnCost(this.cityId);
       const restBtn = this.add
-        .text(20, bottomBarY + 28, "🏨 Rest at Inn (10g)", {
+        .text(20, bottomBarY + 28, `🏨 Rest at Inn (${innCost}g)`, {
           fontSize: "13px",
           fontFamily: "monospace",
           color: "#aaddff",
@@ -189,14 +226,25 @@ export class ShopScene extends Phaser.Scene {
     this.updateDisplay();
   }
 
+  private scrollList(delta: number): void {
+    this.scrollY = Phaser.Math.Clamp(this.scrollY + delta, 0, this.maxScrollY);
+    this.itemListContainer.y = 94 - this.scrollY;
+  }
+
   private renderShopItems(): void {
     this.itemListContainer.removeAll(true);
 
-    this.shopItems.forEach((item, i) => {
+    const w = this.cameras.main.width;
+    const maxTextW = w * 0.6 - 20;
+    let yOffset = 0;
+
+    this.shopItems.forEach((item) => {
       const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield";
       const alreadyOwned = isEquipment && ownsEquipment(this.player, item.id);
-      const canBuy = !alreadyOwned && this.player.gold >= item.cost;
-      const color = alreadyOwned ? "#555555" : canBuy ? "#cccccc" : "#666666";
+      const levelLocked = (item.levelReq ?? 0) > this.player.level;
+      const discountedCost = Math.max(1, Math.floor(item.cost * (1 - this.discount)));
+      const canBuy = !alreadyOwned && !levelLocked && this.player.gold >= discountedCost;
+      const color = alreadyOwned ? "#555555" : levelLocked ? "#884444" : canBuy ? "#cccccc" : "#666666";
 
       const typeIcon =
         item.type === "consumable"
@@ -209,17 +257,22 @@ export class ShopScene extends Phaser.Scene {
                 ? "🛡"
                 : "🔑";
 
-      const ownedTag = alreadyOwned ? " [OWNED]" : "";
+      const tag = alreadyOwned ? " [OWNED]" : levelLocked ? ` [Lv.${item.levelReq}]` : "";
+
+      const priceLabel = this.discount > 0
+        ? `~~${item.cost}g~~ ${discountedCost}g`
+        : `${item.cost}g`;
 
       const text = this.add
         .text(
           0,
-          i * 30,
-          `${typeIcon} ${item.name} - ${item.description} (${item.cost}g)${ownedTag}`,
+          yOffset,
+          `${typeIcon} ${item.name} ${priceLabel} ${item.description}${tag}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",
             color,
+            wordWrap: { width: maxTextW },
           }
         )
         .setInteractive({ useHandCursor: canBuy });
@@ -231,7 +284,13 @@ export class ShopScene extends Phaser.Scene {
       }
 
       this.itemListContainer.add(text);
+      yOffset += text.height + 6;
     });
+
+    const totalContentH = yOffset;
+    this.maxScrollY = Math.max(0, totalContentH - this.listVisibleH);
+    this.scrollY = 0;
+    this.itemListContainer.y = 94;
   }
 
   private purchaseItem(item: Item): void {
@@ -240,38 +299,44 @@ export class ShopScene extends Phaser.Scene {
       this.setMessage(`You already own ${item.name}!`, "#ff6666");
       return;
     }
+    if ((item.levelReq ?? 0) > this.player.level) {
+      this.setMessage(`You need to be level ${item.levelReq} to buy ${item.name}!`, "#ff6666");
+      return;
+    }
 
-    const success = buyItem(this.player, item);
-    if (success) {
-      this.setMessage(`Purchased ${item.name}!`, "#88ff88");
+    const discountedCost = Math.max(1, Math.floor(item.cost * (1 - this.discount)));
+    if (this.player.gold < discountedCost) {
+      this.setMessage(`Not enough gold!`, "#ff6666");
+      return;
+    }
+    this.player.gold -= discountedCost;
+    this.player.inventory.push({ ...item });
+    this.setMessage(`Purchased ${item.name}!`, "#88ff88");
 
-      // Auto-equip only if the new item is better than current
-      if (item.type === "weapon") {
-        const currentEffect = this.player.equippedWeapon?.effect ?? 0;
+    // Auto-equip only if the new item is better than current
+    if (item.type === "weapon") {
+      const currentEffect = this.player.equippedWeapon?.effect ?? 0;
+      if (item.effect > currentEffect) {
+        const idx = this.player.inventory.length - 1;
+        useItem(this.player, idx);
+        this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
+      }
+    } else if (item.type === "armor") {
+      const currentEffect = this.player.equippedArmor?.effect ?? 0;
+      if (item.effect > currentEffect) {
+        const idx = this.player.inventory.length - 1;
+        useItem(this.player, idx);
+        this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
+      }
+    } else if (item.type === "shield") {
+      if (!this.player.equippedWeapon?.twoHanded) {
+        const currentEffect = this.player.equippedShield?.effect ?? 0;
         if (item.effect > currentEffect) {
           const idx = this.player.inventory.length - 1;
           useItem(this.player, idx);
           this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
-        }
-      } else if (item.type === "armor") {
-        const currentEffect = this.player.equippedArmor?.effect ?? 0;
-        if (item.effect > currentEffect) {
-          const idx = this.player.inventory.length - 1;
-          useItem(this.player, idx);
-          this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
-        }
-      } else if (item.type === "shield") {
-        if (!this.player.equippedWeapon?.twoHanded) {
-          const currentEffect = this.player.equippedShield?.effect ?? 0;
-          if (item.effect > currentEffect) {
-            const idx = this.player.inventory.length - 1;
-            useItem(this.player, idx);
-            this.setMessage(`Purchased & equipped ${item.name}!`, "#88ff88");
-          }
         }
       }
-    } else {
-      this.setMessage("Not enough gold!", "#ff6666");
     }
 
     this.updateDisplay();
@@ -279,17 +344,107 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private restAtInn(): void {
-    if (this.player.gold < 10) {
-      this.setMessage("Not enough gold to rest! (Need 10g)", "#ff6666");
+    const innCost = getInnCost(this.cityId);
+    if (this.player.gold < innCost) {
+      this.setMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
       return;
     }
+    this.showInnConfirmation();
+  }
 
-    this.player.gold -= 10;
+  /** Show a prompt with two rest options: sleep until morning or wait until night. */
+  private showInnConfirmation(): void {
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const boxW = 300;
+    const boxH = 110;
+    const boxX = (w - boxW) / 2;
+    const boxY = (h - boxH) / 2;
+
+    const container = this.add.container(0, 0).setDepth(50);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
+    container.add(bg);
+
+    const prompt = this.add.text(boxX + boxW / 2, boxY + 10, `Rest at the inn for ${getInnCost(this.cityId)}g?`, {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    container.add(prompt);
+
+    // Dawn = step 0 of the next cycle
+    const DAWN_STEP = 0;
+    // Night starts at step 265
+    const NIGHT_STEP = 265;
+
+    const sleepBtn = this.add.text(boxX + boxW / 2, boxY + 32, "🌅 Sleep Until Morning", {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#88ff88",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 10, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    sleepBtn.on("pointerover", () => sleepBtn.setColor("#ffd700"));
+    sleepBtn.on("pointerout", () => sleepBtn.setColor("#88ff88"));
+    sleepBtn.on("pointerdown", () => {
+      container.destroy();
+      // Advance to Dawn (step 0) of the next cycle
+      const currentCycle = Math.floor(this.timeStep / CYCLE_LENGTH);
+      this.confirmInnRest((currentCycle + 1) * CYCLE_LENGTH + DAWN_STEP,
+        "You sleep soundly at the inn. Good morning! HP and MP restored.");
+    });
+    container.add(sleepBtn);
+
+    const waitBtn = this.add.text(boxX + boxW / 2, boxY + 56, "🌙 Wait Until Night", {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#aaaaff",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 10, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    waitBtn.on("pointerover", () => waitBtn.setColor("#ffd700"));
+    waitBtn.on("pointerout", () => waitBtn.setColor("#aaaaff"));
+    waitBtn.on("pointerdown", () => {
+      container.destroy();
+      // Set to Night start of the current or next cycle
+      const currentPos = ((this.timeStep % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH;
+      const currentCycle = Math.floor(this.timeStep / CYCLE_LENGTH);
+      const targetStep = currentPos < NIGHT_STEP
+        ? currentCycle * CYCLE_LENGTH + NIGHT_STEP
+        : (currentCycle + 1) * CYCLE_LENGTH + NIGHT_STEP;
+      this.confirmInnRest(targetStep,
+        "You rest at the inn and wait for nightfall. HP and MP restored.");
+    });
+    container.add(waitBtn);
+
+    const cancelBtn = this.add.text(boxX + boxW / 2, boxY + 82, "Cancel", {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#ff8888",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    cancelBtn.on("pointerover", () => cancelBtn.setColor("#ffd700"));
+    cancelBtn.on("pointerout", () => cancelBtn.setColor("#ff8888"));
+    cancelBtn.on("pointerdown", () => container.destroy());
+    container.add(cancelBtn);
+  }
+
+  /** Execute the inn rest: heal the player and advance time to the target step. */
+  private confirmInnRest(targetTimeStep: number, message: string): void {
+    const innCost = getInnCost(this.cityId);
+    this.player.gold -= innCost;
     this.player.longRestCount = 0; // reset for new inn visit
     const { hpRestored, mpRestored } = longRest(this.player);
-    const hasLongRest = this.player.knownSpells.includes("longRest");
-    const hint = hasLongRest ? " Use Long Rest (Q) to rest again!" : "";
-    this.setMessage(`You rest at the inn. +${hpRestored} HP, +${mpRestored} MP.${hint}`, "#88ff88");
+    this.timeStep = targetTimeStep;
+    const hasLongRestSpell = this.player.knownSpells.includes("longRest");
+    const hint = hasLongRestSpell ? " Use Long Rest (Q) to rest again!" : "";
+    this.setMessage(`${message} +${hpRestored} HP, +${mpRestored} MP.${hint}`, "#88ff88");
     this.updateDisplay();
     this.renderShopItems();
   }
@@ -319,19 +474,13 @@ export class ShopScene extends Phaser.Scene {
     ).length;
 
     this.statsText.setText(
-      `${p.name} Lv.${p.level}\n` +
-        `HP: ${p.hp}/${p.maxHp}\n` +
-        `MP: ${p.mp}/${p.maxMp}\n\n` +
-        `Weapon: ${weapon}\n` +
+      `Weapon: ${weapon}\n` +
         `Armor: ${armor}\n` +
         `Shield: ${shield}\n\n` +
         `Inventory:\n` +
         `  Potions: ${potionCount}\n` +
         `  Ethers: ${etherCount}\n` +
-        `  Greater Potions: ${greaterCount}\n\n` +
-        `Spells: ${p.knownSpells.length}\n` +
-        `STR ${p.stats.strength} DEX ${p.stats.dexterity}\n` +
-        `CON ${p.stats.constitution} INT ${p.stats.intelligence}`
+        `  Greater Potions: ${greaterCount}`
     );
   }
 
@@ -344,6 +493,7 @@ export class ShopScene extends Phaser.Scene {
         bestiary: this.bestiary,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
+        savedSpecialNpcs: this.savedSpecialNpcs,
       });
     });
   }

@@ -2947,6 +2947,9 @@ export class OverworldScene extends Phaser.Scene {
               this.player.equippedShield = item;
               this.refreshPlayerSprite();
             }
+            this.showMessage(`🎁 Found ${item.name}!`);
+            this.updateHUD();
+            this.autoSave();
           }
         } else if (chest && this.player.openedChests.includes(chest.id)) {
           this.showMessage("Already opened.", "#666666");

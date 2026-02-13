@@ -257,7 +257,7 @@ export class BootScene extends Phaser.Scene {
           gfx.fillCircle(16, 18, 2);
           break;
         case Terrain.Carpet:
-          // Rich red carpet / doormat marking shop entrances
+          // Default red carpet (used for decorative paths; shop entrances get colored variants)
           gfx.fillStyle(0x8b1a1a, 1);
           gfx.fillRect(2, 2, 28, 28);
           gfx.fillStyle(0xa52a2a, 0.7);
@@ -620,6 +620,31 @@ export class BootScene extends Phaser.Scene {
           gfx.fillStyle(0xffd700, 1);
           gfx.fillTriangle(16, 8, 13, 13, 19, 13);
           gfx.fillTriangle(16, 18, 13, 13, 19, 13);
+          break;
+        case Terrain.CityPath:
+          // Default cobblestone path (biome variants generated separately)
+          gfx.fillStyle(0x9e9e9e, 1);
+          gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+          gfx.fillStyle(0x8a8a8a, 0.6);
+          gfx.fillRect(1, 1, 10, 6);
+          gfx.fillRect(13, 1, 8, 6);
+          gfx.fillRect(23, 1, 8, 6);
+          gfx.fillRect(5, 9, 12, 6);
+          gfx.fillRect(19, 9, 8, 6);
+          gfx.fillRect(1, 9, 3, 6);
+          gfx.fillRect(1, 17, 8, 7);
+          gfx.fillRect(11, 17, 10, 7);
+          gfx.fillRect(23, 17, 8, 7);
+          gfx.fillRect(3, 26, 12, 5);
+          gfx.fillRect(17, 26, 6, 5);
+          gfx.fillRect(25, 26, 6, 5);
+          gfx.lineStyle(1, 0x757575, 0.4);
+          gfx.strokeRect(1, 1, 10, 6);
+          gfx.strokeRect(13, 1, 8, 6);
+          gfx.strokeRect(5, 9, 12, 6);
+          gfx.strokeRect(19, 9, 8, 6);
+          gfx.strokeRect(1, 17, 8, 7);
+          gfx.strokeRect(11, 17, 10, 7);
           break;
       }
 
@@ -1244,6 +1269,98 @@ export class BootScene extends Phaser.Scene {
     liz.fillRect(7, 5, 1, 3); // back leg down
     liz.generateTexture("sprite_lizard", 12, 8);
     liz.destroy();
+
+    // --- Biome-specific city wall texture variants ---
+    const wallVariants: { key: string; baseColor: number; mortarColor: number; shadowColor: number }[] = [
+      { key: "tile_citywall_wood", baseColor: 0x8d6e63, mortarColor: 0x6d4c41, shadowColor: 0x4e342e },
+      { key: "tile_citywall_sand", baseColor: 0xc8b060, mortarColor: 0xa89040, shadowColor: 0x887020 },
+      { key: "tile_citywall_moss", baseColor: 0x5d734f, mortarColor: 0x4e6040, shadowColor: 0x3a4830 },
+      { key: "tile_citywall_ice",  baseColor: 0x8eaabb, mortarColor: 0x6e8899, shadowColor: 0x506878 },
+      { key: "tile_citywall_dark", baseColor: 0x3e3838, mortarColor: 0x2e2828, shadowColor: 0x1e1818 },
+      { key: "tile_citywall_volcanic", baseColor: 0x5a3a2a, mortarColor: 0x4a2a1a, shadowColor: 0x3a1a0a },
+    ];
+    for (const v of wallVariants) {
+      const wg = this.add.graphics();
+      wg.fillStyle(v.baseColor, 1);
+      wg.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+      wg.fillStyle(v.mortarColor, 0.8);
+      wg.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+      wg.lineStyle(1, v.shadowColor, 0.6);
+      wg.strokeRect(1, 1, 14, 7);
+      wg.strokeRect(17, 1, 14, 7);
+      wg.strokeRect(8, 9, 14, 7);
+      wg.strokeRect(0, 9, 7, 7);
+      wg.strokeRect(23, 9, 8, 7);
+      wg.strokeRect(1, 17, 14, 7);
+      wg.strokeRect(17, 17, 14, 7);
+      wg.strokeRect(8, 25, 14, 7);
+      wg.strokeRect(0, 25, 7, 7);
+      wg.strokeRect(23, 25, 8, 7);
+      wg.fillStyle(v.shadowColor, 0.4);
+      wg.fillRect(0, 0, TILE_SIZE, 2);
+      wg.generateTexture(v.key, TILE_SIZE, TILE_SIZE);
+      wg.destroy();
+    }
+
+    // --- Shop-type colored carpet textures ---
+    const carpetVariants: { key: string; baseColor: number; borderColor: number; motifColor: number }[] = [
+      { key: "tile_carpet_weapon",  baseColor: 0x8b1a1a, borderColor: 0xdaa520, motifColor: 0xcc3333 },  // red
+      { key: "tile_carpet_armor",   baseColor: 0x1a3a6b, borderColor: 0x88aacc, motifColor: 0x3366aa },  // blue
+      { key: "tile_carpet_general", baseColor: 0x1a6b2a, borderColor: 0x88cc66, motifColor: 0x33aa44 },  // green
+      { key: "tile_carpet_magic",   baseColor: 0x1a6b2a, borderColor: 0x88cc66, motifColor: 0x33aa44 },  // green (items)
+      { key: "tile_carpet_bank",    baseColor: 0x6b6b1a, borderColor: 0xdddd44, motifColor: 0xaaaa33 },  // yellow
+      { key: "tile_carpet_inn",     baseColor: 0x4a1a6b, borderColor: 0xaa66cc, motifColor: 0x7733aa },  // violet
+    ];
+    for (const cv of carpetVariants) {
+      const cg = this.add.graphics();
+      cg.fillStyle(cv.baseColor, 1);
+      cg.fillRect(2, 2, 28, 28);
+      cg.fillStyle(cv.motifColor, 0.7);
+      cg.fillRect(4, 4, 24, 24);
+      cg.fillStyle(cv.borderColor, 0.8);
+      cg.fillRect(2, 2, 28, 2);
+      cg.fillRect(2, 28, 28, 2);
+      cg.fillRect(2, 2, 2, 28);
+      cg.fillRect(28, 2, 2, 28);
+      cg.fillStyle(cv.borderColor, 0.6);
+      cg.fillTriangle(16, 10, 12, 16, 16, 22);
+      cg.fillTriangle(16, 10, 20, 16, 16, 22);
+      cg.generateTexture(cv.key, TILE_SIZE, TILE_SIZE);
+      cg.destroy();
+    }
+
+    // --- Biome-specific city path texture variants ---
+    const pathVariants: { key: string; baseColor: number; stoneColor: number; gapColor: number }[] = [
+      { key: "tile_path_cobble",  baseColor: 0x9e9e9e, stoneColor: 0x8a8a8a, gapColor: 0x757575 },  // stone cobble
+      { key: "tile_path_wood",    baseColor: 0xa1887f, stoneColor: 0x8d6e63, gapColor: 0x6d4c41 },  // wood planks
+      { key: "tile_path_sand",    baseColor: 0xd4b876, stoneColor: 0xc0a060, gapColor: 0xa08840 },  // packed sand
+      { key: "tile_path_gravel",  baseColor: 0x78909c, stoneColor: 0x607d8b, gapColor: 0x546e7a },  // gravel
+      { key: "tile_path_moss",    baseColor: 0x6d8b5e, stoneColor: 0x587a48, gapColor: 0x4a6838 },  // mossy stone
+      { key: "tile_path_dark",    baseColor: 0x5a5a4a, stoneColor: 0x484838, gapColor: 0x3a3a2a },  // dark flagstone
+      { key: "tile_path_lava",    baseColor: 0x6a4a3a, stoneColor: 0x5a3a2a, gapColor: 0x4a2a1a },  // cracked volcanic
+    ];
+    for (const pv of pathVariants) {
+      const pg = this.add.graphics();
+      pg.fillStyle(pv.baseColor, 1);
+      pg.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+      pg.fillStyle(pv.stoneColor, 0.7);
+      pg.fillRect(1, 1, 10, 6);
+      pg.fillRect(13, 1, 8, 6);
+      pg.fillRect(23, 1, 8, 6);
+      pg.fillRect(5, 9, 12, 6);
+      pg.fillRect(19, 9, 8, 6);
+      pg.fillRect(1, 17, 8, 7);
+      pg.fillRect(11, 17, 10, 7);
+      pg.fillRect(23, 17, 8, 7);
+      pg.lineStyle(1, pv.gapColor, 0.5);
+      pg.strokeRect(1, 1, 10, 6);
+      pg.strokeRect(13, 1, 8, 6);
+      pg.strokeRect(5, 9, 12, 6);
+      pg.strokeRect(1, 17, 8, 7);
+      pg.strokeRect(11, 17, 10, 7);
+      pg.generateTexture(pv.key, TILE_SIZE, TILE_SIZE);
+      pg.destroy();
+    }
   }
 
   /** Generate procedural 640×560 battle backgrounds for each biome and boss. */
@@ -2349,7 +2466,7 @@ export class BootScene extends Phaser.Scene {
     renderStats();
   }
 
-  private showAppearanceCustomization(playerName: string, selectedClass: PlayerAppearance, baseStats: PlayerStats): void {
+  private showAppearanceCustomization(playerName: string, selectedClass: PlayerAppearance, baseStats: PlayerStats, preset?: { skinColor: number; hairStyle: number; hairColor: number }): void {
     this.children.removeAll(true);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();
@@ -2374,10 +2491,10 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    // State
-    let selectedSkinColor = SKIN_COLOR_OPTIONS[0].color;
-    let selectedHairStyle = HAIR_STYLE_OPTIONS[0].id;
-    let selectedHairColor = HAIR_COLOR_OPTIONS[0].color;
+    // State — use preset values from randomize if provided
+    let selectedSkinColor = preset?.skinColor ?? SKIN_COLOR_OPTIONS[0].color;
+    let selectedHairStyle = preset?.hairStyle ?? HAIR_STYLE_OPTIONS[0].id;
+    let selectedHairColor = preset?.hairColor ?? HAIR_COLOR_OPTIONS[0].color;
 
     // y=78: preview sprite center, scale 2 (64px tall: top=46, bottom=110)
     const previewKey = "preview_custom";
@@ -2408,6 +2525,30 @@ export class BootScene extends Phaser.Scene {
       previewSprite.setTexture(previewKey);
     };
 
+    // Randomize button — picks random skin, hair style, and hair colour
+    const randomizeAll = () => {
+      const rndSkin = SKIN_COLOR_OPTIONS[Math.floor(Math.random() * SKIN_COLOR_OPTIONS.length)].color;
+      const rndStyle = HAIR_STYLE_OPTIONS[Math.floor(Math.random() * HAIR_STYLE_OPTIONS.length)].id;
+      const rndHairColor = HAIR_COLOR_OPTIONS[Math.floor(Math.random() * HAIR_COLOR_OPTIONS.length)].color;
+      // Rebuild the whole screen so selection highlights update
+      this.showAppearanceCustomization(playerName, selectedClass, baseStats,
+        { skinColor: rndSkin, hairStyle: rndStyle, hairColor: rndHairColor });
+    };
+
+    const rndBtn = this.add
+      .text(cx, 104, "🎲 Randomize", {
+        fontSize: "12px",
+        fontFamily: "monospace",
+        color: "#88ccff",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 10, y: 3 },
+      })
+      .setOrigin(0.5, 0)
+      .setInteractive({ useHandCursor: true });
+    rndBtn.on("pointerover", () => rndBtn.setColor("#ffd700"));
+    rndBtn.on("pointerout", () => rndBtn.setColor("#88ccff"));
+    rndBtn.on("pointerdown", randomizeAll);
+
     // y=118: skin color label (13px) → bottom ~131
     this.add
       .text(cx, 118, "Skin Color:", {
@@ -2429,7 +2570,7 @@ export class BootScene extends Phaser.Scene {
       const gfx = this.add.graphics();
       gfx.fillStyle(opt.color, 1);
       gfx.fillCircle(sx, skinSwatchY, 10);
-      gfx.lineStyle(2, i === 0 ? 0xffd700 : 0x444444, 1);
+      gfx.lineStyle(2, opt.color === selectedSkinColor ? 0xffd700 : 0x444444, 1);
       gfx.strokeCircle(sx, skinSwatchY, 11);
       skinHighlights.push(gfx);
 
@@ -2477,8 +2618,8 @@ export class BootScene extends Phaser.Scene {
         .text(sx, hairStyleY, opt.label, {
           fontSize: "13px",
           fontFamily: "monospace",
-          color: i === 0 ? "#ffd700" : "#888",
-          backgroundColor: i === 0 ? "#2a2a2a" : undefined,
+          color: opt.id === selectedHairStyle ? "#ffd700" : "#888",
+          backgroundColor: opt.id === selectedHairStyle ? "#2a2a2a" : undefined,
           padding: { x: 6, y: 3 },
         })
         .setOrigin(0.5, 0)
@@ -2516,7 +2657,7 @@ export class BootScene extends Phaser.Scene {
       const gfx = this.add.graphics();
       gfx.fillStyle(opt.color, 1);
       gfx.fillCircle(hx, hairSwatchY, 10);
-      gfx.lineStyle(2, i === 0 ? 0xffd700 : 0x444444, 1);
+      gfx.lineStyle(2, opt.color === selectedHairColor ? 0xffd700 : 0x444444, 1);
       gfx.strokeCircle(hx, hairSwatchY, 11);
       hairHighlights.push(gfx);
 

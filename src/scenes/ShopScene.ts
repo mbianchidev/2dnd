@@ -441,6 +441,7 @@ export class ShopScene extends Phaser.Scene {
     this.player.gold -= innCost;
     this.player.hp = this.player.maxHp;
     this.player.mp = this.player.maxMp;
+    this.player.shortRestsRemaining = 2; // refill short rests on long rest
     this.timeStep = targetTimeStep;
     this.setMessage(message, "#88ff88");
     this.updateDisplay();

@@ -722,18 +722,18 @@ describe("game data", () => {
       expect(level5Spells.some((s) => s.id === "teleport")).toBe(true);
     });
 
-    it("Long Rest spell exists as utility type at level 1", () => {
-      const longRest = getSpell("longRest");
-      expect(longRest).toBeDefined();
-      expect(longRest!.name).toBe("Long Rest");
-      expect(longRest!.type).toBe("utility");
-      expect(longRest!.levelRequired).toBe(1);
-      expect(longRest!.mpCost).toBe(0);
+    it("Short Rest spell exists as utility type at level 1", () => {
+      const sr = getSpell("shortRest");
+      expect(sr).toBeDefined();
+      expect(sr!.name).toBe("Short Rest");
+      expect(sr!.type).toBe("utility");
+      expect(sr!.levelRequired).toBe(1);
+      expect(sr!.mpCost).toBe(0);
     });
 
-    it("Long Rest spell is available to all classes", () => {
+    it("Short Rest spell is available to all classes", () => {
       for (const appearance of PLAYER_APPEARANCES) {
-        expect(appearance.spells, `${appearance.label} should have longRest`).toContain("longRest");
+        expect(appearance.spells, `${appearance.label} should have shortRest`).toContain("shortRest");
       }
     });
   });

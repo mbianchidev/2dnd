@@ -13,7 +13,7 @@ import {
   useItem,
   castSpellOutsideCombat,
   useAbilityOutsideCombat,
-  longRest,
+  shortRest,
   calculatePointsSpent,
   isValidPointBuy,
   POINT_BUY_COSTS,
@@ -465,103 +465,115 @@ describe("player system", () => {
     });
   });
 
-  describe("longRest", () => {
+  describe("shortRest", () => {
     it("restores 50% HP and 50% MP", () => {
       const player = createTestPlayer();
       player.hp = 10;
       player.mp = 2;
+      player.shortRestsRemaining = 2;
 
-      const { hpRestored, mpRestored } = longRest(player);
+      const { hpRestored, mpRestored } = shortRest(player);
       expect(hpRestored).toBe(Math.floor(player.maxHp * 0.5));
       expect(mpRestored).toBe(Math.floor(player.maxMp * 0.5));
-      expect(player.longRestCount).toBe(1);
+      expect(player.shortRestsRemaining).toBe(1);
     });
 
     it("caps restoration at max values", () => {
       const player = createTestPlayer();
-      // Already near max — should not exceed maxHp/maxMp
       player.hp = player.maxHp - 1;
       player.mp = player.maxMp - 1;
+      player.shortRestsRemaining = 2;
 
-      const { hpRestored, mpRestored } = longRest(player);
+      const { hpRestored, mpRestored } = shortRest(player);
       expect(hpRestored).toBe(1);
       expect(mpRestored).toBe(1);
       expect(player.hp).toBe(player.maxHp);
       expect(player.mp).toBe(player.maxMp);
     });
 
-    it("increments longRestCount each call", () => {
+    it("decrements shortRestsRemaining each call", () => {
       const player = createTestPlayer();
       player.hp = 1;
       player.mp = 1;
-      longRest(player);
-      expect(player.longRestCount).toBe(1);
+      player.shortRestsRemaining = 2;
+      shortRest(player);
+      expect(player.shortRestsRemaining).toBe(1);
       player.hp = 1;
       player.mp = 1;
-      longRest(player);
-      expect(player.longRestCount).toBe(2);
+      shortRest(player);
+      expect(player.shortRestsRemaining).toBe(0);
     });
   });
 
-  describe("Long Rest spell via castSpellOutsideCombat", () => {
-    it("fails when not at an inn", () => {
+  describe("Short Rest spell via castSpellOutsideCombat", () => {
+    it("fails when no rests remaining", () => {
       const player = createTestPlayer();
-      player.knownSpells.push("longRest");
-      player.longRestCount = 1;
+      player.knownSpells.push("shortRest");
+      player.shortRestsRemaining = 0;
 
-      const result = castSpellOutsideCombat(player, "longRest", false);
+      const result = castSpellOutsideCombat(player, "shortRest");
       expect(result.success).toBe(false);
-      expect(result.message).toContain("inn");
+      expect(result.message).toContain("No short rests remaining");
     });
 
-    it("fails when no first rest taken yet", () => {
+    it("fails when HP and MP are full", () => {
       const player = createTestPlayer();
-      player.knownSpells.push("longRest");
-      player.longRestCount = 0;
+      player.knownSpells.push("shortRest");
+      player.shortRestsRemaining = 2;
 
-      const result = castSpellOutsideCombat(player, "longRest", true);
+      const result = castSpellOutsideCombat(player, "shortRest");
       expect(result.success).toBe(false);
-      expect(result.message).toContain("rest first");
+      expect(result.message).toContain("already full");
     });
 
-    it("succeeds at inn after first rest", () => {
+    it("succeeds when HP is not full", () => {
       const player = createTestPlayer();
-      player.knownSpells.push("longRest");
-      player.longRestCount = 1;
+      player.knownSpells.push("shortRest");
+      player.shortRestsRemaining = 2;
       player.hp = 10;
       player.mp = 2;
 
-      const result = castSpellOutsideCombat(player, "longRest", true);
+      const result = castSpellOutsideCombat(player, "shortRest");
       expect(result.success).toBe(true);
-      expect(result.message).toContain("Long Rest");
-      expect(player.longRestCount).toBe(2);
+      expect(result.message).toContain("Short Rest");
+      expect(player.shortRestsRemaining).toBe(1);
       expect(player.hp).toBeGreaterThan(10);
       expect(player.mp).toBeGreaterThan(2);
     });
 
-    it("fails when already rested twice", () => {
+    it("limited to 2 uses", () => {
       const player = createTestPlayer();
-      player.knownSpells.push("longRest");
-      player.longRestCount = 2;
+      player.knownSpells.push("shortRest");
+      player.shortRestsRemaining = 1;
+      player.hp = 10;
 
-      const result = castSpellOutsideCombat(player, "longRest", true);
-      expect(result.success).toBe(false);
-      expect(result.message).toContain("twice");
+      const result1 = castSpellOutsideCombat(player, "shortRest");
+      expect(result1.success).toBe(true);
+      expect(player.shortRestsRemaining).toBe(0);
+
+      player.hp = 10;
+      const result2 = castSpellOutsideCombat(player, "shortRest");
+      expect(result2.success).toBe(false);
     });
   });
 
-  describe("createPlayer starts with longRest spell", () => {
-    it("new player knows longRest spell", () => {
+  describe("createPlayer starts with shortRest spell", () => {
+    it("new player knows shortRest spell", () => {
       const player = createPlayer("Test", defaultStats, "knight");
-      expect(player.knownSpells).toContain("longRest");
+      expect(player.knownSpells).toContain("shortRest");
     });
 
-    it("all classes start with longRest", () => {
+    it("all classes start with shortRest", () => {
       const classes = ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian"];
       for (const cls of classes) {
         const player = createPlayer("Test", defaultStats, cls);
-        expect(player.knownSpells, `${cls} should know longRest`).toContain("longRest");
+        expect(player.knownSpells, `${cls} should know shortRest`).toContain("shortRest");
       }
+    });
+
+    it("new player starts with 2 short rests", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      expect(player.shortRestsRemaining).toBe(2);
     });
 
     it("new player also knows fireBolt", () => {

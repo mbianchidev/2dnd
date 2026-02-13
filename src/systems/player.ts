@@ -82,6 +82,7 @@ export interface PlayerState {
   lastTownChunkY: number; // last town chunk y
   bankBalance: number;    // gold stored in the bank (accessible across all banks)
   lastBankDay: number;    // last day interest was applied (timeStep / CYCLE_LENGTH)
+  shortRestsRemaining: number; // short rests available (max 2, reset on inn long rest)
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -169,6 +170,7 @@ export function createPlayer(
     lastTownChunkY: 2,
     bankBalance: 0,
     lastBankDay: 0,
+    shortRestsRemaining: 2,
   };
 }
 
@@ -414,26 +416,25 @@ export function allocateStatPoint(
 }
 
 /**
- * Perform a long rest at an inn. Restores up to 50% of max HP and 50% of max MP,
- * capped at the player's current maximum. Increments longRestCount.
+ * Perform a short rest in the overworld. Restores up to 50% of max HP and 50% of max MP,
+ * capped at the player's current maximum. Decrements shortRestsRemaining.
  * Returns the actual amounts restored.
  */
-export function longRest(player: PlayerState): { hpRestored: number; mpRestored: number } {
+export function shortRest(player: PlayerState): { hpRestored: number; mpRestored: number } {
   const hpRestore = Math.floor(player.maxHp * 0.5);
   const mpRestore = Math.floor(player.maxMp * 0.5);
   const actualHp = Math.min(hpRestore, player.maxHp - player.hp);
   const actualMp = Math.min(mpRestore, player.maxMp - player.mp);
   player.hp += actualHp;
   player.mp += actualMp;
-  player.longRestCount++;
+  player.shortRestsRemaining--;
   return { hpRestored: actualHp, mpRestored: actualMp };
 }
 
 /** Cast a heal or utility spell outside of combat. Returns result. */
 export function castSpellOutsideCombat(
   player: PlayerState,
-  spellId: string,
-  atInn: boolean = false
+  spellId: string
 ): { success: boolean; message: string } {
   const spell = getSpell(spellId);
   if (!spell) return { success: false, message: "Unknown spell!" };
@@ -446,19 +447,16 @@ export function castSpellOutsideCombat(
     return { success: false, message: "Not enough MP!" };
   }
 
-  // Long Rest spell — only usable at an inn after the first rest
-  if (spellId === "longRest") {
-    if (!atInn) {
-      return { success: false, message: "Long Rest can only be used at an inn!" };
+  // Short Rest spell — usable in the overworld, limited uses
+  if (spellId === "shortRest") {
+    if (player.shortRestsRemaining <= 0) {
+      return { success: false, message: "No short rests remaining! Rest at an inn to refill." };
     }
-    if (player.longRestCount < 1) {
-      return { success: false, message: "You must rest first before using Long Rest!" };
+    if (player.hp >= player.maxHp && player.mp >= player.maxMp) {
+      return { success: false, message: "HP and MP are already full!" };
     }
-    if (player.longRestCount >= 2) {
-      return { success: false, message: "You have already rested twice!" };
-    }
-    const { hpRestored, mpRestored } = longRest(player);
-    return { success: true, message: `Long Rest! Recovered ${hpRestored} HP and ${mpRestored} MP.` };
+    const { hpRestored, mpRestored } = shortRest(player);
+    return { success: true, message: `Short Rest! Recovered ${hpRestored} HP and ${mpRestored} MP. (${player.shortRestsRemaining} rests left)` };
   }
 
   if (spell.type === "heal") {

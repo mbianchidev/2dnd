@@ -197,9 +197,9 @@ export const SPELLS: Spell[] = [
     type: "heal",
   },
   {
-    id: "longRest",
-    name: "Long Rest",
-    description: "Rest deeply at an inn to recover again",
+    id: "shortRest",
+    name: "Short Rest",
+    description: "Take a quick rest to recover 50% HP and MP",
     mpCost: 0,
     levelRequired: 1,
     damageCount: 0,

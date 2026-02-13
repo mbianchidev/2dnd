@@ -35,7 +35,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { strength: 2, constitution: 1 },
     primaryStat: "strength",
     spells: [
-      "longRest",
+      "shortRest",
       "fireBolt", "cureWounds", "thunderwave", "healingWord",
       "fireball", "greaterHeal", "iceStorm", "heal",
       "chainLightning", "meteorSwarm",
@@ -48,7 +48,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { dexterity: 2, wisdom: 1 },
     primaryStat: "dexterity",
     spells: [
-      "longRest",
+      "shortRest",
       "fireBolt", "cureWounds", "magicMissile", "healingWord",
       "fireball", "lightningBolt", "greaterHeal", "massHealingWord",
       "heal", "regenerate",
@@ -61,7 +61,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { intelligence: 2, wisdom: 1 },
     primaryStat: "intelligence",
     spells: [
-      "longRest",
+      "shortRest",
       "fireBolt", "magicMissile", "thunderwave", "healingWord", "teleport",
       "fireball", "lightningBolt", "iceStorm", "coneOfCold",
       "chainLightning", "disintegrate", "heal", "meteorSwarm",
@@ -74,7 +74,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { dexterity: 2, charisma: 1 },
     primaryStat: "dexterity",
     spells: [
-      "longRest",
+      "shortRest",
       "fireBolt", "magicMissile", "cureWounds", "thunderwave",
       "healingWord", "lightningBolt", "iceStorm", "coneOfCold",
       "chainLightning", "disintegrate",
@@ -87,7 +87,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { strength: 1, charisma: 2 },
     primaryStat: "charisma",
     spells: [
-      "longRest",
+      "shortRest",
       "fireBolt", "cureWounds", "thunderwave", "healingWord",
       "fireball", "greaterHeal", "massHealingWord", "heal",
       "regenerate", "powerWordHeal",
@@ -100,7 +100,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { charisma: 2, intelligence: 1 },
     primaryStat: "charisma",
     spells: [
-      "longRest",
+      "shortRest",
       "fireBolt", "magicMissile", "cureWounds", "thunderwave", "teleport",
       "fireball", "lightningBolt", "greaterHeal", "coneOfCold",
       "disintegrate", "meteorSwarm",
@@ -113,7 +113,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { wisdom: 2, constitution: 1 },
     primaryStat: "wisdom",
     spells: [
-      "longRest",
+      "shortRest",
       "fireBolt", "cureWounds", "healingWord", "thunderwave", "teleport",
       "greaterHeal", "iceStorm", "massHealingWord", "heal",
       "regenerate", "powerWordHeal",
@@ -126,7 +126,7 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     statBoosts: { strength: 2, constitution: 1 },
     primaryStat: "strength",
     spells: [
-      "longRest",
+      "shortRest",
       "fireBolt", "cureWounds", "thunderwave", "fireball",
       "healingWord", "lightningBolt", "iceStorm", "greaterHeal",
       "chainLightning", "meteorSwarm",

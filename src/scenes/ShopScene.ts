@@ -4,7 +4,7 @@
 
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
-import { useItem, ownsEquipment, longRest } from "../systems/player";
+import { useItem, ownsEquipment } from "../systems/player";
 import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
 import type { BestiaryData } from "../systems/bestiary";
 import { type WeatherState, createWeatherState } from "../systems/weather";
@@ -439,12 +439,10 @@ export class ShopScene extends Phaser.Scene {
   private confirmInnRest(targetTimeStep: number, message: string): void {
     const innCost = getInnCost(this.cityId);
     this.player.gold -= innCost;
-    this.player.longRestCount = 0; // reset for new inn visit
-    const { hpRestored, mpRestored } = longRest(this.player);
+    this.player.hp = this.player.maxHp;
+    this.player.mp = this.player.maxMp;
     this.timeStep = targetTimeStep;
-    const hasLongRestSpell = this.player.knownSpells.includes("longRest");
-    const hint = hasLongRestSpell ? " Use Long Rest (Q) to rest again!" : "";
-    this.setMessage(`${message} +${hpRestored} HP, +${mpRestored} MP.${hint}`, "#88ff88");
+    this.setMessage(message, "#88ff88");
     this.updateDisplay();
     this.renderShopItems();
   }

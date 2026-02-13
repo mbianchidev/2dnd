@@ -81,7 +81,6 @@ export function loadGame(): SaveData | null {
     if (data.player.lastTownChunkY === undefined) data.player.lastTownChunkY = 1;
     if (data.player.bankBalance === undefined) data.player.bankBalance = 0;
     if (data.player.lastBankDay === undefined) data.player.lastBankDay = 0;
-    if (data.player.longRestCount === undefined) data.player.longRestCount = 0;
     return data;
   } catch {
     return null;

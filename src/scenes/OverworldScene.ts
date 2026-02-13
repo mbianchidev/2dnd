@@ -1796,11 +1796,9 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
     this.player.gold -= innCost;
-    this.player.longRestCount = 0; // reset for new inn visit
-    const { hpRestored, mpRestored } = longRest(this.player);
-    const hasLongRestSpell = this.player.knownSpells.includes("longRest");
-    const hint = hasLongRestSpell ? " Use Long Rest (Q) to rest again!" : "";
-    this.showMessage(`You rest at the inn. +${hpRestored} HP, +${mpRestored} MP.${hint}`, "#88ff88");
+    this.player.hp = this.player.maxHp;
+    this.player.mp = this.player.maxMp;
+    this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
     this.updateHUD();
     this.autoSave();
   }

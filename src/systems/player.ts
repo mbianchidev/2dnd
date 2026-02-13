@@ -82,7 +82,6 @@ export interface PlayerState {
   lastTownChunkY: number; // last town chunk y
   bankBalance: number;    // gold stored in the bank (accessible across all banks)
   lastBankDay: number;    // last day interest was applied (timeStep / CYCLE_LENGTH)
-  longRestCount: number;  // how many long rests taken at current inn visit (max 2 with spell)
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -170,7 +169,6 @@ export function createPlayer(
     lastTownChunkY: 2,
     bankBalance: 0,
     lastBankDay: 0,
-    longRestCount: 0,
   };
 }
 

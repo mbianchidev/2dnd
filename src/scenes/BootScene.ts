@@ -753,7 +753,8 @@ export class BootScene extends Phaser.Scene {
     skinColor: number,
     legColor: number,
     weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" = "sword",
-    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" | "performer" = "heavy"
+    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" | "performer" = "heavy",
+    hasShield: boolean = false
   ): void {
     const gfx = this.add.graphics();
     // Body
@@ -770,6 +771,8 @@ export class BootScene extends Phaser.Scene {
     gfx.fillRect(18, 26, 5, 6);
     // Weapon (class-specific)
     this.drawWeapon(gfx, weaponSprite);
+    // Shield (if equipped)
+    this.drawShield(gfx, hasShield);
 
     gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
     gfx.destroy();
@@ -928,6 +931,21 @@ export class BootScene extends Phaser.Scene {
         gfx.fillRect(25, 19, 6, 1);
         break;
     }
+  }
+
+  /** Draw a shield on the left side of the sprite. */
+  private drawShield(gfx: Phaser.GameObjects.Graphics, hasShield: boolean): void {
+    if (!hasShield) return;
+    // Shield body (wood base)
+    gfx.fillStyle(0x795548, 1);
+    gfx.fillRect(1, 12, 6, 10);
+    // Shield face (metal)
+    gfx.fillStyle(0x90a4ae, 1);
+    gfx.fillRect(2, 13, 4, 8);
+    // Shield emblem (cross)
+    gfx.fillStyle(0xffd700, 1);
+    gfx.fillRect(3, 15, 2, 4);
+    gfx.fillRect(2, 16, 4, 2);
   }
 
   private generateMonsterTexture(): void {
@@ -2763,7 +2781,8 @@ export class BootScene extends Phaser.Scene {
     hairStyle: number,
     hairColor: number,
     weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" = "sword",
-    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" | "performer" = "heavy"
+    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" | "performer" = "heavy",
+    hasShield: boolean = false
   ): void {
     const gfx = this.add.graphics();
     // Body
@@ -2798,6 +2817,8 @@ export class BootScene extends Phaser.Scene {
     gfx.fillRect(18, 26, 5, 6);
     // Weapon (class-specific)
     this.drawWeapon(gfx, weaponSprite);
+    // Shield (if equipped)
+    this.drawShield(gfx, hasShield);
 
     gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
     gfx.destroy();

@@ -2261,6 +2261,8 @@ export class OverworldScene extends Phaser.Scene {
     gfx.fillRect(18, 26, 5, 6);
     // Weapon from current equipment
     this.drawWeaponInline(gfx, weaponSpr);
+    // Shield (if equipped and weapon is not two-handed)
+    this.drawShieldInline(gfx, !!this.player.equippedShield && !this.player.equippedWeapon?.twoHanded);
 
     gfx.generateTexture(texKey, TILE_SIZE, TILE_SIZE);
     gfx.destroy();
@@ -2398,6 +2400,21 @@ export class OverworldScene extends Phaser.Scene {
         gfx.fillRect(25, 19, 6, 1);
         break;
     }
+  }
+
+  /** Inline shield drawing for OverworldScene sprite refresh. */
+  private drawShieldInline(gfx: Phaser.GameObjects.Graphics, hasShield: boolean): void {
+    if (!hasShield) return;
+    // Shield body (wood base)
+    gfx.fillStyle(0x795548, 1);
+    gfx.fillRect(1, 12, 6, 10);
+    // Shield face (metal)
+    gfx.fillStyle(0x90a4ae, 1);
+    gfx.fillRect(2, 13, 4, 8);
+    // Shield emblem (cross)
+    gfx.fillStyle(0xffd700, 1);
+    gfx.fillRect(3, 15, 2, 4);
+    gfx.fillRect(2, 16, 4, 2);
   }
 
   private setupInput(): void {
@@ -2928,10 +2945,8 @@ export class OverworldScene extends Phaser.Scene {
             }
             if (item.type === "shield" && !this.player.equippedWeapon?.twoHanded && (!this.player.equippedShield || item.effect > this.player.equippedShield.effect)) {
               this.player.equippedShield = item;
+              this.refreshPlayerSprite();
             }
-            this.showMessage(`🎁 Found ${item.name}!`);
-            this.updateHUD();
-            this.autoSave();
           }
         } else if (chest && this.player.openedChests.includes(chest.id)) {
           this.showMessage("Already opened.", "#666666");
@@ -3168,6 +3183,7 @@ export class OverworldScene extends Phaser.Scene {
           }
           if (item.type === "shield" && !this.player.equippedWeapon?.twoHanded && (!this.player.equippedShield || item.effect > this.player.equippedShield.effect)) {
             this.player.equippedShield = item;
+            this.refreshPlayerSprite();
           }
           this.showMessage(`🎁 Found ${item.name}!`);
           this.updateHUD();
@@ -3620,6 +3636,7 @@ export class OverworldScene extends Phaser.Scene {
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
             p.equippedShield = null;
+            this.refreshPlayerSprite();
             this.buildEquipOverlay();
           });
         } else {
@@ -3627,6 +3644,7 @@ export class OverworldScene extends Phaser.Scene {
           txt.on("pointerout", () => txt.setColor(color));
           txt.on("pointerdown", () => {
             p.equippedShield = sh;
+            this.refreshPlayerSprite();
             this.buildEquipOverlay();
           });
         }

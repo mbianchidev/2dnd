@@ -2336,6 +2336,15 @@ export class OverworldScene extends Phaser.Scene {
         gfx.fillRect(22, 14, 2, 6);
         gfx.fillRect(14, 10, 4, 1);
         break;
+      case "performer":
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(6, 10, 3, 14);
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(12, 22, 8, 2);
+        gfx.fillStyle(0xffd700, 1);
+        gfx.fillRect(13, 10, 6, 1);
+        gfx.fillRect(15, 22, 2, 2);
+        break;
     }
   }
 

@@ -99,6 +99,15 @@ export const ITEMS: Item[] = [
     effect: 1,
     weaponSprite: "axe",
   },
+  {
+    id: "startRapier",
+    name: "Rapier",
+    description: "+1 attack, elegant and swift",
+    type: "weapon",
+    cost: 0,
+    effect: 1,
+    weaponSprite: "sword",
+  },
   // --- Shop weapons ---
   {
     id: "shortSword",

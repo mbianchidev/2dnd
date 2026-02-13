@@ -324,7 +324,7 @@ describe("player system", () => {
     it("each class has unique starting spell or ability", () => {
       const startingSpells = new Set<string>();
       const startingAbilities = new Set<string>();
-      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk"]) {
+      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"]) {
         const player = createPlayer("Test", defaultStats, classId);
         if (player.knownSpells.length > 0) startingSpells.add(player.knownSpells[0]);
         if (player.knownAbilities.length > 0) startingAbilities.add(player.knownAbilities[0]);
@@ -393,7 +393,7 @@ describe("player system", () => {
     });
 
     it("each class starts with a weapon equipped", () => {
-      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk"]) {
+      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"]) {
         const player = createPlayer("Test", defaultStats, classId);
         expect(player.equippedWeapon, `${classId} should start with a weapon`).not.toBeNull();
         expect(player.inventory.length, `${classId} should have weapon in inventory`).toBeGreaterThanOrEqual(1);
@@ -404,9 +404,19 @@ describe("player system", () => {
       const knight = createPlayer("K", defaultStats, "knight");
       const mage = createPlayer("M", defaultStats, "mage");
       const rogue = createPlayer("R", defaultStats, "rogue");
+      const bard = createPlayer("B", defaultStats, "bard");
       expect(knight.equippedWeapon?.id).toBe("startSword");
       expect(mage.equippedWeapon?.id).toBe("startStaff");
       expect(rogue.equippedWeapon?.id).toBe("startDagger");
+      expect(bard.equippedWeapon?.id).toBe("startRapier");
+    });
+
+    it("bard has spells and abilities (hybrid caster)", () => {
+      const bard = createPlayer("Bard", defaultStats, "bard");
+      expect(bard.knownSpells.length).toBeGreaterThan(0);
+      expect(bard.knownAbilities.length).toBeGreaterThan(0);
+      expect(bard.knownSpells).toContain("viciousMockery");
+      expect(bard.knownAbilities).toContain("bardicInspiration");
     });
   });
 });

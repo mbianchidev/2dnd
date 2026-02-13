@@ -246,6 +246,37 @@ export const SPELLS: Spell[] = [
     damageDie: 10,
     type: "heal",
   },
+  // ── Bard-exclusive spells ─────────────────────────────────────
+  {
+    id: "viciousMockery",
+    name: "Vicious Mockery",
+    description: "A string of insults laced with subtle enchantment",
+    mpCost: 2,
+    levelRequired: 1,
+    damageCount: 1,
+    damageDie: 6,
+    type: "damage",
+  },
+  {
+    id: "dissonantWhispers",
+    name: "Dissonant Whispers",
+    description: "A discordant melody that wracks the target with pain",
+    mpCost: 4,
+    levelRequired: 3,
+    damageCount: 3,
+    damageDie: 6,
+    type: "damage",
+  },
+  {
+    id: "hypnoticPattern",
+    name: "Hypnotic Pattern",
+    description: "A mesmerizing pattern of light that sears the mind",
+    mpCost: 8,
+    levelRequired: 9,
+    damageCount: 4,
+    damageDie: 8,
+    type: "damage",
+  },
 ];
 
 /** Look up a spell by ID. */

@@ -30,11 +30,11 @@ export interface PlayerAppearance {
   /** Item ID of the starting weapon given at character creation. */
   startingWeaponId: string;
   /** Class clothing style for distinct sprite appearance. */
-  clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap";
+  clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" | "performer";
 }
 
 /** Classes that rely primarily on spells rather than martial abilities. */
-export const CASTER_CLASSES = ["mage", "warlock", "cleric"];
+export const CASTER_CLASSES = ["mage", "warlock", "cleric", "bard"];
 
 export function isCasterClass(appearanceId: string): boolean {
   return CASTER_CLASSES.includes(appearanceId);
@@ -189,6 +189,24 @@ export const PLAYER_APPEARANCES: PlayerAppearance[] = [
     weaponSprite: "fist",
     startingWeaponId: "startDagger",
     clothingStyle: "wrap",
+  },
+  {
+    id: "bard", label: "Bard",
+    description: "A charismatic performer whose music weaves magic, inspiration, and cutting wit.",
+    playstyle: "Support / Versatile Caster",
+    bodyColor: 0x7b1fa2, skinColor: 0xffccbc, legColor: 0x4a148c,
+    statBoosts: { charisma: 2, dexterity: 1 },
+    primaryStat: "charisma",
+    hitDie: 8,
+    spells: [
+      "viciousMockery", "cureWounds", "healingWord",
+      "dissonantWhispers",
+      "hypnoticPattern", "greaterHeal", "massHealingWord", "heal",
+    ],
+    abilities: ["bardicInspiration", "cuttingWords"],
+    weaponSprite: "sword",
+    startingWeaponId: "startRapier",
+    clothingStyle: "performer",
   },
 ];
 

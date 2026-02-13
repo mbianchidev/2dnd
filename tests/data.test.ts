@@ -643,10 +643,10 @@ describe("game data", () => {
   });
 
   describe("class system", () => {
-    it("has 9 distinct classes", () => {
-      expect(PLAYER_APPEARANCES).toHaveLength(9);
+    it("has 10 distinct classes", () => {
+      expect(PLAYER_APPEARANCES).toHaveLength(10);
       const ids = PLAYER_APPEARANCES.map((a) => a.id);
-      expect(new Set(ids).size).toBe(9);
+      expect(new Set(ids).size).toBe(10);
     });
 
     it("each class has description and playstyle", () => {
@@ -679,7 +679,8 @@ describe("game data", () => {
     });
 
     it("pure caster classes have no martial abilities", () => {
-      for (const casterId of CASTER_CLASSES) {
+      const pureCasters = CASTER_CLASSES.filter((id) => id !== "bard");
+      for (const casterId of pureCasters) {
         const app = getAppearance(casterId);
         expect(app.abilities, `${app.label} should have no abilities`).toHaveLength(0);
       }
@@ -729,7 +730,7 @@ describe("game data", () => {
     });
 
     it("each class has a clothing style", () => {
-      const validStyles = ["heavy", "robe", "leather", "vestment", "bare", "wrap"];
+      const validStyles = ["heavy", "robe", "leather", "vestment", "bare", "wrap", "performer"];
       for (const app of PLAYER_APPEARANCES) {
         expect(validStyles).toContain(app.clothingStyle);
       }

@@ -728,7 +728,7 @@ export class BootScene extends Phaser.Scene {
     skinColor: number,
     legColor: number,
     weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" = "sword",
-    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" = "heavy"
+    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" | "performer" = "heavy"
   ): void {
     const gfx = this.add.graphics();
     // Body
@@ -762,7 +762,7 @@ export class BootScene extends Phaser.Scene {
   private drawClothing(
     gfx: Phaser.GameObjects.Graphics,
     bodyColor: number,
-    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap"
+    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" | "performer"
   ): void {
     // Darken/lighten helper
     const darker = (c: number) => {
@@ -832,6 +832,16 @@ export class BootScene extends Phaser.Scene {
         gfx.fillRect(8, 14, 2, 6);   // left arm wrap
         gfx.fillRect(22, 14, 2, 6);  // right arm wrap
         gfx.fillRect(14, 10, 4, 1);  // collar
+        break;
+      case "performer":
+        // Bard performer garb — half-cape + collar flourish + belt
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(6, 10, 3, 14);  // left half-cape
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(12, 22, 8, 2);  // belt
+        gfx.fillStyle(0xffd700, 1);   // gold trim
+        gfx.fillRect(13, 10, 6, 1);  // collar trim
+        gfx.fillRect(15, 22, 2, 2);  // belt buckle
         break;
     }
   }
@@ -2612,7 +2622,7 @@ export class BootScene extends Phaser.Scene {
     hairStyle: number,
     hairColor: number,
     weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" = "sword",
-    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" = "heavy"
+    clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" | "performer" = "heavy"
   ): void {
     const gfx = this.add.graphics();
     // Body

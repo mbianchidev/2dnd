@@ -15,7 +15,7 @@ export interface Ability {
   damageDie: DieType;
   type: "damage" | "heal";
   /** Which stat drives the attack roll. */
-  statKey: "strength" | "dexterity" | "wisdom";
+  statKey: "strength" | "dexterity" | "wisdom" | "charisma";
   /** If true, this ability is a bonus action and does not end the turn. */
   bonusAction?: boolean;
 }
@@ -182,6 +182,21 @@ export const ABILITIES: Ability[] = [
     description: "Strike a pressure point with devastating precision",
     mpCost: 10, levelRequired: 15, damageCount: 5, damageDie: 8,
     type: "damage", statKey: "dexterity",
+  },
+
+  // ── Bard (CHA) ────────────────────────────────────────────────
+  {
+    id: "bardicInspiration", name: "Bardic Inspiration",
+    description: "Inspire yourself with a rousing melody, restoring vigor",
+    mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 8,
+    type: "heal", statKey: "charisma",
+    bonusAction: true,
+  },
+  {
+    id: "cuttingWords", name: "Cutting Words",
+    description: "Hurl a magically laced insult that wounds body and pride",
+    mpCost: 5, levelRequired: 5, damageCount: 2, damageDie: 8,
+    type: "damage", statKey: "charisma",
   },
 ];
 

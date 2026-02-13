@@ -300,7 +300,6 @@ export function canAfford(player: PlayerState, cost: number): boolean {
   return player.gold >= cost;
 }
 
-/** Check if the player already owns a specific equipment item (weapon/armor/shield). */
 /** Check if the player already owns a specific equipment item (weapon/armor/shield) or mount. */
 export function ownsEquipment(player: PlayerState, itemId: string): boolean {
   const equipped =

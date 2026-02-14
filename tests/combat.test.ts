@@ -193,4 +193,27 @@ describe("combat system", () => {
       expect(result.message).toContain("cannot be used in battle");
     });
   });
+
+  describe("playerUseAbility damage path", () => {
+    it("returns combat result with attack metadata for damage abilities", () => {
+      const player = createPlayer("Test", defaultStats);
+      player.knownAbilities = ["shieldBash"];
+      const monster = createTestMonster({ ac: 1 }); // easy to hit
+
+      let gotHit = false;
+      for (let i = 0; i < 50; i++) {
+        player.mp = 100;
+        const result = playerUseAbility(player, "shieldBash", monster);
+        expect(typeof result.attackMod).toBe("number");
+        expect(typeof result.totalRoll).toBe("number");
+        expect(typeof result.targetAC).toBe("number");
+        expect(result.mpUsed).toBeGreaterThan(0);
+        if (result.hit) {
+          gotHit = true;
+          expect(result.damage).toBeGreaterThan(0);
+        }
+      }
+      expect(gotHit).toBe(true);
+    });
+  });
 });

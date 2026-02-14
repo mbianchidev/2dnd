@@ -4,7 +4,6 @@
 
 import { rollD20, rollDice, type DieType } from "../utils/dice";
 import type { Monster, MonsterAbility } from "../data/monsters";
-import type { Spell } from "../data/spells";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
 import { getTalentAttackBonus, getTalentDamageBonus } from "../data/talents";
@@ -40,6 +39,45 @@ export interface CombatState {
   fled: boolean;
 }
 
+// ── Shared Attack Resolution ──────────────────────────────────
+
+/** Outcome of a d20 attack roll against an AC target. */
+interface AttackOutcome {
+  hit: boolean;
+  critical: boolean;
+  fumble: boolean;
+  roll: number;
+  total: number;
+}
+
+/** Resolve a d20 attack roll into a hit/miss/crit/fumble outcome. */
+function resolveAttackRoll(
+  d20Roll: { roll: number; total: number },
+  targetAC: number,
+  autoHit: boolean = false
+): AttackOutcome {
+  if (d20Roll.roll === 20) {
+    return { hit: true, critical: true, fumble: false, roll: d20Roll.roll, total: d20Roll.total };
+  }
+  if (d20Roll.roll === 1) {
+    return { hit: false, critical: false, fumble: true, roll: d20Roll.roll, total: d20Roll.total };
+  }
+  const hit = d20Roll.total >= targetAC || autoHit;
+  return { hit, critical: false, fumble: false, roll: d20Roll.roll, total: d20Roll.total };
+}
+
+/** Roll damage dice, doubling on critical hits. */
+function rollAttackDamage(
+  count: number,
+  die: DieType,
+  isCritical: boolean,
+  bonusDamage: number = 0,
+  minDamage: number = 0
+): number {
+  const dice = isCritical ? count * 2 : count;
+  return Math.max(minDamage, rollDice(dice, die) + bonusDamage);
+}
+
 /** Roll initiative to determine who goes first. */
 export function rollInitiative(
   playerDexMod: number,
@@ -70,53 +108,31 @@ export function playerAttack(
   const attackMod = getAttackModifier(player);
   const roll = rollD20(attackMod);
   const effectiveAC = monster.ac + monsterDefendBonus + weatherPenalty;
-  const extra = { attackMod, totalRoll: roll.total, targetAC: effectiveAC };
+  const outcome = resolveAttackRoll(roll, effectiveAC);
+  const meta = { attackMod, totalRoll: roll.total, targetAC: effectiveAC };
 
-  if (roll.roll === 20) {
-    // Critical hit - double dice
-    const weaponBonus = player.equippedWeapon?.effect ?? 0;
-    const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
-    const damage = rollDice(2, 6) + weaponBonus + talentDmg; // 2d6 crit + weapon + talent
-    return {
-      message: `CRITICAL HIT! ${player.name} strikes for ${damage} damage!`,
-      damage,
-      hit: true,
-      critical: true,
-      roll: roll.roll,
-      ...extra,
-    };
-  }
-
-  if (roll.roll === 1) {
+  if (outcome.fumble) {
     return {
       message: `Critical miss! ${player.name}'s attack goes wild!`,
-      damage: 0,
-      hit: false,
-      critical: false,
-      roll: roll.roll,
-      ...extra,
+      damage: 0, hit: false, critical: false, roll: outcome.roll, ...meta,
     };
   }
 
-  if (roll.total >= effectiveAC) {
+  if (outcome.hit) {
     const weaponBonus = player.equippedWeapon?.effect ?? 0;
-    const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
-    const damage = Math.max(1, rollDice(1, 6) + weaponBonus + talentDmg);
+    const talentDmg = getTalentDamageBonus(player.knownTalents);
+    const damage = rollAttackDamage(1, 6, outcome.critical, weaponBonus + talentDmg, outcome.critical ? 0 : 1);
+    const prefix = outcome.critical ? "CRITICAL HIT! " : "";
+    const verb = outcome.critical ? "strikes" : "hits";
     return {
-      message: `${player.name} hits for ${damage} damage!`,
-      damage,
-      hit: true,
-      roll: roll.roll,
-      ...extra,
+      message: `${prefix}${player.name} ${verb} for ${damage} damage!`,
+      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
     };
   }
 
   return {
     message: `${player.name} misses!`,
-    damage: 0,
-    hit: false,
-    roll: roll.roll,
-    ...extra,
+    damage: 0, hit: false, roll: outcome.roll, ...meta,
   };
 }
 
@@ -183,36 +199,24 @@ export function playerCastSpell(
   const roll = rollD20(spellMod);
   const autoHit = spell.id === "magicMissile";
   const effectiveAC = monster.ac + weatherPenalty;
+  const outcome = resolveAttackRoll(roll, effectiveAC, autoHit);
 
-  if (roll.total >= effectiveAC || autoHit) {
-    // Magic Missile always hits
-    const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
+  player.mp -= spell.mpCost;
+
+  if (outcome.hit) {
+    const talentDmg = getTalentDamageBonus(player.knownTalents);
     const damage = rollDice(spell.damageCount, spell.damageDie as DieType) + talentDmg;
-    player.mp -= spell.mpCost;
     return {
       message: `${player.name} casts ${spell.name}! ${damage} damage!`,
-      damage,
-      hit: true,
-      mpUsed: spell.mpCost,
-      roll: roll.roll,
-      spellMod,
-      totalRoll: roll.total,
-      targetAC: effectiveAC,
-      autoHit,
+      damage, hit: true, mpUsed: spell.mpCost, roll: roll.roll,
+      spellMod, totalRoll: roll.total, targetAC: effectiveAC, autoHit,
     };
   }
 
-  player.mp -= spell.mpCost;
   return {
     message: `${player.name} casts ${spell.name} but it misses!`,
-    damage: 0,
-    hit: false,
-    mpUsed: spell.mpCost,
-    roll: roll.roll,
-    spellMod,
-    totalRoll: roll.total,
-    targetAC: effectiveAC,
-    autoHit: false,
+    damage: 0, hit: false, mpUsed: spell.mpCost, roll: roll.roll,
+    spellMod, totalRoll: roll.total, targetAC: effectiveAC, autoHit: false,
   };
 }
 
@@ -232,56 +236,30 @@ export function monsterAttack(
   const playerAC = getArmorClass(player, playerDefendBonus) + weatherPenalty;
   const effectiveAtkBonus = monster.attackBonus + monsterAtkBoost;
   const roll = rollD20(effectiveAtkBonus);
+  const outcome = resolveAttackRoll(roll, playerAC);
+  const meta = { attackBonus: effectiveAtkBonus, totalRoll: roll.total, targetAC: playerAC };
 
-  if (roll.roll === 20) {
-    const damage = rollDice(monster.damageCount * 2, monster.damageDie);
-    player.hp = Math.max(0, player.hp - damage);
-    return {
-      message: `CRITICAL! ${monster.name} savages you for ${damage} damage!`,
-      damage,
-      hit: true,
-      critical: true,
-      roll: roll.roll,
-      attackBonus: effectiveAtkBonus,
-      totalRoll: roll.total,
-      targetAC: playerAC,
-    };
-  }
-
-  if (roll.roll === 1) {
+  if (outcome.fumble) {
     return {
       message: `${monster.name} stumbles and misses!`,
-      damage: 0,
-      hit: false,
-      roll: roll.roll,
-      attackBonus: effectiveAtkBonus,
-      totalRoll: roll.total,
-      targetAC: playerAC,
+      damage: 0, hit: false, roll: outcome.roll, ...meta,
     };
   }
 
-  if (roll.total >= playerAC) {
-    const damage = rollDice(monster.damageCount, monster.damageDie);
+  if (outcome.hit) {
+    const damage = rollAttackDamage(monster.damageCount, monster.damageDie, outcome.critical);
     player.hp = Math.max(0, player.hp - damage);
+    const prefix = outcome.critical ? "CRITICAL! " : "";
+    const verb = outcome.critical ? "savages you" : "hits you";
     return {
-      message: `${monster.name} hits you for ${damage} damage!`,
-      damage,
-      hit: true,
-      roll: roll.roll,
-      attackBonus: effectiveAtkBonus,
-      totalRoll: roll.total,
-      targetAC: playerAC,
+      message: `${prefix}${monster.name} ${verb} for ${damage} damage!`,
+      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
     };
   }
 
   return {
     message: `${monster.name} misses!`,
-    damage: 0,
-    hit: false,
-    roll: roll.roll,
-    attackBonus: effectiveAtkBonus,
-    totalRoll: roll.total,
-    targetAC: playerAC,
+    damage: 0, hit: false, roll: outcome.roll, ...meta,
   };
 }
 
@@ -344,38 +322,35 @@ export function playerUseAbility(
   // Damage ability — uses STR, DEX, or WIS
   const stat = player.stats[ability.statKey];
   const profBonus = Math.floor((player.level - 1) / 4) + 2;
-  const talentAtk = getTalentAttackBonus(player.knownTalents ?? []);
-  const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
+  const talentAtk = getTalentAttackBonus(player.knownTalents);
+  const talentDmg = getTalentDamageBonus(player.knownTalents);
   const attackMod = abilityModifier(stat) + profBonus + talentAtk;
   const roll = rollD20(attackMod);
   const effectiveAC = monster.ac + weatherPenalty;
-
-  if (roll.roll === 1) {
-    player.mp -= ability.mpCost;
-    return {
-      message: `${player.name} uses ${ability.name} but fumbles!`,
-      damage: 0, hit: false, critical: false, roll: 1,
-      mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: effectiveAC,
-    };
-  }
-
-  if (roll.roll === 20 || roll.total >= effectiveAC) {
-    const isCrit = roll.roll === 20;
-    const dice = isCrit ? ability.damageCount * 2 : ability.damageCount;
-    const damage = rollDice(dice, ability.damageDie as DieType) + talentDmg;
-    player.mp -= ability.mpCost;
-    return {
-      message: `${isCrit ? "CRITICAL! " : ""}${player.name} uses ${ability.name}! ${damage} damage!`,
-      damage, hit: true, critical: isCrit, roll: roll.roll,
-      mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: effectiveAC,
-    };
-  }
+  const outcome = resolveAttackRoll(roll, effectiveAC);
+  const meta = { mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: effectiveAC };
 
   player.mp -= ability.mpCost;
+
+  if (outcome.fumble) {
+    return {
+      message: `${player.name} uses ${ability.name} but fumbles!`,
+      damage: 0, hit: false, critical: false, roll: outcome.roll, ...meta,
+    };
+  }
+
+  if (outcome.hit) {
+    const damage = rollAttackDamage(ability.damageCount, ability.damageDie as DieType, outcome.critical, talentDmg);
+    const prefix = outcome.critical ? "CRITICAL! " : "";
+    return {
+      message: `${prefix}${player.name} uses ${ability.name}! ${damage} damage!`,
+      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
+    };
+  }
+
   return {
     message: `${player.name} uses ${ability.name} but misses!`,
-    damage: 0, hit: false, roll: roll.roll,
-    mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: effectiveAC,
+    damage: 0, hit: false, roll: outcome.roll, ...meta,
   };
 }
 

@@ -262,6 +262,9 @@ class AudioEngine {
   private dialogGain: GainNode | null = null;
   private footstepGain: GainNode | null = null;
 
+  /** Pre-allocated 1-second white noise buffer, reused for hihat, footsteps, etc. */
+  private noiseBuffer: AudioBuffer | null = null;
+
   // Currently playing music nodes
   private musicNodes: AudioNode[] = [];
   private musicTimer: ReturnType<typeof setInterval> | null = null;
@@ -313,6 +316,13 @@ class AudioEngine {
     this.footstepGain = this.ctx.createGain();
     this.footstepGain.gain.value = this.state.sfxVolume * 0.3; // very low footstep volume
     this.footstepGain.connect(this.masterGain);
+
+    // Pre-allocate a 1-second white noise buffer for reuse in hihat, footsteps, etc.
+    const noiseDuration = 1;
+    const noiseBufSize = Math.floor(this.ctx.sampleRate * noiseDuration);
+    this.noiseBuffer = this.ctx.createBuffer(1, noiseBufSize, this.ctx.sampleRate);
+    const noiseData = this.noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseBufSize; i++) noiseData[i] = Math.random() * 2 - 1;
   }
 
   get initialized(): boolean {
@@ -320,6 +330,15 @@ class AudioEngine {
   }
 
   // ─── Volume / mute ────────────────────────────────────────
+
+  /** Create a BufferSource from the pre-allocated noise buffer.
+   *  Callers control duration via gain envelopes or explicit stop(). */
+  private createNoiseSource(): AudioBufferSourceNode | null {
+    if (!this.ctx || !this.noiseBuffer) return null;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    return src;
+  }
 
   setVolume(v: number): void {
     this.state.volume = Math.max(0, Math.min(1, v));
@@ -589,13 +608,9 @@ class AudioEngine {
           kick.start(ctx.currentTime);
           kick.stop(ctx.currentTime + 0.2);
         } else {
-          // Hihat — short filtered noise burst
-          const hhBufSize = Math.floor(ctx.sampleRate * 0.05);
-          const hhBuf = ctx.createBuffer(1, hhBufSize, ctx.sampleRate);
-          const hhData = hhBuf.getChannelData(0);
-          for (let i = 0; i < hhBufSize; i++) hhData[i] = Math.random() * 2 - 1;
-          const hhSrc = ctx.createBufferSource();
-          hhSrc.buffer = hhBuf;
+          // Hihat — short filtered noise burst (reuses pre-allocated buffer)
+          const hhSrc = this.createNoiseSource();
+          if (hhSrc) {
           const hhFilter = ctx.createBiquadFilter();
           hhFilter.type = "highpass";
           hhFilter.frequency.value = 7000;
@@ -606,6 +621,7 @@ class AudioEngine {
           hhFilter.connect(hhGain);
           hhGain.connect(dest);
           hhSrc.start(ctx.currentTime);
+          }
         }
 
         step++;
@@ -929,13 +945,9 @@ class AudioEngine {
     const ctx = this.ctx;
     const dest = this.sfxGain;
 
-    // Swoosh — band-pass filtered noise sweep
-    const swBufSize = Math.floor(ctx.sampleRate * 0.15);
-    const swBuf = ctx.createBuffer(1, swBufSize, ctx.sampleRate);
-    const swData = swBuf.getChannelData(0);
-    for (let i = 0; i < swBufSize; i++) swData[i] = Math.random() * 2 - 1;
-    const swSrc = ctx.createBufferSource();
-    swSrc.buffer = swBuf;
+    // Swoosh — band-pass filtered noise sweep (reuses pre-allocated buffer)
+    const swSrc = this.createNoiseSource();
+    if (!swSrc) return;
     const swFilter = ctx.createBiquadFilter();
     swFilter.type = "bandpass";
     swFilter.frequency.setValueAtTime(3000, ctx.currentTime);
@@ -982,13 +994,9 @@ class AudioEngine {
     const ctx = this.ctx;
     const dest = this.sfxGain;
 
-    // Airy swoosh that fades to nothing — high to low sweep
-    const swBufSize = Math.floor(ctx.sampleRate * 0.2);
-    const swBuf = ctx.createBuffer(1, swBufSize, ctx.sampleRate);
-    const swData = swBuf.getChannelData(0);
-    for (let i = 0; i < swBufSize; i++) swData[i] = Math.random() * 2 - 1;
-    const swSrc = ctx.createBufferSource();
-    swSrc.buffer = swBuf;
+    // Airy swoosh that fades to nothing — high to low sweep (reuses pre-allocated buffer)
+    const swSrc = this.createNoiseSource();
+    if (!swSrc) return;
     const swFilter = ctx.createBiquadFilter();
     swFilter.type = "highpass";
     swFilter.frequency.setValueAtTime(4000, ctx.currentTime);
@@ -1034,13 +1042,9 @@ class AudioEngine {
     impOsc.start(ctx.currentTime);
     impOsc.stop(ctx.currentTime + 0.4);
 
-    // Crunchy noise layer — distorted impact
-    const crBufSize = Math.floor(ctx.sampleRate * 0.12);
-    const crBuf = ctx.createBuffer(1, crBufSize, ctx.sampleRate);
-    const crData = crBuf.getChannelData(0);
-    for (let i = 0; i < crBufSize; i++) crData[i] = Math.random() * 2 - 1;
-    const crSrc = ctx.createBufferSource();
-    crSrc.buffer = crBuf;
+    // Crunchy noise layer — distorted impact (reuses pre-allocated buffer)
+    const crSrc = this.createNoiseSource();
+    if (crSrc) {
     const crFilter = ctx.createBiquadFilter();
     crFilter.type = "lowpass";
     crFilter.frequency.value = 1200;
@@ -1051,6 +1055,7 @@ class AudioEngine {
     crFilter.connect(crGain);
     crGain.connect(dest);
     crSrc.start(ctx.currentTime);
+    }
 
     // Rising metallic sting — ascending pitch for "critical!" emphasis
     const sting = ctx.createOscillator();
@@ -1160,13 +1165,9 @@ class AudioEngine {
     eerie.start(ctx.currentTime);
     eerie.stop(ctx.currentTime + 0.7);
 
-    // Stone scraping noise
-    const scBufSize = Math.floor(ctx.sampleRate * 0.4);
-    const scBuf = ctx.createBuffer(1, scBufSize, ctx.sampleRate);
-    const scData = scBuf.getChannelData(0);
-    for (let i = 0; i < scBufSize; i++) scData[i] = Math.random() * 2 - 1;
-    const scSrc = ctx.createBufferSource();
-    scSrc.buffer = scBuf;
+    // Stone scraping noise (reuses pre-allocated buffer)
+    const scSrc = this.createNoiseSource();
+    if (scSrc) {
     const scFilter = ctx.createBiquadFilter();
     scFilter.type = "bandpass";
     scFilter.frequency.value = 400;
@@ -1178,6 +1179,7 @@ class AudioEngine {
     scFilter.connect(scGain);
     scGain.connect(dest);
     scSrc.start(ctx.currentTime);
+    }
   }
 
   /** Play a potion drinking / glug sound. */
@@ -1222,15 +1224,11 @@ class AudioEngine {
     const ctx = this.ctx;
     const dest = this.sfxGain;
 
-    // Crackling pops — short bursts of filtered noise
+    // Crackling pops — short bursts of filtered noise (reuses pre-allocated buffer)
     for (let i = 0; i < 6; i++) {
       const t = ctx.currentTime + i * 0.15 + Math.random() * 0.05;
-      const bufSize = 1024;
-      const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let j = 0; j < bufSize; j++) data[j] = Math.random() * 2 - 1;
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
+      const src = this.createNoiseSource();
+      if (!src) continue;
       const filter = ctx.createBiquadFilter();
       filter.type = "bandpass";
       filter.frequency.value = 800 + Math.random() * 1200;
@@ -1266,13 +1264,9 @@ class AudioEngine {
     const ctx = this.ctx;
     const dest = this.sfxGain;
 
-    // Rising whoosh — filtered noise sweep
-    const bufSize = ctx.sampleRate; // 1 second
-    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
+    // Rising whoosh — filtered noise sweep (reuses pre-allocated buffer)
+    const src = this.createNoiseSource();
+    if (!src) return;
     const filter = ctx.createBiquadFilter();
     filter.type = "bandpass";
     filter.Q.value = 3;
@@ -1365,13 +1359,9 @@ class AudioEngine {
         break;
     }
 
-    // Generate short noise burst filtered to mimic the terrain
-    const bufSize = Math.floor(ctx.sampleRate * duration);
-    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
+    // Reuse pre-allocated noise buffer instead of generating per-call
+    const src = this.createNoiseSource();
+    if (!src) return;
     const filter = ctx.createBiquadFilter();
     filter.type = filterType;
     filter.frequency.value = filterFreq;
@@ -1394,12 +1384,8 @@ class AudioEngine {
     for (let tap = 0; tap < 2; tap++) {
       const offset = tap * 0.06; // delay second tap by 60ms for trotting rhythm
       const duration = 0.04;
-      const bufSize = Math.floor(ctx.sampleRate * duration);
-      const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
+      const src = this.createNoiseSource();
+      if (!src) continue;
       const filter = ctx.createBiquadFilter();
       filter.type = "bandpass";
       filter.frequency.value = 500; // deep thud for hooves

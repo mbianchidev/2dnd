@@ -9,8 +9,6 @@
 import Phaser from "phaser";
 import { isDebug, debugLog, debugPanelLog, debugPanelClear, setDebugCommandHandler } from "../config";
 import { awardXP, processPendingLevelUps, xpForLevel, type PlayerState } from "./player";
-import { getSpell } from "../data/spells";
-import { getItem } from "../data/items";
 
 // ── Types ──────────────────────────────────────────────────────
 

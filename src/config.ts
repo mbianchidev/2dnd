@@ -53,9 +53,23 @@ export function debugLog(...args: unknown[]): void {
 /** Maximum number of log lines to keep in the debug panel. */
 const MAX_DEBUG_LOG_LINES = 200;
 
+/** Cached DOM element references for the debug panel (avoid re-querying every call). */
+let _debugLogEl: HTMLElement | null | undefined;
+let _debugStateEl: HTMLElement | null | undefined;
+
+function getDebugLogEl(): HTMLElement | null {
+  if (_debugLogEl === undefined) _debugLogEl = document.getElementById("debug-log");
+  return _debugLogEl;
+}
+
+function getDebugStateEl(): HTMLElement | null {
+  if (_debugStateEl === undefined) _debugStateEl = document.getElementById("debug-state");
+  return _debugStateEl;
+}
+
 /** Append a message to the HTML debug log panel. */
 export function debugPanelLog(msg: string, isDebugMsg = false, cssClass?: string): void {
-  const el = document.getElementById("debug-log");
+  const el = getDebugLogEl();
   if (!el) return;
   // Remove previous spacer if present
   const oldSpacer = el.querySelector(".log-spacer");
@@ -82,14 +96,14 @@ export function debugPanelLog(msg: string, isDebugMsg = false, cssClass?: string
 
 /** Update the live state bar in the HTML debug panel. */
 export function debugPanelState(info: string): void {
-  const el = document.getElementById("debug-state");
+  const el = getDebugStateEl();
   if (!el) return;
   el.textContent = info;
 }
 
 /** Clear the HTML debug log panel (e.g. when entering a new scene). */
 export function debugPanelClear(): void {
-  const el = document.getElementById("debug-log");
+  const el = getDebugLogEl();
   if (!el) return;
   el.innerHTML = "";
 }

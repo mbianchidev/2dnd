@@ -26,7 +26,6 @@ import {
   SPECIAL_NPC_FAREWELLS,
   getSpecialNpcDialogue,
   rollSpecialNpcSpawns,
-  type NpcAgeGroup,
 } from "../src/data/npcs";
 import { CITIES } from "../src/data/map";
 

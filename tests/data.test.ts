@@ -22,7 +22,7 @@ import {
   getCityForTown,
   getCityShopAt,
 } from "../src/data/map";
-import { MONSTERS, getRandomEncounter, getBoss, DUNGEON_MONSTERS, getDungeonEncounter, DUNGEON_MONSTER_POOLS, HEARTLANDS_CRYPT_MONSTERS, FROST_CAVERN_MONSTERS, VOLCANIC_FORGE_MONSTERS, NIGHT_MONSTERS, getNightEncounter, TUNDRA_NIGHT_MONSTERS, SWAMP_NIGHT_MONSTERS, FOREST_NIGHT_MONSTERS, CANYON_NIGHT_MONSTERS } from "../src/data/monsters";
+import { MONSTERS, getRandomEncounter, getBoss, getMonster, DUNGEON_MONSTERS, getDungeonEncounter, DUNGEON_MONSTER_POOLS, HEARTLANDS_CRYPT_MONSTERS, FROST_CAVERN_MONSTERS, VOLCANIC_FORGE_MONSTERS, NIGHT_MONSTERS, getNightEncounter, TUNDRA_NIGHT_MONSTERS, SWAMP_NIGHT_MONSTERS, FOREST_NIGHT_MONSTERS, CANYON_NIGHT_MONSTERS } from "../src/data/monsters";
 import { SPELLS, getSpell, getAvailableSpells } from "../src/data/spells";
 import { ITEMS, getItem, getShopItems, getShopItemsForTown } from "../src/data/items";
 import { ABILITIES, getAbility } from "../src/data/abilities";
@@ -172,6 +172,35 @@ describe("game data", () => {
     it("getBoss returns undefined for non-boss ID", () => {
       expect(getBoss("slime")).toBeUndefined();
       expect(getBoss("nonexistent")).toBeUndefined();
+    });
+
+    it("getMonster returns any monster by ID (O(1) lookup)", () => {
+      const slime = getMonster("slime");
+      expect(slime).toBeDefined();
+      expect(slime!.name).toBe("Slime");
+      expect(slime!.isBoss).toBe(false);
+
+      const dragon = getMonster("dragon");
+      expect(dragon).toBeDefined();
+      expect(dragon!.name).toBe("Young Red Dragon");
+      expect(dragon!.isBoss).toBe(true);
+    });
+
+    it("getMonster returns dungeon and night monsters", () => {
+      expect(getMonster("stoneGolem")).toBeDefined();
+      expect(getMonster("nightWolf")).toBeDefined();
+      expect(getMonster("frostWraith")).toBeDefined();
+    });
+
+    it("getMonster returns undefined for non-existent ID", () => {
+      expect(getMonster("nonexistent")).toBeUndefined();
+    });
+
+    it("getMonster returns a copy", () => {
+      const m1 = getMonster("slime");
+      const m2 = getMonster("slime");
+      expect(m1).toEqual(m2);
+      expect(m1).not.toBe(m2);
     });
   });
 

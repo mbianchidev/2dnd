@@ -3,10 +3,10 @@
  */
 
 import Phaser from "phaser";
-import { TERRAIN_COLORS, Terrain, WORLD_CHUNKS, WORLD_WIDTH, WORLD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, getTownBiome } from "../data/map";
+import { TERRAIN_COLORS, Terrain } from "../data/map";
 import { PLAYER_CLASSES, type PlayerClass, getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance } from "../systems/appearance";
-import { NPC_TEMPLATES, type NpcTemplate, NPC_SKIN_COLORS, NPC_HAIR_COLORS, NPC_DRESS_COLORS, JOB_ACCENT_COLORS } from "../data/npcs";
+import { NPC_TEMPLATES } from "../data/npcs";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
 import { abilityModifier, rollAbilityScore } from "../utils/dice";

@@ -327,6 +327,11 @@ export class OverworldScene extends Phaser.Scene {
       this.fogOfWar.revealEntireWorld();
       // Sync back to player state
       this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
+      // Refresh visible tiles and world map overlay
+      this.renderMap();
+      this.applyDayNightTint();
+      this.createPlayer();
+      this.refreshWorldMap();
       debugPanelLog(`[CHEAT] Map revealed`, true);
     });
 
@@ -350,6 +355,11 @@ export class OverworldScene extends Phaser.Scene {
       this.fogOfWar.revealEntireWorld();
       // Sync back to player state
       this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
+      // Refresh visible tiles and world map overlay
+      this.renderMap();
+      this.applyDayNightTint();
+      this.createPlayer();
+      this.refreshWorldMap();
       debugPanelLog(`[CMD] Entire world map revealed`, true);
     });
 
@@ -4964,6 +4974,17 @@ export class OverworldScene extends Phaser.Scene {
       this.input.off("pointerup");
       return;
     }
+    this.showWorldMap();
+  }
+
+  /** Refresh the world map overlay in-place if it is currently open. */
+  private refreshWorldMap(): void {
+    if (!this.worldMapOverlay) return;
+    this.worldMapOverlay.destroy();
+    this.worldMapOverlay = null;
+    this.input.off("wheel");
+    this.input.off("pointermove");
+    this.input.off("pointerup");
     this.showWorldMap();
   }
 

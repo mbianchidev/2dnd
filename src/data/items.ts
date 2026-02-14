@@ -44,6 +44,14 @@ export const ITEMS: Item[] = [
     effect: 50,
     levelReq: 5,
   },
+  {
+    id: "chimaeraWing",
+    name: "Chimaera Wing",
+    description: "Teleport to a known town",
+    type: "consumable",
+    cost: 75,
+    effect: 0,
+  },
   // --- Class starting weapons (cost 0, given at character creation) ---
   {
     id: "startSword",

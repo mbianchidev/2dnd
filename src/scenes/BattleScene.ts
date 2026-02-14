@@ -355,7 +355,7 @@ export class BattleScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const spells = this.player.knownSpells
       .map((id) => getSpell(id))
-      .filter((s): s is Spell => s !== undefined);
+      .filter((s): s is Spell => s !== undefined && s.type !== "utility");
 
     const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - spells.length * 28 - 10);
 
@@ -404,7 +404,7 @@ export class BattleScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const abilities = (this.player.knownAbilities ?? [])
       .map((id) => getAbility(id))
-      .filter((a): a is Ability => a !== undefined);
+      .filter((a): a is Ability => a !== undefined && a.type !== "utility");
 
     if (abilities.length === 0) {
       this.addLog("No abilities known!");

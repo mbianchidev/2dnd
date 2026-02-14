@@ -13,7 +13,7 @@ export interface Ability {
   levelRequired: number;
   damageCount: number;
   damageDie: DieType;
-  type: "damage" | "heal";
+  type: "damage" | "heal" | "utility";
   /** Which stat drives the attack roll. */
   statKey: "strength" | "dexterity" | "wisdom" | "charisma";
   /** If true, this ability is a bonus action and does not end the turn. */
@@ -197,6 +197,14 @@ export const ABILITIES: Ability[] = [
     description: "Hurl a magically laced insult that wounds body and pride",
     mpCost: 5, levelRequired: 5, damageCount: 2, damageDie: 8,
     type: "damage", statKey: "charisma",
+  },
+
+  // ── Fast Travel (all classes) ────────────────────────────────
+  {
+    id: "fastTravel", name: "Fast Travel",
+    description: "Travel instantly to a known town",
+    mpCost: 5, levelRequired: 5, damageCount: 0, damageDie: 4,
+    type: "utility", statKey: "dexterity",
   },
 ];
 

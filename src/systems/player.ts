@@ -2,9 +2,10 @@
  * Player state management: stats, leveling, experience, spell unlocks.
  */
 
-import { abilityModifier } from "../utils/dice";
+import { abilityModifier, rollDice } from "../utils/dice";
+import type { DieType } from "../utils/dice";
 import type { Spell } from "../data/spells";
-import { SPELLS } from "../data/spells";
+import { SPELLS, getSpell } from "../data/spells";
 import type { Ability } from "../data/abilities";
 import { ABILITIES, getAbility } from "../data/abilities";
 import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "../data/talents";
@@ -84,6 +85,7 @@ export interface PlayerState {
   bankBalance: number;    // gold stored in the bank (accessible across all banks)
   lastBankDay: number;    // last day interest was applied (timeStep / CYCLE_LENGTH)
   mountId: string;        // ID of the currently active mount (empty = on foot)
+  shortRestsRemaining: number; // short rests available (max 2, reset on inn long rest)
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -116,8 +118,16 @@ export function createPlayer(
   const startHp = Math.max(10, 25 + conMod * 3);
   const startMp = Math.max(4, 8 + intMod * 2);
 
-  // Starting spell — first spell in the class list (empty for pure martial)
-  const startingSpells: string[] = appearance.spells.length > 0 ? [appearance.spells[0]] : [];
+  // Starting spells — all class spells available at level 1
+  const classSpellIds = appearance.spells;
+  const startingSpells = classSpellIds.filter((id) => {
+    const sp = getSpell(id);
+    return sp && sp.levelRequired <= 1;
+  });
+  // Fallback to first spell if no level-1 spells found
+  if (startingSpells.length === 0 && appearance.spells.length > 0) {
+    startingSpells.push(appearance.spells[0]);
+  }
 
   // Starting abilities — all class abilities available at level 1
   const classAbilities = appearance.abilities ?? [];
@@ -167,6 +177,7 @@ export function createPlayer(
     bankBalance: 0,
     lastBankDay: 0,
     mountId: "",
+    shortRestsRemaining: 2,
   };
 }
 
@@ -346,7 +357,7 @@ export function useItem(
   }
 
   if (item.type === "consumable") {
-    if (item.id === "potion") {
+    if (item.id === "potion" || item.id === "greaterPotion") {
       const healed = Math.min(item.effect, player.maxHp - player.hp);
       player.hp += healed;
       player.inventory.splice(itemIndex, 1);
@@ -357,6 +368,12 @@ export function useItem(
       player.mp += restored;
       player.inventory.splice(itemIndex, 1);
       return { used: true, message: `Restored ${restored} MP!` };
+    }
+    if (item.id === "chimaeraWing") {
+      // Chimaera Wing teleportation is handled by the scene;
+      // here we just consume the item and signal success.
+      player.inventory.splice(itemIndex, 1);
+      return { used: true, message: "The Chimaera Wing glows and whisks you away!" };
     }
   }
 
@@ -415,4 +432,102 @@ export function allocateStatPoint(
   }
 
   return true;
+}
+
+/**
+ * Perform a short rest in the overworld. Restores up to 50% of max HP and 50% of max MP,
+ * capped at the player's current maximum. Decrements shortRestsRemaining.
+ * Returns the actual amounts restored.
+ */
+export function shortRest(player: PlayerState): { hpRestored: number; mpRestored: number } {
+  const hpRestore = Math.floor(player.maxHp * 0.5);
+  const mpRestore = Math.floor(player.maxMp * 0.5);
+  const actualHp = Math.min(hpRestore, player.maxHp - player.hp);
+  const actualMp = Math.min(mpRestore, player.maxMp - player.mp);
+  player.hp += actualHp;
+  player.mp += actualMp;
+  player.shortRestsRemaining--;
+  return { hpRestored: actualHp, mpRestored: actualMp };
+}
+
+/** Cast a heal or utility spell outside of combat. Returns result. */
+export function castSpellOutsideCombat(
+  player: PlayerState,
+  spellId: string
+): { success: boolean; message: string } {
+  const spell = getSpell(spellId);
+  if (!spell) return { success: false, message: "Unknown spell!" };
+
+  if (spell.type === "damage") {
+    return { success: false, message: "Cannot use damage spells outside battle!" };
+  }
+
+  if (player.mp < spell.mpCost) {
+    return { success: false, message: "Not enough MP!" };
+  }
+
+  // Short Rest spell — usable in the overworld, limited uses
+  if (spellId === "shortRest") {
+    if (player.shortRestsRemaining <= 0) {
+      return { success: false, message: "No short rests remaining! Rest at an inn to refill." };
+    }
+    if (player.hp >= player.maxHp && player.mp >= player.maxMp) {
+      return { success: false, message: "HP and MP are already full!" };
+    }
+    const { hpRestored, mpRestored } = shortRest(player);
+    return { success: true, message: `Short Rest! Recovered ${hpRestored} HP and ${mpRestored} MP. (${player.shortRestsRemaining} rests left)` };
+  }
+
+  if (spell.type === "heal") {
+    if (player.hp >= player.maxHp) {
+      return { success: false, message: "HP is already full!" };
+    }
+    const healAmount = rollDice(spell.damageCount, spell.damageDie as DieType);
+    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
+    player.hp += actualHeal;
+    player.mp -= spell.mpCost;
+    return { success: true, message: `${spell.name} healed ${actualHeal} HP! (${spell.mpCost} MP)` };
+  }
+
+  if (spell.type === "utility") {
+    player.mp -= spell.mpCost;
+    return { success: true, message: `${spell.name} cast! (${spell.mpCost} MP)` };
+  }
+
+  return { success: false, message: "Cannot use this spell here." };
+}
+
+/** Use a heal or utility ability outside of combat. Returns result. */
+export function useAbilityOutsideCombat(
+  player: PlayerState,
+  abilityId: string
+): { success: boolean; message: string } {
+  const ability = getAbility(abilityId);
+  if (!ability) return { success: false, message: "Unknown ability!" };
+
+  if (ability.type === "damage") {
+    return { success: false, message: "Cannot use damage abilities outside battle!" };
+  }
+
+  if (player.mp < ability.mpCost) {
+    return { success: false, message: "Not enough MP!" };
+  }
+
+  if (ability.type === "heal") {
+    if (player.hp >= player.maxHp) {
+      return { success: false, message: "HP is already full!" };
+    }
+    const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
+    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
+    player.hp += actualHeal;
+    player.mp -= ability.mpCost;
+    return { success: true, message: `${ability.name} healed ${actualHeal} HP! (${ability.mpCost} MP)` };
+  }
+
+  if (ability.type === "utility") {
+    player.mp -= ability.mpCost;
+    return { success: true, message: `${ability.name} used! (${ability.mpCost} MP)` };
+  }
+
+  return { success: false, message: "Cannot use this ability here." };
 }

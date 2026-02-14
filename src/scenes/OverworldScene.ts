@@ -4267,6 +4267,8 @@ export class OverworldScene extends Phaser.Scene {
                 }
                 if (audioEngine.initialized) audioEngine.playPotionSFX();
                 this.updateHUD();
+              } else {
+                this.showMessage(result.message, "#ff6666");
               }
               this.buildEquipOverlay();
             }

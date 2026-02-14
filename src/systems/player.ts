@@ -390,6 +390,9 @@ export function useItem(
 
   if (item.type === "consumable") {
     if (item.id === "ether") {
+      if (player.mp >= player.maxMp) {
+        return { used: false, message: "MP is already full!" };
+      }
       const restored = Math.min(item.effect, player.maxMp - player.mp);
       player.mp += restored;
       player.inventory.splice(itemIndex, 1);
@@ -402,6 +405,9 @@ export function useItem(
       return { used: true, message: "The Chimaera Wing glows and whisks you away!", teleport: true };
     }
     // All other consumables restore HP (potion, greaterPotion, etc.)
+    if (player.hp >= player.maxHp) {
+      return { used: false, message: "HP is already full!" };
+    }
     const healed = Math.min(item.effect, player.maxHp - player.hp);
     player.hp += healed;
     player.inventory.splice(itemIndex, 1);

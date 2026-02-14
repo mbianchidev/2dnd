@@ -902,6 +902,25 @@ class AudioEngine {
     osc.stop(ctx.currentTime + 0.08);
   }
 
+  /**
+   * Play a sequence of dialogue blips whose count and rhythm is
+   * derived from the text length, giving a dynamic "tic-tic-tic" feel.
+   * Short lines get 2–3 blips, long lines get up to 8.
+   * Pitch varies slightly per blip for a natural speech cadence.
+   */
+  playDialogueBlips(text: string, basePitch = 0): void {
+    if (!this.ctx || !this.dialogGain) return;
+    const len = text.length;
+    // 2–8 blips depending on text length (roughly 1 per 12 chars, min 2, max 8)
+    const count = Math.min(8, Math.max(2, Math.ceil(len / 12)));
+    const interval = 70; // ms between blips
+    for (let i = 0; i < count; i++) {
+      // Vary pitch ±4 semitones for natural cadence; last blip goes up (like a question)
+      const pitchVar = i === count - 1 ? 3 : Math.floor(Math.random() * 9) - 4;
+      setTimeout(() => this.playDialogueBlip(basePitch + pitchVar), i * interval);
+    }
+  }
+
   // ─── Interaction SFX ──────────────────────────────────────
 
   /** Play a weapon attack swoosh + impact (normal hit). */

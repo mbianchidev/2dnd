@@ -50,6 +50,9 @@ export function debugLog(...args: unknown[]): void {
 
 // --- HTML Debug Panel ---
 
+/** Maximum number of log lines to keep in the debug panel. */
+const MAX_DEBUG_LOG_LINES = 200;
+
 /** Append a message to the HTML debug log panel. */
 export function debugPanelLog(msg: string, isDebugMsg = false, cssClass?: string): void {
   const el = document.getElementById("debug-log");
@@ -63,6 +66,12 @@ export function debugPanelLog(msg: string, isDebugMsg = false, cssClass?: string
   if (cssClass) line.className = cssClass;
   else if (isDebugMsg) line.className = "debug-msg";
   el.appendChild(line);
+  // Trim oldest lines if over limit
+  const lines = el.querySelectorAll("div:not(.log-spacer)");
+  if (lines.length > MAX_DEBUG_LOG_LINES) {
+    const toRemove = lines.length - MAX_DEBUG_LOG_LINES;
+    for (let i = 0; i < toRemove; i++) lines[i].remove();
+  }
   // Add trailing spacer for readability
   const spacer = document.createElement("div");
   spacer.className = "log-spacer";

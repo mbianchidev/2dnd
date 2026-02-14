@@ -7,7 +7,7 @@
  */
 
 import Phaser from "phaser";
-import { isDebug, debugLog, debugPanelLog, setDebugCommandHandler } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelClear, setDebugCommandHandler } from "../config";
 import { awardXP, xpForLevel, type PlayerState } from "./player";
 import { getSpell } from "../data/spells";
 import { getItem } from "../data/items";
@@ -169,20 +169,20 @@ export function registerCommandRouter(
   commands: Map<string, CommandHandler>,
   sceneName: string,
   helpEntries: HelpEntry[],
-  hotkeySummary: string,
 ): void {
   setDebugCommandHandler((cmd, args) => {
     const handler = commands.get(cmd);
     if (handler) {
       handler(args);
-    } else if (cmd === "help") {
+    } else if (cmd === "help" || cmd === "h") {
       debugPanelLog(`── Debug Commands (${sceneName}) ──`, true);
       for (const entry of helpEntries) {
-        debugPanelLog(`${entry.usage.padEnd(14)}${entry.desc}`, true);
+        debugPanelLog(`  ${entry.usage.padEnd(24)} ${entry.desc}`, true);
       }
-      debugPanelLog(`── Hotkeys: ${hotkeySummary} ──`, true);
+    } else if (cmd === "clear" || cmd === "cls") {
+      debugPanelClear();
     } else {
-      debugPanelLog(`Unknown command: /${cmd}. Type /help for list.`, true);
+      debugPanelLog(`Unknown command: /${cmd}. Try /help for a list of commands.`, true);
     }
   });
 }

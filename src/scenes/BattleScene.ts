@@ -24,7 +24,7 @@ import {
   attemptFlee,
 } from "../systems/combat";
 import { abilityModifier } from "../utils/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
@@ -648,8 +648,7 @@ export class BattleScene extends Phaser.Scene {
   // --- Debug ---
 
   private setupDebug(): void {
-    debugPanelClear();
-    debugPanelLog(`=== Battle: ${this.player.name} vs ${this.monster.name} ===`);
+    debugPanelLog(`── Battle: ${this.player.name} vs ${this.monster.name} ──`, true);
 
     const cb = { updateUI: () => this.updatePlayerStats() };
 
@@ -668,14 +667,6 @@ export class BattleScene extends Phaser.Scene {
         this.phase = "playerTurn";
         this.checkBattleEnd();
       }
-    });
-
-    const xKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X);
-    xKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.xp = xpForLevel(this.player.level + 1) - 1;
-      debugLog("CHEAT: XP set to", this.player.xp);
-      debugPanelLog(`[CHEAT] XP set to ${this.player.xp}`, true);
     });
 
     // Slash commands: shared + battle-specific
@@ -697,7 +688,7 @@ export class BattleScene extends Phaser.Scene {
       ...SHARED_HELP,
     ];
 
-    registerCommandRouter(cmds, "Battle", helpEntries, "K=Kill H=Heal P=MP G=Gold L=LvUp X=MaxXP");
+    registerCommandRouter(cmds, "Battle", helpEntries);
   }
 
   private updateDebugPanel(): void {

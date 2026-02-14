@@ -32,7 +32,7 @@ import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, AL
 import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, applyBankInterest, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { getAppearance, getActiveWeaponSprite } from "../systems/appearance";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary, recordDefeat } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
@@ -228,7 +228,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private setupDebug(): void {
-    debugPanelClear();
+    debugPanelLog("── Overworld loaded ──", true);
     debugPanelState("OVERWORLD | Loading...");
 
     const cb = {
@@ -571,7 +571,7 @@ export class OverworldScene extends Phaser.Scene {
       { usage: "/codex all", desc: "Discover all codex entries" },
     ];
 
-    registerCommandRouter(cmds, "Overworld", helpEntries, "G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog");
+    registerCommandRouter(cmds, "Overworld", helpEntries);
   }
 
   private renderMap(): void {
@@ -1398,6 +1398,7 @@ export class OverworldScene extends Phaser.Scene {
   ): void {
     const tpl = getNpcTemplate(def.templateId);
     if (!tpl) return;
+    debugPanelLog(`[NPC] Spawned ${def.kind} at (${tx},${ty})`, true);
 
     const specialSkin = NPC_SKIN_COLORS[Math.abs(def.kind.length * 7) % NPC_SKIN_COLORS.length];
     const texKey = this.getOrCreateNpcTexture(tpl, specialSkin, 0x5d4037, def.tintColor);
@@ -1490,7 +1491,7 @@ export class OverworldScene extends Phaser.Scene {
     const isFarewell = line === farewell;
     entry.interactions++;
 
-    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+    if (audioEngine.initialized) audioEngine.playDialogueBlips(line);
 
     // If this is the farewell line, show it then despawn after a short delay.
     if (isFarewell) {
@@ -1692,7 +1693,7 @@ export class OverworldScene extends Phaser.Scene {
     const rawName = spriteName.replace("sprite_", "");
     const speakerName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
-    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+    if (audioEngine.initialized) audioEngine.playDialogueBlips(line, -5);
 
     const container = this.add.container(0, 0).setDepth(50);
     const boxW = MAP_WIDTH * TILE_SIZE - 40;
@@ -1754,7 +1755,7 @@ export class OverworldScene extends Phaser.Scene {
       line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId);
     }
 
-    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+    if (audioEngine.initialized) audioEngine.playDialogueBlips(line);
 
     const container = this.add.container(0, 0).setDepth(50);
     const boxW = MAP_WIDTH * TILE_SIZE - 40;
@@ -3065,6 +3066,7 @@ export class OverworldScene extends Phaser.Scene {
         monster = getRandomEncounter(this.player.level);
       }
       debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon, time: getTimePeriod(this.timeStep) });
+      debugPanelLog(`[ENC] ${monster.name} appeared! (${(rate * 100).toFixed(0)}% chance)`, true);
       this.startBattle(monster, terrain);
     }
   }
@@ -3272,6 +3274,7 @@ export class OverworldScene extends Phaser.Scene {
         // Enter the city interior
         this.player.inCity = true;
         this.player.cityId = city.id;
+        debugPanelLog(`[CITY] Entered ${city.name}`, true);
         this.player.x = city.spawnX;
         this.player.y = city.spawnY;
         this.weatherState.current = WeatherType.Clear;
@@ -3332,6 +3335,7 @@ export class OverworldScene extends Phaser.Scene {
           // Enter the dungeon — force clear weather (closed space)
           this.player.inDungeon = true;
           this.player.dungeonId = dungeon.id;
+          debugPanelLog(`[DUNGEON] Entered ${dungeon.name}`, true);
           this.player.x = dungeon.spawnX;
           this.player.y = dungeon.spawnY;
           this.weatherState.current = WeatherType.Clear;
@@ -3411,6 +3415,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private startBattle(monster: ReturnType<typeof getRandomEncounter>, terrain?: Terrain): void {
     this.autoSave();
+    debugPanelLog(`[BATTLE] Fighting ${monster.name} (HP:${monster.hp} AC:${monster.ac})`, true);
     this.cameras.main.flash(300, 255, 255, 255);
     this.time.delayedCall(300, () => {
       this.scene.start("BattleScene", {

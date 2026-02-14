@@ -29,9 +29,9 @@ import {
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, ALL_MONSTERS, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, ASI_LEVELS, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, type PlayerState, type PlayerStats } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { getPlayerClass, getActiveWeaponSprite, getClassSpells, getClassAbilities } from "../systems/classes";
+import { getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary, recordDefeat } from "../systems/bestiary";
@@ -71,8 +71,58 @@ import {
 } from "../data/npcs";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
+import { tryGridMove } from "../systems/movement";
 
 const TILE_SIZE = 32;
+
+/** Terrain enum → human-readable display name for the location HUD. */
+const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
+  [Terrain.Grass]: "Grassland",
+  [Terrain.Forest]: "Forest",
+  [Terrain.Mountain]: "Mountain",
+  [Terrain.Water]: "Water",
+  [Terrain.Sand]: "Desert",
+  [Terrain.Town]: "Town",
+  [Terrain.Dungeon]: "Dungeon",
+  [Terrain.Boss]: "Boss Lair",
+  [Terrain.Path]: "Road",
+  [Terrain.Tundra]: "Tundra",
+  [Terrain.Swamp]: "Swamp",
+  [Terrain.DeepForest]: "Deep Forest",
+  [Terrain.Volcanic]: "Volcanic",
+  [Terrain.Canyon]: "Canyon",
+  [Terrain.Flower]: "Grassland",
+  [Terrain.Cactus]: "Desert",
+  [Terrain.Geyser]: "Volcanic",
+  [Terrain.Mushroom]: "Swamp",
+  [Terrain.River]: "River",
+  [Terrain.Mill]: "Grassland",
+  [Terrain.CropField]: "Grassland",
+  [Terrain.Casino]: "Town",
+  [Terrain.House]: "Town",
+};
+
+/** Terrain enum → short debug label for the debug panel. */
+const TERRAIN_DEBUG_NAMES: Record<number, string> = {
+  [Terrain.Grass]: "Grass",
+  [Terrain.Forest]: "Forest",
+  [Terrain.Mountain]: "Mountain",
+  [Terrain.Water]: "Water",
+  [Terrain.Sand]: "Sand",
+  [Terrain.Town]: "Town",
+  [Terrain.Dungeon]: "Dungeon",
+  [Terrain.Boss]: "Boss",
+  [Terrain.Path]: "Path",
+  [Terrain.DungeonFloor]: "DFloor",
+  [Terrain.DungeonWall]: "DWall",
+  [Terrain.DungeonExit]: "DExit",
+  [Terrain.Chest]: "Chest",
+  [Terrain.Tundra]: "Tundra",
+  [Terrain.Swamp]: "Swamp",
+  [Terrain.DeepForest]: "DForest",
+  [Terrain.Volcanic]: "Volcanic",
+  [Terrain.Canyon]: "Canyon",
+};
 
 /**
  * Blend two 0xRRGGBB tint values, weighting the first (day/night) at 75%
@@ -3011,7 +3061,7 @@ export class OverworldScene extends Phaser.Scene {
       (b) => b.x === this.player.position.x && b.y === this.player.position.y
     );
 
-    let locStr = terrainNames[terrain ?? 0] ?? "Unknown";
+    let locStr = TERRAIN_DISPLAY_NAMES[terrain ?? 0] ?? "Unknown";
     if (town) {
       const city = getCityForTown(this.player.position.chunkX, this.player.position.chunkY, town.x, town.y);
       locStr = city ? `${town.name}\n[SPACE] Enter City` : `${town.name}\n[SPACE] Enter Shop`;
@@ -3047,26 +3097,6 @@ export class OverworldScene extends Phaser.Scene {
 
   private updateDebugPanel(): void {
     const p = this.player;
-    const terrainNames: Record<number, string> = {
-      [Terrain.Grass]: "Grass",
-      [Terrain.Forest]: "Forest",
-      [Terrain.Mountain]: "Mountain",
-      [Terrain.Water]: "Water",
-      [Terrain.Sand]: "Sand",
-      [Terrain.Town]: "Town",
-      [Terrain.Dungeon]: "Dungeon",
-      [Terrain.Boss]: "Boss",
-      [Terrain.Path]: "Path",
-      [Terrain.DungeonFloor]: "DFloor",
-      [Terrain.DungeonWall]: "DWall",
-      [Terrain.DungeonExit]: "DExit",
-      [Terrain.Chest]: "Chest",
-      [Terrain.Tundra]: "Tundra",
-      [Terrain.Swamp]: "Swamp",
-      [Terrain.DeepForest]: "DForest",
-      [Terrain.Volcanic]: "Volcanic",
-      [Terrain.Canyon]: "Canyon",
-    };
 
     let terrain: Terrain | undefined;
     if (p.position.inDungeon) {
@@ -3076,7 +3106,7 @@ export class OverworldScene extends Phaser.Scene {
       terrain = getTerrainAt(p.position.chunkX, p.position.chunkY, p.position.x, p.position.y);
     }
 
-    const tName = terrainNames[terrain ?? 0] ?? "?";
+    const tName = TERRAIN_DEBUG_NAMES[terrain ?? 0] ?? "?";
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
     const encMult = getEncounterMultiplier(this.timeStep);
     const weatherEncMult = getWeatherEncounterMultiplier(this.weatherState.current);
@@ -3197,13 +3227,14 @@ export class OverworldScene extends Phaser.Scene {
 
       const city = getCity(this.player.position.cityId);
       if (!city) return;
-      if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
-      const terrain = city.mapData[newY][newX];
-      if (!isWalkable(terrain)) return;
+      const targetX = this.player.x + dx;
+      const targetY = this.player.y + dy;
+      if (targetX < 0 || targetX >= MAP_WIDTH || targetY < 0 || targetY >= MAP_HEIGHT) return;
+      const targetTerrain = city.mapData[targetY][targetX];
 
       // Block entry to shops at night (except inn)
-      if ((terrain === Terrain.Carpet || terrain === Terrain.ShopFloor) && getTimePeriod(this.timeStep) === TimePeriod.Night) {
-        const nearbyShop = getCityShopNearby(city, newX, newY);
+      if ((targetTerrain === Terrain.Carpet || targetTerrain === Terrain.ShopFloor) && getTimePeriod(this.timeStep) === TimePeriod.Night) {
+        const nearbyShop = getCityShopNearby(city, targetX, targetY);
         if (nearbyShop && nearbyShop.type !== "inn") {
           this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
           return;
@@ -3214,7 +3245,7 @@ export class OverworldScene extends Phaser.Scene {
       if (terrain === Terrain.ShopFloor) {
         const curTerrain = city.mapData[this.player.position.y]?.[this.player.position.x];
         if (curTerrain !== Terrain.Carpet && curTerrain !== Terrain.ShopFloor) {
-          return; // silently block — player can't walk through walls into a shop
+          return;
         }
       }
 
@@ -3267,9 +3298,12 @@ export class OverworldScene extends Phaser.Scene {
       newY = 0;
     }
 
-    const terrain = getTerrainAt(newChunkX, newChunkY, newX, newY);
-    if (terrain === undefined || !isWalkable(terrain)) {
-      debugLog("Blocked move", { to: { x: newX, y: newY, cx: newChunkX, cy: newChunkY }, terrain });
+    // ── Shared position resolution via tryGridMove ──────────────
+    const result = tryGridMove(this.player, dx, dy);
+    if (!result.moved) {
+      if (!this.player.inDungeon && !this.player.inCity) {
+        debugLog("Blocked move", { dx, dy });
+      }
       return;
     }
 
@@ -3282,8 +3316,8 @@ export class OverworldScene extends Phaser.Scene {
     this.player.position.chunkX = newChunkX;
     this.player.position.chunkY = newChunkY;
 
-    if (chunkChanged) {
-      // Chunk transition — flash, re-roll weather for the new zone, and re-render
+    // Handle chunk transition (overworld only)
+    if (result.chunkChanged) {
       this.advanceTime();
       this.rerollWeather();
       this.cameras.main.flash(200, 255, 255, 255);
@@ -3297,24 +3331,29 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    // Footstep sound — hoofbeats when mounted, terrain SFX when on foot
-    if (audioEngine.initialized && terrain !== undefined) {
-      if (this.player.mountId) {
+    // ── Footstep audio ─────────────────────────────────────────
+    if (audioEngine.initialized && result.newTerrain !== undefined) {
+      if (!this.player.inDungeon && !this.player.inCity && this.player.mountId) {
         audioEngine.playMountedFootstepSFX();
       } else {
-        audioEngine.playFootstepSFX(terrain);
+        audioEngine.playFootstepSFX(result.newTerrain);
       }
     }
 
-    this.tweenPlayerTo(newX, newY, 120, () => {
+    // ── Tween to new position + post-move callbacks ────────────
+    this.tweenPlayerTo(this.player.x, this.player.y, 120, () => {
       this.isMoving = false;
       this.advanceTime();
       this.revealAround();
       this.revealTileSprites();
-      this.collectMinorTreasure();
+      if (!this.player.inCity) this.collectMinorTreasure();
       this.updateHUD();
       this.updateLocationText();
-      this.checkEncounter(terrain);
+      if (this.player.inCity) {
+        this.updateShopRoofAlpha();
+      } else {
+        this.checkEncounter(result.newTerrain!);
+      }
     });
   }
 
@@ -4331,6 +4370,8 @@ export class OverworldScene extends Phaser.Scene {
                 }
                 if (audioEngine.initialized) audioEngine.playPotionSFX();
                 this.updateHUD();
+              } else {
+                this.showMessage(result.message, "#ff6666");
               }
               this.buildEquipOverlay();
             }

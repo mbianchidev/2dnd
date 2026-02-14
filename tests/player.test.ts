@@ -5,7 +5,6 @@ import {
   awardXP,
   processPendingLevelUps,
   allocateStatPoint,
-  ASI_LEVELS,
   getAttackModifier,
   getSpellModifier,
   getArmorClass,
@@ -14,8 +13,6 @@ import {
   useItem,
   calculatePointsSpent,
   isValidPointBuy,
-  POINT_BUY_COSTS,
-  POINT_BUY_TOTAL,
   shortRest,
   castSpellOutsideCombat,
   useAbilityOutsideCombat,
@@ -295,6 +292,32 @@ describe("player system", () => {
 
       useItem(player, 0);
       expect(player.hp).toBe(30); // capped at max
+    });
+
+    it("prevents using potions at full HP", () => {
+      const player = createTestPlayer();
+      player.hp = player.maxHp;
+      player.inventory = [];
+      const potion = ITEMS.find((i) => i.id === "potion")!;
+      player.inventory.push({ ...potion });
+
+      const result = useItem(player, 0);
+      expect(result.used).toBe(false);
+      expect(result.message).toBe("HP is already full!");
+      expect(player.inventory).toHaveLength(1); // item not consumed
+    });
+
+    it("prevents using ethers at full MP", () => {
+      const player = createTestPlayer();
+      player.mp = player.maxMp;
+      player.inventory = [];
+      const ether = ITEMS.find((i) => i.id === "ether")!;
+      player.inventory.push({ ...ether });
+
+      const result = useItem(player, 0);
+      expect(result.used).toBe(false);
+      expect(result.message).toBe("MP is already full!");
+      expect(player.inventory).toHaveLength(1); // item not consumed
     });
 
     it("equips weapons", () => {

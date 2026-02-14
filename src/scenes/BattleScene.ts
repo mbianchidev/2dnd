@@ -24,7 +24,7 @@ import {
   attemptFlee,
 } from "../systems/combat";
 import { abilityModifier } from "../utils/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { recordDefeat, discoverAC } from "../systems/bestiary";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
@@ -181,7 +181,10 @@ export class BattleScene extends Phaser.Scene {
     this.updateMonsterDisplay();
 
     // --- Player (bottom-left) ---
-    const playerTextureKey = `player_${this.player.appearanceId}`;
+    // Prefer the equipped texture (reflects weapon, shield, custom skin & hair)
+    const equippedKey = `player_equipped_${this.player.appearanceId}`;
+    const baseKey = `player_${this.player.appearanceId}`;
+    const playerTextureKey = this.textures.exists(equippedKey) ? equippedKey : baseKey;
     this.playerSprite = this.add.sprite(w * 0.25, h * 0.52, playerTextureKey);
     this.playerSprite.setScale(1.5);
     this.playerSprite.setFlipX(false);
@@ -645,8 +648,7 @@ export class BattleScene extends Phaser.Scene {
   // --- Debug ---
 
   private setupDebug(): void {
-    debugPanelClear();
-    debugPanelLog(`=== Battle: ${this.player.name} vs ${this.monster.name} ===`);
+    debugPanelLog(`── Battle: ${this.player.name} vs ${this.monster.name} ──`, true);
 
     const cb = { updateUI: () => this.updatePlayerStats() };
 
@@ -665,14 +667,6 @@ export class BattleScene extends Phaser.Scene {
         this.phase = "playerTurn";
         this.checkBattleEnd();
       }
-    });
-
-    const xKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X);
-    xKey.on("down", () => {
-      if (!isDebug()) return;
-      this.player.xp = xpForLevel(this.player.level + 1) - 1;
-      debugLog("CHEAT: XP set to", this.player.xp);
-      debugPanelLog(`[CHEAT] XP set to ${this.player.xp}`, true);
     });
 
     // Slash commands: shared + battle-specific
@@ -694,7 +688,7 @@ export class BattleScene extends Phaser.Scene {
       ...SHARED_HELP,
     ];
 
-    registerCommandRouter(cmds, "Battle", helpEntries, "K=Kill H=Heal P=MP G=Gold L=LvUp X=MaxXP");
+    registerCommandRouter(cmds, "Battle", helpEntries);
   }
 
   private updateDebugPanel(): void {
@@ -1303,7 +1297,7 @@ export class BattleScene extends Phaser.Scene {
 
   /** Apply day/night tint to the battle background, monster, and player sprites. */
   private applyDayNightTint(): void {
-    const period = getTimePeriod(this.timeStep);
+    const period = this.biome === "dungeon" ? TimePeriod.Dungeon : getTimePeriod(this.timeStep);
     const tint = PERIOD_TINT[period];
     // Tint the background image
     if (this.bgImage) {

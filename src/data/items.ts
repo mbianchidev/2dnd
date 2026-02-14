@@ -8,13 +8,14 @@ export interface Item {
   id: string;
   name: string;
   description: string;
-  type: "consumable" | "weapon" | "armor" | "shield" | "key";
+  type: "consumable" | "weapon" | "armor" | "shield" | "key" | "mount";
   cost: number;
   effect: number; // healing amount, attack bonus, AC bonus, etc.
   twoHanded?: boolean; // weapons only — cannot equip a shield with a two-handed weapon
   /** Visual weapon type for sprite rendering (weapons only). */
   weaponSprite?: WeaponSpriteType;
   levelReq?: number; // minimum player level to purchase
+  mountId?: string; // for type "mount" — references a MountData id
 }
 
 export const ITEMS: Item[] = [
@@ -198,6 +199,34 @@ export const ITEMS: Item[] = [
     type: "key",
     cost: 100,
     effect: 0,
+  },
+  // --- Mount items (sold in stables) ---
+  {
+    id: "mountDonkey",
+    name: "Donkey",
+    description: "A sturdy pack animal. Slightly faster travel.",
+    type: "mount",
+    cost: 75,
+    effect: 0,
+    mountId: "donkey",
+  },
+  {
+    id: "mountHorse",
+    name: "Horse",
+    description: "A reliable steed. Faster overland travel.",
+    type: "mount",
+    cost: 200,
+    effect: 0,
+    mountId: "horse",
+  },
+  {
+    id: "mountWarHorse",
+    name: "War Horse",
+    description: "A powerful warhorse. Very fast travel.",
+    type: "mount",
+    cost: 500,
+    effect: 0,
+    mountId: "warHorse",
   },
   // --- Treasure chest unique items (not sold in shops) ---
   {

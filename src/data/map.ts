@@ -92,7 +92,7 @@ export interface ChestData {
 }
 
 export interface CityShopData {
-  type: "weapon" | "armor" | "magic" | "inn" | "bank" | "general";
+  type: "weapon" | "armor" | "magic" | "inn" | "bank" | "general" | "stable";
   name: string;
   x: number;
   y: number;
@@ -582,6 +582,7 @@ export const CITIES: CityData[] = [
       { type: "armor", name: "Hide & Mail", x: 16, y: 4, shopItems: ["leatherArmor", "woodenShield"] },
       { type: "general", name: "General Store", x: 3, y: 11, shopItems: ["potion", "ether", "dungeonKey"] },
       { type: "inn", name: "Willow Inn", x: 16, y: 11, shopItems: [] },
+      { type: "stable", name: "Willowdale Stables", x: 10, y: 5, shopItems: ["mountDonkey", "mountHorse"] },
     ],
   },
   {
@@ -592,6 +593,7 @@ export const CITIES: CityData[] = [
       { type: "armor", name: "Fortress Armory", x: 16, y: 2, shopItems: ["chainMail", "plateArmor", "ironShield", "towerShield"] },
       { type: "general", name: "Ironhold Supply", x: 7, y: 5, shopItems: ["potion", "ether", "greaterPotion"] },
       { type: "inn", name: "Anvil Rest", x: 12, y: 5, shopItems: [] },
+      { type: "stable", name: "Ironhold Stables", x: 10, y: 10, shopItems: ["mountHorse", "mountWarHorse"] },
     ],
   },
   {
@@ -604,6 +606,7 @@ export const CITIES: CityData[] = [
       { type: "inn", name: "Desert Rose Inn", x: 16, y: 7, shopItems: [] },
       { type: "bank", name: "Merchant's Bank", x: 4, y: 11, shopItems: [] },
       { type: "general", name: "Bazaar Goods", x: 15, y: 11, shopItems: ["potion", "ether", "dungeonKey"] },
+      { type: "stable", name: "Sandport Stables", x: 10, y: 8, shopItems: ["mountDonkey", "mountHorse", "mountWarHorse"] },
     ],
   },
   {

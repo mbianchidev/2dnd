@@ -781,3 +781,34 @@ export function getNightEncounter(playerLevel: number, biomeName?: string): Mons
   const index = Math.floor(Math.random() * (maxIndex + 1));
   return { ...pool[index] };
 }
+
+/**
+ * Master list of every unique monster in the game, de-duplicated by ID.
+ * The order follows the definition arrays: overworld → bosses → dungeon → night,
+ * which naturally groups monsters by area and difficulty.
+ */
+export const ALL_MONSTERS: Monster[] = (() => {
+  const seen = new Set<string>();
+  const list: Monster[] = [];
+  const pools = [
+    MONSTERS,
+    DUNGEON_MONSTERS,
+    HEARTLANDS_CRYPT_MONSTERS,
+    FROST_CAVERN_MONSTERS,
+    VOLCANIC_FORGE_MONSTERS,
+    NIGHT_MONSTERS,
+    TUNDRA_NIGHT_MONSTERS,
+    SWAMP_NIGHT_MONSTERS,
+    FOREST_NIGHT_MONSTERS,
+    CANYON_NIGHT_MONSTERS,
+  ];
+  for (const pool of pools) {
+    for (const m of pool) {
+      if (!seen.has(m.id)) {
+        seen.add(m.id);
+        list.push(m);
+      }
+    }
+  }
+  return list;
+})();

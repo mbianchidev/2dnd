@@ -902,6 +902,25 @@ class AudioEngine {
     osc.stop(ctx.currentTime + 0.08);
   }
 
+  /**
+   * Play a sequence of dialogue blips whose count and rhythm is
+   * derived from the text length, giving a dynamic "tic-tic-tic" feel.
+   * Short lines get 2–3 blips, long lines get up to 8.
+   * Pitch varies slightly per blip for a natural speech cadence.
+   */
+  playDialogueBlips(text: string, basePitch = 0): void {
+    if (!this.ctx || !this.dialogGain) return;
+    const len = text.length;
+    // 2–8 blips depending on text length (roughly 1 per 12 chars, min 2, max 8)
+    const count = Math.min(8, Math.max(2, Math.ceil(len / 12)));
+    const interval = 70; // ms between blips
+    for (let i = 0; i < count; i++) {
+      // Vary pitch ±4 semitones for natural cadence; last blip goes up (like a question)
+      const pitchVar = i === count - 1 ? 3 : Math.floor(Math.random() * 9) - 4;
+      setTimeout(() => this.playDialogueBlip(basePitch + pitchVar), i * interval);
+    }
+  }
+
   // ─── Interaction SFX ──────────────────────────────────────
 
   /** Play a weapon attack swoosh + impact (normal hit). */
@@ -1276,6 +1295,35 @@ class AudioEngine {
     src.start(ctx.currentTime);
   }
 
+  /** Play a hoofbeat sound for mounted movement. Two rapid taps to mimic a trotting gait. */
+  playMountedFootstepSFX(): void {
+    if (!this.ctx || !this.footstepGain) return;
+    const ctx = this.ctx;
+    const dest = this.footstepGain;
+
+    for (let tap = 0; tap < 2; tap++) {
+      const offset = tap * 0.06; // delay second tap by 60ms for trotting rhythm
+      const duration = 0.04;
+      const bufSize = Math.floor(ctx.sampleRate * duration);
+      const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 500; // deep thud for hooves
+      filter.Q.value = 5;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.18, ctx.currentTime + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + duration);
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(dest);
+      src.start(ctx.currentTime + offset);
+    }
+  }
+
   // ─── Debug: play all sounds ───────────────────────────────
 
   /**
@@ -1310,6 +1358,7 @@ class AudioEngine {
       { label: "SFX: Footstep (grass)", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(0), i * 200); } },
       { label: "SFX: Footstep (stone)", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(9), i * 200); } },
       { label: "SFX: Footstep (sand)",  fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(4), i * 200); } },
+      { label: "SFX: Mounted hoofbeat", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playMountedFootstepSFX(), i * 200); } },
       { label: "Weather: Rain",  fn: () => { this.playWeatherSFX(WeatherType.Rain); } },
       { label: "Weather: Storm", fn: () => { this.playWeatherSFX(WeatherType.Storm); } },
       { label: "Weather: Snow",  fn: () => { this.playWeatherSFX(WeatherType.Snow); } },

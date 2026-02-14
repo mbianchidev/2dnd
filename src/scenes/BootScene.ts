@@ -10,6 +10,7 @@ import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
 import { abilityModifier, rollAbilityScore } from "../utils/dice";
 import { audioEngine } from "../systems/audio";
+import { MOUNTS } from "../data/mounts";
 
 const TILE_SIZE = 32;
 
@@ -26,6 +27,7 @@ export class BootScene extends Phaser.Scene {
     this.generateTileTextures();
     this.generatePlayerTexture();
     this.generatePlayerTextures();
+    this.generateMountTextures();
     this.generateMonsterTexture();
     this.generateBossTexture();
     this.generateUITextures();
@@ -736,14 +738,81 @@ export class BootScene extends Phaser.Scene {
 
   private generatePlayerTextures(): void {
     for (const app of PLAYER_APPEARANCES) {
+      const key = `player_${app.id}`;
+      // Always remove existing texture so regeneration isn't silently skipped
+      if (this.textures.exists(key)) this.textures.remove(key);
       this.generatePlayerTextureWithColors(
-        `player_${app.id}`,
+        key,
         app.bodyColor,
         app.skinColor,
         app.legColor,
         app.weaponSprite,
         app.clothingStyle
       );
+    }
+  }
+
+  /** Mount body colors keyed by mount ID. */
+  private static readonly MOUNT_COLORS: Record<string, number> = {
+    donkey: 0x8d6e63,
+    horse: 0x795548,
+    warHorse: 0x4e342e,
+    shadowSteed: 0x311b92,
+  };
+
+  /** Draw a mount body onto a graphics object (shared by standalone & mounted textures). */
+  private drawMountBody(gfx: Phaser.GameObjects.Graphics, mountId: string): void {
+    const color = BootScene.MOUNT_COLORS[mountId] ?? 0x6d4c41;
+    // Body
+    gfx.fillStyle(color, 1);
+    gfx.fillRect(6, 14, 20, 10);
+    // Head/neck
+    gfx.fillRect(24, 8, 6, 10);
+    // Ears
+    gfx.fillRect(26, 4, 2, 5);
+    gfx.fillRect(29, 4, 2, 5);
+    // Legs
+    const legColor = (color & 0xfefefe) >> 1; // darker shade
+    gfx.fillStyle(legColor, 1);
+    gfx.fillRect(8, 24, 3, 6);
+    gfx.fillRect(14, 24, 3, 6);
+    gfx.fillRect(20, 24, 3, 6);
+    // Tail
+    gfx.fillStyle(color, 1);
+    gfx.fillRect(3, 12, 4, 3);
+  }
+
+  /** Generate standalone mount sprites and combined mounted-player textures. */
+  private generateMountTextures(): void {
+    for (const mount of MOUNTS) {
+      const key = `mount_${mount.id}`;
+      const gfx = this.add.graphics();
+      this.drawMountBody(gfx, mount.id);
+      gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
+      gfx.destroy();
+    }
+
+    // Generate "mounted_<classId>_<mountId>" textures — rider sitting on mount
+    for (const app of PLAYER_APPEARANCES) {
+      for (const mount of MOUNTS) {
+        const key = `mounted_${app.id}_${mount.id}`;
+        const gfx = this.add.graphics();
+        // Draw mount body first (lower layer)
+        this.drawMountBody(gfx, mount.id);
+        // Draw a smaller rider on top of the mount (shifted up)
+        // Rider torso
+        gfx.fillStyle(app.bodyColor, 1);
+        gfx.fillRect(11, 6, 10, 9);
+        // Rider head
+        gfx.fillStyle(app.skinColor, 1);
+        gfx.fillCircle(16, 3, 4);
+        // Rider legs straddling mount
+        gfx.fillStyle(app.legColor, 1);
+        gfx.fillRect(9, 14, 4, 4);
+        gfx.fillRect(19, 14, 4, 4);
+        gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
+        gfx.destroy();
+      }
     }
   }
 
@@ -2008,10 +2077,11 @@ export class BootScene extends Phaser.Scene {
   private continueGame(): void {
     const save = loadGame();
     if (!save) return;
-    // Regenerate player texture with custom appearance if present
+    // Regenerate player texture with custom appearance if present.
+    // Use a separate "equipped" key so base class textures stay clean for New Game.
     if (save.player.customAppearance) {
       const app = getAppearance(save.player.appearanceId);
-      const key = `player_${save.player.appearanceId}`;
+      const key = `player_equipped_${save.player.appearanceId}`;
       if (this.textures.exists(key)) this.textures.remove(key);
       const hasShield = !!save.player.equippedShield && !save.player.equippedWeapon?.twoHanded;
       this.generatePlayerTextureWithHair(
@@ -2741,8 +2811,9 @@ export class BootScene extends Phaser.Scene {
       };
       const player = createPlayer(name, baseStats, selectedClass.id, customAppearance);
 
-      // Generate final player texture with custom appearance
-      const texKey = `player_${selectedClass.id}`;
+      // Generate final player texture with custom appearance into a separate key
+      // so the base class texture stays clean for future New Game class selection.
+      const texKey = `player_equipped_${selectedClass.id}`;
       if (this.textures.exists(texKey)) this.textures.remove(texKey);
       this.generatePlayerTextureWithHair(
         texKey,

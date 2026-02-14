@@ -82,6 +82,7 @@ export interface PlayerState {
   knownAbilities: string[]; // martial ability IDs (non-casters)
   knownTalents: string[]; // talent IDs (everyone)
   equippedWeapon: Item | null;
+  equippedOffHand: Item | null; // off-hand weapon for Two-Weapon Fighting (must be light, one-handed)
   equippedArmor: Item | null;
   equippedShield: Item | null;
   appearanceId: string; // visual customization
@@ -169,6 +170,7 @@ export function createPlayer(
     knownAbilities: startingAbilities,
     knownTalents: [],
     equippedWeapon: startWeapon,
+    equippedOffHand: null,
     equippedArmor: null,
     equippedShield: null,
     appearanceId,
@@ -237,6 +239,47 @@ export function getArmorClass(player: PlayerState, tempBonus: number = 0): numbe
   const armorBonus = player.equippedArmor?.effect ?? 0;
   const shieldBonus = player.equippedShield?.effect ?? 0;
   return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents) + tempBonus;
+}
+
+/** Check if a weapon can be used for Two-Weapon Fighting (must be light and one-handed). */
+export function isLightWeapon(item: Item | null): boolean {
+  if (!item || item.type !== "weapon") return false;
+  return item.light === true && !item.twoHanded;
+}
+
+/** Check if the player can dual wield: main hand must be light and one-handed, no shield equipped. */
+export function canDualWield(player: PlayerState): boolean {
+  return isLightWeapon(player.equippedWeapon) && !player.equippedShield;
+}
+
+/** Check if the player has the Two-Weapon Fighting talent (adds ability mod to off-hand damage). */
+export function hasTwoWeaponFighting(player: PlayerState): boolean {
+  return player.knownTalents.includes("twoWeaponFighting");
+}
+
+/** Equip a weapon in the off-hand slot for Two-Weapon Fighting. Returns a result message. */
+export function equipOffHand(
+  player: PlayerState,
+  item: Item
+): { success: boolean; message: string } {
+  if (item.type !== "weapon") {
+    return { success: false, message: "Only weapons can be equipped in the off-hand!" };
+  }
+  if (!item.light || item.twoHanded) {
+    return { success: false, message: `${item.name} is not a light weapon! Only light one-handed weapons can be dual wielded.` };
+  }
+  if (!isLightWeapon(player.equippedWeapon)) {
+    return { success: false, message: "Main hand weapon must be light for dual wielding!" };
+  }
+  if (player.equippedWeapon?.id === item.id) {
+    return { success: false, message: "Cannot dual wield two of the same weapon!" };
+  }
+  // Equipping off-hand unequips shield
+  if (player.equippedShield) {
+    player.equippedShield = null;
+  }
+  player.equippedOffHand = item;
+  return { success: true, message: `Equipped ${item.name} in off-hand! (shield removed)` };
 }
 
 /** Award XP and track pending level-ups. Actual leveling happens during rest. */
@@ -331,11 +374,12 @@ export function processPendingLevelUps(
       }
     }
 
-    // Check for new talent unlocks (everyone)
+    // Check for new talent unlocks (class-restricted or everyone)
     for (const talent of TALENTS) {
       if (
         talent.levelRequired <= player.level &&
-        !player.knownTalents.includes(talent.id)
+        !player.knownTalents.includes(talent.id) &&
+        (!talent.classRestriction || talent.classRestriction.includes(player.appearanceId))
       ) {
         player.knownTalents.push(talent.id);
         newTalents.push(talent);
@@ -370,6 +414,7 @@ export function canAfford(player: PlayerState, cost: number): boolean {
 export function ownsEquipment(player: PlayerState, itemId: string): boolean {
   const equipped =
     (player.equippedWeapon?.id === itemId) ||
+    (player.equippedOffHand?.id === itemId) ||
     (player.equippedArmor?.id === itemId) ||
     (player.equippedShield?.id === itemId);
   const inInventory = player.inventory.some(
@@ -429,12 +474,15 @@ export function useItem(
   }
 
   if (item.type === "weapon") {
-    // If equipping a two-handed weapon, unequip shield
+    // If equipping a two-handed weapon, unequip shield and off-hand
     if (item.twoHanded && player.equippedShield) {
       player.equippedShield = null;
     }
+    if (item.twoHanded && player.equippedOffHand) {
+      player.equippedOffHand = null;
+    }
     player.equippedWeapon = item;
-    return { used: true, message: `Equipped ${item.name}!${item.twoHanded ? " (two-handed — shield removed)" : ""}` };
+    return { used: true, message: `Equipped ${item.name}!${item.twoHanded ? " (two-handed \u2014 shield & off-hand removed)" : ""}` };
   }
 
   if (item.type === "armor") {
@@ -447,8 +495,12 @@ export function useItem(
     if (player.equippedWeapon?.twoHanded) {
       return { used: false, message: `Cannot equip shield with a two-handed weapon!` };
     }
+    // Equipping a shield unequips the off-hand weapon
+    if (player.equippedOffHand) {
+      player.equippedOffHand = null;
+    }
     player.equippedShield = item;
-    return { used: true, message: `Equipped ${item.name}!` };
+    return { used: true, message: `Equipped ${item.name}!${player.equippedOffHand === null ? "" : ""}` };
   }
 
   if (item.type === "mount") {

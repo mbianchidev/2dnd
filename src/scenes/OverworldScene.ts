@@ -29,7 +29,7 @@ import {
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, ALL_MONSTERS, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, type PlayerState, type PlayerStats } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, isLightWeapon, canDualWield, equipOffHand, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
@@ -71,6 +71,9 @@ import {
 } from "../data/npcs";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
+import { FogOfWar } from "../systems/fogOfWar";
+import { EncounterSystem } from "../systems/encounterSystem";
+import { HUDRenderer } from "../systems/hudRenderer";
 import { tryGridMove } from "../systems/movement";
 
 const TILE_SIZE = 32;
@@ -160,6 +163,7 @@ export class OverworldScene extends Phaser.Scene {
   private equipPage: "gear" | "skills" | "items" = "gear";
   /** Mini-page indices for gear slot lists (weapons, armor, shields). */
   private gearWeaponPage = 0;
+  private gearOffHandPage = 0;
   private gearArmorPage = 0;
   private gearShieldPage = 0;
   private gearMountPage = 0;
@@ -171,8 +175,6 @@ export class OverworldScene extends Phaser.Scene {
   private worldMapOverlay: Phaser.GameObjects.Container | null = null;
   private settingsOverlay: Phaser.GameObjects.Container | null = null;
   private isNewPlayer = false;
-  private debugEncounters = true; // debug toggle for encounters
-  private debugFogDisabled = false; // debug toggle for fog of war
   private messageText: Phaser.GameObjects.Text | null = null;
   private timeStep = 0; // day/night cycle step counter
   private weatherState: WeatherState = createWeatherState();
@@ -206,15 +208,27 @@ export class OverworldScene extends Phaser.Scene {
    *  Spawn chance drops to 0 for the rest of that day, resetting at dawn. */
   private lastSpecialSpawnDay = -1;
   private mountSprite: Phaser.GameObjects.Sprite | null = null;
+  
+  // Extracted systems
+  private fogOfWar!: FogOfWar;
+  private encounterSystem!: EncounterSystem;
+  private hudRenderer!: HUDRenderer;
 
   constructor() {
     super({ key: "OverworldScene" });
   }
 
   init(data?: { player?: PlayerState; defeatedBosses?: Set<string>; bestiary?: BestiaryData; timeStep?: number; weatherState?: WeatherState; savedSpecialNpcs?: SavedSpecialNpc[] }): void {
+    // Initialize systems
+    this.fogOfWar = new FogOfWar();
+    this.encounterSystem = new EncounterSystem();
+    this.hudRenderer = new HUDRenderer(this);
+    
     if (data?.player) {
       this.player = data.player;
       this.isNewPlayer = false;
+      // Load fog of war from player state
+      this.fogOfWar.setExploredTiles(this.player.progression.exploredTiles);
     } else {
       this.player = createPlayer("Hero", {
         strength: 10, dexterity: 10, constitution: 10,
@@ -259,7 +273,7 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // Reveal tiles around player on creation (fog of war)
-    this.revealAround();
+    this.fogOfWar.revealAround(this.player.position.x, this.player.position.y, 2, this.player);
 
     this.renderMap();
     this.applyDayNightTint();
@@ -302,24 +316,33 @@ export class OverworldScene extends Phaser.Scene {
     const fKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     fKey.on("down", () => {
       if (!isDebug()) return;
-      this.debugEncounters = !this.debugEncounters;
-      debugLog("CHEAT: Encounters " + (this.debugEncounters ? "ON" : "OFF"));
-      debugPanelLog(`[CHEAT] Encounters ${this.debugEncounters ? "ON" : "OFF"}`, true);
+      const newState = !this.encounterSystem.areEncountersEnabled();
+      this.encounterSystem.setEncountersEnabled(newState);
+      debugLog("CHEAT: Encounters " + (newState ? "ON" : "OFF"));
+      debugPanelLog(`[CHEAT] Encounters ${newState ? "ON" : "OFF"}`, true);
     });
 
     const rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     rKey.on("down", () => {
       if (!isDebug()) return;
-      this.revealEntireWorld();
+      this.fogOfWar.revealEntireWorld();
+      // Sync back to player state
+      this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
+      // Refresh visible tiles and world map overlay
+      this.renderMap();
+      this.applyDayNightTint();
+      this.createPlayer();
+      this.refreshWorldMap();
       debugPanelLog(`[CHEAT] Map revealed`, true);
     });
 
     const vKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     vKey.on("down", () => {
       if (!isDebug()) return;
-      this.debugFogDisabled = !this.debugFogDisabled;
-      debugLog("CHEAT: Fog " + (this.debugFogDisabled ? "OFF" : "ON"));
-      debugPanelLog(`[CHEAT] Fog of War ${this.debugFogDisabled ? "OFF" : "ON"}`, true);
+      const newState = !this.fogOfWar.isFogDisabled();
+      this.fogOfWar.setFogDisabled(newState);
+      debugLog("CHEAT: Fog " + (newState ? "OFF" : "ON"));
+      debugPanelLog(`[CHEAT] Fog of War ${newState ? "OFF" : "ON"}`, true);
       this.renderMap();
       this.applyDayNightTint();
       this.createPlayer();
@@ -330,7 +353,14 @@ export class OverworldScene extends Phaser.Scene {
 
     // Overworld-only commands
     cmds.set("reveal", () => {
-      this.revealEntireWorld();
+      this.fogOfWar.revealEntireWorld();
+      // Sync back to player state
+      this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
+      // Refresh visible tiles and world map overlay
+      this.renderMap();
+      this.applyDayNightTint();
+      this.createPlayer();
+      this.refreshWorldMap();
       debugPanelLog(`[CMD] Entire world map revealed`, true);
     });
 
@@ -2400,38 +2430,18 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  // ─── Fog of War helpers ─────────────────────────────────────────
-
-  /** Build the explored-tiles key for a position (respects dungeon/city vs overworld). */
-  private exploredKey(x: number, y: number): string {
-    if (this.player.position.inDungeon) {
-      return `d:${this.player.position.dungeonId},${x},${y}`;
-    }
-    if (this.player.position.inCity) {
-      return `c:${this.player.position.cityId},${x},${y}`;
-    }
-    return `${this.player.position.chunkX},${this.player.position.chunkY},${x},${y}`;
-  }
+  // ─── Fog of War helpers (delegates to fogOfWar system) ─────────────────────────────────────────
 
   /** Check if a tile has been explored. */
   private isExplored(x: number, y: number): boolean {
-    if (isDebug() && this.debugFogDisabled) return true;
-    return !!this.player.progression.exploredTiles[this.exploredKey(x, y)];
+    return this.fogOfWar.isExplored(x, y, this.player);
   }
 
   /** Reveal tiles in a radius around the player's current position. */
   private revealAround(radius = 2): void {
-    const px = this.player.position.x;
-    const py = this.player.position.y;
-    for (let dy = -radius; dy <= radius; dy++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        const nx = px + dx;
-        const ny = py + dy;
-        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-          this.player.progression.exploredTiles[this.exploredKey(nx, ny)] = true;
-        }
-      }
-    }
+    this.fogOfWar.revealAround(this.player.position.x, this.player.position.y, radius, this.player);
+    // Sync back to player state
+    this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
   }
 
   /** Update tile sprites for newly revealed tiles without full re-render. */
@@ -2547,71 +2557,11 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  /** Reveal every tile in every overworld chunk and every dungeon. */
-  private revealEntireWorld(): void {
-    // Reveal all overworld chunks
-    for (let cy = 0; cy < WORLD_HEIGHT; cy++) {
-      for (let cx = 0; cx < WORLD_WIDTH; cx++) {
-        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
-          for (let tx = 0; tx < MAP_WIDTH; tx++) {
-            this.player.progression.exploredTiles[`${cx},${cy},${tx},${ty}`] = true;
-          }
-        }
-      }
-    }
-    // Reveal all dungeon tiles
-    for (const dungeon of DUNGEONS) {
-      for (let ty = 0; ty < dungeon.mapData.length; ty++) {
-        for (let tx = 0; tx < dungeon.mapData[ty].length; tx++) {
-          this.player.progression.exploredTiles[`d:${dungeon.id},${tx},${ty}`] = true;
-        }
-      }
-    }
-    this.renderMap();
-    this.createPlayer();
-
-    // If the world map overlay is open, close and reopen it so it re-renders
-    // with all tiles now revealed.
-    if (this.worldMapOverlay) {
-      this.worldMapOverlay.destroy();
-      this.worldMapOverlay = null;
-      this.input.off("wheel");
-      this.input.off("pointermove");
-      this.input.off("pointerup");
-      this.showWorldMap();
-    }
-  }
-
   // ─── Message display ───────────────────────────────────────────
 
   /** Show a temporary floating message above the HUD. */
   private showMessage(text: string, color = "#ffd700"): void {
-    if (this.messageText) {
-      this.messageText.destroy();
-      this.messageText = null;
-    }
-    this.messageText = this.add
-      .text(MAP_WIDTH * TILE_SIZE / 2, MAP_HEIGHT * TILE_SIZE - 8, text, {
-        fontSize: "12px",
-        fontFamily: "monospace",
-        color,
-        stroke: "#000",
-        strokeThickness: 3,
-        align: "center",
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(30);
-
-    this.tweens.add({
-      targets: this.messageText,
-      alpha: 0,
-      y: MAP_HEIGHT * TILE_SIZE - 30,
-      duration: 2500,
-      onComplete: () => {
-        this.messageText?.destroy();
-        this.messageText = null;
-      },
-    });
+    this.hudRenderer.showMessage(text, color);
   }
 
   /** Rider offset when mounted: shift left so mount head/neck is visible, shift up to sit on mount back. */
@@ -3118,7 +3068,7 @@ export class OverworldScene extends Phaser.Scene {
     debugPanelState(
       `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${dungeonTag}${mountTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
-      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
+      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
       `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length}`
     );
   }
@@ -3392,7 +3342,7 @@ export class OverworldScene extends Phaser.Scene {
     if (terrain === Terrain.Chest) return;
 
     // Debug: encounters can be toggled off
-    if (isDebug() && !this.debugEncounters) return;
+    if (isDebug() && !this.encounterSystem.areEncountersEnabled()) return;
 
     const mountEncMult = (!this.player.position.inDungeon && this.player.mountId) ? (getMount(this.player.mountId)?.encounterMultiplier ?? 1) : 1;
     const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep) * getWeatherEncounterMultiplier(this.weatherState.current) * mountEncMult;
@@ -3453,7 +3403,8 @@ export class OverworldScene extends Phaser.Scene {
             // Auto-equip if better
             if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
               this.player.equippedWeapon = item;
-              if (item.twoHanded) this.player.equippedShield = null;
+              if (item.twoHanded) { this.player.equippedShield = null; this.player.equippedOffHand = null; }
+              if (!isLightWeapon(item)) { this.player.equippedOffHand = null; }
               this.refreshPlayerSprite();
             }
             if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
@@ -3714,7 +3665,8 @@ export class OverworldScene extends Phaser.Scene {
           if (audioEngine.initialized) audioEngine.playChestOpenSFX();
           if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
             this.player.equippedWeapon = item;
-            if (item.twoHanded) this.player.equippedShield = null;
+            if (item.twoHanded) { this.player.equippedShield = null; this.player.equippedOffHand = null; }
+            if (!isLightWeapon(item)) { this.player.equippedOffHand = null; }
             this.refreshPlayerSprite();
           }
           if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
@@ -3975,6 +3927,7 @@ export class OverworldScene extends Phaser.Scene {
 
     this.equipPage = "gear";
     this.gearWeaponPage = 0;
+    this.gearOffHandPage = 0;
     this.gearArmorPage = 0;
     this.gearShieldPage = 0;
     this.gearMountPage = 0;
@@ -4104,12 +4057,45 @@ export class OverworldScene extends Phaser.Scene {
 
     // --- Weapon slot (paginated) ---
     cy = this.renderGearSlot(px, cy, panelW, "Weapon", "weapon",
-      p.equippedWeapon, (item) => { p.equippedWeapon = item; if (item?.twoHanded) p.equippedShield = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
-      () => { p.equippedWeapon = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
+      p.equippedWeapon, (item) => {
+        p.equippedWeapon = item;
+        if (item?.twoHanded) { p.equippedShield = null; p.equippedOffHand = null; }
+        // If new main hand is not light, unequip off-hand
+        if (!isLightWeapon(item)) { p.equippedOffHand = null; }
+        this.refreshPlayerSprite(); this.buildEquipOverlay();
+      },
+      () => { p.equippedWeapon = null; p.equippedOffHand = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
       this.gearWeaponPage, MAX_SLOT_VISIBLE,
       (dir) => { this.gearWeaponPage += dir; this.buildEquipOverlay(); },
       "dmg");
     cy += 4;
+
+    // --- Off-hand weapon slot (only when main hand is light, no two-handed, no shield) ---
+    const canShowOffHand = isLightWeapon(p.equippedWeapon) && !p.equippedWeapon?.twoHanded;
+    if (canShowOffHand) {
+      const offHandWeapons = p.inventory.filter(
+        (i) => i.type === "weapon" && i.light && !i.twoHanded && i.id !== p.equippedWeapon?.id
+      );
+      if (offHandWeapons.length > 0 || p.equippedOffHand) {
+        cy = this.renderGearSlot(px, cy, panelW, "Off-Hand", "weapon",
+          p.equippedOffHand,
+          (item) => {
+            if (item) {
+              const result = equipOffHand(p, item);
+              if (!result.success) {
+                this.showMessage(result.message, "#ff6666");
+              }
+            }
+            this.refreshPlayerSprite(); this.buildEquipOverlay();
+          },
+          () => { p.equippedOffHand = null; this.buildEquipOverlay(); },
+          this.gearOffHandPage, MAX_SLOT_VISIBLE,
+          (dir) => { this.gearOffHandPage += dir; this.buildEquipOverlay(); },
+          "dmg",
+          offHandWeapons);
+        cy += 4;
+      }
+    }
 
     // --- Armor slot (paginated) ---
     cy = this.renderGearSlot(px, cy, panelW, "Armor", "armor",
@@ -4131,7 +4117,7 @@ export class OverworldScene extends Phaser.Scene {
       cy += 16;
     } else {
       cy = this.renderGearSlot(px, cy, panelW, "Shield", "shield",
-        p.equippedShield, (item) => { p.equippedShield = item; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
+        p.equippedShield, (item) => { p.equippedShield = item; if (item) p.equippedOffHand = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
         () => { p.equippedShield = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
         this.gearShieldPage, MAX_SLOT_VISIBLE,
         (dir) => { this.gearShieldPage += dir; this.buildEquipOverlay(); },
@@ -4235,6 +4221,7 @@ export class OverworldScene extends Phaser.Scene {
     page: number, maxVisible: number,
     onPageChange: (dir: number) => void,
     effectLabel: string,
+    customItems?: import("../data/items").Item[],
   ): number {
     const p = this.player;
     const label = this.add.text(px + 14, cy, `${slotLabel}:`, {
@@ -4243,7 +4230,7 @@ export class OverworldScene extends Phaser.Scene {
     this.equipOverlay!.add(label);
     cy += 16;
 
-    const ownedItems = p.inventory.filter((i) => i.type === slotType);
+    const ownedItems = customItems ?? p.inventory.filter((i) => i.type === slotType);
     if (ownedItems.length === 0 && !equipped) {
       const none = this.add.text(px + 20, cy, slotType === "weapon" ? "Bare Hands" : `No ${slotLabel}`, {
         fontSize: "11px", fontFamily: "monospace", color: "#666",
@@ -5025,6 +5012,17 @@ export class OverworldScene extends Phaser.Scene {
       this.input.off("pointerup");
       return;
     }
+    this.showWorldMap();
+  }
+
+  /** Refresh the world map overlay in-place if it is currently open. */
+  private refreshWorldMap(): void {
+    if (!this.worldMapOverlay) return;
+    this.worldMapOverlay.destroy();
+    this.worldMapOverlay = null;
+    this.input.off("wheel");
+    this.input.off("pointermove");
+    this.input.off("pointerup");
     this.showWorldMap();
   }
 

@@ -9,6 +9,14 @@
 import Phaser from "phaser";
 import { isDebug, debugLog, debugPanelLog, debugPanelClear, setDebugCommandHandler } from "../config";
 import { awardXP, processPendingLevelUps, xpForLevel, type PlayerState } from "./player";
+import { ITEMS } from "../data/items";
+import { MOUNTS } from "../data/mounts";
+import { CITIES, DUNGEONS } from "../data/map";
+import { ALL_MONSTERS } from "../data/monsters";
+import { SPELLS } from "../data/spells";
+import { ABILITIES } from "../data/abilities";
+import { PLAYER_CLASSES } from "./classes";
+import { TALENTS } from "../data/talents";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -144,6 +152,49 @@ export function buildSharedCommands(
     debugPanelLog(`[CMD] Fully healed!`, true);
   });
 
+  cmds.set("list", (args) => {
+    const category = args.trim().toLowerCase();
+    const listMap: Record<string, () => string[]> = {
+      item: () => ITEMS.map((i) => i.id),
+      items: () => ITEMS.map((i) => i.id),
+      weapon: () => ITEMS.filter((i) => i.type === "weapon").map((i) => i.id),
+      weapons: () => ITEMS.filter((i) => i.type === "weapon").map((i) => i.id),
+      armor: () => ITEMS.filter((i) => i.type === "armor").map((i) => i.id),
+      armors: () => ITEMS.filter((i) => i.type === "armor").map((i) => i.id),
+      shield: () => ITEMS.filter((i) => i.type === "shield").map((i) => i.id),
+      shields: () => ITEMS.filter((i) => i.type === "shield").map((i) => i.id),
+      consumable: () => ITEMS.filter((i) => i.type === "consumable").map((i) => i.id),
+      consumables: () => ITEMS.filter((i) => i.type === "consumable").map((i) => i.id),
+      mount: () => MOUNTS.map((m) => m.id),
+      mounts: () => MOUNTS.map((m) => m.id),
+      city: () => CITIES.map((c) => `${c.id} (${c.name})`),
+      cities: () => CITIES.map((c) => `${c.id} (${c.name})`),
+      dungeon: () => DUNGEONS.map((d) => `${d.id} (${d.name})`),
+      dungeons: () => DUNGEONS.map((d) => `${d.id} (${d.name})`),
+      monster: () => ALL_MONSTERS.map((m) => m.id),
+      monsters: () => ALL_MONSTERS.map((m) => m.id),
+      spell: () => SPELLS.map((s) => `${s.id} (${s.name})`),
+      spells: () => SPELLS.map((s) => `${s.id} (${s.name})`),
+      ability: () => ABILITIES.map((a) => `${a.id} (${a.name})`),
+      abilities: () => ABILITIES.map((a) => `${a.id} (${a.name})`),
+      class: () => PLAYER_CLASSES.map((c) => c.id),
+      classes: () => PLAYER_CLASSES.map((c) => c.id),
+      talent: () => TALENTS.map((t) => `${t.id} (Lv${t.levelRequired}${t.classRestriction ? " — " + t.classRestriction.join("/") : ""})`),
+      talents: () => TALENTS.map((t) => `${t.id} (Lv${t.levelRequired}${t.classRestriction ? " — " + t.classRestriction.join("/") : ""})`),
+    };
+    const available = ["items", "weapons", "armor", "shields", "consumables", "mounts", "cities", "dungeons", "monsters", "spells", "abilities", "classes", "talents"];
+    const getter = listMap[category];
+    if (getter) {
+      const entries = getter();
+      debugPanelLog(`── ${category} (${entries.length}) ──`, true);
+      for (const entry of entries) {
+        debugPanelLog(`  ${entry}`, true);
+      }
+    } else {
+      debugPanelLog(`Usage: /list <${available.join("|")}>`, true);
+    }
+  });
+
   return cmds;
 }
 
@@ -155,6 +206,7 @@ export const SHARED_HELP: HelpEntry[] = [
   { usage: "/hp <n>", desc: "Set current HP" },
   { usage: "/mp <n>", desc: "Set current MP" },
   { usage: "/heal", desc: "Restore full HP & MP" },
+  { usage: "/list <category>", desc: "List IDs: items, weapons, mounts, cities, monsters, etc." },
 ];
 
 // ── Command Router ─────────────────────────────────────────────

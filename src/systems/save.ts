@@ -102,6 +102,7 @@ export function loadGame(): SaveData | null {
     }
     
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
+    if (data.player.equippedOffHand === undefined) data.player.equippedOffHand = null;
     if (data.timeStep === undefined) data.timeStep = 0;
     if (!data.weatherState) data.weatherState = createWeatherState();
     // Backward compat: last town defaults to Willowdale

@@ -1,14 +1,19 @@
 /**
- * Bestiary scene: browse defeated monsters and their discovered stats.
+ * Bestiary scene: browse ALL monsters, showing "???" for undiscovered ones.
+ * Entries are ordered by their position in ALL_MONSTERS (area / difficulty).
+ * Supports paged browsing with W/S to navigate, A/D to change pages.
  */
 
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import type { BestiaryData, BestiaryEntry } from "../systems/bestiary";
-import { getBestiaryEntries } from "../systems/bestiary";
 import { getItem } from "../data/items";
+import { ALL_MONSTERS, type Monster } from "../data/monsters";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
+
+/** How many monster entries to show per page. */
+const ENTRIES_PER_PAGE = 8;
 
 export class BestiaryScene extends Phaser.Scene {
   private player!: PlayerState;
@@ -17,13 +22,21 @@ export class BestiaryScene extends Phaser.Scene {
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
-  private entries: BestiaryEntry[] = [];
-  private scrollOffset = 0;
-  private maxVisible = 0;
+
+  /** Ordered master list of all monsters (same reference as ALL_MONSTERS). */
+  private allMonsters: Monster[] = [];
+  /** Current page index (0-based). */
+  private currentPage = 0;
+  /** Selected entry index within the current page. */
+  private selectedOnPage = 0;
+
+  private listContainer!: Phaser.GameObjects.Container;
   private entryTexts: Phaser.GameObjects.Text[] = [];
   private detailText!: Phaser.GameObjects.Text;
-  private selectedIndex = 0;
-  private listContainer!: Phaser.GameObjects.Container;
+  private pageText!: Phaser.GameObjects.Text;
+  private prevBtn!: Phaser.GameObjects.Text;
+  private nextBtn!: Phaser.GameObjects.Text;
+  private discoveredLabel!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: "BestiaryScene" });
@@ -43,10 +56,20 @@ export class BestiaryScene extends Phaser.Scene {
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
-    this.entries = getBestiaryEntries(this.bestiary);
-    this.scrollOffset = 0;
-    this.selectedIndex = 0;
+    this.allMonsters = ALL_MONSTERS;
+    this.currentPage = 0;
+    this.selectedOnPage = 0;
     this.entryTexts = [];
+  }
+
+  /** Total number of pages. */
+  private get totalPages(): number {
+    return Math.max(1, Math.ceil(this.allMonsters.length / ENTRIES_PER_PAGE));
+  }
+
+  /** Number of discovered (defeated) monsters. */
+  private get discoveredCount(): number {
+    return this.allMonsters.filter((m) => m.id in this.bestiary.entries).length;
   }
 
   create(): void {
@@ -58,7 +81,7 @@ export class BestiaryScene extends Phaser.Scene {
 
     // Title
     this.add
-      .text(w / 2, 16, "📖 Bestiary", {
+      .text(w / 2, 12, "📖 Bestiary", {
         fontSize: "22px",
         fontFamily: "monospace",
         color: "#ffd700",
@@ -67,50 +90,63 @@ export class BestiaryScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    if (this.entries.length === 0) {
-      this.add
-        .text(w / 2, h / 2, "No monsters encountered yet.\nDefeat monsters to fill your bestiary!", {
-          fontSize: "14px",
-          fontFamily: "monospace",
-          color: "#888",
-          align: "center",
-        })
-        .setOrigin(0.5);
-
-      this.addBackButton(w, h);
-      return;
-    }
+    // Discovered counter
+    this.discoveredLabel = this.add
+      .text(w / 2, 38, "", {
+        fontSize: "11px",
+        fontFamily: "monospace",
+        color: "#888",
+      })
+      .setOrigin(0.5, 0);
+    this.updateDiscoveredLabel();
 
     // Left panel: monster list
     const listBg = this.add.graphics();
     listBg.fillStyle(0x181830, 0.95);
-    listBg.fillRect(10, 48, w * 0.38, h - 100);
+    listBg.fillRect(10, 54, w * 0.38, h - 106);
     listBg.lineStyle(1, 0xc0a060, 0.7);
-    listBg.strokeRect(10, 48, w * 0.38, h - 100);
+    listBg.strokeRect(10, 54, w * 0.38, h - 106);
 
-    this.add.text(20, 52, "Defeated Monsters", {
-      fontSize: "12px",
-      fontFamily: "monospace",
-      color: "#c0a060",
-    });
+    this.listContainer = this.add.container(20, 62);
 
-    // Calculate max visible entries
-    const entryHeight = 26;
-    const listTop = 72;
-    const listBottom = h - 60;
-    this.maxVisible = Math.floor((listBottom - listTop) / entryHeight);
+    // Page navigation: clickable ◄ / ► arrows + page number
+    const pageCx = 10 + (w * 0.38) / 2;
+    const pageY = h - 48;
 
-    this.listContainer = this.add.container(20, listTop);
-    this.renderMonsterList();
+    this.prevBtn = this.add
+      .text(pageCx - 60, pageY, "◄ A", {
+        fontSize: "16px", fontFamily: "monospace", color: "#c0a060",
+      })
+      .setOrigin(0.5, 0)
+      .setInteractive({ useHandCursor: true });
+    this.prevBtn.on("pointerover", () => this.prevBtn.setColor("#ffd700"));
+    this.prevBtn.on("pointerout", () => this.prevBtn.setColor("#c0a060"));
+    this.prevBtn.on("pointerdown", () => this.goToPrevPage());
+
+    this.pageText = this.add
+      .text(pageCx, pageY, "", {
+        fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
+      })
+      .setOrigin(0.5, 0);
+
+    this.nextBtn = this.add
+      .text(pageCx + 60, pageY, "D ►", {
+        fontSize: "16px", fontFamily: "monospace", color: "#c0a060",
+      })
+      .setOrigin(0.5, 0)
+      .setInteractive({ useHandCursor: true });
+    this.nextBtn.on("pointerover", () => this.nextBtn.setColor("#ffd700"));
+    this.nextBtn.on("pointerout", () => this.nextBtn.setColor("#c0a060"));
+    this.nextBtn.on("pointerdown", () => this.goToNextPage());
 
     // Right panel: detail
     const detailBg = this.add.graphics();
     detailBg.fillStyle(0x181830, 0.95);
-    detailBg.fillRect(w * 0.4, 48, w * 0.58, h - 100);
+    detailBg.fillRect(w * 0.4, 54, w * 0.58, h - 106);
     detailBg.lineStyle(1, 0xc0a060, 0.7);
-    detailBg.strokeRect(w * 0.4, 48, w * 0.58, h - 100);
+    detailBg.strokeRect(w * 0.4, 54, w * 0.58, h - 106);
 
-    this.detailText = this.add.text(w * 0.4 + 15, 58, "", {
+    this.detailText = this.add.text(w * 0.4 + 15, 64, "", {
       fontSize: "13px",
       fontFamily: "monospace",
       color: "#ccc",
@@ -118,58 +154,96 @@ export class BestiaryScene extends Phaser.Scene {
       wordWrap: { width: w * 0.55 - 20 },
     });
 
-    this.showDetail(this.entries[0]);
-
-    // Input
+    this.renderPage();
     this.setupInput();
     this.addBackButton(w, h);
   }
 
-  private renderMonsterList(): void {
-    // Clear existing
+  private updateDiscoveredLabel(): void {
+    this.discoveredLabel.setText(
+      `Discovered: ${this.discoveredCount} / ${this.allMonsters.length}`
+    );
+  }
+
+  /** Get the monsters on the current page. */
+  private pageMonsters(): Monster[] {
+    const start = this.currentPage * ENTRIES_PER_PAGE;
+    return this.allMonsters.slice(start, start + ENTRIES_PER_PAGE);
+  }
+
+  /** Render the left-side list for the current page and update detail. */
+  private renderPage(): void {
+    // Clear existing entries
     for (const t of this.entryTexts) t.destroy();
     this.entryTexts = [];
 
-    const visibleEntries = this.entries.slice(
-      this.scrollOffset,
-      this.scrollOffset + this.maxVisible
-    );
+    const monsters = this.pageMonsters();
 
-    visibleEntries.forEach((entry, i) => {
-      const globalIndex = this.scrollOffset + i;
-      const isSelected = globalIndex === this.selectedIndex;
-      const prefix = entry.isBoss ? "☠ " : "  ";
-      const color = isSelected ? "#ffd700" : "#aaa";
+    monsters.forEach((monster, i) => {
+      const discovered = monster.id in this.bestiary.entries;
+      const isSelected = i === this.selectedOnPage;
+      const bossPrefix = monster.isBoss ? "☠ " : "  ";
+      let label: string;
+      let baseColor: string;
+
+      if (discovered) {
+        const entry = this.bestiary.entries[monster.id];
+        label = `${bossPrefix}${monster.name} (×${entry.timesDefeated})`;
+        baseColor = isSelected ? "#ffd700" : "#aaa";
+      } else {
+        label = `${bossPrefix}???`;
+        baseColor = isSelected ? "#ffd700" : "#555";
+      }
 
       const text = this.add
-        .text(0, i * 26, `${prefix}${entry.name} (×${entry.timesDefeated})`, {
+        .text(0, i * 26, label, {
           fontSize: "12px",
           fontFamily: "monospace",
-          color,
+          color: baseColor,
         })
         .setInteractive({ useHandCursor: true });
 
-      text.on("pointerover", () => {
-        text.setColor("#ffd700");
-      });
+      text.on("pointerover", () => text.setColor("#ffd700"));
       text.on("pointerout", () => {
-        if (globalIndex !== this.selectedIndex) text.setColor("#aaa");
+        if (i !== this.selectedOnPage) text.setColor(baseColor);
       });
       text.on("pointerdown", () => {
-        this.selectedIndex = globalIndex;
-        this.renderMonsterList();
-        this.showDetail(entry);
+        this.selectedOnPage = i;
+        this.renderPage();
       });
 
       this.listContainer.add(text);
       this.entryTexts.push(text);
     });
+
+    // Update page indicator and arrow visibility
+    this.pageText.setText(`Page ${this.currentPage + 1}/${this.totalPages}`);
+    this.prevBtn.setVisible(this.currentPage > 0);
+    this.nextBtn.setVisible(this.currentPage < this.totalPages - 1);
+
+    // Show detail for selected monster
+    const selected = monsters[this.selectedOnPage];
+    if (selected) {
+      this.showDetail(selected);
+    } else {
+      this.detailText.setText("");
+    }
   }
 
-  private showDetail(entry: BestiaryEntry): void {
+  /** Show detail panel for a monster (full info if discovered, ??? otherwise). */
+  private showDetail(monster: Monster): void {
+    const discovered = monster.id in this.bestiary.entries;
+
+    if (!discovered) {
+      this.detailText.setText(
+        "???\n\nThis monster has not been encountered yet.\nDefeat it to reveal its stats!"
+      );
+      return;
+    }
+
+    const entry: BestiaryEntry = this.bestiary.entries[monster.id];
     const lines: string[] = [];
 
-    // Name with boss indicator
     if (entry.isBoss) {
       lines.push(`☠ ${entry.name} (Boss)`);
     } else {
@@ -178,25 +252,15 @@ export class BestiaryScene extends Phaser.Scene {
     lines.push(`Times Defeated: ${entry.timesDefeated}`);
     lines.push("");
 
-    // Stats - always show HP after defeat
     lines.push(`― Stats ―`);
     lines.push(`HP: ${entry.hp}`);
-
-    // AC: only if discovered
-    if (entry.acDiscovered) {
-      lines.push(`AC: ${entry.ac}`);
-    } else {
-      lines.push(`AC: ???`);
-    }
-
+    lines.push(entry.acDiscovered ? `AC: ${entry.ac}` : `AC: ???`);
     lines.push("");
 
-    // Rewards - always shown after first defeat
     lines.push(`― Rewards ―`);
     lines.push(`XP: ${entry.xpReward}`);
     lines.push(`Gold: ${entry.goldReward}`);
 
-    // Items dropped (only ones the player has actually seen)
     if (entry.itemsDropped.length > 0) {
       lines.push("");
       lines.push(`― Known Drops ―`);
@@ -213,33 +277,46 @@ export class BestiaryScene extends Phaser.Scene {
     this.detailText.setText(lines.join("\n"));
   }
 
+  private goToPrevPage(): void {
+    if (this.currentPage > 0) {
+      this.currentPage--;
+      this.selectedOnPage = 0;
+      this.renderPage();
+    }
+  }
+
+  private goToNextPage(): void {
+    if (this.currentPage < this.totalPages - 1) {
+      this.currentPage++;
+      this.selectedOnPage = 0;
+      this.renderPage();
+    }
+  }
+
   private setupInput(): void {
     const upKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W);
     const downKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S);
+    const leftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+    const rightKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D);
     const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     const bKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.B);
 
     upKey.on("down", () => {
-      if (this.selectedIndex > 0) {
-        this.selectedIndex--;
-        if (this.selectedIndex < this.scrollOffset) {
-          this.scrollOffset = this.selectedIndex;
-        }
-        this.renderMonsterList();
-        this.showDetail(this.entries[this.selectedIndex]);
+      if (this.selectedOnPage > 0) {
+        this.selectedOnPage--;
+        this.renderPage();
       }
     });
 
     downKey.on("down", () => {
-      if (this.selectedIndex < this.entries.length - 1) {
-        this.selectedIndex++;
-        if (this.selectedIndex >= this.scrollOffset + this.maxVisible) {
-          this.scrollOffset = this.selectedIndex - this.maxVisible + 1;
-        }
-        this.renderMonsterList();
-        this.showDetail(this.entries[this.selectedIndex]);
+      if (this.selectedOnPage < this.pageMonsters().length - 1) {
+        this.selectedOnPage++;
+        this.renderPage();
       }
     });
+
+    leftKey.on("down", () => this.goToPrevPage());
+    rightKey.on("down", () => this.goToNextPage());
 
     escKey.on("down", () => this.goBack());
     bKey.on("down", () => this.goBack());

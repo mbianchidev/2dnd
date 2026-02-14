@@ -4,12 +4,14 @@
  * The cycle influences encounter rates and monster types.
  */
 
-/** The four time periods in the cycle. */
+/** The time periods in the cycle, plus a special Dungeon period. */
 export enum TimePeriod {
   Dawn = "Dawn",
   Day = "Day",
   Dusk = "Dusk",
   Night = "Night",
+  /** Special period used inside dungeons — time stands still. */
+  Dungeon = "Dungeon",
 }
 
 /**
@@ -45,6 +47,7 @@ const ENCOUNTER_MULTIPLIERS: Record<TimePeriod, number> = {
   [TimePeriod.Day]: 1.0,
   [TimePeriod.Dusk]: 1.25,
   [TimePeriod.Night]: 1.5,
+  [TimePeriod.Dungeon]: 1.0,
 };
 
 /** Return the encounter-rate multiplier for the given step. */
@@ -73,6 +76,7 @@ export const PERIOD_TINT: Record<TimePeriod, number> = {
   [TimePeriod.Day]: 0xffffff,
   [TimePeriod.Dusk]: 0xffa570,
   [TimePeriod.Night]: 0x6688cc,
+  [TimePeriod.Dungeon]: 0x556688,
 };
 
 /** Human-readable emoji + label for the HUD. */
@@ -81,4 +85,5 @@ export const PERIOD_LABEL: Record<TimePeriod, string> = {
   [TimePeriod.Day]: "☀️ Day",
   [TimePeriod.Dusk]: "🌇 Dusk",
   [TimePeriod.Night]: "🌙 Night",
+  [TimePeriod.Dungeon]: "🔦 Dungeon",
 };

@@ -158,6 +158,7 @@ const TIME_MULTIPLIERS: Record<TimePeriod, Partial<Record<WeatherType, number>>>
   Day:   { [WeatherType.Sandstorm]: 1.4 },
   Dusk:  { [WeatherType.Fog]: 1.3, [WeatherType.Storm]: 1.2 },
   Night: { [WeatherType.Storm]: 1.3, [WeatherType.Snow]: 1.2 },
+  Dungeon: {}, // No weather changes in dungeons
 };
 
 /**

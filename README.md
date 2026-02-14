@@ -110,7 +110,8 @@ src/
 │   ├── audio.ts         # Procedural audio engine (music, SFX, footsteps)
 │   ├── combat.ts        # D&D combat mechanics
 │   ├── player.ts        # Player state, leveling, Point Buy, inventory
-│   ├── appearance.ts    # Classes, primary stats, cosmetic customization
+│   ├── classes.ts       # Class definitions (stats, spells, abilities, hit die)
+│   ├── appearance.ts    # Cosmetic customization (skin color, hair style/color)
 │   ├── daynight.ts      # Day/night cycle (360-step)
 │   ├── weather.ts       # Weather system (6 types, biome-weighted)
 │   ├── bestiary.ts      # Monster tracking & AC discovery

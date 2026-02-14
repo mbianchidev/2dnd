@@ -7,8 +7,11 @@ import {
   getNpcDialogue,
   getShopkeeperDialogue,
   VILLAGER_DIALOGUES,
+  VILLAGER_NIGHT_DIALOGUES,
   CHILD_DIALOGUES,
   SHOPKEEPER_DIALOGUES,
+  GUARD_DIALOGUES,
+  GUARD_NIGHT_DIALOGUES,
   NPC_SKIN_COLORS,
   NPC_HAIR_COLORS,
   NPC_DRESS_COLORS,
@@ -145,6 +148,21 @@ describe("NPC system", () => {
       expect(a).toBe(b);
     });
 
+    it("getNpcDialogue uses night pool when nightTime is true", () => {
+      const nightLine = getNpcDialogue("test_city", 1, "male", undefined, true);
+      expect(VILLAGER_NIGHT_DIALOGUES).toContain(nightLine);
+    });
+
+    it("getNpcDialogue uses night guard pool when nightTime is true", () => {
+      const nightGuardLine = getNpcDialogue("test_city", 0, "male", "guard_male", true);
+      expect(GUARD_NIGHT_DIALOGUES).toContain(nightGuardLine);
+    });
+
+    it("getNpcDialogue uses day guard pool when nightTime is false", () => {
+      const dayGuardLine = getNpcDialogue("test_city", 0, "male", "guard_male", false);
+      expect(GUARD_DIALOGUES).toContain(dayGuardLine);
+    });
+
     it("getShopkeeperDialogue returns a string from the correct pool", () => {
       const line = getShopkeeperDialogue("weapon", 0);
       expect(SHOPKEEPER_DIALOGUES["weapon"]).toContain(line);
@@ -271,6 +289,13 @@ describe("NPC system", () => {
         for (const kind of result) {
           expect(SPECIAL_NPC_KINDS).toContain(kind);
         }
+      }
+    });
+
+    it("rollSpecialNpcSpawns never returns more than one special NPC", () => {
+      for (let i = 0; i < 200; i++) {
+        const result = rollSpecialNpcSpawns(100); // very high multiplier to ensure spawns
+        expect(result.length).toBeLessThanOrEqual(1);
       }
     });
 

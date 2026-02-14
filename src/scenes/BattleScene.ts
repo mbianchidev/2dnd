@@ -74,6 +74,9 @@ export class BattleScene extends Phaser.Scene {
   private acLowestHit = Infinity;
   private acDiscovered = false;
 
+  // HP discovery: hidden until monster type has been defeated once
+  private hpRevealed = false;
+
   // Item drops collected this battle
   private droppedItemIds: string[] = [];
   private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
@@ -113,6 +116,7 @@ export class BattleScene extends Phaser.Scene {
     this.acHighestMiss = 0;
     this.acLowestHit = Infinity;
     this.acDiscovered = false;
+    this.hpRevealed = (this.bestiary.entries[this.monster.id]?.timesDefeated ?? 0) >= 1;
     this.playerDefending = false;
     this.monsterDefending = false;
     this.droppedItemIds = [];
@@ -123,6 +127,7 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.fadeIn(300);
 
     this.drawBattleUI();
+    this.drawTimeSky();
     this.drawCelestialBody();
     this.setupDebug();
     this.createWeatherParticles();
@@ -163,45 +168,56 @@ export class BattleScene extends Phaser.Scene {
       bg.fillRect(0, 0, w, h);
     }
 
-    // --- Monster (top-right) ---
+    // --- Monster (center, below its info box) ---
     const textureKey = this.monster.isBoss ? "monster_boss" : "monster";
-    this.monsterSprite = this.add.sprite(w * 0.72, h * 0.18, textureKey);
+    this.monsterSprite = this.add.sprite(w * 0.55, h * 0.30, textureKey);
     this.monsterSprite.setTint(this.monster.color);
-    this.monsterSprite.setScale(this.monster.isBoss ? 1.2 : 1.5);
+    this.monsterSprite.setScale(this.monster.isBoss ? 1.8 : 2.0);
+    this.monsterSprite.setDepth(1); // above sky overlay
 
-    // Monster name and HP bar (below monster sprite)
+    // Monster name and HP bar (centered above monster)
     this.monsterText = this.add
-      .text(w * 0.72, h * 0.32, "", {
+      .text(w * 0.55, h * 0.05, "", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#ff6666",
         align: "center",
+        backgroundColor: "#0a0a1a80",
+        padding: { x: 6, y: 4 },
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5, 0)
+      .setDepth(2);
     this.updateMonsterDisplay();
 
-    // --- Player (bottom-left) ---
+    // --- Player (foreground, lower-left) ---
     // Prefer the equipped texture (reflects weapon, shield, custom skin & hair)
     const equippedKey = `player_equipped_${this.player.appearanceId}`;
     const baseKey = `player_${this.player.appearanceId}`;
     const playerTextureKey = this.textures.exists(equippedKey) ? equippedKey : baseKey;
-    this.playerSprite = this.add.sprite(w * 0.25, h * 0.52, playerTextureKey);
-    this.playerSprite.setScale(1.5);
+    this.playerSprite = this.add.sprite(w * 0.22, h * 0.50, playerTextureKey);
+    this.playerSprite.setScale(2.0);
     this.playerSprite.setFlipX(false);
+    this.playerSprite.setDepth(1.5); // above monster (foreground perspective)
 
-    // Player name + HP/MP bar (below player sprite)
+    // Player name + HP/MP bar (right below player sprite)
     this.playerStatsText = this.add
-      .text(w * 0.25, h * 0.64, "", {
+      .text(w * 0.22, h * 0.60, "", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#88ccff",
         align: "center",
         lineSpacing: 3,
+        backgroundColor: "#0a0a1a80",
+        padding: { x: 6, y: 4 },
       })
-      .setOrigin(0.5, 0);
+      .setOrigin(0.5, 0)
+      .setDepth(2);
     this.updatePlayerStats();
 
-    // Battle log (bottom strip, above action buttons) — scrollable
+    // Draw biome-specific foreground terrain for depth
+    this.drawTerrainForeground();
+
+    // Battle log (bottom strip) — scrollable
     this.logAreaY = h * 0.78;
     this.logAreaH = h * 0.22;
     const logBg = this.add.graphics();
@@ -209,9 +225,11 @@ export class BattleScene extends Phaser.Scene {
     logBg.fillRect(0, this.logAreaY, w, this.logAreaH);
     logBg.lineStyle(1, 0xc0a060, 0.5);
     logBg.strokeRect(0, this.logAreaY, w, this.logAreaH);
+    logBg.setDepth(3);
 
     // Scrollable container for log text
     this.logContainer = this.add.container(0, 0);
+    this.logContainer.setDepth(4);
     this.logText = this.add.text(10, this.logAreaY + 4, "", {
       fontSize: "12px",
       fontFamily: "monospace",
@@ -284,6 +302,7 @@ export class BattleScene extends Phaser.Scene {
 
     actions.forEach((act, i) => {
       const container = this.add.container(btnX + (i % 2) * (btnW + gap), btnY + Math.floor(i / 2) * (btnH + gap));
+      container.setDepth(5);
 
       const bg = this.add
         .image(0, 0, "button")
@@ -355,9 +374,10 @@ export class BattleScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const spells = this.player.knownSpells
       .map((id) => getSpell(id))
-      .filter((s): s is Spell => s !== undefined);
+      .filter((s): s is Spell => s !== undefined && s.type !== "utility");
 
     const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - spells.length * 28 - 10);
+    container.setDepth(6);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
@@ -404,7 +424,7 @@ export class BattleScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const abilities = (this.player.knownAbilities ?? [])
       .map((id) => getAbility(id))
-      .filter((a): a is Ability => a !== undefined);
+      .filter((a): a is Ability => a !== undefined && a.type !== "utility");
 
     if (abilities.length === 0) {
       this.addLog("No abilities known!");
@@ -412,6 +432,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - abilities.length * 28 - 10);
+    container.setDepth(6);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a2a1e, 0.95);
@@ -565,6 +586,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - stacks.length * 28 - 10);
+    container.setDepth(6);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
@@ -599,11 +621,17 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private updateMonsterDisplay(): void {
-    const hpBar = this.getHpBar(this.monsterHp, this.monster.hp, 14);
     const defendTag = this.monsterDefending ? " [DEF]" : "";
-    this.monsterText.setText(
-      `${this.monster.name}${defendTag}\nHP: ${this.monsterHp}/${this.monster.hp}\n${hpBar}`
-    );
+    if (this.hpRevealed) {
+      const hpBar = this.getHpBar(this.monsterHp, this.monster.hp, 14);
+      this.monsterText.setText(
+        `${this.monster.name}${defendTag}\nHP: ${this.monsterHp}/${this.monster.hp}\n${hpBar}`
+      );
+    } else {
+      this.monsterText.setText(
+        `${this.monster.name}${defendTag}\nHP: ???`
+      );
+    }
     // Flash monster on hit
     if (this.monsterHp <= 0) {
       this.monsterSprite.setAlpha(0.3);
@@ -1096,20 +1124,8 @@ export class BattleScene extends Phaser.Scene {
           this.addLog(`🌟 Found: ${item.name}!`);
         }
 
-        if (xpResult.leveledUp) {
-          this.addLog(`🎉 LEVEL UP! Now level ${xpResult.newLevel}!`);
-          for (const spell of xpResult.newSpells) {
-            this.addLog(`✦ Learned ${spell.name}!`);
-          }
-          for (const ability of xpResult.newAbilities) {
-            this.addLog(`⚡ Learned ${ability.name}!`);
-          }
-          for (const talent of xpResult.newTalents) {
-            this.addLog(`🏅 Talent: ${talent.name} — ${talent.description}`);
-          }
-          if (xpResult.asiGained > 0) {
-            this.addLog(`★ +${xpResult.asiGained} stat points to spend!`);
-          }
+        if (xpResult.pendingLevels > 0) {
+          this.addLog(`⬆ ${xpResult.pendingLevels} level-up${xpResult.pendingLevels > 1 ? "s" : ""} pending! Rest to level up.`);
         }
 
         // Track boss defeats
@@ -1194,9 +1210,45 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
+   * Draw a time-dependent sky gradient over the sky portion of the battle background.
+   * This replaces the static baked-in sky color with one that reflects the current
+   * time of day (blue morning, dark blue night, orange dawn/dusk, etc.).
+   */
+  private drawTimeSky(): void {
+    if (this.biome === "dungeon") return;
+
+    const w = this.cameras.main.width;
+    const skyH = this.cameras.main.height * 0.45;
+    const period = getTimePeriod(this.timeStep);
+    const gfx = this.add.graphics();
+    gfx.setDepth(0.4); // below celestial body (0.5), above bg image (0)
+
+    // Top and bottom gradient colors for each time period
+    let topColor: number;
+    let botColor: number;
+    let alpha = 0.85;
+
+    switch (period) {
+      case TimePeriod.Dawn:
+        topColor = 0x4466aa; botColor = 0xffa858; break;
+      case TimePeriod.Day:
+        topColor = 0x5588cc; botColor = 0x87ceeb; break;
+      case TimePeriod.Dusk:
+        topColor = 0x2a2a55; botColor = 0xff6633; break;
+      case TimePeriod.Night:
+        topColor = 0x0a0a1a; botColor = 0x1a2244; alpha = 0.92; break;
+      default:
+        return; // Dungeon handled above
+    }
+
+    gfx.fillGradientStyle(topColor, topColor, botColor, botColor, alpha);
+    gfx.fillRect(0, 0, w, skyH);
+  }
+
+  /**
    * Draw a sun or moon in the sky area of the battle background.
    * Positioned on the LEFT side of the sky to avoid overlapping the monster
-   * sprite (which sits at top-right ~72% x, ~18% y).
+   * sprite (centered ~55% x, ~32% y) and the HP info box (top-right).
    *   Dawn  → sun low-left (rising)
    *   Day   → sun upper-left
    *   Dusk  → sun mid-left (setting)
@@ -1290,6 +1342,134 @@ export class BattleScene extends Phaser.Scene {
         gfx.fillCircle(w * 0.25, skyH * 0.48, 1);
         gfx.fillCircle(w * 0.45, skyH * 0.38, 1);
         gfx.fillCircle(w * 0.35, skyH * 0.18, 1);
+        break;
+      }
+    }
+  }
+
+  /**
+   * Draw biome-specific foreground terrain elements for DQ-style depth.
+   * These are drawn at depth 1.2, between monster (1.0) and player (1.5),
+   * creating a sense of perspective and grounding.
+   */
+  private drawTerrainForeground(): void {
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const gfx = this.add.graphics();
+    gfx.setDepth(1.2);
+
+    switch (this.biome) {
+      case "grass": {
+        // Grass tufts and small flowers along the midground
+        gfx.fillStyle(0x3a7c2f, 0.6);
+        for (let i = 0; i < 12; i++) {
+          const gx = (i * 53 + 10) % w;
+          const gy = h * 0.58 + (i * 17) % 30;
+          gfx.fillTriangle(gx, gy, gx + 4, gy - 12, gx + 8, gy);
+          gfx.fillTriangle(gx + 5, gy, gx + 9, gy - 10, gx + 13, gy);
+        }
+        // Small rocks
+        gfx.fillStyle(0x888877, 0.5);
+        gfx.fillCircle(w * 0.08, h * 0.62, 4);
+        gfx.fillCircle(w * 0.82, h * 0.60, 5);
+        gfx.fillCircle(w * 0.45, h * 0.65, 3);
+        break;
+      }
+      case "forest":
+      case "deep_forest": {
+        // Tree silhouettes on edges for depth framing
+        const isDeep = this.biome === "deep_forest";
+        const trunkColor = isDeep ? 0x1a0f08 : 0x3d2b1a;
+        const leafColor = isDeep ? 0x0a3a06 : 0x1d6b18;
+        // Left tree
+        gfx.fillStyle(trunkColor, 0.7);
+        gfx.fillRect(w * 0.02, h * 0.20, 12, h * 0.50);
+        gfx.fillStyle(leafColor, 0.6);
+        gfx.fillCircle(w * 0.03, h * 0.22, 35);
+        gfx.fillCircle(w * 0.01, h * 0.30, 25);
+        // Right tree
+        gfx.fillStyle(trunkColor, 0.7);
+        gfx.fillRect(w * 0.92, h * 0.25, 12, h * 0.45);
+        gfx.fillStyle(leafColor, 0.6);
+        gfx.fillCircle(w * 0.93, h * 0.27, 32);
+        gfx.fillCircle(w * 0.95, h * 0.34, 22);
+        // Forest floor debris
+        gfx.fillStyle(0x2a1a0a, 0.4);
+        for (let i = 0; i < 8; i++) {
+          gfx.fillCircle((i * 83 + 30) % w, h * 0.60 + (i * 11) % 20, 3);
+        }
+        break;
+      }
+      case "sand": {
+        // Foreground dune ridges
+        gfx.fillStyle(0xddb060, 0.5);
+        gfx.fillCircle(w * 0.15, h * 0.62, 60);
+        gfx.fillCircle(w * 0.75, h * 0.60, 50);
+        // Sand ripples
+        gfx.fillStyle(0xc09040, 0.3);
+        for (let i = 0; i < 6; i++) {
+          gfx.fillRect(w * 0.1 + i * 50, h * 0.58 + i * 5, 40, 2);
+        }
+        break;
+      }
+      case "tundra": {
+        // Snow mounds
+        gfx.fillStyle(0xf0f0ff, 0.4);
+        gfx.fillCircle(w * 0.1, h * 0.60, 40);
+        gfx.fillCircle(w * 0.85, h * 0.58, 35);
+        // Ice crystals
+        gfx.fillStyle(0xaaddff, 0.3);
+        gfx.fillCircle(w * 0.05, h * 0.55, 5);
+        gfx.fillCircle(w * 0.90, h * 0.54, 4);
+        gfx.fillCircle(w * 0.50, h * 0.62, 3);
+        break;
+      }
+      case "swamp": {
+        // Murky foreground puddles
+        gfx.fillStyle(0x556b3a, 0.4);
+        gfx.fillCircle(w * 0.10, h * 0.62, 30);
+        gfx.fillCircle(w * 0.80, h * 0.60, 25);
+        // Dead twigs
+        gfx.fillStyle(0x2d401a, 0.6);
+        gfx.fillRect(w * 0.05, h * 0.50, 4, h * 0.18);
+        gfx.fillRect(w * 0.88, h * 0.48, 4, h * 0.20);
+        break;
+      }
+      case "volcanic": {
+        // Foreground rocks with lava glow
+        gfx.fillStyle(0x1a0a0a, 0.6);
+        gfx.fillCircle(w * 0.08, h * 0.60, 20);
+        gfx.fillCircle(w * 0.85, h * 0.58, 18);
+        gfx.fillStyle(0xff4400, 0.3);
+        gfx.fillCircle(w * 0.5, h * 0.63, 15);
+        // Ember particles
+        gfx.fillStyle(0xff6600, 0.35);
+        for (let i = 0; i < 6; i++) {
+          gfx.fillCircle((i * 107 + 20) % w, h * 0.40 + (i * 31) % (h * 0.25), 2);
+        }
+        break;
+      }
+      case "canyon": {
+        // Canyon wall edges
+        gfx.fillStyle(0x8b4513, 0.5);
+        gfx.fillRect(0, h * 0.15, 35, h * 0.55);
+        gfx.fillRect(w - 35, h * 0.18, 35, h * 0.52);
+        // Small boulders
+        gfx.fillStyle(0x885533, 0.4);
+        gfx.fillCircle(w * 0.12, h * 0.60, 8);
+        gfx.fillCircle(w * 0.78, h * 0.58, 10);
+        gfx.fillCircle(w * 0.50, h * 0.64, 6);
+        break;
+      }
+      case "dungeon": {
+        // Stone pillar edges
+        gfx.fillStyle(0x333344, 0.5);
+        gfx.fillRect(0, h * 0.10, 25, h * 0.60);
+        gfx.fillRect(w - 25, h * 0.12, 25, h * 0.58);
+        // Debris
+        gfx.fillStyle(0x222233, 0.4);
+        gfx.fillCircle(w * 0.10, h * 0.62, 5);
+        gfx.fillCircle(w * 0.85, h * 0.60, 4);
         break;
       }
     }

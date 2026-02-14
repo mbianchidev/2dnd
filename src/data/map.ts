@@ -591,7 +591,7 @@ export const CITIES: CityData[] = [
     shops: [
       { type: "weapon", name: "The Iron Anvil", x: 3, y: 2, shopItems: ["longSword", "greatSword"] },
       { type: "armor", name: "Fortress Armory", x: 16, y: 2, shopItems: ["chainMail", "plateArmor", "ironShield", "towerShield"] },
-      { type: "general", name: "Ironhold Supply", x: 7, y: 5, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "general", name: "Ironhold Supply", x: 7, y: 5, shopItems: ["potion", "ether", "greaterPotion", "chimaeraWing"] },
       { type: "inn", name: "Anvil Rest", x: 12, y: 5, shopItems: [] },
       { type: "stable", name: "Ironhold Stables", x: 10, y: 10, shopItems: ["mountHorse", "mountWarHorse"] },
     ],
@@ -602,7 +602,7 @@ export const CITIES: CityData[] = [
     shops: [
       { type: "weapon", name: "Desert Arms", x: 3, y: 3, shopItems: ["shortSword", "longSword", "greatSword"] },
       { type: "armor", name: "Sandport Outfitter", x: 16, y: 3, shopItems: ["leatherArmor", "chainMail", "ironShield"] },
-      { type: "magic", name: "Oasis Arcana", x: 3, y: 7, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "magic", name: "Oasis Arcana", x: 3, y: 7, shopItems: ["potion", "ether", "greaterPotion", "chimaeraWing"] },
       { type: "inn", name: "Desert Rose Inn", x: 16, y: 7, shopItems: [] },
       { type: "bank", name: "Merchant's Bank", x: 4, y: 11, shopItems: [] },
       { type: "general", name: "Bazaar Goods", x: 15, y: 11, shopItems: ["potion", "ether", "dungeonKey"] },
@@ -657,7 +657,7 @@ export const CITIES: CityData[] = [
     shops: [
       { type: "weapon", name: "Briar Arsenal", x: 5, y: 3, shopItems: ["longSword", "greatSword"] },
       { type: "armor", name: "Thornguard Armory", x: 14, y: 3, shopItems: ["chainMail", "plateArmor", "ironShield"] },
-      { type: "general", name: "Thornvale Goods", x: 5, y: 10, shopItems: ["potion", "ether", "greaterPotion"] },
+      { type: "general", name: "Thornvale Goods", x: 5, y: 10, shopItems: ["potion", "ether", "greaterPotion", "chimaeraWing"] },
       { type: "inn", name: "Vine & Rest", x: 14, y: 10, shopItems: [] },
     ],
   },
@@ -2602,7 +2602,7 @@ export const WORLD_CHUNKS: WorldChunk[][] = [
     { name: "Murky Passage", mapData: CHUNK_1_3, towns: [{ name: "Bogtown", x: 10, y: 7, hasShop: true, shopItems: ["potion", "ether", "greaterPotion"] }], bosses: [] },
     { name: "Woodland Frontier", mapData: CHUNK_2_3, towns: [], bosses: [] },
     { name: "Marshlands", mapData: CHUNK_3_3, towns: [], bosses: [] },
-    { name: "Southern Forest", mapData: CHUNK_4_3, towns: [{ name: "Thornvale", x: 10, y: 7, hasShop: true, shopItems: ["potion", "ether", "greaterPotion", "longSword", "chainMail", "ironShield"] }], bosses: [] },
+    { name: "Southern Forest", mapData: CHUNK_4_3, towns: [{ name: "Thornvale", x: 10, y: 7, hasShop: true, shopItems: ["potion", "ether", "greaterPotion", "longSword", "chainMail", "ironShield", "chimaeraWing"] }], bosses: [] },
     { name: "Dragon's Domain", mapData: CHUNK_5_3, towns: [], bosses: [{ name: "Young Red Dragon", monsterId: "dragon", x: 10, y: 7 }] },
     { name: "Scorched Expanse", mapData: CHUNK_6_3, towns: [], bosses: [] },
     { name: "Arid Ridge", mapData: CHUNK_7_3, towns: [], bosses: [] },

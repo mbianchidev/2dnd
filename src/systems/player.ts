@@ -2,16 +2,17 @@
  * Player state management: stats, leveling, experience, spell unlocks.
  */
 
-import { abilityModifier } from "../utils/dice";
+import { abilityModifier, rollDice } from "../utils/dice";
+import type { DieType } from "../utils/dice";
 import type { Spell } from "../data/spells";
-import { SPELLS } from "../data/spells";
+import { SPELLS, getSpell } from "../data/spells";
 import type { Ability } from "../data/abilities";
 import { ABILITIES, getAbility } from "../data/abilities";
 import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "../data/talents";
 import type { Item } from "../data/items";
 import { getItem } from "../data/items";
 import { getMount } from "../data/mounts";
-import { getAppearance, getClassSpells, getClassAbilities } from "./appearance";
+import { getPlayerClass, getClassSpells, getClassAbilities } from "./classes";
 
 export interface PlayerStats {
   strength: number;
@@ -84,6 +85,8 @@ export interface PlayerState {
   bankBalance: number;    // gold stored in the bank (accessible across all banks)
   lastBankDay: number;    // last day interest was applied (timeStep / CYCLE_LENGTH)
   mountId: string;        // ID of the currently active mount (empty = on foot)
+  shortRestsRemaining: number; // short rests available (max 2, reset on inn long rest)
+  pendingLevelUps: number; // levels earned but not yet applied (applied on rest)
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -101,13 +104,13 @@ export function createPlayer(
   appearanceId: string = "knight",
   customAppearance?: { skinColor: number; hairStyle: number; hairColor: number }
 ): PlayerState {
-  const appearance = getAppearance(appearanceId);
+  const playerClass = getPlayerClass(appearanceId);
 
   // Copy base stats
   const stats: PlayerStats = { ...baseStats };
 
   // Apply class stat boosts
-  for (const [key, bonus] of Object.entries(appearance.statBoosts)) {
+  for (const [key, bonus] of Object.entries(playerClass.statBoosts)) {
     stats[key as keyof PlayerStats] += bonus as number;
   }
 
@@ -116,18 +119,29 @@ export function createPlayer(
   const startHp = Math.max(10, 25 + conMod * 3);
   const startMp = Math.max(4, 8 + intMod * 2);
 
-  // Starting spell — first spell in the class list (empty for pure martial)
-  const startingSpells: string[] = appearance.spells.length > 0 ? [appearance.spells[0]] : [];
+  // Starting spells — all class spells available at level 1
+  const classSpellIds = playerClass.spells;
+  const startingSpells = classSpellIds.filter((id) => {
+    const sp = getSpell(id);
+    return sp && sp.levelRequired <= 1;
+  });
+  // Fallback to first spell if no level-1 spells found
+  if (startingSpells.length === 0 && playerClass.spells.length > 0) {
+    startingSpells.push(playerClass.spells[0]);
+  }
 
   // Starting abilities — all class abilities available at level 1
-  const classAbilities = appearance.abilities ?? [];
+  const classAbilities = playerClass.abilities ?? [];
   const startingAbilities = classAbilities.filter((id) => {
     const ab = getAbility(id);
     return ab && ab.levelRequired <= 1;
   });
 
   // Starting weapon from class definition
-  const startWeapon = getItem(appearance.startingWeaponId) ?? null;
+  const startWeapon = getItem(playerClass.startingWeaponId) ?? null;
+
+  // D&D 5e starting gold: roll Nd4 × 10 (N = class-specific dice count)
+  const startingGold = rollDice(playerClass.startingGoldDice, 4) * 10;
 
   return {
     name,
@@ -139,7 +153,7 @@ export function createPlayer(
     maxMp: startMp,
     stats,
     pendingStatPoints: 0,
-    gold: 50,
+    gold: startingGold,
     inventory: startWeapon ? [startWeapon] : [],
     knownSpells: startingSpells,
     knownAbilities: startingAbilities,
@@ -167,6 +181,8 @@ export function createPlayer(
     bankBalance: 0,
     lastBankDay: 0,
     mountId: "",
+    shortRestsRemaining: 2,
+    pendingLevelUps: 0,
   };
 }
 
@@ -187,16 +203,16 @@ export function applyBankInterest(player: PlayerState, currentDay: number): numb
 
 /** Get the attack modifier for the player (uses class primary stat for melee). */
 export function getAttackModifier(player: PlayerState): number {
-  const appearance = getAppearance(player.appearanceId);
-  const primaryStatValue = player.stats[appearance.primaryStat];
+  const playerClass = getPlayerClass(player.appearanceId);
+  const primaryStatValue = player.stats[playerClass.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
   return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
 
 /** Get the spell attack modifier (uses class primary stat for casters). */
 export function getSpellModifier(player: PlayerState): number {
-  const appearance = getAppearance(player.appearanceId);
-  const primaryStatValue = player.stats[appearance.primaryStat];
+  const playerClass = getPlayerClass(player.appearanceId);
+  const primaryStatValue = player.stats[playerClass.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
   return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
@@ -209,11 +225,11 @@ export function getArmorClass(player: PlayerState, tempBonus: number = 0): numbe
   return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents ?? []) + tempBonus;
 }
 
-/** Award XP and handle level-ups. Returns list of new spells/abilities/talents learned. */
+/** Award XP and track pending level-ups. Actual leveling happens during rest. */
 export function awardXP(
   player: PlayerState,
   amount: number
-): { leveledUp: boolean; newLevel: number; newSpells: Spell[]; newAbilities: Ability[]; newTalents: Talent[]; asiGained: number } {
+): { pendingLevels: number } {
   if (!player) {
     throw new Error(`[player] awardXP: missing player`);
   }
@@ -221,13 +237,40 @@ export function awardXP(
     throw new Error(`[player] awardXP: invalid XP amount ${amount}`);
   }
   player.xp += amount;
+
+  // Count how many levels the player has earned but not yet applied
+  let pendingLevels = player.pendingLevelUps ?? 0;
+  let virtualLevel = player.level + pendingLevels;
+  while (virtualLevel < 20 && player.xp >= xpForLevel(virtualLevel + 1)) {
+    virtualLevel++;
+    pendingLevels++;
+  }
+  player.pendingLevelUps = pendingLevels;
+
+  return { pendingLevels };
+}
+
+/**
+ * Process all pending level-ups accumulated since last rest.
+ * Called during short rest and inn (long) rest.
+ * Returns details for the UI to display.
+ */
+export function processPendingLevelUps(
+  player: PlayerState
+): { leveledUp: boolean; newLevel: number; newSpells: Spell[]; newAbilities: Ability[]; newTalents: Talent[]; asiGained: number } {
+  const pending = player.pendingLevelUps ?? 0;
+  if (pending <= 0) {
+    return { leveledUp: false, newLevel: player.level, newSpells: [], newAbilities: [], newTalents: [], asiGained: 0 };
+  }
+
   let leveledUp = false;
   const newSpells: Spell[] = [];
   const newAbilities: Ability[] = [];
   const newTalents: Talent[] = [];
   let asiGained = 0;
 
-  while (player.level < 20 && player.xp >= xpForLevel(player.level + 1)) {
+  for (let i = 0; i < pending; i++) {
+    if (player.level >= 20) break;
     player.level++;
     leveledUp = true;
 
@@ -296,12 +339,13 @@ export function awardXP(
     }
   }
 
+  player.pendingLevelUps = 0;
   return { leveledUp, newLevel: player.level, newSpells, newAbilities, newTalents, asiGained };
 }
 
 function rollHitDie(appearanceId: string = "knight"): number {
-  const appearance = getAppearance(appearanceId);
-  return Math.floor(Math.random() * appearance.hitDie) + 1;
+  const playerClass = getPlayerClass(appearanceId);
+  return Math.floor(Math.random() * playerClass.hitDie) + 1;
 }
 
 /** Check if the player can afford an item. */
@@ -333,7 +377,7 @@ export function buyItem(player: PlayerState, item: Item): boolean {
 export function useItem(
   player: PlayerState,
   itemIndex: number
-): { used: boolean; message: string } {
+): { used: boolean; message: string; teleport?: boolean } {
   if (!player) {
     throw new Error(`[player] useItem: missing player`);
   }
@@ -346,18 +390,23 @@ export function useItem(
   }
 
   if (item.type === "consumable") {
-    if (item.id === "potion") {
-      const healed = Math.min(item.effect, player.maxHp - player.hp);
-      player.hp += healed;
-      player.inventory.splice(itemIndex, 1);
-      return { used: true, message: `Healed ${healed} HP!` };
-    }
     if (item.id === "ether") {
       const restored = Math.min(item.effect, player.maxMp - player.mp);
       player.mp += restored;
       player.inventory.splice(itemIndex, 1);
       return { used: true, message: `Restored ${restored} MP!` };
     }
+    if (item.id === "chimaeraWing") {
+      // Chimaera Wing teleportation is handled by the scene;
+      // here we just consume the item and signal success.
+      player.inventory.splice(itemIndex, 1);
+      return { used: true, message: "The Chimaera Wing glows and whisks you away!", teleport: true };
+    }
+    // All other consumables restore HP (potion, greaterPotion, etc.)
+    const healed = Math.min(item.effect, player.maxHp - player.hp);
+    player.hp += healed;
+    player.inventory.splice(itemIndex, 1);
+    return { used: true, message: `Healed ${healed} HP!` };
   }
 
   if (item.type === "weapon") {
@@ -415,4 +464,126 @@ export function allocateStatPoint(
   }
 
   return true;
+}
+
+/**
+ * Perform a short rest in the overworld. Restores up to 50% of max HP and 50% of max MP,
+ * capped at the player's current maximum. Decrements shortRestsRemaining.
+ * Returns the actual amounts restored.
+ */
+export function shortRest(player: PlayerState): { hpRestored: number; mpRestored: number } {
+  const hpRestore = Math.floor(player.maxHp * 0.5);
+  const mpRestore = Math.floor(player.maxMp * 0.5);
+  const actualHp = Math.min(hpRestore, player.maxHp - player.hp);
+  const actualMp = Math.min(mpRestore, player.maxMp - player.mp);
+  player.hp += actualHp;
+  player.mp += actualMp;
+  player.shortRestsRemaining--;
+  return { hpRestored: actualHp, mpRestored: actualMp };
+}
+
+/** Cast a heal or utility spell outside of combat. Returns result. */
+export function castSpellOutsideCombat(
+  player: PlayerState,
+  spellId: string
+): { success: boolean; message: string; teleport?: boolean } {
+  const spell = getSpell(spellId);
+  if (!spell) return { success: false, message: "Unknown spell!" };
+
+  if (spell.type === "damage") {
+    return { success: false, message: "Cannot use damage spells outside battle!" };
+  }
+
+  if (player.mp < spell.mpCost) {
+    return { success: false, message: "Not enough MP!" };
+  }
+
+  // Short Rest spell — usable in the overworld, limited uses
+  if (spellId === "shortRest") {
+    if (player.shortRestsRemaining <= 0) {
+      return { success: false, message: "No short rests remaining! Rest at an inn to refill." };
+    }
+    if (player.hp >= player.maxHp && player.mp >= player.maxMp && (player.pendingLevelUps ?? 0) <= 0) {
+      return { success: false, message: "HP and MP are already full!" };
+    }
+    const { hpRestored, mpRestored } = shortRest(player);
+    const levelResult = processPendingLevelUps(player);
+    let msg = `Short Rest! Recovered ${hpRestored} HP and ${mpRestored} MP. (${player.shortRestsRemaining} rests left)`;
+    if (levelResult.leveledUp) {
+      msg += ` 🎉 LEVEL UP to ${levelResult.newLevel}!`;
+      for (const spell of levelResult.newSpells) {
+        msg += ` ✦ ${spell.name}!`;
+      }
+      for (const ability of levelResult.newAbilities) {
+        msg += ` ⚡ ${ability.name}!`;
+      }
+      if (levelResult.asiGained > 0) {
+        msg += ` ★ +${levelResult.asiGained} stat points!`;
+      }
+    }
+    return { success: true, message: msg };
+  }
+
+  // Teleport spell — signal to scene to show town picker
+  if (spellId === "teleport") {
+    return { success: true, message: "Choose a destination...", teleport: true };
+  }
+
+  if (spell.type === "heal") {
+    if (player.hp >= player.maxHp) {
+      return { success: false, message: "HP is already full!" };
+    }
+    const healAmount = rollDice(spell.damageCount, spell.damageDie as DieType);
+    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
+    player.hp += actualHeal;
+    player.mp -= spell.mpCost;
+    return { success: true, message: `${spell.name} healed ${actualHeal} HP! (${spell.mpCost} MP)` };
+  }
+
+  if (spell.type === "utility") {
+    player.mp -= spell.mpCost;
+    return { success: true, message: `${spell.name} cast! (${spell.mpCost} MP)` };
+  }
+
+  return { success: false, message: "Cannot use this spell here." };
+}
+
+/** Use a heal or utility ability outside of combat. Returns result. */
+export function useAbilityOutsideCombat(
+  player: PlayerState,
+  abilityId: string
+): { success: boolean; message: string; teleport?: boolean } {
+  const ability = getAbility(abilityId);
+  if (!ability) return { success: false, message: "Unknown ability!" };
+
+  if (ability.type === "damage") {
+    return { success: false, message: "Cannot use damage abilities outside battle!" };
+  }
+
+  if (player.mp < ability.mpCost) {
+    return { success: false, message: "Not enough MP!" };
+  }
+
+  // Fast Travel ability — signal to scene to show town picker
+  if (abilityId === "fastTravel") {
+    return { success: true, message: "Choose a destination...", teleport: true };
+  }
+
+  if (ability.type === "heal") {
+    if (player.hp >= player.maxHp) {
+      return { success: false, message: "HP is already full!" };
+    }
+    const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
+    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
+    player.hp += actualHeal;
+    player.mp -= ability.mpCost;
+    return { success: true, message: `${ability.name} healed ${actualHeal} HP! (${ability.mpCost} MP)` };
+  }
+
+  if (ability.type === "utility") {
+    player.mp -= ability.mpCost;
+    return { success: true, message: `${ability.name} used! (${ability.mpCost} MP)` };
+  }
+
+  return { success: false, message: "Cannot use this ability here." };
 }

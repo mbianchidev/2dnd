@@ -12,7 +12,7 @@ export interface Spell {
   levelRequired: number;
   damageCount: number; // number of dice
   damageDie: DieType; // die type
-  type: "damage" | "heal";
+  type: "damage" | "heal" | "utility";
 }
 
 export const SPELLS: Spell[] = [
@@ -276,6 +276,30 @@ export const SPELLS: Spell[] = [
     damageCount: 4,
     damageDie: 8,
     type: "damage",
+  },
+
+  // ── Utility (all classes) ─────────────────────────────────────
+  {
+    id: "shortRest",
+    name: "Short Rest",
+    description: "Take a quick rest to recover 50% HP and MP",
+    mpCost: 0,
+    levelRequired: 1,
+    damageCount: 0,
+    damageDie: 0,
+    type: "utility",
+  },
+
+  // ── Utility (casters only) ────────────────────────────────────
+  {
+    id: "teleport",
+    name: "Teleport",
+    description: "Instantly travel to a known town",
+    mpCost: 8,
+    levelRequired: 5,
+    damageCount: 0,
+    damageDie: 0,
+    type: "utility",
   },
 ];
 

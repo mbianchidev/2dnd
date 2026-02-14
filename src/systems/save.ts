@@ -83,6 +83,8 @@ export function loadGame(): SaveData | null {
     if (data.player.lastBankDay === undefined) data.player.lastBankDay = 0;
     // Backward compat: mount system
     if (data.player.mountId === undefined) data.player.mountId = "";
+    // Backward compat: short rest system
+    if (data.player.shortRestsRemaining === undefined) data.player.shortRestsRemaining = 2;
     return data;
   } catch {
     return null;

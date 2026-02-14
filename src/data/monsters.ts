@@ -244,6 +244,41 @@ export const MONSTERS: Monster[] = [
       { name: "Wing Gust", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage" },
     ],
   },
+  // ── Chimaera enemies (Chimaera Wing drops) ────────────────────
+  {
+    id: "chimaera",
+    name: "Chimaera",
+    hp: 48,
+    ac: 14,
+    attackBonus: 8,
+    damageCount: 2,
+    damageDie: 8,
+    xpReward: 120,
+    goldReward: 35,
+    isBoss: false,
+    color: 0x8b6914,
+    drops: [{ itemId: "chimaeraWing", chance: 0.15 }, { itemId: "potion", chance: 0.2 }],
+    abilities: [
+      { name: "Fire Breath", chance: 0.2, damageCount: 2, damageDie: 6, type: "damage" },
+    ],
+  },
+  {
+    id: "greatChimaera",
+    name: "Great Chimaera",
+    hp: 72,
+    ac: 16,
+    attackBonus: 11,
+    damageCount: 3,
+    damageDie: 8,
+    xpReward: 250,
+    goldReward: 65,
+    isBoss: false,
+    color: 0xa0522d,
+    drops: [{ itemId: "chimaeraWing", chance: 0.25 }, { itemId: "greaterPotion", chance: 0.15 }],
+    abilities: [
+      { name: "Triple Strike", chance: 0.3, damageCount: 3, damageDie: 8, type: "damage" },
+    ],
+  },
 ];
 
 /** Dungeon-exclusive monsters — tougher than overworld, unique pool. */

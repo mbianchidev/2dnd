@@ -4,7 +4,8 @@
 
 import Phaser from "phaser";
 import { TERRAIN_COLORS, Terrain, WORLD_CHUNKS, WORLD_WIDTH, WORLD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, getTownBiome } from "../data/map";
-import { PLAYER_APPEARANCES, type PlayerAppearance, SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance, getAppearance, getActiveWeaponSprite } from "../systems/appearance";
+import { PLAYER_CLASSES, type PlayerClass, getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
+import { SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance } from "../systems/appearance";
 import { NPC_TEMPLATES, type NpcTemplate, NPC_SKIN_COLORS, NPC_HAIR_COLORS, NPC_DRESS_COLORS, JOB_ACCENT_COLORS } from "../data/npcs";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
@@ -737,17 +738,18 @@ export class BootScene extends Phaser.Scene {
   }
 
   private generatePlayerTextures(): void {
-    for (const app of PLAYER_APPEARANCES) {
-      const key = `player_${app.id}`;
+    const defaultSkin = SKIN_COLOR_OPTIONS[0].color;
+    for (const cls of PLAYER_CLASSES) {
+      const key = `player_${cls.id}`;
       // Always remove existing texture so regeneration isn't silently skipped
       if (this.textures.exists(key)) this.textures.remove(key);
       this.generatePlayerTextureWithColors(
         key,
-        app.bodyColor,
-        app.skinColor,
-        app.legColor,
-        app.weaponSprite,
-        app.clothingStyle
+        cls.bodyColor,
+        defaultSkin,
+        cls.legColor,
+        cls.weaponSprite,
+        cls.clothingStyle
       );
     }
   }
@@ -793,21 +795,21 @@ export class BootScene extends Phaser.Scene {
     }
 
     // Generate "mounted_<classId>_<mountId>" textures — rider sitting on mount
-    for (const app of PLAYER_APPEARANCES) {
+    for (const cls of PLAYER_CLASSES) {
       for (const mount of MOUNTS) {
-        const key = `mounted_${app.id}_${mount.id}`;
+        const key = `mounted_${cls.id}_${mount.id}`;
         const gfx = this.add.graphics();
         // Draw mount body first (lower layer)
         this.drawMountBody(gfx, mount.id);
         // Draw a smaller rider on top of the mount (shifted up)
         // Rider torso
-        gfx.fillStyle(app.bodyColor, 1);
+        gfx.fillStyle(cls.bodyColor, 1);
         gfx.fillRect(11, 6, 10, 9);
         // Rider head
-        gfx.fillStyle(app.skinColor, 1);
+        gfx.fillStyle(cls.skinColor, 1);
         gfx.fillCircle(16, 3, 4);
         // Rider legs straddling mount
-        gfx.fillStyle(app.legColor, 1);
+        gfx.fillStyle(cls.legColor, 1);
         gfx.fillRect(9, 14, 4, 4);
         gfx.fillRect(19, 14, 4, 4);
         gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
@@ -848,7 +850,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   /** Format class info string for the selection panel. */
-  private formatClassInfo(app: PlayerAppearance): string {
+  private formatClassInfo(app: PlayerClass): string {
     const boostParts = Object.entries(app.statBoosts)
       .map(([k, v]) => `${k.slice(0, 3).toUpperCase()}+${v}`)
       .join(", ");
@@ -1505,7 +1507,7 @@ export class BootScene extends Phaser.Scene {
     for (let i = 0; i < 5; i++) { // dunes
       sand.fillCircle(i * 150 + 60, H * 0.5, 80 + (i % 2) * 30);
     }
-    sand.fillStyle(0xffdd44, 1); sand.fillCircle(W * 0.8, H * 0.12, 30); // sun
+    // Sun is drawn dynamically by BattleScene.drawCelestialBody()
     sand.fillStyle(0xc09040, 0.3);
     for (let i = 0; i < 12; i++) { // sand ripples
       const ry = H * 0.55 + i * 20;
@@ -2080,19 +2082,19 @@ export class BootScene extends Phaser.Scene {
     // Regenerate player texture with custom appearance if present.
     // Use a separate "equipped" key so base class textures stay clean for New Game.
     if (save.player.customAppearance) {
-      const app = getAppearance(save.player.appearanceId);
+      const cls = getPlayerClass(save.player.appearanceId);
       const key = `player_equipped_${save.player.appearanceId}`;
       if (this.textures.exists(key)) this.textures.remove(key);
       const hasShield = !!save.player.equippedShield && !save.player.equippedWeapon?.twoHanded;
       this.generatePlayerTextureWithHair(
         key,
-        app.bodyColor,
+        cls.bodyColor,
         save.player.customAppearance.skinColor,
-        app.legColor,
+        cls.legColor,
         save.player.customAppearance.hairStyle,
         save.player.customAppearance.hairColor,
         getActiveWeaponSprite(save.player.appearanceId, save.player.equippedWeapon),
-        app.clothingStyle,
+        cls.clothingStyle,
         hasShield
       );
     }
@@ -2163,18 +2165,18 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    let selectedAppearance = PLAYER_APPEARANCES[0];
+    let selectedAppearance = PLAYER_CLASSES[0];
 
     // Class option grid
     const cols = 4;
     const optW = 72;
     const optH = 62;
-    const startX = cx - ((Math.min(cols, PLAYER_APPEARANCES.length) * optW) / 2) + optW / 2;
+    const startX = cx - ((Math.min(cols, PLAYER_CLASSES.length) * optW) / 2) + optW / 2;
     const startY = 150;
 
     const optionHighlights: Phaser.GameObjects.Graphics[] = [];
 
-    PLAYER_APPEARANCES.forEach((app, i) => {
+    PLAYER_CLASSES.forEach((app, i) => {
       const ox = startX + (i % cols) * optW;
       const oy = startY + Math.floor(i / cols) * optH;
 
@@ -2209,7 +2211,7 @@ export class BootScene extends Phaser.Scene {
         // Update highlights
         optionHighlights.forEach((h, j) => {
           h.clear();
-          const isSelected = PLAYER_APPEARANCES[j].id === app.id;
+          const isSelected = PLAYER_CLASSES[j].id === app.id;
           h.lineStyle(2, isSelected ? 0xffd700 : 0x444444, 1);
           if (isSelected) {
             h.fillStyle(0xffd700, 0.1);
@@ -2219,6 +2221,51 @@ export class BootScene extends Phaser.Scene {
           if (isSelected) h.fillRect(hx - 28, hy - 22, 56, 62);
           h.strokeRect(hx - 28, hy - 22, 56, 62);
         });
+      });
+    });
+
+    // Class info panel (description + playstyle + stat boosts)
+    const infoPanelY = startY + Math.ceil(PLAYER_CLASSES.length / cols) * optH + 4;
+    const classDescText = this.add
+      .text(cx, infoPanelY, selectedAppearance.description, {
+        fontSize: "9px", fontFamily: "monospace", color: "#ccc",
+        wordWrap: { width: 280 },
+        align: "center",
+      })
+      .setOrigin(0.5, 0);
+
+    const classBoostText = this.add
+      .text(cx, infoPanelY + 22, this.formatClassInfo(selectedAppearance), {
+        fontSize: "9px", fontFamily: "monospace", color: "#c0a060",
+      })
+      .setOrigin(0.5, 0);
+
+    // Update info panel when class changes
+    const updateInfoPanel = (app: PlayerClass) => {
+      classDescText.setText(app.description);
+      classBoostText.setText(this.formatClassInfo(app));
+    };
+
+    // Re-wire class selection to also update info panel
+    PLAYER_CLASSES.forEach((app, i) => {
+      const ox = startX + (i % cols) * optW;
+      const oy = startY + Math.floor(i / cols) * optH;
+      const hitZone = this.add.zone(ox, oy + 10, 56, 62).setInteractive({ useHandCursor: true });
+      hitZone.on("pointerdown", () => {
+        selectedAppearance = app;
+        optionHighlights.forEach((h, j) => {
+          h.clear();
+          const isSelected = PLAYER_CLASSES[j].id === app.id;
+          h.lineStyle(2, isSelected ? 0xffd700 : 0x444444, 1);
+          if (isSelected) {
+            h.fillStyle(0xffd700, 0.1);
+          }
+          const hx = startX + (j % cols) * optW;
+          const hy = startY + Math.floor(j / cols) * optH;
+          if (isSelected) h.fillRect(hx - 28, hy - 22, 56, 62);
+          h.strokeRect(hx - 28, hy - 22, 56, 62);
+        });
+        updateInfoPanel(app);
       });
     });
 
@@ -2299,7 +2346,7 @@ export class BootScene extends Phaser.Scene {
     this.input.keyboard!.on("keydown-ENTER", goNext);
   }
 
-  private showStatAllocation(playerName: string, selectedClass: PlayerAppearance): void {
+  private showStatAllocation(playerName: string, selectedClass: PlayerClass): void {
     this.children.removeAll(true);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();
@@ -2556,7 +2603,7 @@ export class BootScene extends Phaser.Scene {
     renderStats();
   }
 
-  private showAppearanceCustomization(playerName: string, selectedClass: PlayerAppearance, baseStats: PlayerStats, preset?: { skinColor: number; hairStyle: number; hairColor: number }): void {
+  private showAppearanceCustomization(playerName: string, selectedClass: PlayerClass, baseStats: PlayerStats, preset?: { skinColor: number; hairStyle: number; hairColor: number }): void {
     this.children.removeAll(true);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();
@@ -2581,15 +2628,17 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    // State — use preset values from randomize if provided
-    let selectedSkinColor = preset?.skinColor ?? SKIN_COLOR_OPTIONS[0].color;
+    // State — use preset values from randomize if provided, else class default
+    let selectedSkinColor = preset?.skinColor ?? selectedClass.skinColor;
     let selectedHairStyle = preset?.hairStyle ?? HAIR_STYLE_OPTIONS[0].id;
     let selectedHairColor = preset?.hairColor ?? HAIR_COLOR_OPTIONS[0].color;
 
     // y=78: preview sprite center, scale 2 (64px tall: top=46, bottom=110)
-    const previewKey = "preview_custom";
+    let previewCounter = 0;
+    const genPreviewKey = (): string => `preview_custom_${Date.now()}_${previewCounter++}`;
+    let curPreviewKey = genPreviewKey();
     this.generatePlayerTextureWithHair(
-      previewKey,
+      curPreviewKey,
       selectedClass.bodyColor,
       selectedSkinColor,
       selectedClass.legColor,
@@ -2598,12 +2647,15 @@ export class BootScene extends Phaser.Scene {
       selectedClass.weaponSprite,
       selectedClass.clothingStyle
     );
-    const previewSprite = this.add.sprite(cx, 78, previewKey).setScale(2);
+    let previewSprite = this.add.sprite(cx, 78, curPreviewKey).setScale(2);
 
     const updatePreview = () => {
-      if (this.textures.exists(previewKey)) this.textures.remove(previewKey);
+      // Destroy old sprite completely to avoid any cached frame data
+      const oldKey = curPreviewKey;
+      previewSprite.destroy();
+      curPreviewKey = genPreviewKey();
       this.generatePlayerTextureWithHair(
-        previewKey,
+        curPreviewKey,
         selectedClass.bodyColor,
         selectedSkinColor,
         selectedClass.legColor,
@@ -2612,7 +2664,8 @@ export class BootScene extends Phaser.Scene {
         selectedClass.weaponSprite,
         selectedClass.clothingStyle
       );
-      previewSprite.setTexture(previewKey);
+      previewSprite = this.add.sprite(cx, 78, curPreviewKey).setScale(2);
+      if (this.textures.exists(oldKey)) this.textures.remove(oldKey);
     };
 
     // Randomize button — picks random skin, hair style, and hair colour
@@ -2639,17 +2692,17 @@ export class BootScene extends Phaser.Scene {
     rndBtn.on("pointerout", () => rndBtn.setColor("#88ccff"));
     rndBtn.on("pointerdown", randomizeAll);
 
-    // y=118: skin color label (13px) → bottom ~131
+    // y=130: skin color label (13px) → bottom ~143
     this.add
-      .text(cx, 118, "Skin Color:", {
+      .text(cx, 130, "Skin Color:", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#c0a060",
       })
       .setOrigin(0.5, 0);
 
-    // y=142: skin swatches center (radius 10 → top=132, bottom=152; labels at y=156 → bottom ~164)
-    const skinSwatchY = 142;
+    // y=154: skin swatches center (radius 10 → top=144, bottom=164; labels at y=168 → bottom ~176)
+    const skinSwatchY = 154;
     const skinSwatchSpacing = 40;
     const skinStartX = cx - ((SKIN_COLOR_OPTIONS.length - 1) * skinSwatchSpacing) / 2;
     const skinHighlights: Phaser.GameObjects.Graphics[] = [];
@@ -2687,17 +2740,17 @@ export class BootScene extends Phaser.Scene {
       });
     });
 
-    // y=174: hair style label (13px) → bottom ~187
+    // y=186: hair style label (13px) → bottom ~199
     this.add
-      .text(cx, 174, "Hair Style:", {
+      .text(cx, 186, "Hair Style:", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#c0a060",
       })
       .setOrigin(0.5, 0);
 
-    // y=196: hair style buttons (~25px with padding) → bottom ~221
-    const hairStyleY = 196;
+    // y=208: hair style buttons (~25px with padding) → bottom ~233
+    const hairStyleY = 208;
     const hairStyleSpacing = 80;
     const hairStyleStartX = cx - ((HAIR_STYLE_OPTIONS.length - 1) * hairStyleSpacing) / 2;
     const hairStyleTexts: Phaser.GameObjects.Text[] = [];
@@ -2726,17 +2779,17 @@ export class BootScene extends Phaser.Scene {
       });
     });
 
-    // y=232: hair color label (13px) → bottom ~245
+    // y=244: hair color label (13px) → bottom ~257
     this.add
-      .text(cx, 232, "Hair Color:", {
+      .text(cx, 244, "Hair Color:", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#c0a060",
       })
       .setOrigin(0.5, 0);
 
-    // y=256: hair color swatches center (radius 10 → top=246, bottom=266; labels at y=270 → bottom ~278)
-    const hairSwatchY = 256;
+    // y=268: hair color swatches center (radius 10 → top=258, bottom=278; labels at y=282 → bottom ~290)
+    const hairSwatchY = 268;
     const hairSwatchSpacing = 40;
     const hairStartX = cx - ((HAIR_COLOR_OPTIONS.length - 1) * hairSwatchSpacing) / 2;
     const hairHighlights: Phaser.GameObjects.Graphics[] = [];
@@ -2774,8 +2827,8 @@ export class BootScene extends Phaser.Scene {
       });
     });
 
-    // y=300: back/start buttons
-    const btnY = 300;
+    // y=312: back/start buttons
+    const btnY = 312;
 
     const backBtn = this.add
       .text(cx - 100, btnY, "[ < Back ]", {

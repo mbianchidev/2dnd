@@ -3,6 +3,7 @@ import {
   createPlayer,
   xpForLevel,
   awardXP,
+  processPendingLevelUps,
   allocateStatPoint,
   ASI_LEVELS,
   getAttackModifier,
@@ -15,6 +16,9 @@ import {
   isValidPointBuy,
   POINT_BUY_COSTS,
   POINT_BUY_TOTAL,
+  shortRest,
+  castSpellOutsideCombat,
+  useAbilityOutsideCombat,
   type PlayerState,
   type PlayerStats,
 } from "../src/systems/player";
@@ -45,6 +49,7 @@ function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
   player.hp = 30;
   player.maxMp = 10;
   player.mp = 10;
+  player.gold = 50; // Pin gold for deterministic tests
   if (overrides) Object.assign(player, overrides);
   return player;
 }
@@ -63,8 +68,9 @@ describe("player system", () => {
       // HP and MP are derived from CON/INT
       expect(player.maxHp).toBeGreaterThanOrEqual(10);
       expect(player.maxMp).toBeGreaterThanOrEqual(4);
-      expect(player.gold).toBe(50);
-      expect(player.knownSpells).toContain("cureWounds");
+      expect(player.gold).toBeGreaterThanOrEqual(50);  // D&D 5e: Knight = 5d4 × 10 (min 50)
+      expect(player.gold).toBeLessThanOrEqual(200);     // max 200
+      expect(player.knownSpells).toContain("shortRest");
       expect(player.inventory).toHaveLength(1); // starting weapon
       expect(player.equippedWeapon).not.toBeNull();
       expect(player.equippedWeapon?.id).toBe("startSword"); // Knight default
@@ -164,25 +170,34 @@ describe("player system", () => {
       const player = createTestPlayer();
       const result = awardXP(player, 100);
       expect(player.xp).toBe(100);
-      expect(result.leveledUp).toBe(false);
-      expect(result.newLevel).toBe(1);
-      expect(result.asiGained).toBe(0);
+      expect(result.pendingLevels).toBe(0);
+      expect(player.level).toBe(1);
     });
 
-    it("levels up when enough XP is gained", () => {
+    it("tracks pending level-ups when enough XP is gained", () => {
+      const player = createTestPlayer();
+      const result = awardXP(player, 400); // xpForLevel(2) = 400
+      expect(result.pendingLevels).toBe(1);
+      expect(player.level).toBe(1); // not yet leveled — pending
+      expect(player.pendingLevelUps).toBe(1);
+    });
+
+    it("applies pending level-ups on processPendingLevelUps", () => {
       const player = createTestPlayer();
       const startHp = player.maxHp;
-      const result = awardXP(player, 400); // xpForLevel(2) = 400
+      awardXP(player, 400);
+      const result = processPendingLevelUps(player);
       expect(result.leveledUp).toBe(true);
       expect(result.newLevel).toBe(2);
       expect(player.level).toBe(2);
       expect(player.maxHp).toBeGreaterThan(startHp);
     });
 
-    it("unlocks spells on level up", () => {
+    it("unlocks spells on level up via processPendingLevelUps", () => {
       const player = createTestPlayer();
       // Level up to 5 to unlock healingWord (Knight spell)
-      const result = awardXP(player, xpForLevel(5 + 1));
+      awardXP(player, xpForLevel(5 + 1));
+      const result = processPendingLevelUps(player);
       const spellIds = result.newSpells.map((s) => s.id);
       expect(spellIds).toContain("healingWord");
       expect(player.knownSpells).toContain("healingWord");
@@ -192,15 +207,18 @@ describe("player system", () => {
       const player = createTestPlayer();
       // Level to 4 (first ASI level): xpForLevel(5) = 2500 is enough to hit 4
       awardXP(player, xpForLevel(4 + 1)); // enough to reach level 4
+      processPendingLevelUps(player);
       expect(player.level).toBeGreaterThanOrEqual(4);
       expect(player.pendingStatPoints).toBe(2);
     });
 
     it("does not grant ASI points at non-ASI levels", () => {
       const player = createTestPlayer();
-      awardXP(player, 400); // level 2
+      awardXP(player, 400); // enough for level 2
+      processPendingLevelUps(player);
       expect(player.pendingStatPoints).toBe(0);
-      awardXP(player, 500); // level 3
+      awardXP(player, 500); // enough for level 3
+      processPendingLevelUps(player);
       expect(player.pendingStatPoints).toBe(0);
     });
   });
@@ -333,18 +351,23 @@ describe("player system", () => {
       expect(startingSpells.size + startingAbilities.size).toBeGreaterThanOrEqual(3);
     });
 
-    it("rogue, barbarian, and monk have no spells (pure martial)", () => {
+    it("rogue, barbarian, and monk have only utility spells (no combat spells)", () => {
       const rogue = createPlayer("Rogue", defaultStats, "rogue");
       const barbarian = createPlayer("Barb", defaultStats, "barbarian");
       const monk = createPlayer("Monk", defaultStats, "monk");
-      expect(rogue.knownSpells).toHaveLength(0);
-      expect(barbarian.knownSpells).toHaveLength(0);
-      expect(monk.knownSpells).toHaveLength(0);
+      // They should only have shortRest (utility) - no combat spells
+      expect(rogue.knownSpells).toContain("shortRest");
+      expect(barbarian.knownSpells).toContain("shortRest");
+      expect(monk.knownSpells).toContain("shortRest");
     });
 
-    it("mage has no martial abilities", () => {
+    it("mage has no martial damage abilities", () => {
       const mage = createPlayer("Mage", defaultStats, "mage");
-      expect(mage.knownAbilities).toHaveLength(0);
+      const damageAbilities = mage.knownAbilities.filter((id) => {
+        const ab = getAbility(id);
+        return ab && ab.type === "damage";
+      });
+      expect(damageAbilities).toHaveLength(0);
     });
 
     it("attack modifier uses class primary stat", () => {
@@ -375,16 +398,18 @@ describe("player system", () => {
       expect(getSpellModifier(cleric)).toBe(5);
     });
 
-    it("monk has martial abilities and no spells", () => {
+    it("monk has martial abilities and only utility spells", () => {
       const monk = createPlayer("Monk", defaultStats, "monk");
       expect(monk.knownAbilities.length).toBeGreaterThan(0);
-      expect(monk.knownSpells).toHaveLength(0);
+      // Monk has shortRest (utility) but no combat spells
+      expect(monk.knownSpells).toContain("shortRest");
     });
 
     it("barbarian has enrage as a bonus action ability", () => {
       const barbarian = createPlayer("Barb", defaultStats, "barbarian");
       // Level up to unlock enrage (level 3)
-      const result = awardXP(barbarian, xpForLevel(4));
+      awardXP(barbarian, xpForLevel(4));
+      const result = processPendingLevelUps(barbarian);
       const newAbilityIds = result.newAbilities.map((a) => a.id);
       expect(newAbilityIds).toContain("enrage");
       const enrage = getAbility("enrage");
@@ -417,6 +442,165 @@ describe("player system", () => {
       expect(bard.knownAbilities.length).toBeGreaterThan(0);
       expect(bard.knownSpells).toContain("viciousMockery");
       expect(bard.knownAbilities).toContain("bardicInspiration");
+    });
+  });
+
+  // ── Short Rest tests ──────────────────────────────────────────
+  describe("shortRest", () => {
+    it("restores 50% HP and 50% MP", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.hp = 10;
+      player.mp = 2;
+      player.shortRestsRemaining = 2;
+
+      const { hpRestored, mpRestored } = shortRest(player);
+      expect(hpRestored).toBe(Math.floor(player.maxHp * 0.5));
+      expect(mpRestored).toBe(Math.floor(player.maxMp * 0.5));
+      expect(player.shortRestsRemaining).toBe(1);
+    });
+
+    it("caps restoration at max values", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.hp = player.maxHp - 1;
+      player.mp = player.maxMp - 1;
+      player.shortRestsRemaining = 2;
+
+      const { hpRestored, mpRestored } = shortRest(player);
+      expect(hpRestored).toBe(1);
+      expect(mpRestored).toBe(1);
+      expect(player.hp).toBe(player.maxHp);
+      expect(player.mp).toBe(player.maxMp);
+    });
+
+    it("decrements shortRestsRemaining each call", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.hp = 1;
+      player.mp = 1;
+      player.shortRestsRemaining = 2;
+      shortRest(player);
+      expect(player.shortRestsRemaining).toBe(1);
+      player.hp = 1;
+      player.mp = 1;
+      shortRest(player);
+      expect(player.shortRestsRemaining).toBe(0);
+    });
+  });
+
+  describe("Short Rest spell via castSpellOutsideCombat", () => {
+    it("fails when no rests remaining", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.shortRestsRemaining = 0;
+
+      const result = castSpellOutsideCombat(player, "shortRest");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("No short rests remaining");
+    });
+
+    it("fails when HP and MP are full", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.shortRestsRemaining = 2;
+
+      const result = castSpellOutsideCombat(player, "shortRest");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("already full");
+    });
+
+    it("succeeds when HP is not full", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.shortRestsRemaining = 2;
+      player.hp = 10;
+      player.mp = 2;
+
+      const result = castSpellOutsideCombat(player, "shortRest");
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("Short Rest");
+      expect(player.shortRestsRemaining).toBe(1);
+    });
+
+    it("limited to 2 uses", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.shortRestsRemaining = 1;
+      player.hp = 10;
+
+      const result1 = castSpellOutsideCombat(player, "shortRest");
+      expect(result1.success).toBe(true);
+      expect(player.shortRestsRemaining).toBe(0);
+
+      player.hp = 10;
+      const result2 = castSpellOutsideCombat(player, "shortRest");
+      expect(result2.success).toBe(false);
+    });
+  });
+
+  describe("castSpellOutsideCombat - heal spells", () => {
+    it("heals with a heal spell", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.hp = 10;
+      player.mp = 10;
+      player.knownSpells.push("cureWounds");
+
+      const result = castSpellOutsideCombat(player, "cureWounds");
+      expect(result.success).toBe(true);
+      expect(player.hp).toBeGreaterThan(10);
+    });
+
+    it("refuses damage spells outside combat", () => {
+      const player = createPlayer("Test", defaultStats, "mage");
+
+      const result = castSpellOutsideCombat(player, "fireBolt");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("damage");
+    });
+
+    it("refuses heal when HP is full", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.mp = 10;
+
+      const result = castSpellOutsideCombat(player, "cureWounds");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("full");
+    });
+  });
+
+  describe("useAbilityOutsideCombat", () => {
+    it("heals with a heal ability", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.hp = 10;
+      player.mp = 10;
+      player.knownAbilities.push("secondWind");
+
+      const result = useAbilityOutsideCombat(player, "secondWind");
+      expect(result.success).toBe(true);
+      expect(player.hp).toBeGreaterThan(10);
+    });
+
+    it("refuses damage abilities outside combat", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      player.knownAbilities.push("shieldBash");
+
+      const result = useAbilityOutsideCombat(player, "shieldBash");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("damage");
+    });
+  });
+
+  describe("createPlayer starts with shortRest spell", () => {
+    it("new player knows shortRest spell", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      expect(player.knownSpells).toContain("shortRest");
+    });
+
+    it("all classes start with shortRest", () => {
+      const classes = ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"];
+      for (const cls of classes) {
+        const player = createPlayer("Test", defaultStats, cls);
+        expect(player.knownSpells, `${cls} should know shortRest`).toContain("shortRest");
+      }
+    });
+
+    it("new player starts with 2 short rests", () => {
+      const player = createPlayer("Test", defaultStats, "knight");
+      expect(player.shortRestsRemaining).toBe(2);
     });
   });
 });

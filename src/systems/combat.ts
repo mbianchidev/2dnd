@@ -152,6 +152,16 @@ export function playerCastSpell(
     };
   }
 
+  // Utility spells cannot be used in combat
+  if (spell.type === "utility") {
+    return {
+      message: `${spell.name} cannot be used in battle!`,
+      damage: 0,
+      hit: false,
+      mpUsed: 0,
+    };
+  }
+
   if (spell.type === "heal") {
     const healAmount = rollDice(
       spell.damageCount,
@@ -312,6 +322,11 @@ export function playerUseAbility(
 
   if (player.mp < ability.mpCost) {
     return { message: "Not enough MP!", damage: 0, hit: false, mpUsed: 0 };
+  }
+
+  // Utility abilities cannot be used in combat
+  if (ability.type === "utility") {
+    return { message: `${ability.name} cannot be used in battle!`, damage: 0, hit: false, mpUsed: 0 };
   }
 
   // Heal abilities

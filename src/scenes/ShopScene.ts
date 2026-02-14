@@ -260,7 +260,7 @@ export class ShopScene extends Phaser.Scene {
       const tag = alreadyOwned ? " [OWNED]" : levelLocked ? ` [Lv.${item.levelReq}]` : "";
 
       const priceLabel = this.discount > 0
-        ? `~~${item.cost}g~~ ${discountedCost}g`
+        ? `${discountedCost}g`
         : `${item.cost}g`;
 
       const text = this.add
@@ -441,6 +441,7 @@ export class ShopScene extends Phaser.Scene {
     this.player.gold -= innCost;
     this.player.hp = this.player.maxHp;
     this.player.mp = this.player.maxMp;
+    this.player.shortRestsRemaining = 2; // refill short rests on long rest
     this.timeStep = targetTimeStep;
     this.setMessage(message, "#88ff88");
     this.updateDisplay();

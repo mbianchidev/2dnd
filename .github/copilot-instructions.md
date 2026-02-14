@@ -31,7 +31,8 @@ src/
 │   ├── combat.ts        # D&D combat mechanics (attack, spell, ability, flee)
 │   ├── player.ts        # Player state, leveling, inventory, Point Buy system
 │   ├── save.ts          # Save/load functionality (localStorage)
-│   ├── appearance.ts    # Character classes & cosmetic customization (primaryStat per class)
+│   ├── classes.ts       # Class definitions (stats, spells, abilities, hit die, default visuals)
+│   ├── appearance.ts    # Cosmetic customization (skin color, hair style, hair color options)
 │   ├── bestiary.ts      # Monster tracking & AC discovery
 │   ├── daynight.ts      # Day/night cycle (360-step: Dawn/Day/Dusk/Night)
 │   ├── weather.ts       # Weather system (Clear/Rain/Snow/Sandstorm/Storm/Fog)

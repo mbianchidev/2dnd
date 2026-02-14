@@ -8,7 +8,7 @@
 
 import Phaser from "phaser";
 import { isDebug, debugLog, debugPanelLog, debugPanelClear, setDebugCommandHandler } from "../config";
-import { awardXP, xpForLevel, type PlayerState } from "./player";
+import { awardXP, processPendingLevelUps, xpForLevel, type PlayerState } from "./player";
 import { getSpell } from "../data/spells";
 import { getItem } from "../data/items";
 
@@ -76,7 +76,8 @@ export function registerSharedHotkeys(
   lKey.on("down", () => {
     if (!isDebug()) return;
     const needed = xpForLevel(player.level + 1) - player.xp;
-    const xpResult = awardXP(player, Math.max(needed, 0));
+    awardXP(player, Math.max(needed, 0));
+    const xpResult = processPendingLevelUps(player);
     debugLog("CHEAT: Level up", { newLevel: xpResult.newLevel });
     debugPanelLog(`[CHEAT] Level up! Now Lv.${xpResult.newLevel}`, true);
     for (const spell of xpResult.newSpells) {
@@ -115,7 +116,8 @@ export function buildSharedCommands(
   const expHandler: CommandHandler = (args) => {
     const val = parseInt(args, 10);
     if (!isNaN(val)) {
-      const result = awardXP(player, val);
+      awardXP(player, val);
+      const result = processPendingLevelUps(player);
       cb.updateUI();
       debugPanelLog(`[CMD] +${val} XP (now Lv.${result.newLevel})`, true);
       if (result.leveledUp) debugPanelLog(`[CMD] Level up to ${result.newLevel}!`, true);

@@ -3,6 +3,7 @@ import {
   rollInitiative,
   playerAttack,
   playerCastSpell,
+  playerUseAbility,
   monsterAttack,
   attemptFlee,
 } from "../src/systems/combat";
@@ -170,6 +171,26 @@ describe("combat system", () => {
       // With 100 attempts and DC 10, we should see both outcomes
       expect(escaped).toBe(true);
       expect(failed).toBe(true);
+    });
+  });
+
+  describe("utility spell/ability combat rejection", () => {
+    it("rejects utility spells in combat", () => {
+      const player = createPlayer("Test", defaultStats);
+      const monster = createTestMonster();
+      const result = playerCastSpell(player, "shortRest", monster);
+      expect(result.hit).toBe(false);
+      expect(result.damage).toBe(0);
+      expect(result.message).toContain("cannot be used in battle");
+    });
+
+    it("rejects utility abilities in combat", () => {
+      const player = createPlayer("Test", defaultStats);
+      const monster = createTestMonster();
+      const result = playerUseAbility(player, "fastTravel", monster);
+      expect(result.hit).toBe(false);
+      expect(result.damage).toBe(0);
+      expect(result.message).toContain("cannot be used in battle");
     });
   });
 });

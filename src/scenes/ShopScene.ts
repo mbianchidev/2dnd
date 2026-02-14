@@ -239,7 +239,7 @@ export class ShopScene extends Phaser.Scene {
     let yOffset = 0;
 
     this.shopItems.forEach((item) => {
-      const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield";
+      const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield" || item.type === "mount";
       const alreadyOwned = isEquipment && ownsEquipment(this.player, item.id);
       const levelLocked = (item.levelReq ?? 0) > this.player.level;
       const discountedCost = Math.max(1, Math.floor(item.cost * (1 - this.discount)));

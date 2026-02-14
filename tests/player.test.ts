@@ -19,6 +19,7 @@ import {
   type PlayerStats,
 } from "../src/systems/player";
 import { ITEMS, getItem } from "../src/data/items";
+import { getAbility } from "../src/data/abilities";
 
 const defaultStats: PlayerStats = {
   strength: 10, dexterity: 10, constitution: 10,
@@ -63,8 +64,10 @@ describe("player system", () => {
       expect(player.maxHp).toBeGreaterThanOrEqual(10);
       expect(player.maxMp).toBeGreaterThanOrEqual(4);
       expect(player.gold).toBe(50);
-      expect(player.knownSpells).toContain("fireBolt");
-      expect(player.inventory).toHaveLength(0);
+      expect(player.knownSpells).toContain("cureWounds");
+      expect(player.inventory).toHaveLength(1); // starting weapon
+      expect(player.equippedWeapon).not.toBeNull();
+      expect(player.equippedWeapon?.id).toBe("startSword"); // Knight default
       expect(player.pendingStatPoints).toBe(0);
       expect(player.openedChests).toEqual([]);
       expect(player.exploredTiles).toEqual({});
@@ -178,11 +181,11 @@ describe("player system", () => {
 
     it("unlocks spells on level up", () => {
       const player = createTestPlayer();
-      // Level up to 3 to unlock cureWounds
-      const result = awardXP(player, 900);
+      // Level up to 5 to unlock healingWord (Knight spell)
+      const result = awardXP(player, xpForLevel(5 + 1));
       const spellIds = result.newSpells.map((s) => s.id);
-      expect(spellIds).toContain("cureWounds");
-      expect(player.knownSpells).toContain("cureWounds");
+      expect(spellIds).toContain("healingWord");
+      expect(player.knownSpells).toContain("healingWord");
     });
 
     it("grants ASI points at D&D levels 4, 8, 12, 16, 19", () => {
@@ -211,8 +214,8 @@ describe("player system", () => {
 
     it("calculates spell modifier correctly", () => {
       const player = createTestPlayer();
-      // INT 10 -> mod 0, proficiency = +2, total = +2
-      expect(getSpellModifier(player)).toBe(2);
+      // Knight: primary stat is STR (12 -> mod +1), proficiency = +2, total = +3
+      expect(getSpellModifier(player)).toBe(3);
     });
 
     it("calculates armor class correctly", () => {
@@ -236,11 +239,12 @@ describe("player system", () => {
 
     it("buys items and deducts gold", () => {
       const player = createTestPlayer();
+      const startingItems = player.inventory.length;
       const potion = ITEMS.find((i) => i.id === "potion")!;
       expect(buyItem(player, potion)).toBe(true);
       expect(player.gold).toBe(35);
-      expect(player.inventory).toHaveLength(1);
-      expect(player.inventory[0].id).toBe("potion");
+      expect(player.inventory).toHaveLength(startingItems + 1);
+      expect(player.inventory[startingItems].id).toBe("potion");
     });
 
     it("fails to buy when insufficient gold", () => {
@@ -254,6 +258,7 @@ describe("player system", () => {
     it("uses healing potions", () => {
       const player = createTestPlayer();
       player.hp = 10;
+      player.inventory = []; // clear starting weapon for this test
       const potion = ITEMS.find((i) => i.id === "potion")!;
       player.inventory.push({ ...potion });
 
@@ -266,6 +271,7 @@ describe("player system", () => {
     it("caps healing at max HP", () => {
       const player = createTestPlayer();
       player.hp = 25; // 5 below max
+      player.inventory = []; // clear starting weapon for this test
       const potion = ITEMS.find((i) => i.id === "potion")!; // heals 20
       player.inventory.push({ ...potion });
 
@@ -277,8 +283,9 @@ describe("player system", () => {
       const player = createTestPlayer();
       const sword = ITEMS.find((i) => i.id === "shortSword")!;
       player.inventory.push({ ...sword });
+      const swordIndex = player.inventory.findIndex((i) => i.id === "shortSword");
 
-      const result = useItem(player, 0);
+      const result = useItem(player, swordIndex);
       expect(result.used).toBe(true);
       expect(player.equippedWeapon?.id).toBe("shortSword");
     });
@@ -310,6 +317,106 @@ describe("player system", () => {
       const prevMaxMp = player.maxMp;
       allocateStatPoint(player, "intelligence");
       expect(player.maxMp).toBe(prevMaxMp + 4); // +1 per level
+    });
+  });
+
+  describe("class differentiation", () => {
+    it("each class has unique starting spell or ability", () => {
+      const startingSpells = new Set<string>();
+      const startingAbilities = new Set<string>();
+      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"]) {
+        const player = createPlayer("Test", defaultStats, classId);
+        if (player.knownSpells.length > 0) startingSpells.add(player.knownSpells[0]);
+        if (player.knownAbilities.length > 0) startingAbilities.add(player.knownAbilities[0]);
+      }
+      // At least 3 distinct starting spells/abilities across classes
+      expect(startingSpells.size + startingAbilities.size).toBeGreaterThanOrEqual(3);
+    });
+
+    it("rogue, barbarian, and monk have no spells (pure martial)", () => {
+      const rogue = createPlayer("Rogue", defaultStats, "rogue");
+      const barbarian = createPlayer("Barb", defaultStats, "barbarian");
+      const monk = createPlayer("Monk", defaultStats, "monk");
+      expect(rogue.knownSpells).toHaveLength(0);
+      expect(barbarian.knownSpells).toHaveLength(0);
+      expect(monk.knownSpells).toHaveLength(0);
+    });
+
+    it("mage has no martial abilities", () => {
+      const mage = createPlayer("Mage", defaultStats, "mage");
+      expect(mage.knownAbilities).toHaveLength(0);
+    });
+
+    it("attack modifier uses class primary stat", () => {
+      // Mage has primaryStat=intelligence, so attack mod depends on INT
+      const mageStats = { ...defaultStats, intelligence: 16 };
+      const mage = createPlayer("Mage", mageStats, "mage");
+      // INT 16+2=18 -> mod +4, proficiency +2 = 6
+      expect(getAttackModifier(mage)).toBe(6);
+
+      // Knight has primaryStat=strength, so attack mod depends on STR
+      const knightStats = { ...defaultStats, strength: 16 };
+      const knight = createPlayer("Knight", knightStats, "knight");
+      // STR 16+2=18 -> mod +4, proficiency +2 = 6
+      expect(getAttackModifier(knight)).toBe(6);
+    });
+
+    it("spell modifier uses class primary stat", () => {
+      // Warlock has primaryStat=charisma
+      const warlockStats = { ...defaultStats, charisma: 14 };
+      const warlock = createPlayer("Warlock", warlockStats, "warlock");
+      // CHA 14+2=16 -> mod +3, proficiency +2 = 5
+      expect(getSpellModifier(warlock)).toBe(5);
+
+      // Cleric has primaryStat=wisdom
+      const clericStats = { ...defaultStats, wisdom: 14 };
+      const cleric = createPlayer("Cleric", clericStats, "cleric");
+      // WIS 14+2=16 -> mod +3, proficiency +2 = 5
+      expect(getSpellModifier(cleric)).toBe(5);
+    });
+
+    it("monk has martial abilities and no spells", () => {
+      const monk = createPlayer("Monk", defaultStats, "monk");
+      expect(monk.knownAbilities.length).toBeGreaterThan(0);
+      expect(monk.knownSpells).toHaveLength(0);
+    });
+
+    it("barbarian has enrage as a bonus action ability", () => {
+      const barbarian = createPlayer("Barb", defaultStats, "barbarian");
+      // Level up to unlock enrage (level 3)
+      const result = awardXP(barbarian, xpForLevel(4));
+      const newAbilityIds = result.newAbilities.map((a) => a.id);
+      expect(newAbilityIds).toContain("enrage");
+      const enrage = getAbility("enrage");
+      expect(enrage).toBeDefined();
+      expect(enrage!.bonusAction).toBe(true);
+    });
+
+    it("each class starts with a weapon equipped", () => {
+      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"]) {
+        const player = createPlayer("Test", defaultStats, classId);
+        expect(player.equippedWeapon, `${classId} should start with a weapon`).not.toBeNull();
+        expect(player.inventory.length, `${classId} should have weapon in inventory`).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    it("different classes start with different weapons", () => {
+      const knight = createPlayer("K", defaultStats, "knight");
+      const mage = createPlayer("M", defaultStats, "mage");
+      const rogue = createPlayer("R", defaultStats, "rogue");
+      const bard = createPlayer("B", defaultStats, "bard");
+      expect(knight.equippedWeapon?.id).toBe("startSword");
+      expect(mage.equippedWeapon?.id).toBe("startStaff");
+      expect(rogue.equippedWeapon?.id).toBe("startDagger");
+      expect(bard.equippedWeapon?.id).toBe("startRapier");
+    });
+
+    it("bard has spells and abilities (hybrid caster)", () => {
+      const bard = createPlayer("Bard", defaultStats, "bard");
+      expect(bard.knownSpells.length).toBeGreaterThan(0);
+      expect(bard.knownAbilities.length).toBeGreaterThan(0);
+      expect(bard.knownSpells).toContain("viciousMockery");
+      expect(bard.knownAbilities).toContain("bardicInspiration");
     });
   });
 });

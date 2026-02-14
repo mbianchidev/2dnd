@@ -115,7 +115,7 @@ describe("mount system", () => {
       const horseItem = getItem("mountHorse")!;
       player.inventory.push({ ...horseItem });
 
-      const result = useItem(player, 0);
+      const result = useItem(player, player.inventory.length - 1);
       expect(result.used).toBe(true);
       expect(result.message).toContain("Horse");
       expect(player.mountId).toBe("horse");
@@ -126,7 +126,7 @@ describe("mount system", () => {
       const warHorseItem = getItem("mountWarHorse")!;
       player.inventory.push({ ...warHorseItem });
 
-      const result = useItem(player, 0);
+      const result = useItem(player, player.inventory.length - 1);
       expect(result.used).toBe(true);
       expect(player.mountId).toBe("warHorse");
     });

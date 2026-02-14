@@ -335,7 +335,7 @@ export function playerUseAbility(
   if (outcome.fumble) {
     return {
       message: `${player.name} uses ${ability.name} but fumbles!`,
-      damage: 0, hit: false, critical: false, roll: 1, ...meta,
+      damage: 0, hit: false, critical: false, roll: outcome.roll, ...meta,
     };
   }
 

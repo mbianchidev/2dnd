@@ -2803,9 +2803,7 @@ export class OverworldScene extends Phaser.Scene {
       `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag}${mountTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
-      `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
-      `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
-      `Bosses: ${this.defeatedBosses.size}`
+      `Bosses: ${this.defeatedBosses.size} | Chests: ${p.openedChests.length}`
     );
   }
 

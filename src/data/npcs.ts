@@ -220,6 +220,34 @@ export const GUARD_DIALOGUES: string[] = [
   "We don't tolerate troublemakers here.",
 ];
 
+// ── Night-specific dialogue pools ──
+
+/** Villager phrases used during night hours. */
+export const VILLAGER_NIGHT_DIALOGUES: string[] = [
+  "Can't sleep... too many strange noises.",
+  "What are you doing out so late?",
+  "The monsters are worse after dark.",
+  "I should be in bed...",
+  "The stars are beautiful tonight.",
+  "Keep your voice down, people are sleeping!",
+  "I heard something howling earlier...",
+  "Be careful, the streets aren't safe at night.",
+  "The inn's still open if you need rest.",
+  "Quiet night... almost too quiet.",
+];
+
+/** Guard NPC dialogue during night hours. */
+export const GUARD_NIGHT_DIALOGUES: string[] = [
+  "Night patrol. Stay vigilant.",
+  "The gates are closed until dawn.",
+  "Keep off the streets after dark.",
+  "I heard something by the walls...",
+  "Another long night shift...",
+  "No trouble tonight, I hope.",
+  "The torches are burning low.",
+  "Watch your step in the dark.",
+];
+
 // ── Per-city NPC placement ──
 
 export interface NpcInstance {
@@ -521,13 +549,15 @@ export function getSpecialNpcDialogue(
  *   pass a reduced value (e.g. 0) until the next dawn.
  */
 export function rollSpecialNpcSpawns(chanceMultiplier = 1): SpecialNpcKind[] {
-  const result: SpecialNpcKind[] = [];
+  const candidates: SpecialNpcKind[] = [];
   for (const kind of SPECIAL_NPC_KINDS) {
     if (Math.random() < SPECIAL_NPC_DEFS[kind].spawnChance * chanceMultiplier) {
-      result.push(kind);
+      candidates.push(kind);
     }
   }
-  return result;
+  if (candidates.length === 0) return [];
+  // Special NPCs never spawn together — pick one at random
+  return [candidates[Math.floor(Math.random() * candidates.length)]];
 }
 
 // ── Helpers ──
@@ -561,15 +591,16 @@ export function getNpcColors(cityId: string, index: number): {
 /**
  * Pick a dialogue line for a regular (non-shopkeeper) NPC.
  * Uses deterministic selection so the same NPC always says the same thing.
+ * When `nightTime` is true, uses night-specific dialogue pools.
  */
-export function getNpcDialogue(cityId: string, index: number, ageGroup: NpcAgeGroup, templateId?: string): string {
+export function getNpcDialogue(cityId: string, index: number, ageGroup: NpcAgeGroup, templateId?: string, nightTime = false): string {
   let pool: string[];
   if (templateId?.startsWith("guard_")) {
-    pool = GUARD_DIALOGUES;
+    pool = nightTime ? GUARD_NIGHT_DIALOGUES : GUARD_DIALOGUES;
   } else if (ageGroup === "child") {
     pool = CHILD_DIALOGUES;
   } else {
-    pool = VILLAGER_DIALOGUES;
+    pool = nightTime ? VILLAGER_NIGHT_DIALOGUES : VILLAGER_DIALOGUES;
   }
   let hash = index * 13;
   for (let i = 0; i < cityId.length; i++) {

@@ -1229,10 +1229,30 @@ export class OverworldScene extends Phaser.Scene {
     return key;
   }
 
+  /** Clear existing city NPCs and re-spawn them (used after inn rest to reflect time change). */
+  private respawnCityNpcs(): void {
+    if (!this.player.inCity) return;
+    const city = getCity(this.player.cityId);
+    if (!city) return;
+    // Destroy existing NPC sprites and timers
+    for (const s of this.cityNpcSprites) s.destroy();
+    this.cityNpcSprites = [];
+    for (const t of this.cityNpcTimers) t.destroy();
+    this.cityNpcTimers = [];
+    this.cityNpcData = [];
+    // Re-spawn
+    this.spawnCityNpcs(city);
+  }
+
   /** Spawn NPC sprites in cities with wandering / stationary behaviour. */
   private spawnCityNpcs(city: CityData): void {
     const npcs = CITY_NPCS[city.id];
     if (!npcs) return;
+
+    const isNight = getTimePeriod(this.timeStep) === TimePeriod.Night;
+
+    // At night, track how many non-essential NPCs we keep (about 30%)
+    let nonEssentialCount = 0;
 
     this.cityNpcData = npcs;
 
@@ -1240,6 +1260,21 @@ export class OverworldScene extends Phaser.Scene {
       const def = npcs[i];
       const tpl = getNpcTemplate(def.templateId);
       if (!tpl) continue;
+
+      // At night, skip most non-essential NPCs (children always go, most villagers too)
+      if (isNight && def.shopIndex === undefined) {
+        const isGuard = def.templateId.startsWith("guard_");
+        const isChild = tpl.ageGroup === "child";
+        if (isChild) {
+          // Children are never out at night
+          continue;
+        }
+        if (!isGuard) {
+          // Keep only ~30% of regular villagers at night
+          nonEssentialCount++;
+          if (nonEssentialCount % 3 !== 0) continue;
+        }
+      }
 
       // Shopkeeper NPCs are placed inside their shop (on the nearest ShopFloor tile)
       let spawnX = def.x;
@@ -1745,6 +1780,7 @@ export class OverworldScene extends Phaser.Scene {
 
     let speakerName: string;
     let line: string;
+    const isNight = getTimePeriod(this.timeStep) === TimePeriod.Night;
 
     if (npcDef.shopIndex !== undefined) {
       const shop = city.shops[npcDef.shopIndex];
@@ -1753,11 +1789,11 @@ export class OverworldScene extends Phaser.Scene {
         line = getShopkeeperDialogue(shop.type, npcIndex);
       } else {
         speakerName = tpl.label;
-        line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId);
+        line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId, isNight);
       }
     } else {
       speakerName = tpl.label;
-      line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId);
+      line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId, isNight);
     }
 
     if (audioEngine.initialized) audioEngine.playDialogueBlips(line);
@@ -1919,6 +1955,13 @@ export class OverworldScene extends Phaser.Scene {
     }
     this.showMessage(fullMsg, "#88ff88");
     this.updateHUD();
+
+    // Update visual tint to reflect new time of day
+    this.applyDayNightTint();
+
+    // Re-spawn city NPCs to reflect time change (fewer at night)
+    this.respawnCityNpcs();
+
     if (levelResult.asiGained > 0 || this.player.pendingStatPoints > 0) {
       this.time.delayedCall(500, () => this.showStatOverlay());
     }
@@ -3354,6 +3397,12 @@ export class OverworldScene extends Phaser.Scene {
                 this.dismissDialogue();
                 this.showInnConfirmation();
               });
+              return;
+            }
+            // Only the inn is open at night — all other shops (including bank) are closed
+            const period = getTimePeriod(this.timeStep);
+            if (period === TimePeriod.Night) {
+              this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
               return;
             }
             if (shop.type === "bank") {

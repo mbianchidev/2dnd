@@ -71,6 +71,7 @@ import {
 } from "../data/npcs";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
+import { tryGridMove } from "../systems/movement";
 
 const TILE_SIZE = 32;
 
@@ -3160,54 +3161,22 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private tryMove(dx: number, dy: number, time: number): void {
-    let newX = this.player.x + dx;
-    let newY = this.player.y + dy;
-
-    // In dungeon: no chunk transitions, just wall checks
-    if (this.player.inDungeon) {
-      const dungeon = getDungeon(this.player.dungeonId);
-      if (!dungeon) return;
-      if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
-      const terrain = dungeon.mapData[newY][newX];
-      if (!isWalkable(terrain)) return;
-
-      this.lastMoveTime = time;
-      this.isMoving = true;
-      this.player.x = newX;
-      this.player.y = newY;
-
-      // Footstep sound for dungeon terrain
-      if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
-
-      this.tweenPlayerTo(newX, newY, 120, () => {
-        this.isMoving = false;
-        this.advanceTime();
-        this.revealAround();
-        this.revealTileSprites();
-        this.collectMinorTreasure();
-        this.updateHUD();
-        this.updateLocationText();
-        this.checkEncounter(terrain);
-      });
-      return;
-    }
-
-    // In city: no chunk transitions, no encounters
+    // ── City-specific pre-checks (shop access rules) ────────────
     if (this.player.inCity) {
-      // Dismiss any open overlays when moving
       this.dismissDialogue();
       this.dismissInnConfirmation();
       this.dismissBankOverlay();
 
       const city = getCity(this.player.cityId);
       if (!city) return;
-      if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
-      const terrain = city.mapData[newY][newX];
-      if (!isWalkable(terrain)) return;
+      const targetX = this.player.x + dx;
+      const targetY = this.player.y + dy;
+      if (targetX < 0 || targetX >= MAP_WIDTH || targetY < 0 || targetY >= MAP_HEIGHT) return;
+      const targetTerrain = city.mapData[targetY][targetX];
 
       // Block entry to shops at night (except inn)
-      if ((terrain === Terrain.Carpet || terrain === Terrain.ShopFloor) && getTimePeriod(this.timeStep) === TimePeriod.Night) {
-        const nearbyShop = getCityShopNearby(city, newX, newY);
+      if ((targetTerrain === Terrain.Carpet || targetTerrain === Terrain.ShopFloor) && getTimePeriod(this.timeStep) === TimePeriod.Night) {
+        const nearbyShop = getCityShopNearby(city, targetX, targetY);
         if (nearbyShop && nearbyShop.type !== "inn") {
           this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
           return;
@@ -3215,79 +3184,37 @@ export class OverworldScene extends Phaser.Scene {
       }
 
       // Shop interior only accessible via the carpet entrance
-      if (terrain === Terrain.ShopFloor) {
+      if (targetTerrain === Terrain.ShopFloor) {
         const curTerrain = city.mapData[this.player.y]?.[this.player.x];
         if (curTerrain !== Terrain.Carpet && curTerrain !== Terrain.ShopFloor) {
-          return; // silently block — player can't walk through walls into a shop
+          return;
         }
       }
 
       // Shop exit only through the carpet (door)
       const curTerrain = city.mapData[this.player.y]?.[this.player.x];
-      if (curTerrain === Terrain.ShopFloor && terrain !== Terrain.ShopFloor && terrain !== Terrain.Carpet) {
-        return; // silently block — must leave through the door
+      if (curTerrain === Terrain.ShopFloor && targetTerrain !== Terrain.ShopFloor && targetTerrain !== Terrain.Carpet) {
+        return;
       }
+    } else {
+      // Dismiss dialogue overlays on overworld movement
+      this.dismissDialogue();
+    }
 
-      this.lastMoveTime = time;
-      this.isMoving = true;
-      this.player.x = newX;
-      this.player.y = newY;
-
-      // Footstep sound for city terrain
-      if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
-
-      this.tweenPlayerTo(newX, newY, 120, () => {
-        this.isMoving = false;
-        this.advanceTime();
-        this.revealAround();
-        this.revealTileSprites();
-        this.updateHUD();
-        this.updateLocationText();
-        this.updateShopRoofAlpha();
-        // No encounters in cities
-      });
+    // ── Shared position resolution via tryGridMove ──────────────
+    const result = tryGridMove(this.player, dx, dy);
+    if (!result.moved) {
+      if (!this.player.inDungeon && !this.player.inCity) {
+        debugLog("Blocked move", { dx, dy });
+      }
       return;
     }
-
-    let newChunkX = this.player.chunkX;
-    let newChunkY = this.player.chunkY;
-
-    // Dismiss any open dialogue overlay when moving on the overworld
-    this.dismissDialogue();
-
-    // Chunk transition detection
-    if (newX < 0) {
-      newChunkX--;
-      newX = MAP_WIDTH - 1;
-    } else if (newX >= MAP_WIDTH) {
-      newChunkX++;
-      newX = 0;
-    }
-    if (newY < 0) {
-      newChunkY--;
-      newY = MAP_HEIGHT - 1;
-    } else if (newY >= MAP_HEIGHT) {
-      newChunkY++;
-      newY = 0;
-    }
-
-    const terrain = getTerrainAt(newChunkX, newChunkY, newX, newY);
-    if (terrain === undefined || !isWalkable(terrain)) {
-      debugLog("Blocked move", { to: { x: newX, y: newY, cx: newChunkX, cy: newChunkY }, terrain });
-      return;
-    }
-
-    const chunkChanged = newChunkX !== this.player.chunkX || newChunkY !== this.player.chunkY;
 
     this.lastMoveTime = time;
     this.isMoving = true;
-    this.player.x = newX;
-    this.player.y = newY;
-    this.player.chunkX = newChunkX;
-    this.player.chunkY = newChunkY;
 
-    if (chunkChanged) {
-      // Chunk transition — flash, re-roll weather for the new zone, and re-render
+    // Handle chunk transition (overworld only)
+    if (result.chunkChanged) {
       this.advanceTime();
       this.rerollWeather();
       this.cameras.main.flash(200, 255, 255, 255);
@@ -3301,24 +3228,29 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    // Footstep sound — hoofbeats when mounted, terrain SFX when on foot
-    if (audioEngine.initialized && terrain !== undefined) {
-      if (this.player.mountId) {
+    // ── Footstep audio ─────────────────────────────────────────
+    if (audioEngine.initialized && result.newTerrain !== undefined) {
+      if (!this.player.inDungeon && !this.player.inCity && this.player.mountId) {
         audioEngine.playMountedFootstepSFX();
       } else {
-        audioEngine.playFootstepSFX(terrain);
+        audioEngine.playFootstepSFX(result.newTerrain);
       }
     }
 
-    this.tweenPlayerTo(newX, newY, 120, () => {
+    // ── Tween to new position + post-move callbacks ────────────
+    this.tweenPlayerTo(this.player.x, this.player.y, 120, () => {
       this.isMoving = false;
       this.advanceTime();
       this.revealAround();
       this.revealTileSprites();
-      this.collectMinorTreasure();
+      if (!this.player.inCity) this.collectMinorTreasure();
       this.updateHUD();
       this.updateLocationText();
-      this.checkEncounter(terrain);
+      if (this.player.inCity) {
+        this.updateShopRoofAlpha();
+      } else {
+        this.checkEncounter(result.newTerrain!);
+      }
     });
   }
 

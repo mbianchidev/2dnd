@@ -9,6 +9,7 @@ import type { Ability } from "../data/abilities";
 import { ABILITIES, getAbility } from "../data/abilities";
 import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "../data/talents";
 import type { Item } from "../data/items";
+import { getItem } from "../data/items";
 import { getAppearance, getClassSpells, getClassAbilities } from "./appearance";
 
 export interface PlayerStats {
@@ -113,8 +114,8 @@ export function createPlayer(
   const startHp = Math.max(10, 25 + conMod * 3);
   const startMp = Math.max(4, 8 + intMod * 2);
 
-  // Starting spell — first spell in the class list
-  const startingSpell = appearance.spells[0] ?? "fireBolt";
+  // Starting spell — first spell in the class list (empty for pure martial)
+  const startingSpells: string[] = appearance.spells.length > 0 ? [appearance.spells[0]] : [];
 
   // Starting abilities — all class abilities available at level 1
   const classAbilities = appearance.abilities ?? [];
@@ -122,6 +123,9 @@ export function createPlayer(
     const ab = getAbility(id);
     return ab && ab.levelRequired <= 1;
   });
+
+  // Starting weapon from class definition
+  const startWeapon = getItem(appearance.startingWeaponId) ?? null;
 
   return {
     name,
@@ -134,11 +138,11 @@ export function createPlayer(
     stats,
     pendingStatPoints: 0,
     gold: 50,
-    inventory: [],
-    knownSpells: [startingSpell],
+    inventory: startWeapon ? [startWeapon] : [],
+    knownSpells: startingSpells,
     knownAbilities: startingAbilities,
     knownTalents: [],
-    equippedWeapon: null,
+    equippedWeapon: startWeapon,
     equippedArmor: null,
     equippedShield: null,
     appearanceId,
@@ -178,16 +182,20 @@ export function applyBankInterest(player: PlayerState, currentDay: number): numb
   return player.bankBalance - oldBalance;
 }
 
-/** Get the attack modifier for the player (STR-based melee). */
+/** Get the attack modifier for the player (uses class primary stat for melee). */
 export function getAttackModifier(player: PlayerState): number {
+  const appearance = getAppearance(player.appearanceId);
+  const primaryStatValue = player.stats[appearance.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(player.stats.strength) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
+  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
 
-/** Get the spell attack modifier (INT-based). */
+/** Get the spell attack modifier (uses class primary stat for casters). */
 export function getSpellModifier(player: PlayerState): number {
+  const appearance = getAppearance(player.appearanceId);
+  const primaryStatValue = player.stats[appearance.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(player.stats.intelligence) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
+  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
 
 /** Get the player's armor class. Optionally add a temporary bonus (e.g. from defending). */
@@ -222,7 +230,7 @@ export function awardXP(
 
     // Increase HP/MP on level up
     const conMod = abilityModifier(player.stats.constitution);
-    const hpGain = Math.max(1, rollHitDie() + conMod);
+    const hpGain = Math.max(1, rollHitDie(player.appearanceId) + conMod);
     player.maxHp += hpGain;
     player.hp = player.maxHp;
 
@@ -288,8 +296,9 @@ export function awardXP(
   return { leveledUp, newLevel: player.level, newSpells, newAbilities, newTalents, asiGained };
 }
 
-function rollHitDie(): number {
-  return Math.floor(Math.random() * 8) + 1; // d8 hit die
+function rollHitDie(appearanceId: string = "knight"): number {
+  const appearance = getAppearance(appearanceId);
+  return Math.floor(Math.random() * appearance.hitDie) + 1;
 }
 
 /** Check if the player can afford an item. */

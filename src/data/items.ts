@@ -2,6 +2,8 @@
  * Item definitions for the game.
  */
 
+export type WeaponSpriteType = "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist";
+
 export interface Item {
   id: string;
   name: string;
@@ -10,6 +12,8 @@ export interface Item {
   cost: number;
   effect: number; // healing amount, attack bonus, AC bonus, etc.
   twoHanded?: boolean; // weapons only — cannot equip a shield with a two-handed weapon
+  /** Visual weapon type for sprite rendering (weapons only). */
+  weaponSprite?: WeaponSpriteType;
   levelReq?: number; // minimum player level to purchase
 }
 
@@ -39,6 +43,72 @@ export const ITEMS: Item[] = [
     effect: 50,
     levelReq: 5,
   },
+  // --- Class starting weapons (cost 0, given at character creation) ---
+  {
+    id: "startSword",
+    name: "Longsword",
+    description: "+1 attack, standard issue",
+    type: "weapon",
+    cost: 0,
+    effect: 1,
+    weaponSprite: "sword",
+  },
+  {
+    id: "startBow",
+    name: "Shortbow",
+    description: "+1 attack, simple ranged",
+    type: "weapon",
+    cost: 0,
+    effect: 1,
+    twoHanded: true,
+    weaponSprite: "bow",
+  },
+  {
+    id: "startStaff",
+    name: "Quarterstaff",
+    description: "+1 attack, arcane focus",
+    type: "weapon",
+    cost: 0,
+    effect: 1,
+    weaponSprite: "staff",
+  },
+  {
+    id: "startDagger",
+    name: "Dagger",
+    description: "+1 attack, light and concealable",
+    type: "weapon",
+    cost: 0,
+    effect: 1,
+    weaponSprite: "dagger",
+  },
+  {
+    id: "startMace",
+    name: "Mace",
+    description: "+1 attack, blessed weapon",
+    type: "weapon",
+    cost: 0,
+    effect: 1,
+    weaponSprite: "mace",
+  },
+  {
+    id: "startAxe",
+    name: "Handaxe",
+    description: "+1 attack, brutal and simple",
+    type: "weapon",
+    cost: 0,
+    effect: 1,
+    weaponSprite: "axe",
+  },
+  {
+    id: "startRapier",
+    name: "Rapier",
+    description: "+1 attack, elegant and swift",
+    type: "weapon",
+    cost: 0,
+    effect: 1,
+    weaponSprite: "sword",
+  },
+  // --- Shop weapons ---
   {
     id: "shortSword",
     name: "Short Sword",
@@ -46,6 +116,7 @@ export const ITEMS: Item[] = [
     type: "weapon",
     cost: 30,
     effect: 2,
+    weaponSprite: "sword",
   },
   {
     id: "longSword",
@@ -54,6 +125,7 @@ export const ITEMS: Item[] = [
     type: "weapon",
     cost: 80,
     effect: 4,
+    weaponSprite: "sword",
     levelReq: 3,
   },
   {
@@ -64,6 +136,7 @@ export const ITEMS: Item[] = [
     cost: 200,
     effect: 7,
     twoHanded: true,
+    weaponSprite: "sword",
     levelReq: 5,
   },
   {
@@ -134,6 +207,7 @@ export const ITEMS: Item[] = [
     type: "weapon",
     cost: 0,
     effect: 6,
+    weaponSprite: "sword",
   },
   {
     id: "shadowCloak",
@@ -158,6 +232,7 @@ export const ITEMS: Item[] = [
     type: "weapon",
     cost: 0,
     effect: 5,
+    weaponSprite: "dagger",
   },
   // --- Treasure items from expanded biome dungeons and overworld ---
   {
@@ -167,6 +242,7 @@ export const ITEMS: Item[] = [
     type: "weapon",
     cost: 0,
     effect: 7,
+    weaponSprite: "sword",
   },
   {
     id: "tundraPelt",
@@ -191,6 +267,7 @@ export const ITEMS: Item[] = [
     type: "weapon",
     cost: 0,
     effect: 8,
+    weaponSprite: "mace",
   },
   {
     id: "volcanicShield",
@@ -207,6 +284,7 @@ export const ITEMS: Item[] = [
     type: "weapon",
     cost: 0,
     effect: 6,
+    weaponSprite: "sword",
   },
   {
     id: "swampMantle",
@@ -224,6 +302,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 5,
     twoHanded: true,
+    weaponSprite: "bow",
   },
 ];
 

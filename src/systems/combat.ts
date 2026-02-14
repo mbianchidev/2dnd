@@ -208,7 +208,7 @@ export function playerCastSpell(
 
 /** Monster attacks the player. Returns roll breakdown for debug logging.
  *  weatherPenalty raises the effective AC the monster must beat.
- *  monsterAtkBoost/monsterDmgBoost come from weather affinity. */
+ *  monsterAtkBoost comes from weather affinity. */
 export function monsterAttack(
   monster: Monster,
   player: PlayerState,
@@ -326,10 +326,8 @@ export function playerUseAbility(
     };
   }
 
-  // Damage ability — uses STR or DEX
-  const stat = ability.statKey === "strength"
-    ? player.stats.strength
-    : player.stats.dexterity;
+  // Damage ability — uses STR, DEX, or WIS
+  const stat = player.stats[ability.statKey];
   const profBonus = Math.floor((player.level - 1) / 4) + 2;
   const talentAtk = getTalentAttackBonus(player.knownTalents ?? []);
   const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);

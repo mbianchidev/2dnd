@@ -11,9 +11,6 @@ import {
   buyItem,
   canAfford,
   useItem,
-  castSpellOutsideCombat,
-  useAbilityOutsideCombat,
-  shortRest,
   calculatePointsSpent,
   isValidPointBuy,
   POINT_BUY_COSTS,
@@ -22,6 +19,7 @@ import {
   type PlayerStats,
 } from "../src/systems/player";
 import { ITEMS, getItem } from "../src/data/items";
+import { getAbility } from "../src/data/abilities";
 
 const defaultStats: PlayerStats = {
   strength: 10, dexterity: 10, constitution: 10,
@@ -66,8 +64,10 @@ describe("player system", () => {
       expect(player.maxHp).toBeGreaterThanOrEqual(10);
       expect(player.maxMp).toBeGreaterThanOrEqual(4);
       expect(player.gold).toBe(50);
-      expect(player.knownSpells).toContain("fireBolt");
-      expect(player.inventory).toHaveLength(0);
+      expect(player.knownSpells).toContain("cureWounds");
+      expect(player.inventory).toHaveLength(1); // starting weapon
+      expect(player.equippedWeapon).not.toBeNull();
+      expect(player.equippedWeapon?.id).toBe("startSword"); // Knight default
       expect(player.pendingStatPoints).toBe(0);
       expect(player.openedChests).toEqual([]);
       expect(player.exploredTiles).toEqual({});
@@ -181,11 +181,11 @@ describe("player system", () => {
 
     it("unlocks spells on level up", () => {
       const player = createTestPlayer();
-      // Level up to 3 to unlock cureWounds
-      const result = awardXP(player, 900);
+      // Level up to 5 to unlock healingWord (Knight spell)
+      const result = awardXP(player, xpForLevel(5 + 1));
       const spellIds = result.newSpells.map((s) => s.id);
-      expect(spellIds).toContain("cureWounds");
-      expect(player.knownSpells).toContain("cureWounds");
+      expect(spellIds).toContain("healingWord");
+      expect(player.knownSpells).toContain("healingWord");
     });
 
     it("grants ASI points at D&D levels 4, 8, 12, 16, 19", () => {
@@ -214,8 +214,8 @@ describe("player system", () => {
 
     it("calculates spell modifier correctly", () => {
       const player = createTestPlayer();
-      // INT 10 -> mod 0, proficiency = +2, total = +2
-      expect(getSpellModifier(player)).toBe(2);
+      // Knight: primary stat is STR (12 -> mod +1), proficiency = +2, total = +3
+      expect(getSpellModifier(player)).toBe(3);
     });
 
     it("calculates armor class correctly", () => {
@@ -239,11 +239,12 @@ describe("player system", () => {
 
     it("buys items and deducts gold", () => {
       const player = createTestPlayer();
+      const startingItems = player.inventory.length;
       const potion = ITEMS.find((i) => i.id === "potion")!;
       expect(buyItem(player, potion)).toBe(true);
       expect(player.gold).toBe(35);
-      expect(player.inventory).toHaveLength(1);
-      expect(player.inventory[0].id).toBe("potion");
+      expect(player.inventory).toHaveLength(startingItems + 1);
+      expect(player.inventory[startingItems].id).toBe("potion");
     });
 
     it("fails to buy when insufficient gold", () => {
@@ -257,6 +258,7 @@ describe("player system", () => {
     it("uses healing potions", () => {
       const player = createTestPlayer();
       player.hp = 10;
+      player.inventory = []; // clear starting weapon for this test
       const potion = ITEMS.find((i) => i.id === "potion")!;
       player.inventory.push({ ...potion });
 
@@ -269,6 +271,7 @@ describe("player system", () => {
     it("caps healing at max HP", () => {
       const player = createTestPlayer();
       player.hp = 25; // 5 below max
+      player.inventory = []; // clear starting weapon for this test
       const potion = ITEMS.find((i) => i.id === "potion")!; // heals 20
       player.inventory.push({ ...potion });
 
@@ -280,33 +283,11 @@ describe("player system", () => {
       const player = createTestPlayer();
       const sword = ITEMS.find((i) => i.id === "shortSword")!;
       player.inventory.push({ ...sword });
+      const swordIndex = player.inventory.findIndex((i) => i.id === "shortSword");
 
-      const result = useItem(player, 0);
+      const result = useItem(player, swordIndex);
       expect(result.used).toBe(true);
       expect(player.equippedWeapon?.id).toBe("shortSword");
-    });
-
-    it("uses greater healing potions", () => {
-      const player = createTestPlayer();
-      player.hp = 10;
-      const greaterPotion = ITEMS.find((i) => i.id === "greaterPotion")!;
-      player.inventory.push({ ...greaterPotion });
-
-      const result = useItem(player, 0);
-      expect(result.used).toBe(true);
-      expect(player.hp).toBe(Math.min(10 + 50, player.maxHp));
-      expect(player.inventory).toHaveLength(0);
-    });
-
-    it("uses Chimaera Wing item", () => {
-      const player = createTestPlayer();
-      const wing = ITEMS.find((i) => i.id === "chimaeraWing")!;
-      player.inventory.push({ ...wing });
-
-      const result = useItem(player, 0);
-      expect(result.used).toBe(true);
-      expect(result.message).toContain("Chimaera Wing");
-      expect(player.inventory).toHaveLength(0);
     });
   });
 
@@ -339,246 +320,103 @@ describe("player system", () => {
     });
   });
 
-  describe("castSpellOutsideCombat", () => {
-    it("heals with a heal spell outside combat", () => {
-      const player = createTestPlayer();
-      player.hp = 10;
-      player.mp = 20;
-      player.knownSpells.push("cureWounds");
-
-      const result = castSpellOutsideCombat(player, "cureWounds");
-      expect(result.success).toBe(true);
-      expect(result.message).toContain("healed");
-      expect(player.hp).toBeGreaterThan(10);
-      expect(player.mp).toBeLessThan(20);
+  describe("class differentiation", () => {
+    it("each class has unique starting spell or ability", () => {
+      const startingSpells = new Set<string>();
+      const startingAbilities = new Set<string>();
+      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"]) {
+        const player = createPlayer("Test", defaultStats, classId);
+        if (player.knownSpells.length > 0) startingSpells.add(player.knownSpells[0]);
+        if (player.knownAbilities.length > 0) startingAbilities.add(player.knownAbilities[0]);
+      }
+      // At least 3 distinct starting spells/abilities across classes
+      expect(startingSpells.size + startingAbilities.size).toBeGreaterThanOrEqual(3);
     });
 
-    it("rejects damage spells outside combat", () => {
-      const player = createTestPlayer();
-      player.mp = 20;
-      player.knownSpells.push("fireBolt");
-
-      const result = castSpellOutsideCombat(player, "fireBolt");
-      expect(result.success).toBe(false);
-      expect(result.message).toContain("damage");
+    it("rogue, barbarian, and monk have no spells (pure martial)", () => {
+      const rogue = createPlayer("Rogue", defaultStats, "rogue");
+      const barbarian = createPlayer("Barb", defaultStats, "barbarian");
+      const monk = createPlayer("Monk", defaultStats, "monk");
+      expect(rogue.knownSpells).toHaveLength(0);
+      expect(barbarian.knownSpells).toHaveLength(0);
+      expect(monk.knownSpells).toHaveLength(0);
     });
 
-    it("rejects heal spells when HP is full", () => {
-      const player = createTestPlayer();
-      player.mp = 20;
-      player.knownSpells.push("cureWounds");
-
-      const result = castSpellOutsideCombat(player, "cureWounds");
-      expect(result.success).toBe(false);
-      expect(result.message).toContain("full");
+    it("mage has no martial abilities", () => {
+      const mage = createPlayer("Mage", defaultStats, "mage");
+      expect(mage.knownAbilities).toHaveLength(0);
     });
 
-    it("rejects spells when not enough MP", () => {
-      const player = createTestPlayer();
-      player.hp = 10;
-      player.mp = 0;
-      player.knownSpells.push("cureWounds");
+    it("attack modifier uses class primary stat", () => {
+      // Mage has primaryStat=intelligence, so attack mod depends on INT
+      const mageStats = { ...defaultStats, intelligence: 16 };
+      const mage = createPlayer("Mage", mageStats, "mage");
+      // INT 16+2=18 -> mod +4, proficiency +2 = 6
+      expect(getAttackModifier(mage)).toBe(6);
 
-      const result = castSpellOutsideCombat(player, "cureWounds");
-      expect(result.success).toBe(false);
-      expect(result.message).toContain("MP");
+      // Knight has primaryStat=strength, so attack mod depends on STR
+      const knightStats = { ...defaultStats, strength: 16 };
+      const knight = createPlayer("Knight", knightStats, "knight");
+      // STR 16+2=18 -> mod +4, proficiency +2 = 6
+      expect(getAttackModifier(knight)).toBe(6);
     });
 
-    it("casts utility spell (Teleport) outside combat", () => {
-      const player = createTestPlayer();
-      player.mp = 20;
-      player.knownSpells.push("teleport");
+    it("spell modifier uses class primary stat", () => {
+      // Warlock has primaryStat=charisma
+      const warlockStats = { ...defaultStats, charisma: 14 };
+      const warlock = createPlayer("Warlock", warlockStats, "warlock");
+      // CHA 14+2=16 -> mod +3, proficiency +2 = 5
+      expect(getSpellModifier(warlock)).toBe(5);
 
-      const result = castSpellOutsideCombat(player, "teleport");
-      expect(result.success).toBe(true);
-      expect(result.message).toContain("Teleport");
-      expect(player.mp).toBe(12); // 20 - 8
+      // Cleric has primaryStat=wisdom
+      const clericStats = { ...defaultStats, wisdom: 14 };
+      const cleric = createPlayer("Cleric", clericStats, "cleric");
+      // WIS 14+2=16 -> mod +3, proficiency +2 = 5
+      expect(getSpellModifier(cleric)).toBe(5);
     });
 
-    it("returns failure for unknown spell", () => {
-      const player = createTestPlayer();
-      const result = castSpellOutsideCombat(player, "nonexistent");
-      expect(result.success).toBe(false);
-    });
-  });
-
-  describe("useAbilityOutsideCombat", () => {
-    it("heals with a heal ability outside combat", () => {
-      const player = createTestPlayer();
-      player.hp = 10;
-      player.mp = 20;
-      player.knownAbilities = ["secondWind"];
-
-      const result = useAbilityOutsideCombat(player, "secondWind");
-      expect(result.success).toBe(true);
-      expect(result.message).toContain("healed");
-      expect(player.hp).toBeGreaterThan(10);
-      expect(player.mp).toBeLessThan(20);
+    it("monk has martial abilities and no spells", () => {
+      const monk = createPlayer("Monk", defaultStats, "monk");
+      expect(monk.knownAbilities.length).toBeGreaterThan(0);
+      expect(monk.knownSpells).toHaveLength(0);
     });
 
-    it("rejects damage abilities outside combat", () => {
-      const player = createTestPlayer();
-      player.mp = 20;
-      player.knownAbilities = ["shieldBash"];
-
-      const result = useAbilityOutsideCombat(player, "shieldBash");
-      expect(result.success).toBe(false);
-      expect(result.message).toContain("damage");
+    it("barbarian has enrage as a bonus action ability", () => {
+      const barbarian = createPlayer("Barb", defaultStats, "barbarian");
+      // Level up to unlock enrage (level 3)
+      const result = awardXP(barbarian, xpForLevel(4));
+      const newAbilityIds = result.newAbilities.map((a) => a.id);
+      expect(newAbilityIds).toContain("enrage");
+      const enrage = getAbility("enrage");
+      expect(enrage).toBeDefined();
+      expect(enrage!.bonusAction).toBe(true);
     });
 
-    it("rejects heal abilities when HP is full", () => {
-      const player = createTestPlayer();
-      player.mp = 20;
-      player.knownAbilities = ["secondWind"];
-
-      const result = useAbilityOutsideCombat(player, "secondWind");
-      expect(result.success).toBe(false);
-      expect(result.message).toContain("full");
-    });
-
-    it("rejects abilities when not enough MP", () => {
-      const player = createTestPlayer();
-      player.hp = 10;
-      player.mp = 0;
-      player.knownAbilities = ["secondWind"];
-
-      const result = useAbilityOutsideCombat(player, "secondWind");
-      expect(result.success).toBe(false);
-      expect(result.message).toContain("MP");
-    });
-
-    it("uses utility ability (Fast Travel) outside combat", () => {
-      const player = createTestPlayer();
-      player.mp = 20;
-      player.knownAbilities = ["fastTravel"];
-
-      const result = useAbilityOutsideCombat(player, "fastTravel");
-      expect(result.success).toBe(true);
-      expect(result.message).toContain("Fast Travel");
-      expect(player.mp).toBe(15); // 20 - 5
-    });
-
-    it("returns failure for unknown ability", () => {
-      const player = createTestPlayer();
-      const result = useAbilityOutsideCombat(player, "nonexistent");
-      expect(result.success).toBe(false);
-    });
-  });
-
-  describe("shortRest", () => {
-    it("restores 50% HP and 50% MP", () => {
-      const player = createTestPlayer();
-      player.hp = 10;
-      player.mp = 2;
-      player.shortRestsRemaining = 2;
-
-      const { hpRestored, mpRestored } = shortRest(player);
-      expect(hpRestored).toBe(Math.floor(player.maxHp * 0.5));
-      expect(mpRestored).toBe(Math.floor(player.maxMp * 0.5));
-      expect(player.shortRestsRemaining).toBe(1);
-    });
-
-    it("caps restoration at max values", () => {
-      const player = createTestPlayer();
-      player.hp = player.maxHp - 1;
-      player.mp = player.maxMp - 1;
-      player.shortRestsRemaining = 2;
-
-      const { hpRestored, mpRestored } = shortRest(player);
-      expect(hpRestored).toBe(1);
-      expect(mpRestored).toBe(1);
-      expect(player.hp).toBe(player.maxHp);
-      expect(player.mp).toBe(player.maxMp);
-    });
-
-    it("decrements shortRestsRemaining each call", () => {
-      const player = createTestPlayer();
-      player.hp = 1;
-      player.mp = 1;
-      player.shortRestsRemaining = 2;
-      shortRest(player);
-      expect(player.shortRestsRemaining).toBe(1);
-      player.hp = 1;
-      player.mp = 1;
-      shortRest(player);
-      expect(player.shortRestsRemaining).toBe(0);
-    });
-  });
-
-  describe("Short Rest spell via castSpellOutsideCombat", () => {
-    it("fails when no rests remaining", () => {
-      const player = createTestPlayer();
-      player.knownSpells.push("shortRest");
-      player.shortRestsRemaining = 0;
-
-      const result = castSpellOutsideCombat(player, "shortRest");
-      expect(result.success).toBe(false);
-      expect(result.message).toContain("No short rests remaining");
-    });
-
-    it("fails when HP and MP are full", () => {
-      const player = createTestPlayer();
-      player.knownSpells.push("shortRest");
-      player.shortRestsRemaining = 2;
-
-      const result = castSpellOutsideCombat(player, "shortRest");
-      expect(result.success).toBe(false);
-      expect(result.message).toContain("already full");
-    });
-
-    it("succeeds when HP is not full", () => {
-      const player = createTestPlayer();
-      player.knownSpells.push("shortRest");
-      player.shortRestsRemaining = 2;
-      player.hp = 10;
-      player.mp = 2;
-
-      const result = castSpellOutsideCombat(player, "shortRest");
-      expect(result.success).toBe(true);
-      expect(result.message).toContain("Short Rest");
-      expect(player.shortRestsRemaining).toBe(1);
-      expect(player.hp).toBeGreaterThan(10);
-      expect(player.mp).toBeGreaterThan(2);
-    });
-
-    it("limited to 2 uses", () => {
-      const player = createTestPlayer();
-      player.knownSpells.push("shortRest");
-      player.shortRestsRemaining = 1;
-      player.hp = 10;
-
-      const result1 = castSpellOutsideCombat(player, "shortRest");
-      expect(result1.success).toBe(true);
-      expect(player.shortRestsRemaining).toBe(0);
-
-      player.hp = 10;
-      const result2 = castSpellOutsideCombat(player, "shortRest");
-      expect(result2.success).toBe(false);
-    });
-  });
-
-  describe("createPlayer starts with shortRest spell", () => {
-    it("new player knows shortRest spell", () => {
-      const player = createPlayer("Test", defaultStats, "knight");
-      expect(player.knownSpells).toContain("shortRest");
-    });
-
-    it("all classes start with shortRest", () => {
-      const classes = ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian"];
-      for (const cls of classes) {
-        const player = createPlayer("Test", defaultStats, cls);
-        expect(player.knownSpells, `${cls} should know shortRest`).toContain("shortRest");
+    it("each class starts with a weapon equipped", () => {
+      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"]) {
+        const player = createPlayer("Test", defaultStats, classId);
+        expect(player.equippedWeapon, `${classId} should start with a weapon`).not.toBeNull();
+        expect(player.inventory.length, `${classId} should have weapon in inventory`).toBeGreaterThanOrEqual(1);
       }
     });
 
-    it("new player starts with 2 short rests", () => {
-      const player = createPlayer("Test", defaultStats, "knight");
-      expect(player.shortRestsRemaining).toBe(2);
+    it("different classes start with different weapons", () => {
+      const knight = createPlayer("K", defaultStats, "knight");
+      const mage = createPlayer("M", defaultStats, "mage");
+      const rogue = createPlayer("R", defaultStats, "rogue");
+      const bard = createPlayer("B", defaultStats, "bard");
+      expect(knight.equippedWeapon?.id).toBe("startSword");
+      expect(mage.equippedWeapon?.id).toBe("startStaff");
+      expect(rogue.equippedWeapon?.id).toBe("startDagger");
+      expect(bard.equippedWeapon?.id).toBe("startRapier");
     });
 
-    it("new player also knows fireBolt", () => {
-      const player = createPlayer("Test", defaultStats, "knight");
-      expect(player.knownSpells).toContain("fireBolt");
+    it("bard has spells and abilities (hybrid caster)", () => {
+      const bard = createPlayer("Bard", defaultStats, "bard");
+      expect(bard.knownSpells.length).toBeGreaterThan(0);
+      expect(bard.knownAbilities.length).toBeGreaterThan(0);
+      expect(bard.knownSpells).toContain("viciousMockery");
+      expect(bard.knownAbilities).toContain("bardicInspiration");
     });
   });
 });

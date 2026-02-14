@@ -8,6 +8,10 @@ import type { PlayerStats } from "./player";
 export interface PlayerAppearance {
   id: string;
   label: string;
+  /** Short class description shown during character creation. */
+  description: string;
+  /** Playstyle hint shown during class selection. */
+  playstyle: string;
   bodyColor: number;
   skinColor: number;
   legColor: number;
@@ -15,14 +19,22 @@ export interface PlayerAppearance {
   statBoosts: Partial<PlayerStats>;
   /** The primary ability stat used for to-hit calculations. */
   primaryStat: keyof PlayerStats;
+  /** Hit die size (e.g. 12 = d12 for Barbarian, 6 = d6 for Mage). */
+  hitDie: number;
   /** Spell IDs this class can learn (order doesn't matter — unlocked by level). */
   spells: string[];
   /** Martial ability IDs for non-caster classes (empty for casters). */
   abilities: string[];
+  /** Default weapon type drawn on the class sprite. */
+  weaponSprite: "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist";
+  /** Item ID of the starting weapon given at character creation. */
+  startingWeaponId: string;
+  /** Class clothing style for distinct sprite appearance. */
+  clothingStyle: "heavy" | "robe" | "leather" | "vestment" | "bare" | "wrap" | "performer";
 }
 
-/** Classes that rely on spells rather than martial abilities. */
-export const CASTER_CLASSES = ["mage", "warlock", "cleric"];
+/** Classes that rely primarily on spells rather than martial abilities. */
+export const CASTER_CLASSES = ["mage", "warlock", "cleric", "bard"];
 
 export function isCasterClass(appearanceId: string): boolean {
   return CASTER_CLASSES.includes(appearanceId);
@@ -31,107 +43,170 @@ export function isCasterClass(appearanceId: string): boolean {
 export const PLAYER_APPEARANCES: PlayerAppearance[] = [
   {
     id: "knight", label: "Knight",
+    description: "A stalwart warrior clad in heavy armor, master of sword and shield.",
+    playstyle: "Tank / Melee DPS",
     bodyColor: 0x3f51b5, skinColor: 0xffccbc, legColor: 0x1a237e,
     statBoosts: { strength: 2, constitution: 1 },
     primaryStat: "strength",
+    hitDie: 10,
     spells: [
-      "shortRest",
-      "fireBolt", "cureWounds", "thunderwave", "healingWord",
-      "fireball", "greaterHeal", "iceStorm", "heal",
-      "chainLightning", "meteorSwarm",
+      "cureWounds", "healingWord",
+      "greaterHeal", "heal",
     ],
-    abilities: ["shieldBash", "powerAttack", "secondWind", "championStrike", "fastTravel"],
+    abilities: ["shieldBash", "actionSurge", "secondWind", "championStrike"],
+    weaponSprite: "sword",
+    startingWeaponId: "startSword",
+    clothingStyle: "heavy",
   },
   {
     id: "ranger", label: "Ranger",
+    description: "A skilled hunter and tracker who wields nature magic and deadly aim.",
+    playstyle: "Ranged DPS / Scout",
     bodyColor: 0x2e7d32, skinColor: 0xffccbc, legColor: 0x1b5e20,
     statBoosts: { dexterity: 2, wisdom: 1 },
     primaryStat: "dexterity",
+    hitDie: 10,
     spells: [
-      "shortRest",
-      "fireBolt", "cureWounds", "magicMissile", "healingWord",
-      "fireball", "lightningBolt", "greaterHeal", "massHealingWord",
-      "heal", "regenerate",
+      "cureWounds", "healingWord",
+      "greaterHeal", "heal",
     ],
-    abilities: ["aimedShot", "huntersMark", "naturesRemedy", "deadeye", "fastTravel"],
+    abilities: ["aimedShot", "huntersMark", "naturesRemedy", "deadeye"],
+    weaponSprite: "bow",
+    startingWeaponId: "startBow",
+    clothingStyle: "leather",
   },
   {
     id: "mage", label: "Mage",
+    description: "A scholarly arcanist who commands devastating elemental magic.",
+    playstyle: "Ranged Magic DPS",
     bodyColor: 0x6a1b9a, skinColor: 0xffccbc, legColor: 0x4a148c,
     statBoosts: { intelligence: 2, wisdom: 1 },
     primaryStat: "intelligence",
+    hitDie: 6,
     spells: [
-      "shortRest",
-      "fireBolt", "magicMissile", "thunderwave", "healingWord", "teleport",
+      "fireBolt", "magicMissile", "thunderwave",
       "fireball", "lightningBolt", "iceStorm", "coneOfCold",
-      "chainLightning", "disintegrate", "heal", "meteorSwarm",
+      "chainLightning", "disintegrate", "meteorSwarm",
+      "arcaneRecovery",
     ],
-    abilities: ["fastTravel"],
+    abilities: [],
+    weaponSprite: "staff",
+    startingWeaponId: "startStaff",
+    clothingStyle: "robe",
   },
   {
     id: "rogue", label: "Rogue",
+    description: "A cunning scoundrel who strikes from the shadows with lethal precision.",
+    playstyle: "Burst DPS / Skirmisher",
     bodyColor: 0x37474f, skinColor: 0xffccbc, legColor: 0x263238,
     statBoosts: { dexterity: 2, charisma: 1 },
     primaryStat: "dexterity",
-    spells: [
-      "shortRest",
-      "fireBolt", "magicMissile", "cureWounds", "thunderwave",
-      "healingWord", "lightningBolt", "iceStorm", "coneOfCold",
-      "chainLightning", "disintegrate",
-    ],
-    abilities: ["sneakAttack", "cunningStrike", "shadowStep", "assassinate", "fastTravel"],
+    hitDie: 8,
+    spells: [],
+    abilities: ["sneakAttack", "cunningStrike", "shadowStep", "assassinate"],
+    weaponSprite: "dagger",
+    startingWeaponId: "startDagger",
+    clothingStyle: "leather",
   },
   {
     id: "paladin", label: "Paladin",
+    description: "A holy warrior who channels divine power to smite evil and heal allies.",
+    playstyle: "Melee / Healer Hybrid",
     bodyColor: 0xffd600, skinColor: 0xffccbc, legColor: 0xc0a060,
     statBoosts: { strength: 1, charisma: 2 },
     primaryStat: "charisma",
+    hitDie: 10,
     spells: [
-      "shortRest",
-      "fireBolt", "cureWounds", "thunderwave", "healingWord",
-      "fireball", "greaterHeal", "massHealingWord", "heal",
+      "cureWounds", "healingWord",
+      "greaterHeal", "massHealingWord", "heal",
       "regenerate", "powerWordHeal",
     ],
-    abilities: ["smite", "layOnHands", "holyStrike", "greaterSmite", "fastTravel"],
+    abilities: ["smite", "layOnHands", "holyStrike", "greaterSmite"],
+    weaponSprite: "sword",
+    startingWeaponId: "startSword",
+    clothingStyle: "heavy",
   },
   {
     id: "warlock", label: "Warlock",
+    description: "An occultist bound to an otherworldly patron, wielding eldritch power.",
+    playstyle: "Ranged Magic DPS / Hex",
     bodyColor: 0xb71c1c, skinColor: 0xd7ccc8, legColor: 0x880e4f,
     statBoosts: { charisma: 2, intelligence: 1 },
     primaryStat: "charisma",
+    hitDie: 8,
     spells: [
-      "shortRest",
-      "fireBolt", "magicMissile", "cureWounds", "thunderwave", "teleport",
-      "fireball", "lightningBolt", "greaterHeal", "coneOfCold",
-      "disintegrate", "meteorSwarm",
+      "eldritchBlast", "hexCurse",
+      "fireball", "hungerOfHadar",
+      "coneOfCold", "disintegrate", "meteorSwarm",
     ],
-    abilities: ["fastTravel"],
+    abilities: [],
+    weaponSprite: "staff",
+    startingWeaponId: "startStaff",
+    clothingStyle: "robe",
   },
   {
     id: "cleric", label: "Cleric",
+    description: "A divine servant who heals the faithful and punishes the wicked.",
+    playstyle: "Healer / Support",
     bodyColor: 0xeeeeee, skinColor: 0x8d6e63, legColor: 0xbdbdbd,
     statBoosts: { wisdom: 2, constitution: 1 },
     primaryStat: "wisdom",
+    hitDie: 8,
     spells: [
-      "shortRest",
-      "fireBolt", "cureWounds", "healingWord", "thunderwave", "teleport",
-      "greaterHeal", "iceStorm", "massHealingWord", "heal",
+      "sacredFlame", "cureWounds", "healingWord",
+      "spiritGuardians", "greaterHeal", "massHealingWord", "heal",
       "regenerate", "powerWordHeal",
     ],
-    abilities: ["fastTravel"],
+    abilities: [],
+    weaponSprite: "mace",
+    startingWeaponId: "startMace",
+    clothingStyle: "vestment",
   },
   {
     id: "barbarian", label: "Barbarian",
+    description: "A primal warrior fueled by rage, shrugging off blows that fell lesser fighters.",
+    playstyle: "Melee DPS / Tank",
     bodyColor: 0x795548, skinColor: 0xa1887f, legColor: 0x4e342e,
     statBoosts: { strength: 2, constitution: 1 },
     primaryStat: "strength",
+    hitDie: 12,
+    spells: [],
+    abilities: ["recklessStrike", "enrage", "rage", "endure", "titansBlow"],
+    weaponSprite: "axe",
+    startingWeaponId: "startAxe",
+    clothingStyle: "bare",
+  },
+  {
+    id: "monk", label: "Monk",
+    description: "A disciplined martial artist who channels ki through unarmed combat.",
+    playstyle: "Melee DPS / Skirmisher",
+    bodyColor: 0xff8f00, skinColor: 0xffccbc, legColor: 0xe65100,
+    statBoosts: { dexterity: 2, wisdom: 1 },
+    primaryStat: "dexterity",
+    hitDie: 8,
+    spells: [],
+    abilities: ["flurryOfBlows", "kiStrike", "patientDefense", "stunningStrike"],
+    weaponSprite: "fist",
+    startingWeaponId: "startDagger",
+    clothingStyle: "wrap",
+  },
+  {
+    id: "bard", label: "Bard",
+    description: "A charismatic performer whose music weaves magic, inspiration, and cutting wit.",
+    playstyle: "Support / Versatile Caster",
+    bodyColor: 0x7b1fa2, skinColor: 0xffccbc, legColor: 0x4a148c,
+    statBoosts: { charisma: 2, dexterity: 1 },
+    primaryStat: "charisma",
+    hitDie: 8,
     spells: [
-      "shortRest",
-      "fireBolt", "cureWounds", "thunderwave", "fireball",
-      "healingWord", "lightningBolt", "iceStorm", "greaterHeal",
-      "chainLightning", "meteorSwarm",
+      "viciousMockery", "cureWounds", "healingWord",
+      "dissonantWhispers",
+      "hypnoticPattern", "greaterHeal", "massHealingWord", "heal",
     ],
-    abilities: ["recklessStrike", "rage", "endure", "titansBlow", "fastTravel"],
+    abilities: ["bardicInspiration", "cuttingWords"],
+    weaponSprite: "sword",
+    startingWeaponId: "startRapier",
+    clothingStyle: "performer",
   },
 ];
 
@@ -178,4 +253,15 @@ export function getClassSpells(appearanceId: string): string[] {
 /** Get the ability IDs available for a class. */
 export function getClassAbilities(appearanceId: string): string[] {
   return getAppearance(appearanceId).abilities;
+}
+
+/** Determine the weapon sprite type for the player's current equipment. */
+export function getActiveWeaponSprite(
+  appearanceId: string,
+  equippedWeapon: { weaponSprite?: string } | null | undefined
+): "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist" {
+  if (equippedWeapon?.weaponSprite) {
+    return equippedWeapon.weaponSprite as "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist";
+  }
+  return getAppearance(appearanceId).weaponSprite;
 }

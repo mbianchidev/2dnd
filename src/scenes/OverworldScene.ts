@@ -28,18 +28,16 @@ import {
   type WorldChunk,
   type CityData,
 } from "../data/map";
-import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, applyBankInterest, ASI_LEVELS, castSpellOutsideCombat, useAbilityOutsideCombat, type PlayerState, type PlayerStats } from "../systems/player";
+import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, ALL_MONSTERS, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
+import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, applyBankInterest, ASI_LEVELS, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { getAppearance, getClassSpells, getClassAbilities } from "../systems/appearance";
-import { getSpell } from "../data/spells";
-import { getAbility } from "../data/abilities";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } from "../config";
+import { getAppearance, getActiveWeaponSprite } from "../systems/appearance";
+import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
-import { createBestiary } from "../systems/bestiary";
+import { createBestiary, recordDefeat } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
-import { getItem } from "../data/items";
-import { getTimePeriod, getEncounterMultiplier, isNightTime, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
+import { getItem, ITEMS } from "../data/items";
+import { getTimePeriod, getEncounterMultiplier, isNightTime, TimePeriod, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 import {
   type WeatherState,
@@ -52,6 +50,7 @@ import {
   WEATHER_LABEL,
 } from "../systems/weather";
 import { audioEngine } from "../systems/audio";
+import { getMount } from "../data/mounts";
 import {
   CITY_NPCS,
   getNpcTemplate,
@@ -70,6 +69,8 @@ import {
   type SpecialNpcKind,
   type SpecialNpcDef,
 } from "../data/npcs";
+import { getSpell } from "../data/spells";
+import { getAbility } from "../data/abilities";
 
 const TILE_SIZE = 32;
 
@@ -106,11 +107,19 @@ export class OverworldScene extends Phaser.Scene {
   private defeatedBosses: Set<string> = new Set();
   private bestiary: BestiaryData = createBestiary();
   private equipOverlay: Phaser.GameObjects.Container | null = null;
+  private equipPage: "gear" | "skills" | "items" = "gear";
+  /** Mini-page indices for gear slot lists (weapons, armor, shields). */
+  private gearWeaponPage = 0;
+  private gearArmorPage = 0;
+  private gearShieldPage = 0;
+  private gearMountPage = 0;
+  private itemsPage = 0;
+  private spellsPage = 0;
+  private abilitiesPage = 0;
   private statOverlay: Phaser.GameObjects.Container | null = null;
   private menuOverlay: Phaser.GameObjects.Container | null = null;
   private worldMapOverlay: Phaser.GameObjects.Container | null = null;
   private settingsOverlay: Phaser.GameObjects.Container | null = null;
-  private spellOverlay: Phaser.GameObjects.Container | null = null;
   private isNewPlayer = false;
   private debugEncounters = true; // debug toggle for encounters
   private debugFogDisabled = false; // debug toggle for fog of war
@@ -141,6 +150,7 @@ export class OverworldScene extends Phaser.Scene {
   /** Day number (timeStep / CYCLE_LENGTH) when a special NPC last spawned naturally.
    *  Spawn chance drops to 0 for the rest of that day, resetting at dawn. */
   private lastSpecialSpawnDay = -1;
+  private mountSprite: Phaser.GameObjects.Sprite | null = null;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -199,6 +209,7 @@ export class OverworldScene extends Phaser.Scene {
     this.renderMap();
     this.applyDayNightTint();
     this.createPlayer();
+    this.refreshPlayerSprite();
     this.setupInput();
     this.createHUD();
     this.setupDebug();
@@ -217,7 +228,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private setupDebug(): void {
-    debugPanelClear();
+    debugPanelLog("── Overworld loaded ──", true);
     debugPanelState("OVERWORLD | Loading...");
 
     const cb = {
@@ -282,9 +293,15 @@ export class OverworldScene extends Phaser.Scene {
     cmds.set("maxmp", cmds.get("max_mp")!);
 
     cmds.set("level", (args) => {
-      const val = parseInt(args, 10);
-      if (!isNaN(val) && val >= 1 && val <= 20) {
-        while (this.player.level < val) {
+      const arg = args.trim().toLowerCase();
+      let targetLevel: number;
+      if (arg === "max") {
+        targetLevel = 20;
+      } else {
+        targetLevel = parseInt(arg, 10);
+      }
+      if (!isNaN(targetLevel) && targetLevel >= 1 && targetLevel <= 20) {
+        while (this.player.level < targetLevel) {
           const needed = xpForLevel(this.player.level + 1) - this.player.xp;
           awardXP(this.player, Math.max(needed, 0));
         }
@@ -293,13 +310,20 @@ export class OverworldScene extends Phaser.Scene {
         if (this.player.pendingStatPoints > 0) {
           this.time.delayedCall(200, () => this.showStatOverlay());
         }
-      } else debugPanelLog(`Usage: /level <1-20>`, true);
+      } else debugPanelLog(`Usage: /level <1-20|max>`, true);
     });
     cmds.set("lvl", cmds.get("level")!);
 
     cmds.set("item", (args) => {
       const itemId = args.trim();
-      if (itemId) {
+      if (itemId.toLowerCase() === "all") {
+        let count = 0;
+        for (const item of ITEMS) {
+          this.player.inventory.push({ ...item });
+          count++;
+        }
+        debugPanelLog(`[CMD] Added all ${count} items to inventory`, true);
+      } else if (itemId) {
         const item = getItem(itemId);
         if (item) {
           this.player.inventory.push({ ...item });
@@ -307,7 +331,7 @@ export class OverworldScene extends Phaser.Scene {
         } else {
           debugPanelLog(`[CMD] Unknown item: ${itemId}`, true);
         }
-      } else debugPanelLog(`Usage: /item <itemId>`, true);
+      } else debugPanelLog(`Usage: /item <itemId|all>`, true);
     });
 
     cmds.set("weather", (args) => {
@@ -488,22 +512,66 @@ export class OverworldScene extends Phaser.Scene {
       }
     });
 
+    cmds.set("mount", (args) => {
+      const id = args.trim().toLowerCase();
+      if (!id || id === "none" || id === "off") {
+        this.player.mountId = "";
+        debugPanelLog(`[CMD] Dismounted`, true);
+      } else {
+        const mount = getMount(id);
+        if (mount) {
+          this.player.mountId = mount.id;
+          // Also add the mount item to inventory if not already owned
+          const mountItemId = `mount${mount.id.charAt(0).toUpperCase()}${mount.id.slice(1)}`;
+          const mountItem = getItem(mountItemId);
+          if (mountItem && !this.player.inventory.some((i) => i.id === mountItemId)) {
+            this.player.inventory.push({ ...mountItem });
+            debugPanelLog(`[CMD] Spawned ${mount.name} item & mounted (speed ×${mount.speedMultiplier})`, true);
+          } else {
+            debugPanelLog(`[CMD] Mounted ${mount.name} (speed ×${mount.speedMultiplier})`, true);
+          }
+        } else {
+          debugPanelLog(`Unknown mount: ${id}. Available: donkey, horse, warHorse, shadowSteed`, true);
+        }
+      }
+      this.scene.restart({
+        player: this.player,
+        defeatedBosses: this.defeatedBosses,
+        bestiary: this.bestiary,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
+      });
+    });
+
+    cmds.set("codex", (_args) => {
+      let count = 0;
+      for (const m of ALL_MONSTERS) {
+        if (!(m.id in this.bestiary.entries)) {
+          recordDefeat(this.bestiary, m, true, []);
+          count++;
+        }
+      }
+      debugPanelLog(`[CMD] Discovered ${count} new codex entries (${Object.keys(this.bestiary.entries).length} total)`, true);
+    });
+
     // Help entries
     const helpEntries: HelpEntry[] = [
       ...SHARED_HELP,
       { usage: "/reveal", desc: "Reveal entire world map" },
       { usage: "/max_hp <n>", desc: "Set max HP (alias: /maxhp)" },
       { usage: "/max_mp <n>", desc: "Set max MP (alias: /maxmp)" },
-      { usage: "/level <1-20>", desc: "Set level (alias: /lvl)" },
-      { usage: "/item <id>", desc: "Add item to inventory" },
+      { usage: "/level <1-20|max>", desc: "Set level (alias: /lvl)" },
+      { usage: "/item <id|all>", desc: "Add item (or all) to inventory" },
       { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
+      { usage: "/mount <id>", desc: "Mount: donkey|horse|warHorse|shadowSteed|none" },
+      { usage: "/codex all", desc: "Discover all codex entries" },
     ];
 
-    registerCommandRouter(cmds, "Overworld", helpEntries, "G=Gold H=Heal P=MP L=LvUp F=Enc R=Reveal V=Fog");
+    registerCommandRouter(cmds, "Overworld", helpEntries);
   }
 
   private renderMap(): void {
@@ -1330,6 +1398,7 @@ export class OverworldScene extends Phaser.Scene {
   ): void {
     const tpl = getNpcTemplate(def.templateId);
     if (!tpl) return;
+    debugPanelLog(`[NPC] Spawned ${def.kind} at (${tx},${ty})`, true);
 
     const specialSkin = NPC_SKIN_COLORS[Math.abs(def.kind.length * 7) % NPC_SKIN_COLORS.length];
     const texKey = this.getOrCreateNpcTexture(tpl, specialSkin, 0x5d4037, def.tintColor);
@@ -1422,7 +1491,7 @@ export class OverworldScene extends Phaser.Scene {
     const isFarewell = line === farewell;
     entry.interactions++;
 
-    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+    if (audioEngine.initialized) audioEngine.playDialogueBlips(line);
 
     // If this is the farewell line, show it then despawn after a short delay.
     if (isFarewell) {
@@ -1624,7 +1693,7 @@ export class OverworldScene extends Phaser.Scene {
     const rawName = spriteName.replace("sprite_", "");
     const speakerName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
-    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+    if (audioEngine.initialized) audioEngine.playDialogueBlips(line, -5);
 
     const container = this.add.container(0, 0).setDepth(50);
     const boxW = MAP_WIDTH * TILE_SIZE - 40;
@@ -1686,7 +1755,7 @@ export class OverworldScene extends Phaser.Scene {
       line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId);
     }
 
-    if (audioEngine.initialized) audioEngine.playDialogueBlip();
+    if (audioEngine.initialized) audioEngine.playDialogueBlips(line);
 
     const container = this.add.container(0, 0).setDepth(50);
     const boxW = MAP_WIDTH * TILE_SIZE - 40;
@@ -1798,8 +1867,7 @@ export class OverworldScene extends Phaser.Scene {
     this.player.gold -= innCost;
     this.player.hp = this.player.maxHp;
     this.player.mp = this.player.maxMp;
-    this.player.shortRestsRemaining = 2; // refill short rests on long rest
-    this.showMessage("You rest at the inn. HP and MP fully restored! Short rests refilled.", "#88ff88");
+    this.showMessage("You rest at the inn. HP and MP fully restored!", "#88ff88");
     this.updateHUD();
     this.autoSave();
   }
@@ -2211,19 +2279,289 @@ export class OverworldScene extends Phaser.Scene {
     });
   }
 
+  /** Rider offset when mounted: shift left so mount head/neck is visible, shift up to sit on mount back. */
+  private static readonly MOUNT_RIDER_OFFSET_X = -3;
+  private static readonly MOUNT_RIDER_OFFSET_Y = 8;
+
   private createPlayer(): void {
     if (this.playerSprite) {
       this.playerSprite.destroy();
     }
-    const texKey = `player_${this.player.appearanceId}`;
-    // Use the appearance texture if it exists, else fall back to default
-    const key = this.textures.exists(texKey) ? texKey : "player";
-    this.playerSprite = this.add.sprite(
-      this.player.x * TILE_SIZE + TILE_SIZE / 2,
-      this.player.y * TILE_SIZE + TILE_SIZE / 2,
-      key
-    );
-    this.playerSprite.setDepth(10);
+    if (this.mountSprite) {
+      this.mountSprite.destroy();
+      this.mountSprite = null;
+    }
+
+    const isMounted = this.player.mountId && !this.player.inDungeon && !this.player.inCity;
+    const tileX = this.player.x * TILE_SIZE + TILE_SIZE / 2;
+    const tileY = this.player.y * TILE_SIZE + TILE_SIZE / 2;
+
+    // Player texture — prefer the equipped variant (reflects weapon/shield), fall back to base class texture
+    const equippedKey = `player_equipped_${this.player.appearanceId}`;
+    const baseKey = `player_${this.player.appearanceId}`;
+    const playerKey = this.textures.exists(equippedKey) ? equippedKey : this.textures.exists(baseKey) ? baseKey : "player";
+
+    if (isMounted) {
+      // Render mount sprite beneath the player
+      const mountKey = `mount_${this.player.mountId}`;
+      this.mountSprite = this.add.sprite(tileX, tileY, mountKey);
+      this.mountSprite.setDepth(9);
+
+      // Render player sprite shifted left + up so it sits naturally on the mount
+      this.playerSprite = this.add.sprite(
+        tileX + OverworldScene.MOUNT_RIDER_OFFSET_X,
+        tileY - OverworldScene.MOUNT_RIDER_OFFSET_Y,
+        playerKey
+      );
+      this.playerSprite.setDepth(10);
+    } else {
+      this.playerSprite = this.add.sprite(tileX, tileY, playerKey);
+      this.playerSprite.setDepth(10);
+    }
+
+    // (Re)generate the equipped texture so legs & equipment are rendered correctly
+    this.refreshPlayerSprite();
+  }
+
+  /** Toggle mount / dismount with the T key. */
+  private toggleMount(): void {
+    if (this.isOverlayOpen()) return;
+    if (this.player.inDungeon || this.player.inCity) {
+      this.showMessage("Cannot ride mounts here.", "#ff6666");
+      return;
+    }
+
+    if (this.player.mountId) {
+      // Dismount
+      const mount = getMount(this.player.mountId);
+      this.player.mountId = "";
+      this.createPlayer();
+      this.updateHUD();
+      this.showMessage(`Dismounted${mount ? ` ${mount.name}` : ""}.`);
+    } else {
+      // Find the best mount in inventory
+      const ownedMounts = this.player.inventory.filter((i) => i.type === "mount" && i.mountId);
+      if (ownedMounts.length === 0) {
+        this.showMessage("No mount owned. Visit a stable!", "#ff6666");
+        return;
+      }
+      // Pick the fastest mount available
+      let bestItem = ownedMounts[0];
+      let bestSpeed = getMount(bestItem.mountId!)?.speedMultiplier ?? 0;
+      for (let i = 1; i < ownedMounts.length; i++) {
+        const md = getMount(ownedMounts[i].mountId!);
+        if (md && md.speedMultiplier > bestSpeed) {
+          bestSpeed = md.speedMultiplier;
+          bestItem = ownedMounts[i];
+        }
+      }
+      this.player.mountId = bestItem.mountId!;
+      const mount = getMount(this.player.mountId);
+      this.createPlayer();
+      this.updateHUD();
+      this.showMessage(`🐴 Mounted ${mount?.name ?? "mount"}!`, "#88ff88");
+    }
+  }
+
+  /** Regenerate the player texture to reflect current equipment (weapon sprite).
+   *  Uses a separate key so the base class texture stays clean for the title screen. */
+  private refreshPlayerSprite(): void {
+    const app = getAppearance(this.player.appearanceId);
+    const texKey = `player_equipped_${this.player.appearanceId}`;
+    const weaponSpr = getActiveWeaponSprite(this.player.appearanceId, this.player.equippedWeapon);
+    if (this.textures.exists(texKey)) this.textures.remove(texKey);
+
+    const gfx = this.add.graphics();
+    // Body
+    gfx.fillStyle(app.bodyColor, 1);
+    gfx.fillRect(8, 10, 16, 16);
+    // Clothing details
+    this.drawClothingInline(gfx, app.bodyColor, app.clothingStyle);
+    // Head (use custom appearance if set)
+    const skinColor = this.player.customAppearance?.skinColor ?? app.skinColor;
+    gfx.fillStyle(skinColor, 1);
+    gfx.fillCircle(16, 8, 6);
+    // Hair
+    if (this.player.customAppearance && this.player.customAppearance.hairStyle > 0) {
+      gfx.fillStyle(this.player.customAppearance.hairColor, 1);
+      const hs = this.player.customAppearance.hairStyle;
+      if (hs === 1) {
+        gfx.fillRect(11, 2, 10, 4);
+      } else if (hs === 2) {
+        gfx.fillRect(10, 1, 12, 5);
+        gfx.fillRect(9, 4, 4, 6);
+        gfx.fillRect(19, 4, 4, 6);
+      } else if (hs === 3) {
+        gfx.fillRect(10, 1, 12, 5);
+        gfx.fillRect(8, 3, 5, 14);
+        gfx.fillRect(19, 3, 5, 14);
+      }
+    }
+    // Legs — when mounted only draw the near-side leg (far leg hidden behind mount body)
+    gfx.fillStyle(app.legColor, 1);
+    const isMounted = !!this.player.mountId && !this.player.inDungeon && !this.player.inCity;
+    if (isMounted) {
+      gfx.fillRect(12, 24, 6, 5);
+    } else {
+      gfx.fillRect(9, 26, 5, 6);
+      gfx.fillRect(18, 26, 5, 6);
+    }
+    // Weapon from current equipment
+    this.drawWeaponInline(gfx, weaponSpr);
+    // Shield (if equipped and weapon is not two-handed)
+    this.drawShieldInline(gfx, !!this.player.equippedShield && !this.player.equippedWeapon?.twoHanded);
+
+    gfx.generateTexture(texKey, TILE_SIZE, TILE_SIZE);
+    gfx.destroy();
+
+    this.playerSprite.setTexture(texKey);
+  }
+
+  /** Inline clothing drawing for OverworldScene sprite refresh. */
+  private drawClothingInline(
+    gfx: Phaser.GameObjects.Graphics,
+    bodyColor: number,
+    clothingStyle: string
+  ): void {
+    const darker = (c: number) => {
+      const r = Math.max(0, ((c >> 16) & 0xff) - 40);
+      const g = Math.max(0, ((c >> 8) & 0xff) - 40);
+      const b = Math.max(0, (c & 0xff) - 40);
+      return (r << 16) | (g << 8) | b;
+    };
+    const lighter = (c: number) => {
+      const r = Math.min(255, ((c >> 16) & 0xff) + 50);
+      const g = Math.min(255, ((c >> 8) & 0xff) + 50);
+      const b = Math.min(255, (c & 0xff) + 50);
+      return (r << 16) | (g << 8) | b;
+    };
+
+    switch (clothingStyle) {
+      case "heavy":
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(6, 10, 4, 5);
+        gfx.fillRect(22, 10, 4, 5);
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(12, 14, 8, 2);
+        gfx.fillRect(14, 10, 4, 2);
+        break;
+      case "robe":
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(6, 12, 3, 16);
+        gfx.fillRect(23, 12, 3, 16);
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(13, 10, 6, 1);
+        gfx.fillRect(10, 25, 12, 2);
+        break;
+      case "leather":
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(10, 12, 2, 10);
+        gfx.fillRect(20, 12, 2, 10);
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(12, 22, 8, 2);
+        break;
+      case "vestment":
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(13, 10, 2, 14);
+        gfx.fillRect(17, 10, 2, 14);
+        gfx.fillStyle(0xffd700, 1);
+        gfx.fillRect(14, 12, 4, 4);
+        gfx.fillRect(15, 11, 2, 1);
+        break;
+      case "bare":
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(10, 11, 12, 1);
+        gfx.fillRect(11, 12, 2, 8);
+        gfx.fillRect(19, 12, 2, 8);
+        gfx.fillStyle(0x5d4037, 1);
+        gfx.fillRect(8, 10, 3, 2);
+        gfx.fillRect(21, 10, 3, 2);
+        break;
+      case "wrap":
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(10, 20, 12, 3);
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(8, 14, 2, 6);
+        gfx.fillRect(22, 14, 2, 6);
+        gfx.fillRect(14, 10, 4, 1);
+        break;
+      case "performer":
+        gfx.fillStyle(lighter(bodyColor), 1);
+        gfx.fillRect(6, 10, 3, 14);
+        gfx.fillStyle(darker(bodyColor), 1);
+        gfx.fillRect(12, 22, 8, 2);
+        gfx.fillStyle(0xffd700, 1);
+        gfx.fillRect(13, 10, 6, 1);
+        gfx.fillRect(15, 22, 2, 2);
+        break;
+    }
+  }
+
+  /** Inline weapon drawing for OverworldScene sprite refresh. */
+  private drawWeaponInline(
+    gfx: Phaser.GameObjects.Graphics,
+    weaponSprite: string
+  ): void {
+    switch (weaponSprite) {
+      case "sword":
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(26, 6, 3, 18);
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(24, 20, 7, 3);
+        break;
+      case "staff":
+        gfx.fillStyle(0x5d4037, 1);
+        gfx.fillRect(27, 4, 2, 22);
+        gfx.fillStyle(0x64ffda, 1);
+        gfx.fillCircle(28, 4, 3);
+        break;
+      case "dagger":
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(26, 14, 2, 10);
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(25, 22, 4, 2);
+        break;
+      case "bow":
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(27, 5, 2, 20);
+        gfx.fillStyle(0xbdbdbd, 1);
+        gfx.fillRect(29, 7, 1, 16);
+        break;
+      case "mace":
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(27, 12, 2, 14);
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(25, 8, 6, 6);
+        break;
+      case "axe":
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(27, 6, 2, 18);
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(24, 6, 5, 8);
+        break;
+      case "fist":
+        gfx.fillStyle(0xbdbdbd, 1);
+        gfx.fillRect(25, 16, 6, 6);
+        gfx.fillStyle(0x9e9e9e, 1);
+        gfx.fillRect(25, 17, 6, 1);
+        gfx.fillRect(25, 19, 6, 1);
+        break;
+    }
+  }
+
+  /** Inline shield drawing for OverworldScene sprite refresh. */
+  private drawShieldInline(gfx: Phaser.GameObjects.Graphics, hasShield: boolean): void {
+    if (!hasShield) return;
+    // Shield body (wood base)
+    gfx.fillStyle(0x795548, 1);
+    gfx.fillRect(1, 12, 6, 10);
+    // Shield face (metal)
+    gfx.fillStyle(0x90a4ae, 1);
+    gfx.fillRect(2, 13, 4, 8);
+    // Shield emblem (cross)
+    gfx.fillStyle(0xffd700, 1);
+    gfx.fillRect(3, 15, 2, 4);
+    gfx.fillRect(2, 16, 4, 2);
   }
 
   private setupInput(): void {
@@ -2235,9 +2573,9 @@ export class OverworldScene extends Phaser.Scene {
       SPACE: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
 
-    // B key opens bestiary
-    const bKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.B);
-    bKey.on("down", () => this.openBestiary());
+    // C key opens codex
+    const cKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+    cKey.on("down", () => this.openCodex());
 
     // E key toggles equipment overlay
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
@@ -2257,9 +2595,9 @@ export class OverworldScene extends Phaser.Scene {
     const nKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.N);
     nKey.on("down", () => this.toggleWorldMap());
 
-    // Q key opens spells & abilities overlay
-    const qKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
-    qKey.on("down", () => this.toggleSpellOverlay());
+    // T key toggles mount / dismount
+    const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
+    tKey.on("down", () => this.toggleMount());
   }
 
   private createHUD(): void {
@@ -2305,10 +2643,11 @@ export class OverworldScene extends Phaser.Scene {
       regionName = chunk?.name ?? "Unknown";
     }
     const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts` : "";
-    const timeLabel = PERIOD_LABEL[getTimePeriod(this.timeStep)];
+    const timeLabel = p.inDungeon ? PERIOD_LABEL[TimePeriod.Dungeon] : PERIOD_LABEL[getTimePeriod(this.timeStep)];
     const weatherLabel = WEATHER_LABEL[this.weatherState.current];
+    const mountLabel = (p.mountId && !p.inDungeon && !p.inCity) ? `  🐴 ${getMount(p.mountId)?.name ?? "Mount"}` : "";
     this.hudText.setText(
-      `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}  ${weatherLabel}\n` +
+      `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}  ${weatherLabel}${mountLabel}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}`
     );
   }
@@ -2456,30 +2795,62 @@ export class OverworldScene extends Phaser.Scene {
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
     const encMult = getEncounterMultiplier(this.timeStep);
     const weatherEncMult = getWeatherEncounterMultiplier(this.weatherState.current);
-    const effectiveRate = rate * encMult * weatherEncMult;
+    const mountEncMult = (!p.inDungeon && p.mountId) ? (getMount(p.mountId)?.encounterMultiplier ?? 1) : 1;
+    const effectiveRate = rate * encMult * weatherEncMult * mountEncMult;
     const dungeonTag = p.inDungeon ? ` [DUNGEON:${p.dungeonId}]` : "";
+    const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag} | ` +
+      `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag}${mountTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
-      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
-      `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
-      `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
-      `Bosses: ${this.defeatedBosses.size}\n` +
-      `Cheats: G=Gold H=Heal P=MP L=LvUp F=EncToggle R=Reveal V=FogToggle`
+      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
+      `Bosses: ${this.defeatedBosses.size} | Chests: ${p.openedChests.length}`
     );
   }
 
   /** Check whether any overlay (menu, map, equip, stat allocation) is currently open. */
   private isOverlayOpen(): boolean {
-    return !!(this.menuOverlay || this.worldMapOverlay || this.equipOverlay || this.statOverlay || this.settingsOverlay || this.spellOverlay);
+    return !!(this.menuOverlay || this.worldMapOverlay || this.equipOverlay || this.statOverlay || this.settingsOverlay);
+  }
+
+  /** Tween the player (and mount sprite if mounted) to a tile position. */
+  private tweenPlayerTo(tileX: number, tileY: number, duration: number, onComplete: () => void): void {
+    const destX = tileX * TILE_SIZE + TILE_SIZE / 2;
+    const destY = tileY * TILE_SIZE + TILE_SIZE / 2;
+
+    this.tweens.add({
+      targets: this.playerSprite,
+      x: destX + (this.mountSprite ? OverworldScene.MOUNT_RIDER_OFFSET_X : 0),
+      y: destY - (this.mountSprite ? OverworldScene.MOUNT_RIDER_OFFSET_Y : 0),
+      duration,
+      onComplete,
+    });
+
+    if (this.mountSprite) {
+      this.tweens.add({
+        targets: this.mountSprite,
+        x: destX,
+        y: destY,
+        duration,
+      });
+    }
+  }
+
+  /** Get move delay adjusted for mount speed. Mounts only apply on the overworld (not in dungeons/cities). */
+  private getEffectiveMoveDelay(): number {
+    if (this.player.inDungeon || this.player.inCity || !this.player.mountId) {
+      return this.moveDelay;
+    }
+    const mount = getMount(this.player.mountId);
+    if (!mount) return this.moveDelay;
+    return Math.round(this.moveDelay / mount.speedMultiplier);
   }
 
   update(time: number): void {
     this.updateDebugPanel();
     if (this.isMoving) return;
     if (this.isOverlayOpen()) return; // block movement when menus/maps are open
-    if (time - this.lastMoveTime < this.moveDelay) return;
+    if (time - this.lastMoveTime < this.getEffectiveMoveDelay()) return;
 
     let dx = 0;
     let dy = 0;
@@ -2519,21 +2890,15 @@ export class OverworldScene extends Phaser.Scene {
       // Footstep sound for dungeon terrain
       if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
 
-      this.tweens.add({
-        targets: this.playerSprite,
-        x: newX * TILE_SIZE + TILE_SIZE / 2,
-        y: newY * TILE_SIZE + TILE_SIZE / 2,
-        duration: 120,
-        onComplete: () => {
-          this.isMoving = false;
-          this.advanceTime();
-          this.revealAround();
-          this.revealTileSprites();
-          this.collectMinorTreasure();
-          this.updateHUD();
-          this.updateLocationText();
-          this.checkEncounter(terrain);
-        },
+      this.tweenPlayerTo(newX, newY, 120, () => {
+        this.isMoving = false;
+        this.advanceTime();
+        this.revealAround();
+        this.revealTileSprites();
+        this.collectMinorTreasure();
+        this.updateHUD();
+        this.updateLocationText();
+        this.checkEncounter(terrain);
       });
       return;
     }
@@ -2559,21 +2924,15 @@ export class OverworldScene extends Phaser.Scene {
       // Footstep sound for city terrain
       if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
 
-      this.tweens.add({
-        targets: this.playerSprite,
-        x: newX * TILE_SIZE + TILE_SIZE / 2,
-        y: newY * TILE_SIZE + TILE_SIZE / 2,
-        duration: 120,
-        onComplete: () => {
-          this.isMoving = false;
-          this.advanceTime();
-          this.revealAround();
-          this.revealTileSprites();
-          this.updateHUD();
-          this.updateLocationText();
-          this.updateShopRoofAlpha();
-          // No encounters in cities
-        },
+      this.tweenPlayerTo(newX, newY, 120, () => {
+        this.isMoving = false;
+        this.advanceTime();
+        this.revealAround();
+        this.revealTileSprites();
+        this.updateHUD();
+        this.updateLocationText();
+        this.updateShopRoofAlpha();
+        // No encounters in cities
       });
       return;
     }
@@ -2630,24 +2989,24 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    // Footstep sound for overworld terrain
-    if (audioEngine.initialized && terrain !== undefined) audioEngine.playFootstepSFX(terrain);
+    // Footstep sound — hoofbeats when mounted, terrain SFX when on foot
+    if (audioEngine.initialized && terrain !== undefined) {
+      if (this.player.mountId) {
+        audioEngine.playMountedFootstepSFX();
+      } else {
+        audioEngine.playFootstepSFX(terrain);
+      }
+    }
 
-    this.tweens.add({
-      targets: this.playerSprite,
-      x: newX * TILE_SIZE + TILE_SIZE / 2,
-      y: newY * TILE_SIZE + TILE_SIZE / 2,
-      duration: 120,
-      onComplete: () => {
-        this.isMoving = false;
-        this.advanceTime();
-        this.revealAround();
-        this.revealTileSprites();
-        this.collectMinorTreasure();
-        this.updateHUD();
-        this.updateLocationText();
-        this.checkEncounter(terrain);
-      },
+    this.tweenPlayerTo(newX, newY, 120, () => {
+      this.isMoving = false;
+      this.advanceTime();
+      this.revealAround();
+      this.revealTileSprites();
+      this.collectMinorTreasure();
+      this.updateHUD();
+      this.updateLocationText();
+      this.checkEncounter(terrain);
     });
   }
 
@@ -2693,7 +3052,8 @@ export class OverworldScene extends Phaser.Scene {
     // Debug: encounters can be toggled off
     if (isDebug() && !this.debugEncounters) return;
 
-    const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep) * getWeatherEncounterMultiplier(this.weatherState.current);
+    const mountEncMult = (!this.player.inDungeon && this.player.mountId) ? (getMount(this.player.mountId)?.encounterMultiplier ?? 1) : 1;
+    const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep) * getWeatherEncounterMultiplier(this.weatherState.current) * mountEncMult;
     if (Math.random() < rate) {
       let monster;
       if (this.player.inDungeon) {
@@ -2706,6 +3066,7 @@ export class OverworldScene extends Phaser.Scene {
         monster = getRandomEncounter(this.player.level);
       }
       debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon, time: getTimePeriod(this.timeStep) });
+      debugPanelLog(`[ENC] ${monster.name} appeared! (${(rate * 100).toFixed(0)}% chance)`, true);
       this.startBattle(monster, terrain);
     }
   }
@@ -2751,12 +3112,14 @@ export class OverworldScene extends Phaser.Scene {
             if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
               this.player.equippedWeapon = item;
               if (item.twoHanded) this.player.equippedShield = null;
+              this.refreshPlayerSprite();
             }
             if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
               this.player.equippedArmor = item;
             }
             if (item.type === "shield" && !this.player.equippedWeapon?.twoHanded && (!this.player.equippedShield || item.effect > this.player.equippedShield.effect)) {
               this.player.equippedShield = item;
+              this.refreshPlayerSprite();
             }
             this.showMessage(`🎁 Found ${item.name}!`);
             this.updateHUD();
@@ -2904,9 +3267,14 @@ export class OverworldScene extends Phaser.Scene {
       // Check if this town has an explorable city layout
       const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
       if (city) {
+        // Auto-dismount when entering a city
+        if (this.player.mountId) {
+          this.player.mountId = "";
+        }
         // Enter the city interior
         this.player.inCity = true;
         this.player.cityId = city.id;
+        debugPanelLog(`[CITY] Entered ${city.name}`, true);
         this.player.x = city.spawnX;
         this.player.y = city.spawnY;
         this.weatherState.current = WeatherType.Clear;
@@ -2929,6 +3297,10 @@ export class OverworldScene extends Phaser.Scene {
       }
 
       // No city layout — open shop directly (legacy behavior)
+      // Auto-dismount when entering a shop
+      if (this.player.mountId) {
+        this.player.mountId = "";
+      }
       this.rerollWeather();
       this.autoSave();
       this.scene.start("ShopScene", {
@@ -2956,9 +3328,14 @@ export class OverworldScene extends Phaser.Scene {
       if (dungeon) {
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
         if (hasKey || isDebug()) {
+          // Auto-dismount when entering a dungeon
+          if (this.player.mountId) {
+            this.player.mountId = "";
+          }
           // Enter the dungeon — force clear weather (closed space)
           this.player.inDungeon = true;
           this.player.dungeonId = dungeon.id;
+          debugPanelLog(`[DUNGEON] Entered ${dungeon.name}`, true);
           this.player.x = dungeon.spawnX;
           this.player.y = dungeon.spawnY;
           this.weatherState.current = WeatherType.Clear;
@@ -2990,12 +3367,14 @@ export class OverworldScene extends Phaser.Scene {
           if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
             this.player.equippedWeapon = item;
             if (item.twoHanded) this.player.equippedShield = null;
+            this.refreshPlayerSprite();
           }
           if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
             this.player.equippedArmor = item;
           }
           if (item.type === "shield" && !this.player.equippedWeapon?.twoHanded && (!this.player.equippedShield || item.effect > this.player.equippedShield.effect)) {
             this.player.equippedShield = item;
+            this.refreshPlayerSprite();
           }
           this.showMessage(`🎁 Found ${item.name}!`);
           this.updateHUD();
@@ -3036,6 +3415,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private startBattle(monster: ReturnType<typeof getRandomEncounter>, terrain?: Terrain): void {
     this.autoSave();
+    debugPanelLog(`[BATTLE] Fighting ${monster.name} (HP:${monster.hp} AC:${monster.ac})`, true);
     this.cameras.main.flash(300, 255, 255, 255);
     this.time.delayedCall(300, () => {
       this.scene.start("BattleScene", {
@@ -3051,7 +3431,7 @@ export class OverworldScene extends Phaser.Scene {
     });
   }
 
-  private openBestiary(): void {
+  private openCodex(): void {
     if (this.equipOverlay) {
       this.equipOverlay.destroy();
       this.equipOverlay = null;
@@ -3088,18 +3468,12 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Advance the day/night cycle by one step and update the map tint. */
   private advanceTime(): void {
-    // Time stands still inside cities.
-    if (this.player.inCity) return;
+    // Time stands still inside cities and dungeons.
+    if (this.player.inCity || this.player.inDungeon) return;
 
     const oldPeriod = getTimePeriod(this.timeStep);
     this.timeStep = (this.timeStep + 1) % CYCLE_LENGTH;
     const newPeriod = getTimePeriod(this.timeStep);
-
-    // Dungeons are enclosed — weather stays Clear, only advance time-of-day tint.
-    if (this.player.inDungeon) {
-      if (oldPeriod !== newPeriod) this.applyDayNightTint();
-      return;
-    }
 
     // Advance weather step countdown (can also shift naturally over time)
     const biomeName = getChunk(this.player.chunkX, this.player.chunkY)?.name ?? "Heartlands";
@@ -3138,7 +3512,8 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Apply a color tint to all map tiles based on time period + weather. */
   private applyDayNightTint(): void {
-    const dayTint = PERIOD_TINT[getTimePeriod(this.timeStep)];
+    const period = this.player.inDungeon ? TimePeriod.Dungeon : getTimePeriod(this.timeStep);
+    const dayTint = PERIOD_TINT[period];
     const weatherTint = WEATHER_TINT[this.weatherState.current];
     // Blend: average the two tint values per channel
     const tint = blendTints(dayTint, weatherTint);
@@ -3243,170 +3618,6 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  // ─── Spells & Abilities Overlay ─────────────────────────────────
-
-  private toggleSpellOverlay(): void {
-    if (this.spellOverlay) {
-      this.spellOverlay.destroy();
-      this.spellOverlay = null;
-      return;
-    }
-    this.buildSpellOverlay();
-  }
-
-  private buildSpellOverlay(): void {
-    if (this.spellOverlay) {
-      this.spellOverlay.destroy();
-      this.spellOverlay = null;
-    }
-    // Close other overlays
-    if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
-    if (this.menuOverlay) { this.menuOverlay.destroy(); this.menuOverlay = null; }
-
-    const w = this.cameras.main.width;
-    const h = this.cameras.main.height;
-    const panelW = 280;
-    const panelH = 380;
-    const px = Math.floor((w - panelW) / 2);
-    const py = Math.floor((h - panelH) / 2) - 20;
-    const p = this.player;
-
-    this.spellOverlay = this.add.container(0, 0).setDepth(55);
-
-    // Dim background
-    const dim = this.add.graphics();
-    dim.fillStyle(0x000000, 0.6);
-    dim.fillRect(0, 0, w, h);
-    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
-    dim.on("pointerdown", () => this.toggleSpellOverlay());
-    this.spellOverlay.add(dim);
-
-    // Panel
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a3e, 0.95);
-    bg.fillRect(px, py, panelW, panelH);
-    bg.lineStyle(2, 0xffd700, 1);
-    bg.strokeRect(px, py, panelW, panelH);
-    this.spellOverlay.add(bg);
-
-    // Title
-    const title = this.add.text(px + panelW / 2, py + 10, "✦ Spells & Abilities", {
-      fontSize: "13px", fontFamily: "monospace", color: "#ffd700",
-    }).setOrigin(0.5, 0);
-    this.spellOverlay.add(title);
-
-    // MP display
-    const mpText = this.add.text(px + panelW / 2, py + 28, `MP: ${p.mp}/${p.maxMp}`, {
-      fontSize: "11px", fontFamily: "monospace", color: "#88aaff",
-    }).setOrigin(0.5, 0);
-    this.spellOverlay.add(mpText);
-
-    let cy = py + 48;
-
-    // --- Healing / Utility Spells ---
-    const classSpells = getClassSpells(p.appearanceId);
-    const usableSpells = p.knownSpells
-      .filter((id) => classSpells.includes(id))
-      .map((id) => getSpell(id))
-      .filter((s): s is NonNullable<typeof s> => s !== undefined && (s.type === "heal" || s.type === "utility"));
-
-    if (usableSpells.length > 0) {
-      const spellHeader = this.add.text(px + 10, cy, "― Spells ―", {
-        fontSize: "11px", fontFamily: "monospace", color: "#aaddff",
-      });
-      this.spellOverlay.add(spellHeader);
-      cy += 18;
-
-      for (const spell of usableSpells) {
-        let canCast = p.mp >= spell.mpCost && (spell.type !== "heal" || p.hp < p.maxHp);
-        // Short Rest has special conditions
-        if (spell.id === "shortRest") {
-          canCast = p.shortRestsRemaining > 0 && (p.hp < p.maxHp || p.mp < p.maxMp);
-        }
-        const restTag = spell.id === "shortRest" ? ` (${p.shortRestsRemaining} left)` : "";
-        const label = `${spell.name} (${spell.mpCost} MP) - ${spell.type}${restTag}`;
-        const color = canCast ? "#ccffcc" : "#666";
-        const btn = this.add.text(px + 14, cy, label, {
-          fontSize: "11px", fontFamily: "monospace", color,
-        }).setInteractive({ useHandCursor: canCast });
-
-        if (canCast) {
-          btn.on("pointerover", () => btn.setColor("#ffd700"));
-          btn.on("pointerout", () => btn.setColor(color));
-          btn.on("pointerdown", () => {
-            const result = castSpellOutsideCombat(p, spell.id);
-            this.showMessage(result.message);
-            audioEngine.playPotionSFX();
-            // Rebuild overlay to update MP and state
-            this.buildSpellOverlay();
-            this.updateHUD();
-          });
-        }
-        this.spellOverlay.add(btn);
-        cy += 16;
-      }
-      cy += 6;
-    }
-
-    // --- Healing / Utility Abilities ---
-    const classAbilityIds = getClassAbilities(p.appearanceId);
-    const usableAbilities = (p.knownAbilities ?? [])
-      .filter((id) => classAbilityIds.includes(id))
-      .map((id) => getAbility(id))
-      .filter((a): a is NonNullable<typeof a> => a !== undefined && (a.type === "heal" || a.type === "utility"));
-
-    if (usableAbilities.length > 0) {
-      const abilityHeader = this.add.text(px + 10, cy, "― Abilities ―", {
-        fontSize: "11px", fontFamily: "monospace", color: "#ffddaa",
-      });
-      this.spellOverlay.add(abilityHeader);
-      cy += 18;
-
-      for (const ability of usableAbilities) {
-        const canUse = p.mp >= ability.mpCost && (ability.type !== "heal" || p.hp < p.maxHp);
-        const label = `${ability.name} (${ability.mpCost} MP) - ${ability.type}`;
-        const color = canUse ? "#ffffaa" : "#666";
-        const btn = this.add.text(px + 14, cy, label, {
-          fontSize: "11px", fontFamily: "monospace", color,
-        }).setInteractive({ useHandCursor: canUse });
-
-        if (canUse) {
-          btn.on("pointerover", () => btn.setColor("#ffd700"));
-          btn.on("pointerout", () => btn.setColor(color));
-          btn.on("pointerdown", () => {
-            const result = useAbilityOutsideCombat(p, ability.id);
-            this.showMessage(result.message);
-            audioEngine.playPotionSFX();
-            // Rebuild overlay to update MP and state
-            this.buildSpellOverlay();
-            this.updateHUD();
-          });
-        }
-        this.spellOverlay.add(btn);
-        cy += 16;
-      }
-    }
-
-    if (usableSpells.length === 0 && usableAbilities.length === 0) {
-      const noItems = this.add.text(px + panelW / 2, cy + 10, "No heal or utility\nspells/abilities known", {
-        fontSize: "11px", fontFamily: "monospace", color: "#888", align: "center",
-      }).setOrigin(0.5, 0);
-      this.spellOverlay.add(noItems);
-    }
-
-    // Tip
-    const tip = this.add.text(px + panelW / 2, py + panelH - 26, "💡 Heal and travel spells\nwork outside of combat", {
-      fontSize: "9px", fontFamily: "monospace", color: "#666", align: "center",
-    }).setOrigin(0.5, 0);
-    this.spellOverlay.add(tip);
-
-    // Close hint
-    const hint = this.add.text(px + panelW / 2, py + panelH - 8, "Press Q or click to close", {
-      fontSize: "10px", fontFamily: "monospace", color: "#666",
-    }).setOrigin(0.5, 1);
-    this.spellOverlay.add(hint);
-  }
-
   private toggleEquipOverlay(): void {
     if (this.equipOverlay) {
       this.equipOverlay.destroy();
@@ -3414,6 +3625,14 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    this.equipPage = "gear";
+    this.gearWeaponPage = 0;
+    this.gearArmorPage = 0;
+    this.gearShieldPage = 0;
+    this.gearMountPage = 0;
+    this.itemsPage = 0;
+    this.spellsPage = 0;
+    this.abilitiesPage = 0;
     this.buildEquipOverlay();
   }
 
@@ -3426,7 +3645,7 @@ export class OverworldScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const panelW = 280;
-    const panelH = 420;
+    const panelH = 470;
     const px = Math.floor((w - panelW) / 2);
     const py = Math.floor((h - panelH) / 2) - 20;
 
@@ -3448,17 +3667,54 @@ export class OverworldScene extends Phaser.Scene {
     bg.strokeRect(px, py, panelW, panelH);
     this.equipOverlay.add(bg);
 
-    // Title
-    const title = this.add.text(px + panelW / 2, py + 10, "⚔ Equipment", {
-      fontSize: "16px",
-      fontFamily: "monospace",
-      color: "#ffd700",
-    }).setOrigin(0.5, 0);
-    this.equipOverlay.add(title);
+    // --- Tab bar ---
+    const tabY = py + 8;
+    const tabCount = 3;
+    const tabPositions = [0.17, 0.5, 0.83];
+    const tabs: { label: string; page: "gear" | "skills" | "items" }[] = [
+      { label: "⚔ Gear", page: "gear" },
+      { label: "✦ Skills", page: "skills" },
+      { label: "🎒 Items", page: "items" },
+    ];
+    const ulGfx = this.add.graphics();
+    ulGfx.lineStyle(2, 0xffd700, 1);
+    for (let t = 0; t < tabCount; t++) {
+      const tx = px + panelW * tabPositions[t];
+      const tab = this.add.text(tx, tabY, tabs[t].label, {
+        fontSize: "12px", fontFamily: "monospace",
+        color: this.equipPage === tabs[t].page ? "#ffd700" : "#888",
+      }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+      const pg = tabs[t].page;
+      tab.on("pointerdown", () => { this.equipPage = pg; this.buildEquipOverlay(); });
+      this.equipOverlay.add(tab);
+      if (this.equipPage === tabs[t].page) {
+        ulGfx.lineBetween(tx - 28, tabY + 16, tx + 28, tabY + 16);
+      }
+    }
+    this.equipOverlay.add(ulGfx);
 
+    if (this.equipPage === "gear") {
+      this.buildEquipGearPage(px, py + 28, panelW, panelH - 28);
+    } else if (this.equipPage === "skills") {
+      this.buildEquipSkillsPage(px, py + 28, panelW, panelH - 28);
+    } else {
+      this.buildEquipItemsPage(px, py + 28, panelW, panelH - 28);
+    }
+
+    // Close hint
+    const hint = this.add.text(px + panelW / 2, py + panelH - 14, "Press E or click to close", {
+      fontSize: "10px",
+      fontFamily: "monospace",
+      color: "#666",
+    }).setOrigin(0.5, 1);
+    this.equipOverlay.add(hint);
+  }
+
+  /** Gear page content (header, stats, equipment, mounts). */
+  private buildEquipGearPage(px: number, py: number, panelW: number, _panelH: number): void {
     const p = this.player;
     const ac = getArmorClass(p);
-    let cy = py + 34;
+    let cy = py + 6;
 
     // --- Header stats ---
     const xpNeeded = xpForLevel(p.level + 1);
@@ -3467,166 +3723,12 @@ export class OverworldScene extends Phaser.Scene {
       `HP: ${p.hp}/${p.maxHp}   MP: ${p.mp}/${p.maxMp}   AC: ${ac}`,
       `EXP: ${p.xp}/${xpNeeded}  (${xpNeeded - p.xp} to next)`,
     ].join("\n"), {
-      fontSize: "11px",
-      fontFamily: "monospace",
-      color: "#ccc",
-      lineSpacing: 4,
+      fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
     });
-    this.equipOverlay.add(header);
-    cy += 52;
+    this.equipOverlay!.add(header);
+    cy += 48;
 
-    // --- Weapon slot ---
-    const weaponLabel = this.add.text(px + 14, cy, "Weapon:", {
-      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
-    });
-    this.equipOverlay.add(weaponLabel);
-    cy += 16;
-
-    const ownedWeapons = p.inventory.filter((i) => i.type === "weapon");
-    if (ownedWeapons.length === 0 && !p.equippedWeapon) {
-      const bare = this.add.text(px + 20, cy, "Bare Hands", {
-        fontSize: "11px", fontFamily: "monospace", color: "#666",
-      });
-      this.equipOverlay.add(bare);
-      cy += 16;
-    } else {
-      // Show equipped weapon and owned alternatives
-      const allWeapons = p.equippedWeapon
-        ? [p.equippedWeapon, ...ownedWeapons.filter((i) => i.id !== p.equippedWeapon!.id)]
-        : ownedWeapons;
-      for (const wpn of allWeapons) {
-        const isEquipped = p.equippedWeapon?.id === wpn.id;
-        const prefix = isEquipped ? "► " : "  ";
-        const color = isEquipped ? "#88ff88" : "#aaddff";
-        const txt = this.add.text(px + 20, cy,
-          `${prefix}${wpn.name} (+${wpn.effect} dmg)${isEquipped ? " [equipped]" : ""}`,
-          { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: true });
-        if (isEquipped) {
-          txt.on("pointerover", () => txt.setColor("#ff6666"));
-          txt.on("pointerout", () => txt.setColor(color));
-          txt.on("pointerdown", () => {
-            p.equippedWeapon = null;
-            this.buildEquipOverlay();
-          });
-        } else {
-          txt.on("pointerover", () => txt.setColor("#ffd700"));
-          txt.on("pointerout", () => txt.setColor(color));
-          txt.on("pointerdown", () => {
-            p.equippedWeapon = wpn;
-            // Two-handed weapons unequip shield
-            if (wpn.twoHanded) p.equippedShield = null;
-            this.buildEquipOverlay();
-          });
-        }
-        this.equipOverlay.add(txt);
-        cy += 16;
-      }
-    }
-    cy += 6;
-
-    // --- Armor slot ---
-    const armorLabel = this.add.text(px + 14, cy, "Armor:", {
-      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
-    });
-    this.equipOverlay.add(armorLabel);
-    cy += 16;
-
-    const ownedArmor = p.inventory.filter((i) => i.type === "armor");
-    if (ownedArmor.length === 0 && !p.equippedArmor) {
-      const none = this.add.text(px + 20, cy, "No Armor", {
-        fontSize: "11px", fontFamily: "monospace", color: "#666",
-      });
-      this.equipOverlay.add(none);
-      cy += 16;
-    } else {
-      const allArmor = p.equippedArmor
-        ? [p.equippedArmor, ...ownedArmor.filter((i) => i.id !== p.equippedArmor!.id)]
-        : ownedArmor;
-      for (const arm of allArmor) {
-        const isEquipped = p.equippedArmor?.id === arm.id;
-        const prefix = isEquipped ? "► " : "  ";
-        const color = isEquipped ? "#88ff88" : "#aaddff";
-        const txt = this.add.text(px + 20, cy,
-          `${prefix}${arm.name} (+${arm.effect} AC)${isEquipped ? " [equipped]" : ""}`,
-          { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: true });
-        if (isEquipped) {
-          txt.on("pointerover", () => txt.setColor("#ff6666"));
-          txt.on("pointerout", () => txt.setColor(color));
-          txt.on("pointerdown", () => {
-            p.equippedArmor = null;
-            this.buildEquipOverlay();
-          });
-        } else {
-          txt.on("pointerover", () => txt.setColor("#ffd700"));
-          txt.on("pointerout", () => txt.setColor(color));
-          txt.on("pointerdown", () => {
-            p.equippedArmor = arm;
-            this.buildEquipOverlay();
-          });
-        }
-        this.equipOverlay.add(txt);
-        cy += 16;
-      }
-    }
-    cy += 6;
-
-    // --- Shield slot ---
-    const shieldLabel = this.add.text(px + 14, cy, "Shield:", {
-      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
-    });
-    this.equipOverlay.add(shieldLabel);
-    cy += 16;
-
-    const isTwoHanded = p.equippedWeapon?.twoHanded === true;
-    const ownedShields = p.inventory.filter((i) => i.type === "shield");
-    if (isTwoHanded) {
-      const note = this.add.text(px + 20, cy, "(two-handed weapon equipped)", {
-        fontSize: "11px", fontFamily: "monospace", color: "#666",
-      });
-      this.equipOverlay.add(note);
-      cy += 16;
-    } else if (ownedShields.length === 0 && !p.equippedShield) {
-      const none = this.add.text(px + 20, cy, "No Shield", {
-        fontSize: "11px", fontFamily: "monospace", color: "#666",
-      });
-      this.equipOverlay.add(none);
-      cy += 16;
-    } else {
-      const allShields = p.equippedShield
-        ? [p.equippedShield, ...ownedShields.filter((i) => i.id !== p.equippedShield!.id)]
-        : ownedShields;
-      for (const sh of allShields) {
-        const isEquipped = p.equippedShield?.id === sh.id;
-        const prefix = isEquipped ? "► " : "  ";
-        const color = isEquipped ? "#88ff88" : "#aaddff";
-        const txt = this.add.text(px + 20, cy,
-          `${prefix}${sh.name} (+${sh.effect} AC)${isEquipped ? " [equipped]" : ""}`,
-          { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: true });
-        if (isEquipped) {
-          txt.on("pointerover", () => txt.setColor("#ff6666"));
-          txt.on("pointerout", () => txt.setColor(color));
-          txt.on("pointerdown", () => {
-            p.equippedShield = null;
-            this.buildEquipOverlay();
-          });
-        } else {
-          txt.on("pointerover", () => txt.setColor("#ffd700"));
-          txt.on("pointerout", () => txt.setColor(color));
-          txt.on("pointerdown", () => {
-            p.equippedShield = sh;
-            this.buildEquipOverlay();
-          });
-        }
-        this.equipOverlay.add(txt);
-        cy += 16;
-      }
-    }
-    cy += 6;
-
-    // --- Ability Scores ---
+    // --- Ability Scores (right after EXP) ---
     const fmtStat = (label: string, val: number) => {
       const mod = abilityModifier(val);
       const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
@@ -3647,33 +3749,397 @@ export class OverworldScene extends Phaser.Scene {
     ].join("\n"), {
       fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
     });
-    this.equipOverlay.add(statsBlock);
-    cy += 66;
+    this.equipOverlay!.add(statsBlock);
+    cy += 68;
 
-    // --- Consumables ---
-    const consumables = p.inventory.filter((i) => i.type === "consumable");
-    const potionCount = consumables.filter((i) => i.id === "potion").length;
-    const etherCount = consumables.filter((i) => i.id === "ether").length;
-    const greaterCount = consumables.filter((i) => i.id === "greaterPotion").length;
+    const MAX_SLOT_VISIBLE = 3;
 
-    const consBlock = this.add.text(px + 14, cy, [
-      `― Consumables ―`,
-      `Potions: ${potionCount}  Ethers: ${etherCount}`,
-      `Greater Potions: ${greaterCount}`,
-      ``,
-      `Spells Known: ${p.knownSpells.length}`,
-    ].join("\n"), {
-      fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
+    // --- Weapon slot (paginated) ---
+    cy = this.renderGearSlot(px, cy, panelW, "Weapon", "weapon",
+      p.equippedWeapon, (item) => { p.equippedWeapon = item; if (item?.twoHanded) p.equippedShield = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
+      () => { p.equippedWeapon = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
+      this.gearWeaponPage, MAX_SLOT_VISIBLE,
+      (dir) => { this.gearWeaponPage += dir; this.buildEquipOverlay(); },
+      "dmg");
+    cy += 4;
+
+    // --- Armor slot (paginated) ---
+    cy = this.renderGearSlot(px, cy, panelW, "Armor", "armor",
+      p.equippedArmor, (item) => { p.equippedArmor = item; this.buildEquipOverlay(); },
+      () => { p.equippedArmor = null; this.buildEquipOverlay(); },
+      this.gearArmorPage, MAX_SLOT_VISIBLE,
+      (dir) => { this.gearArmorPage += dir; this.buildEquipOverlay(); },
+      "AC");
+    cy += 4;
+
+    // --- Shield slot (paginated) ---
+    const isTwoHanded = p.equippedWeapon?.twoHanded === true;
+    if (isTwoHanded) {
+      const shieldLabel = this.add.text(px + 14, cy, "Shield:", { fontSize: "11px", fontFamily: "monospace", color: "#c0a060" });
+      this.equipOverlay!.add(shieldLabel);
+      cy += 16;
+      const note = this.add.text(px + 20, cy, "(two-handed weapon)", { fontSize: "11px", fontFamily: "monospace", color: "#666" });
+      this.equipOverlay!.add(note);
+      cy += 16;
+    } else {
+      cy = this.renderGearSlot(px, cy, panelW, "Shield", "shield",
+        p.equippedShield, (item) => { p.equippedShield = item; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
+        () => { p.equippedShield = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
+        this.gearShieldPage, MAX_SLOT_VISIBLE,
+        (dir) => { this.gearShieldPage += dir; this.buildEquipOverlay(); },
+        "AC");
+    }
+    cy += 4;
+
+    // --- Mount slot (paginated, max 3) ---
+    const mountLabel = this.add.text(px + 14, cy, "Mount:", {
+      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
     });
-    this.equipOverlay.add(consBlock);
+    this.equipOverlay!.add(mountLabel);
+    cy += 16;
 
-    // Close hint
-    const hint = this.add.text(px + panelW / 2, py + panelH - 14, "Press E or click to close", {
-      fontSize: "10px",
-      fontFamily: "monospace",
-      color: "#666",
-    }).setOrigin(0.5, 1);
-    this.equipOverlay.add(hint);
+    const ownedMounts = p.inventory.filter((i) => i.type === "mount");
+    const currentMount = p.mountId ? getMount(p.mountId) : undefined;
+    const MAX_MOUNT_VISIBLE = 3;
+
+    if (ownedMounts.length === 0 && !currentMount) {
+      const none = this.add.text(px + 20, cy, "On Foot", {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay!.add(none);
+      cy += 16;
+    } else {
+      const mountEntries: { mountId: string; name: string; speed: number; isActive: boolean }[] = [];
+      if (currentMount) {
+        mountEntries.push({ mountId: currentMount.id, name: currentMount.name, speed: currentMount.speedMultiplier, isActive: true });
+      }
+      for (const mi of ownedMounts) {
+        if (mi.mountId && mi.mountId !== p.mountId) {
+          const md = getMount(mi.mountId);
+          if (md) mountEntries.push({ mountId: md.id, name: md.name, speed: md.speedMultiplier, isActive: false });
+        }
+      }
+      // Add dismount option as an entry
+      if (currentMount) {
+        mountEntries.push({ mountId: "", name: "Dismount (on foot)", speed: 0, isActive: false });
+      }
+
+      const mountTotalPages = Math.max(1, Math.ceil(mountEntries.length / MAX_MOUNT_VISIBLE));
+      const mountPage = Math.min(this.gearMountPage, mountTotalPages - 1);
+      const mountStart = mountPage * MAX_MOUNT_VISIBLE;
+      const visibleMounts = mountEntries.slice(mountStart, mountStart + MAX_MOUNT_VISIBLE);
+
+      for (const me of visibleMounts) {
+        if (me.mountId === "" && me.speed === 0) {
+          // Dismount option
+          const dismountTxt = this.add.text(px + 20, cy, "  Dismount (on foot)", {
+            fontSize: "11px", fontFamily: "monospace", color: "#aaddff",
+          }).setInteractive({ useHandCursor: true });
+          dismountTxt.on("pointerover", () => dismountTxt.setColor("#ffd700"));
+          dismountTxt.on("pointerout", () => dismountTxt.setColor("#aaddff"));
+          dismountTxt.on("pointerdown", () => { p.mountId = ""; this.buildEquipOverlay(); });
+          this.equipOverlay!.add(dismountTxt);
+        } else {
+          const prefix = me.isActive ? "► " : "  ";
+          const color = me.isActive ? "#88ff88" : "#aaddff";
+          const txt = this.add.text(px + 20, cy,
+            `${prefix}${me.name} (×${me.speed} speed)${me.isActive ? " [riding]" : ""}`,
+            { fontSize: "11px", fontFamily: "monospace", color }
+          ).setInteractive({ useHandCursor: true });
+          if (me.isActive) {
+            txt.on("pointerover", () => txt.setColor("#ff6666"));
+            txt.on("pointerout", () => txt.setColor(color));
+            txt.on("pointerdown", () => { p.mountId = ""; this.buildEquipOverlay(); });
+          } else {
+            txt.on("pointerover", () => txt.setColor("#ffd700"));
+            txt.on("pointerout", () => txt.setColor(color));
+            txt.on("pointerdown", () => { p.mountId = me.mountId; this.buildEquipOverlay(); });
+          }
+          this.equipOverlay!.add(txt);
+        }
+        cy += 14;
+      }
+
+      if (mountTotalPages > 1) {
+        const nav = this.add.text(px + 20, cy, `◄ ${mountPage + 1}/${mountTotalPages} ►`, {
+          fontSize: "10px", fontFamily: "monospace", color: "#888",
+        }).setInteractive({ useHandCursor: true });
+        nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+          const mid = nav.x + nav.width / 2;
+          this.gearMountPage += pointer.x < mid ? -1 : 1;
+          this.gearMountPage = Math.max(0, Math.min(this.gearMountPage, mountTotalPages - 1));
+          this.buildEquipOverlay();
+        });
+        this.equipOverlay!.add(nav);
+        cy += 14;
+      }
+    }
+    cy += 6;
+  }
+
+  /** Render a paginated gear slot (weapon/armor/shield) and return the new cy. */
+  private renderGearSlot(
+    px: number, cy: number, _panelW: number,
+    slotLabel: string, slotType: string,
+    equipped: import("../data/items").Item | null,
+    onEquip: (item: import("../data/items").Item | null) => void,
+    onUnequip: () => void,
+    page: number, maxVisible: number,
+    onPageChange: (dir: number) => void,
+    effectLabel: string,
+  ): number {
+    const p = this.player;
+    const label = this.add.text(px + 14, cy, `${slotLabel}:`, {
+      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
+    });
+    this.equipOverlay!.add(label);
+    cy += 16;
+
+    const ownedItems = p.inventory.filter((i) => i.type === slotType);
+    if (ownedItems.length === 0 && !equipped) {
+      const none = this.add.text(px + 20, cy, slotType === "weapon" ? "Bare Hands" : `No ${slotLabel}`, {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay!.add(none);
+      cy += 16;
+      return cy;
+    }
+
+    const allItems = equipped
+      ? [equipped, ...ownedItems.filter((i) => i.id !== equipped.id)]
+      : ownedItems;
+
+    const totalPages = Math.ceil(allItems.length / maxVisible);
+    const safePage = Math.min(page, totalPages - 1);
+    const start = safePage * maxVisible;
+    const visible = allItems.slice(start, start + maxVisible);
+
+    for (const item of visible) {
+      const isEquipped = equipped?.id === item.id;
+      const prefix = isEquipped ? "► " : "  ";
+      const color = isEquipped ? "#88ff88" : "#aaddff";
+      const txt = this.add.text(px + 20, cy,
+        `${prefix}${item.name} (+${item.effect} ${effectLabel})${isEquipped ? " [eq]" : ""}`,
+        { fontSize: "11px", fontFamily: "monospace", color }
+      ).setInteractive({ useHandCursor: true });
+      if (isEquipped) {
+        txt.on("pointerover", () => txt.setColor("#ff6666"));
+        txt.on("pointerout", () => txt.setColor(color));
+        txt.on("pointerdown", () => onUnequip());
+      } else {
+        txt.on("pointerover", () => txt.setColor("#ffd700"));
+        txt.on("pointerout", () => txt.setColor(color));
+        txt.on("pointerdown", () => onEquip(item));
+      }
+      this.equipOverlay!.add(txt);
+      cy += 14;
+    }
+
+    // Show page controls if multiple pages
+    if (totalPages > 1) {
+      const pg = safePage;
+      const nav = this.add.text(px + 20, cy, `◄ ${pg + 1}/${totalPages} ►`, {
+        fontSize: "10px", fontFamily: "monospace", color: "#888",
+      }).setInteractive({ useHandCursor: true });
+      nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        const mid = nav.x + nav.width / 2;
+        onPageChange(pointer.x < mid ? -1 : 1);
+      });
+      this.equipOverlay!.add(nav);
+      cy += 14;
+    }
+
+    return cy;
+  }
+
+  /** Items page with descriptions and pagination (max 10 per page). */
+  private buildEquipItemsPage(px: number, py: number, panelW: number, _panelH: number): void {
+    const p = this.player;
+    let cy = py + 6;
+    const MAX_ITEMS_VISIBLE = 10;
+
+    // Build combined list: consumables (grouped) + key items
+    const consumables = p.inventory.filter((i) => i.type === "consumable");
+    const grouped = new Map<string, { item: typeof consumables[0]; count: number }>();
+    for (const item of consumables) {
+      const existing = grouped.get(item.id);
+      if (existing) { existing.count++; } else { grouped.set(item.id, { item, count: 1 }); }
+    }
+    const keyItems = p.inventory.filter((i) => i.type === "key");
+
+    // Build flat list of renderable entries
+    type ItemEntry = { label: string; desc: string; color: string };
+    const allEntries: ItemEntry[] = [];
+    for (const [, { item, count }] of grouped) {
+      allEntries.push({ label: `${item.name} ×${count}`, desc: item.description, color: "#aaddff" });
+    }
+    for (const ki of keyItems) {
+      allEntries.push({ label: ki.name, desc: ki.description, color: "#ffdd88" });
+    }
+
+    const totalPages = Math.max(1, Math.ceil(allEntries.length / MAX_ITEMS_VISIBLE));
+    const safePage = Math.min(this.itemsPage, totalPages - 1);
+    const visible = allEntries.slice(safePage * MAX_ITEMS_VISIBLE, (safePage + 1) * MAX_ITEMS_VISIBLE);
+
+    const header = this.add.text(px + 14, cy, `― Items (${allEntries.length}) ―`, {
+      fontSize: "12px", fontFamily: "monospace", color: "#c0a060",
+    });
+    this.equipOverlay!.add(header);
+    cy += 18;
+
+    if (allEntries.length === 0) {
+      const none = this.add.text(px + 20, cy, "No items.", {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay!.add(none);
+      cy += 16;
+    } else {
+      for (const entry of visible) {
+        const txt = this.add.text(px + 20, cy, entry.label, {
+          fontSize: "11px", fontFamily: "monospace", color: entry.color,
+        });
+        this.equipOverlay!.add(txt);
+        const desc = this.add.text(px + 30, cy + 13, entry.desc, {
+          fontSize: "9px", fontFamily: "monospace", color: "#888",
+          wordWrap: { width: panelW - 50 },
+        });
+        this.equipOverlay!.add(desc);
+        cy += 28;
+      }
+    }
+
+    if (totalPages > 1) {
+      cy += 4;
+      const nav = this.add.text(px + 20, cy, `◄ ${safePage + 1}/${totalPages} ►`, {
+        fontSize: "10px", fontFamily: "monospace", color: "#888",
+      }).setInteractive({ useHandCursor: true });
+      nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        const mid = nav.x + nav.width / 2;
+        this.itemsPage += pointer.x < mid ? -1 : 1;
+        this.itemsPage = Math.max(0, Math.min(this.itemsPage, totalPages - 1));
+        this.buildEquipOverlay();
+      });
+      this.equipOverlay!.add(nav);
+    }
+  }
+
+  /** Skills page with paginated spells (max 5) and abilities (max 5). */
+  private buildEquipSkillsPage(px: number, py: number, panelW: number, _panelH: number): void {
+    const p = this.player;
+    const appearance = getAppearance(p.appearanceId);
+    const primaryMod = abilityModifier(p.stats[appearance.primaryStat]);
+    const primaryLabel = appearance.primaryStat.slice(0, 3).toUpperCase();
+    let cy = py + 6;
+    const MAX_SPELL_VISIBLE = 5;
+    const MAX_ABILITY_VISIBLE = 5;
+
+    // --- Spells (paginated) ---
+    const spellTotalPages = Math.max(1, Math.ceil(p.knownSpells.length / MAX_SPELL_VISIBLE));
+    const spellPage = Math.min(this.spellsPage, spellTotalPages - 1);
+    const spellStart = spellPage * MAX_SPELL_VISIBLE;
+    const visibleSpells = p.knownSpells.slice(spellStart, spellStart + MAX_SPELL_VISIBLE);
+
+    const spellsHeader = this.add.text(px + 14, cy, `― Spells (${p.knownSpells.length}) ―`, {
+      fontSize: "12px", fontFamily: "monospace", color: "#c0a060",
+    });
+    this.equipOverlay!.add(spellsHeader);
+    cy += 18;
+
+    if (p.knownSpells.length === 0) {
+      const none = this.add.text(px + 20, cy, "No spells learned yet.", {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay!.add(none);
+      cy += 16;
+    } else {
+      for (const spellId of visibleSpells) {
+        const spell = getSpell(spellId);
+        if (!spell) continue;
+        const dmgOrHeal = spell.type === "heal" ? "heal" : "dmg";
+        const diceStr = `${spell.damageCount}d${spell.damageDie}`;
+        const modStr = primaryMod >= 0 ? `+${primaryMod}` : `${primaryMod}`;
+        const txt = this.add.text(px + 20, cy,
+          `${spell.name}  ${spell.mpCost} MP  ${diceStr}${modStr} ${dmgOrHeal}`,
+          { fontSize: "11px", fontFamily: "monospace", color: "#aaddff" }
+        );
+        this.equipOverlay!.add(txt);
+        const desc = this.add.text(px + 30, cy + 13,
+          `${spell.description}  (${primaryLabel} mod ${modStr})`,
+          { fontSize: "9px", fontFamily: "monospace", color: "#888", wordWrap: { width: panelW - 50 } }
+        );
+        this.equipOverlay!.add(desc);
+        cy += 28;
+      }
+      if (spellTotalPages > 1) {
+        const nav = this.add.text(px + 20, cy, `◄ ${spellPage + 1}/${spellTotalPages} ►`, {
+          fontSize: "10px", fontFamily: "monospace", color: "#888",
+        }).setInteractive({ useHandCursor: true });
+        nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+          const mid = nav.x + nav.width / 2;
+          this.spellsPage += pointer.x < mid ? -1 : 1;
+          this.spellsPage = Math.max(0, Math.min(this.spellsPage, spellTotalPages - 1));
+          this.buildEquipOverlay();
+        });
+        this.equipOverlay!.add(nav);
+        cy += 16;
+      }
+    }
+    cy += 8;
+
+    // --- Abilities (paginated) ---
+    const knownAbilities = p.knownAbilities ?? [];
+    const abilityTotalPages = Math.max(1, Math.ceil(knownAbilities.length / MAX_ABILITY_VISIBLE));
+    const abilityPage = Math.min(this.abilitiesPage, abilityTotalPages - 1);
+    const abilityStart = abilityPage * MAX_ABILITY_VISIBLE;
+    const visibleAbilities = knownAbilities.slice(abilityStart, abilityStart + MAX_ABILITY_VISIBLE);
+
+    const abilitiesHeader = this.add.text(px + 14, cy, `― Abilities (${knownAbilities.length}) ―`, {
+      fontSize: "12px", fontFamily: "monospace", color: "#c0a060",
+    });
+    this.equipOverlay!.add(abilitiesHeader);
+    cy += 18;
+
+    if (knownAbilities.length === 0) {
+      const none = this.add.text(px + 20, cy, "No abilities learned yet.", {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay!.add(none);
+      cy += 16;
+    } else {
+      for (const abilityId of visibleAbilities) {
+        const ability = getAbility(abilityId);
+        if (!ability) continue;
+        const dmgOrHeal = ability.type === "heal" ? "heal" : "dmg";
+        const diceStr = `${ability.damageCount}d${ability.damageDie}`;
+        const aMod = abilityModifier(p.stats[ability.statKey]);
+        const aModStr = aMod >= 0 ? `+${aMod}` : `${aMod}`;
+        const statLabel = ability.statKey.slice(0, 3).toUpperCase();
+        const bonusTag = ability.bonusAction ? " [bonus]" : "";
+        const txt = this.add.text(px + 20, cy,
+          `${ability.name}  ${ability.mpCost} MP  ${diceStr}${aModStr} ${dmgOrHeal}${bonusTag}`,
+          { fontSize: "11px", fontFamily: "monospace", color: "#aaddff" }
+        );
+        this.equipOverlay!.add(txt);
+        const desc = this.add.text(px + 30, cy + 13,
+          `${ability.description}  (${statLabel} mod ${aModStr})`,
+          { fontSize: "9px", fontFamily: "monospace", color: "#888", wordWrap: { width: panelW - 50 } }
+        );
+        this.equipOverlay!.add(desc);
+        cy += 28;
+      }
+      if (abilityTotalPages > 1) {
+        const nav = this.add.text(px + 20, cy, `◄ ${abilityPage + 1}/${abilityTotalPages} ►`, {
+          fontSize: "10px", fontFamily: "monospace", color: "#888",
+        }).setInteractive({ useHandCursor: true });
+        nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+          const mid = nav.x + nav.width / 2;
+          this.abilitiesPage += pointer.x < mid ? -1 : 1;
+          this.abilitiesPage = Math.max(0, Math.min(this.abilitiesPage, abilityTotalPages - 1));
+          this.buildEquipOverlay();
+        });
+        this.equipOverlay!.add(nav);
+      }
+    }
   }
 
   // ─── Rolled-Stats Overlay (shown once on new game) ───────────────
@@ -4015,7 +4481,7 @@ export class OverworldScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const panelW = 280;
-    const panelH = 280;
+    const panelH = 320;
     const px = Math.floor((w - panelW) / 2);
     const py = Math.floor((h - panelH) / 2) - 10;
 
@@ -4076,12 +4542,7 @@ export class OverworldScene extends Phaser.Scene {
       btn.on("pointerdown", () => {
         if (allocateStatPoint(p, key)) {
           this.updateHUD();
-          if (p.pendingStatPoints > 0) {
-            this.showStatOverlay(); // rebuild
-          } else {
-            this.statOverlay?.destroy();
-            this.statOverlay = null;
-          }
+          this.showStatOverlay(); // rebuild (shows confirm when 0 points left)
         }
       });
 
@@ -4089,12 +4550,32 @@ export class OverworldScene extends Phaser.Scene {
       cy += 28;
     }
 
-    // Close hint
-    const hint = this.add.text(px + panelW / 2, py + panelH - 14,
-      p.pendingStatPoints > 0 ? "Click [+] to allocate" : "All points allocated!", {
-        fontSize: "10px", fontFamily: "monospace", color: "#666",
-      }).setOrigin(0.5, 1);
-    this.statOverlay.add(hint);
+    // When no points remain, show a Confirm / Undo bar instead of hint
+    if (p.pendingStatPoints <= 0) {
+      const confirmBtn = this.add.text(px + panelW / 2, py + panelH - 36, "✔ Confirm", {
+        fontSize: "12px", fontFamily: "monospace", color: "#88ff88",
+        backgroundColor: "#1a2e1a", padding: { x: 6, y: 3 },
+      }).setOrigin(0.5, 0.5).setInteractive({ useHandCursor: true });
+      confirmBtn.on("pointerover", () => confirmBtn.setColor("#ffd700"));
+      confirmBtn.on("pointerout", () => confirmBtn.setColor("#88ff88"));
+      confirmBtn.on("pointerdown", () => {
+        this.statOverlay?.destroy();
+        this.statOverlay = null;
+      });
+      this.statOverlay.add(confirmBtn);
+
+      const hint = this.add.text(px + panelW / 2, py + panelH - 10,
+        "All points allocated!", {
+          fontSize: "9px", fontFamily: "monospace", color: "#666",
+        }).setOrigin(0.5, 1);
+      this.statOverlay.add(hint);
+    } else {
+      const hint = this.add.text(px + panelW / 2, py + panelH - 10,
+        "Click [+] to allocate", {
+          fontSize: "10px", fontFamily: "monospace", color: "#666",
+        }).setOrigin(0.5, 1);
+      this.statOverlay.add(hint);
+    }
   }
 
   // ─── World Map Overlay ───────────────────────────────────────────

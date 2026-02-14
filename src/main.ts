@@ -34,6 +34,8 @@ const checkbox = document.getElementById("debug-checkbox") as HTMLInputElement |
 const label = document.getElementById("debug-label") as HTMLElement | null;
 const panel = document.getElementById("debug-panel") as HTMLElement | null;
 
+const debugCheatsSection = document.getElementById("debug-cheats") as HTMLElement | null;
+
 if (!isLocalDev()) {
   // Hide all debug UI on production (github.io)
   if (debugToggle) debugToggle.style.display = "none";
@@ -49,16 +51,19 @@ if (!isLocalDev()) {
       checkbox.blur();
       if (label) label.style.color = on ? "#00ff00" : "#555";
       if (panel) panel.style.display = on ? "block" : "none";
+      if (debugCheatsSection) debugCheatsSection.style.display = on ? "block" : "none";
     });
     onDebugChanged((on) => {
       checkbox.checked = on;
       if (label) label.style.color = on ? "#00ff00" : "#555";
       if (panel) panel.style.display = on ? "block" : "none";
+      if (debugCheatsSection) debugCheatsSection.style.display = on ? "block" : "none";
     });
     // Sync initial state in case debug was already on
     if (isDebug()) {
       if (label) label.style.color = "#00ff00";
       if (panel) panel.style.display = "block";
+      if (debugCheatsSection) debugCheatsSection.style.display = "block";
     }
   }
 

@@ -26,7 +26,7 @@ import { MONSTERS, getRandomEncounter, getBoss, DUNGEON_MONSTERS, getDungeonEnco
 import { SPELLS, getSpell, getAvailableSpells } from "../src/data/spells";
 import { ITEMS, getItem, getShopItems, getShopItemsForTown } from "../src/data/items";
 import { ABILITIES, getAbility } from "../src/data/abilities";
-import { PLAYER_APPEARANCES, CASTER_CLASSES } from "../src/systems/appearance";
+import { PLAYER_APPEARANCES, getAppearance, CASTER_CLASSES } from "../src/systems/appearance";
 
 describe("game data", () => {
   describe("world map", () => {
@@ -197,6 +197,23 @@ describe("game data", () => {
       const types = new Set(SPELLS.map((s) => s.type));
       expect(types.has("damage")).toBe(true);
       expect(types.has("heal")).toBe(true);
+    });
+
+    it("has class-specific spells", () => {
+      // Warlock-specific spells
+      expect(getSpell("eldritchBlast")).toBeDefined();
+      expect(getSpell("hexCurse")).toBeDefined();
+      expect(getSpell("hungerOfHadar")).toBeDefined();
+      // Cleric-specific spells
+      expect(getSpell("sacredFlame")).toBeDefined();
+      expect(getSpell("spiritGuardians")).toBeDefined();
+      // Mage-specific spells
+      expect(getSpell("arcaneRecovery")).toBeDefined();
+    });
+
+    it("each spell has a unique ID", () => {
+      const ids = SPELLS.map((s) => s.id);
+      expect(new Set(ids).size).toBe(ids.length);
     });
   });
 
@@ -625,115 +642,106 @@ describe("game data", () => {
     });
   });
 
-  describe("fast travel system", () => {
-    it("Chimaera Wing item exists and is a consumable", () => {
-      const wing = getItem("chimaeraWing");
-      expect(wing).toBeDefined();
-      expect(wing!.name).toBe("Chimaera Wing");
-      expect(wing!.type).toBe("consumable");
-      expect(wing!.cost).toBeGreaterThan(0);
+  describe("class system", () => {
+    it("has 10 distinct classes", () => {
+      expect(PLAYER_APPEARANCES).toHaveLength(10);
+      const ids = PLAYER_APPEARANCES.map((a) => a.id);
+      expect(new Set(ids).size).toBe(10);
     });
 
-    it("Chimaera Wing is available in some shops", () => {
-      const towns = getAllTowns();
-      const townsWithWing = towns.filter((t) => t.shopItems.includes("chimaeraWing"));
-      expect(townsWithWing.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it("Chimaera Wing is available in some city shops", () => {
-      let found = false;
-      for (const city of CITIES) {
-        for (const shop of city.shops) {
-          if (shop.shopItems.includes("chimaeraWing")) {
-            found = true;
-            break;
-          }
-        }
+    it("each class has description and playstyle", () => {
+      for (const app of PLAYER_APPEARANCES) {
+        expect(app.description.length).toBeGreaterThan(10);
+        expect(app.playstyle.length).toBeGreaterThan(3);
       }
-      expect(found).toBe(true);
     });
 
-    it("Chimaera monster exists with wing drop", () => {
-      const chimaera = MONSTERS.find((m) => m.id === "chimaera");
-      expect(chimaera).toBeDefined();
-      expect(chimaera!.name).toBe("Chimaera");
-      expect(chimaera!.isBoss).toBe(false);
-      expect(chimaera!.drops).toBeDefined();
-      expect(chimaera!.drops!.some((d) => d.itemId === "chimaeraWing")).toBe(true);
+    it("each class has a hit die between 6 and 12", () => {
+      for (const app of PLAYER_APPEARANCES) {
+        expect(app.hitDie).toBeGreaterThanOrEqual(6);
+        expect(app.hitDie).toBeLessThanOrEqual(12);
+      }
     });
 
-    it("Great Chimaera monster exists with higher wing drop rate", () => {
-      const great = MONSTERS.find((m) => m.id === "greatChimaera");
-      expect(great).toBeDefined();
-      expect(great!.name).toBe("Great Chimaera");
-      expect(great!.isBoss).toBe(false);
-      expect(great!.drops).toBeDefined();
-      const wingDrop = great!.drops!.find((d) => d.itemId === "chimaeraWing");
-      expect(wingDrop).toBeDefined();
-      const chimaeraWingDrop = MONSTERS.find((m) => m.id === "chimaera")!.drops!.find((d) => d.itemId === "chimaeraWing");
-      expect(wingDrop!.chance).toBeGreaterThan(chimaeraWingDrop!.chance);
+    it("barbarian has the highest hit die (d12)", () => {
+      const barbarian = getAppearance("barbarian");
+      expect(barbarian.hitDie).toBe(12);
     });
 
-    it("Great Chimaera is tougher than regular Chimaera", () => {
-      const chimaera = MONSTERS.find((m) => m.id === "chimaera")!;
-      const great = MONSTERS.find((m) => m.id === "greatChimaera")!;
-      expect(great.hp).toBeGreaterThan(chimaera.hp);
-      expect(great.xpReward).toBeGreaterThan(chimaera.xpReward);
+    it("mage has the lowest hit die (d6)", () => {
+      const mage = getAppearance("mage");
+      expect(mage.hitDie).toBe(6);
     });
 
-    it("Teleport spell exists as utility type at level 5", () => {
-      const teleport = getSpell("teleport");
-      expect(teleport).toBeDefined();
-      expect(teleport!.name).toBe("Teleport");
-      expect(teleport!.type).toBe("utility");
-      expect(teleport!.levelRequired).toBe(5);
-      expect(teleport!.mpCost).toBeGreaterThan(0);
+    it("each class has a weapon sprite type", () => {
+      const weaponTypes = new Set(PLAYER_APPEARANCES.map((a) => a.weaponSprite));
+      expect(weaponTypes.size).toBeGreaterThanOrEqual(4);
     });
 
-    it("Teleport spell is available to caster classes only", () => {
-      for (const appearance of PLAYER_APPEARANCES) {
-        if (CASTER_CLASSES.includes(appearance.id)) {
-          expect(appearance.spells, `${appearance.label} should have teleport`).toContain("teleport");
-        } else {
-          expect(appearance.spells, `${appearance.label} should not have teleport`).not.toContain("teleport");
+    it("pure caster classes have no martial abilities", () => {
+      const pureCasters = CASTER_CLASSES.filter((id) => id !== "bard");
+      for (const casterId of pureCasters) {
+        const app = getAppearance(casterId);
+        expect(app.abilities, `${app.label} should have no abilities`).toHaveLength(0);
+      }
+    });
+
+    it("martial classes have at least 3 abilities", () => {
+      const martialClasses = ["knight", "ranger", "rogue", "paladin", "barbarian", "monk"];
+      for (const classId of martialClasses) {
+        const app = getAppearance(classId);
+        expect(app.abilities.length, `${app.label} should have abilities`).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it("all class spell IDs reference valid spells", () => {
+      for (const app of PLAYER_APPEARANCES) {
+        for (const spellId of app.spells) {
+          expect(getSpell(spellId), `${app.label} references unknown spell ${spellId}`).toBeDefined();
         }
       }
     });
 
-    it("Fast Travel ability exists as utility type at level 5", () => {
-      const fastTravel = getAbility("fastTravel");
-      expect(fastTravel).toBeDefined();
-      expect(fastTravel!.name).toBe("Fast Travel");
-      expect(fastTravel!.type).toBe("utility");
-      expect(fastTravel!.levelRequired).toBe(5);
-      expect(fastTravel!.mpCost).toBeGreaterThan(0);
-    });
-
-    it("Fast Travel ability is available to all classes", () => {
-      for (const appearance of PLAYER_APPEARANCES) {
-        expect(appearance.abilities, `${appearance.label} should have fastTravel`).toContain("fastTravel");
+    it("all class ability IDs reference valid abilities", () => {
+      for (const app of PLAYER_APPEARANCES) {
+        for (const abilityId of app.abilities) {
+          expect(getAbility(abilityId), `${app.label} references unknown ability ${abilityId}`).toBeDefined();
+        }
       }
     });
 
-    it("Teleport spell is included in getAvailableSpells at level 5+", () => {
-      const level4Spells = getAvailableSpells(4);
-      const level5Spells = getAvailableSpells(5);
-      expect(level4Spells.some((s) => s.id === "teleport")).toBe(false);
-      expect(level5Spells.some((s) => s.id === "teleport")).toBe(true);
+    it("rogue, barbarian, and monk have no spells", () => {
+      expect(getAppearance("rogue").spells).toHaveLength(0);
+      expect(getAppearance("barbarian").spells).toHaveLength(0);
+      expect(getAppearance("monk").spells).toHaveLength(0);
     });
 
-    it("Short Rest spell exists as utility type at level 1", () => {
-      const sr = getSpell("shortRest");
-      expect(sr).toBeDefined();
-      expect(sr!.name).toBe("Short Rest");
-      expect(sr!.type).toBe("utility");
-      expect(sr!.levelRequired).toBe(1);
-      expect(sr!.mpCost).toBe(0);
+    it("each ability has a unique ID", () => {
+      const ids = ABILITIES.map((a) => a.id);
+      expect(new Set(ids).size).toBe(ids.length);
     });
 
-    it("Short Rest spell is available to all classes", () => {
-      for (const appearance of PLAYER_APPEARANCES) {
-        expect(appearance.spells, `${appearance.label} should have shortRest`).toContain("shortRest");
+    it("each class has a valid starting weapon", () => {
+      for (const app of PLAYER_APPEARANCES) {
+        const weapon = getItem(app.startingWeaponId);
+        expect(weapon, `${app.label} starting weapon ${app.startingWeaponId} not found`).toBeDefined();
+        expect(weapon!.type).toBe("weapon");
+      }
+    });
+
+    it("each class has a clothing style", () => {
+      const validStyles = ["heavy", "robe", "leather", "vestment", "bare", "wrap", "performer"];
+      for (const app of PLAYER_APPEARANCES) {
+        expect(validStyles).toContain(app.clothingStyle);
+      }
+    });
+
+    it("weapon items have weaponSprite field", () => {
+      const weapons = ITEMS.filter((i) => i.type === "weapon");
+      const validSprites = ["sword", "staff", "dagger", "bow", "mace", "axe", "fist"];
+      for (const wpn of weapons) {
+        expect(wpn.weaponSprite, `${wpn.name} missing weaponSprite`).toBeDefined();
+        expect(validSprites).toContain(wpn.weaponSprite);
       }
     });
   });

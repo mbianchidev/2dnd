@@ -2,14 +2,15 @@
  * Player state management: stats, leveling, experience, spell unlocks.
  */
 
-import { abilityModifier, rollDice } from "../utils/dice";
-import type { DieType } from "../utils/dice";
+import { abilityModifier } from "../utils/dice";
 import type { Spell } from "../data/spells";
-import { SPELLS, getSpell } from "../data/spells";
+import { SPELLS } from "../data/spells";
 import type { Ability } from "../data/abilities";
 import { ABILITIES, getAbility } from "../data/abilities";
 import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "../data/talents";
 import type { Item } from "../data/items";
+import { getItem } from "../data/items";
+import { getMount } from "../data/mounts";
 import { getAppearance, getClassSpells, getClassAbilities } from "./appearance";
 
 export interface PlayerStats {
@@ -82,7 +83,7 @@ export interface PlayerState {
   lastTownChunkY: number; // last town chunk y
   bankBalance: number;    // gold stored in the bank (accessible across all banks)
   lastBankDay: number;    // last day interest was applied (timeStep / CYCLE_LENGTH)
-  shortRestsRemaining: number; // short rests available (max 2, reset on inn long rest)
+  mountId: string;        // ID of the currently active mount (empty = on foot)
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -115,16 +116,8 @@ export function createPlayer(
   const startHp = Math.max(10, 25 + conMod * 3);
   const startMp = Math.max(4, 8 + intMod * 2);
 
-  // Starting spells — all class spells available at level 1
-  const classSpellIds = appearance.spells;
-  const startingSpells = classSpellIds.filter((id) => {
-    const sp = getSpell(id);
-    return sp && sp.levelRequired <= 1;
-  });
-  // Fallback to first spell if no level-1 spells found
-  if (startingSpells.length === 0) {
-    startingSpells.push(appearance.spells[0] ?? "fireBolt");
-  }
+  // Starting spell — first spell in the class list (empty for pure martial)
+  const startingSpells: string[] = appearance.spells.length > 0 ? [appearance.spells[0]] : [];
 
   // Starting abilities — all class abilities available at level 1
   const classAbilities = appearance.abilities ?? [];
@@ -132,6 +125,9 @@ export function createPlayer(
     const ab = getAbility(id);
     return ab && ab.levelRequired <= 1;
   });
+
+  // Starting weapon from class definition
+  const startWeapon = getItem(appearance.startingWeaponId) ?? null;
 
   return {
     name,
@@ -144,11 +140,11 @@ export function createPlayer(
     stats,
     pendingStatPoints: 0,
     gold: 50,
-    inventory: [],
+    inventory: startWeapon ? [startWeapon] : [],
     knownSpells: startingSpells,
     knownAbilities: startingAbilities,
     knownTalents: [],
-    equippedWeapon: null,
+    equippedWeapon: startWeapon,
     equippedArmor: null,
     equippedShield: null,
     appearanceId,
@@ -170,7 +166,7 @@ export function createPlayer(
     lastTownChunkY: 2,
     bankBalance: 0,
     lastBankDay: 0,
-    shortRestsRemaining: 2,
+    mountId: "",
   };
 }
 
@@ -189,16 +185,20 @@ export function applyBankInterest(player: PlayerState, currentDay: number): numb
   return player.bankBalance - oldBalance;
 }
 
-/** Get the attack modifier for the player (STR-based melee). */
+/** Get the attack modifier for the player (uses class primary stat for melee). */
 export function getAttackModifier(player: PlayerState): number {
+  const appearance = getAppearance(player.appearanceId);
+  const primaryStatValue = player.stats[appearance.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(player.stats.strength) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
+  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
 
-/** Get the spell attack modifier (INT-based). */
+/** Get the spell attack modifier (uses class primary stat for casters). */
 export function getSpellModifier(player: PlayerState): number {
+  const appearance = getAppearance(player.appearanceId);
+  const primaryStatValue = player.stats[appearance.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(player.stats.intelligence) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
+  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
 }
 
 /** Get the player's armor class. Optionally add a temporary bonus (e.g. from defending). */
@@ -233,7 +233,7 @@ export function awardXP(
 
     // Increase HP/MP on level up
     const conMod = abilityModifier(player.stats.constitution);
-    const hpGain = Math.max(1, rollHitDie() + conMod);
+    const hpGain = Math.max(1, rollHitDie(player.appearanceId) + conMod);
     player.maxHp += hpGain;
     player.hp = player.maxHp;
 
@@ -299,8 +299,9 @@ export function awardXP(
   return { leveledUp, newLevel: player.level, newSpells, newAbilities, newTalents, asiGained };
 }
 
-function rollHitDie(): number {
-  return Math.floor(Math.random() * 8) + 1; // d8 hit die
+function rollHitDie(appearanceId: string = "knight"): number {
+  const appearance = getAppearance(appearanceId);
+  return Math.floor(Math.random() * appearance.hitDie) + 1;
 }
 
 /** Check if the player can afford an item. */
@@ -308,14 +309,14 @@ export function canAfford(player: PlayerState, cost: number): boolean {
   return player.gold >= cost;
 }
 
-/** Check if the player already owns a specific equipment item (weapon/armor/shield). */
+/** Check if the player already owns a specific equipment item (weapon/armor/shield) or mount. */
 export function ownsEquipment(player: PlayerState, itemId: string): boolean {
   const equipped =
     (player.equippedWeapon?.id === itemId) ||
     (player.equippedArmor?.id === itemId) ||
     (player.equippedShield?.id === itemId);
   const inInventory = player.inventory.some(
-    (i) => i.id === itemId && (i.type === "weapon" || i.type === "armor" || i.type === "shield")
+    (i) => i.id === itemId && (i.type === "weapon" || i.type === "armor" || i.type === "shield" || i.type === "mount")
   );
   return equipped || inInventory;
 }
@@ -345,7 +346,7 @@ export function useItem(
   }
 
   if (item.type === "consumable") {
-    if (item.id === "potion" || item.id === "greaterPotion") {
+    if (item.id === "potion") {
       const healed = Math.min(item.effect, player.maxHp - player.hp);
       player.hp += healed;
       player.inventory.splice(itemIndex, 1);
@@ -356,12 +357,6 @@ export function useItem(
       player.mp += restored;
       player.inventory.splice(itemIndex, 1);
       return { used: true, message: `Restored ${restored} MP!` };
-    }
-    if (item.id === "chimaeraWing") {
-      // Chimaera Wing teleportation is handled by the scene;
-      // here we just consume the item and signal success.
-      player.inventory.splice(itemIndex, 1);
-      return { used: true, message: "The Chimaera Wing glows and whisks you away!" };
     }
   }
 
@@ -386,6 +381,13 @@ export function useItem(
     }
     player.equippedShield = item;
     return { used: true, message: `Equipped ${item.name}!` };
+  }
+
+  if (item.type === "mount") {
+    const mount = item.mountId ? getMount(item.mountId) : undefined;
+    if (!mount) return { used: false, message: "Unknown mount." };
+    player.mountId = mount.id;
+    return { used: true, message: `You mount the ${mount.name}!` };
   }
 
   return { used: false, message: "Cannot use this item." };
@@ -413,102 +415,4 @@ export function allocateStatPoint(
   }
 
   return true;
-}
-
-/**
- * Perform a short rest in the overworld. Restores up to 50% of max HP and 50% of max MP,
- * capped at the player's current maximum. Decrements shortRestsRemaining.
- * Returns the actual amounts restored.
- */
-export function shortRest(player: PlayerState): { hpRestored: number; mpRestored: number } {
-  const hpRestore = Math.floor(player.maxHp * 0.5);
-  const mpRestore = Math.floor(player.maxMp * 0.5);
-  const actualHp = Math.min(hpRestore, player.maxHp - player.hp);
-  const actualMp = Math.min(mpRestore, player.maxMp - player.mp);
-  player.hp += actualHp;
-  player.mp += actualMp;
-  player.shortRestsRemaining--;
-  return { hpRestored: actualHp, mpRestored: actualMp };
-}
-
-/** Cast a heal or utility spell outside of combat. Returns result. */
-export function castSpellOutsideCombat(
-  player: PlayerState,
-  spellId: string
-): { success: boolean; message: string } {
-  const spell = getSpell(spellId);
-  if (!spell) return { success: false, message: "Unknown spell!" };
-
-  if (spell.type === "damage") {
-    return { success: false, message: "Cannot use damage spells outside battle!" };
-  }
-
-  if (player.mp < spell.mpCost) {
-    return { success: false, message: "Not enough MP!" };
-  }
-
-  // Short Rest spell — usable in the overworld, limited uses
-  if (spellId === "shortRest") {
-    if (player.shortRestsRemaining <= 0) {
-      return { success: false, message: "No short rests remaining! Rest at an inn to refill." };
-    }
-    if (player.hp >= player.maxHp && player.mp >= player.maxMp) {
-      return { success: false, message: "HP and MP are already full!" };
-    }
-    const { hpRestored, mpRestored } = shortRest(player);
-    return { success: true, message: `Short Rest! Recovered ${hpRestored} HP and ${mpRestored} MP. (${player.shortRestsRemaining} rests left)` };
-  }
-
-  if (spell.type === "heal") {
-    if (player.hp >= player.maxHp) {
-      return { success: false, message: "HP is already full!" };
-    }
-    const healAmount = rollDice(spell.damageCount, spell.damageDie as DieType);
-    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
-    player.hp += actualHeal;
-    player.mp -= spell.mpCost;
-    return { success: true, message: `${spell.name} healed ${actualHeal} HP! (${spell.mpCost} MP)` };
-  }
-
-  if (spell.type === "utility") {
-    player.mp -= spell.mpCost;
-    return { success: true, message: `${spell.name} cast! (${spell.mpCost} MP)` };
-  }
-
-  return { success: false, message: "Cannot use this spell here." };
-}
-
-/** Use a heal or utility ability outside of combat. Returns result. */
-export function useAbilityOutsideCombat(
-  player: PlayerState,
-  abilityId: string
-): { success: boolean; message: string } {
-  const ability = getAbility(abilityId);
-  if (!ability) return { success: false, message: "Unknown ability!" };
-
-  if (ability.type === "damage") {
-    return { success: false, message: "Cannot use damage abilities outside battle!" };
-  }
-
-  if (player.mp < ability.mpCost) {
-    return { success: false, message: "Not enough MP!" };
-  }
-
-  if (ability.type === "heal") {
-    if (player.hp >= player.maxHp) {
-      return { success: false, message: "HP is already full!" };
-    }
-    const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
-    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
-    player.hp += actualHeal;
-    player.mp -= ability.mpCost;
-    return { success: true, message: `${ability.name} healed ${actualHeal} HP! (${ability.mpCost} MP)` };
-  }
-
-  if (ability.type === "utility") {
-    player.mp -= ability.mpCost;
-    return { success: true, message: `${ability.name} used! (${ability.mpCost} MP)` };
-  }
-
-  return { success: false, message: "Cannot use this ability here." };
 }

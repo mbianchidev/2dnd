@@ -12,7 +12,7 @@ export interface Spell {
   levelRequired: number;
   damageCount: number; // number of dice
   damageDie: DieType; // die type
-  type: "damage" | "heal" | "utility";
+  type: "damage" | "heal";
 }
 
 export const SPELLS: Spell[] = [
@@ -24,6 +24,26 @@ export const SPELLS: Spell[] = [
     levelRequired: 1,
     damageCount: 1,
     damageDie: 10,
+    type: "damage",
+  },
+  {
+    id: "eldritchBlast",
+    name: "Eldritch Blast",
+    description: "A beam of crackling eldritch energy",
+    mpCost: 2,
+    levelRequired: 1,
+    damageCount: 1,
+    damageDie: 10,
+    type: "damage",
+  },
+  {
+    id: "sacredFlame",
+    name: "Sacred Flame",
+    description: "Radiant flame descends on a foe",
+    mpCost: 2,
+    levelRequired: 1,
+    damageCount: 1,
+    damageDie: 8,
     type: "damage",
   },
   {
@@ -57,6 +77,16 @@ export const SPELLS: Spell[] = [
     type: "damage",
   },
   {
+    id: "hexCurse",
+    name: "Hex",
+    description: "Curse a foe, dealing necrotic damage",
+    mpCost: 3,
+    levelRequired: 3,
+    damageCount: 2,
+    damageDie: 6,
+    type: "damage",
+  },
+  {
     id: "healingWord",
     name: "Healing Word",
     description: "Quick healing incantation",
@@ -67,14 +97,14 @@ export const SPELLS: Spell[] = [
     type: "heal",
   },
   {
-    id: "teleport",
-    name: "Teleport",
-    description: "Teleport to a known town",
-    mpCost: 8,
-    levelRequired: 5,
-    damageCount: 0,
-    damageDie: 4,
-    type: "utility",
+    id: "spiritGuardians",
+    name: "Spirit Guardians",
+    description: "Spectral spirits swirl and strike nearby foes",
+    mpCost: 7,
+    levelRequired: 7,
+    damageCount: 3,
+    damageDie: 8,
+    type: "damage",
   },
   {
     id: "fireball",
@@ -87,12 +117,32 @@ export const SPELLS: Spell[] = [
     type: "damage",
   },
   {
+    id: "hungerOfHadar",
+    name: "Hunger of Hadar",
+    description: "A sphere of blackness and bitter cold",
+    mpCost: 7,
+    levelRequired: 7,
+    damageCount: 4,
+    damageDie: 6,
+    type: "damage",
+  },
+  {
     id: "greaterHeal",
     name: "Greater Heal",
     description: "Powerful restorative magic",
     mpCost: 8,
     levelRequired: 9,
     damageCount: 4,
+    damageDie: 8,
+    type: "heal",
+  },
+  {
+    id: "arcaneRecovery",
+    name: "Arcane Recovery",
+    description: "Channel arcane energy to restore vitality",
+    mpCost: 6,
+    levelRequired: 9,
+    damageCount: 3,
     damageDie: 8,
     type: "heal",
   },
@@ -196,15 +246,36 @@ export const SPELLS: Spell[] = [
     damageDie: 10,
     type: "heal",
   },
+  // ── Bard-exclusive spells ─────────────────────────────────────
   {
-    id: "shortRest",
-    name: "Short Rest",
-    description: "Take a quick rest to recover 50% HP and MP",
-    mpCost: 0,
+    id: "viciousMockery",
+    name: "Vicious Mockery",
+    description: "A string of insults laced with subtle enchantment",
+    mpCost: 2,
     levelRequired: 1,
-    damageCount: 0,
-    damageDie: 4,
-    type: "utility",
+    damageCount: 1,
+    damageDie: 6,
+    type: "damage",
+  },
+  {
+    id: "dissonantWhispers",
+    name: "Dissonant Whispers",
+    description: "A discordant melody that wracks the target with pain",
+    mpCost: 4,
+    levelRequired: 3,
+    damageCount: 3,
+    damageDie: 6,
+    type: "damage",
+  },
+  {
+    id: "hypnoticPattern",
+    name: "Hypnotic Pattern",
+    description: "A mesmerizing pattern of light that sears the mind",
+    mpCost: 8,
+    levelRequired: 9,
+    damageCount: 4,
+    damageDie: 8,
+    type: "damage",
   },
 ];
 

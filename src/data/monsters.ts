@@ -117,24 +117,6 @@ export const MONSTERS: Monster[] = [
     ],
   },
   {
-    id: "chimaera",
-    name: "Chimaera",
-    hp: 48,
-    ac: 14,
-    attackBonus: 6,
-    damageCount: 2,
-    damageDie: 8,
-    xpReward: 175,
-    goldReward: 28,
-    isBoss: false,
-    color: 0x8e6e53,
-    drops: [{ itemId: "chimaeraWing", chance: 0.15 }, { itemId: "potion", chance: 0.2 }],
-    abilities: [
-      { name: "Fire Breath", chance: 0.3, damageCount: 2, damageDie: 8, type: "damage" },
-      { name: "Venomous Bite", chance: 0.25, damageCount: 2, damageDie: 6, type: "damage" },
-    ],
-  },
-  {
     id: "wraith",
     name: "Wraith",
     hp: 55,
@@ -150,25 +132,6 @@ export const MONSTERS: Monster[] = [
     abilities: [
       { name: "Life Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true },
       { name: "Necrotic Bolt", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage" },
-    ],
-  },
-  {
-    id: "greatChimaera",
-    name: "Great Chimaera",
-    hp: 72,
-    ac: 16,
-    attackBonus: 7,
-    damageCount: 3,
-    damageDie: 8,
-    xpReward: 250,
-    goldReward: 40,
-    isBoss: false,
-    color: 0x6d4c41,
-    drops: [{ itemId: "chimaeraWing", chance: 0.25 }, { itemId: "greaterPotion", chance: 0.15 }],
-    abilities: [
-      { name: "Triple Breath", chance: 0.35, damageCount: 3, damageDie: 8, type: "damage" },
-      { name: "Tail Lash", chance: 0.25, damageCount: 2, damageDie: 10, type: "damage" },
-      { name: "Regenerate", chance: 0.15, damageCount: 2, damageDie: 8, type: "heal" },
     ],
   },
   // --- Fixed boss encounters ---
@@ -818,3 +781,34 @@ export function getNightEncounter(playerLevel: number, biomeName?: string): Mons
   const index = Math.floor(Math.random() * (maxIndex + 1));
   return { ...pool[index] };
 }
+
+/**
+ * Master list of every unique monster in the game, de-duplicated by ID.
+ * The order follows the definition arrays: overworld → bosses → dungeon → night,
+ * which naturally groups monsters by area and difficulty.
+ */
+export const ALL_MONSTERS: Monster[] = (() => {
+  const seen = new Set<string>();
+  const list: Monster[] = [];
+  const pools = [
+    MONSTERS,
+    DUNGEON_MONSTERS,
+    HEARTLANDS_CRYPT_MONSTERS,
+    FROST_CAVERN_MONSTERS,
+    VOLCANIC_FORGE_MONSTERS,
+    NIGHT_MONSTERS,
+    TUNDRA_NIGHT_MONSTERS,
+    SWAMP_NIGHT_MONSTERS,
+    FOREST_NIGHT_MONSTERS,
+    CANYON_NIGHT_MONSTERS,
+  ];
+  for (const pool of pools) {
+    for (const m of pool) {
+      if (!seen.has(m.id)) {
+        seen.add(m.id);
+        list.push(m);
+      }
+    }
+  }
+  return list;
+})();

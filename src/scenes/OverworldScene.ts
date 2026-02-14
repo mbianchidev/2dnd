@@ -4344,8 +4344,6 @@ export class OverworldScene extends Phaser.Scene {
         this.equipOverlay!.add(desc);
         cy += 28;
       }
-      this.equipOverlay!.add(txt);
-      cy += 14;
     }
 
     if (totalPages > 1) {

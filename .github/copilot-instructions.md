@@ -91,6 +91,15 @@ tests/
 - **UI positioning:** Always calculate actual pixel bounds (including scale) to prevent text overlap
 - **Zoom level:** Default game zoom is 2x for better visibility
 
+### PlayerState Architecture
+- **Composition pattern:** PlayerState uses nested sub-interfaces for better organization
+- **PlayerPosition:** Contains location fields (x, y, chunkX, chunkY, inDungeon, dungeonId, inCity, cityId)
+  - Access: `player.position.x`, `player.position.chunkX`, etc.
+- **PlayerProgression:** Contains tracking fields (openedChests, collectedTreasures, exploredTiles)
+  - Access: `player.progression.openedChests`, `player.progression.exploredTiles`, etc.
+- **Backward compatibility:** `loadGame()` in `save.ts` automatically migrates old flat saves to nested structure
+- **Core stats:** Remain flat on PlayerState (hp, maxHp, mp, maxMp, stats, gold, inventory, etc.)
+
 ## D&D Game Mechanics
 
 ### Character Creation Flow

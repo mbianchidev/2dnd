@@ -23,6 +23,25 @@ export interface PlayerStats {
   charisma: number;
 }
 
+/** Player position and location tracking (overworld, dungeon, city). */
+export interface PlayerPosition {
+  x: number; // overworld tile position (local to chunk)
+  y: number;
+  chunkX: number; // world chunk X coordinate
+  chunkY: number; // world chunk Y coordinate
+  inDungeon: boolean;  // true when inside a dungeon interior
+  dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
+  inCity: boolean;     // true when inside a city interior
+  cityId: string;      // ID of the current city (empty if not in city)
+}
+
+/** Player progression tracking (chests, treasures, fog of war). */
+export interface PlayerProgression {
+  openedChests: string[]; // IDs of chests already opened
+  collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
+  exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
+}
+
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
 
 /** Cost for each ability score value in the Point Buy system. */
@@ -67,17 +86,8 @@ export interface PlayerState {
   equippedShield: Item | null;
   appearanceId: string; // visual customization
   customAppearance?: { skinColor: number; hairStyle: number; hairColor: number };
-  x: number; // overworld tile position (local to chunk)
-  y: number;
-  chunkX: number; // world chunk X coordinate
-  chunkY: number; // world chunk Y coordinate
-  inDungeon: boolean;  // true when inside a dungeon interior
-  dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
-  inCity: boolean;     // true when inside a city interior
-  cityId: string;      // ID of the current city (empty if not in city)
-  openedChests: string[]; // IDs of chests already opened
-  collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
-  exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
+  position: PlayerPosition; // player location tracking
+  progression: PlayerProgression; // progression tracking (chests, treasures, fog of war)
   lastTownX: number;      // last town tile x (respawn point on death)
   lastTownY: number;      // last town tile y
   lastTownChunkX: number; // last town chunk x
@@ -163,17 +173,21 @@ export function createPlayer(
     equippedShield: null,
     appearanceId,
     customAppearance,
-    x: 3,
-    y: 3,
-    chunkX: 4,
-    chunkY: 2,
-    inDungeon: false,
-    dungeonId: "",
-    inCity: false,
-    cityId: "",
-    openedChests: [],
-    collectedTreasures: [],
-    exploredTiles: {},
+    position: {
+      x: 3,
+      y: 3,
+      chunkX: 4,
+      chunkY: 2,
+      inDungeon: false,
+      dungeonId: "",
+      inCity: false,
+      cityId: "",
+    },
+    progression: {
+      openedChests: [],
+      collectedTreasures: [],
+      exploredTiles: {},
+    },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,
     lastTownChunkX: 4,

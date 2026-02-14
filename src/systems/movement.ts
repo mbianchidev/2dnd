@@ -41,38 +41,38 @@ export function tryGridMove(
   const noMove: MoveResult = { moved: false, chunkChanged: false };
 
   // ── Dungeon movement ─────────────────────────────────────────
-  if (player.inDungeon) {
-    const dungeon = getDungeon(player.dungeonId);
+  if (player.position.inDungeon) {
+    const dungeon = getDungeon(player.position.dungeonId);
     if (!dungeon) return noMove;
-    const newX = player.x + dx;
-    const newY = player.y + dy;
+    const newX = player.position.x + dx;
+    const newY = player.position.y + dy;
     if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return noMove;
     const terrain = dungeon.mapData[newY][newX];
     if (!isWalkable(terrain)) return noMove;
-    player.x = newX;
-    player.y = newY;
+    player.position.x = newX;
+    player.position.y = newY;
     return { moved: true, chunkChanged: false, newTerrain: terrain };
   }
 
   // ── City movement ────────────────────────────────────────────
-  if (player.inCity) {
-    const city = getCity(player.cityId);
+  if (player.position.inCity) {
+    const city = getCity(player.position.cityId);
     if (!city) return noMove;
-    const newX = player.x + dx;
-    const newY = player.y + dy;
+    const newX = player.position.x + dx;
+    const newY = player.position.y + dy;
     if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return noMove;
     const terrain = city.mapData[newY][newX];
     if (!isWalkable(terrain)) return noMove;
-    player.x = newX;
-    player.y = newY;
+    player.position.x = newX;
+    player.position.y = newY;
     return { moved: true, chunkChanged: false, newTerrain: terrain };
   }
 
   // ── Overworld movement (with chunk transitions) ──────────────
-  let newX = player.x + dx;
-  let newY = player.y + dy;
-  let newChunkX = player.chunkX;
-  let newChunkY = player.chunkY;
+  let newX = player.position.x + dx;
+  let newY = player.position.y + dy;
+  let newChunkX = player.position.chunkX;
+  let newChunkY = player.position.chunkY;
 
   // Chunk boundary wrapping
   if (newX < 0) { newChunkX--; newX = MAP_WIDTH - 1; }
@@ -83,11 +83,11 @@ export function tryGridMove(
   const terrain = getTerrainAt(newChunkX, newChunkY, newX, newY);
   if (terrain === undefined || !isWalkable(terrain)) return noMove;
 
-  const chunkChanged = newChunkX !== player.chunkX || newChunkY !== player.chunkY;
-  player.x = newX;
-  player.y = newY;
-  player.chunkX = newChunkX;
-  player.chunkY = newChunkY;
+  const chunkChanged = newChunkX !== player.position.chunkX || newChunkY !== player.position.chunkY;
+  player.position.x = newX;
+  player.position.y = newY;
+  player.position.chunkX = newChunkX;
+  player.position.chunkY = newChunkY;
 
   return { moved: true, chunkChanged, newTerrain: terrain };
 }

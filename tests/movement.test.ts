@@ -202,6 +202,8 @@ describe("tryGridMove", () => {
         player.x = origX;
         player.y = 5;
       }
+      // At least one direction should be walkable from (5,5) in a city
+      expect(moved).toBe(true);
     });
 
     it("blocks movement outside city bounds", () => {

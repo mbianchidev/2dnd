@@ -36,7 +36,7 @@ import { isDebug, debugLog, debugPanelLog, debugPanelState, debugPanelClear } fr
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary } from "../systems/bestiary";
 import { saveGame } from "../systems/save";
-import { getItem } from "../data/items";
+import { getItem, ITEMS } from "../data/items";
 import { getTimePeriod, getEncounterMultiplier, isNightTime, TimePeriod, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 import {
@@ -107,7 +107,7 @@ export class OverworldScene extends Phaser.Scene {
   private defeatedBosses: Set<string> = new Set();
   private bestiary: BestiaryData = createBestiary();
   private equipOverlay: Phaser.GameObjects.Container | null = null;
-  private equipPage: "gear" | "skills" = "gear";
+  private equipPage: "gear" | "skills" | "items" = "gear";
   private statOverlay: Phaser.GameObjects.Container | null = null;
   private menuOverlay: Phaser.GameObjects.Container | null = null;
   private worldMapOverlay: Phaser.GameObjects.Container | null = null;
@@ -285,9 +285,15 @@ export class OverworldScene extends Phaser.Scene {
     cmds.set("maxmp", cmds.get("max_mp")!);
 
     cmds.set("level", (args) => {
-      const val = parseInt(args, 10);
-      if (!isNaN(val) && val >= 1 && val <= 20) {
-        while (this.player.level < val) {
+      const arg = args.trim().toLowerCase();
+      let targetLevel: number;
+      if (arg === "max") {
+        targetLevel = 20;
+      } else {
+        targetLevel = parseInt(arg, 10);
+      }
+      if (!isNaN(targetLevel) && targetLevel >= 1 && targetLevel <= 20) {
+        while (this.player.level < targetLevel) {
           const needed = xpForLevel(this.player.level + 1) - this.player.xp;
           awardXP(this.player, Math.max(needed, 0));
         }
@@ -296,13 +302,20 @@ export class OverworldScene extends Phaser.Scene {
         if (this.player.pendingStatPoints > 0) {
           this.time.delayedCall(200, () => this.showStatOverlay());
         }
-      } else debugPanelLog(`Usage: /level <1-20>`, true);
+      } else debugPanelLog(`Usage: /level <1-20|max>`, true);
     });
     cmds.set("lvl", cmds.get("level")!);
 
     cmds.set("item", (args) => {
       const itemId = args.trim();
-      if (itemId) {
+      if (itemId.toLowerCase() === "all") {
+        let count = 0;
+        for (const item of ITEMS) {
+          this.player.inventory.push({ ...item });
+          count++;
+        }
+        debugPanelLog(`[CMD] Added all ${count} items to inventory`, true);
+      } else if (itemId) {
         const item = getItem(itemId);
         if (item) {
           this.player.inventory.push({ ...item });
@@ -310,7 +323,7 @@ export class OverworldScene extends Phaser.Scene {
         } else {
           debugPanelLog(`[CMD] Unknown item: ${itemId}`, true);
         }
-      } else debugPanelLog(`Usage: /item <itemId>`, true);
+      } else debugPanelLog(`Usage: /item <itemId|all>`, true);
     });
 
     cmds.set("weather", (args) => {
@@ -528,8 +541,8 @@ export class OverworldScene extends Phaser.Scene {
       { usage: "/reveal", desc: "Reveal entire world map" },
       { usage: "/max_hp <n>", desc: "Set max HP (alias: /maxhp)" },
       { usage: "/max_mp <n>", desc: "Set max MP (alias: /maxmp)" },
-      { usage: "/level <1-20>", desc: "Set level (alias: /lvl)" },
-      { usage: "/item <id>", desc: "Add item to inventory" },
+      { usage: "/level <1-20|max>", desc: "Set level (alias: /lvl)" },
+      { usage: "/item <id|all>", desc: "Add item (or all) to inventory" },
       { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },
@@ -3627,34 +3640,36 @@ export class OverworldScene extends Phaser.Scene {
 
     // --- Tab bar ---
     const tabY = py + 8;
-    const gearTab = this.add.text(px + panelW * 0.25, tabY, "⚔ Gear", {
-      fontSize: "13px", fontFamily: "monospace",
-      color: this.equipPage === "gear" ? "#ffd700" : "#888",
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    gearTab.on("pointerdown", () => { this.equipPage = "gear"; this.buildEquipOverlay(); });
-    this.equipOverlay.add(gearTab);
-
-    const skillsTab = this.add.text(px + panelW * 0.75, tabY, "✦ Skills", {
-      fontSize: "13px", fontFamily: "monospace",
-      color: this.equipPage === "skills" ? "#ffd700" : "#888",
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    skillsTab.on("pointerdown", () => { this.equipPage = "skills"; this.buildEquipOverlay(); });
-    this.equipOverlay.add(skillsTab);
-
-    // Active tab underline
+    const tabCount = 3;
+    const tabPositions = [0.17, 0.5, 0.83];
+    const tabs: { label: string; page: "gear" | "skills" | "items" }[] = [
+      { label: "⚔ Gear", page: "gear" },
+      { label: "✦ Skills", page: "skills" },
+      { label: "🎒 Items", page: "items" },
+    ];
     const ulGfx = this.add.graphics();
     ulGfx.lineStyle(2, 0xffd700, 1);
-    if (this.equipPage === "gear") {
-      ulGfx.lineBetween(px + panelW * 0.25 - 30, tabY + 18, px + panelW * 0.25 + 30, tabY + 18);
-    } else {
-      ulGfx.lineBetween(px + panelW * 0.75 - 30, tabY + 18, px + panelW * 0.75 + 30, tabY + 18);
+    for (let t = 0; t < tabCount; t++) {
+      const tx = px + panelW * tabPositions[t];
+      const tab = this.add.text(tx, tabY, tabs[t].label, {
+        fontSize: "12px", fontFamily: "monospace",
+        color: this.equipPage === tabs[t].page ? "#ffd700" : "#888",
+      }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+      const pg = tabs[t].page;
+      tab.on("pointerdown", () => { this.equipPage = pg; this.buildEquipOverlay(); });
+      this.equipOverlay.add(tab);
+      if (this.equipPage === tabs[t].page) {
+        ulGfx.lineBetween(tx - 28, tabY + 16, tx + 28, tabY + 16);
+      }
     }
     this.equipOverlay.add(ulGfx);
 
     if (this.equipPage === "gear") {
       this.buildEquipGearPage(px, py + 28, panelW, panelH - 28);
-    } else {
+    } else if (this.equipPage === "skills") {
       this.buildEquipSkillsPage(px, py + 28, panelW, panelH - 28);
+    } else {
+      this.buildEquipItemsPage(px, py + 28, panelW, panelH - 28);
     }
 
     // Close hint
@@ -3666,7 +3681,7 @@ export class OverworldScene extends Phaser.Scene {
     this.equipOverlay.add(hint);
   }
 
-  /** Gear page content (equipment, mounts, stats, consumables). */
+  /** Gear page content (header, stats, equipment, mounts). */
   private buildEquipGearPage(px: number, py: number, panelW: number, _panelH: number): void {
     const p = this.player;
     const ac = getArmorClass(p);
@@ -3679,13 +3694,34 @@ export class OverworldScene extends Phaser.Scene {
       `HP: ${p.hp}/${p.maxHp}   MP: ${p.mp}/${p.maxMp}   AC: ${ac}`,
       `EXP: ${p.xp}/${xpNeeded}  (${xpNeeded - p.xp} to next)`,
     ].join("\n"), {
-      fontSize: "11px",
-      fontFamily: "monospace",
-      color: "#ccc",
-      lineSpacing: 4,
+      fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
     });
     this.equipOverlay!.add(header);
-    cy += 52;
+    cy += 48;
+
+    // --- Ability Scores (right after EXP) ---
+    const fmtStat = (label: string, val: number) => {
+      const mod = abilityModifier(val);
+      const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
+      const padVal = val < 10 ? ` ${val}` : `${val}`;
+      return `${label} ${padVal} (${modStr})`;
+    };
+    const appearance = getAppearance(p.appearanceId);
+    const primaryVal = p.stats[appearance.primaryStat];
+    const primaryMod = abilityModifier(primaryVal);
+    const profBonus = Math.floor((p.level - 1) / 4) + 2;
+    const toHit = primaryMod + profBonus;
+    const toHitStr = toHit >= 0 ? `+${toHit}` : `${toHit}`;
+    const statsBlock = this.add.text(px + 14, cy, [
+      `― Stats ―  To-Hit: ${toHitStr}`,
+      `${fmtStat("STR", p.stats.strength)}  ${fmtStat("DEX", p.stats.dexterity)}`,
+      `${fmtStat("CON", p.stats.constitution)}  ${fmtStat("INT", p.stats.intelligence)}`,
+      `${fmtStat("WIS", p.stats.wisdom)}  ${fmtStat("CHA", p.stats.charisma)}`,
+    ].join("\n"), {
+      fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
+    });
+    this.equipOverlay!.add(statsBlock);
+    cy += 68;
 
     // --- Weapon slot ---
     const weaponLabel = this.add.text(px + 14, cy, "Weapon:", {
@@ -3907,45 +3943,61 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     cy += 6;
+  }
 
-    // --- Ability Scores ---
-    const fmtStat = (label: string, val: number) => {
-      const mod = abilityModifier(val);
-      const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
-      const padVal = val < 10 ? ` ${val}` : `${val}`;
-      return `${label} ${padVal} (${modStr})`;
-    };
-    const appearance = getAppearance(p.appearanceId);
-    const primaryVal = p.stats[appearance.primaryStat];
-    const primaryMod = abilityModifier(primaryVal);
-    const profBonus = Math.floor((p.level - 1) / 4) + 2;
-    const toHit = primaryMod + profBonus;
-    const toHitStr = toHit >= 0 ? `+${toHit}` : `${toHit}`;
-    const statsBlock = this.add.text(px + 14, cy, [
-      `― Stats ―  To-Hit: ${toHitStr}`,
-      `${fmtStat("STR", p.stats.strength)}  ${fmtStat("DEX", p.stats.dexterity)}`,
-      `${fmtStat("CON", p.stats.constitution)}  ${fmtStat("INT", p.stats.intelligence)}`,
-      `${fmtStat("WIS", p.stats.wisdom)}  ${fmtStat("CHA", p.stats.charisma)}`,
-    ].join("\n"), {
-      fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
+  /** Items page content (consumables in inventory, skip items with count 0). */
+  private buildEquipItemsPage(px: number, py: number, panelW: number, _panelH: number): void {
+    const p = this.player;
+    let cy = py + 6;
+
+    const itemHeader = this.add.text(px + 14, cy, "― Consumables ―", {
+      fontSize: "12px", fontFamily: "monospace", color: "#c0a060",
     });
-    this.equipOverlay!.add(statsBlock);
-    cy += 66;
+    this.equipOverlay!.add(itemHeader);
+    cy += 18;
 
-    // --- Consumables ---
+    // Group consumables by id
     const consumables = p.inventory.filter((i) => i.type === "consumable");
-    const potionCount = consumables.filter((i) => i.id === "potion").length;
-    const etherCount = consumables.filter((i) => i.id === "ether").length;
-    const greaterCount = consumables.filter((i) => i.id === "greaterPotion").length;
+    const grouped = new Map<string, { item: typeof consumables[0]; count: number }>();
+    for (const item of consumables) {
+      const existing = grouped.get(item.id);
+      if (existing) { existing.count++; } else { grouped.set(item.id, { item, count: 1 }); }
+    }
 
-    const consBlock = this.add.text(px + 14, cy, [
-      `― Consumables ―`,
-      `Potions: ${potionCount}  Ethers: ${etherCount}`,
-      `Greater Potions: ${greaterCount}`,
-    ].join("\n"), {
-      fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
-    });
-    this.equipOverlay!.add(consBlock);
+    if (grouped.size === 0) {
+      const none = this.add.text(px + 20, cy, "No consumables.", {
+        fontSize: "11px", fontFamily: "monospace", color: "#666",
+      });
+      this.equipOverlay!.add(none);
+      cy += 16;
+    } else {
+      for (const [, { item, count }] of grouped) {
+        const txt = this.add.text(px + 20, cy,
+          `${item.name} ×${count}  (${item.description})`,
+          { fontSize: "11px", fontFamily: "monospace", color: "#aaddff" }
+        );
+        this.equipOverlay!.add(txt);
+        cy += 16;
+      }
+    }
+    cy += 10;
+
+    // Key items
+    const keyItems = p.inventory.filter((i) => i.type === "key");
+    if (keyItems.length > 0) {
+      const keyHeader = this.add.text(px + 14, cy, "― Key Items ―", {
+        fontSize: "12px", fontFamily: "monospace", color: "#c0a060",
+      });
+      this.equipOverlay!.add(keyHeader);
+      cy += 18;
+      for (const ki of keyItems) {
+        const txt = this.add.text(px + 20, cy, `${ki.name}`, {
+          fontSize: "11px", fontFamily: "monospace", color: "#ffdd88",
+        });
+        this.equipOverlay!.add(txt);
+        cy += 16;
+      }
+    }
   }
 
   /** Skills page content (known spells and abilities). */
@@ -4363,7 +4415,7 @@ export class OverworldScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const panelW = 280;
-    const panelH = 280;
+    const panelH = 320;
     const px = Math.floor((w - panelW) / 2);
     const py = Math.floor((h - panelH) / 2) - 10;
 
@@ -4434,7 +4486,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // When no points remain, show a Confirm / Undo bar instead of hint
     if (p.pendingStatPoints <= 0) {
-      const confirmBtn = this.add.text(px + panelW / 2 - 50, py + panelH - 20, "✔ Confirm", {
+      const confirmBtn = this.add.text(px + panelW / 2, py + panelH - 36, "✔ Confirm", {
         fontSize: "12px", fontFamily: "monospace", color: "#88ff88",
         backgroundColor: "#1a2e1a", padding: { x: 6, y: 3 },
       }).setOrigin(0.5, 0.5).setInteractive({ useHandCursor: true });
@@ -4446,14 +4498,13 @@ export class OverworldScene extends Phaser.Scene {
       });
       this.statOverlay.add(confirmBtn);
 
-      const hint = this.add.text(px + panelW / 2, py + panelH - 14,
-        "All points allocated! Click Confirm to accept.", {
+      const hint = this.add.text(px + panelW / 2, py + panelH - 10,
+        "All points allocated!", {
           fontSize: "9px", fontFamily: "monospace", color: "#666",
         }).setOrigin(0.5, 1);
       this.statOverlay.add(hint);
     } else {
-      // Close hint
-      const hint = this.add.text(px + panelW / 2, py + panelH - 14,
+      const hint = this.add.text(px + panelW / 2, py + panelH - 10,
         "Click [+] to allocate", {
           fontSize: "10px", fontFamily: "monospace", color: "#666",
         }).setOrigin(0.5, 1);

@@ -17,6 +17,7 @@ import {
 import {
   rollInitiative,
   playerAttack,
+  playerOffHandAttack,
   playerCastSpell,
   playerUseAbility,
   monsterAttack,
@@ -289,8 +290,12 @@ export class BattleScene extends Phaser.Scene {
 
     const actions: { label: string; action: () => void }[] = [
       { label: "⚔ Attack", action: () => this.doPlayerAttack() },
-      { label: "🛡 Defend", action: () => this.doDefend() },
     ];
+    // Dual wield option: two attacks (main + off-hand bonus action)
+    if (this.player.equippedOffHand) {
+      actions.push({ label: "⚔⚔ Dual Attack", action: () => this.doDualAttack() });
+    }
+    actions.push({ label: "🛡 Defend", action: () => this.doDefend() });
     if (hasAbilities) {
       actions.push({ label: "⚡ Abilities", action: () => this.showAbilityMenu() });
     }
@@ -830,6 +835,84 @@ export class BattleScene extends Phaser.Scene {
       this.checkBattleEnd();
     } catch (err) {
       this.handleError("doPlayerAttack", err);
+    }
+  }
+
+  /**
+   * Dual Attack: main-hand attack (action) + off-hand attack (bonus action).
+   * Off-hand does not add ability modifier to damage unless the player
+   * has the Two-Weapon Fighting talent or the modifier is negative.
+   */
+  private doDualAttack(): void {
+    if (this.phase !== "playerTurn") return;
+    if (this.turnActionUsed) {
+      this.addLog("Turn action already used!");
+      return;
+    }
+    if (!this.player.equippedOffHand) {
+      this.addLog("No off-hand weapon equipped!");
+      return;
+    }
+    this.closeAllSubMenus();
+    this.playerDefending = false;
+    this.turnActionUsed = true;
+    this.bonusActionUsed = true;
+    this.phase = "monsterTurn";
+
+    try {
+      const monsterDefBonus = this.monsterDefending ? 2 : 0;
+      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
+
+      // --- Main-hand attack ---
+      const mainResult = playerAttack(this.player, this.monster, monsterDefBonus, weatherPenalty);
+      this.monsterDefending = false;
+      debugLog("Player dual attack (main)", { roll: mainResult.roll, hit: mainResult.hit, critical: mainResult.critical, damage: mainResult.damage });
+      debugPanelLog(
+        `  ↳ [Dual Main] d20=${mainResult.roll} +${mainResult.attackMod} = ${mainResult.totalRoll} vs AC ${this.monster.ac} → ${mainResult.hit ? (mainResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${mainResult.damage}`,
+        false, "roll-detail"
+      );
+      this.addLog(mainResult.message + this.formatPlayerRoll(mainResult.roll, mainResult.attackMod, mainResult.totalRoll, mainResult.hit, mainResult.critical));
+      this.monsterHp = Math.max(0, this.monsterHp - mainResult.damage);
+      this.updateMonsterDisplay();
+
+      if (audioEngine.initialized) {
+        if (mainResult.critical) audioEngine.playCriticalHitSFX();
+        else if (mainResult.hit) audioEngine.playAttackSFX();
+        else audioEngine.playMissSFX();
+      }
+      if (mainResult.hit) {
+        this.tweens.add({ targets: this.monsterSprite, x: this.monsterSprite.x + 10, duration: 50, yoyo: true, repeat: 2 });
+      }
+
+      // Check if monster died from main-hand
+      if (this.monsterHp <= 0) {
+        this.checkBattleEnd();
+        return;
+      }
+
+      // --- Off-hand attack (bonus action) ---
+      const offResult = playerOffHandAttack(this.player, this.monster, 0, weatherPenalty);
+      debugLog("Player dual attack (off-hand)", { roll: offResult.roll, hit: offResult.hit, critical: offResult.critical, damage: offResult.damage });
+      debugPanelLog(
+        `  ↳ [Dual Off-Hand] d20=${offResult.roll} +${offResult.attackMod} = ${offResult.totalRoll} vs AC ${this.monster.ac} → ${offResult.hit ? (offResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${offResult.damage}`,
+        false, "roll-detail"
+      );
+      this.addLog(offResult.message + this.formatPlayerRoll(offResult.roll, offResult.attackMod, offResult.totalRoll, offResult.hit, offResult.critical));
+      this.monsterHp = Math.max(0, this.monsterHp - offResult.damage);
+      this.updateMonsterDisplay();
+
+      if (audioEngine.initialized) {
+        if (offResult.critical) audioEngine.playCriticalHitSFX();
+        else if (offResult.hit) audioEngine.playAttackSFX();
+        else audioEngine.playMissSFX();
+      }
+      if (offResult.hit) {
+        this.tweens.add({ targets: this.monsterSprite, x: this.monsterSprite.x + 10, duration: 50, yoyo: true, repeat: 1 });
+      }
+
+      this.checkBattleEnd();
+    } catch (err) {
+      this.handleError("doDualAttack", err);
     }
   }
 

@@ -29,7 +29,7 @@ import {
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, ALL_MONSTERS, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, type PlayerState, type PlayerStats } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, isLightWeapon, canDualWield, equipOffHand, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
 import { getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
@@ -163,6 +163,7 @@ export class OverworldScene extends Phaser.Scene {
   private equipPage: "gear" | "skills" | "items" = "gear";
   /** Mini-page indices for gear slot lists (weapons, armor, shields). */
   private gearWeaponPage = 0;
+  private gearOffHandPage = 0;
   private gearArmorPage = 0;
   private gearShieldPage = 0;
   private gearMountPage = 0;
@@ -3402,7 +3403,8 @@ export class OverworldScene extends Phaser.Scene {
             // Auto-equip if better
             if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
               this.player.equippedWeapon = item;
-              if (item.twoHanded) this.player.equippedShield = null;
+              if (item.twoHanded) { this.player.equippedShield = null; this.player.equippedOffHand = null; }
+              if (!isLightWeapon(item)) { this.player.equippedOffHand = null; }
               this.refreshPlayerSprite();
             }
             if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
@@ -3663,7 +3665,8 @@ export class OverworldScene extends Phaser.Scene {
           if (audioEngine.initialized) audioEngine.playChestOpenSFX();
           if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
             this.player.equippedWeapon = item;
-            if (item.twoHanded) this.player.equippedShield = null;
+            if (item.twoHanded) { this.player.equippedShield = null; this.player.equippedOffHand = null; }
+            if (!isLightWeapon(item)) { this.player.equippedOffHand = null; }
             this.refreshPlayerSprite();
           }
           if (item.type === "armor" && (!this.player.equippedArmor || item.effect > this.player.equippedArmor.effect)) {
@@ -3924,6 +3927,7 @@ export class OverworldScene extends Phaser.Scene {
 
     this.equipPage = "gear";
     this.gearWeaponPage = 0;
+    this.gearOffHandPage = 0;
     this.gearArmorPage = 0;
     this.gearShieldPage = 0;
     this.gearMountPage = 0;
@@ -4053,12 +4057,45 @@ export class OverworldScene extends Phaser.Scene {
 
     // --- Weapon slot (paginated) ---
     cy = this.renderGearSlot(px, cy, panelW, "Weapon", "weapon",
-      p.equippedWeapon, (item) => { p.equippedWeapon = item; if (item?.twoHanded) p.equippedShield = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
-      () => { p.equippedWeapon = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
+      p.equippedWeapon, (item) => {
+        p.equippedWeapon = item;
+        if (item?.twoHanded) { p.equippedShield = null; p.equippedOffHand = null; }
+        // If new main hand is not light, unequip off-hand
+        if (!isLightWeapon(item)) { p.equippedOffHand = null; }
+        this.refreshPlayerSprite(); this.buildEquipOverlay();
+      },
+      () => { p.equippedWeapon = null; p.equippedOffHand = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
       this.gearWeaponPage, MAX_SLOT_VISIBLE,
       (dir) => { this.gearWeaponPage += dir; this.buildEquipOverlay(); },
       "dmg");
     cy += 4;
+
+    // --- Off-hand weapon slot (only when main hand is light, no two-handed, no shield) ---
+    const canShowOffHand = isLightWeapon(p.equippedWeapon) && !p.equippedWeapon?.twoHanded;
+    if (canShowOffHand) {
+      const offHandWeapons = p.inventory.filter(
+        (i) => i.type === "weapon" && i.light && !i.twoHanded && i.id !== p.equippedWeapon?.id
+      );
+      if (offHandWeapons.length > 0 || p.equippedOffHand) {
+        cy = this.renderGearSlot(px, cy, panelW, "Off-Hand", "weapon",
+          p.equippedOffHand,
+          (item) => {
+            if (item) {
+              const result = equipOffHand(p, item);
+              if (!result.success) {
+                this.showMessage(result.message, "#ff6666");
+              }
+            }
+            this.refreshPlayerSprite(); this.buildEquipOverlay();
+          },
+          () => { p.equippedOffHand = null; this.buildEquipOverlay(); },
+          this.gearOffHandPage, MAX_SLOT_VISIBLE,
+          (dir) => { this.gearOffHandPage += dir; this.buildEquipOverlay(); },
+          "dmg",
+          offHandWeapons);
+        cy += 4;
+      }
+    }
 
     // --- Armor slot (paginated) ---
     cy = this.renderGearSlot(px, cy, panelW, "Armor", "armor",
@@ -4080,7 +4117,7 @@ export class OverworldScene extends Phaser.Scene {
       cy += 16;
     } else {
       cy = this.renderGearSlot(px, cy, panelW, "Shield", "shield",
-        p.equippedShield, (item) => { p.equippedShield = item; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
+        p.equippedShield, (item) => { p.equippedShield = item; if (item) p.equippedOffHand = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
         () => { p.equippedShield = null; this.refreshPlayerSprite(); this.buildEquipOverlay(); },
         this.gearShieldPage, MAX_SLOT_VISIBLE,
         (dir) => { this.gearShieldPage += dir; this.buildEquipOverlay(); },
@@ -4184,6 +4221,7 @@ export class OverworldScene extends Phaser.Scene {
     page: number, maxVisible: number,
     onPageChange: (dir: number) => void,
     effectLabel: string,
+    customItems?: import("../data/items").Item[],
   ): number {
     const p = this.player;
     const label = this.add.text(px + 14, cy, `${slotLabel}:`, {
@@ -4192,7 +4230,7 @@ export class OverworldScene extends Phaser.Scene {
     this.equipOverlay!.add(label);
     cy += 16;
 
-    const ownedItems = p.inventory.filter((i) => i.type === slotType);
+    const ownedItems = customItems ?? p.inventory.filter((i) => i.type === slotType);
     if (ownedItems.length === 0 && !equipped) {
       const none = this.add.text(px + 20, cy, slotType === "weapon" ? "Bare Hands" : `No ${slotLabel}`, {
         fontSize: "11px", fontFamily: "monospace", color: "#666",

@@ -19,6 +19,8 @@ export interface Talent {
   damageBonus?: number;
   /** Dynamic: added to AC. */
   acBonus?: number;
+  /** If set, only these class IDs can learn this talent. Empty = all classes. */
+  classRestriction?: string[];
 }
 
 export const TALENTS: Talent[] = [
@@ -51,6 +53,12 @@ export const TALENTS: Talent[] = [
     description: "+1 AC, +2 to attack rolls",
     levelRequired: 18,
     acBonus: 1, attackBonus: 2,
+  },
+  {
+    id: "twoWeaponFighting", name: "Two-Weapon Fighting",
+    description: "Add ability modifier to off-hand attack damage when dual wielding",
+    levelRequired: 2,
+    classRestriction: ["knight", "rogue", "bard", "monk"],
   },
 ];
 

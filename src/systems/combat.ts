@@ -11,9 +11,11 @@ import {
   getAttackModifier,
   getSpellModifier,
   getArmorClass,
+  hasTwoWeaponFighting,
   type PlayerState,
 } from "./player";
 import { abilityModifier } from "../utils/dice";
+import { getPlayerClass } from "./classes";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -132,6 +134,64 @@ export function playerAttack(
 
   return {
     message: `${player.name} misses!`,
+    damage: 0, hit: false, roll: outcome.roll, ...meta,
+  };
+}
+
+/**
+ * Player makes a bonus-action off-hand attack (Two-Weapon Fighting).
+ * Damage does NOT add ability modifier unless the player has the
+ * Two-Weapon Fighting talent or the modifier is negative.
+ */
+export function playerOffHandAttack(
+  player: PlayerState,
+  monster: Monster,
+  monsterDefendBonus: number = 0,
+  weatherPenalty: number = 0
+): CombatResult & { attackMod: number; totalRoll: number; targetAC: number } {
+  if (!player || !monster) {
+    throw new Error(`[combat] playerOffHandAttack: missing player or monster`);
+  }
+  if (!player.equippedOffHand) {
+    throw new Error(`[combat] playerOffHandAttack: no off-hand weapon equipped`);
+  }
+
+  const attackMod = getAttackModifier(player);
+  const roll = rollD20(attackMod);
+  const effectiveAC = monster.ac + monsterDefendBonus + weatherPenalty;
+  const outcome = resolveAttackRoll(roll, effectiveAC);
+  const meta = { attackMod, totalRoll: roll.total, targetAC: effectiveAC };
+
+  if (outcome.fumble) {
+    return {
+      message: `Critical miss! ${player.name}'s off-hand attack goes wild!`,
+      damage: 0, hit: false, critical: false, roll: outcome.roll, ...meta,
+    };
+  }
+
+  if (outcome.hit) {
+    const offHandBonus = player.equippedOffHand.effect ?? 0;
+    const talentDmg = getTalentDamageBonus(player.knownTalents);
+    // D&D 5e: off-hand does NOT add ability modifier to damage
+    // unless player has Two-Weapon Fighting style OR modifier is negative
+    const primaryStatMod = (() => {
+      const playerClass = getPlayerClass(player.appearanceId);
+      return abilityModifier(player.stats[playerClass.primaryStat]);
+    })();
+    const addAbilityMod = hasTwoWeaponFighting(player) || primaryStatMod < 0;
+    const abilityDmgBonus = addAbilityMod ? primaryStatMod : 0;
+    const damage = rollAttackDamage(1, 6, outcome.critical, offHandBonus + talentDmg + abilityDmgBonus, outcome.critical ? 0 : 1);
+    const prefix = outcome.critical ? "CRITICAL HIT! " : "";
+    const verb = outcome.critical ? "strikes" : "hits";
+    const hand = "off-hand";
+    return {
+      message: `${prefix}${player.name}'s ${hand} ${verb} for ${damage} damage!`,
+      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
+    };
+  }
+
+  return {
+    message: `${player.name}'s off-hand misses!`,
     damage: 0, hit: false, roll: outcome.roll, ...meta,
   };
 }

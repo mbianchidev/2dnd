@@ -75,8 +75,8 @@ describe("player system", () => {
       expect(player.equippedWeapon).not.toBeNull();
       expect(player.equippedWeapon?.id).toBe("startSword"); // Knight default
       expect(player.pendingStatPoints).toBe(0);
-      expect(player.openedChests).toEqual([]);
-      expect(player.exploredTiles).toEqual({});
+      expect(player.progression.openedChests).toEqual([]);
+      expect(player.progression.exploredTiles).toEqual({});
     });
 
     it("applies class boosts correctly for different classes", () => {

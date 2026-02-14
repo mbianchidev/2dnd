@@ -1161,12 +1161,12 @@ export class BattleScene extends Phaser.Scene {
     this.player.mp = Math.floor(this.player.maxMp / 2);
     this.player.gold = Math.floor(this.player.gold * 0.7);
     // Return to last town (or Willowdale as fallback)
-    this.player.x = this.player.lastTownX ?? 2;
-    this.player.y = this.player.lastTownY ?? 2;
-    this.player.chunkX = this.player.lastTownChunkX ?? 1;
-    this.player.chunkY = this.player.lastTownChunkY ?? 1;
-    this.player.inDungeon = false;
-    this.player.dungeonId = "";
+    this.player.position.x = this.player.lastTownX ?? 2;
+    this.player.position.y = this.player.lastTownY ?? 2;
+    this.player.position.chunkX = this.player.lastTownChunkX ?? 1;
+    this.player.position.chunkY = this.player.lastTownChunkY ?? 1;
+    this.player.position.inDungeon = false;
+    this.player.position.dungeonId = "";
     this.addLog("You wake up in town, bruised but alive...");
     this.time.delayedCall(2000, () => this.returnToOverworld());
   }

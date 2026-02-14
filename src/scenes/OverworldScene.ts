@@ -112,6 +112,10 @@ export class OverworldScene extends Phaser.Scene {
   private gearWeaponPage = 0;
   private gearArmorPage = 0;
   private gearShieldPage = 0;
+  private gearMountPage = 0;
+  private itemsPage = 0;
+  private spellsPage = 0;
+  private abilitiesPage = 0;
   private statOverlay: Phaser.GameObjects.Container | null = null;
   private menuOverlay: Phaser.GameObjects.Container | null = null;
   private worldMapOverlay: Phaser.GameObjects.Container | null = null;
@@ -2801,8 +2805,7 @@ export class OverworldScene extends Phaser.Scene {
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""})${this.debugEncounters ? "" : " [OFF]"}${this.debugFogDisabled ? " Fog[OFF]" : ""} | ` +
       `HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} | ` +
       `Lv.${p.level} XP ${p.xp} Gold ${p.gold} | ` +
-      `Bosses: ${this.defeatedBosses.size}\n` +
-      `Cheats: G=Gold H=Heal P=MP L=LvUp F=EncToggle R=Reveal V=FogToggle`
+      `Bosses: ${this.defeatedBosses.size}`
     );
   }
 
@@ -3623,6 +3626,10 @@ export class OverworldScene extends Phaser.Scene {
     this.gearWeaponPage = 0;
     this.gearArmorPage = 0;
     this.gearShieldPage = 0;
+    this.gearMountPage = 0;
+    this.itemsPage = 0;
+    this.spellsPage = 0;
+    this.abilitiesPage = 0;
     this.buildEquipOverlay();
   }
 
@@ -3742,7 +3749,7 @@ export class OverworldScene extends Phaser.Scene {
     this.equipOverlay!.add(statsBlock);
     cy += 68;
 
-    const MAX_SLOT_VISIBLE = 5;
+    const MAX_SLOT_VISIBLE = 3;
 
     // --- Weapon slot (paginated) ---
     cy = this.renderGearSlot(px, cy, panelW, "Weapon", "weapon",
@@ -3781,7 +3788,7 @@ export class OverworldScene extends Phaser.Scene {
     }
     cy += 4;
 
-    // --- Mount slot ---
+    // --- Mount slot (paginated, max 3) ---
     const mountLabel = this.add.text(px + 14, cy, "Mount:", {
       fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
     });
@@ -3790,6 +3797,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const ownedMounts = p.inventory.filter((i) => i.type === "mount");
     const currentMount = p.mountId ? getMount(p.mountId) : undefined;
+    const MAX_MOUNT_VISIBLE = 3;
 
     if (ownedMounts.length === 0 && !currentMount) {
       const none = this.add.text(px + 20, cy, "On Foot", {
@@ -3808,43 +3816,59 @@ export class OverworldScene extends Phaser.Scene {
           if (md) mountEntries.push({ mountId: md.id, name: md.name, speed: md.speedMultiplier, isActive: false });
         }
       }
-      for (const me of mountEntries) {
-        const prefix = me.isActive ? "► " : "  ";
-        const color = me.isActive ? "#88ff88" : "#aaddff";
-        const txt = this.add.text(px + 20, cy,
-          `${prefix}${me.name} (×${me.speed} speed)${me.isActive ? " [riding]" : ""}`,
-          { fontSize: "11px", fontFamily: "monospace", color }
-        ).setInteractive({ useHandCursor: true });
-        if (me.isActive) {
-          txt.on("pointerover", () => txt.setColor("#ff6666"));
-          txt.on("pointerout", () => txt.setColor(color));
-          txt.on("pointerdown", () => {
-            p.mountId = "";
-            this.buildEquipOverlay();
-          });
-        } else {
-          txt.on("pointerover", () => txt.setColor("#ffd700"));
-          txt.on("pointerout", () => txt.setColor(color));
-          txt.on("pointerdown", () => {
-            p.mountId = me.mountId;
-            this.buildEquipOverlay();
-          });
-        }
-        this.equipOverlay!.add(txt);
-        cy += 16;
-      }
+      // Add dismount option as an entry
       if (currentMount) {
-        const dismountTxt = this.add.text(px + 20, cy, "  Dismount (on foot)", {
-          fontSize: "11px", fontFamily: "monospace", color: "#aaddff",
+        mountEntries.push({ mountId: "", name: "Dismount (on foot)", speed: 0, isActive: false });
+      }
+
+      const mountTotalPages = Math.max(1, Math.ceil(mountEntries.length / MAX_MOUNT_VISIBLE));
+      const mountPage = Math.min(this.gearMountPage, mountTotalPages - 1);
+      const mountStart = mountPage * MAX_MOUNT_VISIBLE;
+      const visibleMounts = mountEntries.slice(mountStart, mountStart + MAX_MOUNT_VISIBLE);
+
+      for (const me of visibleMounts) {
+        if (me.mountId === "" && me.speed === 0) {
+          // Dismount option
+          const dismountTxt = this.add.text(px + 20, cy, "  Dismount (on foot)", {
+            fontSize: "11px", fontFamily: "monospace", color: "#aaddff",
+          }).setInteractive({ useHandCursor: true });
+          dismountTxt.on("pointerover", () => dismountTxt.setColor("#ffd700"));
+          dismountTxt.on("pointerout", () => dismountTxt.setColor("#aaddff"));
+          dismountTxt.on("pointerdown", () => { p.mountId = ""; this.buildEquipOverlay(); });
+          this.equipOverlay!.add(dismountTxt);
+        } else {
+          const prefix = me.isActive ? "► " : "  ";
+          const color = me.isActive ? "#88ff88" : "#aaddff";
+          const txt = this.add.text(px + 20, cy,
+            `${prefix}${me.name} (×${me.speed} speed)${me.isActive ? " [riding]" : ""}`,
+            { fontSize: "11px", fontFamily: "monospace", color }
+          ).setInteractive({ useHandCursor: true });
+          if (me.isActive) {
+            txt.on("pointerover", () => txt.setColor("#ff6666"));
+            txt.on("pointerout", () => txt.setColor(color));
+            txt.on("pointerdown", () => { p.mountId = ""; this.buildEquipOverlay(); });
+          } else {
+            txt.on("pointerover", () => txt.setColor("#ffd700"));
+            txt.on("pointerout", () => txt.setColor(color));
+            txt.on("pointerdown", () => { p.mountId = me.mountId; this.buildEquipOverlay(); });
+          }
+          this.equipOverlay!.add(txt);
+        }
+        cy += 14;
+      }
+
+      if (mountTotalPages > 1) {
+        const nav = this.add.text(px + 20, cy, `◄ ${mountPage + 1}/${mountTotalPages} ►`, {
+          fontSize: "10px", fontFamily: "monospace", color: "#888",
         }).setInteractive({ useHandCursor: true });
-        dismountTxt.on("pointerover", () => dismountTxt.setColor("#ffd700"));
-        dismountTxt.on("pointerout", () => dismountTxt.setColor("#aaddff"));
-        dismountTxt.on("pointerdown", () => {
-          p.mountId = "";
+        nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+          const mid = nav.x + nav.width / 2;
+          this.gearMountPage += pointer.x < mid ? -1 : 1;
+          this.gearMountPage = Math.max(0, Math.min(this.gearMountPage, mountTotalPages - 1));
           this.buildEquipOverlay();
         });
-        this.equipOverlay!.add(dismountTxt);
-        cy += 16;
+        this.equipOverlay!.add(nav);
+        cy += 14;
       }
     }
     cy += 6;
@@ -3925,71 +3949,94 @@ export class OverworldScene extends Phaser.Scene {
     return cy;
   }
 
-  /** Items page content (consumables in inventory, skip items with count 0). */
+  /** Items page with descriptions and pagination (max 10 per page). */
   private buildEquipItemsPage(px: number, py: number, panelW: number, _panelH: number): void {
     const p = this.player;
     let cy = py + 6;
+    const MAX_ITEMS_VISIBLE = 10;
 
-    const itemHeader = this.add.text(px + 14, cy, "― Consumables ―", {
-      fontSize: "12px", fontFamily: "monospace", color: "#c0a060",
-    });
-    this.equipOverlay!.add(itemHeader);
-    cy += 18;
-
-    // Group consumables by id
+    // Build combined list: consumables (grouped) + key items
     const consumables = p.inventory.filter((i) => i.type === "consumable");
     const grouped = new Map<string, { item: typeof consumables[0]; count: number }>();
     for (const item of consumables) {
       const existing = grouped.get(item.id);
       if (existing) { existing.count++; } else { grouped.set(item.id, { item, count: 1 }); }
     }
+    const keyItems = p.inventory.filter((i) => i.type === "key");
 
-    if (grouped.size === 0) {
-      const none = this.add.text(px + 20, cy, "No consumables.", {
+    // Build flat list of renderable entries
+    type ItemEntry = { label: string; desc: string; color: string };
+    const allEntries: ItemEntry[] = [];
+    for (const [, { item, count }] of grouped) {
+      allEntries.push({ label: `${item.name} ×${count}`, desc: item.description, color: "#aaddff" });
+    }
+    for (const ki of keyItems) {
+      allEntries.push({ label: ki.name, desc: ki.description, color: "#ffdd88" });
+    }
+
+    const totalPages = Math.max(1, Math.ceil(allEntries.length / MAX_ITEMS_VISIBLE));
+    const safePage = Math.min(this.itemsPage, totalPages - 1);
+    const visible = allEntries.slice(safePage * MAX_ITEMS_VISIBLE, (safePage + 1) * MAX_ITEMS_VISIBLE);
+
+    const header = this.add.text(px + 14, cy, `― Items (${allEntries.length}) ―`, {
+      fontSize: "12px", fontFamily: "monospace", color: "#c0a060",
+    });
+    this.equipOverlay!.add(header);
+    cy += 18;
+
+    if (allEntries.length === 0) {
+      const none = this.add.text(px + 20, cy, "No items.", {
         fontSize: "11px", fontFamily: "monospace", color: "#666",
       });
       this.equipOverlay!.add(none);
       cy += 16;
     } else {
-      for (const [, { item, count }] of grouped) {
-        const txt = this.add.text(px + 20, cy,
-          `${item.name} ×${count}  (${item.description})`,
-          { fontSize: "11px", fontFamily: "monospace", color: "#aaddff" }
-        );
-        this.equipOverlay!.add(txt);
-        cy += 16;
-      }
-    }
-    cy += 10;
-
-    // Key items
-    const keyItems = p.inventory.filter((i) => i.type === "key");
-    if (keyItems.length > 0) {
-      const keyHeader = this.add.text(px + 14, cy, "― Key Items ―", {
-        fontSize: "12px", fontFamily: "monospace", color: "#c0a060",
-      });
-      this.equipOverlay!.add(keyHeader);
-      cy += 18;
-      for (const ki of keyItems) {
-        const txt = this.add.text(px + 20, cy, `${ki.name}`, {
-          fontSize: "11px", fontFamily: "monospace", color: "#ffdd88",
+      for (const entry of visible) {
+        const txt = this.add.text(px + 20, cy, entry.label, {
+          fontSize: "11px", fontFamily: "monospace", color: entry.color,
         });
         this.equipOverlay!.add(txt);
-        cy += 16;
+        const desc = this.add.text(px + 30, cy + 13, entry.desc, {
+          fontSize: "9px", fontFamily: "monospace", color: "#888",
+          wordWrap: { width: panelW - 50 },
+        });
+        this.equipOverlay!.add(desc);
+        cy += 28;
       }
+    }
+
+    if (totalPages > 1) {
+      cy += 4;
+      const nav = this.add.text(px + 20, cy, `◄ ${safePage + 1}/${totalPages} ►`, {
+        fontSize: "10px", fontFamily: "monospace", color: "#888",
+      }).setInteractive({ useHandCursor: true });
+      nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        const mid = nav.x + nav.width / 2;
+        this.itemsPage += pointer.x < mid ? -1 : 1;
+        this.itemsPage = Math.max(0, Math.min(this.itemsPage, totalPages - 1));
+        this.buildEquipOverlay();
+      });
+      this.equipOverlay!.add(nav);
     }
   }
 
-  /** Skills page content (known spells and abilities with stat modifier info). */
+  /** Skills page with paginated spells (max 5) and abilities (max 5). */
   private buildEquipSkillsPage(px: number, py: number, panelW: number, _panelH: number): void {
     const p = this.player;
     const appearance = getAppearance(p.appearanceId);
     const primaryMod = abilityModifier(p.stats[appearance.primaryStat]);
     const primaryLabel = appearance.primaryStat.slice(0, 3).toUpperCase();
     let cy = py + 6;
+    const MAX_SPELL_VISIBLE = 5;
+    const MAX_ABILITY_VISIBLE = 5;
 
-    // --- Spells ---
-    const spellsHeader = this.add.text(px + 14, cy, `― Spells Known (${p.knownSpells.length}) ―`, {
+    // --- Spells (paginated) ---
+    const spellTotalPages = Math.max(1, Math.ceil(p.knownSpells.length / MAX_SPELL_VISIBLE));
+    const spellPage = Math.min(this.spellsPage, spellTotalPages - 1);
+    const spellStart = spellPage * MAX_SPELL_VISIBLE;
+    const visibleSpells = p.knownSpells.slice(spellStart, spellStart + MAX_SPELL_VISIBLE);
+
+    const spellsHeader = this.add.text(px + 14, cy, `― Spells (${p.knownSpells.length}) ―`, {
       fontSize: "12px", fontFamily: "monospace", color: "#c0a060",
     });
     this.equipOverlay!.add(spellsHeader);
@@ -4002,7 +4049,7 @@ export class OverworldScene extends Phaser.Scene {
       this.equipOverlay!.add(none);
       cy += 16;
     } else {
-      for (const spellId of p.knownSpells) {
+      for (const spellId of visibleSpells) {
         const spell = getSpell(spellId);
         if (!spell) continue;
         const dmgOrHeal = spell.type === "heal" ? "heal" : "dmg";
@@ -4020,17 +4067,35 @@ export class OverworldScene extends Phaser.Scene {
         this.equipOverlay!.add(desc);
         cy += 28;
       }
+      if (spellTotalPages > 1) {
+        const nav = this.add.text(px + 20, cy, `◄ ${spellPage + 1}/${spellTotalPages} ►`, {
+          fontSize: "10px", fontFamily: "monospace", color: "#888",
+        }).setInteractive({ useHandCursor: true });
+        nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+          const mid = nav.x + nav.width / 2;
+          this.spellsPage += pointer.x < mid ? -1 : 1;
+          this.spellsPage = Math.max(0, Math.min(this.spellsPage, spellTotalPages - 1));
+          this.buildEquipOverlay();
+        });
+        this.equipOverlay!.add(nav);
+        cy += 16;
+      }
     }
     cy += 8;
 
-    // --- Abilities ---
-    const abilitiesHeader = this.add.text(px + 14, cy, `― Abilities Known (${(p.knownAbilities ?? []).length}) ―`, {
+    // --- Abilities (paginated) ---
+    const knownAbilities = p.knownAbilities ?? [];
+    const abilityTotalPages = Math.max(1, Math.ceil(knownAbilities.length / MAX_ABILITY_VISIBLE));
+    const abilityPage = Math.min(this.abilitiesPage, abilityTotalPages - 1);
+    const abilityStart = abilityPage * MAX_ABILITY_VISIBLE;
+    const visibleAbilities = knownAbilities.slice(abilityStart, abilityStart + MAX_ABILITY_VISIBLE);
+
+    const abilitiesHeader = this.add.text(px + 14, cy, `― Abilities (${knownAbilities.length}) ―`, {
       fontSize: "12px", fontFamily: "monospace", color: "#c0a060",
     });
     this.equipOverlay!.add(abilitiesHeader);
     cy += 18;
 
-    const knownAbilities = p.knownAbilities ?? [];
     if (knownAbilities.length === 0) {
       const none = this.add.text(px + 20, cy, "No abilities learned yet.", {
         fontSize: "11px", fontFamily: "monospace", color: "#666",
@@ -4038,26 +4103,38 @@ export class OverworldScene extends Phaser.Scene {
       this.equipOverlay!.add(none);
       cy += 16;
     } else {
-      for (const abilityId of knownAbilities) {
+      for (const abilityId of visibleAbilities) {
         const ability = getAbility(abilityId);
         if (!ability) continue;
         const dmgOrHeal = ability.type === "heal" ? "heal" : "dmg";
         const diceStr = `${ability.damageCount}d${ability.damageDie}`;
-        const abilityMod = abilityModifier(p.stats[ability.statKey]);
-        const abilityModStr = abilityMod >= 0 ? `+${abilityMod}` : `${abilityMod}`;
+        const aMod = abilityModifier(p.stats[ability.statKey]);
+        const aModStr = aMod >= 0 ? `+${aMod}` : `${aMod}`;
         const statLabel = ability.statKey.slice(0, 3).toUpperCase();
         const bonusTag = ability.bonusAction ? " [bonus]" : "";
         const txt = this.add.text(px + 20, cy,
-          `${ability.name}  ${ability.mpCost} MP  ${diceStr}${abilityModStr} ${dmgOrHeal}${bonusTag}`,
+          `${ability.name}  ${ability.mpCost} MP  ${diceStr}${aModStr} ${dmgOrHeal}${bonusTag}`,
           { fontSize: "11px", fontFamily: "monospace", color: "#aaddff" }
         );
         this.equipOverlay!.add(txt);
         const desc = this.add.text(px + 30, cy + 13,
-          `${ability.description}  (${statLabel} mod ${abilityModStr})`,
+          `${ability.description}  (${statLabel} mod ${aModStr})`,
           { fontSize: "9px", fontFamily: "monospace", color: "#888", wordWrap: { width: panelW - 50 } }
         );
         this.equipOverlay!.add(desc);
         cy += 28;
+      }
+      if (abilityTotalPages > 1) {
+        const nav = this.add.text(px + 20, cy, `◄ ${abilityPage + 1}/${abilityTotalPages} ►`, {
+          fontSize: "10px", fontFamily: "monospace", color: "#888",
+        }).setInteractive({ useHandCursor: true });
+        nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+          const mid = nav.x + nav.width / 2;
+          this.abilitiesPage += pointer.x < mid ? -1 : 1;
+          this.abilitiesPage = Math.max(0, Math.min(this.abilitiesPage, abilityTotalPages - 1));
+          this.buildEquipOverlay();
+        });
+        this.equipOverlay!.add(nav);
       }
     }
   }

@@ -29,9 +29,9 @@ import {
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, ALL_MONSTERS, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, ASI_LEVELS, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, type PlayerState, type PlayerStats } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { getPlayerClass, getActiveWeaponSprite, getClassSpells, getClassAbilities } from "../systems/classes";
+import { getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary, recordDefeat } from "../systems/bestiary";

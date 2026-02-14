@@ -4,7 +4,6 @@
 
 import { rollD20, rollDice, type DieType } from "../utils/dice";
 import type { Monster, MonsterAbility } from "../data/monsters";
-import type { Spell } from "../data/spells";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
 import { getTalentAttackBonus, getTalentDamageBonus } from "../data/talents";

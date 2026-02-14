@@ -227,7 +227,7 @@ export class OverworldScene extends Phaser.Scene {
       this.player = data.player;
       this.isNewPlayer = false;
       // Load fog of war from player state
-      this.fogOfWar.setExploredTiles(this.player.exploredTiles);
+      this.fogOfWar.setExploredTiles(this.player.progression.exploredTiles);
     } else {
       this.player = createPlayer("Hero", {
         strength: 10, dexterity: 10, constitution: 10,
@@ -272,7 +272,7 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // Reveal tiles around player on creation (fog of war)
-    this.fogOfWar.revealAround(this.player.x, this.player.y, 2, this.player);
+    this.fogOfWar.revealAround(this.player.position.x, this.player.position.y, 2, this.player);
 
     this.renderMap();
     this.applyDayNightTint();
@@ -326,7 +326,7 @@ export class OverworldScene extends Phaser.Scene {
       if (!isDebug()) return;
       this.fogOfWar.revealEntireWorld();
       // Sync back to player state
-      this.player.exploredTiles = this.fogOfWar.getExploredTiles();
+      this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
       debugPanelLog(`[CHEAT] Map revealed`, true);
     });
 
@@ -349,7 +349,7 @@ export class OverworldScene extends Phaser.Scene {
     cmds.set("reveal", () => {
       this.fogOfWar.revealEntireWorld();
       // Sync back to player state
-      this.player.exploredTiles = this.fogOfWar.getExploredTiles();
+      this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
       debugPanelLog(`[CMD] Entire world map revealed`, true);
     });
 
@@ -2428,9 +2428,9 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Reveal tiles in a radius around the player's current position. */
   private revealAround(radius = 2): void {
-    this.fogOfWar.revealAround(this.player.x, this.player.y, radius, this.player);
+    this.fogOfWar.revealAround(this.player.position.x, this.player.position.y, radius, this.player);
     // Sync back to player state
-    this.player.exploredTiles = this.fogOfWar.getExploredTiles();
+    this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
   }
 
   /** Update tile sprites for newly revealed tiles without full re-render. */
@@ -3058,7 +3058,7 @@ export class OverworldScene extends Phaser.Scene {
       `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${dungeonTag}${mountTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
-      `Bosses: ${this.defeatedBosses.size} | Chests: ${p.openedChests.length}`
+      `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length}`
     );
   }
 

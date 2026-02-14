@@ -14,13 +14,13 @@ export class FogOfWar {
    * Build the explored-tiles key for a position (respects dungeon/city vs overworld).
    */
   exploredKey(x: number, y: number, player: PlayerState): string {
-    if (player.inDungeon) {
-      return `d:${player.dungeonId},${x},${y}`;
+    if (player.position.inDungeon) {
+      return `d:${player.position.dungeonId},${x},${y}`;
     }
-    if (player.inCity) {
-      return `c:${player.cityId},${x},${y}`;
+    if (player.position.inCity) {
+      return `c:${player.position.cityId},${x},${y}`;
     }
-    return `${player.chunkX},${player.chunkY},${x},${y}`;
+    return `${player.position.chunkX},${player.position.chunkY},${x},${y}`;
   }
   
   /**

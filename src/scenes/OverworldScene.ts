@@ -3227,10 +3227,11 @@ export class OverworldScene extends Phaser.Scene {
 
       const city = getCity(this.player.position.cityId);
       if (!city) return;
-      const targetX = this.player.x + dx;
-      const targetY = this.player.y + dy;
+      const targetX = this.player.position.x + dx;
+      const targetY = this.player.position.y + dy;
       if (targetX < 0 || targetX >= MAP_WIDTH || targetY < 0 || targetY >= MAP_HEIGHT) return;
       const targetTerrain = city.mapData[targetY][targetX];
+      if (!isWalkable(targetTerrain)) return;
 
       // Block entry to shops at night (except inn)
       if ((targetTerrain === Terrain.Carpet || targetTerrain === Terrain.ShopFloor) && getTimePeriod(this.timeStep) === TimePeriod.Night) {
@@ -3242,7 +3243,7 @@ export class OverworldScene extends Phaser.Scene {
       }
 
       // Shop interior only accessible via the carpet entrance
-      if (terrain === Terrain.ShopFloor) {
+      if (targetTerrain === Terrain.ShopFloor) {
         const curTerrain = city.mapData[this.player.position.y]?.[this.player.position.x];
         if (curTerrain !== Terrain.Carpet && curTerrain !== Terrain.ShopFloor) {
           return;
@@ -3251,7 +3252,7 @@ export class OverworldScene extends Phaser.Scene {
 
       // Shop exit only through the carpet (door)
       const curTerrain = city.mapData[this.player.position.y]?.[this.player.position.x];
-      if (curTerrain === Terrain.ShopFloor && terrain !== Terrain.ShopFloor && terrain !== Terrain.Carpet) {
+      if (curTerrain === Terrain.ShopFloor && targetTerrain !== Terrain.ShopFloor && targetTerrain !== Terrain.Carpet) {
         return; // silently block — must leave through the door
       }
 
@@ -3261,7 +3262,7 @@ export class OverworldScene extends Phaser.Scene {
       this.player.position.y = newY;
 
       // Footstep sound for city terrain
-      if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
+      if (audioEngine.initialized) audioEngine.playFootstepSFX(targetTerrain);
 
       this.tweenPlayerTo(newX, newY, 120, () => {
         this.isMoving = false;
@@ -3301,20 +3302,14 @@ export class OverworldScene extends Phaser.Scene {
     // ── Shared position resolution via tryGridMove ──────────────
     const result = tryGridMove(this.player, dx, dy);
     if (!result.moved) {
-      if (!this.player.inDungeon && !this.player.inCity) {
+      if (!this.player.position.inDungeon && !this.player.position.inCity) {
         debugLog("Blocked move", { dx, dy });
       }
       return;
     }
 
-    const chunkChanged = newChunkX !== this.player.position.chunkX || newChunkY !== this.player.position.chunkY;
-
     this.lastMoveTime = time;
     this.isMoving = true;
-    this.player.position.x = newX;
-    this.player.position.y = newY;
-    this.player.position.chunkX = newChunkX;
-    this.player.position.chunkY = newChunkY;
 
     // Handle chunk transition (overworld only)
     if (result.chunkChanged) {
@@ -3333,7 +3328,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // ── Footstep audio ─────────────────────────────────────────
     if (audioEngine.initialized && result.newTerrain !== undefined) {
-      if (!this.player.inDungeon && !this.player.inCity && this.player.mountId) {
+      if (!this.player.position.inDungeon && !this.player.position.inCity && this.player.mountId) {
         audioEngine.playMountedFootstepSFX();
       } else {
         audioEngine.playFootstepSFX(result.newTerrain);
@@ -3341,15 +3336,15 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // ── Tween to new position + post-move callbacks ────────────
-    this.tweenPlayerTo(this.player.x, this.player.y, 120, () => {
+    this.tweenPlayerTo(this.player.position.x, this.player.position.y, 120, () => {
       this.isMoving = false;
       this.advanceTime();
       this.revealAround();
       this.revealTileSprites();
-      if (!this.player.inCity) this.collectMinorTreasure();
+      if (!this.player.position.inCity) this.collectMinorTreasure();
       this.updateHUD();
       this.updateLocationText();
-      if (this.player.inCity) {
+      if (this.player.position.inCity) {
         this.updateShopRoofAlpha();
       } else {
         this.checkEncounter(result.newTerrain!);

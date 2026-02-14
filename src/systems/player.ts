@@ -206,7 +206,7 @@ export function getAttackModifier(player: PlayerState): number {
   const playerClass = getPlayerClass(player.appearanceId);
   const primaryStatValue = player.stats[playerClass.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
+  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents);
 }
 
 /** Get the spell attack modifier (uses class primary stat for casters). */
@@ -214,7 +214,7 @@ export function getSpellModifier(player: PlayerState): number {
   const playerClass = getPlayerClass(player.appearanceId);
   const primaryStatValue = player.stats[playerClass.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
+  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents);
 }
 
 /** Get the player's armor class. Optionally add a temporary bonus (e.g. from defending). */
@@ -222,7 +222,7 @@ export function getArmorClass(player: PlayerState, tempBonus: number = 0): numbe
   const baseAC = 10 + abilityModifier(player.stats.dexterity);
   const armorBonus = player.equippedArmor?.effect ?? 0;
   const shieldBonus = player.equippedShield?.effect ?? 0;
-  return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents ?? []) + tempBonus;
+  return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents) + tempBonus;
 }
 
 /** Award XP and track pending level-ups. Actual leveling happens during rest. */
@@ -321,9 +321,8 @@ export function processPendingLevelUps(
     for (const talent of TALENTS) {
       if (
         talent.levelRequired <= player.level &&
-        !(player.knownTalents ?? []).includes(talent.id)
+        !player.knownTalents.includes(talent.id)
       ) {
-        if (!player.knownTalents) player.knownTalents = [];
         player.knownTalents.push(talent.id);
         newTalents.push(talent);
         // Apply one-time stat bonuses

@@ -120,7 +120,7 @@ export function playerAttack(
 
   if (outcome.hit) {
     const weaponBonus = player.equippedWeapon?.effect ?? 0;
-    const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
+    const talentDmg = getTalentDamageBonus(player.knownTalents);
     const damage = rollAttackDamage(1, 6, outcome.critical, weaponBonus + talentDmg, outcome.critical ? 0 : 1);
     const prefix = outcome.critical ? "CRITICAL HIT! " : "";
     const verb = outcome.critical ? "strikes" : "hits";
@@ -204,7 +204,7 @@ export function playerCastSpell(
   player.mp -= spell.mpCost;
 
   if (outcome.hit) {
-    const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
+    const talentDmg = getTalentDamageBonus(player.knownTalents);
     const damage = rollDice(spell.damageCount, spell.damageDie as DieType) + talentDmg;
     return {
       message: `${player.name} casts ${spell.name}! ${damage} damage!`,
@@ -322,8 +322,8 @@ export function playerUseAbility(
   // Damage ability — uses STR, DEX, or WIS
   const stat = player.stats[ability.statKey];
   const profBonus = Math.floor((player.level - 1) / 4) + 2;
-  const talentAtk = getTalentAttackBonus(player.knownTalents ?? []);
-  const talentDmg = getTalentDamageBonus(player.knownTalents ?? []);
+  const talentAtk = getTalentAttackBonus(player.knownTalents);
+  const talentDmg = getTalentDamageBonus(player.knownTalents);
   const attackMod = abilityModifier(stat) + profBonus + talentAtk;
   const roll = rollD20(attackMod);
   const effectiveAC = monster.ac + weatherPenalty;

@@ -1,54 +1,71 @@
 /**
  * Fog of war system: manages tile exploration and visibility.
+ * Handles dungeon, city, and overworld exploration separately.
  */
 
-import Phaser from "phaser";
-import { MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT } from "../data/map";
+import { MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, DUNGEONS } from "../data/map";
+import type { PlayerState } from "./player";
 
 export class FogOfWar {
-  private explored: Set<string> = new Set();
+  private exploredTiles: Record<string, boolean> = {};
   private debugFogDisabled = false;
   
   /**
-   * Generate a unique key for a tile position.
+   * Build the explored-tiles key for a position (respects dungeon/city vs overworld).
    */
-  private exploredKey(x: number, y: number): string {
-    return `${x},${y}`;
+  exploredKey(x: number, y: number, player: PlayerState): string {
+    if (player.inDungeon) {
+      return `d:${player.dungeonId},${x},${y}`;
+    }
+    if (player.inCity) {
+      return `c:${player.cityId},${x},${y}`;
+    }
+    return `${player.chunkX},${player.chunkY},${x},${y}`;
   }
   
   /**
    * Check if a tile has been explored.
    */
-  isExplored(x: number, y: number): boolean {
+  isExplored(x: number, y: number, player: PlayerState): boolean {
     if (this.debugFogDisabled) return true;
-    return this.explored.has(this.exploredKey(x, y));
+    return !!this.exploredTiles[this.exploredKey(x, y, player)];
   }
   
   /**
-   * Reveal tiles around a center position.
+   * Reveal tiles in a radius around a given position.
    */
-  revealAround(centerX: number, centerY: number, radius = 2): void {
+  revealAround(centerX: number, centerY: number, radius: number, player: PlayerState): void {
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist <= radius) {
-          const nx = centerX + dx;
-          const ny = centerY + dy;
-          if (nx >= 0 && nx < WORLD_WIDTH && ny >= 0 && ny < WORLD_HEIGHT) {
-            this.explored.add(this.exploredKey(nx, ny));
-          }
+        const nx = centerX + dx;
+        const ny = centerY + dy;
+        if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+          this.exploredTiles[this.exploredKey(nx, ny, player)] = true;
         }
       }
     }
   }
   
   /**
-   * Reveal the entire world map (debug command).
+   * Reveal every tile in every overworld chunk and every dungeon (debug command).
    */
   revealEntireWorld(): void {
-    for (let y = 0; y < WORLD_HEIGHT; y++) {
-      for (let x = 0; x < WORLD_WIDTH; x++) {
-        this.explored.add(this.exploredKey(x, y));
+    // Reveal all overworld chunks
+    for (let cy = 0; cy < WORLD_HEIGHT; cy++) {
+      for (let cx = 0; cx < WORLD_WIDTH; cx++) {
+        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+          for (let tx = 0; tx < MAP_WIDTH; tx++) {
+            this.exploredTiles[`${cx},${cy},${tx},${ty}`] = true;
+          }
+        }
+      }
+    }
+    // Reveal all dungeons
+    for (const d of DUNGEONS) {
+      for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+        for (let tx = 0; tx < MAP_WIDTH; tx++) {
+          this.exploredTiles[`d:${d.id},${tx},${ty}`] = true;
+        }
       }
     }
   }
@@ -68,23 +85,16 @@ export class FogOfWar {
   }
   
   /**
-   * Get all explored tile keys.
+   * Get the explored tiles record.
    */
-  getExploredTiles(): Set<string> {
-    return this.explored;
+  getExploredTiles(): Record<string, boolean> {
+    return this.exploredTiles;
   }
   
   /**
-   * Load explored tiles from save data.
+   * Set the explored tiles record (for loading from player state).
    */
-  loadExplored(tiles: string[]): void {
-    this.explored = new Set(tiles);
-  }
-  
-  /**
-   * Get explored tiles as array for saving.
-   */
-  getExploredArray(): string[] {
-    return Array.from(this.explored);
+  setExploredTiles(tiles: Record<string, boolean>): void {
+    this.exploredTiles = tiles;
   }
 }

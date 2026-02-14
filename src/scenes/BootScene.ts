@@ -2269,51 +2269,6 @@ export class BootScene extends Phaser.Scene {
       });
     });
 
-    // Class info panel (description + playstyle + stat boosts)
-    const infoPanelY = startY + Math.ceil(PLAYER_APPEARANCES.length / cols) * optH + 4;
-    const classDescText = this.add
-      .text(cx, infoPanelY, selectedAppearance.description, {
-        fontSize: "9px", fontFamily: "monospace", color: "#ccc",
-        wordWrap: { width: 280 },
-        align: "center",
-      })
-      .setOrigin(0.5, 0);
-
-    const classBoostText = this.add
-      .text(cx, infoPanelY + 22, this.formatClassInfo(selectedAppearance), {
-        fontSize: "9px", fontFamily: "monospace", color: "#c0a060",
-      })
-      .setOrigin(0.5, 0);
-
-    // Update info panel when class changes
-    const updateInfoPanel = (app: PlayerAppearance) => {
-      classDescText.setText(app.description);
-      classBoostText.setText(this.formatClassInfo(app));
-    };
-
-    // Re-wire class selection to also update info panel
-    PLAYER_APPEARANCES.forEach((app, i) => {
-      const ox = startX + (i % cols) * optW;
-      const oy = startY + Math.floor(i / cols) * optH;
-      const hitZone = this.add.zone(ox, oy + 10, 56, 62).setInteractive({ useHandCursor: true });
-      hitZone.on("pointerdown", () => {
-        selectedAppearance = app;
-        optionHighlights.forEach((h, j) => {
-          h.clear();
-          const isSelected = PLAYER_APPEARANCES[j].id === app.id;
-          h.lineStyle(2, isSelected ? 0xffd700 : 0x444444, 1);
-          if (isSelected) {
-            h.fillStyle(0xffd700, 0.1);
-          }
-          const hx = startX + (j % cols) * optW;
-          const hy = startY + Math.floor(j / cols) * optH;
-          if (isSelected) h.fillRect(hx - 28, hy - 22, 56, 62);
-          h.strokeRect(hx - 28, hy - 22, 56, 62);
-        });
-        updateInfoPanel(app);
-      });
-    });
-
     // Next button
     const btnY = infoPanelY + 46;
 

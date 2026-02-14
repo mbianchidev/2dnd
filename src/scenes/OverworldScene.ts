@@ -74,6 +74,55 @@ import { getAbility } from "../data/abilities";
 
 const TILE_SIZE = 32;
 
+/** Terrain enum → human-readable display name for the location HUD. */
+const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
+  [Terrain.Grass]: "Grassland",
+  [Terrain.Forest]: "Forest",
+  [Terrain.Mountain]: "Mountain",
+  [Terrain.Water]: "Water",
+  [Terrain.Sand]: "Desert",
+  [Terrain.Town]: "Town",
+  [Terrain.Dungeon]: "Dungeon",
+  [Terrain.Boss]: "Boss Lair",
+  [Terrain.Path]: "Road",
+  [Terrain.Tundra]: "Tundra",
+  [Terrain.Swamp]: "Swamp",
+  [Terrain.DeepForest]: "Deep Forest",
+  [Terrain.Volcanic]: "Volcanic",
+  [Terrain.Canyon]: "Canyon",
+  [Terrain.Flower]: "Grassland",
+  [Terrain.Cactus]: "Desert",
+  [Terrain.Geyser]: "Volcanic",
+  [Terrain.Mushroom]: "Swamp",
+  [Terrain.River]: "River",
+  [Terrain.Mill]: "Grassland",
+  [Terrain.CropField]: "Grassland",
+  [Terrain.Casino]: "Town",
+  [Terrain.House]: "Town",
+};
+
+/** Terrain enum → short debug label for the debug panel. */
+const TERRAIN_DEBUG_NAMES: Record<number, string> = {
+  [Terrain.Grass]: "Grass",
+  [Terrain.Forest]: "Forest",
+  [Terrain.Mountain]: "Mountain",
+  [Terrain.Water]: "Water",
+  [Terrain.Sand]: "Sand",
+  [Terrain.Town]: "Town",
+  [Terrain.Dungeon]: "Dungeon",
+  [Terrain.Boss]: "Boss",
+  [Terrain.Path]: "Path",
+  [Terrain.DungeonFloor]: "DFloor",
+  [Terrain.DungeonWall]: "DWall",
+  [Terrain.DungeonExit]: "DExit",
+  [Terrain.Chest]: "Chest",
+  [Terrain.Tundra]: "Tundra",
+  [Terrain.Swamp]: "Swamp",
+  [Terrain.DeepForest]: "DForest",
+  [Terrain.Volcanic]: "Volcanic",
+  [Terrain.Canyon]: "Canyon",
+};
+
 /**
  * Blend two 0xRRGGBB tint values, weighting the first (day/night) at 75%
  * and the second (weather) at 25%.  This keeps the day/night cycle clearly
@@ -2977,31 +3026,6 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
-    const terrainNames: Record<number, string> = {
-      [Terrain.Grass]: "Grassland",
-      [Terrain.Forest]: "Forest",
-      [Terrain.Mountain]: "Mountain",
-      [Terrain.Water]: "Water",
-      [Terrain.Sand]: "Desert",
-      [Terrain.Town]: "Town",
-      [Terrain.Dungeon]: "Dungeon",
-      [Terrain.Boss]: "Boss Lair",
-      [Terrain.Path]: "Road",
-      [Terrain.Tundra]: "Tundra",
-      [Terrain.Swamp]: "Swamp",
-      [Terrain.DeepForest]: "Deep Forest",
-      [Terrain.Volcanic]: "Volcanic",
-      [Terrain.Canyon]: "Canyon",
-      [Terrain.Flower]: "Grassland",
-      [Terrain.Cactus]: "Desert",
-      [Terrain.Geyser]: "Volcanic",
-      [Terrain.Mushroom]: "Swamp",
-      [Terrain.River]: "River",
-      [Terrain.Mill]: "Grassland",
-      [Terrain.CropField]: "Grassland",
-      [Terrain.Casino]: "Town",
-      [Terrain.House]: "Town",
-    };
 
     const chunk = getChunk(this.player.chunkX, this.player.chunkY);
     const town = chunk?.towns.find(
@@ -3011,7 +3035,7 @@ export class OverworldScene extends Phaser.Scene {
       (b) => b.x === this.player.x && b.y === this.player.y
     );
 
-    let locStr = terrainNames[terrain ?? 0] ?? "Unknown";
+    let locStr = TERRAIN_DISPLAY_NAMES[terrain ?? 0] ?? "Unknown";
     if (town) {
       const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
       locStr = city ? `${town.name}\n[SPACE] Enter City` : `${town.name}\n[SPACE] Enter Shop`;
@@ -3047,26 +3071,6 @@ export class OverworldScene extends Phaser.Scene {
 
   private updateDebugPanel(): void {
     const p = this.player;
-    const terrainNames: Record<number, string> = {
-      [Terrain.Grass]: "Grass",
-      [Terrain.Forest]: "Forest",
-      [Terrain.Mountain]: "Mountain",
-      [Terrain.Water]: "Water",
-      [Terrain.Sand]: "Sand",
-      [Terrain.Town]: "Town",
-      [Terrain.Dungeon]: "Dungeon",
-      [Terrain.Boss]: "Boss",
-      [Terrain.Path]: "Path",
-      [Terrain.DungeonFloor]: "DFloor",
-      [Terrain.DungeonWall]: "DWall",
-      [Terrain.DungeonExit]: "DExit",
-      [Terrain.Chest]: "Chest",
-      [Terrain.Tundra]: "Tundra",
-      [Terrain.Swamp]: "Swamp",
-      [Terrain.DeepForest]: "DForest",
-      [Terrain.Volcanic]: "Volcanic",
-      [Terrain.Canyon]: "Canyon",
-    };
 
     let terrain: Terrain | undefined;
     if (p.inDungeon) {
@@ -3076,7 +3080,7 @@ export class OverworldScene extends Phaser.Scene {
       terrain = getTerrainAt(p.chunkX, p.chunkY, p.x, p.y);
     }
 
-    const tName = terrainNames[terrain ?? 0] ?? "?";
+    const tName = TERRAIN_DEBUG_NAMES[terrain ?? 0] ?? "?";
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
     const encMult = getEncounterMultiplier(this.timeStep);
     const weatherEncMult = getWeatherEncounterMultiplier(this.weatherState.current);

@@ -58,7 +58,8 @@ export type NpcJob =
   | "merchant"
   | "cook"
   | "villager"
-  | "guard";
+  | "guard"
+  | "stablemaster";
 
 /** Accent colour applied to the NPC's apron / accessory based on job. */
 export const JOB_ACCENT_COLORS: Record<NpcJob, number> = {
@@ -69,6 +70,7 @@ export const JOB_ACCENT_COLORS: Record<NpcJob, number> = {
   cook: 0xfafafa,
   villager: 0x90a4ae,
   guard: 0x455a64,
+  stablemaster: 0x795548,
 };
 
 // ── Skin / Hair / Dress colour palettes ──
@@ -170,6 +172,12 @@ export const SHOPKEEPER_DIALOGUES: Record<string, string[]> = {
     "We offer the best rates around.",
     "Deposits and withdrawals—at your service.",
   ],
+  stable: [
+    "Looking for a trusty steed?",
+    "A good mount makes all the difference.",
+    "These are the finest beasts around!",
+    "Hop on and ride—your journey awaits.",
+  ],
 };
 
 /** Dialogue for animal NPCs — simple sounds. */
@@ -233,36 +241,36 @@ export interface NpcInstance {
  */
 export const CITY_NPCS: Record<string, NpcInstance[]> = {
   willowdale_city: [
-    { templateId: "male_stout",   job: "blacksmith",  x: 4,  y: 5,  moves: false, shopIndex: 0 },
-    { templateId: "female_tall",  job: "merchant",    x: 15, y: 5,  moves: false, shopIndex: 1 },
-    { templateId: "male_tall",    job: "merchant",    x: 4,  y: 12, moves: false, shopIndex: 2 },
-    { templateId: "female_stout", job: "innkeeper",   x: 15, y: 12, moves: false, shopIndex: 3 },
-    { templateId: "child_boy1",   job: "villager",    x: 8,  y: 7,  moves: true },
-    { templateId: "child_girl1",  job: "villager",    x: 12, y: 8,  moves: true },
-    { templateId: "male_elder",   job: "farmer",      x: 10, y: 5,  moves: false },
-    { templateId: "female_young", job: "villager",    x: 6,  y: 9,  moves: true },
+    { templateId: "male_stout",   job: "blacksmith",    x: 4,  y: 5,  moves: false, shopIndex: 0 },
+    { templateId: "female_tall",  job: "merchant",      x: 15, y: 5,  moves: false, shopIndex: 1 },
+    { templateId: "male_tall",    job: "merchant",      x: 4,  y: 12, moves: false, shopIndex: 2 },
+    { templateId: "female_stout", job: "innkeeper",     x: 15, y: 12, moves: false, shopIndex: 3 },
+    { templateId: "male_elder",   job: "stablemaster",  x: 10, y: 5,  moves: false, shopIndex: 4 },
+    { templateId: "child_boy1",   job: "villager",      x: 8,  y: 7,  moves: true },
+    { templateId: "child_girl1",  job: "villager",      x: 12, y: 8,  moves: true },
+    { templateId: "female_young", job: "villager",      x: 6,  y: 9,  moves: true },
   ],
   ironhold_city: [
-    { templateId: "male_stout",   job: "blacksmith",  x: 4,  y: 3,  moves: false, shopIndex: 0 },
-    { templateId: "male_tall",    job: "merchant",    x: 15, y: 3,  moves: false, shopIndex: 1 },
-    { templateId: "female_thin",  job: "merchant",    x: 8,  y: 6,  moves: false, shopIndex: 2 },
-    { templateId: "female_stout", job: "innkeeper",   x: 11, y: 6,  moves: false, shopIndex: 3 },
-    { templateId: "male_young",   job: "villager",    x: 10, y: 8,  moves: true },
-    { templateId: "child_boy2",   job: "villager",    x: 8,  y: 8,  moves: true },
-    { templateId: "female_elder", job: "farmer",      x: 14, y: 10, moves: false },
-    { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
-    { templateId: "guard_female", job: "guard",       x: 11, y: 12, moves: false },
+    { templateId: "male_stout",   job: "blacksmith",    x: 4,  y: 3,  moves: false, shopIndex: 0 },
+    { templateId: "male_tall",    job: "merchant",      x: 15, y: 3,  moves: false, shopIndex: 1 },
+    { templateId: "female_thin",  job: "merchant",      x: 8,  y: 6,  moves: false, shopIndex: 2 },
+    { templateId: "female_stout", job: "innkeeper",     x: 11, y: 6,  moves: false, shopIndex: 3 },
+    { templateId: "male_young",   job: "stablemaster",  x: 10, y: 10, moves: false, shopIndex: 4 },
+    { templateId: "child_boy2",   job: "villager",      x: 8,  y: 8,  moves: true },
+    { templateId: "female_elder", job: "farmer",        x: 14, y: 10, moves: false },
+    { templateId: "guard_male",   job: "guard",         x: 9,  y: 12, moves: false },
+    { templateId: "guard_female", job: "guard",         x: 11, y: 12, moves: false },
   ],
   sandport_city: [
-    { templateId: "male_thin",    job: "blacksmith",  x: 4,  y: 4,  moves: false, shopIndex: 0 },
-    { templateId: "female_tall",  job: "merchant",    x: 15, y: 4,  moves: false, shopIndex: 1 },
-    { templateId: "male_elder",   job: "merchant",    x: 4,  y: 8,  moves: false, shopIndex: 2 },
-    { templateId: "female_young", job: "innkeeper",   x: 15, y: 8,  moves: false, shopIndex: 3 },
-    { templateId: "male_young",   job: "merchant",    x: 5,  y: 12, moves: false, shopIndex: 4 },
-    { templateId: "female_stout", job: "merchant",    x: 14, y: 12, moves: false, shopIndex: 5 },
-    { templateId: "child_girl2",  job: "villager",    x: 9,  y: 3,  moves: true },
-    { templateId: "child_kid",    job: "villager",    x: 8,  y: 9,  moves: true },
-    { templateId: "male_stout",   job: "cook",        x: 12, y: 9,  moves: false },
+    { templateId: "male_thin",    job: "blacksmith",    x: 4,  y: 4,  moves: false, shopIndex: 0 },
+    { templateId: "female_tall",  job: "merchant",      x: 15, y: 4,  moves: false, shopIndex: 1 },
+    { templateId: "male_elder",   job: "merchant",      x: 4,  y: 8,  moves: false, shopIndex: 2 },
+    { templateId: "female_young", job: "innkeeper",     x: 15, y: 8,  moves: false, shopIndex: 3 },
+    { templateId: "male_young",   job: "merchant",      x: 5,  y: 12, moves: false, shopIndex: 4 },
+    { templateId: "female_stout", job: "merchant",      x: 14, y: 12, moves: false, shopIndex: 5 },
+    { templateId: "male_stout",   job: "stablemaster",  x: 10, y: 8,  moves: false, shopIndex: 6 },
+    { templateId: "child_girl2",  job: "villager",      x: 9,  y: 3,  moves: true },
+    { templateId: "child_kid",    job: "villager",      x: 8,  y: 9,  moves: true },
   ],
   frostheim_city: [
     { templateId: "female_thin",  job: "merchant",    x: 4,  y: 4,  moves: false, shopIndex: 0 },

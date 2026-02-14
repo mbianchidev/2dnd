@@ -3,10 +3,11 @@
  * Supports standard notation: d4, d6, d8, d10, d12, d20, d100
  */
 
-export type DieType = 4 | 6 | 8 | 10 | 12 | 20 | 100;
+export type DieType = 0 | 4 | 6 | 8 | 10 | 12 | 20 | 100;
 
-/** Roll a single die of the given type (1 to sides inclusive). */
+/** Roll a single die of the given type (1 to sides inclusive). Returns 0 for d0. */
 export function rollDie(sides: DieType): number {
+  if (sides === 0) return 0;
   if (!sides || sides < 1) {
     throw new Error(`[dice] rollDie: invalid die type ${sides}`);
   }

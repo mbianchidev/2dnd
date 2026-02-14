@@ -123,6 +123,7 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.fadeIn(300);
 
     this.drawBattleUI();
+    this.drawTimeSky();
     this.drawCelestialBody();
     this.setupDebug();
     this.createWeatherParticles();
@@ -168,6 +169,7 @@ export class BattleScene extends Phaser.Scene {
     this.monsterSprite = this.add.sprite(w * 0.72, h * 0.18, textureKey);
     this.monsterSprite.setTint(this.monster.color);
     this.monsterSprite.setScale(this.monster.isBoss ? 1.2 : 1.5);
+    this.monsterSprite.setDepth(1); // above sky overlay
 
     // Monster name and HP bar (below monster sprite)
     this.monsterText = this.add
@@ -177,7 +179,8 @@ export class BattleScene extends Phaser.Scene {
         color: "#ff6666",
         align: "center",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(1);
     this.updateMonsterDisplay();
 
     // --- Player (bottom-left) ---
@@ -188,6 +191,7 @@ export class BattleScene extends Phaser.Scene {
     this.playerSprite = this.add.sprite(w * 0.25, h * 0.52, playerTextureKey);
     this.playerSprite.setScale(1.5);
     this.playerSprite.setFlipX(false);
+    this.playerSprite.setDepth(1); // above sky overlay
 
     // Player name + HP/MP bar (below player sprite)
     this.playerStatsText = this.add
@@ -198,7 +202,8 @@ export class BattleScene extends Phaser.Scene {
         align: "center",
         lineSpacing: 3,
       })
-      .setOrigin(0.5, 0);
+      .setOrigin(0.5, 0)
+      .setDepth(1);
     this.updatePlayerStats();
 
     // Battle log (bottom strip, above action buttons) — scrollable
@@ -1096,20 +1101,8 @@ export class BattleScene extends Phaser.Scene {
           this.addLog(`🌟 Found: ${item.name}!`);
         }
 
-        if (xpResult.leveledUp) {
-          this.addLog(`🎉 LEVEL UP! Now level ${xpResult.newLevel}!`);
-          for (const spell of xpResult.newSpells) {
-            this.addLog(`✦ Learned ${spell.name}!`);
-          }
-          for (const ability of xpResult.newAbilities) {
-            this.addLog(`⚡ Learned ${ability.name}!`);
-          }
-          for (const talent of xpResult.newTalents) {
-            this.addLog(`🏅 Talent: ${talent.name} — ${talent.description}`);
-          }
-          if (xpResult.asiGained > 0) {
-            this.addLog(`★ +${xpResult.asiGained} stat points to spend!`);
-          }
+        if (xpResult.pendingLevels > 0) {
+          this.addLog(`⬆ ${xpResult.pendingLevels} level-up${xpResult.pendingLevels > 1 ? "s" : ""} pending! Rest to level up.`);
         }
 
         // Track boss defeats
@@ -1191,6 +1184,42 @@ export class BattleScene extends Phaser.Scene {
     console.error(`[BattleScene.${context}]`, err);
     debugPanelLog(`ERROR in ${context}: ${msg}`);
     this.addLog(`⚠ Something went wrong (${context})`);
+  }
+
+  /**
+   * Draw a time-dependent sky gradient over the sky portion of the battle background.
+   * This replaces the static baked-in sky color with one that reflects the current
+   * time of day (blue morning, dark blue night, orange dawn/dusk, etc.).
+   */
+  private drawTimeSky(): void {
+    if (this.biome === "dungeon") return;
+
+    const w = this.cameras.main.width;
+    const skyH = this.cameras.main.height * 0.45;
+    const period = getTimePeriod(this.timeStep);
+    const gfx = this.add.graphics();
+    gfx.setDepth(0.4); // below celestial body (0.5), above bg image (0)
+
+    // Top and bottom gradient colors for each time period
+    let topColor: number;
+    let botColor: number;
+    let alpha = 0.85;
+
+    switch (period) {
+      case TimePeriod.Dawn:
+        topColor = 0x4466aa; botColor = 0xffa858; break;
+      case TimePeriod.Day:
+        topColor = 0x5588cc; botColor = 0x87ceeb; break;
+      case TimePeriod.Dusk:
+        topColor = 0x2a2a55; botColor = 0xff6633; break;
+      case TimePeriod.Night:
+        topColor = 0x0a0a1a; botColor = 0x1a2244; alpha = 0.92; break;
+      default:
+        return; // Dungeon handled above
+    }
+
+    gfx.fillGradientStyle(topColor, topColor, botColor, botColor, alpha);
+    gfx.fillRect(0, 0, w, skyH);
   }
 
   /**

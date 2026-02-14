@@ -203,7 +203,7 @@ export const ABILITIES: Ability[] = [
   {
     id: "fastTravel", name: "Fast Travel",
     description: "Travel instantly to a known town",
-    mpCost: 5, levelRequired: 5, damageCount: 0, damageDie: 4,
+    mpCost: 5, levelRequired: 5, damageCount: 0, damageDie: 0,
     type: "utility", statKey: "dexterity",
   },
 ];

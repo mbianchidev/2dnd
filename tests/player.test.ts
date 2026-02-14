@@ -3,6 +3,7 @@ import {
   createPlayer,
   xpForLevel,
   awardXP,
+  processPendingLevelUps,
   allocateStatPoint,
   ASI_LEVELS,
   getAttackModifier,
@@ -48,6 +49,7 @@ function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
   player.hp = 30;
   player.maxMp = 10;
   player.mp = 10;
+  player.gold = 50; // Pin gold for deterministic tests
   if (overrides) Object.assign(player, overrides);
   return player;
 }
@@ -66,7 +68,8 @@ describe("player system", () => {
       // HP and MP are derived from CON/INT
       expect(player.maxHp).toBeGreaterThanOrEqual(10);
       expect(player.maxMp).toBeGreaterThanOrEqual(4);
-      expect(player.gold).toBe(50);
+      expect(player.gold).toBeGreaterThanOrEqual(50);  // D&D 5e: Knight = 5d4 × 10 (min 50)
+      expect(player.gold).toBeLessThanOrEqual(200);     // max 200
       expect(player.knownSpells).toContain("shortRest");
       expect(player.inventory).toHaveLength(1); // starting weapon
       expect(player.equippedWeapon).not.toBeNull();
@@ -167,25 +170,34 @@ describe("player system", () => {
       const player = createTestPlayer();
       const result = awardXP(player, 100);
       expect(player.xp).toBe(100);
-      expect(result.leveledUp).toBe(false);
-      expect(result.newLevel).toBe(1);
-      expect(result.asiGained).toBe(0);
+      expect(result.pendingLevels).toBe(0);
+      expect(player.level).toBe(1);
     });
 
-    it("levels up when enough XP is gained", () => {
+    it("tracks pending level-ups when enough XP is gained", () => {
+      const player = createTestPlayer();
+      const result = awardXP(player, 400); // xpForLevel(2) = 400
+      expect(result.pendingLevels).toBe(1);
+      expect(player.level).toBe(1); // not yet leveled — pending
+      expect(player.pendingLevelUps).toBe(1);
+    });
+
+    it("applies pending level-ups on processPendingLevelUps", () => {
       const player = createTestPlayer();
       const startHp = player.maxHp;
-      const result = awardXP(player, 400); // xpForLevel(2) = 400
+      awardXP(player, 400);
+      const result = processPendingLevelUps(player);
       expect(result.leveledUp).toBe(true);
       expect(result.newLevel).toBe(2);
       expect(player.level).toBe(2);
       expect(player.maxHp).toBeGreaterThan(startHp);
     });
 
-    it("unlocks spells on level up", () => {
+    it("unlocks spells on level up via processPendingLevelUps", () => {
       const player = createTestPlayer();
       // Level up to 5 to unlock healingWord (Knight spell)
-      const result = awardXP(player, xpForLevel(5 + 1));
+      awardXP(player, xpForLevel(5 + 1));
+      const result = processPendingLevelUps(player);
       const spellIds = result.newSpells.map((s) => s.id);
       expect(spellIds).toContain("healingWord");
       expect(player.knownSpells).toContain("healingWord");
@@ -195,15 +207,18 @@ describe("player system", () => {
       const player = createTestPlayer();
       // Level to 4 (first ASI level): xpForLevel(5) = 2500 is enough to hit 4
       awardXP(player, xpForLevel(4 + 1)); // enough to reach level 4
+      processPendingLevelUps(player);
       expect(player.level).toBeGreaterThanOrEqual(4);
       expect(player.pendingStatPoints).toBe(2);
     });
 
     it("does not grant ASI points at non-ASI levels", () => {
       const player = createTestPlayer();
-      awardXP(player, 400); // level 2
+      awardXP(player, 400); // enough for level 2
+      processPendingLevelUps(player);
       expect(player.pendingStatPoints).toBe(0);
-      awardXP(player, 500); // level 3
+      awardXP(player, 500); // enough for level 3
+      processPendingLevelUps(player);
       expect(player.pendingStatPoints).toBe(0);
     });
   });
@@ -393,7 +408,8 @@ describe("player system", () => {
     it("barbarian has enrage as a bonus action ability", () => {
       const barbarian = createPlayer("Barb", defaultStats, "barbarian");
       // Level up to unlock enrage (level 3)
-      const result = awardXP(barbarian, xpForLevel(4));
+      awardXP(barbarian, xpForLevel(4));
+      const result = processPendingLevelUps(barbarian);
       const newAbilityIds = result.newAbilities.map((a) => a.id);
       expect(newAbilityIds).toContain("enrage");
       const enrage = getAbility("enrage");

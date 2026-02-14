@@ -29,9 +29,9 @@ import {
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, ALL_MONSTERS, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, xpForLevel, allocateStatPoint, applyBankInterest, ASI_LEVELS, castSpellOutsideCombat, useAbilityOutsideCombat, type PlayerState, type PlayerStats } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, ASI_LEVELS, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { getAppearance, getActiveWeaponSprite, getClassSpells, getClassAbilities } from "../systems/appearance";
+import { getPlayerClass, getActiveWeaponSprite, getClassSpells, getClassAbilities } from "../systems/classes";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary, recordDefeat } from "../systems/bestiary";
@@ -140,6 +140,9 @@ export class OverworldScene extends Phaser.Scene {
   private dialogueOverlay: Phaser.GameObjects.Container | null = null;
   private innConfirmOverlay: Phaser.GameObjects.Container | null = null;
   private bankOverlay: Phaser.GameObjects.Container | null = null;
+  private townPickerOverlay: Phaser.GameObjects.Container | null = null;
+  /** MP cost to deduct once the player picks a teleport destination. */
+  private pendingTeleportCost = 0;
   /** Active special (rare) NPCs in the current city visit. */
   private specialNpcSprites: Phaser.GameObjects.Sprite[] = [];
   private specialNpcTimers: Phaser.Time.TimerEvent[] = [];
@@ -302,13 +305,15 @@ export class OverworldScene extends Phaser.Scene {
         targetLevel = parseInt(arg, 10);
       }
       if (!isNaN(targetLevel) && targetLevel >= 1 && targetLevel <= 20) {
-        while (this.player.level < targetLevel) {
-          const needed = xpForLevel(this.player.level + 1) - this.player.xp;
+        while (this.player.level + (this.player.pendingLevelUps ?? 0) < targetLevel) {
+          const virtualLevel = this.player.level + (this.player.pendingLevelUps ?? 0);
+          const needed = xpForLevel(virtualLevel + 1) - this.player.xp;
           awardXP(this.player, Math.max(needed, 0));
         }
+        const result = processPendingLevelUps(this.player);
         this.updateHUD();
         debugPanelLog(`[CMD] Level set to ${this.player.level}`, true);
-        if (this.player.pendingStatPoints > 0) {
+        if (result.asiGained > 0 || this.player.pendingStatPoints > 0) {
           this.time.delayedCall(200, () => this.showStatOverlay());
         }
       } else debugPanelLog(`Usage: /level <1-20|max>`, true);
@@ -1811,8 +1816,8 @@ export class OverworldScene extends Phaser.Scene {
     if (this.innConfirmOverlay) return;
     const innCost = getInnCost(this.player.cityId);
     const container = this.add.container(0, 0).setDepth(55);
-    const boxW = 260;
-    const boxH = 70;
+    const boxW = 280;
+    const boxH = 120;
     const boxX = (MAP_WIDTH * TILE_SIZE - boxW) / 2;
     const boxY = (MAP_HEIGHT * TILE_SIZE - boxH) / 2;
 
@@ -1823,42 +1828,69 @@ export class OverworldScene extends Phaser.Scene {
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
     container.add(bg);
 
-    const prompt = this.add.text(boxX + boxW / 2, boxY + 12, `Rest at the inn for ${innCost}g?`, {
+    const prompt = this.add.text(boxX + boxW / 2, boxY + 10, `Rest at the inn for ${innCost}g?`, {
       fontSize: "12px",
       fontFamily: "monospace",
       color: "#ffd700",
     }).setOrigin(0.5, 0);
     container.add(prompt);
 
-    const yesBtn = this.add.text(boxX + boxW / 2 - 50, boxY + 40, "Yes", {
-      fontSize: "13px",
+    // Dawn = step 0 of the next cycle, Night starts at step 265
+    const DAWN_STEP = 0;
+    const NIGHT_STEP = 265;
+
+    const sleepBtn = this.add.text(boxX + boxW / 2, boxY + 32, "🌅 Sleep Until Morning", {
+      fontSize: "12px",
       fontFamily: "monospace",
       color: "#88ff88",
       backgroundColor: "#2a2a4e",
-      padding: { x: 12, y: 4 },
+      padding: { x: 10, y: 4 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    yesBtn.on("pointerover", () => yesBtn.setColor("#ffd700"));
-    yesBtn.on("pointerout", () => yesBtn.setColor("#88ff88"));
-    yesBtn.on("pointerdown", () => this.confirmInnRest());
-    container.add(yesBtn);
+    sleepBtn.on("pointerover", () => sleepBtn.setColor("#ffd700"));
+    sleepBtn.on("pointerout", () => sleepBtn.setColor("#88ff88"));
+    sleepBtn.on("pointerdown", () => {
+      const currentCycle = Math.floor(this.timeStep / CYCLE_LENGTH);
+      const targetStep = (currentCycle + 1) * CYCLE_LENGTH + DAWN_STEP;
+      this.executeInnRest(targetStep, "You sleep soundly at the inn. Good morning! HP and MP restored.");
+    });
+    container.add(sleepBtn);
 
-    const noBtn = this.add.text(boxX + boxW / 2 + 50, boxY + 40, "No", {
-      fontSize: "13px",
+    const waitBtn = this.add.text(boxX + boxW / 2, boxY + 58, "🌙 Wait Until Night", {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#aaaaff",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 10, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    waitBtn.on("pointerover", () => waitBtn.setColor("#ffd700"));
+    waitBtn.on("pointerout", () => waitBtn.setColor("#aaaaff"));
+    waitBtn.on("pointerdown", () => {
+      const currentPos = ((this.timeStep % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH;
+      const currentCycle = Math.floor(this.timeStep / CYCLE_LENGTH);
+      const targetStep = currentPos < NIGHT_STEP
+        ? currentCycle * CYCLE_LENGTH + NIGHT_STEP
+        : (currentCycle + 1) * CYCLE_LENGTH + NIGHT_STEP;
+      this.executeInnRest(targetStep, "You rest at the inn and wait for nightfall. HP and MP restored.");
+    });
+    container.add(waitBtn);
+
+    const cancelBtn = this.add.text(boxX + boxW / 2, boxY + 86, "Cancel", {
+      fontSize: "12px",
       fontFamily: "monospace",
       color: "#ff8888",
       backgroundColor: "#2a2a4e",
       padding: { x: 12, y: 4 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    noBtn.on("pointerover", () => noBtn.setColor("#ffd700"));
-    noBtn.on("pointerout", () => noBtn.setColor("#ff8888"));
-    noBtn.on("pointerdown", () => this.dismissInnConfirmation());
-    container.add(noBtn);
+    cancelBtn.on("pointerover", () => cancelBtn.setColor("#ffd700"));
+    cancelBtn.on("pointerout", () => cancelBtn.setColor("#ff8888"));
+    cancelBtn.on("pointerdown", () => this.dismissInnConfirmation());
+    container.add(cancelBtn);
 
     this.innConfirmOverlay = container;
   }
 
-  /** Execute inn rest after confirmation. */
-  private confirmInnRest(): void {
+  /** Execute inn rest: deduct gold, heal, advance time to target step. */
+  private executeInnRest(targetTimeStep: number, message: string): void {
     this.dismissInnConfirmation();
     const innCost = getInnCost(this.player.cityId);
     if (this.player.gold < innCost) {
@@ -1868,9 +1900,29 @@ export class OverworldScene extends Phaser.Scene {
     this.player.gold -= innCost;
     this.player.hp = this.player.maxHp;
     this.player.mp = this.player.maxMp;
-    this.player.shortRestsRemaining = 2; // refill short rests on long rest
-    this.showMessage("You rest at the inn. HP and MP fully restored! Short rests refilled.", "#88ff88");
+    this.player.shortRestsRemaining = 2;
+    this.timeStep = targetTimeStep;
+
+    // Process any pending level-ups on inn (long) rest
+    const levelResult = processPendingLevelUps(this.player);
+    let fullMsg = message;
+    if (levelResult.leveledUp) {
+      fullMsg += ` 🎉 LEVEL UP to ${levelResult.newLevel}!`;
+      for (const spell of levelResult.newSpells) {
+        fullMsg += ` ✦ Learned ${spell.name}!`;
+      }
+      for (const ability of levelResult.newAbilities) {
+        fullMsg += ` ⚡ Learned ${ability.name}!`;
+      }
+      if (levelResult.asiGained > 0) {
+        fullMsg += ` ★ +${levelResult.asiGained} stat points!`;
+      }
+    }
+    this.showMessage(fullMsg, "#88ff88");
     this.updateHUD();
+    if (levelResult.asiGained > 0 || this.player.pendingStatPoints > 0) {
+      this.time.delayedCall(500, () => this.showStatOverlay());
+    }
     this.autoSave();
   }
 
@@ -1880,6 +1932,116 @@ export class OverworldScene extends Phaser.Scene {
       this.innConfirmOverlay.destroy();
       this.innConfirmOverlay = null;
     }
+  }
+
+  /** Show a town picker overlay for Teleport/Fast Travel. Lists visited cities. */
+  private showTownPicker(): void {
+    if (this.townPickerOverlay) return;
+
+    const w = MAP_WIDTH * TILE_SIZE;
+    const h = MAP_HEIGHT * TILE_SIZE;
+
+    // Determine which cities the player has visited (explored tiles with "c:<cityId>")
+    const visitedCityIds = new Set<string>();
+    for (const key of Object.keys(this.player.exploredTiles)) {
+      if (key.startsWith("c:")) {
+        const cityId = key.split(",")[0].substring(2);
+        visitedCityIds.add(cityId);
+      }
+    }
+
+    const visitedCities = CITIES.filter((c) => visitedCityIds.has(c.id));
+
+    const container = this.add.container(0, 0).setDepth(56);
+
+    // Dim background
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.6);
+    dim.fillRect(0, 0, w, h);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+    dim.on("pointerdown", () => this.dismissTownPicker());
+    container.add(dim);
+
+    const panelW = 240;
+    const panelH = Math.min(60 + visitedCities.length * 22, h - 40);
+    const px = (w - panelW) / 2;
+    const py = (h - panelH) / 2;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a3e, 0.95);
+    bg.fillRoundedRect(px, py, panelW, panelH, 8);
+    bg.lineStyle(2, 0xffd700, 1);
+    bg.strokeRoundedRect(px, py, panelW, panelH, 8);
+    container.add(bg);
+
+    const title = this.add.text(px + panelW / 2, py + 10, "🗺 Travel to...", {
+      fontSize: "13px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    container.add(title);
+
+    if (visitedCities.length === 0) {
+      const noTowns = this.add.text(px + panelW / 2, py + 36, "No towns visited yet!", {
+        fontSize: "11px", fontFamily: "monospace", color: "#ff8888",
+      }).setOrigin(0.5, 0);
+      container.add(noTowns);
+    } else {
+      let cy = py + 34;
+      for (const city of visitedCities) {
+        // Skip current city
+        const isCurrent = this.player.inCity && this.player.cityId === city.id;
+        const isCurrentChunk = !this.player.inCity && !this.player.inDungeon
+          && this.player.chunkX === city.chunkX && this.player.chunkY === city.chunkY
+          && this.player.x === city.tileX && this.player.y === city.tileY;
+        const here = isCurrent || isCurrentChunk;
+        const color = here ? "#666" : "#ccffcc";
+        const label = here ? `${city.name} (here)` : city.name;
+        const btn = this.add.text(px + panelW / 2, cy, label, {
+          fontSize: "11px", fontFamily: "monospace", color,
+        }).setOrigin(0.5, 0).setInteractive({ useHandCursor: !here });
+
+        if (!here) {
+          btn.on("pointerover", () => btn.setColor("#ffd700"));
+          btn.on("pointerout", () => btn.setColor(color));
+          btn.on("pointerdown", () => {
+            // Deduct MP
+            this.player.mp -= this.pendingTeleportCost;
+            // Teleport to the city entrance on the overworld
+            this.player.chunkX = city.chunkX;
+            this.player.chunkY = city.chunkY;
+            this.player.x = city.tileX;
+            this.player.y = city.tileY;
+            if (this.player.inDungeon) { this.player.inDungeon = false; this.player.dungeonId = ""; }
+            if (this.player.inCity) { this.player.inCity = false; this.player.cityId = ""; }
+            this.dismissTownPicker();
+            audioEngine.playPotionSFX();
+            this.showMessage(`Teleported to ${city.name}!`, "#88ff88");
+            this.renderMap();
+            this.createPlayer();
+            this.updateHUD();
+            this.autoSave();
+          });
+        }
+        container.add(btn);
+        cy += 20;
+      }
+    }
+
+    // Cancel hint
+    const hint = this.add.text(px + panelW / 2, py + panelH - 14, "Click outside to cancel", {
+      fontSize: "9px", fontFamily: "monospace", color: "#666",
+    }).setOrigin(0.5, 1);
+    container.add(hint);
+
+    this.townPickerOverlay = container;
+  }
+
+  /** Dismiss the town picker overlay. */
+  private dismissTownPicker(): void {
+    if (this.townPickerOverlay) {
+      this.townPickerOverlay.destroy();
+      this.townPickerOverlay = null;
+    }
+    this.pendingTeleportCost = 0;
   }
 
   /** Show bank deposit/withdraw overlay with interest info. */
@@ -2368,19 +2530,19 @@ export class OverworldScene extends Phaser.Scene {
   /** Regenerate the player texture to reflect current equipment (weapon sprite).
    *  Uses a separate key so the base class texture stays clean for the title screen. */
   private refreshPlayerSprite(): void {
-    const app = getAppearance(this.player.appearanceId);
+    const cls = getPlayerClass(this.player.appearanceId);
     const texKey = `player_equipped_${this.player.appearanceId}`;
     const weaponSpr = getActiveWeaponSprite(this.player.appearanceId, this.player.equippedWeapon);
     if (this.textures.exists(texKey)) this.textures.remove(texKey);
 
     const gfx = this.add.graphics();
     // Body
-    gfx.fillStyle(app.bodyColor, 1);
+    gfx.fillStyle(cls.bodyColor, 1);
     gfx.fillRect(8, 10, 16, 16);
     // Clothing details
-    this.drawClothingInline(gfx, app.bodyColor, app.clothingStyle);
+    this.drawClothingInline(gfx, cls.bodyColor, cls.clothingStyle);
     // Head (use custom appearance if set)
-    const skinColor = this.player.customAppearance?.skinColor ?? app.skinColor;
+    const skinColor = this.player.customAppearance?.skinColor ?? cls.skinColor;
     gfx.fillStyle(skinColor, 1);
     gfx.fillCircle(16, 8, 6);
     // Hair
@@ -2400,7 +2562,7 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     // Legs — when mounted only draw the near-side leg (far leg hidden behind mount body)
-    gfx.fillStyle(app.legColor, 1);
+    gfx.fillStyle(cls.legColor, 1);
     const isMounted = !!this.player.mountId && !this.player.inDungeon && !this.player.inCity;
     if (isMounted) {
       gfx.fillRect(12, 24, 6, 5);
@@ -3716,6 +3878,12 @@ export class OverworldScene extends Phaser.Scene {
           btn.on("pointerout", () => btn.setColor(color));
           btn.on("pointerdown", () => {
             const result = castSpellOutsideCombat(p, spell.id);
+            if (result.teleport) {
+              this.pendingTeleportCost = spell.mpCost;
+              this.toggleSpellOverlay();
+              this.showTownPicker();
+              return;
+            }
             this.showMessage(result.message);
             audioEngine.playPotionSFX();
             this.buildSpellOverlay();
@@ -3755,6 +3923,12 @@ export class OverworldScene extends Phaser.Scene {
           btn.on("pointerout", () => btn.setColor(color));
           btn.on("pointerdown", () => {
             const result = useAbilityOutsideCombat(p, ability.id);
+            if (result.teleport) {
+              this.pendingTeleportCost = ability.mpCost;
+              this.toggleSpellOverlay();
+              this.showTownPicker();
+              return;
+            }
             this.showMessage(result.message);
             audioEngine.playPotionSFX();
             this.buildSpellOverlay();
@@ -3903,7 +4077,7 @@ export class OverworldScene extends Phaser.Scene {
       const padVal = val < 10 ? ` ${val}` : `${val}`;
       return `${label} ${padVal} (${modStr})`;
     };
-    const appearance = getAppearance(p.appearanceId);
+    const appearance = getPlayerClass(p.appearanceId);
     const primaryVal = p.stats[appearance.primaryStat];
     const primaryMod = abilityModifier(primaryVal);
     const profBonus = Math.floor((p.level - 1) / 4) + 2;
@@ -4136,10 +4310,10 @@ export class OverworldScene extends Phaser.Scene {
     const keyItems = p.inventory.filter((i) => i.type === "key");
 
     // Build flat list of renderable entries
-    type ItemEntry = { label: string; desc: string; color: string };
+    type ItemEntry = { label: string; desc: string; color: string; itemId?: string };
     const allEntries: ItemEntry[] = [];
     for (const [, { item, count }] of grouped) {
-      allEntries.push({ label: `${item.name} ×${count}`, desc: item.description, color: "#aaddff" });
+      allEntries.push({ label: `${item.name} ×${count}`, desc: item.description, color: "#aaddff", itemId: item.id });
     }
     for (const ki of keyItems) {
       allEntries.push({ label: ki.name, desc: ki.description, color: "#ffdd88" });
@@ -4163,9 +4337,26 @@ export class OverworldScene extends Phaser.Scene {
       cy += 16;
     } else {
       for (const entry of visible) {
+        const isConsumable = !!entry.itemId;
         const txt = this.add.text(px + 20, cy, entry.label, {
           fontSize: "11px", fontFamily: "monospace", color: entry.color,
         });
+        if (isConsumable) {
+          txt.setInteractive({ useHandCursor: true });
+          txt.on("pointerover", () => txt.setColor("#ffd700"));
+          txt.on("pointerout", () => txt.setColor(entry.color));
+          txt.on("pointerdown", () => {
+            const idx = p.inventory.findIndex((i) => i.id === entry.itemId && i.type === "consumable");
+            if (idx >= 0) {
+              const result = useItem(p, idx);
+              if (result.used) {
+                if (audioEngine.initialized) audioEngine.playPotionSFX();
+                this.updateHUD();
+              }
+              this.buildEquipOverlay();
+            }
+          });
+        }
         this.equipOverlay!.add(txt);
         const desc = this.add.text(px + 30, cy + 13, entry.desc, {
           fontSize: "9px", fontFamily: "monospace", color: "#888",
@@ -4194,7 +4385,7 @@ export class OverworldScene extends Phaser.Scene {
   /** Skills page with paginated spells (max 5) and abilities (max 5). */
   private buildEquipSkillsPage(px: number, py: number, panelW: number, _panelH: number): void {
     const p = this.player;
-    const appearance = getAppearance(p.appearanceId);
+    const appearance = getPlayerClass(p.appearanceId);
     const primaryMod = abilityModifier(p.stats[appearance.primaryStat]);
     const primaryLabel = appearance.primaryStat.slice(0, 3).toUpperCase();
     let cy = py + 6;
@@ -4226,17 +4417,47 @@ export class OverworldScene extends Phaser.Scene {
         const dmgOrHeal = spell.type === "heal" ? "heal" : "dmg";
         const diceStr = `${spell.damageCount}d${spell.damageDie}`;
         const modStr = primaryMod >= 0 ? `+${primaryMod}` : `${primaryMod}`;
+        const isUsable = spell.type === "heal" || spell.type === "utility";
+        const restTag = spell.id === "shortRest" ? ` (${p.shortRestsRemaining} left)` : "";
+        let canCast = false;
+        if (isUsable) {
+          canCast = p.mp >= spell.mpCost && (spell.type !== "heal" || p.hp < p.maxHp);
+          if (spell.id === "shortRest") {
+            canCast = p.shortRestsRemaining > 0 && (p.hp < p.maxHp || p.mp < p.maxMp || (p.pendingLevelUps ?? 0) > 0);
+          }
+        }
+        const baseColor = isUsable ? (canCast ? "#ccffcc" : "#666") : "#aaddff";
         const txt = this.add.text(px + 20, cy,
-          `${spell.name}  ${spell.mpCost} MP  ${diceStr}${modStr} ${dmgOrHeal}`,
-          { fontSize: "11px", fontFamily: "monospace", color: "#aaddff" }
+          `${spell.name}  ${spell.mpCost} MP  ${diceStr}${modStr} ${dmgOrHeal}${restTag}`,
+          { fontSize: "11px", fontFamily: "monospace", color: baseColor }
         );
+        if (isUsable) {
+          txt.setInteractive({ useHandCursor: canCast });
+          if (canCast) {
+            txt.on("pointerover", () => txt.setColor("#ffd700"));
+            txt.on("pointerout", () => txt.setColor(baseColor));
+            txt.on("pointerdown", () => {
+              const result = castSpellOutsideCombat(p, spell.id);
+              if (result.teleport) {
+                this.pendingTeleportCost = spell.mpCost;
+                this.toggleEquipOverlay();
+                this.showTownPicker();
+                return;
+              }
+              this.showMessage(result.message);
+              audioEngine.playPotionSFX();
+              this.buildEquipOverlay();
+              this.updateHUD();
+            });
+          }
+        }
         this.equipOverlay!.add(txt);
-        const desc = this.add.text(px + 30, cy + 13,
-          `${spell.description}  (${primaryLabel} mod ${modStr})`,
+        const desc = this.add.text(px + 30, cy + 14,
+          spell.description,
           { fontSize: "9px", fontFamily: "monospace", color: "#888", wordWrap: { width: panelW - 50 } }
         );
         this.equipOverlay!.add(desc);
-        cy += 28;
+        cy += 30;
       }
       if (spellTotalPages > 1) {
         const nav = this.add.text(px + 20, cy, `◄ ${spellPage + 1}/${spellTotalPages} ►`, {
@@ -4283,17 +4504,40 @@ export class OverworldScene extends Phaser.Scene {
         const aModStr = aMod >= 0 ? `+${aMod}` : `${aMod}`;
         const statLabel = ability.statKey.slice(0, 3).toUpperCase();
         const bonusTag = ability.bonusAction ? " [bonus]" : "";
+        const isUsable = ability.type === "heal" || ability.type === "utility";
+        const canUse = isUsable && p.mp >= ability.mpCost && (ability.type !== "heal" || p.hp < p.maxHp);
+        const baseColor = isUsable ? (canUse ? "#ccffcc" : "#666") : "#aaddff";
         const txt = this.add.text(px + 20, cy,
           `${ability.name}  ${ability.mpCost} MP  ${diceStr}${aModStr} ${dmgOrHeal}${bonusTag}`,
-          { fontSize: "11px", fontFamily: "monospace", color: "#aaddff" }
+          { fontSize: "11px", fontFamily: "monospace", color: baseColor }
         );
+        if (isUsable) {
+          txt.setInteractive({ useHandCursor: canUse });
+          if (canUse) {
+            txt.on("pointerover", () => txt.setColor("#ffd700"));
+            txt.on("pointerout", () => txt.setColor(baseColor));
+            txt.on("pointerdown", () => {
+              const result = useAbilityOutsideCombat(p, ability.id);
+              if (result.teleport) {
+                this.pendingTeleportCost = ability.mpCost;
+                this.toggleEquipOverlay();
+                this.showTownPicker();
+                return;
+              }
+              this.showMessage(result.message);
+              audioEngine.playPotionSFX();
+              this.buildEquipOverlay();
+              this.updateHUD();
+            });
+          }
+        }
         this.equipOverlay!.add(txt);
-        const desc = this.add.text(px + 30, cy + 13,
-          `${ability.description}  (${statLabel} mod ${aModStr})`,
+        const desc = this.add.text(px + 30, cy + 14,
+          ability.description,
           { fontSize: "9px", fontFamily: "monospace", color: "#888", wordWrap: { width: panelW - 50 } }
         );
         this.equipOverlay!.add(desc);
-        cy += 28;
+        cy += 30;
       }
       if (abilityTotalPages > 1) {
         const nav = this.add.text(px + 20, cy, `◄ ${abilityPage + 1}/${abilityTotalPages} ►`, {

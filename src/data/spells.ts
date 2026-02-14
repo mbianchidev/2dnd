@@ -286,7 +286,7 @@ export const SPELLS: Spell[] = [
     mpCost: 0,
     levelRequired: 1,
     damageCount: 0,
-    damageDie: 4,
+    damageDie: 0,
     type: "utility",
   },
 
@@ -298,7 +298,7 @@ export const SPELLS: Spell[] = [
     mpCost: 8,
     levelRequired: 5,
     damageCount: 0,
-    damageDie: 4,
+    damageDie: 0,
     type: "utility",
   },
 ];

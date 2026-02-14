@@ -118,7 +118,7 @@ export class BestiaryScene extends Phaser.Scene {
 
     // Title
     this.add
-      .text(w / 2, 8, "📖 Bestiary", {
+      .text(w / 2, 8, "📖 Codex", {
         fontSize: "20px", fontFamily: "monospace", color: "#ffd700",
         stroke: "#000", strokeThickness: 2,
       })

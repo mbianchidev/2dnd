@@ -114,7 +114,7 @@ export function initDebugCommandInput(): void {
       const raw = input.value.trim();
       input.value = "";
       if (!raw.startsWith("/")) {
-        debugPanelLog(`Unknown command: ${raw}. Commands start with /`, true);
+        debugPanelLog(`Unknown command: ${raw}. For a list of commands try /help. Commands start with /`, true);
         return;
       }
       if (!_debug) {

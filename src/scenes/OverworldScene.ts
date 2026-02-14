@@ -135,7 +135,9 @@ export class OverworldScene extends Phaser.Scene {
   private cityNpcTimers: Phaser.Time.TimerEvent[] = [];
   private cityNpcData: NpcInstance[] = [];
   private shopRoofGraphics: Phaser.GameObjects.Graphics[] = [];
-  private shopRoofBounds: { x: number; y: number; w: number; h: number; shopX: number; shopY: number }[] = [];
+  private shopRoofBounds: { x: number; y: number; w: number; h: number; shopX: number; shopY: number; shopIdx: number }[] = [];
+  /** Maps "x,y" → shop index for ShopFloor tiles so we know which shop each floor tile belongs to. */
+  private shopFloorMap: Map<string, number> = new Map();
   private dialogueOverlay: Phaser.GameObjects.Container | null = null;
   private innConfirmOverlay: Phaser.GameObjects.Container | null = null;
   private bankOverlay: Phaser.GameObjects.Container | null = null;
@@ -269,6 +271,7 @@ export class OverworldScene extends Phaser.Scene {
       debugLog("CHEAT: Fog " + (this.debugFogDisabled ? "OFF" : "ON"));
       debugPanelLog(`[CHEAT] Fog of War ${this.debugFogDisabled ? "OFF" : "ON"}`, true);
       this.renderMap();
+      this.applyDayNightTint();
       this.createPlayer();
     });
 
@@ -706,6 +709,7 @@ export class OverworldScene extends Phaser.Scene {
         magic: "tile_carpet_magic",
         bank: "tile_carpet_bank",
         inn: "tile_carpet_inn",
+        stable: "tile_carpet_general",
       };
       for (const shop of city.shops) {
         const carpetTex = SHOP_CARPET_TEX[shop.type];
@@ -716,6 +720,47 @@ export class OverworldScene extends Phaser.Scene {
           shopCarpetMap.set(`${shop.x},${shop.y}`, biomeFloorTex);
         }
       }
+
+      // Build a mapping of ShopFloor "x,y" → shop index via flood-fill from each shop entrance
+      this.shopFloorMap.clear();
+      for (let si = 0; si < city.shops.length; si++) {
+        const shop = city.shops[si];
+        const queue: { x: number; y: number }[] = [];
+        const visited = new Set<string>();
+        // Seed: scan near the carpet entrance for ShopFloor tiles
+        for (let dy = -3; dy <= 0; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const tx = shop.x + dx;
+            const ty = shop.y + dy;
+            if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
+              if (city.mapData[ty][tx] === Terrain.ShopFloor) {
+                const key = `${tx},${ty}`;
+                if (!visited.has(key)) { visited.add(key); queue.push({ x: tx, y: ty }); }
+              }
+            }
+          }
+        }
+        // Expand to connected ShopFloor tiles
+        while (queue.length > 0) {
+          const cur = queue.pop()!;
+          this.shopFloorMap.set(`${cur.x},${cur.y}`, si);
+          for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+            const nx = cur.x + ddx;
+            const ny = cur.y + ddy;
+            const key = `${nx},${ny}`;
+            if (visited.has(key)) continue;
+            if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+            if (city.mapData[ny][nx] === Terrain.ShopFloor) {
+              visited.add(key);
+              queue.push({ x: nx, y: ny });
+            }
+          }
+        }
+      }
+
+      // Determine which shop the player is currently inside of (-1 = none)
+      const activeShopIdx = this.getPlayerShopIndex(city);
+
       for (let y = 0; y < MAP_HEIGHT; y++) {
         this.tileSprites[y] = [];
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -740,6 +785,13 @@ export class OverworldScene extends Phaser.Scene {
           // City paths use biome-appropriate material
           if (explored && terrain === Terrain.CityPath) {
             texKey = biomePathTex;
+          }
+          // Shop interior hidden from outside — only visible when player is inside that shop
+          if (terrain === Terrain.ShopFloor) {
+            const tileShopIdx = this.shopFloorMap.get(`${x},${y}`) ?? -1;
+            if (tileShopIdx !== activeShopIdx) {
+              texKey = biomeWallTex;
+            }
           }
           const sprite = this.add.sprite(
             x * TILE_SIZE + TILE_SIZE / 2,
@@ -777,7 +829,7 @@ export class OverworldScene extends Phaser.Scene {
       }
       for (const shop of city.shops) {
         if (this.isExplored(shop.x, shop.y)) {
-          const icon = shop.type === "weapon" ? "⚔" : shop.type === "armor" ? "🛡" : shop.type === "inn" ? "🏨" : shop.type === "bank" ? "🏦" : "🏪";
+          const icon = shop.type === "weapon" ? "⚔" : shop.type === "armor" ? "🛡" : shop.type === "inn" ? "🏨" : shop.type === "bank" ? "🏦" : shop.type === "stable" ? "🐴" : "🏪";
           this.add
             .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 6, `${icon} ${shop.name}`, {
               fontSize: "9px",
@@ -1047,7 +1099,8 @@ export class OverworldScene extends Phaser.Scene {
     };
     const palette = BIOME_ROOF_COLORS[biome] ?? BIOME_ROOF_COLORS[Terrain.Grass];
 
-    for (const shop of city.shops) {
+    for (let si = 0; si < city.shops.length; si++) {
+      const shop = city.shops[si];
       // Find building bounds by flood-filling from the ShopFloor tile above the carpet entrance
       const visited = new Set<string>();
       const tiles: { x: number; y: number }[] = [];
@@ -1138,34 +1191,36 @@ export class OverworldScene extends Phaser.Scene {
       this.shopRoofBounds.push({
         x: minX, y: minY,
         w: maxX - minX + 1, h: maxY - minY + 1,
-        shopX: shop.x, shopY: shop.y,
+        shopX: shop.x, shopY: shop.y, shopIdx: si,
       });
     }
   }
 
-  /** Fade shop roofs based on player proximity. Close = transparent, far = solid. */
-  private updateShopRoofAlpha(): void {
+  /** Return the shop index the player is currently inside (-1 if not in any shop). */
+  private getPlayerShopIndex(city: CityData): number {
     const px = this.player.x;
     const py = this.player.y;
+    const terrain = city.mapData[py]?.[px];
+    if (terrain === Terrain.ShopFloor) {
+      return this.shopFloorMap.get(`${px},${py}`) ?? -1;
+    }
+    if (terrain === Terrain.Carpet) {
+      // The carpet is the entrance; find the shop whose entrance matches
+      for (let si = 0; si < city.shops.length; si++) {
+        if (city.shops[si].x === px && city.shops[si].y === py) return si;
+      }
+    }
+    return -1;
+  }
+
+  /** Fade shop roofs: only transparent when the player is inside the shop. */
+  private updateShopRoofAlpha(): void {
+    const city = this.player.inCity ? getCity(this.player.cityId) : null;
+    const activeIdx = city ? this.getPlayerShopIndex(city) : -1;
     for (let i = 0; i < this.shopRoofBounds.length; i++) {
-      const b = this.shopRoofBounds[i];
       const gfx = this.shopRoofGraphics[i];
       if (!gfx) continue;
-
-      // Distance from player to the shop entrance
-      const dist = Math.abs(px - b.shopX) + Math.abs(py - b.shopY);
-      // Also check if player is inside the building bounds
-      const inside = px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h;
-
-      if (inside || dist <= 1) {
-        gfx.setAlpha(0.1);
-      } else if (dist <= 2) {
-        gfx.setAlpha(0.35);
-      } else if (dist <= 3) {
-        gfx.setAlpha(0.65);
-      } else {
-        gfx.setAlpha(1);
-      }
+      gfx.setAlpha(this.shopRoofBounds[i].shopIdx === activeIdx ? 0.1 : 1);
     }
   }
 
@@ -1663,7 +1718,7 @@ export class OverworldScene extends Phaser.Scene {
     // Check what tile the player is standing on
     const city = getCity(this.player.cityId);
     const playerTerrain = city?.mapData[py]?.[px];
-    const playerInsideShop = playerTerrain === Terrain.ShopFloor;
+    const playerInsideShop = playerTerrain === Terrain.ShopFloor || playerTerrain === Terrain.CityFloor || playerTerrain === Terrain.Carpet;
 
     const checks = [
       { x: px, y: py },
@@ -1673,8 +1728,13 @@ export class OverworldScene extends Phaser.Scene {
 
     for (let i = 0; i < npcs.length; i++) {
       const npc = npcs[i];
-      // Shopkeeper NPCs require the player to be inside the shop
-      if (npc.shopIndex !== undefined && !playerInsideShop) continue;
+      // Shopkeeper NPCs require the player to be inside the shop (on carpet or shop floor).
+      // Stables are open-air, so the player just needs to be nearby on any walkable city tile.
+      if (npc.shopIndex !== undefined) {
+        const shop = city?.shops[npc.shopIndex];
+        const isOutdoorShop = shop?.type === "stable";
+        if (!isOutdoorShop && !playerInsideShop) continue;
+      }
 
       // For wandering NPCs or shopkeepers (placed programmatically), use sprite position
       let nx: number;
@@ -1924,7 +1984,7 @@ export class OverworldScene extends Phaser.Scene {
     this.innConfirmOverlay = container;
   }
 
-  /** Execute inn rest: deduct gold, heal, advance time to target step. */
+  /** Execute inn rest: deduct gold, heal, advance time to target step with fade animation. */
   private executeInnRest(targetTimeStep: number, message: string): void {
     this.dismissInnConfirmation();
     const innCost = getInnCost(this.player.cityId);
@@ -1932,40 +1992,50 @@ export class OverworldScene extends Phaser.Scene {
       this.showMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
       return;
     }
-    this.player.gold -= innCost;
-    this.player.hp = this.player.maxHp;
-    this.player.mp = this.player.maxMp;
-    this.player.shortRestsRemaining = 2;
-    this.timeStep = targetTimeStep;
 
-    // Process any pending level-ups on inn (long) rest
-    const levelResult = processPendingLevelUps(this.player);
-    let fullMsg = message;
-    if (levelResult.leveledUp) {
-      fullMsg += ` 🎉 LEVEL UP to ${levelResult.newLevel}!`;
-      for (const spell of levelResult.newSpells) {
-        fullMsg += ` ✦ Learned ${spell.name}!`;
+    // Fade to black
+    this.cameras.main.fadeOut(800, 0, 0, 0);
+    this.cameras.main.once("camerafadeoutcomplete", () => {
+      // Apply rest effects while screen is black
+      this.player.gold -= innCost;
+      this.player.hp = this.player.maxHp;
+      this.player.mp = this.player.maxMp;
+      this.player.shortRestsRemaining = 2;
+      this.timeStep = targetTimeStep;
+
+      // Process any pending level-ups on inn (long) rest
+      const levelResult = processPendingLevelUps(this.player);
+      let fullMsg = message;
+      if (levelResult.leveledUp) {
+        fullMsg += ` 🎉 LEVEL UP to ${levelResult.newLevel}!`;
+        for (const spell of levelResult.newSpells) {
+          fullMsg += ` ✦ Learned ${spell.name}!`;
+        }
+        for (const ability of levelResult.newAbilities) {
+          fullMsg += ` ⚡ Learned ${ability.name}!`;
+        }
+        if (levelResult.asiGained > 0) {
+          fullMsg += ` ★ +${levelResult.asiGained} stat points!`;
+        }
       }
-      for (const ability of levelResult.newAbilities) {
-        fullMsg += ` ⚡ Learned ${ability.name}!`;
+
+      // Update visual tint to reflect new time of day
+      this.applyDayNightTint();
+
+      // Re-spawn city NPCs to reflect time change (fewer at night)
+      this.respawnCityNpcs();
+
+      this.updateHUD();
+      this.autoSave();
+
+      // Fade back in from black
+      this.cameras.main.fadeIn(800, 0, 0, 0);
+      this.showMessage(fullMsg, "#88ff88");
+
+      if (levelResult.asiGained > 0 || this.player.pendingStatPoints > 0) {
+        this.time.delayedCall(500, () => this.showStatOverlay());
       }
-      if (levelResult.asiGained > 0) {
-        fullMsg += ` ★ +${levelResult.asiGained} stat points!`;
-      }
-    }
-    this.showMessage(fullMsg, "#88ff88");
-    this.updateHUD();
-
-    // Update visual tint to reflect new time of day
-    this.applyDayNightTint();
-
-    // Re-spawn city NPCs to reflect time change (fewer at night)
-    this.respawnCityNpcs();
-
-    if (levelResult.asiGained > 0 || this.player.pendingStatPoints > 0) {
-      this.time.delayedCall(500, () => this.showStatOverlay());
-    }
-    this.autoSave();
+    });
   }
 
   /** Dismiss inn confirmation overlay. */
@@ -2055,7 +2125,7 @@ export class OverworldScene extends Phaser.Scene {
             if (this.player.inDungeon) { this.player.inDungeon = false; this.player.dungeonId = ""; }
             if (this.player.inCity) { this.player.inCity = false; this.player.cityId = ""; }
             this.dismissTownPicker();
-            audioEngine.playPotionSFX();
+            audioEngine.playTeleportSFX();
             this.showMessage(`Teleported to ${city.name}!`, "#88ff88");
             this.renderMap();
             this.applyDayNightTint();
@@ -2370,6 +2440,7 @@ export class OverworldScene extends Phaser.Scene {
         const ct = SHOP_CARPET_TEX[shop.type];
         shopCarpetMap.set(`${shop.x},${shop.y}`, ct ?? biomeFloorTex);
       }
+      const activeShopIdx = city ? this.getPlayerShopIndex(city) : -1;
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
           if (this.isExplored(x, y) && this.tileSprites[y]?.[x]) {
@@ -2382,6 +2453,13 @@ export class OverworldScene extends Phaser.Scene {
               if (override) texKey = override;
             }
             if (terrain === Terrain.CityPath) texKey = biomePathTex;
+            // Shop interior hidden from outside
+            if (terrain === Terrain.ShopFloor) {
+              const tileShopIdx = this.shopFloorMap.get(`${x},${y}`) ?? -1;
+              if (tileShopIdx !== activeShopIdx) {
+                texKey = biomeWallTex;
+              }
+            }
             this.tileSprites[y][x].setTexture(texKey);
           }
         }
@@ -3122,6 +3200,29 @@ export class OverworldScene extends Phaser.Scene {
       if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
       const terrain = city.mapData[newY][newX];
       if (!isWalkable(terrain)) return;
+
+      // Block entry to shops at night (except inn)
+      if ((terrain === Terrain.Carpet || terrain === Terrain.ShopFloor) && getTimePeriod(this.timeStep) === TimePeriod.Night) {
+        const nearbyShop = getCityShopNearby(city, newX, newY);
+        if (nearbyShop && nearbyShop.type !== "inn") {
+          this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
+          return;
+        }
+      }
+
+      // Shop interior only accessible via the carpet entrance
+      if (terrain === Terrain.ShopFloor) {
+        const curTerrain = city.mapData[this.player.y]?.[this.player.x];
+        if (curTerrain !== Terrain.Carpet && curTerrain !== Terrain.ShopFloor) {
+          return; // silently block — player can't walk through walls into a shop
+        }
+      }
+
+      // Shop exit only through the carpet (door)
+      const curTerrain = city.mapData[this.player.y]?.[this.player.x];
+      if (curTerrain === Terrain.ShopFloor && terrain !== Terrain.ShopFloor && terrain !== Terrain.Carpet) {
+        return; // silently block — must leave through the door
+      }
 
       this.lastMoveTime = time;
       this.isMoving = true;
@@ -4221,6 +4322,13 @@ export class OverworldScene extends Phaser.Scene {
             if (idx >= 0) {
               const result = useItem(p, idx);
               if (result.used) {
+                if (result.teleport) {
+                  this.pendingTeleportCost = 0;
+                  this.toggleEquipOverlay();
+                  this.showTownPicker();
+                  if (audioEngine.initialized) audioEngine.playTeleportSFX();
+                  return;
+                }
                 if (audioEngine.initialized) audioEngine.playPotionSFX();
                 this.updateHUD();
               }
@@ -4318,7 +4426,11 @@ export class OverworldScene extends Phaser.Scene {
                 return;
               }
               this.showMessage(result.message);
-              audioEngine.playPotionSFX();
+              if (spell.id === "shortRest") {
+                audioEngine.playCampfireSFX();
+              } else {
+                audioEngine.playPotionSFX();
+              }
               this.buildEquipOverlay();
               this.updateHUD();
             });

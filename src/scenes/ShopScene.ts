@@ -260,7 +260,7 @@ export class ShopScene extends Phaser.Scene {
       const tag = alreadyOwned ? " [OWNED]" : levelLocked ? ` [Lv.${item.levelReq}]` : "";
 
       const priceLabel = this.discount > 0
-        ? `~~${item.cost}g~~ ${discountedCost}g`
+        ? `${discountedCost}g`
         : `${item.cost}g`;
 
       const text = this.add

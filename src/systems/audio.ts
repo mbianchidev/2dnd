@@ -1216,6 +1216,96 @@ class AudioEngine {
     shimOsc.stop(ctx.currentTime + 0.7);
   }
 
+  /** Play a campfire crackling sound for short rest. */
+  playCampfireSFX(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const ctx = this.ctx;
+    const dest = this.sfxGain;
+
+    // Crackling pops — short bursts of filtered noise
+    for (let i = 0; i < 6; i++) {
+      const t = ctx.currentTime + i * 0.15 + Math.random() * 0.05;
+      const bufSize = 1024;
+      const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let j = 0; j < bufSize; j++) data[j] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 800 + Math.random() * 1200;
+      filter.Q.value = 5;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.08 + Math.random() * 0.04, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(dest);
+      src.start(t);
+      src.stop(t + 0.1);
+    }
+
+    // Warm low hum (fire ambience)
+    const hum = ctx.createOscillator();
+    const humGain = ctx.createGain();
+    hum.type = "sine";
+    hum.frequency.value = 120;
+    humGain.gain.setValueAtTime(0, ctx.currentTime);
+    humGain.gain.linearRampToValueAtTime(0.04, ctx.currentTime + 0.2);
+    humGain.gain.linearRampToValueAtTime(0.03, ctx.currentTime + 0.7);
+    humGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+    hum.connect(humGain);
+    humGain.connect(dest);
+    hum.start(ctx.currentTime);
+    hum.stop(ctx.currentTime + 1.3);
+  }
+
+  /** Play a whoosh sound for teleportation effects. */
+  playTeleportSFX(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const ctx = this.ctx;
+    const dest = this.sfxGain;
+
+    // Rising whoosh — filtered noise sweep
+    const bufSize = ctx.sampleRate; // 1 second
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 3;
+    filter.frequency.setValueAtTime(200, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(4000, ctx.currentTime + 0.4);
+    filter.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.6);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.15);
+    gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.4);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(dest);
+    src.start(ctx.currentTime);
+    src.stop(ctx.currentTime + 0.8);
+
+    // Magical shimmer on top
+    const shimmer = ctx.createOscillator();
+    const shimGain = ctx.createGain();
+    shimmer.type = "sine";
+    shimmer.frequency.setValueAtTime(600, ctx.currentTime);
+    shimmer.frequency.exponentialRampToValueAtTime(1800, ctx.currentTime + 0.3);
+    shimmer.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.6);
+    shimGain.gain.setValueAtTime(0, ctx.currentTime);
+    shimGain.gain.linearRampToValueAtTime(0.05, ctx.currentTime + 0.1);
+    shimGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
+    shimmer.connect(shimGain);
+    shimGain.connect(dest);
+    shimmer.start(ctx.currentTime);
+    shimmer.stop(ctx.currentTime + 0.8);
+  }
+
   // ─── Terrain Footstep SFX ────────────────────────────────
 
   /**
@@ -1355,6 +1445,8 @@ class AudioEngine {
       { label: "SFX: Chest",     fn: () => this.playChestOpenSFX() },
       { label: "SFX: Dungeon",   fn: () => this.playDungeonEnterSFX() },
       { label: "SFX: Potion",    fn: () => this.playPotionSFX() },
+      { label: "SFX: Campfire",  fn: () => this.playCampfireSFX() },
+      { label: "SFX: Teleport",  fn: () => this.playTeleportSFX() },
       { label: "SFX: Footstep (grass)", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(0), i * 200); } },
       { label: "SFX: Footstep (stone)", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(9), i * 200); } },
       { label: "SFX: Footstep (sand)",  fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(4), i * 200); } },

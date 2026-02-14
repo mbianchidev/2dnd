@@ -377,7 +377,7 @@ export function buyItem(player: PlayerState, item: Item): boolean {
 export function useItem(
   player: PlayerState,
   itemIndex: number
-): { used: boolean; message: string } {
+): { used: boolean; message: string; teleport?: boolean } {
   if (!player) {
     throw new Error(`[player] useItem: missing player`);
   }
@@ -400,7 +400,7 @@ export function useItem(
       // Chimaera Wing teleportation is handled by the scene;
       // here we just consume the item and signal success.
       player.inventory.splice(itemIndex, 1);
-      return { used: true, message: "The Chimaera Wing glows and whisks you away!" };
+      return { used: true, message: "The Chimaera Wing glows and whisks you away!", teleport: true };
     }
     // All other consumables restore HP (potion, greaterPotion, etc.)
     const healed = Math.min(item.effect, player.maxHp - player.hp);

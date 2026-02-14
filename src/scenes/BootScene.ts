@@ -2013,6 +2013,7 @@ export class BootScene extends Phaser.Scene {
       const app = getAppearance(save.player.appearanceId);
       const key = `player_${save.player.appearanceId}`;
       if (this.textures.exists(key)) this.textures.remove(key);
+      const hasShield = !!save.player.equippedShield && !save.player.equippedWeapon?.twoHanded;
       this.generatePlayerTextureWithHair(
         key,
         app.bodyColor,
@@ -2021,7 +2022,8 @@ export class BootScene extends Phaser.Scene {
         save.player.customAppearance.hairStyle,
         save.player.customAppearance.hairColor,
         getActiveWeaponSprite(save.player.appearanceId, save.player.equippedWeapon),
-        app.clothingStyle
+        app.clothingStyle,
+        hasShield
       );
     }
     this.cameras.main.fadeOut(500, 0, 0, 0);

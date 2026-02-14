@@ -196,6 +196,7 @@ export class OverworldScene extends Phaser.Scene {
     this.renderMap();
     this.applyDayNightTint();
     this.createPlayer();
+    this.refreshPlayerSprite();
     this.setupInput();
     this.createHUD();
     this.setupDebug();

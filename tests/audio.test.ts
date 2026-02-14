@@ -5,8 +5,6 @@ import {
   getProfileForBiome,
   createAudioState,
   audioEngine,
-  type AudioState,
-  type BiomeProfile,
 } from "../src/systems/audio";
 
 describe("audio system", () => {

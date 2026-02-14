@@ -566,9 +566,9 @@ export function getDungeonEncounter(playerLevel: number, dungeonId?: string): Mo
   return { ...pool[index] };
 }
 
-/** Get a specific boss by ID. */
+/** Get a specific boss by ID (O(1) lookup). */
 export function getBoss(id: string): Monster | undefined {
-  const boss = MONSTERS.find((m) => m.id === id && m.isBoss);
+  const boss = BOSS_MAP.get(id);
   return boss ? { ...boss } : undefined;
 }
 
@@ -847,3 +847,19 @@ export const ALL_MONSTERS: Monster[] = (() => {
   }
   return list;
 })();
+
+/** O(1) monster lookup by ID, built from ALL_MONSTERS. */
+const MONSTER_MAP: Map<string, Monster> = new Map(
+  ALL_MONSTERS.map((m) => [m.id, m])
+);
+
+/** O(1) boss lookup by ID. */
+const BOSS_MAP: Map<string, Monster> = new Map(
+  ALL_MONSTERS.filter((m) => m.isBoss).map((m) => [m.id, m])
+);
+
+/** Get any monster by ID (O(1) lookup). Returns a copy to avoid mutation. */
+export function getMonster(id: string): Monster | undefined {
+  const m = MONSTER_MAP.get(id);
+  return m ? { ...m } : undefined;
+}

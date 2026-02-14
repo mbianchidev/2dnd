@@ -15,7 +15,12 @@
     "type": "git",
     "url": "git+https://github.com/mbianchidev/2dnd.git"
   },
-  "keywords": ["game", "jrpg", "dnd", "phaser"],
+  "keywords": [
+    "game",
+    "jrpg",
+    "dnd",
+    "phaser"
+  ],
   "author": "",
   "license": "ISC",
   "bugs": {
@@ -26,6 +31,7 @@
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "happy-dom": "^20.6.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"

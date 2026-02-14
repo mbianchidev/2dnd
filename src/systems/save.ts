@@ -62,23 +62,53 @@ export function loadGame(): SaveData | null {
     // Backward compat for new fields
     if (!data.player.knownAbilities) data.player.knownAbilities = [];
     if (!data.player.knownTalents) data.player.knownTalents = [];
-    if (data.player.chunkX === undefined) data.player.chunkX = 1;
-    if (data.player.chunkY === undefined) data.player.chunkY = 1;
-    if (data.player.inDungeon === undefined) data.player.inDungeon = false;
-    if (data.player.dungeonId === undefined) data.player.dungeonId = "";
-    if (data.player.inCity === undefined) data.player.inCity = false;
-    if (data.player.cityId === undefined) data.player.cityId = "";
-    if (!data.player.openedChests) data.player.openedChests = [];
-    if (!data.player.collectedTreasures) data.player.collectedTreasures = [];
-    if (!data.player.exploredTiles) data.player.exploredTiles = {};
+    
+    // Migration: Convert old flat structure to new nested structure
+    const playerAny = data.player as any;
+    if (!data.player.position) {
+      // Old save format - migrate to nested structure
+      data.player.position = {
+        x: playerAny.x ?? 3,
+        y: playerAny.y ?? 3,
+        chunkX: playerAny.chunkX ?? 4,
+        chunkY: playerAny.chunkY ?? 2,
+        inDungeon: playerAny.inDungeon ?? false,
+        dungeonId: playerAny.dungeonId ?? "",
+        inCity: playerAny.inCity ?? false,
+        cityId: playerAny.cityId ?? "",
+      };
+      // Clean up old flat fields
+      delete playerAny.x;
+      delete playerAny.y;
+      delete playerAny.chunkX;
+      delete playerAny.chunkY;
+      delete playerAny.inDungeon;
+      delete playerAny.dungeonId;
+      delete playerAny.inCity;
+      delete playerAny.cityId;
+    }
+    
+    if (!data.player.progression) {
+      // Old save format - migrate to nested structure
+      data.player.progression = {
+        openedChests: playerAny.openedChests ?? [],
+        collectedTreasures: playerAny.collectedTreasures ?? [],
+        exploredTiles: playerAny.exploredTiles ?? {},
+      };
+      // Clean up old flat fields
+      delete playerAny.openedChests;
+      delete playerAny.collectedTreasures;
+      delete playerAny.exploredTiles;
+    }
+    
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
     if (data.timeStep === undefined) data.timeStep = 0;
     if (!data.weatherState) data.weatherState = createWeatherState();
     // Backward compat: last town defaults to Willowdale
     if (data.player.lastTownX === undefined) data.player.lastTownX = 2;
     if (data.player.lastTownY === undefined) data.player.lastTownY = 2;
-    if (data.player.lastTownChunkX === undefined) data.player.lastTownChunkX = 1;
-    if (data.player.lastTownChunkY === undefined) data.player.lastTownChunkY = 1;
+    if (data.player.lastTownChunkX === undefined) data.player.lastTownChunkX = 4;
+    if (data.player.lastTownChunkY === undefined) data.player.lastTownChunkY = 2;
     if (data.player.bankBalance === undefined) data.player.bankBalance = 0;
     if (data.player.lastBankDay === undefined) data.player.lastBankDay = 0;
     // Backward compat: mount system

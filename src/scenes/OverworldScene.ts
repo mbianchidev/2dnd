@@ -29,9 +29,9 @@ import {
   type CityData,
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, ALL_MONSTERS, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
-import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, ASI_LEVELS, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, type PlayerState, type PlayerStats } from "../systems/player";
+import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, type PlayerState, type PlayerStats } from "../systems/player";
 import { abilityModifier } from "../utils/dice";
-import { getPlayerClass, getActiveWeaponSprite, getClassSpells, getClassAbilities } from "../systems/classes";
+import { getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { BestiaryData } from "../systems/bestiary";
 import { createBestiary, recordDefeat } from "../systems/bestiary";
@@ -74,8 +74,58 @@ import { getAbility } from "../data/abilities";
 import { FogOfWar } from "../systems/fogOfWar";
 import { EncounterSystem } from "../systems/encounterSystem";
 import { HUDRenderer } from "../systems/hudRenderer";
+import { tryGridMove } from "../systems/movement";
 
 const TILE_SIZE = 32;
+
+/** Terrain enum → human-readable display name for the location HUD. */
+const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
+  [Terrain.Grass]: "Grassland",
+  [Terrain.Forest]: "Forest",
+  [Terrain.Mountain]: "Mountain",
+  [Terrain.Water]: "Water",
+  [Terrain.Sand]: "Desert",
+  [Terrain.Town]: "Town",
+  [Terrain.Dungeon]: "Dungeon",
+  [Terrain.Boss]: "Boss Lair",
+  [Terrain.Path]: "Road",
+  [Terrain.Tundra]: "Tundra",
+  [Terrain.Swamp]: "Swamp",
+  [Terrain.DeepForest]: "Deep Forest",
+  [Terrain.Volcanic]: "Volcanic",
+  [Terrain.Canyon]: "Canyon",
+  [Terrain.Flower]: "Grassland",
+  [Terrain.Cactus]: "Desert",
+  [Terrain.Geyser]: "Volcanic",
+  [Terrain.Mushroom]: "Swamp",
+  [Terrain.River]: "River",
+  [Terrain.Mill]: "Grassland",
+  [Terrain.CropField]: "Grassland",
+  [Terrain.Casino]: "Town",
+  [Terrain.House]: "Town",
+};
+
+/** Terrain enum → short debug label for the debug panel. */
+const TERRAIN_DEBUG_NAMES: Record<number, string> = {
+  [Terrain.Grass]: "Grass",
+  [Terrain.Forest]: "Forest",
+  [Terrain.Mountain]: "Mountain",
+  [Terrain.Water]: "Water",
+  [Terrain.Sand]: "Sand",
+  [Terrain.Town]: "Town",
+  [Terrain.Dungeon]: "Dungeon",
+  [Terrain.Boss]: "Boss",
+  [Terrain.Path]: "Path",
+  [Terrain.DungeonFloor]: "DFloor",
+  [Terrain.DungeonWall]: "DWall",
+  [Terrain.DungeonExit]: "DExit",
+  [Terrain.Chest]: "Chest",
+  [Terrain.Tundra]: "Tundra",
+  [Terrain.Swamp]: "Swamp",
+  [Terrain.DeepForest]: "DForest",
+  [Terrain.Volcanic]: "Volcanic",
+  [Terrain.Canyon]: "Canyon",
+};
 
 /**
  * Blend two 0xRRGGBB tint values, weighting the first (day/night) at 75%
@@ -217,7 +267,7 @@ export class OverworldScene extends Phaser.Scene {
     this.cameras.main.fadeIn(500);
 
     // Dungeons are enclosed — always force clear weather
-    if (this.player.inDungeon) {
+    if (this.player.position.inDungeon) {
       this.weatherState.current = WeatherType.Clear;
     }
 
@@ -418,12 +468,12 @@ export class OverworldScene extends Phaser.Scene {
       };
       const specialKind = specialAliases[query];
       if (specialKind) {
-        if (this.player.inCity || this.player.inDungeon) {
+        if (this.player.position.inCity || this.player.position.inDungeon) {
           debugPanelLog(`[CMD] Must be on the overworld to spawn special NPCs. Leave the city/dungeon first.`, true);
           return;
         }
         this.pendingSpecialSpawns.push(specialKind);
-        const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+        const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
         if (chunk) {
           this.spawnSpecialNpcs(chunk);
         }
@@ -452,12 +502,12 @@ export class OverworldScene extends Phaser.Scene {
         // Search cities
         const city = CITIES.find((c) => c.name.toLowerCase() === nameArg || c.id.toLowerCase() === nameArg);
         if (city) {
-          this.player.chunkX = city.chunkX;
-          this.player.chunkY = city.chunkY;
-          this.player.x = city.tileX;
-          this.player.y = city.tileY;
-          if (this.player.inDungeon) { this.player.inDungeon = false; this.player.dungeonId = ""; }
-          if (this.player.inCity) { this.player.inCity = false; this.player.cityId = ""; }
+          this.player.position.chunkX = city.chunkX;
+          this.player.position.chunkY = city.chunkY;
+          this.player.position.x = city.tileX;
+          this.player.position.y = city.tileY;
+          if (this.player.position.inDungeon) { this.player.position.inDungeon = false; this.player.position.dungeonId = ""; }
+          if (this.player.position.inCity) { this.player.position.inCity = false; this.player.position.cityId = ""; }
           this.renderMap();
           this.createPlayer();
           this.updateHUD();
@@ -467,12 +517,12 @@ export class OverworldScene extends Phaser.Scene {
         // Search dungeons
         const dungeon = DUNGEONS.find((d) => d.name.toLowerCase() === nameArg || d.id.toLowerCase() === nameArg);
         if (dungeon) {
-          this.player.chunkX = dungeon.entranceChunkX;
-          this.player.chunkY = dungeon.entranceChunkY;
-          this.player.x = dungeon.entranceTileX;
-          this.player.y = dungeon.entranceTileY;
-          if (this.player.inDungeon) { this.player.inDungeon = false; this.player.dungeonId = ""; }
-          if (this.player.inCity) { this.player.inCity = false; this.player.cityId = ""; }
+          this.player.position.chunkX = dungeon.entranceChunkX;
+          this.player.position.chunkY = dungeon.entranceChunkY;
+          this.player.position.x = dungeon.entranceTileX;
+          this.player.position.y = dungeon.entranceTileY;
+          if (this.player.position.inDungeon) { this.player.position.inDungeon = false; this.player.position.dungeonId = ""; }
+          if (this.player.position.inCity) { this.player.position.inCity = false; this.player.position.cityId = ""; }
           this.renderMap();
           this.createPlayer();
           this.updateHUD();
@@ -502,15 +552,15 @@ export class OverworldScene extends Phaser.Scene {
       }
       const chunk = getChunk(cx, cy);
       if (!chunk) { debugPanelLog(`[CMD] No chunk at (${cx}, ${cy})`, true); return; }
-      this.player.chunkX = cx;
-      this.player.chunkY = cy;
+      this.player.position.chunkX = cx;
+      this.player.position.chunkY = cy;
       // Place player at center of chunk
-      this.player.x = Math.floor(MAP_WIDTH / 2);
-      this.player.y = Math.floor(MAP_HEIGHT / 2);
+      this.player.position.x = Math.floor(MAP_WIDTH / 2);
+      this.player.position.y = Math.floor(MAP_HEIGHT / 2);
       // Exit dungeon if inside one
-      if (this.player.inDungeon) {
-        this.player.inDungeon = false;
-        this.player.dungeonId = "";
+      if (this.player.position.inDungeon) {
+        this.player.position.inDungeon = false;
+        this.player.position.dungeonId = "";
       }
       this.renderMap();
       this.createPlayer();
@@ -635,8 +685,8 @@ export class OverworldScene extends Phaser.Scene {
     this.specialNpcDefs = [];
 
     // If inside a dungeon, render the dungeon interior
-    if (this.player.inDungeon) {
-      const dungeon = getDungeon(this.player.dungeonId);
+    if (this.player.position.inDungeon) {
+      const dungeon = getDungeon(this.player.position.dungeonId);
       if (!dungeon) return;
       for (let y = 0; y < MAP_HEIGHT; y++) {
         this.tileSprites[y] = [];
@@ -646,8 +696,8 @@ export class OverworldScene extends Phaser.Scene {
           let texKey = explored ? `tile_${terrain}` : "tile_fog";
           // Show open chest texture for opened chests
           if (explored && terrain === Terrain.Chest) {
-            const chest = getChestAt(x, y, { type: "dungeon", dungeonId: this.player.dungeonId });
-            if (chest && this.player.openedChests.includes(chest.id)) {
+            const chest = getChestAt(x, y, { type: "dungeon", dungeonId: this.player.position.dungeonId });
+            if (chest && this.player.progression.openedChests.includes(chest.id)) {
               texKey = "tile_chest_open";
             }
           }
@@ -689,8 +739,8 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // If inside a city, render the city interior
-    if (this.player.inCity) {
-      const city = getCity(this.player.cityId);
+    if (this.player.position.inCity) {
+      const city = getCity(this.player.position.cityId);
       if (!city) return;
       // Determine surrounding biome so city floor matches the landscape
       const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
@@ -874,7 +924,7 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
     if (!chunk) return;
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -885,20 +935,20 @@ export class OverworldScene extends Phaser.Scene {
         let texKey = explored ? `tile_${terrain}` : "tile_fog";
         // Use biome-colored town texture
         if (explored && terrain === Terrain.Town) {
-          const biome = getTownBiome(this.player.chunkX, this.player.chunkY, x, y);
+          const biome = getTownBiome(this.player.position.chunkX, this.player.position.chunkY, x, y);
           texKey = `tile_town_${biome}`;
         }
         // Show open chest texture for opened chests
         if (explored && terrain === Terrain.Chest) {
-          const chest = getChestAt(x, y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
-          if (chest && this.player.openedChests.includes(chest.id)) {
+          const chest = getChestAt(x, y, { type: "overworld", chunkX: this.player.position.chunkX, chunkY: this.player.position.chunkY });
+          if (chest && this.player.progression.openedChests.includes(chest.id)) {
             texKey = "tile_chest_open";
           }
         }
         // Show sparkle for uncollected minor treasures
-        if (explored && hasSparkleAt(this.player.chunkX, this.player.chunkY, x, y)) {
-          const tKey = `${this.player.chunkX},${this.player.chunkY},${x},${y}`;
-          if (!this.player.collectedTreasures.includes(tKey)) {
+        if (explored && hasSparkleAt(this.player.position.chunkX, this.player.position.chunkY, x, y)) {
+          const tKey = `${this.player.position.chunkX},${this.player.position.chunkY},${x},${y}`;
+          if (!this.player.progression.collectedTreasures.includes(tKey)) {
             texKey = `tile_${Terrain.MinorTreasure}`;
           }
         }
@@ -1217,8 +1267,8 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Return the shop index the player is currently inside (-1 if not in any shop). */
   private getPlayerShopIndex(city: CityData): number {
-    const px = this.player.x;
-    const py = this.player.y;
+    const px = this.player.position.x;
+    const py = this.player.position.y;
     const terrain = city.mapData[py]?.[px];
     if (terrain === Terrain.ShopFloor) {
       return this.shopFloorMap.get(`${px},${py}`) ?? -1;
@@ -1234,7 +1284,7 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Fade shop roofs: only transparent when the player is inside the shop. */
   private updateShopRoofAlpha(): void {
-    const city = this.player.inCity ? getCity(this.player.cityId) : null;
+    const city = this.player.position.inCity ? getCity(this.player.position.cityId) : null;
     const activeIdx = city ? this.getPlayerShopIndex(city) : -1;
     for (let i = 0; i < this.shopRoofBounds.length; i++) {
       const gfx = this.shopRoofGraphics[i];
@@ -1305,8 +1355,8 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Clear existing city NPCs and re-spawn them (used after inn rest to reflect time change). */
   private respawnCityNpcs(): void {
-    if (!this.player.inCity) return;
-    const city = getCity(this.player.cityId);
+    if (!this.player.position.inCity) return;
+    const city = getCity(this.player.position.cityId);
     if (!city) return;
     // Destroy existing NPC sprites and timers
     for (const s of this.cityNpcSprites) s.destroy();
@@ -1573,8 +1623,8 @@ export class OverworldScene extends Phaser.Scene {
    * Find a special NPC adjacent to or on the player's current position.
    */
   private findAdjacentSpecialNpc(): { index: number; def: SpecialNpcDef } | null {
-    const px = this.player.x;
-    const py = this.player.y;
+    const px = this.player.position.x;
+    const py = this.player.position.y;
     const checks = [
       { x: px, y: py },
       { x: px - 1, y: py }, { x: px + 1, y: py },
@@ -1614,7 +1664,7 @@ export class OverworldScene extends Phaser.Scene {
         this.showSpecialDialogue(entry.def.label, line);
         this.time.delayedCall(800, () => {
           this.dismissDialogue();
-          const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+          const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
           const regionName = chunk?.name ?? "Overworld";
           this.autoSave();
           this.scene.start("ShopScene", {
@@ -1653,7 +1703,7 @@ export class OverworldScene extends Phaser.Scene {
       this.showSpecialDialogue(entry.def.label, line);
       this.time.delayedCall(800, () => {
         this.dismissDialogue();
-        const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+        const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
         const regionName = chunk?.name ?? "Overworld";
         this.autoSave();
         this.scene.start("ShopScene", {
@@ -1731,11 +1781,11 @@ export class OverworldScene extends Phaser.Scene {
     const npcs = this.cityNpcData;
     if (!npcs.length) return null;
 
-    const px = this.player.x;
-    const py = this.player.y;
+    const px = this.player.position.x;
+    const py = this.player.position.y;
 
     // Check what tile the player is standing on
-    const city = getCity(this.player.cityId);
+    const city = getCity(this.player.position.cityId);
     const playerTerrain = city?.mapData[py]?.[px];
     const playerInsideShop = playerTerrain === Terrain.ShopFloor || playerTerrain === Terrain.CityFloor || playerTerrain === Terrain.Carpet;
 
@@ -1776,8 +1826,8 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Check if the player is adjacent to a city animal sprite. */
   private findAdjacentAnimal(): { spriteName: string } | null {
-    const px = this.player.x;
-    const py = this.player.y;
+    const px = this.player.position.x;
+    const py = this.player.position.y;
     const checks = [
       { x: px, y: py },
       { x: px - 1, y: py }, { x: px + 1, y: py },
@@ -1928,7 +1978,7 @@ export class OverworldScene extends Phaser.Scene {
   /** Show inn confirmation overlay. */
   private showInnConfirmation(): void {
     if (this.innConfirmOverlay) return;
-    const innCost = getInnCost(this.player.cityId);
+    const innCost = getInnCost(this.player.position.cityId);
     const container = this.add.container(0, 0).setDepth(55);
     const boxW = 280;
     const boxH = 120;
@@ -2006,7 +2056,7 @@ export class OverworldScene extends Phaser.Scene {
   /** Execute inn rest: deduct gold, heal, advance time to target step with fade animation. */
   private executeInnRest(targetTimeStep: number, message: string): void {
     this.dismissInnConfirmation();
-    const innCost = getInnCost(this.player.cityId);
+    const innCost = getInnCost(this.player.position.cityId);
     if (this.player.gold < innCost) {
       this.showMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
       return;
@@ -2074,7 +2124,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // Determine which cities the player has visited (explored tiles with "c:<cityId>")
     const visitedCityIds = new Set<string>();
-    for (const key of Object.keys(this.player.exploredTiles)) {
+    for (const key of Object.keys(this.player.progression.exploredTiles)) {
       if (key.startsWith("c:")) {
         const cityId = key.split(",")[0].substring(2);
         visitedCityIds.add(cityId);
@@ -2119,10 +2169,10 @@ export class OverworldScene extends Phaser.Scene {
       let cy = py + 34;
       for (const city of visitedCities) {
         // Skip current city
-        const isCurrent = this.player.inCity && this.player.cityId === city.id;
-        const isCurrentChunk = !this.player.inCity && !this.player.inDungeon
-          && this.player.chunkX === city.chunkX && this.player.chunkY === city.chunkY
-          && this.player.x === city.tileX && this.player.y === city.tileY;
+        const isCurrent = this.player.position.inCity && this.player.position.cityId === city.id;
+        const isCurrentChunk = !this.player.position.inCity && !this.player.position.inDungeon
+          && this.player.position.chunkX === city.chunkX && this.player.position.chunkY === city.chunkY
+          && this.player.position.x === city.tileX && this.player.position.y === city.tileY;
         const here = isCurrent || isCurrentChunk;
         const color = here ? "#666" : "#ccffcc";
         const label = here ? `${city.name} (here)` : city.name;
@@ -2137,12 +2187,12 @@ export class OverworldScene extends Phaser.Scene {
             // Deduct MP
             this.player.mp -= this.pendingTeleportCost;
             // Teleport to the city entrance on the overworld
-            this.player.chunkX = city.chunkX;
-            this.player.chunkY = city.chunkY;
-            this.player.x = city.tileX;
-            this.player.y = city.tileY;
-            if (this.player.inDungeon) { this.player.inDungeon = false; this.player.dungeonId = ""; }
-            if (this.player.inCity) { this.player.inCity = false; this.player.cityId = ""; }
+            this.player.position.chunkX = city.chunkX;
+            this.player.position.chunkY = city.chunkY;
+            this.player.position.x = city.tileX;
+            this.player.position.y = city.tileY;
+            if (this.player.position.inDungeon) { this.player.position.inDungeon = false; this.player.position.dungeonId = ""; }
+            if (this.player.position.inCity) { this.player.position.inCity = false; this.player.position.cityId = ""; }
             this.dismissTownPicker();
             audioEngine.playTeleportSFX();
             this.showMessage(`Teleported to ${city.name}!`, "#88ff88");
@@ -2385,8 +2435,8 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Update tile sprites for newly revealed tiles without full re-render. */
   private revealTileSprites(): void {
-    if (this.player.inDungeon) {
-      const dungeon = getDungeon(this.player.dungeonId);
+    if (this.player.position.inDungeon) {
+      const dungeon = getDungeon(this.player.position.dungeonId);
       if (!dungeon) return;
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -2394,8 +2444,8 @@ export class OverworldScene extends Phaser.Scene {
             const terrain = dungeon.mapData[y][x];
             let texKey = `tile_${terrain}`;
             if (terrain === Terrain.Chest) {
-              const chest = getChestAt(x, y, { type: "dungeon", dungeonId: this.player.dungeonId });
-              if (chest && this.player.openedChests.includes(chest.id)) {
+              const chest = getChestAt(x, y, { type: "dungeon", dungeonId: this.player.position.dungeonId });
+              if (chest && this.player.progression.openedChests.includes(chest.id)) {
                 texKey = "tile_chest_open";
               }
             }
@@ -2403,8 +2453,8 @@ export class OverworldScene extends Phaser.Scene {
           }
         }
       }
-    } else if (this.player.inCity) {
-      const city = getCity(this.player.cityId);
+    } else if (this.player.position.inCity) {
+      const city = getCity(this.player.position.cityId);
       if (!city) return;
       const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
       const biomeFloorTex = `tile_${cityBiome}`;
@@ -2464,7 +2514,7 @@ export class OverworldScene extends Phaser.Scene {
         }
       }
     } else {
-      const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+      const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
       if (!chunk) return;
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -2473,19 +2523,19 @@ export class OverworldScene extends Phaser.Scene {
             let texKey = `tile_${terrain}`;
             // Use biome-colored town texture
             if (terrain === Terrain.Town) {
-              const biome = getTownBiome(this.player.chunkX, this.player.chunkY, x, y);
+              const biome = getTownBiome(this.player.position.chunkX, this.player.position.chunkY, x, y);
               texKey = `tile_town_${biome}`;
             }
             if (terrain === Terrain.Chest) {
-              const chest = getChestAt(x, y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
-              if (chest && this.player.openedChests.includes(chest.id)) {
+              const chest = getChestAt(x, y, { type: "overworld", chunkX: this.player.position.chunkX, chunkY: this.player.position.chunkY });
+              if (chest && this.player.progression.openedChests.includes(chest.id)) {
                 texKey = "tile_chest_open";
               }
             }
             // Show sparkle overlay if uncollected, otherwise real terrain
-            if (hasSparkleAt(this.player.chunkX, this.player.chunkY, x, y)) {
-              const tKey = `${this.player.chunkX},${this.player.chunkY},${x},${y}`;
-              if (!this.player.collectedTreasures.includes(tKey)) {
+            if (hasSparkleAt(this.player.position.chunkX, this.player.position.chunkY, x, y)) {
+              const tKey = `${this.player.position.chunkX},${this.player.position.chunkY},${x},${y}`;
+              if (!this.player.progression.collectedTreasures.includes(tKey)) {
                 texKey = `tile_${Terrain.MinorTreasure}`;
               }
             }
@@ -2516,9 +2566,9 @@ export class OverworldScene extends Phaser.Scene {
       this.mountSprite = null;
     }
 
-    const isMounted = this.player.mountId && !this.player.inDungeon && !this.player.inCity;
-    const tileX = this.player.x * TILE_SIZE + TILE_SIZE / 2;
-    const tileY = this.player.y * TILE_SIZE + TILE_SIZE / 2;
+    const isMounted = this.player.mountId && !this.player.position.inDungeon && !this.player.position.inCity;
+    const tileX = this.player.position.x * TILE_SIZE + TILE_SIZE / 2;
+    const tileY = this.player.position.y * TILE_SIZE + TILE_SIZE / 2;
 
     // Player texture — prefer the equipped variant (reflects weapon/shield), fall back to base class texture
     const equippedKey = `player_equipped_${this.player.appearanceId}`;
@@ -2550,7 +2600,7 @@ export class OverworldScene extends Phaser.Scene {
   /** Toggle mount / dismount with the T key. */
   private toggleMount(): void {
     if (this.isOverlayOpen()) return;
-    if (this.player.inDungeon || this.player.inCity) {
+    if (this.player.position.inDungeon || this.player.position.inCity) {
       this.showMessage("Cannot ride mounts here.", "#ff6666");
       return;
     }
@@ -2623,7 +2673,7 @@ export class OverworldScene extends Phaser.Scene {
     }
     // Legs — when mounted only draw the near-side leg (far leg hidden behind mount body)
     gfx.fillStyle(cls.legColor, 1);
-    const isMounted = !!this.player.mountId && !this.player.inDungeon && !this.player.inCity;
+    const isMounted = !!this.player.mountId && !this.player.position.inDungeon && !this.player.position.inCity;
     if (isMounted) {
       gfx.fillRect(12, 24, 6, 5);
     } else {
@@ -2859,17 +2909,17 @@ export class OverworldScene extends Phaser.Scene {
   private updateHUD(): void {
     const p = this.player;
     let regionName: string;
-    if (p.inDungeon) {
-      const dungeon = getDungeon(p.dungeonId);
+    if (p.position.inDungeon) {
+      const dungeon = getDungeon(p.position.dungeonId);
       regionName = dungeon ? `🔻 ${dungeon.name}` : "Dungeon";
     } else {
-      const chunk = getChunk(p.chunkX, p.chunkY);
+      const chunk = getChunk(p.position.chunkX, p.position.chunkY);
       regionName = chunk?.name ?? "Unknown";
     }
     const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts` : "";
-    const timeLabel = p.inDungeon ? PERIOD_LABEL[TimePeriod.Dungeon] : PERIOD_LABEL[getTimePeriod(this.timeStep)];
+    const timeLabel = p.position.inDungeon ? PERIOD_LABEL[TimePeriod.Dungeon] : PERIOD_LABEL[getTimePeriod(this.timeStep)];
     const weatherLabel = WEATHER_LABEL[this.weatherState.current];
-    const mountLabel = (p.mountId && !p.inDungeon && !p.inCity) ? `  🐴 ${getMount(p.mountId)?.name ?? "Mount"}` : "";
+    const mountLabel = (p.mountId && !p.position.inDungeon && !p.position.inCity) ? `  🐴 ${getMount(p.mountId)?.name ?? "Mount"}` : "";
     this.hudText.setText(
       `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}  ${weatherLabel}${mountLabel}\n` +
         `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}`
@@ -2878,15 +2928,15 @@ export class OverworldScene extends Phaser.Scene {
 
   private updateLocationText(): void {
     // In dungeon: show dungeon-specific text
-    if (this.player.inDungeon) {
-      const dungeon = getDungeon(this.player.dungeonId);
+    if (this.player.position.inDungeon) {
+      const dungeon = getDungeon(this.player.position.dungeonId);
       if (!dungeon) { this.locationText.setText("???"); return; }
-      const terrain = dungeon.mapData[this.player.y]?.[this.player.x];
+      const terrain = dungeon.mapData[this.player.position.y]?.[this.player.position.x];
       if (terrain === Terrain.DungeonExit) {
         this.locationText.setText(`${dungeon.name}\n[SPACE] Exit Dungeon`);
       } else if (terrain === Terrain.Chest) {
-        const chest = getChestAt(this.player.x, this.player.y, { type: "dungeon", dungeonId: this.player.dungeonId });
-        if (chest && !this.player.openedChests.includes(chest.id)) {
+        const chest = getChestAt(this.player.position.x, this.player.position.y, { type: "dungeon", dungeonId: this.player.position.dungeonId });
+        if (chest && !this.player.progression.openedChests.includes(chest.id)) {
           this.locationText.setText(`Treasure Chest\n[SPACE] Open`);
         } else {
           this.locationText.setText("Opened Chest");
@@ -2898,14 +2948,14 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // In city: show city-specific text
-    if (this.player.inCity) {
-      const city = getCity(this.player.cityId);
+    if (this.player.position.inCity) {
+      const city = getCity(this.player.position.cityId);
       if (!city) { this.locationText.setText("???"); return; }
-      const terrain = city.mapData[this.player.y]?.[this.player.x];
+      const terrain = city.mapData[this.player.position.y]?.[this.player.position.x];
       if (terrain === Terrain.CityExit) {
         this.locationText.setText(`${city.name}\n[SPACE] Leave City`);
       } else {
-        const shop = getCityShopNearby(city, this.player.x, this.player.y);
+        const shop = getCityShopNearby(city, this.player.position.x, this.player.position.y);
         if (shop) {
           this.locationText.setText(`${shop.name}`);
         } else {
@@ -2915,7 +2965,7 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
+    const terrain = getTerrainAt(this.player.position.chunkX, this.player.position.chunkY, this.player.position.x, this.player.position.y);
     const terrainNames: Record<number, string> = {
       [Terrain.Grass]: "Grassland",
       [Terrain.Forest]: "Forest",
@@ -2942,17 +2992,17 @@ export class OverworldScene extends Phaser.Scene {
       [Terrain.House]: "Town",
     };
 
-    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
     const town = chunk?.towns.find(
-      (t) => t.x === this.player.x && t.y === this.player.y
+      (t) => t.x === this.player.position.x && t.y === this.player.position.y
     );
     const boss = chunk?.bosses.find(
-      (b) => b.x === this.player.x && b.y === this.player.y
+      (b) => b.x === this.player.position.x && b.y === this.player.position.y
     );
 
-    let locStr = terrainNames[terrain ?? 0] ?? "Unknown";
+    let locStr = TERRAIN_DISPLAY_NAMES[terrain ?? 0] ?? "Unknown";
     if (town) {
-      const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
+      const city = getCityForTown(this.player.position.chunkX, this.player.position.chunkY, town.x, town.y);
       locStr = city ? `${town.name}\n[SPACE] Enter City` : `${town.name}\n[SPACE] Enter Shop`;
     }
     if (boss && !this.defeatedBosses.has(boss.monsterId))
@@ -2960,7 +3010,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // Dungeon entrance hint
     if (terrain === Terrain.Dungeon) {
-      const dungeon = getDungeonAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
+      const dungeon = getDungeonAt(this.player.position.chunkX, this.player.position.chunkY, this.player.position.x, this.player.position.y);
       if (dungeon) {
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
         if (hasKey || isDebug()) {
@@ -2973,8 +3023,8 @@ export class OverworldScene extends Phaser.Scene {
 
     // Overworld chest hint
     if (terrain === Terrain.Chest) {
-      const chest = getChestAt(this.player.x, this.player.y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
-      if (chest && !this.player.openedChests.includes(chest.id)) {
+      const chest = getChestAt(this.player.position.x, this.player.position.y, { type: "overworld", chunkX: this.player.position.chunkX, chunkY: this.player.position.chunkY });
+      if (chest && !this.player.progression.openedChests.includes(chest.id)) {
         locStr = `Treasure Chest\n[SPACE] Open`;
       } else {
         locStr = "Opened Chest";
@@ -2986,46 +3036,26 @@ export class OverworldScene extends Phaser.Scene {
 
   private updateDebugPanel(): void {
     const p = this.player;
-    const terrainNames: Record<number, string> = {
-      [Terrain.Grass]: "Grass",
-      [Terrain.Forest]: "Forest",
-      [Terrain.Mountain]: "Mountain",
-      [Terrain.Water]: "Water",
-      [Terrain.Sand]: "Sand",
-      [Terrain.Town]: "Town",
-      [Terrain.Dungeon]: "Dungeon",
-      [Terrain.Boss]: "Boss",
-      [Terrain.Path]: "Path",
-      [Terrain.DungeonFloor]: "DFloor",
-      [Terrain.DungeonWall]: "DWall",
-      [Terrain.DungeonExit]: "DExit",
-      [Terrain.Chest]: "Chest",
-      [Terrain.Tundra]: "Tundra",
-      [Terrain.Swamp]: "Swamp",
-      [Terrain.DeepForest]: "DForest",
-      [Terrain.Volcanic]: "Volcanic",
-      [Terrain.Canyon]: "Canyon",
-    };
 
     let terrain: Terrain | undefined;
-    if (p.inDungeon) {
-      const dungeon = getDungeon(p.dungeonId);
-      terrain = dungeon?.mapData[p.y]?.[p.x];
+    if (p.position.inDungeon) {
+      const dungeon = getDungeon(p.position.dungeonId);
+      terrain = dungeon?.mapData[p.position.y]?.[p.position.x];
     } else {
-      terrain = getTerrainAt(p.chunkX, p.chunkY, p.x, p.y);
+      terrain = getTerrainAt(p.position.chunkX, p.position.chunkY, p.position.x, p.position.y);
     }
 
-    const tName = terrainNames[terrain ?? 0] ?? "?";
+    const tName = TERRAIN_DEBUG_NAMES[terrain ?? 0] ?? "?";
     const rate = terrain !== undefined ? (ENCOUNTER_RATES[terrain] ?? 0) : 0;
     const encMult = getEncounterMultiplier(this.timeStep);
     const weatherEncMult = getWeatherEncounterMultiplier(this.weatherState.current);
-    const mountEncMult = (!p.inDungeon && p.mountId) ? (getMount(p.mountId)?.encounterMultiplier ?? 1) : 1;
+    const mountEncMult = (!p.position.inDungeon && p.mountId) ? (getMount(p.mountId)?.encounterMultiplier ?? 1) : 1;
     const effectiveRate = rate * encMult * weatherEncMult * mountEncMult;
-    const dungeonTag = p.inDungeon ? ` [DUNGEON:${p.dungeonId}]` : "";
+    const dungeonTag = p.position.inDungeon ? ` [DUNGEON:${p.position.dungeonId}]` : "";
     const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.chunkX},${p.chunkY}) Pos: (${p.x},${p.y}) ${tName}${dungeonTag}${mountTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${dungeonTag}${mountTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
       `Bosses: ${this.defeatedBosses.size} | Chests: ${p.openedChests.length}`
@@ -3062,7 +3092,7 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Get move delay adjusted for mount speed. Mounts only apply on the overworld (not in dungeons/cities). */
   private getEffectiveMoveDelay(): number {
-    if (this.player.inDungeon || this.player.inCity || !this.player.mountId) {
+    if (this.player.position.inDungeon || this.player.position.inCity || !this.player.mountId) {
       return this.moveDelay;
     }
     const mount = getMount(this.player.mountId);
@@ -3095,12 +3125,12 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private tryMove(dx: number, dy: number, time: number): void {
-    let newX = this.player.x + dx;
-    let newY = this.player.y + dy;
+    let newX = this.player.position.x + dx;
+    let newY = this.player.position.y + dy;
 
     // In dungeon: no chunk transitions, just wall checks
-    if (this.player.inDungeon) {
-      const dungeon = getDungeon(this.player.dungeonId);
+    if (this.player.position.inDungeon) {
+      const dungeon = getDungeon(this.player.position.dungeonId);
       if (!dungeon) return;
       if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
       const terrain = dungeon.mapData[newY][newX];
@@ -3108,8 +3138,8 @@ export class OverworldScene extends Phaser.Scene {
 
       this.lastMoveTime = time;
       this.isMoving = true;
-      this.player.x = newX;
-      this.player.y = newY;
+      this.player.position.x = newX;
+      this.player.position.y = newY;
 
       // Footstep sound for dungeon terrain
       if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
@@ -3128,21 +3158,23 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // In city: no chunk transitions, no encounters
-    if (this.player.inCity) {
+    if (this.player.position.inCity) {
       // Dismiss any open overlays when moving
       this.dismissDialogue();
       this.dismissInnConfirmation();
       this.dismissBankOverlay();
 
-      const city = getCity(this.player.cityId);
+      const city = getCity(this.player.position.cityId);
       if (!city) return;
-      if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return;
-      const terrain = city.mapData[newY][newX];
-      if (!isWalkable(terrain)) return;
+      const targetX = this.player.position.x + dx;
+      const targetY = this.player.position.y + dy;
+      if (targetX < 0 || targetX >= MAP_WIDTH || targetY < 0 || targetY >= MAP_HEIGHT) return;
+      const targetTerrain = city.mapData[targetY][targetX];
+      if (!isWalkable(targetTerrain)) return;
 
       // Block entry to shops at night (except inn)
-      if ((terrain === Terrain.Carpet || terrain === Terrain.ShopFloor) && getTimePeriod(this.timeStep) === TimePeriod.Night) {
-        const nearbyShop = getCityShopNearby(city, newX, newY);
+      if ((targetTerrain === Terrain.Carpet || targetTerrain === Terrain.ShopFloor) && getTimePeriod(this.timeStep) === TimePeriod.Night) {
+        const nearbyShop = getCityShopNearby(city, targetX, targetY);
         if (nearbyShop && nearbyShop.type !== "inn") {
           this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
           return;
@@ -3150,26 +3182,26 @@ export class OverworldScene extends Phaser.Scene {
       }
 
       // Shop interior only accessible via the carpet entrance
-      if (terrain === Terrain.ShopFloor) {
-        const curTerrain = city.mapData[this.player.y]?.[this.player.x];
+      if (targetTerrain === Terrain.ShopFloor) {
+        const curTerrain = city.mapData[this.player.position.y]?.[this.player.position.x];
         if (curTerrain !== Terrain.Carpet && curTerrain !== Terrain.ShopFloor) {
-          return; // silently block — player can't walk through walls into a shop
+          return;
         }
       }
 
       // Shop exit only through the carpet (door)
-      const curTerrain = city.mapData[this.player.y]?.[this.player.x];
-      if (curTerrain === Terrain.ShopFloor && terrain !== Terrain.ShopFloor && terrain !== Terrain.Carpet) {
+      const curTerrain = city.mapData[this.player.position.y]?.[this.player.position.x];
+      if (curTerrain === Terrain.ShopFloor && targetTerrain !== Terrain.ShopFloor && targetTerrain !== Terrain.Carpet) {
         return; // silently block — must leave through the door
       }
 
       this.lastMoveTime = time;
       this.isMoving = true;
-      this.player.x = newX;
-      this.player.y = newY;
+      this.player.position.x = newX;
+      this.player.position.y = newY;
 
       // Footstep sound for city terrain
-      if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
+      if (audioEngine.initialized) audioEngine.playFootstepSFX(targetTerrain);
 
       this.tweenPlayerTo(newX, newY, 120, () => {
         this.isMoving = false;
@@ -3184,8 +3216,8 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    let newChunkX = this.player.chunkX;
-    let newChunkY = this.player.chunkY;
+    let newChunkX = this.player.position.chunkX;
+    let newChunkY = this.player.position.chunkY;
 
     // Dismiss any open dialogue overlay when moving on the overworld
     this.dismissDialogue();
@@ -3206,23 +3238,20 @@ export class OverworldScene extends Phaser.Scene {
       newY = 0;
     }
 
-    const terrain = getTerrainAt(newChunkX, newChunkY, newX, newY);
-    if (terrain === undefined || !isWalkable(terrain)) {
-      debugLog("Blocked move", { to: { x: newX, y: newY, cx: newChunkX, cy: newChunkY }, terrain });
+    // ── Shared position resolution via tryGridMove ──────────────
+    const result = tryGridMove(this.player, dx, dy);
+    if (!result.moved) {
+      if (!this.player.position.inDungeon && !this.player.position.inCity) {
+        debugLog("Blocked move", { dx, dy });
+      }
       return;
     }
 
-    const chunkChanged = newChunkX !== this.player.chunkX || newChunkY !== this.player.chunkY;
-
     this.lastMoveTime = time;
     this.isMoving = true;
-    this.player.x = newX;
-    this.player.y = newY;
-    this.player.chunkX = newChunkX;
-    this.player.chunkY = newChunkY;
 
-    if (chunkChanged) {
-      // Chunk transition — flash, re-roll weather for the new zone, and re-render
+    // Handle chunk transition (overworld only)
+    if (result.chunkChanged) {
       this.advanceTime();
       this.rerollWeather();
       this.cameras.main.flash(200, 255, 255, 255);
@@ -3236,48 +3265,53 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    // Footstep sound — hoofbeats when mounted, terrain SFX when on foot
-    if (audioEngine.initialized && terrain !== undefined) {
-      if (this.player.mountId) {
+    // ── Footstep audio ─────────────────────────────────────────
+    if (audioEngine.initialized && result.newTerrain !== undefined) {
+      if (!this.player.position.inDungeon && !this.player.position.inCity && this.player.mountId) {
         audioEngine.playMountedFootstepSFX();
       } else {
-        audioEngine.playFootstepSFX(terrain);
+        audioEngine.playFootstepSFX(result.newTerrain);
       }
     }
 
-    this.tweenPlayerTo(newX, newY, 120, () => {
+    // ── Tween to new position + post-move callbacks ────────────
+    this.tweenPlayerTo(this.player.position.x, this.player.position.y, 120, () => {
       this.isMoving = false;
       this.advanceTime();
       this.revealAround();
       this.revealTileSprites();
-      this.collectMinorTreasure();
+      if (!this.player.position.inCity) this.collectMinorTreasure();
       this.updateHUD();
       this.updateLocationText();
-      this.checkEncounter(terrain);
+      if (this.player.position.inCity) {
+        this.updateShopRoofAlpha();
+      } else {
+        this.checkEncounter(result.newTerrain!);
+      }
     });
   }
 
   /** Auto-collect minor treasure when stepping on it. Awards 5-25 gold. */
   private collectMinorTreasure(): void {
-    const px = this.player.x;
-    const py = this.player.y;
+    const px = this.player.position.x;
+    const py = this.player.position.y;
 
-    if (this.player.inDungeon) return; // no minor treasures in dungeons
+    if (this.player.position.inDungeon) return; // no minor treasures in dungeons
 
-    if (!hasSparkleAt(this.player.chunkX, this.player.chunkY, px, py)) return;
+    if (!hasSparkleAt(this.player.position.chunkX, this.player.position.chunkY, px, py)) return;
 
-    const key = `${this.player.chunkX},${this.player.chunkY},${px},${py}`;
-    if (this.player.collectedTreasures.includes(key)) return;
+    const key = `${this.player.position.chunkX},${this.player.position.chunkY},${px},${py}`;
+    if (this.player.progression.collectedTreasures.includes(key)) return;
 
-    this.player.collectedTreasures.push(key);
+    this.player.progression.collectedTreasures.push(key);
     const goldAmount = 5 + Math.floor(Math.random() * 21); // 5-25
     this.player.gold += goldAmount;
 
     // Update tile sprite to show real terrain underneath
-    const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, px, py);
+    const terrain = getTerrainAt(this.player.position.chunkX, this.player.position.chunkY, px, py);
     if (this.tileSprites[py]?.[px] && terrain !== undefined) {
       const realTexKey = terrain === Terrain.Town
-        ? `tile_town_${getTownBiome(this.player.chunkX, this.player.chunkY, px, py)}`
+        ? `tile_town_${getTownBiome(this.player.position.chunkX, this.player.position.chunkY, px, py)}`
         : `tile_${terrain}`;
       this.tileSprites[py][px].setTexture(realTexKey);
     }
@@ -3299,20 +3333,20 @@ export class OverworldScene extends Phaser.Scene {
     // Debug: encounters can be toggled off
     if (isDebug() && !this.encounterSystem.areEncountersEnabled()) return;
 
-    const mountEncMult = (!this.player.inDungeon && this.player.mountId) ? (getMount(this.player.mountId)?.encounterMultiplier ?? 1) : 1;
+    const mountEncMult = (!this.player.position.inDungeon && this.player.mountId) ? (getMount(this.player.mountId)?.encounterMultiplier ?? 1) : 1;
     const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep) * getWeatherEncounterMultiplier(this.weatherState.current) * mountEncMult;
     if (Math.random() < rate) {
       let monster;
-      if (this.player.inDungeon) {
-        monster = getDungeonEncounter(this.player.level, this.player.dungeonId);
+      if (this.player.position.inDungeon) {
+        monster = getDungeonEncounter(this.player.level, this.player.position.dungeonId);
       } else if (isNightTime(this.timeStep) && Math.random() < 0.4) {
         // 40% chance of a night-exclusive monster during dusk/night
-        const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+        const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
         monster = getNightEncounter(this.player.level, chunk?.name);
       } else {
         monster = getRandomEncounter(this.player.level);
       }
-      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.inDungeon, time: getTimePeriod(this.timeStep) });
+      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.position.inDungeon, time: getTimePeriod(this.timeStep) });
       debugPanelLog(`[ENC] ${monster.name} appeared! (${(rate * 100).toFixed(0)}% chance)`, true);
       this.startBattle(monster, terrain);
     }
@@ -3320,18 +3354,18 @@ export class OverworldScene extends Phaser.Scene {
 
   private handleAction(): void {
     // ── Dungeon exit: pressing SPACE on an exit tile inside a dungeon ──
-    if (this.player.inDungeon) {
-      const dungeon = getDungeon(this.player.dungeonId);
+    if (this.player.position.inDungeon) {
+      const dungeon = getDungeon(this.player.position.dungeonId);
       if (!dungeon) return;
-      const terrain = dungeon.mapData[this.player.y]?.[this.player.x];
+      const terrain = dungeon.mapData[this.player.position.y]?.[this.player.position.x];
       if (terrain === Terrain.DungeonExit) {
         // Return to overworld at the dungeon entrance tile
-        this.player.inDungeon = false;
-        this.player.dungeonId = "";
-        this.player.chunkX = dungeon.entranceChunkX;
-        this.player.chunkY = dungeon.entranceChunkY;
-        this.player.x = dungeon.entranceTileX;
-        this.player.y = dungeon.entranceTileY;
+        this.player.position.inDungeon = false;
+        this.player.position.dungeonId = "";
+        this.player.position.chunkX = dungeon.entranceChunkX;
+        this.player.position.chunkY = dungeon.entranceChunkY;
+        this.player.position.x = dungeon.entranceTileX;
+        this.player.position.y = dungeon.entranceTileY;
         // Roll outdoor weather for the biome the player emerges into
         this.rerollWeather();
         this.autoSave();
@@ -3348,11 +3382,11 @@ export class OverworldScene extends Phaser.Scene {
 
       // ── Chest interaction inside dungeon ──
       if (terrain === Terrain.Chest) {
-        const chest = getChestAt(this.player.x, this.player.y, { type: "dungeon", dungeonId: this.player.dungeonId });
-        if (chest && !this.player.openedChests.includes(chest.id)) {
+        const chest = getChestAt(this.player.position.x, this.player.position.y, { type: "dungeon", dungeonId: this.player.position.dungeonId });
+        if (chest && !this.player.progression.openedChests.includes(chest.id)) {
           const item = getItem(chest.itemId);
           if (item) {
-            this.player.openedChests.push(chest.id);
+            this.player.progression.openedChests.push(chest.id);
             this.player.inventory.push({ ...item });
             if (audioEngine.initialized) audioEngine.playChestOpenSFX();
             // Auto-equip if better
@@ -3372,7 +3406,7 @@ export class OverworldScene extends Phaser.Scene {
             this.updateHUD();
             this.autoSave();
           }
-        } else if (chest && this.player.openedChests.includes(chest.id)) {
+        } else if (chest && this.player.progression.openedChests.includes(chest.id)) {
           this.showMessage("Already opened.", "#666666");
         }
         return;
@@ -3381,7 +3415,7 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // ── City actions: exit, NPC dialogue, and shop interaction ──
-    if (this.player.inCity) {
+    if (this.player.position.inCity) {
       // If a dialogue is showing, dismiss it
       if (this.dialogueOverlay) {
         this.dismissDialogue();
@@ -3398,17 +3432,17 @@ export class OverworldScene extends Phaser.Scene {
         return;
       }
 
-      const city = getCity(this.player.cityId);
+      const city = getCity(this.player.position.cityId);
       if (!city) return;
-      const terrain = city.mapData[this.player.y]?.[this.player.x];
+      const terrain = city.mapData[this.player.position.y]?.[this.player.position.x];
       if (terrain === Terrain.CityExit) {
         // Return to overworld at the town tile
-        this.player.inCity = false;
-        this.player.cityId = "";
-        this.player.chunkX = city.chunkX;
-        this.player.chunkY = city.chunkY;
-        this.player.x = city.tileX;
-        this.player.y = city.tileY;
+        this.player.position.inCity = false;
+        this.player.position.cityId = "";
+        this.player.position.chunkX = city.chunkX;
+        this.player.position.chunkY = city.chunkY;
+        this.player.position.x = city.tileX;
+        this.player.position.y = city.tileY;
         this.rerollWeather();
         this.autoSave();
         this.cameras.main.flash(300, 255, 255, 255);
@@ -3490,7 +3524,7 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // ── Overworld actions ──
-    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
     if (!chunk) return;
 
     // If a dialogue is showing, dismiss it
@@ -3508,33 +3542,33 @@ export class OverworldScene extends Phaser.Scene {
 
     // Check if on a town
     const town = chunk.towns.find(
-      (t) => t.x === this.player.x && t.y === this.player.y
+      (t) => t.x === this.player.position.x && t.y === this.player.position.y
     );
     if (town?.hasShop) {
       // Track this town as the last visited (respawn point on death)
       this.player.lastTownX = town.x;
       this.player.lastTownY = town.y;
-      this.player.lastTownChunkX = this.player.chunkX;
-      this.player.lastTownChunkY = this.player.chunkY;
+      this.player.lastTownChunkX = this.player.position.chunkX;
+      this.player.lastTownChunkY = this.player.position.chunkY;
 
       // Check if this town has an explorable city layout
-      const city = getCityForTown(this.player.chunkX, this.player.chunkY, town.x, town.y);
+      const city = getCityForTown(this.player.position.chunkX, this.player.position.chunkY, town.x, town.y);
       if (city) {
         // Auto-dismount when entering a city
         if (this.player.mountId) {
           this.player.mountId = "";
         }
         // Enter the city interior
-        this.player.inCity = true;
-        this.player.cityId = city.id;
+        this.player.position.inCity = true;
+        this.player.position.cityId = city.id;
         debugPanelLog(`[CITY] Entered ${city.name}`, true);
-        this.player.x = city.spawnX;
-        this.player.y = city.spawnY;
+        this.player.position.x = city.spawnX;
+        this.player.position.y = city.spawnY;
         this.weatherState.current = WeatherType.Clear;
         // Reveal all city tiles — cities are always fully visible
         for (let ty = 0; ty < MAP_HEIGHT; ty++) {
           for (let tx = 0; tx < MAP_WIDTH; tx++) {
-            this.player.exploredTiles[`c:${city.id},${tx},${ty}`] = true;
+            this.player.progression.exploredTiles[`c:${city.id},${tx},${ty}`] = true;
           }
         }
         this.autoSave();
@@ -3570,13 +3604,13 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // Check if on a dungeon entrance tile
-    const terrain = getTerrainAt(this.player.chunkX, this.player.chunkY, this.player.x, this.player.y);
+    const terrain = getTerrainAt(this.player.position.chunkX, this.player.position.chunkY, this.player.position.x, this.player.position.y);
     if (terrain === Terrain.Dungeon) {
       const dungeon = getDungeonAt(
-        this.player.chunkX,
-        this.player.chunkY,
-        this.player.x,
-        this.player.y
+        this.player.position.chunkX,
+        this.player.position.chunkY,
+        this.player.position.x,
+        this.player.position.y
       );
       if (dungeon) {
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
@@ -3586,11 +3620,11 @@ export class OverworldScene extends Phaser.Scene {
             this.player.mountId = "";
           }
           // Enter the dungeon — force clear weather (closed space)
-          this.player.inDungeon = true;
-          this.player.dungeonId = dungeon.id;
+          this.player.position.inDungeon = true;
+          this.player.position.dungeonId = dungeon.id;
           debugPanelLog(`[DUNGEON] Entered ${dungeon.name}`, true);
-          this.player.x = dungeon.spawnX;
-          this.player.y = dungeon.spawnY;
+          this.player.position.x = dungeon.spawnX;
+          this.player.position.y = dungeon.spawnY;
           this.weatherState.current = WeatherType.Clear;
           if (audioEngine.initialized) audioEngine.playDungeonEnterSFX();
           this.autoSave();
@@ -3610,11 +3644,11 @@ export class OverworldScene extends Phaser.Scene {
 
     // Check if on an overworld chest tile
     if (terrain === Terrain.Chest) {
-      const chest = getChestAt(this.player.x, this.player.y, { type: "overworld", chunkX: this.player.chunkX, chunkY: this.player.chunkY });
-      if (chest && !this.player.openedChests.includes(chest.id)) {
+      const chest = getChestAt(this.player.position.x, this.player.position.y, { type: "overworld", chunkX: this.player.position.chunkX, chunkY: this.player.position.chunkY });
+      if (chest && !this.player.progression.openedChests.includes(chest.id)) {
         const item = getItem(chest.itemId);
         if (item) {
-          this.player.openedChests.push(chest.id);
+          this.player.progression.openedChests.push(chest.id);
           this.player.inventory.push({ ...item });
           if (audioEngine.initialized) audioEngine.playChestOpenSFX();
           if (item.type === "weapon" && (!this.player.equippedWeapon || item.effect > this.player.equippedWeapon.effect)) {
@@ -3633,7 +3667,7 @@ export class OverworldScene extends Phaser.Scene {
           this.updateHUD();
           this.autoSave();
         }
-      } else if (chest && this.player.openedChests.includes(chest.id)) {
+      } else if (chest && this.player.progression.openedChests.includes(chest.id)) {
         this.showMessage("Already opened.", "#666666");
       }
       return;
@@ -3641,7 +3675,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // Check if on a boss tile
     const boss = chunk.bosses.find(
-      (b) => b.x === this.player.x && b.y === this.player.y
+      (b) => b.x === this.player.position.x && b.y === this.player.position.y
     );
     if (boss && !this.defeatedBosses.has(boss.monsterId)) {
       const monster = getBoss(boss.monsterId);
@@ -3653,7 +3687,7 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Map terrain to a biome string for battle backgrounds. */
   private terrainToBiome(terrain?: Terrain): string {
-    if (this.player.inDungeon) return "dungeon";
+    if (this.player.position.inDungeon) return "dungeon";
     switch (terrain) {
       case Terrain.Forest: return "forest";
       case Terrain.DeepForest: return "deep_forest";
@@ -3722,14 +3756,14 @@ export class OverworldScene extends Phaser.Scene {
   /** Advance the day/night cycle by one step and update the map tint. */
   private advanceTime(): void {
     // Time stands still inside cities and dungeons.
-    if (this.player.inCity || this.player.inDungeon) return;
+    if (this.player.position.inCity || this.player.position.inDungeon) return;
 
     const oldPeriod = getTimePeriod(this.timeStep);
     this.timeStep = (this.timeStep + 1) % CYCLE_LENGTH;
     const newPeriod = getTimePeriod(this.timeStep);
 
     // Advance weather step countdown (can also shift naturally over time)
-    const biomeName = getChunk(this.player.chunkX, this.player.chunkY)?.name ?? "Heartlands";
+    const biomeName = getChunk(this.player.position.chunkX, this.player.position.chunkY)?.name ?? "Heartlands";
     const weatherChanged = advanceWeather(this.weatherState, biomeName, this.timeStep);
 
     if (oldPeriod !== newPeriod || weatherChanged) {
@@ -3744,7 +3778,7 @@ export class OverworldScene extends Phaser.Scene {
    * Updates tint and particle effects if the weather changed.
    */
   private rerollWeather(): void {
-    const biomeName = getChunk(this.player.chunkX, this.player.chunkY)?.name ?? "Heartlands";
+    const biomeName = getChunk(this.player.position.chunkX, this.player.position.chunkY)?.name ?? "Heartlands";
     const weatherChanged = changeZoneWeather(this.weatherState, biomeName, this.timeStep);
     if (weatherChanged) {
       this.applyDayNightTint();
@@ -3756,7 +3790,7 @@ export class OverworldScene extends Phaser.Scene {
   /** Start or update biome music and weather SFX to match the current state. */
   private updateAudio(): void {
     if (!audioEngine.initialized) return;
-    const chunk = getChunk(this.player.chunkX, this.player.chunkY);
+    const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
     const biomeName = chunk?.name ?? "Heartlands";
     const period = getTimePeriod(this.timeStep);
     audioEngine.playBiomeMusic(biomeName, period);
@@ -3765,7 +3799,7 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Apply a color tint to all map tiles based on time period + weather. */
   private applyDayNightTint(): void {
-    const period = this.player.inDungeon ? TimePeriod.Dungeon : getTimePeriod(this.timeStep);
+    const period = this.player.position.inDungeon ? TimePeriod.Dungeon : getTimePeriod(this.timeStep);
     const dayTint = PERIOD_TINT[period];
     const weatherTint = WEATHER_TINT[this.weatherState.current];
     // Blend: average the two tint values per channel
@@ -4270,6 +4304,8 @@ export class OverworldScene extends Phaser.Scene {
                 }
                 if (audioEngine.initialized) audioEngine.playPotionSFX();
                 this.updateHUD();
+              } else {
+                this.showMessage(result.message, "#ff6666");
               }
               this.buildEquipOverlay();
             }
@@ -5033,7 +5069,7 @@ export class OverworldScene extends Phaser.Scene {
           for (let tx = 0; tx < MAP_WIDTH; tx++) {
             const terrain = chunk.mapData[ty][tx];
             const exploredKey = `${dcx},${dcy},${tx},${ty}`;
-            const explored = !!this.player.exploredTiles[exploredKey];
+            const explored = !!this.player.progression.exploredTiles[exploredKey];
             const color = explored ? TERRAIN_COLORS[terrain] : 0x0a0a0a;
             gfx.fillStyle(color, 1);
             gfx.fillRect(ox + tx * detailTile, oy + ty * detailTile, detailTile, detailTile);
@@ -5049,7 +5085,7 @@ export class OverworldScene extends Phaser.Scene {
         // Town labels
         for (const town of chunk.towns) {
           const eKey = `${dcx},${dcy},${town.x},${town.y}`;
-          if (!this.player.exploredTiles[eKey]) continue;
+          if (!this.player.progression.exploredTiles[eKey]) continue;
           const mx = ox + town.x * detailTile + detailTile / 2;
           const my = oy + town.y * detailTile + detailTile / 2;
           const marker = this.add.graphics();
@@ -5066,7 +5102,7 @@ export class OverworldScene extends Phaser.Scene {
         // Boss markers
         for (const boss of chunk.bosses) {
           const eKey = `${dcx},${dcy},${boss.x},${boss.y}`;
-          if (!this.player.exploredTiles[eKey]) continue;
+          if (!this.player.progression.exploredTiles[eKey]) continue;
           if (this.defeatedBosses.has(boss.monsterId)) continue;
           const mx = ox + boss.x * detailTile + detailTile / 2;
           const my = oy + boss.y * detailTile + detailTile / 2;
@@ -5084,9 +5120,9 @@ export class OverworldScene extends Phaser.Scene {
         }
 
         // Player marker if on this chunk
-        if (dcx === this.player.chunkX && dcy === this.player.chunkY) {
-          const pmx = ox + this.player.x * detailTile + detailTile / 2;
-          const pmy = oy + this.player.y * detailTile + detailTile / 2;
+        if (dcx === this.player.position.chunkX && dcy === this.player.position.chunkY) {
+          const pmx = ox + this.player.position.x * detailTile + detailTile / 2;
+          const pmy = oy + this.player.position.y * detailTile + detailTile / 2;
           const pm = this.add.graphics();
           pm.fillStyle(0x00ff00, 1);
           pm.fillCircle(pmx, pmy, Math.max(4, detailTile / 3));
@@ -5135,13 +5171,13 @@ export class OverworldScene extends Phaser.Scene {
             for (let tx = 0; tx < MAP_WIDTH; tx++) {
               const terrain = chunk.mapData[ty][tx];
               const exploredKey = `${cx},${cy},${tx},${ty}`;
-              const explored = !!this.player.exploredTiles[exploredKey];
+              const explored = !!this.player.progression.exploredTiles[exploredKey];
               if (explored) hasExplored = true;
               // Show collected minor treasures as their base terrain color
               let color: number;
               if (!explored) {
                 color = 0x0a0a0a;
-              } else if (hasSparkleAt(cx, cy, tx, ty) && !this.player.collectedTreasures.includes(exploredKey)) {
+              } else if (hasSparkleAt(cx, cy, tx, ty) && !this.player.progression.collectedTreasures.includes(exploredKey)) {
                 color = TERRAIN_COLORS[Terrain.MinorTreasure];
               } else {
                 color = TERRAIN_COLORS[terrain];
@@ -5154,7 +5190,7 @@ export class OverworldScene extends Phaser.Scene {
 
           // Border (gold for current chunk)
           const border = this.add.graphics();
-          const isCurrent = cx === this.player.chunkX && cy === this.player.chunkY;
+          const isCurrent = cx === this.player.position.chunkX && cy === this.player.position.chunkY;
           border.lineStyle(isCurrent ? 2 : 1, isCurrent ? 0xffd700 : 0x333333, 1);
           border.strokeRect(ox, oy, chunkW, chunkH);
           mapContainer.add(border);
@@ -5174,7 +5210,7 @@ export class OverworldScene extends Phaser.Scene {
           // Town markers
           for (const town of chunk.towns) {
             const tKey = `${cx},${cy},${town.x},${town.y}`;
-            if (!this.player.exploredTiles[tKey]) continue;
+            if (!this.player.progression.exploredTiles[tKey]) continue;
             const mx = ox + town.x * tp + tp / 2;
             const my = oy + town.y * tp + tp / 2;
             const m = this.add.graphics();
@@ -5186,7 +5222,7 @@ export class OverworldScene extends Phaser.Scene {
           // Boss markers
           for (const boss of chunk.bosses) {
             const bKey = `${cx},${cy},${boss.x},${boss.y}`;
-            if (!this.player.exploredTiles[bKey] || this.defeatedBosses.has(boss.monsterId)) continue;
+            if (!this.player.progression.exploredTiles[bKey] || this.defeatedBosses.has(boss.monsterId)) continue;
             const mx = ox + boss.x * tp + tp / 2;
             const my = oy + boss.y * tp + tp / 2;
             const m = this.add.graphics();
@@ -5199,8 +5235,8 @@ export class OverworldScene extends Phaser.Scene {
 
           // Player marker
           if (isCurrent) {
-            const pmx = ox + this.player.x * tp + tp / 2;
-            const pmy = oy + this.player.y * tp + tp / 2;
+            const pmx = ox + this.player.position.x * tp + tp / 2;
+            const pmy = oy + this.player.position.y * tp + tp / 2;
             const pm = this.add.graphics();
             pm.fillStyle(0x00ff00, 1);
             pm.fillCircle(pmx, pmy, Math.max(2, 3 * zoomLevel));

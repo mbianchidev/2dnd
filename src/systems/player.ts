@@ -23,6 +23,25 @@ export interface PlayerStats {
   charisma: number;
 }
 
+/** Player position and location tracking (overworld, dungeon, city). */
+export interface PlayerPosition {
+  x: number; // overworld tile position (local to chunk)
+  y: number;
+  chunkX: number; // world chunk X coordinate
+  chunkY: number; // world chunk Y coordinate
+  inDungeon: boolean;  // true when inside a dungeon interior
+  dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
+  inCity: boolean;     // true when inside a city interior
+  cityId: string;      // ID of the current city (empty if not in city)
+}
+
+/** Player progression tracking (chests, treasures, fog of war). */
+export interface PlayerProgression {
+  openedChests: string[]; // IDs of chests already opened
+  collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
+  exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
+}
+
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
 
 /** Cost for each ability score value in the Point Buy system. */
@@ -67,17 +86,8 @@ export interface PlayerState {
   equippedShield: Item | null;
   appearanceId: string; // visual customization
   customAppearance?: { skinColor: number; hairStyle: number; hairColor: number };
-  x: number; // overworld tile position (local to chunk)
-  y: number;
-  chunkX: number; // world chunk X coordinate
-  chunkY: number; // world chunk Y coordinate
-  inDungeon: boolean;  // true when inside a dungeon interior
-  dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
-  inCity: boolean;     // true when inside a city interior
-  cityId: string;      // ID of the current city (empty if not in city)
-  openedChests: string[]; // IDs of chests already opened
-  collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
-  exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
+  position: PlayerPosition; // player location tracking
+  progression: PlayerProgression; // progression tracking (chests, treasures, fog of war)
   lastTownX: number;      // last town tile x (respawn point on death)
   lastTownY: number;      // last town tile y
   lastTownChunkX: number; // last town chunk x
@@ -163,17 +173,21 @@ export function createPlayer(
     equippedShield: null,
     appearanceId,
     customAppearance,
-    x: 3,
-    y: 3,
-    chunkX: 4,
-    chunkY: 2,
-    inDungeon: false,
-    dungeonId: "",
-    inCity: false,
-    cityId: "",
-    openedChests: [],
-    collectedTreasures: [],
-    exploredTiles: {},
+    position: {
+      x: 3,
+      y: 3,
+      chunkX: 4,
+      chunkY: 2,
+      inDungeon: false,
+      dungeonId: "",
+      inCity: false,
+      cityId: "",
+    },
+    progression: {
+      openedChests: [],
+      collectedTreasures: [],
+      exploredTiles: {},
+    },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,
     lastTownChunkX: 4,
@@ -206,7 +220,7 @@ export function getAttackModifier(player: PlayerState): number {
   const playerClass = getPlayerClass(player.appearanceId);
   const primaryStatValue = player.stats[playerClass.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
+  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents);
 }
 
 /** Get the spell attack modifier (uses class primary stat for casters). */
@@ -214,7 +228,7 @@ export function getSpellModifier(player: PlayerState): number {
   const playerClass = getPlayerClass(player.appearanceId);
   const primaryStatValue = player.stats[playerClass.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents ?? []);
+  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents);
 }
 
 /** Get the player's armor class. Optionally add a temporary bonus (e.g. from defending). */
@@ -222,7 +236,7 @@ export function getArmorClass(player: PlayerState, tempBonus: number = 0): numbe
   const baseAC = 10 + abilityModifier(player.stats.dexterity);
   const armorBonus = player.equippedArmor?.effect ?? 0;
   const shieldBonus = player.equippedShield?.effect ?? 0;
-  return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents ?? []) + tempBonus;
+  return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents) + tempBonus;
 }
 
 /** Award XP and track pending level-ups. Actual leveling happens during rest. */
@@ -321,9 +335,8 @@ export function processPendingLevelUps(
     for (const talent of TALENTS) {
       if (
         talent.levelRequired <= player.level &&
-        !(player.knownTalents ?? []).includes(talent.id)
+        !player.knownTalents.includes(talent.id)
       ) {
-        if (!player.knownTalents) player.knownTalents = [];
         player.knownTalents.push(talent.id);
         newTalents.push(talent);
         // Apply one-time stat bonuses
@@ -391,6 +404,9 @@ export function useItem(
 
   if (item.type === "consumable") {
     if (item.id === "ether") {
+      if (player.mp >= player.maxMp) {
+        return { used: false, message: "MP is already full!" };
+      }
       const restored = Math.min(item.effect, player.maxMp - player.mp);
       player.mp += restored;
       player.inventory.splice(itemIndex, 1);
@@ -403,6 +419,9 @@ export function useItem(
       return { used: true, message: "The Chimaera Wing glows and whisks you away!", teleport: true };
     }
     // All other consumables restore HP (potion, greaterPotion, etc.)
+    if (player.hp >= player.maxHp) {
+      return { used: false, message: "HP is already full!" };
+    }
     const healed = Math.min(item.effect, player.maxHp - player.hp);
     player.hp += healed;
     player.inventory.splice(itemIndex, 1);

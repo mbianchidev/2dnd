@@ -738,8 +738,11 @@ export class BootScene extends Phaser.Scene {
 
   private generatePlayerTextures(): void {
     for (const app of PLAYER_APPEARANCES) {
+      const key = `player_${app.id}`;
+      // Always remove existing texture so regeneration isn't silently skipped
+      if (this.textures.exists(key)) this.textures.remove(key);
       this.generatePlayerTextureWithColors(
-        `player_${app.id}`,
+        key,
         app.bodyColor,
         app.skinColor,
         app.legColor,
@@ -2074,10 +2077,11 @@ export class BootScene extends Phaser.Scene {
   private continueGame(): void {
     const save = loadGame();
     if (!save) return;
-    // Regenerate player texture with custom appearance if present
+    // Regenerate player texture with custom appearance if present.
+    // Use a separate "equipped" key so base class textures stay clean for New Game.
     if (save.player.customAppearance) {
       const app = getAppearance(save.player.appearanceId);
-      const key = `player_${save.player.appearanceId}`;
+      const key = `player_equipped_${save.player.appearanceId}`;
       if (this.textures.exists(key)) this.textures.remove(key);
       const hasShield = !!save.player.equippedShield && !save.player.equippedWeapon?.twoHanded;
       this.generatePlayerTextureWithHair(
@@ -2807,8 +2811,9 @@ export class BootScene extends Phaser.Scene {
       };
       const player = createPlayer(name, baseStats, selectedClass.id, customAppearance);
 
-      // Generate final player texture with custom appearance
-      const texKey = `player_${selectedClass.id}`;
+      // Generate final player texture with custom appearance into a separate key
+      // so the base class texture stays clean for future New Game class selection.
+      const texKey = `player_equipped_${selectedClass.id}`;
       if (this.textures.exists(texKey)) this.textures.remove(texKey);
       this.generatePlayerTextureWithHair(
         texKey,

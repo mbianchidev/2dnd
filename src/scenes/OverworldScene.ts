@@ -2242,6 +2242,9 @@ export class OverworldScene extends Phaser.Scene {
     });
   }
 
+  /** Vertical offset applied to the player sprite when mounted (pixels up). */
+  private static readonly MOUNT_RIDER_OFFSET = 10;
+
   private createPlayer(): void {
     if (this.playerSprite) {
       this.playerSprite.destroy();
@@ -2251,23 +2254,28 @@ export class OverworldScene extends Phaser.Scene {
       this.mountSprite = null;
     }
 
-    // When mounted on overworld, use the combined mounted texture
     const isMounted = this.player.mountId && !this.player.inDungeon && !this.player.inCity;
-    let key: string;
-    if (isMounted) {
-      const mountedKey = `mounted_${this.player.appearanceId}_${this.player.mountId}`;
-      key = this.textures.exists(mountedKey) ? mountedKey : `mount_${this.player.mountId}`;
-    } else {
-      const texKey = `player_${this.player.appearanceId}`;
-      key = this.textures.exists(texKey) ? texKey : "player";
-    }
+    const tileX = this.player.x * TILE_SIZE + TILE_SIZE / 2;
+    const tileY = this.player.y * TILE_SIZE + TILE_SIZE / 2;
 
-    this.playerSprite = this.add.sprite(
-      this.player.x * TILE_SIZE + TILE_SIZE / 2,
-      this.player.y * TILE_SIZE + TILE_SIZE / 2,
-      key
-    );
-    this.playerSprite.setDepth(10);
+    // Player texture — prefer the equipped variant (reflects weapon/shield), fall back to base class texture
+    const equippedKey = `player_equipped_${this.player.appearanceId}`;
+    const baseKey = `player_${this.player.appearanceId}`;
+    const playerKey = this.textures.exists(equippedKey) ? equippedKey : this.textures.exists(baseKey) ? baseKey : "player";
+
+    if (isMounted) {
+      // Render mount sprite beneath the player
+      const mountKey = `mount_${this.player.mountId}`;
+      this.mountSprite = this.add.sprite(tileX, tileY, mountKey);
+      this.mountSprite.setDepth(9);
+
+      // Render player sprite shifted up so it sits on top of the mount
+      this.playerSprite = this.add.sprite(tileX, tileY - OverworldScene.MOUNT_RIDER_OFFSET, playerKey);
+      this.playerSprite.setDepth(10);
+    } else {
+      this.playerSprite = this.add.sprite(tileX, tileY, playerKey);
+      this.playerSprite.setDepth(10);
+    }
   }
 
   /** Toggle mount / dismount with the T key. */
@@ -2312,10 +2320,11 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  /** Regenerate the player texture to reflect current equipment (weapon sprite). */
+  /** Regenerate the player texture to reflect current equipment (weapon sprite).
+   *  Uses a separate key so the base class texture stays clean for the title screen. */
   private refreshPlayerSprite(): void {
     const app = getAppearance(this.player.appearanceId);
-    const texKey = `player_${this.player.appearanceId}`;
+    const texKey = `player_equipped_${this.player.appearanceId}`;
     const weaponSpr = getActiveWeaponSprite(this.player.appearanceId, this.player.equippedWeapon);
     if (this.textures.exists(texKey)) this.textures.remove(texKey);
 
@@ -2759,6 +2768,29 @@ export class OverworldScene extends Phaser.Scene {
     return !!(this.menuOverlay || this.worldMapOverlay || this.equipOverlay || this.statOverlay || this.settingsOverlay);
   }
 
+  /** Tween the player (and mount sprite if mounted) to a tile position. */
+  private tweenPlayerTo(tileX: number, tileY: number, duration: number, onComplete: () => void): void {
+    const destX = tileX * TILE_SIZE + TILE_SIZE / 2;
+    const destY = tileY * TILE_SIZE + TILE_SIZE / 2;
+
+    this.tweens.add({
+      targets: this.playerSprite,
+      x: destX,
+      y: destY - (this.mountSprite ? OverworldScene.MOUNT_RIDER_OFFSET : 0),
+      duration,
+      onComplete,
+    });
+
+    if (this.mountSprite) {
+      this.tweens.add({
+        targets: this.mountSprite,
+        x: destX,
+        y: destY,
+        duration,
+      });
+    }
+  }
+
   /** Get move delay adjusted for mount speed. Mounts only apply on the overworld (not in dungeons/cities). */
   private getEffectiveMoveDelay(): number {
     if (this.player.inDungeon || this.player.inCity || !this.player.mountId) {
@@ -2813,21 +2845,15 @@ export class OverworldScene extends Phaser.Scene {
       // Footstep sound for dungeon terrain
       if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
 
-      this.tweens.add({
-        targets: this.playerSprite,
-        x: newX * TILE_SIZE + TILE_SIZE / 2,
-        y: newY * TILE_SIZE + TILE_SIZE / 2,
-        duration: 120,
-        onComplete: () => {
-          this.isMoving = false;
-          this.advanceTime();
-          this.revealAround();
-          this.revealTileSprites();
-          this.collectMinorTreasure();
-          this.updateHUD();
-          this.updateLocationText();
-          this.checkEncounter(terrain);
-        },
+      this.tweenPlayerTo(newX, newY, 120, () => {
+        this.isMoving = false;
+        this.advanceTime();
+        this.revealAround();
+        this.revealTileSprites();
+        this.collectMinorTreasure();
+        this.updateHUD();
+        this.updateLocationText();
+        this.checkEncounter(terrain);
       });
       return;
     }
@@ -2853,21 +2879,15 @@ export class OverworldScene extends Phaser.Scene {
       // Footstep sound for city terrain
       if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
 
-      this.tweens.add({
-        targets: this.playerSprite,
-        x: newX * TILE_SIZE + TILE_SIZE / 2,
-        y: newY * TILE_SIZE + TILE_SIZE / 2,
-        duration: 120,
-        onComplete: () => {
-          this.isMoving = false;
-          this.advanceTime();
-          this.revealAround();
-          this.revealTileSprites();
-          this.updateHUD();
-          this.updateLocationText();
-          this.updateShopRoofAlpha();
-          // No encounters in cities
-        },
+      this.tweenPlayerTo(newX, newY, 120, () => {
+        this.isMoving = false;
+        this.advanceTime();
+        this.revealAround();
+        this.revealTileSprites();
+        this.updateHUD();
+        this.updateLocationText();
+        this.updateShopRoofAlpha();
+        // No encounters in cities
       });
       return;
     }
@@ -2933,21 +2953,15 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    this.tweens.add({
-      targets: this.playerSprite,
-      x: newX * TILE_SIZE + TILE_SIZE / 2,
-      y: newY * TILE_SIZE + TILE_SIZE / 2,
-      duration: 120,
-      onComplete: () => {
-        this.isMoving = false;
-        this.advanceTime();
-        this.revealAround();
-        this.revealTileSprites();
-        this.collectMinorTreasure();
-        this.updateHUD();
-        this.updateLocationText();
-        this.checkEncounter(terrain);
-      },
+    this.tweenPlayerTo(newX, newY, 120, () => {
+      this.isMoving = false;
+      this.advanceTime();
+      this.revealAround();
+      this.revealTileSprites();
+      this.collectMinorTreasure();
+      this.updateHUD();
+      this.updateLocationText();
+      this.checkEncounter(terrain);
     });
   }
 

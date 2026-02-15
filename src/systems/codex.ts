@@ -90,7 +90,7 @@ export function discoverElement(
   monsterId: string,
   element: Element
 ): void {
-  let entry = bestiary.entries[monsterId];
+  const entry = bestiary.entries[monsterId];
   if (!entry) return;
   if (!entry.discoveredElements) {
     entry.discoveredElements = [];

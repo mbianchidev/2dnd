@@ -355,7 +355,7 @@ export class CodexScene extends Phaser.Scene {
           lines.push(`  ▲ Resists ${name}`);
         }
       }
-    } else if (profile) {
+    } else if (profile && (profile.resistances?.length || profile.weaknesses?.length || profile.immunities?.length)) {
       lines.push("");
       lines.push(`― Elemental Info ―`);
       lines.push(`  Not yet discovered.`);

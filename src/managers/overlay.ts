@@ -40,6 +40,7 @@ import { CYCLE_LENGTH } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
 import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
+import { calcPanelLayout, createDimGraphics, createPanelGraphics } from "../utils/ui";
 
 const TILE_SIZE = 32;
 
@@ -160,30 +161,20 @@ export class OverlayManager {
     this.equipOverlay = this.scene.add.container(0, 0).setDepth(50);
 
     // Dim background
-    const dim = this.scene.add.graphics();
-    dim.fillStyle(0x000000, 0.5);
-    dim.fillRect(0, 0, w, h);
+    const dim = createDimGraphics(this.scene, w, h, 0.5);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
     dim.on("pointerdown", () => this.toggleEquipOverlay(player));
     this.equipOverlay.add(dim);
 
     // --- Left info panel ---
     const ipx = startX;
-    const infoBg = this.scene.add.graphics();
-    infoBg.fillStyle(0x1a1a2e, 0.95);
-    infoBg.fillRect(ipx, py, infoPanelW, panelH);
-    infoBg.lineStyle(2, 0xc0a060, 1);
-    infoBg.strokeRect(ipx, py, infoPanelW, panelH);
+    const infoBg = createPanelGraphics(this.scene, ipx, py, infoPanelW, panelH, 0.95, 0xc0a060);
     this.equipOverlay.add(infoBg);
 
     this.buildInfoPanel(player, ipx + 8, py + 8, infoPanelW - 16);
 
     // --- Right panel background ---
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRect(px, py, panelW, panelH);
-    bg.lineStyle(2, 0xc0a060, 1);
-    bg.strokeRect(px, py, panelW, panelH);
+    const bg = createPanelGraphics(this.scene, px, py, panelW, panelH, 0.95, 0xc0a060);
     this.equipOverlay.add(bg);
 
     // Tab bar
@@ -881,25 +872,14 @@ export class OverlayManager {
       this.statOverlay = null;
     }
 
-    const w = this.scene.cameras.main.width;
-    const h = this.scene.cameras.main.height;
-    const panelW = 260;
-    const panelH = 240;
-    const px = Math.floor((w - panelW) / 2);
-    const py = Math.floor((h - panelH) / 2) - 20;
+    const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 260, 240, -20);
 
     this.statOverlay = this.scene.add.container(0, 0).setDepth(60);
 
-    const dim = this.scene.add.graphics();
-    dim.fillStyle(0x000000, 0.6);
-    dim.fillRect(0, 0, w, h);
+    const dim = createDimGraphics(this.scene, w, h);
     this.statOverlay.add(dim);
 
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRect(px, py, panelW, panelH);
-    bg.lineStyle(2, 0xffd700, 1);
-    bg.strokeRect(px, py, panelW, panelH);
+    const bg = createPanelGraphics(this.scene, px, py, panelW, panelH);
     this.statOverlay.add(bg);
 
     const title = this.scene.add.text(px + panelW / 2, py + 12, "📊 Your Stats", {
@@ -968,27 +948,16 @@ export class OverlayManager {
     if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
     if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
 
-    const w = this.scene.cameras.main.width;
-    const h = this.scene.cameras.main.height;
-    const panelW = 220;
-    const panelH = 200;
-    const px = Math.floor((w - panelW) / 2);
-    const py = Math.floor((h - panelH) / 2) - 10;
+    const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 220, 200, -10);
 
     this.menuOverlay = this.scene.add.container(0, 0).setDepth(70);
 
-    const dim = this.scene.add.graphics();
-    dim.fillStyle(0x000000, 0.6);
-    dim.fillRect(0, 0, w, h);
+    const dim = createDimGraphics(this.scene, w, h);
     this.menuOverlay.add(dim);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
     dim.on("pointerdown", () => this.toggleMenuOverlay(player, defeatedBosses, codex));
 
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRect(px, py, panelW, panelH);
-    bg.lineStyle(2, 0xffd700, 1);
-    bg.strokeRect(px, py, panelW, panelH);
+    const bg = createPanelGraphics(this.scene, px, py, panelW, panelH);
     this.menuOverlay.add(bg);
 
     const title = this.scene.add.text(px + panelW / 2, py + 14, "⚙ Menu", {
@@ -1056,18 +1025,11 @@ export class OverlayManager {
     if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
     if (this.settingsOverlay) { this.settingsOverlay.destroy(); this.settingsOverlay = null; }
 
-    const w = this.scene.cameras.main.width;
-    const h = this.scene.cameras.main.height;
-    const panelW = 300;
-    const panelH = 290;
-    const px = Math.floor((w - panelW) / 2);
-    const py = Math.floor((h - panelH) / 2) - 10;
+    const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 300, 290, -10);
 
     this.settingsOverlay = this.scene.add.container(0, 0).setDepth(75);
 
-    const dim = this.scene.add.graphics();
-    dim.fillStyle(0x000000, 0.6);
-    dim.fillRect(0, 0, w, h);
+    const dim = createDimGraphics(this.scene, w, h);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
     dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.x < px || pointer.x > px + panelW || pointer.y < py || pointer.y > py + panelH) {
@@ -1076,11 +1038,7 @@ export class OverlayManager {
     });
     this.settingsOverlay.add(dim);
 
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRect(px, py, panelW, panelH);
-    bg.lineStyle(2, 0xffd700, 1);
-    bg.strokeRect(px, py, panelW, panelH);
+    const bg = createPanelGraphics(this.scene, px, py, panelW, panelH);
     bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
     this.settingsOverlay.add(bg);
 
@@ -1180,25 +1138,14 @@ export class OverlayManager {
     if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
     if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
 
-    const w = this.scene.cameras.main.width;
-    const h = this.scene.cameras.main.height;
-    const panelW = 280;
-    const panelH = 320;
-    const px = Math.floor((w - panelW) / 2);
-    const py = Math.floor((h - panelH) / 2) - 10;
+    const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 280, 320, -10);
 
     this.statOverlay = this.scene.add.container(0, 0).setDepth(60);
 
-    const dim = this.scene.add.graphics();
-    dim.fillStyle(0x000000, 0.6);
-    dim.fillRect(0, 0, w, h);
+    const dim = createDimGraphics(this.scene, w, h);
     this.statOverlay.add(dim);
 
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRect(px, py, panelW, panelH);
-    bg.lineStyle(2, 0xffd700, 1);
-    bg.strokeRect(px, py, panelW, panelH);
+    const bg = createPanelGraphics(this.scene, px, py, panelW, panelH);
     this.statOverlay.add(bg);
 
     const title = this.scene.add.text(px + panelW / 2, py + 10, "★ Ability Score Improvement", {
@@ -1421,9 +1368,7 @@ export class OverlayManager {
 
     const container = this.scene.add.container(0, 0).setDepth(56);
 
-    const dim = this.scene.add.graphics();
-    dim.fillStyle(0x000000, 0.6);
-    dim.fillRect(0, 0, w, h);
+    const dim = createDimGraphics(this.scene, w, h);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
     dim.on("pointerdown", () => this.dismissTownPicker());
     container.add(dim);
@@ -1683,9 +1628,7 @@ export class OverlayManager {
 
     this.worldMapOverlay = this.scene.add.container(0, 0).setDepth(80);
 
-    const dim = this.scene.add.graphics();
-    dim.fillStyle(0x000000, 0.6);
-    dim.fillRect(0, 0, w, h);
+    const dim = createDimGraphics(this.scene, w, h);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
     dim.on("pointerdown", () => this.toggleWorldMap(player, defeatedBosses));
     this.worldMapOverlay.add(dim);
@@ -1698,11 +1641,7 @@ export class OverlayManager {
     const px = 10;
     const py = 10;
 
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRect(px, py, panelW, panelH);
-    bg.lineStyle(2, 0xffd700, 1);
-    bg.strokeRect(px, py, panelW, panelH);
+    const bg = createPanelGraphics(this.scene, px, py, panelW, panelH);
     bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
     this.worldMapOverlay.add(bg);
 

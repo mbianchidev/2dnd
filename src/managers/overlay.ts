@@ -41,8 +41,7 @@ import { audioEngine } from "../systems/audio";
 import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
 import { calcPanelLayout, createDimGraphics, createPanelGraphics } from "../utils/ui";
-
-const TILE_SIZE = 32;
+import { TILE_SIZE } from "../config";
 
 /** Callbacks the OverlayManager uses to interact with the parent scene. */
 export interface OverlayCallbacks {

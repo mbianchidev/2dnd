@@ -11,8 +11,7 @@ import {
 } from "../data/npcs";
 import { getTimePeriod, TimePeriod } from "../systems/daynight";
 import type { PlayerState } from "../systems/player";
-
-const TILE_SIZE = 32;
+import { TILE_SIZE } from "../config";
 
 export class CityRenderer {
   private scene: Phaser.Scene;

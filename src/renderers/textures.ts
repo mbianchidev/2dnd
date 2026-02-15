@@ -9,8 +9,7 @@ import { PLAYER_CLASSES } from "../systems/classes";
 import { SKIN_COLOR_OPTIONS } from "../systems/appearance";
 import { NPC_TEMPLATES } from "../data/npcs";
 import { MOUNTS } from "../data/mounts";
-
-const TILE_SIZE = 32;
+import { TILE_SIZE } from "../config";
 
 /** Mount body colors keyed by mount ID. */
 const MOUNT_COLORS: Record<string, number> = {

@@ -20,11 +20,9 @@ import {
 import { MAP_WIDTH, MAP_HEIGHT, isWalkable, type WorldChunk } from "../data/map";
 import { CYCLE_LENGTH } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
-import { debugPanelLog } from "../config";
+import { debugPanelLog, TILE_SIZE } from "../config";
 import type { CityRenderer } from "../renderers/city";
 import type { DialogueSystem } from "./dialogue";
-
-const TILE_SIZE = 32;
 
 /** Callbacks the caller (OverworldScene) provides so the manager can trigger auto-saves and shop transitions. */
 export interface SpecialNpcCallbacks {

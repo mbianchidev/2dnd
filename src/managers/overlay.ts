@@ -238,31 +238,34 @@ export class OverlayManager {
         wordWrap: { width: w },
       });
       this.equipOverlay!.add(t);
-      cy += parseInt(size) + 4;
+      cy += parseInt(size) + 6;
     };
 
-    addLine(`${p.name}`, "#ffd700", "12px");
-    addLine(`${cls.label}  Lv.${p.level}`, "#aabbcc");
-    cy += 4;
+    addLine(`${p.name}`, "#ffd700", "13px");
+    addLine(`${cls.label}  Lv.${p.level}`, "#aabbcc", "11px");
+    cy += 6;
 
-    // Location & world info
+    // Location & world info — each on its own line
     const hudInfo = this.callbacks.getHUDInfo();
-    addLine(hudInfo, "#888");
-    cy += 4;
+    const infoParts = hudInfo.split("  ").filter(Boolean);
+    for (const part of infoParts) {
+      addLine(part.trim(), "#999");
+    }
+    cy += 6;
 
-    // HP / MP / Gold
+    // HP / MP / XP / Gold
     const hpPct = Math.round((p.hp / p.maxHp) * 100);
-    const mpPct = Math.round((p.mp / p.maxMp) * 100);
     const hpColor = hpPct > 50 ? "#88ff88" : hpPct > 25 ? "#ffdd44" : "#ff6666";
     addLine(`HP: ${p.hp}/${p.maxHp}`, hpColor);
     addLine(`MP: ${p.mp}/${p.maxMp}`, "#88ccff");
     const xpNeeded = xpForLevel(p.level + 1);
     addLine(`XP: ${p.xp}/${xpNeeded}`, "#cc88ff");
     addLine(`Gold: ${p.gold}g`, "#ffd700");
-    cy += 6;
+    cy += 8;
 
     // Ability scores
-    addLine("― Stats ―", "#c0a060");
+    addLine("― Stats ―", "#c0a060", "10px");
+    cy += 2;
     const mod = (stat: number) => {
       const m = abilityModifier(stat);
       return m >= 0 ? `+${m}` : `${m}`;
@@ -273,7 +276,7 @@ export class OverlayManager {
     addLine(`INT ${p.stats.intelligence} (${mod(p.stats.intelligence)})`, "#ddd");
     addLine(`WIS ${p.stats.wisdom} (${mod(p.stats.wisdom)})`, "#ddd");
     addLine(`CHA ${p.stats.charisma} (${mod(p.stats.charisma)})`, "#ddd");
-    cy += 4;
+    cy += 6;
 
     // AC + To-Hit
     const ac = getArmorClass(p);
@@ -282,16 +285,17 @@ export class OverlayManager {
     const primaryMod = abilityModifier(primaryVal);
     const profBonus = Math.floor((p.level - 1) / 4) + 2;
     const toHit = primaryMod + profBonus;
-    addLine(`AC: ${ac}  To-Hit: ${toHit >= 0 ? "+" : ""}${toHit}`, "#aaddff");
+    addLine(`AC: ${ac}`, "#aaddff");
+    addLine(`To-Hit: ${toHit >= 0 ? "+" : ""}${toHit}`, "#aaddff");
 
     if (p.pendingStatPoints > 0) {
-      cy += 4;
+      cy += 6;
       addLine(`★ ${p.pendingStatPoints} Stat Pts`, "#ffd700");
     }
 
     // Mount
     if (p.mountId && !p.position.inDungeon && !p.position.inCity) {
-      cy += 4;
+      cy += 6;
       const mount = getMount(p.mountId);
       addLine(`🐴 ${mount?.name ?? "Mount"}`, "#88ff88");
     }

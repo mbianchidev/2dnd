@@ -6,8 +6,7 @@ import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import { xpForLevel } from "../systems/player";
 import { MAP_WIDTH, MAP_HEIGHT } from "../data/map";
-
-const TILE_SIZE = 32;
+import { TILE_SIZE } from "../config";
 
 export class HUDRenderer {
   private scene: Phaser.Scene;

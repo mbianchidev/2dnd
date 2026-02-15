@@ -9,8 +9,7 @@ import {
 import type { NpcInstance } from "../data/npcs";
 import { audioEngine } from "../systems/audio";
 import { getTimePeriod, TimePeriod } from "../systems/daynight";
-
-const TILE_SIZE = 32;
+import { TILE_SIZE } from "../config";
 
 /**
  * Manages NPC dialogue boxes — regular city NPCs, animals, and special overworld NPCs.

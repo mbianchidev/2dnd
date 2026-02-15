@@ -35,7 +35,7 @@ import {
   isLightWeapon,
   type PlayerState,
 } from "../systems/player";
-import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
+import { isDebug, debugLog, debugPanelLog, debugPanelState, TILE_SIZE } from "../config";
 import type { CodexData } from "../systems/codex";
 import { createCodex } from "../systems/codex";
 import { saveGame } from "../systems/save";
@@ -72,8 +72,6 @@ import { SpecialNpcManager, type SpecialNpcCallbacks } from "../managers/special
 import { OverlayManager } from "../managers/overlay";
 import { DebugCommandSystem, type TimeStepRef } from "../systems/debug";
 import { findAdjacentNpc, findAdjacentAnimal } from "../managers/npc";
-
-const TILE_SIZE = 32;
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -138,6 +136,7 @@ export class OverworldScene extends Phaser.Scene {
   private lastMoveTime = 0;
   private hudText!: Phaser.GameObjects.Text;
   private locationText!: Phaser.GameObjects.Text;
+  private lastLocationStr = "";
   private defeatedBosses: Set<string> = new Set();
   private codex: CodexData = createCodex();
   private isNewPlayer = false;
@@ -405,10 +404,19 @@ export class OverworldScene extends Phaser.Scene {
     });
   }
 
-  /** Show location info in the HUD bar + right-aligned location text. */
+  /**
+   * Show location info in the HUD bar only when it's actionable
+   * (e.g. [SPACE] prompts, entering a new zone). Plain terrain is suppressed.
+   */
   private showLocationInfo(): void {
     const text = this.getLocationString();
     if (!text) return;
+
+    // Only show the HUD bar for actionable prompts (e.g. [SPACE] Enter/Open/Exit)
+    const isActionable = text.includes("[SPACE]");
+    if (!isActionable) return;
+    if (text === this.lastLocationStr) return;
+    this.lastLocationStr = text;
 
     // Show the right location text
     this.locationText.setText(text);

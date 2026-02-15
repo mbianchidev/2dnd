@@ -9,8 +9,7 @@ import { Terrain } from "../data/map";
 import type { CityData } from "../data/map";
 import type { NpcInstance } from "../data/npcs";
 import type { CityRenderer } from "../renderers/city";
-
-const TILE_SIZE = 32;
+import { TILE_SIZE } from "../config";
 
 /**
  * Find an NPC adjacent to or on the player's current position.

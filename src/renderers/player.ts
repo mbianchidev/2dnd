@@ -6,8 +6,7 @@
 import { getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { getMount } from "../data/mounts";
 import type { PlayerState } from "../systems/player";
-
-const TILE_SIZE = 32;
+import { TILE_SIZE } from "../config";
 
 /** Rider offset when mounted: shift left so mount head/neck is visible, shift up to sit on mount back. */
 const MOUNT_RIDER_OFFSET_X = -3;

@@ -21,8 +21,7 @@ import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { WeatherType, WEATHER_TINT, type WeatherState } from "../systems/weather";
 import type { PlayerState } from "../systems/player";
 import type { CityRenderer } from "./city";
-
-const TILE_SIZE = 32;
+import { TILE_SIZE } from "../config";
 
 /** Biome wall texture overrides for city rendering. */
 const BIOME_WALL_MAP: Record<number, string> = {

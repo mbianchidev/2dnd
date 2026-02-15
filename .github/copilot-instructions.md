@@ -59,7 +59,11 @@ src/
 │   ├── fogOfWar.ts      # Explored tile tracking & fog visibility
 │   └── encounter.ts     # Random encounter enabled/disabled state
 ├── data/                # Game data definitions
-│   ├── map.ts           # 10×9 chunk world, 20×15 tile chunks, terrain, cities, dungeons, chests
+│   ├── map.ts           # Core map types, constants, and re-exports (hub module)
+│   ├── mapTypes.ts      # Shared types, enums (Terrain), and dimension constants
+│   ├── dungeons.ts      # Dungeon interior map arrays
+│   ├── cities.ts        # City interior maps, definitions, and utility functions
+│   ├── chunks.ts        # World chunk map arrays and region colors
 │   ├── monsters.ts      # Monster definitions, encounter tables, boss encounters
 │   ├── spells.ts        # Spell definitions & level requirements
 │   ├── items.ts         # Item definitions & shop inventory
@@ -67,6 +71,8 @@ src/
 │   ├── mounts.ts        # Mount definitions & speed data
 │   ├── npcs.ts          # NPC templates, city NPC data, special NPC definitions
 │   └── talents.ts       # Talent/perk definitions
+├── utils/               # Shared utility modules
+│   └── ui.ts            # Reusable UI panel/dimmer helpers (createDimGraphics, createPanelGraphics)
 tests/
 ├── audio.test.ts        # Audio system API surface & state tests
 ├── combat.test.ts       # Combat calculations & attack rolls

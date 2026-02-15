@@ -57,6 +57,7 @@ export interface OverlayCallbacks {
   getTimeStep: () => number;
   setTimeStep: (t: number) => void;
   evacuateDungeon: () => void;
+  getHUDInfo: () => string;
 }
 
 export class OverlayManager {
@@ -148,9 +149,12 @@ export class OverlayManager {
 
     const w = this.scene.cameras.main.width;
     const h = this.scene.cameras.main.height;
+    const infoPanelW = 150;
     const panelW = 280;
+    const totalW = infoPanelW + panelW + 6;
     const panelH = 470;
-    const px = Math.floor((w - panelW) / 2);
+    const startX = Math.floor((w - totalW) / 2);
+    const px = startX + infoPanelW + 6; // right panel (gear/skills/items)
     const py = Math.floor((h - panelH) / 2) - 20;
 
     this.equipOverlay = this.scene.add.container(0, 0).setDepth(50);
@@ -163,7 +167,18 @@ export class OverlayManager {
     dim.on("pointerdown", () => this.toggleEquipOverlay(player));
     this.equipOverlay.add(dim);
 
-    // Panel background
+    // --- Left info panel ---
+    const ipx = startX;
+    const infoBg = this.scene.add.graphics();
+    infoBg.fillStyle(0x1a1a2e, 0.95);
+    infoBg.fillRect(ipx, py, infoPanelW, panelH);
+    infoBg.lineStyle(2, 0xc0a060, 1);
+    infoBg.strokeRect(ipx, py, infoPanelW, panelH);
+    this.equipOverlay.add(infoBg);
+
+    this.buildInfoPanel(player, ipx + 8, py + 8, infoPanelW - 16);
+
+    // --- Right panel background ---
     const bg = this.scene.add.graphics();
     bg.fillStyle(0x1a1a2e, 0.95);
     bg.fillRect(px, py, panelW, panelH);
@@ -209,6 +224,77 @@ export class OverlayManager {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
     this.equipOverlay.add(hint);
+  }
+
+  /** Build the left-side info panel showing player status, location, and stats. */
+  private buildInfoPanel(player: PlayerState, x: number, y: number, w: number): void {
+    const p = player;
+    const cls = getPlayerClass(p.appearanceId);
+    let cy = y;
+
+    const addLine = (text: string, color = "#ccc", size = "10px") => {
+      const t = this.scene.add.text(x, cy, text, {
+        fontSize: size, fontFamily: "monospace", color,
+        wordWrap: { width: w },
+      });
+      this.equipOverlay!.add(t);
+      cy += parseInt(size) + 4;
+    };
+
+    addLine(`${p.name}`, "#ffd700", "12px");
+    addLine(`${cls.label}  Lv.${p.level}`, "#aabbcc");
+    cy += 4;
+
+    // Location & world info
+    const hudInfo = this.callbacks.getHUDInfo();
+    addLine(hudInfo, "#888");
+    cy += 4;
+
+    // HP / MP / Gold
+    const hpPct = Math.round((p.hp / p.maxHp) * 100);
+    const mpPct = Math.round((p.mp / p.maxMp) * 100);
+    const hpColor = hpPct > 50 ? "#88ff88" : hpPct > 25 ? "#ffdd44" : "#ff6666";
+    addLine(`HP: ${p.hp}/${p.maxHp}`, hpColor);
+    addLine(`MP: ${p.mp}/${p.maxMp}`, "#88ccff");
+    const xpNeeded = xpForLevel(p.level + 1);
+    addLine(`XP: ${p.xp}/${xpNeeded}`, "#cc88ff");
+    addLine(`Gold: ${p.gold}g`, "#ffd700");
+    cy += 6;
+
+    // Ability scores
+    addLine("― Stats ―", "#c0a060");
+    const mod = (stat: number) => {
+      const m = abilityModifier(stat);
+      return m >= 0 ? `+${m}` : `${m}`;
+    };
+    addLine(`STR ${p.stats.strength} (${mod(p.stats.strength)})`, "#ddd");
+    addLine(`DEX ${p.stats.dexterity} (${mod(p.stats.dexterity)})`, "#ddd");
+    addLine(`CON ${p.stats.constitution} (${mod(p.stats.constitution)})`, "#ddd");
+    addLine(`INT ${p.stats.intelligence} (${mod(p.stats.intelligence)})`, "#ddd");
+    addLine(`WIS ${p.stats.wisdom} (${mod(p.stats.wisdom)})`, "#ddd");
+    addLine(`CHA ${p.stats.charisma} (${mod(p.stats.charisma)})`, "#ddd");
+    cy += 4;
+
+    // AC + To-Hit
+    const ac = getArmorClass(p);
+    const primaryStat = cls.primaryStat;
+    const primaryVal = p.stats[primaryStat as keyof typeof p.stats];
+    const primaryMod = abilityModifier(primaryVal);
+    const profBonus = Math.floor((p.level - 1) / 4) + 2;
+    const toHit = primaryMod + profBonus;
+    addLine(`AC: ${ac}  To-Hit: ${toHit >= 0 ? "+" : ""}${toHit}`, "#aaddff");
+
+    if (p.pendingStatPoints > 0) {
+      cy += 4;
+      addLine(`★ ${p.pendingStatPoints} Stat Pts`, "#ffd700");
+    }
+
+    // Mount
+    if (p.mountId && !p.position.inDungeon && !p.position.inCity) {
+      cy += 4;
+      const mount = getMount(p.mountId);
+      addLine(`🐴 ${mount?.name ?? "Mount"}`, "#88ff88");
+    }
   }
 
   /** Gear page: header stats, ability scores, equipment slots, mounts. */

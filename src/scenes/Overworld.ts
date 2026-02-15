@@ -196,6 +196,7 @@ export class OverworldScene extends Phaser.Scene {
       getTimeStep: () => this.timeStep,
       setTimeStep: (t: number) => { this.timeStep = t; },
       evacuateDungeon: () => this.evacuateDungeon(),
+      getHUDInfo: () => this.getHUDInfo(),
     });
 
     // Load scene data
@@ -347,87 +348,134 @@ export class OverworldScene extends Phaser.Scene {
 
   private createHUD(): void {
     const hudBg = this.add.graphics();
-    hudBg.fillStyle(0x1a1a2e, 0.9);
-    hudBg.fillRect(0, MAP_HEIGHT * TILE_SIZE, MAP_WIDTH * TILE_SIZE, 80);
+    hudBg.fillStyle(0x1a1a2e, 0.85);
+    hudBg.fillRect(0, MAP_HEIGHT * TILE_SIZE, MAP_WIDTH * TILE_SIZE, 48);
     hudBg.lineStyle(2, 0xc0a060, 1);
-    hudBg.strokeRect(0, MAP_HEIGHT * TILE_SIZE, MAP_WIDTH * TILE_SIZE, 80);
+    hudBg.strokeRect(0, MAP_HEIGHT * TILE_SIZE, MAP_WIDTH * TILE_SIZE, 48);
     hudBg.setDepth(20);
+    hudBg.setAlpha(0); // hidden by default
 
     this.hudText = this.add
-      .text(10, MAP_HEIGHT * TILE_SIZE + 8, "", {
+      .text(MAP_WIDTH * TILE_SIZE / 2, MAP_HEIGHT * TILE_SIZE + 8, "", {
         fontSize: "13px",
         fontFamily: "monospace",
         color: "#ddd",
         lineSpacing: 4,
+        align: "center",
+        wordWrap: { width: MAP_WIDTH * TILE_SIZE - 20 },
       })
-      .setDepth(21);
+      .setOrigin(0.5, 0)
+      .setDepth(21)
+      .setAlpha(0);
 
+    // Store hudBg ref for fade
+    this.hudBg = hudBg;
+
+    // Location text is now part of the HUD message bar
     this.locationText = this.add
-      .text(MAP_WIDTH * TILE_SIZE - 10, MAP_HEIGHT * TILE_SIZE + 8, "", {
-        fontSize: "12px",
+      .text(MAP_WIDTH * TILE_SIZE - 10, MAP_HEIGHT * TILE_SIZE + 6, "", {
+        fontSize: "11px",
         fontFamily: "monospace",
         color: "#aaa",
         align: "right",
-        lineSpacing: 4,
+        lineSpacing: 2,
       })
       .setOrigin(1, 0)
-      .setDepth(21);
-
-    this.updateHUD();
+      .setDepth(21)
+      .setAlpha(0);
   }
 
-  private updateHUD(): void {
+  private hudBg!: Phaser.GameObjects.Graphics;
+  private hudFadeTimer?: Phaser.Time.TimerEvent;
+
+  /** Show a message in the HUD bar (auto-fades after delay). */
+  private showHUDMessage(text: string, color = "#ddd", duration = 3000): void {
+    this.hudText.setText(text);
+    this.hudText.setColor(color);
+    this.hudBg.setAlpha(1);
+    this.hudText.setAlpha(1);
+
+    // Cancel previous fade
+    if (this.hudFadeTimer) this.hudFadeTimer.remove();
+    this.tweens.killTweensOf(this.hudBg);
+    this.tweens.killTweensOf(this.hudText);
+
+    this.hudFadeTimer = this.time.delayedCall(duration, () => {
+      this.tweens.add({ targets: [this.hudBg, this.hudText], alpha: 0, duration: 800 });
+    });
+  }
+
+  /** Show location info in the HUD bar + right-aligned location text. */
+  private showLocationInfo(): void {
+    const text = this.getLocationString();
+    if (!text) return;
+
+    // Show the right location text
+    this.locationText.setText(text);
+    this.locationText.setAlpha(1);
+    this.hudBg.setAlpha(1);
+
+    // Cancel previous fade
+    if (this.hudFadeTimer) this.hudFadeTimer.remove();
+    this.tweens.killTweensOf(this.hudBg);
+    this.tweens.killTweensOf(this.hudText);
+    this.tweens.killTweensOf(this.locationText);
+
+    this.hudFadeTimer = this.time.delayedCall(3000, () => {
+      this.tweens.add({ targets: [this.hudBg, this.hudText, this.locationText], alpha: 0, duration: 800 });
+    });
+  }
+
+  /** Build the HUD info text for the current position — kept for menu. */
+  getHUDInfo(): string {
     const p = this.player;
     let regionName: string;
     if (p.position.inDungeon) {
       const dungeon = getDungeon(p.position.dungeonId);
       regionName = dungeon ? `🔻 ${dungeon.name}` : "Dungeon";
+    } else if (p.position.inCity) {
+      const city = getCity(p.position.cityId);
+      regionName = city ? `🏘 ${city.name}` : "City";
     } else {
       const chunk = getChunk(p.position.chunkX, p.position.chunkY);
       regionName = chunk?.name ?? "Unknown";
     }
-    const asiHint = p.pendingStatPoints > 0 ? `  ★ ${p.pendingStatPoints} Stat Pts` : "";
     const timeLabel = p.position.inDungeon ? PERIOD_LABEL[TimePeriod.Dungeon] : PERIOD_LABEL[getTimePeriod(this.timeStep)];
     const weatherLabel = WEATHER_LABEL[this.weatherState.current];
     const mountLabel = (p.mountId && !p.position.inDungeon && !p.position.inCity)
       ? `  🐴 ${getMount(p.mountId)?.name ?? "Mount"}` : "";
-    this.hudText.setText(
-      `${p.name} Lv.${p.level}  —  ${regionName}  ${timeLabel}  ${weatherLabel}${mountLabel}\n` +
-      `HP: ${p.hp}/${p.maxHp}  MP: ${p.mp}/${p.maxMp}  Gold: ${p.gold}${asiHint}`,
-    );
+    return `${regionName}  ${timeLabel}  ${weatherLabel}${mountLabel}`;
+  }
+
+  private updateHUD(): void {
+    // HUD is now event-driven — no persistent display
   }
 
   private updateLocationText(): void {
+    this.showLocationInfo();
+  }
+
+  private getLocationString(): string {
     if (this.player.position.inDungeon) {
       const dungeon = getDungeon(this.player.position.dungeonId);
-      if (!dungeon) { this.locationText.setText("???"); return; }
+      if (!dungeon) return "???";
       const terrain = dungeon.mapData[this.player.position.y]?.[this.player.position.x];
-      if (terrain === Terrain.DungeonExit) {
-        this.locationText.setText(`${dungeon.name}\n[SPACE] Exit Dungeon`);
-      } else if (terrain === Terrain.Chest) {
+      if (terrain === Terrain.DungeonExit) return `${dungeon.name}  [SPACE] Exit`;
+      if (terrain === Terrain.Chest) {
         const chest = getChestAt(this.player.position.x, this.player.position.y, { type: "dungeon", dungeonId: this.player.position.dungeonId });
-        if (chest && !this.player.progression.openedChests.includes(chest.id)) {
-          this.locationText.setText("Treasure Chest\n[SPACE] Open");
-        } else {
-          this.locationText.setText("Opened Chest");
-        }
-      } else {
-        this.locationText.setText(dungeon.name);
+        return (chest && !this.player.progression.openedChests.includes(chest.id))
+          ? "Treasure Chest  [SPACE] Open" : "Opened Chest";
       }
-      return;
+      return dungeon.name;
     }
 
     if (this.player.position.inCity) {
       const city = getCity(this.player.position.cityId);
-      if (!city) { this.locationText.setText("???"); return; }
+      if (!city) return "???";
       const terrain = city.mapData[this.player.position.y]?.[this.player.position.x];
-      if (terrain === Terrain.CityExit) {
-        this.locationText.setText(`${city.name}\n[SPACE] Leave City`);
-      } else {
-        const shop = getCityShopNearby(city, this.player.position.x, this.player.position.y);
-        this.locationText.setText(shop ? shop.name : city.name);
-      }
-      return;
+      if (terrain === Terrain.CityExit) return `${city.name}  [SPACE] Leave`;
+      const shop = getCityShopNearby(city, this.player.position.x, this.player.position.y);
+      return shop ? shop.name : city.name;
     }
 
     const terrain = getTerrainAt(this.player.position.chunkX, this.player.position.chunkY, this.player.position.x, this.player.position.y);
@@ -442,27 +490,27 @@ export class OverworldScene extends Phaser.Scene {
     let locStr = TERRAIN_DISPLAY_NAMES[terrain ?? 0] ?? "Unknown";
     if (town) {
       const city = getCityForTown(this.player.position.chunkX, this.player.position.chunkY, town.x, town.y);
-      locStr = city ? `${town.name}\n[SPACE] Enter City` : `${town.name}\n[SPACE] Enter Shop`;
+      locStr = city ? `${town.name}  [SPACE] Enter` : `${town.name}  [SPACE] Shop`;
     }
     if (boss && !this.defeatedBosses.has(boss.monsterId)) {
-      locStr = `${boss.name}'s Lair\n[SPACE] Challenge Boss`;
+      locStr = `${boss.name}'s Lair  [SPACE] Challenge`;
     }
     if (terrain === Terrain.Dungeon) {
       const dungeon = getDungeonAt(this.player.position.chunkX, this.player.position.chunkY, this.player.position.x, this.player.position.y);
       if (dungeon) {
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
         locStr = (hasKey || isDebug())
-          ? `${dungeon.name}\n[SPACE] Enter Dungeon`
-          : `${dungeon.name}\n(Locked — need key)`;
+          ? `${dungeon.name}  [SPACE] Enter Dungeon`
+          : `${dungeon.name}  (Locked — need key)`;
       }
     }
     if (terrain === Terrain.Chest) {
       const chest = getChestAt(this.player.position.x, this.player.position.y, { type: "overworld", chunkX: this.player.position.chunkX, chunkY: this.player.position.chunkY });
       locStr = (chest && !this.player.progression.openedChests.includes(chest.id))
-        ? "Treasure Chest\n[SPACE] Open" : "Opened Chest";
+        ? "Treasure Chest  [SPACE] Open" : "Opened Chest";
     }
 
-    this.locationText.setText(locStr);
+    return locStr;
   }
 
   private updateDebugPanel(): void {
@@ -1141,7 +1189,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private showMessage(text: string, color = "#ffd700"): void {
-    this.hudRenderer.showMessage(text, color);
+    this.showHUDMessage(text, color);
   }
 
   private revealAround(radius = 2): void {

@@ -475,17 +475,6 @@ export class MapRenderer {
       }
     }
 
-    // City name label
-    this.scene.add
-      .text(MAP_WIDTH * TILE_SIZE / 2, 4, city.name, {
-        fontSize: "10px",
-        fontFamily: "monospace",
-        color: "#dda0dd",
-        stroke: "#000",
-        strokeThickness: 2,
-      })
-      .setOrigin(0.5, 0);
-
     // Shop labels and exit label
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {

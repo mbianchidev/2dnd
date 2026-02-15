@@ -488,10 +488,12 @@ export class OverworldScene extends Phaser.Scene {
     const destX = tileX * TILE_SIZE + TILE_SIZE / 2;
     const destY = tileY * TILE_SIZE + TILE_SIZE / 2;
     const mounted = !!this.playerRenderer.mountSprite;
+    const flipped = this.playerRenderer.playerSprite.flipX;
+    const riderOffX = flipped ? -PlayerRenderer.riderOffsetX : PlayerRenderer.riderOffsetX;
 
     this.tweens.add({
       targets: this.playerRenderer.playerSprite,
-      x: destX + (mounted ? PlayerRenderer.riderOffsetX : 0),
+      x: destX + (mounted ? riderOffX : 0),
       y: destY - (mounted ? PlayerRenderer.riderOffsetY : 0),
       duration,
       onComplete,
@@ -543,6 +545,18 @@ export class OverworldScene extends Phaser.Scene {
   private tryMove(dx: number, dy: number, time: number): void {
     const newX = this.player.position.x + dx;
     const newY = this.player.position.y + dy;
+
+    // Update sprite facing direction based on horizontal movement
+    if (dx !== 0) {
+      const faceLeft = dx < 0;
+      this.playerRenderer.playerSprite.setFlipX(faceLeft);
+      if (this.playerRenderer.mountSprite) {
+        this.playerRenderer.mountSprite.setFlipX(faceLeft);
+      }
+    }
+
+    // Update front/back/side facing based on movement direction
+    this.playerRenderer.setFacingDirection(dx, dy, this.player);
 
     // ── Dungeon movement ──
     if (this.player.position.inDungeon) {

@@ -776,14 +776,50 @@ function drawMountBody(gfx: Phaser.GameObjects.Graphics, mountId: string): void 
   gfx.fillRect(3, 12, 4, 3);
 }
 
+/** Draw a back-facing mount body (walking away from camera — shows rump, tail, no head). */
+function drawMountBodyBack(gfx: Phaser.GameObjects.Graphics, mountId: string): void {
+  const color = MOUNT_COLORS[mountId] ?? 0x6d4c41;
+  const darkerColor = (color & 0xfefefe) >> 1;
+  // Body (slightly wider from behind)
+  gfx.fillStyle(color, 1);
+  gfx.fillRect(6, 10, 20, 14);
+  // Rump shading
+  gfx.fillStyle(darkerColor, 0.3);
+  gfx.fillRect(8, 10, 16, 4);
+  // Ears (peeking above head, centered)
+  gfx.fillStyle(color, 1);
+  gfx.fillRect(10, 4, 3, 6);
+  gfx.fillRect(19, 4, 3, 6);
+  // Back of head (between ears)
+  gfx.fillStyle(darkerColor, 1);
+  gfx.fillRect(12, 6, 8, 5);
+  // Legs (all four visible from behind)
+  gfx.fillStyle(darkerColor, 1);
+  gfx.fillRect(8, 24, 3, 6);
+  gfx.fillRect(14, 24, 3, 6);
+  gfx.fillRect(17, 24, 3, 6);
+  gfx.fillRect(21, 24, 3, 6);
+  // Tail (hanging down from rump)
+  gfx.fillStyle(color, 1);
+  gfx.fillRect(14, 6, 4, 5);
+}
+
 /** Generate standalone mount sprites and combined mounted-player textures. */
 function generateMountTextures(scene: Phaser.Scene): void {
   for (const mount of MOUNTS) {
+    // Front-facing mount
     const key = `mount_${mount.id}`;
     const gfx = scene.add.graphics();
     drawMountBody(gfx, mount.id);
     gfx.generateTexture(key, TILE_SIZE, TILE_SIZE);
     gfx.destroy();
+
+    // Back-facing mount (shows rump/tail, no head visible)
+    const backKey = `mount_back_${mount.id}`;
+    const bgfx = scene.add.graphics();
+    drawMountBodyBack(bgfx, mount.id);
+    bgfx.generateTexture(backKey, TILE_SIZE, TILE_SIZE);
+    bgfx.destroy();
   }
 
   // Generate "mounted_<classId>_<mountId>" textures — rider sitting on mount

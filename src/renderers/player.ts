@@ -20,6 +20,8 @@ export class PlayerRenderer {
   private scene: Phaser.Scene;
   playerSprite!: Phaser.GameObjects.Sprite;
   mountSprite: Phaser.GameObjects.Sprite | null = null;
+  /** Current facing direction: front (down), back (up), or side (left/right). */
+  private facing: "front" | "back" | "side" = "front";
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -164,6 +166,188 @@ export class PlayerRenderer {
     gfx.destroy();
 
     this.playerSprite.setTexture(texKey);
+  }
+
+  /** Generate the back-facing player texture (walking away from camera).
+   *  Shows hair covering head, body back with simplified clothing, no weapons/shield. */
+  refreshPlayerSpriteBack(player: PlayerState): void {
+    const cls = getPlayerClass(player.appearanceId);
+    const texKey = `player_equipped_back_${player.appearanceId}`;
+    if (this.scene.textures.exists(texKey)) this.scene.textures.remove(texKey);
+
+    const gfx = this.scene.add.graphics();
+
+    const darker = (c: number) => {
+      const r = Math.max(0, ((c >> 16) & 0xff) - 40);
+      const g = Math.max(0, ((c >> 8) & 0xff) - 40);
+      const b = Math.max(0, (c & 0xff) - 40);
+      return (r << 16) | (g << 8) | b;
+    };
+
+    // Body (back view — slightly darker to indicate rear)
+    gfx.fillStyle(darker(cls.bodyColor), 1);
+    gfx.fillRect(8, 10, 16, 16);
+    // Back clothing details (simplified — just a center seam)
+    gfx.fillStyle(cls.bodyColor, 1);
+    gfx.fillRect(15, 10, 2, 16);
+
+    // Head (back of head — skin color, slightly smaller circle covered by hair)
+    const skinColor = player.customAppearance?.skinColor ?? cls.skinColor;
+    gfx.fillStyle(skinColor, 1);
+    gfx.fillCircle(16, 8, 6);
+
+    // Hair covers the entire back of head
+    const hairColor = player.customAppearance?.hairColor ?? darker(skinColor);
+    const hairStyle = player.customAppearance?.hairStyle ?? 0;
+    gfx.fillStyle(hairColor, 1);
+    if (hairStyle === 0) {
+      // Buzz cut / no hair — just show a darker cap
+      gfx.fillStyle(darker(skinColor), 1);
+      gfx.fillRect(11, 2, 10, 6);
+    } else if (hairStyle === 1) {
+      // Short hair — cap covering back of head
+      gfx.fillRect(10, 1, 12, 8);
+    } else if (hairStyle === 2) {
+      // Medium hair — covers head and sides
+      gfx.fillRect(10, 1, 12, 10);
+      gfx.fillRect(9, 3, 14, 6);
+    } else if (hairStyle === 3) {
+      // Long hair — flows down the back
+      gfx.fillRect(10, 1, 12, 10);
+      gfx.fillRect(9, 3, 14, 14);
+    }
+
+    // Legs
+    gfx.fillStyle(cls.legColor, 1);
+    const isMounted = !!player.mountId && !player.position.inDungeon && !player.position.inCity;
+    if (isMounted) {
+      gfx.fillRect(12, 24, 6, 5);
+    } else {
+      gfx.fillRect(9, 26, 5, 6);
+      gfx.fillRect(18, 26, 5, 6);
+    }
+
+    gfx.generateTexture(texKey, TILE_SIZE, TILE_SIZE);
+    gfx.destroy();
+  }
+
+  /** Update player (and mount) facing direction based on movement.
+   *  dx !== 0 = side profile, dy < 0 = back, dy > 0 = front. */
+  setFacingDirection(dx: number, dy: number, player: PlayerState): void {
+    let want: "front" | "back" | "side";
+    if (dy < 0) want = "back";
+    else if (dy > 0) want = "front";
+    else if (dx !== 0) want = "side";
+    else return;
+
+    if (want === this.facing) return;
+    this.facing = want;
+
+    if (want === "back") {
+      this.refreshPlayerSpriteBack(player);
+      const backKey = `player_equipped_back_${player.appearanceId}`;
+      if (this.scene.textures.exists(backKey)) {
+        this.playerSprite.setTexture(backKey);
+      }
+      if (this.mountSprite && player.mountId) {
+        const mountBackKey = `mount_back_${player.mountId}`;
+        if (this.scene.textures.exists(mountBackKey)) {
+          this.mountSprite.setTexture(mountBackKey);
+        }
+      }
+    } else if (want === "side") {
+      this.refreshPlayerSpriteSide(player);
+      const sideKey = `player_equipped_side_${player.appearanceId}`;
+      if (this.scene.textures.exists(sideKey)) {
+        this.playerSprite.setTexture(sideKey);
+      }
+      if (this.mountSprite && player.mountId) {
+        const mountKey = `mount_${player.mountId}`;
+        if (this.scene.textures.exists(mountKey)) {
+          this.mountSprite.setTexture(mountKey);
+        }
+      }
+    } else {
+      // Front
+      const frontKey = `player_equipped_${player.appearanceId}`;
+      if (this.scene.textures.exists(frontKey)) {
+        this.playerSprite.setTexture(frontKey);
+      }
+      if (this.mountSprite && player.mountId) {
+        const mountKey = `mount_${player.mountId}`;
+        if (this.scene.textures.exists(mountKey)) {
+          this.mountSprite.setTexture(mountKey);
+        }
+      }
+    }
+  }
+
+  /** Generate the side-facing player texture (walking left/right).
+   *  Shows half-face profile, weapon on visible side, body slightly narrower. */
+  private refreshPlayerSpriteSide(player: PlayerState): void {
+    const cls = getPlayerClass(player.appearanceId);
+    const texKey = `player_equipped_side_${player.appearanceId}`;
+    const weaponSpr = getActiveWeaponSprite(player.appearanceId, player.equippedWeapon);
+    if (this.scene.textures.exists(texKey)) this.scene.textures.remove(texKey);
+
+    const gfx = this.scene.add.graphics();
+
+    // Body (slightly narrower for side view)
+    gfx.fillStyle(cls.bodyColor, 1);
+    gfx.fillRect(10, 10, 12, 16);
+    // Side clothing (simplified)
+    this.drawClothingInline(gfx, cls.bodyColor, cls.clothingStyle);
+
+    // Head — half-circle profile facing right (flipX handles left)
+    const skinColor = player.customAppearance?.skinColor ?? cls.skinColor;
+    gfx.fillStyle(skinColor, 1);
+    // Draw right half of the face as a semicircle
+    gfx.fillRect(13, 2, 6, 12); // flat back of head
+    gfx.fillCircle(16, 8, 5);   // smaller face circle, offset
+    // Nose bump
+    gfx.fillRect(21, 7, 2, 3);
+
+    // Eye (small dot on the visible side)
+    gfx.fillStyle(0x222222, 1);
+    gfx.fillRect(19, 6, 2, 2);
+
+    // Hair (side profile)
+    if (player.customAppearance && player.customAppearance.hairStyle > 0) {
+      gfx.fillStyle(player.customAppearance.hairColor, 1);
+      const hs = player.customAppearance.hairStyle;
+      if (hs === 1) {
+        gfx.fillRect(12, 2, 8, 4);
+      } else if (hs === 2) {
+        gfx.fillRect(11, 1, 9, 5);
+        gfx.fillRect(10, 4, 4, 6);
+      } else if (hs === 3) {
+        gfx.fillRect(11, 1, 9, 5);
+        gfx.fillRect(10, 3, 4, 14);
+      }
+    }
+
+    // Legs
+    gfx.fillStyle(cls.legColor, 1);
+    const isMounted = !!player.mountId && !player.position.inDungeon && !player.position.inCity;
+    if (isMounted) {
+      gfx.fillRect(12, 24, 6, 5);
+    } else {
+      // Side view: legs overlapping slightly (one in front of the other)
+      gfx.fillRect(11, 26, 5, 6);
+      gfx.fillRect(16, 26, 5, 6);
+    }
+
+    // Weapon (on right side, visible)
+    this.drawWeaponInline(gfx, weaponSpr);
+    // Shield/off-hand on left side (partially hidden in profile)
+    if (player.equippedShield && !player.equippedWeapon?.twoHanded && !player.equippedOffHand) {
+      // Small shield hint on the back side
+      gfx.fillStyle(0x90a4ae, 1);
+      gfx.fillRect(8, 14, 3, 6);
+    }
+
+    gfx.generateTexture(texKey, TILE_SIZE, TILE_SIZE);
+    gfx.destroy();
   }
 
   /** Inline clothing drawing for OverworldScene sprite refresh. */

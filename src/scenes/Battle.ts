@@ -34,6 +34,7 @@ import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHAR
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
 import { drawTimeSky as _drawTimeSky, drawCelestialBody as _drawCelestialBody, drawTerrainForeground as _drawTerrainForeground, applyBattleDayNightTint, createBattleWeatherParticles } from "../renderers/battleEffects";
+import { PlayerRenderer } from "../renderers/player";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -565,61 +566,181 @@ export class BattleScene extends Phaser.Scene {
     }
 
     const w = this.cameras.main.width;
-    const consumables = this.player.inventory.filter(
-      (item) => item.type === "consumable"
-    );
 
-    if (consumables.length === 0) {
-      this.addLog("No usable items!");
-      return;
-    }
+    // Gather all item categories
+    const consumables = this.player.inventory.filter((item) => item.type === "consumable");
+    const inventoryWeapons = this.player.inventory.filter((item) => item.type === "weapon");
 
-    // Stack consumables by id — group into { item, count, firstIndex }
-    const stacks: { item: typeof consumables[0]; count: number; firstIndex: number }[] = [];
-    const seen = new Map<string, number>(); // id → index in stacks[]
+    // Stack consumables by id
+    type StackEntry = { item: Item; count: number };
+    const stacks: StackEntry[] = [];
+    const seen = new Map<string, number>();
     for (const item of consumables) {
       const existing = seen.get(item.id);
       if (existing !== undefined) {
         stacks[existing].count++;
       } else {
         seen.set(item.id, stacks.length);
-        stacks.push({ item, count: 1, firstIndex: this.player.inventory.indexOf(item) });
+        stacks.push({ item, count: 1 });
       }
     }
 
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - stacks.length * 28 - 10);
+    // Build menu rows
+    type MenuRow = { label: string; color: string; interactive: boolean; action?: () => void };
+    const rows: MenuRow[] = [];
+
+    // --- Consumables section ---
+    if (stacks.length > 0) {
+      rows.push({ label: "― Consumables ―", color: "#c0a060", interactive: false });
+      for (const stack of stacks) {
+        const countLabel = stack.count > 1 ? ` x${stack.count}` : "";
+        rows.push({
+          label: `  ${stack.item.name}${countLabel} - ${stack.item.description}`,
+          color: "#aaffaa",
+          interactive: true,
+          action: () => {
+            const realIndex = this.player.inventory.findIndex(it => it.id === stack.item.id && it.type === "consumable");
+            this.itemMenu?.destroy();
+            this.itemMenu = null;
+            if (realIndex >= 0) this.doUseItem(realIndex);
+          },
+        });
+      }
+    }
+
+    // --- Weapons section (swap as bonus action) ---
+    const hasWeapons = this.player.equippedWeapon || inventoryWeapons.length > 0;
+    if (hasWeapons) {
+      rows.push({ label: "― Weapons ―", color: "#c0a060", interactive: false });
+      // Show currently equipped weapon
+      if (this.player.equippedWeapon) {
+        const eq = this.player.equippedWeapon;
+        rows.push({
+          label: `  ► ${eq.name} (+${eq.effect} dmg) [main]`,
+          color: "#88ff88",
+          interactive: false,
+        });
+      }
+      // Show currently equipped off-hand
+      if (this.player.equippedOffHand) {
+        const oh = this.player.equippedOffHand;
+        rows.push({
+          label: `  ► ${oh.name} (+${oh.effect} dmg) [off]`,
+          color: "#88ff88",
+          interactive: false,
+        });
+      }
+      // Show unequipped inventory weapons (swap as bonus action)
+      for (const wpn of inventoryWeapons) {
+        if (wpn.id === this.player.equippedWeapon?.id) continue;
+        if (wpn.id === this.player.equippedOffHand?.id) continue;
+        rows.push({
+          label: `  ${wpn.name} (+${wpn.effect} dmg) [equip]`,
+          color: "#aaddff",
+          interactive: true,
+          action: () => {
+            this.doBattleWeaponSwap(wpn);
+          },
+        });
+      }
+    }
+
+    // --- Armor & Shield section (display-only, no interaction unless magic effect in future) ---
+    const hasDefense = this.player.equippedArmor || this.player.equippedShield;
+    if (hasDefense) {
+      rows.push({ label: "― Defense ―", color: "#c0a060", interactive: false });
+      if (this.player.equippedArmor) {
+        const arm = this.player.equippedArmor;
+        rows.push({ label: `  ${arm.name} (+${arm.effect} AC) [eq]`, color: "#666", interactive: false });
+      }
+      if (this.player.equippedShield) {
+        const sh = this.player.equippedShield;
+        rows.push({ label: `  ${sh.name} (+${sh.effect} AC) [eq]`, color: "#666", interactive: false });
+      }
+    }
+
+    if (rows.length === 0) {
+      this.addLog("No usable items!");
+      return;
+    }
+
+    const rowH = 22;
+    const menuH = rows.length * rowH + 10;
+    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
     container.setDepth(6);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
-    bg.fillRect(-5, -5, 260, stacks.length * 28 + 10);
+    bg.fillRect(-5, -5, 280, menuH);
     bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, stacks.length * 28 + 10);
+    bg.strokeRect(-5, -5, 280, menuH);
     container.add(bg);
 
-    stacks.forEach((stack, i) => {
-      const countLabel = stack.count > 1 ? ` x${stack.count}` : "";
-      const text = this.add
-        .text(0, i * 28, `${stack.item.name}${countLabel} - ${stack.item.description}`, {
-          fontSize: "12px",
-          fontFamily: "monospace",
-          color: "#aaffaa",
-        })
-        .setInteractive({ useHandCursor: true });
-
-      text.on("pointerover", () => text.setColor("#ffd700"));
-      text.on("pointerout", () => text.setColor("#aaffaa"));
-      text.on("pointerdown", () => {
-        // Find the first inventory index for this item id
-        const realIndex = this.player.inventory.findIndex(it => it.id === stack.item.id && it.type === "consumable");
-        this.itemMenu?.destroy();
-        this.itemMenu = null;
-        if (realIndex >= 0) this.doUseItem(realIndex);
+    rows.forEach((row, i) => {
+      const text = this.add.text(0, i * rowH, row.label, {
+        fontSize: "12px",
+        fontFamily: "monospace",
+        color: row.color,
       });
+      if (row.interactive && row.action) {
+        text.setInteractive({ useHandCursor: true });
+        const baseColor = row.color;
+        text.on("pointerover", () => text.setColor("#ffd700"));
+        text.on("pointerout", () => text.setColor(baseColor));
+        text.on("pointerdown", () => row.action!());
+      }
       container.add(text);
     });
 
     this.itemMenu = container;
+  }
+
+  /** Swap main-hand weapon during battle (bonus action). */
+  private doBattleWeaponSwap(newWeapon: Item): void {
+    if (this.phase !== "playerTurn") return;
+    if (this.bonusActionUsed) {
+      this.addLog("Bonus action already used this turn!");
+      return;
+    }
+
+    const oldWeapon = this.player.equippedWeapon;
+    this.player.equippedWeapon = newWeapon;
+
+    // If new weapon is two-handed, clear shield and off-hand
+    if (newWeapon.twoHanded) {
+      this.player.equippedShield = null;
+      this.player.equippedOffHand = null;
+    }
+    // If new weapon is not light, clear off-hand
+    if (!newWeapon.light || newWeapon.twoHanded) {
+      this.player.equippedOffHand = null;
+    }
+
+    this.bonusActionUsed = true;
+    const swapMsg = oldWeapon
+      ? `Swapped ${oldWeapon.name} → ${newWeapon.name}!`
+      : `Equipped ${newWeapon.name}!`;
+    this.addLog(swapMsg + " (bonus action)");
+    debugPanelLog(`  ↳ [Weapon Swap] ${swapMsg}`, false, "roll-detail");
+
+    // Regenerate player sprite texture to reflect new weapon
+    this.refreshBattlePlayerSprite();
+    this.updatePlayerStats();
+
+    this.closeAllSubMenus();
+  }
+
+  /** Regenerate the player equipped texture and update the battle sprite. */
+  private refreshBattlePlayerSprite(): void {
+    const renderer = new PlayerRenderer(this);
+    // Create a dummy sprite for the renderer (it needs playerSprite to exist)
+    renderer.playerSprite = this.playerSprite;
+    renderer.refreshPlayerSprite(this.player);
+    // The texture is regenerated in-place; update our sprite
+    const texKey = `player_equipped_${this.player.appearanceId}`;
+    if (this.textures.exists(texKey)) {
+      this.playerSprite.setTexture(texKey);
+    }
   }
 
   private updateMonsterDisplay(): void {

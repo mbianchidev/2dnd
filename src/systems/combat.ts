@@ -16,6 +16,13 @@ import {
 } from "./player";
 import { abilityModifier } from "../systems/dice";
 import { getPlayerClass } from "./classes";
+import type { ActiveStatusEffect } from "./statusEffects";
+import {
+  getEffectAccuracyModifier,
+  getEffectDamageModifier,
+  applyStatusEffect,
+  type StatusEffectId,
+} from "./statusEffects";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -107,7 +114,9 @@ export function playerAttack(
   if (!player || !monster) {
     throw new Error(`[combat] playerAttack: missing player or monster`);
   }
-  const attackMod = getAttackModifier(player);
+  const effectAccuracy = getEffectAccuracyModifier(player.activeEffects ?? []);
+  const effectDmg = getEffectDamageModifier(player.activeEffects ?? []);
+  const attackMod = getAttackModifier(player) + effectAccuracy;
   const roll = rollD20(attackMod);
   const effectiveAC = monster.ac + monsterDefendBonus + weatherPenalty;
   const outcome = resolveAttackRoll(roll, effectiveAC);
@@ -128,7 +137,7 @@ export function playerAttack(
     const dexMod = abilityModifier(player.stats.dexterity);
     const isFinesse = player.equippedWeapon?.finesse === true;
     const dmgMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
-    const damage = rollAttackDamage(1, 6, outcome.critical, weaponBonus + talentDmg + dmgMod, outcome.critical ? 0 : 1);
+    const damage = rollAttackDamage(1, 6, outcome.critical, weaponBonus + talentDmg + dmgMod + effectDmg, outcome.critical ? 0 : 1);
     const prefix = outcome.critical ? "CRITICAL HIT! " : "";
     const verb = outcome.critical ? "strikes" : "hits";
     return {
@@ -353,7 +362,8 @@ export function playerUseAbility(
   player: PlayerState,
   abilityId: string,
   monster: Monster,
-  weatherPenalty: number = 0
+  weatherPenalty: number = 0,
+  monsterEffects?: ActiveStatusEffect[],
 ): CombatResult & { mpUsed: number; attackMod?: number; totalRoll?: number; targetAC?: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerUseAbility: missing player or monster`);
@@ -372,6 +382,22 @@ export function playerUseAbility(
     return { message: `${ability.name} cannot be used in battle!`, damage: 0, hit: false, mpUsed: 0 };
   }
 
+  // Buff abilities apply a status effect to self
+  if (ability.type === "buff") {
+    player.mp -= ability.mpCost;
+    const effects = player.activeEffects ?? [];
+    if (!player.activeEffects) player.activeEffects = effects;
+    let effectMsg = "";
+    if (ability.selfEffect) {
+      const result = applyStatusEffect(effects, ability.selfEffect as StatusEffectId, "self");
+      effectMsg = ` ${result.message}`;
+    }
+    return {
+      message: `${player.name} uses ${ability.name}!${effectMsg}`,
+      damage: 0, hit: true, mpUsed: ability.mpCost,
+    };
+  }
+
   // Heal abilities
   if (ability.type === "heal") {
     const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
@@ -385,11 +411,13 @@ export function playerUseAbility(
   }
 
   // Damage ability — uses STR, DEX, or WIS
+  const effectAccuracy = getEffectAccuracyModifier(player.activeEffects ?? []);
+  const effectDmg = getEffectDamageModifier(player.activeEffects ?? []);
   const stat = player.stats[ability.statKey];
   const profBonus = Math.floor((player.level - 1) / 4) + 2;
   const talentAtk = getTalentAttackBonus(player.knownTalents);
   const talentDmg = getTalentDamageBonus(player.knownTalents);
-  const attackMod = abilityModifier(stat) + profBonus + talentAtk;
+  const attackMod = abilityModifier(stat) + profBonus + talentAtk + effectAccuracy;
   const roll = rollD20(attackMod);
   const effectiveAC = monster.ac + weatherPenalty;
   const outcome = resolveAttackRoll(roll, effectiveAC);
@@ -405,10 +433,18 @@ export function playerUseAbility(
   }
 
   if (outcome.hit) {
-    const damage = rollAttackDamage(ability.damageCount, ability.damageDie as DieType, outcome.critical, talentDmg);
+    const damage = rollAttackDamage(ability.damageCount, ability.damageDie as DieType, outcome.critical, talentDmg + effectDmg);
     const prefix = outcome.critical ? "CRITICAL! " : "";
+    // Apply target effect if defined
+    let targetEffectMsg = "";
+    if (ability.targetEffect && monsterEffects) {
+      const result = applyStatusEffect(monsterEffects, ability.targetEffect as StatusEffectId, player.name);
+      if (result.applied) {
+        targetEffectMsg = ` ${result.message}`;
+      }
+    }
     return {
-      message: `${prefix}${player.name} uses ${ability.name}! ${damage} damage!`,
+      message: `${prefix}${player.name} uses ${ability.name}! ${damage} damage!${targetEffectMsg}`,
       damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
     };
   }
@@ -450,8 +486,21 @@ export function monsterUseAbility(
     ? ` ${monster.name} absorbs the life force!`
     : "";
 
+  // Apply status effect if defined
+  let effectMsg = "";
+  if (ability.statusEffect && player.activeEffects) {
+    const result = applyStatusEffect(
+      player.activeEffects,
+      ability.statusEffect as StatusEffectId,
+      monster.name,
+    );
+    if (result.applied) {
+      effectMsg = ` ${result.message}`;
+    }
+  }
+
   return {
-    message: `${monster.name} uses ${ability.name}! ${damage} damage!${selfHealMsg}`,
+    message: `${monster.name} uses ${ability.name}! ${damage} damage!${selfHealMsg}${effectMsg}`,
     damage,
     healing: ability.selfHeal ? damage : 0,
     abilityName: ability.name,

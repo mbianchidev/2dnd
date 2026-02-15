@@ -13,6 +13,7 @@ import type { Item } from "../data/items";
 import { getItem } from "../data/items";
 import { getMount } from "../data/mounts";
 import { getPlayerClass, getClassSpells, getClassAbilities } from "./classes";
+import { type ActiveStatusEffect, cureWithItem, getEffectACModifier } from "./statusEffects";
 
 export interface PlayerStats {
   strength: number;
@@ -98,6 +99,7 @@ export interface PlayerState {
   mountId: string;        // ID of the currently active mount (empty = on foot)
   shortRestsRemaining: number; // short rests available (max 2, reset on inn long rest)
   pendingLevelUps: number; // levels earned but not yet applied (applied on rest)
+  activeEffects: ActiveStatusEffect[]; // combat status effects currently active
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -199,6 +201,7 @@ export function createPlayer(
     mountId: "",
     shortRestsRemaining: 2,
     pendingLevelUps: 0,
+    activeEffects: [],
   };
 }
 
@@ -241,7 +244,8 @@ export function getArmorClass(player: PlayerState, tempBonus: number = 0): numbe
   const baseAC = 10 + abilityModifier(player.stats.dexterity);
   const armorBonus = player.equippedArmor?.effect ?? 0;
   const shieldBonus = player.equippedShield?.effect ?? 0;
-  return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents) + tempBonus;
+  const effectBonus = getEffectACModifier(player.activeEffects ?? []);
+  return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents) + effectBonus + tempBonus;
 }
 
 /** Check if a weapon can be used for Two-Weapon Fighting (must be light and one-handed). */
@@ -468,6 +472,16 @@ export function useItem(
       // here we just consume the item and signal success.
       player.inventory.splice(itemIndex, 1);
       return { used: true, message: "The Chimaera Wing glows and whisks you away!", teleport: true };
+    }
+    // Cure consumables remove matching status effects
+    if (item.cureEffects) {
+      const effects = player.activeEffects ?? [];
+      const cured = cureWithItem(effects, item.id);
+      if (cured.length === 0) {
+        return { used: false, message: "No ailment to cure!" };
+      }
+      player.inventory.splice(itemIndex, 1);
+      return { used: true, message: `Cured: ${cured.join(", ")}!` };
     }
     // All other consumables restore HP (potion, greaterPotion, etc.)
     if (player.hp >= player.maxHp) {

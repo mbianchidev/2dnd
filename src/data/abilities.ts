@@ -13,11 +13,15 @@ export interface Ability {
   levelRequired: number;
   damageCount: number;
   damageDie: DieType;
-  type: "damage" | "heal" | "utility";
+  type: "damage" | "heal" | "utility" | "buff";
   /** Which stat drives the attack roll. */
   statKey: "strength" | "dexterity" | "wisdom" | "charisma";
   /** If true, this ability is a bonus action and does not end the turn. */
   bonusAction?: boolean;
+  /** Status effect to apply to self when used (for type "buff"). */
+  selfEffect?: string;
+  /** Status effect to apply to target on hit (for type "damage"). */
+  targetEffect?: string;
 }
 
 export const ABILITIES: Ability[] = [
@@ -27,6 +31,7 @@ export const ABILITIES: Ability[] = [
     description: "Slam your shield into the foe, stunning them",
     mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 8,
     type: "damage", statKey: "strength",
+    targetEffect: "stunned",
   },
   {
     id: "actionSurge", name: "Action Surge",
@@ -79,6 +84,14 @@ export const ABILITIES: Ability[] = [
     description: "Strike from the shadows for devastating damage",
     mpCost: 2, levelRequired: 1, damageCount: 2, damageDie: 6,
     type: "damage", statKey: "dexterity",
+  },
+  {
+    id: "sneakStance", name: "Sneak",
+    description: "Gain +2 AC for 2 turns (bonus action)",
+    mpCost: 3, levelRequired: 3, damageCount: 0, damageDie: 0,
+    type: "buff", statKey: "dexterity",
+    selfEffect: "sneakStance",
+    bonusAction: true,
   },
   {
     id: "cunningStrike", name: "Cunning Strike",
@@ -141,9 +154,11 @@ export const ABILITIES: Ability[] = [
   },
   {
     id: "rage", name: "Rage",
-    description: "Enter a berserker fury, dealing massive damage",
-    mpCost: 5, levelRequired: 5, damageCount: 3, damageDie: 8,
-    type: "damage", statKey: "strength",
+    description: "Enter a berserker fury — +3 damage for 5 turns",
+    mpCost: 5, levelRequired: 5, damageCount: 0, damageDie: 0,
+    type: "buff", statKey: "strength",
+    selfEffect: "rage",
+    bonusAction: true,
   },
   {
     id: "endure", name: "Relentless Endurance",
@@ -182,6 +197,7 @@ export const ABILITIES: Ability[] = [
     description: "Strike a pressure point with devastating precision",
     mpCost: 10, levelRequired: 15, damageCount: 5, damageDie: 8,
     type: "damage", statKey: "dexterity",
+    targetEffect: "stunned",
   },
 
   // ── Bard (CHA) ────────────────────────────────────────────────

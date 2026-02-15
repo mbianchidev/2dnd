@@ -58,6 +58,14 @@ export function rollWithAdvantage(modifier: number = 0) {
   return { roll1, roll2, chosen: best, modifier, total: best + modifier };
 }
 
+/** Roll with disadvantage (roll 2d20, take lower) + modifier. */
+export function rollWithDisadvantage(modifier: number = 0) {
+  const roll1 = rollDie(20);
+  const roll2 = rollDie(20);
+  const worst = Math.min(roll1, roll2);
+  return { roll1, roll2, chosen: worst, modifier, total: worst + modifier };
+}
+
 /**
  * Roll a single ability score using the classic 4d6-drop-lowest method.
  * Rolls 4d6 and sums the highest 3.

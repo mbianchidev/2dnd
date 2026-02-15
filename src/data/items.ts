@@ -18,6 +18,8 @@ export interface Item {
   weaponSprite?: WeaponSpriteType;
   levelReq?: number; // minimum player level to purchase
   mountId?: string; // for type "mount" — references a MountData id
+  /** If true, this consumable cures status effects that reference its ID. */
+  cureEffects?: boolean;
 }
 
 export const ITEMS: Item[] = [
@@ -45,6 +47,52 @@ export const ITEMS: Item[] = [
     cost: 50,
     effect: 50,
     levelReq: 5,
+  },
+  // --- Cure consumables (status effect remedies) ---
+  {
+    id: "antidote",
+    name: "Antidote",
+    description: "Cures poison",
+    type: "consumable",
+    cost: 20,
+    effect: 0,
+    cureEffects: true,
+  },
+  {
+    id: "burnSalve",
+    name: "Burn Salve",
+    description: "Soothes and cures burns",
+    type: "consumable",
+    cost: 20,
+    effect: 0,
+    cureEffects: true,
+  },
+  {
+    id: "thawingTonic",
+    name: "Thawing Tonic",
+    description: "Thaws frozen limbs",
+    type: "consumable",
+    cost: 25,
+    effect: 0,
+    cureEffects: true,
+  },
+  {
+    id: "paralysisRemedy",
+    name: "Paralysis Remedy",
+    description: "Restores movement to paralyzed muscles",
+    type: "consumable",
+    cost: 30,
+    effect: 0,
+    cureEffects: true,
+  },
+  {
+    id: "smellingSalts",
+    name: "Smelling Salts",
+    description: "Rouses from sleep or fright",
+    type: "consumable",
+    cost: 15,
+    effect: 0,
+    cureEffects: true,
   },
   // --- Class starting weapons (cost 0, given at character creation) ---
   {

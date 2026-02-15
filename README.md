@@ -115,8 +115,7 @@ src/
 │   ├── codex.ts         # Monster tracking & AC discovery (formerly bestiary)
 │   ├── daynight.ts      # Day/night cycle (360-step)
 │   ├── weather.ts       # Weather system (6 types, biome-weighted)
-│   ├── debug.ts         # Shared debug hotkeys & slash commands
-│   ├── debugCommands.ts # Overworld-specific debug hotkeys & slash commands
+│   ├── debug.ts         # Debug hotkeys & slash commands (shared & overworld-specific)
 │   ├── dice.ts          # D&D dice rolling utilities
 │   ├── movement.ts      # Grid movement logic & chunk transitions
 │   └── save.ts          # Save/load (localStorage)

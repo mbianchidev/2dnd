@@ -27,7 +27,8 @@ import {
 import { abilityModifier } from "../systems/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { CodexData } from "../systems/codex";
-import { recordDefeat, discoverAC } from "../systems/codex";
+import { recordDefeat, discoverAC, discoverElement } from "../systems/codex";
+import type { Element } from "../data/elements";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
@@ -607,6 +608,8 @@ export class BattleScene extends Phaser.Scene {
       this.monsterHp = Math.max(0, this.monsterHp - result.damage);
       this.updateMonsterDisplay();
       this.updatePlayerStats();
+      const abilityData = getAbility(abilityId);
+      this.recordElementalDiscovery(result.elementalLabel, abilityData?.element);
 
       // Play distinct sounds for ability outcomes
       if (audioEngine.initialized) {
@@ -1024,6 +1027,7 @@ export class BattleScene extends Phaser.Scene {
       this.addLog(result.message + this.formatPlayerRoll(result.roll, result.attackMod, result.totalRoll, result.hit, result.critical));
       this.monsterHp = Math.max(0, this.monsterHp - result.damage);
       this.updateMonsterDisplay();
+      this.recordElementalDiscovery(result.elementalLabel, this.player.equippedWeapon?.element);
 
       // Play distinct attack sounds based on outcome
       if (audioEngine.initialized) {
@@ -1059,6 +1063,7 @@ export class BattleScene extends Phaser.Scene {
         this.addLog(offResult.message + this.formatPlayerRoll(offResult.roll, offResult.attackMod, offResult.totalRoll, offResult.hit, offResult.critical));
         this.monsterHp = Math.max(0, this.monsterHp - offResult.damage);
         this.updateMonsterDisplay();
+        this.recordElementalDiscovery(offResult.elementalLabel, this.player.equippedOffHand?.element);
 
         if (audioEngine.initialized) {
           if (offResult.critical) audioEngine.playCriticalHitSFX();
@@ -1128,6 +1133,8 @@ export class BattleScene extends Phaser.Scene {
       this.monsterHp = Math.max(0, this.monsterHp - result.damage);
       this.updateMonsterDisplay();
       this.updatePlayerStats();
+      const spellData = getSpell(spellId);
+      this.recordElementalDiscovery(result.elementalLabel, spellData?.element);
 
       if (result.hit && result.damage > 0) {
         if (audioEngine.initialized) audioEngine.playAttackSFX();
@@ -1499,5 +1506,12 @@ export class BattleScene extends Phaser.Scene {
         savedSpecialNpcs: this.savedSpecialNpcs,
       });
     });
+  }
+
+  /** Record an elemental discovery when an elemental interaction is observed in combat. */
+  private recordElementalDiscovery(elementalLabel: string | undefined, element: Element | undefined): void {
+    if (elementalLabel && element) {
+      discoverElement(this.codex, this.monster.id, element);
+    }
   }
 }

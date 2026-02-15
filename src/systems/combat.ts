@@ -16,6 +16,8 @@ import {
 } from "./player";
 import { abilityModifier } from "../systems/dice";
 import { getPlayerClass } from "./classes";
+import { applyElementalModifier, elementDisplayName } from "../data/elements";
+import type { Element } from "../data/elements";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -29,6 +31,8 @@ export interface CombatResult {
   hit: boolean;
   critical?: boolean;
   roll?: number;
+  /** Describes the elemental interaction (e.g., "weak", "resistant", "immune"). */
+  elementalLabel?: string;
 }
 
 export interface CombatState {
@@ -80,6 +84,20 @@ function rollAttackDamage(
   return Math.max(minDamage, rollDice(dice, die) + bonusDamage);
 }
 
+/** Build a display message suffix for elemental interactions. */
+function buildElementalMessage(
+  targetName: string,
+  element: Element | undefined,
+  label: string
+): string {
+  if (!label || !element) return "";
+  const eName = elementDisplayName(element);
+  if (label === "immune") return ` ${targetName} is immune to ${eName}!`;
+  if (label === "weak") return ` ${targetName} is weak to ${eName}!`;
+  if (label === "resistant") return ` ${targetName} resists ${eName}!`;
+  return "";
+}
+
 /** Roll initiative to determine who goes first. */
 export function rollInitiative(
   playerDexMod: number,
@@ -128,12 +146,15 @@ export function playerAttack(
     const dexMod = abilityModifier(player.stats.dexterity);
     const isFinesse = player.equippedWeapon?.finesse === true;
     const dmgMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
-    const damage = rollAttackDamage(1, 6, outcome.critical, weaponBonus + talentDmg + dmgMod, outcome.critical ? 0 : 1);
+    const baseDamage = rollAttackDamage(1, 6, outcome.critical, weaponBonus + talentDmg + dmgMod, outcome.critical ? 0 : 1);
+    const weaponElement = player.equippedWeapon?.element;
+    const { damage, label: elementalLabel } = applyElementalModifier(baseDamage, weaponElement, monster.elementalProfile);
     const prefix = outcome.critical ? "CRITICAL HIT! " : "";
     const verb = outcome.critical ? "strikes" : "hits";
+    const elemMsg = buildElementalMessage(monster.name, weaponElement, elementalLabel);
     return {
-      message: `${prefix}${player.name} ${verb} for ${damage} damage!`,
-      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
+      message: `${prefix}${player.name} ${verb} for ${damage} damage!${elemMsg}`,
+      damage, hit: true, critical: outcome.critical, roll: outcome.roll, elementalLabel, ...meta,
     };
   }
 
@@ -185,13 +206,16 @@ export function playerOffHandAttack(
     })();
     const addAbilityMod = hasTwoWeaponFighting(player) || primaryStatMod < 0;
     const abilityDmgBonus = addAbilityMod ? primaryStatMod : 0;
-    const damage = rollAttackDamage(1, 6, outcome.critical, offHandBonus + talentDmg + abilityDmgBonus, outcome.critical ? 0 : 1);
+    const baseDamage = rollAttackDamage(1, 6, outcome.critical, offHandBonus + talentDmg + abilityDmgBonus, outcome.critical ? 0 : 1);
+    const offHandElement = player.equippedOffHand.element;
+    const { damage, label: elementalLabel } = applyElementalModifier(baseDamage, offHandElement, monster.elementalProfile);
     const prefix = outcome.critical ? "CRITICAL HIT! " : "";
     const verb = outcome.critical ? "strikes" : "hits";
     const hand = "off-hand";
+    const elemMsg = buildElementalMessage(monster.name, offHandElement, elementalLabel);
     return {
-      message: `${prefix}${player.name}'s ${hand} ${verb} for ${damage} damage!`,
-      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
+      message: `${prefix}${player.name}'s ${hand} ${verb} for ${damage} damage!${elemMsg}`,
+      damage, hit: true, critical: outcome.critical, roll: outcome.roll, elementalLabel, ...meta,
     };
   }
 
@@ -270,11 +294,13 @@ export function playerCastSpell(
 
   if (outcome.hit) {
     const talentDmg = getTalentDamageBonus(player.knownTalents);
-    const damage = rollDice(spell.damageCount, spell.damageDie as DieType) + talentDmg;
+    const baseDamage = rollDice(spell.damageCount, spell.damageDie as DieType) + talentDmg;
+    const { damage, label: elementalLabel } = applyElementalModifier(baseDamage, spell.element, monster.elementalProfile);
+    const elemMsg = buildElementalMessage(monster.name, spell.element, elementalLabel);
     return {
-      message: `${player.name} casts ${spell.name}! ${damage} damage!`,
+      message: `${player.name} casts ${spell.name}! ${damage} damage!${elemMsg}`,
       damage, hit: true, mpUsed: spell.mpCost, roll: roll.roll,
-      spellMod, totalRoll: roll.total, targetAC: effectiveAC, autoHit,
+      spellMod, totalRoll: roll.total, targetAC: effectiveAC, autoHit, elementalLabel,
     };
   }
 
@@ -405,11 +431,13 @@ export function playerUseAbility(
   }
 
   if (outcome.hit) {
-    const damage = rollAttackDamage(ability.damageCount, ability.damageDie as DieType, outcome.critical, talentDmg);
+    const baseDamage = rollAttackDamage(ability.damageCount, ability.damageDie as DieType, outcome.critical, talentDmg);
+    const { damage, label: elementalLabel } = applyElementalModifier(baseDamage, ability.element, monster.elementalProfile);
     const prefix = outcome.critical ? "CRITICAL! " : "";
+    const elemMsg = buildElementalMessage(monster.name, ability.element, elementalLabel);
     return {
-      message: `${prefix}${player.name} uses ${ability.name}! ${damage} damage!`,
-      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
+      message: `${prefix}${player.name} uses ${ability.name}! ${damage} damage!${elemMsg}`,
+      damage, hit: true, critical: outcome.critical, roll: outcome.roll, elementalLabel, ...meta,
     };
   }
 
@@ -426,6 +454,8 @@ export interface MonsterAbilityResult {
   damage: number;
   healing: number;
   abilityName: string;
+  /** Element of the ability used, if any. */
+  element?: Element;
 }
 
 /** Monster uses a special ability instead of its basic attack. */
@@ -438,7 +468,7 @@ export function monsterUseAbility(
     const healing = rollDice(ability.damageCount, ability.damageDie);
     return {
       message: `${monster.name} uses ${ability.name}! Recovers ${healing} HP!`,
-      damage: 0, healing, abilityName: ability.name,
+      damage: 0, healing, abilityName: ability.name, element: ability.element,
     };
   }
 
@@ -450,10 +480,15 @@ export function monsterUseAbility(
     ? ` ${monster.name} absorbs the life force!`
     : "";
 
+  const elemSuffix = ability.element
+    ? ` (${elementDisplayName(ability.element)})`
+    : "";
+
   return {
-    message: `${monster.name} uses ${ability.name}! ${damage} damage!${selfHealMsg}`,
+    message: `${monster.name} uses ${ability.name}!${elemSuffix} ${damage} damage!${selfHealMsg}`,
     damage,
     healing: ability.selfHeal ? damage : 0,
     abilityName: ability.name,
+    element: ability.element,
   };
 }

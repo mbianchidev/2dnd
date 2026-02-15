@@ -14,6 +14,7 @@ import {
   getTerrainAt,
   getDungeon,
   getCity,
+  getCityChunkMap,
 } from "../data/map";
 
 /** Result of a grid move attempt. */
@@ -58,10 +59,11 @@ export function tryGridMove(
   if (player.position.inCity) {
     const city = getCity(player.position.cityId);
     if (!city) return noMove;
+    const chunkMap = getCityChunkMap(city, player.position.cityChunkIndex);
     const newX = player.position.x + dx;
     const newY = player.position.y + dy;
     if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return noMove;
-    const terrain = city.mapData[newY][newX];
+    const terrain = chunkMap[newY][newX];
     if (!isWalkable(terrain)) return noMove;
     player.position.x = newX;
     player.position.y = newY;

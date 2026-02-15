@@ -1360,13 +1360,7 @@ export class OverlayManager {
     const w = MAP_WIDTH * TILE_SIZE;
     const h = MAP_HEIGHT * TILE_SIZE;
 
-    const visitedCityIds = new Set<string>();
-    for (const key of Object.keys(player.progression.exploredTiles)) {
-      if (key.startsWith("c:")) {
-        const cityId = key.split(",")[0].substring(2);
-        visitedCityIds.add(cityId);
-      }
-    }
+    const visitedCityIds = new Set<string>(player.progression.discoveredCities);
 
     const visitedCities = CITIES.filter((c) => visitedCityIds.has(c.id));
 
@@ -1423,7 +1417,7 @@ export class OverlayManager {
             player.position.x = city.tileX;
             player.position.y = city.tileY;
             if (player.position.inDungeon) { player.position.inDungeon = false; player.position.dungeonId = ""; }
-            if (player.position.inCity) { player.position.inCity = false; player.position.cityId = ""; }
+            if (player.position.inCity) { player.position.inCity = false; player.position.cityId = ""; player.position.cityChunkIndex = 0; }
             this.dismissTownPicker();
             audioEngine.playTeleportSFX();
             this.callbacks.showMessage(`Teleported to ${city.name}!`, "#88ff88");

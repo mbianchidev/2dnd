@@ -82,6 +82,7 @@ export function loadGame(): SaveData | null {
         dungeonId: playerAny.dungeonId ?? "",
         inCity: playerAny.inCity ?? false,
         cityId: playerAny.cityId ?? "",
+        cityChunkIndex: 0,
       };
       // Clean up old flat fields
       delete playerAny.x;
@@ -100,6 +101,7 @@ export function loadGame(): SaveData | null {
         openedChests: playerAny.openedChests ?? [],
         collectedTreasures: playerAny.collectedTreasures ?? [],
         exploredTiles: playerAny.exploredTiles ?? {},
+        discoveredCities: [],
       };
       // Clean up old flat fields
       delete playerAny.openedChests;
@@ -122,6 +124,18 @@ export function loadGame(): SaveData | null {
     if (data.player.mountId === undefined) data.player.mountId = "";
     // Backward compat: short rest system
     if (data.player.shortRestsRemaining === undefined) data.player.shortRestsRemaining = 2;
+    // Backward compat: multi-chunk city system
+    if (data.player.position.cityChunkIndex === undefined) data.player.position.cityChunkIndex = 0;
+    if (!data.player.progression.discoveredCities) {
+      // Derive discovered cities from explored tiles (c:<cityId>,x,y keys)
+      const ids = new Set<string>();
+      for (const key of Object.keys(data.player.progression.exploredTiles)) {
+        if (key.startsWith("c:")) {
+          ids.add(key.split(",")[0].substring(2));
+        }
+      }
+      data.player.progression.discoveredCities = [...ids];
+    }
     return data;
   } catch {
     return null;

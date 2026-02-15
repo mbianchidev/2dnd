@@ -4,7 +4,7 @@
  */
 
 import { Terrain } from "./mapTypes";
-import type { CityData, CityShopData } from "./mapTypes";
+import type { CityData, CityShopData, CityChunk } from "./mapTypes";
 
 // ─── City Interior Maps ─────────────────────────────────────────
 const cW = Terrain.CityWall;
@@ -466,4 +466,75 @@ export function getCityShopNearby(city: CityData, x: number, y: number): CitySho
     }
   }
   return undefined;
+}
+
+// ─── Multi-Chunk City Helpers ────────────────────────────────────
+
+/** Get the total number of chunks in a city (primary + extra districts). */
+export function getCityChunkCount(city: CityData): number {
+  return 1 + (city.chunks?.length ?? 0);
+}
+
+/**
+ * Get a specific city chunk by index.
+ * Index 0 returns the primary chunk built from the city's top-level fields.
+ * Index 1+ returns entries from the `chunks` array.
+ */
+export function getCityChunk(city: CityData, chunkIndex: number): CityChunk | undefined {
+  if (chunkIndex === 0) {
+    return {
+      name: city.name,
+      mapData: city.mapData,
+      spawnX: city.spawnX,
+      spawnY: city.spawnY,
+      shops: city.shops,
+    };
+  }
+  return city.chunks?.[chunkIndex - 1];
+}
+
+/**
+ * Get the map data for a specific city chunk.
+ * Falls back to the primary chunk if the index is out of range.
+ */
+export function getCityChunkMap(city: CityData, chunkIndex: number): Terrain[][] {
+  const chunk = getCityChunk(city, chunkIndex);
+  return chunk?.mapData ?? city.mapData;
+}
+
+/**
+ * Get the spawn point for a specific city chunk.
+ */
+export function getCityChunkSpawn(city: CityData, chunkIndex: number): { x: number; y: number } {
+  const chunk = getCityChunk(city, chunkIndex);
+  return { x: chunk?.spawnX ?? city.spawnX, y: chunk?.spawnY ?? city.spawnY };
+}
+
+/**
+ * Get shops in a specific city chunk.
+ */
+export function getCityChunkShops(city: CityData, chunkIndex: number): CityShopData[] {
+  const chunk = getCityChunk(city, chunkIndex);
+  return chunk?.shops ?? city.shops;
+}
+
+/**
+ * Find a shop at a position within a specific city chunk.
+ */
+export function getCityChunkShopAt(city: CityData, chunkIndex: number, x: number, y: number): CityShopData | undefined {
+  const shops = getCityChunkShops(city, chunkIndex);
+  return shops.find((s) => s.x === x && s.y === y);
+}
+
+/**
+ * Get all city chunk names for a city (used for city map display).
+ */
+export function getCityChunkNames(city: CityData): string[] {
+  const names = [city.name];
+  if (city.chunks) {
+    for (const chunk of city.chunks) {
+      names.push(chunk.name);
+    }
+  }
+  return names;
 }

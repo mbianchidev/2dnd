@@ -16,10 +16,15 @@ export {
   MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT,
   type TownData, type BossData, type WorldChunk,
   type DungeonData, type ChestData, type CityShopData, type CityData,
+  type CityChunk,
 } from "./mapTypes";
 
 export { DUNGEONS } from "./dungeons";
-export { CITIES, INN_COSTS, getInnCost, getCity, getCityForTown, getCityShopAt, getCityShopNearby } from "./cities";
+export {
+  CITIES, INN_COSTS, getInnCost, getCity, getCityForTown, getCityShopAt, getCityShopNearby,
+  getCityChunkCount, getCityChunk, getCityChunkMap, getCityChunkSpawn, getCityChunkShops,
+  getCityChunkShopAt, getCityChunkNames,
+} from "./cities";
 export { WORLD_CHUNKS, REGION_COLORS, getChunk, getTerrainAt, getAllTowns, getAllBosses } from "./chunks";
 
 import { Terrain, MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT } from "./mapTypes";

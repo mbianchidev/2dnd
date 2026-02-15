@@ -33,6 +33,7 @@ export interface PlayerPosition {
   dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
   inCity: boolean;     // true when inside a city interior
   cityId: string;      // ID of the current city (empty if not in city)
+  cityChunkIndex: number; // index of the current city chunk (0 = primary)
 }
 
 /** Player progression tracking (chests, treasures, fog of war). */
@@ -40,6 +41,7 @@ export interface PlayerProgression {
   openedChests: string[]; // IDs of chests already opened
   collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
+  discoveredCities: string[]; // IDs of cities the player has visited (enables fast travel)
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -184,11 +186,13 @@ export function createPlayer(
       dungeonId: "",
       inCity: false,
       cityId: "",
+      cityChunkIndex: 0,
     },
     progression: {
       openedChests: [],
       collectedTreasures: [],
       exploredTiles: {},
+      discoveredCities: [],
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,

@@ -41,12 +41,12 @@ src/
 │   ├── daynight.ts      # Day/night cycle (360-step: Dawn/Day/Dusk/Night)
 │   ├── weather.ts       # Weather system (Clear/Rain/Snow/Sandstorm/Storm/Fog)
 │   ├── audio.ts         # Procedural Web Audio API engine (biome/battle/boss/city music, SFX)
-│   ├── debug.ts         # Shared debug hotkeys & slash commands
-│   ├── debugCommands.ts # Overworld-specific debug hotkeys & slash commands
+│   ├── debug.ts         # Shared debug hotkeys, slash commands, and overworld DebugCommandSystem
 │   ├── dice.ts          # D&D dice rolling utilities (d20, 4d6-drop-lowest, ability modifiers)
 │   └── movement.ts      # Grid movement logic & chunk transitions
 ├── renderers/           # Visual rendering subsystems (extracted from Overworld)
 │   ├── textures.ts      # All procedural texture/asset generation (tiles, sprites, UI, backgrounds)
+│   ├── battleEffects.ts # Battle scene sky, celestial bodies, terrain foreground, weather particles
 │   ├── map.ts           # Tile map rendering, weather particles, day/night tint
 │   ├── city.ts          # City animals, NPCs, shop roofs, NPC textures
 │   ├── player.ts        # Player sprite creation, equipment rendering

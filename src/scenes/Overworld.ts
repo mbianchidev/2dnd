@@ -70,7 +70,7 @@ import { PlayerRenderer } from "../renderers/player";
 import { DialogueSystem } from "../managers/dialogue";
 import { SpecialNpcManager, type SpecialNpcCallbacks } from "../managers/specialNpc";
 import { OverlayManager } from "../managers/overlay";
-import { DebugCommandSystem, type TimeStepRef } from "../systems/debugCommands";
+import { DebugCommandSystem, type TimeStepRef } from "../systems/debug";
 import { findAdjacentNpc, findAdjacentAnimal } from "../managers/npc";
 
 const TILE_SIZE = 32;

@@ -236,7 +236,7 @@ describe("game data", () => {
       // Cleric-specific spells
       expect(getSpell("sacredFlame")).toBeDefined();
       expect(getSpell("spiritGuardians")).toBeDefined();
-      // Mage-specific spells
+      // Wizard-specific spells
       expect(getSpell("arcaneRecovery")).toBeDefined();
     });
 
@@ -672,10 +672,10 @@ describe("game data", () => {
   });
 
   describe("class system", () => {
-    it("has 10 distinct classes", () => {
-      expect(PLAYER_CLASSES).toHaveLength(10);
+    it("has 12 distinct classes", () => {
+      expect(PLAYER_CLASSES).toHaveLength(12);
       const ids = PLAYER_CLASSES.map((a) => a.id);
-      expect(new Set(ids).size).toBe(10);
+      expect(new Set(ids).size).toBe(12);
     });
 
     it("each class has description and playstyle", () => {
@@ -697,9 +697,9 @@ describe("game data", () => {
       expect(barbarian.hitDie).toBe(12);
     });
 
-    it("mage has the lowest hit die (d6)", () => {
-      const mage = getPlayerClass("mage");
-      expect(mage.hitDie).toBe(6);
+    it("wizard has the lowest hit die (d6)", () => {
+      const wizard = getPlayerClass("wizard");
+      expect(wizard.hitDie).toBe(6);
     });
 
     it("each class has a weapon sprite type", () => {

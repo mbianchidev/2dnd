@@ -199,6 +199,32 @@ export const ABILITIES: Ability[] = [
     type: "damage", statKey: "charisma",
   },
 
+  // ── Druid (WIS) ──────────────────────────────────────────────
+  {
+    id: "thornWhip", name: "Thorn Whip",
+    description: "Lash out with a thorny vine that rends flesh",
+    mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 8,
+    type: "damage", statKey: "wisdom",
+  },
+  {
+    id: "wildShape", name: "Wild Shape",
+    description: "Channel primal energy to heal wounds through bestial vigor",
+    mpCost: 4, levelRequired: 3, damageCount: 2, damageDie: 8,
+    type: "heal", statKey: "wisdom",
+  },
+  {
+    id: "naturesWrath", name: "Nature's Wrath",
+    description: "Command the forces of nature to crush your enemy",
+    mpCost: 6, levelRequired: 7, damageCount: 3, damageDie: 8,
+    type: "damage", statKey: "wisdom",
+  },
+  {
+    id: "primalStrike", name: "Primal Strike",
+    description: "Strike with the raw fury of the natural world",
+    mpCost: 10, levelRequired: 13, damageCount: 4, damageDie: 10,
+    type: "damage", statKey: "wisdom",
+  },
+
   // ── Fast Travel (all classes) ────────────────────────────────
   {
     id: "fastTravel", name: "Fast Travel",

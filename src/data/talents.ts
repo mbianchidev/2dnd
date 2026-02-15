@@ -107,27 +107,27 @@ export const TALENTS: Talent[] = [
     classRestriction: ["ranger"],
   },
 
-  // ── Mage talents ──────────────────────────────────────────────
+  // ── Wizard / Sorcerer talents ─────────────────────────────────
   {
     id: "arcaneWard", name: "Arcane Ward",
     description: "+5 max MP — reserve of arcane energy",
     levelRequired: 4,
     maxMpBonus: 5,
-    classRestriction: ["mage"],
+    classRestriction: ["wizard", "sorcerer"],
   },
   {
     id: "spellMastery", name: "Spell Mastery",
     description: "+2 attack — focused spell precision",
     levelRequired: 8,
     attackBonus: 2,
-    classRestriction: ["mage"],
+    classRestriction: ["wizard", "sorcerer"],
   },
   {
     id: "overchannel", name: "Overchannel",
     description: "+3 damage — push spells beyond limits",
     levelRequired: 13,
     damageBonus: 3,
-    classRestriction: ["mage"],
+    classRestriction: ["wizard", "sorcerer"],
   },
 
   // ── Rogue talents ─────────────────────────────────────────────

@@ -77,10 +77,10 @@ describe("player system", () => {
     });
 
     it("applies class boosts correctly for different classes", () => {
-      // Mage: INT+2, WIS+1
-      const mage = createPlayer("TestMage", { ...defaultStats, intelligence: 15 }, "mage");
-      expect(mage.stats.intelligence).toBe(17); // 15 + 2
-      expect(mage.stats.wisdom).toBe(11); // 10 + 1
+      // Wizard: INT+2, WIS+1
+      const wizard = createPlayer("TestWizard", { ...defaultStats, intelligence: 15 }, "wizard");
+      expect(wizard.stats.intelligence).toBe(17); // 15 + 2
+      expect(wizard.stats.wisdom).toBe(11); // 10 + 1
 
       // Rogue: DEX+2, CHA+1
       const rogue = createPlayer("TestRogue", defaultStats, "rogue");
@@ -365,7 +365,7 @@ describe("player system", () => {
     it("each class has unique starting spell or ability", () => {
       const startingSpells = new Set<string>();
       const startingAbilities = new Set<string>();
-      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"]) {
+      for (const classId of ["knight", "ranger", "wizard", "sorcerer", "rogue", "paladin", "warlock", "cleric", "druid", "barbarian", "monk", "bard"]) {
         const player = createPlayer("Test", defaultStats, classId);
         if (player.knownSpells.length > 0) startingSpells.add(player.knownSpells[0]);
         if (player.knownAbilities.length > 0) startingAbilities.add(player.knownAbilities[0]);
@@ -384,9 +384,9 @@ describe("player system", () => {
       expect(monk.knownSpells).toEqual([]);
     });
 
-    it("mage has no martial damage abilities", () => {
-      const mage = createPlayer("Mage", defaultStats, "mage");
-      const damageAbilities = mage.knownAbilities.filter((id) => {
+    it("wizard has no martial damage abilities", () => {
+      const wizard = createPlayer("Wizard", defaultStats, "wizard");
+      const damageAbilities = wizard.knownAbilities.filter((id) => {
         const ab = getAbility(id);
         return ab && ab.type === "damage";
       });
@@ -394,11 +394,11 @@ describe("player system", () => {
     });
 
     it("attack modifier uses class primary stat", () => {
-      // Mage has primaryStat=intelligence, so attack mod depends on INT
-      const mageStats = { ...defaultStats, intelligence: 16 };
-      const mage = createPlayer("Mage", mageStats, "mage");
+      // Wizard has primaryStat=intelligence, so attack mod depends on INT
+      const wizardStats = { ...defaultStats, intelligence: 16 };
+      const wizard = createPlayer("Wizard", wizardStats, "wizard");
       // INT 16+2=18 -> mod +4, proficiency +2 = 6
-      expect(getAttackModifier(mage)).toBe(6);
+      expect(getAttackModifier(wizard)).toBe(6);
 
       // Knight has primaryStat=strength, so attack mod depends on STR
       const knightStats = { ...defaultStats, strength: 16 };
@@ -442,7 +442,7 @@ describe("player system", () => {
     });
 
     it("each class starts with a weapon equipped", () => {
-      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"]) {
+      for (const classId of ["knight", "ranger", "wizard", "sorcerer", "rogue", "paladin", "warlock", "cleric", "druid", "barbarian", "monk", "bard"]) {
         const player = createPlayer("Test", defaultStats, classId);
         expect(player.equippedWeapon, `${classId} should start with a weapon`).not.toBeNull();
         expect(player.inventory.length, `${classId} should have weapon in inventory`).toBeGreaterThanOrEqual(1);
@@ -451,11 +451,11 @@ describe("player system", () => {
 
     it("different classes start with different weapons", () => {
       const knight = createPlayer("K", defaultStats, "knight");
-      const mage = createPlayer("M", defaultStats, "mage");
+      const wizard = createPlayer("M", defaultStats, "wizard");
       const rogue = createPlayer("R", defaultStats, "rogue");
       const bard = createPlayer("B", defaultStats, "bard");
       expect(knight.equippedWeapon?.id).toBe("startSword");
-      expect(mage.equippedWeapon?.id).toBe("startStaff");
+      expect(wizard.equippedWeapon?.id).toBe("startStaff");
       expect(rogue.equippedWeapon?.id).toBe("startDagger");
       expect(bard.equippedWeapon?.id).toBe("startRapier");
     });
@@ -569,7 +569,7 @@ describe("player system", () => {
     });
 
     it("refuses damage spells outside combat", () => {
-      const player = createPlayer("Test", defaultStats, "mage");
+      const player = createPlayer("Test", defaultStats, "wizard");
 
       const result = castSpellOutsideCombat(player, "fireBolt");
       expect(result.success).toBe(false);
@@ -615,7 +615,7 @@ describe("player system", () => {
     });
 
     it("all classes start with shortRest", () => {
-      const classes = ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"];
+      const classes = ["knight", "ranger", "wizard", "sorcerer", "rogue", "paladin", "warlock", "cleric", "druid", "barbarian", "monk", "bard"];
       for (const cls of classes) {
         const player = createPlayer("Test", defaultStats, cls);
         expect(player.knownAbilities, `${cls} should know shortRest`).toContain("shortRest");

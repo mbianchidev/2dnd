@@ -40,7 +40,7 @@ export interface PlayerClass {
 }
 
 /** Classes that rely primarily on spells rather than martial abilities. */
-export const CASTER_CLASSES = ["mage", "warlock", "cleric", "bard"];
+export const CASTER_CLASSES = ["wizard", "sorcerer", "warlock", "cleric", "bard"];
 
 export function isCasterClass(classId: string): boolean {
   return CASTER_CLASSES.includes(classId);
@@ -84,10 +84,10 @@ export const PLAYER_CLASSES: PlayerClass[] = [
     startingGoldDice: 5,
   },
   {
-    id: "mage", label: "Mage",
-    description: "A scholarly arcanist who commands devastating elemental magic.",
-    playstyle: "Ranged Magic DPS",
-    bodyColor: 0x6a1b9a, skinColor: 0xffccbc, legColor: 0x4a148c,
+    id: "wizard", label: "Wizard",
+    description: "A scholarly arcanist who masters arcane magic through study and intellect.",
+    playstyle: "Ranged Magic DPS / Control",
+    bodyColor: 0x283593, skinColor: 0xffccbc, legColor: 0x1a237e,
     statBoosts: { intelligence: 2, wisdom: 1 },
     primaryStat: "intelligence",
     hitDie: 6,
@@ -102,6 +102,26 @@ export const PLAYER_CLASSES: PlayerClass[] = [
     startingWeaponId: "startStaff",
     clothingStyle: "robe",
     startingGoldDice: 4,
+  },
+  {
+    id: "sorcerer", label: "Sorcerer",
+    description: "A natural-born wielder of chaotic arcane power, fueled by innate magic.",
+    playstyle: "Ranged Magic DPS / Burst",
+    bodyColor: 0xc62828, skinColor: 0xffd8cc, legColor: 0x8e0000,
+    statBoosts: { charisma: 2, constitution: 1 },
+    primaryStat: "charisma",
+    hitDie: 6,
+    spells: [
+      "fireBolt", "magicMissile", "thunderwave",
+      "fireball", "lightningBolt", "chainLightning",
+      "coneOfCold", "meteorSwarm",
+      "teleport",
+    ],
+    abilities: ["fastTravel", "evac", "shortRest"],
+    weaponSprite: "staff",
+    startingWeaponId: "startStaff",
+    clothingStyle: "robe",
+    startingGoldDice: 3,
   },
   {
     id: "rogue", label: "Rogue",
@@ -176,6 +196,26 @@ export const PLAYER_CLASSES: PlayerClass[] = [
     startingWeaponId: "startMace",
     clothingStyle: "vestment",
     startingGoldDice: 5,
+  },
+  {
+    id: "druid", label: "Druid",
+    description: "A guardian of nature who wields primal magic and fights with bestial ferocity.",
+    playstyle: "Melee / Caster Hybrid",
+    bodyColor: 0x33691e, skinColor: 0xd7ccc8, legColor: 0x1b5e20,
+    statBoosts: { wisdom: 2, constitution: 1 },
+    primaryStat: "wisdom",
+    hitDie: 8,
+    spells: [
+      "cureWounds", "healingWord",
+      "thunderwave", "spiritGuardians",
+      "greaterHeal", "heal",
+      "teleport",
+    ],
+    abilities: ["thornWhip", "wildShape", "naturesWrath", "primalStrike", "fastTravel", "evac", "shortRest"],
+    weaponSprite: "staff",
+    startingWeaponId: "startStaff",
+    clothingStyle: "leather",
+    startingGoldDice: 4,
   },
   {
     id: "barbarian", label: "Barbarian",

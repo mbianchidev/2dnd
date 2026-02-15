@@ -444,15 +444,31 @@ export class BattleScene extends Phaser.Scene {
     });
 
     if (totalPages > 1) {
-      const nav = this.add.text(80, visible.length * rowH, `◄ ${this.battleSpellPage + 1}/${totalPages} ►`, {
+      const navY = visible.length * rowH;
+      const prevBtn = this.add.text(10, navY, "◄ A", {
+        fontSize: "10px", fontFamily: "monospace", color: this.battleSpellPage > 0 ? "#aaa" : "#444",
+      }).setInteractive({ useHandCursor: this.battleSpellPage > 0 });
+      if (this.battleSpellPage > 0) {
+        prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
+        prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
+        prevBtn.on("pointerdown", () => { this.battleSpellPage--; this.showSpellMenu(true); });
+      }
+      container.add(prevBtn);
+
+      const pageLabel = this.add.text(120, navY, `${this.battleSpellPage + 1}/${totalPages}`, {
         fontSize: "10px", fontFamily: "monospace", color: "#888",
-      }).setInteractive({ useHandCursor: true });
-      nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-        const mid = nav.x + nav.width / 2;
-        this.battleSpellPage += pointer.x < mid ? -1 : 1;
-        this.showSpellMenu(true);
-      });
-      container.add(nav);
+      }).setOrigin(0.5, 0);
+      container.add(pageLabel);
+
+      const nextBtn = this.add.text(200, navY, "D ►", {
+        fontSize: "10px", fontFamily: "monospace", color: this.battleSpellPage < totalPages - 1 ? "#aaa" : "#444",
+      }).setInteractive({ useHandCursor: this.battleSpellPage < totalPages - 1 });
+      if (this.battleSpellPage < totalPages - 1) {
+        nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
+        nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
+        nextBtn.on("pointerdown", () => { this.battleSpellPage++; this.showSpellMenu(true); });
+      }
+      container.add(nextBtn);
     }
 
     this.spellMenu = container;
@@ -513,15 +529,31 @@ export class BattleScene extends Phaser.Scene {
     });
 
     if (totalPages > 1) {
-      const nav = this.add.text(80, visible.length * rowH, `◄ ${this.battleAbilityPage + 1}/${totalPages} ►`, {
+      const navY = visible.length * rowH;
+      const prevBtn = this.add.text(10, navY, "◄ A", {
+        fontSize: "10px", fontFamily: "monospace", color: this.battleAbilityPage > 0 ? "#aaa" : "#444",
+      }).setInteractive({ useHandCursor: this.battleAbilityPage > 0 });
+      if (this.battleAbilityPage > 0) {
+        prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
+        prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
+        prevBtn.on("pointerdown", () => { this.battleAbilityPage--; this.showAbilityMenu(true); });
+      }
+      container.add(prevBtn);
+
+      const pageLabel = this.add.text(120, navY, `${this.battleAbilityPage + 1}/${totalPages}`, {
         fontSize: "10px", fontFamily: "monospace", color: "#888",
-      }).setInteractive({ useHandCursor: true });
-      nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-        const mid = nav.x + nav.width / 2;
-        this.battleAbilityPage += pointer.x < mid ? -1 : 1;
-        this.showAbilityMenu(true);
-      });
-      container.add(nav);
+      }).setOrigin(0.5, 0);
+      container.add(pageLabel);
+
+      const nextBtn = this.add.text(200, navY, "D ►", {
+        fontSize: "10px", fontFamily: "monospace", color: this.battleAbilityPage < totalPages - 1 ? "#aaa" : "#444",
+      }).setInteractive({ useHandCursor: this.battleAbilityPage < totalPages - 1 });
+      if (this.battleAbilityPage < totalPages - 1) {
+        nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
+        nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
+        nextBtn.on("pointerdown", () => { this.battleAbilityPage++; this.showAbilityMenu(true); });
+      }
+      container.add(nextBtn);
     }
 
     this.abilityMenu = container;
@@ -619,39 +651,33 @@ export class BattleScene extends Phaser.Scene {
     if (!keepPage) this.battleItemPage = 0;
 
     const w = this.cameras.main.width;
+    const TOTAL_PAGES = 3;
+    const PAGE_LABELS = ["Consumables", "Weapons", "Defense"];
+    this.battleItemPage = Math.max(0, Math.min(this.battleItemPage, TOTAL_PAGES - 1));
 
-    // Gather all item categories (exclude Chimaera Wing — not usable in battle)
-    const consumables = this.player.inventory.filter((item) => item.type === "consumable" && item.id !== "chimaeraWing");
-    const inventoryWeapons = this.player.inventory.filter((item) => item.type === "weapon");
-
-    // Stack consumables by id
-    type StackEntry = { item: Item; count: number };
-    const stacks: StackEntry[] = [];
-    const seen = new Map<string, number>();
-    for (const item of consumables) {
-      const existing = seen.get(item.id);
-      if (existing !== undefined) {
-        stacks[existing].count++;
-      } else {
-        seen.set(item.id, stacks.length);
-        stacks.push({ item, count: 1 });
-      }
-    }
-
-    // Build menu rows
-    type MenuRow = { label: string; desc?: string; color: string; interactive: boolean; action?: () => void };
+    // Build rows for current page
+    type MenuRow = { label: string; color: string; interactive: boolean; action?: () => void };
     const rows: MenuRow[] = [];
 
-    // --- Consumables section ---
-    if (stacks.length > 0) {
-      rows.push({ label: "― Consumables ―", color: "#c0a060", interactive: false });
+    if (this.battleItemPage === 0) {
+      // --- Page 1: Consumables ---
+      const consumables = this.player.inventory.filter((item) => item.type === "consumable" && item.id !== "chimaeraWing");
+      type StackEntry = { item: Item; count: number };
+      const stacks: StackEntry[] = [];
+      const seen = new Map<string, number>();
+      for (const item of consumables) {
+        const existing = seen.get(item.id);
+        if (existing !== undefined) { stacks[existing].count++; }
+        else { seen.set(item.id, stacks.length); stacks.push({ item, count: 1 }); }
+      }
+      if (stacks.length === 0) {
+        rows.push({ label: "  No consumables", color: "#666", interactive: false });
+      }
       for (const stack of stacks) {
         const countLabel = stack.count > 1 ? ` x${stack.count}` : "";
         rows.push({
-          label: `  ${stack.item.name}${countLabel}`,
-          desc: stack.item.description,
-          color: "#aaffaa",
-          interactive: true,
+          label: `  ${stack.item.name}${countLabel} — ${stack.item.description}`,
+          color: "#aaffaa", interactive: true,
           action: () => {
             const realIndex = this.player.inventory.findIndex(it => it.id === stack.item.id && it.type === "consumable");
             this.closeAllSubMenus();
@@ -659,12 +685,9 @@ export class BattleScene extends Phaser.Scene {
           },
         });
       }
-    }
-
-    // --- Weapons section (swap as bonus action) ---
-    const hasWeapons = this.player.equippedWeapon || inventoryWeapons.length > 0;
-    if (hasWeapons) {
-      rows.push({ label: "― Weapons ―", color: "#c0a060", interactive: false });
+    } else if (this.battleItemPage === 1) {
+      // --- Page 2: Weapons ---
+      const inventoryWeapons = this.player.inventory.filter((item) => item.type === "weapon");
       if (this.player.equippedWeapon) {
         const eq = this.player.equippedWeapon;
         rows.push({ label: `  ► ${eq.name} (+${eq.effect} dmg) [main]`, color: "#88ff88", interactive: false });
@@ -673,45 +696,39 @@ export class BattleScene extends Phaser.Scene {
         const oh = this.player.equippedOffHand;
         rows.push({ label: `  ► ${oh.name} (+${oh.effect} dmg) [off]`, color: "#88ff88", interactive: false });
       }
+      let hasUnequipped = false;
       for (const wpn of inventoryWeapons) {
         if (wpn.id === this.player.equippedWeapon?.id) continue;
         if (wpn.id === this.player.equippedOffHand?.id) continue;
+        hasUnequipped = true;
         rows.push({
           label: `  ${wpn.name} (+${wpn.effect} dmg) [equip]`,
           color: "#aaddff", interactive: true,
           action: () => { this.doBattleWeaponSwap(wpn); },
         });
       }
-    }
-
-    // --- Armor & Shield section (display-only) ---
-    const hasDefense = this.player.equippedArmor || this.player.equippedShield;
-    if (hasDefense) {
-      rows.push({ label: "― Defense ―", color: "#c0a060", interactive: false });
+      if (rows.length === 0 && !hasUnequipped) {
+        rows.push({ label: "  No weapons", color: "#666", interactive: false });
+      }
+    } else {
+      // --- Page 3: Defense ---
       if (this.player.equippedArmor) {
         const arm = this.player.equippedArmor;
-        rows.push({ label: `  ${arm.name} (+${arm.effect} AC) [eq]`, color: "#666", interactive: false });
+        rows.push({ label: `  ${arm.name} (+${arm.effect} AC) [eq]`, color: "#88ff88", interactive: false });
       }
       if (this.player.equippedShield) {
         const sh = this.player.equippedShield;
-        rows.push({ label: `  ${sh.name} (+${sh.effect} AC) [eq]`, color: "#666", interactive: false });
+        rows.push({ label: `  ${sh.name} (+${sh.effect} AC) [eq]`, color: "#88ff88", interactive: false });
+      }
+      if (rows.length === 0) {
+        rows.push({ label: "  No armor or shield", color: "#666", interactive: false });
       }
     }
 
-    if (rows.length === 0) {
-      this.addLog("No usable items!");
-      return;
-    }
-
-    // Paging
-    const MAX_PER_PAGE = 7;
-    const totalPages = Math.max(1, Math.ceil(rows.length / MAX_PER_PAGE));
-    this.battleItemPage = Math.max(0, Math.min(this.battleItemPage, totalPages - 1));
-    const start = this.battleItemPage * MAX_PER_PAGE;
-    const visible = rows.slice(start, start + MAX_PER_PAGE);
-
     const rowH = 24;
-    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
+    const headerH = 20;
+    const navH = 22;
+    const menuH = headerH + rows.length * rowH + navH + 10;
     const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
     container.setDepth(6);
 
@@ -722,8 +739,15 @@ export class BattleScene extends Phaser.Scene {
     bg.strokeRect(-5, -5, 280, menuH);
     container.add(bg);
 
-    visible.forEach((row, i) => {
-      const text = this.add.text(0, i * rowH, row.label, {
+    // Page header
+    const header = this.add.text(130, 0, `― ${PAGE_LABELS[this.battleItemPage]} ―`, {
+      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
+    }).setOrigin(0.5, 0);
+    container.add(header);
+
+    // Rows
+    rows.forEach((row, i) => {
+      const text = this.add.text(0, headerH + i * rowH, row.label, {
         fontSize: "11px", fontFamily: "monospace", color: row.color,
         wordWrap: { width: 270 },
       });
@@ -737,17 +761,32 @@ export class BattleScene extends Phaser.Scene {
       container.add(text);
     });
 
-    if (totalPages > 1) {
-      const nav = this.add.text(100, visible.length * rowH, `◄ ${this.battleItemPage + 1}/${totalPages} ►`, {
-        fontSize: "10px", fontFamily: "monospace", color: "#888",
-      }).setInteractive({ useHandCursor: true });
-      nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-        const mid = nav.x + nav.width / 2;
-        this.battleItemPage += pointer.x < mid ? -1 : 1;
-        this.showItemMenu(true);
-      });
-      container.add(nav);
+    // Navigation: ◄ A   page/total   D ►
+    const navY = headerH + rows.length * rowH + 4;
+    const prevBtn = this.add.text(10, navY, "◄ A", {
+      fontSize: "10px", fontFamily: "monospace", color: this.battleItemPage > 0 ? "#aaa" : "#444",
+    }).setInteractive({ useHandCursor: this.battleItemPage > 0 });
+    if (this.battleItemPage > 0) {
+      prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
+      prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
+      prevBtn.on("pointerdown", () => { this.battleItemPage--; this.showItemMenu(true); });
     }
+    container.add(prevBtn);
+
+    const pageLabel = this.add.text(130, navY, `${this.battleItemPage + 1}/${TOTAL_PAGES}`, {
+      fontSize: "10px", fontFamily: "monospace", color: "#888",
+    }).setOrigin(0.5, 0);
+    container.add(pageLabel);
+
+    const nextBtn = this.add.text(230, navY, "D ►", {
+      fontSize: "10px", fontFamily: "monospace", color: this.battleItemPage < TOTAL_PAGES - 1 ? "#aaa" : "#444",
+    }).setInteractive({ useHandCursor: this.battleItemPage < TOTAL_PAGES - 1 });
+    if (this.battleItemPage < TOTAL_PAGES - 1) {
+      nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
+      nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
+      nextBtn.on("pointerdown", () => { this.battleItemPage++; this.showItemMenu(true); });
+    }
+    container.add(nextBtn);
 
     this.itemMenu = container;
   }

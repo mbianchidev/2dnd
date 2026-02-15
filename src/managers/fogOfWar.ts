@@ -15,7 +15,7 @@ export class FogOfWar {
    */
   exploredKey(x: number, y: number, player: PlayerState): string {
     if (player.position.inDungeon) {
-      return `d:${player.position.dungeonId},${x},${y}`;
+      return `d:${player.position.dungeonId},${player.position.dungeonLevel},${x},${y}`;
     }
     if (player.position.inCity) {
       return `c:${player.position.cityId},${x},${y}`;
@@ -60,11 +60,14 @@ export class FogOfWar {
         }
       }
     }
-    // Reveal all dungeons
+    // Reveal all dungeons (all levels)
     for (const d of DUNGEONS) {
-      for (let ty = 0; ty < MAP_HEIGHT; ty++) {
-        for (let tx = 0; tx < MAP_WIDTH; tx++) {
-          this.exploredTiles[`d:${d.id},${tx},${ty}`] = true;
+      const totalLevels = 1 + (d.levels?.length ?? 0);
+      for (let lvl = 0; lvl < totalLevels; lvl++) {
+        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+          for (let tx = 0; tx < MAP_WIDTH; tx++) {
+            this.exploredTiles[`d:${d.id},${lvl},${tx},${ty}`] = true;
+          }
         }
       }
     }

@@ -518,6 +518,14 @@ export class OverworldScene extends Phaser.Scene {
 
   update(time: number): void {
     this.updateDebugPanel();
+
+    // SPACE actions must be processed even when overlays/dialogue are open
+    // so the player can dismiss dialogues, inn confirmations, etc.
+    if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
+      this.handleAction();
+      return;
+    }
+
     if (this.isMoving) return;
     if (this.isOverlayOpen()) return;
     if (time - this.lastMoveTime < this.getEffectiveMoveDelay()) return;
@@ -530,8 +538,6 @@ export class OverworldScene extends Phaser.Scene {
     else if (this.keys.D.isDown) dx = 1;
 
     if (dx !== 0 || dy !== 0) this.tryMove(dx, dy, time);
-
-    if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) this.handleAction();
   }
 
   private tryMove(dx: number, dy: number, time: number): void {

@@ -26,7 +26,7 @@ src/
 ├── main.ts              # Entry point & Phaser config
 ├── config.ts            # Game constants, debug system, HTML debug panel API
 ├── scenes/              # Phaser game scenes (file names drop "Scene" suffix)
-│   ├── Boot.ts          # Asset generation, title screen, character creation
+│   ├── Boot.ts          # Title screen, character creation, stat allocation, appearance customization
 │   ├── Overworld.ts     # Multi-chunk map, movement, encounters — delegates to subsystems
 │   ├── Battle.ts        # Turn-based combat with scrollable log, weather, day/night
 │   ├── Shop.ts          # Item shops & inn
@@ -46,6 +46,7 @@ src/
 │   ├── dice.ts          # D&D dice rolling utilities (d20, 4d6-drop-lowest, ability modifiers)
 │   └── movement.ts      # Grid movement logic & chunk transitions
 ├── renderers/           # Visual rendering subsystems (extracted from Overworld)
+│   ├── textures.ts      # All procedural texture/asset generation (tiles, sprites, UI, backgrounds)
 │   ├── map.ts           # Tile map rendering, weather particles, day/night tint
 │   ├── city.ts          # City animals, NPCs, shop roofs, NPC textures
 │   ├── player.ts        # Player sprite creation, equipment rendering
@@ -205,19 +206,6 @@ npm run typecheck  # TypeScript type checking only
 ## Testing Guidelines
 - **Test framework:** Vitest
 - **Test file naming:** `*.test.ts` in `tests/` directory
-- **What to test:**
-  - Dice rolling utilities (probability distributions, edge cases)
-  - Combat calculations (attack rolls, damage, modifiers)
-  - Player leveling, XP progression, Point Buy validation
-  - Data integrity (monsters, spells, items)
-  - Day/night cycle transitions
-  - Weather system state changes
-  - Audio engine API surface and state
-  - Debug system configuration
-- **What NOT to test:**
-  - Phaser rendering (visual/UI elements)
-  - Scene transitions (integration tests)
-  - User interactions (E2E tests)
 
 ## Debug System
 - **Debug mode:** Toggled via checkbox above game canvas

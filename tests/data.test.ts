@@ -650,9 +650,11 @@ describe("game data", () => {
       expect(isWalkable(Terrain.CityFloor)).toBe(true);
       expect(isWalkable(Terrain.CityExit)).toBe(true);
       expect(isWalkable(Terrain.CityWall)).toBe(false);
+      expect(isWalkable(Terrain.CityGate)).toBe(true);
       expect(ENCOUNTER_RATES[Terrain.CityFloor]).toBe(0);
       expect(ENCOUNTER_RATES[Terrain.CityWall]).toBe(0);
       expect(ENCOUNTER_RATES[Terrain.CityExit]).toBe(0);
+      expect(ENCOUNTER_RATES[Terrain.CityGate]).toBe(0);
     });
 
     it("each city has a unique ID", () => {
@@ -667,6 +669,31 @@ describe("game data", () => {
           (t) => t.chunkX === city.chunkX && t.chunkY === city.chunkY && t.x === city.tileX && t.y === city.tileY
         );
         expect(town, `city ${city.name} has no matching town`).toBeDefined();
+      }
+    });
+
+    it("city district maps have correct dimensions", () => {
+      for (const city of CITIES) {
+        if (!city.chunks) continue;
+        for (const chunk of city.chunks) {
+          expect(chunk.mapData).toHaveLength(MAP_HEIGHT);
+          for (const row of chunk.mapData) {
+            expect(row).toHaveLength(MAP_WIDTH);
+          }
+        }
+      }
+    });
+
+    it("city district shop item IDs resolve to real items", () => {
+      for (const city of CITIES) {
+        if (!city.chunks) continue;
+        for (const chunk of city.chunks) {
+          for (const shop of chunk.shops) {
+            for (const itemId of shop.shopItems) {
+              expect(getItem(itemId), `shop ${shop.name} in ${city.name}/${chunk.name} references unknown item ${itemId}`).toBeDefined();
+            }
+          }
+        }
       }
     });
   });

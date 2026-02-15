@@ -45,6 +45,7 @@ export enum Terrain {
   Mushroom = 38,
   Casino = 39,
   CityPath = 40,
+  CityGate = 41,
 }
 
 export interface TownData {

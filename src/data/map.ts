@@ -75,6 +75,7 @@ export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.Mushroom]: 0x558b2f,
   [Terrain.Casino]: 0xdaa520,
   [Terrain.CityPath]: 0x9e9e9e,
+  [Terrain.CityGate]: 0xc0a040,
 };
 
 /** Encounter rates per terrain (0 = no encounters). */
@@ -120,6 +121,7 @@ export const ENCOUNTER_RATES: Record<Terrain, number> = {
   [Terrain.Mushroom]: 0.08,
   [Terrain.Casino]: 0,
   [Terrain.CityPath]: 0,
+  [Terrain.CityGate]: 0,
 };
 
 
@@ -159,7 +161,7 @@ function isSpecialTerrain(t: Terrain): boolean {
     t === Terrain.River || t === Terrain.Mill || t === Terrain.CropField ||
     t === Terrain.Fence || t === Terrain.House ||
     t === Terrain.Flower || t === Terrain.Cactus || t === Terrain.Geyser || t === Terrain.Mushroom ||
-    t === Terrain.Casino || t === Terrain.CityPath;
+    t === Terrain.Casino || t === Terrain.CityPath || t === Terrain.CityGate;
 }
 
 export function getTownBiome(chunkX: number, chunkY: number, tileX: number, tileY: number): Terrain {

@@ -86,13 +86,16 @@ function makeMultiChunkCity(): CityData {
 describe("multi-chunk city helpers", () => {
   describe("getCityChunkCount", () => {
     it("returns 1 for a city with no extra chunks", () => {
-      const city = getCity("willowdale_city")!;
+      // Synthetic city without chunks
+      const city: CityData = { ...getCity("willowdale_city")!, chunks: undefined };
+      delete (city as Partial<CityData>).chunks;
       expect(getCityChunkCount(city)).toBe(1);
     });
 
-    it("returns 2 for a city with one extra chunk", () => {
-      const city = makeMultiChunkCity();
-      expect(getCityChunkCount(city)).toBe(2);
+    it("returns 2 for all cities with one extra chunk", () => {
+      for (const city of CITIES) {
+        expect(getCityChunkCount(city)).toBe(2);
+      }
     });
 
     it("returns correct count for multiple extra chunks", () => {
@@ -125,7 +128,8 @@ describe("multi-chunk city helpers", () => {
 
     it("returns undefined for out-of-range index", () => {
       const city = getCity("willowdale_city")!;
-      expect(getCityChunk(city, 1)).toBeUndefined();
+      // Willowdale has chunks[0] at index 1, so index 2+ should be undefined
+      expect(getCityChunk(city, 2)).toBeUndefined();
       expect(getCityChunk(city, 99)).toBeUndefined();
     });
 
@@ -210,10 +214,10 @@ describe("multi-chunk city helpers", () => {
   });
 
   describe("getCityChunkNames", () => {
-    it("returns single name for standard city", () => {
+    it("returns city name plus district names for all cities", () => {
       const city = getCity("willowdale_city")!;
       const names = getCityChunkNames(city);
-      expect(names).toEqual(["Willowdale"]);
+      expect(names).toEqual(["Willowdale", "Riverside"]);
     });
 
     it("returns all chunk names for multi-chunk city", () => {
@@ -408,9 +412,9 @@ describe("multi-chunk city save/load", () => {
 });
 
 describe("existing city data integrity", () => {
-  it("all existing cities have chunkCount of 1 (no extra chunks defined yet)", () => {
+  it("all cities have exactly 2 chunks (primary + 1 district)", () => {
     for (const city of CITIES) {
-      expect(getCityChunkCount(city)).toBe(1);
+      expect(getCityChunkCount(city), `${city.name} should have 2 chunks`).toBe(2);
     }
   });
 
@@ -431,13 +435,58 @@ describe("existing city data integrity", () => {
     }
   });
 
-  it("extra chunk helpers gracefully handle single-chunk cities", () => {
+  it("extra chunk maps have correct dimensions", () => {
     for (const city of CITIES) {
-      // Should return undefined or fallback gracefully
-      expect(getCityChunk(city, 1)).toBeUndefined();
-      expect(getCityChunkMap(city, 1)).toBe(city.mapData); // fallback
-      expect(getCityChunkNames(city)).toEqual([city.name]);
+      const chunk = getCityChunk(city, 1);
+      expect(chunk, `${city.name} should have extra chunk`).toBeDefined();
+      expect(chunk!.mapData).toHaveLength(MAP_HEIGHT);
+      for (const row of chunk!.mapData) {
+        expect(row).toHaveLength(MAP_WIDTH);
+      }
     }
+  });
+
+  it("extra chunk spawn points are on walkable tiles", () => {
+    for (const city of CITIES) {
+      const chunk = getCityChunk(city, 1)!;
+      const terrain = chunk.mapData[chunk.spawnY][chunk.spawnX];
+      expect(isWalkable(terrain), `${city.name} district '${chunk.name}' spawn at (${chunk.spawnX},${chunk.spawnY}) is not walkable`).toBe(true);
+    }
+  });
+
+  it("extra chunks have at least one shop", () => {
+    for (const city of CITIES) {
+      const chunk = getCityChunk(city, 1)!;
+      expect(chunk.shops.length, `${city.name} district '${chunk.name}' has no shops`).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("extra chunk shop positions are on walkable tiles", () => {
+    for (const city of CITIES) {
+      const chunk = getCityChunk(city, 1)!;
+      for (const shop of chunk.shops) {
+        const terrain = chunk.mapData[shop.y][shop.x];
+        expect(isWalkable(terrain), `shop ${shop.name} at (${shop.x},${shop.y}) in ${city.name}/${chunk.name} is on non-walkable tile`).toBe(true);
+      }
+    }
+  });
+
+  it("extra chunks have a CityGate tile for district connections", () => {
+    for (const city of CITIES) {
+      const chunk = getCityChunk(city, 1)!;
+      let hasGate = false;
+      for (const row of chunk.mapData) {
+        if (row.includes(Terrain.CityGate)) {
+          hasGate = true;
+          break;
+        }
+      }
+      expect(hasGate, `${city.name} district '${chunk.name}' has no CityGate tile`).toBe(true);
+    }
+  });
+
+  it("CityGate terrain is walkable", () => {
+    expect(isWalkable(Terrain.CityGate)).toBe(true);
   });
 });
 

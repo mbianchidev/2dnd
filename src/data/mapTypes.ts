@@ -45,6 +45,8 @@ export enum Terrain {
   Mushroom = 38,
   Casino = 39,
   CityPath = 40,
+  DungeonStairs = 41,
+  DungeonBoss = 42,
 }
 
 export interface TownData {
@@ -69,6 +71,13 @@ export interface WorldChunk {
   bosses: BossData[];
 }
 
+/** Per-level map data for multi-level dungeons. */
+export interface DungeonLevel {
+  mapData: Terrain[][];
+  spawnX: number;
+  spawnY: number;
+}
+
 export interface DungeonData {
   id: string;
   name: string;
@@ -76,9 +85,14 @@ export interface DungeonData {
   entranceChunkY: number;
   entranceTileX: number;
   entranceTileY: number;
+  /** Level 0 (entrance level) map — kept for backward compatibility. */
   mapData: Terrain[][];
   spawnX: number;
   spawnY: number;
+  /** Additional dungeon levels (index 0 = level 1, etc.). Level 0 uses mapData/spawnX/spawnY above. */
+  levels?: DungeonLevel[];
+  /** Unique boss monster ID for this dungeon. */
+  bossId?: string;
 }
 
 export interface ChestData {

@@ -9,6 +9,7 @@ import {
   MAP_HEIGHT,
   getChunk,
   getDungeon,
+  getDungeonLevelMap,
   getCity,
   getChestAt,
   getTownBiome,
@@ -338,12 +339,13 @@ export class MapRenderer {
   private renderDungeon(player: PlayerState, isExplored: (x: number, y: number) => boolean): void {
     const dungeon = getDungeon(player.position.dungeonId);
     if (!dungeon) return;
+    const levelMap = getDungeonLevelMap(dungeon, player.position.dungeonLevel);
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       this.tileSprites[y] = [];
       for (let x = 0; x < MAP_WIDTH; x++) {
         const explored = isExplored(x, y);
-        const terrain = dungeon.mapData[y][x];
+        const terrain = levelMap[y][x];
         let texKey = explored ? `tile_${terrain}` : "tile_fog";
         if (explored && terrain === Terrain.Chest) {
           const chest = getChestAt(x, y, { type: "dungeon", dungeonId: player.position.dungeonId });
@@ -361,8 +363,9 @@ export class MapRenderer {
     }
 
     // Dungeon name label
+    const levelLabel = (dungeon.levels?.length ?? 0) > 0 ? ` (Level ${player.position.dungeonLevel + 1})` : "";
     this.scene.add
-      .text(MAP_WIDTH * TILE_SIZE / 2, 4, dungeon.name, {
+      .text(MAP_WIDTH * TILE_SIZE / 2, 4, `${dungeon.name}${levelLabel}`, {
         fontSize: "10px",
         fontFamily: "monospace",
         color: "#ff8888",
@@ -371,15 +374,38 @@ export class MapRenderer {
       })
       .setOrigin(0.5, 0);
 
-    // Exit labels
+    // Exit and stairs labels
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
-        if (dungeon.mapData[y][x] === Terrain.DungeonExit && isExplored(x, y)) {
+        const t = levelMap[y][x];
+        if (t === Terrain.DungeonExit && isExplored(x, y)) {
           this.scene.add
             .text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE - 4, "EXIT", {
               fontSize: "8px",
               fontFamily: "monospace",
               color: "#88ff88",
+              stroke: "#000",
+              strokeThickness: 2,
+            })
+            .setOrigin(0.5, 1);
+        }
+        if (t === Terrain.DungeonStairs && isExplored(x, y)) {
+          this.scene.add
+            .text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE - 4, "STAIRS", {
+              fontSize: "8px",
+              fontFamily: "monospace",
+              color: "#bb88ff",
+              stroke: "#000",
+              strokeThickness: 2,
+            })
+            .setOrigin(0.5, 1);
+        }
+        if (t === Terrain.DungeonBoss && isExplored(x, y)) {
+          this.scene.add
+            .text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE - 4, "BOSS", {
+              fontSize: "8px",
+              fontFamily: "monospace",
+              color: "#ff4444",
               stroke: "#000",
               strokeThickness: 2,
             })
@@ -598,10 +624,11 @@ export class MapRenderer {
   private revealDungeonTiles(player: PlayerState, isExplored: (x: number, y: number) => boolean): void {
     const dungeon = getDungeon(player.position.dungeonId);
     if (!dungeon) return;
+    const levelMap = getDungeonLevelMap(dungeon, player.position.dungeonLevel);
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         if (isExplored(x, y) && this.tileSprites[y]?.[x]) {
-          const terrain = dungeon.mapData[y][x];
+          const terrain = levelMap[y][x];
           let texKey = `tile_${terrain}`;
           if (terrain === Terrain.Chest) {
             const chest = getChestAt(x, y, { type: "dungeon", dungeonId: player.position.dungeonId });

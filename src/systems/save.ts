@@ -80,6 +80,7 @@ export function loadGame(): SaveData | null {
         chunkY: playerAny.chunkY ?? 2,
         inDungeon: playerAny.inDungeon ?? false,
         dungeonId: playerAny.dungeonId ?? "",
+        dungeonLevel: playerAny.dungeonLevel ?? 0,
         inCity: playerAny.inCity ?? false,
         cityId: playerAny.cityId ?? "",
       };
@@ -92,6 +93,11 @@ export function loadGame(): SaveData | null {
       delete playerAny.dungeonId;
       delete playerAny.inCity;
       delete playerAny.cityId;
+    }
+
+    // Ensure dungeonLevel exists on position (added in multi-level dungeon update)
+    if (data.player.position.dungeonLevel === undefined) {
+      data.player.position.dungeonLevel = 0;
     }
     
     if (!data.player.progression) {

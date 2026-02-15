@@ -542,6 +542,82 @@ export const DUNGEON_MONSTER_POOLS: Record<string, Monster[]> = {
   volcanic_forge: [...DUNGEON_MONSTERS, ...VOLCANIC_FORGE_MONSTERS],
 };
 
+/** Unique dungeon bosses — one per dungeon, encountered on the deepest level. */
+export const DUNGEON_BOSSES: Monster[] = [
+  {
+    id: "cryptLich",
+    name: "Crypt Lich",
+    hp: 110,
+    ac: 17,
+    attackBonus: 8,
+    damageCount: 3,
+    damageDie: 8,
+    xpReward: 800,
+    goldReward: 200,
+    isBoss: true,
+    color: 0x4a148c,
+    drops: [{ itemId: "greaterPotion", chance: 0.75 }, { itemId: "plateArmor", chance: 0.2 }],
+    abilities: [
+      { name: "Necrotic Ray", chance: 0.4, damageCount: 4, damageDie: 8, type: "damage" },
+      { name: "Soul Harvest", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage", selfHeal: true },
+      { name: "Dark Mending", chance: 0.2, damageCount: 3, damageDie: 8, type: "heal" },
+    ],
+  },
+  {
+    id: "frostWarden",
+    name: "Frost Warden",
+    hp: 130,
+    ac: 18,
+    attackBonus: 9,
+    damageCount: 3,
+    damageDie: 10,
+    xpReward: 1000,
+    goldReward: 250,
+    isBoss: true,
+    color: 0x80deea,
+    drops: [{ itemId: "greaterPotion", chance: 0.8 }, { itemId: "chainMail", chance: 0.3 }],
+    abilities: [
+      { name: "Blizzard", chance: 0.35, damageCount: 5, damageDie: 6, type: "damage" },
+      { name: "Glacial Tomb", chance: 0.3, damageCount: 4, damageDie: 8, type: "damage" },
+      { name: "Permafrost Shell", chance: 0.2, damageCount: 4, damageDie: 6, type: "heal" },
+    ],
+  },
+  {
+    id: "infernoForgemaster",
+    name: "Inferno Forgemaster",
+    hp: 150,
+    ac: 19,
+    attackBonus: 10,
+    damageCount: 4,
+    damageDie: 10,
+    xpReward: 1500,
+    goldReward: 400,
+    isBoss: true,
+    color: 0xbf360c,
+    drops: [{ itemId: "greaterPotion", chance: 0.85 }, { itemId: "greatSword", chance: 0.3 }],
+    abilities: [
+      { name: "Molten Eruption", chance: 0.35, damageCount: 5, damageDie: 8, type: "damage" },
+      { name: "Forge Hammer", chance: 0.3, damageCount: 4, damageDie: 10, type: "damage" },
+      { name: "Magma Rebirth", chance: 0.15, damageCount: 4, damageDie: 8, type: "heal" },
+    ],
+  },
+];
+
+/** Map of dungeon ID → unique boss ID. */
+export const DUNGEON_BOSS_MAP: Record<string, string> = {
+  heartlands_dungeon: "cryptLich",
+  frost_cavern: "frostWarden",
+  volcanic_forge: "infernoForgemaster",
+};
+
+/** Get the unique boss for a dungeon by dungeon ID. Returns a copy. */
+export function getDungeonBoss(dungeonId: string): Monster | undefined {
+  const bossId = DUNGEON_BOSS_MAP[dungeonId];
+  if (!bossId) return undefined;
+  const boss = DUNGEON_BOSSES.find((b) => b.id === bossId);
+  return boss ? { ...boss } : undefined;
+}
+
 /** Get a random non-boss monster scaled to player level. */
 export function getRandomEncounter(playerLevel: number): Monster {
   const nonBoss = MONSTERS.filter((m) => !m.isBoss);
@@ -831,6 +907,7 @@ export const ALL_MONSTERS: Monster[] = (() => {
     HEARTLANDS_CRYPT_MONSTERS,
     FROST_CAVERN_MONSTERS,
     VOLCANIC_FORGE_MONSTERS,
+    DUNGEON_BOSSES,
     NIGHT_MONSTERS,
     TUNDRA_NIGHT_MONSTERS,
     SWAMP_NIGHT_MONSTERS,

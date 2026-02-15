@@ -31,6 +31,7 @@ export interface PlayerPosition {
   chunkY: number; // world chunk Y coordinate
   inDungeon: boolean;  // true when inside a dungeon interior
   dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
+  dungeonLevel: number; // current dungeon floor (0 = entrance level)
   inCity: boolean;     // true when inside a city interior
   cityId: string;      // ID of the current city (empty if not in city)
 }
@@ -182,6 +183,7 @@ export function createPlayer(
       chunkY: 2,
       inDungeon: false,
       dungeonId: "",
+      dungeonLevel: 0,
       inCity: false,
       cityId: "",
     },

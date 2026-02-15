@@ -15,6 +15,9 @@ import {
   DUNGEONS,
   getDungeonAt,
   getDungeon,
+  getDungeonLevelMap,
+  getDungeonLevelSpawn,
+  getDungeonTotalLevels,
   CHESTS,
   getChestAt,
   CITIES,
@@ -22,7 +25,7 @@ import {
   getCityForTown,
   getCityShopAt,
 } from "../src/data/map";
-import { MONSTERS, getRandomEncounter, getBoss, getMonster, DUNGEON_MONSTERS, getDungeonEncounter, DUNGEON_MONSTER_POOLS, HEARTLANDS_CRYPT_MONSTERS, FROST_CAVERN_MONSTERS, VOLCANIC_FORGE_MONSTERS, NIGHT_MONSTERS, getNightEncounter, TUNDRA_NIGHT_MONSTERS, SWAMP_NIGHT_MONSTERS, FOREST_NIGHT_MONSTERS, CANYON_NIGHT_MONSTERS } from "../src/data/monsters";
+import { MONSTERS, getRandomEncounter, getBoss, getMonster, DUNGEON_MONSTERS, getDungeonEncounter, DUNGEON_MONSTER_POOLS, HEARTLANDS_CRYPT_MONSTERS, FROST_CAVERN_MONSTERS, VOLCANIC_FORGE_MONSTERS, NIGHT_MONSTERS, getNightEncounter, TUNDRA_NIGHT_MONSTERS, SWAMP_NIGHT_MONSTERS, FOREST_NIGHT_MONSTERS, CANYON_NIGHT_MONSTERS, DUNGEON_BOSSES, DUNGEON_BOSS_MAP, getDungeonBoss } from "../src/data/monsters";
 import { SPELLS, getSpell, getAvailableSpells } from "../src/data/spells";
 import { ITEMS, getItem, getShopItems, getShopItemsForTown } from "../src/data/items";
 import { ABILITIES, getAbility } from "../src/data/abilities";
@@ -373,6 +376,203 @@ describe("game data", () => {
       expect(isWalkable(Terrain.DungeonWall)).toBe(false);
       expect(isWalkable(Terrain.DungeonFloor)).toBe(true);
       expect(isWalkable(Terrain.DungeonExit)).toBe(true);
+    });
+
+    it("DungeonStairs and DungeonBoss terrains are walkable", () => {
+      expect(isWalkable(Terrain.DungeonStairs)).toBe(true);
+      expect(isWalkable(Terrain.DungeonBoss)).toBe(true);
+    });
+
+    it("DungeonStairs and DungeonBoss have zero encounter rate", () => {
+      expect(ENCOUNTER_RATES[Terrain.DungeonStairs]).toBe(0);
+      expect(ENCOUNTER_RATES[Terrain.DungeonBoss]).toBe(0);
+    });
+  });
+
+  describe("multi-level dungeons", () => {
+    it("each dungeon has at least 2 levels", () => {
+      for (const dungeon of DUNGEONS) {
+        const totalLevels = getDungeonTotalLevels(dungeon);
+        expect(totalLevels).toBeGreaterThanOrEqual(2);
+      }
+    });
+
+    it("each dungeon level has correct map dimensions", () => {
+      for (const dungeon of DUNGEONS) {
+        const totalLevels = getDungeonTotalLevels(dungeon);
+        for (let lvl = 0; lvl < totalLevels; lvl++) {
+          const map = getDungeonLevelMap(dungeon, lvl);
+          expect(map).toHaveLength(MAP_HEIGHT);
+          for (const row of map) {
+            expect(row).toHaveLength(MAP_WIDTH);
+          }
+        }
+      }
+    });
+
+    it("getDungeonLevelMap returns correct level data", () => {
+      for (const dungeon of DUNGEONS) {
+        // Level 0 should return mapData
+        expect(getDungeonLevelMap(dungeon, 0)).toBe(dungeon.mapData);
+        // Level 1 should return levels[0].mapData
+        if (dungeon.levels && dungeon.levels.length > 0) {
+          expect(getDungeonLevelMap(dungeon, 1)).toBe(dungeon.levels[0].mapData);
+        }
+      }
+    });
+
+    it("getDungeonLevelMap falls back to level 0 for invalid level", () => {
+      const dungeon = DUNGEONS[0];
+      expect(getDungeonLevelMap(dungeon, 999)).toBe(dungeon.mapData);
+    });
+
+    it("getDungeonLevelSpawn returns correct spawn per level", () => {
+      for (const dungeon of DUNGEONS) {
+        const spawn0 = getDungeonLevelSpawn(dungeon, 0);
+        expect(spawn0.x).toBe(dungeon.spawnX);
+        expect(spawn0.y).toBe(dungeon.spawnY);
+        if (dungeon.levels && dungeon.levels.length > 0) {
+          const spawn1 = getDungeonLevelSpawn(dungeon, 1);
+          expect(spawn1.x).toBe(dungeon.levels[0].spawnX);
+          expect(spawn1.y).toBe(dungeon.levels[0].spawnY);
+        }
+      }
+    });
+
+    it("each dungeon level spawn point is walkable", () => {
+      for (const dungeon of DUNGEONS) {
+        const totalLevels = getDungeonTotalLevels(dungeon);
+        for (let lvl = 0; lvl < totalLevels; lvl++) {
+          const map = getDungeonLevelMap(dungeon, lvl);
+          const spawn = getDungeonLevelSpawn(dungeon, lvl);
+          const terrain = map[spawn.y][spawn.x];
+          expect(isWalkable(terrain)).toBe(true);
+        }
+      }
+    });
+
+    it("level 0 has stairs tile connecting to deeper level", () => {
+      for (const dungeon of DUNGEONS) {
+        if (!dungeon.levels || dungeon.levels.length === 0) continue;
+        let hasStairs = false;
+        for (const row of dungeon.mapData) {
+          if (row.includes(Terrain.DungeonStairs)) {
+            hasStairs = true;
+            break;
+          }
+        }
+        expect(hasStairs).toBe(true);
+      }
+    });
+
+    it("deepest level has a DungeonBoss tile", () => {
+      for (const dungeon of DUNGEONS) {
+        const totalLevels = getDungeonTotalLevels(dungeon);
+        const deepestMap = getDungeonLevelMap(dungeon, totalLevels - 1);
+        let hasBoss = false;
+        for (const row of deepestMap) {
+          if (row.includes(Terrain.DungeonBoss)) {
+            hasBoss = true;
+            break;
+          }
+        }
+        expect(hasBoss).toBe(true);
+      }
+    });
+
+    it("deepest level has stairs back (exit tile or stairs)", () => {
+      for (const dungeon of DUNGEONS) {
+        const totalLevels = getDungeonTotalLevels(dungeon);
+        const deepestMap = getDungeonLevelMap(dungeon, totalLevels - 1);
+        let hasExit = false;
+        for (const row of deepestMap) {
+          if (row.includes(Terrain.DungeonStairs) || row.includes(Terrain.DungeonExit)) {
+            hasExit = true;
+            break;
+          }
+        }
+        expect(hasExit).toBe(true);
+      }
+    });
+  });
+
+  describe("unique dungeon bosses", () => {
+    it("each dungeon has a bossId defined", () => {
+      for (const dungeon of DUNGEONS) {
+        expect(dungeon.bossId).toBeDefined();
+        expect(dungeon.bossId!.length).toBeGreaterThan(0);
+      }
+    });
+
+    it("each dungeon bossId maps to a valid boss monster", () => {
+      for (const dungeon of DUNGEONS) {
+        const boss = getDungeonBoss(dungeon.id);
+        expect(boss).toBeDefined();
+        expect(boss!.isBoss).toBe(true);
+        expect(boss!.id).toBe(dungeon.bossId);
+      }
+    });
+
+    it("each dungeon has a unique boss", () => {
+      const bossIds = DUNGEONS.map((d) => d.bossId);
+      expect(new Set(bossIds).size).toBe(bossIds.length);
+    });
+
+    it("dungeon bosses are distinct from overworld bosses", () => {
+      const overworldBossIds = new Set(
+        MONSTERS.filter((m) => m.isBoss).map((m) => m.id)
+      );
+      for (const boss of DUNGEON_BOSSES) {
+        expect(overworldBossIds.has(boss.id)).toBe(false);
+      }
+    });
+
+    it("DUNGEON_BOSSES array matches DUNGEON_BOSS_MAP", () => {
+      const mapValues = Object.values(DUNGEON_BOSS_MAP);
+      for (const bossId of mapValues) {
+        expect(DUNGEON_BOSSES.some((b) => b.id === bossId)).toBe(true);
+      }
+    });
+
+    it("getDungeonBoss returns a copy", () => {
+      const b1 = getDungeonBoss("heartlands_dungeon");
+      const b2 = getDungeonBoss("heartlands_dungeon");
+      expect(b1).toEqual(b2);
+      expect(b1).not.toBe(b2);
+    });
+
+    it("getDungeonBoss returns undefined for invalid dungeon", () => {
+      expect(getDungeonBoss("nonexistent")).toBeUndefined();
+    });
+
+    it("dungeon bosses have abilities", () => {
+      for (const boss of DUNGEON_BOSSES) {
+        expect(boss.abilities).toBeDefined();
+        expect(boss.abilities!.length).toBeGreaterThan(0);
+      }
+    });
+
+    it("dungeon bosses have drops", () => {
+      for (const boss of DUNGEON_BOSSES) {
+        expect(boss.drops).toBeDefined();
+        expect(boss.drops!.length).toBeGreaterThan(0);
+      }
+    });
+
+    it("dungeon bosses are included in ALL_MONSTERS", () => {
+      for (const boss of DUNGEON_BOSSES) {
+        const found = getMonster(boss.id);
+        expect(found).toBeDefined();
+        expect(found!.isBoss).toBe(true);
+      }
+    });
+
+    it("dungeon bosses can be looked up via getBoss", () => {
+      for (const boss of DUNGEON_BOSSES) {
+        const found = getBoss(boss.id);
+        expect(found).toBeDefined();
+        expect(found!.name).toBe(boss.name);
+      }
     });
   });
 

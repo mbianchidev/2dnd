@@ -47,7 +47,7 @@ export const NEW_MONSTER: MonsterData = {
 { monster: "newMonster", weight: 10, minLevel: 2 }
 ```
 
-3. **Generate sprite** in `BootScene.ts` if custom appearance needed
+3. **Generate sprite** in `Boot.ts` if custom appearance needed
 4. **Test encounter** in game with appropriate level character
 
 ### Adding New Spells

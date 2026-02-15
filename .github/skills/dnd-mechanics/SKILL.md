@@ -21,7 +21,7 @@ The game uses six standard D&D abilities:
 
 ### Modifier Calculation
 ```typescript
-// From utils/dice.ts
+// From systems/dice.ts
 // Ability score of 10-11 = +0 modifier
 // Each 2 points above/below 10 changes modifier by 1
 // Formula: floor((score - 10) / 2)
@@ -345,7 +345,7 @@ All mechanics based on D&D 5E SRD (Systems Reference Document), simplified for b
 
 ## Related Files
 
-- `src/utils/dice.ts` - Dice rolling utilities
+- `src/systems/dice.ts` - Dice rolling utilities
 - `src/systems/combat.ts` - Combat implementation
 - `src/systems/player.ts` - Player stats and leveling
 - `src/data/spells.ts` - Spell definitions

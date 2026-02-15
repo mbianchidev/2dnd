@@ -10,12 +10,12 @@ This skill guides you in creating, managing, and transitioning between Phaser 3 
 
 ## Scene Architecture
 
-The game uses five main scenes:
-- **BootScene** - Asset generation, title screen, character creation
-- **OverworldScene** - Map exploration, movement, random encounters
-- **BattleScene** - Turn-based combat with monsters
-- **ShopScene** - Item purchasing and inn resting
-- **BestiaryScene** - Monster encyclopedia
+The game uses five main scenes (files in `src/scenes/`):
+- **BootScene** (`Boot.ts`) - Asset generation, title screen, character creation
+- **OverworldScene** (`Overworld.ts`) - Map exploration, movement, random encounters
+- **BattleScene** (`Battle.ts`) - Turn-based combat with monsters
+- **ShopScene** (`Shop.ts`) - Item purchasing and inn resting
+- **BestiaryScene** (`Bestiary.ts`) - Monster encyclopedia
 
 ## Scene Data Contract
 
@@ -214,7 +214,7 @@ menuContainer.setPosition(150, 150);
 
 ## Procedural Graphics Generation
 
-All graphics are generated in BootScene.ts. Reference existing patterns:
+All graphics are generated in Boot.ts. Reference existing patterns:
 
 ```typescript
 // Generate a sprite texture
@@ -365,5 +365,5 @@ this.tweens.chain({
 - Scene implementations: `src/scenes/*.ts`
 - Main config: `src/main.ts`
 - Player state: `src/systems/player.ts`
-- Bestiary system: `src/systems/bestiary.ts`
+- Bestiary/Codex system: `src/systems/codex.ts`
 - Debug utilities: `src/config.ts`

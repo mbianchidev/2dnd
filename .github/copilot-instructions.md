@@ -22,31 +22,40 @@ src/
 ├── main.ts              # Entry point & Phaser config
 ├── config.ts            # Game constants, debug system, HTML debug panel API
 ├── scenes/              # Phaser game scenes
-│   ├── BootScene.ts     # Asset generation, title screen, character creation (name → class → stat allocation → appearance)
-│   ├── OverworldScene.ts # Multi-chunk tile map, movement, encounters, fog of war, overlays (equip, menu, settings, world map, stat allocation)
-│   ├── BattleScene.ts   # Turn-based combat with scrollable log, day/night tint, celestial bodies, weather particles
-│   ├── ShopScene.ts     # Item shops & inn
-│   └── BestiaryScene.ts # Monster encyclopedia
+│   ├── Boot.ts          # Asset generation, title screen, character creation (name → class → stat allocation → appearance)
+│   ├── Overworld.ts     # Multi-chunk tile map, movement, encounters, fog of war, overlays (equip, menu, settings, world map, stat allocation)
+│   ├── Battle.ts        # Turn-based combat with scrollable log, day/night tint, celestial bodies, weather particles
+│   ├── Shop.ts          # Item shops & inn
+│   └── Bestiary.ts      # Monster encyclopedia
 ├── systems/             # Core game systems
 │   ├── combat.ts        # D&D combat mechanics (attack, spell, ability, flee)
 │   ├── player.ts        # Player state, leveling, inventory, Point Buy system
 │   ├── save.ts          # Save/load functionality (localStorage)
 │   ├── classes.ts       # Class definitions (stats, spells, abilities, hit die, default visuals)
 │   ├── appearance.ts    # Cosmetic customization (skin color, hair style, hair color options)
-│   ├── bestiary.ts      # Monster tracking & AC discovery
+│   ├── codex.ts         # Monster tracking & AC discovery
 │   ├── daynight.ts      # Day/night cycle (360-step: Dawn/Day/Dusk/Night)
 │   ├── weather.ts       # Weather system (Clear/Rain/Snow/Sandstorm/Storm/Fog)
 │   ├── audio.ts         # Procedural Web Audio API engine (biome/battle/boss/city music, SFX, footsteps, volume settings with localStorage persistence)
-│   └── debug.ts         # Shared debug hotkeys & slash commands
+│   ├── debug.ts         # Shared debug hotkeys & slash commands
+│   ├── dice.ts          # D&D dice rolling utilities (d20, 4d6-drop-lowest, ability modifiers)
+│   ├── encounter.ts     # Encounter state management
+│   └── movement.ts      # Grid movement logic
+├── managers/            # State managers
+│   ├── fog.ts           # Fog of war management
+│   └── overlay.ts       # UI overlay management
+├── renderers/           # Visual rendering systems
+│   ├── hud.ts           # HUD rendering (HP/MP/XP bars, location)
+│   └── map.ts           # Map rendering state & tile sprites
 ├── data/                # Game data definitions
 │   ├── map.ts           # 10×9 chunk world, 20×15 tile chunks, terrain, cities, dungeons, chests
 │   ├── monsters.ts      # Monster definitions, encounter tables, boss encounters
 │   ├── spells.ts        # Spell definitions & level requirements
 │   ├── items.ts         # Item definitions & shop inventory
 │   ├── abilities.ts     # Martial ability definitions
+│   ├── npcs.ts          # NPC definitions & dialogue
+│   ├── mounts.ts        # Mount definitions
 │   └── talents.ts       # Talent/perk definitions
-└── utils/
-    └── dice.ts          # D&D dice rolling utilities (d20, 4d6-drop-lowest, ability modifiers)
 tests/
 ├── audio.test.ts        # Audio system API surface & state tests
 ├── combat.test.ts       # Combat calculations & attack rolls
@@ -54,7 +63,11 @@ tests/
 ├── data.test.ts         # Game data integrity tests
 ├── daynight.test.ts     # Day/night cycle tests
 ├── dice.test.ts         # Dice utility tests
+├── mounts.test.ts       # Mount system tests
+├── movement.test.ts     # Movement system tests
+├── npcs.test.ts         # NPC system tests
 ├── player.test.ts       # Player system, Point Buy, leveling tests
+├── save.test.ts         # Save/load tests
 └── weather.test.ts      # Weather system tests
 ```
 
@@ -69,7 +82,7 @@ tests/
 - **Use optional chaining** (`?.`) and nullish coalescing (`??`) where appropriate
 
 ### Naming Conventions
-- **Files:** camelCase (e.g., `BootScene.ts`, `player.ts`)
+- **Files:** camelCase (e.g., `Boot.ts`, `player.ts`)
 - **Variables/Functions:** camelCase (e.g., `maxHp`, `rollDice`)
 - **Types/Interfaces:** PascalCase (e.g., `PlayerState`, `MonsterData`)
 - **Constants:** UPPER_SNAKE_CASE (e.g., `TILE_SIZE`, `GAME_WIDTH`)
@@ -85,7 +98,7 @@ tests/
 ### Phaser-Specific Patterns
 - **Scene data passing:** All scene transitions pass data object with `player`, `defeatedBosses`, `bestiary`, `timeStep`, and `weatherState`
 - **Scene init method:** Always accept and store scene data in `init(data: SceneData)`
-- **Asset generation:** All graphics are procedurally generated in `BootScene.ts` - never use external image files
+- **Asset generation:** All graphics are procedurally generated in `Boot.ts` - never use external image files
 - **Audio:** All sound is procedurally synthesized via Web Audio API in `audio.ts` - never use external audio files
 - **Game objects:** Store references to Phaser objects as class properties for later access
 - **UI positioning:** Always calculate actual pixel bounds (including scale) to prevent text overlap
@@ -129,7 +142,7 @@ Each class has a `primaryStat` used for to-hit calculations:
 - **Critical misses:** Natural 1 on attack roll = automatic miss
 - **Initiative:** Roll d20 + dexterity modifier to determine turn order
 - **Spell slots:** MP (mana points) system instead of traditional spell slots
-- **Ability modifiers:** Used for attack/damage bonuses (see `dice.ts`)
+- **Ability modifiers:** Used for attack/damage bonuses (see `systems/dice.ts`)
 - **Distinct SFX:** Hit, miss, and critical hit each have unique sounds
 - **Action buttons:** Visually disabled (dimmed) when not the player's turn
 
@@ -138,7 +151,7 @@ Each class has a `primaryStat` used for to-hit calculations:
 - **Encounter tables:** Defined per terrain type with spawn weights
 - **Boss monsters:** Fixed map positions, each with unique battle music profile
 - **Night monsters:** Separate spawn table for nighttime encounters
-- **Bestiary:** Track discovered monsters, AC discovery via combat rolls
+- **Bestiary:** Track discovered monsters, AC discovery via combat rolls (see `systems/codex.ts`)
 
 ### Day/Night Cycle
 - **360-step cycle:** Dawn (0-44), Day (45-219), Dusk (220-264), Night (265-359)
@@ -243,7 +256,7 @@ audioEngine.setMasterVolume(0.8);   // Persisted to localStorage
 
 ### Dice Rolling
 ```typescript
-import { rollDice, rollD20, abilityModifier } from "../utils/dice";
+import { rollDice, rollD20, abilityModifier } from "../systems/dice";
 const damage = rollDice(2, 6) + abilityModifier(strength);
 const attackRoll = rollD20() + proficiencyBonus + abilityModifier(dexterity);
 ```

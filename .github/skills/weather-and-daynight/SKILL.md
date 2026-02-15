@@ -112,7 +112,7 @@ const boost = getMonsterWeatherBoost(monster.id, weatherState.current);
 4. Add encounter multiplier in `WEATHER_ENCOUNTER_MULT`
 5. Add tint color in `WEATHER_TINT`
 6. Add label in `WEATHER_LABEL`
-7. Add particle config in `OverworldScene.updateWeatherParticles()` and `BattleScene.createWeatherParticles()`
+7. Add particle config in `Overworld.ts updateWeatherParticles()` and `Battle.ts createWeatherParticles()`
 8. Add ambient SFX in `audioEngine.playWeatherSFX()`
 
 ## Scene Data Flow

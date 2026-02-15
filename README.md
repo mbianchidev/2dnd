@@ -53,7 +53,7 @@ A browser-based JRPG combining Dragon Quest-style gameplay with Dungeons & Drago
 - **Auto-save** — saves after every step
 - **Settings overlay** — accessible from title screen and in-game menu (M → Settings)
 - **Stacked items** — battle inventory groups consumables (e.g., "Potion x3")
-- **Bestiary** — track discovered monsters with AC discovery via combat
+- **Codex** — track discovered monsters with AC discovery via combat
 
 ## Controls
 
@@ -101,11 +101,11 @@ src/
 ├── main.ts              # Entry point & Phaser config
 ├── config.ts            # Game constants, debug system, HTML debug panel
 ├── scenes/
-│   ├── BootScene.ts     # Asset gen, title screen, character creation
-│   ├── OverworldScene.ts # World map, movement, encounters, overlays
-│   ├── BattleScene.ts   # Turn-based combat, scrollable log, sky/weather
-│   ├── ShopScene.ts     # Item shops & inn
-│   └── BestiaryScene.ts # Monster encyclopedia
+│   ├── Boot.ts          # Asset gen, title screen, character creation
+│   ├── Overworld.ts     # World map, movement, encounters, overlays
+│   ├── Battle.ts        # Turn-based combat, scrollable log, sky/weather
+│   ├── Shop.ts          # Item shops & inn
+│   └── Bestiary.ts      # Monster encyclopedia
 ├── systems/
 │   ├── audio.ts         # Procedural audio engine (music, SFX, footsteps)
 │   ├── combat.ts        # D&D combat mechanics
@@ -114,18 +114,27 @@ src/
 │   ├── appearance.ts    # Cosmetic customization (skin color, hair style/color)
 │   ├── daynight.ts      # Day/night cycle (360-step)
 │   ├── weather.ts       # Weather system (6 types, biome-weighted)
-│   ├── bestiary.ts      # Monster tracking & AC discovery
+│   ├── codex.ts         # Monster tracking & AC discovery
 │   ├── debug.ts         # Shared debug hotkeys & slash commands
+│   ├── dice.ts          # D&D dice rolling utilities
+│   ├── encounter.ts     # Encounter state management
+│   ├── movement.ts      # Grid movement logic
 │   └── save.ts          # Save/load (localStorage)
+├── managers/
+│   ├── fog.ts           # Fog of war management
+│   └── overlay.ts       # UI overlay management
+├── renderers/
+│   ├── hud.ts           # HUD rendering (HP/MP/XP bars, location)
+│   └── map.ts           # Map rendering state & tile sprites
 ├── data/
 │   ├── map.ts           # 10×9 chunk world, cities, dungeons, chests
 │   ├── monsters.ts      # Monster definitions & encounter tables
 │   ├── spells.ts        # Spell definitions & level requirements
 │   ├── items.ts         # Item definitions & shop inventory
 │   ├── abilities.ts     # Martial ability definitions
+│   ├── npcs.ts          # NPC definitions & dialogue
+│   ├── mounts.ts        # Mount definitions
 │   └── talents.ts       # Talent/perk definitions
-└── utils/
-    └── dice.ts          # D&D dice rolling utilities
 tests/
 ├── audio.test.ts        # Audio engine tests
 ├── combat.test.ts       # Combat calculation tests
@@ -133,7 +142,11 @@ tests/
 ├── data.test.ts         # Game data integrity tests
 ├── daynight.test.ts     # Day/night cycle tests
 ├── dice.test.ts         # Dice utility tests
+├── mounts.test.ts       # Mount system tests
+├── movement.test.ts     # Movement system tests
+├── npcs.test.ts         # NPC system tests
 ├── player.test.ts       # Player system & Point Buy tests
+├── save.test.ts         # Save/load tests
 └── weather.test.ts      # Weather system tests
 ```
 

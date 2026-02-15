@@ -254,7 +254,7 @@ describe("status effects system", () => {
         { id: "rage", remainingTurns: 3, source: "self" },
       ];
       processStartOfTurn(effects, defaultStats);
-      // rage has no save so it just decrements (saveDC is 0 so save branch is skipped)
+      // rage has no save so it just decrements
       expect(effects[0].remainingTurns).toBe(2);
     });
 

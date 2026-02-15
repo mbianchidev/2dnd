@@ -3,6 +3,7 @@
  */
 
 import type { DieType } from "../systems/dice";
+import type { StatusEffectId } from "../systems/statusEffects";
 
 export interface MonsterDrop {
   itemId: string;
@@ -18,7 +19,7 @@ export interface MonsterAbility {
   /** If true AND type is "damage", the monster also heals for the damage dealt. */
   selfHeal?: boolean;
   /** Status effect to apply on hit (if any). */
-  statusEffect?: string;
+  statusEffect?: StatusEffectId;
 }
 
 export interface Monster {

@@ -4,7 +4,8 @@
  * on both players and monsters.
  */
 
-import { rollD20, abilityModifier } from "./dice";
+import { rollD20, rollDie, abilityModifier } from "./dice";
+import type { DieType } from "./dice";
 import type { PlayerStats } from "./player";
 
 // ── Status Effect Types ────────────────────────────────────────
@@ -43,7 +44,7 @@ export interface StatusEffectDef {
   /** Damage per tick (0 = no tick damage). */
   tickDamage: number;
   /** Die type for tick damage (0 = flat damage from tickDamage). */
-  tickDie: number;
+  tickDie: DieType;
   /** Accuracy penalty applied to attack rolls while active. */
   accuracyPenalty: number;
   /** AC modifier while active (positive = bonus, negative = penalty). */
@@ -317,7 +318,7 @@ export function processStartOfTurn(
     // Apply tick damage
     if (def.tickDamage > 0) {
       const dmg = def.tickDie > 0
-        ? Math.max(1, Math.floor(Math.random() * def.tickDie) + 1)
+        ? rollDie(def.tickDie)
         : def.tickDamage;
       totalTickDamage += dmg;
       messages.push(`${def.name} deals ${dmg} damage!`);

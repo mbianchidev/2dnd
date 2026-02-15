@@ -4,6 +4,7 @@
  */
 
 import type { DieType } from "../systems/dice";
+import type { StatusEffectId } from "../systems/statusEffects";
 
 export interface Ability {
   id: string;
@@ -19,9 +20,9 @@ export interface Ability {
   /** If true, this ability is a bonus action and does not end the turn. */
   bonusAction?: boolean;
   /** Status effect to apply to self when used (for type "buff"). */
-  selfEffect?: string;
+  selfEffect?: StatusEffectId;
   /** Status effect to apply to target on hit (for type "damage"). */
-  targetEffect?: string;
+  targetEffect?: StatusEffectId;
 }
 
 export const ABILITIES: Ability[] = [

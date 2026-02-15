@@ -21,7 +21,6 @@ import {
   getEffectAccuracyModifier,
   getEffectDamageModifier,
   applyStatusEffect,
-  type StatusEffectId,
 } from "./statusEffects";
 
 export interface CombatAction {
@@ -385,11 +384,10 @@ export function playerUseAbility(
   // Buff abilities apply a status effect to self
   if (ability.type === "buff") {
     player.mp -= ability.mpCost;
-    const effects = player.activeEffects ?? [];
-    if (!player.activeEffects) player.activeEffects = effects;
+    if (!player.activeEffects) player.activeEffects = [];
     let effectMsg = "";
     if (ability.selfEffect) {
-      const result = applyStatusEffect(effects, ability.selfEffect as StatusEffectId, "self");
+      const result = applyStatusEffect(player.activeEffects, ability.selfEffect, "self");
       effectMsg = ` ${result.message}`;
     }
     return {
@@ -438,7 +436,7 @@ export function playerUseAbility(
     // Apply target effect if defined
     let targetEffectMsg = "";
     if (ability.targetEffect && monsterEffects) {
-      const result = applyStatusEffect(monsterEffects, ability.targetEffect as StatusEffectId, player.name);
+      const result = applyStatusEffect(monsterEffects, ability.targetEffect, player.name);
       if (result.applied) {
         targetEffectMsg = ` ${result.message}`;
       }
@@ -491,7 +489,7 @@ export function monsterUseAbility(
   if (ability.statusEffect && player.activeEffects) {
     const result = applyStatusEffect(
       player.activeEffects,
-      ability.statusEffect as StatusEffectId,
+      ability.statusEffect,
       monster.name,
     );
     if (result.applied) {

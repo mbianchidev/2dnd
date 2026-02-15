@@ -650,6 +650,12 @@ export class OverlayManager {
               this.callbacks.showMessage(result.message);
               if (spell.id === "shortRest") {
                 audioEngine.playCampfireSFX();
+                // Show stat allocation overlay if level-up granted stat points
+                if (p.pendingStatPoints > 0) {
+                  this.toggleEquipOverlay(player);
+                  this.scene.time.delayedCall(500, () => this.showStatOverlay(player));
+                  return;
+                }
               } else {
                 audioEngine.playPotionSFX();
               }
@@ -1277,7 +1283,7 @@ export class OverlayManager {
       this.callbacks.showMessage(fullMsg, "#88ff88");
 
       if (levelResult.asiGained > 0 || player.pendingStatPoints > 0) {
-        this.scene.time.delayedCall(500, () => this.showStatOverlay(player));
+        this.scene.time.delayedCall(1200, () => this.showStatOverlay(player));
       }
     });
   }

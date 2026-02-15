@@ -567,8 +567,8 @@ export class BattleScene extends Phaser.Scene {
 
     const w = this.cameras.main.width;
 
-    // Gather all item categories
-    const consumables = this.player.inventory.filter((item) => item.type === "consumable");
+    // Gather all item categories (exclude Chimaera Wing — not usable in battle)
+    const consumables = this.player.inventory.filter((item) => item.type === "consumable" && item.id !== "chimaeraWing");
     const inventoryWeapons = this.player.inventory.filter((item) => item.type === "weapon");
 
     // Stack consumables by id

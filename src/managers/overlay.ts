@@ -1414,7 +1414,7 @@ export class OverlayManager {
 
     const container = this.scene.add.container(0, 0).setDepth(55);
     const boxW = 280;
-    const boxH = 140;
+    const boxH = 200;
     const boxX = (MAP_WIDTH * TILE_SIZE - boxW) / 2;
     const boxY = (MAP_HEIGHT * TILE_SIZE - boxH) / 2;
 
@@ -1425,7 +1425,7 @@ export class OverlayManager {
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
     container.add(bg);
 
-    const bankTitle = this.scene.add.text(boxX + boxW / 2, boxY + 10, "🏦 Bank", {
+    const bankTitle = this.scene.add.text(boxX + boxW / 2, boxY + 12, "🏦 Bank", {
       fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
     }).setOrigin(0.5, 0).setDepth(56);
     container.add(bankTitle);
@@ -1436,16 +1436,16 @@ export class OverlayManager {
     }
     statusText += "\n2% daily interest on deposits";
 
-    const info = this.scene.add.text(boxX + boxW / 2, boxY + 30, statusText, {
+    const info = this.scene.add.text(boxX + boxW / 2, boxY + 34, statusText, {
       fontSize: "10px", fontFamily: "monospace", color: "#ccc", align: "center", lineSpacing: 3,
     }).setOrigin(0.5, 0);
     container.add(info);
 
-    const btnY = boxY + 78;
-
-    const depositBtn = this.scene.add.text(boxX + boxW / 2 - 70, btnY, "Deposit 10g", {
+    // Deposit row
+    const row1Y = boxY + 90;
+    const depositBtn = this.scene.add.text(boxX + boxW / 2 - 70, row1Y, "Deposit 10g", {
       fontSize: "12px", fontFamily: "monospace", color: "#88ff88",
-      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
+      backgroundColor: "#2a2a4e", padding: { x: 6, y: 4 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     depositBtn.on("pointerover", () => depositBtn.setColor("#ffd700"));
     depositBtn.on("pointerout", () => depositBtn.setColor("#88ff88"));
@@ -1463,9 +1463,9 @@ export class OverlayManager {
     });
     container.add(depositBtn);
 
-    const depositAllBtn = this.scene.add.text(boxX + boxW / 2, btnY, "Deposit All", {
+    const depositAllBtn = this.scene.add.text(boxX + boxW / 2 + 70, row1Y, "Deposit All", {
       fontSize: "12px", fontFamily: "monospace", color: "#66dd66",
-      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
+      backgroundColor: "#2a2a4e", padding: { x: 6, y: 4 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     depositAllBtn.on("pointerover", () => depositAllBtn.setColor("#ffd700"));
     depositAllBtn.on("pointerout", () => depositAllBtn.setColor("#66dd66"));
@@ -1482,9 +1482,11 @@ export class OverlayManager {
     });
     container.add(depositAllBtn);
 
-    const withdrawBtn = this.scene.add.text(boxX + boxW / 2 + 70, btnY, "Withdraw 10g", {
+    // Withdraw row
+    const row2Y = row1Y + 30;
+    const withdrawBtn = this.scene.add.text(boxX + boxW / 2 - 70, row2Y, "Withdraw 10g", {
       fontSize: "12px", fontFamily: "monospace", color: "#ffaa66",
-      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
+      backgroundColor: "#2a2a4e", padding: { x: 6, y: 4 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     withdrawBtn.on("pointerover", () => withdrawBtn.setColor("#ffd700"));
     withdrawBtn.on("pointerout", () => withdrawBtn.setColor("#ffaa66"));
@@ -1501,7 +1503,26 @@ export class OverlayManager {
     });
     container.add(withdrawBtn);
 
-    const closeBtn = this.scene.add.text(boxX + boxW / 2, btnY + 30, "Close", {
+    const withdrawAllBtn = this.scene.add.text(boxX + boxW / 2 + 70, row2Y, "Withdraw All", {
+      fontSize: "12px", fontFamily: "monospace", color: "#dd8844",
+      backgroundColor: "#2a2a4e", padding: { x: 6, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    withdrawAllBtn.on("pointerover", () => withdrawAllBtn.setColor("#ffd700"));
+    withdrawAllBtn.on("pointerout", () => withdrawAllBtn.setColor("#dd8844"));
+    withdrawAllBtn.on("pointerdown", () => {
+      if (player.bankBalance > 0) {
+        player.gold += player.bankBalance;
+        player.bankBalance = 0;
+        this.dismissBankOverlay();
+        this.showBankOverlay(player);
+        this.callbacks.updateHUD();
+        this.callbacks.autoSave();
+      }
+    });
+    container.add(withdrawAllBtn);
+
+    // Close button
+    const closeBtn = this.scene.add.text(boxX + boxW / 2, row2Y + 34, "Close", {
       fontSize: "12px", fontFamily: "monospace", color: "#ff8888",
       backgroundColor: "#2a2a4e", padding: { x: 12, y: 4 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });

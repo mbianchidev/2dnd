@@ -5,6 +5,7 @@ import {
   rollDiceDetailed,
   rollD20,
   rollWithAdvantage,
+  rollWithDisadvantage,
   rollAbilityScore,
   abilityModifier,
 } from "../src/systems/dice";
@@ -82,6 +83,16 @@ describe("dice utilities", () => {
       for (let i = 0; i < 50; i++) {
         const result = rollWithAdvantage(2);
         expect(result.chosen).toBe(Math.max(result.roll1, result.roll2));
+        expect(result.total).toBe(result.chosen + 2);
+      }
+    });
+  });
+
+  describe("rollWithDisadvantage", () => {
+    it("takes the lower of two rolls", () => {
+      for (let i = 0; i < 50; i++) {
+        const result = rollWithDisadvantage(2);
+        expect(result.chosen).toBe(Math.min(result.roll1, result.roll2));
         expect(result.total).toBe(result.chosen + 2);
       }
     });

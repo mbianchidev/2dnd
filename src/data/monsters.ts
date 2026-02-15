@@ -3,6 +3,7 @@
  */
 
 import type { DieType } from "../systems/dice";
+import type { StatusEffectId } from "../systems/statusEffects";
 
 export interface MonsterDrop {
   itemId: string;
@@ -17,6 +18,8 @@ export interface MonsterAbility {
   type: "damage" | "heal";
   /** If true AND type is "damage", the monster also heals for the damage dealt. */
   selfHeal?: boolean;
+  /** Status effect to apply on hit (if any). */
+  statusEffect?: StatusEffectId;
 }
 
 export interface Monster {
@@ -49,7 +52,10 @@ export const MONSTERS: Monster[] = [
     goldReward: 5,
     isBoss: false,
     color: 0x44cc44,
-    drops: [{ itemId: "potion", chance: 0.15 }],
+    drops: [{ itemId: "potion", chance: 0.15 }, { itemId: "antidote", chance: 0.1 }],
+    abilities: [
+      { name: "Acid Spit", chance: 0.2, damageCount: 1, damageDie: 4, type: "damage", statusEffect: "poison" },
+    ],
   },
   {
     id: "goblin",
@@ -63,7 +69,7 @@ export const MONSTERS: Monster[] = [
     goldReward: 10,
     isBoss: false,
     color: 0x88aa44,
-    drops: [{ itemId: "potion", chance: 0.2 }, { itemId: "ether", chance: 0.1 }],
+    drops: [{ itemId: "potion", chance: 0.2 }, { itemId: "ether", chance: 0.1 }, { itemId: "antidote", chance: 0.08 }],
   },
   {
     id: "skeleton",
@@ -96,7 +102,7 @@ export const MONSTERS: Monster[] = [
     color: 0x888888,
     drops: [{ itemId: "potion", chance: 0.25 }],
     abilities: [
-      { name: "Pounce", chance: 0.30, damageCount: 3, damageDie: 6, type: "damage" },
+      { name: "Pounce", chance: 0.30, damageCount: 3, damageDie: 6, type: "damage", statusEffect: "prone" },
     ],
   },
   {
@@ -131,7 +137,7 @@ export const MONSTERS: Monster[] = [
     drops: [{ itemId: "ether", chance: 0.25 }, { itemId: "greaterPotion", chance: 0.1 }],
     abilities: [
       { name: "Life Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true },
-      { name: "Necrotic Bolt", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage" },
+      { name: "Necrotic Bolt", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage", statusEffect: "frightened" },
     ],
   },
   // --- Fixed boss encounters ---

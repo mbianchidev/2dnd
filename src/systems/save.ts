@@ -122,6 +122,8 @@ export function loadGame(): SaveData | null {
     if (data.player.mountId === undefined) data.player.mountId = "";
     // Backward compat: short rest system
     if (data.player.shortRestsRemaining === undefined) data.player.shortRestsRemaining = 2;
+    // Backward compat: status effects system
+    if (!data.player.activeEffects) data.player.activeEffects = [];
     return data;
   } catch {
     return null;

@@ -20,6 +20,7 @@ import {
   getCity,
   getCityForTown,
   getCityShopNearby,
+  getCityChunkMap,
   hasSparkleAt,
   getTownBiome,
   type WorldChunk,
@@ -313,13 +314,21 @@ export class OverworldScene extends Phaser.Scene {
     eKey.on("down", () => this.overlayManager.toggleEquipOverlay(this.player));
 
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
-    mKey.on("down", () => this.overlayManager.toggleWorldMap(this.player, this.defeatedBosses));
+    mKey.on("down", () => {
+      if (this.player.position.inCity) {
+        this.overlayManager.toggleCityMap(this.player);
+      } else {
+        this.overlayManager.toggleWorldMap(this.player, this.defeatedBosses);
+      }
+    });
 
     const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     escKey.on("down", () => {
       // ESC closes the topmost open overlay, or opens the menu
       if (this.overlayManager.settingsOverlay) {
         this.overlayManager.toggleSettingsOverlay();
+      } else if (this.overlayManager.cityMapOverlay) {
+        this.overlayManager.dismissCityMap();
       } else if (this.overlayManager.worldMapOverlay) {
         this.overlayManager.toggleWorldMap(this.player, this.defeatedBosses);
       } else if (this.overlayManager.equipOverlay) {
@@ -480,7 +489,8 @@ export class OverworldScene extends Phaser.Scene {
     if (this.player.position.inCity) {
       const city = getCity(this.player.position.cityId);
       if (!city) return "???";
-      const terrain = city.mapData[this.player.position.y]?.[this.player.position.x];
+      const cityMap = getCityChunkMap(city, this.player.position.cityChunkIndex);
+      const terrain = cityMap[this.player.position.y]?.[this.player.position.x];
       if (terrain === Terrain.CityExit) return `${city.name}  [SPACE] Leave`;
       const shop = getCityShopNearby(city, this.player.position.x, this.player.position.y);
       return shop ? shop.name : city.name;
@@ -665,10 +675,11 @@ export class OverworldScene extends Phaser.Scene {
 
       const city = getCity(this.player.position.cityId);
       if (!city) return;
+      const cityMap = getCityChunkMap(city, this.player.position.cityChunkIndex);
       const targetX = this.player.position.x + dx;
       const targetY = this.player.position.y + dy;
       if (targetX < 0 || targetX >= MAP_WIDTH || targetY < 0 || targetY >= MAP_HEIGHT) return;
-      const targetTerrain = city.mapData[targetY][targetX];
+      const targetTerrain = cityMap[targetY][targetX];
       if (!isWalkable(targetTerrain)) return;
 
       // Block entry to shops at night (except inn)
@@ -682,12 +693,12 @@ export class OverworldScene extends Phaser.Scene {
 
       // Shop interior only accessible via carpet entrance
       if (targetTerrain === Terrain.ShopFloor) {
-        const curTerrain = city.mapData[this.player.position.y]?.[this.player.position.x];
+        const curTerrain = cityMap[this.player.position.y]?.[this.player.position.x];
         if (curTerrain !== Terrain.Carpet && curTerrain !== Terrain.ShopFloor) return;
       }
 
       // Shop exit only through carpet (door)
-      const curTerrain = city.mapData[this.player.position.y]?.[this.player.position.x];
+      const curTerrain = cityMap[this.player.position.y]?.[this.player.position.x];
       if (curTerrain === Terrain.ShopFloor && targetTerrain !== Terrain.ShopFloor && targetTerrain !== Terrain.Carpet) return;
 
       this.lastMoveTime = time;
@@ -879,11 +890,13 @@ export class OverworldScene extends Phaser.Scene {
 
       const city = getCity(this.player.position.cityId);
       if (!city) return;
-      const terrain = city.mapData[this.player.position.y]?.[this.player.position.x];
+      const cityMap = getCityChunkMap(city, this.player.position.cityChunkIndex);
+      const terrain = cityMap[this.player.position.y]?.[this.player.position.x];
 
       if (terrain === Terrain.CityExit) {
         this.player.position.inCity = false;
         this.player.position.cityId = "";
+        this.player.position.cityChunkIndex = 0;
         this.player.position.chunkX = city.chunkX;
         this.player.position.chunkY = city.chunkY;
         this.player.position.x = city.tileX;
@@ -1002,6 +1015,7 @@ export class OverworldScene extends Phaser.Scene {
         if (this.player.mountId) this.player.mountId = "";
         this.player.position.inCity = true;
         this.player.position.cityId = city.id;
+        this.player.position.cityChunkIndex = 0;
         debugPanelLog(`[CITY] Entered ${city.name}`, true);
         this.player.position.x = city.spawnX;
         this.player.position.y = city.spawnY;
@@ -1010,6 +1024,9 @@ export class OverworldScene extends Phaser.Scene {
           for (let tx = 0; tx < MAP_WIDTH; tx++) {
             this.player.progression.exploredTiles[`c:${city.id},${tx},${ty}`] = true;
           }
+        }
+        if (!this.player.progression.discoveredCities.includes(city.id)) {
+          this.player.progression.discoveredCities.push(city.id);
         }
         this.autoSave();
         this.cameras.main.flash(300, 200, 180, 160);

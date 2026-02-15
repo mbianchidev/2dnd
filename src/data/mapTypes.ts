@@ -45,6 +45,7 @@ export enum Terrain {
   Mushroom = 38,
   Casino = 39,
   CityPath = 40,
+  CityGate = 41,
 }
 
 export interface TownData {
@@ -98,6 +99,19 @@ export interface CityShopData {
   shopItems: string[];
 }
 
+/** A single chunk/district within a multi-chunk city. */
+export interface CityChunk {
+  /** Display label for this district (e.g. "Market Quarter", "Docks"). */
+  name: string;
+  /** Interior map data (MAP_WIDTH × MAP_HEIGHT). */
+  mapData: Terrain[][];
+  /** Player spawn position when entering this chunk. */
+  spawnX: number;
+  spawnY: number;
+  /** Shops within this chunk. */
+  shops: CityShopData[];
+}
+
 export interface CityData {
   id: string;
   name: string;
@@ -105,10 +119,18 @@ export interface CityData {
   chunkY: number;
   tileX: number;
   tileY: number;
+  /** Primary chunk map data (chunk index 0). */
   mapData: Terrain[][];
   spawnX: number;
   spawnY: number;
+  /** Shops in the primary chunk (chunk index 0). */
   shops: CityShopData[];
+  /**
+   * Additional city chunks (districts). Index 0 is always the primary chunk
+   * derived from mapData/spawnX/spawnY/shops above. Extra chunks start at
+   * index 1+. When this array is present, its entries are the extra districts.
+   */
+  chunks?: CityChunk[];
 }
 
 export const MAP_WIDTH = 20;

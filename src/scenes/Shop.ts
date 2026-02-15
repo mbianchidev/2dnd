@@ -4,8 +4,8 @@
 
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
-import { useItem, ownsEquipment } from "../systems/player";
-import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
+import { useItem, ownsEquipment, sellItem, isLastEquipment } from "../systems/player";
+import { getShopItems, getShopItemsForTown, getSellValue, canSellItem, type Item } from "../data/items";
 import type { CodexData } from "../systems/codex";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import { CYCLE_LENGTH } from "../systems/daynight";
@@ -33,6 +33,9 @@ export class ShopScene extends Phaser.Scene {
   private cityId = "";
   private discount = 0;
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
+  private mode: "buy" | "sell" = "buy"; // Current shop mode
+  private buyTabButton!: Phaser.GameObjects.Text;
+  private sellTabButton!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: "ShopScene" });
@@ -139,13 +142,32 @@ export class ShopScene extends Phaser.Scene {
     shopBg.lineStyle(1, 0xc0a060, 1);
     shopBg.strokeRect(w * 0.38, 68, w * 0.6, h - 132);
 
-    this.add.text(w * 0.39 + 10, 72, "Items for Sale", {
-      fontSize: "14px",
-      fontFamily: "monospace",
-      color: "#ffd700",
-    });
+    // Tab buttons for Buy/Sell
+    const tabY = 72;
+    this.buyTabButton = this.add
+      .text(w * 0.39 + 10, tabY, "🛒 Buy", {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#ffd700",
+        backgroundColor: "#3a3a5a",
+        padding: { x: 8, y: 4 },
+      })
+      .setInteractive({ useHandCursor: true });
 
-    const listTop = 94;
+    this.sellTabButton = this.add
+      .text(w * 0.39 + 90, tabY, "💰 Sell", {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#aaaaaa",
+        backgroundColor: "#2a2a4a",
+        padding: { x: 8, y: 4 },
+      })
+      .setInteractive({ useHandCursor: true });
+
+    this.buyTabButton.on("pointerdown", () => this.switchMode("buy"));
+    this.sellTabButton.on("pointerdown", () => this.switchMode("sell"));
+
+    const listTop = 100;
     const listBottom = h - 64;
     this.listVisibleH = listBottom - listTop;
 
@@ -160,7 +182,7 @@ export class ShopScene extends Phaser.Scene {
     );
 
     this.scrollY = 0;
-    this.renderShopItems();
+    this.renderItems();
 
     // Scroll with mouse wheel
     this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
@@ -228,7 +250,33 @@ export class ShopScene extends Phaser.Scene {
 
   private scrollList(delta: number): void {
     this.scrollY = Phaser.Math.Clamp(this.scrollY + delta, 0, this.maxScrollY);
-    this.itemListContainer.y = 94 - this.scrollY;
+    this.itemListContainer.y = 100 - this.scrollY; // listTop = 100
+  }
+
+  private switchMode(mode: "buy" | "sell"): void {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    
+    // Update tab button styles
+    if (mode === "buy") {
+      this.buyTabButton.setColor("#ffd700").setBackgroundColor("#3a3a5a");
+      this.sellTabButton.setColor("#aaaaaa").setBackgroundColor("#2a2a4a");
+      this.setMessage("Welcome! Click an item to purchase.", "#88ff88");
+    } else {
+      this.buyTabButton.setColor("#aaaaaa").setBackgroundColor("#2a2a4a");
+      this.sellTabButton.setColor("#ffd700").setBackgroundColor("#3a3a5a");
+      this.setMessage("Select an item to sell.", "#88ff88");
+    }
+    
+    this.renderItems();
+  }
+
+  private renderItems(): void {
+    if (this.mode === "buy") {
+      this.renderShopItems();
+    } else {
+      this.renderInventoryForSelling();
+    }
   }
 
   private renderShopItems(): void {
@@ -255,9 +303,17 @@ export class ShopScene extends Phaser.Scene {
               ? "🛡"
               : item.type === "shield"
                 ? "🛡"
-                : "🔑";
+                : item.type === "mount"
+                  ? "🐴"
+                  : "🔑";
 
-      const tag = alreadyOwned ? " [OWNED]" : levelLocked ? ` [Lv.${item.levelReq}]` : "";
+      // Show owned count for consumables
+      let ownedCount = 0;
+      if (item.type === "consumable") {
+        ownedCount = this.player.inventory.filter(i => i.id === item.id).length;
+      }
+      const ownedTag = ownedCount > 0 ? ` (owned: ${ownedCount})` : "";
+      const tag = alreadyOwned ? " [OWNED]" : levelLocked ? ` [Lv.${item.levelReq}]` : ownedTag;
 
       const priceLabel = this.discount > 0
         ? `${discountedCost}g`
@@ -290,7 +346,105 @@ export class ShopScene extends Phaser.Scene {
     const totalContentH = yOffset;
     this.maxScrollY = Math.max(0, totalContentH - this.listVisibleH);
     this.scrollY = 0;
-    this.itemListContainer.y = 94;
+    this.itemListContainer.y = 100;
+  }
+
+  private renderInventoryForSelling(): void {
+    this.itemListContainer.removeAll(true);
+
+    const w = this.cameras.main.width;
+    const maxTextW = w * 0.6 - 20;
+    let yOffset = 0;
+
+    if (this.player.inventory.length === 0) {
+      const emptyText = this.add.text(0, yOffset, "Your inventory is empty.", {
+        fontSize: "12px",
+        fontFamily: "monospace",
+        color: "#888888",
+      });
+      this.itemListContainer.add(emptyText);
+      this.maxScrollY = 0;
+      this.scrollY = 0;
+      this.itemListContainer.y = 100;
+      return;
+    }
+
+    this.player.inventory.forEach((item, index) => {
+      const sellValue = getSellValue(item);
+      const canSell = canSellItem(item);
+      const isLast = isLastEquipment(this.player, item);
+      
+      // Determine if item can be sold
+      let sellable = canSell && !isLast;
+      let reason = "";
+      if (!canSell) {
+        reason = " [UNSELLABLE]";
+      } else if (isLast) {
+        reason = " [LAST EQUIPMENT]";
+        sellable = false;
+      }
+
+      const color = sellable ? "#cccccc" : "#666666";
+
+      const typeIcon =
+        item.type === "consumable"
+          ? "🧪"
+          : item.type === "weapon"
+            ? "⚔"
+            : item.type === "armor"
+              ? "🛡"
+              : item.type === "shield"
+                ? "🛡"
+                : item.type === "mount"
+                  ? "🐴"
+                  : "🔑";
+
+      const priceLabel = sellable ? `${sellValue}g` : "";
+
+      const text = this.add
+        .text(
+          0,
+          yOffset,
+          `${typeIcon} ${item.name} ${priceLabel} ${item.description}${reason}`,
+          {
+            fontSize: "12px",
+            fontFamily: "monospace",
+            color,
+            wordWrap: { width: maxTextW },
+          }
+        )
+        .setInteractive({ useHandCursor: sellable });
+
+      if (sellable) {
+        text.on("pointerover", () => text.setColor("#ffd700"));
+        text.on("pointerout", () => text.setColor(color));
+        text.on("pointerdown", () => this.sellInventoryItem(index));
+      }
+
+      this.itemListContainer.add(text);
+      yOffset += text.height + 6;
+    });
+
+    const totalContentH = yOffset;
+    this.maxScrollY = Math.max(0, totalContentH - this.listVisibleH);
+    this.scrollY = 0;
+    this.itemListContainer.y = 100;
+  }
+
+  private sellInventoryItem(index: number): void {
+    const item = this.player.inventory[index];
+    if (!item) return;
+
+    const sellValue = getSellValue(item);
+    const result = sellItem(this.player, index, sellValue);
+
+    if (result.success) {
+      this.setMessage(result.message, "#88ff88");
+      this.updateDisplay();
+      this.renderInventoryForSelling();
+    } else {
+      this.setMessage(result.message, "#ff6666");
+    }
   }
 
   private purchaseItem(item: Item): void {
@@ -340,7 +494,7 @@ export class ShopScene extends Phaser.Scene {
     }
 
     this.updateDisplay();
-    this.renderShopItems();
+    this.renderItems();
   }
 
   private restAtInn(): void {
@@ -445,7 +599,7 @@ export class ShopScene extends Phaser.Scene {
     this.timeStep = targetTimeStep;
     this.setMessage(message, "#88ff88");
     this.updateDisplay();
-    this.renderShopItems();
+    this.renderItems();
   }
 
   private setMessage(msg: string, color: string): void {

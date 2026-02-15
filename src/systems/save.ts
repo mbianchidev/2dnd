@@ -122,6 +122,10 @@ export function loadGame(): SaveData | null {
     if (data.player.mountId === undefined) data.player.mountId = "";
     // Backward compat: short rest system
     if (data.player.shortRestsRemaining === undefined) data.player.shortRestsRemaining = 2;
+    // Backward compat: codex elemental discoveries
+    for (const entry of Object.values(data.codex.entries)) {
+      if (!entry.discoveredElements) entry.discoveredElements = [];
+    }
     return data;
   } catch {
     return null;

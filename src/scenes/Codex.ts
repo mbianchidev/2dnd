@@ -12,6 +12,7 @@ import { getItem, ITEMS, type Item } from "../data/items";
 import { ALL_MONSTERS, type Monster } from "../data/monsters";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
+import { elementDisplayName } from "../data/elements";
 
 /** How many entries to show per page. */
 const ENTRIES_PER_PAGE = 8;
@@ -338,6 +339,27 @@ export class CodexScene extends Phaser.Scene {
       lines.push(`― Known Drops ―`);
       lines.push(`  No drops observed yet.`);
     }
+    // Elemental information (progressively discovered)
+    const discovered = entry.discoveredElements ?? [];
+    const profile = monster.elementalProfile;
+    if (discovered.length > 0 && profile) {
+      lines.push("");
+      lines.push(`― Elemental Info ―`);
+      for (const elem of discovered) {
+        const name = elementDisplayName(elem);
+        if (profile.immunities?.includes(elem)) {
+          lines.push(`  ✦ Immune to ${name}`);
+        } else if (profile.weaknesses?.includes(elem)) {
+          lines.push(`  ▼ Weak to ${name}`);
+        } else if (profile.resistances?.includes(elem)) {
+          lines.push(`  ▲ Resists ${name}`);
+        }
+      }
+    } else if (profile && (profile.resistances?.length || profile.weaknesses?.length || profile.immunities?.length)) {
+      lines.push("");
+      lines.push(`― Elemental Info ―`);
+      lines.push(`  Not yet discovered.`);
+    }
     this.detailText.setText(lines.join("\n"));
   }
 
@@ -356,6 +378,7 @@ export class CodexScene extends Phaser.Scene {
     if (item.cost > 0) lines.push(`Shop price: ${item.cost} gold`);
     if (item.twoHanded) lines.push(`(Two-handed)`);
     if (item.levelReq) lines.push(`Requires level ${item.levelReq}`);
+    if (item.element) lines.push(`Element: ${elementDisplayName(item.element)}`);
     this.detailText.setText(lines.join("\n"));
   }
 

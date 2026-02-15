@@ -850,8 +850,8 @@ describe("game data", () => {
       }
     });
 
-    it("Short Rest spell exists as utility type at level 1", () => {
-      const sr = getSpell("shortRest");
+    it("Short Rest ability exists as utility type at level 1", () => {
+      const sr = getAbility("shortRest");
       expect(sr).toBeDefined();
       expect(sr!.name).toBe("Short Rest");
       expect(sr!.type).toBe("utility");
@@ -859,9 +859,9 @@ describe("game data", () => {
       expect(sr!.mpCost).toBe(0);
     });
 
-    it("Short Rest spell is available to all classes", () => {
+    it("Short Rest ability is available to all classes", () => {
       for (const appearance of PLAYER_CLASSES) {
-        expect(appearance.spells, `${appearance.label} should have shortRest`).toContain("shortRest");
+        expect(appearance.abilities, `${appearance.label} should have shortRest`).toContain("shortRest");
       }
     });
   });

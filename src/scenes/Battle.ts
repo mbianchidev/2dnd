@@ -62,6 +62,9 @@ export class BattleScene extends Phaser.Scene {
   private spellMenu: Phaser.GameObjects.Container | null = null;
   private itemMenu: Phaser.GameObjects.Container | null = null;
   private abilityMenu: Phaser.GameObjects.Container | null = null;
+  private battleSpellPage = 0;
+  private battleAbilityPage = 0;
+  private battleItemPage = 0;
 
   // Defend state
   private playerDefending = false;
@@ -135,6 +138,17 @@ export class BattleScene extends Phaser.Scene {
     this.setupDebug();
     this.createWeatherParticles();
     this.applyDayNightTint();
+
+    // ESC closes any open sub-menu
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on("down", () => {
+      this.closeAllSubMenus();
+    });
+    // A/D or Left/Right for sub-menu paging
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT).on("down", () => this.battleMenuPageChange(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT).on("down", () => this.battleMenuPageChange(1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A).on("down", () => this.battleMenuPageChange(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D).on("down", () => this.battleMenuPageChange(1));
+
     this.rollForInitiative();
 
     // Start battle or boss music
@@ -363,111 +377,152 @@ export class BattleScene extends Phaser.Scene {
     if (this.abilityMenu) { this.abilityMenu.destroy(); this.abilityMenu = null; }
   }
 
-  private showSpellMenu(): void {
+  /** Handle A/D or Left/Right paging in open battle sub-menus. */
+  private battleMenuPageChange(dir: number): void {
     if (this.spellMenu) {
+      this.battleSpellPage += dir;
+      this.showSpellMenu(true);
+    } else if (this.abilityMenu) {
+      this.battleAbilityPage += dir;
+      this.showAbilityMenu(true);
+    } else if (this.itemMenu) {
+      this.battleItemPage += dir;
+      this.showItemMenu(true);
+    }
+  }
+
+  private showSpellMenu(keepPage = false): void {
+    if (this.spellMenu && !keepPage) {
       this.spellMenu.destroy();
       this.spellMenu = null;
       return;
     }
-    if (this.itemMenu) {
-      this.itemMenu.destroy();
-      this.itemMenu = null;
-    }
+    this.closeAllSubMenus();
+    if (!keepPage) this.battleSpellPage = 0;
 
     const w = this.cameras.main.width;
     const spells = this.player.knownSpells
       .map((id) => getSpell(id))
       .filter((s): s is Spell => s !== undefined && s.type !== "utility");
 
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - spells.length * 28 - 10);
+    if (spells.length === 0) { this.addLog("No spells known!"); return; }
+
+    const MAX_PER_PAGE = 5;
+    const totalPages = Math.max(1, Math.ceil(spells.length / MAX_PER_PAGE));
+    this.battleSpellPage = Math.max(0, Math.min(this.battleSpellPage, totalPages - 1));
+    const start = this.battleSpellPage * MAX_PER_PAGE;
+    const visible = spells.slice(start, start + MAX_PER_PAGE);
+    const rowH = 36;
+    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
+
+    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
     container.setDepth(6);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
-    bg.fillRect(-5, -5, 260, spells.length * 28 + 10);
+    bg.fillRect(-5, -5, 260, menuH);
     bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, spells.length * 28 + 10);
+    bg.strokeRect(-5, -5, 260, menuH);
     container.add(bg);
 
-    spells.forEach((spell, i) => {
+    visible.forEach((spell, i) => {
       const canCast = this.player.mp >= spell.mpCost;
       const color = canCast ? "#aaddff" : "#666";
-      const text = this.add
-        .text(0, i * 28, `${spell.name} (${spell.mpCost} MP) - ${spell.type}`, {
-          fontSize: "12px",
-          fontFamily: "monospace",
-          color,
-        })
-        .setInteractive({ useHandCursor: canCast });
-
+      const text = this.add.text(0, i * rowH, `${spell.name} (${spell.mpCost} MP)`, {
+        fontSize: "12px", fontFamily: "monospace", color,
+      }).setInteractive({ useHandCursor: canCast });
+      const desc = this.add.text(0, i * rowH + 14, spell.description, {
+        fontSize: "9px", fontFamily: "monospace", color: "#888",
+        wordWrap: { width: 250 },
+      });
       if (canCast) {
         text.on("pointerover", () => text.setColor("#ffd700"));
         text.on("pointerout", () => text.setColor(color));
-        text.on("pointerdown", () => {
-          this.spellMenu?.destroy();
-          this.spellMenu = null;
-          this.doPlayerSpell(spell.id);
-        });
+        text.on("pointerdown", () => { this.closeAllSubMenus(); this.doPlayerSpell(spell.id); });
       }
-      container.add(text);
+      container.add([text, desc]);
     });
+
+    if (totalPages > 1) {
+      const nav = this.add.text(80, visible.length * rowH, `◄ ${this.battleSpellPage + 1}/${totalPages} ►`, {
+        fontSize: "10px", fontFamily: "monospace", color: "#888",
+      }).setInteractive({ useHandCursor: true });
+      nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        const mid = nav.x + nav.width / 2;
+        this.battleSpellPage += pointer.x < mid ? -1 : 1;
+        this.showSpellMenu(true);
+      });
+      container.add(nav);
+    }
 
     this.spellMenu = container;
   }
 
-  private showAbilityMenu(): void {
-    if (this.abilityMenu) {
+  private showAbilityMenu(keepPage = false): void {
+    if (this.abilityMenu && !keepPage) {
       this.abilityMenu.destroy();
       this.abilityMenu = null;
       return;
     }
-    if (this.spellMenu) { this.spellMenu.destroy(); this.spellMenu = null; }
-    if (this.itemMenu) { this.itemMenu.destroy(); this.itemMenu = null; }
+    this.closeAllSubMenus();
+    if (!keepPage) this.battleAbilityPage = 0;
 
     const w = this.cameras.main.width;
     const abilities = (this.player.knownAbilities ?? [])
       .map((id) => getAbility(id))
       .filter((a): a is Ability => a !== undefined && a.type !== "utility");
 
-    if (abilities.length === 0) {
-      this.addLog("No abilities known!");
-      return;
-    }
+    if (abilities.length === 0) { this.addLog("No abilities known!"); return; }
 
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - abilities.length * 28 - 10);
+    const MAX_PER_PAGE = 5;
+    const totalPages = Math.max(1, Math.ceil(abilities.length / MAX_PER_PAGE));
+    this.battleAbilityPage = Math.max(0, Math.min(this.battleAbilityPage, totalPages - 1));
+    const start = this.battleAbilityPage * MAX_PER_PAGE;
+    const visible = abilities.slice(start, start + MAX_PER_PAGE);
+    const rowH = 36;
+    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
+
+    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
     container.setDepth(6);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a2a1e, 0.95);
-    bg.fillRect(-5, -5, 260, abilities.length * 28 + 10);
+    bg.fillRect(-5, -5, 260, menuH);
     bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, abilities.length * 28 + 10);
+    bg.strokeRect(-5, -5, 260, menuH);
     container.add(bg);
 
-    abilities.forEach((ability, i) => {
+    visible.forEach((ability, i) => {
       const canUse = this.player.mp >= ability.mpCost;
       const isBonusAction = ability.bonusAction ?? false;
       const bonusTag = isBonusAction ? " [BA]" : "";
       const color = canUse ? (isBonusAction ? "#aaffaa" : "#ffddaa") : "#666";
-      const text = this.add
-        .text(0, i * 28, `${ability.name}${bonusTag} (${ability.mpCost} MP) - ${ability.type}`, {
-          fontSize: "12px",
-          fontFamily: "monospace",
-          color,
-        })
-        .setInteractive({ useHandCursor: canUse });
-
+      const text = this.add.text(0, i * rowH, `${ability.name}${bonusTag} (${ability.mpCost} MP)`, {
+        fontSize: "12px", fontFamily: "monospace", color,
+      }).setInteractive({ useHandCursor: canUse });
+      const desc = this.add.text(0, i * rowH + 14, ability.description, {
+        fontSize: "9px", fontFamily: "monospace", color: "#888",
+        wordWrap: { width: 250 },
+      });
       if (canUse) {
         text.on("pointerover", () => text.setColor("#ffd700"));
         text.on("pointerout", () => text.setColor(color));
-        text.on("pointerdown", () => {
-          this.abilityMenu?.destroy();
-          this.abilityMenu = null;
-          this.doPlayerAbility(ability.id);
-        });
+        text.on("pointerdown", () => { this.closeAllSubMenus(); this.doPlayerAbility(ability.id); });
       }
-      container.add(text);
+      container.add([text, desc]);
     });
+
+    if (totalPages > 1) {
+      const nav = this.add.text(80, visible.length * rowH, `◄ ${this.battleAbilityPage + 1}/${totalPages} ►`, {
+        fontSize: "10px", fontFamily: "monospace", color: "#888",
+      }).setInteractive({ useHandCursor: true });
+      nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        const mid = nav.x + nav.width / 2;
+        this.battleAbilityPage += pointer.x < mid ? -1 : 1;
+        this.showAbilityMenu(true);
+      });
+      container.add(nav);
+    }
 
     this.abilityMenu = container;
   }
@@ -554,16 +609,14 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  private showItemMenu(): void {
-    if (this.itemMenu) {
+  private showItemMenu(keepPage = false): void {
+    if (this.itemMenu && !keepPage) {
       this.itemMenu.destroy();
       this.itemMenu = null;
       return;
     }
-    if (this.spellMenu) {
-      this.spellMenu.destroy();
-      this.spellMenu = null;
-    }
+    this.closeAllSubMenus();
+    if (!keepPage) this.battleItemPage = 0;
 
     const w = this.cameras.main.width;
 
@@ -586,7 +639,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // Build menu rows
-    type MenuRow = { label: string; color: string; interactive: boolean; action?: () => void };
+    type MenuRow = { label: string; desc?: string; color: string; interactive: boolean; action?: () => void };
     const rows: MenuRow[] = [];
 
     // --- Consumables section ---
@@ -595,13 +648,13 @@ export class BattleScene extends Phaser.Scene {
       for (const stack of stacks) {
         const countLabel = stack.count > 1 ? ` x${stack.count}` : "";
         rows.push({
-          label: `  ${stack.item.name}${countLabel} - ${stack.item.description}`,
+          label: `  ${stack.item.name}${countLabel}`,
+          desc: stack.item.description,
           color: "#aaffaa",
           interactive: true,
           action: () => {
             const realIndex = this.player.inventory.findIndex(it => it.id === stack.item.id && it.type === "consumable");
-            this.itemMenu?.destroy();
-            this.itemMenu = null;
+            this.closeAllSubMenus();
             if (realIndex >= 0) this.doUseItem(realIndex);
           },
         });
@@ -612,40 +665,26 @@ export class BattleScene extends Phaser.Scene {
     const hasWeapons = this.player.equippedWeapon || inventoryWeapons.length > 0;
     if (hasWeapons) {
       rows.push({ label: "― Weapons ―", color: "#c0a060", interactive: false });
-      // Show currently equipped weapon
       if (this.player.equippedWeapon) {
         const eq = this.player.equippedWeapon;
-        rows.push({
-          label: `  ► ${eq.name} (+${eq.effect} dmg) [main]`,
-          color: "#88ff88",
-          interactive: false,
-        });
+        rows.push({ label: `  ► ${eq.name} (+${eq.effect} dmg) [main]`, color: "#88ff88", interactive: false });
       }
-      // Show currently equipped off-hand
       if (this.player.equippedOffHand) {
         const oh = this.player.equippedOffHand;
-        rows.push({
-          label: `  ► ${oh.name} (+${oh.effect} dmg) [off]`,
-          color: "#88ff88",
-          interactive: false,
-        });
+        rows.push({ label: `  ► ${oh.name} (+${oh.effect} dmg) [off]`, color: "#88ff88", interactive: false });
       }
-      // Show unequipped inventory weapons (swap as bonus action)
       for (const wpn of inventoryWeapons) {
         if (wpn.id === this.player.equippedWeapon?.id) continue;
         if (wpn.id === this.player.equippedOffHand?.id) continue;
         rows.push({
           label: `  ${wpn.name} (+${wpn.effect} dmg) [equip]`,
-          color: "#aaddff",
-          interactive: true,
-          action: () => {
-            this.doBattleWeaponSwap(wpn);
-          },
+          color: "#aaddff", interactive: true,
+          action: () => { this.doBattleWeaponSwap(wpn); },
         });
       }
     }
 
-    // --- Armor & Shield section (display-only, no interaction unless magic effect in future) ---
+    // --- Armor & Shield section (display-only) ---
     const hasDefense = this.player.equippedArmor || this.player.equippedShield;
     if (hasDefense) {
       rows.push({ label: "― Defense ―", color: "#c0a060", interactive: false });
@@ -664,8 +703,15 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    const rowH = 22;
-    const menuH = rows.length * rowH + 10;
+    // Paging
+    const MAX_PER_PAGE = 7;
+    const totalPages = Math.max(1, Math.ceil(rows.length / MAX_PER_PAGE));
+    this.battleItemPage = Math.max(0, Math.min(this.battleItemPage, totalPages - 1));
+    const start = this.battleItemPage * MAX_PER_PAGE;
+    const visible = rows.slice(start, start + MAX_PER_PAGE);
+
+    const rowH = 24;
+    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
     const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
     container.setDepth(6);
 
@@ -676,11 +722,10 @@ export class BattleScene extends Phaser.Scene {
     bg.strokeRect(-5, -5, 280, menuH);
     container.add(bg);
 
-    rows.forEach((row, i) => {
+    visible.forEach((row, i) => {
       const text = this.add.text(0, i * rowH, row.label, {
-        fontSize: "12px",
-        fontFamily: "monospace",
-        color: row.color,
+        fontSize: "11px", fontFamily: "monospace", color: row.color,
+        wordWrap: { width: 270 },
       });
       if (row.interactive && row.action) {
         text.setInteractive({ useHandCursor: true });
@@ -691,6 +736,18 @@ export class BattleScene extends Phaser.Scene {
       }
       container.add(text);
     });
+
+    if (totalPages > 1) {
+      const nav = this.add.text(100, visible.length * rowH, `◄ ${this.battleItemPage + 1}/${totalPages} ►`, {
+        fontSize: "10px", fontFamily: "monospace", color: "#888",
+      }).setInteractive({ useHandCursor: true });
+      nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        const mid = nav.x + nav.width / 2;
+        this.battleItemPage += pointer.x < mid ? -1 : 1;
+        this.showItemMenu(true);
+      });
+      container.add(nav);
+    }
 
     this.itemMenu = container;
   }

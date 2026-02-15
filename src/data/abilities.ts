@@ -206,7 +206,21 @@ export const ABILITIES: Ability[] = [
     mpCost: 5, levelRequired: 5, damageCount: 0, damageDie: 0,
     type: "utility", statKey: "dexterity",
   },
-];
+  // ── Evac (all classes) ─────────────────────────────────
+  {
+    id: "evac", name: "Evac",
+    description: "Evacuate to the entrance of the current dungeon",
+    mpCost: 2, levelRequired: 4, damageCount: 0, damageDie: 0,
+    type: "utility", statKey: "dexterity",
+  },
+
+  // ── Short Rest (all classes) ────────────────────────────
+  {
+    id: "shortRest", name: "Short Rest",
+    description: "Rest to recover 50% HP and MP (wilds only)",
+    mpCost: 0, levelRequired: 1, damageCount: 0, damageDie: 0,
+    type: "utility", statKey: "dexterity",
+  },];
 
 /** Look up an ability by ID. */
 export function getAbility(id: string): Ability | undefined {

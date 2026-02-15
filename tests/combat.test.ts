@@ -178,8 +178,9 @@ describe("combat system", () => {
   describe("utility spell/ability combat rejection", () => {
     it("rejects utility spells in combat", () => {
       const player = createPlayer("Test", defaultStats);
+      player.knownSpells.push("teleport");
       const monster = createTestMonster();
-      const result = playerCastSpell(player, "shortRest", monster);
+      const result = playerCastSpell(player, "teleport", monster);
       expect(result.hit).toBe(false);
       expect(result.damage).toBe(0);
       expect(result.message).toContain("cannot be used in battle");

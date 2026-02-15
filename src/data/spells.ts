@@ -278,18 +278,6 @@ export const SPELLS: Spell[] = [
     type: "damage",
   },
 
-  // ── Utility (all classes) ─────────────────────────────────────
-  {
-    id: "shortRest",
-    name: "Short Rest",
-    description: "Take a quick rest to recover 50% HP and MP",
-    mpCost: 0,
-    levelRequired: 1,
-    damageCount: 0,
-    damageDie: 0,
-    type: "utility",
-  },
-
   // ── Utility (casters only) ────────────────────────────────────
   {
     id: "teleport",

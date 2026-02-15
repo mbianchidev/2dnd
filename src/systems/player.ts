@@ -458,6 +458,9 @@ export function useItem(
       return { used: true, message: `Restored ${restored} MP!` };
     }
     if (item.id === "chimaeraWing") {
+      if (player.position.inDungeon) {
+        return { used: false, message: "Cannot use Chimaera Wing inside a dungeon!" };
+      }
       // Chimaera Wing teleportation is handled by the scene;
       // here we just consume the item and signal success.
       player.inventory.splice(itemIndex, 1);
@@ -569,34 +572,11 @@ export function castSpellOutsideCombat(
     return { success: false, message: "Not enough MP!" };
   }
 
-  // Short Rest spell — usable in the overworld, limited uses
-  if (spellId === "shortRest") {
-    if (player.shortRestsRemaining <= 0) {
-      return { success: false, message: "No short rests remaining! Rest at an inn to refill." };
-    }
-    if (player.hp >= player.maxHp && player.mp >= player.maxMp && (player.pendingLevelUps ?? 0) <= 0) {
-      return { success: false, message: "HP and MP are already full!" };
-    }
-    const { hpRestored, mpRestored } = shortRest(player);
-    const levelResult = processPendingLevelUps(player);
-    let msg = `Short Rest! Recovered ${hpRestored} HP and ${mpRestored} MP. (${player.shortRestsRemaining} rests left)`;
-    if (levelResult.leveledUp) {
-      msg += ` 🎉 LEVEL UP to ${levelResult.newLevel}!`;
-      for (const spell of levelResult.newSpells) {
-        msg += ` ✦ ${spell.name}!`;
-      }
-      for (const ability of levelResult.newAbilities) {
-        msg += ` ⚡ ${ability.name}!`;
-      }
-      if (levelResult.asiGained > 0) {
-        msg += ` ★ +${levelResult.asiGained} stat points!`;
-      }
-    }
-    return { success: true, message: msg };
-  }
-
   // Teleport spell — signal to scene to show town picker
   if (spellId === "teleport") {
+    if (player.position.inDungeon) {
+      return { success: false, message: "Cannot teleport from inside a dungeon!" };
+    }
     return { success: true, message: "Choose a destination...", teleport: true };
   }
 
@@ -623,7 +603,7 @@ export function castSpellOutsideCombat(
 export function useAbilityOutsideCombat(
   player: PlayerState,
   abilityId: string
-): { success: boolean; message: string; teleport?: boolean } {
+): { success: boolean; message: string; teleport?: boolean; evac?: boolean } {
   const ability = getAbility(abilityId);
   if (!ability) return { success: false, message: "Unknown ability!" };
 
@@ -637,7 +617,42 @@ export function useAbilityOutsideCombat(
 
   // Fast Travel ability — signal to scene to show town picker
   if (abilityId === "fastTravel") {
+    if (player.position.inDungeon) {
+      return { success: false, message: "Cannot fast travel from inside a dungeon!" };
+    }
     return { success: true, message: "Choose a destination...", teleport: true };
+  }
+
+  // Evac ability — signal to scene to teleport to dungeon entrance
+  if (abilityId === "evac") {
+    if (!player.position.inDungeon) {
+      return { success: false, message: "Evac can only be used inside a dungeon!" };
+    }
+    player.mp -= ability.mpCost;
+    return { success: true, message: "You teleport to the dungeon entrance!", evac: true };
+  }
+
+  // Short Rest ability — usable in the overworld wilds
+  if (abilityId === "shortRest") {
+    if (player.position.inDungeon || player.position.inCity) {
+      return { success: false, message: "Short Rest can only be used in the wilds!" };
+    }
+    if (player.shortRestsRemaining <= 0) {
+      return { success: false, message: "No short rests remaining! Rest at an inn to refill." };
+    }
+    if (player.hp >= player.maxHp && player.mp >= player.maxMp && (player.pendingLevelUps ?? 0) <= 0) {
+      return { success: false, message: "HP and MP are already full!" };
+    }
+    const { hpRestored, mpRestored } = shortRest(player);
+    const levelResult = processPendingLevelUps(player);
+    let msg = `Short Rest! Recovered ${hpRestored} HP and ${mpRestored} MP. (${player.shortRestsRemaining} rests left)`;
+    if (levelResult.leveledUp) {
+      msg += ` 🎉 LEVEL UP to ${levelResult.newLevel}!`;
+      for (const sp of levelResult.newSpells) { msg += ` ✦ ${sp.name}!`; }
+      for (const ab of levelResult.newAbilities) { msg += ` ⚡ ${ab.name}!`; }
+      if (levelResult.asiGained > 0) { msg += ` ★ +${levelResult.asiGained} stat points!`; }
+    }
+    return { success: true, message: msg };
   }
 
   if (ability.type === "heal") {

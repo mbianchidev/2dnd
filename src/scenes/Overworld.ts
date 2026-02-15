@@ -195,6 +195,7 @@ export class OverworldScene extends Phaser.Scene {
       },
       getTimeStep: () => this.timeStep,
       setTimeStep: (t: number) => { this.timeStep = t; },
+      evacuateDungeon: () => this.evacuateDungeon(),
     });
 
     // Load scene data
@@ -316,8 +317,23 @@ export class OverworldScene extends Phaser.Scene {
 
     const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     escKey.on("down", () => {
+      // ESC closes the topmost open overlay, or opens the menu
       if (this.overlayManager.settingsOverlay) {
         this.overlayManager.toggleSettingsOverlay();
+      } else if (this.overlayManager.worldMapOverlay) {
+        this.overlayManager.toggleWorldMap(this.player, this.defeatedBosses);
+      } else if (this.overlayManager.equipOverlay) {
+        this.overlayManager.toggleEquipOverlay(this.player);
+      } else if (this.overlayManager.bankOverlay) {
+        this.overlayManager.dismissBankOverlay();
+      } else if (this.overlayManager.innConfirmOverlay) {
+        this.overlayManager.dismissInnConfirmation();
+      } else if (this.overlayManager.townPickerOverlay) {
+        this.overlayManager.dismissTownPicker();
+      } else if (this.overlayManager.statOverlay) {
+        // Stat overlay stays open (must allocate points)
+      } else if (this.overlayManager.menuOverlay) {
+        this.overlayManager.toggleMenuOverlay(this.player, this.defeatedBosses, this.codex);
       } else {
         this.overlayManager.toggleMenuOverlay(this.player, this.defeatedBosses, this.codex);
       }
@@ -746,6 +762,26 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  /** Evac: teleport player to the dungeon entrance (used by Evac ability). */
+  private evacuateDungeon(): void {
+    if (!this.player.position.inDungeon) return;
+    const dungeon = getDungeon(this.player.position.dungeonId);
+    if (!dungeon) return;
+    this.player.position.inDungeon = false;
+    this.player.position.dungeonId = "";
+    this.player.position.chunkX = dungeon.entranceChunkX;
+    this.player.position.chunkY = dungeon.entranceChunkY;
+    this.player.position.x = dungeon.entranceTileX;
+    this.player.position.y = dungeon.entranceTileY;
+    this.rerollWeather();
+    this.autoSave();
+    this.cameras.main.flash(300, 200, 255, 200);
+    this.scene.restart({
+      player: this.player, defeatedBosses: this.defeatedBosses,
+      codex: this.codex, timeStep: this.timeStep, weatherState: this.weatherState,
+    });
+  }
+
   // ── SPACE action handler ────────────────────────────────────────────────
 
   private handleAction(): void {
@@ -949,6 +985,14 @@ export class OverworldScene extends Phaser.Scene {
       if (dungeon) {
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
         if (hasKey || isDebug()) {
+          // Consume the dungeon key on first use
+          if (hasKey) {
+            const keyIdx = this.player.inventory.findIndex((i) => i.id === "dungeonKey");
+            if (keyIdx >= 0) {
+              this.player.inventory.splice(keyIdx, 1);
+              this.showMessage("The dungeon key shatters as the seal breaks!", "#ffd700");
+            }
+          }
           if (this.player.mountId) this.player.mountId = "";
           this.player.position.inDungeon = true;
           this.player.position.dungeonId = dungeon.id;

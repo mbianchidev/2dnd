@@ -56,6 +56,7 @@ export interface OverlayCallbacks {
   saveAndQuit: () => void;
   getTimeStep: () => number;
   setTimeStep: (t: number) => void;
+  evacuateDungeon: () => void;
 }
 
 export class OverlayManager {
@@ -618,20 +619,17 @@ export class OverlayManager {
         const modStr = primaryMod >= 0 ? `+${primaryMod}` : `${primaryMod}`;
         const diceInfo = hasDice ? `  ${diceStr}${modStr} ${dmgOrHeal}` : "";
         const isUsable = spell.type === "heal" || spell.type === "utility";
-        const inWilds = !p.position.inCity && !p.position.inDungeon;
-        const restTag = spell.id === "shortRest"
-          ? ` (${p.shortRestsRemaining} left${!inWilds ? " — wilds only" : ""})`
-          : "";
         let canCast = false;
         if (isUsable) {
           canCast = p.mp >= spell.mpCost && (spell.type !== "heal" || p.hp < p.maxHp);
-          if (spell.id === "shortRest") {
-            canCast = inWilds && p.shortRestsRemaining > 0 && (p.hp < p.maxHp || p.mp < p.maxMp || (p.pendingLevelUps ?? 0) > 0);
+          // Block teleport in dungeons
+          if (spell.id === "teleport" && p.position.inDungeon) {
+            canCast = false;
           }
         }
         const baseColor = isUsable ? (canCast ? "#ccffcc" : "#666") : "#aaddff";
         const txt = this.scene.add.text(px + 20, cy,
-          `${spell.name}  ${spell.mpCost} MP${diceInfo}${restTag}`,
+          `${spell.name}  ${spell.mpCost} MP${diceInfo}`,
           { fontSize: "11px", fontFamily: "monospace", color: baseColor },
         );
         if (isUsable) {
@@ -648,17 +646,7 @@ export class OverlayManager {
                 return;
               }
               this.callbacks.showMessage(result.message);
-              if (spell.id === "shortRest") {
-                audioEngine.playCampfireSFX();
-                // Show stat allocation overlay if level-up granted stat points
-                if (p.pendingStatPoints > 0) {
-                  this.toggleEquipOverlay(player);
-                  this.scene.time.delayedCall(500, () => this.showStatOverlay(player));
-                  return;
-                }
-              } else {
-                audioEngine.playPotionSFX();
-              }
+              audioEngine.playPotionSFX();
               this.buildEquipOverlay(player);
               this.callbacks.updateHUD();
             });
@@ -719,7 +707,18 @@ export class OverlayManager {
         const bonusTag = ability.bonusAction ? " [bonus]" : "";
         const diceInfo = hasDice ? `  ${diceStr}${aModStr} ${dmgOrHeal}` : "";
         const isUsable = ability.type === "heal" || ability.type === "utility";
-        const canUse = isUsable && p.mp >= ability.mpCost && (ability.type !== "heal" || p.hp < p.maxHp);
+        let canUse = isUsable && p.mp >= ability.mpCost && (ability.type !== "heal" || p.hp < p.maxHp);
+        // Special usability checks for shortRest and evac
+        if (ability.id === "shortRest") {
+          const inWilds = !p.position.inDungeon && !p.position.inCity;
+          canUse = inWilds && p.shortRestsRemaining > 0 && (p.hp < p.maxHp || p.mp < p.maxMp || (p.pendingLevelUps ?? 0) > 0);
+        }
+        if (ability.id === "evac") {
+          canUse = p.position.inDungeon && p.mp >= ability.mpCost;
+        }
+        if (ability.id === "fastTravel") {
+          canUse = !p.position.inDungeon && p.mp >= ability.mpCost;
+        }
         const baseColor = isUsable ? (canUse ? "#ccffcc" : "#666") : "#aaddff";
         const txt = this.scene.add.text(px + 20, cy,
           `${ability.name}  ${ability.mpCost} MP${diceInfo}${bonusTag}`,
@@ -738,8 +737,23 @@ export class OverlayManager {
                 this.showTownPicker(player);
                 return;
               }
+              if (result.evac) {
+                this.toggleEquipOverlay(player);
+                this.callbacks.showMessage(result.message, "#88ff88");
+                this.callbacks.evacuateDungeon();
+                return;
+              }
               this.callbacks.showMessage(result.message);
-              audioEngine.playPotionSFX();
+              if (ability.id === "shortRest") {
+                audioEngine.playCampfireSFX();
+                if (p.pendingStatPoints > 0) {
+                  this.toggleEquipOverlay(player);
+                  this.scene.time.delayedCall(500, () => this.showStatOverlay(player));
+                  return;
+                }
+              } else {
+                audioEngine.playPotionSFX();
+              }
               this.buildEquipOverlay(player);
               this.callbacks.updateHUD();
             });

@@ -325,7 +325,7 @@ export class ShopScene extends Phaser.Scene {
         .text(
           0,
           yOffset,
-          `${typeIcon} ${item.name} ${priceLabel} ${item.description}${tag}`,
+          `${typeIcon} ${item.name} ${item.description} ${priceLabel}${tag}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",
@@ -394,7 +394,7 @@ export class ShopScene extends Phaser.Scene {
         .text(
           0,
           yOffset,
-          `${typeIcon} ${item.name} ${priceLabel} ${item.description}${reason}`,
+          `${typeIcon} ${item.name} ${item.description} ${priceLabel}${reason}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",

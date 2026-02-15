@@ -2,7 +2,7 @@
  * Turn-based combat system with D&D-like dice mechanics.
  */
 
-import { rollD20, rollDice, type DieType } from "../utils/dice";
+import { rollD20, rollDice, type DieType } from "../systems/dice";
 import type { Monster, MonsterAbility } from "../data/monsters";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
@@ -14,7 +14,7 @@ import {
   hasTwoWeaponFighting,
   type PlayerState,
 } from "./player";
-import { abilityModifier } from "../utils/dice";
+import { abilityModifier } from "../systems/dice";
 import { getPlayerClass } from "./classes";
 
 export interface CombatAction {

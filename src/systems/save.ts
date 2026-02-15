@@ -3,8 +3,8 @@
  */
 
 import type { PlayerState } from "./player";
-import type { BestiaryData } from "./bestiary";
-import { createBestiary } from "./bestiary";
+import type { CodexData } from "./codex";
+import { createCodex } from "./codex";
 import type { WeatherState } from "./weather";
 import { createWeatherState } from "./weather";
 
@@ -14,7 +14,7 @@ export interface SaveData {
   version: number;
   player: PlayerState;
   defeatedBosses: string[];
-  bestiary: BestiaryData;
+  codex: CodexData;
   appearanceId: string;
   timestamp: number;
   /** Day/night cycle step counter (added in v1). */
@@ -27,7 +27,7 @@ export interface SaveData {
 export function saveGame(
   player: PlayerState,
   defeatedBosses: Set<string>,
-  bestiary: BestiaryData,
+  codex: CodexData,
   appearanceId: string,
   timeStep: number = 0,
   weatherState?: WeatherState
@@ -36,7 +36,7 @@ export function saveGame(
     version: 1,
     player,
     defeatedBosses: [...defeatedBosses],
-    bestiary,
+    codex,
     appearanceId,
     timestamp: Date.now(),
     timeStep,
@@ -56,8 +56,14 @@ export function loadGame(): SaveData | null {
     if (!raw) return null;
     const data = JSON.parse(raw) as SaveData;
     if (!data.player || !data.version) return null;
-    // Ensure bestiary exists (may be missing from old saves)
-    if (!data.bestiary) data.bestiary = createBestiary();
+    // Migration: old saves stored this field as "bestiary" — map to "codex"
+    const raw2 = data as unknown as Record<string, unknown>;
+    if (!data.codex && raw2["bestiary"]) {
+      data.codex = raw2["bestiary"] as CodexData;
+      delete raw2["bestiary"];
+    }
+    // Ensure codex exists (may be missing from old saves)
+    if (!data.codex) data.codex = createCodex();
     if (!data.appearanceId) data.appearanceId = "knight";
     // Backward compat for new fields
     if (!data.player.knownAbilities) data.player.knownAbilities = [];

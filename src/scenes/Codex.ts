@@ -7,7 +7,7 @@
 
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
-import type { BestiaryData, BestiaryEntry } from "../systems/bestiary";
+import type { CodexData, CodexEntry } from "../systems/codex";
 import { getItem, ITEMS, type Item } from "../data/items";
 import { ALL_MONSTERS, type Monster } from "../data/monsters";
 import { type WeatherState, createWeatherState } from "../systems/weather";
@@ -26,10 +26,10 @@ const ALL_ARMOR: Item[] = ITEMS.filter((i) => i.type === "armor" || i.type === "
 /** All consumable / key / mount items. */
 const ALL_ITEMS: Item[] = ITEMS.filter((i) => i.type === "consumable" || i.type === "key" || i.type === "mount");
 
-export class BestiaryScene extends Phaser.Scene {
+export class CodexScene extends Phaser.Scene {
   private player!: PlayerState;
   private defeatedBosses!: Set<string>;
-  private bestiary!: BestiaryData;
+  private codex!: CodexData;
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
@@ -49,20 +49,20 @@ export class BestiaryScene extends Phaser.Scene {
   private tabUnderline!: Phaser.GameObjects.Graphics;
 
   constructor() {
-    super({ key: "BestiaryScene" });
+    super({ key: "CodexScene" });
   }
 
   init(data: {
     player: PlayerState;
     defeatedBosses: Set<string>;
-    bestiary: BestiaryData;
+    codex: CodexData;
     timeStep?: number;
     weatherState?: WeatherState;
     savedSpecialNpcs?: SavedSpecialNpc[];
   }): void {
     this.player = data.player;
     this.defeatedBosses = data.defeatedBosses;
-    this.bestiary = data.bestiary;
+    this.codex = data.codex;
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
@@ -92,7 +92,7 @@ export class BestiaryScene extends Phaser.Scene {
   /** Whether the player has "discovered" an entry. Monsters = defeated; items = ever owned. */
   private isDiscovered(entry: Monster | Item): boolean {
     if (this.category === "monsters") {
-      return (entry as Monster).id in this.bestiary.entries;
+      return (entry as Monster).id in this.codex.entries;
     }
     const itemId = (entry as Item).id;
     const p = this.player;
@@ -258,7 +258,7 @@ export class BestiaryScene extends Phaser.Scene {
         const m = entry as Monster;
         const bossPrefix = m.isBoss ? "☠ " : "  ";
         if (discovered) {
-          const be = this.bestiary.entries[m.id];
+          const be = this.codex.entries[m.id];
           label = `${bossPrefix}${m.name} (×${be.timesDefeated})`;
           baseColor = isSelected ? "#ffd700" : "#aaa";
         } else {
@@ -314,7 +314,7 @@ export class BestiaryScene extends Phaser.Scene {
   }
 
   private showMonsterDetail(monster: Monster): void {
-    const entry: BestiaryEntry = this.bestiary.entries[monster.id];
+    const entry: CodexEntry = this.codex.entries[monster.id];
     const lines: string[] = [];
     lines.push(entry.isBoss ? `☠ ${entry.name} (Boss)` : entry.name);
     lines.push(`Times Defeated: ${entry.timesDefeated}`);
@@ -428,7 +428,7 @@ export class BestiaryScene extends Phaser.Scene {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
-        bestiary: this.bestiary,
+        codex: this.codex,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,

@@ -3,11 +3,9 @@
  */
 
 import Phaser from "phaser";
-import type { PlayerState } from "./player";
-import { getPlayerClass } from "./classes";
-import { xpForLevel } from "./player";
-import { MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT } from "../data/map";
-import { abilityModifier } from "../utils/dice";
+import type { PlayerState } from "../systems/player";
+import { xpForLevel } from "../systems/player";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map";
 
 const TILE_SIZE = 32;
 

@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { saveGame, loadGame, deleteSave } from "../src/systems/save";
-import type { PlayerState } from "../src/systems/player";
 import { createPlayer } from "../src/systems/player";
-import { createBestiary } from "../src/systems/bestiary";
+import { createCodex } from "../src/systems/codex";
 import { createWeatherState } from "../src/systems/weather";
 
 // @vitest-environment happy-dom
@@ -35,7 +34,7 @@ describe("save system - PlayerState composition migration", () => {
     player.progression.collectedTreasures.push("2,3,5,7");
     player.progression.exploredTiles["2,3,5,7"] = true;
     
-    const bestiary = createBestiary();
+    const bestiary = createCodex();
     const weatherState = createWeatherState();
     
     saveGame(player, new Set(), bestiary, "knight", 100, weatherState);
@@ -106,7 +105,7 @@ describe("save system - PlayerState composition migration", () => {
         pendingLevelUps: 0,
       },
       defeatedBosses: [],
-      bestiary: createBestiary(),
+      bestiary: createCodex(),
       appearanceId: "knight",
       timestamp: Date.now(),
       timeStep: 50,
@@ -193,7 +192,7 @@ describe("save system - PlayerState composition migration", () => {
         pendingLevelUps: 0,
       },
       defeatedBosses: [],
-      bestiary: createBestiary(),
+      bestiary: createCodex(),
       appearanceId: "knight",
       timestamp: Date.now(),
     };

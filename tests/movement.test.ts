@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { tryGridMove, type MoveResult } from "../src/systems/movement";
+import { tryGridMove } from "../src/systems/movement";
 import { createPlayer, type PlayerState, type PlayerStats, type PlayerPosition } from "../src/systems/player";
-import { MAP_WIDTH, MAP_HEIGHT, getDungeon, getCity } from "../src/data/map";
+import { MAP_WIDTH, getDungeon, getCity } from "../src/data/map";
 
 const defaultStats: PlayerStats = {
   strength: 10, dexterity: 10, constitution: 10,

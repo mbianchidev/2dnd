@@ -4,7 +4,7 @@
  */
 
 import { MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, DUNGEONS } from "../data/map";
-import type { PlayerState } from "./player";
+import type { PlayerState } from "../systems/player";
 
 export class FogOfWar {
   private exploredTiles: Record<string, boolean> = {};

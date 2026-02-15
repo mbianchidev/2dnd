@@ -6,7 +6,7 @@ import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import { useItem, ownsEquipment } from "../systems/player";
 import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
-import type { BestiaryData } from "../systems/bestiary";
+import type { CodexData } from "../systems/codex";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import { CYCLE_LENGTH } from "../systems/daynight";
 import { getInnCost } from "../data/map";
@@ -17,7 +17,7 @@ export class ShopScene extends Phaser.Scene {
   private player!: PlayerState;
   private townName!: string;
   private defeatedBosses!: Set<string>;
-  private bestiary!: BestiaryData;
+  private codex!: CodexData;
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
   private shopItems!: Item[];
@@ -42,7 +42,7 @@ export class ShopScene extends Phaser.Scene {
     player: PlayerState;
     townName: string;
     defeatedBosses: Set<string>;
-    bestiary: BestiaryData;
+    codex: CodexData;
     shopItemIds?: string[];
     timeStep?: number;
     weatherState?: WeatherState;
@@ -54,7 +54,7 @@ export class ShopScene extends Phaser.Scene {
     this.player = data.player;
     this.townName = data.townName;
     this.defeatedBosses = data.defeatedBosses;
-    this.bestiary = data.bestiary;
+    this.codex = data.codex;
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
     this.fromCity = data.fromCity ?? false;
@@ -489,7 +489,7 @@ export class ShopScene extends Phaser.Scene {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
-        bestiary: this.bestiary,
+        codex: this.codex,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,

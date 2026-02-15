@@ -24,10 +24,10 @@ import {
   monsterUseAbility,
   attemptFlee,
 } from "../systems/combat";
-import { abilityModifier } from "../utils/dice";
+import { abilityModifier } from "../systems/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
-import type { BestiaryData } from "../systems/bestiary";
-import { recordDefeat, discoverAC } from "../systems/bestiary";
+import type { CodexData } from "../systems/codex";
+import { recordDefeat, discoverAC } from "../systems/codex";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
@@ -41,7 +41,7 @@ export class BattleScene extends Phaser.Scene {
   private monster!: Monster;
   private monsterHp!: number;
   private defeatedBosses!: Set<string>;
-  private bestiary!: BestiaryData;
+  private codex!: CodexData;
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
@@ -93,7 +93,7 @@ export class BattleScene extends Phaser.Scene {
     player: PlayerState;
     monster: Monster;
     defeatedBosses: Set<string>;
-    bestiary: BestiaryData;
+    codex: CodexData;
     timeStep?: number;
     weatherState?: WeatherState;
     biome?: string;
@@ -103,7 +103,7 @@ export class BattleScene extends Phaser.Scene {
     this.monster = data.monster;
     this.monsterHp = data.monster.hp;
     this.defeatedBosses = data.defeatedBosses;
-    this.bestiary = data.bestiary;
+    this.codex = data.codex;
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
     this.biome = data.biome ?? "grass";
@@ -117,7 +117,7 @@ export class BattleScene extends Phaser.Scene {
     this.acHighestMiss = 0;
     this.acLowestHit = Infinity;
     this.acDiscovered = false;
-    this.hpRevealed = (this.bestiary.entries[this.monster.id]?.timesDefeated ?? 0) >= 1;
+    this.hpRevealed = (this.codex.entries[this.monster.id]?.timesDefeated ?? 0) >= 1;
     this.playerDefending = false;
     this.monsterDefending = false;
     this.droppedItemIds = [];
@@ -1217,7 +1217,7 @@ export class BattleScene extends Phaser.Scene {
         }
 
         // Record in bestiary
-        recordDefeat(this.bestiary, this.monster, this.acDiscovered, this.droppedItemIds);
+        recordDefeat(this.codex, this.monster, this.acDiscovered, this.droppedItemIds);
 
         // Play victory jingle
         if (audioEngine.initialized) {
@@ -1277,7 +1277,7 @@ export class BattleScene extends Phaser.Scene {
     if (!this.acDiscovered && this.acLowestHit === this.acHighestMiss + 1) {
       this.acDiscovered = true;
       // Also update the bestiary immediately
-      discoverAC(this.bestiary, this.monster.id);
+      discoverAC(this.codex, this.monster.id);
       this.addLog(`🔍 You deduce the ${this.monster.name}'s AC is ${this.acLowestHit}!`);
     }
 
@@ -1685,7 +1685,7 @@ export class BattleScene extends Phaser.Scene {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
-        bestiary: this.bestiary,
+        codex: this.codex,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,

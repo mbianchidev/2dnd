@@ -2,8 +2,8 @@
  * Player state management: stats, leveling, experience, spell unlocks.
  */
 
-import { abilityModifier, rollDice } from "../utils/dice";
-import type { DieType } from "../utils/dice";
+import { abilityModifier, rollDice } from "../systems/dice";
+import type { DieType } from "../systems/dice";
 import type { Spell } from "../data/spells";
 import { SPELLS, getSpell } from "../data/spells";
 import type { Ability } from "../data/abilities";

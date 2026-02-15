@@ -9,7 +9,7 @@ import { SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type Custom
 import { NPC_TEMPLATES } from "../data/npcs";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
-import { abilityModifier, rollAbilityScore } from "../utils/dice";
+import { abilityModifier, rollAbilityScore } from "../systems/dice";
 import { audioEngine } from "../systems/audio";
 import { MOUNTS } from "../data/mounts";
 
@@ -2103,7 +2103,7 @@ export class BootScene extends Phaser.Scene {
       this.scene.start("OverworldScene", {
         player: save.player,
         defeatedBosses: new Set(save.defeatedBosses),
-        bestiary: save.bestiary,
+        codex: save.codex,
         timeStep: save.timeStep ?? 0,
         weatherState: save.weatherState,
       });

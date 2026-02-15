@@ -31,43 +31,39 @@ export class DialogueSystem {
     }
 
     const container = this.scene.add.container(0, 0).setDepth(50);
-    const boxW = MAP_WIDTH * TILE_SIZE - 40;
-    const boxH = 52;
-    const boxX = 20;
-    const boxY = MAP_HEIGHT * TILE_SIZE - boxH - 10;
+    const boxW = MAP_WIDTH * TILE_SIZE - 20;
+    const boxH = 46;
+    const boxX = 10;
+    const boxY = MAP_HEIGHT * TILE_SIZE;
 
     const bg = this.scene.add.graphics();
     bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 4);
     bg.lineStyle(2, 0x4dd0e1, 1);
-    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 4);
     container.add(bg);
 
-    const nameText = this.scene.add.text(boxX + 10, boxY + 6, `✦ ${speakerName}`, {
-      fontSize: "10px",
-      fontFamily: "monospace",
-      color: "#4dd0e1",
-      stroke: "#000",
-      strokeThickness: 1,
+    const nameText = this.scene.add.text(boxX + 8, boxY + 4, `✦ ${speakerName}`, {
+      fontSize: "10px", fontFamily: "monospace", color: "#4dd0e1",
     });
     container.add(nameText);
 
-    const lineText = this.scene.add.text(boxX + 10, boxY + 22, line, {
-      fontSize: "11px",
-      fontFamily: "monospace",
-      color: "#ddd",
-      wordWrap: { width: boxW - 20 },
+    const lineText = this.scene.add.text(boxX + 8, boxY + 18, line, {
+      fontSize: "11px", fontFamily: "monospace", color: "#ddd",
+      wordWrap: { width: boxW - 16 },
     });
     container.add(lineText);
 
-    const hint = this.scene.add.text(boxX + boxW - 10, boxY + boxH - 14, "[SPACE]", {
-      fontSize: "8px",
-      fontFamily: "monospace",
-      color: "#888",
-    }).setOrigin(1, 0);
-    container.add(hint);
-
     this.dialogueOverlay = container;
+
+    // Auto-dismiss after 3 seconds
+    this.scene.time.delayedCall(3000, () => {
+      if (this.dialogueOverlay === container) {
+        this.scene.tweens.add({ targets: container, alpha: 0, duration: 500, onComplete: () => {
+          if (this.dialogueOverlay === container) { container.destroy(); this.dialogueOverlay = null; }
+        }});
+      }
+    });
   }
 
   /** Show a dialogue box for a city NPC, including shopkeepers. */
@@ -101,43 +97,39 @@ export class DialogueSystem {
     if (audioEngine.initialized) audioEngine.playDialogueBlips(line);
 
     const container = this.scene.add.container(0, 0).setDepth(50);
-    const boxW = MAP_WIDTH * TILE_SIZE - 40;
-    const boxH = 52;
-    const boxX = 20;
-    const boxY = MAP_HEIGHT * TILE_SIZE - boxH - 10;
+    const boxW = MAP_WIDTH * TILE_SIZE - 20;
+    const boxH = 46;
+    const boxX = 10;
+    const boxY = MAP_HEIGHT * TILE_SIZE;
 
     const bg = this.scene.add.graphics();
     bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 4);
     bg.lineStyle(2, 0xc0a060, 1);
-    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 4);
     container.add(bg);
 
-    const nameText = this.scene.add.text(boxX + 10, boxY + 6, speakerName, {
-      fontSize: "10px",
-      fontFamily: "monospace",
-      color: "#ffd700",
-      stroke: "#000",
-      strokeThickness: 1,
+    const nameText = this.scene.add.text(boxX + 8, boxY + 4, speakerName, {
+      fontSize: "10px", fontFamily: "monospace", color: "#ffd700",
     });
     container.add(nameText);
 
-    const lineText = this.scene.add.text(boxX + 10, boxY + 22, line, {
-      fontSize: "11px",
-      fontFamily: "monospace",
-      color: "#ddd",
-      wordWrap: { width: boxW - 20 },
+    const lineText = this.scene.add.text(boxX + 8, boxY + 18, line, {
+      fontSize: "11px", fontFamily: "monospace", color: "#ddd",
+      wordWrap: { width: boxW - 16 },
     });
     container.add(lineText);
 
-    const hint = this.scene.add.text(boxX + boxW - 10, boxY + boxH - 14, "[SPACE]", {
-      fontSize: "8px",
-      fontFamily: "monospace",
-      color: "#888",
-    }).setOrigin(1, 0);
-    container.add(hint);
-
     this.dialogueOverlay = container;
+
+    // Auto-dismiss after 3 seconds (shops dismiss earlier via handleAction flow)
+    this.scene.time.delayedCall(3000, () => {
+      if (this.dialogueOverlay === container) {
+        this.scene.tweens.add({ targets: container, alpha: 0, duration: 500, onComplete: () => {
+          if (this.dialogueOverlay === container) { container.destroy(); this.dialogueOverlay = null; }
+        }});
+      }
+    });
   }
 
   /** Show a brief auto-dismissing dialogue for an animal sprite. */
@@ -157,26 +149,26 @@ export class DialogueSystem {
     if (audioEngine.initialized) audioEngine.playDialogueBlips(line, -5);
 
     const container = this.scene.add.container(0, 0).setDepth(50);
-    const boxW = MAP_WIDTH * TILE_SIZE - 40;
-    const boxH = 52;
-    const boxX = 20;
-    const boxY = MAP_HEIGHT * TILE_SIZE - boxH - 10;
+    const boxW = MAP_WIDTH * TILE_SIZE - 20;
+    const boxH = 46;
+    const boxX = 10;
+    const boxY = MAP_HEIGHT * TILE_SIZE;
 
     const bg = this.scene.add.graphics();
     bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 4);
     bg.lineStyle(2, 0xc0a060, 1);
-    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 6);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 4);
     container.add(bg);
 
-    const nameText = this.scene.add.text(boxX + 10, boxY + 6, speakerName, {
-      fontSize: "11px", fontFamily: "monospace", color: "#ffd700", fontStyle: "bold",
+    const nameText = this.scene.add.text(boxX + 8, boxY + 4, speakerName, {
+      fontSize: "11px", fontFamily: "monospace", color: "#ffd700",
     });
     container.add(nameText);
 
-    const lineText = this.scene.add.text(boxX + 10, boxY + 22, line, {
+    const lineText = this.scene.add.text(boxX + 8, boxY + 18, line, {
       fontSize: "12px", fontFamily: "monospace", color: "#ffffff",
-      wordWrap: { width: boxW - 20 },
+      wordWrap: { width: boxW - 16 },
     });
     container.add(lineText);
 

@@ -543,7 +543,7 @@ export class OverworldScene extends Phaser.Scene {
   // ── Overlay & dialogue state ────────────────────────────────────────────
 
   private isOverlayOpen(): boolean {
-    return this.overlayManager.isOpen() || this.dialogueSystem.isDialogueOpen();
+    return this.overlayManager.isOpen();
   }
 
   // ── Player movement ─────────────────────────────────────────────────────

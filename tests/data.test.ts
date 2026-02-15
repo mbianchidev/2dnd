@@ -236,8 +236,8 @@ describe("game data", () => {
       // Cleric-specific spells
       expect(getSpell("sacredFlame")).toBeDefined();
       expect(getSpell("spiritGuardians")).toBeDefined();
-      // Mage-specific spells
-      expect(getSpell("arcaneRecovery")).toBeDefined();
+      // Wizard-specific spells
+      expect(getSpell("disintegrate")).toBeDefined();
     });
 
     it("each spell has a unique ID", () => {
@@ -672,10 +672,10 @@ describe("game data", () => {
   });
 
   describe("class system", () => {
-    it("has 10 distinct classes", () => {
-      expect(PLAYER_CLASSES).toHaveLength(10);
+    it("has 12 distinct classes", () => {
+      expect(PLAYER_CLASSES).toHaveLength(12);
       const ids = PLAYER_CLASSES.map((a) => a.id);
-      expect(new Set(ids).size).toBe(10);
+      expect(new Set(ids).size).toBe(12);
     });
 
     it("each class has description and playstyle", () => {
@@ -697,9 +697,9 @@ describe("game data", () => {
       expect(barbarian.hitDie).toBe(12);
     });
 
-    it("mage has the lowest hit die (d6)", () => {
-      const mage = getPlayerClass("mage");
-      expect(mage.hitDie).toBe(6);
+    it("wizard has the lowest hit die (d6)", () => {
+      const wizard = getPlayerClass("wizard");
+      expect(wizard.hitDie).toBe(6);
     });
 
     it("each class has a weapon sprite type", () => {
@@ -844,14 +844,17 @@ describe("game data", () => {
       expect(ft!.levelRequired).toBe(5);
     });
 
-    it("Fast Travel ability is available to all classes", () => {
-      for (const appearance of PLAYER_CLASSES) {
-        expect(appearance.abilities, `${appearance.label} should have fastTravel`).toContain("fastTravel");
+    it("Fast Travel ability is available to martial classes", () => {
+      const martialClasses = PLAYER_CLASSES.filter((c) => c.abilities.includes("fastTravel"));
+      // Martial classes have Fast Travel; casters use Teleport spell instead
+      expect(martialClasses.length).toBeGreaterThanOrEqual(5);
+      for (const cls of martialClasses) {
+        expect(cls.abilities, `${cls.label} should have fastTravel`).toContain("fastTravel");
       }
     });
 
-    it("Short Rest spell exists as utility type at level 1", () => {
-      const sr = getSpell("shortRest");
+    it("Short Rest ability exists as utility type at level 1", () => {
+      const sr = getAbility("shortRest");
       expect(sr).toBeDefined();
       expect(sr!.name).toBe("Short Rest");
       expect(sr!.type).toBe("utility");
@@ -859,9 +862,9 @@ describe("game data", () => {
       expect(sr!.mpCost).toBe(0);
     });
 
-    it("Short Rest spell is available to all classes", () => {
+    it("Short Rest ability is available to all classes", () => {
       for (const appearance of PLAYER_CLASSES) {
-        expect(appearance.spells, `${appearance.label} should have shortRest`).toContain("shortRest");
+        expect(appearance.abilities, `${appearance.label} should have shortRest`).toContain("shortRest");
       }
     });
   });

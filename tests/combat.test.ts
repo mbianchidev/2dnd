@@ -2,12 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   rollInitiative,
   playerAttack,
+  playerOffHandAttack,
   playerCastSpell,
   playerUseAbility,
   monsterAttack,
   attemptFlee,
 } from "../src/systems/combat";
-import { createPlayer, type PlayerStats } from "../src/systems/player";
+import { createPlayer, isLightWeapon, canDualWield, equipOffHand, hasTwoWeaponFighting, useItem, type PlayerStats } from "../src/systems/player";
 import type { Monster } from "../src/data/monsters";
 import { getItem } from "../src/data/items";
 
@@ -81,7 +82,7 @@ describe("combat system", () => {
   });
 
   describe("playerCastSpell", () => {
-    it("casts fire bolt and uses MP", () => {
+    it("casts fire bolt (cantrip, 0 MP)", () => {
       const player = createPlayer("Test", defaultStats);
       const monster = createTestMonster({ ac: 1 });
       const initialMp = player.mp;
@@ -91,8 +92,8 @@ describe("combat system", () => {
       if (result.hit) {
         expect(result.damage).toBeGreaterThan(0);
       }
-      expect(result.mpUsed).toBe(2);
-      expect(player.mp).toBe(initialMp - 2);
+      expect(result.mpUsed).toBe(0);
+      expect(player.mp).toBe(initialMp);
     });
 
     it("fails with insufficient MP", () => {
@@ -100,7 +101,8 @@ describe("combat system", () => {
       player.mp = 0;
       const monster = createTestMonster();
 
-      const result = playerCastSpell(player, "fireBolt", monster);
+      // Use magicMissile (3 MP) instead of fireBolt (now 0 MP cantrip)
+      const result = playerCastSpell(player, "magicMissile", monster);
       expect(result.message).toBe("Not enough MP!");
       expect(result.mpUsed).toBe(0);
     });
@@ -177,8 +179,9 @@ describe("combat system", () => {
   describe("utility spell/ability combat rejection", () => {
     it("rejects utility spells in combat", () => {
       const player = createPlayer("Test", defaultStats);
+      player.knownSpells.push("teleport");
       const monster = createTestMonster();
-      const result = playerCastSpell(player, "shortRest", monster);
+      const result = playerCastSpell(player, "teleport", monster);
       expect(result.hit).toBe(false);
       expect(result.damage).toBe(0);
       expect(result.message).toContain("cannot be used in battle");
@@ -214,6 +217,215 @@ describe("combat system", () => {
         }
       }
       expect(gotHit).toBe(true);
+    });
+  });
+
+  describe("dual wielding (Two-Weapon Fighting)", () => {
+    describe("isLightWeapon", () => {
+      it("returns true for light weapons", () => {
+        expect(isLightWeapon(getItem("startDagger")!)).toBe(true);
+        expect(isLightWeapon(getItem("startAxe")!)).toBe(true);
+        expect(isLightWeapon(getItem("shortSword")!)).toBe(true);
+        expect(isLightWeapon(getItem("frostfang")!)).toBe(true);
+      });
+
+      it("returns false for non-light weapons", () => {
+        expect(isLightWeapon(getItem("startSword")!)).toBe(false);
+        expect(isLightWeapon(getItem("greatSword")!)).toBe(false);
+        expect(isLightWeapon(getItem("startBow")!)).toBe(false);
+        expect(isLightWeapon(getItem("startStaff")!)).toBe(false);
+      });
+
+      it("returns false for null", () => {
+        expect(isLightWeapon(null)).toBe(false);
+      });
+
+      it("returns false for non-weapon items", () => {
+        expect(isLightWeapon(getItem("potion")!)).toBe(false);
+        expect(isLightWeapon(getItem("leatherArmor")!)).toBe(false);
+      });
+    });
+
+    describe("canDualWield", () => {
+      it("returns true when main hand is light and no shield", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        player.equippedShield = null;
+        expect(canDualWield(player)).toBe(true);
+      });
+
+      it("returns false when main hand is not light", () => {
+        const player = createPlayer("Test", defaultStats, "knight");
+        player.equippedWeapon = getItem("startSword")!;
+        expect(canDualWield(player)).toBe(false);
+      });
+
+      it("returns false when shield is equipped", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        player.equippedShield = getItem("woodenShield")!;
+        expect(canDualWield(player)).toBe(false);
+      });
+
+      it("returns false when no weapon equipped", () => {
+        const player = createPlayer("Test", defaultStats, "knight");
+        player.equippedWeapon = null;
+        expect(canDualWield(player)).toBe(false);
+      });
+    });
+
+    describe("equipOffHand", () => {
+      it("equips a light weapon in the off-hand", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        const shortSword = getItem("shortSword")!;
+        player.inventory.push({ ...shortSword });
+
+        const result = equipOffHand(player, shortSword);
+        expect(result.success).toBe(true);
+        expect(player.equippedOffHand?.id).toBe("shortSword");
+      });
+
+      it("rejects non-light weapons", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        const longSword = getItem("longSword")!;
+
+        const result = equipOffHand(player, longSword);
+        expect(result.success).toBe(false);
+        expect(player.equippedOffHand).toBeNull();
+      });
+
+      it("rejects two-handed weapons", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        const bow = getItem("startBow")!;
+
+        const result = equipOffHand(player, bow);
+        expect(result.success).toBe(false);
+      });
+
+      it("rejects when main hand is not light", () => {
+        const player = createPlayer("Test", defaultStats, "knight");
+        player.equippedWeapon = getItem("startSword")!;
+        const dagger = getItem("startDagger")!;
+
+        const result = equipOffHand(player, dagger);
+        expect(result.success).toBe(false);
+        expect(result.message).toContain("Main hand");
+      });
+
+      it("unequips shield when equipping off-hand", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        player.equippedShield = getItem("woodenShield")!;
+        const shortSword = getItem("shortSword")!;
+
+        equipOffHand(player, shortSword);
+        expect(player.equippedShield).toBeNull();
+        expect(player.equippedOffHand?.id).toBe("shortSword");
+      });
+
+      it("rejects equipping the same weapon as main hand", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+
+        const result = equipOffHand(player, getItem("startDagger")!);
+        expect(result.success).toBe(false);
+        expect(result.message).toContain("same weapon");
+      });
+    });
+
+    describe("hasTwoWeaponFighting", () => {
+      it("returns false when talent not learned", () => {
+        const player = createPlayer("Test", defaultStats, "knight");
+        expect(hasTwoWeaponFighting(player)).toBe(false);
+      });
+
+      it("returns true when talent is learned", () => {
+        const player = createPlayer("Test", defaultStats, "knight");
+        player.knownTalents.push("twoWeaponFighting");
+        expect(hasTwoWeaponFighting(player)).toBe(true);
+      });
+    });
+
+    describe("playerOffHandAttack", () => {
+      it("performs an off-hand attack", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        player.equippedOffHand = getItem("shortSword")!;
+        const monster = createTestMonster({ ac: 1 });
+
+        let gotHit = false;
+        for (let i = 0; i < 50; i++) {
+          const result = playerOffHandAttack(player, monster);
+          expect(result.message).toBeTruthy();
+          expect(typeof result.damage).toBe("number");
+          if (result.hit) {
+            gotHit = true;
+            expect(result.damage).toBeGreaterThan(0);
+            expect(result.message).toContain("off-hand");
+          }
+        }
+        expect(gotHit).toBe(true);
+      });
+
+      it("throws when no off-hand weapon equipped", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        const monster = createTestMonster();
+
+        expect(() => playerOffHandAttack(player, monster)).toThrow("no off-hand weapon");
+      });
+
+      it("off-hand miss message mentions off-hand", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        player.equippedOffHand = getItem("shortSword")!;
+        const monster = createTestMonster({ ac: 30 }); // very hard to hit
+
+        let gotMiss = false;
+        for (let i = 0; i < 50; i++) {
+          const result = playerOffHandAttack(player, monster);
+          if (!result.hit) {
+            gotMiss = true;
+            expect(result.message).toContain("off-hand");
+          }
+        }
+        expect(gotMiss).toBe(true);
+      });
+    });
+
+    describe("shield/off-hand mutual exclusion", () => {
+      it("equipping shield via useItem clears off-hand", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        player.equippedOffHand = getItem("shortSword")!;
+        const shield = getItem("woodenShield")!;
+        player.inventory.push({ ...shield });
+        const idx = player.inventory.findIndex(i => i.id === "woodenShield");
+
+        // Need to clear two-handed since dagger is not two-handed
+        const result = useItem(player, idx);
+        expect(result.used).toBe(true);
+        expect(player.equippedShield?.id).toBe("woodenShield");
+        expect(player.equippedOffHand).toBeNull();
+      });
+
+      it("equipping two-handed weapon clears off-hand", () => {
+        const player = createPlayer("Test", defaultStats, "rogue");
+        player.equippedWeapon = getItem("startDagger")!;
+        player.equippedOffHand = getItem("shortSword")!;
+        const greatSword = getItem("greatSword")!;
+        player.inventory.push({ ...greatSword });
+        const idx = player.inventory.findIndex(i => i.id === "greatSword");
+
+        const result = useItem(player, idx);
+        expect(result.used).toBe(true);
+        expect(player.equippedWeapon?.id).toBe("greatSword");
+        expect(player.equippedOffHand).toBeNull();
+        expect(player.equippedShield).toBeNull();
+      });
     });
   });
 });

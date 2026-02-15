@@ -5,7 +5,7 @@
 
 import type { Monster } from "../data/monsters";
 
-export interface BestiaryEntry {
+export interface CodexEntry {
   monsterId: string;
   name: string;
   color: number;
@@ -21,22 +21,22 @@ export interface BestiaryEntry {
   itemsDropped: string[];
 }
 
-export interface BestiaryData {
-  entries: Record<string, BestiaryEntry>;
+export interface CodexData {
+  entries: Record<string, CodexEntry>;
 }
 
 /** Create an empty bestiary. */
-export function createBestiary(): BestiaryData {
+export function createCodex(): CodexData {
   return { entries: {} };
 }
 
 /** Record a monster defeat. Adds the entry if first time. */
 export function recordDefeat(
-  bestiary: BestiaryData,
+  bestiary: CodexData,
   monster: Monster,
   acWasDiscovered: boolean,
   droppedItemIds: string[]
-): BestiaryEntry {
+): CodexEntry {
   let entry = bestiary.entries[monster.id];
   if (!entry) {
     entry = {
@@ -70,7 +70,7 @@ export function recordDefeat(
 }
 
 /** Mark AC as discovered for a monster (can happen mid-combat). */
-export function discoverAC(bestiary: BestiaryData, monsterId: string): void {
+export function discoverAC(bestiary: CodexData, monsterId: string): void {
   const entry = bestiary.entries[monsterId];
   if (entry) {
     entry.acDiscovered = true;
@@ -78,7 +78,7 @@ export function discoverAC(bestiary: BestiaryData, monsterId: string): void {
 }
 
 /** Get all bestiary entries sorted: bosses last, then alphabetical. */
-export function getBestiaryEntries(bestiary: BestiaryData): BestiaryEntry[] {
+export function getCodexEntries(bestiary: CodexData): CodexEntry[] {
   return Object.values(bestiary.entries).sort((a, b) => {
     if (a.isBoss !== b.isBoss) return a.isBoss ? 1 : -1;
     return a.name.localeCompare(b.name);
@@ -86,6 +86,6 @@ export function getBestiaryEntries(bestiary: BestiaryData): BestiaryEntry[] {
 }
 
 /** Check if a monster has been encountered. */
-export function hasEncountered(bestiary: BestiaryData, monsterId: string): boolean {
+export function hasEncountered(bestiary: CodexData, monsterId: string): boolean {
   return monsterId in bestiary.entries;
 }

@@ -429,7 +429,7 @@ export const SPECIAL_NPC_DEFS: Record<SpecialNpcKind, SpecialNpcDef> = {
     label: "Traveler",
     templateId: "male_young",
     tintColor: 0x4dd0e1,
-    spawnChance: 0.05,
+    spawnChance: 0.025,
     moves: true,
   },
   adventurer: {
@@ -437,7 +437,7 @@ export const SPECIAL_NPC_DEFS: Record<SpecialNpcKind, SpecialNpcDef> = {
     label: "Adventurer",
     templateId: "male_stout",
     tintColor: 0xffa000,
-    spawnChance: 0.05,
+    spawnChance: 0.025,
     moves: false,
   },
   wanderingMerchant: {
@@ -445,7 +445,7 @@ export const SPECIAL_NPC_DEFS: Record<SpecialNpcKind, SpecialNpcDef> = {
     label: "Wandering Merchant",
     templateId: "female_stout",
     tintColor: 0xffd740,
-    spawnChance: 0.05,
+    spawnChance: 0.025,
     moves: false,
     shopItems: ["potion", "ether"],
   },
@@ -454,7 +454,7 @@ export const SPECIAL_NPC_DEFS: Record<SpecialNpcKind, SpecialNpcDef> = {
     label: "Hermit",
     templateId: "male_elder",
     tintColor: 0x90a4ae,
-    spawnChance: 0.05,
+    spawnChance: 0.025,
     moves: false,
   },
 };

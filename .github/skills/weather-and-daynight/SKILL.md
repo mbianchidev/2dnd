@@ -112,7 +112,7 @@ const boost = getMonsterWeatherBoost(monster.id, weatherState.current);
 4. Add encounter multiplier in `WEATHER_ENCOUNTER_MULT`
 5. Add tint color in `WEATHER_TINT`
 6. Add label in `WEATHER_LABEL`
-7. Add particle config in `OverworldScene.updateWeatherParticles()` and `BattleScene.createWeatherParticles()`
+7. Add particle config in overworld `updateWeatherParticles()` (in `renderers/map.ts`) and `Battle.createWeatherParticles()`
 8. Add ambient SFX in `audioEngine.playWeatherSFX()`
 
 ## Scene Data Flow
@@ -121,7 +121,7 @@ Both systems' state must be passed through every scene transition:
 this.scene.start("NextScene", {
   player: this.player,
   defeatedBosses: this.defeatedBosses,
-  bestiary: this.bestiary,
+  codex: this.codex,
   timeStep: this.timeStep,           // Day/night position
   weatherState: this.weatherState,   // Current weather + countdown
 });

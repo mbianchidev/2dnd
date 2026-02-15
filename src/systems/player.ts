@@ -2,8 +2,8 @@
  * Player state management: stats, leveling, experience, spell unlocks.
  */
 
-import { abilityModifier, rollDice } from "../utils/dice";
-import type { DieType } from "../utils/dice";
+import { abilityModifier, rollDice } from "../systems/dice";
+import type { DieType } from "../systems/dice";
 import type { Spell } from "../data/spells";
 import { SPELLS, getSpell } from "../data/spells";
 import type { Ability } from "../data/abilities";
@@ -82,6 +82,7 @@ export interface PlayerState {
   knownAbilities: string[]; // martial ability IDs (non-casters)
   knownTalents: string[]; // talent IDs (everyone)
   equippedWeapon: Item | null;
+  equippedOffHand: Item | null; // off-hand weapon for Two-Weapon Fighting (must be light, one-handed)
   equippedArmor: Item | null;
   equippedShield: Item | null;
   appearanceId: string; // visual customization
@@ -169,6 +170,7 @@ export function createPlayer(
     knownAbilities: startingAbilities,
     knownTalents: [],
     equippedWeapon: startWeapon,
+    equippedOffHand: null,
     equippedArmor: null,
     equippedShield: null,
     appearanceId,
@@ -216,11 +218,14 @@ export function applyBankInterest(player: PlayerState, currentDay: number): numb
 }
 
 /** Get the attack modifier for the player (uses class primary stat for melee). */
+/** Get the melee attack modifier. Uses STR, or max(STR, DEX) for finesse weapons. */
 export function getAttackModifier(player: PlayerState): number {
-  const playerClass = getPlayerClass(player.appearanceId);
-  const primaryStatValue = player.stats[playerClass.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents);
+  const strMod = abilityModifier(player.stats.strength);
+  const dexMod = abilityModifier(player.stats.dexterity);
+  const isFinesse = player.equippedWeapon?.finesse === true;
+  const statMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
+  return statMod + proficiencyBonus + getTalentAttackBonus(player.knownTalents);
 }
 
 /** Get the spell attack modifier (uses class primary stat for casters). */
@@ -237,6 +242,47 @@ export function getArmorClass(player: PlayerState, tempBonus: number = 0): numbe
   const armorBonus = player.equippedArmor?.effect ?? 0;
   const shieldBonus = player.equippedShield?.effect ?? 0;
   return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents) + tempBonus;
+}
+
+/** Check if a weapon can be used for Two-Weapon Fighting (must be light and one-handed). */
+export function isLightWeapon(item: Item | null): boolean {
+  if (!item || item.type !== "weapon") return false;
+  return item.light === true && !item.twoHanded;
+}
+
+/** Check if the player can dual wield: main hand must be light and one-handed, no shield equipped. */
+export function canDualWield(player: PlayerState): boolean {
+  return isLightWeapon(player.equippedWeapon) && !player.equippedShield;
+}
+
+/** Check if the player has the Two-Weapon Fighting talent (adds ability mod to off-hand damage). */
+export function hasTwoWeaponFighting(player: PlayerState): boolean {
+  return player.knownTalents.includes("twoWeaponFighting");
+}
+
+/** Equip a weapon in the off-hand slot for Two-Weapon Fighting. Returns a result message. */
+export function equipOffHand(
+  player: PlayerState,
+  item: Item
+): { success: boolean; message: string } {
+  if (item.type !== "weapon") {
+    return { success: false, message: "Only weapons can be equipped in the off-hand!" };
+  }
+  if (!item.light || item.twoHanded) {
+    return { success: false, message: `${item.name} is not a light weapon! Only light one-handed weapons can be dual wielded.` };
+  }
+  if (!isLightWeapon(player.equippedWeapon)) {
+    return { success: false, message: "Main hand weapon must be light for dual wielding!" };
+  }
+  if (player.equippedWeapon?.id === item.id) {
+    return { success: false, message: "Cannot dual wield two of the same weapon!" };
+  }
+  // Equipping off-hand unequips shield
+  if (player.equippedShield) {
+    player.equippedShield = null;
+  }
+  player.equippedOffHand = item;
+  return { success: true, message: `Equipped ${item.name} in off-hand! (shield removed)` };
 }
 
 /** Award XP and track pending level-ups. Actual leveling happens during rest. */
@@ -331,11 +377,12 @@ export function processPendingLevelUps(
       }
     }
 
-    // Check for new talent unlocks (everyone)
+    // Check for new talent unlocks (class-restricted or everyone)
     for (const talent of TALENTS) {
       if (
         talent.levelRequired <= player.level &&
-        !player.knownTalents.includes(talent.id)
+        !player.knownTalents.includes(talent.id) &&
+        (!talent.classRestriction || talent.classRestriction.includes(player.appearanceId))
       ) {
         player.knownTalents.push(talent.id);
         newTalents.push(talent);
@@ -370,6 +417,7 @@ export function canAfford(player: PlayerState, cost: number): boolean {
 export function ownsEquipment(player: PlayerState, itemId: string): boolean {
   const equipped =
     (player.equippedWeapon?.id === itemId) ||
+    (player.equippedOffHand?.id === itemId) ||
     (player.equippedArmor?.id === itemId) ||
     (player.equippedShield?.id === itemId);
   const inInventory = player.inventory.some(
@@ -413,6 +461,9 @@ export function useItem(
       return { used: true, message: `Restored ${restored} MP!` };
     }
     if (item.id === "chimaeraWing") {
+      if (player.position.inDungeon) {
+        return { used: false, message: "Cannot use Chimaera Wing inside a dungeon!" };
+      }
       // Chimaera Wing teleportation is handled by the scene;
       // here we just consume the item and signal success.
       player.inventory.splice(itemIndex, 1);
@@ -429,12 +480,15 @@ export function useItem(
   }
 
   if (item.type === "weapon") {
-    // If equipping a two-handed weapon, unequip shield
+    // If equipping a two-handed weapon, unequip shield and off-hand
     if (item.twoHanded && player.equippedShield) {
       player.equippedShield = null;
     }
+    if (item.twoHanded && player.equippedOffHand) {
+      player.equippedOffHand = null;
+    }
     player.equippedWeapon = item;
-    return { used: true, message: `Equipped ${item.name}!${item.twoHanded ? " (two-handed — shield removed)" : ""}` };
+    return { used: true, message: `Equipped ${item.name}!${item.twoHanded ? " (two-handed \u2014 shield & off-hand removed)" : ""}` };
   }
 
   if (item.type === "armor") {
@@ -447,8 +501,12 @@ export function useItem(
     if (player.equippedWeapon?.twoHanded) {
       return { used: false, message: `Cannot equip shield with a two-handed weapon!` };
     }
+    // Equipping a shield unequips the off-hand weapon
+    if (player.equippedOffHand) {
+      player.equippedOffHand = null;
+    }
     player.equippedShield = item;
-    return { used: true, message: `Equipped ${item.name}!` };
+    return { used: true, message: `Equipped ${item.name}!${player.equippedOffHand === null ? "" : ""}` };
   }
 
   if (item.type === "mount") {
@@ -517,34 +575,11 @@ export function castSpellOutsideCombat(
     return { success: false, message: "Not enough MP!" };
   }
 
-  // Short Rest spell — usable in the overworld, limited uses
-  if (spellId === "shortRest") {
-    if (player.shortRestsRemaining <= 0) {
-      return { success: false, message: "No short rests remaining! Rest at an inn to refill." };
-    }
-    if (player.hp >= player.maxHp && player.mp >= player.maxMp && (player.pendingLevelUps ?? 0) <= 0) {
-      return { success: false, message: "HP and MP are already full!" };
-    }
-    const { hpRestored, mpRestored } = shortRest(player);
-    const levelResult = processPendingLevelUps(player);
-    let msg = `Short Rest! Recovered ${hpRestored} HP and ${mpRestored} MP. (${player.shortRestsRemaining} rests left)`;
-    if (levelResult.leveledUp) {
-      msg += ` 🎉 LEVEL UP to ${levelResult.newLevel}!`;
-      for (const spell of levelResult.newSpells) {
-        msg += ` ✦ ${spell.name}!`;
-      }
-      for (const ability of levelResult.newAbilities) {
-        msg += ` ⚡ ${ability.name}!`;
-      }
-      if (levelResult.asiGained > 0) {
-        msg += ` ★ +${levelResult.asiGained} stat points!`;
-      }
-    }
-    return { success: true, message: msg };
-  }
-
   // Teleport spell — signal to scene to show town picker
   if (spellId === "teleport") {
+    if (player.position.inDungeon) {
+      return { success: false, message: "Cannot teleport from inside a dungeon!" };
+    }
     return { success: true, message: "Choose a destination...", teleport: true };
   }
 
@@ -571,7 +606,7 @@ export function castSpellOutsideCombat(
 export function useAbilityOutsideCombat(
   player: PlayerState,
   abilityId: string
-): { success: boolean; message: string; teleport?: boolean } {
+): { success: boolean; message: string; teleport?: boolean; evac?: boolean } {
   const ability = getAbility(abilityId);
   if (!ability) return { success: false, message: "Unknown ability!" };
 
@@ -585,7 +620,42 @@ export function useAbilityOutsideCombat(
 
   // Fast Travel ability — signal to scene to show town picker
   if (abilityId === "fastTravel") {
+    if (player.position.inDungeon) {
+      return { success: false, message: "Cannot fast travel from inside a dungeon!" };
+    }
     return { success: true, message: "Choose a destination...", teleport: true };
+  }
+
+  // Evac ability — signal to scene to teleport to dungeon entrance
+  if (abilityId === "evac") {
+    if (!player.position.inDungeon) {
+      return { success: false, message: "Evac can only be used inside a dungeon!" };
+    }
+    player.mp -= ability.mpCost;
+    return { success: true, message: "You teleport to the dungeon entrance!", evac: true };
+  }
+
+  // Short Rest ability — usable in the overworld wilds
+  if (abilityId === "shortRest") {
+    if (player.position.inDungeon || player.position.inCity) {
+      return { success: false, message: "Short Rest can only be used in the wilds!" };
+    }
+    if (player.shortRestsRemaining <= 0) {
+      return { success: false, message: "No short rests remaining! Rest at an inn to refill." };
+    }
+    if (player.hp >= player.maxHp && player.mp >= player.maxMp && (player.pendingLevelUps ?? 0) <= 0) {
+      return { success: false, message: "HP and MP are already full!" };
+    }
+    const { hpRestored, mpRestored } = shortRest(player);
+    const levelResult = processPendingLevelUps(player);
+    let msg = `Short Rest! Recovered ${hpRestored} HP and ${mpRestored} MP. (${player.shortRestsRemaining} rests left)`;
+    if (levelResult.leveledUp) {
+      msg += ` 🎉 LEVEL UP to ${levelResult.newLevel}!`;
+      for (const sp of levelResult.newSpells) { msg += ` ✦ ${sp.name}!`; }
+      for (const ab of levelResult.newAbilities) { msg += ` ⚡ ${ab.name}!`; }
+      if (levelResult.asiGained > 0) { msg += ` ★ +${levelResult.asiGained} stat points!`; }
+    }
+    return { success: true, message: msg };
   }
 
   if (ability.type === "heal") {

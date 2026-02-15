@@ -4,11 +4,11 @@
  */
 
 import Phaser from "phaser";
-import { BootScene } from "./scenes/BootScene";
-import { OverworldScene } from "./scenes/OverworldScene";
-import { BattleScene } from "./scenes/BattleScene";
-import { ShopScene } from "./scenes/ShopScene";
-import { BestiaryScene } from "./scenes/BestiaryScene";
+import { BootScene } from "./scenes/Boot";
+import { OverworldScene } from "./scenes/Overworld";
+import { BattleScene } from "./scenes/Battle";
+import { ShopScene } from "./scenes/Shop";
+import { CodexScene } from "./scenes/Codex";
 import { GAME_WIDTH, GAME_HEIGHT, toggleDebug, isDebug, onDebugChanged, initDebugCommandInput, isLocalDev } from "./config";
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -23,7 +23,7 @@ const config: Phaser.Types.Core.GameConfig = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
     zoom: 2,
   },
-  scene: [BootScene, OverworldScene, BattleScene, ShopScene, BestiaryScene],
+  scene: [BootScene, OverworldScene, BattleScene, ShopScene, CodexScene],
 };
 
 new Phaser.Game(config);

@@ -2,7 +2,7 @@
  * Monster definitions: random encounters and fixed bosses.
  */
 
-import type { DieType } from "../utils/dice";
+import type { DieType } from "../systems/dice";
 
 export interface MonsterDrop {
   itemId: string;

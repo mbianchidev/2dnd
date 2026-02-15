@@ -17,21 +17,24 @@ import {
 import {
   rollInitiative,
   playerAttack,
+  playerOffHandAttack,
   playerCastSpell,
   playerUseAbility,
   monsterAttack,
   monsterUseAbility,
   attemptFlee,
 } from "../systems/combat";
-import { abilityModifier } from "../utils/dice";
+import { abilityModifier } from "../systems/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
-import type { BestiaryData } from "../systems/bestiary";
-import { recordDefeat, discoverAC } from "../systems/bestiary";
+import type { CodexData } from "../systems/codex";
+import { recordDefeat, discoverAC } from "../systems/codex";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
+import { drawTimeSky as _drawTimeSky, drawCelestialBody as _drawCelestialBody, drawTerrainForeground as _drawTerrainForeground, applyBattleDayNightTint, createBattleWeatherParticles } from "../renderers/battleEffects";
+import { PlayerRenderer } from "../renderers/player";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -40,7 +43,7 @@ export class BattleScene extends Phaser.Scene {
   private monster!: Monster;
   private monsterHp!: number;
   private defeatedBosses!: Set<string>;
-  private bestiary!: BestiaryData;
+  private codex!: CodexData;
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
@@ -59,6 +62,9 @@ export class BattleScene extends Phaser.Scene {
   private spellMenu: Phaser.GameObjects.Container | null = null;
   private itemMenu: Phaser.GameObjects.Container | null = null;
   private abilityMenu: Phaser.GameObjects.Container | null = null;
+  private battleSpellPage = 0;
+  private battleAbilityPage = 0;
+  private battleItemPage = 0;
 
   // Defend state
   private playerDefending = false;
@@ -92,7 +98,7 @@ export class BattleScene extends Phaser.Scene {
     player: PlayerState;
     monster: Monster;
     defeatedBosses: Set<string>;
-    bestiary: BestiaryData;
+    codex: CodexData;
     timeStep?: number;
     weatherState?: WeatherState;
     biome?: string;
@@ -102,7 +108,7 @@ export class BattleScene extends Phaser.Scene {
     this.monster = data.monster;
     this.monsterHp = data.monster.hp;
     this.defeatedBosses = data.defeatedBosses;
-    this.bestiary = data.bestiary;
+    this.codex = data.codex;
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
     this.biome = data.biome ?? "grass";
@@ -116,7 +122,7 @@ export class BattleScene extends Phaser.Scene {
     this.acHighestMiss = 0;
     this.acLowestHit = Infinity;
     this.acDiscovered = false;
-    this.hpRevealed = (this.bestiary.entries[this.monster.id]?.timesDefeated ?? 0) >= 1;
+    this.hpRevealed = (this.codex.entries[this.monster.id]?.timesDefeated ?? 0) >= 1;
     this.playerDefending = false;
     this.monsterDefending = false;
     this.droppedItemIds = [];
@@ -132,6 +138,17 @@ export class BattleScene extends Phaser.Scene {
     this.setupDebug();
     this.createWeatherParticles();
     this.applyDayNightTint();
+
+    // ESC closes any open sub-menu
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on("down", () => {
+      this.closeAllSubMenus();
+    });
+    // A/D or Left/Right for sub-menu paging
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT).on("down", () => this.battleMenuPageChange(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT).on("down", () => this.battleMenuPageChange(1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A).on("down", () => this.battleMenuPageChange(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D).on("down", () => this.battleMenuPageChange(1));
+
     this.rollForInitiative();
 
     // Start battle or boss music
@@ -289,8 +306,8 @@ export class BattleScene extends Phaser.Scene {
 
     const actions: { label: string; action: () => void }[] = [
       { label: "⚔ Attack", action: () => this.doPlayerAttack() },
-      { label: "🛡 Defend", action: () => this.doDefend() },
     ];
+    actions.push({ label: "🛡 Defend", action: () => this.doDefend() });
     if (hasAbilities) {
       actions.push({ label: "⚡ Abilities", action: () => this.showAbilityMenu() });
     }
@@ -360,111 +377,184 @@ export class BattleScene extends Phaser.Scene {
     if (this.abilityMenu) { this.abilityMenu.destroy(); this.abilityMenu = null; }
   }
 
-  private showSpellMenu(): void {
+  /** Handle A/D or Left/Right paging in open battle sub-menus. */
+  private battleMenuPageChange(dir: number): void {
     if (this.spellMenu) {
+      this.battleSpellPage += dir;
+      this.showSpellMenu(true);
+    } else if (this.abilityMenu) {
+      this.battleAbilityPage += dir;
+      this.showAbilityMenu(true);
+    } else if (this.itemMenu) {
+      this.battleItemPage += dir;
+      this.showItemMenu(true);
+    }
+  }
+
+  private showSpellMenu(keepPage = false): void {
+    if (this.spellMenu && !keepPage) {
       this.spellMenu.destroy();
       this.spellMenu = null;
       return;
     }
-    if (this.itemMenu) {
-      this.itemMenu.destroy();
-      this.itemMenu = null;
-    }
+    this.closeAllSubMenus();
+    if (!keepPage) this.battleSpellPage = 0;
 
     const w = this.cameras.main.width;
     const spells = this.player.knownSpells
       .map((id) => getSpell(id))
       .filter((s): s is Spell => s !== undefined && s.type !== "utility");
 
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - spells.length * 28 - 10);
+    if (spells.length === 0) { this.addLog("No spells known!"); return; }
+
+    const MAX_PER_PAGE = 5;
+    const totalPages = Math.max(1, Math.ceil(spells.length / MAX_PER_PAGE));
+    this.battleSpellPage = Math.max(0, Math.min(this.battleSpellPage, totalPages - 1));
+    const start = this.battleSpellPage * MAX_PER_PAGE;
+    const visible = spells.slice(start, start + MAX_PER_PAGE);
+    const rowH = 36;
+    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
+
+    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
     container.setDepth(6);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
-    bg.fillRect(-5, -5, 260, spells.length * 28 + 10);
+    bg.fillRect(-5, -5, 260, menuH);
     bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, spells.length * 28 + 10);
+    bg.strokeRect(-5, -5, 260, menuH);
     container.add(bg);
 
-    spells.forEach((spell, i) => {
+    visible.forEach((spell, i) => {
       const canCast = this.player.mp >= spell.mpCost;
       const color = canCast ? "#aaddff" : "#666";
-      const text = this.add
-        .text(0, i * 28, `${spell.name} (${spell.mpCost} MP) - ${spell.type}`, {
-          fontSize: "12px",
-          fontFamily: "monospace",
-          color,
-        })
-        .setInteractive({ useHandCursor: canCast });
-
+      const text = this.add.text(0, i * rowH, `${spell.name} (${spell.mpCost} MP)`, {
+        fontSize: "12px", fontFamily: "monospace", color,
+      }).setInteractive({ useHandCursor: canCast });
+      const desc = this.add.text(0, i * rowH + 14, spell.description, {
+        fontSize: "9px", fontFamily: "monospace", color: "#888",
+        wordWrap: { width: 250 },
+      });
       if (canCast) {
         text.on("pointerover", () => text.setColor("#ffd700"));
         text.on("pointerout", () => text.setColor(color));
-        text.on("pointerdown", () => {
-          this.spellMenu?.destroy();
-          this.spellMenu = null;
-          this.doPlayerSpell(spell.id);
-        });
+        text.on("pointerdown", () => { this.closeAllSubMenus(); this.doPlayerSpell(spell.id); });
       }
-      container.add(text);
+      container.add([text, desc]);
     });
+
+    if (totalPages > 1) {
+      const navY = visible.length * rowH;
+      const prevBtn = this.add.text(10, navY, "◄ A", {
+        fontSize: "10px", fontFamily: "monospace", color: this.battleSpellPage > 0 ? "#aaa" : "#444",
+      }).setInteractive({ useHandCursor: this.battleSpellPage > 0 });
+      if (this.battleSpellPage > 0) {
+        prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
+        prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
+        prevBtn.on("pointerdown", () => { this.battleSpellPage--; this.showSpellMenu(true); });
+      }
+      container.add(prevBtn);
+
+      const pageLabel = this.add.text(120, navY, `${this.battleSpellPage + 1}/${totalPages}`, {
+        fontSize: "10px", fontFamily: "monospace", color: "#888",
+      }).setOrigin(0.5, 0);
+      container.add(pageLabel);
+
+      const nextBtn = this.add.text(200, navY, "D ►", {
+        fontSize: "10px", fontFamily: "monospace", color: this.battleSpellPage < totalPages - 1 ? "#aaa" : "#444",
+      }).setInteractive({ useHandCursor: this.battleSpellPage < totalPages - 1 });
+      if (this.battleSpellPage < totalPages - 1) {
+        nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
+        nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
+        nextBtn.on("pointerdown", () => { this.battleSpellPage++; this.showSpellMenu(true); });
+      }
+      container.add(nextBtn);
+    }
 
     this.spellMenu = container;
   }
 
-  private showAbilityMenu(): void {
-    if (this.abilityMenu) {
+  private showAbilityMenu(keepPage = false): void {
+    if (this.abilityMenu && !keepPage) {
       this.abilityMenu.destroy();
       this.abilityMenu = null;
       return;
     }
-    if (this.spellMenu) { this.spellMenu.destroy(); this.spellMenu = null; }
-    if (this.itemMenu) { this.itemMenu.destroy(); this.itemMenu = null; }
+    this.closeAllSubMenus();
+    if (!keepPage) this.battleAbilityPage = 0;
 
     const w = this.cameras.main.width;
     const abilities = (this.player.knownAbilities ?? [])
       .map((id) => getAbility(id))
       .filter((a): a is Ability => a !== undefined && a.type !== "utility");
 
-    if (abilities.length === 0) {
-      this.addLog("No abilities known!");
-      return;
-    }
+    if (abilities.length === 0) { this.addLog("No abilities known!"); return; }
 
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - abilities.length * 28 - 10);
+    const MAX_PER_PAGE = 5;
+    const totalPages = Math.max(1, Math.ceil(abilities.length / MAX_PER_PAGE));
+    this.battleAbilityPage = Math.max(0, Math.min(this.battleAbilityPage, totalPages - 1));
+    const start = this.battleAbilityPage * MAX_PER_PAGE;
+    const visible = abilities.slice(start, start + MAX_PER_PAGE);
+    const rowH = 36;
+    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
+
+    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
     container.setDepth(6);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a2a1e, 0.95);
-    bg.fillRect(-5, -5, 260, abilities.length * 28 + 10);
+    bg.fillRect(-5, -5, 260, menuH);
     bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, abilities.length * 28 + 10);
+    bg.strokeRect(-5, -5, 260, menuH);
     container.add(bg);
 
-    abilities.forEach((ability, i) => {
+    visible.forEach((ability, i) => {
       const canUse = this.player.mp >= ability.mpCost;
       const isBonusAction = ability.bonusAction ?? false;
       const bonusTag = isBonusAction ? " [BA]" : "";
       const color = canUse ? (isBonusAction ? "#aaffaa" : "#ffddaa") : "#666";
-      const text = this.add
-        .text(0, i * 28, `${ability.name}${bonusTag} (${ability.mpCost} MP) - ${ability.type}`, {
-          fontSize: "12px",
-          fontFamily: "monospace",
-          color,
-        })
-        .setInteractive({ useHandCursor: canUse });
-
+      const text = this.add.text(0, i * rowH, `${ability.name}${bonusTag} (${ability.mpCost} MP)`, {
+        fontSize: "12px", fontFamily: "monospace", color,
+      }).setInteractive({ useHandCursor: canUse });
+      const desc = this.add.text(0, i * rowH + 14, ability.description, {
+        fontSize: "9px", fontFamily: "monospace", color: "#888",
+        wordWrap: { width: 250 },
+      });
       if (canUse) {
         text.on("pointerover", () => text.setColor("#ffd700"));
         text.on("pointerout", () => text.setColor(color));
-        text.on("pointerdown", () => {
-          this.abilityMenu?.destroy();
-          this.abilityMenu = null;
-          this.doPlayerAbility(ability.id);
-        });
+        text.on("pointerdown", () => { this.closeAllSubMenus(); this.doPlayerAbility(ability.id); });
       }
-      container.add(text);
+      container.add([text, desc]);
     });
+
+    if (totalPages > 1) {
+      const navY = visible.length * rowH;
+      const prevBtn = this.add.text(10, navY, "◄ A", {
+        fontSize: "10px", fontFamily: "monospace", color: this.battleAbilityPage > 0 ? "#aaa" : "#444",
+      }).setInteractive({ useHandCursor: this.battleAbilityPage > 0 });
+      if (this.battleAbilityPage > 0) {
+        prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
+        prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
+        prevBtn.on("pointerdown", () => { this.battleAbilityPage--; this.showAbilityMenu(true); });
+      }
+      container.add(prevBtn);
+
+      const pageLabel = this.add.text(120, navY, `${this.battleAbilityPage + 1}/${totalPages}`, {
+        fontSize: "10px", fontFamily: "monospace", color: "#888",
+      }).setOrigin(0.5, 0);
+      container.add(pageLabel);
+
+      const nextBtn = this.add.text(200, navY, "D ►", {
+        fontSize: "10px", fontFamily: "monospace", color: this.battleAbilityPage < totalPages - 1 ? "#aaa" : "#444",
+      }).setInteractive({ useHandCursor: this.battleAbilityPage < totalPages - 1 });
+      if (this.battleAbilityPage < totalPages - 1) {
+        nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
+        nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
+        nextBtn.on("pointerdown", () => { this.battleAbilityPage++; this.showAbilityMenu(true); });
+      }
+      container.add(nextBtn);
+    }
 
     this.abilityMenu = container;
   }
@@ -551,73 +641,202 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  private showItemMenu(): void {
-    if (this.itemMenu) {
+  private showItemMenu(keepPage = false): void {
+    if (this.itemMenu && !keepPage) {
       this.itemMenu.destroy();
       this.itemMenu = null;
       return;
     }
-    if (this.spellMenu) {
-      this.spellMenu.destroy();
-      this.spellMenu = null;
-    }
+    this.closeAllSubMenus();
+    if (!keepPage) this.battleItemPage = 0;
 
     const w = this.cameras.main.width;
-    const consumables = this.player.inventory.filter(
-      (item) => item.type === "consumable"
-    );
+    const TOTAL_PAGES = 3;
+    const PAGE_LABELS = ["Consumables", "Weapons", "Defense"];
+    this.battleItemPage = Math.max(0, Math.min(this.battleItemPage, TOTAL_PAGES - 1));
 
-    if (consumables.length === 0) {
-      this.addLog("No usable items!");
-      return;
-    }
+    // Build rows for current page
+    type MenuRow = { label: string; color: string; interactive: boolean; action?: () => void };
+    const rows: MenuRow[] = [];
 
-    // Stack consumables by id — group into { item, count, firstIndex }
-    const stacks: { item: typeof consumables[0]; count: number; firstIndex: number }[] = [];
-    const seen = new Map<string, number>(); // id → index in stacks[]
-    for (const item of consumables) {
-      const existing = seen.get(item.id);
-      if (existing !== undefined) {
-        stacks[existing].count++;
-      } else {
-        seen.set(item.id, stacks.length);
-        stacks.push({ item, count: 1, firstIndex: this.player.inventory.indexOf(item) });
+    if (this.battleItemPage === 0) {
+      // --- Page 1: Consumables ---
+      const consumables = this.player.inventory.filter((item) => item.type === "consumable" && item.id !== "chimaeraWing");
+      type StackEntry = { item: Item; count: number };
+      const stacks: StackEntry[] = [];
+      const seen = new Map<string, number>();
+      for (const item of consumables) {
+        const existing = seen.get(item.id);
+        if (existing !== undefined) { stacks[existing].count++; }
+        else { seen.set(item.id, stacks.length); stacks.push({ item, count: 1 }); }
+      }
+      if (stacks.length === 0) {
+        rows.push({ label: "  No consumables", color: "#666", interactive: false });
+      }
+      for (const stack of stacks) {
+        const countLabel = stack.count > 1 ? ` x${stack.count}` : "";
+        rows.push({
+          label: `  ${stack.item.name}${countLabel} — ${stack.item.description}`,
+          color: "#aaffaa", interactive: true,
+          action: () => {
+            const realIndex = this.player.inventory.findIndex(it => it.id === stack.item.id && it.type === "consumable");
+            this.closeAllSubMenus();
+            if (realIndex >= 0) this.doUseItem(realIndex);
+          },
+        });
+      }
+    } else if (this.battleItemPage === 1) {
+      // --- Page 2: Weapons ---
+      const inventoryWeapons = this.player.inventory.filter((item) => item.type === "weapon");
+      if (this.player.equippedWeapon) {
+        const eq = this.player.equippedWeapon;
+        rows.push({ label: `  ► ${eq.name} (+${eq.effect} dmg) [main]`, color: "#88ff88", interactive: false });
+      }
+      if (this.player.equippedOffHand) {
+        const oh = this.player.equippedOffHand;
+        rows.push({ label: `  ► ${oh.name} (+${oh.effect} dmg) [off]`, color: "#88ff88", interactive: false });
+      }
+      let hasUnequipped = false;
+      for (const wpn of inventoryWeapons) {
+        if (wpn.id === this.player.equippedWeapon?.id) continue;
+        if (wpn.id === this.player.equippedOffHand?.id) continue;
+        hasUnequipped = true;
+        rows.push({
+          label: `  ${wpn.name} (+${wpn.effect} dmg) [equip]`,
+          color: "#aaddff", interactive: true,
+          action: () => { this.doBattleWeaponSwap(wpn); },
+        });
+      }
+      if (rows.length === 0 && !hasUnequipped) {
+        rows.push({ label: "  No weapons", color: "#666", interactive: false });
+      }
+    } else {
+      // --- Page 3: Defense ---
+      if (this.player.equippedArmor) {
+        const arm = this.player.equippedArmor;
+        rows.push({ label: `  ${arm.name} (+${arm.effect} AC) [eq]`, color: "#88ff88", interactive: false });
+      }
+      if (this.player.equippedShield) {
+        const sh = this.player.equippedShield;
+        rows.push({ label: `  ${sh.name} (+${sh.effect} AC) [eq]`, color: "#88ff88", interactive: false });
+      }
+      if (rows.length === 0) {
+        rows.push({ label: "  No armor or shield", color: "#666", interactive: false });
       }
     }
 
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - stacks.length * 28 - 10);
+    const rowH = 24;
+    const headerH = 20;
+    const navH = 22;
+    const menuH = headerH + rows.length * rowH + navH + 10;
+    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
     container.setDepth(6);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
-    bg.fillRect(-5, -5, 260, stacks.length * 28 + 10);
+    bg.fillRect(-5, -5, 280, menuH);
     bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, stacks.length * 28 + 10);
+    bg.strokeRect(-5, -5, 280, menuH);
     container.add(bg);
 
-    stacks.forEach((stack, i) => {
-      const countLabel = stack.count > 1 ? ` x${stack.count}` : "";
-      const text = this.add
-        .text(0, i * 28, `${stack.item.name}${countLabel} - ${stack.item.description}`, {
-          fontSize: "12px",
-          fontFamily: "monospace",
-          color: "#aaffaa",
-        })
-        .setInteractive({ useHandCursor: true });
+    // Page header
+    const header = this.add.text(130, 0, `― ${PAGE_LABELS[this.battleItemPage]} ―`, {
+      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
+    }).setOrigin(0.5, 0);
+    container.add(header);
 
-      text.on("pointerover", () => text.setColor("#ffd700"));
-      text.on("pointerout", () => text.setColor("#aaffaa"));
-      text.on("pointerdown", () => {
-        // Find the first inventory index for this item id
-        const realIndex = this.player.inventory.findIndex(it => it.id === stack.item.id && it.type === "consumable");
-        this.itemMenu?.destroy();
-        this.itemMenu = null;
-        if (realIndex >= 0) this.doUseItem(realIndex);
+    // Rows
+    rows.forEach((row, i) => {
+      const text = this.add.text(0, headerH + i * rowH, row.label, {
+        fontSize: "11px", fontFamily: "monospace", color: row.color,
+        wordWrap: { width: 270 },
       });
+      if (row.interactive && row.action) {
+        text.setInteractive({ useHandCursor: true });
+        const baseColor = row.color;
+        text.on("pointerover", () => text.setColor("#ffd700"));
+        text.on("pointerout", () => text.setColor(baseColor));
+        text.on("pointerdown", () => row.action!());
+      }
       container.add(text);
     });
 
+    // Navigation: ◄ A   page/total   D ►
+    const navY = headerH + rows.length * rowH + 4;
+    const prevBtn = this.add.text(10, navY, "◄ A", {
+      fontSize: "10px", fontFamily: "monospace", color: this.battleItemPage > 0 ? "#aaa" : "#444",
+    }).setInteractive({ useHandCursor: this.battleItemPage > 0 });
+    if (this.battleItemPage > 0) {
+      prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
+      prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
+      prevBtn.on("pointerdown", () => { this.battleItemPage--; this.showItemMenu(true); });
+    }
+    container.add(prevBtn);
+
+    const pageLabel = this.add.text(130, navY, `${this.battleItemPage + 1}/${TOTAL_PAGES}`, {
+      fontSize: "10px", fontFamily: "monospace", color: "#888",
+    }).setOrigin(0.5, 0);
+    container.add(pageLabel);
+
+    const nextBtn = this.add.text(230, navY, "D ►", {
+      fontSize: "10px", fontFamily: "monospace", color: this.battleItemPage < TOTAL_PAGES - 1 ? "#aaa" : "#444",
+    }).setInteractive({ useHandCursor: this.battleItemPage < TOTAL_PAGES - 1 });
+    if (this.battleItemPage < TOTAL_PAGES - 1) {
+      nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
+      nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
+      nextBtn.on("pointerdown", () => { this.battleItemPage++; this.showItemMenu(true); });
+    }
+    container.add(nextBtn);
+
     this.itemMenu = container;
+  }
+
+  /** Swap main-hand weapon during battle (bonus action). */
+  private doBattleWeaponSwap(newWeapon: Item): void {
+    if (this.phase !== "playerTurn") return;
+    if (this.bonusActionUsed) {
+      this.addLog("Bonus action already used this turn!");
+      return;
+    }
+
+    const oldWeapon = this.player.equippedWeapon;
+    this.player.equippedWeapon = newWeapon;
+
+    // If new weapon is two-handed, clear shield and off-hand
+    if (newWeapon.twoHanded) {
+      this.player.equippedShield = null;
+      this.player.equippedOffHand = null;
+    }
+    // If new weapon is not light, clear off-hand
+    if (!newWeapon.light || newWeapon.twoHanded) {
+      this.player.equippedOffHand = null;
+    }
+
+    this.bonusActionUsed = true;
+    const swapMsg = oldWeapon
+      ? `Swapped ${oldWeapon.name} → ${newWeapon.name}!`
+      : `Equipped ${newWeapon.name}!`;
+    this.addLog(swapMsg + " (bonus action)");
+    debugPanelLog(`  ↳ [Weapon Swap] ${swapMsg}`, false, "roll-detail");
+
+    // Regenerate player sprite texture to reflect new weapon
+    this.refreshBattlePlayerSprite();
+    this.updatePlayerStats();
+
+    this.closeAllSubMenus();
+  }
+
+  /** Regenerate the player equipped texture and update the battle sprite. */
+  private refreshBattlePlayerSprite(): void {
+    const renderer = new PlayerRenderer(this);
+    // Create a dummy sprite for the renderer (it needs playerSprite to exist)
+    renderer.playerSprite = this.playerSprite;
+    renderer.refreshPlayerSprite(this.player);
+    // The texture is regenerated in-place; update our sprite
+    const texKey = `player_equipped_${this.player.appearanceId}`;
+    if (this.textures.exists(texKey)) {
+      this.playerSprite.setTexture(texKey);
+    }
   }
 
   private updateMonsterDisplay(): void {
@@ -827,6 +1046,30 @@ export class BattleScene extends Phaser.Scene {
         });
       }
 
+      // Off-hand bonus action: if player has an off-hand weapon and bonus action is unused,
+      // automatically follow up with an off-hand attack (no ability mod bonus per D&D 5e TWF)
+      if (this.player.equippedOffHand && !this.bonusActionUsed && this.monsterHp > 0) {
+        this.bonusActionUsed = true;
+        const offResult = playerOffHandAttack(this.player, this.monster, 0, weatherPenalty);
+        debugLog("Player off-hand attack (bonus action)", { roll: offResult.roll, hit: offResult.hit, critical: offResult.critical, damage: offResult.damage });
+        debugPanelLog(
+          `  ↳ [Off-Hand] d20=${offResult.roll} +${offResult.attackMod} = ${offResult.totalRoll} vs AC ${this.monster.ac} → ${offResult.hit ? (offResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${offResult.damage}`,
+          false, "roll-detail"
+        );
+        this.addLog(offResult.message + this.formatPlayerRoll(offResult.roll, offResult.attackMod, offResult.totalRoll, offResult.hit, offResult.critical));
+        this.monsterHp = Math.max(0, this.monsterHp - offResult.damage);
+        this.updateMonsterDisplay();
+
+        if (audioEngine.initialized) {
+          if (offResult.critical) audioEngine.playCriticalHitSFX();
+          else if (offResult.hit) audioEngine.playAttackSFX();
+          else audioEngine.playMissSFX();
+        }
+        if (offResult.hit) {
+          this.tweens.add({ targets: this.monsterSprite, x: this.monsterSprite.x + 10, duration: 50, yoyo: true, repeat: 1 });
+        }
+      }
+
       this.checkBattleEnd();
     } catch (err) {
       this.handleError("doPlayerAttack", err);
@@ -844,8 +1087,10 @@ export class BattleScene extends Phaser.Scene {
     this.playerDefending = true;
     this.turnActionUsed = true;
     this.phase = "monsterTurn";
-    this.addLog(`${this.player.name} takes a defensive stance! (+2 AC)`);
-    debugPanelLog(`  ↳ [Defend] AC ${getArmorClass(this.player)} → ${getArmorClass(this.player) + 2}`, false, "roll-detail");
+    const hasShield = !!this.player.equippedShield && !this.player.equippedWeapon?.twoHanded;
+    const shieldNote = hasShield ? ", shield -1 dmg" : "";
+    this.addLog(`${this.player.name} takes a defensive stance! (+2 AC${shieldNote})`);
+    debugPanelLog(`  ↳ [Defend] AC ${getArmorClass(this.player)} → ${getArmorClass(this.player) + 2}${shieldNote}`, false, "roll-detail");
     this.updatePlayerStats();
     this.time.delayedCall(800, () => this.doMonsterTurn());
   }
@@ -1035,6 +1280,16 @@ export class BattleScene extends Phaser.Scene {
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
       const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
       const result = monsterAttack(this.monster, this.player, defendBonus, weatherPenalty, boost.attackBonus);
+
+      // Shield defend bonus: reduce incoming damage by 1 when defending with a shield equipped
+      const shieldDefendReduction = (this.playerDefending && this.player.equippedShield && !this.player.equippedWeapon?.twoHanded) ? 1 : 0;
+      if (shieldDefendReduction > 0 && result.hit && result.damage > 0) {
+        const reduced = Math.min(shieldDefendReduction, result.damage);
+        result.damage -= reduced;
+        // Re-apply corrected damage to player HP (monsterAttack already subtracted the original)
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + reduced);
+      }
+
       debugLog("Monster attack", {
         naturalRoll: result.roll,
         attackBonus: result.attackBonus,
@@ -1045,9 +1300,10 @@ export class BattleScene extends Phaser.Scene {
         damage: result.damage,
         playerHP: this.player.hp,
         playerDefending: this.playerDefending,
+        shieldDefendReduction,
       });
       debugPanelLog(
-        `  ↳ [Monster Attack] d20=${result.roll} +${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}${this.playerDefending ? " (DEF+2)" : ""} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → Player HP ${this.player.hp}`,
+        `  ↳ [Monster Attack] d20=${result.roll} +=${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}${this.playerDefending ? " (DEF+2)" : ""}${shieldDefendReduction ? " (shield -1)" : ""} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → Player HP ${this.player.hp}`,
         false, "roll-detail"
       );
       // Only show the outcome message, never the enemy's roll details
@@ -1134,7 +1390,7 @@ export class BattleScene extends Phaser.Scene {
         }
 
         // Record in bestiary
-        recordDefeat(this.bestiary, this.monster, this.acDiscovered, this.droppedItemIds);
+        recordDefeat(this.codex, this.monster, this.acDiscovered, this.droppedItemIds);
 
         // Play victory jingle
         if (audioEngine.initialized) {
@@ -1194,7 +1450,7 @@ export class BattleScene extends Phaser.Scene {
     if (!this.acDiscovered && this.acLowestHit === this.acHighestMiss + 1) {
       this.acDiscovered = true;
       // Also update the bestiary immediately
-      discoverAC(this.bestiary, this.monster.id);
+      discoverAC(this.codex, this.monster.id);
       this.addLog(`🔍 You deduce the ${this.monster.name}'s AC is ${this.acLowestHit}!`);
     }
 
@@ -1209,391 +1465,26 @@ export class BattleScene extends Phaser.Scene {
     this.addLog(`⚠ Something went wrong (${context})`);
   }
 
-  /**
-   * Draw a time-dependent sky gradient over the sky portion of the battle background.
-   * This replaces the static baked-in sky color with one that reflects the current
-   * time of day (blue morning, dark blue night, orange dawn/dusk, etc.).
-   */
   private drawTimeSky(): void {
-    if (this.biome === "dungeon") return;
-
-    const w = this.cameras.main.width;
-    const skyH = this.cameras.main.height * 0.45;
-    const period = getTimePeriod(this.timeStep);
-    const gfx = this.add.graphics();
-    gfx.setDepth(0.4); // below celestial body (0.5), above bg image (0)
-
-    // Top and bottom gradient colors for each time period
-    let topColor: number;
-    let botColor: number;
-    let alpha = 0.85;
-
-    switch (period) {
-      case TimePeriod.Dawn:
-        topColor = 0x4466aa; botColor = 0xffa858; break;
-      case TimePeriod.Day:
-        topColor = 0x5588cc; botColor = 0x87ceeb; break;
-      case TimePeriod.Dusk:
-        topColor = 0x2a2a55; botColor = 0xff6633; break;
-      case TimePeriod.Night:
-        topColor = 0x0a0a1a; botColor = 0x1a2244; alpha = 0.92; break;
-      default:
-        return; // Dungeon handled above
-    }
-
-    gfx.fillGradientStyle(topColor, topColor, botColor, botColor, alpha);
-    gfx.fillRect(0, 0, w, skyH);
+    _drawTimeSky(this, this.biome, this.timeStep);
   }
 
-  /**
-   * Draw a sun or moon in the sky area of the battle background.
-   * Positioned on the LEFT side of the sky to avoid overlapping the monster
-   * sprite (centered ~55% x, ~32% y) and the HP info box (top-right).
-   *   Dawn  → sun low-left (rising)
-   *   Day   → sun upper-left
-   *   Dusk  → sun mid-left (setting)
-   *   Night → moon upper-left + stars
-   */
   private drawCelestialBody(): void {
-    // Skip for dungeons — no sky visible
-    if (this.biome === "dungeon") return;
-
-    const w = this.cameras.main.width;
-    const skyH = this.cameras.main.height * 0.45; // sky occupies roughly top 45%
-    const period = getTimePeriod(this.timeStep);
-    const gfx = this.add.graphics();
-    gfx.setDepth(0.5); // above bg image, below sprites
-
-    switch (period) {
-      case TimePeriod.Dawn: {
-        // Sun rising — low left
-        const sx = w * 0.12;
-        const sy = skyH * 0.78;
-        gfx.fillStyle(0xffcc66, 0.15);
-        gfx.fillCircle(sx, sy, 50);
-        gfx.fillStyle(0xffaa33, 0.2);
-        gfx.fillCircle(sx, sy, 30);
-        gfx.fillStyle(0xffdd44, 1);
-        gfx.fillCircle(sx, sy, 16);
-        gfx.fillStyle(0xffee88, 1);
-        gfx.fillCircle(sx - 3, sy - 3, 10);
-        break;
-      }
-      case TimePeriod.Day: {
-        // Sun high — upper-left quadrant
-        const sx = w * 0.22;
-        const sy = skyH * 0.18;
-        gfx.fillStyle(0xffffcc, 0.12);
-        gfx.fillCircle(sx, sy, 60);
-        gfx.fillStyle(0xffff88, 0.18);
-        gfx.fillCircle(sx, sy, 35);
-        gfx.fillStyle(0xffee44, 1);
-        gfx.fillCircle(sx, sy, 18);
-        gfx.fillStyle(0xffff99, 1);
-        gfx.fillCircle(sx - 3, sy - 3, 12);
-        gfx.lineStyle(1.5, 0xffee44, 0.3);
-        for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
-          gfx.lineBetween(
-            sx + Math.cos(a) * 22, sy + Math.sin(a) * 22,
-            sx + Math.cos(a) * 40, sy + Math.sin(a) * 40,
-          );
-        }
-        break;
-      }
-      case TimePeriod.Dusk: {
-        // Sun setting — mid-left, dropping lower
-        const sx = w * 0.15;
-        const sy = skyH * 0.72;
-        gfx.fillStyle(0xff6633, 0.15);
-        gfx.fillCircle(sx, sy, 55);
-        gfx.fillStyle(0xff8844, 0.2);
-        gfx.fillCircle(sx, sy, 32);
-        gfx.fillStyle(0xff7733, 1);
-        gfx.fillCircle(sx, sy, 17);
-        gfx.fillStyle(0xffaa55, 1);
-        gfx.fillCircle(sx - 2, sy - 2, 11);
-        break;
-      }
-      case TimePeriod.Night: {
-        // Moon — upper-left area (well away from monster at top-right)
-        const mx = w * 0.18;
-        const my = skyH * 0.2;
-        gfx.fillStyle(0xaabbdd, 0.1);
-        gfx.fillCircle(mx, my, 45);
-        gfx.fillStyle(0xccddff, 0.12);
-        gfx.fillCircle(mx, my, 28);
-        gfx.fillStyle(0xe8eeff, 1);
-        gfx.fillCircle(mx, my, 14);
-        gfx.fillStyle(0x0a0a1a, 1);
-        gfx.fillCircle(mx + 6, my - 4, 11);
-        // Stars — scattered across sky but avoiding monster area (right 60-90% x)
-        gfx.fillStyle(0xffffff, 0.7);
-        const starPositions = [
-          [w * 0.05, skyH * 0.12], [w * 0.15, skyH * 0.42],
-          [w * 0.28, skyH * 0.08], [w * 0.38, skyH * 0.3],
-          [w * 0.42, skyH * 0.05], [w * 0.08, skyH * 0.28],
-          [w * 0.32, skyH * 0.4], [w * 0.48, skyH * 0.15],
-        ];
-        for (const [sx, sy] of starPositions) {
-          gfx.fillCircle(sx, sy, 1.5);
-        }
-        gfx.fillStyle(0xccccee, 0.4);
-        gfx.fillCircle(w * 0.03, skyH * 0.35, 1);
-        gfx.fillCircle(w * 0.25, skyH * 0.48, 1);
-        gfx.fillCircle(w * 0.45, skyH * 0.38, 1);
-        gfx.fillCircle(w * 0.35, skyH * 0.18, 1);
-        break;
-      }
-    }
+    _drawCelestialBody(this, this.biome, this.timeStep);
   }
 
-  /**
-   * Draw biome-specific foreground terrain elements for DQ-style depth.
-   * These are drawn at depth 1.2, between monster (1.0) and player (1.5),
-   * creating a sense of perspective and grounding.
-   */
   private drawTerrainForeground(): void {
-    const w = this.cameras.main.width;
-    const h = this.cameras.main.height;
-    const gfx = this.add.graphics();
-    gfx.setDepth(1.2);
-
-    switch (this.biome) {
-      case "grass": {
-        // Grass tufts and small flowers along the midground
-        gfx.fillStyle(0x3a7c2f, 0.6);
-        for (let i = 0; i < 12; i++) {
-          const gx = (i * 53 + 10) % w;
-          const gy = h * 0.58 + (i * 17) % 30;
-          gfx.fillTriangle(gx, gy, gx + 4, gy - 12, gx + 8, gy);
-          gfx.fillTriangle(gx + 5, gy, gx + 9, gy - 10, gx + 13, gy);
-        }
-        // Small rocks
-        gfx.fillStyle(0x888877, 0.5);
-        gfx.fillCircle(w * 0.08, h * 0.62, 4);
-        gfx.fillCircle(w * 0.82, h * 0.60, 5);
-        gfx.fillCircle(w * 0.45, h * 0.65, 3);
-        break;
-      }
-      case "forest":
-      case "deep_forest": {
-        // Tree silhouettes on edges for depth framing
-        const isDeep = this.biome === "deep_forest";
-        const trunkColor = isDeep ? 0x1a0f08 : 0x3d2b1a;
-        const leafColor = isDeep ? 0x0a3a06 : 0x1d6b18;
-        // Left tree
-        gfx.fillStyle(trunkColor, 0.7);
-        gfx.fillRect(w * 0.02, h * 0.20, 12, h * 0.50);
-        gfx.fillStyle(leafColor, 0.6);
-        gfx.fillCircle(w * 0.03, h * 0.22, 35);
-        gfx.fillCircle(w * 0.01, h * 0.30, 25);
-        // Right tree
-        gfx.fillStyle(trunkColor, 0.7);
-        gfx.fillRect(w * 0.92, h * 0.25, 12, h * 0.45);
-        gfx.fillStyle(leafColor, 0.6);
-        gfx.fillCircle(w * 0.93, h * 0.27, 32);
-        gfx.fillCircle(w * 0.95, h * 0.34, 22);
-        // Forest floor debris
-        gfx.fillStyle(0x2a1a0a, 0.4);
-        for (let i = 0; i < 8; i++) {
-          gfx.fillCircle((i * 83 + 30) % w, h * 0.60 + (i * 11) % 20, 3);
-        }
-        break;
-      }
-      case "sand": {
-        // Foreground dune ridges
-        gfx.fillStyle(0xddb060, 0.5);
-        gfx.fillCircle(w * 0.15, h * 0.62, 60);
-        gfx.fillCircle(w * 0.75, h * 0.60, 50);
-        // Sand ripples
-        gfx.fillStyle(0xc09040, 0.3);
-        for (let i = 0; i < 6; i++) {
-          gfx.fillRect(w * 0.1 + i * 50, h * 0.58 + i * 5, 40, 2);
-        }
-        break;
-      }
-      case "tundra": {
-        // Snow mounds
-        gfx.fillStyle(0xf0f0ff, 0.4);
-        gfx.fillCircle(w * 0.1, h * 0.60, 40);
-        gfx.fillCircle(w * 0.85, h * 0.58, 35);
-        // Ice crystals
-        gfx.fillStyle(0xaaddff, 0.3);
-        gfx.fillCircle(w * 0.05, h * 0.55, 5);
-        gfx.fillCircle(w * 0.90, h * 0.54, 4);
-        gfx.fillCircle(w * 0.50, h * 0.62, 3);
-        break;
-      }
-      case "swamp": {
-        // Murky foreground puddles
-        gfx.fillStyle(0x556b3a, 0.4);
-        gfx.fillCircle(w * 0.10, h * 0.62, 30);
-        gfx.fillCircle(w * 0.80, h * 0.60, 25);
-        // Dead twigs
-        gfx.fillStyle(0x2d401a, 0.6);
-        gfx.fillRect(w * 0.05, h * 0.50, 4, h * 0.18);
-        gfx.fillRect(w * 0.88, h * 0.48, 4, h * 0.20);
-        break;
-      }
-      case "volcanic": {
-        // Foreground rocks with lava glow
-        gfx.fillStyle(0x1a0a0a, 0.6);
-        gfx.fillCircle(w * 0.08, h * 0.60, 20);
-        gfx.fillCircle(w * 0.85, h * 0.58, 18);
-        gfx.fillStyle(0xff4400, 0.3);
-        gfx.fillCircle(w * 0.5, h * 0.63, 15);
-        // Ember particles
-        gfx.fillStyle(0xff6600, 0.35);
-        for (let i = 0; i < 6; i++) {
-          gfx.fillCircle((i * 107 + 20) % w, h * 0.40 + (i * 31) % (h * 0.25), 2);
-        }
-        break;
-      }
-      case "canyon": {
-        // Canyon wall edges
-        gfx.fillStyle(0x8b4513, 0.5);
-        gfx.fillRect(0, h * 0.15, 35, h * 0.55);
-        gfx.fillRect(w - 35, h * 0.18, 35, h * 0.52);
-        // Small boulders
-        gfx.fillStyle(0x885533, 0.4);
-        gfx.fillCircle(w * 0.12, h * 0.60, 8);
-        gfx.fillCircle(w * 0.78, h * 0.58, 10);
-        gfx.fillCircle(w * 0.50, h * 0.64, 6);
-        break;
-      }
-      case "dungeon": {
-        // Stone pillar edges
-        gfx.fillStyle(0x333344, 0.5);
-        gfx.fillRect(0, h * 0.10, 25, h * 0.60);
-        gfx.fillRect(w - 25, h * 0.12, 25, h * 0.58);
-        // Debris
-        gfx.fillStyle(0x222233, 0.4);
-        gfx.fillCircle(w * 0.10, h * 0.62, 5);
-        gfx.fillCircle(w * 0.85, h * 0.60, 4);
-        break;
-      }
-    }
+    _drawTerrainForeground(this, this.biome);
   }
 
-  /** Apply day/night tint to the battle background, monster, and player sprites. */
   private applyDayNightTint(): void {
-    const period = this.biome === "dungeon" ? TimePeriod.Dungeon : getTimePeriod(this.timeStep);
-    const tint = PERIOD_TINT[period];
-    // Tint the background image
-    if (this.bgImage) {
-      this.bgImage.setTint(tint);
-    }
-    // Tint monster sprite (blend with its color tint)
-    if (tint !== 0xffffff) {
-      // Blend the monster's base color with the time-of-day tint
-      const monsterColor = this.monster.color;
-      const blended = this.blendTints(monsterColor, tint);
-      this.monsterSprite.setTint(blended);
-      // Player sprite gets pure time tint
-      this.playerSprite.setTint(tint);
-    }
+    applyBattleDayNightTint(this, this.biome, this.timeStep, this.bgImage, this.monsterSprite, this.monster.color, this.playerSprite);
   }
 
-  /** Blend two 0xRRGGBB colors — 70% first, 30% second. */
-  private blendTints(a: number, b: number): number {
-    const rA = (a >> 16) & 0xff, gA = (a >> 8) & 0xff, bA = a & 0xff;
-    const rB = (b >> 16) & 0xff, gB = (b >> 8) & 0xff, bB = b & 0xff;
-    const r = Math.round(rA * 0.7 + rB * 0.3);
-    const g = Math.round(gA * 0.7 + gB * 0.3);
-    const bl = Math.round(bA * 0.7 + bB * 0.3);
-    return (r << 16) | (g << 8) | bl;
-  }
-
-  /** Create weather particle effects for the battle scene. */
   private createWeatherParticles(): void {
-    if (this.weatherParticles) {
-      this.weatherParticles.destroy();
-      this.weatherParticles = null;
-    }
-    if (this.stormLightningTimer) {
-      this.stormLightningTimer.destroy();
-      this.stormLightningTimer = null;
-    }
-
-    const w = this.cameras.main.width;
-    const h = this.cameras.main.height;
-    const weather = this.weatherState.current;
-
-    if (weather === WeatherType.Clear) return;
-
-    const configs: Record<string, () => Phaser.GameObjects.Particles.ParticleEmitter> = {
-      [WeatherType.Rain]: () => this.add.particles(0, -10, "particle_rain", {
-        x: { min: 0, max: w },
-        quantity: 3,
-        lifespan: 1800,
-        speedY: { min: 220, max: 380 },
-        speedX: { min: -20, max: -40 },
-        scale: { start: 1, end: 0.5 },
-        alpha: { start: 0.7, end: 0.15 },
-        frequency: 25,
-      }),
-      [WeatherType.Snow]: () => this.add.particles(0, -10, "particle_snow", {
-        x: { min: 0, max: w },
-        quantity: 1,
-        lifespan: 5000,
-        speedY: { min: 25, max: 70 },
-        speedX: { min: -25, max: 25 },
-        scale: { start: 1, end: 0.3 },
-        alpha: { start: 0.8, end: 0.1 },
-        frequency: 70,
-      }),
-      [WeatherType.Sandstorm]: () => this.add.particles(w + 10, 0, "particle_sand", {
-        y: { min: 0, max: h },
-        quantity: 5,
-        lifespan: 2200,
-        speedX: { min: -420, max: -260 },
-        speedY: { min: -20, max: 30 },
-        scale: { start: 1.3, end: 0.5 },
-        alpha: { start: 0.9, end: 0.15 },
-        frequency: 14,
-      }),
-      [WeatherType.Storm]: () => this.add.particles(0, -10, "particle_storm", {
-        x: { min: 0, max: w },
-        quantity: 5,
-        lifespan: 1200,
-        speedY: { min: 380, max: 520 },
-        speedX: { min: -70, max: -110 },
-        scale: { start: 1, end: 0.5 },
-        alpha: { start: 0.85, end: 0.2 },
-        frequency: 14,
-      }),
-      [WeatherType.Fog]: () => this.add.particles(0, 0, "particle_fog", {
-        x: { min: 0, max: w },
-        y: { min: 0, max: h },
-        quantity: 2,
-        lifespan: 5000,
-        speedX: { min: 5, max: 15 },
-        speedY: { min: -5, max: 5 },
-        scale: { start: 2.5, end: 5 },
-        alpha: { start: 0.35, end: 0.04 },
-        frequency: 140,
-      }),
-    };
-
-    const factory = configs[weather];
-    if (factory) {
-      this.weatherParticles = factory();
-      this.weatherParticles.setDepth(5);
-    }
-
-    // Sporadic lightning flashes during storms
-    if (weather === WeatherType.Storm) {
-      const scheduleFlash = () => {
-        this.stormLightningTimer = this.time.delayedCall(
-          2000 + Math.random() * 6000,
-          () => {
-            this.cameras.main.flash(120, 255, 255, 255, true);
-            scheduleFlash();
-          },
-        );
-      };
-      scheduleFlash();
-    }
+    const result = createBattleWeatherParticles(this, this.weatherState, this.weatherParticles, this.stormLightningTimer);
+    this.weatherParticles = result.particles;
+    this.stormLightningTimer = result.timer;
   }
 
   private returnToOverworld(): void {
@@ -1602,7 +1493,7 @@ export class BattleScene extends Phaser.Scene {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
-        bestiary: this.bestiary,
+        codex: this.codex,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,

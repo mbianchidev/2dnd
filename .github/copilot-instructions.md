@@ -6,6 +6,10 @@ If you create Python or other utilities scripts (e.g. sed) save them in a hacks 
 
 Keep the README.md updated as well.
 
+Do not care about backwards compatibility, we are in early development and can refactor as needed. However, if you do make breaking changes to function signatures or data structures, update the instructions accordingly so that Copilot suggestions remain accurate.
+
+No file should be longer than 1000 lines. If a file exceeds this, consider refactoring into smaller modules and updating the instructions accordingly.
+
 ## Project Overview
 2D&D is a browser-based JRPG that combines Dragon Quest-style gameplay with Dungeons & Dragons 5E mechanics. The game features turn-based combat, a D&D point-buy stat system, procedural audio, weather, day/night cycles, multi-chunk world exploration, cities, dungeons, and boss fights — all rendered with procedurally-generated graphics and synthesized audio.
 
@@ -21,32 +25,48 @@ Keep the README.md updated as well.
 src/
 ├── main.ts              # Entry point & Phaser config
 ├── config.ts            # Game constants, debug system, HTML debug panel API
-├── scenes/              # Phaser game scenes
-│   ├── BootScene.ts     # Asset generation, title screen, character creation (name → class → stat allocation → appearance)
-│   ├── OverworldScene.ts # Multi-chunk tile map, movement, encounters, fog of war, overlays (equip, menu, settings, world map, stat allocation)
-│   ├── BattleScene.ts   # Turn-based combat with scrollable log, day/night tint, celestial bodies, weather particles
-│   ├── ShopScene.ts     # Item shops & inn
-│   └── BestiaryScene.ts # Monster encyclopedia
-├── systems/             # Core game systems
+├── scenes/              # Phaser game scenes (file names drop "Scene" suffix)
+│   ├── Boot.ts          # Title screen, character creation, stat allocation, appearance customization
+│   ├── Overworld.ts     # Multi-chunk map, movement, encounters — delegates to subsystems
+│   ├── Battle.ts        # Turn-based combat with scrollable log, weather, day/night
+│   ├── Shop.ts          # Item shops & inn
+│   └── Codex.ts         # Monster encyclopedia (formerly Bestiary)
+├── systems/             # Core game logic & mechanics
 │   ├── combat.ts        # D&D combat mechanics (attack, spell, ability, flee)
 │   ├── player.ts        # Player state, leveling, inventory, Point Buy system
 │   ├── save.ts          # Save/load functionality (localStorage)
 │   ├── classes.ts       # Class definitions (stats, spells, abilities, hit die, default visuals)
 │   ├── appearance.ts    # Cosmetic customization (skin color, hair style, hair color options)
-│   ├── bestiary.ts      # Monster tracking & AC discovery
+│   ├── codex.ts         # Monster tracking & AC discovery (formerly bestiary.ts)
 │   ├── daynight.ts      # Day/night cycle (360-step: Dawn/Day/Dusk/Night)
 │   ├── weather.ts       # Weather system (Clear/Rain/Snow/Sandstorm/Storm/Fog)
-│   ├── audio.ts         # Procedural Web Audio API engine (biome/battle/boss/city music, SFX, footsteps, volume settings with localStorage persistence)
-│   └── debug.ts         # Shared debug hotkeys & slash commands
+│   ├── audio.ts         # Procedural Web Audio API engine (biome/battle/boss/city music, SFX)
+│   ├── debug.ts         # Shared debug hotkeys, slash commands, and overworld DebugCommandSystem
+│   ├── dice.ts          # D&D dice rolling utilities (d20, 4d6-drop-lowest, ability modifiers)
+│   └── movement.ts      # Grid movement logic & chunk transitions
+├── renderers/           # Visual rendering subsystems (extracted from Overworld)
+│   ├── textures.ts      # All procedural texture/asset generation (tiles, sprites, UI, backgrounds)
+│   ├── battleEffects.ts # Battle scene sky, celestial bodies, terrain foreground, weather particles
+│   ├── map.ts           # Tile map rendering, weather particles, day/night tint
+│   ├── city.ts          # City animals, NPCs, shop roofs, NPC textures
+│   ├── player.ts        # Player sprite creation, equipment rendering
+│   └── hud.ts           # HUD message display
+├── managers/            # State management subsystems (extracted from Overworld)
+│   ├── overlay.ts       # All UI overlays (equip, menu, settings, world map, inn, bank, teleport)
+│   ├── specialNpc.ts    # Rare overworld NPCs (traveler, adventurer, merchant, hermit)
+│   ├── npc.ts           # City NPC & animal adjacency detection helpers
+│   ├── dialogue.ts      # NPC/animal/special dialogue display
+│   ├── fogOfWar.ts      # Explored tile tracking & fog visibility
+│   └── encounter.ts     # Random encounter enabled/disabled state
 ├── data/                # Game data definitions
 │   ├── map.ts           # 10×9 chunk world, 20×15 tile chunks, terrain, cities, dungeons, chests
 │   ├── monsters.ts      # Monster definitions, encounter tables, boss encounters
 │   ├── spells.ts        # Spell definitions & level requirements
 │   ├── items.ts         # Item definitions & shop inventory
 │   ├── abilities.ts     # Martial ability definitions
+│   ├── mounts.ts        # Mount definitions & speed data
+│   ├── npcs.ts          # NPC templates, city NPC data, special NPC definitions
 │   └── talents.ts       # Talent/perk definitions
-└── utils/
-    └── dice.ts          # D&D dice rolling utilities (d20, 4d6-drop-lowest, ability modifiers)
 tests/
 ├── audio.test.ts        # Audio system API surface & state tests
 ├── combat.test.ts       # Combat calculations & attack rolls
@@ -54,7 +74,11 @@ tests/
 ├── data.test.ts         # Game data integrity tests
 ├── daynight.test.ts     # Day/night cycle tests
 ├── dice.test.ts         # Dice utility tests
+├── mounts.test.ts       # Mount system tests
+├── movement.test.ts     # Grid movement tests
+├── npcs.test.ts         # NPC data tests
 ├── player.test.ts       # Player system, Point Buy, leveling tests
+├── save.test.ts         # Save/load tests
 └── weather.test.ts      # Weather system tests
 ```
 
@@ -69,7 +93,7 @@ tests/
 - **Use optional chaining** (`?.`) and nullish coalescing (`??`) where appropriate
 
 ### Naming Conventions
-- **Files:** camelCase (e.g., `BootScene.ts`, `player.ts`)
+- **Files:** camelCase for systems/data, PascalCase for scenes (e.g., `Boot.ts`, `player.ts`)
 - **Variables/Functions:** camelCase (e.g., `maxHp`, `rollDice`)
 - **Types/Interfaces:** PascalCase (e.g., `PlayerState`, `MonsterData`)
 - **Constants:** UPPER_SNAKE_CASE (e.g., `TILE_SIZE`, `GAME_WIDTH`)
@@ -83,9 +107,9 @@ tests/
 - **Imports:** Group by external → internal → types
 
 ### Phaser-Specific Patterns
-- **Scene data passing:** All scene transitions pass data object with `player`, `defeatedBosses`, `bestiary`, `timeStep`, and `weatherState`
+- **Scene data passing:** All scene transitions pass data object with `player`, `defeatedBosses`, `codex`, `timeStep`, and `weatherState`
 - **Scene init method:** Always accept and store scene data in `init(data: SceneData)`
-- **Asset generation:** All graphics are procedurally generated in `BootScene.ts` - never use external image files
+- **Asset generation:** All graphics are procedurally generated in `Boot.ts` - never use external image files
 - **Audio:** All sound is procedurally synthesized via Web Audio API in `audio.ts` - never use external audio files
 - **Game objects:** Store references to Phaser objects as class properties for later access
 - **UI positioning:** Always calculate actual pixel bounds (including scale) to prevent text overlap
@@ -138,7 +162,7 @@ Each class has a `primaryStat` used for to-hit calculations:
 - **Encounter tables:** Defined per terrain type with spawn weights
 - **Boss monsters:** Fixed map positions, each with unique battle music profile
 - **Night monsters:** Separate spawn table for nighttime encounters
-- **Bestiary:** Track discovered monsters, AC discovery via combat rolls
+- **Codex:** Track discovered monsters, AC discovery via combat rolls
 
 ### Day/Night Cycle
 - **360-step cycle:** Dawn (0-44), Day (45-219), Dusk (220-264), Night (265-359)
@@ -182,19 +206,6 @@ npm run typecheck  # TypeScript type checking only
 ## Testing Guidelines
 - **Test framework:** Vitest
 - **Test file naming:** `*.test.ts` in `tests/` directory
-- **What to test:**
-  - Dice rolling utilities (probability distributions, edge cases)
-  - Combat calculations (attack rolls, damage, modifiers)
-  - Player leveling, XP progression, Point Buy validation
-  - Data integrity (monsters, spells, items)
-  - Day/night cycle transitions
-  - Weather system state changes
-  - Audio engine API surface and state
-  - Debug system configuration
-- **What NOT to test:**
-  - Phaser rendering (visual/UI elements)
-  - Scene transitions (integration tests)
-  - User interactions (E2E tests)
 
 ## Debug System
 - **Debug mode:** Toggled via checkbox above game canvas
@@ -213,7 +224,7 @@ npm run typecheck  # TypeScript type checking only
 this.scene.start("NextScene", {
   player: this.player,
   defeatedBosses: this.defeatedBosses,
-  bestiary: this.bestiary,
+  codex: this.codex,
   timeStep: this.timeStep,
   weatherState: this.weatherState,
 });
@@ -243,7 +254,7 @@ audioEngine.setMasterVolume(0.8);   // Persisted to localStorage
 
 ### Dice Rolling
 ```typescript
-import { rollDice, rollD20, abilityModifier } from "../utils/dice";
+import { rollDice, rollD20, abilityModifier } from "../systems/dice";
 const damage = rollDice(2, 6) + abilityModifier(strength);
 const attackRoll = rollD20() + proficiencyBonus + abilityModifier(dexterity);
 ```

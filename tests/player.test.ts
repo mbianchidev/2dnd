@@ -67,7 +67,7 @@ describe("player system", () => {
       expect(player.maxMp).toBeGreaterThanOrEqual(4);
       expect(player.gold).toBeGreaterThanOrEqual(50);  // D&D 5e: Knight = 5d4 × 10 (min 50)
       expect(player.gold).toBeLessThanOrEqual(200);     // max 200
-      expect(player.knownSpells).toContain("shortRest");
+      expect(player.knownAbilities).toContain("shortRest");
       expect(player.inventory).toHaveLength(1); // starting weapon
       expect(player.equippedWeapon).not.toBeNull();
       expect(player.equippedWeapon?.id).toBe("startSword"); // Knight default
@@ -77,10 +77,10 @@ describe("player system", () => {
     });
 
     it("applies class boosts correctly for different classes", () => {
-      // Mage: INT+2, WIS+1
-      const mage = createPlayer("TestMage", { ...defaultStats, intelligence: 15 }, "mage");
-      expect(mage.stats.intelligence).toBe(17); // 15 + 2
-      expect(mage.stats.wisdom).toBe(11); // 10 + 1
+      // Wizard: INT+2, WIS+1
+      const wizard = createPlayer("TestWizard", { ...defaultStats, intelligence: 15 }, "wizard");
+      expect(wizard.stats.intelligence).toBe(17); // 15 + 2
+      expect(wizard.stats.wisdom).toBe(11); // 10 + 1
 
       // Rogue: DEX+2, CHA+1
       const rogue = createPlayer("TestRogue", defaultStats, "rogue");
@@ -191,13 +191,13 @@ describe("player system", () => {
     });
 
     it("unlocks spells on level up via processPendingLevelUps", () => {
-      const player = createTestPlayer();
-      // Level up to 5 to unlock healingWord (Knight spell)
-      awardXP(player, xpForLevel(5 + 1));
+      const player = createTestPlayer({ appearanceId: "wizard" });
+      // Level up to unlock magicMissile (wizard spell, levelRequired: 2)
+      awardXP(player, xpForLevel(3));
       const result = processPendingLevelUps(player);
       const spellIds = result.newSpells.map((s) => s.id);
-      expect(spellIds).toContain("healingWord");
-      expect(player.knownSpells).toContain("healingWord");
+      expect(spellIds).toContain("magicMissile");
+      expect(player.knownSpells).toContain("magicMissile");
     });
 
     it("grants ASI points at D&D levels 4, 8, 12, 16, 19", () => {
@@ -365,7 +365,7 @@ describe("player system", () => {
     it("each class has unique starting spell or ability", () => {
       const startingSpells = new Set<string>();
       const startingAbilities = new Set<string>();
-      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"]) {
+      for (const classId of ["knight", "ranger", "wizard", "sorcerer", "rogue", "paladin", "warlock", "cleric", "druid", "barbarian", "monk", "bard"]) {
         const player = createPlayer("Test", defaultStats, classId);
         if (player.knownSpells.length > 0) startingSpells.add(player.knownSpells[0]);
         if (player.knownAbilities.length > 0) startingAbilities.add(player.knownAbilities[0]);
@@ -374,33 +374,33 @@ describe("player system", () => {
       expect(startingSpells.size + startingAbilities.size).toBeGreaterThanOrEqual(3);
     });
 
-    it("rogue, barbarian, and monk have only utility spells (no combat spells)", () => {
+    it("rogue, barbarian, and monk have no combat spells (empty spell arrays)", () => {
       const rogue = createPlayer("Rogue", defaultStats, "rogue");
       const barbarian = createPlayer("Barb", defaultStats, "barbarian");
       const monk = createPlayer("Monk", defaultStats, "monk");
-      // They should only have shortRest (utility) - no combat spells
-      expect(rogue.knownSpells).toContain("shortRest");
-      expect(barbarian.knownSpells).toContain("shortRest");
-      expect(monk.knownSpells).toContain("shortRest");
+      // They should have no spells — shortRest is now an ability
+      expect(rogue.knownSpells).toEqual([]);
+      expect(barbarian.knownSpells).toEqual([]);
+      expect(monk.knownSpells).toEqual([]);
     });
 
-    it("mage has no martial damage abilities", () => {
-      const mage = createPlayer("Mage", defaultStats, "mage");
-      const damageAbilities = mage.knownAbilities.filter((id) => {
+    it("wizard has no martial damage abilities", () => {
+      const wizard = createPlayer("Wizard", defaultStats, "wizard");
+      const damageAbilities = wizard.knownAbilities.filter((id) => {
         const ab = getAbility(id);
         return ab && ab.type === "damage";
       });
       expect(damageAbilities).toHaveLength(0);
     });
 
-    it("attack modifier uses class primary stat", () => {
-      // Mage has primaryStat=intelligence, so attack mod depends on INT
-      const mageStats = { ...defaultStats, intelligence: 16 };
-      const mage = createPlayer("Mage", mageStats, "mage");
-      // INT 16+2=18 -> mod +4, proficiency +2 = 6
-      expect(getAttackModifier(mage)).toBe(6);
+    it("attack modifier uses STR for melee attacks", () => {
+      // Melee attacks always use STR regardless of class
+      const wizardStats = { ...defaultStats, intelligence: 16 };
+      const wizard = createPlayer("Wizard", wizardStats, "wizard");
+      // STR 10+0=10 -> mod +0, proficiency +2 = 2 (wizard has low STR melee)
+      expect(getAttackModifier(wizard)).toBe(2);
 
-      // Knight has primaryStat=strength, so attack mod depends on STR
+      // Knight has primaryStat=strength, melee benefits from STR
       const knightStats = { ...defaultStats, strength: 16 };
       const knight = createPlayer("Knight", knightStats, "knight");
       // STR 16+2=18 -> mod +4, proficiency +2 = 6
@@ -421,11 +421,12 @@ describe("player system", () => {
       expect(getSpellModifier(cleric)).toBe(5);
     });
 
-    it("monk has martial abilities and only utility spells", () => {
+    it("monk has martial abilities and no spells", () => {
       const monk = createPlayer("Monk", defaultStats, "monk");
       expect(monk.knownAbilities.length).toBeGreaterThan(0);
-      // Monk has shortRest (utility) but no combat spells
-      expect(monk.knownSpells).toContain("shortRest");
+      // Monk has shortRest as an ability now, no spells at all
+      expect(monk.knownSpells).toEqual([]);
+      expect(monk.knownAbilities).toContain("shortRest");
     });
 
     it("barbarian has enrage as a bonus action ability", () => {
@@ -441,7 +442,7 @@ describe("player system", () => {
     });
 
     it("each class starts with a weapon equipped", () => {
-      for (const classId of ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"]) {
+      for (const classId of ["knight", "ranger", "wizard", "sorcerer", "rogue", "paladin", "warlock", "cleric", "druid", "barbarian", "monk", "bard"]) {
         const player = createPlayer("Test", defaultStats, classId);
         expect(player.equippedWeapon, `${classId} should start with a weapon`).not.toBeNull();
         expect(player.inventory.length, `${classId} should have weapon in inventory`).toBeGreaterThanOrEqual(1);
@@ -450,11 +451,11 @@ describe("player system", () => {
 
     it("different classes start with different weapons", () => {
       const knight = createPlayer("K", defaultStats, "knight");
-      const mage = createPlayer("M", defaultStats, "mage");
+      const wizard = createPlayer("M", defaultStats, "wizard");
       const rogue = createPlayer("R", defaultStats, "rogue");
       const bard = createPlayer("B", defaultStats, "bard");
       expect(knight.equippedWeapon?.id).toBe("startSword");
-      expect(mage.equippedWeapon?.id).toBe("startStaff");
+      expect(wizard.equippedWeapon?.id).toBe("startStaff");
       expect(rogue.equippedWeapon?.id).toBe("startDagger");
       expect(bard.equippedWeapon?.id).toBe("startRapier");
     });
@@ -509,12 +510,12 @@ describe("player system", () => {
     });
   });
 
-  describe("Short Rest spell via castSpellOutsideCombat", () => {
+  describe("Short Rest ability via useAbilityOutsideCombat", () => {
     it("fails when no rests remaining", () => {
       const player = createPlayer("Test", defaultStats, "knight");
       player.shortRestsRemaining = 0;
 
-      const result = castSpellOutsideCombat(player, "shortRest");
+      const result = useAbilityOutsideCombat(player, "shortRest");
       expect(result.success).toBe(false);
       expect(result.message).toContain("No short rests remaining");
     });
@@ -523,7 +524,7 @@ describe("player system", () => {
       const player = createPlayer("Test", defaultStats, "knight");
       player.shortRestsRemaining = 2;
 
-      const result = castSpellOutsideCombat(player, "shortRest");
+      const result = useAbilityOutsideCombat(player, "shortRest");
       expect(result.success).toBe(false);
       expect(result.message).toContain("already full");
     });
@@ -534,7 +535,7 @@ describe("player system", () => {
       player.hp = 10;
       player.mp = 2;
 
-      const result = castSpellOutsideCombat(player, "shortRest");
+      const result = useAbilityOutsideCombat(player, "shortRest");
       expect(result.success).toBe(true);
       expect(result.message).toContain("Short Rest");
       expect(player.shortRestsRemaining).toBe(1);
@@ -545,12 +546,12 @@ describe("player system", () => {
       player.shortRestsRemaining = 1;
       player.hp = 10;
 
-      const result1 = castSpellOutsideCombat(player, "shortRest");
+      const result1 = useAbilityOutsideCombat(player, "shortRest");
       expect(result1.success).toBe(true);
       expect(player.shortRestsRemaining).toBe(0);
 
       player.hp = 10;
-      const result2 = castSpellOutsideCombat(player, "shortRest");
+      const result2 = useAbilityOutsideCombat(player, "shortRest");
       expect(result2.success).toBe(false);
     });
   });
@@ -568,7 +569,7 @@ describe("player system", () => {
     });
 
     it("refuses damage spells outside combat", () => {
-      const player = createPlayer("Test", defaultStats, "mage");
+      const player = createPlayer("Test", defaultStats, "wizard");
 
       const result = castSpellOutsideCombat(player, "fireBolt");
       expect(result.success).toBe(false);
@@ -607,17 +608,17 @@ describe("player system", () => {
     });
   });
 
-  describe("createPlayer starts with shortRest spell", () => {
-    it("new player knows shortRest spell", () => {
+  describe("createPlayer starts with shortRest ability", () => {
+    it("new player knows shortRest ability", () => {
       const player = createPlayer("Test", defaultStats, "knight");
-      expect(player.knownSpells).toContain("shortRest");
+      expect(player.knownAbilities).toContain("shortRest");
     });
 
     it("all classes start with shortRest", () => {
-      const classes = ["knight", "ranger", "mage", "rogue", "paladin", "warlock", "cleric", "barbarian", "monk", "bard"];
+      const classes = ["knight", "ranger", "wizard", "sorcerer", "rogue", "paladin", "warlock", "cleric", "druid", "barbarian", "monk", "bard"];
       for (const cls of classes) {
         const player = createPlayer("Test", defaultStats, cls);
-        expect(player.knownSpells, `${cls} should know shortRest`).toContain("shortRest");
+        expect(player.knownAbilities, `${cls} should know shortRest`).toContain("shortRest");
       }
     });
 

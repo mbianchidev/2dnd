@@ -170,4 +170,43 @@ describe("shop selling system", () => {
       expect(player.gold).toBe(initialGold + sellValue * 3);
     });
   });
+
+  describe("buy and sell integration", () => {
+    it("can buy an item and then sell it back", () => {
+      const player = createTestPlayer();
+      player.gold = 100;
+      const potion = getItem("potion")!;
+      const initialGold = player.gold;
+      
+      // Buy a potion
+      player.gold -= potion.cost;
+      player.inventory.push({ ...potion });
+      expect(player.gold).toBe(initialGold - potion.cost);
+      
+      // Sell it back
+      const sellValue = getSellValue(potion);
+      const result = sellItem(player, player.inventory.length - 1, sellValue);
+      
+      expect(result.success).toBe(true);
+      expect(player.gold).toBe(initialGold - potion.cost + sellValue);
+      // Player loses value in the transaction (buy at 15g, sell at 7g = net loss 8g)
+      expect(player.gold).toBeLessThan(initialGold);
+    });
+
+    it("prevents selling the last weapon even if player has multiple items", () => {
+      const player = createTestPlayer();
+      const potion = getItem("potion")!;
+      player.inventory.push({ ...potion });
+      player.inventory.push({ ...potion });
+      
+      // Player has starting weapon + 2 potions
+      const weaponCount = player.inventory.filter(i => i.type === "weapon").length;
+      expect(weaponCount).toBe(1);
+      
+      // Can sell potions
+      const weapon = player.inventory.find(i => i.type === "weapon")!;
+      expect(isLastEquipment(player, weapon)).toBe(true);
+      expect(isLastEquipment(player, potion)).toBe(false);
+    });
+  });
 });

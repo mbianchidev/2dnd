@@ -108,16 +108,26 @@ export class OverlayManager {
     );
   }
 
+  /** Safely destroy and nullify specific overlays by property name. */
+  private closeOverlays(...names: (keyof Pick<OverlayManager,
+    "equipOverlay" | "statOverlay" | "menuOverlay" | "worldMapOverlay" |
+    "settingsOverlay" | "innConfirmOverlay" | "bankOverlay" | "townPickerOverlay"
+  >)[]): void {
+    for (const name of names) {
+      const overlay = this[name];
+      if (overlay) {
+        overlay.destroy();
+        this[name] = null;
+      }
+    }
+  }
+
   /** Destroy all overlays. */
   destroyAll(): void {
-    this.equipOverlay?.destroy(); this.equipOverlay = null;
-    this.statOverlay?.destroy(); this.statOverlay = null;
-    this.menuOverlay?.destroy(); this.menuOverlay = null;
-    this.worldMapOverlay?.destroy(); this.worldMapOverlay = null;
-    this.settingsOverlay?.destroy(); this.settingsOverlay = null;
-    this.innConfirmOverlay?.destroy(); this.innConfirmOverlay = null;
-    this.bankOverlay?.destroy(); this.bankOverlay = null;
-    this.townPickerOverlay?.destroy(); this.townPickerOverlay = null;
+    this.closeOverlays(
+      "equipOverlay", "statOverlay", "menuOverlay", "worldMapOverlay",
+      "settingsOverlay", "innConfirmOverlay", "bankOverlay", "townPickerOverlay",
+    );
   }
 
   // ── Equip Overlay ──────────────────────────────────────────────────
@@ -945,8 +955,7 @@ export class OverlayManager {
 
   /** Show the menu overlay with Resume / Settings / Quit. */
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
-    if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
-    if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
+    this.closeOverlays("equipOverlay", "statOverlay");
 
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 220, 200, -10);
 
@@ -1020,10 +1029,7 @@ export class OverlayManager {
 
   /** Show audio settings with volume sliders and mute toggle. */
   showSettingsOverlay(): void {
-    if (this.menuOverlay) { this.menuOverlay.destroy(); this.menuOverlay = null; }
-    if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
-    if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
-    if (this.settingsOverlay) { this.settingsOverlay.destroy(); this.settingsOverlay = null; }
+    this.closeOverlays("menuOverlay", "equipOverlay", "statOverlay", "settingsOverlay");
 
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 300, 290, -10);
 
@@ -1135,8 +1141,7 @@ export class OverlayManager {
 
   /** Show the ASI (Ability Score Improvement) overlay for stat allocation. */
   showStatOverlay(player: PlayerState): void {
-    if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
-    if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
+    this.closeOverlays("equipOverlay", "statOverlay");
 
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 280, 320, -10);
 
@@ -1619,9 +1624,7 @@ export class OverlayManager {
 
   /** Show the zoomable, pannable world map with overview and detail views. */
   showWorldMap(player: PlayerState, defeatedBosses: Set<string>): void {
-    if (this.equipOverlay) { this.equipOverlay.destroy(); this.equipOverlay = null; }
-    if (this.statOverlay) { this.statOverlay.destroy(); this.statOverlay = null; }
-    if (this.menuOverlay) { this.menuOverlay.destroy(); this.menuOverlay = null; }
+    this.closeOverlays("equipOverlay", "statOverlay", "menuOverlay");
 
     const w = this.scene.cameras.main.width;
     const h = this.scene.cameras.main.height;

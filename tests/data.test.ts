@@ -237,7 +237,7 @@ describe("game data", () => {
       expect(getSpell("sacredFlame")).toBeDefined();
       expect(getSpell("spiritGuardians")).toBeDefined();
       // Wizard-specific spells
-      expect(getSpell("arcaneRecovery")).toBeDefined();
+      expect(getSpell("disintegrate")).toBeDefined();
     });
 
     it("each spell has a unique ID", () => {

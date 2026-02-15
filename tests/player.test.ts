@@ -191,13 +191,13 @@ describe("player system", () => {
     });
 
     it("unlocks spells on level up via processPendingLevelUps", () => {
-      const player = createTestPlayer();
-      // Level up to 5 to unlock healingWord (Knight spell)
-      awardXP(player, xpForLevel(5 + 1));
+      const player = createTestPlayer({ appearanceId: "wizard" });
+      // Level up to unlock magicMissile (wizard spell, levelRequired: 2)
+      awardXP(player, xpForLevel(3));
       const result = processPendingLevelUps(player);
       const spellIds = result.newSpells.map((s) => s.id);
-      expect(spellIds).toContain("healingWord");
-      expect(player.knownSpells).toContain("healingWord");
+      expect(spellIds).toContain("magicMissile");
+      expect(player.knownSpells).toContain("magicMissile");
     });
 
     it("grants ASI points at D&D levels 4, 8, 12, 16, 19", () => {

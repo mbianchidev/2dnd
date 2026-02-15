@@ -153,8 +153,12 @@ export class PlayerRenderer {
     }
     // Weapon from current equipment
     this.drawWeaponInline(gfx, weaponSpr);
-    // Shield (if equipped and weapon is not two-handed)
-    this.drawShieldInline(gfx, !!player.equippedShield && !player.equippedWeapon?.twoHanded);
+    // Off-hand weapon (if equipped, drawn mirrored on left side)
+    if (player.equippedOffHand?.weaponSprite) {
+      this.drawOffHandWeaponInline(gfx, player.equippedOffHand.weaponSprite);
+    }
+    // Shield (if equipped and weapon is not two-handed, and no off-hand weapon)
+    this.drawShieldInline(gfx, !!player.equippedShield && !player.equippedWeapon?.twoHanded && !player.equippedOffHand);
 
     gfx.generateTexture(texKey, TILE_SIZE, TILE_SIZE);
     gfx.destroy();
@@ -307,5 +311,57 @@ export class PlayerRenderer {
     gfx.fillStyle(0xffd700, 1);
     gfx.fillRect(3, 15, 2, 4);
     gfx.fillRect(2, 16, 4, 2);
+  }
+
+  /** Inline off-hand weapon drawing (mirrored on left side of sprite). */
+  private drawOffHandWeaponInline(
+    gfx: Phaser.GameObjects.Graphics,
+    weaponSprite: string
+  ): void {
+    switch (weaponSprite) {
+      case "sword":
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(3, 6, 3, 18);
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(1, 20, 7, 3);
+        break;
+      case "staff":
+        gfx.fillStyle(0x5d4037, 1);
+        gfx.fillRect(3, 4, 2, 22);
+        gfx.fillStyle(0x64ffda, 1);
+        gfx.fillCircle(4, 4, 3);
+        break;
+      case "dagger":
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(4, 14, 2, 10);
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(3, 22, 4, 2);
+        break;
+      case "bow":
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(3, 5, 2, 20);
+        gfx.fillStyle(0xbdbdbd, 1);
+        gfx.fillRect(2, 7, 1, 16);
+        break;
+      case "mace":
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(3, 12, 2, 14);
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(1, 8, 6, 6);
+        break;
+      case "axe":
+        gfx.fillStyle(0x795548, 1);
+        gfx.fillRect(3, 6, 2, 18);
+        gfx.fillStyle(0xb0bec5, 1);
+        gfx.fillRect(3, 6, 5, 8);
+        break;
+      case "fist":
+        gfx.fillStyle(0xbdbdbd, 1);
+        gfx.fillRect(1, 16, 6, 6);
+        gfx.fillStyle(0x9e9e9e, 1);
+        gfx.fillRect(1, 17, 6, 1);
+        gfx.fillRect(1, 19, 6, 1);
+        break;
+    }
   }
 }

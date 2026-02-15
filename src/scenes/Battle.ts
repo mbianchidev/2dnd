@@ -292,10 +292,6 @@ export class BattleScene extends Phaser.Scene {
     const actions: { label: string; action: () => void }[] = [
       { label: "⚔ Attack", action: () => this.doPlayerAttack() },
     ];
-    // Dual wield option: two attacks (main + off-hand bonus action)
-    if (this.player.equippedOffHand) {
-      actions.push({ label: "⚔⚔ Dual Attack", action: () => this.doDualAttack() });
-    }
     actions.push({ label: "🛡 Defend", action: () => this.doDefend() });
     if (hasAbilities) {
       actions.push({ label: "⚡ Abilities", action: () => this.showAbilityMenu() });
@@ -833,87 +829,33 @@ export class BattleScene extends Phaser.Scene {
         });
       }
 
+      // Off-hand bonus action: if player has an off-hand weapon and bonus action is unused,
+      // automatically follow up with an off-hand attack (no ability mod bonus per D&D 5e TWF)
+      if (this.player.equippedOffHand && !this.bonusActionUsed && this.monsterHp > 0) {
+        this.bonusActionUsed = true;
+        const offResult = playerOffHandAttack(this.player, this.monster, 0, weatherPenalty);
+        debugLog("Player off-hand attack (bonus action)", { roll: offResult.roll, hit: offResult.hit, critical: offResult.critical, damage: offResult.damage });
+        debugPanelLog(
+          `  ↳ [Off-Hand] d20=${offResult.roll} +${offResult.attackMod} = ${offResult.totalRoll} vs AC ${this.monster.ac} → ${offResult.hit ? (offResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${offResult.damage}`,
+          false, "roll-detail"
+        );
+        this.addLog(offResult.message + this.formatPlayerRoll(offResult.roll, offResult.attackMod, offResult.totalRoll, offResult.hit, offResult.critical));
+        this.monsterHp = Math.max(0, this.monsterHp - offResult.damage);
+        this.updateMonsterDisplay();
+
+        if (audioEngine.initialized) {
+          if (offResult.critical) audioEngine.playCriticalHitSFX();
+          else if (offResult.hit) audioEngine.playAttackSFX();
+          else audioEngine.playMissSFX();
+        }
+        if (offResult.hit) {
+          this.tweens.add({ targets: this.monsterSprite, x: this.monsterSprite.x + 10, duration: 50, yoyo: true, repeat: 1 });
+        }
+      }
+
       this.checkBattleEnd();
     } catch (err) {
       this.handleError("doPlayerAttack", err);
-    }
-  }
-
-  /**
-   * Dual Attack: main-hand attack (action) + off-hand attack (bonus action).
-   * Off-hand does not add ability modifier to damage unless the player
-   * has the Two-Weapon Fighting talent or the modifier is negative.
-   */
-  private doDualAttack(): void {
-    if (this.phase !== "playerTurn") return;
-    if (this.turnActionUsed) {
-      this.addLog("Turn action already used!");
-      return;
-    }
-    if (!this.player.equippedOffHand) {
-      this.addLog("No off-hand weapon equipped!");
-      return;
-    }
-    this.closeAllSubMenus();
-    this.playerDefending = false;
-    this.turnActionUsed = true;
-    this.bonusActionUsed = true;
-    this.phase = "monsterTurn";
-
-    try {
-      const monsterDefBonus = this.monsterDefending ? 2 : 0;
-      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
-
-      // --- Main-hand attack ---
-      const mainResult = playerAttack(this.player, this.monster, monsterDefBonus, weatherPenalty);
-      this.monsterDefending = false;
-      debugLog("Player dual attack (main)", { roll: mainResult.roll, hit: mainResult.hit, critical: mainResult.critical, damage: mainResult.damage });
-      debugPanelLog(
-        `  ↳ [Dual Main] d20=${mainResult.roll} +${mainResult.attackMod} = ${mainResult.totalRoll} vs AC ${this.monster.ac} → ${mainResult.hit ? (mainResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${mainResult.damage}`,
-        false, "roll-detail"
-      );
-      this.addLog(mainResult.message + this.formatPlayerRoll(mainResult.roll, mainResult.attackMod, mainResult.totalRoll, mainResult.hit, mainResult.critical));
-      this.monsterHp = Math.max(0, this.monsterHp - mainResult.damage);
-      this.updateMonsterDisplay();
-
-      if (audioEngine.initialized) {
-        if (mainResult.critical) audioEngine.playCriticalHitSFX();
-        else if (mainResult.hit) audioEngine.playAttackSFX();
-        else audioEngine.playMissSFX();
-      }
-      if (mainResult.hit) {
-        this.tweens.add({ targets: this.monsterSprite, x: this.monsterSprite.x + 10, duration: 50, yoyo: true, repeat: 2 });
-      }
-
-      // Check if monster died from main-hand
-      if (this.monsterHp <= 0) {
-        this.checkBattleEnd();
-        return;
-      }
-
-      // --- Off-hand attack (bonus action) ---
-      const offResult = playerOffHandAttack(this.player, this.monster, 0, weatherPenalty);
-      debugLog("Player dual attack (off-hand)", { roll: offResult.roll, hit: offResult.hit, critical: offResult.critical, damage: offResult.damage });
-      debugPanelLog(
-        `  ↳ [Dual Off-Hand] d20=${offResult.roll} +${offResult.attackMod} = ${offResult.totalRoll} vs AC ${this.monster.ac} → ${offResult.hit ? (offResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${offResult.damage}`,
-        false, "roll-detail"
-      );
-      this.addLog(offResult.message + this.formatPlayerRoll(offResult.roll, offResult.attackMod, offResult.totalRoll, offResult.hit, offResult.critical));
-      this.monsterHp = Math.max(0, this.monsterHp - offResult.damage);
-      this.updateMonsterDisplay();
-
-      if (audioEngine.initialized) {
-        if (offResult.critical) audioEngine.playCriticalHitSFX();
-        else if (offResult.hit) audioEngine.playAttackSFX();
-        else audioEngine.playMissSFX();
-      }
-      if (offResult.hit) {
-        this.tweens.add({ targets: this.monsterSprite, x: this.monsterSprite.x + 10, duration: 50, yoyo: true, repeat: 1 });
-      }
-
-      this.checkBattleEnd();
-    } catch (err) {
-      this.handleError("doDualAttack", err);
     }
   }
 
@@ -928,8 +870,10 @@ export class BattleScene extends Phaser.Scene {
     this.playerDefending = true;
     this.turnActionUsed = true;
     this.phase = "monsterTurn";
-    this.addLog(`${this.player.name} takes a defensive stance! (+2 AC)`);
-    debugPanelLog(`  ↳ [Defend] AC ${getArmorClass(this.player)} → ${getArmorClass(this.player) + 2}`, false, "roll-detail");
+    const hasShield = !!this.player.equippedShield && !this.player.equippedWeapon?.twoHanded;
+    const shieldNote = hasShield ? ", shield -1 dmg" : "";
+    this.addLog(`${this.player.name} takes a defensive stance! (+2 AC${shieldNote})`);
+    debugPanelLog(`  ↳ [Defend] AC ${getArmorClass(this.player)} → ${getArmorClass(this.player) + 2}${shieldNote}`, false, "roll-detail");
     this.updatePlayerStats();
     this.time.delayedCall(800, () => this.doMonsterTurn());
   }
@@ -1119,6 +1063,16 @@ export class BattleScene extends Phaser.Scene {
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
       const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
       const result = monsterAttack(this.monster, this.player, defendBonus, weatherPenalty, boost.attackBonus);
+
+      // Shield defend bonus: reduce incoming damage by 1 when defending with a shield equipped
+      const shieldDefendReduction = (this.playerDefending && this.player.equippedShield && !this.player.equippedWeapon?.twoHanded) ? 1 : 0;
+      if (shieldDefendReduction > 0 && result.hit && result.damage > 0) {
+        const reduced = Math.min(shieldDefendReduction, result.damage);
+        result.damage -= reduced;
+        // Re-apply corrected damage to player HP (monsterAttack already subtracted the original)
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + reduced);
+      }
+
       debugLog("Monster attack", {
         naturalRoll: result.roll,
         attackBonus: result.attackBonus,
@@ -1129,9 +1083,10 @@ export class BattleScene extends Phaser.Scene {
         damage: result.damage,
         playerHP: this.player.hp,
         playerDefending: this.playerDefending,
+        shieldDefendReduction,
       });
       debugPanelLog(
-        `  ↳ [Monster Attack] d20=${result.roll} +${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}${this.playerDefending ? " (DEF+2)" : ""} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → Player HP ${this.player.hp}`,
+        `  ↳ [Monster Attack] d20=${result.roll} +=${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}${this.playerDefending ? " (DEF+2)" : ""}${shieldDefendReduction ? " (shield -1)" : ""} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → Player HP ${this.player.hp}`,
         false, "roll-detail"
       );
       // Only show the outcome message, never the enemy's roll details

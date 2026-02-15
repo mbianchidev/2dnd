@@ -254,7 +254,10 @@ export class OverlayManager {
 
     const MAX_SLOT_VISIBLE = 3;
 
-    // Weapon slot
+    // Weapon slot — exclude the off-hand equipped weapon so it only appears in the off-hand section
+    const mainHandWeapons = p.inventory.filter(
+      (i) => i.type === "weapon" && i.id !== p.equippedOffHand?.id,
+    );
     cy = this.renderGearSlot(player, px, cy, panelW, "Weapon", "weapon",
       p.equippedWeapon, (item) => {
         p.equippedWeapon = item;
@@ -265,10 +268,11 @@ export class OverlayManager {
       () => { p.equippedWeapon = null; p.equippedOffHand = null; this.callbacks.refreshPlayerSprite(); this.buildEquipOverlay(player); },
       this.gearWeaponPage, MAX_SLOT_VISIBLE,
       (dir) => { this.gearWeaponPage += dir; this.buildEquipOverlay(player); },
-      "dmg");
+      "dmg",
+      mainHandWeapons);
     cy += 4;
 
-    // Off-hand weapon slot (conditional)
+    // Off-hand weapon slot (conditional) — only light weapons not equipped in main hand
     const canShowOffHand = isLightWeapon(p.equippedWeapon) && !p.equippedWeapon?.twoHanded;
     if (canShowOffHand) {
       const offHandWeapons = p.inventory.filter(
@@ -286,7 +290,7 @@ export class OverlayManager {
             }
             this.callbacks.refreshPlayerSprite(); this.buildEquipOverlay(player);
           },
-          () => { p.equippedOffHand = null; this.buildEquipOverlay(player); },
+          () => { p.equippedOffHand = null; this.callbacks.refreshPlayerSprite(); this.buildEquipOverlay(player); },
           this.gearOffHandPage, MAX_SLOT_VISIBLE,
           (dir) => { this.gearOffHandPage += dir; this.buildEquipOverlay(player); },
           "dmg",

@@ -921,7 +921,7 @@ export class OverlayManager {
     });
     this.menuOverlay.add(quitBtn);
 
-    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 8, "Press M to close", {
+    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 8, "Press ESC to close", {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
     this.menuOverlay.add(hint);
@@ -1057,7 +1057,7 @@ export class OverlayManager {
     });
     this.settingsOverlay.add(muteBtn);
 
-    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 10, "Click outside or press M to close", {
+    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 10, "Click outside or press ESC to close", {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
     this.settingsOverlay.add(hint);

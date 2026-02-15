@@ -40,7 +40,7 @@ tests/
 ### Statistical Distribution Testing
 ```typescript
 import { describe, it, expect } from "vitest";
-import { rollD20, rollDice, abilityModifier } from "../src/utils/dice";
+import { rollD20, rollDice, abilityModifier } from "../src/systems/dice";
 
 describe("rollD20 distribution", () => {
   it("returns values between 1 and 20", () => {

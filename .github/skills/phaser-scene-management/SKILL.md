@@ -11,11 +11,11 @@ This skill guides you in creating, managing, and transitioning between Phaser 3 
 ## Scene Architecture
 
 The game uses five main scenes:
-- **BootScene** - Asset generation, title screen, character creation
-- **OverworldScene** - Map exploration, movement, random encounters
-- **BattleScene** - Turn-based combat with monsters
-- **ShopScene** - Item purchasing and inn resting
-- **BestiaryScene** - Monster encyclopedia
+- **Boot** - Asset generation, title screen, character creation
+- **Overworld** - Map exploration, movement, random encounters
+- **Battle** - Turn-based combat with monsters
+- **Shop** - Item purchasing and inn resting
+- **Codex** - Monster encyclopedia
 
 ## Scene Data Contract
 
@@ -25,7 +25,7 @@ The game uses five main scenes:
 interface SceneData {
   player: PlayerState;
   defeatedBosses: Set<string>;
-  bestiary: BestiaryData;
+  codex: CodexData;
   timeStep: number;
   weatherState: WeatherState;
 }
@@ -40,13 +40,13 @@ This ensures consistent game state across all scenes. The `weatherState` tracks 
 ```typescript
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
-import type { Bestiary } from "../systems/bestiary";
+import type { CodexData } from "../systems/codex";
 
 export class MyNewScene extends Phaser.Scene {
   // Game state (passed from previous scene)
   private player!: PlayerState;
   private defeatedBosses!: string[];
-  private bestiary!: Bestiary;
+  private codex!: CodexData;
   private timeStep!: number;
 
   // Scene-specific state
@@ -60,13 +60,13 @@ export class MyNewScene extends Phaser.Scene {
   init(data: {
     player: PlayerState;
     defeatedBosses: string[];
-    bestiary: Bestiary;
+    codex: CodexData;
     timeStep: number;
   }) {
     // Store passed data
     this.player = data.player;
     this.defeatedBosses = data.defeatedBosses;
-    this.bestiary = data.bestiary;
+    this.codex = data.codex;
     this.timeStep = data.timeStep;
 
     // Validate required data
@@ -110,7 +110,7 @@ export class MyNewScene extends Phaser.Scene {
     this.scene.start("OverworldScene", {
       player: this.player,
       defeatedBosses: this.defeatedBosses,
-      bestiary: this.bestiary,
+      codex: this.codex,
       timeStep: this.timeStep,
     });
   }
@@ -129,7 +129,7 @@ const config: Phaser.Types.Core.GameConfig = {
     OverworldScene,
     BattleScene,
     ShopScene,
-    BestiaryScene,
+    CodexScene,
     MyNewScene,  // Add your scene
   ],
 };
@@ -143,7 +143,7 @@ const config: Phaser.Types.Core.GameConfig = {
 this.scene.start("NextScene", {
   player: this.player,
   defeatedBosses: this.defeatedBosses,
-  bestiary: this.bestiary,
+  codex: this.codex,
   timeStep: this.timeStep,
 });
 ```
@@ -154,7 +154,7 @@ this.scene.start("NextScene", {
 this.scene.restart({
   player: this.player,
   defeatedBosses: this.defeatedBosses,
-  bestiary: this.bestiary,
+  codex: this.codex,
   timeStep: this.timeStep,
 });
 ```
@@ -214,7 +214,7 @@ menuContainer.setPosition(150, 150);
 
 ## Procedural Graphics Generation
 
-All graphics are generated in BootScene.ts. Reference existing patterns:
+All graphics are generated in Boot.ts. Reference existing patterns:
 
 ```typescript
 // Generate a sprite texture
@@ -365,5 +365,5 @@ this.tweens.chain({
 - Scene implementations: `src/scenes/*.ts`
 - Main config: `src/main.ts`
 - Player state: `src/systems/player.ts`
-- Bestiary system: `src/systems/bestiary.ts`
+- Codex system: `src/systems/codex.ts`
 - Debug utilities: `src/config.ts`

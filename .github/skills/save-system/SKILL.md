@@ -16,7 +16,7 @@ interface SaveData {
   version: number;           // Schema version for migrations
   player: PlayerState;       // Full player state
   defeatedBosses: string[];  // Boss IDs (serialized from Set<string>)
-  bestiary: BestiaryData;    // Monster discovery data
+  codex: CodexData;          // Monster discovery data
   appearanceId: string;      // Character class/appearance
   timestamp: number;         // Date.now() at save time
   timeStep?: number;         // Day/night cycle position (added v1)
@@ -30,12 +30,12 @@ interface SaveData {
 import { saveGame, loadGame, hasSave, deleteSave, getSaveSummary } from "../systems/save";
 
 // Save (called after every player step via autoSave)
-saveGame(player, defeatedBosses, bestiary, player.appearanceId, timeStep, weatherState);
+saveGame(player, defeatedBosses, codex, player.appearanceId, timeStep, weatherState);
 
 // Load (returns null if no save or corrupt)
 const save = loadGame();
 if (save) {
-  // save.player, save.defeatedBosses, save.bestiary, etc.
+  // save.player, save.defeatedBosses, save.codex, etc.
 }
 
 // Utilities

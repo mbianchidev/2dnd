@@ -21,7 +21,7 @@ This skill helps you develop new features and systems for the 2D&D browser-based
 - Adding new game features (spells, items, monsters, abilities)
 - Creating new game systems (talents, quests, achievements)
 - Implementing game mechanics (combat, leveling, crafting)
-- Extending existing systems (appearance, bestiary, day/night)
+- Extending existing systems (appearance, codex, day/night)
 
 ## Instructions
 
@@ -47,7 +47,7 @@ export const NEW_MONSTER: MonsterData = {
 { monster: "newMonster", weight: 10, minLevel: 2 }
 ```
 
-3. **Generate sprite** in `BootScene.ts` if custom appearance needed
+3. **Generate sprite** in `Boot.ts` if custom appearance needed
 4. **Test encounter** in game with appropriate level character
 
 ### Adding New Spells
@@ -95,7 +95,7 @@ export const NEW_ITEM: Item = {
 export class NewScene extends Phaser.Scene {
   private player!: PlayerState;
   private defeatedBosses!: string[];
-  private bestiary!: Bestiary;
+  private codex!: CodexData;
   private timeStep!: number;
 
   constructor() {
@@ -105,12 +105,12 @@ export class NewScene extends Phaser.Scene {
   init(data: {
     player: PlayerState;
     defeatedBosses: string[];
-    bestiary: Bestiary;
+    codex: CodexData;
     timeStep: number;
   }) {
     this.player = data.player;
     this.defeatedBosses = data.defeatedBosses;
-    this.bestiary = data.bestiary;
+    this.codex = data.codex;
     this.timeStep = data.timeStep;
   }
 
@@ -252,5 +252,6 @@ const penalty = getWeatherAccuracyPenalty(weather); // Combat effect
 - Game data: `src/data/*.ts`
 - Game systems: `src/systems/*.ts`
 - Scenes: `src/scenes/*.ts`
-- Utilities: `src/utils/*.ts`
+- Managers: `src/managers/*.ts`
+- Renderers: `src/renderers/*.ts`
 - Tests: `tests/*.test.ts`

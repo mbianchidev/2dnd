@@ -61,10 +61,10 @@ A browser-based JRPG combining Dragon Quest-style gameplay with Dungeons & Drago
 |-----|--------|
 | W/A/S/D | Move on the overworld |
 | SPACE | Interact (enter town/dungeon, challenge boss) |
-| E | Equipment overlay |
+| E | Equipment |
 | M | Menu (Resume / Settings / Quit) |
 | N | World map |
-| B | Bestiary |
+| C | Codex |
 | Mouse | Click battle actions, shop items, UI elements |
 
 ## Tech Stack
@@ -100,32 +100,47 @@ npm run build
 src/
 ├── main.ts              # Entry point & Phaser config
 ├── config.ts            # Game constants, debug system, HTML debug panel
-├── scenes/
-│   ├── BootScene.ts     # Asset gen, title screen, character creation
-│   ├── OverworldScene.ts # World map, movement, encounters, overlays
-│   ├── BattleScene.ts   # Turn-based combat, scrollable log, sky/weather
-│   ├── ShopScene.ts     # Item shops & inn
-│   └── BestiaryScene.ts # Monster encyclopedia
-├── systems/
+├── scenes/              # Phaser game scenes (file names drop "Scene" suffix)
+│   ├── Boot.ts          # Asset gen, title screen, character creation
+│   ├── Overworld.ts     # World map, movement, encounters — delegates to subsystems
+│   ├── Battle.ts        # Turn-based combat, scrollable log, sky/weather
+│   ├── Shop.ts          # Item shops & inn
+│   └── Codex.ts         # Monster encyclopedia (formerly Bestiary)
+├── systems/             # Core game logic & mechanics
 │   ├── audio.ts         # Procedural audio engine (music, SFX, footsteps)
 │   ├── combat.ts        # D&D combat mechanics
 │   ├── player.ts        # Player state, leveling, Point Buy, inventory
 │   ├── classes.ts       # Class definitions (stats, spells, abilities, hit die)
 │   ├── appearance.ts    # Cosmetic customization (skin color, hair style/color)
+│   ├── codex.ts         # Monster tracking & AC discovery (formerly bestiary)
 │   ├── daynight.ts      # Day/night cycle (360-step)
 │   ├── weather.ts       # Weather system (6 types, biome-weighted)
-│   ├── bestiary.ts      # Monster tracking & AC discovery
 │   ├── debug.ts         # Shared debug hotkeys & slash commands
+│   ├── debugCommands.ts # Overworld-specific debug hotkeys & slash commands
+│   ├── dice.ts          # D&D dice rolling utilities
+│   ├── movement.ts      # Grid movement logic & chunk transitions
 │   └── save.ts          # Save/load (localStorage)
-├── data/
+├── renderers/           # Visual rendering subsystems
+│   ├── map.ts           # Tile map rendering, weather particles, day/night tint
+│   ├── city.ts          # City animals, NPCs, shop roofs, NPC textures
+│   ├── player.ts        # Player sprite creation, equipment rendering
+│   └── hud.ts           # HUD message display
+├── managers/            # State management subsystems
+│   ├── overlay.ts       # All UI overlays (equip, menu, settings, world map, inn, bank, teleport)
+│   ├── specialNpc.ts    # Rare overworld NPCs (traveler, adventurer, merchant, hermit)
+│   ├── npc.ts           # City NPC & animal adjacency detection helpers
+│   ├── dialogue.ts      # NPC/animal/special dialogue display
+│   ├── fogOfWar.ts      # Explored tile tracking & fog visibility
+│   └── encounter.ts     # Random encounter enabled/disabled state
+├── data/                # Game data definitions
 │   ├── map.ts           # 10×9 chunk world, cities, dungeons, chests
 │   ├── monsters.ts      # Monster definitions & encounter tables
 │   ├── spells.ts        # Spell definitions & level requirements
 │   ├── items.ts         # Item definitions & shop inventory
 │   ├── abilities.ts     # Martial ability definitions
+│   ├── mounts.ts        # Mount definitions & speed data
+│   ├── npcs.ts          # NPC templates, city NPC data, special NPC definitions
 │   └── talents.ts       # Talent/perk definitions
-└── utils/
-    └── dice.ts          # D&D dice rolling utilities
 tests/
 ├── audio.test.ts        # Audio engine tests
 ├── combat.test.ts       # Combat calculation tests
@@ -133,7 +148,11 @@ tests/
 ├── data.test.ts         # Game data integrity tests
 ├── daynight.test.ts     # Day/night cycle tests
 ├── dice.test.ts         # Dice utility tests
+├── mounts.test.ts       # Mount system tests
+├── movement.test.ts     # Grid movement tests
+├── npcs.test.ts         # NPC data tests
 ├── player.test.ts       # Player system & Point Buy tests
+├── save.test.ts         # Save/load tests
 └── weather.test.ts      # Weather system tests
 ```
 

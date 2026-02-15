@@ -2,7 +2,7 @@
  * Spell definitions with level requirements for unlocking.
  */
 
-import type { DieType } from "../utils/dice";
+import type { DieType } from "../systems/dice";
 
 export interface Spell {
   id: string;

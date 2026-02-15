@@ -3,9 +3,6 @@
  */
 
 import Phaser from "phaser";
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map";
-
-const TILE_SIZE = 32;
 
 export class MapRenderer {
   private scene: Phaser.Scene;

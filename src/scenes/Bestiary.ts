@@ -7,7 +7,7 @@
 
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
-import type { BestiaryData, BestiaryEntry } from "../systems/bestiary";
+import type { BestiaryData, BestiaryEntry } from "../systems/codex";
 import { getItem, ITEMS, type Item } from "../data/items";
 import { ALL_MONSTERS, type Monster } from "../data/monsters";
 import { type WeatherState, createWeatherState } from "../systems/weather";

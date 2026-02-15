@@ -6,7 +6,7 @@ import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import { useItem, ownsEquipment } from "../systems/player";
 import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
-import type { BestiaryData } from "../systems/bestiary";
+import type { BestiaryData } from "../systems/codex";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import { CYCLE_LENGTH } from "../systems/daynight";
 import { getInnCost } from "../data/map";

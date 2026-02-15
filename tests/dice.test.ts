@@ -7,7 +7,7 @@ import {
   rollWithAdvantage,
   rollAbilityScore,
   abilityModifier,
-} from "../src/utils/dice";
+} from "../src/systems/dice";
 
 describe("dice utilities", () => {
   describe("rollDie", () => {

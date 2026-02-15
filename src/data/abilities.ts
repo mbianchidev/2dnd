@@ -3,7 +3,7 @@
  * These work like spells but use STR or DEX for the attack roll.
  */
 
-import type { DieType } from "../utils/dice";
+import type { DieType } from "../systems/dice";
 
 export interface Ability {
   id: string;

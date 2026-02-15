@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { saveGame, loadGame, deleteSave } from "../src/systems/save";
 import type { PlayerState } from "../src/systems/player";
 import { createPlayer } from "../src/systems/player";
-import { createBestiary } from "../src/systems/bestiary";
+import { createBestiary } from "../src/systems/codex";
 import { createWeatherState } from "../src/systems/weather";
 
 // @vitest-environment happy-dom

@@ -9,7 +9,7 @@ import { SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type Custom
 import { NPC_TEMPLATES } from "../data/npcs";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
-import { abilityModifier, rollAbilityScore } from "../utils/dice";
+import { abilityModifier, rollAbilityScore } from "../systems/dice";
 import { audioEngine } from "../systems/audio";
 import { MOUNTS } from "../data/mounts";
 

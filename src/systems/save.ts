@@ -3,8 +3,8 @@
  */
 
 import type { PlayerState } from "./player";
-import type { BestiaryData } from "./bestiary";
-import { createBestiary } from "./bestiary";
+import type { BestiaryData } from "./codex";
+import { createBestiary } from "./codex";
 import type { WeatherState } from "./weather";
 import { createWeatherState } from "./weather";
 

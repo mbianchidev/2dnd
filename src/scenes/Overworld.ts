@@ -30,11 +30,11 @@ import {
 } from "../data/map";
 import { getRandomEncounter, getDungeonEncounter, getBoss, getNightEncounter, ALL_MONSTERS, MONSTERS, DUNGEON_MONSTERS, NIGHT_MONSTERS, type Monster } from "../data/monsters";
 import { createPlayer, getArmorClass, awardXP, processPendingLevelUps, xpForLevel, allocateStatPoint, applyBankInterest, castSpellOutsideCombat, useAbilityOutsideCombat, useItem, isLightWeapon, canDualWield, equipOffHand, type PlayerState, type PlayerStats } from "../systems/player";
-import { abilityModifier } from "../utils/dice";
+import { abilityModifier } from "../systems/dice";
 import { getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
-import type { BestiaryData } from "../systems/bestiary";
-import { createBestiary, recordDefeat } from "../systems/bestiary";
+import type { BestiaryData } from "../systems/codex";
+import { createBestiary, recordDefeat } from "../systems/codex";
 import { saveGame } from "../systems/save";
 import { getItem, ITEMS } from "../data/items";
 import { getTimePeriod, getEncounterMultiplier, isNightTime, TimePeriod, PERIOD_TINT, PERIOD_LABEL, CYCLE_LENGTH } from "../systems/daynight";
@@ -71,9 +71,9 @@ import {
 } from "../data/npcs";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
-import { FogOfWar } from "../systems/fogOfWar";
-import { EncounterSystem } from "../systems/encounterSystem";
-import { HUDRenderer } from "../systems/hudRenderer";
+import { FogOfWar } from "../managers/fog";
+import { EncounterSystem } from "../systems/encounter";
+import { HUDRenderer } from "../renderers/hud";
 import { tryGridMove } from "../systems/movement";
 
 const TILE_SIZE = 32;

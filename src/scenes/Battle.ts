@@ -24,10 +24,10 @@ import {
   monsterUseAbility,
   attemptFlee,
 } from "../systems/combat";
-import { abilityModifier } from "../utils/dice";
+import { abilityModifier } from "../systems/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
-import type { BestiaryData } from "../systems/bestiary";
-import { recordDefeat, discoverAC } from "../systems/bestiary";
+import type { BestiaryData } from "../systems/codex";
+import { recordDefeat, discoverAC } from "../systems/codex";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";

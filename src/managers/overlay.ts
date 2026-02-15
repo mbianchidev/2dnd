@@ -4,8 +4,6 @@
  */
 
 import Phaser from "phaser";
-import type { PlayerState } from "./player";
-import type { BestiaryData } from "./bestiary";
 
 export class OverlayManager {
   private scene: Phaser.Scene;

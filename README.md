@@ -49,6 +49,13 @@ A browser-based JRPG combining Dragon Quest-style gameplay with Dungeons & Drago
 - **Combat effects** — weather applies accuracy penalties and monster boosts
 - **Particle effects** — rain, snow, sand, storm, fog in both overworld and battle
 
+### Economy & Inventory
+- **Shop system** — buy and sell items in any shop
+- **Sell tab** — sell unwanted items for 50% of original cost
+- **Sell restrictions** — cannot sell quest items, treasures, or last equipment piece
+- **Owned indicators** — buy tab shows consumable count (e.g., "Potion (owned: 3)")
+- **Item economy** — full buy/sell cycle with economic balance
+
 ### Quality of Life
 - **Auto-save** — saves after every step
 - **Settings overlay** — accessible from title screen and in-game menu (M → Settings)

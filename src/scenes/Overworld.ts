@@ -314,13 +314,21 @@ export class OverworldScene extends Phaser.Scene {
     eKey.on("down", () => this.overlayManager.toggleEquipOverlay(this.player));
 
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
-    mKey.on("down", () => this.overlayManager.toggleWorldMap(this.player, this.defeatedBosses));
+    mKey.on("down", () => {
+      if (this.player.position.inCity) {
+        this.overlayManager.toggleCityMap(this.player);
+      } else {
+        this.overlayManager.toggleWorldMap(this.player, this.defeatedBosses);
+      }
+    });
 
     const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     escKey.on("down", () => {
       // ESC closes the topmost open overlay, or opens the menu
       if (this.overlayManager.settingsOverlay) {
         this.overlayManager.toggleSettingsOverlay();
+      } else if (this.overlayManager.cityMapOverlay) {
+        this.overlayManager.dismissCityMap();
       } else if (this.overlayManager.worldMapOverlay) {
         this.overlayManager.toggleWorldMap(this.player, this.defeatedBosses);
       } else if (this.overlayManager.equipOverlay) {

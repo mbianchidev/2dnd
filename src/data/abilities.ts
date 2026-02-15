@@ -4,6 +4,7 @@
  */
 
 import type { DieType } from "../systems/dice";
+import { Element } from "./elements";
 
 export interface Ability {
   id: string;
@@ -18,6 +19,8 @@ export interface Ability {
   statKey: "strength" | "dexterity" | "wisdom" | "charisma";
   /** If true, this ability is a bonus action and does not end the turn. */
   bonusAction?: boolean;
+  /** Elemental damage type (e.g., fire, radiant). */
+  element?: Element;
 }
 
 export const ABILITIES: Ability[] = [
@@ -104,7 +107,7 @@ export const ABILITIES: Ability[] = [
     id: "smite", name: "Divine Smite",
     description: "Channel radiant energy into your weapon strike",
     mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 8,
-    type: "damage", statKey: "strength",
+    type: "damage", statKey: "strength", element: Element.Radiant,
   },
   {
     id: "layOnHands", name: "Lay on Hands",
@@ -116,13 +119,13 @@ export const ABILITIES: Ability[] = [
     id: "holyStrike", name: "Holy Strike",
     description: "A blazing blow of righteous fury",
     mpCost: 7, levelRequired: 9, damageCount: 3, damageDie: 8,
-    type: "damage", statKey: "strength",
+    type: "damage", statKey: "strength", element: Element.Radiant,
   },
   {
     id: "greaterSmite", name: "Greater Smite",
     description: "Unleash the full wrath of your oath",
     mpCost: 12, levelRequired: 15, damageCount: 5, damageDie: 8,
-    type: "damage", statKey: "strength",
+    type: "damage", statKey: "strength", element: Element.Radiant,
   },
 
   // ── Barbarian (STR) ──────────────────────────────────────────

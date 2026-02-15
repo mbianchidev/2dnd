@@ -2,6 +2,8 @@
  * Item definitions for the game.
  */
 
+import { Element } from "./elements";
+
 export type WeaponSpriteType = "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist";
 
 export interface Item {
@@ -18,6 +20,8 @@ export interface Item {
   weaponSprite?: WeaponSpriteType;
   levelReq?: number; // minimum player level to purchase
   mountId?: string; // for type "mount" — references a MountData id
+  /** Elemental damage type for weapons (e.g., fire, ice). */
+  element?: Element;
 }
 
 export const ITEMS: Item[] = [
@@ -253,6 +257,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 6,
     weaponSprite: "sword",
+    element: Element.Fire,
   },
   {
     id: "shadowCloak",
@@ -280,6 +285,7 @@ export const ITEMS: Item[] = [
     light: true,
     finesse: true,
     weaponSprite: "dagger",
+    element: Element.Ice,
   },
   // --- Treasure items from expanded biome dungeons and overworld ---
   {
@@ -290,6 +296,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 7,
     weaponSprite: "sword",
+    element: Element.Ice,
   },
   {
     id: "tundraPelt",
@@ -315,6 +322,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 8,
     weaponSprite: "mace",
+    element: Element.Fire,
   },
   {
     id: "volcanicShield",
@@ -332,6 +340,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 6,
     weaponSprite: "sword",
+    element: Element.Fire,
   },
   {
     id: "swampMantle",

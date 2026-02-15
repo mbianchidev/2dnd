@@ -271,6 +271,19 @@ export class ShopScene extends Phaser.Scene {
     this.renderItems();
   }
 
+  /** Get the icon for an item type. */
+  private getItemTypeIcon(item: Item): string {
+    switch (item.type) {
+      case "consumable": return "🧪";
+      case "weapon": return "⚔";
+      case "armor": return "🛡";
+      case "shield": return "🛡";
+      case "mount": return "🐴";
+      case "key": return "🔑";
+      default: return "📦";
+    }
+  }
+
   private renderItems(): void {
     if (this.mode === "buy") {
       this.renderShopItems();
@@ -294,18 +307,7 @@ export class ShopScene extends Phaser.Scene {
       const canBuy = !alreadyOwned && !levelLocked && this.player.gold >= discountedCost;
       const color = alreadyOwned ? "#555555" : levelLocked ? "#884444" : canBuy ? "#cccccc" : "#666666";
 
-      const typeIcon =
-        item.type === "consumable"
-          ? "🧪"
-          : item.type === "weapon"
-            ? "⚔"
-            : item.type === "armor"
-              ? "🛡"
-              : item.type === "shield"
-                ? "🛡"
-                : item.type === "mount"
-                  ? "🐴"
-                  : "🔑";
+      const typeIcon = this.getItemTypeIcon(item);
 
       // Show owned count for consumables
       let ownedCount = 0;
@@ -385,20 +387,7 @@ export class ShopScene extends Phaser.Scene {
       }
 
       const color = sellable ? "#cccccc" : "#666666";
-
-      const typeIcon =
-        item.type === "consumable"
-          ? "🧪"
-          : item.type === "weapon"
-            ? "⚔"
-            : item.type === "armor"
-              ? "🛡"
-              : item.type === "shield"
-                ? "🛡"
-                : item.type === "mount"
-                  ? "🐴"
-                  : "🔑";
-
+      const typeIcon = this.getItemTypeIcon(item);
       const priceLabel = sellable ? `${sellValue}g` : "";
 
       const text = this.add

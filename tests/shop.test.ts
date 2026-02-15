@@ -46,6 +46,16 @@ describe("shop selling system", () => {
       const item = { ...getItem("potion")!, cost: 1 };
       expect(getSellValue(item)).toBe(1);
     });
+
+    it("correctly floors the sell value", () => {
+      // Test that 50% is properly floored (2g -> 1g, not rounded)
+      const item = { ...getItem("potion")!, cost: 2 };
+      expect(getSellValue(item)).toBe(1); // floor(2 * 0.5) = 1
+      
+      // Test another case: 3g -> 1g
+      const item2 = { ...getItem("potion")!, cost: 3 };
+      expect(getSellValue(item2)).toBe(1); // floor(3 * 0.5) = 1
+    });
   });
 
   describe("canSellItem", () => {

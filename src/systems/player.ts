@@ -218,11 +218,14 @@ export function applyBankInterest(player: PlayerState, currentDay: number): numb
 }
 
 /** Get the attack modifier for the player (uses class primary stat for melee). */
+/** Get the melee attack modifier. Uses STR, or max(STR, DEX) for finesse weapons. */
 export function getAttackModifier(player: PlayerState): number {
-  const playerClass = getPlayerClass(player.appearanceId);
-  const primaryStatValue = player.stats[playerClass.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
-  return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents);
+  const strMod = abilityModifier(player.stats.strength);
+  const dexMod = abilityModifier(player.stats.dexterity);
+  const isFinesse = player.equippedWeapon?.finesse === true;
+  const statMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
+  return statMod + proficiencyBonus + getTalentAttackBonus(player.knownTalents);
 }
 
 /** Get the spell attack modifier (uses class primary stat for casters). */

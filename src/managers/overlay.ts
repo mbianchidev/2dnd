@@ -748,7 +748,7 @@ export class OverlayManager {
           { fontSize: "9px", fontFamily: "monospace", color: "#888", wordWrap: { width: panelW - 50 } },
         );
         this.equipOverlay!.add(desc);
-        cy += 30;
+        cy += 16 + Math.max(14, desc.height) + 4;
       }
       if (spellTotalPages > 1) {
         const nav = this.scene.add.text(px + 20, cy, `◄ ${spellPage + 1}/${spellTotalPages} ►`, {
@@ -855,7 +855,7 @@ export class OverlayManager {
           { fontSize: "9px", fontFamily: "monospace", color: "#888", wordWrap: { width: panelW - 50 } },
         );
         this.equipOverlay!.add(desc);
-        cy += 30;
+        cy += 16 + Math.max(14, desc.height) + 4;
       }
       if (abilityTotalPages > 1) {
         const nav = this.scene.add.text(px + 20, cy, `◄ ${abilityPage + 1}/${abilityTotalPages} ►`, {

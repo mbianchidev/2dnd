@@ -82,7 +82,7 @@ describe("combat system", () => {
   });
 
   describe("playerCastSpell", () => {
-    it("casts fire bolt and uses MP", () => {
+    it("casts fire bolt (cantrip, 0 MP)", () => {
       const player = createPlayer("Test", defaultStats);
       const monster = createTestMonster({ ac: 1 });
       const initialMp = player.mp;
@@ -92,8 +92,8 @@ describe("combat system", () => {
       if (result.hit) {
         expect(result.damage).toBeGreaterThan(0);
       }
-      expect(result.mpUsed).toBe(2);
-      expect(player.mp).toBe(initialMp - 2);
+      expect(result.mpUsed).toBe(0);
+      expect(player.mp).toBe(initialMp);
     });
 
     it("fails with insufficient MP", () => {
@@ -101,7 +101,8 @@ describe("combat system", () => {
       player.mp = 0;
       const monster = createTestMonster();
 
-      const result = playerCastSpell(player, "fireBolt", monster);
+      // Use magicMissile (3 MP) instead of fireBolt (now 0 MP cantrip)
+      const result = playerCastSpell(player, "magicMissile", monster);
       expect(result.message).toBe("Not enough MP!");
       expect(result.mpUsed).toBe(0);
     });

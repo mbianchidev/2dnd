@@ -393,14 +393,14 @@ describe("player system", () => {
       expect(damageAbilities).toHaveLength(0);
     });
 
-    it("attack modifier uses class primary stat", () => {
-      // Wizard has primaryStat=intelligence, so attack mod depends on INT
+    it("attack modifier uses STR for melee attacks", () => {
+      // Melee attacks always use STR regardless of class
       const wizardStats = { ...defaultStats, intelligence: 16 };
       const wizard = createPlayer("Wizard", wizardStats, "wizard");
-      // INT 16+2=18 -> mod +4, proficiency +2 = 6
-      expect(getAttackModifier(wizard)).toBe(6);
+      // STR 10+0=10 -> mod +0, proficiency +2 = 2 (wizard has low STR melee)
+      expect(getAttackModifier(wizard)).toBe(2);
 
-      // Knight has primaryStat=strength, so attack mod depends on STR
+      // Knight has primaryStat=strength, melee benefits from STR
       const knightStats = { ...defaultStats, strength: 16 };
       const knight = createPlayer("Knight", knightStats, "knight");
       // STR 16+2=18 -> mod +4, proficiency +2 = 6

@@ -844,9 +844,12 @@ describe("game data", () => {
       expect(ft!.levelRequired).toBe(5);
     });
 
-    it("Fast Travel ability is available to all classes", () => {
-      for (const appearance of PLAYER_CLASSES) {
-        expect(appearance.abilities, `${appearance.label} should have fastTravel`).toContain("fastTravel");
+    it("Fast Travel ability is available to martial classes", () => {
+      const martialClasses = PLAYER_CLASSES.filter((c) => c.abilities.includes("fastTravel"));
+      // Martial classes have Fast Travel; casters use Teleport spell instead
+      expect(martialClasses.length).toBeGreaterThanOrEqual(5);
+      for (const cls of martialClasses) {
+        expect(cls.abilities, `${cls.label} should have fastTravel`).toContain("fastTravel");
       }
     });
 

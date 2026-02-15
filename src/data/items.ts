@@ -13,6 +13,7 @@ export interface Item {
   effect: number; // healing amount, attack bonus, AC bonus, etc.
   twoHanded?: boolean; // weapons only — cannot equip a shield with a two-handed weapon
   light?: boolean; // weapons only — can be used for Two-Weapon Fighting (dual wield)
+  finesse?: boolean; // weapons only — can use DEX instead of STR for attack and damage
   /** Visual weapon type for sprite rendering (weapons only). */
   weaponSprite?: WeaponSpriteType;
   levelReq?: number; // minimum player level to purchase
@@ -82,6 +83,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 1,
     light: true,
+    finesse: true,
     weaponSprite: "dagger",
   },
   {
@@ -110,6 +112,7 @@ export const ITEMS: Item[] = [
     type: "weapon",
     cost: 0,
     effect: 1,
+    finesse: true,
     weaponSprite: "sword",
   },
   // --- Shop weapons ---
@@ -129,6 +132,7 @@ export const ITEMS: Item[] = [
     cost: 30,
     effect: 2,
     light: true,
+    finesse: true,
     weaponSprite: "sword",
   },
   {
@@ -274,6 +278,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 5,
     light: true,
+    finesse: true,
     weaponSprite: "dagger",
   },
   // --- Treasure items from expanded biome dungeons and overworld ---

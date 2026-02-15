@@ -123,7 +123,12 @@ export function playerAttack(
   if (outcome.hit) {
     const weaponBonus = player.equippedWeapon?.effect ?? 0;
     const talentDmg = getTalentDamageBonus(player.knownTalents);
-    const damage = rollAttackDamage(1, 6, outcome.critical, weaponBonus + talentDmg, outcome.critical ? 0 : 1);
+    // Physical attacks use STR, or max(STR, DEX) for finesse weapons
+    const strMod = abilityModifier(player.stats.strength);
+    const dexMod = abilityModifier(player.stats.dexterity);
+    const isFinesse = player.equippedWeapon?.finesse === true;
+    const dmgMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
+    const damage = rollAttackDamage(1, 6, outcome.critical, weaponBonus + talentDmg + dmgMod, outcome.critical ? 0 : 1);
     const prefix = outcome.critical ? "CRITICAL HIT! " : "";
     const verb = outcome.critical ? "strikes" : "hits";
     return {

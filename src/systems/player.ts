@@ -427,6 +427,29 @@ export function ownsEquipment(player: PlayerState, itemId: string): boolean {
 }
 
 /**
+ * Check if a specific inventory item is currently equipped.
+ * Uses reference equality first, with a fallback for cases where object
+ * identity was broken (e.g. after JSON save/load without relinking).
+ */
+export function isItemEquipped(player: PlayerState, item: Item): boolean {
+  const slots = [player.equippedWeapon, player.equippedOffHand, player.equippedArmor, player.equippedShield];
+  for (const equipped of slots) {
+    if (!equipped) continue;
+    // Fast path: reference equality (normal case)
+    if (equipped === item) return true;
+    // Fallback: structural match — only if this is the first inventory item
+    // matching the equipped slot (prevents marking duplicates as equipped)
+    if (equipped.id === item.id && equipped.type === item.type && equipped.effect === item.effect) {
+      const firstIdx = player.inventory.findIndex(
+        i => i.id === equipped.id && i.type === equipped.type && i.effect === equipped.effect
+      );
+      if (firstIdx >= 0 && player.inventory[firstIdx] === item) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Check if selling this item would leave the player with no equipment of that type.
  * Returns true if this is the last weapon/armor/shield the player owns.
  * Note: Equipped items are also in inventory, so we only count inventory.
@@ -468,6 +491,9 @@ export function sellItem(player: PlayerState, itemIndex: number, sellValue: numb
   const item = player.inventory[itemIndex];
   if (sellValue <= 0) {
     return { success: false, message: `${item.name} cannot be sold!` };
+  }
+  if (isItemEquipped(player, item)) {
+    return { success: false, message: `${item.name} is currently equipped!` };
   }
   // Remove item and award gold
   player.inventory.splice(itemIndex, 1);

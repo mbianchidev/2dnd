@@ -8,6 +8,8 @@ import {
   createPlayer,
   sellItem,
   isLastEquipment,
+  isItemEquipped,
+  useItem,
   type PlayerState,
 } from "../src/systems/player";
 
@@ -217,6 +219,121 @@ describe("shop selling system", () => {
       const weapon = player.inventory.find(i => i.type === "weapon")!;
       expect(isLastEquipment(player, weapon)).toBe(true);
       expect(isLastEquipment(player, potion)).toBe(false);
+    });
+  });
+
+  describe("isItemEquipped", () => {
+    it("returns true for the currently equipped weapon", () => {
+      const player = createTestPlayer();
+      const weapon = player.equippedWeapon!;
+      // The equipped weapon reference should be in inventory
+      const invWeapon = player.inventory.find(i => i === weapon);
+      expect(invWeapon).toBeDefined();
+      expect(isItemEquipped(player, invWeapon!)).toBe(true);
+    });
+
+    it("returns false for a non-equipped inventory item", () => {
+      const player = createTestPlayer();
+      const potion = getItem("potion")!;
+      const ownedPotion = { ...potion };
+      player.inventory.push(ownedPotion);
+      expect(isItemEquipped(player, ownedPotion)).toBe(false);
+    });
+
+    it("returns true for equipped armor", () => {
+      const player = createTestPlayer();
+      const leather = getItem("leatherArmor")!;
+      const ownedArmor = { ...leather };
+      player.inventory.push(ownedArmor);
+      player.equippedArmor = ownedArmor;
+      expect(isItemEquipped(player, ownedArmor)).toBe(true);
+    });
+
+    it("returns false for a different item of the same type as equipped", () => {
+      const player = createTestPlayer();
+      const shortSword = getItem("shortSword")!;
+      const extraSword = { ...shortSword };
+      player.inventory.push(extraSword);
+      // Player has their starting weapon equipped, extraSword is not equipped
+      expect(isItemEquipped(player, extraSword)).toBe(false);
+    });
+
+    it("detects equipped items after save/load breaks references", () => {
+      const player = createTestPlayer();
+      const shortSword = getItem("shortSword")!;
+      const equipped = { ...shortSword };
+      player.inventory.push(equipped);
+      player.equippedWeapon = equipped;
+      
+      // Simulate JSON save/load breaking references
+      const serialized = JSON.parse(JSON.stringify(player));
+      const loaded = serialized as typeof player;
+      
+      // After load, equipped and inventory are different objects
+      expect(loaded.equippedWeapon).not.toBe(loaded.inventory[loaded.inventory.length - 1]);
+      
+      // But isItemEquipped should still detect the first matching item as equipped
+      const firstMatch = loaded.inventory.find(
+        i => i.id === loaded.equippedWeapon!.id && i.type === "weapon"
+      )!;
+      expect(isItemEquipped(loaded, firstMatch)).toBe(true);
+    });
+  });
+
+  describe("sellItem equipped protection", () => {
+    it("prevents selling an equipped weapon", () => {
+      const player = createTestPlayer();
+      // Give the player a purchasable weapon and equip it
+      const shortSword = getItem("shortSword")!;
+      const equipped = { ...shortSword };
+      player.inventory.push(equipped);
+      player.equippedWeapon = equipped;
+      // Add another weapon so it's not "last equipment"
+      player.inventory.push({ ...shortSword });
+      
+      const equippedIdx = player.inventory.indexOf(equipped);
+      expect(equippedIdx).toBeGreaterThanOrEqual(0);
+      
+      const sellValue = getSellValue(equipped);
+      expect(sellValue).toBeGreaterThan(0);
+      const result = sellItem(player, equippedIdx, sellValue);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("equipped");
+    });
+
+    it("allows selling a non-equipped duplicate weapon", () => {
+      const player = createTestPlayer();
+      const shortSword = getItem("shortSword")!;
+      const extra = { ...shortSword };
+      player.inventory.push(extra);
+      
+      const idx = player.inventory.indexOf(extra);
+      const sellValue = getSellValue(extra);
+      const result = sellItem(player, idx, sellValue);
+      expect(result.success).toBe(true);
+    });
+
+    it("prevents selling auto-equipped item from shop purchase", () => {
+      const player = createTestPlayer();
+      const longSword = getItem("longSword")!;
+      
+      // Simulate shop purchase: push copy, then auto-equip via useItem
+      player.gold -= longSword.cost;
+      player.inventory.push({ ...longSword });
+      const idx = player.inventory.length - 1;
+      
+      // Auto-equip (longSword.effect > starting weapon)
+      useItem(player, idx);
+      
+      // Verify it's equipped
+      expect(player.equippedWeapon!.id).toBe("longSword");
+      expect(isItemEquipped(player, player.inventory[idx])).toBe(true);
+      
+      // Try to sell the equipped item
+      const sellValue = getSellValue(player.inventory[idx]);
+      const result = sellItem(player, idx, sellValue);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("equipped");
     });
   });
 });

@@ -32,6 +32,8 @@ export class CityRenderer {
   shopRoofBounds: { x: number; y: number; w: number; h: number; shopX: number; shopY: number; shopIdx: number }[] = [];
   /** Maps "x,y" → shop index for ShopFloor tiles. */
   shopFloorMap: Map<string, number> = new Map();
+  /** Maps shop index → group id for merged shops sharing the same roof area. */
+  shopGroupMap: Map<number, number> = new Map();
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -198,10 +200,11 @@ export class CityRenderer {
     };
     const palette = BIOME_ROOF_COLORS[biome] ?? BIOME_ROOF_COLORS[Terrain.Grass];
 
+    // Global visited set so merged shop areas are claimed by the first shop only
+    const globalVisited = new Set<string>();
+
     for (let si = 0; si < city.shops.length; si++) {
       const shop = city.shops[si];
-      // Find building bounds by flood-filling from the ShopFloor tile above the carpet entrance
-      const visited = new Set<string>();
       const tiles: { x: number; y: number }[] = [];
       const queue: { x: number; y: number }[] = [];
 
@@ -214,34 +217,32 @@ export class CityRenderer {
             const t = city.mapData[ty][tx];
             if (t === Terrain.ShopFloor) {
               const key = `${tx},${ty}`;
-              if (!visited.has(key)) {
-                visited.add(key);
+              if (!globalVisited.has(key)) {
+                globalVisited.add(key);
                 queue.push({ x: tx, y: ty });
                 tiles.push({ x: tx, y: ty });
+                this.shopFloorMap.set(key, si);
               }
             }
           }
         }
       }
 
-      // Expand to include surrounding CityWall tiles
+      // Expand through connected ShopFloor tiles (walls are no longer part of shops)
       while (queue.length > 0) {
         const cur = queue.pop()!;
         for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
           const nx = cur.x + ddx;
           const ny = cur.y + ddy;
           const key = `${nx},${ny}`;
-          if (visited.has(key)) continue;
+          if (globalVisited.has(key)) continue;
           if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
           const t = city.mapData[ny][nx];
           if (t === Terrain.ShopFloor) {
-            visited.add(key);
+            globalVisited.add(key);
             queue.push({ x: nx, y: ny });
             tiles.push({ x: nx, y: ny });
-          } else if (t === Terrain.CityWall) {
-            // Only include wall tiles adjacent to shop floor (building walls, not city walls)
-            visited.add(key);
-            tiles.push({ x: nx, y: ny });
+            this.shopFloorMap.set(key, si);
           }
         }
       }
@@ -293,6 +294,57 @@ export class CityRenderer {
         shopX: shop.x, shopY: shop.y, shopIdx: si,
       });
     }
+
+    // Build shop groups: shops whose carpet entrance is adjacent to ShopFloor
+    // tiles claimed by another shop are in the same group.
+    let nextGroup = 0;
+    for (let si = 0; si < city.shops.length; si++) {
+      if (this.shopGroupMap.has(si)) continue;
+      // Check if this shop's entrance area connects to another shop's floor
+      const shop = city.shops[si];
+      const adjacentShops = new Set<number>();
+      adjacentShops.add(si);
+      for (let dy = -1; dy <= 0; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const key = `${shop.x + dx},${shop.y + dy}`;
+          const owner = this.shopFloorMap.get(key);
+          if (owner !== undefined) adjacentShops.add(owner);
+        }
+      }
+      // Assign the same group to all connected shops
+      const groupId = nextGroup++;
+      for (const idx of adjacentShops) {
+        this.shopGroupMap.set(idx, groupId);
+      }
+    }
+    // Merge groups: if two shops map to different groups but share a connection
+    // (transitive closure)
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let si = 0; si < city.shops.length; si++) {
+        const shop = city.shops[si];
+        const myGroup = this.shopGroupMap.get(si) ?? -1;
+        for (let dy = -1; dy <= 0; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const key = `${shop.x + dx},${shop.y + dy}`;
+            const owner = this.shopFloorMap.get(key);
+            if (owner !== undefined) {
+              const otherGroup = this.shopGroupMap.get(owner) ?? -1;
+              if (otherGroup !== myGroup && otherGroup >= 0 && myGroup >= 0) {
+                // Merge: set all shops in otherGroup to myGroup
+                const minGroup = Math.min(myGroup, otherGroup);
+                const maxGroup = Math.max(myGroup, otherGroup);
+                for (const [k, v] of this.shopGroupMap) {
+                  if (v === maxGroup) this.shopGroupMap.set(k, minGroup);
+                }
+                changed = true;
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   /** Return the shop index the player is currently inside (-1 if not in any shop). */
@@ -302,20 +354,30 @@ export class CityRenderer {
       return this.shopFloorMap.get(`${playerX},${playerY}`) ?? -1;
     }
     if (terrain === Terrain.Carpet) {
-      // The carpet is the entrance; find the shop whose entrance matches
       for (let si = 0; si < city.shops.length; si++) {
         if (city.shops[si].x === playerX && city.shops[si].y === playerY) return si;
+      }
+      // Check if adjacent ShopFloor tiles belong to a shop
+      for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const key = `${playerX + ddx},${playerY + ddy}`;
+        const owner = this.shopFloorMap.get(key);
+        if (owner !== undefined) return owner;
       }
     }
     return -1;
   }
 
-  /** Fade shop roofs: only transparent when the player is inside the given shop. */
+  /** Fade shop roofs: transparent when the player is inside the shop or its merged group. */
   updateShopRoofAlpha(activeShopIdx: number): void {
+    // Find the group id for the active shop
+    const activeGroup = activeShopIdx >= 0 ? (this.shopGroupMap.get(activeShopIdx) ?? -1) : -1;
     for (let i = 0; i < this.shopRoofBounds.length; i++) {
       const gfx = this.shopRoofGraphics[i];
       if (!gfx) continue;
-      gfx.setAlpha(this.shopRoofBounds[i].shopIdx === activeShopIdx ? 0.1 : 1);
+      const roofShopIdx = this.shopRoofBounds[i].shopIdx;
+      const roofGroup = this.shopGroupMap.get(roofShopIdx) ?? -1;
+      const isActive = roofShopIdx === activeShopIdx || (activeGroup >= 0 && roofGroup === activeGroup);
+      gfx.setAlpha(isActive ? 0.1 : 1);
     }
   }
 
@@ -614,5 +676,6 @@ export class CityRenderer {
     this.shopRoofBounds = [];
 
     this.shopFloorMap.clear();
+    this.shopGroupMap.clear();
   }
 }

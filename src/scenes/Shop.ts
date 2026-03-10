@@ -4,8 +4,8 @@
 
 import Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
-import { useItem, ownsEquipment } from "../systems/player";
-import { getShopItems, getShopItemsForTown, type Item } from "../data/items";
+import { useItem, ownsEquipment, sellItem, isLastEquipment, isItemEquipped } from "../systems/player";
+import { getShopItems, getShopItemsForTown, getSellValue, canSellItem, type Item } from "../data/items";
 import type { CodexData } from "../systems/codex";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import { CYCLE_LENGTH } from "../systems/daynight";
@@ -33,6 +33,9 @@ export class ShopScene extends Phaser.Scene {
   private cityId = "";
   private discount = 0;
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
+  private mode: "buy" | "sell" = "buy"; // Current shop mode
+  private buyTabButton!: Phaser.GameObjects.Text;
+  private sellTabButton!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: "ShopScene" });
@@ -139,13 +142,32 @@ export class ShopScene extends Phaser.Scene {
     shopBg.lineStyle(1, 0xc0a060, 1);
     shopBg.strokeRect(w * 0.38, 68, w * 0.6, h - 132);
 
-    this.add.text(w * 0.39 + 10, 72, "Items for Sale", {
-      fontSize: "14px",
-      fontFamily: "monospace",
-      color: "#ffd700",
-    });
+    // Tab buttons for Buy/Sell
+    const tabY = 72;
+    this.buyTabButton = this.add
+      .text(w * 0.39 + 10, tabY, "🛒 Buy", {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#ffd700",
+        backgroundColor: "#3a3a5a",
+        padding: { x: 8, y: 4 },
+      })
+      .setInteractive({ useHandCursor: true });
 
-    const listTop = 94;
+    this.sellTabButton = this.add
+      .text(w * 0.39 + 90, tabY, "💰 Sell", {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#aaaaaa",
+        backgroundColor: "#2a2a4a",
+        padding: { x: 8, y: 4 },
+      })
+      .setInteractive({ useHandCursor: true });
+
+    this.buyTabButton.on("pointerdown", () => this.switchMode("buy"));
+    this.sellTabButton.on("pointerdown", () => this.switchMode("sell"));
+
+    const listTop = 100;
     const listBottom = h - 64;
     this.listVisibleH = listBottom - listTop;
 
@@ -160,7 +182,7 @@ export class ShopScene extends Phaser.Scene {
     );
 
     this.scrollY = 0;
-    this.renderShopItems();
+    this.renderItems();
 
     // Scroll with mouse wheel
     this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
@@ -228,7 +250,46 @@ export class ShopScene extends Phaser.Scene {
 
   private scrollList(delta: number): void {
     this.scrollY = Phaser.Math.Clamp(this.scrollY + delta, 0, this.maxScrollY);
-    this.itemListContainer.y = 94 - this.scrollY;
+    this.itemListContainer.y = 100 - this.scrollY; // listTop = 100
+  }
+
+  private switchMode(mode: "buy" | "sell"): void {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    
+    // Update tab button styles
+    if (mode === "buy") {
+      this.buyTabButton.setColor("#ffd700").setBackgroundColor("#3a3a5a");
+      this.sellTabButton.setColor("#aaaaaa").setBackgroundColor("#2a2a4a");
+      this.setMessage("Welcome! Click an item to purchase.", "#88ff88");
+    } else {
+      this.buyTabButton.setColor("#aaaaaa").setBackgroundColor("#2a2a4a");
+      this.sellTabButton.setColor("#ffd700").setBackgroundColor("#3a3a5a");
+      this.setMessage("Select an item to sell.", "#88ff88");
+    }
+    
+    this.renderItems();
+  }
+
+  /** Get the icon for an item type. */
+  private getItemTypeIcon(item: Item): string {
+    switch (item.type) {
+      case "consumable": return "🧪";
+      case "weapon": return "⚔";
+      case "armor": return "🛡";
+      case "shield": return "🛡";
+      case "mount": return "🐴";
+      case "key": return "🔑";
+      default: return "📦";
+    }
+  }
+
+  private renderItems(): void {
+    if (this.mode === "buy") {
+      this.renderShopItems();
+    } else {
+      this.renderInventoryForSelling();
+    }
   }
 
   private renderShopItems(): void {
@@ -246,18 +307,15 @@ export class ShopScene extends Phaser.Scene {
       const canBuy = !alreadyOwned && !levelLocked && this.player.gold >= discountedCost;
       const color = alreadyOwned ? "#555555" : levelLocked ? "#884444" : canBuy ? "#cccccc" : "#666666";
 
-      const typeIcon =
-        item.type === "consumable"
-          ? "🧪"
-          : item.type === "weapon"
-            ? "⚔"
-            : item.type === "armor"
-              ? "🛡"
-              : item.type === "shield"
-                ? "🛡"
-                : "🔑";
+      const typeIcon = this.getItemTypeIcon(item);
 
-      const tag = alreadyOwned ? " [OWNED]" : levelLocked ? ` [Lv.${item.levelReq}]` : "";
+      // Show owned count for consumables
+      let ownedCount = 0;
+      if (item.type === "consumable") {
+        ownedCount = this.player.inventory.filter(i => i.id === item.id).length;
+      }
+      const ownedTag = ownedCount > 0 ? ` (owned: ${ownedCount})` : "";
+      const tag = alreadyOwned ? " [OWNED]" : levelLocked ? ` [Lv.${item.levelReq}]` : ownedTag;
 
       const priceLabel = this.discount > 0
         ? `${discountedCost}g`
@@ -267,7 +325,7 @@ export class ShopScene extends Phaser.Scene {
         .text(
           0,
           yOffset,
-          `${typeIcon} ${item.name} ${priceLabel} ${item.description}${tag}`,
+          `${typeIcon} ${item.name} ${item.description} ${priceLabel}${tag}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",
@@ -290,7 +348,215 @@ export class ShopScene extends Phaser.Scene {
     const totalContentH = yOffset;
     this.maxScrollY = Math.max(0, totalContentH - this.listVisibleH);
     this.scrollY = 0;
-    this.itemListContainer.y = 94;
+    this.itemListContainer.y = 100;
+  }
+
+  private renderInventoryForSelling(): void {
+    this.itemListContainer.removeAll(true);
+
+    const w = this.cameras.main.width;
+    const maxTextW = w * 0.6 - 20;
+    let yOffset = 0;
+
+    if (this.player.inventory.length === 0) {
+      const emptyText = this.add.text(0, yOffset, "Your inventory is empty.", {
+        fontSize: "12px",
+        fontFamily: "monospace",
+        color: "#888888",
+      });
+      this.itemListContainer.add(emptyText);
+      this.maxScrollY = 0;
+      this.scrollY = 0;
+      this.itemListContainer.y = 100;
+      return;
+    }
+
+    // Group items by id, tracking indices and equipped status
+    const groups: {
+      item: Item;
+      indices: number[];
+      sellableIndices: number[];
+      equippedCount: number;
+    }[] = [];
+    const groupMap = new Map<string, typeof groups[number]>();
+
+    this.player.inventory.forEach((item, index) => {
+      let group = groupMap.get(item.id);
+      if (!group) {
+        group = { item, indices: [], sellableIndices: [], equippedCount: 0 };
+        groups.push(group);
+        groupMap.set(item.id, group);
+      }
+      group.indices.push(index);
+      if (isItemEquipped(this.player, item)) {
+        group.equippedCount++;
+      } else {
+        group.sellableIndices.push(index);
+      }
+    });
+
+    groups.forEach((group) => {
+      const { item, indices, sellableIndices, equippedCount } = group;
+      const totalCount = indices.length;
+      const sellValue = getSellValue(item);
+      const canSell = canSellItem(item);
+      const isLast = isLastEquipment(this.player, item);
+
+      let sellable = canSell && !isLast && sellableIndices.length > 0;
+      let reason = "";
+      if (!canSell) {
+        reason = " [UNSELLABLE]";
+      } else if (equippedCount > 0 && sellableIndices.length === 0) {
+        reason = " [EQUIPPED]";
+        sellable = false;
+      } else if (isLast) {
+        reason = " [LAST EQUIPMENT]";
+        sellable = false;
+      }
+
+      const color = sellable ? "#cccccc" : "#666666";
+      const typeIcon = this.getItemTypeIcon(item);
+      const priceLabel = sellable ? `${sellValue}g each` : "";
+      const countLabel = totalCount > 1 ? ` x${totalCount}` : "";
+      const equippedLabel = equippedCount > 0 ? ` (${equippedCount} equipped)` : "";
+
+      const text = this.add
+        .text(
+          0,
+          yOffset,
+          `${typeIcon} ${item.name}${countLabel} ${item.description} ${priceLabel}${equippedLabel}${reason}`,
+          {
+            fontSize: "12px",
+            fontFamily: "monospace",
+            color,
+            wordWrap: { width: maxTextW },
+          }
+        )
+        .setInteractive({ useHandCursor: sellable });
+
+      if (sellable) {
+        text.on("pointerover", () => text.setColor("#ffd700"));
+        text.on("pointerout", () => text.setColor(color));
+        text.on("pointerdown", () => {
+          this.showSellConfirmation(item, sellableIndices, sellValue);
+        });
+      }
+
+      this.itemListContainer.add(text);
+      yOffset += text.height + 6;
+    });
+
+    const totalContentH = yOffset;
+    this.maxScrollY = Math.max(0, totalContentH - this.listVisibleH);
+    this.scrollY = 0;
+    this.itemListContainer.y = 100;
+  }
+
+  private showSellConfirmation(item: Item, sellableIndices: number[], sellValue: number): void {
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const count = sellableIndices.length;
+    const boxW = 280;
+    const boxH = count > 1 ? 88 : 66;
+    const boxX = (w - boxW) / 2;
+    const boxY = (h - boxH) / 2;
+
+    const container = this.add.container(0, 0).setDepth(50);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
+    container.add(bg);
+
+    const prompt = this.add.text(boxX + boxW / 2, boxY + 8, `Sell ${item.name} for ${sellValue}g?`, {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    container.add(prompt);
+
+    let btnY = boxY + 28;
+
+    // Sell one button
+    const sellOneBtn = this.add.text(boxX + boxW / 2, btnY, "Sell 1", {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#88ff88",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 10, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    sellOneBtn.on("pointerover", () => sellOneBtn.setColor("#ffd700"));
+    sellOneBtn.on("pointerout", () => sellOneBtn.setColor("#88ff88"));
+    sellOneBtn.on("pointerdown", () => {
+      container.destroy();
+      this.executeSell(sellableIndices, 1, sellValue);
+    });
+    container.add(sellOneBtn);
+    btnY += 22;
+
+    // Sell all button (only if more than 1 sellable)
+    if (count > 1) {
+      const totalValue = sellValue * count;
+      const sellAllBtn = this.add.text(boxX + boxW / 2, btnY, `Sell All (${count}) — ${totalValue}g`, {
+        fontSize: "12px",
+        fontFamily: "monospace",
+        color: "#ffaa44",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 10, y: 4 },
+      }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+      sellAllBtn.on("pointerover", () => sellAllBtn.setColor("#ffd700"));
+      sellAllBtn.on("pointerout", () => sellAllBtn.setColor("#ffaa44"));
+      sellAllBtn.on("pointerdown", () => {
+        container.destroy();
+        this.executeSell(sellableIndices, count, sellValue);
+      });
+      container.add(sellAllBtn);
+      btnY += 22;
+    }
+
+    // Cancel
+    const cancelBtn = this.add.text(boxX + boxW / 2, btnY, "Cancel", {
+      fontSize: "12px",
+      fontFamily: "monospace",
+      color: "#ff8888",
+      backgroundColor: "#2a2a4e",
+      padding: { x: 12, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    cancelBtn.on("pointerover", () => cancelBtn.setColor("#ffd700"));
+    cancelBtn.on("pointerout", () => cancelBtn.setColor("#ff8888"));
+    cancelBtn.on("pointerdown", () => container.destroy());
+    container.add(cancelBtn);
+  }
+
+  private executeSell(sellableIndices: number[], count: number, sellValue: number): void {
+    // Sell from highest index first so splicing doesn't shift earlier indices
+    const sorted = [...sellableIndices].sort((a, b) => b - a);
+    let sold = 0;
+    let totalGold = 0;
+    let itemName = "";
+    for (let i = 0; i < count && i < sorted.length; i++) {
+      const idx = sorted[i];
+      const item = this.player.inventory[idx];
+      if (!item) continue;
+      itemName = item.name;
+      const result = sellItem(this.player, idx, sellValue);
+      if (result.success) {
+        sold++;
+        totalGold += sellValue;
+      }
+    }
+    if (sold > 0) {
+      const msg = sold > 1
+        ? `Sold ${sold}x ${itemName} for ${totalGold}g!`
+        : `Sold ${itemName} for ${totalGold}g!`;
+      this.setMessage(msg, "#88ff88");
+    } else {
+      this.setMessage("Could not sell item!", "#ff6666");
+    }
+    this.updateDisplay();
+    this.renderInventoryForSelling();
   }
 
   private purchaseItem(item: Item): void {
@@ -340,7 +606,7 @@ export class ShopScene extends Phaser.Scene {
     }
 
     this.updateDisplay();
-    this.renderShopItems();
+    this.renderItems();
   }
 
   private restAtInn(): void {
@@ -445,7 +711,7 @@ export class ShopScene extends Phaser.Scene {
     this.timeStep = targetTimeStep;
     this.setMessage(message, "#88ff88");
     this.updateDisplay();
-    this.renderShopItems();
+    this.renderItems();
   }
 
   private setMessage(msg: string, color: string): void {

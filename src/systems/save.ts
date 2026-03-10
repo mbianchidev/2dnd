@@ -126,6 +126,28 @@ export function loadGame(): SaveData | null {
     for (const entry of Object.values(data.codex.entries)) {
       if (!entry.discoveredElements) entry.discoveredElements = [];
     }
+
+    // Relink equipped item references to inventory objects.
+    // JSON.parse breaks object identity — equipped slots and inventory entries
+    // become separate objects. Re-point equipped slots to their inventory match.
+    const p = data.player;
+    if (p.equippedWeapon) {
+      const match = p.inventory.find(i => i.id === p.equippedWeapon!.id && i.type === "weapon");
+      if (match) p.equippedWeapon = match;
+    }
+    if (p.equippedOffHand) {
+      const match = p.inventory.find(i => i.id === p.equippedOffHand!.id && i.type === "weapon");
+      if (match) p.equippedOffHand = match;
+    }
+    if (p.equippedArmor) {
+      const match = p.inventory.find(i => i.id === p.equippedArmor!.id && i.type === "armor");
+      if (match) p.equippedArmor = match;
+    }
+    if (p.equippedShield) {
+      const match = p.inventory.find(i => i.id === p.equippedShield!.id && i.type === "shield");
+      if (match) p.equippedShield = match;
+    }
+
     return data;
   } catch {
     return null;

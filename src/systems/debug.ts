@@ -6,7 +6,7 @@
  * only registers its scene-specific extras.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import { isDebug, debugLog, debugPanelLog, debugPanelClear, debugPanelState, setDebugCommandHandler } from "../config";
 import { awardXP, processPendingLevelUps, xpForLevel, type PlayerState } from "./player";
 import { ITEMS } from "../data/items";

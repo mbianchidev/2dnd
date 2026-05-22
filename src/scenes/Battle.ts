@@ -2,7 +2,7 @@
  * Turn-based battle scene with D&D dice mechanics.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import type { Monster } from "../data/monsters";
 import { getSpell, type Spell } from "../data/spells";
 import { getAbility, type Ability } from "../data/abilities";

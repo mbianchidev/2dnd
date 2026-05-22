@@ -5,7 +5,7 @@
  * 1-4 or click tabs to switch categories.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import type { CodexData, CodexEntry } from "../systems/codex";
 import { getItem, ITEMS, type Item } from "../data/items";

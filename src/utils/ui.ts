@@ -4,7 +4,7 @@
  * used across overlay.ts, dialogue.ts, and scene files.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 
 /** Standard panel background color. */
 export const PANEL_BG_COLOR = 0x1a1a2e;

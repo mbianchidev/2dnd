@@ -2,7 +2,7 @@
  * Shop scene: buy items, equip gear, rest at the inn.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import { useItem, ownsEquipment, sellItem, isLastEquipment, isItemEquipped } from "../systems/player";
 import { getShopItems, getShopItemsForTown, getSellValue, canSellItem, type Item } from "../data/items";

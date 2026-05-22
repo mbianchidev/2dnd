@@ -2,7 +2,7 @@
  * Boot scene: generates all procedural assets and shows a title screen.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import { generateAllTextures, generatePlayerTextureWithHair } from "../renderers/textures";
 import { PLAYER_CLASSES, type PlayerClass, getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance } from "../systems/appearance";

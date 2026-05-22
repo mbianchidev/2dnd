@@ -3,7 +3,7 @@
  * A browser-based JRPG with Dragon Quest gameplay and D&D mechanics.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import { BootScene } from "./scenes/Boot";
 import { OverworldScene } from "./scenes/Overworld";
 import { BattleScene } from "./scenes/Battle";

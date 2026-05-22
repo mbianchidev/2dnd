@@ -3,7 +3,7 @@
  * Extracted from BootScene to keep scene files small.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import { TERRAIN_COLORS, Terrain } from "../data/map";
 import { PLAYER_CLASSES } from "../systems/classes";
 import { SKIN_COLOR_OPTIONS } from "../systems/appearance";

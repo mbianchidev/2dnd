@@ -369,3 +369,24 @@ export function getShopItemsForTown(shopItemIds: string[]): Item[] {
     .map((id) => getItem(id))
     .filter((item): item is Item => item !== undefined);
 }
+
+/**
+ * Calculate the sell value of an item (typically 50% of purchase cost).
+ * Returns 0 for non-sellable items (treasures, quest items).
+ */
+export function getSellValue(item: Item): number {
+  // Non-sellable items: treasures (cost=0), dungeon key (quest item)
+  if (item.cost === 0 || item.id === "dungeonKey") {
+    return 0;
+  }
+  // Standard sell price: 50% of cost
+  return Math.max(1, Math.floor(item.cost * 0.5));
+}
+
+/**
+ * Check if an item can be sold.
+ * Returns false for treasures (cost=0) and quest items (dungeon key).
+ */
+export function canSellItem(item: Item): boolean {
+  return getSellValue(item) > 0;
+}

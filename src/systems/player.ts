@@ -430,12 +430,79 @@ export function ownsEquipment(player: PlayerState, itemId: string): boolean {
   return equipped || inInventory;
 }
 
+/**
+ * Check if a specific inventory item is currently equipped.
+ * Uses reference equality first, with a fallback for cases where object
+ * identity was broken (e.g. after JSON save/load without relinking).
+ */
+export function isItemEquipped(player: PlayerState, item: Item): boolean {
+  const slots = [player.equippedWeapon, player.equippedOffHand, player.equippedArmor, player.equippedShield];
+  for (const equipped of slots) {
+    if (!equipped) continue;
+    // Fast path: reference equality (normal case)
+    if (equipped === item) return true;
+    // Fallback: structural match — only if this is the first inventory item
+    // matching the equipped slot (prevents marking duplicates as equipped)
+    if (equipped.id === item.id && equipped.type === item.type && equipped.effect === item.effect) {
+      const firstIdx = player.inventory.findIndex(
+        i => i.id === equipped.id && i.type === equipped.type && i.effect === equipped.effect
+      );
+      if (firstIdx >= 0 && player.inventory[firstIdx] === item) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Check if selling this item would leave the player with no equipment of that type.
+ * Returns true if this is the last weapon/armor/shield the player owns.
+ * Note: Equipped items are also in inventory, so we only count inventory.
+ */
+export function isLastEquipment(player: PlayerState, item: Item): boolean {
+  if (item.type === "weapon") {
+    // Count total weapons in inventory (equipped weapons are also in inventory)
+    const weaponCount = player.inventory.filter(i => i.type === "weapon").length;
+    return weaponCount <= 1;
+  }
+  if (item.type === "armor") {
+    const armorCount = player.inventory.filter(i => i.type === "armor").length;
+    return armorCount <= 1;
+  }
+  if (item.type === "shield") {
+    const shieldCount = player.inventory.filter(i => i.type === "shield").length;
+    return shieldCount <= 1;
+  }
+  return false;
+}
+
 /** Buy an item: deduct gold, add to inventory. Returns success. */
 export function buyItem(player: PlayerState, item: Item): boolean {
   if (!canAfford(player, item.cost)) return false;
   player.gold -= item.cost;
   player.inventory.push({ ...item });
   return true;
+}
+
+/**
+ * Sell an item from inventory at the given index.
+ * Awards gold and removes the item from inventory.
+ * Returns success and a message.
+ */
+export function sellItem(player: PlayerState, itemIndex: number, sellValue: number): { success: boolean; message: string } {
+  if (itemIndex < 0 || itemIndex >= player.inventory.length) {
+    return { success: false, message: "Invalid item index!" };
+  }
+  const item = player.inventory[itemIndex];
+  if (sellValue <= 0) {
+    return { success: false, message: `${item.name} cannot be sold!` };
+  }
+  if (isItemEquipped(player, item)) {
+    return { success: false, message: `${item.name} is currently equipped!` };
+  }
+  // Remove item and award gold
+  player.inventory.splice(itemIndex, 1);
+  player.gold += sellValue;
+  return { success: true, message: `Sold ${item.name} for ${sellValue}g!` };
 }
 
 /** Use a consumable item from inventory. Returns true if used. */

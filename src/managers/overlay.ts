@@ -4,7 +4,7 @@
  * inn confirmation, bank, and town picker.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import {
   MAP_WIDTH,
   MAP_HEIGHT,

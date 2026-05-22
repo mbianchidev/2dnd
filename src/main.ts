@@ -3,7 +3,7 @@
  * A browser-based JRPG with Dragon Quest gameplay and D&D mechanics.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import { BootScene } from "./scenes/Boot";
 import { OverworldScene } from "./scenes/Overworld";
 import { BattleScene } from "./scenes/Battle";
@@ -21,7 +21,7 @@ const config: Phaser.Types.Core.GameConfig = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    zoom: 2,
+    zoom: 6,
   },
   scene: [BootScene, OverworldScene, BattleScene, ShopScene, CodexScene],
 };

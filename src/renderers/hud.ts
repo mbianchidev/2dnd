@@ -2,7 +2,7 @@
  * HUD renderer: manages the heads-up display (HP/MP/XP bars, location text, gold, etc.).
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import { xpForLevel } from "../systems/player";
 import { MAP_WIDTH, MAP_HEIGHT } from "../data/map";

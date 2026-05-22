@@ -5,7 +5,7 @@
  * extracted subsystems — see systems/ folder.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import {
   MAP_WIDTH,
   MAP_HEIGHT,

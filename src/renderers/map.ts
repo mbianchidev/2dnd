@@ -3,7 +3,7 @@
  * and day/night tinting for overworld, dungeon, and city views.
  */
 
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import {
   MAP_WIDTH,
   MAP_HEIGHT,

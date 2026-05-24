@@ -28,12 +28,12 @@
   },
   "homepage": "https://github.com/mbianchidev/2dnd#readme",
   "dependencies": {
-    "phaser": "^4.0.0"
+    "phaser": "^4.1.0"
   },
   "devDependencies": {
     "happy-dom": "^20.9.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.8",
-    "vitest": "^4.1.4"
+    "vite": "^8.0.14",
+    "vitest": "^4.1.7"
   }
 }

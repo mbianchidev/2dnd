@@ -7,7 +7,7 @@ import {
   getAbilityRange,
   getAbilityTargetType,
 } from "../data/abilities";
-import type { Item } from "../data/items";
+import { getItemTargetType, type Item } from "../data/items";
 import {
   getSpell,
   getSpellTargetType,
@@ -22,7 +22,12 @@ import {
   type BattleCombatantState,
 } from "./groupCombat";
 
-export type BattleActionKind = "attack" | "spell" | "ability" | "item";
+export type BattleActionKind =
+  | "attack"
+  | "defend"
+  | "spell"
+  | "ability"
+  | "item";
 export type BattleActionCost = "action" | "bonus_action";
 
 export interface BattleActionRequest {
@@ -87,6 +92,7 @@ export interface BattleActionValidation {
 
 export interface BattleActionExecutors<TResult> {
   attack(plan: BattleActionPlan): TResult;
+  defend(plan: BattleActionPlan): TResult;
   spell(plan: BattleActionPlan): TResult;
   ability(plan: BattleActionPlan): TResult;
   item(plan: BattleActionPlan): TResult;
@@ -137,6 +143,15 @@ export function getBattleActionDescriptor(
       cost: "action",
     };
   }
+  if (request.kind === "defend") {
+    return {
+      kind: "defend",
+      targetType: "self",
+      range: "melee",
+      mpCost: 0,
+      cost: "action",
+    };
+  }
   if (request.kind === "spell") {
     const spell = request.actionId ? getSpell(request.actionId) : undefined;
     if (!spell || spell.type === "utility") return undefined;
@@ -171,7 +186,7 @@ export function getBattleActionDescriptor(
   return {
     kind: "item",
     actionId: item.id,
-    targetType: "self",
+    targetType: getItemTargetType(item),
     range: "ranged",
     mpCost: 0,
     cost: resources.economy.itemsUsed === 0 ? "bonus_action" : "action",
@@ -394,6 +409,8 @@ export function executeBattleAction<TResult>(
   switch (plan.kind) {
     case "attack":
       return executors.attack(plan);
+    case "defend":
+      return executors.defend(plan);
     case "spell":
       return executors.spell(plan);
     case "ability":

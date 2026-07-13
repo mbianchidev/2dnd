@@ -32,9 +32,10 @@ API, and saves use `localStorage`.
   selection, and companion turn/result hooks; companion persistence remains a
   separate feature
 - `battleActions.ts` provides a Phaser-free gambit pipeline to enumerate living
-  actors, bind matched targets, validate MP/inventory/action economy, freeze an
-  action plan, consume one action plus one bonus action per actor, and dispatch
-  one attack, spell, ability, or item action
+  actors, bind matched and item-declared ally/self targets, validate
+  MP/inventory/action economy, freeze an action plan, consume one action plus
+  one bonus action per actor, and dispatch one attack, defend, spell, ability,
+  or item action
 - Single-target, row-targeted, random-two, and all-enemy spell targeting; AoE
   spells pay MP and roll damage once, then resolve each monster independently
 - Nine damage elements: Fire, Ice, Lightning, Poison, Necrotic, Radiant,

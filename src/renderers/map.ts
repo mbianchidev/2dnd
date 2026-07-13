@@ -16,6 +16,7 @@ import {
   Terrain,
   type WorldChunk,
   type CityData,
+  type CityShopData,
 } from "../data/map";
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { WeatherType, WEATHER_TINT, type WeatherState } from "../systems/weather";
@@ -414,7 +415,7 @@ export class MapRenderer {
     // Build shop floor map via flood-fill from each shop entrance
     cityRenderer.shopFloorMap.clear();
     for (let si = 0; si < city.shops.length; si++) {
-      const shop = city.shops[si];
+      const shop: CityShopData = city.shops[si];
       const queue: { x: number; y: number }[] = [];
       const visited = new Set<string>();
       for (let dy = -3; dy <= 0; dy++) {

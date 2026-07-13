@@ -60,7 +60,8 @@ interface SharedSceneState {
 Scene-specific additions:
 
 - Battle: `monster`, `biome`
-- Shop: `townName`, optional item IDs, city context, discount
+- Shop: `townName`, optional item IDs, city context, discount, and optional
+  stable `shopSkillCheckId`
 - Overworld: fields are optional only because Boot can create or load the
   initial state
 
@@ -103,6 +104,7 @@ a restarted scene receives fresh helpers, then load persisted data into them:
 - `HUDRenderer`
 - `OverlayManager`
 - NPC and dialogue managers
+- `SkillCheckManager`
 - `DebugCommandSystem`
 
 Before replacing `FogOfWar` or `EncounterSystem`, preserve their debug toggle

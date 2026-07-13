@@ -198,17 +198,41 @@ export function getTownBiome(chunkX: number, chunkY: number, tileX: number, tile
 
 export const CHESTS: ChestData[] = [
   { id: "crypt_flame", itemId: "flameBlade", x: 18, y: 1, location: { type: "dungeon", dungeonId: "heartlands_dungeon" } },
-  { id: "crypt_guardian", itemId: "cryptGuardian", x: 9, y: 7, location: { type: "dungeon", dungeonId: "heartlands_dungeon" } },
+  {
+    id: "crypt_guardian", itemId: "cryptGuardian", x: 9, y: 7,
+    location: { type: "dungeon", dungeonId: "heartlands_dungeon" },
+    lockDc: 12, trapDamage: 6, secretDc: 13, secretGold: 30,
+  },
   { id: "crypt_frost", itemId: "frostfang", x: 17, y: 13, location: { type: "dungeon", dungeonId: "heartlands_dungeon" } },
-  { id: "forest_shadow", itemId: "shadowCloak", x: 3, y: 13, location: { type: "overworld", chunkX: 4, chunkY: 1 } },
+  {
+    id: "forest_shadow", itemId: "shadowCloak", x: 3, y: 13,
+    location: { type: "overworld", chunkX: 4, chunkY: 1 },
+    secretDc: 12, secretGold: 25,
+  },
   { id: "frost_blade_chest", itemId: "frostBrand", x: 17, y: 1, location: { type: "dungeon", dungeonId: "frost_cavern" } },
   { id: "frost_pelt_chest", itemId: "tundraPelt", x: 16, y: 13, location: { type: "dungeon", dungeonId: "frost_cavern" } },
-  { id: "frost_aegis_chest", itemId: "glacialAegis", x: 9, y: 7, location: { type: "dungeon", dungeonId: "frost_cavern" } },
-  { id: "forge_core_chest", itemId: "magmaCore", x: 18, y: 1, location: { type: "dungeon", dungeonId: "volcanic_forge" } },
+  {
+    id: "frost_aegis_chest", itemId: "glacialAegis", x: 9, y: 7,
+    location: { type: "dungeon", dungeonId: "frost_cavern" },
+    lockDc: 14, trapDamage: 10,
+  },
+  {
+    id: "forge_core_chest", itemId: "magmaCore", x: 18, y: 1,
+    location: { type: "dungeon", dungeonId: "volcanic_forge" },
+    lockDc: 15, trapDamage: 12, secretDc: 14, secretGold: 50,
+  },
   { id: "forge_shield_chest", itemId: "volcanicShield", x: 9, y: 7, location: { type: "dungeon", dungeonId: "volcanic_forge" } },
   { id: "forge_ember_chest", itemId: "emberBlade", x: 17, y: 13, location: { type: "dungeon", dungeonId: "volcanic_forge" } },
-  { id: "swamp_mantle_chest", itemId: "swampMantle", x: 5, y: 3, location: { type: "overworld", chunkX: 0, chunkY: 4 } },
-  { id: "canyon_bow_chest", itemId: "canyonBow", x: 5, y: 3, location: { type: "overworld", chunkX: 8, chunkY: 6 } },
+  {
+    id: "swamp_mantle_chest", itemId: "swampMantle", x: 5, y: 3,
+    location: { type: "overworld", chunkX: 0, chunkY: 4 },
+    lockDc: 13, trapDamage: 8,
+  },
+  {
+    id: "canyon_bow_chest", itemId: "canyonBow", x: 5, y: 3,
+    location: { type: "overworld", chunkX: 8, chunkY: 6 },
+    lockDc: 14, trapDamage: 10, secretDc: 14, secretGold: 40,
+  },
 ];
 
 export function getChestAt(

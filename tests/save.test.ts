@@ -33,6 +33,15 @@ describe("save system - PlayerState composition migration", () => {
     player.progression.openedChests.push("chest1", "chest2");
     player.progression.collectedTreasures.push("2,3,5,7");
     player.progression.exploredTiles["2,3,5,7"] = true;
+    player.progression.skillChecks["shop:city:willowdale_city:0:0"] = {
+      ability: "charisma",
+      naturalRoll: 15,
+      modifier: 1,
+      total: 16,
+      dc: 12,
+      success: true,
+      optionId: "persuade",
+    };
     
     const bestiary = createCodex();
     const weatherState = createWeatherState();
@@ -50,6 +59,15 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual(["chest1", "chest2"]);
     expect(loaded!.player.progression.collectedTreasures).toEqual(["2,3,5,7"]);
     expect(loaded!.player.progression.exploredTiles["2,3,5,7"]).toBe(true);
+    expect(loaded!.player.progression.skillChecks["shop:city:willowdale_city:0:0"]).toEqual({
+      ability: "charisma",
+      naturalRoll: 15,
+      modifier: 1,
+      total: 16,
+      dc: 12,
+      success: true,
+      optionId: "persuade",
+    });
   });
 
   it("migrates old flat structure to new nested structure on load", () => {
@@ -215,6 +233,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual([]);
     expect(loaded!.player.progression.collectedTreasures).toEqual([]);
     expect(loaded!.player.progression.exploredTiles).toEqual({});
+    expect(loaded!.player.progression.skillChecks).toEqual({});
   });
 
   it("clears unknown locations and restores a safe overworld position", () => {
@@ -350,5 +369,106 @@ describe("save system - PlayerState composition migration", () => {
       { id: "poison", remainingTurns: 5, source: "Spider" },
       { id: "burn", remainingTurns: 3, source: "unknown" },
     ]);
+  });
+
+  it("adds missing skill-check progression to older saves", () => {
+    const player = createPlayer("LegacyChecks", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const raw = localStorage.getItem("2dnd_save");
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!) as {
+      version: number;
+      player: { progression: Record<string, unknown> };
+    };
+    stored.version = 2;
+    delete stored.player.progression["skillChecks"];
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.version).toBe(3);
+    expect(loaded!.player.progression.skillChecks).toEqual({});
+  });
+
+  it("repairs valid skill-check totals and discards malformed records", () => {
+    const player = createPlayer("CheckRepair", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const raw = localStorage.getItem("2dnd_save");
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!) as {
+      player: { progression: Record<string, unknown> };
+    };
+    stored.player.progression["skillChecks"] = {
+      valid: {
+        ability: "wisdom",
+        naturalRoll: 15,
+        modifier: 2,
+        total: -99,
+        dc: 14,
+        success: false,
+        optionId: " search ",
+      },
+      invalidAbility: {
+        ability: "strength",
+        naturalRoll: 10,
+        modifier: 0,
+        total: 10,
+        dc: 10,
+        success: true,
+      },
+      invalidRoll: {
+        ability: "dexterity",
+        naturalRoll: 21,
+        modifier: 0,
+        total: 21,
+        dc: 10,
+        success: true,
+      },
+      invalidModifier: {
+        ability: "charisma",
+        naturalRoll: 12,
+        modifier: "2",
+        total: 14,
+        dc: 12,
+        success: true,
+      },
+    };
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.progression.skillChecks).toEqual({
+      valid: {
+        ability: "wisdom",
+        naturalRoll: 15,
+        modifier: 2,
+        total: 17,
+        dc: 14,
+        success: true,
+        optionId: "search",
+      },
+    });
   });
 });

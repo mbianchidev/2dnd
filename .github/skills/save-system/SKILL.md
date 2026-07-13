@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v2, migration, normalization, and location recovery
+description: Manage 2D&D save schema v3, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -16,7 +16,7 @@ preferences are stored separately by `src/systems/audio.ts`.
 
 ## Current schema
 
-`SAVE_VERSION` is 2.
+`SAVE_VERSION` is 3.
 
 ```typescript
 interface SaveData {
@@ -57,11 +57,14 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  skillChecks: Record<string, SkillCheckRecord>;
 }
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
-Codex entries persist `discoveredElements`.
+Codex entries persist `discoveredElements`. Fixed non-combat checks persist the
+ability, natural roll, modifier, repaired total, DC, outcome, and optional
+choice ID.
 
 ## Loading and migration
 
@@ -77,6 +80,7 @@ helpers; do not cast unvalidated nested values directly.
   fields
 - Missing/invalid active status effects
 - Missing/invalid Codex elemental discoveries
+- Missing/invalid non-combat skill-check records
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
 
@@ -116,6 +120,15 @@ when the top-level payload is unusable.
 - Filter Codex element values with `isElement()`.
 - Unknown values are discarded rather than asserted into the target type.
 
+## Skill-check rules
+
+- Normalize with `normalizeSkillCheckRecords()`.
+- Accept only Dexterity, Wisdom, or Charisma records with integer d20 rolls,
+  modifiers, and positive DCs.
+- Recompute `total` and `success` from the saved natural roll, modifier, and DC.
+- Trim optional choice IDs and discard malformed records.
+- Shop, NPC, chest, and treasure IDs must remain stable across content changes.
+
 ## API
 
 ```typescript
@@ -135,12 +148,13 @@ top-level save is absent or corrupt.
 
 - Save/load round trips
 - Legacy flat-state migration
-- Schema-v2 position and progression data
+- Schema-v3 position, progression, and skill-check data
 - Dungeon-level and city-district clamping
 - Invalid IDs and coordinates
 - Conflicting location flags
 - Status-effect persistence and normalization
 - Codex elemental-discovery normalization
+- Missing and malformed skill-check normalization
 
 ## Common pitfalls
 

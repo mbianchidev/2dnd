@@ -33,6 +33,14 @@ and changes spanning scenes, systems, data, renderers, or managers.
 The map hub is `src/data/map.ts`; terrain/types, chunks, cities, and dungeons
 are split into dedicated modules.
 
+Non-combat checks are split across:
+
+- `src/data/skillChecks.ts`: NPC challenges, negotiation choices, and terrain
+  event definitions
+- `src/systems/skillChecks.ts`: pure d20 resolution, normalization, and helpers
+- `src/managers/skillChecks.ts`: Overworld rewards, hazards, chest checks, and
+  dialogue orchestration
+
 ## Adding monsters
 
 1. Define the monster in the appropriate pool in `src/data/monsters.ts`.
@@ -102,6 +110,21 @@ can persist and display them.
   connection helpers.
 - Use `FogOfWar.exploredKey()` for exploration keys.
 - Use `isWalkable()` and `ENCOUNTER_RATES`; do not hardcode terrain behavior.
+
+## Non-combat skill checks
+
+- Checks use d20 + Dexterity, Wisdom, or Charisma modifier against a DC.
+- Natural 1 and 20 are not automatic outcomes for ability checks.
+- Persist fixed NPC, shop, chest, and treasure results in
+  `player.progression.skillChecks`.
+- Use stable NPC identities and shop type/coordinate keys rather than array
+  indexes.
+- Shop negotiation is one attempt per shop; successful discounts restore from
+  the saved result.
+- Exploration hazard damage is nonlethal and must clamp the player to at least
+  1 HP.
+- Test roll math, invalid inputs, stable data references, save normalization,
+  reward bounds, and nonlethal damage deterministically.
 
 ## Scene changes
 

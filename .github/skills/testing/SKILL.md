@@ -17,6 +17,7 @@ Write comprehensive tests for game mechanics using Vitest while avoiding UI/inte
 ✅ XP and leveling formulas
 ✅ Data integrity (monsters, spells, items)
 ✅ Game logic functions
+✅ Non-combat skill-check math, outcomes, and save normalization
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -32,8 +33,21 @@ tests/
 ├── dice.test.ts      # Dice rolling utilities
 ├── combat.test.ts    # Combat mechanics
 ├── player.test.ts    # Player systems
+├── skillChecks.test.ts # Exploration/dialogue checks
+├── save.test.ts      # Persistence and migration
 └── data.test.ts      # Data validation
 ```
+
+## Skill Check Testing
+
+- Pass explicit natural d20 values to `resolveSkillCheck()`; do not depend on
+  randomness.
+- Verify total-vs-DC behavior, including that natural 1/20 are not automatic.
+- Test shop discounts for both successful and failed saved choices.
+- Validate NPC identities and chest metadata against live city/map data.
+- Test terrain event selection with explicit random values.
+- Cover reward bounds, nonlethal damage, save round trips, missing fields, and
+  malformed record repair.
 
 ## Dice Testing Patterns
 

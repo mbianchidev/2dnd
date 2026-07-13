@@ -15,6 +15,8 @@ license: MIT
 - `src/data/dungeons.ts`: dungeon floors and stairs
 - `src/systems/movement.ts`: grid, city-gate, and dungeon-stair movement
 - `src/managers/fogOfWar.ts`: exploration-key generation and reveal state
+- `src/managers/skillChecks.ts`: terrain events, hidden treasure, and chest
+  checks
 - `src/renderers/map.ts`: terrain and weather rendering
 - `src/renderers/city.ts`: city NPC, animal, and district rendering
 
@@ -48,6 +50,10 @@ getTownBiome(chunkX, chunkY, tileX, tileY);
 
 Chunk names drive biome music, weather probabilities, and presentation. New
 names must retain a recognized biome prefix.
+
+Terrain-driven Wisdom discoveries and Dexterity hazards are defined in
+`src/data/skillChecks.ts`. Select them through the shared skill-check helpers;
+do not hardcode event rolls in the scene.
 
 ## Multi-chunk cities
 
@@ -104,6 +110,11 @@ used.
 Dungeon chest locations may include `dungeonLevel`. Resolve the level map
 before reading a chest tile. Opened chest IDs remain globally unique and are
 stored in player progression.
+
+`ChestData` may also define `lockDc`/`trapDamage` and
+`secretDc`/`secretGold`. Lock failures can deal nonlethal damage, while secret
+checks can grant bonus gold. Persist results with stable chest-derived check
+IDs so a fixed check cannot be rerolled.
 
 ## Fog of war
 

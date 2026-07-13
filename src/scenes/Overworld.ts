@@ -185,9 +185,14 @@ export class OverworldScene extends Phaser.Scene {
     weatherState?: WeatherState;
     savedSpecialNpcs?: SavedSpecialNpc[];
   }): void {
+    const fogDisabled = this.fogOfWar?.isFogDisabled() ?? false;
+    const encountersEnabled = this.encounterSystem?.areEncountersEnabled() ?? true;
+
     // Instantiate subsystems
     this.fogOfWar = new FogOfWar();
+    this.fogOfWar.setFogDisabled(fogDisabled);
     this.encounterSystem = new EncounterSystem();
+    this.encounterSystem.setEncountersEnabled(encountersEnabled);
     this.hudRenderer = new HUDRenderer(this);
     this.mapRenderer = new MapRenderer(this);
     this.cityRenderer = new CityRenderer(this);
@@ -243,6 +248,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.cameras.main.resetFX();
     this.cameras.main.setBackgroundColor(0x111111);
     this.cameras.main.fadeIn(500);
 

@@ -106,6 +106,7 @@ export class BattleScene extends Phaser.Scene {
   private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
   private biome = "grass";
   private bgImage: Phaser.GameObjects.Image | null = null;
+  private isReturningToOverworld = false;
 
   constructor() {
     super({ key: "BattleScene" });
@@ -145,6 +146,7 @@ export class BattleScene extends Phaser.Scene {
     this.monsterDefending = false;
     this.droppedItemIds = [];
     this.monsterEffects = [];
+    this.isReturningToOverworld = false;
     this.elementalDiscoveries = new Set(
       this.codex.entries[this.monster.id]?.discoveredElements ?? [],
     );
@@ -1695,10 +1697,12 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private returnToOverworld(): void {
+    if (this.isReturningToOverworld) return;
+    this.isReturningToOverworld = true;
     clearAllEffects(this.player.activeEffects);
     clearAllEffects(this.monsterEffects);
-    this.cameras.main.fadeOut(500, 0, 0, 0);
-    this.time.delayedCall(500, () => {
+    this.cameras.main.resetFX();
+    this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
@@ -1708,6 +1712,7 @@ export class BattleScene extends Phaser.Scene {
         savedSpecialNpcs: this.savedSpecialNpcs,
       });
     });
+    this.cameras.main.fadeOut(500, 0, 0, 0);
   }
 
   private recordElementalDiscovery(

@@ -105,6 +105,9 @@ a restarted scene receives fresh helpers, then load persisted data into them:
 - NPC and dialogue managers
 - `DebugCommandSystem`
 
+Before replacing `FogOfWar` or `EncounterSystem`, preserve their debug toggle
+state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.
+
 ## UI layout
 
 - Calculate actual text and container bounds, including scale.
@@ -146,5 +149,6 @@ the scene in a usable phase.
 - Passing arrays where `Set<string>` is expected
 - Dropping weather or special-NPC state during transitions
 - Reusing orphaned tween/input state after a scene restart
+- Resetting scene-local debug toggles during a round trip
 - Depending on Phaser 3-only behavior
 - Hardcoded UI positions that overlap after scaling

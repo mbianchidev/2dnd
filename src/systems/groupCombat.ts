@@ -2,7 +2,7 @@
  * Pure state and rules for multi-monster battles.
  */
 
-import type { Element } from "../data/elements";
+import type { Element, ElementalInteraction } from "../data/elements";
 import type {
   GroupSynergy,
   MonsterEncounter,
@@ -121,6 +121,13 @@ export interface CompanionTurnContext {
   combatant: PartyCombatant;
   actors: BattleCombatantState[];
   enemies: GroupCombatant[];
+  weatherPenalty: number;
+  getEnemyDefenseBonus(targetId: BattleCombatantId): number;
+  recordElementalInteraction(
+    targetId: BattleCombatantId,
+    interaction: ElementalInteraction,
+    element: Element,
+  ): void;
   applyEnemyDamage(targetId: BattleCombatantId, damage: number): void;
   addLog(message: string): void;
   completeTurn(): void;

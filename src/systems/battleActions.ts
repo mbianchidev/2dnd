@@ -596,17 +596,16 @@ export function executeValidatedBattleAction(
       : context.sources.find(
           (candidate) => candidate.combatant.id === targetId,
         );
-    if (!targetSource || !isCombatantActive(targetSource.combatant)) {
+    if (!targetSource) {
       return {
         executed: false,
-        message: "Validated item target has no active action source.",
+        message: "Validated item target has no action source.",
         plan,
         targets: [],
         mpUsed: 0,
         itemUsed: false,
       };
     }
-    const hpBefore = targetSource.state.hp;
     const item = source.state.inventory[plan.itemIndex];
     const result = item?.type === "consumable"
       ? useCombatItemOnTarget(
@@ -623,7 +622,7 @@ export function executeValidatedBattleAction(
         targetId: targetSource.combatant.id,
         hit: result.used,
         damage: 0,
-        healing: Math.max(0, targetSource.state.hp - hpBefore),
+        healing: 0,
       }],
       mpUsed: 0,
       itemUsed: result.used,

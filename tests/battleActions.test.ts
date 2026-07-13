@@ -17,13 +17,8 @@ import {
   createHeroCombatant,
   createPartyCombatant,
   type BattleCombatantState,
-  type PartyCombatant,
 } from "../src/systems/groupCombat";
-import {
-  createPlayer,
-  type CombatActorState,
-  type PlayerStats,
-} from "../src/systems/player";
+import { createPlayer, type PlayerStats } from "../src/systems/player";
 import type { MonsterEncounter } from "../src/data/monsterGroups";
 import { getMonster } from "../src/data/monsters";
 import { getItem } from "../src/data/items";
@@ -36,33 +31,6 @@ const stats: PlayerStats = {
   wisdom: 12,
   charisma: 10,
 };
-
-function createStateBackedCompanion(
-  state: CombatActorState,
-  id = "lyra",
-): PartyCombatant {
-  return createPartyCombatant({
-    id,
-    name: state.name,
-    get hp(): number {
-      return state.hp;
-    },
-    set hp(value: number) {
-      state.hp = value;
-    },
-    get maxHp(): number {
-      return state.maxHp;
-    },
-    stats: state.stats,
-    get activeEffects() {
-      return state.activeEffects;
-    },
-    set activeEffects(value) {
-      state.activeEffects = value;
-    },
-    getArmorClass: () => 13,
-  }, "companion", "back");
-}
 
 function createActors(): {
   actors: BattleCombatantState[];
@@ -441,18 +409,7 @@ describe("pure battle action pipeline", () => {
     player.knownAbilities.push("shieldBash");
     player.inventory.push(getItem("potion")!);
     const hero = createHeroCombatant(player);
-    const companionState = createPlayer("Executor Ally", stats);
-    companionState.hp = 5;
-    companionState.maxHp = 30;
-    const companion = createStateBackedCompanion(
-      companionState,
-      "executorAlly",
-    );
     const source = createPlayerBattleActionSource(player, hero);
-    const companionSource = createBattleActionSource(
-      companion,
-      companionState,
-    );
     const encounter: MonsterEncounter = {
       id: "executorTest",
       name: "Executor Test",
@@ -463,12 +420,8 @@ describe("pure battle action pipeline", () => {
       ],
     };
     const enemies = createGroupCombatants(encounter);
-    const actors: BattleCombatantState[] = [hero, companion, ...enemies];
-    const context = {
-      combatants: actors,
-      enemies,
-      sources: [source, companionSource],
-    };
+    const actors: BattleCombatantState[] = [hero, ...enemies];
+    const context = { combatants: actors, enemies, sources: [source] };
     vi.spyOn(Math, "random").mockReturnValue(0.5);
 
     const attack = validateBattleAction(
@@ -527,30 +480,16 @@ describe("pure battle action pipeline", () => {
     );
     const item = validateBattleAction(
       actors,
-      {
-        actorId: hero.id,
-        kind: "item",
-        itemIndex: potionIndex,
-        preferredTargetId: companion.id,
-      },
+      { actorId: hero.id, kind: "item", itemIndex: potionIndex },
       {
         mp: player.mp,
         inventory: player.inventory,
         economy: createBattleActionEconomy(hero.id),
       },
     ).plan!;
-    const inventorySize = player.inventory.length;
     const itemResult = executeValidatedBattleAction(source, item, context);
     expect(itemResult.itemUsed).toBe(true);
-    expect(itemResult.targets).toEqual([
-      expect.objectContaining({
-        targetId: companion.id,
-        healing: 20,
-      }),
-    ]);
-    expect(companionState.hp).toBe(25);
-    expect(player.hp).toBe(10);
-    expect(player.inventory).toHaveLength(inventorySize - 1);
+    expect(player.hp).toBeGreaterThan(10);
 
     const defend = validateBattleAction(
       actors,

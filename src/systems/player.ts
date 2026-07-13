@@ -548,6 +548,11 @@ export interface UseItemResult {
   teleport?: boolean;
 }
 
+export type CombatItemTarget = Pick<
+  CombatActorState,
+  "hp" | "maxHp" | "mp" | "maxMp" | "activeEffects"
+>;
+
 function getInventoryItem(
   actor: CombatActorState,
   itemIndex: number,
@@ -570,19 +575,20 @@ function useStandardItem(
   actor: CombatActorState,
   itemIndex: number,
   item: Item,
+  target: CombatItemTarget = actor,
 ): UseItemResult {
   if (item.type === "consumable") {
     if (item.id === "ether") {
-      if (actor.mp >= actor.maxMp) {
+      if (target.mp >= target.maxMp) {
         return { used: false, message: "MP is already full!" };
       }
-      const restored = Math.min(item.effect, actor.maxMp - actor.mp);
-      actor.mp += restored;
+      const restored = Math.min(item.effect, target.maxMp - target.mp);
+      target.mp += restored;
       actor.inventory.splice(itemIndex, 1);
       return { used: true, message: `Restored ${restored} MP!` };
     }
     if (item.cureEffects) {
-      const cured = cureWithItem(actor.activeEffects, item.id);
+      const cured = cureWithItem(target.activeEffects, item.id);
       if (cured.length === 0) {
         return { used: false, message: "No matching ailment to cure!" };
       }
@@ -590,11 +596,11 @@ function useStandardItem(
       return { used: true, message: `Cured: ${cured.join(", ")}!` };
     }
     // All other consumables restore HP (potion, greaterPotion, etc.)
-    if (actor.hp >= actor.maxHp) {
+    if (target.hp >= target.maxHp) {
       return { used: false, message: "HP is already full!" };
     }
-    const healed = Math.min(item.effect, actor.maxHp - actor.hp);
-    actor.hp += healed;
+    const healed = Math.min(item.effect, target.maxHp - target.hp);
+    target.hp += healed;
     actor.inventory.splice(itemIndex, 1);
     return { used: true, message: `Healed ${healed} HP!` };
   }
@@ -637,11 +643,26 @@ export function useCombatItem(
   actor: CombatActorState,
   itemIndex: number,
 ): UseItemResult {
+  return useCombatItemOnTarget(actor, itemIndex, actor);
+}
+
+/** Consume an actor's battle item while applying it to a selected ally. */
+export function useCombatItemOnTarget(
+  actor: CombatActorState,
+  itemIndex: number,
+  target: CombatItemTarget,
+): UseItemResult {
   const item = getInventoryItem(actor, itemIndex, "useCombatItem");
   if (item.id === "chimaeraWing" || item.type === "mount") {
     return { used: false, message: `${item.name} cannot be used in battle.` };
   }
-  return useStandardItem(actor, itemIndex, item);
+  if (item.type !== "consumable" && target !== actor) {
+    return {
+      used: false,
+      message: `${item.name} can only be equipped by the acting character.`,
+    };
+  }
+  return useStandardItem(actor, itemIndex, item, target);
 }
 
 /** Use an inventory item in the world or battle scene. */

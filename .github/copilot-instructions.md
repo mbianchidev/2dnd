@@ -235,6 +235,11 @@ Flow:
   through `BattleActionSource`. Execute validated attack/spell/ability/item/
   defend plans with `executeValidatedBattleAction()`; do not bypass combat,
   item, elemental-discovery, or target-state helpers.
+- Consumable descriptors use `single_ally` with preferred stable target IDs and
+  solo self fallback. Consume the acting source's inventory, but apply HP/MP/
+  cure effects through the selected target's action source.
+  `BattleActionExecutionContext.sources` is required in every execution
+  context. Equipment remains self-only.
 - Melee attacks must clear living front-row monsters before targeting the back
   row; exposed back-row melee targets impose a -2 attack penalty. Ranged
   attacks and spells bypass formation protection.

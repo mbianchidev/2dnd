@@ -44,6 +44,9 @@ immutable plans, per-actor action/bonus consumption, and one-action dispatch.
 `executeValidatedBattleAction()` binds a generic `CombatActorState` to a party
 combatant and reuses existing attack, spell, ability, item, defend, element,
 status, MP, and inventory mechanics.
+Consumables consume the acting source's inventory while applying HP/MP/cures
+to a selected ally source; execution contexts must include all party action
+sources. Equipment actions remain self-targeted.
 
 ## Adding monsters
 

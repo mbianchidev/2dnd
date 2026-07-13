@@ -150,6 +150,8 @@ matching effects. Combat effects are cleared when leaving Battle.
   gambits.
 - Generic outbound actors execute validated plans through the same d20, AC,
   element, status, healing, MP, inventory, and defend paths as the hero.
+- Battle consumables target one ally (self when solo); inventory ownership and
+  effect target are tracked separately.
 - Flee DC is 10 for one monster and increases by 2 for each additional living
   monster. Boss encounters cannot be fled.
 

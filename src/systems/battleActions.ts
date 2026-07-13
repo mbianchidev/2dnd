@@ -22,6 +22,7 @@ import {
 } from "./combat";
 import {
   useCombatItem,
+  useCombatItemOnTarget,
   type CombatActorState,
   type PlayerState,
 } from "./player";
@@ -126,6 +127,7 @@ export interface BattleActionSource {
 export interface BattleActionExecutionContext {
   combatants: BattleCombatantState[];
   enemies: GroupCombatant[];
+  sources: BattleActionSource[];
   weatherPenalty?: number;
   getEnemyDefenseBonus?(target: GroupCombatant): number;
   onElementalInteraction?(
@@ -252,7 +254,7 @@ export function getBattleActionDescriptor(
   return {
     kind: "item",
     actionId: item.id,
-    targetType: "self",
+    targetType: item.type === "consumable" ? "single_ally" : "self",
     range: "ranged",
     mpCost: 0,
     cost: resources.economy.itemsUsed === 0 ? "bonus_action" : "action",
@@ -588,13 +590,36 @@ export function executeValidatedBattleAction(
         itemUsed: false,
       };
     }
-    const result = useCombatItem(source.state, plan.itemIndex);
+    const targetId = plan.targetIds[0];
+    const targetSource = targetId === source.combatant.id
+      ? source
+      : context.sources.find(
+          (candidate) => candidate.combatant.id === targetId,
+        );
+    if (!targetSource) {
+      return {
+        executed: false,
+        message: "Validated item target has no action source.",
+        plan,
+        targets: [],
+        mpUsed: 0,
+        itemUsed: false,
+      };
+    }
+    const item = source.state.inventory[plan.itemIndex];
+    const result = item?.type === "consumable"
+      ? useCombatItemOnTarget(
+          source.state,
+          plan.itemIndex,
+          targetSource.state,
+        )
+      : useCombatItem(source.state, plan.itemIndex);
     return {
       executed: result.used,
       message: result.message,
       plan,
       targets: [{
-        targetId: source.combatant.id,
+        targetId: targetSource.combatant.id,
         hit: result.used,
         damage: 0,
         healing: 0,

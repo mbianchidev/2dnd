@@ -72,6 +72,12 @@ success = total >= dc;
 - Spells consume MP rather than spell slots.
 - Armor Class comes from base AC, Dexterity, equipment, talents, active
   statuses, and temporary defense bonuses.
+- Group initiative rolls once for the player and once per monster, then
+  interleaves all actors by total using stable combatant IDs. Companion actors
+  use the same initiative contract.
+- Melee must clear the front row before attacking the back row. Once exposed,
+  back-row melee targets impose -2 to the attack roll; ranged attacks and
+  spells ignore this formation penalty.
 
 Use the combat functions in `src/systems/combat.ts`; do not reimplement formulas
 inside scenes.
@@ -84,6 +90,10 @@ first die rolled.
 
 Poisoned, Frightened, and Prone currently impose attack disadvantage. Magic
 Missile is auto-hit and bypasses attack-roll disadvantage.
+AoE spells pay MP once and share one attack/damage roll, while elemental
+resistance, weakness, and immunity resolve independently per target.
+Healing target scopes are explicit: self, one ally, all allies, or the whole
+party. A single-ally action falls back to self when no ally is present.
 
 ## Elements
 
@@ -149,6 +159,11 @@ matching effects. Combat effects are cleared when leaving Battle.
 - The first item use in a turn is a bonus action.
 - Invalid spell/ability/item choices must not consume MP, inventory, or turn
   state.
+- Gambit and UI actions pass through `validateBattleAction()` before execution;
+  validated plans bind stable actor/target IDs and declare action or bonus
+  action cost.
+- Flee DC is 10 for one monster and increases by 2 for each additional living
+  monster. Boss encounters cannot be fled.
 
 ## Leveling
 

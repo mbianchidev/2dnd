@@ -23,6 +23,19 @@ API, and saves use `localStorage`.
 - Turn-based d20 combat with initiative, natural 1/20 outcomes, critical hits,
   defending, fleeing, off-hand attacks, spells, abilities, consumables, and
   boss abilities
+- Balanced encounters with 1-4 monsters, individual initiative turns,
+  front/back formations, keyboard or pointer target selection, and group
+  synergies such as Pack Tactics, Shield Wall, War Cry, healer support, and
+  elemental combos
+- Party-ready battle contracts use stable combatant IDs, explicit party/enemy
+  allegiance, actor-ID initiative, ally/enemy target scopes, monster target
+  selection, and companion turn/result hooks; companion persistence remains a
+  separate feature
+- `battleActions.ts` provides a Phaser-free gambit pipeline to enumerate living
+  actors, bind matched targets, validate MP/inventory/action economy, freeze an
+  action plan, and dispatch one attack, spell, ability, or item action
+- Single-target, row-targeted, random-two, and all-enemy spell targeting; AoE
+  spells pay MP and roll damage once, then resolve each monster independently
 - Nine damage elements: Fire, Ice, Lightning, Poison, Necrotic, Radiant,
   Thunder, Force, and Psychic
 - Monster weaknesses deal double damage, resistances halve damage, and
@@ -55,6 +68,8 @@ API, and saves use `localStorage`.
 - A 10x9 world grid containing 90 chunks, each 20x15 tiles
 - Distinct terrain, biome encounter tables, night encounters, weather,
   day/night lighting, fog of war, treasure, NPCs, animals, and special NPCs
+- Random encounter modifiers stack but the effective chance is capped at 15%;
+  group encounters begin at level 2 and use level budgets and biome filters
 - 12 cities with connected districts, district-specific shops, gates,
   discovery, fast travel, inns, banks, stables, and city music
 - Three multi-level dungeons with bidirectional stairs, floor-specific
@@ -96,6 +111,8 @@ src/
 │   └── Codex.ts
 ├── systems/
 │   ├── combat.ts
+│   ├── groupCombat.ts
+│   ├── battleActions.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
@@ -114,6 +131,7 @@ src/
 │   ├── cities.ts
 │   ├── dungeons.ts
 │   ├── monsters.ts
+│   ├── monsterGroups.ts
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
@@ -173,7 +191,7 @@ npm run build      # Type-check and create a production build
 
 | Input | Action |
 | --- | --- |
-| `WASD` / arrow keys | Move and navigate |
+| `WASD` / arrow keys | Move, navigate, and cycle valid Battle targets |
 | `Space` / `Enter` | Confirm or interact |
 | `M` | Open the world or city map |
 | `C` | Open the Codex |
@@ -195,6 +213,8 @@ Available tools include:
   dungeon bosses, plus special overworld NPC aliases
 - `/quest list`, `/quest advance <id>`, and
   `/quest set <id> <stage-number|stage-id|locked|active|completed>`
+- Local browser checks can force the next random encounter with
+  `?forceGroup=<templateId>` (for example, `?forceGroup=slimeSwarm`)
 
 Use `debugLog()` and the debug panel APIs instead of `console.log`.
 
@@ -223,7 +243,9 @@ Schema-v3 skill-check saves gain default quest progress without losing checks.
 
 The Vitest suite covers combat, elements, statuses, saves, map and city data,
 dungeon traversal, fog keys, movement, player, quest, and skill-check
-progression, dice, weather, day/night, mounts, NPCs, audio, and configuration.
+progression, dice, weather, day/night, mounts, NPCs, audio, configuration,
+group encounter generation, formation targeting, synergies, rewards,
+multi-target actions, and party-ready combat/action-planning contracts.
 
 Important integration suites:
 

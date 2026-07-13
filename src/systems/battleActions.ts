@@ -22,6 +22,7 @@ import {
 } from "./combat";
 import {
   useCombatItem,
+  useCombatItemOnTarget,
   type CombatActorState,
   type PlayerState,
 } from "./player";
@@ -126,10 +127,8 @@ export interface BattleActionSource {
 export interface BattleActionExecutionContext {
   combatants: BattleCombatantState[];
   enemies: GroupCombatant[];
+  sources: BattleActionSource[];
   weatherPenalty?: number;
-  getPartyActorState?(
-    targetId: BattleCombatantId,
-  ): CombatActorState | undefined;
   getEnemyDefenseBonus?(target: GroupCombatant): number;
   onElementalInteraction?(
     targetId: BattleCombatantId,
@@ -592,43 +591,39 @@ export function executeValidatedBattleAction(
       };
     }
     const targetId = plan.targetIds[0];
-    const target = targetId
-      ? getCombatantById(context.combatants, targetId)
-      : undefined;
-    if (!target || target.side !== "party" || !isCombatantActive(target)) {
+    const targetSource = targetId === source.combatant.id
+      ? source
+      : context.sources.find(
+          (candidate) => candidate.combatant.id === targetId,
+        );
+    if (!targetSource || !isCombatantActive(targetSource.combatant)) {
       return {
         executed: false,
-        message: "Validated item target is no longer available.",
+        message: "Validated item target has no active action source.",
         plan,
         targets: [],
         mpUsed: 0,
         itemUsed: false,
       };
     }
-    const targetState = targetId === source.combatant.id
-      ? source.state
-      : context.getPartyActorState?.(targetId);
-    if (!targetState) {
-      return {
-        executed: false,
-        message: "Battle state for the validated item target is unavailable.",
-        plan,
-        targets: [],
-        mpUsed: 0,
-        itemUsed: false,
-      };
-    }
-    const hpBefore = targetState.hp;
-    const result = useCombatItem(source.state, plan.itemIndex, targetState);
+    const hpBefore = targetSource.state.hp;
+    const item = source.state.inventory[plan.itemIndex];
+    const result = item?.type === "consumable"
+      ? useCombatItemOnTarget(
+          source.state,
+          plan.itemIndex,
+          targetSource.state,
+        )
+      : useCombatItem(source.state, plan.itemIndex);
     return {
       executed: result.used,
       message: result.message,
       plan,
       targets: [{
-        targetId,
+        targetId: targetSource.combatant.id,
         hit: result.used,
         damage: 0,
-        healing: Math.max(0, targetState.hp - hpBefore),
+        healing: Math.max(0, targetSource.state.hp - hpBefore),
       }],
       mpUsed: 0,
       itemUsed: result.used,

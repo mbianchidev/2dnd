@@ -128,7 +128,6 @@ export interface CompanionTurnContext {
     interaction: ElementalInteraction,
     element: Element,
   ): void;
-  applyEnemyDamage(targetId: BattleCombatantId, damage: number): void;
   addLog(message: string): void;
   completeTurn(): void;
 }

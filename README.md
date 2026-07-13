@@ -38,8 +38,10 @@ API, and saves use `localStorage`.
   or item action
 - Generic `BattleActionSource` and `executeValidatedBattleAction()` reuse the
   game's d20, AC, elements, statuses, MP, inventory, healing, and defend rules
-  for player or future companion actors; runtime party-state lookup applies
-  ally consumables while consuming the source actor's inventory
+  for player or future companion actors
+- Battle consumables use item-declared target scopes: ally items fall back to
+  self when solo, self-only items remain self, and the acting actor consumes
+  the item while HP, MP, or cures apply to the selected target
 - Single-target, row-targeted, random-two, and all-enemy spell targeting; AoE
   spells pay MP and roll damage once, then resolve each monster independently
 - Nine damage elements: Fire, Ice, Lightning, Poison, Necrotic, Radiant,

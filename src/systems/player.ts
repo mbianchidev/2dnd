@@ -548,6 +548,11 @@ export interface UseItemResult {
   teleport?: boolean;
 }
 
+export type CombatItemTarget = Pick<
+  CombatActorState,
+  "hp" | "maxHp" | "mp" | "maxMp" | "activeEffects"
+>;
+
 function getInventoryItem(
   actor: CombatActorState,
   itemIndex: number,
@@ -567,10 +572,10 @@ function getInventoryItem(
 }
 
 function useStandardItem(
-  owner: CombatActorState,
+  actor: CombatActorState,
   itemIndex: number,
   item: Item,
-  target: CombatActorState = owner,
+  target: CombatItemTarget = actor,
 ): UseItemResult {
   if (item.type === "consumable") {
     if (item.id === "ether") {
@@ -579,7 +584,7 @@ function useStandardItem(
       }
       const restored = Math.min(item.effect, target.maxMp - target.mp);
       target.mp += restored;
-      owner.inventory.splice(itemIndex, 1);
+      actor.inventory.splice(itemIndex, 1);
       return { used: true, message: `Restored ${restored} MP!` };
     }
     if (item.cureEffects) {
@@ -587,7 +592,7 @@ function useStandardItem(
       if (cured.length === 0) {
         return { used: false, message: "No matching ailment to cure!" };
       }
-      owner.inventory.splice(itemIndex, 1);
+      actor.inventory.splice(itemIndex, 1);
       return { used: true, message: `Cured: ${cured.join(", ")}!` };
     }
     // All other consumables restore HP (potion, greaterPotion, etc.)
@@ -596,37 +601,37 @@ function useStandardItem(
     }
     const healed = Math.min(item.effect, target.maxHp - target.hp);
     target.hp += healed;
-    owner.inventory.splice(itemIndex, 1);
+    actor.inventory.splice(itemIndex, 1);
     return { used: true, message: `Healed ${healed} HP!` };
   }
 
   if (item.type === "weapon") {
     // If equipping a two-handed weapon, unequip shield and off-hand
-    if (item.twoHanded && owner.equippedShield) {
-      owner.equippedShield = null;
+    if (item.twoHanded && actor.equippedShield) {
+      actor.equippedShield = null;
     }
-    if (item.twoHanded && owner.equippedOffHand) {
-      owner.equippedOffHand = null;
+    if (item.twoHanded && actor.equippedOffHand) {
+      actor.equippedOffHand = null;
     }
-    owner.equippedWeapon = item;
+    actor.equippedWeapon = item;
     return { used: true, message: `Equipped ${item.name}!${item.twoHanded ? " (two-handed \u2014 shield & off-hand removed)" : ""}` };
   }
 
   if (item.type === "armor") {
-    owner.equippedArmor = item;
+    actor.equippedArmor = item;
     return { used: true, message: `Equipped ${item.name}!` };
   }
 
   if (item.type === "shield") {
     // Cannot equip shield with a two-handed weapon
-    if (owner.equippedWeapon?.twoHanded) {
+    if (actor.equippedWeapon?.twoHanded) {
       return { used: false, message: `Cannot equip shield with a two-handed weapon!` };
     }
     // Equipping a shield unequips the off-hand weapon
-    if (owner.equippedOffHand) {
-      owner.equippedOffHand = null;
+    if (actor.equippedOffHand) {
+      actor.equippedOffHand = null;
     }
-    owner.equippedShield = item;
+    actor.equippedShield = item;
     return { used: true, message: `Equipped ${item.name}!` };
   }
 
@@ -637,11 +642,25 @@ function useStandardItem(
 export function useCombatItem(
   actor: CombatActorState,
   itemIndex: number,
-  target: CombatActorState = actor,
+): UseItemResult {
+  return useCombatItemOnTarget(actor, itemIndex, actor);
+}
+
+/** Consume an actor's battle item while applying it to a selected ally. */
+export function useCombatItemOnTarget(
+  actor: CombatActorState,
+  itemIndex: number,
+  target: CombatItemTarget,
 ): UseItemResult {
   const item = getInventoryItem(actor, itemIndex, "useCombatItem");
   if (item.id === "chimaeraWing" || item.type === "mount") {
     return { used: false, message: `${item.name} cannot be used in battle.` };
+  }
+  if (item.type !== "consumable" && target !== actor) {
+    return {
+      used: false,
+      message: `${item.name} can only be equipped by the acting character.`,
+    };
   }
   return useStandardItem(actor, itemIndex, item, target);
 }

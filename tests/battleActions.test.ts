@@ -4,6 +4,7 @@ import {
   executeBattleActionWithEconomy,
   executeValidatedBattleAction,
   createBattleActionEconomy,
+  createBattleActionSource,
   createPlayerBattleActionSource,
   consumeBattleActionEconomy,
   getLivingBattleActors,
@@ -15,7 +16,6 @@ import {
   createGroupCombatants,
   createHeroCombatant,
   createPartyCombatant,
-  type BattleCombatantId,
   type BattleCombatantState,
   type PartyCombatant,
 } from "../src/systems/groupCombat";
@@ -449,6 +449,10 @@ describe("pure battle action pipeline", () => {
       "executorAlly",
     );
     const source = createPlayerBattleActionSource(player, hero);
+    const companionSource = createBattleActionSource(
+      companion,
+      companionState,
+    );
     const encounter: MonsterEncounter = {
       id: "executorTest",
       name: "Executor Test",
@@ -463,12 +467,7 @@ describe("pure battle action pipeline", () => {
     const context = {
       combatants: actors,
       enemies,
-      getPartyActorState: (
-        targetId: BattleCombatantId,
-      ): CombatActorState | undefined => {
-        if (targetId === hero.id) return player;
-        return targetId === companion.id ? companionState : undefined;
-      },
+      sources: [source, companionSource],
     };
     vi.spyOn(Math, "random").mockReturnValue(0.5);
 
@@ -580,7 +579,7 @@ describe("pure battle action pipeline", () => {
     };
     const enemies = createGroupCombatants(encounter);
     const actors: BattleCombatantState[] = [hero, ...enemies];
-    const context = { combatants: actors, enemies };
+    const context = { combatants: actors, enemies, sources: [source] };
 
     const spellPlan = validateBattleAction(
       actors,
@@ -626,5 +625,74 @@ describe("pure battle action pipeline", () => {
       executeValidatedBattleAction(source, abilityPlan, context).executed,
     ).toBe(false);
     expect(enemies[1]!.currentHp).toBe(backHp);
+  });
+
+  it("consumes the actor's antidote while curing a preferred ally", () => {
+    const player = createPlayer("Item User", stats);
+    player.inventory.push(getItem("antidote")!);
+    const hero = createHeroCombatant(player);
+    const heroSource = createPlayerBattleActionSource(player, hero);
+    const allyState = createPlayer("Lyra", stats);
+    allyState.activeEffects.push({
+      id: "poison",
+      remainingTurns: 3,
+      source: "Slime",
+    });
+    const ally = createPartyCombatant({
+      id: "lyra",
+      name: allyState.name,
+      get hp(): number {
+        return allyState.hp;
+      },
+      set hp(value: number) {
+        allyState.hp = value;
+      },
+      get maxHp(): number {
+        return allyState.maxHp;
+      },
+      stats: allyState.stats,
+      get activeEffects() {
+        return allyState.activeEffects;
+      },
+      set activeEffects(value) {
+        allyState.activeEffects = value;
+      },
+      getArmorClass: () => 12,
+    }, "companion");
+    const allySource = createBattleActionSource(ally, allyState);
+    const actors: BattleCombatantState[] = [hero, ally];
+    const itemIndex = player.inventory.findIndex(
+      (item) => item.id === "antidote",
+    );
+    const validation = validateBattleAction(
+      actors,
+      {
+        actorId: hero.id,
+        kind: "item",
+        itemIndex,
+        preferredTargetId: ally.id,
+      },
+      {
+        mp: player.mp,
+        inventory: player.inventory,
+        economy: createBattleActionEconomy(hero.id),
+      },
+    );
+
+    expect(validation.plan?.targetIds).toEqual([ally.id]);
+    const result = executeValidatedBattleAction(
+      heroSource,
+      validation.plan!,
+      {
+        combatants: actors,
+        enemies: [],
+        sources: [heroSource, allySource],
+      },
+    );
+
+    expect(result.itemUsed).toBe(true);
+    expect(result.targets[0]?.targetId).toBe(ally.id);
+    expect(allyState.activeEffects).toHaveLength(0);
+    expect(player.inventory.some((item) => item.id === "antidote")).toBe(false);
   });
 });

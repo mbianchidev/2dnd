@@ -149,8 +149,10 @@ matching effects. Combat effects are cleared when leaving Battle.
   consuming a bonus action leaves the main action available for lower-ranked
   gambits.
 - Generic outbound actors execute validated plans through the same d20, AC,
-  element, status, healing, MP, inventory, and defend paths as the hero. Ally
-  consumables resolve runtime target state while consuming source inventory.
+  element, status, healing, MP, inventory, and defend paths as the hero.
+- Battle consumables use item-declared target scopes. Ally items fall back to
+  self when solo, self-only items remain self, and inventory ownership stays
+  separate from the effect target.
 - Flee DC is 10 for one monster and increases by 2 for each additional living
   monster. Boss encounters cannot be fled.
 

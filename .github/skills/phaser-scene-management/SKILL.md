@@ -131,7 +131,7 @@ on mouse-wheel input.
   PlayerState; companion wrappers use the same `PartyCombatant` contract.
 - Process player and each monster's statuses at that actor's turn boundaries.
 - Dispatch initiative by `combatantId`. Companion turns route through
-  `onCompanionTurn`, which receives all actors plus enemy damage/log helpers and
+  `onCompanionTurn`, which receives all actors plus execution/log adapters and
   must call `completeTurn()`.
 - Companion turn context also supplies weather penalty, synergy defense, and
   elemental-discovery adapters for `executeValidatedBattleAction()`.

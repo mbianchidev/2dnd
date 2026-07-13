@@ -70,10 +70,10 @@ describe("group combat", () => {
     );
 
     expect(result.order).toEqual([
-      { type: "player", initiative: 18 },
-      { type: "monster", index: 1, initiative: 18 },
-      { type: "monster", index: 0, initiative: 12 },
-      { type: "monster", index: 2, initiative: 8 },
+      { combatantId: "party:hero", initiative: 18 },
+      { combatantId: "testGroup:enemy:goblin:2", initiative: 18 },
+      { combatantId: "testGroup:enemy:goblin:1", initiative: 12 },
+      { combatantId: "testGroup:enemy:wraith:1", initiative: 8 },
     ]);
   });
 

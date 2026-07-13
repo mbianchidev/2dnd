@@ -27,6 +27,10 @@ API, and saves use `localStorage`.
   front/back formations, keyboard or pointer target selection, and group
   synergies such as Pack Tactics, Shield Wall, War Cry, healer support, and
   elemental combos
+- Party-ready battle contracts use stable combatant IDs, explicit party/enemy
+  allegiance, actor-ID initiative, ally/enemy target scopes, monster target
+  selection, and companion turn/result hooks; companion persistence remains a
+  separate feature
 - Single-target, row-targeted, random-two, and all-enemy spell targeting; AoE
   spells pay MP and roll damage once, then resolve each monster independently
 - Nine damage elements: Fire, Ice, Lightning, Poison, Necrotic, Radiant,
@@ -190,7 +194,8 @@ recovers invalid or conflicting world, city, and dungeon locations.
 The Vitest suite covers combat, elements, statuses, saves, map and city data,
 dungeon traversal, fog keys, movement, player progression, dice, weather,
 day/night, mounts, NPCs, audio, configuration, group encounter generation,
-formation targeting, synergies, rewards, and multi-target actions.
+formation targeting, synergies, rewards, multi-target actions, and party-ready
+combat contracts.
 
 Important integration suites:
 

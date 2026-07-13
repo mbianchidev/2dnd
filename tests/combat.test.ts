@@ -7,13 +7,16 @@ import {
   playerCastSpellAtTargets,
   playerUseAbility,
   monsterAttack,
+  monsterAttackTarget,
   monsterUseAbility,
+  monsterUseAbilityTarget,
   attemptFlee,
 } from "../src/systems/combat";
 import { createPlayer, isLightWeapon, canDualWield, equipOffHand, hasTwoWeaponFighting, useItem, type PlayerStats } from "../src/systems/player";
 import type { Monster } from "../src/data/monsters";
 import { getItem } from "../src/data/items";
 import { Element } from "../src/data/elements";
+import type { ActiveStatusEffect } from "../src/systems/statusEffects";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -174,6 +177,38 @@ describe("combat system", () => {
       expect(result.message).toBe("No valid targets!");
       expect(player.mp).toBe(initialMp);
     });
+
+    it("heals every supplied party target while consuming MP once", () => {
+      const player = createPlayer("Test", defaultStats);
+      player.mp = 100;
+      const hero = {
+        id: "party:hero",
+        label: "Hero",
+        currentHp: 10,
+        maxHp: 50,
+      };
+      const companion = {
+        id: "party:companion:lyra",
+        label: "Lyra",
+        currentHp: 5,
+        maxHp: 40,
+      };
+      const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+      const initialMp = player.mp;
+
+      const result = playerCastSpellAtTargets(
+        player,
+        "massCureWounds",
+        [],
+        [hero, companion],
+      );
+
+      expect(player.mp).toBe(initialMp - 8);
+      expect(result.healingResults).toHaveLength(2);
+      expect(hero.currentHp).toBeGreaterThan(10);
+      expect(companion.currentHp).toBeGreaterThan(5);
+      expect(random).toHaveBeenCalledTimes(3);
+    });
   });
 
   describe("monsterAttack", () => {
@@ -240,6 +275,38 @@ describe("combat system", () => {
 
       expect(result.damage).toBe(7);
       expect(random).toHaveBeenCalledTimes(1);
+    });
+
+    it("attacks and applies abilities to generic party combatants", () => {
+      const target = {
+        label: "Lyra",
+        currentHp: 30,
+        maxHp: 30,
+        effects: [] as ActiveStatusEffect[],
+        getArmorClass: () => 1,
+      };
+      const monster = createTestMonster({ attackBonus: 20 });
+      vi.spyOn(Math, "random").mockReturnValue(0.5);
+
+      const attack = monsterAttackTarget(monster, target);
+      expect(attack.hit).toBe(true);
+      expect(target.currentHp).toBeLessThan(30);
+      expect(attack.message).toContain("Lyra");
+
+      const ability = monsterUseAbilityTarget(
+        {
+          name: "Venom",
+          chance: 1,
+          damageCount: 1,
+          damageDie: 4,
+          type: "damage",
+          statusEffect: "poison",
+        },
+        monster,
+        target,
+      );
+      expect(ability.damage).toBeGreaterThan(0);
+      expect(target.effects[0]?.id).toBe("poison");
     });
   });
 
@@ -308,6 +375,41 @@ describe("combat system", () => {
         }
       }
       expect(gotHit).toBe(true);
+    });
+
+    it("heals multiple party targets with one ability cost and roll", () => {
+      const player = createPlayer("Test", defaultStats);
+      player.mp = 100;
+      const monster = createTestMonster();
+      const hero = {
+        id: "party:hero",
+        label: "Hero",
+        currentHp: 5,
+        maxHp: 30,
+      };
+      const companion = {
+        id: "party:companion:lyra",
+        label: "Lyra",
+        currentHp: 4,
+        maxHp: 25,
+      };
+      const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+      const initialMp = player.mp;
+
+      const result = playerUseAbility(
+        player,
+        "naturesRemedy",
+        monster,
+        0,
+        [],
+        [hero, companion],
+      );
+
+      expect(player.mp).toBe(initialMp - 6);
+      expect(result.healingResults).toHaveLength(2);
+      expect(hero.currentHp).toBeGreaterThan(5);
+      expect(companion.currentHp).toBeGreaterThan(4);
+      expect(random).toHaveBeenCalledTimes(3);
     });
   });
 

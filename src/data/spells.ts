@@ -7,11 +7,17 @@ import { Element } from "./elements";
 
 export type TargetType =
   | "single"
+  | "single_enemy"
   | "all_enemies"
   | "front_row"
+  | "front_row_enemies"
   | "back_row"
+  | "back_row_enemies"
   | "random_2"
-  | "self";
+  | "self"
+  | "single_ally"
+  | "all_allies"
+  | "all_party";
 
 export interface Spell {
   id: string;
@@ -22,7 +28,7 @@ export interface Spell {
   damageCount: number; // number of dice
   damageDie: DieType; // die type
   type: "damage" | "heal" | "utility";
-  /** Defaults to single for damage and self for healing/utility spells. */
+  /** Defaults to one enemy; healing spells declare ally/party scope explicitly. */
   targetType?: TargetType;
   /** Elemental damage type. */
   element?: Element;
@@ -51,9 +57,9 @@ export const SPELLS: Spell[] = [
 
   // ── 1st Level Spells ─────────────────────────────────────────
   { id: "cureWounds", name: "Cure Wounds", description: "Heal wounds with divine magic",
-    mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 8, type: "heal" },
+    mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 8, type: "heal", targetType: "single_ally" },
   { id: "healingWord", name: "Healing Word", description: "Quick healing incantation",
-    mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 4, type: "heal" },
+    mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 4, type: "heal", targetType: "single_ally" },
   { id: "magicMissile", name: "Magic Missile", description: "Three darts of magical force (auto-hit)",
     mpCost: 3, levelRequired: 2, damageCount: 3, damageDie: 4, type: "damage", element: Element.Force },
   { id: "thunderwave", name: "Thunderwave", description: "A wave of thunderous force",
@@ -69,7 +75,7 @@ export const SPELLS: Spell[] = [
   { id: "huntersMark", name: "Hunter's Mark", description: "Mark prey for extra damage",
     mpCost: 2, levelRequired: 2, damageCount: 1, damageDie: 6, type: "damage" },
   { id: "goodberry", name: "Goodberry", description: "Create berries that restore vitality",
-    mpCost: 2, levelRequired: 1, damageCount: 2, damageDie: 4, type: "heal" },
+    mpCost: 2, levelRequired: 1, damageCount: 2, damageDie: 4, type: "heal", targetType: "single_ally" },
 
   // ── 2nd Level Spells ─────────────────────────────────────────
   { id: "scorchingRay", name: "Scorching Ray", description: "Three rays of fire streak toward targets",
@@ -87,7 +93,7 @@ export const SPELLS: Spell[] = [
   { id: "fireball", name: "Fireball", description: "A bright streak explodes into flame",
     mpCost: 6, levelRequired: 6, damageCount: 8, damageDie: 6, type: "damage", targetType: "all_enemies", element: Element.Fire },
   { id: "lightningBolt", name: "Lightning Bolt", description: "A stroke of lightning in a line",
-    mpCost: 6, levelRequired: 6, damageCount: 8, damageDie: 6, type: "damage", targetType: "front_row", element: Element.Lightning },
+    mpCost: 6, levelRequired: 6, damageCount: 8, damageDie: 6, type: "damage", targetType: "front_row_enemies", element: Element.Lightning },
   { id: "spiritGuardians", name: "Spirit Guardians", description: "Spectral spirits swirl and strike",
     mpCost: 6, levelRequired: 6, damageCount: 3, damageDie: 8, type: "damage", targetType: "all_enemies", element: Element.Radiant },
   { id: "callLightning", name: "Call Lightning", description: "A storm cloud appears and strikes",
@@ -103,19 +109,19 @@ export const SPELLS: Spell[] = [
   { id: "flameStrike", name: "Flame Strike", description: "A column of divine fire roars down",
     mpCost: 8, levelRequired: 9, damageCount: 4, damageDie: 6, type: "damage", targetType: "all_enemies", element: Element.Fire },
   { id: "greaterHeal", name: "Greater Heal", description: "Powerful restorative magic",
-    mpCost: 8, levelRequired: 9, damageCount: 4, damageDie: 8, type: "heal" },
+    mpCost: 8, levelRequired: 9, damageCount: 4, damageDie: 8, type: "heal", targetType: "single_ally" },
   { id: "massCureWounds", name: "Mass Cure Wounds", description: "Healing energy washes over allies",
-    mpCost: 8, levelRequired: 9, damageCount: 3, damageDie: 8, type: "heal" },
+    mpCost: 8, levelRequired: 9, damageCount: 3, damageDie: 8, type: "heal", targetType: "all_party" },
   { id: "destructiveWave", name: "Destructive Wave", description: "Divine energy erupts in a shockwave",
     mpCost: 8, levelRequired: 9, damageCount: 5, damageDie: 6, type: "damage", targetType: "all_enemies", element: Element.Thunder },
 
   // ── 5th Level Spells ─────────────────────────────────────────
   { id: "coneOfCold", name: "Cone of Cold", description: "A blast of cold erupts from your hands",
-    mpCost: 10, levelRequired: 11, damageCount: 8, damageDie: 8, type: "damage", targetType: "front_row", element: Element.Ice },
+    mpCost: 10, levelRequired: 11, damageCount: 8, damageDie: 8, type: "damage", targetType: "front_row_enemies", element: Element.Ice },
   { id: "heal", name: "Heal", description: "A surge of positive energy cures wounds",
-    mpCost: 10, levelRequired: 11, damageCount: 7, damageDie: 10, type: "heal" },
+    mpCost: 10, levelRequired: 11, damageCount: 7, damageDie: 10, type: "heal", targetType: "single_ally" },
   { id: "sunbeam", name: "Sunbeam", description: "A beam of brilliant light sears foes",
-    mpCost: 10, levelRequired: 11, damageCount: 6, damageDie: 8, type: "damage", targetType: "front_row", element: Element.Radiant },
+    mpCost: 10, levelRequired: 11, damageCount: 6, damageDie: 8, type: "damage", targetType: "front_row_enemies", element: Element.Radiant },
   { id: "swiftQuiver", name: "Swift Quiver", description: "Arrows fly with supernatural speed",
     mpCost: 9, levelRequired: 11, damageCount: 4, damageDie: 8, type: "damage" },
 
@@ -133,9 +139,9 @@ export const SPELLS: Spell[] = [
 
   // ── 7th+ Level Spells ────────────────────────────────────────
   { id: "regenerate", name: "Regenerate", description: "Touch restores body and spirit",
-    mpCost: 14, levelRequired: 15, damageCount: 4, damageDie: 8, type: "heal" },
+    mpCost: 14, levelRequired: 15, damageCount: 4, damageDie: 8, type: "heal", targetType: "single_ally" },
   { id: "massHeal", name: "Mass Heal", description: "A flood of healing energy restores all",
-    mpCost: 16, levelRequired: 17, damageCount: 10, damageDie: 10, type: "heal" },
+    mpCost: 16, levelRequired: 17, damageCount: 10, damageDie: 10, type: "heal", targetType: "all_party" },
   { id: "meteorSwarm", name: "Meteor Swarm", description: "Blazing orbs plummet from the sky",
     mpCost: 20, levelRequired: 19, damageCount: 24, damageDie: 6, type: "damage", targetType: "all_enemies", element: Element.Fire },
   { id: "powerWordKill", name: "Power Word Kill", description: "A word of power that slays outright",
@@ -154,7 +160,7 @@ export function getSpell(id: string): Spell | undefined {
 /** Resolve backward-compatible targeting defaults. */
 export function getSpellTargetType(spell: Spell): TargetType {
   if (spell.targetType) return spell.targetType;
-  return spell.type === "damage" ? "single" : "self";
+  return spell.type === "utility" ? "self" : "single_enemy";
 }
 
 /** Get all spells available at a given player level. */

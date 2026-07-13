@@ -56,7 +56,8 @@ specific action does not override the stat.
 - Armor Class comes from base AC, Dexterity, equipment, talents, active
   statuses, and temporary defense bonuses.
 - Group initiative rolls once for the player and once per monster, then
-  interleaves all actors by total; ties favor the player.
+  interleaves all actors by total using stable combatant IDs. Companion actors
+  use the same initiative contract.
 - Melee must clear the front row before attacking the back row. Once exposed,
   back-row melee targets impose -2 to the attack roll; ranged attacks and
   spells ignore this formation penalty.
@@ -74,6 +75,8 @@ Poisoned, Frightened, and Prone currently impose attack disadvantage. Magic
 Missile is auto-hit and bypasses attack-roll disadvantage.
 AoE spells pay MP once and share one attack/damage roll, while elemental
 resistance, weakness, and immunity resolve independently per target.
+Healing target scopes are explicit: self, one ally, all allies, or the whole
+party. A single-ally action falls back to self when no ally is present.
 
 ## Elements
 

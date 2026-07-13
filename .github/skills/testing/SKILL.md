@@ -34,6 +34,7 @@ tests/
 ├── combat.test.ts    # Combat mechanics
 ├── groupCombat.test.ts # Multi-monster combat rules
 ├── monsterGroups.test.ts # Group templates and generation
+├── partyCombat.test.ts # Stable actor IDs, ally scopes, AI, and result hooks
 ├── player.test.ts    # Player systems
 └── data.test.ts      # Data validation
 ```

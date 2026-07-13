@@ -75,6 +75,7 @@ src/
 tests/
 ├── combat.test.ts
 ├── groupCombat.test.ts
+├── partyCombat.test.ts
 ├── monsterGroups.test.ts
 ├── encounter.test.ts
 ├── targeting.test.ts
@@ -127,6 +128,8 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 
 - Battle also receives a `MonsterEncounter` and `biome`; Shop receives
   shop/city context.
+- Battle may also receive accessor-backed `partyCombatants` and runtime-only
+  `battleHooks`; these are scene contracts, not persisted save fields.
 - Generate textures in `src/renderers/textures.ts`, invoked by Boot.
 - Synthesize all audio in `src/systems/audio.ts`.
 - Store Phaser object references needed for later update/cleanup.
@@ -206,8 +209,20 @@ Flow:
 - Validate actions before consuming MP, inventory, or turn state.
 - Random battles contain 1-4 combatants. Each monster owns HP, effects, defend
   state, AC discovery, drops, and elemental discoveries.
+- `BattleCombatantState` is the shared actor contract: stable ID, party/enemy
+  side, hero/companion/monster kind, formation, HP, alive/KO, defend, and
+  effects. Hero state must remain accessor-backed by `PlayerState`.
 - Initiative interleaves the player with every living monster. Player Defend
   lasts until the next player turn and protects against all intervening turns.
+- Initiative entries store `combatantId`, never player/monster array indices.
+- Target scopes include enemy single/all/rows, self, single/all allies, and the
+  whole party. Healing entries declare scope explicitly; do not infer every
+  heal as self-only.
+- Monsters choose among living, conscious party combatants. Generic monster
+  attack/ability APIs accept `MonsterAttackTarget`; PlayerState wrappers remain
+  only for compatibility.
+- `BattleResolutionHooks` exposes reward adjustment, enemy-defeat,
+  companion-turn, and once-only battle-result callbacks.
 - Melee attacks must clear living front-row monsters before targeting the back
   row; exposed back-row melee targets impose a -2 attack penalty. Ranged
   attacks and spells bypass formation protection.

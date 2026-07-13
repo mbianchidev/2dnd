@@ -19,7 +19,7 @@ export interface Ability {
   damageCount: number;
   damageDie: DieType;
   type: "damage" | "heal" | "utility" | "buff";
-  /** Defaults to single for damage and self for other ability types. */
+  /** Defaults to one enemy; heals declare ally/self scope explicitly. */
   targetType?: TargetType;
   /** Defaults to melee for damaging abilities. */
   range?: AbilityRange;
@@ -54,7 +54,7 @@ export const ABILITIES: Ability[] = [
     id: "secondWind", name: "Second Wind",
     description: "Catch your breath and recover in combat",
     mpCost: 6, levelRequired: 9, damageCount: 3, damageDie: 8,
-    type: "heal", statKey: "strength",
+    type: "heal", statKey: "strength", targetType: "self",
   },
   {
     id: "championStrike", name: "Champion Strike",
@@ -80,7 +80,7 @@ export const ABILITIES: Ability[] = [
     id: "naturesRemedy", name: "Nature's Remedy",
     description: "Use herbal knowledge to mend wounds",
     mpCost: 6, levelRequired: 9, damageCount: 3, damageDie: 6,
-    type: "heal", statKey: "dexterity",
+    type: "heal", statKey: "dexterity", targetType: "single_ally",
   },
   {
     id: "deadeye", name: "Deadeye",
@@ -114,7 +114,7 @@ export const ABILITIES: Ability[] = [
     id: "shadowStep", name: "Shadow Step",
     description: "Vanish into darkness and recover",
     mpCost: 6, levelRequired: 9, damageCount: 2, damageDie: 8,
-    type: "heal", statKey: "dexterity",
+    type: "heal", statKey: "dexterity", targetType: "self",
   },
   {
     id: "assassinate", name: "Assassinate",
@@ -134,7 +134,7 @@ export const ABILITIES: Ability[] = [
     id: "layOnHands", name: "Lay on Hands",
     description: "Heal with a blessed divine touch",
     mpCost: 4, levelRequired: 4, damageCount: 3, damageDie: 8,
-    type: "heal", statKey: "strength",
+    type: "heal", statKey: "strength", targetType: "single_ally",
   },
   {
     id: "holyStrike", name: "Holy Strike",
@@ -160,7 +160,7 @@ export const ABILITIES: Ability[] = [
     id: "enrage", name: "Enrage",
     description: "Channel fury to recover health through sheer rage (bonus action)",
     mpCost: 3, levelRequired: 3, damageCount: 2, damageDie: 6,
-    type: "heal", statKey: "strength",
+    type: "heal", statKey: "strength", targetType: "self",
     bonusAction: true,
   },
   {
@@ -175,7 +175,7 @@ export const ABILITIES: Ability[] = [
     id: "endure", name: "Relentless Endurance",
     description: "Shrug off pain through sheer primal will",
     mpCost: 6, levelRequired: 9, damageCount: 3, damageDie: 8,
-    type: "heal", statKey: "strength",
+    type: "heal", statKey: "strength", targetType: "self",
   },
   {
     id: "titansBlow", name: "Titan's Blow",
@@ -201,7 +201,7 @@ export const ABILITIES: Ability[] = [
     id: "patientDefense", name: "Patient Defense",
     description: "Focus your ki to mend body and spirit",
     mpCost: 6, levelRequired: 9, damageCount: 3, damageDie: 6,
-    type: "heal", statKey: "wisdom",
+    type: "heal", statKey: "wisdom", targetType: "self",
   },
   {
     id: "stunningStrike", name: "Stunning Strike",
@@ -216,7 +216,7 @@ export const ABILITIES: Ability[] = [
     id: "bardicInspiration", name: "Bardic Inspiration",
     description: "Inspire yourself with a rousing melody, restoring vigor",
     mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 8,
-    type: "heal", statKey: "charisma",
+    type: "heal", statKey: "charisma", targetType: "self",
     bonusAction: true,
   },
   {
@@ -237,7 +237,7 @@ export const ABILITIES: Ability[] = [
     id: "wildShape", name: "Wild Shape",
     description: "Channel primal energy to heal wounds through bestial vigor",
     mpCost: 4, levelRequired: 3, damageCount: 2, damageDie: 8,
-    type: "heal", statKey: "wisdom",
+    type: "heal", statKey: "wisdom", targetType: "self",
   },
   {
     id: "naturesWrath", name: "Nature's Wrath",
@@ -282,7 +282,9 @@ export function getAbility(id: string): Ability | undefined {
 
 export function getAbilityTargetType(ability: Ability): TargetType {
   if (ability.targetType) return ability.targetType;
-  return ability.type === "damage" ? "single" : "self";
+  return ability.type === "buff" || ability.type === "utility"
+    ? "self"
+    : "single_enemy";
 }
 
 export function getAbilityRange(ability: Ability): AbilityRange {

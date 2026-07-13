@@ -17,6 +17,7 @@ import {
   getSpellModifier,
   getArmorClass,
   hasTwoWeaponFighting,
+  type CombatActorState,
   type PlayerState,
 } from "./player";
 import { abilityModifier } from "../systems/dice";
@@ -203,7 +204,7 @@ export function rollInitiative(
 
 /** Player attacks the monster with a melee weapon. */
 export function playerAttack(
-  player: PlayerState,
+  player: CombatActorState,
   monster: Monster,
   monsterDefendBonus: number = 0,
   weatherPenalty: number = 0,
@@ -287,7 +288,7 @@ export function playerAttack(
  * Two-Weapon Fighting talent or the modifier is negative.
  */
 export function playerOffHandAttack(
-  player: PlayerState,
+  player: CombatActorState,
   monster: Monster,
   monsterDefendBonus: number = 0,
   weatherPenalty: number = 0,
@@ -375,7 +376,7 @@ export function playerOffHandAttack(
 
 /** Resolve one spell cast against zero or more targets, consuming MP once. */
 export function playerCastSpellAtTargets(
-  player: PlayerState,
+  player: CombatActorState,
   spellId: string,
   targets: SpellTarget[],
   healingTargets?: HealingTarget[],
@@ -565,7 +566,7 @@ export function playerCastSpellAtTargets(
 
 /** Backward-compatible single-target spell wrapper. */
 export function playerCastSpell(
-  player: PlayerState,
+  player: CombatActorState,
   spellId: string,
   monster: Monster,
   weatherPenalty: number = 0,
@@ -719,7 +720,7 @@ export function attemptFlee(dexModifier: number, aliveCount: number = 1): {
 
 /** Player uses a martial ability. */
 export function playerUseAbility(
-  player: PlayerState,
+  player: CombatActorState,
   abilityId: string,
   monster: Monster,
   weatherPenalty: number = 0,

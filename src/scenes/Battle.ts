@@ -660,6 +660,7 @@ export class BattleScene extends Phaser.Scene {
 
   private startCompanionTurn(combatant: PartyCombatant): void {
     this.phase = "monsterTurn";
+    combatant.isDefending = false;
     this.updateButtonStates();
     const statusResult = processStatusStartOfTurn(
       combatant.effects,
@@ -695,20 +696,34 @@ export class BattleScene extends Phaser.Scene {
           combatant,
           actors: this.allCombatants,
           enemies: this.combatants,
-          applyEnemyDamage: (targetId: string, damage: number): void => {
+          weatherPenalty: getWeatherAccuracyPenalty(this.weatherState.current),
+          getEnemyDefenseBonus: (targetId: string): number => {
             const targetIndex = this.combatants.findIndex(
               (enemy) => enemy.id === targetId,
             );
-            if (targetIndex < 0) {
-              throw new Error(`Companion target ${targetId} is unavailable`);
-            }
-            const target = this.combatants[targetIndex]!;
-            this.setCombatantHp(
-              targetIndex,
-              target.currentHp - Math.max(0, damage),
+            return targetIndex >= 0
+              ? getSynergyACBonus(
+                  this.encounter.synergy,
+                  this.combatants,
+                  targetIndex,
+                )
+              : 0;
+          },
+          recordElementalInteraction: (
+            targetId,
+            interaction,
+            element,
+          ): void => {
+            const targetIndex = this.combatants.findIndex(
+              (enemy) => enemy.id === targetId,
             );
-            this.updateMonsterDisplay();
-            this.checkBattleEnd(false);
+            if (targetIndex >= 0) {
+              this.recordElementalDiscovery(
+                interaction,
+                element,
+                targetIndex,
+              );
+            }
           },
           addLog: (message: string): void => this.addLog(message),
           completeTurn,

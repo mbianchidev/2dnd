@@ -35,6 +35,12 @@ API, and saves use `localStorage`.
   actors, bind matched targets, validate MP/inventory/action economy, freeze an
   action plan, consume one action plus one bonus action per actor, and dispatch
   one attack, spell, ability, or item action
+- Generic `BattleActionSource` and `executeValidatedBattleAction()` reuse the
+  game's d20, AC, elements, statuses, MP, inventory, healing, and defend rules
+  for player or future companion actors
+- Battle consumables bind one ally (solo fallback: self): the acting actor owns
+  and consumes the inventory item while HP, MP, or cures apply to the selected
+  target
 - Single-target, row-targeted, random-two, and all-enemy spell targeting; AoE
   spells pay MP and roll damage once, then resolve each monster independently
 - Nine damage elements: Fire, Ice, Lightning, Poison, Necrotic, Radiant,

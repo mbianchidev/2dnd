@@ -45,7 +45,14 @@ API, and saves use `localStorage`.
 - 12 cities with connected districts, district-specific shops, gates,
   discovery, fast travel, inns, banks, stables, and city music
 - Three multi-level dungeons with bidirectional stairs, floor-specific
-  encounters, chests, fog, and a unique deepest-floor boss
+  encounters, chests, fog, procedural traps, and a unique deepest-floor boss
+- Seeded trap layouts with spike pits, poison darts, falling rocks, alarms,
+  hidden floors, and dungeon-specific runes; nearby checks use Dexterity or
+  Intelligence, detected traps can be disarmed for XP, and unresolved traps can
+  deal HP/MP damage, inflict combat statuses, summon encounters, or drop the
+  player to a deeper floor
+- Trap Kits, class talents, and Adventurer guidance improve detection and
+  disarming; trap state persists across saves
 - Fog keys separate every dungeon level and city district while preserving
   legacy level-zero/chunk-zero save keys
 
@@ -86,6 +93,8 @@ src/
 │   ├── save.ts
 │   ├── codex.ts
 │   ├── movement.ts
+│   ├── traps.ts
+│   ├── trapAudio.ts
 │   ├── weather.ts
 │   ├── daynight.ts
 │   ├── audio.ts
@@ -96,13 +105,18 @@ src/
 │   ├── chunks.ts
 │   ├── cities.ts
 │   ├── dungeons.ts
+│   ├── traps.ts
+│   ├── trapTypes.ts
 │   ├── monsters.ts
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
 │   └── items.ts
 ├── managers/
+│   └── dungeonTraps.ts
 └── renderers/
+    ├── traps.ts
+    └── trapTextures.ts
 ```
 
 `map.ts` is the map hub. Core types and dimensions live in `mapTypes.ts`;
@@ -135,7 +149,7 @@ npm run build      # Type-check and create a production build
 | Input | Action |
 | --- | --- |
 | `WASD` / arrow keys | Move and navigate |
-| `Space` / `Enter` | Confirm or interact |
+| `Space` / `Enter` | Confirm, interact, or disarm a detected adjacent trap |
 | `M` | Open the in-game menu |
 | `C` | Open the Codex |
 | `Esc` | Close the active overlay |
@@ -161,12 +175,14 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 Game state is stored under `2dnd_save`; audio preferences use
 `2dnd_audio_prefs`.
 
-Save schema version 2 persists:
+Save schema version 3 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
 - City ID and district index
 - Explored tiles, opened chests, collected treasure, and discovered cities
+- Per-playthrough trap seed, detected/disarmed/triggered trap states, and
+  Adventurer trap guidance
 - Defeated bosses, Codex entries, and discovered elemental interactions
 - Active status effects, time step, and weather state
 
@@ -176,8 +192,8 @@ recovers invalid or conflicting world, city, and dungeon locations.
 ## Testing
 
 The Vitest suite covers combat, elements, statuses, saves, map and city data,
-dungeon traversal, fog keys, movement, player progression, dice, weather,
-day/night, mounts, NPCs, audio, and configuration.
+dungeon traversal and traps, fog keys, movement, player progression, dice,
+weather, day/night, mounts, NPCs, audio, and configuration.
 
 Important integration suites:
 
@@ -185,6 +201,7 @@ Important integration suites:
 - `tests/statusEffects.test.ts`
 - `tests/save.test.ts`
 - `tests/data.test.ts`
+- `tests/traps.test.ts`
 - `tests/fogOfWar.test.ts`
 
 ## Design constraints

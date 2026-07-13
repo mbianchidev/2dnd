@@ -447,7 +447,7 @@ export const SPECIAL_NPC_DEFS: Record<SpecialNpcKind, SpecialNpcDef> = {
     tintColor: 0xffd740,
     spawnChance: 0.025,
     moves: false,
-    shopItems: ["potion", "ether"],
+    shopItems: ["potion", "ether", "trapKit"],
   },
   hermit: {
     kind: "hermit",
@@ -473,7 +473,7 @@ export const TRAVELER_DIALOGUES: string[] = [
 
 /** Dialogue pool for the grumpy but wise Adventurer. */
 export const ADVENTURER_DIALOGUES: string[] = [
-  "Hmph. Another rookie. Fine, listen up...",
+  "Traps kill rookies. Watch for seams, wires, vents, and loose stone.",
   "Save before a boss fight. Trust me.",
   "Don't waste gold on weak gear. Save for plate armour.",
   "Night monsters are tougher. Travel during the day if you're weak.",
@@ -482,6 +482,14 @@ export const ADVENTURER_DIALOGUES: string[] = [
   "Grumble... I've cleared more dungeons than you've had hot meals.",
   "Check the bestiary. Knowing your enemy's AC helps you plan.",
 ];
+
+/** Whether this special-NPC interaction grants persistent trap guidance. */
+export function grantsTrapGuidance(
+  kind: SpecialNpcKind,
+  interactionCount: number,
+): boolean {
+  return kind === "adventurer" && interactionCount === 0;
+}
 
 /** Dialogue pool for the Wandering Merchant. */
 export const WANDERING_MERCHANT_DIALOGUES: string[] = [

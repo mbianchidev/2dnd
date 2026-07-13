@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v2, migration, normalization, and location recovery
+description: Manage 2D&D save schema v3, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -16,7 +16,7 @@ preferences are stored separately by `src/systems/audio.ts`.
 
 ## Current schema
 
-`SAVE_VERSION` is 2.
+`SAVE_VERSION` is 3.
 
 ```typescript
 interface SaveData {
@@ -57,6 +57,9 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  trapSeed: number;
+  trapStates: Record<string, TrapState>;
+  trapGuidance: boolean;
 }
 ```
 
@@ -79,6 +82,7 @@ helpers; do not cast unvalidated nested values directly.
 - Missing/invalid Codex elemental discoveries
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
+- Missing or invalid trap seeds, trap states, and Adventurer guidance
 
 ## Location recovery
 
@@ -136,6 +140,7 @@ top-level save is absent or corrupt.
 - Save/load round trips
 - Legacy flat-state migration
 - Schema-v2 position and progression data
+- Schema-v3 trap seed/state/guidance persistence and corruption recovery
 - Dungeon-level and city-district clamping
 - Invalid IDs and coordinates
 - Conflicting location flags
@@ -148,5 +153,6 @@ top-level save is absent or corrupt.
 - Forgetting the level or district when validating coordinates
 - Reusing city/dungeon fog keys across interiors
 - Keeping unknown status or element strings
+- Keeping unknown trap-state strings or rerolling the legacy trap seed
 - Storing Phaser objects or other non-serializable state
 - Mutating shared game-data definitions while repairing a save

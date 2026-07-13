@@ -24,6 +24,10 @@ export interface Item {
   element?: Element;
   /** Whether the consumable cures status effects tied to its ID. */
   cureEffects?: boolean;
+  /** Passive bonus to nearby dungeon-trap detection checks. */
+  trapDetectionBonus?: number;
+  /** Passive bonus to dungeon-trap disarm checks. */
+  trapDisarmBonus?: number;
 }
 
 export const ITEMS: Item[] = [
@@ -266,6 +270,16 @@ export const ITEMS: Item[] = [
     type: "key",
     cost: 100,
     effect: 0,
+  },
+  {
+    id: "trapKit",
+    name: "Trap Kit",
+    description: "+3 to dungeon trap detection and disarming",
+    type: "key",
+    cost: 75,
+    effect: 0,
+    trapDetectionBonus: 3,
+    trapDisarmBonus: 3,
   },
   // --- Mount items (sold in stables) ---
   {

@@ -31,7 +31,9 @@ and changes spanning scenes, systems, data, renderers, or managers.
 - Stateful scene helpers: `src/managers/`
 
 The map hub is `src/data/map.ts`; terrain/types, chunks, cities, and dungeons
-are split into dedicated modules.
+are split into dedicated modules. Dungeon trap definitions live in
+`src/data/traps.ts`, mechanics in `src/systems/traps.ts`, and scene orchestration
+in `src/managers/dungeonTraps.ts`.
 
 ## Adding monsters
 
@@ -100,6 +102,10 @@ can persist and display them.
   than indexing `city.chunks` directly.
 - Dungeons may contain multiple levels. Always use dungeon level and
   connection helpers.
+- Dungeon trap layouts are derived from the saved `trapSeed`; never mutate
+  dungeon maps or randomize layouts independently in scenes.
+- Detected traps block movement until disarmed. Trap triggers must short-circuit
+  the normal random-encounter check for that step.
 - Use `FogOfWar.exploredKey()` for exploration keys.
 - Use `isWalkable()` and `ENCOUNTER_RATES`; do not hardcode terrain behavior.
 
@@ -142,3 +148,4 @@ Chromium.
 - Do not use geometry masks for the Battle log; render the bounded visible
   message window.
 - Do not add a persistent field without save normalization and tests.
+- Do not reroll a failed trap detection; persist the `missed` state.

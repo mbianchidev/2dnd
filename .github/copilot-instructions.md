@@ -15,8 +15,8 @@ focused module.
 2D&D is a browser JRPG combining Dragon Quest-style exploration with
 D&D 5E-inspired combat. It has turn-based battles, point-buy characters,
 procedural graphics/audio, weather, day/night, a 90-chunk world, connected city
-districts, multi-level dungeons, elemental interactions, status effects, and
-boss fights.
+districts, multi-level dungeons, procedural traps, elemental interactions,
+status effects, and boss fights.
 
 ## Stack
 
@@ -47,6 +47,8 @@ src/
 │   ├── classes.ts
 │   ├── codex.ts
 │   ├── movement.ts
+│   ├── traps.ts
+│   ├── trapAudio.ts
 │   ├── dice.ts
 │   ├── daynight.ts
 │   ├── weather.ts
@@ -58,6 +60,8 @@ src/
 │   ├── chunks.ts
 │   ├── cities.ts
 │   ├── dungeons.ts
+│   ├── traps.ts
+│   ├── trapTypes.ts
 │   ├── monsters.ts
 │   ├── elements.ts
 │   ├── spells.ts
@@ -151,6 +155,9 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  trapSeed: number;
+  trapStates: Record<string, TrapState>;
+  trapGuidance: boolean;
 }
 ```
 
@@ -260,6 +267,18 @@ There are three multi-level dungeons. Level 0 uses `DungeonData.mapData`;
 `getDungeonConnectionAt()` helpers. Model ascent and descent explicitly.
 Deepest floors contain a `DungeonBoss` tile and unique boss.
 
+Dungeon traps use metadata rather than terrain mutation. `DungeonData.trapProfile`
+selects the allowed and thematic trap types; `generateDungeonTraps()` derives a
+stable layout from `player.progression.trapSeed`, prioritizes chest approaches,
+and keeps spawn/transition tiles safe. Detection and disarming live in
+`src/systems/traps.ts`; Phaser orchestration lives in
+`src/managers/dungeonTraps.ts`.
+
+Detected traps block movement until disarmed with Space. Unseen or missed traps
+trigger on entry. Trap Kits, trap-aware talents, and persistent Adventurer
+guidance modify checks. Immediate HP/MP losses are nonlethal; applied statuses
+use the existing combat-turn lifecycle.
+
 ### Fog keys
 
 - Overworld: `chunkX,chunkY,x,y`
@@ -272,12 +291,13 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 2.
+Save schema version is 3.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects and Codex elements, validates
 city/dungeon IDs, clamps levels/districts, repairs invalid coordinates to the
-correct spawn, and falls back to Willowdale for unusable overworld locations.
+correct spawn, normalizes trap seeds/states/guidance, and falls back to
+Willowdale for unusable overworld locations.
 
 When persistent data changes:
 
@@ -303,7 +323,8 @@ When persistent data changes:
 
 All music and SFX use Web Audio synthesis. Initialize from a user gesture.
 Volume preferences for Master, Music, SFX, and Dialog persist separately.
-Do not add external audio.
+Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
+`audioEngine.playTrapSFX()`. Do not add external audio.
 
 ## Debug
 

@@ -25,9 +25,14 @@ import {
 import { debugLog } from "../config";
 import { isElement } from "../data/elements";
 import { normalizeActiveEffects } from "./statusEffects";
+import {
+  LEGACY_TRAP_SEED,
+  isTrapState,
+  type TrapState,
+} from "../data/traps";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 
 export interface SaveData {
   version: number;
@@ -97,6 +102,23 @@ function normalizeExploredTiles(value: unknown): Record<string, boolean> {
     if (explored === true) exploredTiles[key] = true;
   }
   return exploredTiles;
+}
+
+function normalizeTrapSeed(value: unknown): number {
+  return typeof value === "number"
+    && Number.isInteger(value)
+    && value > 0
+    ? value
+    : LEGACY_TRAP_SEED;
+}
+
+function normalizeTrapStates(value: unknown): Record<string, TrapState> {
+  if (!isRecord(value)) return {};
+  const trapStates: Record<string, TrapState> = {};
+  for (const [trapId, state] of Object.entries(value)) {
+    if (isTrapState(state)) trapStates[trapId] = state;
+  }
+  return trapStates;
 }
 
 function isValidMapPosition(mapData: number[][], x: number, y: number): boolean {
@@ -249,6 +271,9 @@ export function loadGame(): SaveData | null {
         collectedTreasures: normalizeStringArray(playerRecord["collectedTreasures"]),
         exploredTiles: normalizeExploredTiles(playerRecord["exploredTiles"]),
         discoveredCities: [],
+        trapSeed: LEGACY_TRAP_SEED,
+        trapStates: {},
+        trapGuidance: false,
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -263,6 +288,15 @@ export function loadGame(): SaveData | null {
     );
     data.player.progression.exploredTiles = normalizeExploredTiles(
       data.player.progression.exploredTiles,
+    );
+    data.player.progression.trapSeed = normalizeTrapSeed(
+      data.player.progression.trapSeed,
+    );
+    data.player.progression.trapStates = normalizeTrapStates(
+      data.player.progression.trapStates,
+    );
+    data.player.progression.trapGuidance = readBoolean(
+      data.player.progression.trapGuidance,
     );
 
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;

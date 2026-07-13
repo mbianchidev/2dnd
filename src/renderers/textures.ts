@@ -10,6 +10,7 @@ import { SKIN_COLOR_OPTIONS } from "../systems/appearance";
 import { NPC_TEMPLATES } from "../data/npcs";
 import { MOUNTS } from "../data/mounts";
 import { TILE_SIZE } from "../config";
+import { generateTrapTextures } from "./trapTextures";
 
 /** Mount body colors keyed by mount ID. */
 const MOUNT_COLORS: Record<string, number> = {
@@ -33,6 +34,7 @@ export function generateAllTextures(scene: Phaser.Scene): void {
   generateUITextures(scene);
   generateBattleBackgrounds(scene);
   generateNpcTextures(scene);
+  generateTrapTextures(scene);
 }
 
 function generateTileTextures(scene: Phaser.Scene): void {

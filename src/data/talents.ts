@@ -19,6 +19,12 @@ export interface Talent {
   damageBonus?: number;
   /** Dynamic: added to AC. */
   acBonus?: number;
+  /** Passive bonus to dungeon-trap detection checks. */
+  trapDetectionBonus?: number;
+  /** Passive bonus to dungeon-trap disarm checks. */
+  trapDisarmBonus?: number;
+  /** Automatically reveals nearby dungeon traps. */
+  autoDetectTraps?: boolean;
   /** If set, only these class IDs can learn this talent. Empty = all classes. */
   classRestriction?: string[];
 }
@@ -94,9 +100,10 @@ export const TALENTS: Talent[] = [
   },
   {
     id: "naturalExplorer", name: "Natural Explorer",
-    description: "+5 max HP, +5 max MP — wilderness endurance",
+    description: "+5 max HP, +5 max MP, +2 trap detection",
     levelRequired: 8,
     maxHpBonus: 5, maxMpBonus: 5,
+    trapDetectionBonus: 2,
     classRestriction: ["ranger"],
   },
   {
@@ -133,9 +140,10 @@ export const TALENTS: Talent[] = [
   // ── Rogue talents ─────────────────────────────────────────────
   {
     id: "cunningAction", name: "Cunning Action",
-    description: "+1 AC — dash, dodge, and disengage in combat",
+    description: "+1 AC, +2 trap disarming",
     levelRequired: 4,
     acBonus: 1,
+    trapDisarmBonus: 2,
     classRestriction: ["rogue"],
   },
   {
@@ -232,9 +240,10 @@ export const TALENTS: Talent[] = [
   },
   {
     id: "dangerSense", name: "Danger Sense",
-    description: "+1 AC, +5 max HP — primal threat detection",
+    description: "+1 AC, +5 max HP, automatically detects nearby traps",
     levelRequired: 8,
     acBonus: 1, maxHpBonus: 5,
+    autoDetectTraps: true,
     classRestriction: ["barbarian"],
   },
   {

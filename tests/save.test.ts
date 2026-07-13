@@ -5,6 +5,7 @@ import { saveGame, loadGame, deleteSave } from "../src/systems/save";
 import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createWeatherState } from "../src/systems/weather";
+import { LEGACY_TRAP_SEED } from "../src/data/traps";
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -33,6 +34,9 @@ describe("save system - PlayerState composition migration", () => {
     player.progression.openedChests.push("chest1", "chest2");
     player.progression.collectedTreasures.push("2,3,5,7");
     player.progression.exploredTiles["2,3,5,7"] = true;
+    player.progression.trapSeed = 424242;
+    player.progression.trapStates["heartlands:0:5,5:spikePit"] = "detected";
+    player.progression.trapGuidance = true;
     
     const bestiary = createCodex();
     const weatherState = createWeatherState();
@@ -50,6 +54,12 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual(["chest1", "chest2"]);
     expect(loaded!.player.progression.collectedTreasures).toEqual(["2,3,5,7"]);
     expect(loaded!.player.progression.exploredTiles["2,3,5,7"]).toBe(true);
+    expect(loaded!.player.progression.trapSeed).toBe(424242);
+    expect(loaded!.player.progression.trapStates).toEqual({
+      "heartlands:0:5,5:spikePit": "detected",
+    });
+    expect(loaded!.player.progression.trapGuidance).toBe(true);
+    expect(loaded!.version).toBe(3);
   });
 
   it("migrates old flat structure to new nested structure on load", () => {
@@ -135,6 +145,9 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual(["oldChest1", "oldChest2"]);
     expect(loaded!.player.progression.collectedTreasures).toEqual(["3,4,8,9"]);
     expect(loaded!.player.progression.exploredTiles["3,4,8,9"]).toBe(true);
+    expect(loaded!.player.progression.trapSeed).toBe(LEGACY_TRAP_SEED);
+    expect(loaded!.player.progression.trapStates).toEqual({});
+    expect(loaded!.player.progression.trapGuidance).toBe(false);
     
     // Check that old flat fields are removed
     const playerRecord = loaded!.player as unknown as Record<string, unknown>;
@@ -215,6 +228,9 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual([]);
     expect(loaded!.player.progression.collectedTreasures).toEqual([]);
     expect(loaded!.player.progression.exploredTiles).toEqual({});
+    expect(loaded!.player.progression.trapSeed).toBe(LEGACY_TRAP_SEED);
+    expect(loaded!.player.progression.trapStates).toEqual({});
+    expect(loaded!.player.progression.trapGuidance).toBe(false);
   });
 
   it("clears unknown locations and restores a safe overworld position", () => {
@@ -350,5 +366,44 @@ describe("save system - PlayerState composition migration", () => {
       { id: "poison", remainingTurns: 5, source: "Spider" },
       { id: "burn", remainingTurns: 3, source: "unknown" },
     ]);
+  });
+
+  it("normalizes malformed trap progression state", () => {
+    const player = createPlayer("TrapHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const raw = localStorage.getItem("2dnd_save");
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!) as {
+      player: { progression: Record<string, unknown> };
+    };
+    stored.player.progression["trapSeed"] = -10;
+    stored.player.progression["trapStates"] = {
+      validDetected: "detected",
+      validTriggered: "triggered",
+      invalidState: "unknown",
+      invalidValue: 4,
+    };
+    stored.player.progression["trapGuidance"] = "yes";
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.progression.trapSeed).toBe(LEGACY_TRAP_SEED);
+    expect(loaded!.player.progression.trapStates).toEqual({
+      validDetected: "detected",
+      validTriggered: "triggered",
+    });
+    expect(loaded!.player.progression.trapGuidance).toBe(false);
   });
 });

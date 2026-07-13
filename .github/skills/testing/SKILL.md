@@ -17,6 +17,7 @@ Write comprehensive tests for game mechanics using Vitest while avoiding UI/inte
 ✅ XP and leveling formulas
 ✅ Data integrity (monsters, spells, items)
 ✅ Game logic functions
+✅ Seeded layouts and persistent state machines
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -32,6 +33,7 @@ tests/
 ├── dice.test.ts      # Dice rolling utilities
 ├── combat.test.ts    # Combat mechanics
 ├── player.test.ts    # Player systems
+├── traps.test.ts     # Dungeon trap placement, checks, and effects
 └── data.test.ts      # Data validation
 ```
 

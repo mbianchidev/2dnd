@@ -152,6 +152,12 @@ export const DUNGEONS: DungeonData[] = [
     bossId: "cryptLich",
     levels: [{ mapData: HEARTLANDS_CRYPT_LEVEL2, spawnX: 1, spawnY: 13 }],
     connections: twoLevelConnections(),
+    trapProfile: {
+      types: ["spikePit", "poisonDarts", "alarm", "hiddenFloor", "necroticRune"],
+      thematicType: "necroticRune",
+      trapsPerLevel: 5,
+      difficultyModifier: 0,
+    },
   },
   {
     id: "frost_cavern", name: "Frost Cavern",
@@ -160,6 +166,12 @@ export const DUNGEONS: DungeonData[] = [
     bossId: "frostWarden",
     levels: [{ mapData: FROST_CAVERN_LEVEL2, spawnX: 1, spawnY: 13 }],
     connections: twoLevelConnections(),
+    trapProfile: {
+      types: ["fallingRocks", "hiddenFloor", "alarm", "frostBurst"],
+      thematicType: "frostBurst",
+      trapsPerLevel: 5,
+      difficultyModifier: 1,
+    },
   },
   {
     id: "volcanic_forge", name: "Volcanic Forge",
@@ -168,5 +180,11 @@ export const DUNGEONS: DungeonData[] = [
     bossId: "infernoForgemaster",
     levels: [{ mapData: VOLCANIC_FORGE_LEVEL2, spawnX: 1, spawnY: 13 }],
     connections: twoLevelConnections(),
+    trapProfile: {
+      types: ["spikePit", "fallingRocks", "poisonDarts", "alarm", "flameJet"],
+      thematicType: "flameJet",
+      trapsPerLevel: 5,
+      difficultyModifier: 2,
+    },
   },
 ];

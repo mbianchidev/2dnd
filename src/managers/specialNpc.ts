@@ -9,6 +9,7 @@
 import {
   getNpcTemplate,
   getSpecialNpcDialogue,
+  grantsTrapGuidance,
   rollSpecialNpcSpawns,
   SPECIAL_NPC_DEFS,
   SPECIAL_NPC_FAREWELLS,
@@ -27,6 +28,7 @@ import type { DialogueSystem } from "./dialogue";
 /** Callbacks the caller (OverworldScene) provides so the manager can trigger auto-saves and shop transitions. */
 export interface SpecialNpcCallbacks {
   autoSave: () => void;
+  grantTrapGuidance: () => void;
   startShopScene: (config: {
     townName: string;
     shopItemIds: string[];
@@ -162,7 +164,12 @@ export class SpecialNpcManager {
     const line = getSpecialNpcDialogue(entry.def.kind, entry.interactions);
     const farewell = SPECIAL_NPC_FAREWELLS[entry.def.kind];
     const isFarewell = line === farewell;
+    const grantsGuidance = grantsTrapGuidance(
+      entry.def.kind,
+      entry.interactions,
+    );
     entry.interactions++;
+    if (grantsGuidance) callbacks.grantTrapGuidance();
 
     if (audioEngine.initialized) audioEngine.playDialogueBlips(line);
 

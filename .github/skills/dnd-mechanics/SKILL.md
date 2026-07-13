@@ -125,6 +125,21 @@ Lifecycle for each actor:
 A one-turn stun therefore skips exactly one actor turn. Cure items remove only
 matching effects. Combat effects are cleared when leaving Battle.
 
+## Dungeon trap checks
+
+- Detection and disarming use d20 + the configured Dexterity or Intelligence
+  modifier.
+- Trap Kits, Natural Explorer, Cunning Action, and persistent Adventurer
+  guidance add their defined bonuses; Danger Sense detects automatically.
+- Failed detection persists as `missed`, so checks cannot be farmed by stepping
+  away or reloading.
+- Successful disarming awards XP through `awardXP()`.
+- Trigger damage and MP loss apply immediately and cannot reduce HP below 1.
+  Trap-applied statuses seed the next battle and then follow the existing
+  combat-turn lifecycle.
+- Alarm traps replace the normal encounter roll with a forced dungeon
+  encounter. Hidden floors use the next level's validated spawn.
+
 ## Action economy
 
 - Attack, spell, defend, flee, and normal abilities consume the action.
@@ -150,6 +165,8 @@ Use deterministic dice mocks for:
 - Status plus elemental damage ordering
 - Bonus-action scheduling
 - MP and inventory consumption on invalid actions
+- Seeded trap placement, one-shot checks, modifiers, nonlethal consequences,
+  alarm suppression, and hidden-floor destinations
 
 Relevant suites include `combat.test.ts`, `dice.test.ts`, `elements.test.ts`,
-`statusEffects.test.ts`, and `player.test.ts`.
+`statusEffects.test.ts`, `player.test.ts`, and `traps.test.ts`.

@@ -2,6 +2,8 @@
  * Item definitions for the game.
  */
 
+import { Element } from "./elements";
+
 export type WeaponSpriteType = "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist";
 
 export interface Item {
@@ -18,6 +20,10 @@ export interface Item {
   weaponSprite?: WeaponSpriteType;
   levelReq?: number; // minimum player level to purchase
   mountId?: string; // for type "mount" — references a MountData id
+  /** Elemental damage type for weapons. */
+  element?: Element;
+  /** Whether the consumable cures status effects tied to its ID. */
+  cureEffects?: boolean;
 }
 
 export const ITEMS: Item[] = [
@@ -45,6 +51,51 @@ export const ITEMS: Item[] = [
     cost: 50,
     effect: 50,
     levelReq: 5,
+  },
+  {
+    id: "antidote",
+    name: "Antidote",
+    description: "Cures poison",
+    type: "consumable",
+    cost: 20,
+    effect: 0,
+    cureEffects: true,
+  },
+  {
+    id: "burnSalve",
+    name: "Burn Salve",
+    description: "Cures burns",
+    type: "consumable",
+    cost: 20,
+    effect: 0,
+    cureEffects: true,
+  },
+  {
+    id: "thawingTonic",
+    name: "Thawing Tonic",
+    description: "Cures freezing",
+    type: "consumable",
+    cost: 25,
+    effect: 0,
+    cureEffects: true,
+  },
+  {
+    id: "paralysisRemedy",
+    name: "Paralysis Remedy",
+    description: "Cures paralysis",
+    type: "consumable",
+    cost: 30,
+    effect: 0,
+    cureEffects: true,
+  },
+  {
+    id: "smellingSalts",
+    name: "Smelling Salts",
+    description: "Cures sleep and fear",
+    type: "consumable",
+    cost: 15,
+    effect: 0,
+    cureEffects: true,
   },
   // --- Class starting weapons (cost 0, given at character creation) ---
   {
@@ -253,6 +304,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 6,
     weaponSprite: "sword",
+    element: Element.Fire,
   },
   {
     id: "shadowCloak",
@@ -280,6 +332,7 @@ export const ITEMS: Item[] = [
     light: true,
     finesse: true,
     weaponSprite: "dagger",
+    element: Element.Ice,
   },
   // --- Treasure items from expanded biome dungeons and overworld ---
   {
@@ -290,6 +343,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 7,
     weaponSprite: "sword",
+    element: Element.Ice,
   },
   {
     id: "tundraPelt",
@@ -315,6 +369,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 8,
     weaponSprite: "mace",
+    element: Element.Fire,
   },
   {
     id: "volcanicShield",
@@ -332,6 +387,7 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 6,
     weaponSprite: "sword",
+    element: Element.Fire,
   },
   {
     id: "swampMantle",

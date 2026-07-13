@@ -7,7 +7,7 @@ import type { Monster } from "../data/monsters";
 import { getSpell, type Spell } from "../data/spells";
 import { getAbility, type Ability } from "../data/abilities";
 import { getItem, type Item } from "../data/items";
-import type { PlayerState } from "../systems/player";
+import type { PlayerState, PlayerStats } from "../systems/player";
 import {
   awardXP,
   getArmorClass,
@@ -27,7 +27,15 @@ import {
 import { abilityModifier } from "../systems/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { CodexData } from "../systems/codex";
-import { recordDefeat, discoverAC } from "../systems/codex";
+import {
+  recordDefeat,
+  discoverAC,
+  discoverElement,
+} from "../systems/codex";
+import type {
+  Element,
+  ElementalInteraction,
+} from "../data/elements";
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
@@ -35,6 +43,14 @@ import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
 import { drawTimeSky as _drawTimeSky, drawCelestialBody as _drawCelestialBody, drawTerrainForeground as _drawTerrainForeground, applyBattleDayNightTint, createBattleWeatherParticles } from "../renderers/battleEffects";
 import { PlayerRenderer } from "../renderers/player";
+import {
+  clearAllEffects,
+  getActiveEffectNames,
+  getEffectACModifier,
+  processEndOfTurn as processStatusEndOfTurn,
+  processStartOfTurn as processStatusStartOfTurn,
+} from "../systems/statusEffects";
+import type { ActiveStatusEffect } from "../systems/statusEffects";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -50,8 +66,7 @@ export class BattleScene extends Phaser.Scene {
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
-  private logContainer!: Phaser.GameObjects.Container;
-  private logMaskGraphics!: Phaser.GameObjects.Graphics;
+  private logScrollOffset = 0;
   private logAreaY = 0;
   private logAreaH = 0;
   private monsterText!: Phaser.GameObjects.Text;
@@ -85,6 +100,8 @@ export class BattleScene extends Phaser.Scene {
 
   // Item drops collected this battle
   private droppedItemIds: string[] = [];
+  private elementalDiscoveries = new Set<Element>();
+  private monsterEffects: ActiveStatusEffect[] = [];
   private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
   private biome = "grass";
@@ -115,6 +132,7 @@ export class BattleScene extends Phaser.Scene {
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.phase = "init";
     this.logLines = [];
+    this.logScrollOffset = 0;
     this.actionButtons = [];
     this.spellMenu = null;
     this.itemMenu = null;
@@ -126,6 +144,10 @@ export class BattleScene extends Phaser.Scene {
     this.playerDefending = false;
     this.monsterDefending = false;
     this.droppedItemIds = [];
+    this.monsterEffects = [];
+    this.elementalDiscoveries = new Set(
+      this.codex.entries[this.monster.id]?.discoveredElements ?? [],
+    );
   }
 
   create(): void {
@@ -201,6 +223,7 @@ export class BattleScene extends Phaser.Scene {
         align: "center",
         backgroundColor: "#0a0a1a80",
         padding: { x: 6, y: 4 },
+        wordWrap: { width: w * 0.42 },
       })
       .setOrigin(0.5, 0)
       .setDepth(2);
@@ -226,6 +249,7 @@ export class BattleScene extends Phaser.Scene {
         lineSpacing: 3,
         backgroundColor: "#0a0a1a80",
         padding: { x: 6, y: 4 },
+        wordWrap: { width: w * 0.4 },
       })
       .setOrigin(0.5, 0)
       .setDepth(2);
@@ -244,34 +268,26 @@ export class BattleScene extends Phaser.Scene {
     logBg.strokeRect(0, this.logAreaY, w, this.logAreaH);
     logBg.setDepth(3);
 
-    // Scrollable container for log text
-    this.logContainer = this.add.container(0, 0);
-    this.logContainer.setDepth(4);
     this.logText = this.add.text(10, this.logAreaY + 4, "", {
       fontSize: "12px",
       fontFamily: "monospace",
       color: "#ccc",
       wordWrap: { width: w * 0.5 - 20 },
       lineSpacing: 5,
-    });
-    this.logContainer.add(this.logText);
-
-    // Mask to clip log to the log area
-    this.logMaskGraphics = this.make.graphics({ x: 0, y: 0 });
-    this.logMaskGraphics.fillStyle(0xffffff);
-    this.logMaskGraphics.fillRect(0, this.logAreaY, w * 0.52, this.logAreaH);
-    const logMask = this.logMaskGraphics.createGeometryMask();
-    this.logContainer.setMask(logMask);
+    }).setDepth(4);
 
     // Mouse wheel scrolling on the log area
     this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gos: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
-      const textHeight = this.logText.height;
-      const visibleH = this.logAreaH - 8;
-      const maxScroll = Math.max(0, textHeight - visibleH);
-      if (maxScroll <= 0) return;
-      const currentY = this.logText.y - (this.logAreaY + 4);
-      const newY = Phaser.Math.Clamp(currentY - dy * 0.5, -maxScroll, 0);
-      this.logText.setY(this.logAreaY + 4 + newY);
+      const maxOffset = Math.max(0, this.logLines.length - 1);
+      const direction = dy < 0 ? 1 : -1;
+      const nextOffset = Phaser.Math.Clamp(
+        this.logScrollOffset + direction,
+        0,
+        maxOffset,
+      );
+      if (nextOffset === this.logScrollOffset) return;
+      this.logScrollOffset = nextOffset;
+      this.renderBattleLog();
     });
 
     // Action buttons (bottom-right area)
@@ -363,12 +379,67 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  /** Reset bonus action tracking for a new player turn. */
+  /** Start a player turn, including status ticks, saves, and skipped turns. */
   private startPlayerTurn(): void {
+    if (
+      this.phase === "victory"
+      || this.phase === "defeat"
+      || this.phase === "fled"
+    ) {
+      return;
+    }
     this.bonusActionUsed = false;
     this.itemsUsedThisTurn = 0;
     this.turnActionUsed = false;
     this.phase = "playerTurn";
+    this.updateButtonStates();
+
+    const statusResult = processStatusStartOfTurn(
+      this.player.activeEffects,
+      this.player.stats,
+    );
+    for (const message of statusResult.messages) {
+      this.addLog(`${this.player.name}: ${message}`);
+    }
+    this.updatePlayerStats();
+    if (statusResult.tickDamage > 0) {
+      this.player.hp = Math.max(0, this.player.hp - statusResult.tickDamage);
+      this.updatePlayerStats();
+    }
+    if (this.player.hp <= 0) {
+      this.phase = "defeat";
+      this.updateButtonStates();
+      this.addLog("You have been defeated...");
+      this.time.delayedCall(2000, () => this.handleDefeat());
+      return;
+    }
+    if (statusResult.skipTurn) {
+      this.addLog(`${this.player.name} cannot act this turn!`);
+      this.closeAllSubMenus();
+      this.finishPlayerTurn();
+    }
+  }
+
+  private finishPlayerTurn(delay = 800): void {
+    const statusResult = processStatusEndOfTurn(this.player.activeEffects);
+    for (const message of statusResult.messages) {
+      this.addLog(`${this.player.name}: ${message}`);
+    }
+    this.phase = "monsterTurn";
+    this.updatePlayerStats();
+    this.updateButtonStates();
+    this.time.delayedCall(delay, () => this.doMonsterTurn());
+  }
+
+  private finishMonsterTurn(): void {
+    const statusResult = processStatusEndOfTurn(this.monsterEffects);
+    for (const message of statusResult.messages) {
+      this.addLog(`${this.monster.name}: ${message}`);
+    }
+    this.playerDefending = false;
+    this.updateMonsterDisplay();
+    this.updatePlayerStats();
+    this.startPlayerTurn();
   }
 
   private closeAllSubMenus(): void {
@@ -578,25 +649,19 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
-    this.playerDefending = false;
-    this.monsterDefending = false;
-
-    if (ability.bonusAction) {
-      // Bonus action ability — doesn't end the turn
-      this.bonusActionUsed = true;
-    } else {
-      // Regular ability — ends the turn
-      this.turnActionUsed = true;
-      this.phase = "monsterTurn";
-    }
-
     try {
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
-      const result = playerUseAbility(this.player, abilityId, this.monster, weatherPenalty);
+      const result = playerUseAbility(
+        this.player,
+        abilityId,
+        this.monster,
+        weatherPenalty,
+        this.monsterEffects,
+      );
       debugLog("Player ability", { abilityId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
       if (result.roll !== undefined) {
         debugPanelLog(
-          `  ↳ [Player Ability ${abilityId}] d20=${result.roll} +${result.attackMod ?? 0} = ${result.totalRoll ?? 0} vs AC ${this.monster.ac} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} mp=${result.mpUsed}`,
+          `  ↳ [Player Ability ${abilityId}] d20=${result.roll} +${result.attackMod ?? 0} = ${result.totalRoll ?? 0} vs AC ${result.targetAC ?? this.monster.ac} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} mp=${result.mpUsed}`,
           false, "roll-detail"
         );
       }
@@ -604,9 +669,24 @@ export class BattleScene extends Phaser.Scene {
         ? this.formatPlayerRoll(result.roll, result.attackMod ?? 0, result.totalRoll ?? 0, result.hit, result.critical)
         : "";
       this.addLog(result.message + rollSuffix);
+      if (result.mpUsed === 0 && !result.hit) {
+        this.updatePlayerStats();
+        return;
+      }
+
+      this.playerDefending = false;
+      this.monsterDefending = false;
+      if (ability.bonusAction) {
+        this.bonusActionUsed = true;
+      } else {
+        this.turnActionUsed = true;
+        this.phase = "monsterTurn";
+      }
+
       this.monsterHp = Math.max(0, this.monsterHp - result.damage);
       this.updateMonsterDisplay();
       this.updatePlayerStats();
+      this.recordElementalDiscovery(result.elementalLabel, ability.element);
 
       // Play distinct sounds for ability outcomes
       if (audioEngine.initialized) {
@@ -629,7 +709,7 @@ export class BattleScene extends Phaser.Scene {
         });
       }
 
-      this.checkBattleEnd();
+      this.checkBattleEnd(!ability.bonusAction);
 
       // For bonus action abilities, add a log hint if player still has actions
       if (ability.bonusAction && this.phase === "playerTurn") {
@@ -841,14 +921,17 @@ export class BattleScene extends Phaser.Scene {
 
   private updateMonsterDisplay(): void {
     const defendTag = this.monsterDefending ? " [DEF]" : "";
+    const effectLine = this.monsterEffects.length > 0
+      ? `\nEffects: ${this.getStatusSummary(this.monsterEffects)}`
+      : "";
     if (this.hpRevealed) {
       const hpBar = this.getHpBar(this.monsterHp, this.monster.hp, 14);
       this.monsterText.setText(
-        `${this.monster.name}${defendTag}\nHP: ${this.monsterHp}/${this.monster.hp}\n${hpBar}`
+        `${this.monster.name}${defendTag}\nHP: ${this.monsterHp}/${this.monster.hp}\n${hpBar}${effectLine}`
       );
     } else {
       this.monsterText.setText(
-        `${this.monster.name}${defendTag}\nHP: ???`
+        `${this.monster.name}${defendTag}\nHP: ???${effectLine}`
       );
     }
     // Flash monster on hit
@@ -860,12 +943,24 @@ export class BattleScene extends Phaser.Scene {
   private updatePlayerStats(): void {
     const p = this.player;
     const defendTag = this.playerDefending ? " [DEF]" : "";
+    const effectLine = p.activeEffects.length > 0
+      ? `\nEffects: ${this.getStatusSummary(p.activeEffects)}`
+      : "";
     this.playerStatsText.setText(
       `${p.name} Lv.${p.level}${defendTag}\n` +
         `HP: ${p.hp}/${p.maxHp} ${this.getHpBar(p.hp, p.maxHp, 8)}\n` +
         `MP: ${p.mp}/${p.maxMp} ${this.getMpBar(p.mp, p.maxMp, 8)}\n` +
-        `AC: ${getArmorClass(p)}${this.playerDefending ? "+2" : ""}`
+        `AC: ${getArmorClass(p)}${this.playerDefending ? "+2" : ""}${effectLine}`
     );
+  }
+
+  private getStatusSummary(effects: ActiveStatusEffect[]): string {
+    const names = getActiveEffectNames(effects);
+    const visibleNames = names.slice(0, 3);
+    if (names.length > visibleNames.length) {
+      visibleNames.push(`+${names.length - visibleNames.length} more`);
+    }
+    return visibleNames.join(", ");
   }
 
   private getHpBar(current: number, max: number, length: number): string {
@@ -880,16 +975,41 @@ export class BattleScene extends Phaser.Scene {
 
   private addLog(msg: string): void {
     this.logLines.push(msg);
-    // Show all log lines with a blank line at the end for readability
-    this.logText.setText(this.logLines.join("\n") + "\n ");
-    // Auto-scroll to bottom
-    const textHeight = this.logText.height;
-    const visibleH = this.logAreaH - 8;
-    if (textHeight > visibleH) {
-      this.logText.setY(this.logAreaY + 4 - (textHeight - visibleH));
-    }
+    this.logScrollOffset = 0;
+    this.renderBattleLog();
     // Also push to the HTML debug panel (always, panel visibility is toggled separately)
     debugPanelLog(msg, msg.startsWith("[DEBUG]"));
+  }
+
+  private renderBattleLog(): void {
+    if (this.logLines.length === 0) {
+      this.logText.setText("");
+      return;
+    }
+
+    const visibleHeight = this.logAreaH - 8;
+    const endIndex = Math.max(
+      1,
+      this.logLines.length - this.logScrollOffset,
+    );
+    let startIndex = endIndex - 1;
+    let visibleText = `${this.logLines[startIndex]}\n `;
+    this.logText.setText(visibleText);
+
+    while (startIndex > 0) {
+      const candidate = `${this.logLines
+        .slice(startIndex - 1, endIndex)
+        .join("\n")}\n `;
+      this.logText.setText(candidate);
+      if (this.logText.height > visibleHeight) {
+        this.logText.setText(visibleText);
+        break;
+      }
+      startIndex--;
+      visibleText = candidate;
+    }
+
+    this.logText.setY(this.logAreaY + 4);
   }
 
   // --- Debug ---
@@ -1013,17 +1133,27 @@ export class BattleScene extends Phaser.Scene {
     try {
       const monsterDefBonus = this.monsterDefending ? 2 : 0;
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
-      const result = playerAttack(this.player, this.monster, monsterDefBonus, weatherPenalty);
+      const result = playerAttack(
+        this.player,
+        this.monster,
+        monsterDefBonus,
+        weatherPenalty,
+        this.monsterEffects,
+      );
       // Reset monster defend after player attacks
       this.monsterDefending = false;
       debugLog("Player attack", { roll: result.roll, hit: result.hit, critical: result.critical, damage: result.damage, monsterAC: this.monster.ac });
       debugPanelLog(
-        `  ↳ [Player Attack] d20=${result.roll} +${result.attackMod} = ${result.totalRoll} vs AC ${this.monster.ac} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage}`,
+        `  ↳ [Player Attack] d20=${result.roll} +${result.attackMod} = ${result.totalRoll} vs AC ${result.targetAC} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage}`,
         false, "roll-detail"
       );
       this.addLog(result.message + this.formatPlayerRoll(result.roll, result.attackMod, result.totalRoll, result.hit, result.critical));
       this.monsterHp = Math.max(0, this.monsterHp - result.damage);
       this.updateMonsterDisplay();
+      this.recordElementalDiscovery(
+        result.elementalLabel,
+        this.player.equippedWeapon?.element,
+      );
 
       // Play distinct attack sounds based on outcome
       if (audioEngine.initialized) {
@@ -1050,15 +1180,25 @@ export class BattleScene extends Phaser.Scene {
       // automatically follow up with an off-hand attack (no ability mod bonus per D&D 5e TWF)
       if (this.player.equippedOffHand && !this.bonusActionUsed && this.monsterHp > 0) {
         this.bonusActionUsed = true;
-        const offResult = playerOffHandAttack(this.player, this.monster, 0, weatherPenalty);
+        const offResult = playerOffHandAttack(
+          this.player,
+          this.monster,
+          0,
+          weatherPenalty,
+          this.monsterEffects,
+        );
         debugLog("Player off-hand attack (bonus action)", { roll: offResult.roll, hit: offResult.hit, critical: offResult.critical, damage: offResult.damage });
         debugPanelLog(
-          `  ↳ [Off-Hand] d20=${offResult.roll} +${offResult.attackMod} = ${offResult.totalRoll} vs AC ${this.monster.ac} → ${offResult.hit ? (offResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${offResult.damage}`,
+          `  ↳ [Off-Hand] d20=${offResult.roll} +${offResult.attackMod} = ${offResult.totalRoll} vs AC ${offResult.targetAC} → ${offResult.hit ? (offResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${offResult.damage}`,
           false, "roll-detail"
         );
         this.addLog(offResult.message + this.formatPlayerRoll(offResult.roll, offResult.attackMod, offResult.totalRoll, offResult.hit, offResult.critical));
         this.monsterHp = Math.max(0, this.monsterHp - offResult.damage);
         this.updateMonsterDisplay();
+        this.recordElementalDiscovery(
+          offResult.elementalLabel,
+          this.player.equippedOffHand?.element,
+        );
 
         if (audioEngine.initialized) {
           if (offResult.critical) audioEngine.playCriticalHitSFX();
@@ -1092,13 +1232,22 @@ export class BattleScene extends Phaser.Scene {
     this.addLog(`${this.player.name} takes a defensive stance! (+2 AC${shieldNote})`);
     debugPanelLog(`  ↳ [Defend] AC ${getArmorClass(this.player)} → ${getArmorClass(this.player) + 2}${shieldNote}`, false, "roll-detail");
     this.updatePlayerStats();
-    this.time.delayedCall(800, () => this.doMonsterTurn());
+    this.finishPlayerTurn();
   }
 
   private doPlayerSpell(spellId: string): void {
     if (this.phase !== "playerTurn") return;
     if (this.turnActionUsed) {
       this.addLog("Turn action already used!");
+      return;
+    }
+    const spell = getSpell(spellId);
+    if (!spell) {
+      this.addLog("Unknown spell!");
+      return;
+    }
+    if (this.player.mp < spell.mpCost) {
+      this.addLog("Not enough MP!");
       return;
     }
     this.playerDefending = false;
@@ -1108,11 +1257,17 @@ export class BattleScene extends Phaser.Scene {
 
     try {
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
-      const result = playerCastSpell(this.player, spellId, this.monster, weatherPenalty);
+      const result = playerCastSpell(
+        this.player,
+        spellId,
+        this.monster,
+        weatherPenalty,
+        this.monsterEffects,
+      );
       debugLog("Player spell", { spellId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
       if (result.roll !== undefined) {
         debugPanelLog(
-          `  ↳ [Player Spell ${spellId}] d20=${result.roll} +${result.spellMod ?? 0} = ${result.totalRoll ?? 0} vs AC ${this.monster.ac} → ${result.autoHit ? "AUTO-HIT" : result.hit ? "HIT" : "MISS"} dmg=${result.damage} mp=${result.mpUsed}`,
+          `  ↳ [Player Spell ${spellId}] d20=${result.roll} +${result.spellMod ?? 0} = ${result.totalRoll ?? 0} vs AC ${result.targetAC ?? this.monster.ac} → ${result.autoHit ? "AUTO-HIT" : result.hit ? "HIT" : "MISS"} dmg=${result.damage} mp=${result.mpUsed}`,
           false, "roll-detail"
         );
       } else {
@@ -1128,6 +1283,7 @@ export class BattleScene extends Phaser.Scene {
       this.monsterHp = Math.max(0, this.monsterHp - result.damage);
       this.updateMonsterDisplay();
       this.updatePlayerStats();
+      this.recordElementalDiscovery(result.elementalLabel, spell.element);
 
       if (result.hit && result.damage > 0) {
         if (audioEngine.initialized) audioEngine.playAttackSFX();
@@ -1172,8 +1328,7 @@ export class BattleScene extends Phaser.Scene {
           this.turnActionUsed = true;
           this.addLog("(Used 2 items — turn action spent)");
           this.closeAllSubMenus();
-          this.phase = "monsterTurn";
-          this.time.delayedCall(800, () => this.doMonsterTurn());
+          this.finishPlayerTurn();
         }
       }
     } catch (err) {
@@ -1210,7 +1365,7 @@ export class BattleScene extends Phaser.Scene {
         this.phase = "fled";
         this.time.delayedCall(1000, () => this.returnToOverworld());
       } else {
-        this.time.delayedCall(800, () => this.doMonsterTurn());
+        this.finishPlayerTurn();
       }
     } catch (err) {
       this.handleError("doFlee", err);
@@ -1222,15 +1377,41 @@ export class BattleScene extends Phaser.Scene {
       return;
 
     try {
+      this.phase = "monsterTurn";
+      this.updateButtonStates();
+      const statusResult = processStatusStartOfTurn(
+        this.monsterEffects,
+        this.getMonsterStatusStats(),
+      );
+      for (const message of statusResult.messages) {
+        this.addLog(`${this.monster.name}: ${message}`);
+      }
+      this.updateMonsterDisplay();
+      if (statusResult.tickDamage > 0) {
+        this.monsterHp = Math.max(
+          0,
+          this.monsterHp - statusResult.tickDamage,
+        );
+        this.updateMonsterDisplay();
+      }
+      if (this.monsterHp <= 0) {
+        this.checkBattleEnd(false);
+        return;
+      }
+      if (statusResult.skipTurn) {
+        this.addLog(`${this.monster.name} cannot act this turn!`);
+        this.finishMonsterTurn();
+        return;
+      }
+
       // Small chance (8%) the monster defends instead of attacking
       if (Math.random() < 0.08) {
         this.monsterDefending = true;
         this.addLog(`${this.monster.name} takes a defensive stance!`);
-        debugPanelLog(`  ↳ [Monster Defend] AC ${this.monster.ac} → ${this.monster.ac + 2}`, false, "roll-detail");
+        const statusAC = getEffectACModifier(this.monsterEffects);
+        debugPanelLog(`  ↳ [Monster Defend] AC ${this.monster.ac + statusAC} → ${this.monster.ac + statusAC + 2}`, false, "roll-detail");
         this.updateMonsterDisplay();
-        this.playerDefending = false;
-        this.updatePlayerStats();
-        this.startPlayerTurn();
+        this.finishMonsterTurn();
         return;
       }
 
@@ -1242,7 +1423,12 @@ export class BattleScene extends Phaser.Scene {
       if (this.monster.abilities) {
         for (const ability of this.monster.abilities) {
           if (Math.random() < ability.chance) {
-            const result = monsterUseAbility(ability, this.monster, this.player);
+            const result = monsterUseAbility(
+              ability,
+              this.monster,
+              this.player,
+              this.monsterEffects,
+            );
             debugLog("Monster ability", { name: ability.name, damage: result.damage, healing: result.healing });
             debugPanelLog(
               `  ↳ [Monster Ability] ${ability.name} → dmg=${result.damage} heal=${result.healing}`,
@@ -1267,9 +1453,7 @@ export class BattleScene extends Phaser.Scene {
               return;
             }
 
-            this.playerDefending = false;
-            this.updatePlayerStats();
-            this.startPlayerTurn();
+            this.finishMonsterTurn();
             return;
           }
         }
@@ -1279,7 +1463,14 @@ export class BattleScene extends Phaser.Scene {
       const defendBonus = this.playerDefending ? 2 : 0;
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
       const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
-      const result = monsterAttack(this.monster, this.player, defendBonus, weatherPenalty, boost.attackBonus);
+      const result = monsterAttack(
+        this.monster,
+        this.player,
+        defendBonus,
+        weatherPenalty,
+        boost.attackBonus,
+        this.monsterEffects,
+      );
 
       // Shield defend bonus: reduce incoming damage by 1 when defending with a shield equipped
       const shieldDefendReduction = (this.playerDefending && this.player.equippedShield && !this.player.equippedWeapon?.twoHanded) ? 1 : 0;
@@ -1309,10 +1500,6 @@ export class BattleScene extends Phaser.Scene {
       // Only show the outcome message, never the enemy's roll details
       this.addLog(result.message);
 
-      // Reset player defend after monster's turn
-      this.playerDefending = false;
-      this.updatePlayerStats();
-
       if (result.hit) {
         if (audioEngine.initialized) {
           if (result.critical) {
@@ -1341,16 +1528,33 @@ export class BattleScene extends Phaser.Scene {
         return;
       }
 
-      this.startPlayerTurn();
+      this.finishMonsterTurn();
     } catch (err) {
       this.handleError("doMonsterTurn", err);
     }
   }
 
-  private checkBattleEnd(): void {
+  private getMonsterStatusStats(): PlayerStats {
+    const physical = Math.min(20, 10 + this.monster.attackBonus);
+    const mental = Math.min(
+      18,
+      10 + Math.floor(this.monster.attackBonus / 2),
+    );
+    return {
+      strength: physical,
+      dexterity: physical,
+      constitution: physical,
+      intelligence: mental,
+      wisdom: mental,
+      charisma: mental,
+    };
+  }
+
+  private checkBattleEnd(endPlayerTurn = true): void {
     try {
       if (this.monsterHp <= 0) {
         this.phase = "victory";
+        this.updateButtonStates();
         this.addLog(`${this.monster.name} is defeated!`);
 
         // Roll for item drops
@@ -1391,6 +1595,9 @@ export class BattleScene extends Phaser.Scene {
 
         // Record in bestiary
         recordDefeat(this.codex, this.monster, this.acDiscovered, this.droppedItemIds);
+        for (const element of this.elementalDiscoveries) {
+          discoverElement(this.codex, this.monster.id, element);
+        }
 
         // Play victory jingle
         if (audioEngine.initialized) {
@@ -1400,7 +1607,7 @@ export class BattleScene extends Phaser.Scene {
         this.updatePlayerStats();
         this.time.delayedCall(2500, () => this.returnToOverworld());
       } else {
-        this.time.delayedCall(800, () => this.doMonsterTurn());
+        if (endPlayerTurn) this.finishPlayerTurn();
       }
     } catch (err) {
       this.handleError("checkBattleEnd", err);
@@ -1488,6 +1695,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private returnToOverworld(): void {
+    clearAllEffects(this.player.activeEffects);
+    clearAllEffects(this.monsterEffects);
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.time.delayedCall(500, () => {
       this.scene.start("OverworldScene", {
@@ -1499,5 +1708,14 @@ export class BattleScene extends Phaser.Scene {
         savedSpecialNpcs: this.savedSpecialNpcs,
       });
     });
+  }
+
+  private recordElementalDiscovery(
+    interaction: ElementalInteraction | undefined,
+    element: Element | undefined,
+  ): void {
+    if (!interaction || !element) return;
+    this.elementalDiscoveries.add(element);
+    discoverElement(this.codex, this.monster.id, element);
   }
 }

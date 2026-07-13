@@ -1,369 +1,150 @@
 ---
 name: phaser-scene-management
-description: Manage Phaser 3 scenes in 2D&D game with proper data flow and transitions
+description: Manage Phaser 4 scenes in 2D&D with correct state flow, cleanup, and transitions
 license: MIT
 ---
 
-# Phaser Scene Management for 2D&D
+# Phaser 4 Scene Management
 
-This skill guides you in creating, managing, and transitioning between Phaser 3 scenes in the 2D&D game while maintaining proper game state.
+## Scenes and keys
 
-## Scene Architecture
+| File | Class | Scene key |
+| --- | --- | --- |
+| `Boot.ts` | `BootScene` | `BootScene` |
+| `Overworld.ts` | `OverworldScene` | `OverworldScene` |
+| `Battle.ts` | `BattleScene` | `BattleScene` |
+| `Shop.ts` | `ShopScene` | `ShopScene` |
+| `Codex.ts` | `CodexScene` | `CodexScene` |
 
-The game uses five main scenes:
-- **Boot** - Asset generation, title screen, character creation
-- **Overworld** - Map exploration, movement, random encounters
-- **Battle** - Turn-based combat with monsters
-- **Shop** - Item purchasing and inn resting
-- **Codex** - Monster encyclopedia
+Register scenes in `src/main.ts`. The Phaser 4 configuration uses FIT scaling,
+centered pixel art, and zoom 6.
 
-## Scene Data Contract
-
-**Every scene transition MUST pass this data object:**
+## Imports and class shape
 
 ```typescript
-interface SceneData {
+import * as Phaser from "phaser";
+
+export class ExampleScene extends Phaser.Scene {
+  constructor() {
+    super({ key: "ExampleScene" });
+  }
+
+  init(data: ExampleSceneData): void {
+    // Store and normalize scene input.
+  }
+
+  create(): void {
+    // Build display objects, input, audio, and scene-owned helpers.
+  }
+}
+```
+
+Use explicit types and return values. Store Phaser objects that need later
+updates or cleanup as class properties.
+
+## Shared state flow
+
+State-bearing transitions preserve:
+
+```typescript
+interface SharedSceneState {
   player: PlayerState;
   defeatedBosses: Set<string>;
   codex: CodexData;
   timeStep: number;
   weatherState: WeatherState;
+  savedSpecialNpcs: SavedSpecialNpc[];
 }
 ```
 
-This ensures consistent game state across all scenes. The `weatherState` tracks current weather type and countdown to next change.
+Scene-specific additions:
 
-## Creating a New Scene
+- Battle: `monster`, `biome`
+- Shop: `townName`, optional item IDs, city context, discount
+- Overworld: fields are optional only because Boot can create or load the
+  initial state
 
-### 1. Scene Class Structure
+When a scene contract changes, update every `scene.start()` caller in the same
+change.
 
-```typescript
-import Phaser from "phaser";
-import type { PlayerState } from "../systems/player";
-import type { CodexData } from "../systems/codex";
-
-export class MyNewScene extends Phaser.Scene {
-  // Game state (passed from previous scene)
-  private player!: PlayerState;
-  private defeatedBosses!: string[];
-  private codex!: CodexData;
-  private timeStep!: number;
-
-  // Scene-specific state
-  private background!: Phaser.GameObjects.Graphics;
-  private ui!: Phaser.GameObjects.Container;
-
-  constructor() {
-    super({ key: "MyNewScene" });
-  }
-
-  init(data: {
-    player: PlayerState;
-    defeatedBosses: string[];
-    codex: CodexData;
-    timeStep: number;
-  }) {
-    // Store passed data
-    this.player = data.player;
-    this.defeatedBosses = data.defeatedBosses;
-    this.codex = data.codex;
-    this.timeStep = data.timeStep;
-
-    // Validate required data
-    if (!this.player) {
-      console.error("MyNewScene: Missing player data");
-    }
-  }
-
-  create() {
-    // Initialize scene visuals and logic
-    this.createBackground();
-    this.createUI();
-    this.setupInput();
-  }
-
-  update(time: number, delta: number) {
-    // Game loop (optional, for animated scenes)
-  }
-
-  private createBackground() {
-    // Procedural graphics generation
-    this.background = this.add.graphics();
-    // ... draw background
-  }
-
-  private createUI() {
-    // Create UI elements
-    this.ui = this.add.container();
-    // ... add UI
-  }
-
-  private setupInput() {
-    // Input handling
-    this.input.keyboard?.on("keydown-ESC", () => {
-      this.exitScene();
-    });
-  }
-
-  private exitScene() {
-    // Transition to another scene
-    this.scene.start("OverworldScene", {
-      player: this.player,
-      defeatedBosses: this.defeatedBosses,
-      codex: this.codex,
-      timeStep: this.timeStep,
-    });
-  }
-}
-```
-
-### 2. Register Scene in main.ts
+## Transition pattern
 
 ```typescript
-import { MyNewScene } from "./scenes/MyNewScene";
-
-const config: Phaser.Types.Core.GameConfig = {
-  // ... other config
-  scene: [
-    BootScene,
-    OverworldScene,
-    BattleScene,
-    ShopScene,
-    CodexScene,
-    MyNewScene,  // Add your scene
-  ],
-};
-```
-
-## Scene Transitions
-
-### Starting a Scene
-```typescript
-// From any scene to another
-this.scene.start("NextScene", {
+this.scene.start("OverworldScene", {
   player: this.player,
   defeatedBosses: this.defeatedBosses,
   codex: this.codex,
   timeStep: this.timeStep,
+  weatherState: this.weatherState,
+  savedSpecialNpcs: this.savedSpecialNpcs,
 });
 ```
 
-### Restarting Current Scene
-```typescript
-// Useful for "try again" or chunk transitions
-this.scene.restart({
-  player: this.player,
-  defeatedBosses: this.defeatedBosses,
-  codex: this.codex,
-  timeStep: this.timeStep,
-});
-```
+Do not serialize `Set<string>` during scene transitions. Conversion to arrays
+belongs in the save system.
 
-### Pausing/Resuming Scenes
-```typescript
-// Pause current scene and launch another (overlay)
-this.scene.pause();
-this.scene.launch("PauseMenu", { /* data */ });
+## Procedural assets
 
-// Resume from paused scene
-this.scene.resume("OverworldScene");
-this.scene.stop();  // Stop the overlay scene
-```
+`BootScene.preload()` calls texture generation from
+`src/renderers/textures.ts`. Add new procedural texture generation there and
+invoke it through the existing aggregate generator. Do not load image, sprite,
+or audio files.
 
-## UI Positioning Best Practices
+## Scene-owned subsystems
 
-### Calculate Bounds to Prevent Overlap
+Overworld delegates to renderers and managers. Instantiate these in `init()` so
+a restarted scene receives fresh helpers, then load persisted data into them:
 
-```typescript
-// BAD: Hardcoded positions can cause overlap
-const title = this.add.text(320, 100, "Title", { fontSize: "32px" });
-const subtitle = this.add.text(320, 120, "Subtitle", { fontSize: "16px" });
-// These might overlap depending on scale!
+- `FogOfWar`
+- `EncounterSystem`
+- `MapRenderer`
+- `CityRenderer`
+- `PlayerRenderer`
+- `HUDRenderer`
+- `OverlayManager`
+- NPC and dialogue managers
+- `DebugCommandSystem`
 
-// GOOD: Calculate actual bounds
-const title = this.add.text(320, 100, "Title", { fontSize: "32px" });
-title.setOrigin(0.5);
-const titleBottom = title.y + (title.height * title.scaleY) / 2;
+## UI layout
 
-const subtitle = this.add.text(320, titleBottom + 20, "Subtitle", { fontSize: "16px" });
-subtitle.setOrigin(0.5);
-// 20px gap ensures no overlap
-```
+- Calculate actual text and container bounds, including scale.
+- Use shared panel/dimmer helpers where available.
+- Keep action buttons visibly disabled outside the player turn.
+- Destroy or replace transient menus before opening another.
+- For scrollable text, bound what is rendered to the visible area.
 
-### Using Containers for Complex UI
+Phaser 4 geometry masks do not reliably clip the Battle log in this project.
+The Battle scene renders only messages that fit and changes the message offset
+on mouse-wheel input.
 
-```typescript
-// Group related UI elements
-const menuContainer = this.add.container(100, 100);
+## Battle lifecycle
 
-const background = this.add.graphics();
-background.fillStyle(0x000000, 0.8);
-background.fillRect(0, 0, 400, 300);
+- Reinitialize phase, menus, turn flags, discoveries, and monster effects in
+  `init()`.
+- Process player and monster statuses at actor-turn boundaries.
+- Keep bonus-action abilities and the first item use on the player turn.
+- Validate actions before consuming MP, items, or the turn.
+- Clear all combat effects before returning to Overworld.
+- Clean up weather emitters and timers owned by Battle.
 
-const title = this.add.text(200, 20, "Menu", { fontSize: "24px" });
-title.setOrigin(0.5);
+## Debug and errors
 
-const option1 = this.add.text(20, 60, "Option 1", { fontSize: "16px" });
-const option2 = this.add.text(20, 100, "Option 2", { fontSize: "16px" });
+Use `debugLog()`, `debugPanelLog()`, and `debugPanelState()`. Do not add
+`console.log`. Invalid user actions should produce visible feedback and leave
+the scene in a usable phase.
 
-menuContainer.add([background, title, option1, option2]);
+## Validation
 
-// Move entire menu at once
-menuContainer.setPosition(150, 150);
-```
+1. Type-check every changed scene contract.
+2. Test pure logic in Vitest.
+3. Run the affected browser flow with headless Chromium.
+4. Confirm keyboard, pointer, scrolling, transitions, and cleanup.
 
-## Procedural Graphics Generation
+## Common pitfalls
 
-All graphics are generated in Boot.ts. Reference existing patterns:
-
-```typescript
-// Generate a sprite texture
-const graphics = this.add.graphics();
-graphics.fillStyle(0xff0000);
-graphics.fillRect(0, 0, 32, 32);
-graphics.generateTexture("mySprite", 32, 32);
-graphics.destroy();
-
-// Use the generated texture
-const sprite = this.add.sprite(x, y, "mySprite");
-```
-
-## Debug Integration
-
-```typescript
-import { isDebug, debugLog, debugPanelLog } from "../config";
-
-create() {
-  debugLog("MyNewScene created");
-  debugPanelLog("Entered MyNewScene");
-
-  if (isDebug()) {
-    // Show debug info
-    this.add.text(10, 10, "DEBUG MODE", { fontSize: "12px", color: "#ff0000" });
-  }
-}
-```
-
-## Input Handling
-
-### Keyboard Input
-```typescript
-// Method 1: Event-based
-this.input.keyboard?.on("keydown-SPACE", () => {
-  this.handleAction();
-});
-
-// Method 2: Polling in update()
-update() {
-  const keys = this.input.keyboard?.createCursorKeys();
-  if (keys?.space.isDown) {
-    this.handleAction();
-  }
-}
-
-// Method 3: One-time key check
-if (this.input.keyboard?.checkDown(this.input.keyboard.addKey("SPACE"))) {
-  this.handleAction();
-}
-```
-
-### Mouse/Touch Input
-```typescript
-// Click on game object
-const button = this.add.text(100, 100, "Click Me", { fontSize: "16px" });
-button.setInteractive();
-button.on("pointerdown", () => {
-  this.handleClick();
-});
-
-// Hover effects
-button.on("pointerover", () => {
-  button.setStyle({ color: "#ffff00" });
-});
-button.on("pointerout", () => {
-  button.setStyle({ color: "#ffffff" });
-});
-```
-
-## Common Patterns
-
-### Modal Dialogs
-```typescript
-private showDialog(message: string, onConfirm: () => void) {
-  // Dim background
-  const overlay = this.add.graphics();
-  overlay.fillStyle(0x000000, 0.7);
-  overlay.fillRect(0, 0, 640, 560);
-
-  // Dialog box
-  const dialog = this.add.container(320, 280);
-  const bg = this.add.graphics();
-  bg.fillStyle(0x333333);
-  bg.fillRect(-150, -50, 300, 100);
-
-  const text = this.add.text(0, -20, message, { fontSize: "16px" });
-  text.setOrigin(0.5);
-
-  const button = this.add.text(0, 20, "OK", { fontSize: "16px" });
-  button.setOrigin(0.5);
-  button.setInteractive();
-  button.on("pointerdown", () => {
-    dialog.destroy();
-    overlay.destroy();
-    onConfirm();
-  });
-
-  dialog.add([bg, text, button]);
-}
-```
-
-### Animation Sequences
-```typescript
-// Tween animations
-this.tweens.add({
-  targets: sprite,
-  x: 400,
-  y: 300,
-  alpha: 0,
-  duration: 1000,
-  ease: "Power2",
-  onComplete: () => {
-    sprite.destroy();
-  },
-});
-
-// Chained animations
-this.tweens.chain({
-  targets: sprite,
-  tweens: [
-    { x: 200, duration: 500 },
-    { y: 300, duration: 500 },
-    { alpha: 0, duration: 500 },
-  ],
-});
-```
-
-## Testing Scenes
-
-1. **Type safety**: Ensure scene data is properly typed
-2. **State persistence**: Verify player state carries through transitions
-3. **UI layout**: Check no overlapping elements at all scales
-4. **Input handling**: Test all keyboard/mouse interactions
-5. **Memory**: Ensure scene cleanup (destroy unused objects)
-
-## Common Pitfalls
-
-- ❌ Forgetting to pass complete scene data during transitions
-- ❌ Not using `!` assertion for init data (TypeScript error)
-- ❌ Hardcoding positions without calculating bounds
-- ❌ Creating memory leaks by not destroying old objects
-- ❌ Not registering scene in main.ts config
-- ❌ Using external assets instead of procedural generation
-
-## Related Files
-
-- Scene implementations: `src/scenes/*.ts`
-- Main config: `src/main.ts`
-- Player state: `src/systems/player.ts`
-- Codex system: `src/systems/codex.ts`
-- Debug utilities: `src/config.ts`
+- Stale scene keys such as `Overworld` instead of `OverworldScene`
+- Passing arrays where `Set<string>` is expected
+- Dropping weather or special-NPC state during transitions
+- Reusing orphaned tween/input state after a scene restart
+- Depending on Phaser 3-only behavior
+- Hardcoded UI positions that overlap after scaling

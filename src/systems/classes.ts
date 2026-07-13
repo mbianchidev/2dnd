@@ -139,7 +139,7 @@ export const PLAYER_CLASSES: PlayerClass[] = [
     primaryStat: "dexterity",
     hitDie: 8,
     spells: [],
-    abilities: ["sneakAttack", "cunningStrike", "shadowStep", "assassinate", "fastTravel", "evac", "shortRest"],
+    abilities: ["sneakAttack", "sneakStance", "cunningStrike", "shadowStep", "assassinate", "fastTravel", "evac", "shortRest"],
     weaponSprite: "dagger",
     startingWeaponId: "startDagger",
     clothingStyle: "leather",

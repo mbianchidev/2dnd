@@ -3,8 +3,15 @@
  * and NPC texture generation.  Extracted from OverworldScene for modularity.
  */
 
-import type { CityData } from "../data/map";
-import { MAP_WIDTH, MAP_HEIGHT, Terrain, isWalkable, getCity } from "../data/map";
+import type { CityChunk, CityData, CityShopData } from "../data/map";
+import {
+  MAP_WIDTH,
+  MAP_HEIGHT,
+  Terrain,
+  isWalkable,
+  getCity,
+  getCityChunk,
+} from "../data/map";
 import {
   CITY_NPCS, getNpcTemplate, getNpcColors,
   type NpcInstance, type NpcTemplate,
@@ -41,8 +48,14 @@ export class CityRenderer {
 
   // ── Animals ──────────────────────────────────────────────────────────
 
-  /** Spawn animated animal sprites in a city.  Animals wander on walkable tiles. */
-  spawnCityAnimals(city: CityData, isExplored: (x: number, y: number) => boolean): void {
+  /** Spawn animated animal sprites in a city's primary chunk. */
+  spawnCityAnimals(
+    city: CityData,
+    cityMap: Terrain[][],
+    chunkIndex: number,
+    isExplored: (x: number, y: number) => boolean,
+  ): void {
+    if (chunkIndex !== 0) return;
     // Animal definitions per city
     const CITY_ANIMALS: Record<string, Array<{ sprite: string; x: number; y: number; moves: boolean }>> = {
       willowdale_city: [
@@ -149,7 +162,7 @@ export class CityRenderer {
           if (
             nx >= 1 && nx < MAP_WIDTH - 1 &&
             ny >= 1 && ny < MAP_HEIGHT - 1 &&
-            isWalkable(city.mapData[ny][nx])
+            isWalkable(cityMap[ny][nx])
           ) {
             this.scene.tweens.add({
               targets: sprite,
@@ -186,7 +199,11 @@ export class CityRenderer {
    * CityWall + ShopFloor tiles that form the structure; the roof covers
    * them and fades out when the player is inside.
    */
-  createShopRoofs(city: CityData, biome: Terrain): void {
+  createShopRoofs(
+    cityMap: Terrain[][],
+    shops: CityShopData[],
+    biome: Terrain,
+  ): void {
     // Biome-based roof colour palettes
     const BIOME_ROOF_COLORS: Record<number, { base: number; ridge: number; border: number }> = {
       [Terrain.Grass]:      { base: 0x8d6e63, ridge: 0x6d4c41, border: 0x4e342e },
@@ -203,8 +220,8 @@ export class CityRenderer {
     // Global visited set so merged shop areas are claimed by the first shop only
     const globalVisited = new Set<string>();
 
-    for (let si = 0; si < city.shops.length; si++) {
-      const shop = city.shops[si];
+    for (let si = 0; si < shops.length; si++) {
+      const shop = shops[si];
       const tiles: { x: number; y: number }[] = [];
       const queue: { x: number; y: number }[] = [];
 
@@ -214,7 +231,7 @@ export class CityRenderer {
           const tx = shop.x + dx;
           const ty = shop.y + dy;
           if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-            const t = city.mapData[ty][tx];
+            const t = cityMap[ty][tx];
             if (t === Terrain.ShopFloor) {
               const key = `${tx},${ty}`;
               if (!globalVisited.has(key)) {
@@ -237,7 +254,7 @@ export class CityRenderer {
           const key = `${nx},${ny}`;
           if (globalVisited.has(key)) continue;
           if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
-          const t = city.mapData[ny][nx];
+          const t = cityMap[ny][nx];
           if (t === Terrain.ShopFloor) {
             globalVisited.add(key);
             queue.push({ x: nx, y: ny });
@@ -298,10 +315,10 @@ export class CityRenderer {
     // Build shop groups: shops whose carpet entrance is adjacent to ShopFloor
     // tiles claimed by another shop are in the same group.
     let nextGroup = 0;
-    for (let si = 0; si < city.shops.length; si++) {
+    for (let si = 0; si < shops.length; si++) {
       if (this.shopGroupMap.has(si)) continue;
       // Check if this shop's entrance area connects to another shop's floor
-      const shop = city.shops[si];
+      const shop = shops[si];
       const adjacentShops = new Set<number>();
       adjacentShops.add(si);
       for (let dy = -1; dy <= 0; dy++) {
@@ -322,8 +339,8 @@ export class CityRenderer {
     let changed = true;
     while (changed) {
       changed = false;
-      for (let si = 0; si < city.shops.length; si++) {
-        const shop = city.shops[si];
+      for (let si = 0; si < shops.length; si++) {
+        const shop = shops[si];
         const myGroup = this.shopGroupMap.get(si) ?? -1;
         for (let dy = -1; dy <= 0; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
@@ -348,14 +365,19 @@ export class CityRenderer {
   }
 
   /** Return the shop index the player is currently inside (-1 if not in any shop). */
-  getPlayerShopIndex(city: CityData, playerX: number, playerY: number): number {
-    const terrain = city.mapData[playerY]?.[playerX];
+  getPlayerShopIndex(
+    cityMap: Terrain[][],
+    shops: CityShopData[],
+    playerX: number,
+    playerY: number,
+  ): number {
+    const terrain = cityMap[playerY]?.[playerX];
     if (terrain === Terrain.ShopFloor) {
       return this.shopFloorMap.get(`${playerX},${playerY}`) ?? -1;
     }
     if (terrain === Terrain.Carpet) {
-      for (let si = 0; si < city.shops.length; si++) {
-        if (city.shops[si].x === playerX && city.shops[si].y === playerY) return si;
+      for (let si = 0; si < shops.length; si++) {
+        if (shops[si].x === playerX && shops[si].y === playerY) return si;
       }
       // Check if adjacent ShopFloor tiles belong to a shop
       for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
@@ -450,6 +472,8 @@ export class CityRenderer {
     if (!player.position.inCity) return;
     const city = getCity(player.position.cityId);
     if (!city) return;
+    const chunk = getCityChunk(city, player.position.cityChunkIndex);
+    if (!chunk) return;
     // Destroy existing NPC sprites and timers
     for (const s of this.cityNpcSprites) s.destroy();
     this.cityNpcSprites = [];
@@ -457,11 +481,24 @@ export class CityRenderer {
     this.cityNpcTimers = [];
     this.cityNpcData = [];
     // Re-spawn
-    this.spawnCityNpcs(city, timeStep, isExplored);
+    this.spawnCityNpcs(
+      city,
+      chunk,
+      player.position.cityChunkIndex,
+      timeStep,
+      isExplored,
+    );
   }
 
   /** Spawn NPC sprites in cities with wandering / stationary behaviour. */
-  spawnCityNpcs(city: CityData, timeStep: number, isExplored: (x: number, y: number) => boolean): void {
+  spawnCityNpcs(
+    city: CityData,
+    chunk: CityChunk,
+    chunkIndex: number,
+    timeStep: number,
+    isExplored: (x: number, y: number) => boolean,
+  ): void {
+    if (chunkIndex !== 0) return;
     const npcs = CITY_NPCS[city.id];
     if (!npcs) return;
 
@@ -496,7 +533,7 @@ export class CityRenderer {
       let spawnX = def.x;
       let spawnY = def.y;
       if (def.shopIndex !== undefined) {
-        const shop = city.shops[def.shopIndex];
+        const shop = chunk.shops[def.shopIndex];
         if (shop) {
           // Search for a ShopFloor tile near the shop entrance (carpet)
           for (let dy = -2; dy <= 0; dy++) {
@@ -504,7 +541,7 @@ export class CityRenderer {
               const tx = shop.x + dx;
               const ty = shop.y + dy;
               if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-                if (city.mapData[ty][tx] === Terrain.ShopFloor) {
+                if (chunk.mapData[ty][tx] === Terrain.ShopFloor) {
                   spawnX = tx;
                   spawnY = ty;
                 }
@@ -549,7 +586,7 @@ export class CityRenderer {
           if (
             nx >= 1 && nx < MAP_WIDTH - 1 &&
             ny >= 1 && ny < MAP_HEIGHT - 1 &&
-            isWalkable(city.mapData[ny][nx])
+            isWalkable(chunk.mapData[ny][nx])
           ) {
             this.scene.tweens.add({
               targets: sprite,
@@ -582,78 +619,6 @@ export class CityRenderer {
         });
       }
     }
-  }
-
-  // ── Adjacency Queries ────────────────────────────────────────────────
-
-  /**
-   * Find an NPC adjacent to or on the player's current position.
-   * Shopkeeper NPCs can only be talked to from inside their shop
-   * (player must be on a ShopFloor tile, not the carpet entrance).
-   */
-  findAdjacentNpc(playerX: number, playerY: number, cityId: string): { npcDef: NpcInstance; npcIndex: number } | null {
-    const npcs = this.cityNpcData;
-    if (!npcs.length) return null;
-
-    // Check what tile the player is standing on
-    const city = getCity(cityId);
-    const playerTerrain = city?.mapData[playerY]?.[playerX];
-    const playerInsideShop = playerTerrain === Terrain.ShopFloor || playerTerrain === Terrain.CityFloor || playerTerrain === Terrain.Carpet;
-
-    const checks = [
-      { x: playerX, y: playerY },
-      { x: playerX - 1, y: playerY }, { x: playerX + 1, y: playerY },
-      { x: playerX, y: playerY - 1 }, { x: playerX, y: playerY + 1 },
-    ];
-
-    for (let i = 0; i < npcs.length; i++) {
-      const npc = npcs[i];
-      // Shopkeeper NPCs require the player to be inside the shop (on carpet or shop floor).
-      // Stables are open-air, so the player just needs to be nearby on any walkable city tile.
-      if (npc.shopIndex !== undefined) {
-        const shop = city?.shops[npc.shopIndex];
-        const isOutdoorShop = shop?.type === "stable";
-        if (!isOutdoorShop && !playerInsideShop) continue;
-      }
-
-      // For wandering NPCs or shopkeepers (placed programmatically), use sprite position
-      let nx: number;
-      let ny: number;
-      if (this.cityNpcSprites[i]) {
-        nx = Math.floor(this.cityNpcSprites[i].x / TILE_SIZE);
-        ny = Math.floor(this.cityNpcSprites[i].y / TILE_SIZE);
-      } else {
-        nx = npc.x;
-        ny = npc.y;
-      }
-      for (const c of checks) {
-        if (c.x === nx && c.y === ny) {
-          return { npcDef: npc, npcIndex: i };
-        }
-      }
-    }
-    return null;
-  }
-
-  /** Check if the player is adjacent to a city animal sprite. */
-  findAdjacentAnimal(playerX: number, playerY: number): { spriteName: string } | null {
-    const checks = [
-      { x: playerX, y: playerY },
-      { x: playerX - 1, y: playerY }, { x: playerX + 1, y: playerY },
-      { x: playerX, y: playerY - 1 }, { x: playerX, y: playerY + 1 },
-    ];
-
-    for (const sprite of this.cityAnimals) {
-      if (!sprite.active) continue;
-      const ax = Math.floor(sprite.x / TILE_SIZE);
-      const ay = Math.floor(sprite.y / TILE_SIZE);
-      for (const c of checks) {
-        if (c.x === ax && c.y === ay) {
-          return { spriteName: sprite.texture.key };
-        }
-      }
-    }
-    return null;
   }
 
   // ── Cleanup ──────────────────────────────────────────────────────────

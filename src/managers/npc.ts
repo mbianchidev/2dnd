@@ -6,7 +6,7 @@
  */
 
 import { Terrain } from "../data/map";
-import type { CityData } from "../data/map";
+import type { CityShopData } from "../data/map";
 import type { NpcInstance } from "../data/npcs";
 import type { CityRenderer } from "../renderers/city";
 import { TILE_SIZE } from "../config";
@@ -17,7 +17,8 @@ import { TILE_SIZE } from "../config";
  * (player must be on a ShopFloor tile, not just the carpet entrance).
  */
 export function findAdjacentNpc(
-  city: CityData,
+  cityMap: Terrain[][],
+  shops: CityShopData[],
   playerX: number,
   playerY: number,
   cityRenderer: CityRenderer,
@@ -25,7 +26,7 @@ export function findAdjacentNpc(
   const npcs = cityRenderer.cityNpcData;
   if (!npcs.length) return null;
 
-  const playerTerrain = city.mapData[playerY]?.[playerX];
+  const playerTerrain = cityMap[playerY]?.[playerX];
   const playerInsideShop =
     playerTerrain === Terrain.ShopFloor ||
     playerTerrain === Terrain.CityFloor ||
@@ -42,7 +43,7 @@ export function findAdjacentNpc(
   for (let i = 0; i < npcs.length; i++) {
     const npc = npcs[i];
     if (npc.shopIndex !== undefined) {
-      const shop = city.shops[npc.shopIndex];
+      const shop = shops[npc.shopIndex];
       const isOutdoorShop = shop?.type === "stable";
       if (!isOutdoorShop && !playerInsideShop) continue;
     }

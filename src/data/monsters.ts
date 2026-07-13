@@ -3,6 +3,9 @@
  */
 
 import type { DieType } from "../systems/dice";
+import { Element } from "./elements";
+import type { ElementalProfile } from "./elements";
+import type { StatusEffectId } from "../systems/statusEffects";
 
 export interface MonsterDrop {
   itemId: string;
@@ -17,6 +20,10 @@ export interface MonsterAbility {
   type: "damage" | "heal";
   /** If true AND type is "damage", the monster also heals for the damage dealt. */
   selfHeal?: boolean;
+  /** Elemental type of this ability's damage. */
+  element?: Element;
+  /** Status effect applied when this ability deals damage. */
+  statusEffect?: StatusEffectId;
 }
 
 export interface Monster {
@@ -33,6 +40,8 @@ export interface Monster {
   color: number; // display color in battle
   drops?: MonsterDrop[];
   abilities?: MonsterAbility[];
+  /** Elemental resistances, weaknesses, and immunities. */
+  elementalProfile?: ElementalProfile;
 }
 
 export const MONSTERS: Monster[] = [
@@ -49,7 +58,10 @@ export const MONSTERS: Monster[] = [
     goldReward: 5,
     isBoss: false,
     color: 0x44cc44,
-    drops: [{ itemId: "potion", chance: 0.15 }],
+    drops: [{ itemId: "potion", chance: 0.15 }, { itemId: "antidote", chance: 0.1 }],
+    abilities: [
+      { name: "Acid Spit", chance: 0.2, damageCount: 1, damageDie: 4, type: "damage", element: Element.Poison, statusEffect: "poison" },
+    ],
   },
   {
     id: "goblin",
@@ -63,7 +75,7 @@ export const MONSTERS: Monster[] = [
     goldReward: 10,
     isBoss: false,
     color: 0x88aa44,
-    drops: [{ itemId: "potion", chance: 0.2 }, { itemId: "ether", chance: 0.1 }],
+    drops: [{ itemId: "potion", chance: 0.2 }, { itemId: "ether", chance: 0.1 }, { itemId: "antidote", chance: 0.08 }],
   },
   {
     id: "skeleton",
@@ -81,6 +93,10 @@ export const MONSTERS: Monster[] = [
     abilities: [
       { name: "Bone Throw", chance: 0.25, damageCount: 2, damageDie: 4, type: "damage" },
     ],
+    elementalProfile: {
+      weaknesses: [Element.Radiant],
+      resistances: [Element.Necrotic, Element.Poison],
+    },
   },
   {
     id: "wolf",
@@ -96,7 +112,7 @@ export const MONSTERS: Monster[] = [
     color: 0x888888,
     drops: [{ itemId: "potion", chance: 0.25 }],
     abilities: [
-      { name: "Pounce", chance: 0.30, damageCount: 3, damageDie: 6, type: "damage" },
+      { name: "Pounce", chance: 0.30, damageCount: 3, damageDie: 6, type: "damage", statusEffect: "prone" },
     ],
   },
   {
@@ -130,9 +146,14 @@ export const MONSTERS: Monster[] = [
     color: 0x554488,
     drops: [{ itemId: "ether", chance: 0.25 }, { itemId: "greaterPotion", chance: 0.1 }],
     abilities: [
-      { name: "Life Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true },
-      { name: "Necrotic Bolt", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage" },
+      { name: "Life Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true, element: Element.Necrotic },
+      { name: "Necrotic Bolt", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage", element: Element.Necrotic, statusEffect: "frightened" },
     ],
+    elementalProfile: {
+      weaknesses: [Element.Radiant],
+      resistances: [Element.Necrotic],
+      immunities: [Element.Poison],
+    },
   },
   // --- Fixed boss encounters ---
   {
@@ -152,6 +173,9 @@ export const MONSTERS: Monster[] = [
       { name: "Regenerate", chance: 0.25, damageCount: 3, damageDie: 8, type: "heal" },
       { name: "Rock Slam", chance: 0.35, damageCount: 3, damageDie: 10, type: "damage" },
     ],
+    elementalProfile: {
+      weaknesses: [Element.Fire],
+    },
   },
   {
     id: "dragon",
@@ -167,9 +191,13 @@ export const MONSTERS: Monster[] = [
     color: 0xcc2222,
     drops: [{ itemId: "greaterPotion", chance: 0.75 }, { itemId: "plateArmor", chance: 0.3 }, { itemId: "greatSword", chance: 0.2 }],
     abilities: [
-      { name: "Fire Breath", chance: 0.40, damageCount: 6, damageDie: 8, type: "damage" },
+      { name: "Fire Breath", chance: 0.40, damageCount: 6, damageDie: 8, type: "damage", element: Element.Fire, statusEffect: "burn" },
       { name: "Tail Sweep", chance: 0.25, damageCount: 3, damageDie: 10, type: "damage" },
     ],
+    elementalProfile: {
+      immunities: [Element.Fire],
+      weaknesses: [Element.Ice],
+    },
   },
   // --- Bosses added for expanded biomes ---
   {
@@ -186,9 +214,13 @@ export const MONSTERS: Monster[] = [
     color: 0x90caf9,
     drops: [{ itemId: "greaterPotion", chance: 0.6 }, { itemId: "chainMail", chance: 0.3 }],
     abilities: [
-      { name: "Icy Smash", chance: 0.35, damageCount: 4, damageDie: 8, type: "damage" },
-      { name: "Frost Aura", chance: 0.2, damageCount: 2, damageDie: 10, type: "damage" },
+      { name: "Icy Smash", chance: 0.35, damageCount: 4, damageDie: 8, type: "damage", element: Element.Ice },
+      { name: "Frost Aura", chance: 0.2, damageCount: 2, damageDie: 10, type: "damage", element: Element.Ice, statusEffect: "freeze" },
     ],
+    elementalProfile: {
+      immunities: [Element.Ice],
+      weaknesses: [Element.Fire],
+    },
   },
   {
     id: "swampHydra",
@@ -207,6 +239,10 @@ export const MONSTERS: Monster[] = [
       { name: "Multi-Bite", chance: 0.4, damageCount: 5, damageDie: 6, type: "damage" },
       { name: "Regenerate", chance: 0.2, damageCount: 4, damageDie: 8, type: "heal" },
     ],
+    elementalProfile: {
+      weaknesses: [Element.Fire, Element.Ice],
+      resistances: [Element.Poison],
+    },
   },
   {
     id: "volcanicWyrm",
@@ -222,9 +258,13 @@ export const MONSTERS: Monster[] = [
     color: 0xbf360c,
     drops: [{ itemId: "greaterPotion", chance: 0.8 }, { itemId: "greatSword", chance: 0.25 }],
     abilities: [
-      { name: "Lava Burst", chance: 0.4, damageCount: 5, damageDie: 8, type: "damage" },
+      { name: "Lava Burst", chance: 0.4, damageCount: 5, damageDie: 8, type: "damage", element: Element.Fire, statusEffect: "burn" },
       { name: "Magma Shield", chance: 0.2, damageCount: 3, damageDie: 10, type: "heal" },
     ],
+    elementalProfile: {
+      immunities: [Element.Fire],
+      weaknesses: [Element.Ice],
+    },
   },
   {
     id: "canyonDrake",
@@ -259,7 +299,7 @@ export const MONSTERS: Monster[] = [
     color: 0x8b6914,
     drops: [{ itemId: "chimaeraWing", chance: 0.15 }, { itemId: "potion", chance: 0.2 }],
     abilities: [
-      { name: "Fire Breath", chance: 0.2, damageCount: 2, damageDie: 6, type: "damage" },
+      { name: "Fire Breath", chance: 0.2, damageCount: 2, damageDie: 6, type: "damage", element: Element.Fire },
     ],
   },
   {
@@ -315,8 +355,12 @@ export const DUNGEON_MONSTERS: Monster[] = [
     color: 0x37474f,
     drops: [{ itemId: "ether", chance: 0.25 }],
     abilities: [
-      { name: "Shadow Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true },
+      { name: "Shadow Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true, element: Element.Necrotic },
     ],
+    elementalProfile: {
+      weaknesses: [Element.Radiant],
+      resistances: [Element.Necrotic, Element.Poison],
+    },
   },
   {
     id: "mimic",
@@ -357,6 +401,11 @@ export const DUNGEON_MONSTERS: Monster[] = [
     abilities: [
       { name: "Ground Slam", chance: 0.35, damageCount: 4, damageDie: 6, type: "damage" },
     ],
+    elementalProfile: {
+      immunities: [Element.Poison, Element.Psychic],
+      resistances: [Element.Fire, Element.Lightning],
+      weaknesses: [Element.Thunder],
+    },
   },
 ];
 
@@ -377,8 +426,12 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
     drops: [{ itemId: "ether", chance: 0.2 }],
     abilities: [
       { name: "Bone Shield", chance: 0.2, damageCount: 2, damageDie: 4, type: "heal" },
-      { name: "Cursed Strike", chance: 0.3, damageCount: 2, damageDie: 8, type: "damage" },
+      { name: "Cursed Strike", chance: 0.3, damageCount: 2, damageDie: 8, type: "damage", element: Element.Necrotic },
     ],
+    elementalProfile: {
+      weaknesses: [Element.Radiant],
+      resistances: [Element.Necrotic, Element.Poison],
+    },
   },
   {
     id: "tombWraith",
@@ -394,9 +447,13 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
     color: 0x4a148c,
     drops: [{ itemId: "ether", chance: 0.3 }, { itemId: "greaterPotion", chance: 0.15 }],
     abilities: [
-      { name: "Soul Rend", chance: 0.35, damageCount: 3, damageDie: 6, type: "damage", selfHeal: true },
-      { name: "Wail of the Dead", chance: 0.2, damageCount: 4, damageDie: 4, type: "damage" },
+      { name: "Soul Rend", chance: 0.35, damageCount: 3, damageDie: 6, type: "damage", selfHeal: true, element: Element.Necrotic },
+      { name: "Wail of the Dead", chance: 0.2, damageCount: 4, damageDie: 4, type: "damage", element: Element.Necrotic },
     ],
+    elementalProfile: {
+      weaknesses: [Element.Radiant],
+      immunities: [Element.Poison, Element.Necrotic],
+    },
   },
   {
     id: "bonePile",
@@ -434,9 +491,13 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
     color: 0x80deea,
     drops: [{ itemId: "ether", chance: 0.2 }],
     abilities: [
-      { name: "Frost Nova", chance: 0.3, damageCount: 3, damageDie: 4, type: "damage" },
+      { name: "Frost Nova", chance: 0.3, damageCount: 3, damageDie: 4, type: "damage", element: Element.Ice },
       { name: "Ice Armor", chance: 0.2, damageCount: 2, damageDie: 6, type: "heal" },
     ],
+    elementalProfile: {
+      immunities: [Element.Ice],
+      weaknesses: [Element.Fire],
+    },
   },
   {
     id: "frostSpider",
@@ -452,9 +513,13 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
     color: 0xb3e5fc,
     drops: [{ itemId: "potion", chance: 0.25 }],
     abilities: [
-      { name: "Web Snare", chance: 0.25, damageCount: 1, damageDie: 4, type: "damage" },
-      { name: "Frozen Bite", chance: 0.3, damageCount: 2, damageDie: 8, type: "damage" },
+      { name: "Web Snare", chance: 0.25, damageCount: 1, damageDie: 4, type: "damage", statusEffect: "slow" },
+      { name: "Frozen Bite", chance: 0.3, damageCount: 2, damageDie: 8, type: "damage", element: Element.Ice },
     ],
+    elementalProfile: {
+      resistances: [Element.Ice],
+      weaknesses: [Element.Fire],
+    },
   },
   {
     id: "glacialBear",
@@ -472,6 +537,10 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
     abilities: [
       { name: "Maul", chance: 0.35, damageCount: 4, damageDie: 6, type: "damage" },
     ],
+    elementalProfile: {
+      resistances: [Element.Ice],
+      weaknesses: [Element.Fire],
+    },
   },
 ];
 
@@ -491,8 +560,12 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
     color: 0xff6e40,
     drops: [{ itemId: "potion", chance: 0.2 }],
     abilities: [
-      { name: "Lava Splash", chance: 0.3, damageCount: 2, damageDie: 8, type: "damage" },
+      { name: "Lava Splash", chance: 0.3, damageCount: 2, damageDie: 8, type: "damage", element: Element.Fire, statusEffect: "burn" },
     ],
+    elementalProfile: {
+      immunities: [Element.Fire],
+      weaknesses: [Element.Ice],
+    },
   },
   {
     id: "cinderWraith",
@@ -508,9 +581,13 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
     color: 0xdd2c00,
     drops: [{ itemId: "ether", chance: 0.25 }],
     abilities: [
-      { name: "Ember Storm", chance: 0.3, damageCount: 3, damageDie: 6, type: "damage" },
+      { name: "Ember Storm", chance: 0.3, damageCount: 3, damageDie: 6, type: "damage", element: Element.Fire },
       { name: "Ashen Veil", chance: 0.2, damageCount: 2, damageDie: 6, type: "heal" },
     ],
+    elementalProfile: {
+      resistances: [Element.Fire],
+      weaknesses: [Element.Ice, Element.Radiant],
+    },
   },
   {
     id: "obsidianGolem",
@@ -529,9 +606,14 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
       { itemId: "chainMail", chance: 0.1 },
     ],
     abilities: [
-      { name: "Molten Slam", chance: 0.35, damageCount: 4, damageDie: 8, type: "damage" },
+      { name: "Molten Slam", chance: 0.35, damageCount: 4, damageDie: 8, type: "damage", element: Element.Fire },
       { name: "Magma Shell", chance: 0.15, damageCount: 3, damageDie: 8, type: "heal" },
     ],
+    elementalProfile: {
+      resistances: [Element.Fire],
+      immunities: [Element.Poison],
+      weaknesses: [Element.Ice, Element.Thunder],
+    },
   },
 ];
 
@@ -541,6 +623,94 @@ export const DUNGEON_MONSTER_POOLS: Record<string, Monster[]> = {
   frost_cavern: [...DUNGEON_MONSTERS, ...FROST_CAVERN_MONSTERS],
   volcanic_forge: [...DUNGEON_MONSTERS, ...VOLCANIC_FORGE_MONSTERS],
 };
+
+/** Unique dungeon bosses — one per dungeon, encountered on the deepest level. */
+export const DUNGEON_BOSSES: Monster[] = [
+  {
+    id: "cryptLich",
+    name: "Crypt Lich",
+    hp: 110,
+    ac: 17,
+    attackBonus: 8,
+    damageCount: 3,
+    damageDie: 8,
+    xpReward: 800,
+    goldReward: 200,
+    isBoss: true,
+    color: 0x4a148c,
+    drops: [{ itemId: "greaterPotion", chance: 0.75 }, { itemId: "plateArmor", chance: 0.2 }],
+    abilities: [
+      { name: "Necrotic Ray", chance: 0.4, damageCount: 4, damageDie: 8, type: "damage", element: Element.Necrotic, statusEffect: "frightened" },
+      { name: "Soul Harvest", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage", selfHeal: true, element: Element.Necrotic },
+      { name: "Dark Mending", chance: 0.2, damageCount: 3, damageDie: 8, type: "heal" },
+    ],
+    elementalProfile: {
+      immunities: [Element.Necrotic, Element.Poison],
+      weaknesses: [Element.Radiant],
+    },
+  },
+  {
+    id: "frostWarden",
+    name: "Frost Warden",
+    hp: 130,
+    ac: 18,
+    attackBonus: 9,
+    damageCount: 3,
+    damageDie: 10,
+    xpReward: 1000,
+    goldReward: 250,
+    isBoss: true,
+    color: 0x80deea,
+    drops: [{ itemId: "greaterPotion", chance: 0.8 }, { itemId: "chainMail", chance: 0.3 }],
+    abilities: [
+      { name: "Blizzard", chance: 0.35, damageCount: 5, damageDie: 6, type: "damage", element: Element.Ice },
+      { name: "Glacial Tomb", chance: 0.3, damageCount: 4, damageDie: 8, type: "damage", element: Element.Ice, statusEffect: "paralysis" },
+      { name: "Permafrost Shell", chance: 0.2, damageCount: 4, damageDie: 6, type: "heal" },
+    ],
+    elementalProfile: {
+      immunities: [Element.Ice],
+      weaknesses: [Element.Fire],
+    },
+  },
+  {
+    id: "infernoForgemaster",
+    name: "Inferno Forgemaster",
+    hp: 150,
+    ac: 19,
+    attackBonus: 10,
+    damageCount: 4,
+    damageDie: 10,
+    xpReward: 1500,
+    goldReward: 400,
+    isBoss: true,
+    color: 0xbf360c,
+    drops: [{ itemId: "greaterPotion", chance: 0.85 }, { itemId: "greatSword", chance: 0.3 }],
+    abilities: [
+      { name: "Molten Eruption", chance: 0.35, damageCount: 5, damageDie: 8, type: "damage", element: Element.Fire, statusEffect: "burn" },
+      { name: "Forge Hammer", chance: 0.3, damageCount: 4, damageDie: 10, type: "damage" },
+      { name: "Magma Rebirth", chance: 0.15, damageCount: 4, damageDie: 8, type: "heal" },
+    ],
+    elementalProfile: {
+      immunities: [Element.Fire],
+      weaknesses: [Element.Ice, Element.Thunder],
+    },
+  },
+];
+
+/** Map of dungeon ID → unique boss ID. */
+export const DUNGEON_BOSS_MAP: Record<string, string> = {
+  heartlands_dungeon: "cryptLich",
+  frost_cavern: "frostWarden",
+  volcanic_forge: "infernoForgemaster",
+};
+
+/** Get the unique boss for a dungeon by dungeon ID. Returns a copy. */
+export function getDungeonBoss(dungeonId: string): Monster | undefined {
+  const bossId = DUNGEON_BOSS_MAP[dungeonId];
+  if (!bossId) return undefined;
+  const boss = DUNGEON_BOSSES.find((b) => b.id === bossId);
+  return boss ? { ...boss } : undefined;
+}
 
 /** Get a random non-boss monster scaled to player level. */
 export function getRandomEncounter(playerLevel: number): Monster {
@@ -605,8 +775,11 @@ export const NIGHT_MONSTERS: Monster[] = [
     color: 0x442244,
     drops: [{ itemId: "ether", chance: 0.2 }],
     abilities: [
-      { name: "Blood Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true },
+      { name: "Blood Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true, element: Element.Necrotic },
     ],
+    elementalProfile: {
+      weaknesses: [Element.Radiant, Element.Fire],
+    },
   },
   {
     id: "specter",
@@ -622,8 +795,12 @@ export const NIGHT_MONSTERS: Monster[] = [
     color: 0x8888cc,
     drops: [{ itemId: "ether", chance: 0.2 }, { itemId: "greaterPotion", chance: 0.1 }],
     abilities: [
-      { name: "Chill Touch", chance: 0.3, damageCount: 3, damageDie: 6, type: "damage" },
+      { name: "Chill Touch", chance: 0.3, damageCount: 3, damageDie: 6, type: "damage", element: Element.Necrotic },
     ],
+    elementalProfile: {
+      weaknesses: [Element.Radiant],
+      resistances: [Element.Necrotic],
+    },
   },
 ];
 
@@ -643,9 +820,13 @@ export const TUNDRA_NIGHT_MONSTERS: Monster[] = [
     color: 0xb3e5fc,
     drops: [{ itemId: "ether", chance: 0.25 }],
     abilities: [
-      { name: "Frostbite", chance: 0.35, damageCount: 3, damageDie: 6, type: "damage" },
-      { name: "Glacial Mist", chance: 0.2, damageCount: 2, damageDie: 4, type: "damage" },
+      { name: "Frostbite", chance: 0.35, damageCount: 3, damageDie: 6, type: "damage", element: Element.Ice },
+      { name: "Glacial Mist", chance: 0.2, damageCount: 2, damageDie: 4, type: "damage", element: Element.Ice },
     ],
+    elementalProfile: {
+      immunities: [Element.Ice],
+      weaknesses: [Element.Fire, Element.Radiant],
+    },
   },
   {
     id: "snowStalker",
@@ -682,9 +863,13 @@ export const SWAMP_NIGHT_MONSTERS: Monster[] = [
     color: 0x76ff03,
     drops: [{ itemId: "ether", chance: 0.3 }],
     abilities: [
-      { name: "Lure Light", chance: 0.35, damageCount: 2, damageDie: 8, type: "damage" },
-      { name: "Consume Life", chance: 0.2, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true },
+      { name: "Lure Light", chance: 0.35, damageCount: 2, damageDie: 8, type: "damage", element: Element.Lightning },
+      { name: "Consume Life", chance: 0.2, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true, element: Element.Necrotic },
     ],
+    elementalProfile: {
+      immunities: [Element.Lightning, Element.Poison],
+      weaknesses: [Element.Force],
+    },
   },
   {
     id: "bogCreeper",
@@ -701,8 +886,12 @@ export const SWAMP_NIGHT_MONSTERS: Monster[] = [
     drops: [{ itemId: "potion", chance: 0.25 }],
     abilities: [
       { name: "Entangle", chance: 0.3, damageCount: 2, damageDie: 6, type: "damage" },
-      { name: "Toxic Spore", chance: 0.25, damageCount: 3, damageDie: 4, type: "damage" },
+      { name: "Toxic Spore", chance: 0.25, damageCount: 3, damageDie: 4, type: "damage", element: Element.Poison },
     ],
+    elementalProfile: {
+      resistances: [Element.Poison],
+      weaknesses: [Element.Fire, Element.Ice],
+    },
   },
 ];
 
@@ -831,6 +1020,7 @@ export const ALL_MONSTERS: Monster[] = (() => {
     HEARTLANDS_CRYPT_MONSTERS,
     FROST_CAVERN_MONSTERS,
     VOLCANIC_FORGE_MONSTERS,
+    DUNGEON_BOSSES,
     NIGHT_MONSTERS,
     TUNDRA_NIGHT_MONSTERS,
     SWAMP_NIGHT_MONSTERS,
@@ -862,4 +1052,21 @@ const BOSS_MAP: Map<string, Monster> = new Map(
 export function getMonster(id: string): Monster | undefined {
   const m = MONSTER_MAP.get(id);
   return m ? { ...m } : undefined;
+}
+
+/** Find any monster by case-insensitive ID or name, with partial matching as fallback. */
+export function findMonster(query: string): Monster | undefined {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return undefined;
+
+  const monster = ALL_MONSTERS.find((candidate) =>
+    candidate.id.toLowerCase() === normalized
+  ) ?? ALL_MONSTERS.find((candidate) =>
+    candidate.name.toLowerCase() === normalized
+  ) ?? ALL_MONSTERS.find((candidate) =>
+    candidate.name.toLowerCase().includes(normalized)
+      || candidate.id.toLowerCase().includes(normalized)
+  );
+
+  return monster ? { ...monster } : undefined;
 }

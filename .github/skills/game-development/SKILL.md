@@ -1,257 +1,144 @@
 ---
 name: game-development
-description: Develop game features for 2D&D with Phaser 3, TypeScript, and D&D mechanics
+description: Develop 2D&D features with Phaser 4, strict TypeScript, and D&D-inspired mechanics
 license: MIT
 ---
 
-# 2D&D Game Development Skill
+# 2D&D Game Development
 
-This skill helps you develop new features and systems for the 2D&D browser-based JRPG game using Phaser 3, TypeScript, and D&D mechanics.
+Use this skill for cross-cutting game features, new content, combat behavior,
+and changes spanning scenes, systems, data, renderers, or managers.
 
-## Core Principles
+## Core rules
 
-1. **Type Safety First** - Use strict TypeScript with explicit types
-2. **Procedural Graphics** - All visuals generated at runtime, no external assets
-3. **D&D Mechanics** - Follow D&D 5E rules for combat, abilities, and progression
-4. **Scene Data Flow** - Always pass complete game state between scenes
-5. **Debug-Friendly** - Use debug system for logging and development tools
+1. Use strict TypeScript with explicit parameter and return types.
+2. Keep content data-driven in `src/data/`; keep reusable logic in
+   `src/systems/`.
+3. Generate graphics in `src/renderers/textures.ts` and synthesize audio in
+   `src/systems/audio.ts`; do not add external assets.
+4. Preserve shared scene state across transitions.
+5. Use `debugLog()` and debug-panel APIs instead of `console.log`.
+6. Add deterministic Vitest coverage for game logic.
 
-## When to Use This Skill
+## Current architecture
 
-- Adding new game features (spells, items, monsters, abilities)
-- Creating new game systems (talents, quests, achievements)
-- Implementing game mechanics (combat, leveling, crafting)
-- Extending existing systems (appearance, codex, day/night)
+- Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, and `Codex`
+- Overworld orchestration: `src/scenes/Overworld.ts`
+- Battle orchestration: `src/scenes/Battle.ts`
+- Core mechanics: `src/systems/`
+- Immutable definitions: `src/data/`
+- Extracted presentation: `src/renderers/`
+- Stateful scene helpers: `src/managers/`
 
-## Instructions
+The map hub is `src/data/map.ts`; terrain/types, chunks, cities, and dungeons
+are split into dedicated modules.
 
-### Adding New Monsters
+## Adding monsters
 
-1. **Define monster data** in `src/data/monsters.ts`:
+1. Define the monster in the appropriate pool in `src/data/monsters.ts`.
+2. Use a camelCase ID and set stats, rewards, drops, abilities, and `isBoss`.
+3. Add an `elementalProfile` when the monster has resistances, weaknesses, or
+   immunities.
+4. Add `element` and `statusEffect` to monster abilities when applicable.
+5. Ensure the definition is included in `ALL_MONSTERS`; debug spawning, Codex
+   browsing, and ID lookup depend on the master list.
+6. Add encounter-pool, boss-map, and data-integrity tests.
+
+Use `getMonster(id)` for exact ID lookup and `findMonster(query)` for
+case-insensitive ID/name lookup with partial matching.
+
+## Adding spells, abilities, and equipment
+
+- Damage sources may declare an `Element` from `src/data/elements.ts`.
+- Player abilities may apply `selfEffect` or `targetEffect` IDs defined by
+  `src/systems/statusEffects.ts`.
+- Monster abilities use `statusEffect` for effects applied to the player.
+- Cure consumables declare matching cure data and must be wired through
+  `useItem()` without consuming the item when no matching ailment exists.
+- Preserve action economy: normal actions end the player turn; bonus-action
+  abilities and the first item use do not.
+
+Combat calculation order is:
+
+1. Roll and resolve the attack or save.
+2. Apply active-status accuracy, disadvantage, AC, and damage modifiers.
+3. Apply elemental immunity, weakness, or resistance to the modified damage.
+4. Apply damage and status effects.
+5. Report discoveries and combat feedback.
+
+Magic Missile remains auto-hit and does not roll disadvantage.
+
+## Status effects
+
+All definitions and lifecycle helpers live in
+`src/systems/statusEffects.ts`. Do not duplicate status logic in data files or
+scenes.
+
+- Start of actor turn: tick damage, saving throws, and skip-turn decision.
+- End of actor turn: decrement durations and expire effects.
+- Apply or refresh through `applyStatusEffect()`.
+- Normalize loaded effects through `normalizeActiveEffects()`.
+- Clear player and monster effects when leaving Battle; durations are measured
+  in combat turns, not overworld steps.
+
+## Elements
+
+Supported elements are Fire, Ice, Lightning, Poison, Necrotic, Radiant,
+Thunder, Force, and Psychic.
+
+- Immunity: zero damage
+- Weakness: double damage
+- Resistance: floor of half damage
+- Neutral: unchanged
+
+Record observed non-neutral interactions with `discoverElement()` so the Codex
+can persist and display them.
+
+## World features
+
+- Cities may contain connected districts. Always use city chunk helpers rather
+  than indexing `city.chunks` directly.
+- Dungeons may contain multiple levels. Always use dungeon level and
+  connection helpers.
+- Use `FogOfWar.exploredKey()` for exploration keys.
+- Use `isWalkable()` and `ENCOUNTER_RATES`; do not hardcode terrain behavior.
+
+## Scene changes
+
+State-bearing transitions commonly pass:
+
 ```typescript
-export const NEW_MONSTER: MonsterData = {
-  id: "newMonster",  // camelCase ID
-  name: "New Monster",
-  level: 3,
-  hp: 22,
-  ac: 13,
-  attack: 4,
-  damage: "1d8+2",
-  xp: 100,
-  gold: 15,
-};
-```
-
-2. **Add to encounter table** for appropriate terrain:
-```typescript
-{ monster: "newMonster", weight: 10, minLevel: 2 }
-```
-
-3. **Generate sprite** in `Boot.ts` if custom appearance needed
-4. **Test encounter** in game with appropriate level character
-
-### Adding New Spells
-
-1. **Define spell** in `src/data/spells.ts`:
-```typescript
-export const NEW_SPELL: Spell = {
-  id: "newSpell",
-  name: "New Spell",
-  mpCost: 5,
-  levelRequired: 5,
-  damage: "3d6",      // for damage spells
-  healing: "2d8+3",   // for healing spells
-  description: "Does something magical",
-};
-```
-
-2. **Add to class spell list** in `src/systems/appearance.ts`
-3. **Implement effect** in `src/systems/combat.ts` if needed
-4. **Test spell** at required level
-
-### Adding New Items
-
-1. **Define item** in `src/data/items.ts`:
-```typescript
-export const NEW_ITEM: Item = {
-  id: "newItem",
-  name: "New Item",
-  type: "weapon",  // or "armor", "consumable"
-  price: 100,
-  damage: "1d8",   // for weapons
-  ac: 2,           // for armor
-  effect: "...",   // for consumables
-};
-```
-
-2. **Add to shop inventory** if purchasable
-3. **Implement use logic** if consumable
-4. **Test purchase and use** in game
-
-### Creating New Scenes
-
-1. **Extend Phaser Scene**:
-```typescript
-export class NewScene extends Phaser.Scene {
-  private player!: PlayerState;
-  private defeatedBosses!: string[];
-  private codex!: CodexData;
-  private timeStep!: number;
-
-  constructor() {
-    super({ key: "NewScene" });
-  }
-
-  init(data: {
-    player: PlayerState;
-    defeatedBosses: string[];
-    codex: CodexData;
-    timeStep: number;
-  }) {
-    this.player = data.player;
-    this.defeatedBosses = data.defeatedBosses;
-    this.codex = data.codex;
-    this.timeStep = data.timeStep;
-  }
-
-  create() {
-    // Scene implementation
-  }
+{
+  player,
+  defeatedBosses,
+  codex,
+  timeStep,
+  weatherState,
+  savedSpecialNpcs,
 }
 ```
 
-2. **Register scene** in `src/main.ts`
-3. **Add navigation** from other scenes
-4. **Test scene transitions**
+Battle also receives a monster and biome; Shop receives town/shop context.
+Keep target `init()` contracts and every caller synchronized.
 
-## Examples
+## Validation
 
-### Adding a Multi-Target Spell
-```typescript
-// In spells.ts
-export const CHAIN_LIGHTNING: Spell = {
-  id: "chainLightning",
-  name: "Chain Lightning",
-  mpCost: 8,
-  levelRequired: 9,
-  damage: "3d10",
-  description: "Lightning that chains between enemies",
-};
-
-// In combat.ts
-function castChainLightning(caster: PlayerState, targets: MonsterInstance[]) {
-  const baseDamage = rollDice(3, 10);
-  targets.forEach((target, i) => {
-    const damage = Math.floor(baseDamage * (1 - i * 0.2)); // 20% reduction per chain
-    target.hp -= damage;
-  });
-}
+```bash
+npm run typecheck
+npm test
+npm run build
 ```
 
-### Adding a Status Effect System
-```typescript
-// In player.ts or combat.ts
-export interface StatusEffect {
-  type: "poisoned" | "blessed" | "hasted" | "stunned";
-  duration: number;  // turns remaining
-  value: number;     // damage per turn or bonus
-}
+For UI changes, run the Vite app and verify the relevant flow with headless
+Chromium.
 
-export interface PlayerState {
-  // ... existing fields
-  statusEffects: StatusEffect[];
-}
+## Common pitfalls
 
-function applyStatusEffects(entity: PlayerState | MonsterInstance) {
-  entity.statusEffects.forEach(effect => {
-    if (effect.type === "poisoned") {
-      entity.hp -= effect.value;
-    }
-    effect.duration--;
-  });
-  entity.statusEffects = entity.statusEffects.filter(e => e.duration > 0);
-}
-```
-
-## Best Practices
-
-- **Data-driven design** - Keep game content in data files, not hardcoded
-- **Immutable data** - Don't modify original data objects, create copies
-- **Consistent naming** - Use camelCase for IDs, PascalCase for types
-- **Error handling** - Validate data and handle edge cases gracefully
-- **Performance** - Cache calculations, reuse objects, minimize allocations
-- **Testability** - Write unit tests for game logic, not UI
-
-## Audio System
-
-All audio is procedurally synthesized — no external audio files.
-
-```typescript
-import { audioEngine } from "../systems/audio";
-
-// Initialize from user gesture
-audioEngine.init();
-
-// Music (auto-crossfade between tracks)
-audioEngine.playBiomeMusic(chunkName, timePeriod);  // Overworld
-audioEngine.playBattleMusic();                       // Non-boss battles
-audioEngine.playBossMusic(bossId);                   // Boss-specific music
-audioEngine.playCityMusic(cityName);                 // City-specific vibe
-audioEngine.playTitleMusic();                        // Title screen
-
-// SFX (distinct sounds for combat outcomes)
-audioEngine.playAttackSFX();        // Normal hit: swoosh + impact + clang
-audioEngine.playMissSFX();          // Miss: airy whiff + descending pitch
-audioEngine.playCriticalHitSFX();   // Critical: slam + rising sting + bell
-audioEngine.playChestOpenSFX();     // Chest: ascending twinkle
-audioEngine.playDungeonEnterSFX();  // Dungeon: deep boom + eerie tone
-audioEngine.playPotionSFX();        // Potion: glug bubbles + shimmer
-audioEngine.playFootstepSFX(terrain); // Terrain-specific footstep noise
-
-// Volume (persisted to localStorage)
-audioEngine.setMasterVolume(0.8);
-audioEngine.setMusicVolume(0.6);
-audioEngine.setSFXVolume(0.4);
-audioEngine.setDialogVolume(0.5);
-```
-
-## Weather & Day/Night
-
-```typescript
-import { WeatherType, advanceWeather, getWeatherAccuracyPenalty } from "../systems/weather";
-import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
-
-// 360-step cycle: Dawn(0-44), Day(45-219), Dusk(220-264), Night(265-359)
-const period = getTimePeriod(timeStep);
-
-// 6 weather types with biome-weighted probabilities
-// Clear, Rain, Snow, Sandstorm, Storm, Fog
-const penalty = getWeatherAccuracyPenalty(weather); // Combat effect
-```
-
-## Common Pitfalls to Avoid
-
-- ❌ Forgetting to pass scene data during transitions (include weatherState)
-- ❌ Using inconsistent ID naming conventions
-- ❌ Hardcoding values instead of using config constants
-- ❌ Modifying shared data objects directly
-- ❌ Overlapping UI elements without bound checking
-- ❌ Adding external asset/audio files (use procedural generation)
-- ❌ Calling createPlayer without baseStats parameter
-
-## Testing Your Changes
-
-1. **Type check**: `npm run typecheck`
-2. **Run tests**: `npm test`
-3. **Manual testing**: `npm run dev`
-4. **Debug mode**: Enable debug checkbox for detailed logs
-5. **Edge cases**: Test at level 1, max level, with/without items
-
-## Related Files
-
-- Game data: `src/data/*.ts`
-- Game systems: `src/systems/*.ts`
-- Scenes: `src/scenes/*.ts`
-- Managers: `src/managers/*.ts`
-- Renderers: `src/renderers/*.ts`
-- Tests: `tests/*.test.ts`
+- Do not mutate shared monster, item, map, city, or dungeon definitions.
+- Do not use stale Phaser 3 APIs or default imports; current code uses
+  `import * as Phaser from "phaser"`.
+- Do not create a second status or elemental calculation path.
+- Do not omit unique dungeon pools or bosses from aggregate lookups.
+- Do not use geometry masks for the Battle log; render the bounded visible
+  message window.
+- Do not add a persistent field without save normalization and tests.

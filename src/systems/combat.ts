@@ -2,7 +2,12 @@
  * Turn-based combat system with D&D-like dice mechanics.
  */
 
-import { rollD20, rollDice, type DieType } from "../systems/dice";
+import {
+  rollD20,
+  rollDice,
+  rollWithDisadvantage,
+  type DieType,
+} from "../systems/dice";
 import type { Monster, MonsterAbility } from "../data/monsters";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
@@ -16,6 +21,22 @@ import {
 } from "./player";
 import { abilityModifier } from "../systems/dice";
 import { getPlayerClass } from "./classes";
+import {
+  applyElementalModifier,
+  elementDisplayName,
+} from "../data/elements";
+import type {
+  Element,
+  ElementalInteraction,
+} from "../data/elements";
+import {
+  applyStatusEffect,
+  getEffectACModifier,
+  getEffectAccuracyModifier,
+  getEffectDamageModifier,
+  hasAttackDisadvantage,
+} from "./statusEffects";
+import type { ActiveStatusEffect } from "./statusEffects";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -29,6 +50,10 @@ export interface CombatResult {
   hit: boolean;
   critical?: boolean;
   roll?: number;
+  /** Elemental interaction observed on a successful hit. */
+  elementalLabel?: ElementalInteraction;
+  /** Whether the attack roll used disadvantage. */
+  disadvantage?: boolean;
 }
 
 export interface CombatState {
@@ -50,6 +75,32 @@ interface AttackOutcome {
   fumble: boolean;
   roll: number;
   total: number;
+}
+
+interface CombatD20Roll {
+  roll: number;
+  total: number;
+  disadvantage: boolean;
+}
+
+function rollCombatD20(
+  modifier: number,
+  effects: ActiveStatusEffect[],
+): CombatD20Roll {
+  if (hasAttackDisadvantage(effects)) {
+    const result = rollWithDisadvantage(modifier);
+    return {
+      roll: result.chosen,
+      total: result.total,
+      disadvantage: true,
+    };
+  }
+  const result = rollD20(modifier);
+  return {
+    roll: result.roll,
+    total: result.total,
+    disadvantage: false,
+  };
 }
 
 /** Resolve a d20 attack roll into a hit/miss/crit/fumble outcome. */
@@ -80,6 +131,22 @@ function rollAttackDamage(
   return Math.max(minDamage, rollDice(dice, die) + bonusDamage);
 }
 
+function buildElementalMessage(
+  targetName: string,
+  element: Element | undefined,
+  interaction: ElementalInteraction,
+): string {
+  if (!interaction || !element) return "";
+  const elementName = elementDisplayName(element);
+  if (interaction === "immune") {
+    return ` ${targetName} is immune to ${elementName}!`;
+  }
+  if (interaction === "weak") {
+    return ` ${targetName} is weak to ${elementName}!`;
+  }
+  return ` ${targetName} resists ${elementName}!`;
+}
+
 /** Roll initiative to determine who goes first. */
 export function rollInitiative(
   playerDexMod: number,
@@ -102,16 +169,28 @@ export function playerAttack(
   player: PlayerState,
   monster: Monster,
   monsterDefendBonus: number = 0,
-  weatherPenalty: number = 0
+  weatherPenalty: number = 0,
+  monsterEffects: ActiveStatusEffect[] = [],
 ): CombatResult & { attackMod: number; totalRoll: number; targetAC: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerAttack: missing player or monster`);
   }
-  const attackMod = getAttackModifier(player);
-  const roll = rollD20(attackMod);
-  const effectiveAC = monster.ac + monsterDefendBonus + weatherPenalty;
+  const playerEffects = player.activeEffects;
+  const attackMod = getAttackModifier(player)
+    + getEffectAccuracyModifier(playerEffects);
+  const statusDamage = getEffectDamageModifier(playerEffects);
+  const roll = rollCombatD20(attackMod, playerEffects);
+  const effectiveAC = monster.ac
+    + monsterDefendBonus
+    + weatherPenalty
+    + getEffectACModifier(monsterEffects);
   const outcome = resolveAttackRoll(roll, effectiveAC);
-  const meta = { attackMod, totalRoll: roll.total, targetAC: effectiveAC };
+  const meta = {
+    attackMod,
+    totalRoll: roll.total,
+    targetAC: effectiveAC,
+    disadvantage: roll.disadvantage,
+  };
 
   if (outcome.fumble) {
     return {
@@ -128,12 +207,34 @@ export function playerAttack(
     const dexMod = abilityModifier(player.stats.dexterity);
     const isFinesse = player.equippedWeapon?.finesse === true;
     const dmgMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
-    const damage = rollAttackDamage(1, 6, outcome.critical, weaponBonus + talentDmg + dmgMod, outcome.critical ? 0 : 1);
+    const baseDamage = rollAttackDamage(
+      1,
+      6,
+      outcome.critical,
+      weaponBonus + talentDmg + dmgMod + statusDamage,
+      outcome.critical ? 0 : 1,
+    );
+    const weaponElement = player.equippedWeapon?.element;
+    const { damage, interaction: elementalLabel } = applyElementalModifier(
+      baseDamage,
+      weaponElement,
+      monster.elementalProfile,
+    );
     const prefix = outcome.critical ? "CRITICAL HIT! " : "";
     const verb = outcome.critical ? "strikes" : "hits";
+    const elementalMessage = buildElementalMessage(
+      monster.name,
+      weaponElement,
+      elementalLabel,
+    );
     return {
-      message: `${prefix}${player.name} ${verb} for ${damage} damage!`,
-      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
+      message: `${prefix}${player.name} ${verb} for ${damage} damage!${elementalMessage}`,
+      damage,
+      hit: true,
+      critical: outcome.critical,
+      roll: outcome.roll,
+      elementalLabel,
+      ...meta,
     };
   }
 
@@ -152,7 +253,8 @@ export function playerOffHandAttack(
   player: PlayerState,
   monster: Monster,
   monsterDefendBonus: number = 0,
-  weatherPenalty: number = 0
+  weatherPenalty: number = 0,
+  monsterEffects: ActiveStatusEffect[] = [],
 ): CombatResult & { attackMod: number; totalRoll: number; targetAC: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerOffHandAttack: missing player or monster`);
@@ -161,11 +263,22 @@ export function playerOffHandAttack(
     throw new Error(`[combat] playerOffHandAttack: no off-hand weapon equipped`);
   }
 
-  const attackMod = getAttackModifier(player);
-  const roll = rollD20(attackMod);
-  const effectiveAC = monster.ac + monsterDefendBonus + weatherPenalty;
+  const playerEffects = player.activeEffects;
+  const attackMod = getAttackModifier(player)
+    + getEffectAccuracyModifier(playerEffects);
+  const statusDamage = getEffectDamageModifier(playerEffects);
+  const roll = rollCombatD20(attackMod, playerEffects);
+  const effectiveAC = monster.ac
+    + monsterDefendBonus
+    + weatherPenalty
+    + getEffectACModifier(monsterEffects);
   const outcome = resolveAttackRoll(roll, effectiveAC);
-  const meta = { attackMod, totalRoll: roll.total, targetAC: effectiveAC };
+  const meta = {
+    attackMod,
+    totalRoll: roll.total,
+    targetAC: effectiveAC,
+    disadvantage: roll.disadvantage,
+  };
 
   if (outcome.fumble) {
     return {
@@ -185,13 +298,35 @@ export function playerOffHandAttack(
     })();
     const addAbilityMod = hasTwoWeaponFighting(player) || primaryStatMod < 0;
     const abilityDmgBonus = addAbilityMod ? primaryStatMod : 0;
-    const damage = rollAttackDamage(1, 6, outcome.critical, offHandBonus + talentDmg + abilityDmgBonus, outcome.critical ? 0 : 1);
+    const baseDamage = rollAttackDamage(
+      1,
+      6,
+      outcome.critical,
+      offHandBonus + talentDmg + abilityDmgBonus + statusDamage,
+      outcome.critical ? 0 : 1,
+    );
+    const offHandElement = player.equippedOffHand.element;
+    const { damage, interaction: elementalLabel } = applyElementalModifier(
+      baseDamage,
+      offHandElement,
+      monster.elementalProfile,
+    );
     const prefix = outcome.critical ? "CRITICAL HIT! " : "";
     const verb = outcome.critical ? "strikes" : "hits";
     const hand = "off-hand";
+    const elementalMessage = buildElementalMessage(
+      monster.name,
+      offHandElement,
+      elementalLabel,
+    );
     return {
-      message: `${prefix}${player.name}'s ${hand} ${verb} for ${damage} damage!`,
-      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
+      message: `${prefix}${player.name}'s ${hand} ${verb} for ${damage} damage!${elementalMessage}`,
+      damage,
+      hit: true,
+      critical: outcome.critical,
+      roll: outcome.roll,
+      elementalLabel,
+      ...meta,
     };
   }
 
@@ -206,7 +341,8 @@ export function playerCastSpell(
   player: PlayerState,
   spellId: string,
   monster: Monster,
-  weatherPenalty: number = 0
+  weatherPenalty: number = 0,
+  monsterEffects: ActiveStatusEffect[] = [],
 ): CombatResult & { mpUsed: number; spellMod?: number; totalRoll?: number; targetAC?: number; autoHit?: boolean } {
   if (!player || !monster) {
     throw new Error(`[combat] playerCastSpell: missing player or monster`);
@@ -260,21 +396,55 @@ export function playerCastSpell(
   }
 
   // Damage spell - use spell attack roll
-  const spellMod = getSpellModifier(player);
-  const roll = rollD20(spellMod);
+  const playerEffects = player.activeEffects;
+  const spellMod = getSpellModifier(player)
+    + getEffectAccuracyModifier(playerEffects);
+  const statusDamage = getEffectDamageModifier(playerEffects);
   const autoHit = spell.id === "magicMissile";
-  const effectiveAC = monster.ac + weatherPenalty;
-  const outcome = resolveAttackRoll(roll, effectiveAC, autoHit);
+  const roll = autoHit
+    ? { roll: 0, total: 0, disadvantage: false }
+    : rollCombatD20(spellMod, playerEffects);
+  const effectiveAC = monster.ac
+    + weatherPenalty
+    + getEffectACModifier(monsterEffects);
+  const outcome = autoHit
+    ? {
+        hit: true,
+        critical: false,
+        fumble: false,
+        roll: 0,
+        total: 0,
+      }
+    : resolveAttackRoll(roll, effectiveAC);
 
   player.mp -= spell.mpCost;
 
   if (outcome.hit) {
     const talentDmg = getTalentDamageBonus(player.knownTalents);
-    const damage = rollDice(spell.damageCount, spell.damageDie as DieType) + talentDmg;
+    const baseDamage = rollDice(
+      spell.damageCount,
+      spell.damageDie as DieType,
+    ) + talentDmg + statusDamage;
+    const { damage, interaction: elementalLabel } = applyElementalModifier(
+      baseDamage,
+      spell.element,
+      monster.elementalProfile,
+    );
+    const elementalMessage = buildElementalMessage(
+      monster.name,
+      spell.element,
+      elementalLabel,
+    );
     return {
-      message: `${player.name} casts ${spell.name}! ${damage} damage!`,
-      damage, hit: true, mpUsed: spell.mpCost, roll: roll.roll,
-      spellMod, totalRoll: roll.total, targetAC: effectiveAC, autoHit,
+      message: `${player.name} casts ${spell.name}! ${damage} damage!${elementalMessage}`,
+      damage, hit: true, mpUsed: spell.mpCost,
+      roll: autoHit ? undefined : roll.roll,
+      spellMod,
+      totalRoll: autoHit ? undefined : roll.total,
+      targetAC: effectiveAC,
+      autoHit,
+      elementalLabel,
+      disadvantage: roll.disadvantage,
     };
   }
 
@@ -282,6 +452,7 @@ export function playerCastSpell(
     message: `${player.name} casts ${spell.name} but it misses!`,
     damage: 0, hit: false, mpUsed: spell.mpCost, roll: roll.roll,
     spellMod, totalRoll: roll.total, targetAC: effectiveAC, autoHit: false,
+    disadvantage: roll.disadvantage,
   };
 }
 
@@ -294,15 +465,23 @@ export function monsterAttack(
   playerDefendBonus: number = 0,
   weatherPenalty: number = 0,
   monsterAtkBoost: number = 0,
+  monsterEffects: ActiveStatusEffect[] = [],
 ): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
   if (!monster || !player) {
     throw new Error(`[combat] monsterAttack: missing monster or player`);
   }
   const playerAC = getArmorClass(player, playerDefendBonus) + weatherPenalty;
-  const effectiveAtkBonus = monster.attackBonus + monsterAtkBoost;
-  const roll = rollD20(effectiveAtkBonus);
+  const effectiveAtkBonus = monster.attackBonus
+    + monsterAtkBoost
+    + getEffectAccuracyModifier(monsterEffects);
+  const roll = rollCombatD20(effectiveAtkBonus, monsterEffects);
   const outcome = resolveAttackRoll(roll, playerAC);
-  const meta = { attackBonus: effectiveAtkBonus, totalRoll: roll.total, targetAC: playerAC };
+  const meta = {
+    attackBonus: effectiveAtkBonus,
+    totalRoll: roll.total,
+    targetAC: playerAC,
+    disadvantage: roll.disadvantage,
+  };
 
   if (outcome.fumble) {
     return {
@@ -312,7 +491,12 @@ export function monsterAttack(
   }
 
   if (outcome.hit) {
-    const damage = rollAttackDamage(monster.damageCount, monster.damageDie, outcome.critical);
+    const damage = rollAttackDamage(
+      monster.damageCount,
+      monster.damageDie,
+      outcome.critical,
+      getEffectDamageModifier(monsterEffects),
+    );
     player.hp = Math.max(0, player.hp - damage);
     const prefix = outcome.critical ? "CRITICAL! " : "";
     const verb = outcome.critical ? "savages you" : "hits you";
@@ -353,7 +537,8 @@ export function playerUseAbility(
   player: PlayerState,
   abilityId: string,
   monster: Monster,
-  weatherPenalty: number = 0
+  weatherPenalty: number = 0,
+  monsterEffects: ActiveStatusEffect[] = [],
 ): CombatResult & { mpUsed: number; attackMod?: number; totalRoll?: number; targetAC?: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerUseAbility: missing player or monster`);
@@ -372,6 +557,37 @@ export function playerUseAbility(
     return { message: `${ability.name} cannot be used in battle!`, damage: 0, hit: false, mpUsed: 0 };
   }
 
+  if (ability.type === "buff") {
+    if (!ability.selfEffect) {
+      return {
+        message: `${ability.name} has no effect!`,
+        damage: 0,
+        hit: false,
+        mpUsed: 0,
+      };
+    }
+    const effectResult = applyStatusEffect(
+      player.activeEffects,
+      ability.selfEffect,
+      player.name,
+    );
+    if (!effectResult.applied) {
+      return {
+        message: effectResult.message,
+        damage: 0,
+        hit: false,
+        mpUsed: 0,
+      };
+    }
+    player.mp -= ability.mpCost;
+    return {
+      message: `${player.name} uses ${ability.name}! ${effectResult.message}`,
+      damage: 0,
+      hit: true,
+      mpUsed: ability.mpCost,
+    };
+  }
+
   // Heal abilities
   if (ability.type === "heal") {
     const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
@@ -385,15 +601,27 @@ export function playerUseAbility(
   }
 
   // Damage ability — uses STR, DEX, or WIS
+  const playerEffects = player.activeEffects;
   const stat = player.stats[ability.statKey];
   const profBonus = Math.floor((player.level - 1) / 4) + 2;
   const talentAtk = getTalentAttackBonus(player.knownTalents);
   const talentDmg = getTalentDamageBonus(player.knownTalents);
-  const attackMod = abilityModifier(stat) + profBonus + talentAtk;
-  const roll = rollD20(attackMod);
-  const effectiveAC = monster.ac + weatherPenalty;
+  const attackMod = abilityModifier(stat)
+    + profBonus
+    + talentAtk
+    + getEffectAccuracyModifier(playerEffects);
+  const roll = rollCombatD20(attackMod, playerEffects);
+  const effectiveAC = monster.ac
+    + weatherPenalty
+    + getEffectACModifier(monsterEffects);
   const outcome = resolveAttackRoll(roll, effectiveAC);
-  const meta = { mpUsed: ability.mpCost, attackMod, totalRoll: roll.total, targetAC: effectiveAC };
+  const meta = {
+    mpUsed: ability.mpCost,
+    attackMod,
+    totalRoll: roll.total,
+    targetAC: effectiveAC,
+    disadvantage: roll.disadvantage,
+  };
 
   player.mp -= ability.mpCost;
 
@@ -405,11 +633,40 @@ export function playerUseAbility(
   }
 
   if (outcome.hit) {
-    const damage = rollAttackDamage(ability.damageCount, ability.damageDie as DieType, outcome.critical, talentDmg);
+    const baseDamage = rollAttackDamage(
+      ability.damageCount,
+      ability.damageDie as DieType,
+      outcome.critical,
+      talentDmg + getEffectDamageModifier(playerEffects),
+    );
+    const { damage, interaction: elementalLabel } = applyElementalModifier(
+      baseDamage,
+      ability.element,
+      monster.elementalProfile,
+    );
     const prefix = outcome.critical ? "CRITICAL! " : "";
+    const elementalMessage = buildElementalMessage(
+      monster.name,
+      ability.element,
+      elementalLabel,
+    );
+    let statusMessage = "";
+    if (ability.targetEffect) {
+      const effectResult = applyStatusEffect(
+        monsterEffects,
+        ability.targetEffect,
+        player.name,
+      );
+      if (effectResult.applied) statusMessage = ` ${effectResult.message}`;
+    }
     return {
-      message: `${prefix}${player.name} uses ${ability.name}! ${damage} damage!`,
-      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
+      message: `${prefix}${player.name} uses ${ability.name}! ${damage} damage!${elementalMessage}${statusMessage}`,
+      damage,
+      hit: true,
+      critical: outcome.critical,
+      roll: outcome.roll,
+      elementalLabel,
+      ...meta,
     };
   }
 
@@ -426,34 +683,56 @@ export interface MonsterAbilityResult {
   damage: number;
   healing: number;
   abilityName: string;
+  element?: Element;
 }
 
 /** Monster uses a special ability instead of its basic attack. */
 export function monsterUseAbility(
   ability: MonsterAbility,
   monster: Monster,
-  player: PlayerState
+  player: PlayerState,
+  monsterEffects: ActiveStatusEffect[] = [],
 ): MonsterAbilityResult {
   if (ability.type === "heal") {
     const healing = rollDice(ability.damageCount, ability.damageDie);
     return {
       message: `${monster.name} uses ${ability.name}! Recovers ${healing} HP!`,
-      damage: 0, healing, abilityName: ability.name,
+      damage: 0,
+      healing,
+      abilityName: ability.name,
+      element: ability.element,
     };
   }
 
   // Damage ability (bypasses AC — like breath weapons)
-  const damage = rollDice(ability.damageCount, ability.damageDie);
+  const damage = Math.max(
+    0,
+    rollDice(ability.damageCount, ability.damageDie)
+      + getEffectDamageModifier(monsterEffects),
+  );
   player.hp = Math.max(0, player.hp - damage);
 
   const selfHealMsg = ability.selfHeal
     ? ` ${monster.name} absorbs the life force!`
     : "";
+  const elementalSuffix = ability.element
+    ? ` (${elementDisplayName(ability.element)})`
+    : "";
+  let statusMessage = "";
+  if (ability.statusEffect && damage > 0) {
+    const effectResult = applyStatusEffect(
+      player.activeEffects,
+      ability.statusEffect,
+      monster.name,
+    );
+    if (effectResult.applied) statusMessage = ` ${effectResult.message}`;
+  }
 
   return {
-    message: `${monster.name} uses ${ability.name}! ${damage} damage!${selfHealMsg}`,
+    message: `${monster.name} uses ${ability.name}!${elementalSuffix} ${damage} damage!${selfHealMsg}${statusMessage}`,
     damage,
     healing: ability.selfHeal ? damage : 0,
     abilityName: ability.name,
+    element: ability.element,
   };
 }

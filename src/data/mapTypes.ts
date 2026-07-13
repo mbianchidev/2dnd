@@ -45,6 +45,9 @@ export enum Terrain {
   Mushroom = 38,
   Casino = 39,
   CityPath = 40,
+  CityGate = 41,
+  DungeonStairs = 42,
+  DungeonBoss = 43,
 }
 
 export interface TownData {
@@ -69,6 +72,23 @@ export interface WorldChunk {
   bosses: BossData[];
 }
 
+/** Per-level map data for multi-level dungeons. */
+export interface DungeonLevel {
+  mapData: Terrain[][];
+  spawnX: number;
+  spawnY: number;
+}
+
+/** Bidirectional or one-way connection between two dungeon levels. */
+export interface DungeonConnection {
+  fromLevel: number;
+  fromX: number;
+  fromY: number;
+  toLevel: number;
+  toX: number;
+  toY: number;
+}
+
 export interface DungeonData {
   id: string;
   name: string;
@@ -76,18 +96,28 @@ export interface DungeonData {
   entranceChunkY: number;
   entranceTileX: number;
   entranceTileY: number;
+  /** Level 0 (entrance level) map — kept for backward compatibility. */
   mapData: Terrain[][];
   spawnX: number;
   spawnY: number;
+  /** Additional dungeon levels (index 0 = level 1, etc.). Level 0 uses mapData/spawnX/spawnY above. */
+  levels?: DungeonLevel[];
+  /** Unique boss monster ID for this dungeon. */
+  bossId?: string;
+  /** Explicit level transitions keyed by their source tile. */
+  connections: DungeonConnection[];
 }
+
+export type ChestLocation =
+  | { type: "overworld"; chunkX: number; chunkY: number }
+  | { type: "dungeon"; dungeonId: string; dungeonLevel?: number };
 
 export interface ChestData {
   id: string;
   itemId: string;
   x: number;
   y: number;
-  location: { type: "overworld"; chunkX: number; chunkY: number }
-          | { type: "dungeon"; dungeonId: string };
+  location: ChestLocation;
 }
 
 export interface CityShopData {
@@ -98,6 +128,29 @@ export interface CityShopData {
   shopItems: string[];
 }
 
+/** A single chunk/district within a multi-chunk city. */
+export interface CityChunk {
+  /** Display label for this district (e.g. "Market Quarter", "Docks"). */
+  name: string;
+  /** Interior map data (MAP_WIDTH × MAP_HEIGHT). */
+  mapData: Terrain[][];
+  /** Player spawn position when entering this chunk. */
+  spawnX: number;
+  spawnY: number;
+  /** Shops within this chunk. */
+  shops: CityShopData[];
+}
+
+/** Explicit connection between two chunks within a city. */
+export interface CityConnection {
+  fromChunkIndex: number;
+  fromX: number;
+  fromY: number;
+  toChunkIndex: number;
+  toX: number;
+  toY: number;
+}
+
 export interface CityData {
   id: string;
   name: string;
@@ -105,10 +158,20 @@ export interface CityData {
   chunkY: number;
   tileX: number;
   tileY: number;
+  /** Primary chunk map data (chunk index 0). */
   mapData: Terrain[][];
   spawnX: number;
   spawnY: number;
+  /** Shops in the primary chunk (chunk index 0). */
   shops: CityShopData[];
+  /**
+   * Additional city chunks (districts). Index 0 is always the primary chunk
+   * derived from mapData/spawnX/spawnY/shops above. Extra chunks start at
+   * index 1+. When this array is present, its entries are the extra districts.
+   */
+  chunks?: CityChunk[];
+   /** Gate transitions keyed by their source chunk and tile. */
+   connections: CityConnection[];
 }
 
 export const MAP_WIDTH = 20;

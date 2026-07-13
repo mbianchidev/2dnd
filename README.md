@@ -1,180 +1,197 @@
 # 2D&D
 
-An epic tale of magic and dice, in 2d!
-
-A browser-based JRPG combining Dragon Quest-style gameplay with Dungeons & Dragons 5E mechanics — featuring procedurally generated graphics, synthesized audio, and a massive explorable world.
+A browser-based JRPG that combines Dragon Quest-style exploration with
+Dungeons & Dragons 5E-inspired combat. The game runs entirely in the browser:
+graphics are procedurally generated, audio is synthesized with the Web Audio
+API, and saves use `localStorage`.
 
 ## Features
 
-### World & Exploration
-- **Multi-chunk world** — 10×9 grid of 20×15 tile chunks with diverse biomes (grass, forest, tundra, swamp, desert, volcanic, canyon)
-- **12 explorable cities** — each with unique shops, inns, banks, and distinct procedural music
-- **Dungeons** — locked areas with tougher monsters and treasure chests
-- **Fog of war** — tiles reveal as you explore (cities auto-reveal on entry)
-- **World map** — zoomable/pannable overview with chunk details
+### Character creation and progression
+
+- 12 classes: Knight, Ranger, Wizard, Sorcerer, Rogue, Paladin, Warlock,
+  Cleric, Druid, Barbarian, Monk, and Bard
+- D&D 5E point buy: 27 points, base scores from 8 to 15
+- Optional 4d6-drop-lowest random stat generation
+- Class ability boosts, class-specific primary stats, spells, martial
+  abilities, talents, equipment, shields, mounts, and banking
+- Leveling to 20 with hit-die HP growth, proficiency bonuses, and ability score
+  improvements
 
 ### Combat
-- **D&D 5E dice mechanics** — d20 attack rolls, critical hits on nat 20, critical misses on nat 1
-- **Turn-based battles** — initiative rolls, defend stance, flee attempts
-- **8 character classes** — Knight, Ranger, Mage, Rogue, Paladin, Warlock, Cleric, Barbarian
-- **Spells & abilities** — class-specific spell trees and martial abilities unlocked by level
-- **6 boss fights** — Cave Troll, Young Red Dragon, Frost Giant, Swamp Hydra, Volcanic Wyrm, Canyon Drake
-- **Scrollable battle log** — full combat history with mouse wheel scroll
-- **Distinct attack sounds** — normal hit, miss (whiff), and critical hit each have unique SFX
 
-### Character System
-- **D&D 5E Point Buy** — 27 points to allocate across 6 stats (8–15 range), or random 4d6-drop-lowest
-- **Class stat boosts** — applied on top of base allocation
-- **Primary stat per class** — determines to-hit modifier (STR for Knight, INT for Mage, CHA for Warlock, etc.)
-- **ASI levels** — gain stat points at levels 4, 8, 12, 16, 19
-- **Equipment** — weapons, armor, shields with click-to-equip and click-to-unequip
-- **Appearance customization** — skin color, hair style, hair color
+- Turn-based d20 combat with initiative, natural 1/20 outcomes, critical hits,
+  defending, fleeing, off-hand attacks, spells, abilities, consumables, and
+  boss abilities
+- Nine damage elements: Fire, Ice, Lightning, Poison, Necrotic, Radiant,
+  Thunder, Force, and Psychic
+- Monster weaknesses deal double damage, resistances halve damage, and
+  immunities prevent damage
+- Elemental interactions are discovered through combat and recorded per
+  monster in the Codex
+- 14 status effects shared by players and monsters:
+  Poisoned, Burning, Frozen, Paralyzed, Stunned, Frightened, Slowed, Prone,
+  Asleep, Confused, Enraged, Hasted, Raging, and Sneak Stance
+- Start-of-turn damage and saving throws, skipped turns, attack disadvantage,
+  accuracy/AC/damage modifiers, duration expiration, and cure items
+- Combat effects are cleared when Battle ends because their durations use the
+  combat turn clock
 
-### Audio
-- **Fully procedural** — all music and sound effects synthesized via Web Audio API at runtime
-- **Orchestral layers** — strings (vibrato), brass stabs, kick drum, hihat on every track
-- **Biome music** — unique scale, tempo, and instruments per biome (9 biome profiles)
-- **Boss music** — each boss has a distinct musical profile
-- **City music** — 12 unique city vibes (pastoral, industrial, mystical, exotic, ominous, etc.)
-- **Battle SFX** — attack swoosh+impact, miss whiff, critical hit slam+sting+bell
-- **Interaction SFX** — chest open, dungeon enter, potion drink, terrain-specific footsteps
-- **Weather ambient** — rain patter, thunder, wind, snow, sandstorm, fog drone
-- **Per-channel volume** — Master, Music, SFX, Dialog sliders with localStorage persistence
+### World exploration
 
-### Day/Night & Weather
-- **360-step day/night cycle** — Dawn, Day, Dusk, Night with visual tints on overworld and battle
-- **Celestial bodies** — sun/moon in battle sky positioned by time of day
-- **6 weather types** — Clear, Rain, Snow, Sandstorm, Storm, Fog
-- **Biome-weighted weather** — each biome has different probabilities
-- **Combat effects** — weather applies accuracy penalties and monster boosts
-- **Particle effects** — rain, snow, sand, storm, fog in both overworld and battle
+- A 10x9 world grid containing 90 chunks, each 20x15 tiles
+- Distinct terrain, biome encounter tables, night encounters, weather,
+  day/night lighting, fog of war, treasure, NPCs, animals, and special NPCs
+- 12 cities with connected districts, district-specific shops, gates,
+  discovery, fast travel, inns, banks, stables, and city music
+- Three multi-level dungeons with bidirectional stairs, floor-specific
+  encounters, chests, fog, and a unique deepest-floor boss
+- Fog keys separate every dungeon level and city district while preserving
+  legacy level-zero/chunk-zero save keys
 
-### Economy & Inventory
-- **Shop system** — buy and sell items in any shop
-- **Sell tab** — sell unwanted items for 50% of original cost
-- **Sell restrictions** — cannot sell quest items, treasures, or last equipment piece
-- **Owned indicators** — buy tab shows consumable count (e.g., "Potion (owned: 3)")
-- **Item economy** — full buy/sell cycle with economic balance
+### Presentation
 
-### Quality of Life
-- **Auto-save** — saves after every step
-- **Settings overlay** — accessible from title screen and in-game menu (M → Settings)
-- **Stacked items** — battle inventory groups consumables (e.g., "Potion x3")
-- **Bestiary** — track discovered monsters with AC discovery via combat
+- Phaser 4 pixel-art rendering with procedural textures
+- Procedural biome, city, battle, boss, and title music
+- Synthesized combat, weather, movement, item, and interaction sound effects
+- Scrollable overlays and a bounded battle log
+- Local-development debug panel, hotkeys, and slash commands
+
+## Tech stack
+
+| Component | Version |
+| --- | --- |
+| Phaser | 4.2.1 |
+| TypeScript | 7.0.2 |
+| Vite | 8.1.4 |
+| Vitest | 4.1.10 |
+| happy-dom | 20.10.6 |
+
+## Project structure
+
+```text
+src/
+├── main.ts
+├── config.ts
+├── scenes/
+│   ├── Boot.ts
+│   ├── Overworld.ts
+│   ├── Battle.ts
+│   ├── Shop.ts
+│   └── Codex.ts
+├── systems/
+│   ├── combat.ts
+│   ├── statusEffects.ts
+│   ├── player.ts
+│   ├── save.ts
+│   ├── codex.ts
+│   ├── movement.ts
+│   ├── weather.ts
+│   ├── daynight.ts
+│   ├── audio.ts
+│   └── debug.ts
+├── data/
+│   ├── map.ts
+│   ├── mapTypes.ts
+│   ├── chunks.ts
+│   ├── cities.ts
+│   ├── dungeons.ts
+│   ├── monsters.ts
+│   ├── elements.ts
+│   ├── spells.ts
+│   ├── abilities.ts
+│   └── items.ts
+├── managers/
+└── renderers/
+```
+
+`map.ts` is the map hub. Core types and dimensions live in `mapTypes.ts`;
+world chunks, cities, and dungeons live in their own data modules. Overworld
+delegates rendering and stateful subsystems to `renderers/` and `managers/`.
+
+## Getting started
+
+```bash
+git clone https://github.com/mbianchidev/2dnd.git
+cd 2dnd
+npm install
+npm run dev
+```
+
+Vite serves the game at `http://localhost:3000`.
+
+## Commands
+
+```bash
+npm run dev        # Start the Vite development server
+npm run typecheck  # Run strict TypeScript checks
+npm test           # Run the Vitest suite once
+npm run test:watch # Run Vitest in watch mode
+npm run build      # Type-check and create a production build
+```
 
 ## Controls
 
-| Key | Action |
-|-----|--------|
-| W/A/S/D | Move on the overworld |
-| SPACE | Interact (enter town/dungeon, challenge boss) |
-| E | Equipment |
-| M | Menu (Resume / Settings / Quit) |
-| N | World map |
-| C | Codex |
-| Mouse | Click battle actions, shop items, UI elements |
+| Input | Action |
+| --- | --- |
+| `WASD` / arrow keys | Move and navigate |
+| `Space` / `Enter` | Confirm or interact |
+| `M` | Open the in-game menu |
+| `C` | Open the Codex |
+| `Esc` | Close the active overlay |
+| Mouse / touch | Select buttons and scroll lists |
 
-## Tech Stack
+## Debug mode
 
-- **Phaser 3** — game engine (rendering, input, scenes)
-- **TypeScript** — type-safe game logic (strict mode)
-- **Vite** — fast dev server and bundler
-- **Vitest** — unit testing
-- **Web Audio API** — procedural audio synthesis
+On local development hosts, enable the debug checkbox above the canvas.
+Available tools include:
 
-## Getting Started
+- Battle hotkeys for instant victory, healing, MP, gold, XP, and levels
+- Overworld hotkeys for revealing the map, toggling fog, and disabling random
+  encounters
+- Slash commands for gold, XP, HP, MP, items, weather, time, teleportation,
+  classes, mounts, audio, and Codex discovery
+- `/spawn <name-or-id>` for every monster in `ALL_MONSTERS`, including unique
+  dungeon bosses, plus special overworld NPC aliases
 
-```bash
-# Install dependencies
-npm install
+Use `debugLog()` and the debug panel APIs instead of `console.log`.
 
-# Start dev server (http://localhost:3000)
-npm run dev
+## Save data
 
-# Run tests
-npm test
+Game state is stored under `2dnd_save`; audio preferences use
+`2dnd_audio_prefs`.
 
-# Type check
-npm run typecheck
+Save schema version 2 persists:
 
-# Production build
-npm run build
-```
+- Composed player position and progression data
+- Dungeon ID and level
+- City ID and district index
+- Explored tiles, opened chests, collected treasure, and discovered cities
+- Defeated bosses, Codex entries, and discovered elemental interactions
+- Active status effects, time step, and weather state
 
-## Project Structure
+`loadGame()` migrates older flat player saves, normalizes new fields, and
+recovers invalid or conflicting world, city, and dungeon locations.
 
-```
-src/
-├── main.ts              # Entry point & Phaser config
-├── config.ts            # Game constants, debug system, HTML debug panel
-├── scenes/              # Phaser game scenes (file names drop "Scene" suffix)
-│   ├── Boot.ts          # Asset gen, title screen, character creation
-│   ├── Overworld.ts     # World map, movement, encounters — delegates to subsystems
-│   ├── Battle.ts        # Turn-based combat, scrollable log, sky/weather
-│   ├── Shop.ts          # Item shops & inn
-│   └── Codex.ts         # Monster encyclopedia (formerly Bestiary)
-├── systems/             # Core game logic & mechanics
-│   ├── audio.ts         # Procedural audio engine (music, SFX, footsteps)
-│   ├── combat.ts        # D&D combat mechanics
-│   ├── player.ts        # Player state, leveling, Point Buy, inventory
-│   ├── classes.ts       # Class definitions (stats, spells, abilities, hit die)
-│   ├── appearance.ts    # Cosmetic customization (skin color, hair style/color)
-│   ├── codex.ts         # Monster tracking & AC discovery (formerly bestiary)
-│   ├── daynight.ts      # Day/night cycle (360-step)
-│   ├── weather.ts       # Weather system (6 types, biome-weighted)
-│   ├── debug.ts         # Debug hotkeys & slash commands (shared & overworld-specific)
-│   ├── dice.ts          # D&D dice rolling utilities
-│   ├── movement.ts      # Grid movement logic & chunk transitions
-│   └── save.ts          # Save/load (localStorage)
-├── renderers/           # Visual rendering subsystems
-│   ├── map.ts           # Tile map rendering, weather particles, day/night tint
-│   ├── city.ts          # City animals, NPCs, shop roofs, NPC textures
-│   ├── player.ts        # Player sprite creation, equipment rendering
-│   └── hud.ts           # HUD message display
-├── managers/            # State management subsystems
-│   ├── overlay.ts       # All UI overlays (equip, menu, settings, world map, inn, bank, teleport)
-│   ├── specialNpc.ts    # Rare overworld NPCs (traveler, adventurer, merchant, hermit)
-│   ├── npc.ts           # City NPC & animal adjacency detection helpers
-│   ├── dialogue.ts      # NPC/animal/special dialogue display
-│   ├── fogOfWar.ts      # Explored tile tracking & fog visibility
-│   └── encounter.ts     # Random encounter enabled/disabled state
-├── data/                # Game data definitions
-│   ├── map.ts           # Core map types, constants, and re-exports (hub module)
-│   ├── mapTypes.ts      # Shared types, enums (Terrain), and dimension constants
-│   ├── dungeons.ts      # Dungeon interior map arrays
-│   ├── cities.ts        # City interior maps, definitions, and utility functions
-│   ├── chunks.ts        # World chunk map arrays and region colors
-│   ├── monsters.ts      # Monster definitions & encounter tables
-│   ├── spells.ts        # Spell definitions & level requirements
-│   ├── items.ts         # Item definitions & shop inventory
-│   ├── abilities.ts     # Martial ability definitions
-│   ├── mounts.ts        # Mount definitions & speed data
-│   ├── npcs.ts          # NPC templates, city NPC data, special NPC definitions
-│   └── talents.ts       # Talent/perk definitions
-├── utils/               # Shared utility modules
-│   └── ui.ts            # Reusable UI panel/dimmer helpers
-tests/
-├── audio.test.ts        # Audio engine tests
-├── combat.test.ts       # Combat calculation tests
-├── config.test.ts       # Debug system tests
-├── data.test.ts         # Game data integrity tests
-├── daynight.test.ts     # Day/night cycle tests
-├── dice.test.ts         # Dice utility tests
-├── mounts.test.ts       # Mount system tests
-├── movement.test.ts     # Grid movement tests
-├── npcs.test.ts         # NPC data tests
-├── player.test.ts       # Player system & Point Buy tests
-├── save.test.ts         # Save/load tests
-└── weather.test.ts      # Weather system tests
-```
+## Testing
 
-## Debug Mode
+The Vitest suite covers combat, elements, statuses, saves, map and city data,
+dungeon traversal, fog keys, movement, player progression, dice, weather,
+day/night, mounts, NPCs, audio, and configuration.
 
-Toggle the debug checkbox above the game canvas to enable:
-- Scrollable debug panel with live state and action logs
-- Cheat hotkeys (K=kill, H=heal, P=MP, G=gold, L=level, R=reveal map, V=fog, F=encounters)
-- Slash commands (`/gold`, `/exp`, `/teleport`, `/spawn`, `/weather`, `/time`, `/audio`, etc.)
+Important integration suites:
 
-## License
+- `tests/elements.test.ts`
+- `tests/statusEffects.test.ts`
+- `tests/save.test.ts`
+- `tests/data.test.ts`
+- `tests/fogOfWar.test.ts`
 
-ISC
+## Design constraints
+
+- No external image or audio assets
+- No network calls
+- Strict TypeScript; avoid `any`
+- Keep game data immutable at runtime
+- Use explicit map helpers instead of hardcoding terrain behavior
+- Preserve complete scene state across transitions

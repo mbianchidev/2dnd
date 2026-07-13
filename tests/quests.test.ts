@@ -16,9 +16,11 @@ import {
   advanceQuest,
   createQuestLog,
   getBlockedQuestEntrance,
+  getQuestCompletionActions,
   getQuestJournalEntries,
   isQuestCompleted,
   normalizeQuestLog,
+  replayQuestCompletionActions,
   resolveQuestNpcInteraction,
   setQuestState,
 } from "../src/systems/quests";
@@ -182,6 +184,39 @@ describe("quest progression", () => {
     expect(setQuestState(player, MAIN_QUEST_ID, "completed").changed).toBe(false);
     expect(player.gold).toBe(goldAfterCompletion);
   });
+
+  it("exposes replay-safe completion actions with stable idempotency keys", () => {
+    const player = createTestPlayer();
+    expect(getQuestCompletionActions(player.progression.quests)).toEqual([]);
+
+    setQuestState(player, MAIN_QUEST_ID, "completed");
+    expect(getQuestCompletionActions(player.progression.quests)).toEqual([
+      {
+        questId: MAIN_QUEST_ID,
+        id: "world.ashenRoadRestored",
+        type: "worldState",
+        targetId: "ashfallRestored",
+      },
+    ]);
+    expect(getQuestCompletionActions(
+      player.progression.quests,
+      "recruitCompanion",
+    )).toEqual([]);
+
+    const replayed: string[] = [];
+    replayQuestCompletionActions(
+      player.progression.quests,
+      (action) => replayed.push(action.id),
+    );
+    replayQuestCompletionActions(
+      player.progression.quests,
+      (action) => replayed.push(action.id),
+    );
+    expect(replayed).toEqual([
+      "world.ashenRoadRestored",
+      "world.ashenRoadRestored",
+    ]);
+  });
 });
 
 describe("quest persistence normalization", () => {
@@ -281,6 +316,21 @@ describe("quest data integrity", () => {
           dungeon!.entranceTileX,
           dungeon!.entranceTileY,
         ]).toEqual([block.chunkX, block.chunkY, block.tileX, block.tileY]);
+      }
+    }
+  });
+
+  it("uses unique stable completion action IDs", () => {
+    const actionIds = Object.values(QUESTS).flatMap((quest) =>
+      (quest.completionActions ?? []).map((action) => action.id)
+    );
+    expect(new Set(actionIds).size).toBe(actionIds.length);
+
+    for (const quest of Object.values(QUESTS)) {
+      for (const action of quest.completionActions ?? []) {
+        expect(action.id).toMatch(/^[a-z][a-zA-Z0-9.]*$/);
+        expect(action.type).toBeTruthy();
+        expect(action.targetId).toBeTruthy();
       }
     }
   });

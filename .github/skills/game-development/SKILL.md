@@ -43,6 +43,9 @@ are split into dedicated modules.
   instead of direct mutation.
 - Downstream unlocks such as companions should call `isQuestCompleted()` and
   keep their own persistent state separate from quest reward bookkeeping.
+- Cross-system outcomes use stable quest completion actions with
+  `{ id, type, targetId }`. Replay them after load/mutations and make the
+  consumer idempotent rather than adding duplicate quest state.
 - Derive boss objectives from `defeatedBosses` so older saves can report
   already-completed objectives.
 - Keep quest NPCs available at night and test every referenced NPC, boss,

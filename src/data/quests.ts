@@ -33,6 +33,15 @@ export interface QuestRewardDefinition {
   itemIds: string[];
 }
 
+export interface QuestCompletionActionDefinition {
+  /** Stable idempotency key owned by the quest definition. */
+  id: string;
+  /** Consumer-defined action type, such as "worldState" or "recruitCompanion". */
+  type: string;
+  /** Stable target identifier interpreted by the consuming system. */
+  targetId: string;
+}
+
 export interface QuestDefinition {
   id: QuestId;
   name: string;
@@ -40,6 +49,7 @@ export interface QuestDefinition {
   summary: string;
   stages: QuestStageDefinition[];
   reward: QuestRewardDefinition;
+  completionActions?: QuestCompletionActionDefinition[];
   outcome: string;
 }
 
@@ -118,6 +128,13 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
       gold: 500,
       itemIds: ["dawnforgedBlade"],
     },
+    completionActions: [
+      {
+        id: "world.ashenRoadRestored",
+        type: "worldState",
+        targetId: "ashfallRestored",
+      },
+    ],
     outcome: "The eastern road reopens and Ashfall's forge burns clean again.",
   },
   [SIDE_QUEST_ID]: {
@@ -141,6 +158,13 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
       gold: 175,
       itemIds: ["greaterPotion", "greaterPotion"],
     },
+    completionActions: [
+      {
+        id: "world.wardenPatrols",
+        type: "worldState",
+        targetId: "heartlandsPatrolAlliance",
+      },
+    ],
     outcome: "Sandport and Willowdale coordinate patrols along the reopened road.",
   },
 };
@@ -173,4 +197,3 @@ export const QUEST_ENTRANCE_BLOCKS: QuestEntranceBlockDefinition[] = [
     blockedMessage: "The forge road is sealed until Warden Ilyra reopens the eastern route.",
   },
 ];
-

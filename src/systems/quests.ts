@@ -15,6 +15,7 @@ import { debugLog } from "../config";
 import type {
   QuestEntranceBlockDefinition,
   QuestEntranceLocation,
+  QuestCompletionActionDefinition,
   QuestId,
   QuestLogState,
   QuestNpcId,
@@ -41,6 +42,12 @@ export interface QuestJournalEntry {
   objective: string;
   reward: string;
 }
+
+export interface QuestCompletionAction extends QuestCompletionActionDefinition {
+  questId: QuestId;
+}
+
+export type QuestCompletionActionHandler = (action: QuestCompletionAction) => void;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -143,6 +150,38 @@ export function isQuestCompleted(
   questId: QuestId,
 ): boolean {
   return questLog[questId].status === "completed";
+}
+
+/**
+ * Return completion actions for all completed quests.
+ *
+ * Actions are intentionally replayable. Consumers use `id` as an idempotency
+ * key or apply their own unique target state (for example, recruited IDs).
+ */
+export function getQuestCompletionActions(
+  questLog: QuestLogState,
+  actionType?: string,
+): QuestCompletionAction[] {
+  const actions: QuestCompletionAction[] = [];
+  for (const questId of QUEST_IDS) {
+    if (!isQuestCompleted(questLog, questId)) continue;
+    for (const action of QUESTS[questId].completionActions ?? []) {
+      if (actionType && action.type !== actionType) continue;
+      actions.push({ questId, ...action });
+    }
+  }
+  return actions;
+}
+
+/** Replay completed-quest actions through an idempotent consumer callback. */
+export function replayQuestCompletionActions(
+  questLog: QuestLogState,
+  handler: QuestCompletionActionHandler,
+  actionType?: string,
+): void {
+  for (const action of getQuestCompletionActions(questLog, actionType)) {
+    handler(action);
+  }
 }
 
 function grantQuestReward(player: PlayerState, questId: QuestId): string | undefined {

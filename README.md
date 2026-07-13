@@ -120,6 +120,15 @@ checks go through `src/systems/quests.ts`. Add follow-up quest content by
 extending those definitions and APIs rather than mutating
 `player.progression.quests` directly. Systems such as companion recruitment
 should query `isQuestCompleted()` and persist their own unlocked state.
+Completed quests may also declare stable `{ id, type, targetId }` actions.
+Consumers call `getQuestCompletionActions()` or
+`replayQuestCompletionActions()` after load and quest mutations, then apply
+those actions idempotently in their own state.
+
+For companion recruitment, define three distinct quest IDs and one action per
+path using `type: "recruitCompanion"` and the companion ID as `targetId`.
+`recruitCompanion()` must keep recruited IDs unique, so reloads, debug quest
+completion, and replay cannot duplicate a companion.
 
 ## Getting started
 

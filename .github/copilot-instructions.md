@@ -168,6 +168,9 @@ Access fields through `player.position` and `player.progression`.
   quest-system APIs so completion rewards remain idempotent.
 - Downstream systems such as companion recruitment query `isQuestCompleted()`
   and persist their own unlock state.
+- Generic completion actions use stable `{ id, type, targetId }` definitions.
+  Replay them with `getQuestCompletionActions()` or
+  `replayQuestCompletionActions()`; consumers own idempotency.
 - Boss objectives derive from `defeatedBosses`; do not rely only on a new battle
   event because existing saves may already contain the required defeat.
 - Quest NPCs remain available at night. `Q` opens the quest journal.

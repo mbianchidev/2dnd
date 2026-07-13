@@ -12,21 +12,11 @@ import {
   type TrapDie,
   type TrapState,
 } from "../data/traps";
-import type { SkillCheckRecord } from "../data/skillChecks";
 import { getTalent } from "../data/talents";
-import { rollDice } from "./dice";
+import { abilityModifier, rollDice } from "./dice";
 import { awardXP, type PlayerState } from "./player";
-import {
-  applyNonlethalDamage,
-  resolveSkillCheck,
-  rollSkillCheck,
-} from "./skillChecks";
+import { resolveSkillCheck, rollSkillCheck } from "./skillChecks";
 import { applyStatusEffect } from "./statusEffects";
-
-export const TRAP_LAYOUT_CHECK_ID = "trap:layout";
-export const TRAP_GUIDANCE_ITEM_ID = "adventurerTrapNotes";
-
-type TrapCheckPhase = "detect" | "disarm";
 
 interface TrapCandidate {
   x: number;
@@ -51,12 +41,7 @@ export interface TrapCheckResult {
   rewardXp: number;
 }
 
-export interface TrapLayoutSeedResult {
-  seed: number;
-  created: boolean;
-}
-
-export type TrapEntryDisposition = "safe" | "blocked" | "trigger" | "check";
+export type TrapEntryDisposition = "safe" | "blocked" | "trigger";
 
 export interface TrapTriggerResult {
   triggered: boolean;
@@ -205,78 +190,6 @@ function selectTrapCandidates(
   return selected;
 }
 
-export function getTrapCheckId(trap: DungeonTrap | string): string {
-  const trapId = typeof trap === "string" ? trap : trap.id;
-  return `trap:${trapId}`;
-}
-
-export function getTrapStateFromRecord(
-  record: SkillCheckRecord | undefined,
-): TrapState | undefined {
-  if (!record) return undefined;
-  if (record.optionId?.startsWith("triggered:")) return "triggered";
-  if (record.optionId === "disarm") {
-    return record.success ? "disarmed" : "missed";
-  }
-  if (record.optionId === "detect") {
-    return record.success ? "detected" : "missed";
-  }
-  return undefined;
-}
-
-export function getTrapState(
-  player: PlayerState,
-  trap: DungeonTrap | string,
-): TrapState | undefined {
-  return getTrapStateFromRecord(
-    player.progression.skillChecks[getTrapCheckId(trap)],
-  );
-}
-
-export function getOrCreateTrapLayoutSeed(
-  player: PlayerState,
-  naturalRoll?: number,
-): TrapLayoutSeedResult {
-  let record = player.progression.skillChecks[TRAP_LAYOUT_CHECK_ID];
-  let created = false;
-  if (!record) {
-    record = naturalRoll === undefined
-      ? rollSkillCheck(player.stats, "wisdom", 1, { optionId: "layout" })
-      : resolveSkillCheck(
-        player.stats,
-        "wisdom",
-        1,
-        naturalRoll,
-        { optionId: "layout" },
-      );
-    player.progression.skillChecks[TRAP_LAYOUT_CHECK_ID] = record;
-    created = true;
-  }
-
-  if (record.optionId?.startsWith("layout:")) {
-    const legacySeed = Number(record.optionId.slice("layout:".length));
-    if (Number.isInteger(legacySeed) && legacySeed > 0) {
-      return { seed: legacySeed, created };
-    }
-  }
-
-  const customAppearance = player.customAppearance
-    ? [
-      player.customAppearance.skinColor,
-      player.customAppearance.hairStyle,
-      player.customAppearance.hairColor,
-    ].join(":")
-    : "default";
-  const seed = hashString([
-    player.name,
-    player.appearanceId,
-    customAppearance,
-    record.naturalRoll,
-    record.modifier,
-  ].join(":"));
-  return { seed, created };
-}
-
 /** Generate a stable, immutable trap layout for one dungeon level. */
 export function generateDungeonTraps(
   dungeon: DungeonData,
@@ -334,13 +247,13 @@ export function getNearbyDungeonTraps(
 
 export function selectActionableTrap(
   traps: DungeonTrap[],
-  player: PlayerState,
+  trapStates: Record<string, TrapState>,
   x: number,
   y: number,
   focusedTrapId: string | null = null,
 ): DungeonTrap | undefined {
   const detected = getNearbyDungeonTraps(traps, x, y, 1)
-    .filter((trap) => getTrapState(player, trap) === "detected");
+    .filter((trap) => trapStates[trap.id] === "detected");
   if (focusedTrapId) {
     const focused = detected.find((trap) => trap.id === focusedTrapId);
     if (focused) return focused;
@@ -351,8 +264,8 @@ export function selectActionableTrap(
 export function getTrapCheckModifiers(
   player: PlayerState,
 ): TrapCheckModifiers {
-  let detectionBonus = 0;
-  let disarmBonus = 0;
+  let detectionBonus = player.progression.trapGuidance ? 2 : 0;
+  let disarmBonus = player.progression.trapGuidance ? 1 : 0;
   let autoDetect = false;
 
   for (const talentId of player.knownTalents) {
@@ -362,40 +275,26 @@ export function getTrapCheckModifiers(
     autoDetect ||= talent?.autoDetectTraps === true;
   }
 
-  const guidanceOwned = player.inventory.some(
-    (item) => item.id === TRAP_GUIDANCE_ITEM_ID,
-  );
-  if (guidanceOwned) {
-    detectionBonus += 2;
-    disarmBonus += 1;
-  }
-
   detectionBonus += player.inventory.reduce(
-    (highest, item) => item.id === TRAP_GUIDANCE_ITEM_ID
-      ? highest
-      : Math.max(highest, item.trapDetectionBonus ?? 0),
+    (highest, item) => Math.max(highest, item.trapDetectionBonus ?? 0),
     0,
   );
   disarmBonus += player.inventory.reduce(
-    (highest, item) => item.id === TRAP_GUIDANCE_ITEM_ID
-      ? highest
-      : Math.max(highest, item.trapDisarmBonus ?? 0),
+    (highest, item) => Math.max(highest, item.trapDisarmBonus ?? 0),
     0,
   );
 
   return { detectionBonus, disarmBonus, autoDetect };
 }
 
-function toTrapCheckResult(
-  record: SkillCheckRecord,
-  attempted: boolean,
-  automatic: boolean,
+function mapTrapCheckResult(
+  record: ReturnType<typeof resolveSkillCheck>,
   rewardXp = 0,
 ): TrapCheckResult {
   return {
-    attempted,
+    attempted: true,
     success: record.success,
-    automatic,
+    automatic: false,
     roll: record.naturalRoll,
     modifier: record.modifier,
     total: record.total,
@@ -404,51 +303,59 @@ function toTrapCheckResult(
   };
 }
 
-function resolveTrapCheck(
-  player: PlayerState,
-  trap: DungeonTrap,
-  phase: TrapCheckPhase,
-  modifierBonus: number,
-  naturalRoll?: number,
-): SkillCheckRecord {
-  const definition = getTrapDefinition(trap.type);
-  const ability = phase === "detect"
-    ? definition.detectionAbility
-    : definition.disarmAbility;
-  const dc = phase === "detect" ? trap.detectionDC : trap.disarmDC;
-  return naturalRoll === undefined
-    ? rollSkillCheck(player.stats, ability, dc, {
-      modifierBonus,
-      optionId: phase,
-    })
-    : resolveSkillCheck(player.stats, ability, dc, naturalRoll, {
-      modifierBonus,
-      optionId: phase,
-    });
-}
-
 export function attemptTrapDetection(
   player: PlayerState,
   trap: DungeonTrap,
   naturalRoll?: number,
-  automatic = false,
 ): TrapCheckResult {
-  const checkId = getTrapCheckId(trap);
-  const existing = player.progression.skillChecks[checkId];
-  if (existing && getTrapStateFromRecord(existing) !== undefined) {
-    return toTrapCheckResult(existing, false, false);
+  const currentState = player.progression.trapStates[trap.id];
+  if (currentState !== undefined) {
+    return {
+      attempted: false,
+      success: currentState === "detected",
+      automatic: false,
+      roll: null,
+      modifier: 0,
+      total: 0,
+      dc: trap.detectionDC,
+      rewardXp: 0,
+    };
   }
 
+  const definition = getTrapDefinition(trap.type);
   const modifiers = getTrapCheckModifiers(player);
-  const record = resolveTrapCheck(
-    player,
-    trap,
-    "detect",
-    modifiers.detectionBonus,
-    naturalRoll,
-  );
-  player.progression.skillChecks[checkId] = record;
-  return toTrapCheckResult(record, true, automatic);
+  if (modifiers.autoDetect) {
+    const modifier = abilityModifier(
+      player.stats[definition.detectionAbility],
+    ) + modifiers.detectionBonus;
+    player.progression.trapStates[trap.id] = "detected";
+    return {
+      attempted: true,
+      success: true,
+      automatic: true,
+      roll: null,
+      modifier,
+      total: trap.detectionDC,
+      dc: trap.detectionDC,
+      rewardXp: 0,
+    };
+  }
+
+  const record = naturalRoll === undefined
+    ? rollSkillCheck(player.stats, definition.detectionAbility, trap.detectionDC, {
+      situationalModifier: modifiers.detectionBonus,
+    })
+    : resolveSkillCheck(
+      player.stats,
+      definition.detectionAbility,
+      trap.detectionDC,
+      naturalRoll,
+      { situationalModifier: modifiers.detectionBonus },
+    );
+  player.progression.trapStates[trap.id] = record.success
+    ? "detected"
+    : "missed";
+  return mapTrapCheckResult(record);
 }
 
 export function attemptTrapDisarm(
@@ -456,47 +363,45 @@ export function attemptTrapDisarm(
   trap: DungeonTrap,
   naturalRoll?: number,
 ): TrapCheckResult {
-  if (getTrapState(player, trap) !== "detected") {
-    const existing = player.progression.skillChecks[getTrapCheckId(trap)];
-    return existing
-      ? toTrapCheckResult(existing, false, false)
-      : {
-        attempted: false,
-        success: false,
-        automatic: false,
-        roll: null,
-        modifier: 0,
-        total: 0,
-        dc: trap.disarmDC,
-        rewardXp: 0,
-      };
+  if (player.progression.trapStates[trap.id] !== "detected") {
+    return {
+      attempted: false,
+      success: false,
+      automatic: false,
+      roll: null,
+      modifier: 0,
+      total: 0,
+      dc: trap.disarmDC,
+      rewardXp: 0,
+    };
   }
 
+  const definition = getTrapDefinition(trap.type);
   const modifiers = getTrapCheckModifiers(player);
-  const record = resolveTrapCheck(
-    player,
-    trap,
-    "disarm",
-    modifiers.disarmBonus,
-    naturalRoll,
-  );
-  player.progression.skillChecks[getTrapCheckId(trap)] = record;
-  if (record.success) awardXP(player, trap.rewardXp);
-  return toTrapCheckResult(
-    record,
-    true,
-    false,
-    record.success ? trap.rewardXp : 0,
-  );
+  const record = naturalRoll === undefined
+    ? rollSkillCheck(player.stats, definition.disarmAbility, trap.disarmDC, {
+      situationalModifier: modifiers.disarmBonus,
+    })
+    : resolveSkillCheck(
+      player.stats,
+      definition.disarmAbility,
+      trap.disarmDC,
+      naturalRoll,
+      { situationalModifier: modifiers.disarmBonus },
+    );
+  if (record.success) {
+    player.progression.trapStates[trap.id] = "disarmed";
+    awardXP(player, trap.rewardXp);
+  }
+  return mapTrapCheckResult(record, record.success ? trap.rewardXp : 0);
 }
 
 export function getTrapEntryDisposition(
   state: TrapState | undefined,
 ): TrapEntryDisposition {
-  if (state === undefined) return "check";
   if (state === "detected") return "blocked";
-  if (state === "missed") return "trigger";
-  return "safe";
+  if (state === "disarmed" || state === "triggered") return "safe";
+  return "trigger";
 }
 
 export function triggerDungeonTrap(
@@ -504,7 +409,7 @@ export function triggerDungeonTrap(
   trap: DungeonTrap,
   damageRoller: (count: number, sides: TrapDie) => number = rollDice,
 ): TrapTriggerResult {
-  const state = getTrapState(player, trap);
+  const state = player.progression.trapStates[trap.id];
   if (state === "disarmed" || state === "triggered") {
     return {
       triggered: false,
@@ -516,32 +421,13 @@ export function triggerDungeonTrap(
     };
   }
 
+  player.progression.trapStates[trap.id] = "triggered";
   const definition = getTrapDefinition(trap.type);
-  const checkId = getTrapCheckId(trap);
-  const existing = player.progression.skillChecks[checkId];
-  const phase = existing?.optionId === "disarm"
-    ? "disarm"
-    : existing?.optionId === "detect"
-      ? "detect"
-      : "entry";
-  const triggerRecord = existing ?? resolveSkillCheck(
-    player.stats,
-    definition.detectionAbility,
-    trap.detectionDC,
-    1,
-    { optionId: "triggered:entry" },
-  );
-  player.progression.skillChecks[checkId] = {
-    ...triggerRecord,
-    optionId: `triggered:${phase}`,
-  };
-
   const rolledDamage = definition.damage
     ? Math.max(0, damageRoller(definition.damage.count, definition.damage.sides))
     : 0;
-  const nextHp = applyNonlethalDamage(player.hp, rolledDamage);
-  const damage = player.hp - nextHp;
-  player.hp = nextHp;
+  const damage = Math.min(Math.max(0, player.hp - 1), rolledDamage);
+  player.hp -= damage;
 
   const mpLoss = Math.min(player.mp, definition.mpLoss ?? 0);
   player.mp -= mpLoss;

@@ -16,18 +16,13 @@ import {
 import { getItem } from "../src/data/items";
 import { createPlayer, type PlayerState, type PlayerStats } from "../src/systems/player";
 import {
-  TRAP_LAYOUT_CHECK_ID,
   attemptTrapDetection,
   attemptTrapDisarm,
   generateDungeonTraps,
   getNearbyDungeonTraps,
-  getOrCreateTrapLayoutSeed,
-  getTrapCheckId,
   getTrapCheckModifiers,
   getTrapDropDestination,
   getTrapEntryDisposition,
-  getTrapState,
-  getTrapStateFromRecord,
   selectActionableTrap,
   triggerDungeonTrap,
 } from "../src/systems/traps";
@@ -86,45 +81,20 @@ describe("dungeon trap layouts", () => {
     ]);
   });
 
-  it("persists a stable layout roll in the shared skill-check store", () => {
-    const player = createTestPlayer();
-    const first = getOrCreateTrapLayoutSeed(player, 7);
-    const second = getOrCreateTrapLayoutSeed(player, 19);
-
-    expect(first.created).toBe(true);
-    expect(second.created).toBe(false);
-    expect(second.seed).toBe(first.seed);
-    expect(player.progression.skillChecks[TRAP_LAYOUT_CHECK_ID]).toMatchObject({
-      ability: "wisdom",
-      naturalRoll: 7,
-      optionId: "layout",
-      success: true,
-    });
-  });
-
-  it("preserves an exact migrated legacy layout seed", () => {
-    const player = createTestPlayer();
-    player.progression.skillChecks[TRAP_LAYOUT_CHECK_ID] = {
-      ability: "wisdom",
-      naturalRoll: 2,
-      modifier: 0,
-      total: 2,
-      dc: 1,
-      success: true,
-      optionId: "layout:424242",
-    };
-
-    expect(getOrCreateTrapLayoutSeed(player).seed).toBe(424242);
-  });
-
-  it("generates a stable layout for the same seed and varies other seeds", () => {
+  it("generates a stable layout for the same playthrough seed", () => {
     const dungeon = DUNGEONS[0];
     const first = generateDungeonTraps(dungeon, 0, 12345);
-    const repeated = generateDungeonTraps(dungeon, 0, 12345);
-    const different = generateDungeonTraps(dungeon, 0, 98765);
+    const second = generateDungeonTraps(dungeon, 0, 12345);
 
-    expect(repeated).toEqual(first);
-    expect(different.map((trap) => trap.id)).not.toEqual(
+    expect(second).toEqual(first);
+  });
+
+  it("varies layouts across playthrough seeds", () => {
+    const dungeon = DUNGEONS[0];
+    const first = generateDungeonTraps(dungeon, 0, 12345);
+    const second = generateDungeonTraps(dungeon, 0, 98765);
+
+    expect(second.map((trap) => trap.id)).not.toEqual(
       first.map((trap) => trap.id),
     );
   });
@@ -178,7 +148,7 @@ describe("dungeon trap layouts", () => {
 });
 
 describe("trap detection and disarming", () => {
-  it("stores Intelligence detection in the shared check record", () => {
+  it("persists a successful Intelligence detection without storing a skill record", () => {
     const player = createTestPlayer();
     const trap = createTrap("poisonDarts", { detectionDC: 13 });
     const result = attemptTrapDetection(player, trap, 10);
@@ -192,16 +162,8 @@ describe("trap detection and disarming", () => {
       total: 13,
       dc: 13,
     });
-    expect(player.progression.skillChecks[getTrapCheckId(trap)]).toEqual({
-      ability: "intelligence",
-      naturalRoll: 10,
-      modifier: 3,
-      total: 13,
-      dc: 13,
-      success: true,
-      optionId: "detect",
-    });
-    expect(getTrapState(player, trap)).toBe("detected");
+    expect(player.progression.trapStates[trap.id]).toBe("detected");
+    expect(player.progression.skillChecks).toEqual({});
   });
 
   it("persists a failed detection so it cannot be rerolled", () => {
@@ -211,53 +173,31 @@ describe("trap detection and disarming", () => {
     const repeated = attemptTrapDetection(player, trap, 20);
 
     expect(failed.success).toBe(false);
-    expect(getTrapState(player, trap)).toBe("missed");
+    expect(player.progression.trapStates[trap.id]).toBe("missed");
     expect(repeated.attempted).toBe(false);
-    expect(repeated.roll).toBe(1);
+    expect(player.progression.skillChecks).toEqual({});
   });
 
-  it("replaces semantically invalid trap records with a real check", () => {
-    const player = createTestPlayer();
-    const trap = createTrap("poisonDarts", { detectionDC: 13 });
-    player.progression.skillChecks[getTrapCheckId(trap)] = {
-      ability: "intelligence",
-      naturalRoll: 10,
-      modifier: 3,
-      total: 13,
-      dc: 13,
-      success: true,
-      optionId: "unknown",
-    };
-
-    const result = attemptTrapDetection(player, trap, 11);
-
-    expect(result.attempted).toBe(true);
-    expect(
-      player.progression.skillChecks[getTrapCheckId(trap)].optionId,
-    ).toBe("detect");
-    expect(getTrapState(player, trap)).toBe("detected");
-  });
-
-  it("automatically attempts nearby checks with Danger Sense bonuses", () => {
+  it("automatically detects traps with Danger Sense without rolling", () => {
     const player = createTestPlayer();
     player.knownTalents.push("dangerSense");
-    const trap = createTrap("hiddenFloor", { detectionDC: 8 });
-    const result = attemptTrapDetection(player, trap, 1, true);
+    const trap = createTrap("hiddenFloor", { detectionDC: 99 });
+    const result = attemptTrapDetection(player, trap, 1);
 
     expect(result.automatic).toBe(true);
-    expect(result.modifier).toBe(7);
     expect(result.success).toBe(true);
-    expect(getTrapState(player, trap)).toBe("detected");
+    expect(result.roll).toBeNull();
+    expect(player.progression.trapStates[trap.id]).toBe("detected");
+    expect(player.progression.skillChecks).toEqual({});
   });
 
-  it("combines tool, talent, and Adventurer-note bonuses", () => {
+  it("combines trap-kit, talent, and adventurer-guidance bonuses", () => {
     const player = createTestPlayer();
     const trapKit = getItem("trapKit");
-    const guidance = getItem("adventurerTrapNotes");
     expect(trapKit).toBeDefined();
-    expect(guidance).toBeDefined();
-    player.inventory.push({ ...trapKit! }, { ...guidance! });
+    player.inventory.push({ ...trapKit! });
     player.knownTalents.push("naturalExplorer", "cunningAction");
+    player.progression.trapGuidance = true;
 
     expect(getTrapCheckModifiers(player)).toEqual({
       detectionBonus: 7,
@@ -266,40 +206,36 @@ describe("trap detection and disarming", () => {
     });
   });
 
-  it("overwrites detection with a disarm result and awards XP", () => {
+  it("disarms detected traps and awards XP without storing a skill record", () => {
     const player = createTestPlayer();
-    const trap = createTrap("spikePit", {
-      detectionDC: 10,
-      disarmDC: 12,
-      rewardXp: 35,
-    });
-    attemptTrapDetection(player, trap, 20);
+    const trap = createTrap("spikePit", { disarmDC: 12, rewardXp: 35 });
+    player.progression.trapStates[trap.id] = "detected";
 
     const result = attemptTrapDisarm(player, trap, 10);
 
     expect(result.success).toBe(true);
     expect(result.rewardXp).toBe(35);
     expect(player.xp).toBe(35);
-    expect(getTrapState(player, trap)).toBe("disarmed");
-    expect(
-      player.progression.skillChecks[getTrapCheckId(trap)].optionId,
-    ).toBe("disarm");
+    expect(player.progression.trapStates[trap.id]).toBe("disarmed");
+    expect(player.progression.skillChecks).toEqual({});
   });
 
-  it("derives terminal trigger state before interpreting check success", () => {
-    expect(getTrapStateFromRecord({
-      ability: "intelligence",
-      naturalRoll: 20,
-      modifier: 8,
-      total: 28,
-      dc: 10,
-      success: true,
-      optionId: "triggered:entry",
-    })).toBe("triggered");
+  it("leaves failed disarms detected until consequences trigger", () => {
+    const player = createTestPlayer();
+    const trap = createTrap("spikePit", { disarmDC: 20 });
+    player.progression.trapStates[trap.id] = "detected";
+
+    const failed = attemptTrapDisarm(player, trap, 1);
+
+    expect(failed.success).toBe(false);
+    expect(player.progression.trapStates[trap.id]).toBe("detected");
+    const triggered = triggerDungeonTrap(player, trap, () => 5);
+    expect(triggered.damage).toBe(5);
+    expect(player.progression.trapStates[trap.id]).toBe("triggered");
   });
 
-  it("maps derived states to entry behavior", () => {
-    expect(getTrapEntryDisposition(undefined)).toBe("check");
+  it("blocks detected traps but triggers unseen or missed traps on entry", () => {
+    expect(getTrapEntryDisposition(undefined)).toBe("trigger");
     expect(getTrapEntryDisposition("missed")).toBe("trigger");
     expect(getTrapEntryDisposition("detected")).toBe("blocked");
     expect(getTrapEntryDisposition("disarmed")).toBe("safe");
@@ -318,36 +254,28 @@ describe("trap detection and disarming", () => {
   });
 
   it("prioritizes the detected trap that blocked movement", () => {
-    const player = createTestPlayer();
     const traps = [
       createTrap("spikePit", { id: "a-trap", x: 4, y: 5 }),
       createTrap("alarm", { id: "z-focused", x: 5, y: 4 }),
     ];
-    for (const trap of traps) attemptTrapDetection(player, trap, 20);
+    const states = {
+      "a-trap": "detected",
+      "z-focused": "detected",
+    } as const;
 
-    expect(selectActionableTrap(
-      traps,
-      player,
-      5,
-      5,
+    expect(selectActionableTrap(traps, states, 5, 5, "z-focused")?.id).toBe(
       "z-focused",
-    )?.id).toBe("z-focused");
-    expect(selectActionableTrap(
-      traps,
-      player,
-      5,
-      5,
-      "stale",
-    )?.id).toBe("a-trap");
+    );
+    expect(selectActionableTrap(traps, states, 5, 5, "stale")?.id).toBe(
+      "a-trap",
+    );
   });
 });
 
 describe("trap consequences", () => {
-  it("atomically marks a failed detection triggered with its effects", () => {
+  it("applies immediate damage and seeds the next battle with a status", () => {
     const player = createTestPlayer();
-    const trap = createTrap("poisonDarts", { detectionDC: 20 });
-    attemptTrapDetection(player, trap, 1);
-
+    const trap = createTrap("poisonDarts");
     const result = triggerDungeonTrap(player, trap, () => 6);
 
     expect(result.triggered).toBe(true);
@@ -358,32 +286,7 @@ describe("trap consequences", () => {
       remainingTurns: 3,
       source: "Poison Darts",
     });
-    expect(getTrapState(player, trap)).toBe("triggered");
-    expect(
-      player.progression.skillChecks[getTrapCheckId(trap)].optionId,
-    ).toBe("triggered:detect");
-  });
-
-  it("applies consequences after a failed disarm before becoming terminal", () => {
-    const player = createTestPlayer();
-    const trap = createTrap("spikePit", {
-      detectionDC: 10,
-      disarmDC: 20,
-    });
-    attemptTrapDetection(player, trap, 20);
-    const failed = attemptTrapDisarm(player, trap, 1);
-
-    expect(failed.success).toBe(false);
-    expect(getTrapState(player, trap)).toBe("missed");
-
-    const triggered = triggerDungeonTrap(player, trap, () => 5);
-
-    expect(triggered.triggered).toBe(true);
-    expect(triggered.damage).toBe(5);
-    expect(getTrapState(player, trap)).toBe("triggered");
-    expect(
-      player.progression.skillChecks[getTrapCheckId(trap)].optionId,
-    ).toBe("triggered:disarm");
+    expect(player.progression.trapStates[trap.id]).toBe("triggered");
   });
 
   it("never reduces the player below one HP", () => {
@@ -416,7 +319,7 @@ describe("trap consequences", () => {
     expect(hiddenFloor.mpLoss).toBeGreaterThan(0);
   });
 
-  it("does not retrigger a normalized terminal record", () => {
+  it("does not retrigger resolved traps", () => {
     const player = createTestPlayer();
     const trap = createTrap("flameJet");
     triggerDungeonTrap(player, trap, () => 4);

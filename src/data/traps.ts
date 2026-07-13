@@ -1,10 +1,13 @@
 import {
+  TRAP_STATES,
   TRAP_TYPES,
   type TrapDefinition,
+  type TrapState,
   type TrapType,
 } from "./trapTypes";
 
 export {
+  TRAP_STATES,
   TRAP_TYPES,
   type DungeonTrap,
   type DungeonTrapProfile,
@@ -15,6 +18,8 @@ export {
   type TrapStatusEffect,
   type TrapType,
 } from "./trapTypes";
+
+export const LEGACY_TRAP_SEED = 0x2d0d66;
 
 export const TRAP_DEFINITIONS: Record<TrapType, TrapDefinition> = {
   spikePit: {
@@ -129,7 +134,16 @@ export function getTrapDefinition(type: TrapType): TrapDefinition {
   return TRAP_DEFINITIONS[type];
 }
 
+export function isTrapState(value: unknown): value is TrapState {
+  return typeof value === "string"
+    && TRAP_STATES.includes(value as TrapState);
+}
+
 export function isTrapType(value: unknown): value is TrapType {
   return typeof value === "string"
     && TRAP_TYPES.includes(value as TrapType);
+}
+
+export function createTrapSeed(random: () => number = Math.random): number {
+  return Math.floor(random() * 0x7ffffffe) + 1;
 }

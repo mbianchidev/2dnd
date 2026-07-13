@@ -40,13 +40,13 @@ describe("non-combat skill checks", () => {
     });
   });
 
-  it("supports Intelligence and typed flat modifiers", () => {
+  it("supports Intelligence and typed situational modifiers", () => {
     const result = resolveSkillCheck(
       { ...stats, intelligence: 16 },
       "intelligence",
       15,
       10,
-      { modifierBonus: 2, optionId: "detect" },
+      { situationalModifier: 2, optionId: "detect" },
     );
 
     expect(result).toEqual({
@@ -88,7 +88,14 @@ describe("non-combat skill checks", () => {
       "wisdom",
       10,
       10,
-      { modifierBonus: 1.5 },
+      { situationalModifier: 1.5 },
+    )).toThrow();
+    expect(() => resolveSkillCheck(
+      stats,
+      "wisdom",
+      10,
+      10,
+      { situationalModifier: Number.POSITIVE_INFINITY },
     )).toThrow();
   });
 
@@ -158,6 +165,13 @@ describe("non-combat skill checks", () => {
         expect(totalChance).toBeLessThanOrEqual(1);
       }
     }
+  });
+
+  it("keeps secret passages but removes duplicate dungeon masonry hazards", () => {
+    expect(EXPLORATION_EVENTS.some((event) => event.id === "secretPassage"))
+      .toBe(true);
+    expect(EXPLORATION_EVENTS.some((event) => event.id === "fallingMasonry"))
+      .toBe(false);
   });
 
   it("references stable, unique city NPC identities", () => {

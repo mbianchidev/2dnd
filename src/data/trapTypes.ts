@@ -1,3 +1,5 @@
+import type { SkillCheckAbility } from "./skillChecks";
+
 export const TRAP_TYPES = [
   "spikePit",
   "poisonDarts",
@@ -19,7 +21,10 @@ export const TRAP_STATES = [
 ] as const;
 
 export type TrapState = (typeof TRAP_STATES)[number];
-export type TrapAbility = "dexterity" | "intelligence";
+export type TrapAbility = Extract<
+  SkillCheckAbility,
+  "dexterity" | "intelligence"
+>;
 export type TrapDie = 4 | 6 | 8 | 10 | 12;
 export type TrapStatusEffect =
   | "poison"

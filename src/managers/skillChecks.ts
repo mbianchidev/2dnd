@@ -27,7 +27,6 @@ export interface SkillCheckManagerCallbacks {
   revealAround: (radius?: number) => void;
   revealTileSprites: () => void;
 }
-
 export class SkillCheckManager {
   constructor(private readonly callbacks: SkillCheckManagerCallbacks) {}
 

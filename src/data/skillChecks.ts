@@ -207,15 +207,4 @@ export const EXPLORATION_EVENTS: ExplorationEventDefinition[] = [
     successGold: 30,
     revealRadius: 5,
   },
-  {
-    id: "fallingMasonry",
-    environments: ["dungeon"],
-    terrains: [Terrain.DungeonFloor],
-    ability: "dexterity",
-    dc: 13,
-    chance: 0.035,
-    successText: "You dive aside as loose masonry crashes down.",
-    failureText: "Falling stone catches you before you escape.",
-    failureDamage: 8,
-  },
 ];

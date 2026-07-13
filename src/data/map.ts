@@ -21,9 +21,13 @@ export {
   type CityShopData, type CityData, type CityChunk, type CityConnection,
 } from "./mapTypes";
 export {
+  LEGACY_TRAP_SEED,
   TRAP_DEFINITIONS,
+  TRAP_STATES,
   TRAP_TYPES,
+  createTrapSeed,
   getTrapDefinition,
+  isTrapState,
   isTrapType,
   type DungeonTrap,
   type DungeonTrapProfile,

@@ -74,7 +74,11 @@ describe("player system", () => {
       expect(player.pendingStatPoints).toBe(0);
       expect(player.progression.openedChests).toEqual([]);
       expect(player.progression.exploredTiles).toEqual({});
+      expect(player.progression.quests.ashenRoad.status).toBe("active");
       expect(player.progression.skillChecks).toEqual({});
+      expect(player.progression.trapSeed).toBeGreaterThan(0);
+      expect(player.progression.trapStates).toEqual({});
+      expect(player.progression.trapGuidance).toBe(false);
     });
 
     it("applies class boosts correctly for different classes", () => {

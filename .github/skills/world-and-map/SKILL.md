@@ -14,9 +14,11 @@ license: MIT
 - `src/data/cities.ts`: city layouts, districts, shops, and gates
 - `src/data/dungeons.ts`: dungeon floors and stairs
 - `src/data/traps.ts`: trap definitions and persistent trap types
+- `src/data/quests.ts`: progression-gated city and dungeon entrances
 - `src/systems/movement.ts`: grid, city-gate, and dungeon-stair movement
 - `src/systems/traps.ts`: seeded placement, checks, effects, and rewards
 - `src/managers/dungeonTraps.ts`: dungeon trap scene orchestration
+- `src/systems/quests.ts`: quest entrance-block checks
 - `src/managers/fogOfWar.ts`: exploration-key generation and reveal state
 - `src/managers/skillChecks.ts`: terrain events, hidden treasure, and chest
   checks
@@ -40,6 +42,9 @@ license: MIT
 
 Use `isWalkable()` and `ENCOUNTER_RATES` for behavior. Stairs, gates, and boss
 tiles are walkable and do not produce random encounters.
+Apply day/night, weather, and mount modifiers through
+`getEffectiveEncounterRate()`; the effective random-encounter chance is capped
+at 15%.
 
 ## Overworld
 
@@ -53,6 +58,19 @@ getTownBiome(chunkX, chunkY, tileX, tileY);
 
 Chunk names drive biome music, weather probabilities, and presentation. New
 names must retain a recognized biome prefix.
+
+## Quest-gated entrances
+
+Quest barriers guard true interaction chokepoints rather than isolated
+overworld edge tiles, which are easy to walk around. Use
+`getBlockedQuestEntrance()` for city/dungeon actions and
+`getBlockedQuestEntranceAt()` for rendering the matching barricade tile.
+
+Sandport and the Heartlands Crypt stay reachable before The Ashen Road opens;
+Ashfall and the Volcanic Forge unlock at main-quest stage 3. Add data-integrity
+tests that entrance coordinates still match their city or dungeon definition.
+
+## Exploration skill checks
 
 Terrain-driven Wisdom discoveries and Dexterity hazards are defined in
 `src/data/skillChecks.ts`. Select them through the shared skill-check helpers;
@@ -107,6 +125,8 @@ contains `Terrain.DungeonBoss` and a unique `bossId`.
 
 Dungeon encounters should pass the dungeon ID so the correct exclusive pool is
 used.
+Random encounters may be replaced by a level- and environment-valid
+`MonsterEncounter`; dungeon bosses and explicit debug spawns remain solo.
 
 ## Dungeon traps
 
@@ -114,14 +134,13 @@ Each `DungeonData` has a `trapProfile` with allowed types, a thematic type,
 per-level count, and difficulty modifier. Generate layouts only through:
 
 ```typescript
-const { seed } = getOrCreateTrapLayoutSeed(player);
-generateDungeonTraps(dungeon, level, seed);
+generateDungeonTraps(dungeon, level, player.progression.trapSeed);
 ```
 
 Layouts are immutable metadata overlays. They use stable IDs, prioritize tiles
 adjacent to dungeon chests, and exclude the level spawn plus exit/stair/boss
 approaches. The same seed recreates the same layout; trap resolution lives in
-stable `player.progression.skillChecks["trap:<id>"]` records.
+authoritative `player.progression.trapStates` entries.
 
 Run one detection check when a trap first becomes adjacent or the player tries
 to enter its tile. `detected` traps block entry and expose a Space-to-disarm

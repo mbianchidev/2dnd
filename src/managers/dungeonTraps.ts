@@ -13,11 +13,8 @@ import {
   generateDungeonTraps,
   getDungeonTrapAt,
   getNearbyDungeonTraps,
-  getOrCreateTrapLayoutSeed,
   getTrapDropDestination,
   getTrapEntryDisposition,
-  getTrapCheckModifiers,
-  getTrapState,
   selectActionableTrap,
   triggerDungeonTrap,
 } from "../systems/traps";
@@ -65,7 +62,6 @@ export class DungeonTrapManager {
 
   scanNearby(player: PlayerState): void {
     if (!player.position.inDungeon) return;
-    if (!getTrapCheckModifiers(player).autoDetect) return;
     this.refreshLayout(player);
     const nearby = getNearbyDungeonTraps(
       this.traps,
@@ -77,8 +73,8 @@ export class DungeonTrapManager {
     let stateChanged = false;
 
     for (const trap of nearby) {
-      if (getTrapState(player, trap) !== undefined) continue;
-      const result = attemptTrapDetection(player, trap, undefined, true);
+      if (player.progression.trapStates[trap.id] !== undefined) continue;
+      const result = attemptTrapDetection(player, trap);
       if (!result.attempted) continue;
       stateChanged = true;
       debugLog("[traps] Detection check", {
@@ -114,10 +110,10 @@ export class DungeonTrapManager {
     const trap = getDungeonTrapAt(this.traps, x, y);
     if (!trap) return false;
 
-    let state = getTrapState(player, trap);
+    let state = player.progression.trapStates[trap.id];
     if (state === undefined) {
       const result = attemptTrapDetection(player, trap);
-      state = getTrapState(player, trap);
+      state = player.progression.trapStates[trap.id];
       this.renderCurrent(player);
       this.callbacks.autoSave();
       debugLog("[traps] Entry detection check", {
@@ -161,7 +157,7 @@ export class DungeonTrapManager {
     );
     if (!trap) return false;
     const disposition = getTrapEntryDisposition(
-      getTrapState(player, trap),
+      player.progression.trapStates[trap.id],
     );
     if (disposition !== "trigger") return false;
     return this.triggerTrap(player, trap, true);
@@ -214,12 +210,10 @@ export class DungeonTrapManager {
       this.clear();
       return;
     }
-    const layoutSeed = getOrCreateTrapLayoutSeed(player);
-    if (layoutSeed.created) this.callbacks.autoSave();
     const key = [
       player.position.dungeonId,
       player.position.dungeonLevel,
-      layoutSeed.seed,
+      player.progression.trapSeed,
     ].join(":");
     if (key === this.layoutKey) return;
     const dungeon = getDungeon(player.position.dungeonId);
@@ -232,7 +226,7 @@ export class DungeonTrapManager {
     this.traps = generateDungeonTraps(
       dungeon,
       player.position.dungeonLevel,
-      layoutSeed.seed,
+      player.progression.trapSeed,
     );
   }
 
@@ -245,7 +239,7 @@ export class DungeonTrapManager {
     this.refreshLayout(player);
     const trap = selectActionableTrap(
       this.traps,
-      player,
+      player.progression.trapStates,
       player.position.x,
       player.position.y,
       this.focusedTrapId,
@@ -282,18 +276,16 @@ export class DungeonTrapManager {
       ? getTrapDropDestination(player)
       : null;
     if (result.startsEncounter) {
-      this.scene.time.delayedCall(550, () => {
-        this.callbacks.startAlarmEncounter();
-      });
+      this.callbacks.startAlarmEncounter();
       return true;
     }
 
     if (destination) {
+      player.position.dungeonLevel = destination.level;
+      player.position.x = destination.x;
+      player.position.y = destination.y;
+      this.callbacks.autoSave();
       this.scene.time.delayedCall(600, () => {
-        player.position.dungeonLevel = destination.level;
-        player.position.x = destination.x;
-        player.position.y = destination.y;
-        this.callbacks.autoSave();
         this.callbacks.restartDungeon();
       });
       return true;

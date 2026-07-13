@@ -41,6 +41,8 @@ src/
 │   └── Codex.ts
 ├── systems/
 │   ├── combat.ts
+│   ├── groupCombat.ts
+│   ├── battleActions.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
@@ -64,6 +66,7 @@ src/
 │   ├── traps.ts
 │   ├── trapTypes.ts
 │   ├── monsters.ts
+│   ├── monsterGroups.ts
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
@@ -78,6 +81,12 @@ src/
 
 tests/
 ├── combat.test.ts
+├── groupCombat.test.ts
+├── battleActions.test.ts
+├── partyCombat.test.ts
+├── monsterGroups.test.ts
+├── encounter.test.ts
+├── targeting.test.ts
 ├── elements.test.ts
 ├── statusEffects.test.ts
 ├── save.test.ts
@@ -125,7 +134,10 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 }
 ```
 
-- Battle also receives `monster` and `biome`; Shop receives shop/city context.
+- Battle also receives a `MonsterEncounter` and `biome`; Shop receives
+  shop/city context.
+- Battle may also receive accessor-backed `partyCombatants` and runtime-only
+  `battleHooks`; these are scene contracts, not persisted save fields.
 - Generate textures in `src/renderers/textures.ts`, invoked by Boot.
 - Synthesize all audio in `src/systems/audio.ts`.
 - Store Phaser object references needed for later update/cleanup.
@@ -157,12 +169,37 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  quests: QuestLogState;
   skillChecks: Record<string, SkillCheckRecord>;
+  trapSeed: number;
+  trapStates: Record<string, TrapState>;
+  trapGuidance: boolean;
 }
 ```
 
 Access fields through `player.position` and `player.progression`.
 `player.activeEffects` stores normalized combat effects.
+
+## Quests
+
+- Definitions, stages, rewards, named NPC IDs, and gated entrances live in
+  `src/data/quests.ts`.
+- Runtime progression, normalization, rewards, NPC resolution, journal data,
+  and gate checks live in `src/systems/quests.ts`.
+- `player.progression.quests` is required persistent state. Mutate it through
+  quest-system APIs so completion rewards remain idempotent.
+- Downstream systems such as companion recruitment query `isQuestCompleted()`
+  and persist their own unlock state.
+- Generic completion actions use stable `{ id, type, targetId }` definitions.
+  Replay them with `getQuestCompletionActions()` or
+  `replayQuestCompletionActions()`; consumers own idempotency.
+- Quest stages have stable camelCase `id` values. Resolve them through
+  `getQuestStageIndex()` or `setQuestStageById()` rather than titles.
+- Boss objectives derive from `defeatedBosses`; do not rely only on a new battle
+  event because existing saves may already contain the required defeat.
+- Quest NPCs remain available at night. `Q` opens the quest journal.
+- Ashfall and the Volcanic Forge use quest-controlled entrance barricades;
+  Sandport and the Heartlands Crypt must remain reachable to avoid softlocks.
 
 ## Character creation
 
@@ -204,6 +241,46 @@ Flow:
 - Items and designated bonus-action abilities do not end the player turn when
   the bonus action is still available.
 - Validate actions before consuming MP, inventory, or turn state.
+- Random battles contain 1-4 combatants. Each monster owns HP, effects, defend
+  state, AC discovery, drops, and elemental discoveries.
+- `BattleCombatantState` is the shared actor contract: stable ID, party/enemy
+  side, hero/companion/monster kind, formation, HP, alive/KO, defend, and
+  effects. Hero state must remain accessor-backed by `PlayerState`.
+- Initiative interleaves the player with every living monster. Player Defend
+  lasts until the next player turn and protects against all intervening turns.
+- Initiative entries store `combatantId`, never player/monster array indices.
+- Target scopes include enemy single/all/rows, self, single/all allies, and the
+  whole party. Healing entries declare scope explicitly; do not infer every
+  heal as self-only.
+- Monsters choose among living, conscious party combatants. Generic monster
+  attack/ability APIs accept `MonsterAttackTarget`; PlayerState wrappers remain
+  only for compatibility.
+- `BattleResolutionHooks` exposes reward adjustment, enemy-defeat,
+  companion-turn, and once-only battle-result callbacks.
+- Ranked AI/gambits use `src/systems/battleActions.ts`: enumerate living actors,
+  resolve a scope with an optional preferred/matched ID, validate resources and
+  per-actor action economy, then execute and consume one frozen
+  `BattleActionPlan`. A bonus action may be followed by one main action. KO
+  actors are omitted before initiative. Do not duplicate these rules inside
+  scenes or companion AI.
+- Outbound actors bind a generic `CombatActorState` to a `PartyCombatant`
+  through `BattleActionSource`. Execute validated attack/spell/ability/item/
+  defend plans with `executeValidatedBattleAction()`; do not bypass combat,
+  item, elemental-discovery, or target-state helpers.
+- Consumable descriptors use canonical item target metadata with preferred
+  stable target IDs and solo self fallback; self-only items remain self.
+  Consume the acting source's inventory, but apply HP/MP/cure effects through
+  the selected target's action source.
+  `BattleActionExecutionContext.sources` is required in every execution
+  context. Equipment remains self-only.
+- Melee attacks must clear living front-row monsters before targeting the back
+  row; exposed back-row melee targets impose a -2 attack penalty. Ranged
+  attacks and spells bypass formation protection.
+- Spells and abilities use `TargetType`. AoE spells consume MP once, roll once,
+  and apply elemental modifiers independently to each living target.
+- Group flee DC is `10 + (aliveCount - 1) * 2`. Group XP and gold are the
+  floored member totals multiplied by 0.85; drops and Codex defeats resolve per
+  monster.
 
 For disadvantage, roll two d20s and select the lower natural roll before
 checking natural 1/20 and adding modifiers. Magic Missile remains auto-hit.
@@ -268,6 +345,8 @@ use combat turns rather than overworld time.
   - `DungeonBoss = 43`
 
 Always use `isWalkable()`, encounter rates, and map helpers.
+Stack terrain, day/night, weather, and mount encounter modifiers through
+`getEffectiveEncounterRate()` so random encounters never exceed 15%.
 
 ### Cities
 
@@ -285,16 +364,16 @@ Deepest floors contain a `DungeonBoss` tile and unique boss.
 
 Dungeon traps use metadata rather than terrain mutation. `DungeonData.trapProfile`
 selects the allowed and thematic trap types; `generateDungeonTraps()` derives a
-stable layout from a shared `skillChecks` layout record, prioritizes chest
-approaches, and keeps spawn/transition tiles safe. Detection and disarming use
-the shared resolver through `src/systems/traps.ts`; Phaser orchestration lives in
-`src/managers/dungeonTraps.ts`.
+stable layout from `player.progression.trapSeed`, prioritizes chest approaches,
+and keeps spawn/transition tiles safe. Detection and disarming use the shared
+resolver for roll math through `src/systems/traps.ts`; Phaser orchestration lives
+in `src/managers/dungeonTraps.ts`.
 
 Detected traps block movement until disarmed with Space. Unseen or missed traps
-trigger on entry. Trap Kits, trap-aware talents, and Adventurer notes modify
-checks. Trap lifecycle persists as stable `trap:<id>` skill-check records.
-Immediate HP/MP losses are nonlethal; applied statuses use the existing
-combat-turn lifecycle.
+trigger on entry. Trap Kits, trap-aware talents, and persistent Adventurer
+guidance modify checks. Authoritative lifecycle state lives only in
+`player.progression.trapStates`. Immediate HP/MP losses are nonlethal; applied
+statuses use the existing combat-turn lifecycle.
 
 ### Fog keys
 
@@ -308,14 +387,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 3.
+Save schema version is 5.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
-records, validates city/dungeon IDs, clamps levels/districts, repairs invalid
-coordinates to the correct spawn, and falls back to Willowdale for unusable
-overworld locations. Legacy draft trap seed/state/guidance fields migrate into
-shared skill-check records and the Adventurer-notes item.
+records, validates city/dungeon IDs and quest state, clamps levels/districts,
+repairs invalid coordinates to the correct spawn, and falls back to Willowdale
+for unusable overworld locations. Schema-v3 skill-check and schema-v4 quest
+saves gain explicit trap defaults. If a malformed trap seed is replaced,
+`trapStates` is cleared so stale IDs cannot resolve against a different layout.
 
 When persistent data changes:
 
@@ -350,6 +430,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Never add production `console.log`.
 - `/spawn` resolves every entry in `ALL_MONSTERS`, including dungeon-specific
   monsters and bosses.
+- `/quest` lists, advances, or sets exact quest stages/statuses.
 - Shared debug commands and Overworld-specific commands live in
   `src/systems/debug.ts`.
 

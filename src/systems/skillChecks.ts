@@ -15,13 +15,13 @@ import type { Terrain } from "../data/map";
 
 export interface RollSkillCheckOptions {
   optionId?: string;
-  modifierBonus?: number;
+  situationalModifier?: number;
   roller?: () => number;
 }
 
 export interface ResolveSkillCheckOptions {
   optionId?: string;
-  modifierBonus?: number;
+  situationalModifier?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -51,11 +51,16 @@ export function resolveSkillCheck(
     throw new Error(`[skillChecks] Invalid difficulty class: ${dc}`);
   }
 
-  const modifierBonus = options.modifierBonus ?? 0;
-  if (!Number.isInteger(modifierBonus)) {
-    throw new Error(`[skillChecks] Invalid modifier bonus: ${modifierBonus}`);
+  const situationalModifier = options.situationalModifier ?? 0;
+  if (
+    !Number.isFinite(situationalModifier)
+    || !Number.isInteger(situationalModifier)
+  ) {
+    throw new Error(
+      `[skillChecks] Invalid situational modifier: ${situationalModifier}`,
+    );
   }
-  const modifier = abilityModifier(stats[ability]) + modifierBonus;
+  const modifier = abilityModifier(stats[ability]) + situationalModifier;
   const total = naturalRoll + modifier;
   const result: SkillCheckRecord = {
     ability,

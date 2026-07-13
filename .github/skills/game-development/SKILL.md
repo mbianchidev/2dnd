@@ -38,6 +38,9 @@ formation, synergy, reward, and per-combatant rules live in
 That module also owns party-ready `BattleCombatantState`, stable actor IDs,
 actor-ID initiative, ally/enemy targeting, monster party-target selection, and
 battle resolution hooks.
+`src/systems/battleActions.ts` is the Phaser-free action planner for player
+input and ranked gambits: actor enumeration, target binding, validation,
+immutable plans, and one-action dispatch.
 
 ## Adding monsters
 
@@ -161,6 +164,8 @@ Chromium.
   combatants, including duplicate monsters.
 - Do not introduce index-based turn entries or duplicate hero HP/effect state;
   use stable combatant IDs and `createHeroCombatant()`.
+- Do not reimplement MP, inventory, target, formation, or action-economy checks
+  in companion AI; use `validateBattleAction()`.
 - Do not use stale Phaser 3 APIs or default imports; current code uses
   `import * as Phaser from "phaser"`.
 - Do not create a second status or elemental calculation path.

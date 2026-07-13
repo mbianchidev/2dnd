@@ -42,6 +42,7 @@ src/
 ├── systems/
 │   ├── combat.ts
 │   ├── groupCombat.ts
+│   ├── battleActions.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
@@ -75,6 +76,7 @@ src/
 tests/
 ├── combat.test.ts
 ├── groupCombat.test.ts
+├── battleActions.test.ts
 ├── partyCombat.test.ts
 ├── monsterGroups.test.ts
 ├── encounter.test.ts
@@ -223,6 +225,10 @@ Flow:
   only for compatibility.
 - `BattleResolutionHooks` exposes reward adjustment, enemy-defeat,
   companion-turn, and once-only battle-result callbacks.
+- Ranked AI/gambits use `src/systems/battleActions.ts`: enumerate living actors,
+  resolve a scope with an optional preferred/matched ID, validate resources and
+  action economy, then execute one frozen `BattleActionPlan`. Do not duplicate
+  these rules inside scenes or companion AI.
 - Melee attacks must clear living front-row monsters before targeting the back
   row; exposed back-row melee targets impose a -2 attack penalty. Ranged
   attacks and spells bypass formation protection.

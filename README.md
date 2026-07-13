@@ -31,6 +31,9 @@ API, and saves use `localStorage`.
   allegiance, actor-ID initiative, ally/enemy target scopes, monster target
   selection, and companion turn/result hooks; companion persistence remains a
   separate feature
+- `battleActions.ts` provides a Phaser-free gambit pipeline to enumerate living
+  actors, bind matched targets, validate MP/inventory/action economy, freeze an
+  action plan, and dispatch one attack, spell, ability, or item action
 - Single-target, row-targeted, random-two, and all-enemy spell targeting; AoE
   spells pay MP and roll damage once, then resolve each monster independently
 - Nine damage elements: Fire, Ice, Lightning, Poison, Necrotic, Radiant,
@@ -94,6 +97,7 @@ src/
 ├── systems/
 │   ├── combat.ts
 │   ├── groupCombat.ts
+│   ├── battleActions.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
@@ -195,7 +199,7 @@ The Vitest suite covers combat, elements, statuses, saves, map and city data,
 dungeon traversal, fog keys, movement, player progression, dice, weather,
 day/night, mounts, NPCs, audio, configuration, group encounter generation,
 formation targeting, synergies, rewards, multi-target actions, and party-ready
-combat contracts.
+combat/action-planning contracts.
 
 Important integration suites:
 

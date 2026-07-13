@@ -142,6 +142,9 @@ matching effects. Combat effects are cleared when leaving Battle.
 - The first item use in a turn is a bonus action.
 - Invalid spell/ability/item choices must not consume MP, inventory, or turn
   state.
+- Gambit and UI actions pass through `validateBattleAction()` before execution;
+  validated plans bind stable actor/target IDs and declare action or bonus
+  action cost.
 - Flee DC is 10 for one monster and increases by 2 for each additional living
   monster. Boss encounters cannot be fled.
 

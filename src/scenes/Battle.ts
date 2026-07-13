@@ -661,6 +661,7 @@ export class BattleScene extends Phaser.Scene {
       try {
         this.battleHooks.onCompanionTurn({
           combatant,
+          actors: this.allCombatants,
           enemies: this.combatants,
           applyEnemyDamage: (targetId: string, damage: number): void => {
             const targetIndex = this.combatants.findIndex(

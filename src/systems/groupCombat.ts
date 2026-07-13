@@ -119,6 +119,7 @@ export interface BattleResult {
 
 export interface CompanionTurnContext {
   combatant: PartyCombatant;
+  actors: BattleCombatantState[];
   enemies: GroupCombatant[];
   applyEnemyDamage(targetId: BattleCombatantId, damage: number): void;
   addLog(message: string): void;

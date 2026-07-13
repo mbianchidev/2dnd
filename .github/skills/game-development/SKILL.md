@@ -32,6 +32,9 @@ and changes spanning scenes, systems, data, renderers, or managers.
 
 The map hub is `src/data/map.ts`; terrain/types, chunks, cities, and dungeons
 are split into dedicated modules.
+Group templates live in `src/data/monsterGroups.ts`; reusable initiative,
+formation, synergy, reward, and per-combatant rules live in
+`src/systems/groupCombat.ts`.
 
 ## Adding monsters
 
@@ -46,6 +49,19 @@ are split into dedicated modules.
 
 Use `getMonster(id)` for exact ID lookup and `findMonster(query)` for
 case-insensitive ID/name lookup with partial matching.
+
+## Adding monster groups
+
+1. Add a 2-4 member template to `MONSTER_GROUP_TEMPLATES`.
+2. Reference valid monster IDs and assign every member to `front` or `back`.
+3. Keep `minPlayerLevel` high enough that total difficulty does not exceed
+   `playerLevel * 3`.
+4. Add biome/dungeon tags, encounter weight, and an optional synergy with a
+   valid break threshold.
+5. Add deterministic generation and data-integrity coverage.
+
+Random groups start at level 2, cap at 50% of triggered encounters, and never
+replace bosses or explicit debug monster spawns.
 
 ## Adding spells, abilities, and equipment
 
@@ -118,7 +134,8 @@ State-bearing transitions commonly pass:
 }
 ```
 
-Battle also receives a monster and biome; Shop receives town/shop context.
+Battle also receives a `MonsterEncounter` and biome; Shop receives shop/city
+context.
 Keep target `init()` contracts and every caller synchronized.
 
 ## Validation
@@ -135,6 +152,8 @@ Chromium.
 ## Common pitfalls
 
 - Do not mutate shared monster, item, map, city, or dungeon definitions.
+- Do not share HP, status, defend, discovery, or drop state between group
+  combatants, including duplicate monsters.
 - Do not use stale Phaser 3 APIs or default imports; current code uses
   `import * as Phaser from "phaser"`.
 - Do not create a second status or elemental calculation path.

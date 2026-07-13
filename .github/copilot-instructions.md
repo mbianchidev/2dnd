@@ -41,6 +41,7 @@ src/
 │   └── Codex.ts
 ├── systems/
 │   ├── combat.ts
+│   ├── groupCombat.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
@@ -59,6 +60,7 @@ src/
 │   ├── cities.ts
 │   ├── dungeons.ts
 │   ├── monsters.ts
+│   ├── monsterGroups.ts
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
@@ -72,6 +74,10 @@ src/
 
 tests/
 ├── combat.test.ts
+├── groupCombat.test.ts
+├── monsterGroups.test.ts
+├── encounter.test.ts
+├── targeting.test.ts
 ├── elements.test.ts
 ├── statusEffects.test.ts
 ├── save.test.ts
@@ -119,7 +125,8 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 }
 ```
 
-- Battle also receives `monster` and `biome`; Shop receives shop/city context.
+- Battle also receives a `MonsterEncounter` and `biome`; Shop receives
+  shop/city context.
 - Generate textures in `src/renderers/textures.ts`, invoked by Boot.
 - Synthesize all audio in `src/systems/audio.ts`.
 - Store Phaser object references needed for later update/cleanup.
@@ -197,6 +204,18 @@ Flow:
 - Items and designated bonus-action abilities do not end the player turn when
   the bonus action is still available.
 - Validate actions before consuming MP, inventory, or turn state.
+- Random battles contain 1-4 combatants. Each monster owns HP, effects, defend
+  state, AC discovery, drops, and elemental discoveries.
+- Initiative interleaves the player with every living monster. Player Defend
+  lasts until the next player turn and protects against all intervening turns.
+- Melee attacks must clear living front-row monsters before targeting the back
+  row; exposed back-row melee targets impose a -2 attack penalty. Ranged
+  attacks and spells bypass formation protection.
+- Spells and abilities use `TargetType`. AoE spells consume MP once, roll once,
+  and apply elemental modifiers independently to each living target.
+- Group flee DC is `10 + (aliveCount - 1) * 2`. Group XP and gold are the
+  floored member totals multiplied by 0.85; drops and Codex defeats resolve per
+  monster.
 
 For disadvantage, roll two d20s and select the lower natural roll before
 checking natural 1/20 and adding modifiers. Magic Missile remains auto-hit.
@@ -245,6 +264,8 @@ use combat turns rather than overworld time.
   - `DungeonBoss = 43`
 
 Always use `isWalkable()`, encounter rates, and map helpers.
+Stack terrain, day/night, weather, and mount encounter modifiers through
+`getEffectiveEncounterRate()` so random encounters never exceed 15%.
 
 ### Cities
 

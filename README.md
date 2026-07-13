@@ -23,6 +23,12 @@ API, and saves use `localStorage`.
 - Turn-based d20 combat with initiative, natural 1/20 outcomes, critical hits,
   defending, fleeing, off-hand attacks, spells, abilities, consumables, and
   boss abilities
+- Balanced encounters with 1-4 monsters, individual initiative turns,
+  front/back formations, keyboard or pointer target selection, and group
+  synergies such as Pack Tactics, Shield Wall, War Cry, healer support, and
+  elemental combos
+- Single-target, row-targeted, random-two, and all-enemy spell targeting; AoE
+  spells pay MP and roll damage once, then resolve each monster independently
 - Nine damage elements: Fire, Ice, Lightning, Poison, Necrotic, Radiant,
   Thunder, Force, and Psychic
 - Monster weaknesses deal double damage, resistances halve damage, and
@@ -42,6 +48,8 @@ API, and saves use `localStorage`.
 - A 10x9 world grid containing 90 chunks, each 20x15 tiles
 - Distinct terrain, biome encounter tables, night encounters, weather,
   day/night lighting, fog of war, treasure, NPCs, animals, and special NPCs
+- Random encounter modifiers stack but the effective chance is capped at 15%;
+  group encounters begin at level 2 and use level budgets and biome filters
 - 12 cities with connected districts, district-specific shops, gates,
   discovery, fast travel, inns, banks, stables, and city music
 - Three multi-level dungeons with bidirectional stairs, floor-specific
@@ -81,6 +89,7 @@ src/
 │   └── Codex.ts
 ├── systems/
 │   ├── combat.ts
+│   ├── groupCombat.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
@@ -97,6 +106,7 @@ src/
 │   ├── cities.ts
 │   ├── dungeons.ts
 │   ├── monsters.ts
+│   ├── monsterGroups.ts
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
@@ -134,7 +144,7 @@ npm run build      # Type-check and create a production build
 
 | Input | Action |
 | --- | --- |
-| `WASD` / arrow keys | Move and navigate |
+| `WASD` / arrow keys | Move, navigate, and cycle valid Battle targets |
 | `Space` / `Enter` | Confirm or interact |
 | `M` | Open the in-game menu |
 | `C` | Open the Codex |
@@ -153,6 +163,8 @@ Available tools include:
   classes, mounts, audio, and Codex discovery
 - `/spawn <name-or-id>` for every monster in `ALL_MONSTERS`, including unique
   dungeon bosses, plus special overworld NPC aliases
+- Local browser checks can force the next random encounter with
+  `?forceGroup=<templateId>` (for example, `?forceGroup=slimeSwarm`)
 
 Use `debugLog()` and the debug panel APIs instead of `console.log`.
 
@@ -177,7 +189,8 @@ recovers invalid or conflicting world, city, and dungeon locations.
 
 The Vitest suite covers combat, elements, statuses, saves, map and city data,
 dungeon traversal, fog keys, movement, player progression, dice, weather,
-day/night, mounts, NPCs, audio, and configuration.
+day/night, mounts, NPCs, audio, configuration, group encounter generation,
+formation targeting, synergies, rewards, and multi-target actions.
 
 Important integration suites:
 

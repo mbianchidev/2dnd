@@ -1,16 +1,23 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   rollInitiative,
   playerAttack,
   playerOffHandAttack,
   playerCastSpell,
+  playerCastSpellAtTargets,
   playerUseAbility,
   monsterAttack,
+  monsterUseAbility,
   attemptFlee,
 } from "../src/systems/combat";
 import { createPlayer, isLightWeapon, canDualWield, equipOffHand, hasTwoWeaponFighting, useItem, type PlayerStats } from "../src/systems/player";
 import type { Monster } from "../src/data/monsters";
 import { getItem } from "../src/data/items";
+import { Element } from "../src/data/elements";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const defaultStats: PlayerStats = {
   strength: 10, dexterity: 10, constitution: 10,
@@ -126,6 +133,47 @@ describe("combat system", () => {
       const result = playerCastSpell(player, "nonexistent", monster);
       expect(result.message).toBe("Unknown spell!");
     });
+
+    it("resolves AoE targets with one MP payment and one shared roll", () => {
+      const player = createPlayer("Test", defaultStats);
+      player.mp = 100;
+      const immune = createTestMonster({
+        id: "immune",
+        ac: 1,
+        elementalProfile: { immunities: [Element.Fire] },
+      });
+      const weak = createTestMonster({
+        id: "weak",
+        ac: 1,
+        elementalProfile: { weaknesses: [Element.Fire] },
+      });
+      const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+      const initialMp = player.mp;
+
+      const result = playerCastSpellAtTargets(player, "fireball", [
+        { monster: immune },
+        { monster: weak },
+      ]);
+
+      expect(player.mp).toBe(initialMp - 6);
+      expect(result.mpUsed).toBe(6);
+      expect(result.results).toHaveLength(2);
+      expect(result.results[0]?.damage).toBe(0);
+      expect(result.results[1]?.damage).toBe(64);
+      expect(result.results[0]?.roll).toBe(result.results[1]?.roll);
+      expect(random).toHaveBeenCalledTimes(9);
+    });
+
+    it("does not consume MP when no spell targets are supplied", () => {
+      const player = createPlayer("Test", defaultStats);
+      const initialMp = player.mp;
+
+      const result = playerCastSpellAtTargets(player, "fireball", []);
+
+      expect(result.mpUsed).toBe(0);
+      expect(result.message).toBe("No valid targets!");
+      expect(player.mp).toBe(initialMp);
+    });
   });
 
   describe("monsterAttack", () => {
@@ -158,6 +206,41 @@ describe("combat system", () => {
         player.hp = 1;
       }
     });
+
+    it("applies group attack and damage bonuses", () => {
+      const player = createPlayer("Test", defaultStats);
+      const monster = createTestMonster({ attackBonus: 20 });
+      const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+
+      const result = monsterAttack(monster, player, 0, 0, 0, [], 2, 3);
+
+      expect(result.attackBonus).toBe(22);
+      expect(result.damage).toBe(7);
+      expect(random).toHaveBeenCalledTimes(2);
+    });
+
+    it("applies group damage bonuses to monster abilities", () => {
+      const player = createPlayer("Test", defaultStats);
+      const monster = createTestMonster();
+      const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+
+      const result = monsterUseAbility(
+        {
+          name: "Group Blast",
+          chance: 1,
+          damageCount: 1,
+          damageDie: 6,
+          type: "damage",
+        },
+        monster,
+        player,
+        [],
+        3,
+      );
+
+      expect(result.damage).toBe(7);
+      expect(random).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("attemptFlee", () => {
@@ -173,6 +256,14 @@ describe("combat system", () => {
       // With 100 attempts and DC 10, we should see both outcomes
       expect(escaped).toBe(true);
       expect(failed).toBe(true);
+    });
+
+    it("uses the living group size to scale the escape DC", () => {
+      const random = vi.spyOn(Math, "random").mockReturnValue(0.45);
+
+      expect(attemptFlee(0, 1).success).toBe(true);
+      expect(attemptFlee(0, 2).success).toBe(false);
+      expect(attemptFlee(0, 2).message).toContain("needed 12");
     });
   });
 

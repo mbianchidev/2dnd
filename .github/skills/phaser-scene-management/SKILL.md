@@ -59,7 +59,7 @@ interface SharedSceneState {
 
 Scene-specific additions:
 
-- Battle: `monster`, `biome`
+- Battle: `encounter: MonsterEncounter`, `biome`
 - Shop: `townName`, optional item IDs, city context, discount
 - Overworld: fields are optional only because Boot can create or load the
   initial state
@@ -124,10 +124,17 @@ on mouse-wheel input.
 
 - Reinitialize phase, menus, turn flags, discoveries, and monster effects in
   `init()`.
-- Process player and monster statuses at actor-turn boundaries.
+- Build fresh per-monster combatants, sprites, text, status arrays, defend
+  flags, discovery state, and initiative order in `init()`.
+- Process player and each monster's statuses at that actor's turn boundaries.
+- Skip defeated initiative entries and keep Player Defend active until the
+  next player turn.
+- Target mode supports pointer selection, arrows/WASD cycling, Enter/Space
+  confirmation, and Esc cancellation.
 - Keep bonus-action abilities and the first item use on the player turn.
 - Validate actions before consuming MP, items, or the turn.
-- Clear all combat effects before returning to Overworld.
+- Clear player and every monster's combat effects before returning to
+  Overworld.
 - Clean up weather emitters and timers owned by Battle.
 
 ## Debug and errors

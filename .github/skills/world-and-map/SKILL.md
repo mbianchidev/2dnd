@@ -35,6 +35,9 @@ license: MIT
 
 Use `isWalkable()` and `ENCOUNTER_RATES` for behavior. Stairs, gates, and boss
 tiles are walkable and do not produce random encounters.
+Apply day/night, weather, and mount modifiers through
+`getEffectiveEncounterRate()`; the effective random-encounter chance is capped
+at 15%.
 
 ## Overworld
 
@@ -98,6 +101,8 @@ contains `Terrain.DungeonBoss` and a unique `bossId`.
 
 Dungeon encounters should pass the dungeon ID so the correct exclusive pool is
 used.
+Random encounters may be replaced by a level- and environment-valid
+`MonsterEncounter`; dungeon bosses and explicit debug spawns remain solo.
 
 ## Chests
 

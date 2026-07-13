@@ -40,12 +40,20 @@ import {
   getDungeonBoss,
   getNightEncounter,
 } from "../data/monsters";
+import type { Monster } from "../data/monsters";
+import {
+  createGroupEncounter,
+  createRandomEncounter,
+  createSoloEncounter,
+  getMonsterGroupTemplate,
+  type MonsterEncounter,
+} from "../data/monsterGroups";
 import {
   createPlayer,
   isLightWeapon,
   type PlayerState,
 } from "../systems/player";
-import { isDebug, debugLog, debugPanelLog, debugPanelState, TILE_SIZE } from "../config";
+import { isDebug, isLocalDev, debugLog, debugPanelLog, debugPanelState, TILE_SIZE } from "../config";
 import type { CodexData } from "../systems/codex";
 import { createCodex } from "../systems/codex";
 import { saveGame } from "../systems/save";
@@ -71,7 +79,10 @@ import { audioEngine } from "../systems/audio";
 import { getMount } from "../data/mounts";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { FogOfWar } from "../managers/fogOfWar";
-import { EncounterSystem } from "../managers/encounter";
+import {
+  EncounterSystem,
+  getEffectiveEncounterRate,
+} from "../managers/encounter";
 import { HUDRenderer } from "../renderers/hud";
 import {
   tryGridMove,
@@ -620,7 +631,12 @@ export class OverworldScene extends Phaser.Scene {
     const encMult = getEncounterMultiplier(this.timeStep);
     const weatherEncMult = getWeatherEncounterMultiplier(this.weatherState.current);
     const mountEncMult = (!p.position.inDungeon && p.mountId) ? (getMount(p.mountId)?.encounterMultiplier ?? 1) : 1;
-    const effectiveRate = rate * encMult * weatherEncMult * mountEncMult;
+    const effectiveRate = getEffectiveEncounterRate(
+      rate,
+      encMult,
+      weatherEncMult,
+      mountEncMult,
+    );
     const dungeonTag = p.position.inDungeon ? ` [DUNGEON:${p.position.dungeonId}]` : "";
     const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
     const timePeriod = getTimePeriod(this.timeStep);
@@ -893,22 +909,74 @@ export class OverworldScene extends Phaser.Scene {
 
     const mountEncMult = (!this.player.position.inDungeon && this.player.mountId)
       ? (getMount(this.player.mountId)?.encounterMultiplier ?? 1) : 1;
-    const rate = ENCOUNTER_RATES[terrain] * getEncounterMultiplier(this.timeStep) * getWeatherEncounterMultiplier(this.weatherState.current) * mountEncMult;
+    const rate = getEffectiveEncounterRate(
+      ENCOUNTER_RATES[terrain],
+      getEncounterMultiplier(this.timeStep),
+      getWeatherEncounterMultiplier(this.weatherState.current),
+      mountEncMult,
+    );
 
-    if (Math.random() < rate) {
-      let monster;
+    const forcedGroup = this.getForcedGroupEncounter();
+    if (forcedGroup || Math.random() < rate) {
+      let monster: Monster;
+      const environments: string[] = [];
       if (this.player.position.inDungeon) {
         monster = getDungeonEncounter(this.player.level, this.player.position.dungeonId);
+        environments.push("dungeon", this.player.position.dungeonId);
       } else if (isNightTime(this.timeStep) && Math.random() < 0.4) {
         const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
         monster = getNightEncounter(this.player.level, chunk?.name);
+        environments.push(
+          this.terrainToBiome(terrain),
+          chunk?.name ?? "",
+          "night",
+        );
       } else {
         monster = getRandomEncounter(this.player.level);
+        const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
+        environments.push(
+          this.terrainToBiome(terrain),
+          chunk?.name ?? "",
+          isNightTime(this.timeStep) ? "night" : "day",
+        );
       }
-      debugLog("Encounter!", { terrain: Terrain[terrain], rate, monster: monster.name, inDungeon: this.player.position.inDungeon, time: getTimePeriod(this.timeStep) });
-      debugPanelLog(`[ENC] ${monster.name} appeared! (${(rate * 100).toFixed(0)}% chance)`, true);
-      this.startBattle(monster, terrain);
+      const encounter = forcedGroup ?? createRandomEncounter(
+        monster,
+        this.player.level,
+        environments,
+      );
+      debugLog("Encounter!", {
+        terrain: Terrain[terrain],
+        rate,
+        encounter: encounter.name,
+        members: encounter.members.map((member) => member.monster.id),
+        inDungeon: this.player.position.inDungeon,
+        time: getTimePeriod(this.timeStep),
+      });
+      debugPanelLog(`[ENC] ${encounter.name} appeared! (${(rate * 100).toFixed(0)}% chance)`, true);
+      this.startBattle(encounter, terrain);
     }
+  }
+
+  private getForcedGroupEncounter(): MonsterEncounter | undefined {
+    if (!isLocalDev()) return undefined;
+    const search = globalThis.location?.search ?? "";
+    const params = new URLSearchParams(search);
+    const groupId = params.get("forceGroup");
+    if (!groupId) return undefined;
+    const template = getMonsterGroupTemplate(groupId);
+    const encounter = template ? createGroupEncounter(template) : undefined;
+    params.delete("forceGroup");
+    const query = params.toString();
+    globalThis.history?.replaceState(
+      {},
+      "",
+      `${globalThis.location?.pathname ?? "/"}${query ? `?${query}` : ""}`,
+    );
+    if (!encounter) {
+      debugPanelLog(`[ENC] Unknown forced group: ${groupId}`, true);
+    }
+    return encounter;
   }
 
   /** Evac: teleport player to the dungeon entrance (used by Evac ability). */
@@ -1424,13 +1492,25 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  private startBattle(monster: ReturnType<typeof getRandomEncounter>, terrain?: Terrain): void {
+  private startBattle(
+    encounterOrMonster: MonsterEncounter | Monster,
+    terrain?: Terrain,
+  ): void {
+    const encounter = "members" in encounterOrMonster
+      ? encounterOrMonster
+      : createSoloEncounter(encounterOrMonster);
     this.autoSave();
-    debugPanelLog(`[BATTLE] Fighting ${monster.name} (HP:${monster.hp} AC:${monster.ac})`, true);
+    debugPanelLog(
+      `[BATTLE] Fighting ${encounter.name}: `
+      + encounter.members
+        .map((member) => `${member.monster.name} HP:${member.monster.hp} AC:${member.monster.ac}`)
+        .join(" | "),
+      true,
+    );
     this.cameras.main.flash(300, 255, 255, 255);
     this.time.delayedCall(300, () => {
       this.scene.start("BattleScene", {
-        player: this.player, monster,
+        player: this.player, encounter,
         defeatedBosses: this.defeatedBosses, codex: this.codex,
         timeStep: this.timeStep, weatherState: this.weatherState,
         biome: this.terrainToBiome(terrain),

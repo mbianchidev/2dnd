@@ -12,7 +12,7 @@ import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "..
 import type { Item } from "../data/items";
 import { getItem } from "../data/items";
 import { getMount } from "../data/mounts";
-import { createTrapSeed, type TrapState } from "../data/traps";
+import type { SkillCheckRecord } from "../data/skillChecks";
 import { getPlayerClass, getClassSpells, getClassAbilities } from "./classes";
 import {
   cureWithItem,
@@ -49,9 +49,7 @@ export interface PlayerProgression {
   collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
   discoveredCities: string[]; // IDs of cities the player has visited (enables fast travel)
-  trapSeed: number; // stable per-playthrough seed for procedural dungeon traps
-  trapStates: Record<string, TrapState>; // deterministic trap ID -> current state
-  trapGuidance: boolean; // persistent Adventurer NPC detection/disarm advice
+  skillChecks: Record<string, SkillCheckRecord>; // stable check ID -> one-time result
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -205,9 +203,7 @@ export function createPlayer(
       collectedTreasures: [],
       exploredTiles: {},
       discoveredCities: [],
-      trapSeed: createTrapSeed(),
-      trapStates: {},
-      trapGuidance: false,
+      skillChecks: {},
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,

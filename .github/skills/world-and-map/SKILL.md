@@ -18,6 +18,8 @@ license: MIT
 - `src/systems/traps.ts`: seeded placement, checks, effects, and rewards
 - `src/managers/dungeonTraps.ts`: dungeon trap scene orchestration
 - `src/managers/fogOfWar.ts`: exploration-key generation and reveal state
+- `src/managers/skillChecks.ts`: terrain events, hidden treasure, and chest
+  checks
 - `src/renderers/map.ts`: terrain and weather rendering
 - `src/renderers/city.ts`: city NPC, animal, and district rendering
 
@@ -51,6 +53,10 @@ getTownBiome(chunkX, chunkY, tileX, tileY);
 
 Chunk names drive biome music, weather probabilities, and presentation. New
 names must retain a recognized biome prefix.
+
+Terrain-driven Wisdom discoveries and Dexterity hazards are defined in
+`src/data/skillChecks.ts`. Select them through the shared skill-check helpers;
+do not hardcode event rolls in the scene.
 
 ## Multi-chunk cities
 
@@ -108,13 +114,14 @@ Each `DungeonData` has a `trapProfile` with allowed types, a thematic type,
 per-level count, and difficulty modifier. Generate layouts only through:
 
 ```typescript
-generateDungeonTraps(dungeon, level, player.progression.trapSeed);
+const { seed } = getOrCreateTrapLayoutSeed(player);
+generateDungeonTraps(dungeon, level, seed);
 ```
 
 Layouts are immutable metadata overlays. They use stable IDs, prioritize tiles
 adjacent to dungeon chests, and exclude the level spawn plus exit/stair/boss
 approaches. The same seed recreates the same layout; trap resolution lives in
-`player.progression.trapStates`.
+stable `player.progression.skillChecks["trap:<id>"]` records.
 
 Run one detection check when a trap first becomes adjacent or the player tries
 to enter its tile. `detected` traps block entry and expose a Space-to-disarm
@@ -126,6 +133,11 @@ drops use `getDungeonLevelSpawn()` on the next level.
 Dungeon chest locations may include `dungeonLevel`. Resolve the level map
 before reading a chest tile. Opened chest IDs remain globally unique and are
 stored in player progression.
+
+`ChestData` may also define `lockDc`/`trapDamage` and
+`secretDc`/`secretGold`. Lock failures can deal nonlethal damage, while secret
+checks can grant bonus gold. Persist results with stable chest-derived check
+IDs so a fixed check cannot be rerolled.
 
 ## Fog of war
 

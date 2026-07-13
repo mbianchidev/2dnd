@@ -37,6 +37,20 @@ API, and saves use `localStorage`.
 - Combat effects are cleared when Battle ends because their durations use the
   combat turn clock
 
+### Non-combat skill checks
+
+- D20 ability checks use the player's Dexterity, Intelligence, Wisdom, or
+  Charisma modifier;
+  natural 1 and 20 are not automatic outcomes outside attack rolls
+- Charisma supports persistent Persuade/Bluff NPC outcomes and one-attempt shop
+  negotiations with 10% or 20% discounts
+- Wisdom uncovers hidden trails, dungeon passages, secret chest compartments,
+  and better rewards from overworld treasure
+- Dexterity avoids exploration hazards and resolves locked or trapped chests;
+  failed hazards can cost HP but cannot defeat the player outside combat
+- Fixed checks use stable save IDs, while repeatable terrain events remain
+  data-driven by environment and terrain
+
 ### World exploration
 
 - A 10x9 world grid containing 90 chunks, each 20x15 tiles
@@ -52,7 +66,7 @@ API, and saves use `localStorage`.
   deal HP/MP damage, inflict combat statuses, summon encounters, or drop the
   player to a deeper floor
 - Trap Kits, class talents, and Adventurer guidance improve detection and
-  disarming; trap state persists across saves
+  disarming; placed-trap outcomes persist in the shared skill-check record store
 - Fog keys separate every dungeon level and city district while preserving
   legacy level-zero/chunk-zero save keys
 
@@ -95,6 +109,7 @@ src/
 │   ├── movement.ts
 │   ├── traps.ts
 │   ├── trapAudio.ts
+│   ├── skillChecks.ts
 │   ├── weather.ts
 │   ├── daynight.ts
 │   ├── audio.ts
@@ -111,9 +126,11 @@ src/
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
+│   ├── skillChecks.ts
 │   └── items.ts
 ├── managers/
-│   └── dungeonTraps.ts
+│   ├── dungeonTraps.ts
+│   └── skillChecks.ts
 └── renderers/
     ├── traps.ts
     └── trapTextures.ts
@@ -181,25 +198,30 @@ Save schema version 3 persists:
 - Dungeon ID and level
 - City ID and district index
 - Explored tiles, opened chests, collected treasure, and discovered cities
-- Per-playthrough trap seed, detected/disarmed/triggered trap states, and
-  Adventurer trap guidance
 - Defeated bosses, Codex entries, and discovered elemental interactions
 - Active status effects, time step, and weather state
+- Normalized non-combat and placed-trap skill-check rolls, choices, layout
+  identity, and outcomes
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
-recovers invalid or conflicting world, city, and dungeon locations.
+recovers invalid or conflicting world, city, and dungeon locations. Malformed
+skill-check records are discarded, while valid totals and outcomes are repaired.
+Legacy draft trap fields migrate into shared trap check records and Adventurer
+notes.
 
 ## Testing
 
 The Vitest suite covers combat, elements, statuses, saves, map and city data,
 dungeon traversal and traps, fog keys, movement, player progression, dice,
-weather, day/night, mounts, NPCs, audio, and configuration.
+weather, day/night, mounts, NPCs, non-combat skill checks, audio, and
+configuration.
 
 Important integration suites:
 
 - `tests/elements.test.ts`
 - `tests/statusEffects.test.ts`
 - `tests/save.test.ts`
+- `tests/skillChecks.test.ts`
 - `tests/data.test.ts`
 - `tests/traps.test.ts`
 - `tests/fogOfWar.test.ts`

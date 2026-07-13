@@ -46,6 +46,23 @@ Character creation supports:
 The class `primaryStat` is used for attack/to-hit calculations where the
 specific action does not override the stat.
 
+## Non-combat ability checks
+
+Use `src/systems/skillChecks.ts` for exploration and dialogue checks:
+
+```typescript
+total = naturalD20 + abilityModifier(player.stats[ability]);
+success = total >= dc;
+```
+
+- Dexterity: lockpicking, trap disarming, and escaping hazards
+- Wisdom: hidden loot, paths, passages, and exploration events
+- Charisma: Persuade/Bluff NPC outcomes and shop negotiation
+- Natural 1 and 20 do not automatically fail or succeed on these checks
+- Fixed outcomes are one-time and persist in
+  `player.progression.skillChecks`
+- Exploration damage is nonlethal and cannot reduce the player below 1 HP
+
 ## Core combat
 
 - Attack rolls use d20 + ability modifier + proficiency/bonuses.
@@ -128,11 +145,11 @@ matching effects. Combat effects are cleared when leaving Battle.
 ## Dungeon trap checks
 
 - Detection and disarming use d20 + the configured Dexterity or Intelligence
-  modifier.
-- Trap Kits, Natural Explorer, Cunning Action, and persistent Adventurer
-  guidance add their defined bonuses; Danger Sense detects automatically.
-- Failed detection persists as `missed`, so checks cannot be farmed by stepping
-  away or reloading.
+  modifier through `resolveSkillCheck()` / `rollSkillCheck()`.
+- Trap Kits, Natural Explorer, Cunning Action, and Adventurer notes add their
+  defined bonuses; Danger Sense automatically attempts nearby checks.
+- Failed detection persists in the stable `trap:<id>` record, so checks cannot
+  be farmed by stepping away or reloading.
 - Successful disarming awards XP through `awardXP()`.
 - Trigger damage and MP loss apply immediately and cannot reduce HP below 1.
   Trap-applied statuses seed the next battle and then follow the existing
@@ -166,7 +183,10 @@ Use deterministic dice mocks for:
 - Bonus-action scheduling
 - MP and inventory consumption on invalid actions
 - Seeded trap placement, one-shot checks, modifiers, nonlethal consequences,
-  alarm suppression, and hidden-floor destinations
+ alarm suppression, and hidden-floor destinations
+- Ability modifiers, DC boundaries, persistent negotiation choices, and
+ nonlethal exploration damage
 
 Relevant suites include `combat.test.ts`, `dice.test.ts`, `elements.test.ts`,
-`statusEffects.test.ts`, `player.test.ts`, and `traps.test.ts`.
+`statusEffects.test.ts`, `skillChecks.test.ts`, `player.test.ts`, and
+`traps.test.ts`.

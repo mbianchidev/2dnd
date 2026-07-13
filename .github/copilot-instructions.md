@@ -15,8 +15,8 @@ focused module.
 2D&D is a browser JRPG combining Dragon Quest-style exploration with
 D&D 5E-inspired combat. It has turn-based battles, point-buy characters,
 procedural graphics/audio, weather, day/night, a 90-chunk world, connected city
-districts, multi-level dungeons, procedural traps, elemental interactions,
-status effects, and boss fights.
+districts, multi-level dungeons, procedural traps, non-combat skill checks,
+elemental interactions, status effects, and boss fights.
 
 ## Stack
 
@@ -50,6 +50,7 @@ src/
 │   ├── traps.ts
 │   ├── trapAudio.ts
 │   ├── dice.ts
+│   ├── skillChecks.ts
 │   ├── daynight.ts
 │   ├── weather.ts
 │   ├── audio.ts
@@ -69,6 +70,7 @@ src/
 │   ├── items.ts
 │   ├── mounts.ts
 │   ├── npcs.ts
+│   ├── skillChecks.ts
 │   └── talents.ts
 ├── managers/
 ├── renderers/
@@ -155,9 +157,7 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
-  trapSeed: number;
-  trapStates: Record<string, TrapState>;
-  trapGuidance: boolean;
+  skillChecks: Record<string, SkillCheckRecord>;
 }
 ```
 
@@ -207,6 +207,22 @@ Flow:
 
 For disadvantage, roll two d20s and select the lower natural roll before
 checking natural 1/20 and adding modifiers. Magic Missile remains auto-hit.
+
+### Non-combat skill checks
+
+- Resolve checks through `src/systems/skillChecks.ts`; definitions belong in
+  `src/data/skillChecks.ts`, and Overworld orchestration belongs in
+  `src/managers/skillChecks.ts`.
+- Checks use d20 + the selected Dexterity, Intelligence, Wisdom, or Charisma
+  modifier plus typed bonuses against a DC. Natural 1 and 20 do not
+  automatically fail or succeed.
+- Charisma drives Persuade/Bluff NPC outcomes and one-attempt-per-shop
+  negotiations. Shop IDs use city/district/type/coordinates, not array indexes.
+- Wisdom drives hidden loot, secret passages, and exploration discoveries.
+- Dexterity drives hazards, lockpicking, and trap disarming. Exploration damage
+  is nonlethal and must leave the player at 1 HP or more.
+- Persist fixed outcomes in `player.progression.skillChecks`; repeatable terrain
+  events are not stored as one-time checks.
 
 ### Elements
 
@@ -269,15 +285,16 @@ Deepest floors contain a `DungeonBoss` tile and unique boss.
 
 Dungeon traps use metadata rather than terrain mutation. `DungeonData.trapProfile`
 selects the allowed and thematic trap types; `generateDungeonTraps()` derives a
-stable layout from `player.progression.trapSeed`, prioritizes chest approaches,
-and keeps spawn/transition tiles safe. Detection and disarming live in
-`src/systems/traps.ts`; Phaser orchestration lives in
+stable layout from a shared `skillChecks` layout record, prioritizes chest
+approaches, and keeps spawn/transition tiles safe. Detection and disarming use
+the shared resolver through `src/systems/traps.ts`; Phaser orchestration lives in
 `src/managers/dungeonTraps.ts`.
 
 Detected traps block movement until disarmed with Space. Unseen or missed traps
-trigger on entry. Trap Kits, trap-aware talents, and persistent Adventurer
-guidance modify checks. Immediate HP/MP losses are nonlethal; applied statuses
-use the existing combat-turn lifecycle.
+trigger on entry. Trap Kits, trap-aware talents, and Adventurer notes modify
+checks. Trap lifecycle persists as stable `trap:<id>` skill-check records.
+Immediate HP/MP losses are nonlethal; applied statuses use the existing
+combat-turn lifecycle.
 
 ### Fog keys
 
@@ -294,10 +311,11 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 Save schema version is 3.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
-progression fields, normalizes active effects and Codex elements, validates
-city/dungeon IDs, clamps levels/districts, repairs invalid coordinates to the
-correct spawn, normalizes trap seeds/states/guidance, and falls back to
-Willowdale for unusable overworld locations.
+progression fields, normalizes active effects, Codex elements, and skill-check
+records, validates city/dungeon IDs, clamps levels/districts, repairs invalid
+coordinates to the correct spawn, and falls back to Willowdale for unusable
+overworld locations. Legacy draft trap seed/state/guidance fields migrate into
+shared skill-check records and the Adventurer-notes item.
 
 When persistent data changes:
 

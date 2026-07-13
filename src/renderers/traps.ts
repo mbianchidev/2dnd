@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { getTrapDefinition, type DungeonTrap } from "../data/traps";
 import type { PlayerState } from "../systems/player";
+import { getTrapState } from "../systems/traps";
 import { TILE_SIZE } from "../config";
 
 export class TrapRenderer {
@@ -29,7 +30,7 @@ export class TrapRenderer {
 
     for (const trap of traps) {
       if (!isExplored(trap.x, trap.y)) continue;
-      const state = player.progression.trapStates[trap.id];
+      const state = getTrapState(player, trap);
       const distance = Math.abs(trap.x - player.position.x)
         + Math.abs(trap.y - player.position.y);
       if (state === undefined || state === "missed") {

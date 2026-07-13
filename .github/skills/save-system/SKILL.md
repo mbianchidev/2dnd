@@ -57,14 +57,14 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
-  trapSeed: number;
-  trapStates: Record<string, TrapState>;
-  trapGuidance: boolean;
+  skillChecks: Record<string, SkillCheckRecord>;
 }
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
-Codex entries persist `discoveredElements`.
+Codex entries persist `discoveredElements`. Fixed non-combat checks persist the
+ability, natural roll, modifier, repaired total, DC, outcome, and optional
+choice ID.
 
 ## Loading and migration
 
@@ -76,13 +76,15 @@ helpers; do not cast unvalidated nested values directly.
 - Legacy `bestiary` to `codex`
 - Legacy flat player position fields to `player.position`
 - Legacy flat progression fields to `player.progression`
+- Legacy draft trap seed/state/guidance fields to shared trap records and
+  Adventurer notes
 - Missing equipment, talents, abilities, rests, bank, mount, and appearance
   fields
 - Missing/invalid active status effects
 - Missing/invalid Codex elemental discoveries
+- Missing/invalid non-combat skill-check records
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
-- Missing or invalid trap seeds, trap states, and Adventurer guidance
 
 ## Location recovery
 
@@ -120,6 +122,15 @@ when the top-level payload is unusable.
 - Filter Codex element values with `isElement()`.
 - Unknown values are discarded rather than asserted into the target type.
 
+## Skill-check rules
+
+- Normalize with `normalizeSkillCheckRecords()`.
+- Accept only Dexterity, Intelligence, Wisdom, or Charisma records with integer
+  d20 rolls, modifiers, and positive DCs.
+- Recompute `total` and `success` from the saved natural roll, modifier, and DC.
+- Trim optional choice IDs and discard malformed records.
+- Shop, NPC, chest, and treasure IDs must remain stable across content changes.
+
 ## API
 
 ```typescript
@@ -139,13 +150,13 @@ top-level save is absent or corrupt.
 
 - Save/load round trips
 - Legacy flat-state migration
-- Schema-v2 position and progression data
-- Schema-v3 trap seed/state/guidance persistence and corruption recovery
+- Schema-v3 position, progression, and skill-check data
 - Dungeon-level and city-district clamping
 - Invalid IDs and coordinates
 - Conflicting location flags
 - Status-effect persistence and normalization
 - Codex elemental-discovery normalization
+- Missing and malformed skill-check normalization
 
 ## Common pitfalls
 
@@ -153,6 +164,6 @@ top-level save is absent or corrupt.
 - Forgetting the level or district when validating coordinates
 - Reusing city/dungeon fog keys across interiors
 - Keeping unknown status or element strings
-- Keeping unknown trap-state strings or rerolling the legacy trap seed
+- Keeping malformed trap check records or changing a persisted layout roll
 - Storing Phaser objects or other non-serializable state
 - Mutating shared game-data definitions while repairing a save

@@ -24,12 +24,10 @@ import {
 } from "../data/map";
 import { debugLog } from "../config";
 import { isElement } from "../data/elements";
+import { getItem } from "../data/items";
+import type { SkillCheckRecord } from "../data/skillChecks";
 import { normalizeActiveEffects } from "./statusEffects";
-import {
-  LEGACY_TRAP_SEED,
-  isTrapState,
-  type TrapState,
-} from "../data/traps";
+import { normalizeSkillCheckRecords } from "./skillChecks";
 
 const SAVE_KEY = "2dnd_save";
 const SAVE_VERSION = 3;
@@ -104,21 +102,77 @@ function normalizeExploredTiles(value: unknown): Record<string, boolean> {
   return exploredTiles;
 }
 
-function normalizeTrapSeed(value: unknown): number {
-  return typeof value === "number"
-    && Number.isInteger(value)
-    && value > 0
-    ? value
-    : LEGACY_TRAP_SEED;
+function createLegacyTrapRecord(state: unknown): SkillCheckRecord | undefined {
+  const success = state === "detected" || state === "disarmed";
+  let optionId: string;
+  if (state === "detected" || state === "missed") {
+    optionId = "detect";
+  } else if (state === "disarmed") {
+    optionId = "disarm";
+  } else if (state === "triggered") {
+    optionId = "triggered:legacy";
+  } else {
+    return undefined;
+  }
+  const naturalRoll = success ? 20 : 1;
+  const dc = success ? 1 : 20;
+  return {
+    ability: "intelligence",
+    naturalRoll,
+    modifier: 0,
+    total: naturalRoll,
+    dc,
+    success,
+    optionId,
+  };
 }
 
-function normalizeTrapStates(value: unknown): Record<string, TrapState> {
-  if (!isRecord(value)) return {};
-  const trapStates: Record<string, TrapState> = {};
-  for (const [trapId, state] of Object.entries(value)) {
-    if (isTrapState(state)) trapStates[trapId] = state;
+function migrateLegacyTrapProgression(player: PlayerState): void {
+  const progression = player.progression as unknown as Record<string, unknown>;
+  const rawChecks = isRecord(progression["skillChecks"])
+    ? { ...progression["skillChecks"] }
+    : {};
+  const legacySeed = progression["trapSeed"];
+  if (
+    !rawChecks["trap:layout"]
+    && typeof legacySeed === "number"
+    && Number.isInteger(legacySeed)
+    && legacySeed > 0
+  ) {
+    const naturalRoll = ((legacySeed - 1) % 20) + 1;
+    rawChecks["trap:layout"] = {
+      ability: "wisdom",
+      naturalRoll,
+      modifier: 0,
+      total: naturalRoll,
+      dc: 1,
+      success: true,
+      optionId: `layout:${legacySeed}`,
+    };
   }
-  return trapStates;
+
+  const legacyStates = progression["trapStates"];
+  if (isRecord(legacyStates)) {
+    for (const [trapId, state] of Object.entries(legacyStates)) {
+      const checkId = `trap:${trapId}`;
+      if (rawChecks[checkId]) continue;
+      const record = createLegacyTrapRecord(state);
+      if (record) rawChecks[checkId] = record;
+    }
+  }
+
+  if (
+    progression["trapGuidance"] === true
+    && !player.inventory.some((item) => item.id === "adventurerTrapNotes")
+  ) {
+    const guidance = getItem("adventurerTrapNotes");
+    if (guidance) player.inventory.push({ ...guidance });
+  }
+
+  progression["skillChecks"] = rawChecks;
+  delete progression["trapSeed"];
+  delete progression["trapStates"];
+  delete progression["trapGuidance"];
 }
 
 function isValidMapPosition(mapData: number[][], x: number, y: number): boolean {
@@ -271,9 +325,7 @@ export function loadGame(): SaveData | null {
         collectedTreasures: normalizeStringArray(playerRecord["collectedTreasures"]),
         exploredTiles: normalizeExploredTiles(playerRecord["exploredTiles"]),
         discoveredCities: [],
-        trapSeed: LEGACY_TRAP_SEED,
-        trapStates: {},
-        trapGuidance: false,
+        skillChecks: {},
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -289,14 +341,9 @@ export function loadGame(): SaveData | null {
     data.player.progression.exploredTiles = normalizeExploredTiles(
       data.player.progression.exploredTiles,
     );
-    data.player.progression.trapSeed = normalizeTrapSeed(
-      data.player.progression.trapSeed,
-    );
-    data.player.progression.trapStates = normalizeTrapStates(
-      data.player.progression.trapStates,
-    );
-    data.player.progression.trapGuidance = readBoolean(
-      data.player.progression.trapGuidance,
+    migrateLegacyTrapProgression(data.player);
+    data.player.progression.skillChecks = normalizeSkillCheckRecords(
+      data.player.progression.skillChecks,
     );
 
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;

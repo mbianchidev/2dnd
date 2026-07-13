@@ -240,9 +240,10 @@ export const TALENTS: Talent[] = [
   },
   {
     id: "dangerSense", name: "Danger Sense",
-    description: "+1 AC, +5 max HP, automatically detects nearby traps",
+    description: "+1 AC, +5 max HP, automatically checks nearby traps",
     levelRequired: 8,
     acBonus: 1, maxHpBonus: 5,
+    trapDetectionBonus: 4,
     autoDetectTraps: true,
     classRestriction: ["barbarian"],
   },

@@ -122,6 +122,14 @@ export interface ChestData {
   x: number;
   y: number;
   location: ChestLocation;
+  /** Dexterity DC for a locked or trapped chest. */
+  lockDc?: number;
+  /** Nonlethal damage taken when the lock check fails. */
+  trapDamage?: number;
+  /** Wisdom DC to notice a hidden compartment after opening. */
+  secretDc?: number;
+  /** Bonus gold found when the hidden-compartment check succeeds. */
+  secretGold?: number;
 }
 
 export interface CityShopData {

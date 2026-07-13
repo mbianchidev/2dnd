@@ -281,6 +281,16 @@ export const ITEMS: Item[] = [
     trapDetectionBonus: 3,
     trapDisarmBonus: 3,
   },
+  {
+    id: "adventurerTrapNotes",
+    name: "Adventurer's Trap Notes",
+    description: "+2 trap detection and +1 trap disarming",
+    type: "key",
+    cost: 0,
+    effect: 0,
+    trapDetectionBonus: 2,
+    trapDisarmBonus: 1,
+  },
   // --- Mount items (sold in stables) ---
   {
     id: "mountDonkey",

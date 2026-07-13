@@ -35,6 +35,14 @@ are split into dedicated modules. Dungeon trap definitions live in
 `src/data/traps.ts`, mechanics in `src/systems/traps.ts`, and scene orchestration
 in `src/managers/dungeonTraps.ts`.
 
+Non-combat checks are split across:
+
+- `src/data/skillChecks.ts`: NPC challenges, negotiation choices, and terrain
+  event definitions
+- `src/systems/skillChecks.ts`: pure d20 resolution, normalization, and helpers
+- `src/managers/skillChecks.ts`: Overworld rewards, hazards, chest checks, and
+  dialogue orchestration
+
 ## Adding monsters
 
 1. Define the monster in the appropriate pool in `src/data/monsters.ts`.
@@ -102,12 +110,28 @@ can persist and display them.
   than indexing `city.chunks` directly.
 - Dungeons may contain multiple levels. Always use dungeon level and
   connection helpers.
-- Dungeon trap layouts are derived from the saved `trapSeed`; never mutate
-  dungeon maps or randomize layouts independently in scenes.
+- Dungeon trap layouts are derived from the persisted `trap:layout` skill-check
+  record; never mutate dungeon maps or randomize layouts independently in scenes.
 - Detected traps block movement until disarmed. Trap triggers must short-circuit
   the normal random-encounter check for that step.
 - Use `FogOfWar.exploredKey()` for exploration keys.
 - Use `isWalkable()` and `ENCOUNTER_RATES`; do not hardcode terrain behavior.
+
+## Non-combat skill checks
+
+- Checks use d20 + Dexterity, Intelligence, Wisdom, or Charisma modifier plus
+  typed bonuses against a DC.
+- Natural 1 and 20 are not automatic outcomes for ability checks.
+- Persist fixed NPC, shop, chest, and treasure results in
+  `player.progression.skillChecks`.
+- Use stable NPC identities and shop type/coordinate keys rather than array
+  indexes.
+- Shop negotiation is one attempt per shop; successful discounts restore from
+  the saved result.
+- Exploration hazard damage is nonlethal and must clamp the player to at least
+  1 HP.
+- Test roll math, invalid inputs, stable data references, save normalization,
+  reward bounds, and nonlethal damage deterministically.
 
 ## Scene changes
 

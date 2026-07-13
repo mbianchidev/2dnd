@@ -40,7 +40,7 @@ actor-ID initiative, ally/enemy targeting, monster party-target selection, and
 battle resolution hooks.
 `src/systems/battleActions.ts` is the Phaser-free action planner for player
 input and ranked gambits: actor enumeration, target binding, validation,
-immutable plans, and one-action dispatch.
+immutable plans, per-actor action/bonus consumption, and one-action dispatch.
 
 ## Adding monsters
 

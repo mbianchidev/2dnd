@@ -227,8 +227,10 @@ Flow:
   companion-turn, and once-only battle-result callbacks.
 - Ranked AI/gambits use `src/systems/battleActions.ts`: enumerate living actors,
   resolve a scope with an optional preferred/matched ID, validate resources and
-  action economy, then execute one frozen `BattleActionPlan`. Do not duplicate
-  these rules inside scenes or companion AI.
+  per-actor action economy, then execute and consume one frozen
+  `BattleActionPlan`. A bonus action may be followed by one main action. KO
+  actors are omitted before initiative. Do not duplicate these rules inside
+  scenes or companion AI.
 - Melee attacks must clear living front-row monsters before targeting the back
   row; exposed back-row melee targets impose a -2 attack penalty. Ranged
   attacks and spells bypass formation protection.

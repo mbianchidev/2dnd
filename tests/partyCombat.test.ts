@@ -120,6 +120,33 @@ describe("party-ready battle contracts", () => {
     ]);
   });
 
+  it("omits knocked-out actors before rolling initiative", () => {
+    const player = createPlayer("Hero", stats);
+    const hero = createHeroCombatant(player);
+    const companion = createPartyCombatant({
+      id: "lyra",
+      name: "Lyra",
+      hp: 0,
+      maxHp: 20,
+      stats,
+      activeEffects: [],
+      getArmorClass: () => 13,
+    }, "companion");
+    const enemy = createGroupCombatants(createEncounter())[0]!;
+
+    const result = rollBattleInitiative(
+      [hero, companion, enemy],
+      () => 0,
+      () => 10,
+    );
+
+    expect(result.order.map((turn) => turn.combatantId)).toEqual([
+      hero.id,
+      enemy.id,
+    ]);
+    expect(result.rolls[companion.id]).toBeUndefined();
+  });
+
   it("resolves enemy, row, self, ally, and whole-party scopes", () => {
     const player = createPlayer("Hero", stats);
     const hero = createHeroCombatant(player);

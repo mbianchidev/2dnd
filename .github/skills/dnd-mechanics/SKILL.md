@@ -162,6 +162,9 @@ matching effects. Combat effects are cleared when leaving Battle.
 - Gambit and UI actions pass through `validateBattleAction()` before execution;
   validated plans bind stable actor/target IDs and declare action or bonus
   action cost.
+- `BattleActionEconomyState` tracks one action and one bonus action per actor;
+  consuming a bonus action leaves the main action available for lower-ranked
+  gambits.
 - Flee DC is 10 for one monster and increases by 2 for each additional living
   monster. Boss encounters cannot be fled.
 

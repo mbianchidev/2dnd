@@ -137,6 +137,8 @@ on mouse-wheel input.
   must call `completeTurn()`.
 - Companion hooks use the pure `battleActions.ts` planner for gambit matching,
   target validation, and action dispatch rather than scene-local rules.
+- BattleScene's hero action flags are backed by the same
+  `BattleActionEconomyState`; reset it at the start of each hero turn.
 - Skip defeated initiative entries and keep Player Defend active until the
   next player turn.
 - Target mode supports pointer selection, arrows/WASD cycling, Enter/Space

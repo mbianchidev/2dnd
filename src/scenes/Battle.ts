@@ -37,6 +37,10 @@ import {
   attemptFlee,
 } from "../systems/combat";
 import type { HealingTarget } from "../systems/combat";
+import {
+  createBattleActionEconomy,
+  type BattleActionEconomyState,
+} from "../systems/battleActions";
 import { abilityModifier } from "../systems/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { CodexData } from "../systems/codex";
@@ -130,6 +134,7 @@ export class BattleScene extends Phaser.Scene {
   private partyCombatants: PartyCombatant[] = [];
   private battleHooks: BattleResolutionHooks | undefined;
   private battleResultReported = false;
+  private playerEconomy!: BattleActionEconomyState;
   private defeatedBosses!: Set<string>;
   private codex!: CodexData;
   private timeStep = 0;
@@ -164,11 +169,6 @@ export class BattleScene extends Phaser.Scene {
   private inSurpriseRound = false;
   private surpriseQueue: number[] = [];
   private surpriseCursor = 0;
-
-  // Bonus action tracking (items are bonus actions, not turn actions)
-  private bonusActionUsed = false;
-  private itemsUsedThisTurn = 0;
-  private turnActionUsed = false;
 
   private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
@@ -226,6 +226,39 @@ export class BattleScene extends Phaser.Scene {
     if (this.heroCombatant) this.heroCombatant.isDefending = value;
   }
 
+  private get bonusActionUsed(): boolean {
+    return this.playerEconomy.bonusActionUsed;
+  }
+
+  private set bonusActionUsed(value: boolean) {
+    this.playerEconomy = Object.freeze({
+      ...this.playerEconomy,
+      bonusActionUsed: value,
+    });
+  }
+
+  private get turnActionUsed(): boolean {
+    return this.playerEconomy.actionUsed;
+  }
+
+  private set turnActionUsed(value: boolean) {
+    this.playerEconomy = Object.freeze({
+      ...this.playerEconomy,
+      actionUsed: value,
+    });
+  }
+
+  private get itemsUsedThisTurn(): number {
+    return this.playerEconomy.itemsUsed;
+  }
+
+  private set itemsUsedThisTurn(value: number) {
+    this.playerEconomy = Object.freeze({
+      ...this.playerEconomy,
+      itemsUsed: value,
+    });
+  }
+
   init(data: BattleSceneData): void {
     this.player = data.player;
     if (!data.encounter && !data.monster) {
@@ -240,6 +273,7 @@ export class BattleScene extends Phaser.Scene {
         (combatant) => combatant.id !== this.heroCombatant.id,
       ),
     ];
+    this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
     this.battleHooks = data.battleHooks;
     this.battleResultReported = false;
     this.defeatedBosses = data.defeatedBosses;
@@ -580,9 +614,7 @@ export class BattleScene extends Phaser.Scene {
     ) {
       return;
     }
-    this.bonusActionUsed = false;
-    this.itemsUsedThisTurn = 0;
-    this.turnActionUsed = false;
+    this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
     this.playerDefending = false;
     this.activeMonsterIndex = null;
     this.pendingTargetAction = null;
@@ -2112,6 +2144,10 @@ export class BattleScene extends Phaser.Scene {
       this.addLog("Cannot use more than 2 items per turn!");
       return;
     }
+    if (this.itemsUsedThisTurn === 0 && this.bonusActionUsed) {
+      this.addLog("Bonus action already used this turn!");
+      return;
+    }
     if (this.itemsUsedThisTurn === 1 && this.turnActionUsed) {
       this.addLog("No actions remaining this turn!");
       return;
@@ -2127,6 +2163,7 @@ export class BattleScene extends Phaser.Scene {
         this.itemsUsedThisTurn++;
         if (this.itemsUsedThisTurn === 1) {
           // First item: bonus action used, player still has turn action
+          this.bonusActionUsed = true;
           this.addLog("(Bonus action — you can still act this turn)");
           this.closeAllSubMenus();
         } else {

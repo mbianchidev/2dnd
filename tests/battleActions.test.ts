@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   executeBattleAction,
+  executeBattleActionWithEconomy,
+  createBattleActionEconomy,
+  consumeBattleActionEconomy,
   getLivingBattleActors,
   validateBattleAction,
   type BattleActionKind,
@@ -69,9 +72,7 @@ function resources(
   return {
     mp: 20,
     inventory: [getItem("potion")!],
-    actionAvailable: true,
-    bonusActionAvailable: true,
-    itemsUsedThisTurn: 0,
+    economy: createBattleActionEconomy("party:hero"),
     ...overrides,
   };
 }
@@ -175,7 +176,12 @@ describe("pure battle action pipeline", () => {
     const noBonus = validateBattleAction(
       actors,
       { actorId: heroId, kind: "ability", actionId: "rage" },
-      resources({ bonusActionAvailable: false }),
+      resources({
+        economy: {
+          ...createBattleActionEconomy(heroId),
+          bonusActionUsed: true,
+        },
+      }),
     );
     expect(noBonus.valid).toBe(false);
     expect(noBonus.message).toContain("bonus action");
@@ -234,5 +240,65 @@ describe("pure battle action pipeline", () => {
         ),
       ).toBe(1);
     }
+  });
+
+  it("consumes one bonus action and still permits one main action", () => {
+    const { actors, heroId } = createActors();
+    const initial = createBattleActionEconomy(heroId);
+    const bonus = validateBattleAction(
+      actors,
+      { actorId: heroId, kind: "ability", actionId: "rage" },
+      resources({ economy: initial }),
+    );
+    expect(bonus.valid).toBe(true);
+    const consumedBonus = consumeBattleActionEconomy(
+      initial,
+      bonus.plan!,
+    );
+    expect(consumedBonus.valid).toBe(true);
+    expect(consumedBonus.state.actionUsed).toBe(false);
+    expect(consumedBonus.state.bonusActionUsed).toBe(true);
+    expect(Object.isFrozen(consumedBonus.state)).toBe(true);
+
+    const main = validateBattleAction(
+      actors,
+      { actorId: heroId, kind: "attack", attackRange: "melee" },
+      resources({ economy: consumedBonus.state }),
+    );
+    expect(main.valid).toBe(true);
+    const executors = {
+      attack: vi.fn(() => 12),
+      spell: vi.fn(() => 0),
+      ability: vi.fn(() => 0),
+      item: vi.fn(() => 0),
+    };
+    const executed = executeBattleActionWithEconomy(
+      main.plan!,
+      consumedBonus.state,
+      executors,
+    );
+    expect(executed.result).toBe(12);
+    expect(executed.economy.actionUsed).toBe(true);
+    expect(executed.economy.bonusActionUsed).toBe(true);
+
+    const duplicate = validateBattleAction(
+      actors,
+      { actorId: heroId, kind: "attack", attackRange: "melee" },
+      resources({ economy: executed.economy }),
+    );
+    expect(duplicate.valid).toBe(false);
+    expect(duplicate.message).toContain("action");
+  });
+
+  it("rejects economy state owned by a different actor", () => {
+    const { actors, heroId, companionId } = createActors();
+    const validation = validateBattleAction(
+      actors,
+      { actorId: companionId, kind: "attack", attackRange: "melee" },
+      resources({ economy: createBattleActionEconomy(heroId) }),
+    );
+
+    expect(validation.valid).toBe(false);
+    expect(validation.message).toContain("economy");
   });
 });

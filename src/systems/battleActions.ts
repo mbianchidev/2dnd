@@ -37,11 +37,28 @@ export interface BattleActionRequest {
 export interface BattleActionResources {
   mp: number;
   inventory: readonly Item[];
-  actionAvailable: boolean;
-  bonusActionAvailable: boolean;
-  itemsUsedThisTurn: number;
+  economy: BattleActionEconomyState;
   knownSpellIds?: readonly string[];
   knownAbilityIds?: readonly string[];
+}
+
+export interface BattleActionEconomyState {
+  readonly actorId: BattleCombatantId;
+  readonly actionUsed: boolean;
+  readonly bonusActionUsed: boolean;
+  readonly itemsUsed: number;
+}
+
+export interface BattleActionAvailability {
+  actionAvailable: boolean;
+  bonusActionAvailable: boolean;
+  itemsRemaining: number;
+}
+
+export interface BattleActionEconomyTransition {
+  valid: boolean;
+  message: string;
+  state: BattleActionEconomyState;
 }
 
 export interface BattleActionDescriptor {
@@ -73,6 +90,32 @@ export interface BattleActionExecutors<TResult> {
   spell(plan: BattleActionPlan): TResult;
   ability(plan: BattleActionPlan): TResult;
   item(plan: BattleActionPlan): TResult;
+}
+
+export interface BattleActionExecution<TResult> {
+  result: TResult;
+  economy: BattleActionEconomyState;
+}
+
+export function createBattleActionEconomy(
+  actorId: BattleCombatantId,
+): BattleActionEconomyState {
+  return Object.freeze({
+    actorId,
+    actionUsed: false,
+    bonusActionUsed: false,
+    itemsUsed: 0,
+  });
+}
+
+export function getBattleActionAvailability(
+  economy: BattleActionEconomyState,
+): BattleActionAvailability {
+  return {
+    actionAvailable: !economy.actionUsed,
+    bonusActionAvailable: !economy.bonusActionUsed,
+    itemsRemaining: Math.max(0, 2 - economy.itemsUsed),
+  };
 }
 
 export function getLivingBattleActors<T extends BattleCombatantState>(
@@ -131,7 +174,7 @@ export function getBattleActionDescriptor(
     targetType: "self",
     range: "ranged",
     mpCost: 0,
-    cost: resources.itemsUsedThisTurn === 0 ? "bonus_action" : "action",
+    cost: resources.economy.itemsUsed === 0 ? "bonus_action" : "action",
   };
 }
 
@@ -234,6 +277,12 @@ export function validateBattleAction(
   if (!actor || !isCombatantActive(actor)) {
     return { valid: false, message: "Actor is not able to act." };
   }
+  if (resources.economy.actorId !== request.actorId) {
+    return {
+      valid: false,
+      message: "Action economy belongs to a different actor.",
+    };
+  }
   const descriptor = getBattleActionDescriptor(request, resources);
   if (!descriptor) {
     return {
@@ -260,16 +309,16 @@ export function validateBattleAction(
   if (resources.mp < descriptor.mpCost) {
     return { valid: false, message: "Not enough MP." };
   }
-  if (descriptor.cost === "action" && !resources.actionAvailable) {
+  if (descriptor.cost === "action" && resources.economy.actionUsed) {
     return { valid: false, message: "Turn action is unavailable." };
   }
   if (
     descriptor.cost === "bonus_action"
-    && !resources.bonusActionAvailable
+    && resources.economy.bonusActionUsed
   ) {
     return { valid: false, message: "Actor has no bonus action available." };
   }
-  if (request.kind === "item" && resources.itemsUsedThisTurn >= 2) {
+  if (request.kind === "item" && resources.economy.itemsUsed >= 2) {
     return { valid: false, message: "Actor cannot use another item this turn." };
   }
 
@@ -291,6 +340,53 @@ export function validateBattleAction(
   };
 }
 
+export function consumeBattleActionEconomy(
+  economy: BattleActionEconomyState,
+  plan: BattleActionPlan,
+): BattleActionEconomyTransition {
+  if (economy.actorId !== plan.actorId) {
+    return {
+      valid: false,
+      message: "Action economy belongs to a different actor.",
+      state: economy,
+    };
+  }
+  if (plan.descriptor.cost === "action" && economy.actionUsed) {
+    return {
+      valid: false,
+      message: "Turn action is already consumed.",
+      state: economy,
+    };
+  }
+  if (plan.descriptor.cost === "bonus_action" && economy.bonusActionUsed) {
+    return {
+      valid: false,
+      message: "Bonus action is already consumed.",
+      state: economy,
+    };
+  }
+  if (plan.kind === "item" && economy.itemsUsed >= 2) {
+    return {
+      valid: false,
+      message: "Item-use limit is already reached.",
+      state: economy,
+    };
+  }
+
+  const state = Object.freeze({
+    actorId: economy.actorId,
+    actionUsed: economy.actionUsed || plan.descriptor.cost === "action",
+    bonusActionUsed:
+      economy.bonusActionUsed || plan.descriptor.cost === "bonus_action",
+    itemsUsed: economy.itemsUsed + (plan.kind === "item" ? 1 : 0),
+  });
+  return {
+    valid: true,
+    message: "Action economy consumed.",
+    state,
+  };
+}
+
 export function executeBattleAction<TResult>(
   plan: BattleActionPlan,
   executors: BattleActionExecutors<TResult>,
@@ -305,4 +401,19 @@ export function executeBattleAction<TResult>(
     case "item":
       return executors.item(plan);
   }
+}
+
+export function executeBattleActionWithEconomy<TResult>(
+  plan: BattleActionPlan,
+  economy: BattleActionEconomyState,
+  executors: BattleActionExecutors<TResult>,
+): BattleActionExecution<TResult> {
+  const transition = consumeBattleActionEconomy(economy, plan);
+  if (!transition.valid) {
+    throw new Error(transition.message);
+  }
+  return {
+    result: executeBattleAction(plan, executors),
+    economy: transition.state,
+  };
 }

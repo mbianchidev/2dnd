@@ -282,11 +282,12 @@ export function rollBattleInitiative(
   getModifier: (combatant: BattleCombatantState) => number,
   roller: (modifier: number) => number = (modifier) => rollD20(modifier).total,
 ): BattleInitiativeResult {
+  const activeCombatants = combatants.filter(isCombatantActive);
   const originalOrder = new Map(
-    combatants.map((combatant, index) => [combatant.id, index]),
+    activeCombatants.map((combatant, index) => [combatant.id, index]),
   );
   const rolls: Record<BattleCombatantId, number> = {};
-  const order = combatants.map((combatant): BattleTurn => {
+  const order = activeCombatants.map((combatant): BattleTurn => {
     const initiative = roller(getModifier(combatant));
     rolls[combatant.id] = initiative;
     return { combatantId: combatant.id, initiative };

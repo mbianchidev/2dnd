@@ -123,7 +123,9 @@ should query `isQuestCompleted()` and persist their own unlocked state.
 Completed quests may also declare stable `{ id, type, targetId }` actions.
 Consumers call `getQuestCompletionActions()` or
 `replayQuestCompletionActions()` after load and quest mutations, then apply
-those actions idempotently in their own state.
+those actions idempotently in their own state. Every stage also has a stable
+data ID; use `getQuestStageIndex()` or `setQuestStageById()` instead of
+coupling downstream systems to display text.
 
 For companion recruitment, define three distinct quest IDs and one action per
 path using `type: "recruitCompanion"` and the companion ID as `targetId`.
@@ -176,7 +178,7 @@ Available tools include:
 - `/spawn <name-or-id>` for every monster in `ALL_MONSTERS`, including unique
   dungeon bosses, plus special overworld NPC aliases
 - `/quest list`, `/quest advance <id>`, and
-  `/quest set <id> <stage|locked|active|completed>`
+  `/quest set <id> <stage-number|stage-id|locked|active|completed>`
 
 Use `debugLog()` and the debug panel APIs instead of `console.log`.
 

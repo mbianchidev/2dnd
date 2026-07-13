@@ -23,7 +23,7 @@ import {
   QUESTS,
   SIDE_QUEST_ID,
 } from "../data/quests";
-import { advanceQuest, setQuestState } from "./quests";
+import { advanceQuest, setQuestStageById, setQuestState } from "./quests";
 import type { QuestId, QuestStatus } from "../data/quests";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -528,7 +528,7 @@ export class DebugCommandSystem {
           const progress = this.player.progression.quests[questId];
           const stage = quest.stages[progress.stage];
           debugPanelLog(
-            `  ${questId}: ${progress.status} ${progress.stage}/${quest.stages.length - 1} (${stage.title})`,
+            `  ${questId}: ${progress.status} ${progress.stage}/${quest.stages.length - 1} (${stage.id}: ${stage.title})`,
             true,
           );
         }
@@ -555,9 +555,23 @@ export class DebugCommandSystem {
           result = setQuestState(this.player, questId, status);
         } else if (targetArg && /^\d+$/.test(targetArg)) {
           result = setQuestState(this.player, questId, Number.parseInt(targetArg, 10));
+        } else if (targetArg) {
+          const stageId = QUESTS[questId].stages.find(
+            (stage) => stage.id.toLowerCase() === targetArg,
+          )?.id;
+          result = stageId
+            ? setQuestStageById(this.player, questId, stageId)
+            : undefined;
+          if (!result) {
+            debugPanelLog(
+              `Unknown stage "${parts[2]}". Available: ${QUESTS[questId].stages.map((stage) => stage.id).join(", ")}`,
+              true,
+            );
+            return;
+          }
         } else {
           debugPanelLog(
-            `Usage: /quest set ${questId} <stage|locked|active|completed>`,
+            `Usage: /quest set ${questId} <stage-number|stage-id|locked|active|completed>`,
             true,
           );
           return;

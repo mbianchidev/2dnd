@@ -287,6 +287,25 @@ export function setQuestState(
   );
 }
 
+/** Resolve a stable stage ID to its persisted numeric stage index. */
+export function getQuestStageIndex(
+  questId: QuestId,
+  stageId: string,
+): number | undefined {
+  const index = QUESTS[questId].stages.findIndex((stage) => stage.id === stageId);
+  return index >= 0 ? index : undefined;
+}
+
+/** Set an exact quest stage by its stable data ID. */
+export function setQuestStageById(
+  player: PlayerState,
+  questId: QuestId,
+  stageId: string,
+): QuestActionResult | undefined {
+  const stage = getQuestStageIndex(questId, stageId);
+  return stage === undefined ? undefined : setQuestState(player, questId, stage);
+}
+
 /** Return the active road/city/dungeon entrance block for a location, if any. */
 export function getBlockedQuestEntrance(
   player: PlayerState,

@@ -18,11 +18,13 @@ import {
   getBlockedQuestEntrance,
   getQuestCompletionActions,
   getQuestJournalEntries,
+  getQuestStageIndex,
   isQuestCompleted,
   normalizeQuestLog,
   replayQuestCompletionActions,
   resolveQuestNpcInteraction,
   setQuestState,
+  setQuestStageById,
 } from "../src/systems/quests";
 
 function createTestPlayer(): PlayerState {
@@ -185,6 +187,26 @@ describe("quest progression", () => {
     expect(player.gold).toBe(goldAfterCompletion);
   });
 
+  it("resolves and sets canonical quest stage IDs", () => {
+    const player = createTestPlayer();
+
+    expect(getQuestStageIndex(MAIN_QUEST_ID, "openEasternRoad")).toBe(2);
+    expect(getQuestStageIndex(MAIN_QUEST_ID, "missingStage")).toBeUndefined();
+
+    const result = setQuestStageById(
+      player,
+      MAIN_QUEST_ID,
+      "openEasternRoad",
+    );
+    expect(result?.changed).toBe(true);
+    expect(player.progression.quests[MAIN_QUEST_ID].stage).toBe(2);
+    expect(setQuestStageById(
+      player,
+      MAIN_QUEST_ID,
+      "missingStage",
+    )).toBeUndefined();
+  });
+
   it("exposes replay-safe completion actions with stable idempotency keys", () => {
     const player = createTestPlayer();
     expect(getQuestCompletionActions(player.progression.quests)).toEqual([]);
@@ -331,6 +353,16 @@ describe("quest data integrity", () => {
         expect(action.id).toMatch(/^[a-z][a-zA-Z0-9.]*$/);
         expect(action.type).toBeTruthy();
         expect(action.targetId).toBeTruthy();
+      }
+    }
+  });
+
+  it("uses unique stable stage IDs within every quest", () => {
+    for (const quest of Object.values(QUESTS)) {
+      const stageIds = quest.stages.map((stage) => stage.id);
+      expect(new Set(stageIds).size).toBe(stageIds.length);
+      for (const stageId of stageIds) {
+        expect(stageId).toMatch(/^[a-z][a-zA-Z0-9]*$/);
       }
     }
   });

@@ -46,6 +46,8 @@ are split into dedicated modules.
 - Cross-system outcomes use stable quest completion actions with
   `{ id, type, targetId }`. Replay them after load/mutations and make the
   consumer idempotent rather than adding duplicate quest state.
+- Give every stage a stable camelCase `id`; downstream systems use
+  `getQuestStageIndex()` or `setQuestStageById()`, never display titles.
 - Derive boss objectives from `defeatedBosses` so older saves can report
   already-completed objectives.
 - Keep quest NPCs available at night and test every referenced NPC, boss,

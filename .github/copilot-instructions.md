@@ -171,6 +171,8 @@ Access fields through `player.position` and `player.progression`.
 - Generic completion actions use stable `{ id, type, targetId }` definitions.
   Replay them with `getQuestCompletionActions()` or
   `replayQuestCompletionActions()`; consumers own idempotency.
+- Quest stages have stable camelCase `id` values. Resolve them through
+  `getQuestStageIndex()` or `setQuestStageById()` rather than titles.
 - Boss objectives derive from `defeatedBosses`; do not rely only on a new battle
   event because existing saves may already contain the required defeat.
 - Quest NPCs remain available at night. `Q` opens the quest journal.

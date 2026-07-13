@@ -22,6 +22,7 @@ export interface QuestProgress {
 export type QuestLogState = Record<QuestId, QuestProgress>;
 
 export interface QuestStageDefinition {
+  id: string;
   title: string;
   objective: string;
   npcId?: QuestNpcId;
@@ -102,22 +103,26 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
     summary: "Restore the sealed eastern road and end the fire beneath Ashfall.",
     stages: [
       {
+        id: "meetElderRowan",
         title: "Willowdale's Warning",
         objective: "Speak with Elder Rowan in Willowdale.",
         npcId: "elderRowan",
       },
       {
+        id: "recoverRoadSeal",
         title: "The Crypt Seal",
         objective: "Defeat the Crypt Lich, then report to Elder Rowan.",
         npcId: "elderRowan",
         bossId: "cryptLich",
       },
       {
+        id: "openEasternRoad",
         title: "The Warden's Test",
         objective: "Take the recovered seal to Warden Ilyra in Sandport.",
         npcId: "wardenIlyra",
       },
       {
+        id: "cleanseVolcanicForge",
         title: "Fire Beneath Ashfall",
         objective: "Defeat the Inferno Forgemaster, then report to Magister Sol.",
         npcId: "magisterSol",
@@ -144,11 +149,13 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
     summary: "Carry Sandport's warning back to Willowdale before the road reopens.",
     stages: [
       {
+        id: "deliverWardensDispatch",
         title: "Carry the Warning",
         objective: "Deliver Warden Ilyra's dispatch to Elder Rowan.",
         npcId: "elderRowan",
       },
       {
+        id: "reportWardensDispatch",
         title: "Return to Sandport",
         objective: "Tell Warden Ilyra that Willowdale has been warned.",
         npcId: "wardenIlyra",

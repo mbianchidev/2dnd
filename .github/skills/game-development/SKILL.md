@@ -41,6 +41,9 @@ battle resolution hooks.
 `src/systems/battleActions.ts` is the Phaser-free action planner for player
 input and ranked gambits: actor enumeration, target binding, validation,
 immutable plans, per-actor action/bonus consumption, and one-action dispatch.
+`executeValidatedBattleAction()` binds a generic `CombatActorState` to a party
+combatant and reuses existing attack, spell, ability, item, defend, element,
+status, MP, and inventory mechanics.
 
 ## Adding monsters
 

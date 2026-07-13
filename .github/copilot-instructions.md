@@ -231,6 +231,10 @@ Flow:
   `BattleActionPlan`. A bonus action may be followed by one main action. KO
   actors are omitted before initiative. Do not duplicate these rules inside
   scenes or companion AI.
+- Outbound actors bind a generic `CombatActorState` to a `PartyCombatant`
+  through `BattleActionSource`. Execute validated attack/spell/ability/item/
+  defend plans with `executeValidatedBattleAction()`; do not bypass combat,
+  item, elemental-discovery, or target-state helpers.
 - Melee attacks must clear living front-row monsters before targeting the back
   row; exposed back-row melee targets impose a -2 attack penalty. Ranged
   attacks and spells bypass formation protection.

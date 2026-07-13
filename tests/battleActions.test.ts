@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   executeBattleAction,
   executeBattleActionWithEconomy,
+  executeValidatedBattleAction,
   createBattleActionEconomy,
+  createPlayerBattleActionSource,
   consumeBattleActionEconomy,
   getLivingBattleActors,
   validateBattleAction,
@@ -206,7 +208,13 @@ describe("pure battle action pipeline", () => {
 
   it("returns frozen plans and dispatches exactly one executor", () => {
     const { actors, heroId } = createActors();
-    const kinds: BattleActionKind[] = ["attack", "spell", "ability", "item"];
+    const kinds: BattleActionKind[] = [
+      "attack",
+      "spell",
+      "ability",
+      "item",
+      "defend",
+    ];
 
     for (const kind of kinds) {
       const request = kind === "attack"
@@ -215,7 +223,9 @@ describe("pure battle action pipeline", () => {
           ? { actorId: heroId, kind, actionId: "fireBolt" }
           : kind === "ability"
             ? { actorId: heroId, kind, actionId: "shieldBash" }
-            : { actorId: heroId, kind, itemIndex: 0 };
+            : kind === "item"
+              ? { actorId: heroId, kind, itemIndex: 0 }
+              : { actorId: heroId, kind };
       const validation = validateBattleAction(actors, request, resources());
       expect(validation.valid).toBe(true);
       expect(Object.isFrozen(validation.plan)).toBe(true);
@@ -225,16 +235,18 @@ describe("pure battle action pipeline", () => {
       const spell = vi.fn(() => "spell");
       const ability = vi.fn(() => "ability");
       const item = vi.fn(() => "item");
+      const defend = vi.fn(() => "defend");
       const result = executeBattleAction(validation.plan!, {
         attack,
         spell,
         ability,
         item,
+        defend,
       });
 
       expect(result).toBe(kind);
       expect(
-        [attack, spell, ability, item].reduce(
+        [attack, spell, ability, item, defend].reduce(
           (calls, executor) => calls + executor.mock.calls.length,
           0,
         ),
@@ -271,6 +283,7 @@ describe("pure battle action pipeline", () => {
       spell: vi.fn(() => 0),
       ability: vi.fn(() => 0),
       item: vi.fn(() => 0),
+      defend: vi.fn(() => 0),
     };
     const executed = executeBattleActionWithEconomy(
       main.plan!,
@@ -300,5 +313,180 @@ describe("pure battle action pipeline", () => {
 
     expect(validation.valid).toBe(false);
     expect(validation.message).toContain("economy");
+  });
+
+  it("executes validated generic attack, spell, ability, item, and defend plans", () => {
+    const player = createPlayer("Executor", {
+      strength: 15,
+      dexterity: 14,
+      constitution: 14,
+      intelligence: 15,
+      wisdom: 12,
+      charisma: 10,
+    }, "wizard");
+    player.level = 10;
+    player.mp = 100;
+    player.maxMp = 100;
+    player.hp = 10;
+    player.maxHp = 50;
+    player.knownSpells.push("fireball");
+    player.knownAbilities.push("shieldBash");
+    player.inventory.push(getItem("potion")!);
+    const hero = createHeroCombatant(player);
+    const source = createPlayerBattleActionSource(player, hero);
+    const encounter: MonsterEncounter = {
+      id: "executorTest",
+      name: "Executor Test",
+      isGroup: true,
+      members: [
+        { monster: getMonster("goblin")!, position: "front" },
+        { monster: getMonster("wraith")!, position: "back" },
+      ],
+    };
+    const enemies = createGroupCombatants(encounter);
+    const actors: BattleCombatantState[] = [hero, ...enemies];
+    const context = { combatants: actors, enemies };
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+
+    const attack = validateBattleAction(
+      actors,
+      {
+        actorId: hero.id,
+        kind: "attack",
+        attackRange: "ranged",
+        preferredTargetId: enemies[0]!.id,
+      },
+      resources({ economy: createBattleActionEconomy(hero.id) }),
+    ).plan!;
+    const attackHp = enemies[0]!.currentHp;
+    const attackResult = executeValidatedBattleAction(source, attack, context);
+    expect(attackResult.executed).toBe(true);
+    expect(enemies[0]!.currentHp).toBeLessThan(attackHp);
+
+    const spell = validateBattleAction(
+      actors,
+      { actorId: hero.id, kind: "spell", actionId: "fireball" },
+      resources({
+        mp: player.mp,
+        economy: createBattleActionEconomy(hero.id),
+        knownSpellIds: player.knownSpells,
+      }),
+    ).plan!;
+    const mpBeforeSpell = player.mp;
+    const spellResult = executeValidatedBattleAction(source, spell, context);
+    expect(spellResult.executed).toBe(true);
+    expect(player.mp).toBe(mpBeforeSpell - 6);
+    expect(spellResult.targets).toHaveLength(2);
+
+    const ability = validateBattleAction(
+      actors,
+      {
+        actorId: hero.id,
+        kind: "ability",
+        actionId: "shieldBash",
+        preferredTargetId: enemies[1]!.id,
+      },
+      resources({
+        mp: player.mp,
+        economy: createBattleActionEconomy(hero.id),
+        knownAbilityIds: player.knownAbilities,
+      }),
+    ).plan!;
+    const abilityResult = executeValidatedBattleAction(
+      source,
+      ability,
+      context,
+    );
+    expect(abilityResult.executed).toBe(true);
+
+    const potionIndex = player.inventory.findIndex(
+      (item) => item.id === "potion",
+    );
+    const item = validateBattleAction(
+      actors,
+      { actorId: hero.id, kind: "item", itemIndex: potionIndex },
+      {
+        mp: player.mp,
+        inventory: player.inventory,
+        economy: createBattleActionEconomy(hero.id),
+      },
+    ).plan!;
+    const itemResult = executeValidatedBattleAction(source, item, context);
+    expect(itemResult.itemUsed).toBe(true);
+    expect(player.hp).toBeGreaterThan(10);
+
+    const defend = validateBattleAction(
+      actors,
+      { actorId: hero.id, kind: "defend" },
+      resources({ economy: createBattleActionEconomy(hero.id) }),
+    ).plan!;
+    const defendResult = executeValidatedBattleAction(source, defend, context);
+    expect(defendResult.executed).toBe(true);
+    expect(hero.isDefending).toBe(true);
+  });
+
+  it("does not consume stale cantrips or redirect stale melee abilities", () => {
+    const player = createPlayer("Stale Tester", stats, "knight");
+    player.knownSpells.push("fireBolt");
+    player.knownAbilities.push("shieldBash");
+    const hero = createHeroCombatant(player);
+    const source = createPlayerBattleActionSource(player, hero);
+    const encounter: MonsterEncounter = {
+      id: "staleTargets",
+      name: "Stale Targets",
+      isGroup: true,
+      members: [
+        { monster: getMonster("goblin")!, position: "front" },
+        { monster: getMonster("wraith")!, position: "back" },
+      ],
+    };
+    const enemies = createGroupCombatants(encounter);
+    const actors: BattleCombatantState[] = [hero, ...enemies];
+    const context = { combatants: actors, enemies };
+
+    const spellPlan = validateBattleAction(
+      actors,
+      {
+        actorId: hero.id,
+        kind: "spell",
+        actionId: "fireBolt",
+        preferredTargetId: enemies[0]!.id,
+      },
+      resources({
+        economy: createBattleActionEconomy(hero.id),
+        knownSpellIds: player.knownSpells,
+      }),
+    ).plan!;
+    enemies[0]!.currentHp = 0;
+    enemies[0]!.isAlive = false;
+    enemies[0]!.isKnockedOut = true;
+    expect(
+      executeValidatedBattleAction(source, spellPlan, context).executed,
+    ).toBe(false);
+
+    enemies[0]!.currentHp = enemies[0]!.maxHp;
+    enemies[0]!.isAlive = true;
+    enemies[0]!.isKnockedOut = false;
+    const abilityPlan = validateBattleAction(
+      actors,
+      {
+        actorId: hero.id,
+        kind: "ability",
+        actionId: "shieldBash",
+        preferredTargetId: enemies[0]!.id,
+      },
+      resources({
+        economy: createBattleActionEconomy(hero.id),
+        knownAbilityIds: player.knownAbilities,
+      }),
+    ).plan!;
+    enemies[0]!.currentHp = 0;
+    enemies[0]!.isAlive = false;
+    enemies[0]!.isKnockedOut = true;
+    const backHp = enemies[1]!.currentHp;
+    expect(
+      executeValidatedBattleAction(source, abilityPlan, context).executed,
+    ).toBe(false);
+    expect(enemies[1]!.currentHp).toBe(backHp);
   });
 });

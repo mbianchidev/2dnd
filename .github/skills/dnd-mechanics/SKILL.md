@@ -148,6 +148,8 @@ matching effects. Combat effects are cleared when leaving Battle.
 - `BattleActionEconomyState` tracks one action and one bonus action per actor;
   consuming a bonus action leaves the main action available for lower-ranked
   gambits.
+- Generic outbound actors execute validated plans through the same d20, AC,
+  element, status, healing, MP, inventory, and defend paths as the hero.
 - Flee DC is 10 for one monster and increases by 2 for each additional living
   monster. Boss encounters cannot be fled.
 

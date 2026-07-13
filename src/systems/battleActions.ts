@@ -8,21 +8,41 @@ import {
   getAbilityTargetType,
 } from "../data/abilities";
 import type { Item } from "../data/items";
+import type { Element, ElementalInteraction } from "../data/elements";
 import {
   getSpell,
   getSpellTargetType,
   type TargetType,
 } from "../data/spells";
 import {
+  playerAttack,
+  playerCastSpellAtTargets,
+  playerUseAbility,
+  type HealingTarget,
+} from "./combat";
+import {
+  useCombatItem,
+  type CombatActorState,
+  type PlayerState,
+} from "./player";
+import {
+  createHeroCombatant,
   getBattleTargetIds,
   getCombatantById,
   isCombatantActive,
   type AttackRange,
   type BattleCombatantId,
   type BattleCombatantState,
+  type GroupCombatant,
+  type PartyCombatant,
 } from "./groupCombat";
 
-export type BattleActionKind = "attack" | "spell" | "ability" | "item";
+export type BattleActionKind =
+  | "attack"
+  | "spell"
+  | "ability"
+  | "item"
+  | "defend";
 export type BattleActionCost = "action" | "bonus_action";
 
 export interface BattleActionRequest {
@@ -90,11 +110,63 @@ export interface BattleActionExecutors<TResult> {
   spell(plan: BattleActionPlan): TResult;
   ability(plan: BattleActionPlan): TResult;
   item(plan: BattleActionPlan): TResult;
+  defend(plan: BattleActionPlan): TResult;
 }
 
 export interface BattleActionExecution<TResult> {
   result: TResult;
   economy: BattleActionEconomyState;
+}
+
+export interface BattleActionSource {
+  combatant: PartyCombatant;
+  state: CombatActorState;
+}
+
+export interface BattleActionExecutionContext {
+  combatants: BattleCombatantState[];
+  enemies: GroupCombatant[];
+  weatherPenalty?: number;
+  getEnemyDefenseBonus?(target: GroupCombatant): number;
+  onElementalInteraction?(
+    targetId: BattleCombatantId,
+    interaction: ElementalInteraction,
+    element: Element,
+  ): void;
+}
+
+export interface ResolvedBattleActionTarget {
+  targetId: BattleCombatantId;
+  hit: boolean;
+  damage: number;
+  healing: number;
+  elementalLabel?: ElementalInteraction;
+}
+
+export interface ResolvedBattleAction {
+  executed: boolean;
+  message: string;
+  plan: BattleActionPlan;
+  targets: ResolvedBattleActionTarget[];
+  mpUsed: number;
+  itemUsed: boolean;
+}
+
+export function createBattleActionSource(
+  combatant: PartyCombatant,
+  state: CombatActorState,
+): BattleActionSource {
+  if (combatant.side !== "party") {
+    throw new Error("Battle action sources must belong to the party side.");
+  }
+  return { combatant, state };
+}
+
+export function createPlayerBattleActionSource(
+  player: PlayerState,
+  combatant: PartyCombatant = createHeroCombatant(player),
+): BattleActionSource {
+  return createBattleActionSource(combatant, player);
 }
 
 export function createBattleActionEconomy(
@@ -133,6 +205,15 @@ export function getBattleActionDescriptor(
       kind: "attack",
       targetType: "single_enemy",
       range: request.attackRange ?? "melee",
+      mpCost: 0,
+      cost: "action",
+    };
+  }
+  if (request.kind === "defend") {
+    return {
+      kind: "defend",
+      targetType: "self",
+      range: "melee",
       mpCost: 0,
       cost: "action",
     };
@@ -400,6 +481,8 @@ export function executeBattleAction<TResult>(
       return executors.ability(plan);
     case "item":
       return executors.item(plan);
+    case "defend":
+      return executors.defend(plan);
   }
 }
 
@@ -415,5 +498,299 @@ export function executeBattleActionWithEconomy<TResult>(
   return {
     result: executeBattleAction(plan, executors),
     economy: transition.state,
+  };
+}
+
+function resolveEnemyTargets(
+  plan: BattleActionPlan,
+  context: BattleActionExecutionContext,
+): GroupCombatant[] {
+  return plan.targetIds.flatMap((targetId) => {
+    const target = getCombatantById(context.enemies, targetId);
+    return target && isCombatantActive(target) ? [target] : [];
+  });
+}
+
+function resolveHealingTargets(
+  plan: BattleActionPlan,
+  context: BattleActionExecutionContext,
+): HealingTarget[] {
+  return plan.targetIds.flatMap((targetId) => {
+    const target = getCombatantById(context.combatants, targetId);
+    return target?.side === "party" && isCombatantActive(target)
+      ? [target as HealingTarget]
+      : [];
+  });
+}
+
+function recordElementalInteraction(
+  context: BattleActionExecutionContext,
+  targetId: BattleCombatantId,
+  interaction: ElementalInteraction | undefined,
+  element: Element | undefined,
+): void {
+  if (!interaction || !element) return;
+  context.onElementalInteraction?.(targetId, interaction, element);
+}
+
+/** Execute a previously validated plan using reusable combat mechanics. */
+export function executeValidatedBattleAction(
+  source: BattleActionSource,
+  plan: BattleActionPlan,
+  context: BattleActionExecutionContext,
+): ResolvedBattleAction {
+  if (source.combatant.id !== plan.actorId) {
+    return {
+      executed: false,
+      message: "Action source does not match the validated actor.",
+      plan,
+      targets: [],
+      mpUsed: 0,
+      itemUsed: false,
+    };
+  }
+  if (!isCombatantActive(source.combatant)) {
+    return {
+      executed: false,
+      message: "Actor is no longer able to act.",
+      plan,
+      targets: [],
+      mpUsed: 0,
+      itemUsed: false,
+    };
+  }
+
+  if (plan.kind === "defend") {
+    source.combatant.isDefending = true;
+    return {
+      executed: true,
+      message: `${source.combatant.label} takes a defensive stance!`,
+      plan,
+      targets: [{
+        targetId: source.combatant.id,
+        hit: true,
+        damage: 0,
+        healing: 0,
+      }],
+      mpUsed: 0,
+      itemUsed: false,
+    };
+  }
+
+  if (plan.kind === "item") {
+    if (plan.itemIndex === undefined) {
+      return {
+        executed: false,
+        message: "Validated item plan has no inventory index.",
+        plan,
+        targets: [],
+        mpUsed: 0,
+        itemUsed: false,
+      };
+    }
+    const result = useCombatItem(source.state, plan.itemIndex);
+    return {
+      executed: result.used,
+      message: result.message,
+      plan,
+      targets: [{
+        targetId: source.combatant.id,
+        hit: result.used,
+        damage: 0,
+        healing: 0,
+      }],
+      mpUsed: 0,
+      itemUsed: result.used,
+    };
+  }
+
+  const enemies = resolveEnemyTargets(plan, context);
+  const healingTargets = resolveHealingTargets(plan, context);
+  if (plan.kind === "attack") {
+    const target = enemies[0];
+    if (!target) {
+      return {
+        executed: false,
+        message: "Validated attack target is no longer available.",
+        plan,
+        targets: [],
+        mpUsed: 0,
+        itemUsed: false,
+      };
+    }
+    const result = playerAttack(
+      source.state,
+      target.monster,
+      (target.isDefending ? 2 : 0)
+        + (context.getEnemyDefenseBonus?.(target) ?? 0),
+      context.weatherPenalty ?? 0,
+      target.effects,
+    );
+    target.currentHp = Math.max(0, target.currentHp - result.damage);
+    if (target.currentHp === 0) {
+      target.isAlive = false;
+      target.isKnockedOut = true;
+    }
+    recordElementalInteraction(
+      context,
+      target.id,
+      result.elementalLabel,
+      source.state.equippedWeapon?.element,
+    );
+    return {
+      executed: true,
+      message: result.message,
+      plan,
+      targets: [{
+        targetId: target.id,
+        hit: result.hit,
+        damage: result.damage,
+        healing: 0,
+        elementalLabel: result.elementalLabel,
+      }],
+      mpUsed: 0,
+      itemUsed: false,
+    };
+  }
+
+  if (plan.kind === "spell") {
+    if (!plan.actionId) {
+      return {
+        executed: false,
+        message: "Validated spell plan has no spell ID.",
+        plan,
+        targets: [],
+        mpUsed: 0,
+        itemUsed: false,
+      };
+    }
+    const result = playerCastSpellAtTargets(
+      source.state,
+      plan.actionId,
+      enemies.map((target) => ({
+        monster: target.monster,
+        monsterEffects: target.effects,
+        weatherPenalty: context.weatherPenalty ?? 0,
+        acPenalty: (target.isDefending ? 2 : 0)
+          + (context.getEnemyDefenseBonus?.(target) ?? 0),
+      })),
+      healingTargets,
+    );
+    const targets: ResolvedBattleActionTarget[] = [];
+    for (const targetResult of result.results) {
+      const target = enemies[targetResult.targetIndex];
+      if (!target) continue;
+      target.currentHp = Math.max(0, target.currentHp - targetResult.damage);
+      if (target.currentHp === 0) {
+        target.isAlive = false;
+        target.isKnockedOut = true;
+      }
+      recordElementalInteraction(
+        context,
+        target.id,
+        targetResult.elementalLabel,
+        getSpell(plan.actionId)?.element,
+      );
+      targets.push({
+        targetId: target.id,
+        hit: targetResult.hit,
+        damage: targetResult.damage,
+        healing: 0,
+        elementalLabel: targetResult.elementalLabel,
+      });
+    }
+    for (const healingResult of result.healingResults) {
+      targets.push({
+        targetId: healingResult.targetId,
+        hit: true,
+        damage: 0,
+        healing: healingResult.healing,
+      });
+    }
+    return {
+      executed:
+        result.results.length > 0 || result.healingResults.length > 0,
+      message: result.message,
+      plan,
+      targets,
+      mpUsed: result.mpUsed,
+      itemUsed: false,
+    };
+  }
+
+  if (!plan.actionId) {
+    return {
+      executed: false,
+      message: "Validated ability plan has no ability ID.",
+      plan,
+      targets: [],
+      mpUsed: 0,
+      itemUsed: false,
+    };
+  }
+  const ability = getAbility(plan.actionId);
+  const canUseWithoutEnemyTarget = ability?.type === "heal"
+    || ability?.type === "buff";
+  const target = enemies[0] ?? (
+    canUseWithoutEnemyTarget
+      ? context.enemies.find(isCombatantActive)
+      : undefined
+  );
+  if (!target) {
+    return {
+      executed: false,
+      message: "No enemy remains for ability resolution.",
+      plan,
+      targets: [],
+      mpUsed: 0,
+      itemUsed: false,
+    };
+  }
+  const result = playerUseAbility(
+    source.state,
+    plan.actionId,
+    target.monster,
+    (context.weatherPenalty ?? 0)
+      + (target.isDefending ? 2 : 0)
+      + (context.getEnemyDefenseBonus?.(target) ?? 0),
+    target.effects,
+    healingTargets,
+  );
+  target.currentHp = Math.max(0, target.currentHp - result.damage);
+  if (target.currentHp === 0) {
+    target.isAlive = false;
+    target.isKnockedOut = true;
+  }
+  recordElementalInteraction(
+    context,
+    target.id,
+    result.elementalLabel,
+    getAbility(plan.actionId)?.element,
+  );
+  const targets: ResolvedBattleActionTarget[] = result.damage > 0
+    ? [{
+        targetId: target.id,
+        hit: result.hit,
+        damage: result.damage,
+        healing: 0,
+        elementalLabel: result.elementalLabel,
+      }]
+    : [];
+  for (const healingResult of result.healingResults ?? []) {
+    targets.push({
+      targetId: healingResult.targetId,
+      hit: true,
+      damage: 0,
+      healing: healingResult.healing,
+    });
+  }
+  return {
+    executed: result.mpUsed > 0
+      || (ability?.mpCost === 0 && result.hit),
+    message: result.message,
+    plan,
+    targets,
+    mpUsed: result.mpUsed,
+    itemUsed: false,
   };
 }

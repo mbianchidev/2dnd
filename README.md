@@ -203,7 +203,7 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 Game state is stored under `2dnd_save`; audio preferences use
 `2dnd_audio_prefs`.
 
-Save schema version 3 persists:
+Save schema version 4 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -217,6 +217,7 @@ Save schema version 3 persists:
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed
 skill-check records are discarded, while valid totals and outcomes are repaired.
+Schema-v3 skill-check saves gain default quest progress without losing checks.
 
 ## Testing
 

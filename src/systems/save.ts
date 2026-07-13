@@ -29,7 +29,7 @@ import { normalizeQuestLog } from "./quests";
 import { normalizeSkillCheckRecords } from "./skillChecks";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 3;
+const SAVE_VERSION = 4;
 
 export interface SaveData {
   version: number;

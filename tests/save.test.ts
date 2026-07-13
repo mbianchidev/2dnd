@@ -61,7 +61,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.collectedTreasures).toEqual(["2,3,5,7"]);
     expect(loaded!.player.progression.exploredTiles["2,3,5,7"]).toBe(true);
     expect(loaded!.player.progression.quests.ashenRoad.stage).toBe(2);
-    expect(loaded!.version).toBe(3);
+    expect(loaded!.version).toBe(4);
     expect(loaded!.player.progression.skillChecks["shop:city:willowdale_city:0:0"]).toEqual({
       ability: "charisma",
       naturalRoll: 15,
@@ -466,9 +466,59 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(3);
+    expect(loaded!.version).toBe(4);
     expect(loaded!.player.progression.skillChecks).toEqual({});
     expect(loaded!.player.progression.quests.ashenRoad.status).toBe("active");
+  });
+
+  it("adds quest progression to schema-v3 skill-check saves", () => {
+    const player = createPlayer("V3SkillHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.progression.skillChecks["npc:willowdale:rumor"] = {
+      ability: "wisdom",
+      naturalRoll: 14,
+      modifier: 1,
+      total: 15,
+      dc: 13,
+      success: true,
+    };
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const raw = localStorage.getItem("2dnd_save");
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!) as {
+      version: number;
+      player: { progression: Record<string, unknown> };
+    };
+    stored.version = 3;
+    delete stored.player.progression["quests"];
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.version).toBe(4);
+    expect(loaded!.player.progression.quests.ashenRoad).toEqual({
+      status: "active",
+      stage: 0,
+      rewardGranted: false,
+    });
+    expect(loaded!.player.progression.skillChecks["npc:willowdale:rumor"]).toEqual({
+      ability: "wisdom",
+      naturalRoll: 14,
+      modifier: 1,
+      total: 15,
+      dc: 13,
+      success: true,
+    });
   });
 
   it("repairs valid skill-check totals and discards malformed records", () => {

@@ -312,13 +312,14 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 3.
+Save schema version is 4.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
 records, validates city/dungeon IDs and quest state, clamps levels/districts,
 repairs invalid coordinates to the correct spawn, and falls back to Willowdale
-for unusable overworld locations.
+for unusable overworld locations. Schema-v3 skill-check saves migrate to v4 by
+adding normalized quest state without changing existing check records.
 
 When persistent data changes:
 

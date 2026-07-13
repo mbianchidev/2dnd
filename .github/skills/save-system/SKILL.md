@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v3, migration, normalization, and location recovery
+description: Manage 2D&D save schema v4, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -16,7 +16,7 @@ preferences are stored separately by `src/systems/audio.ts`.
 
 ## Current schema
 
-`SAVE_VERSION` is 3.
+`SAVE_VERSION` is 4.
 
 ```typescript
 interface SaveData {
@@ -79,6 +79,7 @@ helpers; do not cast unvalidated nested values directly.
 - Legacy `bestiary` to `codex`
 - Legacy flat player position fields to `player.position`
 - Legacy flat progression fields to `player.progression`
+- Schema-v3 skill-check progression to schema-v4 quest + skill-check state
 - Missing equipment, talents, abilities, rests, bank, mount, and appearance
   fields
 - Missing/invalid active status effects
@@ -152,9 +153,9 @@ top-level save is absent or corrupt.
 
 - Save/load round trips
 - Legacy flat-state migration
-- Schema-v3 position and progression data
-- Schema-v3 quest progression and reward normalization
-- Schema-v3 skill-check persistence and normalization
+- Schema-v4 position, quest, and skill-check progression
+- Schema-v3 skill-check saves gaining default normalized quest state
+- Quest reward and skill-check record normalization
 - Dungeon-level and city-district clamping
 - Invalid IDs and coordinates
 - Conflicting location flags

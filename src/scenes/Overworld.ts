@@ -26,8 +26,6 @@ import {
   getCityChunkMap,
   getCityChunkShopNearby,
   getCityConnectionAt,
-  hasSparkleAt,
-  getTownBiome,
   type ChestLocation,
   type CityData,
   type CityShopData,
@@ -50,6 +48,11 @@ import type { CodexData } from "../systems/codex";
 import { createCodex } from "../systems/codex";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
+import {
+  getCityShopSkillCheckId,
+  getNpcSkillChallenge,
+  getTownShopSkillCheckId,
+} from "../data/skillChecks";
 import {
   getTimePeriod,
   getEncounterMultiplier,
@@ -91,6 +94,7 @@ import {
   getBlockedQuestEntrance,
   resolveQuestNpcInteraction,
 } from "../systems/quests";
+import { SkillCheckManager } from "../managers/skillChecks";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -178,6 +182,7 @@ export class OverworldScene extends Phaser.Scene {
   private overlayManager!: OverlayManager;
   private questJournal!: QuestJournalManager;
   private debugCommandSystem!: DebugCommandSystem;
+  private skillCheckManager!: SkillCheckManager;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -206,6 +211,13 @@ export class OverworldScene extends Phaser.Scene {
     this.dialogueSystem = new DialogueSystem(this);
     this.specialNpcManager = new SpecialNpcManager(this);
     this.questJournal = new QuestJournalManager(this);
+    this.skillCheckManager = new SkillCheckManager({
+      showMessage: (text, color) => this.showMessage(text, color),
+      updateHUD: () => this.updateHUD(),
+      autoSave: () => this.autoSave(),
+      revealAround: (radius) => this.revealAround(radius),
+      revealTileSprites: () => this.revealTileSprites(),
+    });
     this.overlayManager = new OverlayManager(this, {
       updateHUD: () => this.updateHUD(),
       autoSave: () => this.autoSave(),
@@ -553,8 +565,12 @@ export class OverworldScene extends Phaser.Scene {
           dungeonId: this.player.position.dungeonId,
           dungeonLevel: this.player.position.dungeonLevel,
         });
-        return (chest && !this.player.progression.openedChests.includes(chest.id))
-          ? "Treasure Chest  [SPACE] Open" : "Opened Chest";
+        if (chest && !this.player.progression.openedChests.includes(chest.id)) {
+          return chest.lockDc
+            ? "Locked Chest  [SPACE] Pick Lock"
+            : "Treasure Chest  [SPACE] Open";
+        }
+        return "Opened Chest";
       }
       return `${dungeon.name}${levelLabel}`;
     }
@@ -645,8 +661,13 @@ export class OverworldScene extends Phaser.Scene {
     }
     if (terrain === Terrain.Chest) {
       const chest = getChestAt(this.player.position.x, this.player.position.y, { type: "overworld", chunkX: this.player.position.chunkX, chunkY: this.player.position.chunkY });
-      locStr = (chest && !this.player.progression.openedChests.includes(chest.id))
-        ? "Treasure Chest  [SPACE] Open" : "Opened Chest";
+      if (chest && !this.player.progression.openedChests.includes(chest.id)) {
+        locStr = chest.lockDc
+          ? "Locked Chest  [SPACE] Pick Lock"
+          : "Treasure Chest  [SPACE] Open";
+      } else {
+        locStr = "Opened Chest";
+      }
     }
 
     return locStr;
@@ -680,7 +701,7 @@ export class OverworldScene extends Phaser.Scene {
       `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${dungeonTag}${mountTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
-      `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length}`,
+      `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length} | Checks: ${Object.keys(p.progression.skillChecks).length}`,
     );
   }
 
@@ -786,10 +807,11 @@ export class OverworldScene extends Phaser.Scene {
         this.advanceTime();
         this.revealAround();
         this.revealTileSprites();
-        this.collectMinorTreasure();
         this.updateHUD();
         this.updateLocationText();
-        this.checkEncounter(terrain);
+        if (!this.skillCheckManager.checkExplorationEvent(this.player, terrain)) {
+          this.checkEncounter(terrain);
+        }
       });
       return;
     }
@@ -904,39 +926,25 @@ export class OverworldScene extends Phaser.Scene {
       this.advanceTime();
       this.revealAround();
       this.revealTileSprites();
-      if (!this.player.position.inCity) this.collectMinorTreasure();
+      const foundTreasure = this.skillCheckManager.collectMinorTreasure(
+        this.player,
+        this.mapRenderer,
+      );
       this.updateHUD();
       this.updateLocationText();
-      this.checkEncounter(result.newTerrain!);
+      if (
+        !foundTreasure
+        && !this.skillCheckManager.checkExplorationEvent(
+          this.player,
+          result.newTerrain!,
+        )
+      ) {
+        this.checkEncounter(result.newTerrain!);
+      }
     });
   }
 
   // ── Encounters & treasure ───────────────────────────────────────────────
-
-  private collectMinorTreasure(): void {
-    const px = this.player.position.x;
-    const py = this.player.position.y;
-    if (this.player.position.inDungeon) return;
-    if (!hasSparkleAt(this.player.position.chunkX, this.player.position.chunkY, px, py)) return;
-
-    const key = `${this.player.position.chunkX},${this.player.position.chunkY},${px},${py}`;
-    if (this.player.progression.collectedTreasures.includes(key)) return;
-
-    this.player.progression.collectedTreasures.push(key);
-    const goldAmount = 5 + Math.floor(Math.random() * 21);
-    this.player.gold += goldAmount;
-
-    const terrain = getTerrainAt(this.player.position.chunkX, this.player.position.chunkY, px, py);
-    if (this.mapRenderer.tileSprites[py]?.[px] && terrain !== undefined) {
-      const realTexKey = terrain === Terrain.Town
-        ? `tile_town_${getTownBiome(this.player.position.chunkX, this.player.position.chunkY, px, py)}`
-        : `tile_${terrain}`;
-      this.mapRenderer.tileSprites[py][px].setTexture(realTexKey);
-    }
-
-    this.showMessage(`✨ Found ${goldAmount} gold!`, "#4fc3f7");
-    this.updateHUD();
-  }
 
   private checkEncounter(terrain: Terrain): void {
     this.autoSave();
@@ -1120,8 +1128,19 @@ export class OverworldScene extends Phaser.Scene {
           }
           return;
         }
+        const challenge = getNpcSkillChallenge(city.id, npcDef);
+        if (challenge && !this.player.progression.skillChecks[challenge.id]) {
+          this.skillCheckManager.resolveNpcSkillChallenge(
+            this.player,
+            challenge,
+            npcDef,
+            this.dialogueSystem,
+          );
+          return;
+        }
         if (npcDef.shopIndex !== undefined) {
-          const shop = chunk.shops[npcDef.shopIndex];
+          const npcShopIndex = npcDef.shopIndex;
+          const shop = chunk.shops[npcShopIndex];
           if (shop) {
             if (shop.type === "inn") {
               this.dialogueSystem.showNpcDialogue(npcDef, npcIndex, city, this.timeStep);
@@ -1157,6 +1176,11 @@ export class OverworldScene extends Phaser.Scene {
                 weatherState: this.weatherState,
                 fromCity: true,
                 cityId: city.id,
+                shopSkillCheckId: getCityShopSkillCheckId(
+                  city.id,
+                  chunkIndex,
+                  shop,
+                ),
               });
             });
             return;
@@ -1173,7 +1197,7 @@ export class OverworldScene extends Phaser.Scene {
         this.player.position.y,
       );
       if (nearbyShop) {
-        this.openCityShop(city, chunk.name, nearbyShop);
+        this.openCityShop(city, chunk.name, nearbyShop, chunkIndex);
         return;
       }
 
@@ -1281,6 +1305,12 @@ export class OverworldScene extends Phaser.Scene {
         shopItemIds: town.shopItems, timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
+        shopSkillCheckId: getTownShopSkillCheckId(
+          this.player.position.chunkX,
+          this.player.position.chunkY,
+          town.x,
+          town.y,
+        ),
       });
       return;
     }
@@ -1357,6 +1387,7 @@ export class OverworldScene extends Phaser.Scene {
     city: CityData,
     districtName: string,
     shop: CityShopData,
+    chunkIndex: number,
   ): void {
     if (shop.type === "inn") {
       this.overlayManager.showInnConfirmation(this.player);
@@ -1385,6 +1416,11 @@ export class OverworldScene extends Phaser.Scene {
       weatherState: this.weatherState,
       fromCity: true,
       cityId: city.id,
+      shopSkillCheckId: getCityShopSkillCheckId(
+        city.id,
+        chunkIndex,
+        shop,
+      ),
     });
   }
 
@@ -1397,6 +1433,11 @@ export class OverworldScene extends Phaser.Scene {
     }
     const item = getItem(chest.itemId);
     if (!item) return;
+
+    const feedback = this.skillCheckManager.resolveChestChecks(
+      this.player,
+      chest,
+    );
 
     this.player.progression.openedChests.push(chest.id);
     this.player.inventory.push({ ...item });
@@ -1417,7 +1458,8 @@ export class OverworldScene extends Phaser.Scene {
       this.playerRenderer.refreshPlayerSprite(this.player);
     }
 
-    this.showMessage(`🎁 Found ${item.name}!`);
+    feedback.push(`Found ${item.name}!`);
+    this.showMessage(feedback.join(" "), "#ffd700");
     this.updateHUD();
     this.autoSave();
   }

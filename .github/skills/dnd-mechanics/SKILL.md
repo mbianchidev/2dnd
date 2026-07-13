@@ -46,6 +46,23 @@ Character creation supports:
 The class `primaryStat` is used for attack/to-hit calculations where the
 specific action does not override the stat.
 
+## Non-combat ability checks
+
+Use `src/systems/skillChecks.ts` for exploration and dialogue checks:
+
+```typescript
+total = naturalD20 + abilityModifier(player.stats[ability]);
+success = total >= dc;
+```
+
+- Dexterity: lockpicking, trap disarming, and escaping hazards
+- Wisdom: hidden loot, paths, passages, and exploration events
+- Charisma: Persuade/Bluff NPC outcomes and shop negotiation
+- Natural 1 and 20 do not automatically fail or succeed on these checks
+- Fixed outcomes are one-time and persist in
+  `player.progression.skillChecks`
+- Exploration damage is nonlethal and cannot reduce the player below 1 HP
+
 ## Core combat
 
 - Attack rolls use d20 + ability modifier + proficiency/bonuses.
@@ -150,6 +167,8 @@ Use deterministic dice mocks for:
 - Status plus elemental damage ordering
 - Bonus-action scheduling
 - MP and inventory consumption on invalid actions
+- Ability modifiers, DC boundaries, persistent negotiation choices, and
+  nonlethal exploration damage
 
 Relevant suites include `combat.test.ts`, `dice.test.ts`, `elements.test.ts`,
-`statusEffects.test.ts`, and `player.test.ts`.
+`statusEffects.test.ts`, `skillChecks.test.ts`, and `player.test.ts`.

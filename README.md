@@ -37,6 +37,19 @@ API, and saves use `localStorage`.
 - Combat effects are cleared when Battle ends because their durations use the
   combat turn clock
 
+### Non-combat skill checks
+
+- D20 ability checks use the player's Dexterity, Wisdom, or Charisma modifier;
+  natural 1 and 20 are not automatic outcomes outside attack rolls
+- Charisma supports persistent Persuade/Bluff NPC outcomes and one-attempt shop
+  negotiations with 10% or 20% discounts
+- Wisdom uncovers hidden trails, dungeon passages, secret chest compartments,
+  and better rewards from overworld treasure
+- Dexterity avoids exploration hazards and resolves locked or trapped chests;
+  failed hazards can cost HP but cannot defeat the player outside combat
+- Fixed checks use stable save IDs, while repeatable terrain events remain
+  data-driven by environment and terrain
+
 ### World exploration
 
 - A 10x9 world grid containing 90 chunks, each 20x15 tiles
@@ -88,6 +101,7 @@ src/
 │   ├── save.ts
 │   ├── codex.ts
 │   ├── movement.ts
+│   ├── skillChecks.ts
 │   ├── weather.ts
 │   ├── daynight.ts
 │   ├── audio.ts
@@ -104,9 +118,11 @@ src/
 │   ├── spells.ts
 │   ├── abilities.ts
 │   ├── quests.ts
+│   ├── skillChecks.ts
 │   └── items.ts
 ├── managers/
-│   └── questJournal.ts
+│   ├── questJournal.ts
+│   └── skillChecks.ts
 └── renderers/
 ```
 
@@ -196,15 +212,17 @@ Save schema version 3 persists:
 - Main/side quest status, stage, and idempotent reward state
 - Defeated bosses, Codex entries, and discovered elemental interactions
 - Active status effects, time step, and weather state
+- Normalized non-combat skill-check rolls, choices, and outcomes
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
-recovers invalid or conflicting world, city, and dungeon locations.
+recovers invalid or conflicting world, city, and dungeon locations. Malformed
+skill-check records are discarded, while valid totals and outcomes are repaired.
 
 ## Testing
 
 The Vitest suite covers combat, elements, statuses, saves, map and city data,
-dungeon traversal, fog keys, movement, player and quest progression, dice,
-weather, day/night, mounts, NPCs, audio, and configuration.
+dungeon traversal, fog keys, movement, player, quest, and skill-check
+progression, dice, weather, day/night, mounts, NPCs, audio, and configuration.
 
 Important integration suites:
 
@@ -212,6 +230,7 @@ Important integration suites:
 - `tests/statusEffects.test.ts`
 - `tests/save.test.ts`
 - `tests/quests.test.ts`
+- `tests/skillChecks.test.ts`
 - `tests/data.test.ts`
 - `tests/fogOfWar.test.ts`
 

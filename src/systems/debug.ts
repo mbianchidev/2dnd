@@ -12,7 +12,7 @@ import { awardXP, processPendingLevelUps, xpForLevel, type PlayerState } from ".
 import { ITEMS } from "../data/items";
 import { MOUNTS } from "../data/mounts";
 import { CITIES, DUNGEONS } from "../data/map";
-import { ALL_MONSTERS } from "../data/monsters";
+import { ALL_MONSTERS, findMonster } from "../data/monsters";
 import { SPELLS } from "../data/spells";
 import { ABILITIES } from "../data/abilities";
 import { PLAYER_CLASSES } from "./classes";
@@ -258,11 +258,6 @@ import {
 import type { WorldChunk } from "../data/map";
 import { SPECIAL_NPC_DEFS } from "../data/npcs";
 import type { SpecialNpcKind } from "../data/npcs";
-import {
-  MONSTERS,
-  DUNGEON_MONSTERS,
-  NIGHT_MONSTERS,
-} from "../data/monsters";
 import type { Monster } from "../data/monsters";
 import { recordDefeat } from "./codex";
 import type { CodexData } from "./codex";
@@ -530,10 +525,7 @@ export class DebugCommandSystem {
         return;
       }
 
-      const allMonsters: Monster[] = [...MONSTERS, ...DUNGEON_MONSTERS, ...NIGHT_MONSTERS];
-      let found = allMonsters.find(m => m.id.toLowerCase() === query);
-      if (!found) found = allMonsters.find(m => m.name.toLowerCase() === query);
-      if (!found) found = allMonsters.find(m => m.name.toLowerCase().includes(query) || m.id.toLowerCase().includes(query));
+      const found = findMonster(query);
       if (found) {
         debugPanelLog(`[CMD] Spawning ${found.name}...`, true);
         this.callbacks.startBattle({ ...found });

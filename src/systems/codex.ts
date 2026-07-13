@@ -4,6 +4,7 @@
  */
 
 import type { Monster } from "../data/monsters";
+import type { Element } from "../data/elements";
 
 export interface CodexEntry {
   monsterId: string;
@@ -19,6 +20,8 @@ export interface CodexEntry {
   goldReward: number;
   /** Item IDs that the player has seen this monster drop. */
   itemsDropped: string[];
+  /** Elements whose resistance, weakness, or immunity has been observed. */
+  discoveredElements: Element[];
 }
 
 export interface CodexData {
@@ -51,9 +54,11 @@ export function recordDefeat(
       xpReward: monster.xpReward,
       goldReward: monster.goldReward,
       itemsDropped: [],
+      discoveredElements: [],
     };
     bestiary.entries[monster.id] = entry;
   }
+  if (!entry.discoveredElements) entry.discoveredElements = [];
 
   entry.timesDefeated++;
   if (acWasDiscovered) {
@@ -74,6 +79,20 @@ export function discoverAC(bestiary: CodexData, monsterId: string): void {
   const entry = bestiary.entries[monsterId];
   if (entry) {
     entry.acDiscovered = true;
+  }
+}
+
+/** Record an elemental interaction observed during combat. */
+export function discoverElement(
+  bestiary: CodexData,
+  monsterId: string,
+  element: Element,
+): void {
+  const entry = bestiary.entries[monsterId];
+  if (!entry) return;
+  if (!entry.discoveredElements) entry.discoveredElements = [];
+  if (!entry.discoveredElements.includes(element)) {
+    entry.discoveredElements.push(element);
   }
 }
 

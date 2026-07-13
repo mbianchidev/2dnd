@@ -3,7 +3,7 @@
  * Handles dungeon, city, and overworld exploration separately.
  */
 
-import { MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, DUNGEONS } from "../data/map";
+import { MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, DUNGEONS, CITIES, getCityChunkCount } from "../data/map";
 import type { PlayerState } from "../systems/player";
 
 export class FogOfWar {
@@ -12,12 +12,21 @@ export class FogOfWar {
   
   /**
    * Build the explored-tiles key for a position (respects dungeon/city vs overworld).
+   * Level/chunk zero preserve the legacy key format for existing saves.
    */
   exploredKey(x: number, y: number, player: PlayerState): string {
     if (player.position.inDungeon) {
+      const level = player.position.dungeonLevel;
+      if (level > 0) {
+        return `d:${player.position.dungeonId},${level},${x},${y}`;
+      }
       return `d:${player.position.dungeonId},${x},${y}`;
     }
     if (player.position.inCity) {
+      const ci = player.position.cityChunkIndex;
+      if (ci > 0) {
+        return `c:${player.position.cityId},${ci},${x},${y}`;
+      }
       return `c:${player.position.cityId},${x},${y}`;
     }
     return `${player.position.chunkX},${player.position.chunkY},${x},${y}`;
@@ -47,7 +56,7 @@ export class FogOfWar {
   }
   
   /**
-   * Reveal every tile in every overworld chunk and every dungeon (debug command).
+   * Reveal every tile in every overworld chunk, dungeon, and city (debug command).
    */
   revealEntireWorld(): void {
     // Reveal all overworld chunks
@@ -60,11 +69,32 @@ export class FogOfWar {
         }
       }
     }
-    // Reveal all dungeons
+    // Reveal all dungeons (all levels)
     for (const d of DUNGEONS) {
-      for (let ty = 0; ty < MAP_HEIGHT; ty++) {
-        for (let tx = 0; tx < MAP_WIDTH; tx++) {
-          this.exploredTiles[`d:${d.id},${tx},${ty}`] = true;
+      const totalLevels = 1 + (d.levels?.length ?? 0);
+      for (let lvl = 0; lvl < totalLevels; lvl++) {
+        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+          for (let tx = 0; tx < MAP_WIDTH; tx++) {
+            const key = lvl === 0
+              ? `d:${d.id},${tx},${ty}`
+              : `d:${d.id},${lvl},${tx},${ty}`;
+            this.exploredTiles[key] = true;
+          }
+        }
+      }
+    }
+    // Reveal all city chunks (primary + extra districts)
+    for (const city of CITIES) {
+      const chunkCount = getCityChunkCount(city);
+      for (let ci = 0; ci < chunkCount; ci++) {
+        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+          for (let tx = 0; tx < MAP_WIDTH; tx++) {
+            if (ci === 0) {
+              this.exploredTiles[`c:${city.id},${tx},${ty}`] = true;
+            } else {
+              this.exploredTiles[`c:${city.id},${ci},${tx},${ty}`] = true;
+            }
+          }
         }
       }
     }

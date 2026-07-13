@@ -131,6 +131,25 @@ function generateTileTextures(scene: Phaser.Scene): void {
         gfx.fillStyle(0xffeb3b, 1);
         gfx.fillCircle(18, 18, 2);
         break;
+      case Terrain.DungeonStairs:
+        // Purple staircase pattern on dark floor
+        gfx.fillStyle(0x555555, 1);
+        gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+        gfx.fillStyle(0x9c27b0, 0.8);
+        gfx.fillRect(6, 4, 20, 4);
+        gfx.fillRect(9, 10, 17, 4);
+        gfx.fillRect(12, 16, 14, 4);
+        gfx.fillRect(15, 22, 11, 4);
+        break;
+      case Terrain.DungeonBoss:
+        // Red boss chamber marker on dark floor
+        gfx.fillStyle(0x555555, 1);
+        gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+        gfx.fillStyle(0xd32f2f, 0.8);
+        gfx.fillCircle(16, 16, 10);
+        gfx.fillStyle(0xffeb3b, 1);
+        gfx.fillCircle(16, 16, 4);
+        break;
       case Terrain.Chest:
         // Golden treasure chest on dark floor
         gfx.fillStyle(0x555555, 1);

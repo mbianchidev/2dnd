@@ -13,7 +13,11 @@ import {
   isWalkable,
   getTerrainAt,
   getDungeon,
+  getDungeonConnectionAt,
+  getDungeonLevelMap,
   getCity,
+  getCityConnectionAt,
+  getCityChunkMap,
 } from "../data/map";
 
 /** Result of a grid move attempt. */
@@ -24,6 +28,42 @@ export interface MoveResult {
   chunkChanged: boolean;
   /** The terrain type at the new position (if moved). */
   newTerrain?: number;
+}
+
+/** Use the dungeon connection at the player's current tile. */
+export function useDungeonConnection(player: PlayerState): boolean {
+  if (!player.position.inDungeon) return false;
+  const dungeon = getDungeon(player.position.dungeonId);
+  if (!dungeon) return false;
+  const connection = getDungeonConnectionAt(
+    dungeon,
+    player.position.dungeonLevel,
+    player.position.x,
+    player.position.y,
+  );
+  if (!connection) return false;
+  player.position.dungeonLevel = connection.toLevel;
+  player.position.x = connection.toX;
+  player.position.y = connection.toY;
+  return true;
+}
+
+/** Use the city gate connection at the player's current tile. */
+export function useCityConnection(player: PlayerState): boolean {
+  if (!player.position.inCity) return false;
+  const city = getCity(player.position.cityId);
+  if (!city) return false;
+  const connection = getCityConnectionAt(
+    city,
+    player.position.cityChunkIndex,
+    player.position.x,
+    player.position.y,
+  );
+  if (!connection) return false;
+  player.position.cityChunkIndex = connection.toChunkIndex;
+  player.position.x = connection.toX;
+  player.position.y = connection.toY;
+  return true;
 }
 
 /**
@@ -47,7 +87,8 @@ export function tryGridMove(
     const newX = player.position.x + dx;
     const newY = player.position.y + dy;
     if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return noMove;
-    const terrain = dungeon.mapData[newY][newX];
+    const levelMap = getDungeonLevelMap(dungeon, player.position.dungeonLevel);
+    const terrain = levelMap[newY][newX];
     if (!isWalkable(terrain)) return noMove;
     player.position.x = newX;
     player.position.y = newY;
@@ -58,10 +99,11 @@ export function tryGridMove(
   if (player.position.inCity) {
     const city = getCity(player.position.cityId);
     if (!city) return noMove;
+    const chunkMap = getCityChunkMap(city, player.position.cityChunkIndex);
     const newX = player.position.x + dx;
     const newY = player.position.y + dy;
     if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT) return noMove;
-    const terrain = city.mapData[newY][newX];
+    const terrain = chunkMap[newY][newX];
     if (!isWalkable(terrain)) return noMove;
     player.position.x = newX;
     player.position.y = newY;

@@ -1,10 +1,10 @@
+// @vitest-environment happy-dom
+
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { saveGame, loadGame, deleteSave } from "../src/systems/save";
 import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createWeatherState } from "../src/systems/weather";
-
-// @vitest-environment happy-dom
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -27,7 +27,7 @@ describe("save system - PlayerState composition migration", () => {
     player.position.chunkX = 2;
     player.position.chunkY = 3;
     player.position.inDungeon = true;
-    player.position.dungeonId = "testDungeon";
+    player.position.dungeonId = "heartlands_dungeon";
     
     // Modify some progression fields
     player.progression.openedChests.push("chest1", "chest2");
@@ -46,7 +46,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.position.chunkX).toBe(2);
     expect(loaded!.player.position.chunkY).toBe(3);
     expect(loaded!.player.position.inDungeon).toBe(true);
-    expect(loaded!.player.position.dungeonId).toBe("testDungeon");
+    expect(loaded!.player.position.dungeonId).toBe("heartlands_dungeon");
     expect(loaded!.player.progression.openedChests).toEqual(["chest1", "chest2"]);
     expect(loaded!.player.progression.collectedTreasures).toEqual(["2,3,5,7"]);
     expect(loaded!.player.progression.exploredTiles["2,3,5,7"]).toBe(true);
@@ -88,7 +88,7 @@ describe("save system - PlayerState composition migration", () => {
         chunkX: 3,
         chunkY: 4,
         inDungeon: true,
-        dungeonId: "oldDungeon",
+        dungeonId: "heartlands_dungeon",
         inCity: false,
         cityId: "",
         openedChests: ["oldChest1", "oldChest2"],
@@ -126,7 +126,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.position.chunkX).toBe(3);
     expect(loaded!.player.position.chunkY).toBe(4);
     expect(loaded!.player.position.inDungeon).toBe(true);
-    expect(loaded!.player.position.dungeonId).toBe("oldDungeon");
+    expect(loaded!.player.position.dungeonId).toBe("heartlands_dungeon");
     expect(loaded!.player.position.inCity).toBe(false);
     expect(loaded!.player.position.cityId).toBe("");
     
@@ -137,18 +137,18 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.exploredTiles["3,4,8,9"]).toBe(true);
     
     // Check that old flat fields are removed
-    const playerAny = loaded!.player as any;
-    expect(playerAny.x).toBeUndefined();
-    expect(playerAny.y).toBeUndefined();
-    expect(playerAny.chunkX).toBeUndefined();
-    expect(playerAny.chunkY).toBeUndefined();
-    expect(playerAny.inDungeon).toBeUndefined();
-    expect(playerAny.dungeonId).toBeUndefined();
-    expect(playerAny.inCity).toBeUndefined();
-    expect(playerAny.cityId).toBeUndefined();
-    expect(playerAny.openedChests).toBeUndefined();
-    expect(playerAny.collectedTreasures).toBeUndefined();
-    expect(playerAny.exploredTiles).toBeUndefined();
+    const playerRecord = loaded!.player as unknown as Record<string, unknown>;
+    expect(playerRecord["x"]).toBeUndefined();
+    expect(playerRecord["y"]).toBeUndefined();
+    expect(playerRecord["chunkX"]).toBeUndefined();
+    expect(playerRecord["chunkY"]).toBeUndefined();
+    expect(playerRecord["inDungeon"]).toBeUndefined();
+    expect(playerRecord["dungeonId"]).toBeUndefined();
+    expect(playerRecord["inCity"]).toBeUndefined();
+    expect(playerRecord["cityId"]).toBeUndefined();
+    expect(playerRecord["openedChests"]).toBeUndefined();
+    expect(playerRecord["collectedTreasures"]).toBeUndefined();
+    expect(playerRecord["exploredTiles"]).toBeUndefined();
   });
 
   it("handles missing position fields in old saves with defaults", () => {
@@ -215,5 +215,140 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual([]);
     expect(loaded!.player.progression.collectedTreasures).toEqual([]);
     expect(loaded!.player.progression.exploredTiles).toEqual({});
+  });
+
+  it("clears unknown locations and restores a safe overworld position", () => {
+    const player = createPlayer("LostHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.position = {
+      x: 999,
+      y: 999,
+      chunkX: 999,
+      chunkY: 999,
+      inDungeon: true,
+      dungeonId: "missing_dungeon",
+      dungeonLevel: 99,
+      inCity: true,
+      cityId: "missing_city",
+      cityChunkIndex: 99,
+    };
+
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.position).toEqual({
+      x: 3,
+      y: 3,
+      chunkX: 4,
+      chunkY: 2,
+      inDungeon: false,
+      dungeonId: "",
+      dungeonLevel: 0,
+      inCity: false,
+      cityId: "",
+      cityChunkIndex: 0,
+    });
+  });
+
+  it("clamps dungeon levels and moves blocked positions to the level spawn", () => {
+    const player = createPlayer("DeepHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.position.inDungeon = true;
+    player.position.dungeonId = "heartlands_dungeon";
+    player.position.dungeonLevel = 99;
+    player.position.x = 0;
+    player.position.y = 0;
+
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.position.dungeonLevel).toBe(1);
+    expect(loaded!.player.position.x).toBe(1);
+    expect(loaded!.player.position.y).toBe(13);
+  });
+
+  it("clamps city chunks and moves blocked positions to the district spawn", () => {
+    const player = createPlayer("CityHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.position.inCity = true;
+    player.position.cityId = "willowdale_city";
+    player.position.cityChunkIndex = 99;
+    player.position.x = 0;
+    player.position.y = 0;
+
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.position.cityChunkIndex).toBe(1);
+    expect(loaded!.player.position.x).toBe(10);
+    expect(loaded!.player.position.y).toBe(1);
+  });
+
+  it("persists and normalizes active status effects", () => {
+    const player = createPlayer("StatusHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.activeEffects = [
+      { id: "poison", remainingTurns: 2, source: "Slime" },
+    ];
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const raw = localStorage.getItem("2dnd_save");
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!) as {
+      player: { activeEffects: unknown[] };
+    };
+    stored.player.activeEffects = [
+      ...stored.player.activeEffects,
+      { id: "poison", remainingTurns: 5, source: "Spider" },
+      { id: "burn", remainingTurns: "invalid" },
+      { id: "unknown", remainingTurns: 3 },
+    ];
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.activeEffects).toEqual([
+      { id: "poison", remainingTurns: 5, source: "Spider" },
+      { id: "burn", remainingTurns: 3, source: "unknown" },
+    ]);
   });
 });

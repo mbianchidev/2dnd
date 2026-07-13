@@ -13,6 +13,11 @@ import type { Item } from "../data/items";
 import { getItem } from "../data/items";
 import { getMount } from "../data/mounts";
 import { getPlayerClass, getClassSpells, getClassAbilities } from "./classes";
+import {
+  cureWithItem,
+  getEffectACModifier,
+} from "./statusEffects";
+import type { ActiveStatusEffect } from "./statusEffects";
 
 export interface PlayerStats {
   strength: number;
@@ -31,8 +36,10 @@ export interface PlayerPosition {
   chunkY: number; // world chunk Y coordinate
   inDungeon: boolean;  // true when inside a dungeon interior
   dungeonId: string;   // ID of the current dungeon (empty if not in dungeon)
+  dungeonLevel: number; // current dungeon floor (0 = entrance level)
   inCity: boolean;     // true when inside a city interior
   cityId: string;      // ID of the current city (empty if not in city)
+  cityChunkIndex: number; // index of the current city chunk (0 = primary)
 }
 
 /** Player progression tracking (chests, treasures, fog of war). */
@@ -40,6 +47,7 @@ export interface PlayerProgression {
   openedChests: string[]; // IDs of chests already opened
   collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
+  discoveredCities: string[]; // IDs of cities the player has visited (enables fast travel)
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -98,6 +106,7 @@ export interface PlayerState {
   mountId: string;        // ID of the currently active mount (empty = on foot)
   shortRestsRemaining: number; // short rests available (max 2, reset on inn long rest)
   pendingLevelUps: number; // levels earned but not yet applied (applied on rest)
+  activeEffects: ActiveStatusEffect[];
 }
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -182,13 +191,16 @@ export function createPlayer(
       chunkY: 2,
       inDungeon: false,
       dungeonId: "",
+      dungeonLevel: 0,
       inCity: false,
       cityId: "",
+      cityChunkIndex: 0,
     },
     progression: {
       openedChests: [],
       collectedTreasures: [],
       exploredTiles: {},
+      discoveredCities: [],
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,
@@ -199,6 +211,7 @@ export function createPlayer(
     mountId: "",
     shortRestsRemaining: 2,
     pendingLevelUps: 0,
+    activeEffects: [],
   };
 }
 
@@ -241,7 +254,13 @@ export function getArmorClass(player: PlayerState, tempBonus: number = 0): numbe
   const baseAC = 10 + abilityModifier(player.stats.dexterity);
   const armorBonus = player.equippedArmor?.effect ?? 0;
   const shieldBonus = player.equippedShield?.effect ?? 0;
-  return baseAC + armorBonus + shieldBonus + getTalentACBonus(player.knownTalents) + tempBonus;
+  const statusBonus = getEffectACModifier(player.activeEffects);
+  return baseAC
+    + armorBonus
+    + shieldBonus
+    + getTalentACBonus(player.knownTalents)
+    + statusBonus
+    + tempBonus;
 }
 
 /** Check if a weapon can be used for Two-Weapon Fighting (must be light and one-handed). */
@@ -535,6 +554,14 @@ export function useItem(
       // here we just consume the item and signal success.
       player.inventory.splice(itemIndex, 1);
       return { used: true, message: "The Chimaera Wing glows and whisks you away!", teleport: true };
+    }
+    if (item.cureEffects) {
+      const cured = cureWithItem(player.activeEffects, item.id);
+      if (cured.length === 0) {
+        return { used: false, message: "No matching ailment to cure!" };
+      }
+      player.inventory.splice(itemIndex, 1);
+      return { used: true, message: `Cured: ${cured.join(", ")}!` };
     }
     // All other consumables restore HP (potion, greaterPotion, etc.)
     if (player.hp >= player.maxHp) {

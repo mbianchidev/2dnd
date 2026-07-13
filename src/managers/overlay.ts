@@ -14,8 +14,13 @@ import {
   CITIES,
   Terrain,
   getChunk,
+  getCity,
   getInnCost,
   hasSparkleAt,
+  getCityChunkCount,
+  getCityChunkNames,
+  getCityChunkSpawn,
+  getCityChunkShops,
 } from "../data/map";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
@@ -73,6 +78,7 @@ export class OverlayManager {
   innConfirmOverlay: Phaser.GameObjects.Container | null = null;
   bankOverlay: Phaser.GameObjects.Container | null = null;
   townPickerOverlay: Phaser.GameObjects.Container | null = null;
+  cityMapOverlay: Phaser.GameObjects.Container | null = null;
 
   // Pagination state
   equipPage: "gear" | "skills" | "items" = "gear";
@@ -103,14 +109,16 @@ export class OverlayManager {
       this.settingsOverlay ||
       this.innConfirmOverlay ||
       this.bankOverlay ||
-      this.townPickerOverlay
+      this.townPickerOverlay ||
+      this.cityMapOverlay
     );
   }
 
   /** Safely destroy and nullify specific overlays by property name. */
   private closeOverlays(...names: (keyof Pick<OverlayManager,
     "equipOverlay" | "statOverlay" | "menuOverlay" | "worldMapOverlay" |
-    "settingsOverlay" | "innConfirmOverlay" | "bankOverlay" | "townPickerOverlay"
+    "settingsOverlay" | "innConfirmOverlay" | "bankOverlay" | "townPickerOverlay" |
+    "cityMapOverlay"
   >)[]): void {
     for (const name of names) {
       const overlay = this[name];
@@ -126,6 +134,7 @@ export class OverlayManager {
     this.closeOverlays(
       "equipOverlay", "statOverlay", "menuOverlay", "worldMapOverlay",
       "settingsOverlay", "innConfirmOverlay", "bankOverlay", "townPickerOverlay",
+      "cityMapOverlay",
     );
   }
 
@@ -1360,13 +1369,7 @@ export class OverlayManager {
     const w = MAP_WIDTH * TILE_SIZE;
     const h = MAP_HEIGHT * TILE_SIZE;
 
-    const visitedCityIds = new Set<string>();
-    for (const key of Object.keys(player.progression.exploredTiles)) {
-      if (key.startsWith("c:")) {
-        const cityId = key.split(",")[0].substring(2);
-        visitedCityIds.add(cityId);
-      }
-    }
+    const visitedCityIds = new Set<string>(player.progression.discoveredCities);
 
     const visitedCities = CITIES.filter((c) => visitedCityIds.has(c.id));
 
@@ -1423,7 +1426,7 @@ export class OverlayManager {
             player.position.x = city.tileX;
             player.position.y = city.tileY;
             if (player.position.inDungeon) { player.position.inDungeon = false; player.position.dungeonId = ""; }
-            if (player.position.inCity) { player.position.inCity = false; player.position.cityId = ""; }
+            if (player.position.inCity) { player.position.inCity = false; player.position.cityId = ""; player.position.cityChunkIndex = 0; }
             this.dismissTownPicker();
             audioEngine.playTeleportSFX();
             this.callbacks.showMessage(`Teleported to ${city.name}!`, "#88ff88");
@@ -1593,6 +1596,177 @@ export class OverlayManager {
       this.bankOverlay.destroy();
       this.bankOverlay = null;
     }
+  }
+
+  // ── City Map Overlay ───────────────────────────────────────────────
+
+  /** Toggle the city map overlay (shows all chunks in the current city). */
+  toggleCityMap(player: PlayerState): void {
+    if (this.cityMapOverlay) {
+      this.dismissCityMap();
+      return;
+    }
+    this.showCityMap(player);
+  }
+
+  /** Dismiss the city map overlay. */
+  dismissCityMap(): void {
+    if (this.cityMapOverlay) {
+      this.cityMapOverlay.destroy();
+      this.cityMapOverlay = null;
+    }
+  }
+
+  /** Show the city map overlay with chunk navigation. */
+  showCityMap(player: PlayerState): void {
+    if (this.cityMapOverlay) return;
+    if (!player.position.inCity) return;
+
+    const city = getCity(player.position.cityId);
+    if (!city) return;
+
+    this.closeOverlays("equipOverlay", "statOverlay", "menuOverlay");
+
+    const w = MAP_WIDTH * TILE_SIZE;
+    const h = MAP_HEIGHT * TILE_SIZE;
+
+    const container = this.scene.add.container(0, 0).setDepth(70);
+
+    const dim = createDimGraphics(this.scene, w, h);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+    dim.on("pointerdown", () => this.dismissCityMap());
+    container.add(dim);
+
+    const chunkNames = getCityChunkNames(city);
+    const chunkCount = getCityChunkCount(city);
+
+    const panelW = 260;
+    const panelH = Math.min(80 + chunkCount * 44, h - 40);
+    const px = (w - panelW) / 2;
+    const py = (h - panelH) / 2;
+
+    const bg = createPanelGraphics(this.scene, px, py, panelW, panelH);
+    bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
+    container.add(bg);
+
+    const title = this.scene.add.text(px + panelW / 2, py + 10, `🏘 ${city.name}`, {
+      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
+    }).setOrigin(0.5, 0);
+    container.add(title);
+
+    const subtitle = this.scene.add.text(px + panelW / 2, py + 28, "City Districts", {
+      fontSize: "10px", fontFamily: "monospace", color: "#aaa",
+    }).setOrigin(0.5, 0);
+    container.add(subtitle);
+
+    let cy = py + 48;
+    for (let i = 0; i < chunkCount; i++) {
+      const name = chunkNames[i];
+      const isCurrent = player.position.cityChunkIndex === i;
+
+      // Check if this chunk has been discovered (any tile explored).
+      // Primary chunk (index 0) is always discovered upon city entry.
+      // Extra chunks (index 1+) use key format "c:cityId,chunkIdx,x,y".
+      const spawn = getCityChunkSpawn(city, i);
+      let discovered = false;
+      if (i === 0 || isCurrent) {
+        discovered = true;
+      } else {
+        // Check spawn point and a few nearby positions for explored keys
+        const samplePoints = [
+          [spawn.x, spawn.y],
+          [spawn.x - 1, spawn.y], [spawn.x + 1, spawn.y],
+          [spawn.x, spawn.y + 1], [spawn.x, spawn.y - 1],
+        ];
+        for (const [sx, sy] of samplePoints) {
+          const k = `c:${city.id},${i},${sx},${sy}`;
+          if (player.progression.exploredTiles[k]) { discovered = true; break; }
+        }
+      }
+
+      // Chunk box
+      const boxX = px + 12;
+      const boxW = panelW - 24;
+      const boxH = 36;
+
+      const chunkBg = this.scene.add.graphics();
+      if (isCurrent) {
+        chunkBg.fillStyle(0x2a4a2e, 0.9);
+        chunkBg.lineStyle(2, 0x88ff88, 1);
+      } else if (discovered) {
+        chunkBg.fillStyle(0x2a2a4e, 0.8);
+        chunkBg.lineStyle(1, 0x6666aa, 0.8);
+      } else {
+        chunkBg.fillStyle(0x1a1a2e, 0.6);
+        chunkBg.lineStyle(1, 0x444444, 0.6);
+      }
+      chunkBg.fillRoundedRect(boxX, cy, boxW, boxH, 6);
+      chunkBg.strokeRoundedRect(boxX, cy, boxW, boxH, 6);
+      container.add(chunkBg);
+
+      const icon = i === 0 ? "🏘" : "🏠";
+      const displayName = isCurrent ? `${icon} ${name} (here)` : discovered ? `${icon} ${name}` : "??? Unknown";
+      const color = isCurrent ? "#88ff88" : discovered ? "#ccccff" : "#666666";
+
+      const label = this.scene.add.text(boxX + boxW / 2, cy + 10, displayName, {
+        fontSize: "12px", fontFamily: "monospace", color,
+      }).setOrigin(0.5, 0);
+      container.add(label);
+
+      // Shop count info (uses getCityChunkShops helper for consistent indexing)
+      if (discovered) {
+        const shops = getCityChunkShops(city, i);
+        const shopInfo = this.scene.add.text(boxX + boxW / 2, cy + 24, `${shops.length} shop${shops.length !== 1 ? "s" : ""}`, {
+          fontSize: "9px", fontFamily: "monospace", color: "#888",
+        }).setOrigin(0.5, 0);
+        container.add(shopInfo);
+      }
+
+      // Make clickable for discovered chunks that aren't current
+      if (discovered && !isCurrent) {
+        chunkBg.setInteractive(
+          new Phaser.Geom.Rectangle(boxX, cy, boxW, boxH),
+          Phaser.Geom.Rectangle.Contains,
+        );
+        chunkBg.on("pointerover", () => {
+          chunkBg.clear();
+          chunkBg.fillStyle(0x3a3a6e, 0.9);
+          chunkBg.lineStyle(2, 0xffd700, 1);
+          chunkBg.fillRoundedRect(boxX, cy, boxW, boxH, 6);
+          chunkBg.strokeRoundedRect(boxX, cy, boxW, boxH, 6);
+        });
+        chunkBg.on("pointerout", () => {
+          chunkBg.clear();
+          chunkBg.fillStyle(0x2a2a4e, 0.8);
+          chunkBg.lineStyle(1, 0x6666aa, 0.8);
+          chunkBg.fillRoundedRect(boxX, cy, boxW, boxH, 6);
+          chunkBg.strokeRoundedRect(boxX, cy, boxW, boxH, 6);
+        });
+        chunkBg.on("pointerdown", () => {
+          const targetSpawn = getCityChunkSpawn(city, i);
+          player.position.cityChunkIndex = i;
+          player.position.x = targetSpawn.x;
+          player.position.y = targetSpawn.y;
+          this.dismissCityMap();
+          audioEngine.playTeleportSFX();
+          this.callbacks.showMessage(`Moved to ${name}`, "#88ff88");
+          this.callbacks.renderMap();
+          this.callbacks.applyDayNightTint();
+          this.callbacks.createPlayer();
+          this.callbacks.updateHUD();
+          this.callbacks.autoSave();
+        });
+      }
+
+      cy += boxH + 6;
+    }
+
+    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 14, "M to close · Click district to travel", {
+      fontSize: "9px", fontFamily: "monospace", color: "#666",
+    }).setOrigin(0.5, 1);
+    container.add(hint);
+
+    this.cityMapOverlay = container;
   }
 
   // ── World Map Overlay ──────────────────────────────────────────────

@@ -15,15 +15,21 @@ export {
   Terrain,
   MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT,
   type TownData, type BossData, type WorldChunk,
-  type DungeonData, type ChestData, type CityShopData, type CityData,
+  type DungeonData, type DungeonLevel, type DungeonConnection,
+  type ChestData, type ChestLocation,
+  type CityShopData, type CityData, type CityChunk, type CityConnection,
 } from "./mapTypes";
 
 export { DUNGEONS } from "./dungeons";
-export { CITIES, INN_COSTS, getInnCost, getCity, getCityForTown, getCityShopAt, getCityShopNearby } from "./cities";
+export {
+  CITIES, INN_COSTS, getInnCost, getCity, getCityForTown, getCityShopAt, getCityShopNearby,
+  getCityChunkCount, getCityChunk, getCityChunkMap, getCityChunkSpawn, getCityChunkShops,
+  getCityChunkShopAt, getCityChunkShopNearby, getCityChunkNames, getCityConnectionAt,
+} from "./cities";
 export { WORLD_CHUNKS, REGION_COLORS, getChunk, getTerrainAt, getAllTowns, getAllBosses } from "./chunks";
 
 import { Terrain, MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT } from "./mapTypes";
-import type { ChestData, DungeonData } from "./mapTypes";
+import type { ChestData, ChestLocation, DungeonConnection, DungeonData } from "./mapTypes";
 import { DUNGEONS } from "./dungeons";
 import { WORLD_CHUNKS, getChunk } from "./chunks";
 
@@ -70,6 +76,9 @@ export const TERRAIN_COLORS: Record<Terrain, number> = {
   [Terrain.Mushroom]: 0x558b2f,
   [Terrain.Casino]: 0xdaa520,
   [Terrain.CityPath]: 0x9e9e9e,
+  [Terrain.CityGate]: 0xc0a040,
+  [Terrain.DungeonStairs]: 0x7e57c2,
+  [Terrain.DungeonBoss]: 0xd32f2f,
 };
 
 /** Encounter rates per terrain (0 = no encounters). */
@@ -115,6 +124,9 @@ export const ENCOUNTER_RATES: Record<Terrain, number> = {
   [Terrain.Mushroom]: 0.08,
   [Terrain.Casino]: 0,
   [Terrain.CityPath]: 0,
+  [Terrain.CityGate]: 0,
+  [Terrain.DungeonStairs]: 0,
+  [Terrain.DungeonBoss]: 0,
 };
 
 
@@ -154,7 +166,8 @@ function isSpecialTerrain(t: Terrain): boolean {
     t === Terrain.River || t === Terrain.Mill || t === Terrain.CropField ||
     t === Terrain.Fence || t === Terrain.House ||
     t === Terrain.Flower || t === Terrain.Cactus || t === Terrain.Geyser || t === Terrain.Mushroom ||
-    t === Terrain.Casino || t === Terrain.CityPath;
+    t === Terrain.Casino || t === Terrain.CityPath || t === Terrain.CityGate ||
+    t === Terrain.DungeonStairs || t === Terrain.DungeonBoss;
 }
 
 export function getTownBiome(chunkX: number, chunkY: number, tileX: number, tileY: number): Terrain {
@@ -200,7 +213,7 @@ export const CHESTS: ChestData[] = [
 
 export function getChestAt(
   x: number, y: number,
-  location: { type: "overworld"; chunkX: number; chunkY: number } | { type: "dungeon"; dungeonId: string }
+  location: ChestLocation,
 ): ChestData | undefined {
   return CHESTS.find((c) => {
     if (c.x !== x || c.y !== y) return false;
@@ -209,7 +222,8 @@ export function getChestAt(
       return c.location.chunkX === location.chunkX && c.location.chunkY === location.chunkY;
     }
     if (c.location.type === "dungeon" && location.type === "dungeon") {
-      return c.location.dungeonId === location.dungeonId;
+      return c.location.dungeonId === location.dungeonId
+        && (c.location.dungeonLevel ?? 0) === (location.dungeonLevel ?? 0);
     }
     return false;
   });
@@ -221,6 +235,44 @@ export function getDungeonAt(cx: number, cy: number, x: number, y: number): Dung
 
 export function getDungeon(id: string): DungeonData | undefined {
   return DUNGEONS.find((d) => d.id === id);
+}
+
+/** Find the dungeon connection originating at a level tile. */
+export function getDungeonConnectionAt(
+  dungeon: DungeonData,
+  level: number,
+  x: number,
+  y: number,
+): DungeonConnection | undefined {
+  return dungeon.connections.find((connection) =>
+    connection.fromLevel === level
+    && connection.fromX === x
+    && connection.fromY === y
+  );
+}
+
+/** Get the map data for a dungeon at a specific level. Level 0 = entrance level. */
+export function getDungeonLevelMap(dungeon: DungeonData, level: number): Terrain[][] {
+  if (level === 0) return dungeon.mapData;
+  if (dungeon.levels && level >= 1 && level <= dungeon.levels.length) {
+    return dungeon.levels[level - 1].mapData;
+  }
+  return dungeon.mapData; // fallback to level 0
+}
+
+/** Get the spawn point for a dungeon level. Level 0 = entrance level. */
+export function getDungeonLevelSpawn(dungeon: DungeonData, level: number): { x: number; y: number } {
+  if (level === 0) return { x: dungeon.spawnX, y: dungeon.spawnY };
+  if (dungeon.levels && level >= 1 && level <= dungeon.levels.length) {
+    const lvl = dungeon.levels[level - 1];
+    return { x: lvl.spawnX, y: lvl.spawnY };
+  }
+  return { x: dungeon.spawnX, y: dungeon.spawnY }; // fallback
+}
+
+/** Get the total number of levels in a dungeon (including entrance level). */
+export function getDungeonTotalLevels(dungeon: DungeonData): number {
+  return 1 + (dungeon.levels?.length ?? 0);
 }
 
 // ─── Road Diversification ─────────────────────────────────────────

@@ -33,6 +33,8 @@ export class CityRenderer {
   cityNpcTimers: Phaser.Time.TimerEvent[] = [];
   /** NPC instance data for the current city. */
   cityNpcData: NpcInstance[] = [];
+  /** Quest markers rendered above named story NPCs. */
+  questNpcMarkers: Phaser.GameObjects.Text[] = [];
   /** Graphics objects for shop roof overlays. */
   shopRoofGraphics: Phaser.GameObjects.Graphics[] = [];
   /** Bounding rectangles for each shop roof. */
@@ -477,6 +479,8 @@ export class CityRenderer {
     // Destroy existing NPC sprites and timers
     for (const s of this.cityNpcSprites) s.destroy();
     this.cityNpcSprites = [];
+    for (const marker of this.questNpcMarkers) marker.destroy();
+    this.questNpcMarkers = [];
     for (const t of this.cityNpcTimers) t.destroy();
     this.cityNpcTimers = [];
     this.cityNpcData = [];
@@ -507,7 +511,7 @@ export class CityRenderer {
     // At night, track how many non-essential NPCs we keep (about 30%)
     let nonEssentialCount = 0;
 
-    this.cityNpcData = npcs;
+    this.cityNpcData = [];
 
     for (let i = 0; i < npcs.length; i++) {
       const def = npcs[i];
@@ -515,7 +519,7 @@ export class CityRenderer {
       if (!tpl) continue;
 
       // At night, skip most non-essential NPCs (children always go, most villagers too)
-      if (isNight && def.shopIndex === undefined) {
+      if (isNight && def.shopIndex === undefined && !def.questNpcId) {
         const isGuard = def.templateId.startsWith("guard_");
         const isChild = tpl.ageGroup === "child";
         if (isChild) {
@@ -551,7 +555,7 @@ export class CityRenderer {
         }
       }
 
-      if (!isExplored(spawnX, spawnY)) continue;
+      if (!isExplored(spawnX, spawnY) && !def.questNpcId) continue;
 
       // Generate a per-instance texture with proper skin/hair/dress colours
       const colors = getNpcColors(city.id, i);
@@ -571,6 +575,23 @@ export class CityRenderer {
       }
 
       this.cityNpcSprites.push(sprite);
+      this.cityNpcData.push(def);
+
+      if (def.questNpcId) {
+        const marker = this.scene.add.text(
+          sprite.x,
+          sprite.y - TILE_SIZE / 2 - 4,
+          "!",
+          {
+            fontSize: "14px",
+            fontFamily: "monospace",
+            color: "#ffd700",
+            stroke: "#000000",
+            strokeThickness: 3,
+          },
+        ).setOrigin(0.5, 1).setDepth(12);
+        this.questNpcMarkers.push(marker);
+      }
 
       if (def.moves) {
         const wander = (): void => {
@@ -632,6 +653,8 @@ export class CityRenderer {
 
     for (const s of this.cityNpcSprites) s.destroy();
     this.cityNpcSprites = [];
+    for (const marker of this.questNpcMarkers) marker.destroy();
+    this.questNpcMarkers = [];
     for (const t of this.cityNpcTimers) t.destroy();
     this.cityNpcTimers = [];
     this.cityNpcData = [];

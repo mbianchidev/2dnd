@@ -33,6 +33,21 @@ and changes spanning scenes, systems, data, renderers, or managers.
 The map hub is `src/data/map.ts`; terrain/types, chunks, cities, and dungeons
 are split into dedicated modules.
 
+## Quests
+
+- Put quest definitions, stage objectives, NPC IDs, rewards, and gated
+  entrances in `src/data/quests.ts`.
+- Put progression, normalization, idempotent rewards, NPC interaction
+  resolution, journal entries, and entrance checks in `src/systems/quests.ts`.
+- Persist state only through `player.progression.quests`; use quest-system APIs
+  instead of direct mutation.
+- Downstream unlocks such as companions should call `isQuestCompleted()` and
+  keep their own persistent state separate from quest reward bookkeeping.
+- Derive boss objectives from `defeatedBosses` so older saves can report
+  already-completed objectives.
+- Keep quest NPCs available at night and test every referenced NPC, boss,
+  reward item, and entrance.
+
 ## Adding monsters
 
 1. Define the monster in the appropriate pool in `src/data/monsters.ts`.

@@ -407,6 +407,16 @@ export const ITEMS: Item[] = [
     twoHanded: true,
     weaponSprite: "bow",
   },
+  {
+    id: "dawnforgedBlade",
+    name: "Dawnforged Blade",
+    description: "+9 attack, radiant edge restored beneath Ashfall",
+    type: "weapon",
+    cost: 0,
+    effect: 9,
+    weaponSprite: "sword",
+    element: Element.Radiant,
+  },
 ];
 
 /** Look up an item by ID. */

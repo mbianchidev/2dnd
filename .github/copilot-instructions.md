@@ -151,11 +151,28 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  quests: QuestLogState;
 }
 ```
 
 Access fields through `player.position` and `player.progression`.
 `player.activeEffects` stores normalized combat effects.
+
+## Quests
+
+- Definitions, stages, rewards, named NPC IDs, and gated entrances live in
+  `src/data/quests.ts`.
+- Runtime progression, normalization, rewards, NPC resolution, journal data,
+  and gate checks live in `src/systems/quests.ts`.
+- `player.progression.quests` is required persistent state. Mutate it through
+  quest-system APIs so completion rewards remain idempotent.
+- Downstream systems such as companion recruitment query `isQuestCompleted()`
+  and persist their own unlock state.
+- Boss objectives derive from `defeatedBosses`; do not rely only on a new battle
+  event because existing saves may already contain the required defeat.
+- Quest NPCs remain available at night. `Q` opens the quest journal.
+- Ashfall and the Volcanic Forge use quest-controlled entrance barricades;
+  Sandport and the Heartlands Crypt must remain reachable to avoid softlocks.
 
 ## Character creation
 
@@ -272,12 +289,13 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 2.
+Save schema version is 3.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects and Codex elements, validates
-city/dungeon IDs, clamps levels/districts, repairs invalid coordinates to the
-correct spawn, and falls back to Willowdale for unusable overworld locations.
+city/dungeon IDs, quest state, clamps levels/districts, repairs invalid
+coordinates to the correct spawn, and falls back to Willowdale for unusable
+overworld locations.
 
 When persistent data changes:
 
@@ -311,6 +329,7 @@ Do not add external audio.
 - Never add production `console.log`.
 - `/spawn` resolves every entry in `ALL_MONSTERS`, including dungeon-specific
   monsters and bosses.
+- `/quest` lists, advances, or sets exact quest stages/statuses.
 - Shared debug commands and Overworld-specific commands live in
   `src/systems/debug.ts`.
 

@@ -25,9 +25,10 @@ import {
 import { debugLog } from "../config";
 import { isElement } from "../data/elements";
 import { normalizeActiveEffects } from "./statusEffects";
+import { normalizeQuestLog } from "./quests";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 
 export interface SaveData {
   version: number;
@@ -249,6 +250,7 @@ export function loadGame(): SaveData | null {
         collectedTreasures: normalizeStringArray(playerRecord["collectedTreasures"]),
         exploredTiles: normalizeExploredTiles(playerRecord["exploredTiles"]),
         discoveredCities: [],
+        quests: normalizeQuestLog(playerRecord["quests"]),
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -263,6 +265,9 @@ export function loadGame(): SaveData | null {
     );
     data.player.progression.exploredTiles = normalizeExploredTiles(
       data.player.progression.exploredTiles,
+    );
+    data.player.progression.quests = normalizeQuestLog(
+      data.player.progression.quests,
     );
 
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;

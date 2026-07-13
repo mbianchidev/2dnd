@@ -13,10 +13,12 @@ import type { Item } from "../data/items";
 import { getItem } from "../data/items";
 import { getMount } from "../data/mounts";
 import { getPlayerClass, getClassSpells, getClassAbilities } from "./classes";
+import { createQuestLog } from "./quests";
 import {
   cureWithItem,
   getEffectACModifier,
 } from "./statusEffects";
+import type { QuestLogState } from "../data/quests";
 import type { ActiveStatusEffect } from "./statusEffects";
 
 export interface PlayerStats {
@@ -48,6 +50,7 @@ export interface PlayerProgression {
   collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
   discoveredCities: string[]; // IDs of cities the player has visited (enables fast travel)
+  quests: QuestLogState; // main/side quest status, stages, and reward idempotency
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -201,6 +204,7 @@ export function createPlayer(
       collectedTreasures: [],
       exploredTiles: {},
       discoveredCities: [],
+      quests: createQuestLog(),
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,

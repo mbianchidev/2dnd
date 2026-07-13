@@ -46,6 +46,8 @@ API, and saves use `localStorage`.
   discovery, fast travel, inns, banks, stables, and city music
 - Three multi-level dungeons with bidirectional stairs, floor-specific
   encounters, chests, fog, and a unique deepest-floor boss
+- A multi-stage main quest, optional sidequest, named story NPCs, a `Q` quest
+  journal, persistent outcomes, unique rewards, and progression-gated roads
 - Fog keys separate every dungeon level and city district while preserving
   legacy level-zero/chunk-zero save keys
 
@@ -89,6 +91,7 @@ src/
 │   ├── weather.ts
 │   ├── daynight.ts
 │   ├── audio.ts
+│   ├── quests.ts
 │   └── debug.ts
 ├── data/
 │   ├── map.ts
@@ -100,14 +103,23 @@ src/
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
+│   ├── quests.ts
 │   └── items.ts
 ├── managers/
+│   └── questJournal.ts
 └── renderers/
 ```
 
 `map.ts` is the map hub. Core types and dimensions live in `mapTypes.ts`;
 world chunks, cities, and dungeons live in their own data modules. Overworld
 delegates rendering and stateful subsystems to `renderers/` and `managers/`.
+
+Quest content lives in `src/data/quests.ts`; all runtime progression,
+normalization, rewards, NPC interactions, journal entries, and entrance-gate
+checks go through `src/systems/quests.ts`. Add follow-up quest content by
+extending those definitions and APIs rather than mutating
+`player.progression.quests` directly. Systems such as companion recruitment
+should query `isQuestCompleted()` and persist their own unlocked state.
 
 ## Getting started
 
@@ -136,8 +148,9 @@ npm run build      # Type-check and create a production build
 | --- | --- |
 | `WASD` / arrow keys | Move and navigate |
 | `Space` / `Enter` | Confirm or interact |
-| `M` | Open the in-game menu |
+| `M` | Open the world or city map |
 | `C` | Open the Codex |
+| `Q` | Open the quest journal |
 | `Esc` | Close the active overlay |
 | Mouse / touch | Select buttons and scroll lists |
 
@@ -150,9 +163,11 @@ Available tools include:
 - Overworld hotkeys for revealing the map, toggling fog, and disabling random
   encounters
 - Slash commands for gold, XP, HP, MP, items, weather, time, teleportation,
-  classes, mounts, audio, and Codex discovery
+  classes, mounts, audio, Codex discovery, and quest state
 - `/spawn <name-or-id>` for every monster in `ALL_MONSTERS`, including unique
   dungeon bosses, plus special overworld NPC aliases
+- `/quest list`, `/quest advance <id>`, and
+  `/quest set <id> <stage|locked|active|completed>`
 
 Use `debugLog()` and the debug panel APIs instead of `console.log`.
 
@@ -161,12 +176,13 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 Game state is stored under `2dnd_save`; audio preferences use
 `2dnd_audio_prefs`.
 
-Save schema version 2 persists:
+Save schema version 3 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
 - City ID and district index
 - Explored tiles, opened chests, collected treasure, and discovered cities
+- Main/side quest status, stage, and idempotent reward state
 - Defeated bosses, Codex entries, and discovered elemental interactions
 - Active status effects, time step, and weather state
 
@@ -176,14 +192,15 @@ recovers invalid or conflicting world, city, and dungeon locations.
 ## Testing
 
 The Vitest suite covers combat, elements, statuses, saves, map and city data,
-dungeon traversal, fog keys, movement, player progression, dice, weather,
-day/night, mounts, NPCs, audio, and configuration.
+dungeon traversal, fog keys, movement, player and quest progression, dice,
+weather, day/night, mounts, NPCs, audio, and configuration.
 
 Important integration suites:
 
 - `tests/elements.test.ts`
 - `tests/statusEffects.test.ts`
 - `tests/save.test.ts`
+- `tests/quests.test.ts`
 - `tests/data.test.ts`
 - `tests/fogOfWar.test.ts`
 

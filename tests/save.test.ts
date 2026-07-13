@@ -33,6 +33,7 @@ describe("save system - PlayerState composition migration", () => {
     player.progression.openedChests.push("chest1", "chest2");
     player.progression.collectedTreasures.push("2,3,5,7");
     player.progression.exploredTiles["2,3,5,7"] = true;
+    player.progression.quests.ashenRoad.stage = 2;
     
     const bestiary = createCodex();
     const weatherState = createWeatherState();
@@ -50,6 +51,8 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual(["chest1", "chest2"]);
     expect(loaded!.player.progression.collectedTreasures).toEqual(["2,3,5,7"]);
     expect(loaded!.player.progression.exploredTiles["2,3,5,7"]).toBe(true);
+    expect(loaded!.player.progression.quests.ashenRoad.stage).toBe(2);
+    expect(loaded!.version).toBe(3);
   });
 
   it("migrates old flat structure to new nested structure on load", () => {
@@ -135,6 +138,11 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual(["oldChest1", "oldChest2"]);
     expect(loaded!.player.progression.collectedTreasures).toEqual(["3,4,8,9"]);
     expect(loaded!.player.progression.exploredTiles["3,4,8,9"]).toBe(true);
+    expect(loaded!.player.progression.quests.ashenRoad).toEqual({
+      status: "active",
+      stage: 0,
+      rewardGranted: false,
+    });
     
     // Check that old flat fields are removed
     const playerRecord = loaded!.player as unknown as Record<string, unknown>;
@@ -215,6 +223,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual([]);
     expect(loaded!.player.progression.collectedTreasures).toEqual([]);
     expect(loaded!.player.progression.exploredTiles).toEqual({});
+    expect(loaded!.player.progression.quests.wardensDispatch.status).toBe("locked");
   });
 
   it("clears unknown locations and restores a safe overworld position", () => {
@@ -349,6 +358,66 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.activeEffects).toEqual([
       { id: "poison", remainingTurns: 5, source: "Spider" },
       { id: "burn", remainingTurns: 3, source: "unknown" },
+    ]);
+  });
+
+  it("normalizes malformed quest state without resetting valid progress", () => {
+    const player = createPlayer("QuestSaver", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.progression.quests.ashenRoad.stage = 2;
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const raw = localStorage.getItem("2dnd_save");
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!) as {
+      player: {
+        progression: {
+          quests: Record<string, unknown>;
+        };
+      };
+    };
+    stored.player.progression.quests = {
+      ashenRoad: {
+        status: "active",
+        stage: 2,
+        rewardGranted: false,
+      },
+      wardensDispatch: {
+        status: "completed",
+        stage: "invalid",
+        rewardGranted: false,
+      },
+      unknownQuest: {
+        status: "active",
+        stage: 1,
+      },
+    };
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.progression.quests.ashenRoad).toEqual({
+      status: "active",
+      stage: 2,
+      rewardGranted: false,
+    });
+    expect(loaded!.player.progression.quests.wardensDispatch).toEqual({
+      status: "completed",
+      stage: 1,
+      rewardGranted: true,
+    });
+    expect(Object.keys(loaded!.player.progression.quests)).toEqual([
+      "ashenRoad",
+      "wardensDispatch",
     ]);
   });
 });

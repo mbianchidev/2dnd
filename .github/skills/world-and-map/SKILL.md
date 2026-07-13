@@ -13,7 +13,9 @@ license: MIT
 - `src/data/chunks.ts`: 10x9 overworld chunk grid
 - `src/data/cities.ts`: city layouts, districts, shops, and gates
 - `src/data/dungeons.ts`: dungeon floors and stairs
+- `src/data/quests.ts`: progression-gated city and dungeon entrances
 - `src/systems/movement.ts`: grid, city-gate, and dungeon-stair movement
+- `src/systems/quests.ts`: quest entrance-block checks
 - `src/managers/fogOfWar.ts`: exploration-key generation and reveal state
 - `src/renderers/map.ts`: terrain and weather rendering
 - `src/renderers/city.ts`: city NPC, animal, and district rendering
@@ -48,6 +50,17 @@ getTownBiome(chunkX, chunkY, tileX, tileY);
 
 Chunk names drive biome music, weather probabilities, and presentation. New
 names must retain a recognized biome prefix.
+
+## Quest-gated entrances
+
+Quest barriers guard true interaction chokepoints rather than isolated
+overworld edge tiles, which are easy to walk around. Use
+`getBlockedQuestEntrance()` for city/dungeon actions and
+`getBlockedQuestEntranceAt()` for rendering the matching barricade tile.
+
+Sandport and the Heartlands Crypt stay reachable before The Ashen Road opens;
+Ashfall and the Volcanic Forge unlock at main-quest stage 3. Add data-integrity
+tests that entrance coordinates still match their city or dungeon definition.
 
 ## Multi-chunk cities
 

@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v2, migration, normalization, and location recovery
+description: Manage 2D&D save schema v3, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -16,7 +16,7 @@ preferences are stored separately by `src/systems/audio.ts`.
 
 ## Current schema
 
-`SAVE_VERSION` is 2.
+`SAVE_VERSION` is 3.
 
 ```typescript
 interface SaveData {
@@ -57,11 +57,13 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  quests: QuestLogState;
 }
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
-Codex entries persist `discoveredElements`.
+Codex entries persist `discoveredElements`. Quest progress stores status, stage,
+and reward-granted state for idempotent completion rewards.
 
 ## Loading and migration
 
@@ -77,6 +79,7 @@ helpers; do not cast unvalidated nested values directly.
   fields
 - Missing/invalid active status effects
 - Missing/invalid Codex elemental discoveries
+- Missing, malformed, or unknown quest entries through `normalizeQuestLog()`
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
 
@@ -136,6 +139,7 @@ top-level save is absent or corrupt.
 - Save/load round trips
 - Legacy flat-state migration
 - Schema-v2 position and progression data
+- Schema-v3 quest progression and reward normalization
 - Dungeon-level and city-district clamping
 - Invalid IDs and coordinates
 - Conflicting location flags
@@ -148,5 +152,6 @@ top-level save is absent or corrupt.
 - Forgetting the level or district when validating coordinates
 - Reusing city/dungeon fog keys across interiors
 - Keeping unknown status or element strings
+- Resetting valid quest progress while filling missing quest defaults
 - Storing Phaser objects or other non-serializable state
 - Mutating shared game-data definitions while repairing a save

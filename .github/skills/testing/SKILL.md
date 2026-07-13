@@ -15,6 +15,7 @@ Write comprehensive tests for game mechanics using Vitest while avoiding UI/inte
 ✅ Combat calculation accuracy  
 ✅ Player stat progression
 ✅ XP and leveling formulas
+✅ Quest stages, rewards, gates, and save normalization
 ✅ Data integrity (monsters, spells, items)
 ✅ Game logic functions
 
@@ -32,6 +33,7 @@ tests/
 ├── dice.test.ts      # Dice rolling utilities
 ├── combat.test.ts    # Combat mechanics
 ├── player.test.ts    # Player systems
+├── quests.test.ts    # Quest progression and integrity
 └── data.test.ts      # Data validation
 ```
 

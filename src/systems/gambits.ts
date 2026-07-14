@@ -410,6 +410,15 @@ function actionIsApplicable(
         return target !== undefined && target.currentHp < target.maxHp;
       });
     }
+    if (spell?.type === "buff" && spell.targetEffect) {
+      return plan.targetIds.some((targetId) => {
+        const target = context.actors.find((actor) => actor.id === targetId);
+        return target !== undefined
+          && !target.effects.some(
+            (effect) => effect.id === spell.targetEffect,
+          );
+      });
+    }
   }
   if (plan.kind === "ability" && plan.actionId) {
     const ability = getAbility(plan.actionId);

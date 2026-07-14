@@ -51,7 +51,10 @@ import {
   isLightWeapon,
   type PlayerState,
 } from "../systems/player";
-import { synchronizeCompanionRecruitment } from "../systems/party";
+import {
+  createActivePartyCombatants,
+  synchronizeCompanionRecruitment,
+} from "../systems/party";
 import { isDebug, isLocalDev, debugLog, debugPanelLog, debugPanelState, TILE_SIZE } from "../config";
 import type { CodexData } from "../systems/codex";
 import { createCodex } from "../systems/codex";
@@ -1743,6 +1746,7 @@ export class OverworldScene extends Phaser.Scene {
       weatherState: this.weatherState,
       biome: this.terrainToBiome(terrain),
       savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
+      partyCombatants: createActivePartyCombatants(this.player.party),
     };
     if (immediate) {
       this.scene.start("BattleScene", battleData);

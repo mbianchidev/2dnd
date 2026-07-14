@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { getItem } from "../src/data/items";
 import {
+  applyPartyDefeat,
   applyKnockoutXpPenalty,
   createActivePartyCombatants,
   createPartyActionSources,
   createPartyState,
+  distributePartyVictory,
   recruitCompanion,
+  restPartyAtInn,
   setCompanionActive,
   transferPartyItem,
   xpFloorForLevel,
@@ -171,5 +174,91 @@ describe("party system", () => {
     levelOne.xp = 350;
     applyKnockoutXpPenalty(levelOne);
     expect(levelOne.xp).toBe(0);
+  });
+
+  it("awards living actors while penalizing a knocked-out hero", () => {
+    const player = createHero(5);
+    const companion = recruitCompanion(player, "guardian").companion!;
+    const heroXp = player.xp + 700;
+    player.xp = heroXp;
+    const companionXp = companion.xp;
+    const gold = player.gold;
+
+    const result = distributePartyVictory(player, {
+      outcome: "victory",
+      defeatedEnemyIds: ["enemy"],
+      survivingPartyIds: ["party:companion:guardian"],
+      knockedOutPartyIds: ["party:hero"],
+      rewards: { xp: 120, gold: 35 },
+      droppedItemIds: [],
+    });
+
+    expect(player.gold).toBe(gold + 35);
+    expect(player.xp).toBe(xpFloorForLevel(5));
+    expect(companion.xp).toBe(companionXp + 120);
+    expect(result.penalizedIds).toEqual(["party:hero"]);
+    expect(result.xpRecipientIds).toEqual(["party:companion:guardian"]);
+  });
+
+  it("applies one full-party defeat recovery at the last town", () => {
+    const player = createHero(5);
+    const companion = recruitCompanion(player, "scout").companion!;
+    player.gold = 100;
+    player.xp += 500;
+    companion.xp += 500;
+    player.hp = 0;
+    player.mp = 0;
+    companion.hp = 0;
+    companion.mp = 0;
+    player.position.inDungeon = true;
+    player.position.dungeonId = "heartlands_dungeon";
+    player.lastTownX = 4;
+    player.lastTownY = 5;
+    player.lastTownChunkX = 6;
+    player.lastTownChunkY = 7;
+
+    applyPartyDefeat(player, [
+      "party:hero",
+      "party:companion:scout",
+    ]);
+
+    expect(player.gold).toBe(70);
+    expect(player.hp).toBe(Math.max(1, Math.floor(player.maxHp / 2)));
+    expect(companion.hp).toBe(
+      Math.max(1, Math.floor(companion.maxHp / 2)),
+    );
+    expect(player.mp).toBe(Math.floor(player.maxMp / 2));
+    expect(companion.mp).toBe(Math.floor(companion.maxMp / 2));
+    expect(player.xp).toBe(xpFloorForLevel(5));
+    expect(companion.xp).toBe(xpFloorForLevel(5));
+    expect(player.position).toMatchObject({
+      x: 4,
+      y: 5,
+      chunkX: 6,
+      chunkY: 7,
+      inDungeon: false,
+      dungeonId: "",
+    });
+  });
+
+  it("revives and restores every recruited member at an inn", () => {
+    const player = createHero();
+    const guardian = recruitCompanion(player, "guardian").companion!;
+    const scout = recruitCompanion(player, "scout").companion!;
+    player.hp = 1;
+    player.mp = 0;
+    guardian.hp = 0;
+    guardian.mp = 0;
+    scout.hp = 2;
+    scout.mp = 1;
+
+    restPartyAtInn(player);
+
+    expect(player.hp).toBe(player.maxHp);
+    expect(player.mp).toBe(player.maxMp);
+    expect(guardian.hp).toBe(guardian.maxHp);
+    expect(guardian.mp).toBe(guardian.maxMp);
+    expect(scout.hp).toBe(scout.maxHp);
+    expect(scout.mp).toBe(scout.maxMp);
   });
 });

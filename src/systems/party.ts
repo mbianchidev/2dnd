@@ -18,17 +18,26 @@ import {
 import { getClassAbilities, getClassSpells, getPlayerClass } from "./classes";
 import {
   createPartyCombatant,
+  HERO_COMBATANT_ID,
+  type BattleCombatantId,
+  type BattleResult,
   type PartyCombatant,
 } from "./groupCombat";
 import {
+  awardXP,
   getArmorClass,
+  processPendingLevelUps,
   xpForLevel,
   type CombatActorState,
   type PlayerState,
   type ProgressingActorState,
   type PlayerStats,
 } from "./player";
-import { normalizeActiveEffects, type ActiveStatusEffect } from "./statusEffects";
+import {
+  clearAllEffects,
+  normalizeActiveEffects,
+  type ActiveStatusEffect,
+} from "./statusEffects";
 import { normalizeGambitRules, type GambitRule } from "./gambits";
 import { replayQuestCompletionActions } from "./quests";
 
@@ -70,6 +79,15 @@ export interface PartyMutationResult {
 export interface TransferPartyItemResult {
   transferred: boolean;
   message: string;
+}
+
+export interface PartyVictoryDistribution {
+  xpRecipientIds: BattleCombatantId[];
+  penalizedIds: BattleCombatantId[];
+}
+
+export interface PartyRestResult {
+  leveledActorIds: PartyMemberId[];
 }
 
 export function createPartyState(): PartyState {
@@ -410,6 +428,102 @@ export function synchronizeCompanionRecruitment(
     "recruitCompanion",
   );
   return recruited;
+}
+
+function getCompanionByCombatantId(
+  party: PartyState,
+  combatantId: BattleCombatantId,
+): CompanionState | undefined {
+  const prefix = "party:companion:";
+  if (!combatantId.startsWith(prefix)) return undefined;
+  const companionId = combatantId.slice(prefix.length);
+  return isCompanionId(companionId)
+    ? getCompanion(party, companionId)
+    : undefined;
+}
+
+function getProgressingActorByCombatantId(
+  player: PlayerState,
+  combatantId: BattleCombatantId,
+): ProgressingActorState | undefined {
+  return combatantId === HERO_COMBATANT_ID
+    ? player
+    : getCompanionByCombatantId(player.party, combatantId);
+}
+
+export function distributePartyVictory(
+  player: PlayerState,
+  result: BattleResult,
+): PartyVictoryDistribution {
+  player.gold += result.rewards.gold;
+  const penalizedIds = [...new Set(result.knockedOutPartyIds)];
+  for (const combatantId of penalizedIds) {
+    const actor = getProgressingActorByCombatantId(player, combatantId);
+    if (actor) applyKnockoutXpPenalty(actor);
+  }
+
+  const xpRecipientIds = [
+    ...new Set(
+      result.survivingPartyIds.filter(
+        (combatantId) => !penalizedIds.includes(combatantId),
+      ),
+    ),
+  ];
+  for (const combatantId of xpRecipientIds) {
+    const actor = getProgressingActorByCombatantId(player, combatantId);
+    if (actor) awardXP(actor, result.rewards.xp);
+  }
+  return { xpRecipientIds, penalizedIds };
+}
+
+export function applyPartyDefeat(
+  player: PlayerState,
+  knockedOutPartyIds: BattleCombatantId[],
+): void {
+  const actorIds = [...new Set(knockedOutPartyIds)];
+  for (const combatantId of actorIds) {
+    const actor = getProgressingActorByCombatantId(player, combatantId);
+    if (!actor) continue;
+    applyKnockoutXpPenalty(actor);
+    actor.hp = Math.max(1, Math.floor(actor.maxHp / 2));
+    actor.mp = Math.floor(actor.maxMp / 2);
+    clearAllEffects(actor.activeEffects);
+  }
+  player.gold = Math.floor(player.gold * 0.7);
+  player.position.x = player.lastTownX ?? 2;
+  player.position.y = player.lastTownY ?? 2;
+  player.position.chunkX = player.lastTownChunkX ?? 4;
+  player.position.chunkY = player.lastTownChunkY ?? 2;
+  player.position.inDungeon = false;
+  player.position.dungeonId = "";
+  player.position.dungeonLevel = 0;
+  player.position.inCity = false;
+  player.position.cityId = "";
+  player.position.cityChunkIndex = 0;
+}
+
+export function restPartyAtInn(player: PlayerState): PartyRestResult {
+  const leveledActorIds: PartyMemberId[] = [];
+  const actors: Array<{
+    id: PartyMemberId;
+    state: ProgressingActorState;
+  }> = [
+    { id: "hero", state: player },
+    ...player.party.companions.map((companion) => ({
+      id: companion.id,
+      state: companion,
+    })),
+  ];
+  for (const actor of actors) {
+    actor.state.hp = actor.state.maxHp;
+    actor.state.mp = actor.state.maxMp;
+    clearAllEffects(actor.state.activeEffects);
+    if (processPendingLevelUps(actor.state).leveledUp) {
+      leveledActorIds.push(actor.id);
+    }
+  }
+  player.shortRestsRemaining = 2;
+  return { leveledActorIds };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

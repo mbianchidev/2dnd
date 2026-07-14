@@ -54,7 +54,9 @@ import {
 import {
   createActivePartyCombatants,
   synchronizeCompanionRecruitment,
+  type CompanionState,
 } from "../systems/party";
+import { CompanionFollowerManager } from "../managers/companionFollowers";
 import { isDebug, isLocalDev, debugLog, debugPanelLog, debugPanelState, TILE_SIZE } from "../config";
 import type { CodexData } from "../systems/codex";
 import { createCodex } from "../systems/codex";
@@ -200,6 +202,7 @@ export class OverworldScene extends Phaser.Scene {
   private debugCommandSystem!: DebugCommandSystem;
   private dungeonTrapManager!: DungeonTrapManager;
   private skillCheckManager!: SkillCheckManager;
+  private companionFollowerManager!: CompanionFollowerManager;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -225,6 +228,7 @@ export class OverworldScene extends Phaser.Scene {
     this.mapRenderer = new MapRenderer(this);
     this.cityRenderer = new CityRenderer(this);
     this.playerRenderer = new PlayerRenderer(this);
+    this.companionFollowerManager = new CompanionFollowerManager(this);
     this.dialogueSystem = new DialogueSystem(this);
     this.specialNpcManager = new SpecialNpcManager(this);
     this.questJournal = new QuestJournalManager(this);
@@ -326,6 +330,10 @@ export class OverworldScene extends Phaser.Scene {
     this.applyDayNightTint();
     this.createPlayerSprite();
     this.playerRenderer.refreshPlayerSprite(this.player);
+    this.companionFollowerManager.render(
+      this.player,
+      (companion) => this.showCompanionDialogue(companion),
+    );
     this.setupInput();
     this.createHUD();
     this.setupDebug();
@@ -834,6 +842,10 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private tryMove(dx: number, dy: number, time: number): void {
+    const previousTile = {
+      x: this.player.position.x,
+      y: this.player.position.y,
+    };
     const newX = this.player.position.x + dx;
     const newY = this.player.position.y + dy;
 
@@ -866,6 +878,7 @@ export class OverworldScene extends Phaser.Scene {
       this.isMoving = true;
       this.player.position.x = newX;
       this.player.position.y = newY;
+      this.companionFollowerManager.followStep(previousTile, 120, dx);
       if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
 
       this.tweenPlayerTo(newX, newY, 120, () => {
@@ -933,6 +946,7 @@ export class OverworldScene extends Phaser.Scene {
       this.isMoving = true;
       this.player.position.x = newX;
       this.player.position.y = newY;
+      this.companionFollowerManager.followStep(previousTile, 120, dx);
       if (audioEngine.initialized) audioEngine.playFootstepSFX(targetTerrain);
 
       this.tweenPlayerTo(newX, newY, 120, () => {
@@ -984,6 +998,8 @@ export class OverworldScene extends Phaser.Scene {
       });
       return;
     }
+
+    this.companionFollowerManager.followStep(previousTile, 120, dx);
 
     if (audioEngine.initialized && result.newTerrain !== undefined) {
       if (!this.player.position.inDungeon && !this.player.position.inCity && this.player.mountId) {
@@ -1118,6 +1134,23 @@ export class OverworldScene extends Phaser.Scene {
 
   // ── SPACE action handler ────────────────────────────────────────────────
 
+  private showCompanionDialogue(companion: CompanionState): void {
+    const line = this.companionFollowerManager.getDialogueLine(companion);
+    this.dialogueSystem.showSpecialDialogue(companion.name, line);
+    this.autoSave();
+  }
+
+  private tryInteractCompanion(): boolean {
+    const companion = this.companionFollowerManager.findAdjacentCompanion(
+      this.player.party,
+      this.player.position.x,
+      this.player.position.y,
+    );
+    if (!companion) return false;
+    this.showCompanionDialogue(companion);
+    return true;
+  }
+
   private handleAction(): void {
     if (this.questJournal.isOpen()) {
       this.questJournal.close();
@@ -1182,6 +1215,7 @@ export class OverworldScene extends Phaser.Scene {
         });
         return;
       }
+      if (this.tryInteractCompanion()) return;
       return;
     }
 
@@ -1255,6 +1289,10 @@ export class OverworldScene extends Phaser.Scene {
             for (const recruitment of synchronizeCompanionRecruitment(this.player)) {
               this.showMessage(recruitment.message, "#88ff88");
             }
+            this.companionFollowerManager.sync(
+              this.player,
+              (companion) => this.showCompanionDialogue(companion),
+            );
             this.autoSave();
           }
           return;
@@ -1338,6 +1376,7 @@ export class OverworldScene extends Phaser.Scene {
         this.dialogueSystem.showAnimalDialogue(animalResult.spriteName);
         return;
       }
+      if (this.tryInteractCompanion()) return;
       return;
     }
 
@@ -1517,8 +1556,12 @@ export class OverworldScene extends Phaser.Scene {
     );
     if (boss && !this.defeatedBosses.has(boss.monsterId)) {
       const monster = getBoss(boss.monsterId);
-      if (monster) this.startBattle(monster, Terrain.Boss);
+      if (monster) {
+        this.startBattle(monster, Terrain.Boss);
+        return;
+      }
     }
+    this.tryInteractCompanion();
   }
 
   // ── Shared chest opening logic ──────────────────────────────────────────

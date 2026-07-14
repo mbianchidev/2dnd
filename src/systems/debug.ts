@@ -25,6 +25,7 @@ import {
 } from "../data/quests";
 import { advanceQuest, setQuestStageById, setQuestState } from "./quests";
 import type { QuestId, QuestStatus } from "../data/quests";
+import { synchronizeCompanionRecruitment } from "./party";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -589,6 +590,9 @@ export class DebugCommandSystem {
         debugPanelLog(`[CMD] Reward: ${result.rewardText}`, true);
       }
       if (result.changed) {
+        for (const recruitment of synchronizeCompanionRecruitment(this.player)) {
+          debugPanelLog(`[CMD] ${recruitment.message}`, true);
+        }
         this.callbacks.autoSave();
         this.callbacks.renderMap();
         this.callbacks.applyDayNightTint();

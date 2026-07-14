@@ -51,6 +51,7 @@ import {
   isLightWeapon,
   type PlayerState,
 } from "../systems/player";
+import { synchronizeCompanionRecruitment } from "../systems/party";
 import { isDebug, isLocalDev, debugLog, debugPanelLog, debugPanelState, TILE_SIZE } from "../config";
 import type { CodexData } from "../systems/codex";
 import { createCodex } from "../systems/codex";
@@ -297,6 +298,7 @@ export class OverworldScene extends Phaser.Scene {
     if (data?.savedSpecialNpcs) {
       this.specialNpcManager.savedSpecialNpcs = data.savedSpecialNpcs;
     }
+    synchronizeCompanionRecruitment(this.player);
 
     // Reset movement state — a tween may have been orphaned when the scene
     // switched to battle mid-move, leaving isMoving permanently true.
@@ -1247,6 +1249,9 @@ export class OverworldScene extends Phaser.Scene {
           if (result.changed) {
             const status = result.completed ? "completed" : "updated";
             debugPanelLog(`[QUEST] ${result.questId ?? npcDef.questNpcId} ${status}`, true);
+            for (const recruitment of synchronizeCompanionRecruitment(this.player)) {
+              this.showMessage(recruitment.message, "#88ff88");
+            }
             this.autoSave();
           }
           return;

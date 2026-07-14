@@ -32,7 +32,10 @@ import {
 import { normalizeActiveEffects } from "./statusEffects";
 import { normalizeQuestLog } from "./quests";
 import { normalizeSkillCheckRecords } from "./skillChecks";
-import { normalizePartyState } from "./party";
+import {
+  normalizePartyState,
+  synchronizeCompanionRecruitment,
+} from "./party";
 
 const SAVE_KEY = "2dnd_save";
 const SAVE_VERSION = 6;
@@ -416,6 +419,7 @@ export function loadGame(): SaveData | null {
       data.player.progression.trapGuidance,
     );
     data.player.party = normalizePartyState(playerRecord["party"]);
+    synchronizeCompanionRecruitment(data.player);
 
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
     if (data.player.equippedOffHand === undefined) data.player.equippedOffHand = null;

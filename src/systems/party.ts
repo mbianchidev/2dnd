@@ -30,6 +30,7 @@ import {
 } from "./player";
 import { normalizeActiveEffects, type ActiveStatusEffect } from "./statusEffects";
 import { normalizeGambitRules, type GambitRule } from "./gambits";
+import { replayQuestCompletionActions } from "./quests";
 
 export const MAX_ACTIVE_COMPANIONS = 3;
 
@@ -394,6 +395,21 @@ export function getRecruitedCompanionIds(party: PartyState): CompanionId[] {
   return COMPANION_IDS.filter((companionId) =>
     party.companions.some((companion) => companion.id === companionId)
   );
+}
+
+export function synchronizeCompanionRecruitment(
+  player: PlayerState,
+): RecruitCompanionResult[] {
+  const recruited: RecruitCompanionResult[] = [];
+  replayQuestCompletionActions(
+    player.progression.quests,
+    (action) => {
+      const result = recruitCompanion(player, action.targetId);
+      if (result.recruited) recruited.push(result);
+    },
+    "recruitCompanion",
+  );
+  return recruited;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

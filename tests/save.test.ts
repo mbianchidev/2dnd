@@ -8,6 +8,7 @@ import { createWeatherState } from "../src/systems/weather";
 import { LEGACY_TRAP_SEED } from "../src/data/traps";
 import { recruitCompanion } from "../src/systems/party";
 import { getItem } from "../src/data/items";
+import { QUEST_IDS } from "../src/data/quests";
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -452,10 +453,7 @@ describe("save system - PlayerState composition migration", () => {
       stage: 1,
       rewardGranted: true,
     });
-    expect(Object.keys(loaded!.player.progression.quests)).toEqual([
-      "ashenRoad",
-      "wardensDispatch",
-    ]);
+    expect(Object.keys(loaded!.player.progression.quests)).toEqual(QUEST_IDS);
   });
 
   it("adds missing skill-check progression to older saves", () => {

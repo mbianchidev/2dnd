@@ -43,7 +43,8 @@ companion.recruit.mystic
 `replayQuestCompletionActions(..., "recruitCompanion")` runs after load,
 Overworld initialization, NPC quest changes, and debug quest mutations.
 `recruitCompanion()` is idempotent, so reloads, rewinds, and repeated debug
-completion cannot duplicate a companion or starter inventory.
+completion cannot duplicate a companion or starter inventory. Debug quest and
+companion commands refresh the live follower sprites immediately.
 
 ## Party management
 

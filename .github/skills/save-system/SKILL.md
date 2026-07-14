@@ -184,7 +184,8 @@ top-level save is absent or corrupt.
 - Flat schema-v4 quest migration and completed-reward preservation
 - Schema-v3 skill-check saves gaining default normalized quest state
 - Schema-v4 quest saves gaining default trap state
-- Schema-v5 party defaults and completed recruitment replay
+- Schema-v5 party defaults plus all-three completed recruitment replay after
+  malformed duplicate/unknown party entries are normalized
 - Quest reward and skill-check record normalization
 - Trap seed/state/guidance normalization and seed-state cross-field repair
 - Dungeon-level and city-district clamping

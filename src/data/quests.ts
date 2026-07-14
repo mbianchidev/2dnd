@@ -242,7 +242,7 @@ const MAIN_QUEST: QuestDefinition = {
   id: MAIN_QUEST_ID,
   name: "The Twelvefold Covenant",
   type: "main",
-  summary: "Restore the twelve city oaths and seal the power beneath the Volcanic Forge.",
+  summary: "Restore the twelve city oaths, reclaim three keystones, and seal the power beneath the Volcanic Forge.",
   stages: [
     {
       id: "firstSeal",
@@ -256,7 +256,7 @@ const MAIN_QUEST: QuestDefinition = {
           description: "Speak with Archivist Elowen in Willowdale.",
           dialogue: [
             "The old wards are fading. Each city once carried a voice in the Twelvefold Covenant.",
-            "Take this sigil. Gather the twelve oaths, reclaim the lost keystones, and meet me here when the forge is silent.",
+            "Take this sigil. Gather the twelve oaths, reclaim the three lost keystones, and meet me here when the forge is silent.",
           ],
         },
       ],
@@ -346,7 +346,7 @@ const MAIN_QUEST: QuestDefinition = {
           id: "sandportPass",
           type: "talk",
           targetId: QUEST_NPC_IDS.sandport,
-          description: "Receive a canyon pass from Harbormaster Sable.",
+          description: "Receive Sandport's canyon pass from Harbormaster Sable.",
           dialogue: [
             "The canyon marshal trusts seals more than travelers.",
             "Show Tarek the mark I have added to your sigil. Canyonwatch will open its gate.",
@@ -435,13 +435,13 @@ const MAIN_QUEST: QuestDefinition = {
     {
       id: "lastForge",
       title: "The Last Forge",
-      summary: "Defeat the Inferno Forgemaster and return to Willowdale.",
+      summary: "Reclaim the third keystone from the Inferno Forgemaster and return to Willowdale.",
       objectives: [
         {
           id: "infernoForgemaster",
           type: "defeat",
           targetId: "infernoForgemaster",
-          description: "Defeat the Inferno Forgemaster in the Volcanic Forge.",
+          description: "Defeat the Inferno Forgemaster and reclaim the third keystone.",
         },
         {
           id: "returnToElowen",
@@ -522,7 +522,7 @@ const MAIN_QUEST: QuestDefinition = {
       targetId: "twelvefoldCovenantRestored",
     },
   ],
-  outcome: "The twelve city oaths are restored and the Volcanic Forge burns clean again.",
+  outcome: "The twelve city oaths and three keystones are restored, and the Volcanic Forge burns clean again.",
 };
 
 const IRON_DISPATCH_QUEST: QuestDefinition = {

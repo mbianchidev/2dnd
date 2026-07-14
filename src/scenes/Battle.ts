@@ -1731,26 +1731,14 @@ export class BattleScene extends Phaser.Scene {
       if (!isDebug()) return;
       debugLog("CHEAT: Kill encounter");
       debugPanelLog("[CHEAT] Encounter defeated!", true);
-      for (const [index, combatant] of this.combatants.entries()) {
-        if (combatant.isAlive) this.setCombatantHp(index, 0);
-      }
-      this.updateMonsterDisplay();
-      if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
-        this.checkBattleEnd(false);
-      }
+      this.defeatEncounterForDebug();
     });
 
     // Slash commands: shared + battle-specific
     const cmds = buildSharedCommands(this.player, cb);
 
     cmds.set("kill", () => {
-      for (const [index, combatant] of this.combatants.entries()) {
-        if (combatant.isAlive) this.setCombatantHp(index, 0);
-      }
-      this.updateMonsterDisplay();
-      if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
-        this.checkBattleEnd(false);
-      }
+      this.defeatEncounterForDebug();
       debugPanelLog(`[CMD] Encounter defeated!`, true);
     });
 
@@ -1761,6 +1749,21 @@ export class BattleScene extends Phaser.Scene {
     ];
 
     registerCommandRouter(cmds, "Battle", helpEntries);
+  }
+
+  private defeatEncounterForDebug(): void {
+    if (
+      this.phase === "victory"
+      || this.phase === "defeat"
+      || this.phase === "fled"
+    ) {
+      return;
+    }
+    for (const [index, combatant] of this.combatants.entries()) {
+      if (combatant.isAlive) this.setCombatantHp(index, 0);
+    }
+    this.updateMonsterDisplay();
+    this.checkBattleEnd(false);
   }
 
   private updateDebugPanel(): void {
@@ -2851,17 +2854,20 @@ export class BattleScene extends Phaser.Scene {
       clearAllEffects(combatant.effects);
     }
     this.cameras.main.resetFX();
-    this.cameras.main.once("camerafadeoutcomplete", () => {
-      this.scene.start("OverworldScene", {
-        player: this.player,
-        defeatedBosses: this.defeatedBosses,
-        codex: this.codex,
-        timeStep: this.timeStep,
-        weatherState: this.weatherState,
-        savedSpecialNpcs: this.savedSpecialNpcs,
-        questUpdates: this.questUpdates,
-      });
-    });
+    this.cameras.main.once(
+      Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
+      () => {
+        this.scene.start("OverworldScene", {
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          codex: this.codex,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+          savedSpecialNpcs: this.savedSpecialNpcs,
+          questUpdates: this.questUpdates,
+        });
+      },
+    );
     this.cameras.main.fadeOut(500, 0, 0, 0);
   }
 

@@ -10,10 +10,16 @@ import {
   MAIN_QUEST_ID,
   QUEST_IDS,
   RECRUIT_GUARDIAN_QUEST_ID,
+  RECRUIT_MYSTIC_QUEST_ID,
+  RECRUIT_SCOUT_QUEST_ID,
 } from "../src/data/quests";
 import { LEGACY_TRAP_SEED } from "../src/data/traps";
-import { recruitCompanion } from "../src/systems/party";
+import {
+  recruitCompanion,
+  synchronizeCompanionRecruitment,
+} from "../src/systems/party";
 import { getItem } from "../src/data/items";
+import { setQuestState } from "../src/systems/questDebug";
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -995,6 +1001,64 @@ describe("save system - PlayerState composition migration", () => {
       companion.id
     )).toEqual(["guardian"]);
     expect(loaded!.player.party.activeCompanionIds).toEqual(["guardian"]);
+  });
+
+  it("replays all completed recruitment quests once after corrupt party normalization", () => {
+    const player = createPlayer("RecruitReplay", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    for (const questId of [
+      RECRUIT_GUARDIAN_QUEST_ID,
+      RECRUIT_SCOUT_QUEST_ID,
+      RECRUIT_MYSTIC_QUEST_ID,
+    ] as const) {
+      setQuestState(player, questId, "completed");
+    }
+    const guardian = recruitCompanion(player, "guardian").companion!;
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const stored = JSON.parse(localStorage.getItem("2dnd_save")!) as {
+      player: { party: Record<string, unknown> };
+    };
+    stored.player.party = {
+      companions: [
+        guardian,
+        guardian,
+        { id: "unknownCompanion" },
+      ],
+      activeCompanionIds: [
+        "guardian",
+        "guardian",
+        "scout",
+        "unknownCompanion",
+      ],
+    };
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.party.companions.map((companion) =>
+      companion.id
+    )).toEqual(["guardian", "scout", "mystic"]);
+    expect(loaded!.player.party.activeCompanionIds).toEqual([
+      "guardian",
+      "scout",
+      "mystic",
+    ]);
+    expect(synchronizeCompanionRecruitment(loaded!.player)).toHaveLength(0);
+
+    const reloaded = loadGame();
+    expect(reloaded!.player.party.companions.map((companion) =>
+      companion.id
+    )).toEqual(["guardian", "scout", "mystic"]);
   });
 
   it("adds an empty party to schema-v5 saves without changing prior domains", () => {

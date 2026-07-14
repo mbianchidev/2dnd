@@ -52,6 +52,33 @@ import {
   synchronizeCompanionRecruitment,
 } from "../src/systems/party";
 
+const RECRUITMENT_CASES = [
+  {
+    questId: RECRUIT_GUARDIAN_QUEST_ID,
+    npcId: "guardian",
+    bossId: "troll",
+    meetObjectiveId: "meetBram",
+    oathObjectiveId: "sealGuardianOath",
+    actionId: "companion.recruit.guardian",
+  },
+  {
+    questId: RECRUIT_SCOUT_QUEST_ID,
+    npcId: "scout",
+    bossId: "canyonDrake",
+    meetObjectiveId: "meetKaia",
+    oathObjectiveId: "sealScoutOath",
+    actionId: "companion.recruit.scout",
+  },
+  {
+    questId: RECRUIT_MYSTIC_QUEST_ID,
+    npcId: "mystic",
+    bossId: "volcanicWyrm",
+    meetObjectiveId: "meetSelene",
+    oathObjectiveId: "sealMysticOath",
+    actionId: "companion.recruit.mystic",
+  },
+] as const;
+
 function createTestPlayer(): PlayerState {
   return createPlayer("QuestHero", {
     strength: 10,
@@ -91,14 +118,23 @@ describe("Twelvefold Covenant progression", () => {
     expect(log.seenWarnings).toEqual([]);
   });
 
-  it("runs a recruitment quest through trial, oath, and replayable recruitment", () => {
+  it.each(RECRUITMENT_CASES)(
+    "runs the $npcId recruitment quest through trial, oath, and replay",
+    ({
+      questId,
+      npcId,
+      bossId,
+      meetObjectiveId,
+      oathObjectiveId,
+      actionId,
+    }) => {
     const player = createTestPlayer();
     const defeatedBosses = new Set<string>();
 
-    const startInteraction = getNpcQuestInteraction(player, "guardian");
+    const startInteraction = getNpcQuestInteraction(player, npcId);
     expect(startInteraction).toMatchObject({
       kind: "start",
-      questId: RECRUIT_GUARDIAN_QUEST_ID,
+      questId,
     });
     const started = completeNpcQuestInteraction(
       player,
@@ -107,26 +143,26 @@ describe("Twelvefold Covenant progression", () => {
     );
 
     expect(started.changed).toBe(true);
-    expect(getQuestProgress(player, RECRUIT_GUARDIAN_QUEST_ID)).toMatchObject({
+    expect(getQuestProgress(player, questId)).toMatchObject({
       status: "active",
       stage: 1,
-      objectives: { meetBram: 1 },
+      objectives: { [meetObjectiveId]: 1 },
     });
-    expect(getNpcQuestInteraction(player, "guardian")).toBeNull();
+    expect(getNpcQuestInteraction(player, npcId)).toBeNull();
 
     const waiting = reconcileQuestState(player, defeatedBosses);
     expect(waiting.changed).toBe(false);
-    defeatedBosses.add("troll");
+    defeatedBosses.add(bossId);
 
     const passed = reconcileQuestState(player, defeatedBosses);
     expect(passed.changed).toBe(true);
-    expect(getQuestProgress(player, RECRUIT_GUARDIAN_QUEST_ID).stage).toBe(2);
+    expect(getQuestProgress(player, questId).stage).toBe(2);
 
-    const oathInteraction = getNpcQuestInteraction(player, "guardian");
+    const oathInteraction = getNpcQuestInteraction(player, npcId);
     expect(oathInteraction).toMatchObject({
       kind: "objective",
-      questId: RECRUIT_GUARDIAN_QUEST_ID,
-      objectiveId: "sealGuardianOath",
+      questId,
+      objectiveId: oathObjectiveId,
     });
     const completed = completeNpcQuestInteraction(
       player,
@@ -134,25 +170,41 @@ describe("Twelvefold Covenant progression", () => {
       oathInteraction!,
     );
     expect(completed.changed).toBe(true);
-    expect(
-      getQuestProgress(player, RECRUIT_GUARDIAN_QUEST_ID).status,
-    ).toBe("completed");
+    expect(getQuestProgress(player, questId).status).toBe("completed");
     expect(getQuestCompletionActions(
       player.progression.quests,
       "recruitCompanion",
     )).toContainEqual({
-      questId: RECRUIT_GUARDIAN_QUEST_ID,
-      id: "companion.recruit.guardian",
+      questId,
+      id: actionId,
       type: "recruitCompanion",
-      targetId: "guardian",
+      targetId: npcId,
     });
 
     expect(synchronizeCompanionRecruitment(player)).toHaveLength(1);
     expect(synchronizeCompanionRecruitment(player)).toHaveLength(0);
-    expect(player.party.companions.map((companion) => companion.id)).toEqual([
-      "guardian",
-    ]);
+    expect(player.party.companions.map((companion) => companion.id)).toEqual(
+      [npcId],
+    );
   });
+
+  it.each(RECRUITMENT_CASES)(
+    "debug completion recruits $npcId exactly once through replay",
+    ({ questId, npcId }) => {
+      const player = createTestPlayer();
+
+      const result = setQuestState(player, questId, "completed");
+
+      expect(result.completed).toBe(true);
+      expect(player.party.companions).toEqual([]);
+      expect(synchronizeCompanionRecruitment(player)).toHaveLength(1);
+      expect(synchronizeCompanionRecruitment(player)).toHaveLength(0);
+      expect(player.party.companions.map((companion) => companion.id)).toEqual(
+        [npcId],
+      );
+      expect(player.party.activeCompanionIds).toEqual([npcId]);
+    },
+  );
 
   it("keeps Covenant progress unchanged while starting recruitment", () => {
     const player = createTestPlayer();
@@ -578,27 +630,86 @@ describe("quest persistence normalization", () => {
 });
 
 describe("quest data integrity", () => {
-  it("covers all 12 cities in seven main chapters", () => {
+  it("covers all 12 cities through named, substantive main-quest visits", () => {
     const main = QUESTS[MAIN_QUEST_ID];
-    const mainNpcIds = new Set(
-      main.stages.flatMap((stage) =>
-        stage.objectives
-          .filter((objective) => objective.type === "talk")
-          .map((objective) => objective.targetId)
-      ),
+    const talkObjectives = main.stages.flatMap((stage) =>
+      stage.objectives.filter((objective) => objective.type === "talk")
     );
+    const mainNpcIds = new Set(talkObjectives.map((objective) =>
+      objective.targetId
+    ));
+    const cityNpcCounts = new Map<string, number>();
+    for (const npcId of mainNpcIds) {
+      const cityId = QUEST_NPCS[npcId as keyof typeof QUEST_NPCS].cityId;
+      cityNpcCounts.set(cityId, (cityNpcCounts.get(cityId) ?? 0) + 1);
+    }
 
     expect(main.stages).toHaveLength(7);
-    const recruitmentNpcIds = new Set([
-      "guardian",
-      "scout",
-      "mystic",
+    expect(new Set(cityNpcCounts.keys())).toEqual(
+      new Set(CITIES.map((city) => city.id)),
+    );
+    expect([...cityNpcCounts.values()]).toEqual(
+      expect.arrayContaining(Array.from({ length: 12 }, () => 1)),
+    );
+
+    for (const objective of talkObjectives) {
+      const npc = QUEST_NPCS[
+        objective.targetId as keyof typeof QUEST_NPCS
+      ];
+      const city = getCity(npc.cityId)!;
+      expect(objective.description).toContain(city.name);
+      expect(objective.dialogue?.length).toBeGreaterThanOrEqual(2);
+      for (const page of objective.dialogue ?? []) {
+        expect(page.trim().length).toBeGreaterThanOrEqual(30);
+      }
+    }
+  });
+
+  it("keeps the canonical main stage and objective identities stable", () => {
+    const main = QUESTS[MAIN_QUEST_ID];
+    const objectives = main.stages.flatMap((stage) => stage.objectives);
+
+    expect(main.stages.map((stage) => stage.id)).toEqual([
+      "firstSeal",
+      "stoneAndRoot",
+      "winterWitness",
+      "sunRoad",
+      "marshCovenant",
+      "ashenWatch",
+      "lastForge",
     ]);
-    expect(mainNpcIds).toEqual(new Set(
-      Object.keys(QUEST_NPCS).filter((npcId) =>
-        !recruitmentNpcIds.has(npcId)
-      ),
-    ));
+    expect(objectives.map((objective) =>
+      [objective.id, objective.targetId]
+    )).toEqual([
+      ["speakElowen", "willowdaleArchivist"],
+      ["ironholdOath", "ironholdWarden"],
+      ["deeprootOath", "deeprootRootspeaker"],
+      ["cryptLich", "cryptLich"],
+      ["frostheimOath", "frostheimSeer"],
+      ["thornvaleOath", "thornvaleGreenwarden"],
+      ["frostWarden", "frostWarden"],
+      ["sandportPass", "sandportHarbormaster"],
+      ["canyonwatchOath", "canyonwatchMarshal"],
+      ["dunerestOath", "dunerestLorekeeper"],
+      ["bogtownOath", "bogtownApothecary"],
+      ["shadowfenOath", "shadowfenFerryman"],
+      ["ashfallOath", "ashfallSmith"],
+      ["ridgewatchOath", "ridgewatchSentinel"],
+      ["infernoForgemaster", "infernoForgemaster"],
+      ["returnToElowen", "willowdaleArchivist"],
+    ]);
+  });
+
+  it("articulates the third keystone in the final forge chapter", () => {
+    const lastForge = QUESTS[MAIN_QUEST_ID].stages.find(
+      (stage) => stage.id === "lastForge",
+    )!;
+    const forgemaster = lastForge.objectives.find(
+      (objective) => objective.id === "infernoForgemaster",
+    )!;
+
+    expect(lastForge.summary.toLowerCase()).toContain("third keystone");
+    expect(forgemaster.description.toLowerCase()).toContain("third keystone");
   });
 
   it("references valid NPCs, monsters, rewards, cities, and dungeons", () => {
@@ -756,8 +867,12 @@ describe("quest data integrity", () => {
       const questNpcs = (CITY_NPCS[city.id] ?? []).filter(
         (npc) => npc.questNpcId,
       );
+      const positions = new Set<string>();
       for (const npc of questNpcs) {
         expect(isWalkable(city.mapData[npc.y][npc.x])).toBe(true);
+        const position = `${npc.x},${npc.y}`;
+        expect(positions.has(position)).toBe(false);
+        positions.add(position);
       }
     }
   });

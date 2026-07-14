@@ -57,7 +57,8 @@ tests/
 Quest tests must cover duplicate matching monsters in one group victory,
 durable boss reconciliation, optional-objective reward cutoffs, hard-gate
 softlock safety, reward idempotency, and flat schema-v4 to nested schema-v5
-migration.
+migration. Map main-quest NPC objectives to live city IDs and require exact
+coverage of all 12 cities with stable stage/objective identities.
 
 ## Skill Check Testing
 
@@ -76,12 +77,17 @@ migration.
   independent inventory objects and level-tier loadouts.
 - Test quest completion replay, reload, debug completion, and repeated replay
   against the same unique recruited-ID guard.
+- Parameterize those paths across Guardian, Scout, and Mystic; one companion
+  path is not representative coverage.
 - Construct `BattleActionSource`/`PartyCombatant` adapters and verify HP/MP
   writes reach the underlying companion state.
 - Test gambits as pure rank/condition/target selection. Invalid rules must not
   mutate action economy, MP, inventory, or effects.
 - Cover living-vs-KO XP distribution, level-1 XP floor, party wipe recovery,
   and party-wide inn rest.
+- Keep a focused Battle transition regression that asserts fade-complete
+  ordering, one-shot scene start, transient cleanup, and the full Overworld
+  payload without rendering Phaser UI.
 - Keep Phaser visuals in headless Chromium flows; pure trail positioning and UI
   mutation helpers belong in Vitest.
 

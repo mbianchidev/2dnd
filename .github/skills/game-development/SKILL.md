@@ -61,8 +61,8 @@ sources. Equipment actions remain self-targeted.
 - Persist state only through `player.progression.quests`; use quest-system APIs
   instead of direct mutation.
 - The shipped campaign is the seven-chapter Twelvefold Covenant across all 12
-  cities, with Ironbound Dispatch, Silk Against the Cold, and optional Hydra
-  and Dragon objectives.
+  cities and three keystones, with Ironbound Dispatch, Silk Against the Cold,
+  and optional Hydra and Dragon objectives.
 - Persist objective counters and claimed reward IDs. Batch group defeats with
   duplicate monster IDs intact so three matching combatants count as three.
 - Downstream unlocks such as companions should call `isQuestCompleted()` and
@@ -77,6 +77,8 @@ sources. Equipment actions remain self-targeted.
   already-completed objectives.
 - Keep quest NPCs available at night and test every referenced NPC, boss,
   reward item, and entrance.
+- Map main-quest talk objectives through `QUEST_NPCS` and assert exact coverage
+  of all 12 live city IDs; do not accept name-only references.
 - Canyonwatch, Ashfall, and the Volcanic Forge are hard gates. Sandport and
   Heartlands Crypt remain open; other premature travel uses one-time soft
   danger warnings and capped encounter modifiers.
@@ -227,6 +229,8 @@ Keep target `init()` contracts and every caller synchronized.
 - Manual turns and ranked gambits both validate/execute through
   `battleActions.ts`; one bonus action may precede or follow one main action.
 - Recruitment consumes replayable quest completion actions idempotently.
+- Debug quest or companion recruitment must refresh live follower presentation
+  immediately after replay.
 - Active conscious companions may render as non-blocking followers, but only
   hero movement invokes trap, encounter, gate, and world-interaction logic.
 - Keep party UI/followers/battle presentation in focused managers/renderers

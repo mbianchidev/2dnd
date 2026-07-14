@@ -6,10 +6,14 @@ import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createWeatherState } from "../src/systems/weather";
 import {
-  FROST_SILK_QUEST_ID,
   IRON_DISPATCH_QUEST_ID,
   MAIN_QUEST_ID,
+  QUEST_IDS,
+  RECRUIT_GUARDIAN_QUEST_ID,
 } from "../src/data/quests";
+import { LEGACY_TRAP_SEED } from "../src/data/traps";
+import { recruitCompanion } from "../src/systems/party";
+import { getItem } from "../src/data/items";
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -53,6 +57,9 @@ describe("save system - PlayerState composition migration", () => {
       success: true,
       optionId: "persuade",
     };
+    player.progression.trapSeed = 424242;
+    player.progression.trapStates["heartlands:0:5,5:spikePit"] = "detected";
+    player.progression.trapGuidance = true;
     
     const bestiary = createCodex();
     const weatherState = createWeatherState();
@@ -82,7 +89,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.quests.seenWarnings).toEqual([
       "frostRouteDanger",
     ]);
-    expect(loaded!.version).toBe(5);
+    expect(loaded!.version).toBe(6);
     expect(loaded!.player.progression.skillChecks["shop:city:willowdale_city:0:0"]).toEqual({
       ability: "charisma",
       naturalRoll: 15,
@@ -92,6 +99,11 @@ describe("save system - PlayerState composition migration", () => {
       success: true,
       optionId: "persuade",
     });
+    expect(loaded!.player.progression.trapSeed).toBe(424242);
+    expect(loaded!.player.progression.trapStates).toEqual({
+      "heartlands:0:5,5:spikePit": "detected",
+    });
+    expect(loaded!.player.progression.trapGuidance).toBe(true);
   });
 
   it("migrates old flat structure to new nested structure on load", () => {
@@ -183,7 +195,11 @@ describe("save system - PlayerState composition migration", () => {
       objectives: {},
       claimedRewards: [],
     });
+    expect(loaded!.player.progression.skillChecks).toEqual({});
     expect(loaded!.player.progression.quests.seenWarnings).toEqual([]);
+    expect(loaded!.player.progression.trapSeed).toBe(LEGACY_TRAP_SEED);
+    expect(loaded!.player.progression.trapStates).toEqual({});
+    expect(loaded!.player.progression.trapGuidance).toBe(false);
     
     // Check that old flat fields are removed
     const playerRecord = loaded!.player as unknown as Record<string, unknown>;
@@ -268,6 +284,9 @@ describe("save system - PlayerState composition migration", () => {
       loaded!.player.progression.quests.quests[IRON_DISPATCH_QUEST_ID].status,
     ).toBe("locked");
     expect(loaded!.player.progression.skillChecks).toEqual({});
+    expect(loaded!.player.progression.trapSeed).toBe(LEGACY_TRAP_SEED);
+    expect(loaded!.player.progression.trapStates).toEqual({});
+    expect(loaded!.player.progression.trapGuidance).toBe(false);
   });
 
   it("clears unknown locations and restores a safe overworld position", () => {
@@ -471,11 +490,9 @@ describe("save system - PlayerState composition migration", () => {
       loaded!.player.progression.quests.quests[IRON_DISPATCH_QUEST_ID]
         .claimedRewards,
     ).toHaveLength(4);
-    expect(Object.keys(loaded!.player.progression.quests.quests)).toEqual([
-      MAIN_QUEST_ID,
-      IRON_DISPATCH_QUEST_ID,
-      FROST_SILK_QUEST_ID,
-    ]);
+    expect(Object.keys(loaded!.player.progression.quests.quests)).toEqual(
+      QUEST_IDS,
+    );
   });
 
   it("adds missing skill-check progression to older saves", () => {
@@ -504,7 +521,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(5);
+    expect(loaded!.version).toBe(6);
     expect(loaded!.player.progression.skillChecks).toEqual({});
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].status,
@@ -541,11 +558,14 @@ describe("save system - PlayerState composition migration", () => {
     };
     stored.version = 3;
     delete stored.player.progression["quests"];
+    delete stored.player.progression["trapSeed"];
+    delete stored.player.progression["trapStates"];
+    delete stored.player.progression["trapGuidance"];
     localStorage.setItem("2dnd_save", JSON.stringify(stored));
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(5);
+    expect(loaded!.version).toBe(6);
     expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID]).toEqual({
       status: "active",
       stage: 0,
@@ -560,8 +580,10 @@ describe("save system - PlayerState composition migration", () => {
       dc: 13,
       success: true,
     });
+    expect(loaded!.player.progression.trapSeed).toBe(LEGACY_TRAP_SEED);
+    expect(loaded!.player.progression.trapStates).toEqual({});
+    expect(loaded!.player.progression.trapGuidance).toBe(false);
   });
-
   it("repairs valid skill-check totals and discards malformed records", () => {
     const player = createPlayer("CheckRepair", {
       strength: 10, dexterity: 10, constitution: 10,
@@ -634,5 +656,481 @@ describe("save system - PlayerState composition migration", () => {
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].status,
     ).toBe("active");
+  });
+
+  it("adds trap progression to schema-v4 quest saves", () => {
+    const player = createPlayer("V4QuestHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.progression.quests.quests[MAIN_QUEST_ID].stage = 2;
+    player.progression.skillChecks["npc:willowdale:rumor"] = {
+      ability: "wisdom",
+      naturalRoll: 14,
+      modifier: 1,
+      total: 15,
+      dc: 13,
+      success: true,
+    };
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const raw = localStorage.getItem("2dnd_save");
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!) as {
+      version: number;
+      player: { progression: Record<string, unknown> };
+    };
+    stored.version = 4;
+    delete stored.player.progression["trapSeed"];
+    delete stored.player.progression["trapStates"];
+    delete stored.player.progression["trapGuidance"];
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.version).toBe(6);
+    expect(
+      loaded!.player.progression.quests.quests[MAIN_QUEST_ID].stage,
+    ).toBe(2);
+    expect(loaded!.player.progression.skillChecks["npc:willowdale:rumor"])
+      .toBeDefined();
+    expect(loaded!.player.progression.trapSeed).toBe(LEGACY_TRAP_SEED);
+    expect(loaded!.player.progression.trapStates).toEqual({});
+    expect(loaded!.player.progression.trapGuidance).toBe(false);
+  });
+
+  it("preserves valid trap progression and filters invalid states", () => {
+    const player = createPlayer("ValidTrap", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.progression.trapSeed = 424242;
+    player.progression.trapStates = {
+      detectedTrap: "detected",
+      triggeredTrap: "triggered",
+    };
+    player.progression.trapGuidance = true;
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const raw = localStorage.getItem("2dnd_save");
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!) as {
+      player: { progression: Record<string, unknown> };
+    };
+    stored.player.progression["trapStates"] = {
+      detectedTrap: "detected",
+      triggeredTrap: "triggered",
+      unknownTrap: "unknown",
+      numericTrap: 4,
+    };
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.progression.trapSeed).toBe(424242);
+    expect(loaded!.player.progression.trapStates).toEqual({
+      detectedTrap: "detected",
+      triggeredTrap: "triggered",
+    });
+    expect(loaded!.player.progression.trapGuidance).toBe(true);
+  });
+
+  it("clears trap states when a malformed seed is replaced", () => {
+    const player = createPlayer("CorruptTrap", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const raw = localStorage.getItem("2dnd_save");
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!) as {
+      player: { progression: Record<string, unknown> };
+    };
+    stored.player.progression["trapSeed"] = -10;
+    stored.player.progression["trapStates"] = {
+      staleTrap: "disarmed",
+    };
+    stored.player.progression["trapGuidance"] = "yes";
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.progression.trapSeed).toBe(LEGACY_TRAP_SEED);
+    expect(loaded!.player.progression.trapStates).toEqual({});
+    expect(loaded!.player.progression.trapGuidance).toBe(false);
+  });
+
+  it("migrates rejected interim trap records and guidance item into v5 fields", () => {
+    const player = createPlayer("InterimTrap", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const raw = localStorage.getItem("2dnd_save");
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!) as {
+      version: number;
+      player: {
+        inventory: unknown[];
+        progression: Record<string, unknown>;
+      };
+    };
+    stored.version = 3;
+    delete stored.player.progression["trapSeed"];
+    delete stored.player.progression["trapStates"];
+    delete stored.player.progression["trapGuidance"];
+    stored.player.progression["skillChecks"] = {
+      "trap:layout": {
+        ability: "wisdom",
+        naturalRoll: 2,
+        modifier: 0,
+        total: 2,
+        dc: 1,
+        success: true,
+        optionId: "layout:424242",
+      },
+      "trap:legacyDetected": {
+        ability: "intelligence",
+        naturalRoll: 20,
+        modifier: 3,
+        total: 23,
+        dc: 13,
+        success: true,
+        optionId: "detect",
+      },
+      "trap:legacyTriggered": {
+        ability: "dexterity",
+        naturalRoll: 1,
+        modifier: 2,
+        total: 3,
+        dc: 12,
+        success: false,
+        optionId: "triggered:disarm",
+      },
+      "npc:willowdale:rumor": {
+        ability: "wisdom",
+        naturalRoll: 14,
+        modifier: 1,
+        total: 15,
+        dc: 13,
+        success: true,
+      },
+    };
+    stored.player.inventory.push({
+      id: "adventurerTrapNotes",
+      name: "Adventurer's Trap Notes",
+      description: "Legacy guidance",
+      type: "key",
+      cost: 0,
+      effect: 0,
+      trapDetectionBonus: 2,
+      trapDisarmBonus: 1,
+    });
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.version).toBe(6);
+    expect(loaded!.player.progression.trapSeed).toBe(424242);
+    expect(loaded!.player.progression.trapStates).toEqual({
+      legacyDetected: "detected",
+      legacyTriggered: "triggered",
+    });
+    expect(loaded!.player.progression.trapGuidance).toBe(true);
+    expect(
+      loaded!.player.inventory.some(
+        (item) => item.id === "adventurerTrapNotes",
+      ),
+    ).toBe(false);
+    expect(loaded!.player.progression.skillChecks).toEqual({
+      "npc:willowdale:rumor": {
+        ability: "wisdom",
+        naturalRoll: 14,
+        modifier: 1,
+        total: 15,
+        dc: 13,
+        success: true,
+      },
+    });
+  });
+
+  it("round-trips party state and persisted gambits in schema v6", () => {
+    const player = createPlayer("PartySave", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    const guardian = recruitCompanion(player, "guardian").companion!;
+    guardian.controlMode = "gambit";
+    guardian.gambits.push({
+      id: "heal-lowest",
+      rank: 1,
+      enabled: true,
+      subject: { kind: "anyPartyMember" },
+      condition: {
+        kind: "resource",
+        resource: "hp",
+        scale: "percent",
+        comparison: "<",
+        value: 50,
+      },
+      action: { kind: "spell", spellId: "cureWounds" },
+      target: { kind: "matchedSubject" },
+    });
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.version).toBe(6);
+    expect(loaded!.player.party.activeCompanionIds).toEqual(["guardian"]);
+    expect(loaded!.player.party.companions[0]!.controlMode).toBe("gambit");
+    expect(loaded!.player.party.companions[0]!.gambits).toEqual(
+      guardian.gambits,
+    );
+    expect(
+      loaded!.player.party.companions[0]!.equippedWeapon,
+    ).toBe(
+      loaded!.player.party.companions[0]!.inventory.find(
+        (item) => item.id === guardian.equippedWeapon?.id,
+      ),
+    );
+  });
+
+  it("replays completed flat recruitment quests after party normalization", () => {
+    const player = createPlayer("RecruitMigration", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const stored = JSON.parse(localStorage.getItem("2dnd_save")!) as {
+      version: number;
+      player: {
+        progression: Record<string, unknown>;
+        party?: unknown;
+      };
+    };
+    stored.version = 5;
+    stored.player.progression["quests"] = {
+      ashenRoad: {
+        status: "active",
+        stage: 0,
+        rewardGranted: false,
+      },
+      wardensDispatch: {
+        status: "locked",
+        stage: 0,
+        rewardGranted: false,
+      },
+      recruitGuardian: {
+        status: "completed",
+        stage: 2,
+        rewardGranted: true,
+      },
+      recruitScout: {
+        status: "locked",
+        stage: 0,
+        rewardGranted: false,
+      },
+      recruitMystic: {
+        status: "locked",
+        stage: 0,
+        rewardGranted: false,
+      },
+    };
+    delete stored.player.party;
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(
+      loaded!.player.progression.quests.quests[
+        RECRUIT_GUARDIAN_QUEST_ID
+      ].status,
+    ).toBe("completed");
+    expect(loaded!.player.party.companions.map((companion) =>
+      companion.id
+    )).toEqual(["guardian"]);
+    expect(loaded!.player.party.activeCompanionIds).toEqual(["guardian"]);
+  });
+
+  it("adds an empty party to schema-v5 saves without changing prior domains", () => {
+    const player = createPlayer("V5PartyMigration", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.progression.quests.quests[MAIN_QUEST_ID].stage = 2;
+    player.progression.skillChecks["npc:test"] = {
+      ability: "wisdom",
+      naturalRoll: 12,
+      modifier: 1,
+      total: 13,
+      dc: 10,
+      success: true,
+    };
+    player.progression.trapSeed = 777;
+    player.progression.trapStates.testTrap = "disarmed";
+    player.progression.trapGuidance = true;
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+    const stored = JSON.parse(localStorage.getItem("2dnd_save")!) as {
+      version: number;
+      player: Record<string, unknown>;
+    };
+    stored.version = 5;
+    delete stored.player["party"];
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.version).toBe(6);
+    expect(loaded!.player.party).toEqual({
+      companions: [],
+      activeCompanionIds: [],
+    });
+    expect(
+      loaded!.player.progression.quests.quests[MAIN_QUEST_ID].stage,
+    ).toBe(2);
+    expect(loaded!.player.progression.skillChecks["npc:test"]).toBeDefined();
+    expect(loaded!.player.progression.trapSeed).toBe(777);
+    expect(loaded!.player.progression.trapStates.testTrap).toBe("disarmed");
+    expect(loaded!.player.progression.trapGuidance).toBe(true);
+  });
+
+  it("repairs malformed party state and removes unknown nested IDs", () => {
+    const player = createPlayer("CorruptParty", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    const guardian = recruitCompanion(player, "guardian").companion!;
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+    const stored = JSON.parse(localStorage.getItem("2dnd_save")!) as {
+      player: { party: Record<string, unknown> };
+    };
+    stored.player.party = {
+      companions: [
+        {
+          ...guardian,
+          hp: 9999,
+          mp: -20,
+          controlMode: "invalid",
+          inventory: [
+            { ...getItem("potion")! },
+            { id: "unknownItem" },
+          ],
+          knownSpells: ["cureWounds", "unknownSpell"],
+          knownAbilities: ["layOnHands", "unknownAbility"],
+          knownTalents: ["toughness", "unknownTalent"],
+          equippedWeapon: { id: "startSword" },
+          activeEffects: [
+            { id: "poison", remainingTurns: 2, source: "Slime" },
+            { id: "unknown", remainingTurns: 99, source: "Bad" },
+          ],
+          gambits: [
+            {
+              id: "valid",
+              rank: 8,
+              enabled: true,
+              subject: { kind: "self" },
+              condition: { kind: "state", state: "alive" },
+              action: { kind: "defend" },
+              target: { kind: "self" },
+            },
+            {
+              id: "bad",
+              rank: 1,
+              enabled: true,
+              subject: { kind: "self" },
+              condition: { kind: "state", state: "alive" },
+              action: { kind: "spell", spellId: "unknownSpell" },
+              target: { kind: "self" },
+            },
+          ],
+        },
+        guardian,
+        { id: "unknownCompanion" },
+      ],
+      activeCompanionIds: [
+        "guardian",
+        "guardian",
+        "unknownCompanion",
+        "scout",
+      ],
+    };
+    localStorage.setItem("2dnd_save", JSON.stringify(stored));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.party.companions).toHaveLength(1);
+    const repaired = loaded!.player.party.companions[0]!;
+    expect(repaired.hp).toBe(repaired.maxHp);
+    expect(repaired.mp).toBe(0);
+    expect(repaired.controlMode).toBe("manual");
+    expect(repaired.inventory.map((item) => item.id)).toEqual(["potion"]);
+    expect(repaired.knownSpells).toEqual(["cureWounds"]);
+    expect(repaired.knownAbilities).toEqual(["layOnHands"]);
+    expect(repaired.knownTalents).toEqual(["toughness"]);
+    expect(repaired.activeEffects).toEqual([
+      { id: "poison", remainingTurns: 2, source: "Slime" },
+    ]);
+    expect(repaired.gambits).toHaveLength(1);
+    expect(repaired.gambits[0]!.rank).toBe(1);
+    expect(loaded!.player.party.activeCompanionIds).toEqual(["guardian"]);
   });
 });

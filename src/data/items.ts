@@ -25,6 +25,10 @@ export interface Item {
   element?: Element;
   /** Whether the consumable cures status effects tied to its ID. */
   cureEffects?: boolean;
+  /** Passive bonus to nearby dungeon-trap detection checks. */
+  trapDetectionBonus?: number;
+  /** Passive bonus to dungeon-trap disarm checks. */
+  trapDisarmBonus?: number;
   /** Battle target scope for consumables; defaults to self. */
   targetType?: ConsumableTargetType;
 }
@@ -311,6 +315,16 @@ export const ITEMS: Item[] = [
     cost: 0,
     effect: 0,
     mountId: "shadowSteed",
+  },
+  {
+    id: "trapKit",
+    name: "Trap Kit",
+    description: "+3 to dungeon trap detection and disarming",
+    type: "key",
+    cost: 75,
+    effect: 0,
+    trapDetectionBonus: 3,
+    trapDisarmBonus: 3,
   },
   // --- Mount items (sold in stables) ---
   {

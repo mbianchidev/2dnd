@@ -6,11 +6,17 @@ export const MAIN_QUEST_ID = "twelvefoldCovenant" as const;
 export const IRON_DISPATCH_QUEST_ID = "ironboundDispatch" as const;
 export const FROST_SILK_QUEST_ID = "silkAgainstTheCold" as const;
 export const SIDE_QUEST_ID = IRON_DISPATCH_QUEST_ID;
+export const RECRUIT_GUARDIAN_QUEST_ID = "recruitGuardian" as const;
+export const RECRUIT_SCOUT_QUEST_ID = "recruitScout" as const;
+export const RECRUIT_MYSTIC_QUEST_ID = "recruitMystic" as const;
 
 export const QUEST_IDS = [
   MAIN_QUEST_ID,
   IRON_DISPATCH_QUEST_ID,
   FROST_SILK_QUEST_ID,
+  RECRUIT_GUARDIAN_QUEST_ID,
+  RECRUIT_SCOUT_QUEST_ID,
+  RECRUIT_MYSTIC_QUEST_ID,
 ] as const;
 
 export type QuestId = (typeof QUEST_IDS)[number];
@@ -39,6 +45,9 @@ export const QUEST_NPC_IDS = {
   shadowfen: "shadowfenFerryman",
   ashfall: "ashfallSmith",
   ridgewatch: "ridgewatchSentinel",
+  guardian: "guardian",
+  scout: "scout",
+  mystic: "mystic",
 } as const;
 
 export type QuestNpcId = (typeof QUEST_NPC_IDS)[keyof typeof QUEST_NPC_IDS];
@@ -122,6 +131,24 @@ export const QUEST_NPCS: Record<QuestNpcId, QuestNpcDefinition> = {
     cityId: "ridgewatch_city",
     name: "Sentinel Mira",
     idleDialogue: "From this ridge, the final forge glows even at noon.",
+  },
+  guardian: {
+    id: QUEST_NPC_IDS.guardian,
+    cityId: "ironhold_city",
+    name: "Bram Ironward",
+    idleDialogue: "A shield means little until someone chooses where to stand.",
+  },
+  scout: {
+    id: QUEST_NPC_IDS.scout,
+    cityId: "sandport_city",
+    name: "Kaia Swiftstep",
+    idleDialogue: "The safest road is the one you have already read three turns ahead.",
+  },
+  mystic: {
+    id: QUEST_NPC_IDS.mystic,
+    cityId: "ashfall_city",
+    name: "Selene Vey",
+    idleDialogue: "Flame reveals as much as it consumes, if you know where to look.",
   },
 };
 
@@ -676,10 +703,193 @@ const FROST_SILK_QUEST: QuestDefinition = {
   outcome: "Frostheim's ward-cloths are restored before the deepest cold.",
 };
 
+const RECRUIT_GUARDIAN_QUEST: QuestDefinition = {
+  id: RECRUIT_GUARDIAN_QUEST_ID,
+  name: "The Ironward Oath",
+  type: "side",
+  summary: "Prove your resolve and earn Bram Ironward's shield.",
+  startNpcId: QUEST_NPC_IDS.guardian,
+  startDialogue: [
+    "Ironhold has walls enough. What it needs is someone willing to stand beyond them.",
+    "Face the Cave Troll and return. Then we will speak of an oath.",
+  ],
+  stages: [
+    {
+      id: "meetGuardian",
+      title: "Meet the Guardian",
+      summary: "Hear Bram Ironward's challenge in Ironhold.",
+      objectives: [{
+        id: "meetBram",
+        type: "talk",
+        targetId: QUEST_NPC_IDS.guardian,
+        description: "Speak with Bram Ironward in Ironhold.",
+      }],
+    },
+    {
+      id: "guardianTrial",
+      title: "The Guardian's Trial",
+      summary: "Defeat the Cave Troll to prove your resolve.",
+      objectives: [
+        {
+          id: "defeatGuardianTroll",
+          type: "defeat",
+          targetId: "troll",
+          description: "Defeat the Cave Troll.",
+        },
+      ],
+    },
+    {
+      id: "guardianOath",
+      title: "The Guardian's Oath",
+      summary: "Return to Bram and seal the oath.",
+      objectives: [
+        {
+          id: "sealGuardianOath",
+          type: "talk",
+          targetId: QUEST_NPC_IDS.guardian,
+          description: "Return to Bram Ironward.",
+          dialogue: [
+            "You held your ground when retreat would have been easier.",
+            "My shield is yours. Where you lead, I will stand.",
+          ],
+        },
+      ],
+    },
+  ],
+  completionActions: [{
+    id: "companion.recruit.guardian",
+    type: "recruitCompanion",
+    targetId: "guardian",
+  }],
+  outcome: "Bram Ironward pledges his shield to your party.",
+};
+const RECRUIT_SCOUT_QUEST: QuestDefinition = {
+  id: RECRUIT_SCOUT_QUEST_ID,
+  name: "The Swiftstep Trail",
+  type: "side",
+  summary: "Follow Kaia Swiftstep's trail and prove you can keep pace.",
+  startNpcId: QUEST_NPC_IDS.scout,
+  startDialogue: [
+    "Anyone can follow a road. I need to know whether you can survive where it ends.",
+    "Bring down the Canyon Drake, then find me again.",
+  ],
+  stages: [
+    {
+      id: "meetScout",
+      title: "Meet the Scout",
+      summary: "Hear Kaia Swiftstep's challenge in Sandport.",
+      objectives: [{
+        id: "meetKaia",
+        type: "talk",
+        targetId: QUEST_NPC_IDS.scout,
+        description: "Speak with Kaia Swiftstep in Sandport.",
+      }],
+    },
+    {
+      id: "scoutTrial",
+      title: "The Scout's Trial",
+      summary: "Defeat the Canyon Drake to prove you can keep pace.",
+      objectives: [
+        {
+          id: "defeatScoutDrake",
+          type: "defeat",
+          targetId: "canyonDrake",
+          description: "Defeat the Canyon Drake.",
+        },
+      ],
+    },
+    {
+      id: "scoutOath",
+      title: "The Scout's Oath",
+      summary: "Return to Kaia and plan the road ahead.",
+      objectives: [
+        {
+          id: "sealScoutOath",
+          type: "talk",
+          targetId: QUEST_NPC_IDS.scout,
+          description: "Return to Kaia Swiftstep.",
+          dialogue: [
+            "You kept pace, and you watched the ground instead of your own glory.",
+            "Good. I will take point from here.",
+          ],
+        },
+      ],
+    },
+  ],
+  completionActions: [{
+    id: "companion.recruit.scout",
+    type: "recruitCompanion",
+    targetId: "scout",
+  }],
+  outcome: "Kaia Swiftstep joins your party as its eyes and ears.",
+};
+const RECRUIT_MYSTIC_QUEST: QuestDefinition = {
+  id: RECRUIT_MYSTIC_QUEST_ID,
+  name: "The Veiled Flame",
+  type: "side",
+  summary: "Help Selene Vey quiet the magic beneath Ashfall.",
+  startNpcId: QUEST_NPC_IDS.mystic,
+  startDialogue: [
+    "The fire beneath Ashfall is dreaming again, and its dreams have teeth.",
+    "Defeat the Volcanic Wyrm. If its flame gutters, I can bind what remains.",
+  ],
+  stages: [
+    {
+      id: "meetMystic",
+      title: "Meet the Mystic",
+      summary: "Hear Selene Vey's warning in Ashfall.",
+      objectives: [{
+        id: "meetSelene",
+        type: "talk",
+        targetId: QUEST_NPC_IDS.mystic,
+        description: "Speak with Selene Vey in Ashfall.",
+      }],
+    },
+    {
+      id: "mysticTrial",
+      title: "The Mystic's Trial",
+      summary: "Defeat the Volcanic Wyrm and quiet its flame.",
+      objectives: [
+        {
+          id: "defeatMysticWyrm",
+          type: "defeat",
+          targetId: "volcanicWyrm",
+          description: "Defeat the Volcanic Wyrm.",
+        },
+      ],
+    },
+    {
+      id: "mysticOath",
+      title: "The Mystic's Oath",
+      summary: "Return to Selene and bind the remaining magic.",
+      objectives: [
+        {
+          id: "sealMysticOath",
+          type: "talk",
+          targetId: QUEST_NPC_IDS.mystic,
+          description: "Return to Selene Vey.",
+          dialogue: [
+            "The wyrm's flame is quiet. What remains will answer to us, not the mountain.",
+            "I will carry the ward beside you.",
+          ],
+        },
+      ],
+    },
+  ],
+  completionActions: [{
+    id: "companion.recruit.mystic",
+    type: "recruitCompanion",
+    targetId: "mystic",
+  }],
+  outcome: "Selene Vey joins your party and carries the ward with her.",
+};
 export const QUESTS: Record<QuestId, QuestDefinition> = {
   [MAIN_QUEST_ID]: MAIN_QUEST,
   [IRON_DISPATCH_QUEST_ID]: IRON_DISPATCH_QUEST,
   [FROST_SILK_QUEST_ID]: FROST_SILK_QUEST,
+  [RECRUIT_GUARDIAN_QUEST_ID]: RECRUIT_GUARDIAN_QUEST,
+  [RECRUIT_SCOUT_QUEST_ID]: RECRUIT_SCOUT_QUEST,
+  [RECRUIT_MYSTIC_QUEST_ID]: RECRUIT_MYSTIC_QUEST,
 };
 
 export interface QuestEntranceLocation {

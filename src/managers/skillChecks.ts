@@ -171,7 +171,6 @@ export class SkillCheckManager {
         }
       }
     }
-
     if (chest.secretDc !== undefined) {
       const checkId = `chest:${chest.id}:secret`;
       const existing = player.progression.skillChecks[checkId];

@@ -71,12 +71,20 @@ export interface HealingTarget {
   label: string;
   currentHp: number;
   readonly maxHp: number;
+  effects?: ActiveStatusEffect[];
 }
 
 export interface HealingTargetResult {
   targetIndex: number;
   targetId: string;
   healing: number;
+}
+
+export interface SpellEffectTargetResult {
+  targetIndex: number;
+  targetId: string;
+  effectId: string;
+  message: string;
 }
 
 export interface MonsterAttackTarget {
@@ -102,6 +110,7 @@ export interface MultiTargetSpellResult {
   mpUsed: number;
   results: SpellTargetResult[];
   healingResults: HealingTargetResult[];
+  effectResults?: SpellEffectTargetResult[];
 }
 
 // ── Shared Attack Resolution ──────────────────────────────────
@@ -435,6 +444,7 @@ export function playerCastSpellAtTargets(
       get maxHp(): number {
         return player.maxHp;
       },
+      effects: player.activeEffects,
     }];
     if (resolvedHealingTargets.length === 0) {
       return {
@@ -472,6 +482,73 @@ export function playerCastSpellAtTargets(
       mpUsed: spell.mpCost,
       results: [],
       healingResults,
+    };
+  }
+
+  if (spell.type === "buff") {
+    if (!spell.targetEffect) {
+      return {
+        message: `${spell.name} has no effect!`,
+        damage: 0,
+        hit: false,
+        mpUsed: 0,
+        results: [],
+        healingResults: [],
+        effectResults: [],
+      };
+    }
+    const resolvedTargets = healingTargets ?? [{
+      id: "party:hero",
+      label: player.name,
+      get currentHp(): number {
+        return player.hp;
+      },
+      set currentHp(value: number) {
+        player.hp = value;
+      },
+      get maxHp(): number {
+        return player.maxHp;
+      },
+      effects: player.activeEffects,
+    }];
+    const effectResults = resolvedTargets.flatMap(
+      (target, targetIndex): SpellEffectTargetResult[] => {
+        if (!target.effects) return [];
+        const effectResult = applyStatusEffect(
+          target.effects,
+          spell.targetEffect!,
+          player.name,
+        );
+        return effectResult.applied
+          ? [{
+              targetIndex,
+              targetId: target.id,
+              effectId: spell.targetEffect!,
+              message: effectResult.message,
+            }]
+          : [];
+      },
+    );
+    if (effectResults.length === 0) {
+      return {
+        message: "No valid targets!",
+        damage: 0,
+        hit: false,
+        mpUsed: 0,
+        results: [],
+        healingResults: [],
+        effectResults: [],
+      };
+    }
+    player.mp -= spell.mpCost;
+    return {
+      message: `${player.name} casts ${spell.name}!`,
+      damage: 0,
+      hit: true,
+      mpUsed: spell.mpCost,
+      results: [],
+      healingResults: [],
+      effectResults,
     };
   }
 

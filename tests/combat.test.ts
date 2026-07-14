@@ -209,6 +209,50 @@ describe("combat system", () => {
       expect(companion.currentHp).toBeGreaterThan(5);
       expect(random).toHaveBeenCalledTimes(3);
     });
+
+    it("applies an all-party buff once without consuming MP on duplicate casts", () => {
+      const player = createPlayer("Test", defaultStats);
+      player.mp = 100;
+      const hero = {
+        id: "party:hero",
+        label: "Hero",
+        currentHp: 30,
+        maxHp: 30,
+        effects: [],
+      };
+      const companion = {
+        id: "party:companion:mystic",
+        label: "Mystic",
+        currentHp: 25,
+        maxHp: 25,
+        effects: [],
+      };
+      const initialMp = player.mp;
+
+      const first = playerCastSpellAtTargets(
+        player,
+        "massHaste",
+        [],
+        [hero, companion],
+      );
+      const second = playerCastSpellAtTargets(
+        player,
+        "massHaste",
+        [],
+        [hero, companion],
+      );
+
+      expect(first.mpUsed).toBeGreaterThan(0);
+      expect(first.effectResults).toHaveLength(2);
+      expect(hero.effects).toEqual([
+        { id: "haste", remainingTurns: 3, source: "Test" },
+      ]);
+      expect(companion.effects).toEqual([
+        { id: "haste", remainingTurns: 3, source: "Test" },
+      ]);
+      expect(second.mpUsed).toBe(0);
+      expect(player.mp).toBe(initialMp - first.mpUsed);
+    });
   });
 
   describe("monsterAttack", () => {

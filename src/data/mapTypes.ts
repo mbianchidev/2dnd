@@ -3,6 +3,8 @@
  * Extracted to break circular dependencies between map sub-modules.
  */
 
+import type { DungeonTrapProfile } from "./trapTypes";
+
 export enum Terrain {
   Grass = 0,
   Forest = 1,
@@ -106,6 +108,8 @@ export interface DungeonData {
   bossId?: string;
   /** Explicit level transitions keyed by their source tile. */
   connections: DungeonConnection[];
+  /** Procedural trap population and difficulty for this dungeon. */
+  trapProfile: DungeonTrapProfile;
 }
 
 export type ChestLocation =

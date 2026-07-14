@@ -3,6 +3,7 @@ import type { NpcInstance } from "./npcs";
 
 export const SKILL_CHECK_ABILITIES = [
   "dexterity",
+  "intelligence",
   "wisdom",
   "charisma",
 ] as const;
@@ -205,16 +206,5 @@ export const EXPLORATION_EVENTS: ExplorationEventDefinition[] = [
     failureText: "The stonework gives up none of its secrets.",
     successGold: 30,
     revealRadius: 5,
-  },
-  {
-    id: "fallingMasonry",
-    environments: ["dungeon"],
-    terrains: [Terrain.DungeonFloor],
-    ability: "dexterity",
-    dc: 13,
-    chance: 0.035,
-    successText: "You dive aside as loose masonry crashes down.",
-    failureText: "Falling stone catches you before you escape.",
-    failureDamage: 8,
   },
 ];

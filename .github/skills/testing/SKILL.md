@@ -18,8 +18,11 @@ Write comprehensive tests for game mechanics using Vitest while avoiding UI/inte
 ✅ XP and leveling formulas
 ✅ Quest objective counters, prerequisites, rewards, gates, danger rules, and
 save normalization
+✅ Companion definitions, party progression, transfers, KO/reward rules, and
+ranked gambit selection/normalization
 ✅ Data integrity (monsters, spells, items)
 ✅ Game logic functions
+✅ Seeded layouts and persistent state machines
 ✅ Non-combat skill-check math, outcomes, and save normalization
 
 ### What NOT to Test  
@@ -39,7 +42,12 @@ tests/
 ├── battleActions.test.ts # Pure gambit planning and validation
 ├── monsterGroups.test.ts # Group templates and generation
 ├── partyCombat.test.ts # Stable actor IDs, ally scopes, AI, and result hooks
+├── party.test.ts     # Recruitment, progression, transfers, rests, KO/rewards
+├── companions.test.ts # Immutable companion definitions and loadouts
+├── gambits.test.ts   # Ranked conditions/actions/targets and normalization
+├── followers.test.ts # Pure non-blocking follower trail updates
 ├── player.test.ts    # Player systems
+├── traps.test.ts     # Dungeon trap placement, checks, and effects
 ├── quests.test.ts    # Quest progression and integrity
 ├── skillChecks.test.ts # Exploration/dialogue checks
 ├── save.test.ts      # Persistence and migration
@@ -61,6 +69,21 @@ migration.
 - Test terrain event selection with explicit random values.
 - Cover reward bounds, nonlethal damage, save round trips, missing fields, and
   malformed record repair.
+
+## Companion Testing
+
+- Use deterministic companion creation at explicit hero levels; verify
+  independent inventory objects and level-tier loadouts.
+- Test quest completion replay, reload, debug completion, and repeated replay
+  against the same unique recruited-ID guard.
+- Construct `BattleActionSource`/`PartyCombatant` adapters and verify HP/MP
+  writes reach the underlying companion state.
+- Test gambits as pure rank/condition/target selection. Invalid rules must not
+  mutate action economy, MP, inventory, or effects.
+- Cover living-vs-KO XP distribution, level-1 XP floor, party wipe recovery,
+  and party-wide inn rest.
+- Keep Phaser visuals in headless Chromium flows; pure trail positioning and UI
+  mutation helpers belong in Vitest.
 
 ## Dice Testing Patterns
 

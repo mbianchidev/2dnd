@@ -9,6 +9,9 @@ import {
   QUEST_ITEM_IDS,
   QUEST_NPCS,
   QUESTS,
+  RECRUIT_GUARDIAN_QUEST_ID,
+  RECRUIT_MYSTIC_QUEST_ID,
+  RECRUIT_SCOUT_QUEST_ID,
 } from "../src/data/quests";
 import {
   CITIES,
@@ -45,6 +48,9 @@ import {
   setQuestStageById,
   setQuestState,
 } from "../src/systems/questDebug";
+import {
+  synchronizeCompanionRecruitment,
+} from "../src/systems/party";
 
 function createTestPlayer(): PlayerState {
   return createPlayer("QuestHero", {
@@ -79,7 +85,87 @@ describe("Twelvefold Covenant progression", () => {
     });
     expect(log.quests[IRON_DISPATCH_QUEST_ID].status).toBe("locked");
     expect(log.quests[FROST_SILK_QUEST_ID].status).toBe("locked");
+    expect(log.quests[RECRUIT_GUARDIAN_QUEST_ID].status).toBe("locked");
+    expect(log.quests[RECRUIT_SCOUT_QUEST_ID].status).toBe("locked");
+    expect(log.quests[RECRUIT_MYSTIC_QUEST_ID].status).toBe("locked");
     expect(log.seenWarnings).toEqual([]);
+  });
+
+  it("runs a recruitment quest through trial, oath, and replayable recruitment", () => {
+    const player = createTestPlayer();
+    const defeatedBosses = new Set<string>();
+
+    const startInteraction = getNpcQuestInteraction(player, "guardian");
+    expect(startInteraction).toMatchObject({
+      kind: "start",
+      questId: RECRUIT_GUARDIAN_QUEST_ID,
+    });
+    const started = completeNpcQuestInteraction(
+      player,
+      defeatedBosses,
+      startInteraction!,
+    );
+
+    expect(started.changed).toBe(true);
+    expect(getQuestProgress(player, RECRUIT_GUARDIAN_QUEST_ID)).toMatchObject({
+      status: "active",
+      stage: 1,
+      objectives: { meetBram: 1 },
+    });
+    expect(getNpcQuestInteraction(player, "guardian")).toBeNull();
+
+    const waiting = reconcileQuestState(player, defeatedBosses);
+    expect(waiting.changed).toBe(false);
+    defeatedBosses.add("troll");
+
+    const passed = reconcileQuestState(player, defeatedBosses);
+    expect(passed.changed).toBe(true);
+    expect(getQuestProgress(player, RECRUIT_GUARDIAN_QUEST_ID).stage).toBe(2);
+
+    const oathInteraction = getNpcQuestInteraction(player, "guardian");
+    expect(oathInteraction).toMatchObject({
+      kind: "objective",
+      questId: RECRUIT_GUARDIAN_QUEST_ID,
+      objectiveId: "sealGuardianOath",
+    });
+    const completed = completeNpcQuestInteraction(
+      player,
+      defeatedBosses,
+      oathInteraction!,
+    );
+    expect(completed.changed).toBe(true);
+    expect(
+      getQuestProgress(player, RECRUIT_GUARDIAN_QUEST_ID).status,
+    ).toBe("completed");
+    expect(getQuestCompletionActions(
+      player.progression.quests,
+      "recruitCompanion",
+    )).toContainEqual({
+      questId: RECRUIT_GUARDIAN_QUEST_ID,
+      id: "companion.recruit.guardian",
+      type: "recruitCompanion",
+      targetId: "guardian",
+    });
+
+    expect(synchronizeCompanionRecruitment(player)).toHaveLength(1);
+    expect(synchronizeCompanionRecruitment(player)).toHaveLength(0);
+    expect(player.party.companions.map((companion) => companion.id)).toEqual([
+      "guardian",
+    ]);
+  });
+
+  it("keeps Covenant progress unchanged while starting recruitment", () => {
+    const player = createTestPlayer();
+    setQuestState(player, MAIN_QUEST_ID, 3);
+
+    const interaction = getNpcQuestInteraction(player, "guardian");
+    completeNpcQuestInteraction(player, new Set<string>(), interaction!);
+
+    expect(getQuestProgress(player, MAIN_QUEST_ID)).toMatchObject({
+      status: "active",
+      stage: 3,
+    });
+    expect(getQuestProgress(player, RECRUIT_GUARDIAN_QUEST_ID).stage).toBe(1);
   });
 
   it("advances through Willowdale and the Heartlands chapter", () => {
@@ -428,6 +514,66 @@ describe("quest persistence normalization", () => {
       "completed",
     );
     expect(normalized.quests[FROST_SILK_QUEST_ID].status).toBe("locked");
+    expect(normalized.quests[RECRUIT_GUARDIAN_QUEST_ID].status).toBe("locked");
+  });
+
+  it("migrates flat recruitment progress into the nested quest log", () => {
+    const normalized = normalizeQuestLog({
+      ashenRoad: {
+        status: "active",
+        stage: 0,
+        rewardGranted: false,
+      },
+      recruitGuardian: {
+        status: "completed",
+        stage: 2,
+        rewardGranted: true,
+      },
+      recruitScout: {
+        status: "active",
+        stage: 1,
+        rewardGranted: false,
+      },
+    });
+
+    expect(
+      normalized.quests[RECRUIT_GUARDIAN_QUEST_ID].status,
+    ).toBe("completed");
+    expect(
+      normalized.quests[RECRUIT_SCOUT_QUEST_ID],
+    ).toMatchObject({
+      status: "active",
+      stage: 1,
+      objectives: { meetKaia: 1 },
+    });
+    expect(normalized.quests[RECRUIT_MYSTIC_QUEST_ID].status).toBe("locked");
+  });
+
+  it("keeps locked and active statuses across normalization", () => {
+    for (const status of ["locked", "active"] as const) {
+      const normalized = normalizeQuestLog({
+        quests: {
+          [MAIN_QUEST_ID]: {
+            status,
+            stage: 1,
+            objectives: { speakElowen: 1 },
+            claimedRewards: [],
+          },
+        },
+      });
+      expect(normalized.quests[MAIN_QUEST_ID].status).toBe(status);
+    }
+  });
+
+  it("shows active and completed quests in the journal without revealing locked sidequests", () => {
+    const player = createTestPlayer();
+    expect(getQuestJournalEntries(player)).toHaveLength(1);
+
+    setQuestState(player, IRON_DISPATCH_QUEST_ID, "active");
+    expect(getQuestJournalEntries(player).map((entry) => entry.id)).toEqual([
+      MAIN_QUEST_ID,
+      IRON_DISPATCH_QUEST_ID,
+    ]);
   });
 });
 
@@ -443,7 +589,16 @@ describe("quest data integrity", () => {
     );
 
     expect(main.stages).toHaveLength(7);
-    expect(mainNpcIds).toEqual(new Set(Object.keys(QUEST_NPCS)));
+    const recruitmentNpcIds = new Set([
+      "guardian",
+      "scout",
+      "mystic",
+    ]);
+    expect(mainNpcIds).toEqual(new Set(
+      Object.keys(QUEST_NPCS).filter((npcId) =>
+        !recruitmentNpcIds.has(npcId)
+      ),
+    ));
   });
 
   it("references valid NPCs, monsters, rewards, cities, and dungeons", () => {
@@ -517,7 +672,7 @@ describe("quest data integrity", () => {
     expect(QUEST_DANGER_RULES.length).toBeGreaterThan(0);
   });
 
-  it("uses unique stable IDs and places quest NPCs on walkable tiles", () => {
+  it("uses unique stable IDs", () => {
     const objectiveIds = new Set<string>();
     const rewardIds = new Set<string>();
     const actionIds = new Set<string>();
@@ -550,7 +705,53 @@ describe("quest data integrity", () => {
         actionIds.add(action.id);
       }
     }
+  });
 
+  it("reserves the three stable recruitment paths and actions", () => {
+    expect(QUEST_IDS).toContain("recruitGuardian");
+    expect(QUEST_IDS).toContain("recruitScout");
+    expect(QUEST_IDS).toContain("recruitMystic");
+    expect(QUESTS.recruitGuardian.stages.map((stage) => stage.id)).toEqual([
+      "meetGuardian",
+      "guardianTrial",
+      "guardianOath",
+    ]);
+    expect(QUESTS.recruitScout.stages.map((stage) => stage.id)).toEqual([
+      "meetScout",
+      "scoutTrial",
+      "scoutOath",
+    ]);
+    expect(QUESTS.recruitMystic.stages.map((stage) => stage.id)).toEqual([
+      "meetMystic",
+      "mysticTrial",
+      "mysticOath",
+    ]);
+    expect(
+      [
+        QUESTS.recruitGuardian,
+        QUESTS.recruitScout,
+        QUESTS.recruitMystic,
+      ].map((quest) => quest.completionActions?.[0]),
+    ).toEqual([
+      {
+        id: "companion.recruit.guardian",
+        type: "recruitCompanion",
+        targetId: "guardian",
+      },
+      {
+        id: "companion.recruit.scout",
+        type: "recruitCompanion",
+        targetId: "scout",
+      },
+      {
+        id: "companion.recruit.mystic",
+        type: "recruitCompanion",
+        targetId: "mystic",
+      },
+    ]);
+  });
+
+  it("places every quest NPC on a unique walkable primary-city tile", () => {
     for (const city of CITIES) {
       const questNpcs = (CITY_NPCS[city.id] ?? []).filter(
         (npc) => npc.questNpcId,

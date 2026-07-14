@@ -5,6 +5,9 @@ import {
   QUEST_DANGER_RULES,
   QUEST_IDS,
   QUESTS,
+  RECRUIT_GUARDIAN_QUEST_ID,
+  RECRUIT_MYSTIC_QUEST_ID,
+  RECRUIT_SCOUT_QUEST_ID,
 } from "../data/quests";
 import type {
   QuestDefinition,
@@ -75,6 +78,15 @@ export function createQuestLog(): QuestLogState {
         IRON_DISPATCH_QUEST_ID,
       ),
       [FROST_SILK_QUEST_ID]: createDefaultProgress(FROST_SILK_QUEST_ID),
+      [RECRUIT_GUARDIAN_QUEST_ID]: createDefaultProgress(
+        RECRUIT_GUARDIAN_QUEST_ID,
+      ),
+      [RECRUIT_SCOUT_QUEST_ID]: createDefaultProgress(
+        RECRUIT_SCOUT_QUEST_ID,
+      ),
+      [RECRUIT_MYSTIC_QUEST_ID]: createDefaultProgress(
+        RECRUIT_MYSTIC_QUEST_ID,
+      ),
     },
     seenWarnings: [],
   };
@@ -171,13 +183,33 @@ function migrateLegacyQuestLog(value: Record<string, unknown>): QuestLogState {
       claimedRewards: claimedRewardIds(IRON_DISPATCH_QUEST_ID),
     }, QUESTS[IRON_DISPATCH_QUEST_ID]);
   }
+
+  for (const questId of [
+    RECRUIT_GUARDIAN_QUEST_ID,
+    RECRUIT_SCOUT_QUEST_ID,
+    RECRUIT_MYSTIC_QUEST_ID,
+  ] as const) {
+    const legacyRecruitment = value[questId];
+    if (isRecord(legacyRecruitment)) {
+      migrated.quests[questId] = normalizeQuestProgress(
+        legacyRecruitment,
+        QUESTS[questId],
+      );
+    }
+  }
   return migrated;
 }
 
-/** Normalize untrusted v5 quest data and migrate the flat v4 quest shape. */
+/** Normalize untrusted quest data and migrate legacy flat quest shapes. */
 export function normalizeQuestLog(value: unknown): QuestLogState {
   if (!isRecord(value)) return createQuestLog();
-  if ("ashenRoad" in value || "wardensDispatch" in value) {
+  if (
+    "ashenRoad" in value
+    || "wardensDispatch" in value
+    || RECRUIT_GUARDIAN_QUEST_ID in value
+    || RECRUIT_SCOUT_QUEST_ID in value
+    || RECRUIT_MYSTIC_QUEST_ID in value
+  ) {
     return migrateLegacyQuestLog(value);
   }
 

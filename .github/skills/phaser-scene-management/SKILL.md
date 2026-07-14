@@ -70,6 +70,10 @@ Scene-specific additions:
 When a scene contract changes, update every `scene.start()` caller in the same
 change.
 
+`player.party` is persistent nested state and travels automatically with
+`player`. Battle may additionally receive runtime-only accessor-backed
+`partyCombatants`; never serialize those wrappers.
+
 ## Transition pattern
 
 ```typescript
@@ -110,6 +114,12 @@ a restarted scene receives fresh helpers, then load persisted data into them:
 - `QuestFlowManager`
 - `SkillCheckManager`
 - `DebugCommandSystem`
+- `CompanionFollowerManager`
+- `PartyOverlayManager`
+
+Battle delegates companion manual/gambit turn UI to `BattlePartyManager` and
+companion presentation to `BattlePartyRenderer`. Destroy their transient
+containers on scene exit/restart.
 
 Before replacing `FogOfWar` or `EncounterSystem`, preserve their debug toggle
 state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.

@@ -22,7 +22,6 @@ import {
 import { getItem, type Item } from "../data/items";
 import type { PlayerState } from "../systems/player";
 import {
-  awardXP,
   getArmorClass,
   useItem,
   xpForLevel,
@@ -39,6 +38,8 @@ import {
 import type { HealingTarget } from "../systems/combat";
 import {
   createBattleActionEconomy,
+  createPlayerBattleActionSource,
+  type BattleActionSource,
   type BattleActionEconomyState,
 } from "../systems/battleActions";
 import { abilityModifier } from "../systems/dice";
@@ -59,6 +60,13 @@ import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
 import { drawTimeSky as _drawTimeSky, drawCelestialBody as _drawCelestialBody, drawTerrainForeground as _drawTerrainForeground, applyBattleDayNightTint, createBattleWeatherParticles } from "../renderers/battleEffects";
 import { PlayerRenderer } from "../renderers/player";
+import { BattlePartyRenderer } from "../renderers/battleParty";
+import { BattlePartyManager } from "../managers/battleParty";
+import {
+  applyPartyDefeat,
+  createPartyActionSources,
+  distributePartyVictory,
+} from "../systems/party";
 import {
   clearAllEffects,
   getActiveEffectNames,
@@ -100,6 +108,7 @@ import {
   type BattleResolutionHooks,
   type BattleReward,
   type BattleTurn,
+  type CompanionTurnContext,
   type GroupCombatant,
   type PartyCombatant,
 } from "../systems/groupCombat";
@@ -136,6 +145,9 @@ export class BattleScene extends Phaser.Scene {
   private combatants: GroupCombatant[] = [];
   private heroCombatant!: PartyCombatant;
   private partyCombatants: PartyCombatant[] = [];
+  private partyActionSources: BattleActionSource[] = [];
+  private battlePartyManager!: BattlePartyManager;
+  private battlePartyRenderer!: BattlePartyRenderer;
   private battleHooks: BattleResolutionHooks | undefined;
   private battleResultReported = false;
   private playerEconomy!: BattleActionEconomyState;
@@ -278,6 +290,33 @@ export class BattleScene extends Phaser.Scene {
         (combatant) => combatant.id !== this.heroCombatant.id,
       ),
     ];
+    this.partyActionSources = [
+      createPlayerBattleActionSource(this.player, this.heroCombatant),
+      ...createPartyActionSources(
+        this.player.party,
+        this.partyCombatants.filter(
+          (combatant) => combatant.actorKind === "companion",
+        ),
+      ),
+    ];
+    this.battlePartyManager = new BattlePartyManager(
+      this,
+      this.player.party,
+      this.partyActionSources,
+      {
+        refresh: () => {
+          this.updateMonsterDisplay();
+          this.updatePlayerStats();
+          this.battlePartyRenderer?.update(
+            this.partyCombatants,
+            this.partyActionSources,
+          );
+        },
+        afterAction: (previouslyAliveEnemyIds) =>
+          this.afterPartyAction(previouslyAliveEnemyIds),
+      },
+    );
+    this.battlePartyRenderer = new BattlePartyRenderer(this);
     this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
     this.battleHooks = data.battleHooks;
     this.battleResultReported = false;
@@ -321,6 +360,10 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.fadeIn(300);
 
     this.drawBattleUI();
+    this.battlePartyRenderer.render(
+      this.partyCombatants,
+      this.partyActionSources,
+    );
     this.drawTimeSky();
     this.drawCelestialBody();
     this.setupDebug();
@@ -696,50 +739,46 @@ export class BattleScene extends Phaser.Scene {
       completed = true;
       this.finishCompanionTurn(combatant);
     };
-    if (this.battleHooks?.onCompanionTurn) {
-      try {
-        this.battleHooks.onCompanionTurn({
-          combatant,
-          actors: this.allCombatants,
-          enemies: this.combatants,
-          weatherPenalty: getWeatherAccuracyPenalty(this.weatherState.current),
-          getEnemyDefenseBonus: (targetId: string): number => {
-            const targetIndex = this.combatants.findIndex(
-              (enemy) => enemy.id === targetId,
-            );
-            return targetIndex >= 0
-              ? getSynergyACBonus(
-                  this.encounter.synergy,
-                  this.combatants,
-                  targetIndex,
-                )
-              : 0;
-          },
-          recordElementalInteraction: (
-            targetId,
+    const context: CompanionTurnContext = {
+      combatant,
+      actors: this.allCombatants,
+      enemies: this.combatants,
+      weatherPenalty: getWeatherAccuracyPenalty(this.weatherState.current),
+      getEnemyDefenseBonus: (targetId: string): number => {
+        const targetIndex = this.combatants.findIndex(
+          (enemy) => enemy.id === targetId,
+        );
+        return targetIndex >= 0
+          ? getSynergyACBonus(
+              this.encounter.synergy,
+              this.combatants,
+              targetIndex,
+            )
+          : 0;
+      },
+      recordElementalInteraction: (
+        targetId,
+        interaction,
+        element,
+      ): void => {
+        const targetIndex = this.combatants.findIndex(
+          (enemy) => enemy.id === targetId,
+        );
+        if (targetIndex >= 0) {
+          this.recordElementalDiscovery(
             interaction,
             element,
-          ): void => {
-            const targetIndex = this.combatants.findIndex(
-              (enemy) => enemy.id === targetId,
-            );
-            if (targetIndex >= 0) {
-              this.recordElementalDiscovery(
-                interaction,
-                element,
-                targetIndex,
-              );
-            }
-          },
-          addLog: (message: string): void => this.addLog(message),
-          completeTurn,
-        });
-      } catch (error) {
-        this.handleError("onCompanionTurn", error);
-        completeTurn();
-      }
-    } else {
-      this.addLog(`${combatant.label} has no turn handler and waits.`);
+            targetIndex,
+          );
+        }
+      },
+      addLog: (message: string): void => this.addLog(message),
+      completeTurn,
+    };
+    try {
+      this.battlePartyManager.startTurn(combatant, context);
+    } catch (error) {
+      this.handleError("startCompanionTurn", error);
       completeTurn();
     }
   }
@@ -1612,6 +1651,10 @@ export class BattleScene extends Phaser.Scene {
         `MP: ${p.mp}/${p.maxMp} ${this.getMpBar(p.mp, p.maxMp, 8)}\n` +
         `AC: ${getArmorClass(p)}${this.playerDefending ? "+2" : ""}${effectLine}`
     );
+    this.battlePartyRenderer?.update(
+      this.partyCombatants,
+      this.partyActionSources,
+    );
   }
 
   private getStatusSummary(effects: ActiveStatusEffect[]): string {
@@ -2371,11 +2414,13 @@ export class BattleScene extends Phaser.Scene {
       if (warCryActive) this.warCryCombatants.delete(combatantIndex);
 
       // Shield defend bonus: reduce incoming damage by 1 when defending with a shield equipped
+      const partyTargetSource = this.partyActionSources.find(
+        (source) => source.combatant.id === partyTarget.id,
+      );
       const shieldDefendReduction = (
-        partyTarget.actorKind === "hero"
-        && partyTarget.isDefending
-        && this.player.equippedShield
-        && !this.player.equippedWeapon?.twoHanded
+        partyTarget.isDefending
+        && partyTargetSource?.state.equippedShield
+        && !partyTargetSource.state.equippedWeapon?.twoHanded
       ) ? 1 : 0;
       if (shieldDefendReduction > 0 && result.hit && result.damage > 0) {
         const reduced = Math.min(shieldDefendReduction, result.damage);
@@ -2426,6 +2471,17 @@ export class BattleScene extends Phaser.Scene {
             yoyo: true,
             repeat: 2,
           });
+        } else {
+          const sprite = this.battlePartyRenderer.getSprite(partyTarget.id);
+          if (sprite) {
+            this.tweens.add({
+              targets: sprite,
+              x: sprite.x - 8,
+              duration: 50,
+              yoyo: true,
+              repeat: 2,
+            });
+          }
         }
       } else if (audioEngine.initialized) {
         audioEngine.playMissSFX();
@@ -2512,25 +2568,12 @@ export class BattleScene extends Phaser.Scene {
     return true;
   }
 
-  private setCombatantHp(combatantIndex: number, value: number): void {
+  private handleEnemyDefeat(
+    combatantIndex: number,
+    synergyWasActive: boolean,
+  ): void {
     const combatant = this.combatants[combatantIndex];
-    if (!combatant) {
-      throw new Error(`[BattleScene] Missing combatant ${combatantIndex}`);
-    }
-    if (!combatant.isAlive && value > 0) return;
-
-    const wasAlive = combatant.isAlive;
-    const synergyWasActive = isSynergyActive(
-      this.encounter.synergy,
-      this.combatants,
-    );
-    combatant.currentHp = Phaser.Math.Clamp(
-      value,
-      0,
-      combatant.monster.hp,
-    );
-    if (combatant.currentHp > 0 || !wasAlive) return;
-
+    if (!combatant) return;
     combatant.isAlive = false;
     combatant.isKnockedOut = true;
     combatant.isDefending = false;
@@ -2562,6 +2605,56 @@ export class BattleScene extends Phaser.Scene {
       const next = this.combatants.findIndex((ally) => ally.isAlive);
       if (next >= 0) this.selectedTargetIndex = next;
     }
+  }
+
+  private afterPartyAction(
+    previouslyAliveEnemyIds: ReadonlySet<string>,
+  ): boolean {
+    const synergyWasActive = this.encounter.synergy
+      ? this.combatants.length - previouslyAliveEnemyIds.size
+        < this.encounter.synergy.breakThreshold
+      : false;
+    for (const [index, combatant] of this.combatants.entries()) {
+      if (
+        previouslyAliveEnemyIds.has(combatant.id)
+        && !isCombatantActive(combatant)
+      ) {
+        this.handleEnemyDefeat(index, synergyWasActive);
+      }
+    }
+    this.updateMonsterDisplay();
+    this.updatePlayerStats();
+    this.battlePartyRenderer.update(
+      this.partyCombatants,
+      this.partyActionSources,
+    );
+    if (countAliveCombatants(this.combatants) === 0) {
+      this.handleVictory();
+      return true;
+    }
+    return false;
+  }
+
+  private setCombatantHp(combatantIndex: number, value: number): void {
+    const combatant = this.combatants[combatantIndex];
+    if (!combatant) {
+      throw new Error(`[BattleScene] Missing combatant ${combatantIndex}`);
+    }
+    if (!combatant.isAlive && value > 0) return;
+
+    const wasAlive = combatant.isAlive;
+    const synergyWasActive = isSynergyActive(
+      this.encounter.synergy,
+      this.combatants,
+    );
+    combatant.currentHp = Phaser.Math.Clamp(
+      value,
+      0,
+      combatant.monster.hp,
+    );
+    if (combatant.currentHp > 0 || !wasAlive) return;
+
+    this.handleEnemyDefeat(combatantIndex, synergyWasActive);
   }
 
   private checkBattleEnd(endPlayerTurn = true): void {
@@ -2596,18 +2689,26 @@ export class BattleScene extends Phaser.Scene {
     }
 
     const rewards = resolveBattleRewards(this.encounter, this.battleHooks);
-    this.player.gold += rewards.gold;
-    const xpResult = awardXP(this.player, rewards.xp);
-    this.addLog(`Gained ${rewards.xp} XP and ${rewards.gold} gold!`);
+    const battleResult = this.reportBattleResult(
+      "victory",
+      rewards,
+      this.combatants.flatMap((combatant) => combatant.droppedItemIds),
+    );
+    const distribution = distributePartyVictory(this.player, battleResult);
+    this.addLog(
+      `Party gained ${rewards.xp} XP and ${rewards.gold} gold!`,
+    );
+    for (const combatantId of distribution.penalizedIds) {
+      const combatant = getCombatantById(this.partyCombatants, combatantId);
+      if (combatant) {
+        this.addLog(`${combatant.label} was knocked out and lost current-level XP.`);
+      }
+    }
 
     for (const item of droppedItems) {
       this.player.inventory.push(item);
       this.addLog(`🌟 Found: ${item.name}!`);
     }
-    if (xpResult.pendingLevels > 0) {
-      this.addLog(`⬆ ${xpResult.pendingLevels} level-up${xpResult.pendingLevels > 1 ? "s" : ""} pending! Rest to level up.`);
-    }
-
     for (const combatant of this.combatants) {
       if (combatant.monster.isBoss) {
         this.defeatedBosses.add(combatant.monster.id);
@@ -2623,12 +2724,6 @@ export class BattleScene extends Phaser.Scene {
       this.addLog("Quest progress recorded.");
     }
     recordGroupDefeats(this.codex, this.combatants);
-    this.reportBattleResult(
-      "victory",
-      rewards,
-      this.combatants.flatMap((combatant) => combatant.droppedItemIds),
-    );
-
     if (audioEngine.initialized) {
       audioEngine.playVictoryJingle();
     }
@@ -2640,37 +2735,28 @@ export class BattleScene extends Phaser.Scene {
     outcome: BattleOutcome,
     rewards: BattleReward = { xp: 0, gold: 0 },
     droppedItemIds: string[] = [],
-  ): void {
-    if (this.battleResultReported) return;
-    this.battleResultReported = true;
-    this.battleHooks?.onBattleResolved?.(
-      createBattleResult(
-        outcome,
-        this.partyCombatants,
-        this.combatants,
-        rewards,
-        droppedItemIds,
-      ),
+  ): ReturnType<typeof createBattleResult> {
+    const result = createBattleResult(
+      outcome,
+      this.partyCombatants,
+      this.combatants,
+      rewards,
+      droppedItemIds,
     );
+    if (!this.battleResultReported) {
+      this.battleResultReported = true;
+      this.battleHooks?.onBattleResolved?.(result);
+    }
+    return result;
   }
 
   private handleDefeat(): void {
-    this.reportBattleResult("defeat");
+    const result = this.reportBattleResult("defeat");
     // Play defeat music
     if (audioEngine.initialized) {
       audioEngine.playDefeatMusic();
     }
-    // On defeat: restore half HP, lose some gold, return to last visited town
-    this.player.hp = Math.floor(this.player.maxHp / 2);
-    this.player.mp = Math.floor(this.player.maxMp / 2);
-    this.player.gold = Math.floor(this.player.gold * 0.7);
-    // Return to last town (or Willowdale as fallback)
-    this.player.position.x = this.player.lastTownX ?? 2;
-    this.player.position.y = this.player.lastTownY ?? 2;
-    this.player.position.chunkX = this.player.lastTownChunkX ?? 1;
-    this.player.position.chunkY = this.player.lastTownChunkY ?? 1;
-    this.player.position.inDungeon = false;
-    this.player.position.dungeonId = "";
+    applyPartyDefeat(this.player, result.knockedOutPartyIds);
     this.addLog("You wake up in town, bruised but alive...");
     this.time.delayedCall(2000, () => this.returnToOverworld());
   }
@@ -2756,6 +2842,8 @@ export class BattleScene extends Phaser.Scene {
   private returnToOverworld(): void {
     if (this.isReturningToOverworld) return;
     this.isReturningToOverworld = true;
+    this.battlePartyManager.clear();
+    this.battlePartyRenderer.clear();
     for (const combatant of this.partyCombatants) {
       clearAllEffects(combatant.effects);
     }

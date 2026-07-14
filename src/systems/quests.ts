@@ -596,6 +596,21 @@ export function completeNpcQuestInteraction(
       && questAvailable(player, quest)
     ) {
       changed = startQuest(player, quest, updates);
+      for (const objective of getCurrentStage(quest, progress).objectives) {
+        if (
+          objective.type === "talk"
+          && objective.targetId === interaction.npcId
+          && prerequisitesComplete(progress, objective)
+        ) {
+          changed = completeObjective(
+            quest,
+            progress,
+            objective,
+            objectiveRequired(objective),
+            updates,
+          ) || changed;
+        }
+      }
     }
   } else if (progress.status === "active" && interaction.objectiveId) {
     const objective = getCurrentStage(quest, progress).objectives.find(

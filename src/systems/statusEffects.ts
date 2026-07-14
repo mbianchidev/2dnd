@@ -19,6 +19,7 @@ export const STATUS_EFFECT_IDS = [
   "confused",
   "enraged",
   "haste",
+  "inspired",
   "rage",
   "sneakStance",
 ] as const;
@@ -171,6 +172,15 @@ export const STATUS_EFFECT_DEFS: StatusEffectDef[] = [
     accuracyModifier: 2, attackDisadvantage: false,
     acModifier: 2, damageModifier: 0, skipsTurn: false,
     saveStat: "dexterity", saveDC: 0,
+    removalMethods: ["duration"],
+  },
+  {
+    id: "inspired", name: "Inspired",
+    description: "Gains increased accuracy and damage",
+    category: "buff", defaultDuration: 3, tickDamage: 0, tickDie: 0,
+    accuracyModifier: 1, attackDisadvantage: false,
+    acModifier: 0, damageModifier: 2, skipsTurn: false,
+    saveStat: "charisma", saveDC: 0,
     removalMethods: ["duration"],
   },
   {

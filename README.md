@@ -17,6 +17,13 @@ API, and saves use `localStorage`.
   abilities, talents, equipment, shields, mounts, and banking
 - Leveling to 20 with hit-die HP growth, proficiency bonuses, and ability score
   improvements
+- Three quest-recruited companions (Guardian, Scout, Mystic) with independent
+  levels, stats, HP/MP, spells, abilities, equipment, inventories, and ASI
+  progression
+- Hero plus three active companions, reserve/active ordering, item transfers,
+  party-wide inn recovery, and persistent manual or gambit control
+- Ranked 12-rule gambits use structured subjects, conditions, actions, and
+  targets; invalid rules safely fall through without consuming resources
 
 ### Combat
 
@@ -27,10 +34,9 @@ API, and saves use `localStorage`.
   front/back formations, keyboard or pointer target selection, and group
   synergies such as Pack Tactics, Shield Wall, War Cry, healer support, and
   elemental combos
-- Party-ready battle contracts use stable combatant IDs, explicit party/enemy
-  allegiance, actor-ID initiative, ally/enemy target scopes, monster target
-  selection, and companion turn/result hooks; companion persistence remains a
-  separate feature
+- Party battles use stable combatant IDs, explicit party/enemy allegiance,
+  individual initiative, ally/enemy target scopes, living-party monster target
+  selection, manual companion turns, automated gambits, and shared result hooks
 - `battleActions.ts` provides a Phaser-free gambit pipeline to enumerate living
   actors, bind matched and item-declared ally/self targets, validate
   MP/inventory/action economy, freeze an action plan, consume one action plus
@@ -44,15 +50,17 @@ API, and saves use `localStorage`.
   the item while HP, MP, or cures apply to the selected target
 - Single-target, row-targeted, random-two, and all-enemy spell targeting; AoE
   spells pay MP and roll damage once, then resolve each monster independently
+- Single/all-party healing, Mass Haste, and Inspiring Chorus apply one shared
+  roll/cost across the resolved party targets
 - Nine damage elements: Fire, Ice, Lightning, Poison, Necrotic, Radiant,
   Thunder, Force, and Psychic
 - Monster weaknesses deal double damage, resistances halve damage, and
   immunities prevent damage
 - Elemental interactions are discovered through combat and recorded per
   monster in the Codex
-- 14 status effects shared by players and monsters:
+- 15 status effects shared by players and monsters:
   Poisoned, Burning, Frozen, Paralyzed, Stunned, Frightened, Slowed, Prone,
-  Asleep, Confused, Enraged, Hasted, Raging, and Sneak Stance
+  Asleep, Confused, Enraged, Hasted, Inspired, Raging, and Sneak Stance
 - Start-of-turn damage and saving throws, skipped turns, attack disadvantage,
   accuracy/AC/damage modifiers, duration expiration, and cure items
 - Combat effects are cleared when Battle ends because their durations use the
@@ -60,7 +68,8 @@ API, and saves use `localStorage`.
 
 ### Non-combat skill checks
 
-- D20 ability checks use the player's Dexterity, Wisdom, or Charisma modifier;
+- D20 ability checks use the player's Dexterity, Intelligence, Wisdom, or
+  Charisma modifier;
   natural 1 and 20 are not automatic outcomes outside attack rolls
 - Charisma supports persistent Persuade/Bluff NPC outcomes and one-attempt shop
   negotiations with 10% or 20% discounts
@@ -81,11 +90,21 @@ API, and saves use `localStorage`.
 - 12 cities with connected districts, district-specific shops, gates,
   discovery, fast travel, inns, banks, stables, and city music
 - Three multi-level dungeons with bidirectional stairs, floor-specific
-  encounters, chests, fog, and a unique deepest-floor boss
+  encounters, chests, fog, procedural traps, and a unique deepest-floor boss
+- Seeded trap layouts with spike pits, poison darts, falling rocks, alarms,
+  hidden floors, and dungeon-specific runes; nearby checks use Dexterity or
+  Intelligence, detected traps can be disarmed for XP, and unresolved traps can
+  deal HP/MP damage, inflict combat statuses, summon encounters, or drop the
+  player to a deeper floor
+- Trap Kits, class talents, and Adventurer guidance improve detection and
+  disarming; seeded layouts and four-state trap outcomes persist explicitly
 - The seven-chapter **Twelvefold Covenant** main quest spans all 12 cities and
-  three dungeon bosses, with two sidequests, optional boss objectives, named
-  story NPCs, dynamic markers, a `Q` journal, unique rewards, gated roads, and
-  soft danger zones
+  three dungeon bosses, with two campaign sidequests, optional boss objectives,
+  named story NPCs, dynamic markers, a `Q` journal, unique rewards, gated roads,
+  and soft danger zones
+- Three additional recruitment quest lines use stable stage IDs and replayable
+  completion actions; active conscious companions follow the hero and can be
+  spoken to during overworld, city, and dungeon exploration
 - Fog keys separate every dungeon level and city district while preserving
   legacy level-zero/chunk-zero save keys
 
@@ -123,11 +142,15 @@ src/
 │   ├── combat.ts
 │   ├── groupCombat.ts
 │   ├── battleActions.ts
+│   ├── party.ts
+│   ├── gambits.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
 │   ├── codex.ts
 │   ├── movement.ts
+│   ├── traps.ts
+│   ├── trapAudio.ts
 │   ├── skillChecks.ts
 │   ├── weather.ts
 │   ├── daynight.ts
@@ -142,6 +165,9 @@ src/
 │   ├── chunks.ts
 │   ├── cities.ts
 │   ├── dungeons.ts
+│   ├── traps.ts
+│   ├── trapTypes.ts
+│   ├── companions.ts
 │   ├── monsters.ts
 │   ├── monsterGroups.ts
 │   ├── elements.ts
@@ -151,10 +177,18 @@ src/
 │   ├── skillChecks.ts
 │   └── items.ts
 ├── managers/
+│   ├── dungeonTraps.ts
+│   ├── companionFollowers.ts
+│   ├── partyOverlay.ts
+│   ├── battleParty.ts
 │   ├── questJournal.ts
 │   ├── questFlow.ts
 │   └── skillChecks.ts
 └── renderers/
+    ├── traps.ts
+    ├── trapTextures.ts
+    ├── characterTextures.ts
+    └── battleParty.ts
 ```
 
 `map.ts` is the map hub. Core types and dimensions live in `mapTypes.ts`;
@@ -180,6 +214,9 @@ For companion recruitment, define three distinct quest IDs and one action per
 path using `type: "recruitCompanion"` and the companion ID as `targetId`.
 `recruitCompanion()` must keep recruited IDs unique, so reloads, debug quest
 completion, and replay cannot duplicate a companion.
+
+See [`docs/companions.md`](docs/companions.md) for party state, recruitment,
+inventories, gambit syntax, combat control, KO/reward rules, and debug commands.
 
 ## Getting started
 
@@ -207,10 +244,13 @@ npm run build      # Type-check and create a production build
 | Input | Action |
 | --- | --- |
 | `WASD` / arrow keys | Move, navigate, and cycle valid Battle targets |
-| `Space` / `Enter` | Confirm or interact |
+| `Space` / `Enter` | Confirm, interact, or disarm a detected adjacent trap |
 | `M` | Open the world or city map |
+| `E` | Open hero equipment |
+| `P` | Open party management, inventories, and gambits |
 | `C` | Open the Codex |
 | `Q` | Open the quest journal |
+| `T` | Mount or dismount |
 | `Esc` | Close the active overlay |
 | Mouse / touch | Select buttons and scroll lists |
 
@@ -223,11 +263,14 @@ Available tools include:
 - Overworld hotkeys for revealing the map, toggling fog, and disabling random
   encounters
 - Slash commands for gold, XP, HP, MP, items, weather, time, teleportation,
-  classes, mounts, audio, Codex discovery, and quest state
+  classes, mounts, audio, Codex discovery, quest state, and companions
 - `/spawn <name-or-id>` for every monster in `ALL_MONSTERS`, including unique
   dungeon bosses, plus special overworld NPC aliases
 - `/quest list`, `/quest advance <id>`, and
   `/quest set <id> <stage-number|stage-id|locked|active|completed>`
+- `/companion list`, `/companion recruit <id|all>`,
+  `/companion mode <id> <manual|gambit>`, `/companion heal`, and
+  `/companion gambits <id>`
 - Local browser checks can force the next random encounter with
   `?forceGroup=<templateId>` (for example, `?forceGroup=slimeSwarm`)
 
@@ -238,7 +281,7 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 Game state is stored under `2dnd_save`; audio preferences use
 `2dnd_audio_prefs`.
 
-Save schema version 5 persists:
+Save schema version 6 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -246,23 +289,36 @@ Save schema version 5 persists:
 - Explored tiles, opened chests, collected treasure, and discovered cities
 - Quest status, stages, objective counters, claimed reward IDs, and acknowledged
   danger warnings
+- Per-playthrough trap seed, authoritative detected/missed/disarmed/triggered
+  trap states, and Adventurer guidance
 - Defeated bosses, Codex entries, and discovered elemental interactions
 - Active status effects, time step, and weather state
 - Normalized non-combat skill-check rolls, choices, and outcomes
+- Recruited and active companion IDs; independent progression, resources,
+  inventories, equipment, status effects, dialogue state, control modes, and
+  normalized ranked gambit rules
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed
 skill-check records are discarded, while valid totals and outcomes are repaired.
 Schema-v3 skill-check saves gain default quest progress, and flat schema-v4
 Ashen Road saves migrate to the nested Covenant state without replaying rewards.
+Flat recruitment quest progress is migrated into the same nested log.
+Schema-v3 skill-check saves gain default trap progress, and schema-v4 quest
+saves gain default trap progress. Malformed trap seeds reset trap states
+so stale IDs cannot resolve against a different layout. Schema-v5 saves gain an
+empty party, and completed recruitment actions replay idempotently after party
+normalization.
 
 ## Testing
 
 The Vitest suite covers combat, elements, statuses, saves, map and city data,
-dungeon traversal, fog keys, movement, player, quest, and skill-check
-progression, dice, weather, day/night, mounts, NPCs, audio, configuration,
-group encounter generation, formation targeting, synergies, rewards,
-multi-target actions, and party-ready combat/action-planning contracts.
+dungeon traversal and traps, fog keys, movement, player progression, dice,
+quest and skill-check progression, dice, weather, day/night, mounts, NPCs,
+audio, configuration, group encounter generation, formation targeting,
+synergies, rewards, multi-target actions, and party-ready combat/action-planning
+contracts, companion definitions, party state, gambits, follower trails, and
+recruitment replay.
 
 Important integration suites:
 
@@ -272,6 +328,11 @@ Important integration suites:
 - `tests/quests.test.ts`
 - `tests/skillChecks.test.ts`
 - `tests/data.test.ts`
+- `tests/traps.test.ts`
+- `tests/companions.test.ts`
+- `tests/party.test.ts`
+- `tests/gambits.test.ts`
+- `tests/followers.test.ts`
 - `tests/fogOfWar.test.ts`
 
 ## Design constraints

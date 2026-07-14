@@ -15,7 +15,13 @@ import type { Terrain } from "../data/map";
 
 export interface RollSkillCheckOptions {
   optionId?: string;
+  situationalModifier?: number;
   roller?: () => number;
+}
+
+export interface ResolveSkillCheckOptions {
+  optionId?: string;
+  situationalModifier?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -36,6 +42,7 @@ export function resolveSkillCheck(
   ability: SkillCheckAbility,
   dc: number,
   naturalRoll: number,
+  options: ResolveSkillCheckOptions = {},
 ): SkillCheckRecord {
   if (!Number.isInteger(naturalRoll) || naturalRoll < 1 || naturalRoll > 20) {
     throw new Error(`[skillChecks] Invalid d20 roll: ${naturalRoll}`);
@@ -44,9 +51,18 @@ export function resolveSkillCheck(
     throw new Error(`[skillChecks] Invalid difficulty class: ${dc}`);
   }
 
-  const modifier = abilityModifier(stats[ability]);
+  const situationalModifier = options.situationalModifier ?? 0;
+  if (
+    !Number.isFinite(situationalModifier)
+    || !Number.isInteger(situationalModifier)
+  ) {
+    throw new Error(
+      `[skillChecks] Invalid situational modifier: ${situationalModifier}`,
+    );
+  }
+  const modifier = abilityModifier(stats[ability]) + situationalModifier;
   const total = naturalRoll + modifier;
-  return {
+  const result: SkillCheckRecord = {
     ability,
     naturalRoll,
     modifier,
@@ -54,6 +70,8 @@ export function resolveSkillCheck(
     dc,
     success: total >= dc,
   };
+  const optionId = options.optionId?.trim();
+  return optionId ? { ...result, optionId } : result;
 }
 
 export function rollSkillCheck(
@@ -63,9 +81,7 @@ export function rollSkillCheck(
   options: RollSkillCheckOptions = {},
 ): SkillCheckRecord {
   const naturalRoll = (options.roller ?? (() => rollDie(20)))();
-  const result = resolveSkillCheck(stats, ability, dc, naturalRoll);
-  const optionId = options.optionId?.trim();
-  return optionId ? { ...result, optionId } : result;
+  return resolveSkillCheck(stats, ability, dc, naturalRoll, options);
 }
 
 export function formatSkillCheckResult(result: SkillCheckRecord): string {

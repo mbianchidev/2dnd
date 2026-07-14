@@ -13,8 +13,11 @@ license: MIT
 - `src/data/chunks.ts`: 10x9 overworld chunk grid
 - `src/data/cities.ts`: city layouts, districts, shops, and gates
 - `src/data/dungeons.ts`: dungeon floors and stairs
+- `src/data/traps.ts`: trap definitions and persistent trap types
 - `src/data/quests.ts`: progression-gated city and dungeon entrances
 - `src/systems/movement.ts`: grid, city-gate, and dungeon-stair movement
+- `src/systems/traps.ts`: seeded placement, checks, effects, and rewards
+- `src/managers/dungeonTraps.ts`: dungeon trap scene orchestration
 - `src/systems/quests.ts`: quest entrance-block checks
 - `src/managers/fogOfWar.ts`: exploration-key generation and reveal state
 - `src/managers/skillChecks.ts`: terrain events, hidden treasure, and chest
@@ -130,6 +133,25 @@ used.
 Random encounters may be replaced by a level- and environment-valid
 `MonsterEncounter`; dungeon bosses and explicit debug spawns remain solo.
 
+## Dungeon traps
+
+Each `DungeonData` has a `trapProfile` with allowed types, a thematic type,
+per-level count, and difficulty modifier. Generate layouts only through:
+
+```typescript
+generateDungeonTraps(dungeon, level, player.progression.trapSeed);
+```
+
+Layouts are immutable metadata overlays. They use stable IDs, prioritize tiles
+adjacent to dungeon chests, and exclude the level spawn plus exit/stair/boss
+approaches. The same seed recreates the same layout; trap resolution lives in
+authoritative `player.progression.trapStates` entries.
+
+Run one detection check when a trap first becomes adjacent or the player tries
+to enter its tile. `detected` traps block entry and expose a Space-to-disarm
+prompt. `missed` traps trigger on entry and must not be rerolled. Hidden-floor
+drops use `getDungeonLevelSpawn()` on the next level.
+
 ## Chests
 
 Dungeon chest locations may include `dungeonLevel`. Resolve the level map
@@ -186,3 +208,5 @@ to the Willowdale overworld start when necessary.
 - Reusing fog keys across floors or districts
 - Looking up only generic dungeon monsters and omitting exclusive pools/bosses
 - Hardcoding walkability or encounter behavior
+- Mutating map terrain to store trap state
+- Rerolling layouts or detection checks after reload

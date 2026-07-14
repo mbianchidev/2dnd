@@ -7,7 +7,8 @@ license: MIT
 # Procedural Audio System
 
 All audio in 2D&D is synthesized at runtime via the Web Audio API — no external audio files.
-The system lives in `src/systems/audio.ts` (~1,300 lines).
+The main engine lives in `src/systems/audio.ts`; focused trap synthesis lives in
+`src/systems/trapAudio.ts`.
 
 ## Architecture
 
@@ -24,7 +25,7 @@ audioEngine.init();
 AudioContext.destination
   └── masterGain (volume * muted)
        ├── musicGain  (music tracks)
-       ├── sfxGain    (attack, chest, dungeon, potion SFX)
+       ├── sfxGain    (attack, chest, dungeon, potion, trap SFX)
        ├── dialogGain (NPC dialogue blips)
        └── footstepGain (terrain footsteps, very low volume)
 ```
@@ -146,6 +147,7 @@ playNewSFX(): void {
 | `playCriticalHitSFX()` | Deep slam + noise crunch + rising sting + bell | Critical hit (nat 20) |
 | `playChestOpenSFX()` | 4-note ascending twinkle + shimmer | Opening a chest |
 | `playDungeonEnterSFX()` | Deep boom + eerie tone + stone scrape | Entering a dungeon |
+| `playTrapSFX(type)` | Per-type oscillator/noise profile | Triggering a dungeon trap |
 | `playPotionSFX()` | 3 glug bubbles + healing shimmer | Using a consumable |
 | `playFootstepSFX(terrain)` | Filtered noise burst, varies by terrain | Every player step |
 | `playDialogueBlip(pitch)` | Quick square wave blip | NPC dialogue (future) |
@@ -179,4 +181,6 @@ expect(() => audioEngine.playAttackSFX()).not.toThrow(); // no-op without AudioC
 - ❌ Never add external audio files — synthesize everything
 - ❌ Never call `audioEngine.init()` outside a user gesture — browsers will block it
 - ❌ Don't forget to add new SFX methods to the `playAllSounds()` demo and test file
+- Trap profiles belong in `trapAudio.ts`; keep `audio.ts` as the public routing
+  surface.
 - ❌ Don't use volumes above 0.3 for individual oscillators — they stack up quickly

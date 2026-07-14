@@ -6,6 +6,7 @@ import {
   createAudioState,
   audioEngine,
 } from "../src/systems/audio";
+import { TRAP_TYPES } from "../src/data/traps";
 
 describe("audio system", () => {
   describe("resolveBiomePrefix", () => {
@@ -113,6 +114,7 @@ describe("audio system", () => {
       expect(typeof audioEngine.playCriticalHitSFX).toBe("function");
       expect(typeof audioEngine.playChestOpenSFX).toBe("function");
       expect(typeof audioEngine.playDungeonEnterSFX).toBe("function");
+      expect(typeof audioEngine.playTrapSFX).toBe("function");
       expect(typeof audioEngine.playPotionSFX).toBe("function");
       expect(typeof audioEngine.playFootstepSFX).toBe("function");
       expect(typeof audioEngine.playMountedFootstepSFX).toBe("function");
@@ -144,6 +146,9 @@ describe("audio system", () => {
       expect(() => audioEngine.playCriticalHitSFX()).not.toThrow();
       expect(() => audioEngine.playChestOpenSFX()).not.toThrow();
       expect(() => audioEngine.playDungeonEnterSFX()).not.toThrow();
+      for (const trapType of TRAP_TYPES) {
+        expect(() => audioEngine.playTrapSFX(trapType)).not.toThrow();
+      }
       expect(() => audioEngine.playPotionSFX()).not.toThrow();
       expect(() => audioEngine.playFootstepSFX(0)).not.toThrow();
       expect(() => audioEngine.playMountedFootstepSFX()).not.toThrow();

@@ -31,7 +31,9 @@ and changes spanning scenes, systems, data, renderers, or managers.
 - Stateful scene helpers: `src/managers/`
 
 The map hub is `src/data/map.ts`; terrain/types, chunks, cities, and dungeons
-are split into dedicated modules.
+are split into dedicated modules. Dungeon trap definitions live in
+`src/data/traps.ts`, mechanics in `src/systems/traps.ts`, and scene orchestration
+in `src/managers/dungeonTraps.ts`.
 Group templates live in `src/data/monsterGroups.ts`; reusable initiative,
 formation, synergy, reward, and per-combatant rules live in
 `src/systems/groupCombat.ts`.
@@ -171,12 +173,17 @@ can persist and display them.
   than indexing `city.chunks` directly.
 - Dungeons may contain multiple levels. Always use dungeon level and
   connection helpers.
+- Dungeon trap layouts are derived from persisted `trapSeed`; never mutate
+  dungeon maps or randomize layouts independently in scenes.
+- Detected traps block movement until disarmed. Trap triggers must short-circuit
+  the normal random-encounter check for that step.
 - Use `FogOfWar.exploredKey()` for exploration keys.
 - Use `isWalkable()` and `ENCOUNTER_RATES`; do not hardcode terrain behavior.
 
 ## Non-combat skill checks
 
-- Checks use d20 + Dexterity, Wisdom, or Charisma modifier against a DC.
+- Checks use d20 + Dexterity, Intelligence, Wisdom, or Charisma modifier plus
+  typed bonuses against a DC.
 - Natural 1 and 20 are not automatic outcomes for ability checks.
 - Persist fixed NPC, shop, chest, and treasure results in
   `player.progression.skillChecks`.
@@ -210,6 +217,21 @@ Future party systems pass accessor-backed `partyCombatants` plus runtime-only
 `battleHooks`; do not persist those wrapper objects.
 Keep target `init()` contracts and every caller synchronized.
 
+## Companions and gambits
+
+- Persistent party state lives at `player.party`; do not add a parallel scene
+  payload or companion combat model.
+- Stable companion IDs are `guardian`, `scout`, and `mystic`.
+- Build runtime actors with `createPartyCombatant()` and
+  `createBattleActionSource()`.
+- Manual turns and ranked gambits both validate/execute through
+  `battleActions.ts`; one bonus action may precede or follow one main action.
+- Recruitment consumes replayable quest completion actions idempotently.
+- Active conscious companions may render as non-blocking followers, but only
+  hero movement invokes trap, encounter, gate, and world-interaction logic.
+- Keep party UI/followers/battle presentation in focused managers/renderers
+  rather than growing the existing oversized scene/overlay files.
+
 ## Validation
 
 ```bash
@@ -237,3 +259,4 @@ Chromium.
 - Do not use geometry masks for the Battle log; render the bounded visible
   message window.
 - Do not add a persistent field without save normalization and tests.
+- Do not reroll a failed trap detection; persist the `missed` state.

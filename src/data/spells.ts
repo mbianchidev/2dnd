@@ -3,6 +3,7 @@
  */
 
 import type { DieType } from "../systems/dice";
+import type { StatusEffectId } from "../systems/statusEffects";
 import { Element } from "./elements";
 
 export type TargetType =
@@ -27,9 +28,11 @@ export interface Spell {
   levelRequired: number;
   damageCount: number; // number of dice
   damageDie: DieType; // die type
-  type: "damage" | "heal" | "utility";
+  type: "damage" | "heal" | "buff" | "utility";
   /** Defaults to one enemy; healing spells declare ally/party scope explicitly. */
   targetType?: TargetType;
+  /** Status effect applied to every resolved target by buff spells. */
+  targetEffect?: StatusEffectId;
   /** Elemental damage type. */
   element?: Element;
 }
@@ -146,6 +149,12 @@ export const SPELLS: Spell[] = [
     mpCost: 20, levelRequired: 19, damageCount: 24, damageDie: 6, type: "damage", targetType: "all_enemies", element: Element.Fire },
   { id: "powerWordKill", name: "Power Word Kill", description: "A word of power that slays outright",
     mpCost: 20, levelRequired: 19, damageCount: 20, damageDie: 10, type: "damage" },
+
+  // ── Party Buffs ───────────────────────────────────────────────
+  { id: "inspiringChorus", name: "Inspiring Chorus", description: "A rousing refrain emboldens the whole party",
+    mpCost: 6, levelRequired: 6, damageCount: 0, damageDie: 0, type: "buff", targetType: "all_party", targetEffect: "inspired" },
+  { id: "massHaste", name: "Mass Haste", description: "Accelerate every conscious party member",
+    mpCost: 8, levelRequired: 9, damageCount: 0, damageDie: 0, type: "buff", targetType: "all_party", targetEffect: "haste" },
 
   // ── Utility ──────────────────────────────────────────────────
   { id: "teleport", name: "Teleport", description: "Instantly travel to a known town",

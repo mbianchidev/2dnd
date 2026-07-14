@@ -40,6 +40,26 @@ describe("non-combat skill checks", () => {
     });
   });
 
+  it("supports Intelligence and typed situational modifiers", () => {
+    const result = resolveSkillCheck(
+      { ...stats, intelligence: 16 },
+      "intelligence",
+      15,
+      10,
+      { situationalModifier: 2, optionId: "detect" },
+    );
+
+    expect(result).toEqual({
+      ability: "intelligence",
+      naturalRoll: 10,
+      modifier: 5,
+      total: 15,
+      dc: 15,
+      success: true,
+      optionId: "detect",
+    });
+  });
+
   it("does not treat natural 1 or 20 as automatic outcomes", () => {
     const naturalOne = resolveSkillCheck(
       { ...stats, charisma: 20 },
@@ -63,6 +83,20 @@ describe("non-combat skill checks", () => {
     expect(() => resolveSkillCheck(stats, "wisdom", 10, 21)).toThrow();
     expect(() => resolveSkillCheck(stats, "wisdom", 0, 10)).toThrow();
     expect(() => resolveSkillCheck(stats, "wisdom", 10.5, 10)).toThrow();
+    expect(() => resolveSkillCheck(
+      stats,
+      "wisdom",
+      10,
+      10,
+      { situationalModifier: 1.5 },
+    )).toThrow();
+    expect(() => resolveSkillCheck(
+      stats,
+      "wisdom",
+      10,
+      10,
+      { situationalModifier: Number.POSITIVE_INFINITY },
+    )).toThrow();
   });
 
   it("restores only successful shop negotiation discounts", () => {
@@ -131,6 +165,13 @@ describe("non-combat skill checks", () => {
         expect(totalChance).toBeLessThanOrEqual(1);
       }
     }
+  });
+
+  it("keeps secret passages but removes duplicate dungeon masonry hazards", () => {
+    expect(EXPLORATION_EVENTS.some((event) => event.id === "secretPassage"))
+      .toBe(true);
+    expect(EXPLORATION_EVENTS.some((event) => event.id === "fallingMasonry"))
+      .toBe(false);
   });
 
   it("references stable, unique city NPC identities", () => {

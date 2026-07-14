@@ -140,6 +140,7 @@ Buffs:
 
 - Enraged: increased damage and reduced AC
 - Hasted: increased accuracy and AC
+- Inspired: increased accuracy and damage
 - Raging: increased damage
 - Sneak Stance: increased AC
 
@@ -152,6 +153,22 @@ Lifecycle for each actor:
 A one-turn stun therefore skips exactly one actor turn. Cure items remove only
 matching effects. Combat effects are cleared when leaving Battle.
 
+## Dungeon trap checks
+
+- Detection and disarming use d20 + the configured Dexterity or Intelligence
+  modifier through `resolveSkillCheck()` / `rollSkillCheck()` with a validated
+  situational modifier.
+- Trap Kits, Natural Explorer, Cunning Action, and persistent Adventurer
+  guidance add their defined bonuses; Danger Sense detects automatically.
+- Failed detection persists in authoritative `trapStates`, so checks cannot be
+  farmed by stepping away or reloading.
+- Successful disarming awards XP through `awardXP()`.
+- Trigger damage and MP loss apply immediately and cannot reduce HP below 1.
+  Trap-applied statuses seed the next battle and then follow the existing
+  combat-turn lifecycle.
+- Alarm traps replace the normal encounter roll with a forced dungeon
+  encounter. Hidden floors use the next level's validated spawn.
+
 ## Action economy
 
 - Attack, spell, defend, flee, and normal abilities consume the action.
@@ -159,6 +176,19 @@ matching effects. Combat effects are cleared when leaving Battle.
 - The first item use in a turn is a bonus action.
 - Invalid spell/ability/item choices must not consume MP, inventory, or turn
   state.
+- Every party actor owns an immutable one-action/one-bonus-action economy.
+  Manual and gambit-controlled companion actions use the same validator and
+  executor as the hero-compatible battle contracts.
+
+## Companion progression
+
+- Recruits match the hero level deterministically, then gain XP and levels
+  independently.
+- Living party members receive battle XP. A KO member receives no victory XP
+  and resets to the current-level XP floor (`0` at level 1).
+- Full defeat occurs only when every active party actor is KO. Inn rest revives,
+  restores, and processes pending levels for all recruited companions.
+- Party-wide heal/buff spells consume MP once and resolve each valid target.
 - Gambit and UI actions pass through `validateBattleAction()` before execution;
   validated plans bind stable actor/target IDs and declare action or bonus
   action cost.
@@ -190,8 +220,11 @@ Use deterministic dice mocks for:
 - Status plus elemental damage ordering
 - Bonus-action scheduling
 - MP and inventory consumption on invalid actions
+- Seeded trap placement, one-shot checks, modifiers, nonlethal consequences,
+ alarm suppression, and hidden-floor destinations
 - Ability modifiers, DC boundaries, persistent negotiation choices, and
-  nonlethal exploration damage
+ nonlethal exploration damage
 
 Relevant suites include `combat.test.ts`, `dice.test.ts`, `elements.test.ts`,
-`statusEffects.test.ts`, `skillChecks.test.ts`, and `player.test.ts`.
+`statusEffects.test.ts`, `skillChecks.test.ts`, `player.test.ts`, and
+`traps.test.ts`.

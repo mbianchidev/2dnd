@@ -6,6 +6,7 @@
  * extracted into sibling modules for better code organization:
  *   - mapTypes.ts   — Shared types, enums, and dimension constants
  *   - dungeons.ts   — Dungeon interior map data
+ *   - traps.ts      — Dungeon trap definitions and layout types
  *   - cities.ts     — City interior maps & definitions
  *   - chunks.ts     — World chunk map arrays & region colors
  */
@@ -19,6 +20,20 @@ export {
   type ChestData, type ChestLocation,
   type CityShopData, type CityData, type CityChunk, type CityConnection,
 } from "./mapTypes";
+export {
+  LEGACY_TRAP_SEED,
+  TRAP_DEFINITIONS,
+  TRAP_STATES,
+  TRAP_TYPES,
+  createTrapSeed,
+  getTrapDefinition,
+  isTrapState,
+  isTrapType,
+  type DungeonTrap,
+  type DungeonTrapProfile,
+  type TrapState,
+  type TrapType,
+} from "./traps";
 
 export { DUNGEONS } from "./dungeons";
 export {

@@ -292,6 +292,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_elder", job: "farmer",        x: 14, y: 10, moves: false },
     { templateId: "guard_male",   job: "guard",         x: 9,  y: 12, moves: false, questNpcId: "ironholdWarden" },
     { templateId: "guard_female", job: "guard",         x: 11, y: 12, moves: false },
+    { templateId: "guard_male",   job: "guard",         x: 6,  y: 8,  moves: false, questNpcId: "guardian" },
   ],
   sandport_city: [
     { templateId: "male_thin",    job: "blacksmith",    x: 4,  y: 4,  moves: false, shopIndex: 0 },
@@ -303,6 +304,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_stout",   job: "stablemaster",  x: 10, y: 8,  moves: false, shopIndex: 6 },
     { templateId: "female_young", job: "merchant",      x: 9,  y: 3,  moves: false, questNpcId: "sandportHarbormaster" },
     { templateId: "child_kid",    job: "villager",      x: 8,  y: 9,  moves: true },
+    { templateId: "female_young", job: "villager",      x: 11, y: 9,  moves: false, questNpcId: "scout" },
   ],
   frostheim_city: [
     { templateId: "female_thin",  job: "merchant",    x: 4,  y: 4,  moves: false, shopIndex: 0 },
@@ -362,6 +364,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "child_boy1",   job: "villager",    x: 10, y: 9,  moves: true },
     { templateId: "male_elder",   job: "blacksmith",  x: 7,  y: 9,  moves: false, questNpcId: "ashfallSmith" },
     { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
+    { templateId: "female_elder", job: "villager",    x: 11, y: 9,  moves: false, questNpcId: "mystic" },
   ],
   dunerest_city: [
     { templateId: "male_thin",    job: "blacksmith",  x: 4,  y: 4,  moves: false, shopIndex: 0 },
@@ -451,7 +454,7 @@ export const SPECIAL_NPC_DEFS: Record<SpecialNpcKind, SpecialNpcDef> = {
     tintColor: 0xffd740,
     spawnChance: 0.025,
     moves: false,
-    shopItems: ["potion", "ether"],
+    shopItems: ["potion", "ether", "trapKit"],
   },
   hermit: {
     kind: "hermit",
@@ -477,7 +480,7 @@ export const TRAVELER_DIALOGUES: string[] = [
 
 /** Dialogue pool for the grumpy but wise Adventurer. */
 export const ADVENTURER_DIALOGUES: string[] = [
-  "Hmph. Another rookie. Fine, listen up...",
+  "Traps kill rookies. Watch for seams, wires, vents, and loose stone.",
   "Save before a boss fight. Trust me.",
   "Don't waste gold on weak gear. Save for plate armour.",
   "Night monsters are tougher. Travel during the day if you're weak.",
@@ -486,6 +489,14 @@ export const ADVENTURER_DIALOGUES: string[] = [
   "Grumble... I've cleared more dungeons than you've had hot meals.",
   "Check the bestiary. Knowing your enemy's AC helps you plan.",
 ];
+
+/** Whether this special-NPC interaction grants persistent trap guidance. */
+export function grantsTrapGuidance(
+  kind: SpecialNpcKind,
+  interactionCount: number,
+): boolean {
+  return kind === "adventurer" && interactionCount === 0;
+}
 
 /** Dialogue pool for the Wandering Merchant. */
 export const WANDERING_MERCHANT_DIALOGUES: string[] = [

@@ -16,7 +16,7 @@ preferences are stored separately by `src/systems/audio.ts`.
 
 ## Current schema
 
-`SAVE_VERSION` is 5.
+`SAVE_VERSION` is 6.
 
 ```typescript
 interface SaveData {
@@ -66,7 +66,9 @@ interface PlayerProgression {
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
-Codex entries persist `discoveredElements`. Quest progress stores status, stage,
+Codex entries persist `discoveredElements`. `PlayerState.party` persists unique
+companion states, active order, independent progression/inventories/equipment,
+control modes, dialogue state, and gambits. Quest progress stores status, stage,
 and reward-granted state for idempotent completion rewards.
 Fixed non-combat checks persist the
 ability, natural roll, modifier, repaired total, DC, outcome, and optional
@@ -87,6 +89,7 @@ helpers; do not cast unvalidated nested values directly.
 - Missing equipment, talents, abilities, rests, bank, mount, and appearance
   fields
 - Missing/invalid active status effects
+- Missing/invalid party state and gambit rules
 - Missing/invalid Codex elemental discoveries
 - Missing, malformed, or unknown quest entries through `normalizeQuestLog()`
 - Missing/invalid non-combat skill-check records
@@ -119,6 +122,10 @@ validation.
 6. Add tests for valid persistence, missing values, malformed values, and
    corrupt-location recovery.
 7. Update README and repository instructions when the stored shape changes.
+
+For party data, normalize after quests, skill checks, and trap fields. Then
+replay completed `recruitCompanion` quest actions so v5 saves and debug-completed
+quests converge idempotently.
 
 Do not silently retain malformed data. Use a safe default or reject the save
 when the top-level payload is unusable.

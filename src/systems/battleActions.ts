@@ -732,9 +732,19 @@ export function executeValidatedBattleAction(
         healing: healingResult.healing,
       });
     }
+    for (const effectResult of result.effectResults ?? []) {
+      targets.push({
+        targetId: effectResult.targetId,
+        hit: true,
+        damage: 0,
+        healing: 0,
+      });
+    }
     return {
       executed:
-        result.results.length > 0 || result.healingResults.length > 0,
+        result.results.length > 0
+        || result.healingResults.length > 0
+        || (result.effectResults?.length ?? 0) > 0,
       message: result.message,
       plan,
       targets,

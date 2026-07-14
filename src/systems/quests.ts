@@ -8,6 +8,9 @@ import {
   QUEST_IDS,
   QUEST_NPCS,
   QUESTS,
+  RECRUIT_GUARDIAN_QUEST_ID,
+  RECRUIT_MYSTIC_QUEST_ID,
+  RECRUIT_SCOUT_QUEST_ID,
   SIDE_QUEST_ID,
 } from "../data/quests";
 import { getItem } from "../data/items";
@@ -92,6 +95,21 @@ export function createQuestLog(): QuestLogState {
       rewardGranted: false,
     },
     [SIDE_QUEST_ID]: {
+      status: "locked",
+      stage: 0,
+      rewardGranted: false,
+    },
+    [RECRUIT_GUARDIAN_QUEST_ID]: {
+      status: "locked",
+      stage: 0,
+      rewardGranted: false,
+    },
+    [RECRUIT_SCOUT_QUEST_ID]: {
+      status: "locked",
+      stage: 0,
+      rewardGranted: false,
+    },
+    [RECRUIT_MYSTIC_QUEST_ID]: {
       status: "locked",
       stage: 0,
       rewardGranted: false,
@@ -202,7 +220,9 @@ function grantQuestReward(player: PlayerState, questId: QuestId): string | undef
     player.inventory.push({ ...item });
   }
   progress.rewardGranted = true;
-  return rewardLabel(questId);
+  return reward.gold > 0 || reward.itemIds.length > 0
+    ? rewardLabel(questId)
+    : undefined;
 }
 
 function completeQuest(player: PlayerState, questId: QuestId): QuestActionResult {
@@ -370,11 +390,82 @@ export function getQuestJournalEntries(player: PlayerState): QuestJournalEntry[]
 }
 
 /** Resolve all quest roles attached to a named NPC in deterministic priority order. */
+function getRecruitmentQuestId(npcId: QuestNpcId): QuestId | undefined {
+  switch (npcId) {
+    case "guardian": return RECRUIT_GUARDIAN_QUEST_ID;
+    case "scout": return RECRUIT_SCOUT_QUEST_ID;
+    case "mystic": return RECRUIT_MYSTIC_QUEST_ID;
+    default: return undefined;
+  }
+}
+
+function resolveRecruitmentNpcInteraction(
+  player: PlayerState,
+  defeatedBosses: ReadonlySet<string>,
+  npcId: QuestNpcId,
+  questId: QuestId,
+): QuestActionResult {
+  const quest = QUESTS[questId];
+  const progress = player.progression.quests[questId];
+  const speaker = QUEST_NPCS[npcId].name;
+
+  if (progress.status === "completed") {
+    return createResult(
+      speaker,
+      `${speaker} stands ready beside you.`,
+      questId,
+    );
+  }
+  if (progress.status === "locked" || progress.stage === 0) {
+    progress.status = "active";
+    progress.stage = 1;
+    return createResult(
+      speaker,
+      quest.stages[1].objective,
+      questId,
+      true,
+    );
+  }
+  if (progress.stage === 1) {
+    const bossId = quest.stages[1].bossId;
+    if (bossId && !defeatedBosses.has(bossId)) {
+      return createResult(
+        speaker,
+        quest.stages[1].objective,
+        questId,
+      );
+    }
+    progress.stage = 2;
+    return createResult(
+      speaker,
+      quest.stages[2].objective,
+      questId,
+      true,
+    );
+  }
+  const result = completeQuest(player, questId);
+  return {
+    ...result,
+    speakerName: speaker,
+    line: quest.outcome,
+  };
+}
+
 export function resolveQuestNpcInteraction(
   player: PlayerState,
   defeatedBosses: ReadonlySet<string>,
   npcId: QuestNpcId,
 ): QuestActionResult {
+  const recruitmentQuestId = getRecruitmentQuestId(npcId);
+  if (recruitmentQuestId) {
+    return resolveRecruitmentNpcInteraction(
+      player,
+      defeatedBosses,
+      npcId,
+      recruitmentQuestId,
+    );
+  }
+
   const main = player.progression.quests[MAIN_QUEST_ID];
   const side = player.progression.quests[SIDE_QUEST_ID];
   const speaker = QUEST_NPCS[npcId].name;
@@ -468,26 +559,33 @@ export function resolveQuestNpcInteraction(
     );
   }
 
-  if (main.status === "active" && main.stage === 3) {
-    if (!defeatedBosses.has("infernoForgemaster")) {
-      return createResult(
-        speaker,
-        "The Inferno Forgemaster still poisons the mountain. The Volcanic Forge lies south.",
-        MAIN_QUEST_ID,
-      );
+  if (npcId === "magisterSol") {
+    if (main.status === "active" && main.stage === 3) {
+      if (!defeatedBosses.has("infernoForgemaster")) {
+        return createResult(
+          speaker,
+          "The Inferno Forgemaster still poisons the mountain. The Volcanic Forge lies south.",
+          MAIN_QUEST_ID,
+        );
+      }
+      const result = completeQuest(player, MAIN_QUEST_ID);
+      return {
+        ...result,
+        speakerName: speaker,
+        line: "The forge burns clean. Carry the Dawnforged Blade as proof that Ashfall chose a new path.",
+      };
     }
-    const result = completeQuest(player, MAIN_QUEST_ID);
-    return {
-      ...result,
-      speakerName: speaker,
-      line: "The forge burns clean. Carry the Dawnforged Blade as proof that Ashfall chose a new path.",
-    };
+
+    return createResult(
+      speaker,
+      main.status === "completed"
+        ? "Listen: no screams in the bellows, only honest flame. That is your victory."
+        : "Ashfall waits behind the wardens' barricades, and something old stirs below it.",
+    );
   }
 
   return createResult(
     speaker,
-    main.status === "completed"
-      ? "Listen: no screams in the bellows, only honest flame. That is your victory."
-      : "Ashfall waits behind the wardens' barricades, and something old stirs below it.",
+    "There is nothing more to discuss.",
   );
 }

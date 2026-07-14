@@ -26,6 +26,9 @@ import {
   setQuestState,
   setQuestStageById,
 } from "../src/systems/quests";
+import {
+  synchronizeCompanionRecruitment,
+} from "../src/systems/party";
 
 function createTestPlayer(): PlayerState {
   return createPlayer("QuestHero", {
@@ -52,6 +55,77 @@ describe("quest progression", () => {
       stage: 0,
       rewardGranted: false,
     });
+    expect(log.recruitGuardian.status).toBe("locked");
+    expect(log.recruitScout.status).toBe("locked");
+    expect(log.recruitMystic.status).toBe("locked");
+  });
+
+  it("runs a recruitment quest through trial, oath, and replayable recruitment", () => {
+    const player = createTestPlayer();
+    const defeatedBosses = new Set<string>();
+
+    const started = resolveQuestNpcInteraction(
+      player,
+      defeatedBosses,
+      "guardian",
+    );
+    expect(started.changed).toBe(true);
+    expect(player.progression.quests.recruitGuardian).toMatchObject({
+      status: "active",
+      stage: 1,
+    });
+
+    const waiting = resolveQuestNpcInteraction(
+      player,
+      defeatedBosses,
+      "guardian",
+    );
+    expect(waiting.changed).toBe(false);
+    defeatedBosses.add("troll");
+
+    const passed = resolveQuestNpcInteraction(
+      player,
+      defeatedBosses,
+      "guardian",
+    );
+    expect(passed.changed).toBe(true);
+    expect(player.progression.quests.recruitGuardian.stage).toBe(2);
+
+    const completed = resolveQuestNpcInteraction(
+      player,
+      defeatedBosses,
+      "guardian",
+    );
+    expect(completed.completed).toBe(true);
+    expect(getQuestCompletionActions(
+      player.progression.quests,
+      "recruitCompanion",
+    )).toContainEqual({
+      questId: "recruitGuardian",
+      id: "companion.recruit.guardian",
+      type: "recruitCompanion",
+      targetId: "guardian",
+    });
+
+    expect(synchronizeCompanionRecruitment(player)).toHaveLength(1);
+    expect(synchronizeCompanionRecruitment(player)).toHaveLength(0);
+    expect(player.party.companions.map((companion) => companion.id)).toEqual([
+      "guardian",
+    ]);
+  });
+
+  it("does not let companion NPCs fall through to Magister Sol logic", () => {
+    const player = createTestPlayer();
+    const defeatedBosses = new Set(["infernoForgemaster"]);
+    setQuestState(player, MAIN_QUEST_ID, 3);
+
+    resolveQuestNpcInteraction(player, defeatedBosses, "guardian");
+
+    expect(player.progression.quests[MAIN_QUEST_ID]).toMatchObject({
+      status: "active",
+      stage: 3,
+    });
+    expect(player.progression.quests.recruitGuardian.stage).toBe(1);
   });
 
   it("advances The Ashen Road through NPC reports and persisted boss defeats", () => {
@@ -294,7 +368,10 @@ describe("quest persistence normalization", () => {
     expect(getQuestJournalEntries(player)).toHaveLength(1);
 
     setQuestState(player, SIDE_QUEST_ID, "active");
-    expect(getQuestJournalEntries(player).map((entry) => entry.id)).toEqual(QUEST_IDS);
+    expect(getQuestJournalEntries(player).map((entry) => entry.id)).toEqual([
+      MAIN_QUEST_ID,
+      SIDE_QUEST_ID,
+    ]);
   });
 });
 
@@ -365,6 +442,50 @@ describe("quest data integrity", () => {
         expect(stageId).toMatch(/^[a-z][a-zA-Z0-9]*$/);
       }
     }
+  });
+
+  it("reserves the three stable recruitment paths and actions", () => {
+    expect(QUEST_IDS).toContain("recruitGuardian");
+    expect(QUEST_IDS).toContain("recruitScout");
+    expect(QUEST_IDS).toContain("recruitMystic");
+    expect(QUESTS.recruitGuardian.stages.map((stage) => stage.id)).toEqual([
+      "meetGuardian",
+      "guardianTrial",
+      "guardianOath",
+    ]);
+    expect(QUESTS.recruitScout.stages.map((stage) => stage.id)).toEqual([
+      "meetScout",
+      "scoutTrial",
+      "scoutOath",
+    ]);
+    expect(QUESTS.recruitMystic.stages.map((stage) => stage.id)).toEqual([
+      "meetMystic",
+      "mysticTrial",
+      "mysticOath",
+    ]);
+    expect(
+      [
+        QUESTS.recruitGuardian,
+        QUESTS.recruitScout,
+        QUESTS.recruitMystic,
+      ].map((quest) => quest.completionActions?.[0]),
+    ).toEqual([
+      {
+        id: "companion.recruit.guardian",
+        type: "recruitCompanion",
+        targetId: "guardian",
+      },
+      {
+        id: "companion.recruit.scout",
+        type: "recruitCompanion",
+        targetId: "scout",
+      },
+      {
+        id: "companion.recruit.mystic",
+        type: "recruitCompanion",
+        targetId: "mystic",
+      },
+    ]);
   });
 
   it("places every quest NPC on a unique walkable primary-city tile", () => {

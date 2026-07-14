@@ -4,13 +4,28 @@
 
 export const MAIN_QUEST_ID = "ashenRoad" as const;
 export const SIDE_QUEST_ID = "wardensDispatch" as const;
+export const RECRUIT_GUARDIAN_QUEST_ID = "recruitGuardian" as const;
+export const RECRUIT_SCOUT_QUEST_ID = "recruitScout" as const;
+export const RECRUIT_MYSTIC_QUEST_ID = "recruitMystic" as const;
 
-export const QUEST_IDS = [MAIN_QUEST_ID, SIDE_QUEST_ID] as const;
+export const QUEST_IDS = [
+  MAIN_QUEST_ID,
+  SIDE_QUEST_ID,
+  RECRUIT_GUARDIAN_QUEST_ID,
+  RECRUIT_SCOUT_QUEST_ID,
+  RECRUIT_MYSTIC_QUEST_ID,
+] as const;
 
 export type QuestId = (typeof QUEST_IDS)[number];
 export type QuestStatus = "locked" | "active" | "completed";
 export type QuestType = "main" | "side";
-export type QuestNpcId = "elderRowan" | "wardenIlyra" | "magisterSol";
+export type QuestNpcId =
+  | "elderRowan"
+  | "wardenIlyra"
+  | "magisterSol"
+  | "guardian"
+  | "scout"
+  | "mystic";
 export type QuestEntranceType = "city" | "dungeon";
 
 export interface QuestProgress {
@@ -93,6 +108,21 @@ export const QUEST_NPCS: Record<QuestNpcId, QuestNpcDefinition> = {
     name: "Magister Sol",
     cityId: "ashfall_city",
   },
+  guardian: {
+    id: "guardian",
+    name: "Bram Ironward",
+    cityId: "ironhold_city",
+  },
+  scout: {
+    id: "scout",
+    name: "Kaia Swiftstep",
+    cityId: "sandport_city",
+  },
+  mystic: {
+    id: "mystic",
+    name: "Selene Vey",
+    cityId: "ashfall_city",
+  },
 };
 
 export const QUESTS: Record<QuestId, QuestDefinition> = {
@@ -173,6 +203,114 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
       },
     ],
     outcome: "Sandport and Willowdale coordinate patrols along the reopened road.",
+  },
+  [RECRUIT_GUARDIAN_QUEST_ID]: {
+    id: RECRUIT_GUARDIAN_QUEST_ID,
+    name: "The Ironward Oath",
+    type: "side",
+    summary: "Prove your resolve and earn Bram Ironward's shield.",
+    stages: [
+      {
+        id: "meetGuardian",
+        title: "Meet the Guardian",
+        objective: "Speak with Bram Ironward in Ironhold.",
+        npcId: "guardian",
+      },
+      {
+        id: "guardianTrial",
+        title: "The Guardian's Trial",
+        objective: "Defeat the Cave Troll, then return to Bram Ironward.",
+        npcId: "guardian",
+        bossId: "troll",
+      },
+      {
+        id: "guardianOath",
+        title: "The Guardian's Oath",
+        objective: "Speak with Bram once more to seal the oath.",
+        npcId: "guardian",
+      },
+    ],
+    reward: { gold: 0, itemIds: [] },
+    completionActions: [
+      {
+        id: "companion.recruit.guardian",
+        type: "recruitCompanion",
+        targetId: "guardian",
+      },
+    ],
+    outcome: "Bram Ironward pledges his shield to your party.",
+  },
+  [RECRUIT_SCOUT_QUEST_ID]: {
+    id: RECRUIT_SCOUT_QUEST_ID,
+    name: "The Swiftstep Trail",
+    type: "side",
+    summary: "Follow Kaia Swiftstep's trail and prove you can keep pace.",
+    stages: [
+      {
+        id: "meetScout",
+        title: "Meet the Scout",
+        objective: "Speak with Kaia Swiftstep in Sandport.",
+        npcId: "scout",
+      },
+      {
+        id: "scoutTrial",
+        title: "The Scout's Trial",
+        objective: "Defeat the Canyon Drake, then return to Kaia.",
+        npcId: "scout",
+        bossId: "canyonDrake",
+      },
+      {
+        id: "scoutOath",
+        title: "The Scout's Oath",
+        objective: "Speak with Kaia once more to plan the road ahead.",
+        npcId: "scout",
+      },
+    ],
+    reward: { gold: 0, itemIds: [] },
+    completionActions: [
+      {
+        id: "companion.recruit.scout",
+        type: "recruitCompanion",
+        targetId: "scout",
+      },
+    ],
+    outcome: "Kaia Swiftstep joins your party as its eyes and ears.",
+  },
+  [RECRUIT_MYSTIC_QUEST_ID]: {
+    id: RECRUIT_MYSTIC_QUEST_ID,
+    name: "The Veiled Flame",
+    type: "side",
+    summary: "Help Selene Vey quiet the magic beneath Ashfall.",
+    stages: [
+      {
+        id: "meetMystic",
+        title: "Meet the Mystic",
+        objective: "Speak with Selene Vey in Ashfall.",
+        npcId: "mystic",
+      },
+      {
+        id: "mysticTrial",
+        title: "The Mystic's Trial",
+        objective: "Defeat the Volcanic Wyrm, then return to Selene.",
+        npcId: "mystic",
+        bossId: "volcanicWyrm",
+      },
+      {
+        id: "mysticOath",
+        title: "The Mystic's Oath",
+        objective: "Speak with Selene once more to bind the ward.",
+        npcId: "mystic",
+      },
+    ],
+    reward: { gold: 0, itemIds: [] },
+    completionActions: [
+      {
+        id: "companion.recruit.mystic",
+        type: "recruitCompanion",
+        targetId: "mystic",
+      },
+    ],
+    outcome: "Selene Vey joins your party and carries the ward with her.",
   },
 };
 

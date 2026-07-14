@@ -140,6 +140,7 @@ Buffs:
 
 - Enraged: increased damage and reduced AC
 - Hasted: increased accuracy and AC
+- Inspired: increased accuracy and damage
 - Raging: increased damage
 - Sneak Stance: increased AC
 
@@ -175,6 +176,19 @@ matching effects. Combat effects are cleared when leaving Battle.
 - The first item use in a turn is a bonus action.
 - Invalid spell/ability/item choices must not consume MP, inventory, or turn
   state.
+- Every party actor owns an immutable one-action/one-bonus-action economy.
+  Manual and gambit-controlled companion actions use the same validator and
+  executor as the hero-compatible battle contracts.
+
+## Companion progression
+
+- Recruits match the hero level deterministically, then gain XP and levels
+  independently.
+- Living party members receive battle XP. A KO member receives no victory XP
+  and resets to the current-level XP floor (`0` at level 1).
+- Full defeat occurs only when every active party actor is KO. Inn rest revives,
+  restores, and processes pending levels for all recruited companions.
+- Party-wide heal/buff spells consume MP once and resolve each valid target.
 - Gambit and UI actions pass through `validateBattleAction()` before execution;
   validated plans bind stable actor/target IDs and declare action or bonus
   action cost.

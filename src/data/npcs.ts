@@ -292,6 +292,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_elder", job: "farmer",        x: 14, y: 10, moves: false },
     { templateId: "guard_male",   job: "guard",         x: 9,  y: 12, moves: false },
     { templateId: "guard_female", job: "guard",         x: 11, y: 12, moves: false },
+    { templateId: "guard_male",   job: "guard",         x: 6,  y: 8,  moves: false, questNpcId: "guardian" },
   ],
   sandport_city: [
     { templateId: "male_thin",    job: "blacksmith",    x: 4,  y: 4,  moves: false, shopIndex: 0 },
@@ -303,6 +304,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_stout",   job: "stablemaster",  x: 10, y: 8,  moves: false, shopIndex: 6 },
     { templateId: "guard_female", job: "guard",         x: 9,  y: 3,  moves: false, questNpcId: "wardenIlyra" },
     { templateId: "child_kid",    job: "villager",      x: 8,  y: 9,  moves: true },
+    { templateId: "female_young", job: "villager",      x: 11, y: 9,  moves: false, questNpcId: "scout" },
   ],
   frostheim_city: [
     { templateId: "female_thin",  job: "merchant",    x: 4,  y: 4,  moves: false, shopIndex: 0 },
@@ -362,6 +364,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "child_boy1",   job: "villager",    x: 10, y: 9,  moves: true },
     { templateId: "male_elder",   job: "villager",    x: 7,  y: 9,  moves: false, questNpcId: "magisterSol" },
     { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
+    { templateId: "female_elder", job: "villager",    x: 11, y: 9,  moves: false, questNpcId: "mystic" },
   ],
   dunerest_city: [
     { templateId: "male_thin",    job: "blacksmith",  x: 4,  y: 4,  moves: false, shopIndex: 0 },

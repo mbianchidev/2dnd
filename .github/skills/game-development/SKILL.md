@@ -29,6 +29,9 @@ and changes spanning scenes, systems, data, renderers, or managers.
 - Immutable definitions: `src/data/`
 - Extracted presentation: `src/renderers/`
 - Stateful scene helpers: `src/managers/`
+- Quest content: `src/data/quests.ts`
+- Pure quest engine: `src/systems/quests.ts`
+- Quest save normalization: `src/systems/questState.ts`
 
 The map hub is `src/data/map.ts`; terrain/types, chunks, cities, and dungeons
 are split into dedicated modules.
@@ -103,6 +106,20 @@ can persist and display them.
 - Use `FogOfWar.exploredKey()` for exploration keys.
 - Use `isWalkable()` and `ENCOUNTER_RATES`; do not hardcode terrain behavior.
 
+## Quest features
+
+- Keep definitions, dialogue, objective prerequisites, rewards, access rules,
+  and danger rules immutable in `src/data/quests.ts`.
+- Process NPC, monster, and visit events through `src/systems/quests.ts`; scenes
+  consume structured updates for UI and saving.
+- Normalize untrusted quest persistence through `src/systems/questState.ts`.
+- Keep reward IDs stable and idempotent. Reconcile boss objectives from
+  `defeatedBosses`, but never retroactively count ordinary monster defeats.
+- Evaluate hard gates before keys or travel costs. Apply soft danger through
+  returned modifiers rather than mutating map or monster data.
+- Use stable essential-NPC IDs, final-page dialogue callbacks, procedural quest
+  markers, and the standalone `QuestJournalManager`.
+
 ## Scene changes
 
 State-bearing transitions commonly pass:
@@ -119,6 +136,8 @@ State-bearing transitions commonly pass:
 ```
 
 Battle also receives a monster and biome; Shop receives town/shop context.
+Battle can return transient `questUpdates` to Overworld for post-battle
+notifications.
 Keep target `init()` contracts and every caller synchronized.
 
 ## Validation
@@ -142,3 +161,5 @@ Chromium.
 - Do not use geometry masks for the Battle log; render the bounded visible
   message window.
 - Do not add a persistent field without save normalization and tests.
+- Do not advance quest state before the player acknowledges the final dialogue
+  page or bypass the shared access-decision APIs.

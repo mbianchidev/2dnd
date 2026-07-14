@@ -6,7 +6,8 @@ license: MIT
 
 # Testing Guide for 2D&D
 
-Write comprehensive tests for game mechanics using Vitest while avoiding UI/integration tests.
+Use Vitest for deterministic game logic and data tests. Verify changed Phaser
+flows separately with native Playwright scripts in headless Chromium.
 
 ## Testing Philosophy
 
@@ -17,13 +18,17 @@ Write comprehensive tests for game mechanics using Vitest while avoiding UI/inte
 ✅ XP and leveling formulas
 ✅ Data integrity (monsters, spells, items)
 ✅ Game logic functions
+✅ Quest ordering, duplicate events, counters, rewards, access, and migrations
 
 ### What NOT to Test  
-❌ Phaser rendering/graphics
-❌ Scene transitions
-❌ User input handling
-❌ Visual appearance
-❌ Animation timing
+❌ Phaser rendering/graphics in Vitest
+❌ Scene transitions in Vitest
+❌ User input handling in Vitest
+❌ Visual appearance in Vitest
+❌ Animation timing in Vitest
+
+Use headless Chromium instead when a changed feature depends on those browser
+surfaces.
 
 ## Test File Organization
 
@@ -32,6 +37,8 @@ tests/
 ├── dice.test.ts      # Dice rolling utilities
 ├── combat.test.ts    # Combat mechanics
 ├── player.test.ts    # Player systems
+├── quests.test.ts    # Quest transitions, rewards, gates, and data
+├── debug.test.ts     # Pure debug command parsing
 └── data.test.ts      # Data validation
 ```
 
@@ -356,6 +363,12 @@ npm run typecheck
 npx vitest run tests/dice.test.ts
 ```
 
+For changed frontend flows, start Vite on an available fixed port and run a
+native Python Playwright script against Chromium. Wait for `networkidle`, use
+the rendered canvas bounds for coordinate-based actions, keep screenshots
+outside the repository, and assert browser errors, state transitions, and
+durable save behavior.
+
 ### Test Coverage
 ```bash
 # Generate coverage report
@@ -372,6 +385,8 @@ npx vitest run --coverage
 6. **Mock randomness when needed** - Make tests deterministic
 7. **Keep tests fast** - Avoid delays, network calls
 8. **One assertion per test (when possible)** - Makes failures clear
+9. **Use pure parsers/helpers in Vitest** - Avoid importing Phaser-heavy modules
+   when testing commands or domain logic
 
 ## Common Pitfalls
 
@@ -381,6 +396,8 @@ npx vitest run --coverage
 ❌ Tests that depend on execution order
 ❌ Overly complex test setup
 ❌ Not cleaning up state between tests
+❌ Treating a debug-panel log line as authoritative state without checking the
+actual domain or scene result
 
 ## Related Files
 

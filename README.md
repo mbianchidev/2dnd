@@ -49,6 +49,18 @@ API, and saves use `localStorage`.
 - Fog keys separate every dungeon level and city district while preserving
   legacy level-zero/chunk-zero save keys
 
+### Quests
+
+- A seven-chapter main quest, **The Twelvefold Covenant**, spanning all 12
+  cities and the three dungeon bosses
+- Two optional sidequests with delivery, monster-defeat, item hand-in, and
+  idempotent reward objectives
+- Named essential NPCs, paged dialogue, quest markers, objective notifications,
+  and a journal available from the pause menu or `Q`
+- Hard progression seals, soft danger warnings with stronger encounters, and
+  fast-travel restrictions that use the same quest access rules
+- Persistent boss reconciliation and a final Shadow Steed reward
+
 ### Presentation
 
 - Phaser 4 pixel-art rendering with procedural textures
@@ -84,6 +96,9 @@ src/
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
+│   ├── quests.ts
+│   ├── questState.ts
+│   ├── questDebug.ts
 │   ├── codex.ts
 │   ├── movement.ts
 │   ├── weather.ts
@@ -100,9 +115,13 @@ src/
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
-│   └── items.ts
+│   ├── items.ts
+│   ├── npcs.ts
+│   └── quests.ts
 ├── managers/
+│   └── questJournal.ts
 └── renderers/
+    └── questMarkers.ts
 ```
 
 `map.ts` is the map hub. Core types and dimensions live in `mapTypes.ts`;
@@ -136,9 +155,12 @@ npm run build      # Type-check and create a production build
 | --- | --- |
 | `WASD` / arrow keys | Move and navigate |
 | `Space` / `Enter` | Confirm or interact |
-| `M` | Open the in-game menu |
+| `Q` | Open or close the Quest Journal |
 | `C` | Open the Codex |
-| `Esc` | Close the active overlay |
+| `E` | Open equipment |
+| `M` | Open the World Map |
+| `T` | Mount or dismount |
+| `Esc` | Open the pause menu or close the active overlay |
 | Mouse / touch | Select buttons and scroll lists |
 
 ## Debug mode
@@ -153,6 +175,8 @@ Available tools include:
   classes, mounts, audio, and Codex discovery
 - `/spawn <name-or-id>` for every monster in `ALL_MONSTERS`, including unique
   dungeon bosses, plus special overworld NPC aliases
+- `/quest list|show|start|advance|set|reset|complete` for validated quest-state
+  inspection and mutation
 
 Use `debugLog()` and the debug panel APIs instead of `console.log`.
 
@@ -161,31 +185,41 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 Game state is stored under `2dnd_save`; audio preferences use
 `2dnd_audio_prefs`.
 
-Save schema version 2 persists:
+Save schema version 3 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
 - City ID and district index
 - Explored tiles, opened chests, collected treasure, and discovered cities
+- Main- and sidequest status, stages, objective counters, claimed rewards, and
+  acknowledged danger warnings
 - Defeated bosses, Codex entries, and discovered elemental interactions
 - Active status effects, time step, and weather state
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
-recovers invalid or conflicting world, city, and dungeon locations.
+recovers invalid or conflicting world, city, dungeon, and quest state. Boss
+objectives reconcile from the durable defeated-boss set, and in-flight quest
+items are repaired when objective state proves they are still required.
 
 ## Testing
 
 The Vitest suite covers combat, elements, statuses, saves, map and city data,
 dungeon traversal, fog keys, movement, player progression, dice, weather,
-day/night, mounts, NPCs, audio, and configuration.
+day/night, mounts, NPCs, quests, debug commands, audio, and configuration.
 
 Important integration suites:
 
 - `tests/elements.test.ts`
 - `tests/statusEffects.test.ts`
 - `tests/save.test.ts`
+- `tests/quests.test.ts`
+- `tests/debug.test.ts`
 - `tests/data.test.ts`
 - `tests/fogOfWar.test.ts`
+
+Changed frontend flows are also verified in headless Chromium, including quest
+dialogue, journal input, progression gates, Battle notifications, and save
+reload.
 
 ## Design constraints
 

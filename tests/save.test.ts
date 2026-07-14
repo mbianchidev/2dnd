@@ -5,6 +5,12 @@ import { saveGame, loadGame, deleteSave } from "../src/systems/save";
 import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createWeatherState } from "../src/systems/weather";
+import {
+  FROST_SILK_QUEST_ID,
+  IRON_DISPATCH_QUEST_ID,
+  MAIN_QUEST_ID,
+  QUEST_ITEM_IDS,
+} from "../src/data/quests";
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -350,5 +356,149 @@ describe("save system - PlayerState composition migration", () => {
       { id: "poison", remainingTurns: 5, source: "Spider" },
       { id: "burn", remainingTurns: 3, source: "unknown" },
     ]);
+  });
+
+  it("migrates v2 saves to an initialized quest log", () => {
+    const player = createPlayer("LegacyQuestHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    const playerRecord = player as unknown as {
+      progression: Record<string, unknown>;
+    };
+    delete playerRecord.progression["quests"];
+
+    localStorage.setItem("2dnd_save", JSON.stringify({
+      version: 2,
+      player,
+      defeatedBosses: [],
+      codex: createCodex(),
+      appearanceId: "knight",
+      timestamp: Date.now(),
+      timeStep: 0,
+      weatherState: createWeatherState(),
+    }));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.version).toBe(3);
+    expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID]).toMatchObject({
+      status: "active",
+      stage: 0,
+    });
+    expect(loaded!.player.progression.quests.quests[IRON_DISPATCH_QUEST_ID].status).toBe("inactive");
+    expect(loaded!.player.progression.quests.quests[FROST_SILK_QUEST_ID].status).toBe("inactive");
+  });
+
+  it("normalizes malformed quest records and removes unknown IDs", () => {
+    const player = createPlayer("CorruptQuestHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    const progression = player.progression as unknown as Record<string, unknown>;
+    progression["quests"] = {
+      quests: {
+        [MAIN_QUEST_ID]: {
+          status: "active",
+          stage: 99,
+          objectives: {
+            speakElowen: 99,
+            unknownObjective: 100,
+          },
+          claimedRewards: ["main:covenantSigil", "unknownReward"],
+        },
+        [IRON_DISPATCH_QUEST_ID]: {
+          status: "broken",
+          stage: -10,
+          objectives: "invalid",
+          claimedRewards: null,
+        },
+        unknownQuest: {
+          status: "completed",
+          stage: 0,
+        },
+      },
+      seenWarnings: ["frostRouteDanger", "unknownWarning", 42],
+    };
+
+    localStorage.setItem("2dnd_save", JSON.stringify({
+      version: 3,
+      player,
+      defeatedBosses: [],
+      codex: createCodex(),
+      appearanceId: "knight",
+      timestamp: Date.now(),
+      timeStep: 0,
+      weatherState: createWeatherState(),
+    }));
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    const questLog = loaded!.player.progression.quests;
+    expect(Object.keys(questLog.quests).sort()).toEqual([
+      FROST_SILK_QUEST_ID,
+      IRON_DISPATCH_QUEST_ID,
+      MAIN_QUEST_ID,
+    ].sort());
+    expect(questLog.quests[MAIN_QUEST_ID].stage).toBe(6);
+    expect(questLog.quests[MAIN_QUEST_ID].objectives.speakElowen).toBe(1);
+    expect(questLog.quests[MAIN_QUEST_ID].objectives.unknownObjective).toBeUndefined();
+    expect(questLog.quests[MAIN_QUEST_ID].claimedRewards).not.toContain("unknownReward");
+    expect(questLog.quests[IRON_DISPATCH_QUEST_ID].status).toBe("inactive");
+    expect(questLog.seenWarnings).toEqual(["frostRouteDanger"]);
+  });
+
+  it("reconciles an already-defeated boss without requiring a rematch", () => {
+    const player = createPlayer("VeteranQuestHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    const main = player.progression.quests.quests[MAIN_QUEST_ID];
+    main.stage = 1;
+    main.objectives.ironholdOath = 1;
+    main.objectives.deeprootOath = 1;
+
+    saveGame(
+      player,
+      new Set(["cryptLich"]),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID].stage).toBe(2);
+  });
+
+  it("repairs required quest items from normalized objective state", () => {
+    const player = createPlayer("ItemQuestHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    const dispatch = player.progression.quests.quests[IRON_DISPATCH_QUEST_ID];
+    dispatch.status = "active";
+    dispatch.claimedRewards.push("dispatch:sealedLetter");
+
+    const frostSilk = player.progression.quests.quests[FROST_SILK_QUEST_ID];
+    frostSilk.status = "active";
+    frostSilk.stage = 1;
+    frostSilk.objectives.frostSpiders = 3;
+    frostSilk.claimedRewards.push("frostSilk:bundle");
+
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      "knight",
+      0,
+      createWeatherState(),
+    );
+
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.inventory.some((item) => item.id === QUEST_ITEM_IDS.sealedDispatch)).toBe(true);
+    expect(loaded!.player.inventory.some((item) => item.id === QUEST_ITEM_IDS.frostSilkBundle)).toBe(true);
   });
 });

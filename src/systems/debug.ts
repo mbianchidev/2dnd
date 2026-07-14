@@ -17,6 +17,7 @@ import { SPELLS } from "../data/spells";
 import { ABILITIES } from "../data/abilities";
 import { PLAYER_CLASSES } from "./classes";
 import { TALENTS } from "../data/talents";
+import { runQuestDebugCommand } from "./questDebug";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -272,6 +273,7 @@ export interface OverworldDebugCallbacks {
   applyDayNightTint(): void;
   createPlayer(): void;
   refreshWorldMap(): void;
+  refreshQuestUI(): void;
   updateWeatherParticles(): void;
   updateAudio(): void;
   startBattle(monster: Monster): void;
@@ -657,6 +659,25 @@ export class DebugCommandSystem {
       debugPanelLog(`[CMD] Discovered ${count} new codex entries (${Object.keys(this.codex.entries).length} total)`, true);
     });
 
+    cmds.set("quest", (args) => {
+      const result = runQuestDebugCommand(
+        this.player,
+        this.defeatedBosses,
+        args,
+      );
+      for (const message of result.messages) {
+        debugPanelLog(`[QUEST] ${message}`, true);
+      }
+      if (!result.success || !result.changed) return;
+      this.callbacks.renderMap();
+      this.callbacks.applyDayNightTint();
+      this.callbacks.createPlayer();
+      this.callbacks.refreshWorldMap();
+      this.callbacks.refreshQuestUI();
+      this.callbacks.updateHUD();
+      this.callbacks.autoSave();
+    });
+
     const helpEntries: HelpEntry[] = [
       ...SHARED_HELP,
       { usage: "/reveal", desc: "Reveal entire world map" },
@@ -671,6 +692,7 @@ export class DebugCommandSystem {
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
       { usage: "/mount <id>", desc: "Mount: donkey|horse|warHorse|shadowSteed|none" },
       { usage: "/codex all", desc: "Discover all codex entries" },
+      { usage: "/quest <cmd>", desc: "Quest list/show/start/advance/set/reset/complete" },
     ];
 
     registerCommandRouter(cmds, "Overworld", helpEntries);

@@ -25,9 +25,11 @@ import {
 import { debugLog } from "../config";
 import { isElement } from "../data/elements";
 import { normalizeActiveEffects } from "./statusEffects";
+import { createInitialQuestLog } from "../data/quests";
+import { normalizeQuestLog, reconcileQuestState } from "./quests";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 
 export interface SaveData {
   version: number;
@@ -249,6 +251,7 @@ export function loadGame(): SaveData | null {
         collectedTreasures: normalizeStringArray(playerRecord["collectedTreasures"]),
         exploredTiles: normalizeExploredTiles(playerRecord["exploredTiles"]),
         discoveredCities: [],
+        quests: createInitialQuestLog(),
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -264,6 +267,8 @@ export function loadGame(): SaveData | null {
     data.player.progression.exploredTiles = normalizeExploredTiles(
       data.player.progression.exploredTiles,
     );
+    const progressionRecord = data.player.progression as unknown as Record<string, unknown>;
+    data.player.progression.quests = normalizeQuestLog(progressionRecord["quests"]);
 
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
     if (data.player.equippedOffHand === undefined) data.player.equippedOffHand = null;
@@ -299,6 +304,8 @@ export function loadGame(): SaveData | null {
       const match = p.inventory.find(i => i.id === p.equippedShield!.id && i.type === "shield");
       if (match) p.equippedShield = match;
     }
+
+    reconcileQuestState(p, new Set(data.defeatedBosses));
 
     const validCityIds = new Set(CITIES.map((city) => city.id));
     if (!Array.isArray(data.player.progression.discoveredCities)) {

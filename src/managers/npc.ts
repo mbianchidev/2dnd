@@ -48,15 +48,10 @@ export function findAdjacentNpc(
       if (!isOutdoorShop && !playerInsideShop) continue;
     }
 
-    let nx: number;
-    let ny: number;
-    if (cityRenderer.cityNpcSprites[i]) {
-      nx = Math.floor(cityRenderer.cityNpcSprites[i].x / TILE_SIZE);
-      ny = Math.floor(cityRenderer.cityNpcSprites[i].y / TILE_SIZE);
-    } else {
-      nx = npc.x;
-      ny = npc.y;
-    }
+    const sprite = cityRenderer.cityNpcSprites[i];
+    if (!sprite) continue;
+    const nx = Math.floor(sprite.x / TILE_SIZE);
+    const ny = Math.floor(sprite.y / TILE_SIZE);
     for (const c of checks) {
       if (c.x === nx && c.y === ny) return { npcDef: npc, npcIndex: i };
     }

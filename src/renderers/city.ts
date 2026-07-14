@@ -28,11 +28,13 @@ export class CityRenderer {
   /** Wander timers for moving animals. */
   cityAnimalTimers: Phaser.Time.TimerEvent[] = [];
   /** Active NPC sprites in the current city. */
-  cityNpcSprites: Phaser.GameObjects.Sprite[] = [];
+  cityNpcSprites: Array<Phaser.GameObjects.Sprite | null> = [];
   /** Wander timers for moving NPCs. */
   cityNpcTimers: Phaser.Time.TimerEvent[] = [];
   /** NPC instance data for the current city. */
   cityNpcData: NpcInstance[] = [];
+  /** Quest markers aligned with city NPC data indices. */
+  cityNpcQuestMarkers: Array<Phaser.GameObjects.Text | null> = [];
   /** Graphics objects for shop roof overlays. */
   shopRoofGraphics: Phaser.GameObjects.Graphics[] = [];
   /** Bounding rectangles for each shop roof. */
@@ -475,8 +477,10 @@ export class CityRenderer {
     const chunk = getCityChunk(city, player.position.cityChunkIndex);
     if (!chunk) return;
     // Destroy existing NPC sprites and timers
-    for (const s of this.cityNpcSprites) s.destroy();
+    for (const s of this.cityNpcSprites) s?.destroy();
     this.cityNpcSprites = [];
+    for (const marker of this.cityNpcQuestMarkers) marker?.destroy();
+    this.cityNpcQuestMarkers = [];
     for (const t of this.cityNpcTimers) t.destroy();
     this.cityNpcTimers = [];
     this.cityNpcData = [];
@@ -508,6 +512,7 @@ export class CityRenderer {
     let nonEssentialCount = 0;
 
     this.cityNpcData = npcs;
+    this.cityNpcSprites = new Array(npcs.length).fill(null);
 
     for (let i = 0; i < npcs.length; i++) {
       const def = npcs[i];
@@ -515,7 +520,7 @@ export class CityRenderer {
       if (!tpl) continue;
 
       // At night, skip most non-essential NPCs (children always go, most villagers too)
-      if (isNight && def.shopIndex === undefined) {
+      if (isNight && def.shopIndex === undefined && !def.essential) {
         const isGuard = def.templateId.startsWith("guard_");
         const isChild = tpl.ageGroup === "child";
         if (isChild) {
@@ -570,7 +575,7 @@ export class CityRenderer {
         sprite.setScale(tpl.heightScale);
       }
 
-      this.cityNpcSprites.push(sprite);
+      this.cityNpcSprites[i] = sprite;
 
       if (def.moves) {
         const wander = (): void => {
@@ -621,6 +626,37 @@ export class CityRenderer {
     }
   }
 
+  /** Refresh procedural quest markers for currently rendered named NPCs. */
+  refreshQuestMarkers(
+    getMarker: (npcId: string) => "available" | "active" | null,
+  ): void {
+    for (const marker of this.cityNpcQuestMarkers) marker?.destroy();
+    this.cityNpcQuestMarkers = new Array(this.cityNpcData.length).fill(null);
+
+    for (let index = 0; index < this.cityNpcData.length; index++) {
+      const npc = this.cityNpcData[index];
+      const sprite = this.cityNpcSprites[index];
+      if (!npc.id || !sprite) continue;
+      const markerType = getMarker(npc.id);
+      if (!markerType) continue;
+
+      const marker = this.scene.add.text(
+        sprite.x,
+        sprite.y - TILE_SIZE * 0.7,
+        markerType === "available" ? "!" : "?",
+        {
+          fontSize: "18px",
+          fontFamily: "monospace",
+          fontStyle: "bold",
+          color: markerType === "available" ? "#ffd740" : "#80cbc4",
+          stroke: "#101018",
+          strokeThickness: 3,
+        },
+      ).setOrigin(0.5).setDepth(20);
+      this.cityNpcQuestMarkers[index] = marker;
+    }
+  }
+
   // ── Cleanup ──────────────────────────────────────────────────────────
 
   /** Destroy all sprites, timers, and graphics and reset arrays. */
@@ -630,8 +666,10 @@ export class CityRenderer {
     for (const t of this.cityAnimalTimers) t.destroy();
     this.cityAnimalTimers = [];
 
-    for (const s of this.cityNpcSprites) s.destroy();
+    for (const s of this.cityNpcSprites) s?.destroy();
     this.cityNpcSprites = [];
+    for (const marker of this.cityNpcQuestMarkers) marker?.destroy();
+    this.cityNpcQuestMarkers = [];
     for (const t of this.cityNpcTimers) t.destroy();
     this.cityNpcTimers = [];
     this.cityNpcData = [];

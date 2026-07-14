@@ -41,6 +41,9 @@ import type { SavedSpecialNpc } from "../data/npcs";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
+import { saveGame } from "../systems/save";
+import { recordMonsterDefeat } from "../systems/quests";
+import type { QuestUpdate } from "../systems/quests";
 import { drawTimeSky as _drawTimeSky, drawCelestialBody as _drawCelestialBody, drawTerrainForeground as _drawTerrainForeground, applyBattleDayNightTint, createBattleWeatherParticles } from "../renderers/battleEffects";
 import { PlayerRenderer } from "../renderers/player";
 import {
@@ -107,6 +110,7 @@ export class BattleScene extends Phaser.Scene {
   private biome = "grass";
   private bgImage: Phaser.GameObjects.Image | null = null;
   private isReturningToOverworld = false;
+  private questUpdates: QuestUpdate[] = [];
 
   constructor() {
     super({ key: "BattleScene" });
@@ -147,6 +151,7 @@ export class BattleScene extends Phaser.Scene {
     this.droppedItemIds = [];
     this.monsterEffects = [];
     this.isReturningToOverworld = false;
+    this.questUpdates = [];
     this.elementalDiscoveries = new Set(
       this.codex.entries[this.monster.id]?.discoveredElements ?? [],
     );
@@ -1595,11 +1600,29 @@ export class BattleScene extends Phaser.Scene {
           this.defeatedBosses.add(this.monster.id);
         }
 
+        const questResult = recordMonsterDefeat(
+          this.player,
+          this.defeatedBosses,
+          this.monster.id,
+        );
+        this.questUpdates = questResult.updates;
+        if (questResult.changed) {
+          this.addLog("Quest progress recorded.");
+        }
+
         // Record in bestiary
         recordDefeat(this.codex, this.monster, this.acDiscovered, this.droppedItemIds);
         for (const element of this.elementalDiscoveries) {
           discoverElement(this.codex, this.monster.id, element);
         }
+        saveGame(
+          this.player,
+          this.defeatedBosses,
+          this.codex,
+          this.player.appearanceId,
+          this.timeStep,
+          this.weatherState,
+        );
 
         // Play victory jingle
         if (audioEngine.initialized) {
@@ -1710,6 +1733,7 @@ export class BattleScene extends Phaser.Scene {
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,
+        questUpdates: this.questUpdates,
       });
     });
     this.cameras.main.fadeOut(500, 0, 0, 0);

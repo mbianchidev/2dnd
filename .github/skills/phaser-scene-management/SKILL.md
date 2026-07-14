@@ -62,7 +62,7 @@ Scene-specific additions:
 - Battle: `monster`, `biome`
 - Shop: `townName`, optional item IDs, city context, discount
 - Overworld: fields are optional only because Boot can create or load the
-  initial state
+  initial state; Battle may also return transient `questUpdates`
 
 When a scene contract changes, update every `scene.start()` caller in the same
 change.
@@ -102,6 +102,8 @@ a restarted scene receives fresh helpers, then load persisted data into them:
 - `PlayerRenderer`
 - `HUDRenderer`
 - `OverlayManager`
+- `QuestJournalManager`
+- `QuestMarkerRenderer`
 - NPC and dialogue managers
 - `DebugCommandSystem`
 
@@ -115,6 +117,8 @@ state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.
 - Keep action buttons visibly disabled outside the player turn.
 - Destroy or replace transient menus before opening another.
 - For scrollable text, bound what is rendered to the visible area.
+- Quest dialogue consumes Space before world actions. The quest journal blocks
+  movement and actions and must be mutually exclusive with other overlays.
 
 Phaser 4 geometry masks do not reliably clip the Battle log in this project.
 The Battle scene renders only messages that fit and changes the message offset
@@ -128,6 +132,8 @@ on mouse-wheel input.
 - Keep bonus-action abilities and the first item use on the player turn.
 - Validate actions before consuming MP, items, or the turn.
 - Clear all combat effects before returning to Overworld.
+- Record quest victory events after boss tracking, save the changed player
+  state, and pass structured quest updates back to Overworld.
 - Clean up weather emitters and timers owned by Battle.
 
 ## Debug and errors
@@ -148,6 +154,7 @@ the scene in a usable phase.
 - Stale scene keys such as `Overworld` instead of `OverworldScene`
 - Passing arrays where `Set<string>` is expected
 - Dropping weather or special-NPC state during transitions
+- Dropping Battle-originated quest notifications during the Overworld return
 - Reusing orphaned tween/input state after a scene restart
 - Resetting scene-local debug toggles during a round trip
 - Depending on Phaser 3-only behavior

@@ -28,6 +28,7 @@ import {
   rollSpecialNpcSpawns,
 } from "../src/data/npcs";
 import { CITIES } from "../src/data/map";
+import { QUEST_NPCS } from "../src/data/quests";
 
 describe("NPC system", () => {
   describe("NPC templates", () => {
@@ -221,6 +222,26 @@ describe("NPC system", () => {
         const ageGroups = new Set(npcs.map((n) => getNpcTemplate(n.templateId)?.ageGroup));
         // At least two different age groups
         expect(ageGroups.size).toBeGreaterThanOrEqual(2);
+      }
+    });
+
+    it("assigns every named quest NPC exactly once as an essential NPC", () => {
+      const assignedQuestNpcs = Object.entries(CITY_NPCS).flatMap(
+        ([cityId, npcs]) => npcs
+          .filter((npc) => npc.id !== undefined)
+          .map((npc) => ({ cityId, npc })),
+      );
+      const ids = assignedQuestNpcs.map(({ npc }) => npc.id);
+      expect(new Set(ids).size).toBe(ids.length);
+
+      for (const questNpc of QUEST_NPCS) {
+        const matches = assignedQuestNpcs.filter(
+          ({ cityId, npc }) => cityId === questNpc.cityId && npc.id === questNpc.id,
+        );
+        expect(matches).toHaveLength(1);
+        expect(matches[0].npc.name).toBe(questNpc.name);
+        expect(matches[0].npc.essential).toBe(true);
+        expect(matches[0].npc.moves).toBe(false);
       }
     });
   });

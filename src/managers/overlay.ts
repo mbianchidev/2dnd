@@ -47,6 +47,11 @@ import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
 import { calcPanelLayout, createDimGraphics, createPanelGraphics } from "../utils/ui";
 import { TILE_SIZE } from "../config";
+import {
+  getQuestAccessDecision,
+  getQuestDangerState,
+  markQuestWarningSeen,
+} from "../systems/quests";
 
 /** Callbacks the OverlayManager uses to interact with the parent scene. */
 export interface OverlayCallbacks {
@@ -63,6 +68,7 @@ export interface OverlayCallbacks {
   setTimeStep: (t: number) => void;
   evacuateDungeon: () => void;
   getHUDInfo: () => string;
+  openQuestJournal: () => void;
 }
 
 export class OverlayManager {
@@ -961,11 +967,11 @@ export class OverlayManager {
     this.showMenuOverlay(player, defeatedBosses, codex);
   }
 
-  /** Show the menu overlay with Resume / Settings / Quit. */
+  /** Show the menu overlay with Resume / Quests / Settings / Quit. */
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
 
-    const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 220, 200, -10);
+    const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 220, 240, -10);
 
     this.menuOverlay = this.scene.add.container(0, 0).setDepth(70);
 
@@ -992,8 +998,21 @@ export class OverlayManager {
     resumeBtn.on("pointerdown", () => this.toggleMenuOverlay(player, defeatedBosses, codex));
     this.menuOverlay.add(resumeBtn);
 
+    // Quests
+    const questsBtn = this.scene.add.text(px + panelW / 2, py + 90, "Quest Journal", {
+      fontSize: "14px", fontFamily: "monospace", color: "#d1c4e9",
+      backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    questsBtn.on("pointerover", () => questsBtn.setColor("#ffd700"));
+    questsBtn.on("pointerout", () => questsBtn.setColor("#d1c4e9"));
+    questsBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+      this.callbacks.openQuestJournal();
+    });
+    this.menuOverlay.add(questsBtn);
+
     // Settings
-    const settingsBtn = this.scene.add.text(px + panelW / 2, py + 90, "🔊 Settings", {
+    const settingsBtn = this.scene.add.text(px + panelW / 2, py + 132, "🔊 Settings", {
       fontSize: "14px", fontFamily: "monospace", color: "#aabbff",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
@@ -1006,7 +1025,7 @@ export class OverlayManager {
     this.menuOverlay.add(settingsBtn);
 
     // Quit
-    const quitBtn = this.scene.add.text(px + panelW / 2, py + 132, "✕ Quit to Title", {
+    const quitBtn = this.scene.add.text(px + panelW / 2, py + 174, "✕ Quit to Title", {
       fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
@@ -1410,8 +1429,23 @@ export class OverlayManager {
           && player.position.chunkX === city.chunkX && player.position.chunkY === city.chunkY
           && player.position.x === city.tileX && player.position.y === city.tileY;
         const here = isCurrent || isCurrentChunk;
-        const color = here ? "#666" : "#ccffcc";
-        const label = here ? `${city.name} (here)` : city.name;
+        const access = getQuestAccessDecision(player, {
+          type: "city",
+          id: city.id,
+        });
+        const danger = getQuestDangerState(player, {
+          type: "city",
+          id: city.id,
+        });
+        const locked = !access.allowed;
+        const color = here || locked ? "#666" : "#ccffcc";
+        const label = here
+          ? `${city.name} (here)`
+          : locked
+            ? `${city.name} (sealed)`
+            : danger
+              ? `${city.name} (!)`
+              : city.name;
         const btn = this.scene.add.text(px + panelW / 2, cy, label, {
           fontSize: "11px", fontFamily: "monospace", color,
         }).setOrigin(0.5, 0).setInteractive({ useHandCursor: !here });
@@ -1419,7 +1453,25 @@ export class OverlayManager {
         if (!here) {
           btn.on("pointerover", () => btn.setColor("#ffd700"));
           btn.on("pointerout", () => btn.setColor(color));
+          let dangerConfirmed = danger?.seen ?? true;
           btn.on("pointerdown", () => {
+            if (locked) {
+              this.callbacks.showMessage(
+                access.message ?? `${city.name} is sealed by quest progression.`,
+                "#ff6f91",
+              );
+              return;
+            }
+            if (danger && !dangerConfirmed) {
+              dangerConfirmed = true;
+              markQuestWarningSeen(player, danger.id);
+              this.callbacks.autoSave();
+              this.callbacks.showMessage(
+                `${danger.warning} Select ${city.name} again to confirm travel.`,
+                "#ffb74d",
+              );
+              return;
+            }
             player.mp -= this.pendingTeleportCost;
             player.position.chunkX = city.chunkX;
             player.position.chunkY = city.chunkY;

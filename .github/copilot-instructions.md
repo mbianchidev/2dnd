@@ -16,7 +16,8 @@ focused module.
 D&D 5E-inspired combat. It has turn-based battles, point-buy characters,
 procedural graphics/audio, weather, day/night, a 90-chunk world, connected city
 districts, multi-level dungeons, elemental interactions, status effects, and
-boss fights.
+boss fights. A persistent seven-chapter quest line spans all 12 cities, with two
+sidequests, progression gates, a journal, and a Shadow Steed reward.
 
 ## Stack
 
@@ -44,6 +45,9 @@ src/
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
+│   ├── quests.ts
+│   ├── questState.ts
+│   ├── questDebug.ts
 │   ├── classes.ts
 │   ├── codex.ts
 │   ├── movement.ts
@@ -65,6 +69,7 @@ src/
 │   ├── items.ts
 │   ├── mounts.ts
 │   ├── npcs.ts
+│   ├── quests.ts
 │   └── talents.ts
 ├── managers/
 ├── renderers/
@@ -120,6 +125,8 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 ```
 
 - Battle also receives `monster` and `biome`; Shop receives shop/city context.
+- Battle may return transient `questUpdates` to Overworld so progress messages
+  appear after the scene transition; do not persist that notification queue.
 - Generate textures in `src/renderers/textures.ts`, invoked by Boot.
 - Synthesize all audio in `src/systems/audio.ts`.
 - Store Phaser object references needed for later update/cleanup.
@@ -151,11 +158,33 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  quests: QuestLogState;
 }
 ```
 
 Access fields through `player.position` and `player.progression`.
 `player.activeEffects` stores normalized combat effects.
+
+## Quests
+
+- Immutable quest definitions, dialogue, rewards, gates, and danger rules live
+  in `src/data/quests.ts`.
+- Pure normalization, event processing, access decisions, journal models, and
+  debug-safe mutations live in `src/systems/quests.ts`; focused save-state
+  normalization helpers live in `src/systems/questState.ts`.
+- The main quest starts active for new and migrated saves. Sidequests remain
+  inactive until started.
+- Use stable quest, objective, reward, NPC, item, city, dungeon, and monster
+  IDs. Never mutate shared definitions at runtime.
+- Rewards are idempotent through claimed reward IDs. Boss objectives reconcile
+  from `defeatedBosses`; regular monster counters only advance while active.
+- Evaluate hard quest gates before consuming dungeon keys or charging fast
+  travel. Soft danger uses a 1.5 encounter-rate multiplier and +4 effective
+  encounter level without mutating monster templates.
+- Essential quest NPCs keep stable sprite/data identity and remain present at
+  night. Quest dialogue advances only after its final page is acknowledged.
+- `QuestJournalManager` owns the `Q`/pause-menu journal and notification queue.
+  Journal, dialogue, and other overlays must remain mutually exclusive.
 
 ## Character creation
 
@@ -272,12 +301,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 2.
+Save schema version is 3.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects and Codex elements, validates
 city/dungeon IDs, clamps levels/districts, repairs invalid coordinates to the
 correct spawn, and falls back to Willowdale for unusable overworld locations.
+Quest normalization filters unknown IDs, repairs status/stage/objective
+invariants and required quest items, preserves claimed rewards, and reconciles
+boss objectives after `defeatedBosses` is normalized.
 
 When persistent data changes:
 
@@ -311,8 +343,11 @@ Do not add external audio.
 - Never add production `console.log`.
 - `/spawn` resolves every entry in `ALL_MONSTERS`, including dungeon-specific
   monsters and bosses.
+- `/quest list|show|start|advance|set|reset|complete` uses production quest APIs
+  and autosaves successful mutations.
 - Shared debug commands and Overworld-specific commands live in
-  `src/systems/debug.ts`.
+  `src/systems/debug.ts`; the pure quest command parser lives in
+  `src/systems/questDebug.ts`.
 
 ## Commands
 
@@ -329,6 +364,8 @@ npm run build
 - Framework: Vitest
 - Files: `tests/*.test.ts`
 - Add deterministic tests for mechanics and migrations.
+- Quest coverage includes ordering, duplicate events, reward idempotency, boss
+  reconciliation, access/danger rules, item repair, and debug mutations.
 - Use headless Chromium for changed frontend flows.
 - Run typecheck, full tests, and build before completion.
 

@@ -251,6 +251,10 @@ export const GUARD_NIGHT_DIALOGUES: string[] = [
 // ── Per-city NPC placement ──
 
 export interface NpcInstance {
+  /** Stable identity used by quests and other persistent interactions. */
+  id?: string;
+  /** Display name for named NPCs. */
+  name?: string;
   templateId: string;
   job: NpcJob;
   x: number;
@@ -261,6 +265,8 @@ export interface NpcInstance {
   dialogue?: string;
   /** If set, this NPC is the shopkeeper for the given shop index. */
   shopIndex?: number;
+  /** Essential NPCs remain present during nighttime population filtering. */
+  essential?: boolean;
 }
 
 /**
@@ -276,7 +282,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_elder",   job: "stablemaster",  x: 10, y: 5,  moves: false, shopIndex: 4 },
     { templateId: "child_boy1",   job: "villager",      x: 8,  y: 7,  moves: true },
     { templateId: "child_girl1",  job: "villager",      x: 12, y: 8,  moves: true },
-    { templateId: "female_young", job: "villager",      x: 6,  y: 9,  moves: true },
+    { id: "willowdaleArchivist", name: "Archivist Elowen", templateId: "female_young", job: "villager", x: 6, y: 9, moves: false, essential: true },
   ],
   ironhold_city: [
     { templateId: "male_stout",   job: "blacksmith",    x: 4,  y: 3,  moves: false, shopIndex: 0 },
@@ -286,7 +292,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "stablemaster",  x: 10, y: 10, moves: false, shopIndex: 4 },
     { templateId: "child_boy2",   job: "villager",      x: 8,  y: 8,  moves: true },
     { templateId: "female_elder", job: "farmer",        x: 14, y: 10, moves: false },
-    { templateId: "guard_male",   job: "guard",         x: 9,  y: 12, moves: false },
+    { id: "ironholdWarden", name: "Warden Brann", templateId: "guard_male", job: "guard", x: 9, y: 12, moves: false, essential: true },
     { templateId: "guard_female", job: "guard",         x: 11, y: 12, moves: false },
   ],
   sandport_city: [
@@ -297,7 +303,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",      x: 5,  y: 12, moves: false, shopIndex: 4 },
     { templateId: "female_stout", job: "merchant",      x: 14, y: 12, moves: false, shopIndex: 5 },
     { templateId: "male_stout",   job: "stablemaster",  x: 10, y: 8,  moves: false, shopIndex: 6 },
-    { templateId: "child_girl2",  job: "villager",      x: 9,  y: 3,  moves: true },
+    { id: "sandportHarbormaster", name: "Harbormaster Sable", templateId: "female_young", job: "merchant", x: 9, y: 3, moves: false, essential: true },
     { templateId: "child_kid",    job: "villager",      x: 8,  y: 9,  moves: true },
   ],
   frostheim_city: [
@@ -308,7 +314,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",    x: 11, y: 11, moves: false, shopIndex: 4 },
     { templateId: "female_tall",  job: "blacksmith",  x: 14, y: 11, moves: false, shopIndex: 5 },
     { templateId: "child_boy1",   job: "villager",    x: 10, y: 5,  moves: true },
-    { templateId: "male_elder",   job: "farmer",      x: 6,  y: 8,  moves: false },
+    { id: "frostheimSeer", name: "Seer Yrsa", templateId: "female_elder", job: "villager", x: 6, y: 8, moves: false, essential: true },
     { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
   ],
   deeproot_city: [
@@ -317,7 +323,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",    x: 5,  y: 12, moves: false, shopIndex: 2 },
     { templateId: "female_young", job: "innkeeper",   x: 14, y: 12, moves: false, shopIndex: 3 },
     { templateId: "child_girl1",  job: "villager",    x: 10, y: 4,  moves: true },
-    { templateId: "female_elder", job: "cook",        x: 8,  y: 8,  moves: false },
+    { id: "deeprootRootspeaker", name: "Rootspeaker Neris", templateId: "female_elder", job: "villager", x: 8, y: 8, moves: false, essential: true },
     { templateId: "male_stout",   job: "farmer",      x: 12, y: 8,  moves: true },
   ],
   canyonwatch_city: [
@@ -327,7 +333,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_tall",  job: "innkeeper",   x: 12, y: 8,  moves: false, shopIndex: 3 },
     { templateId: "child_kid",    job: "villager",    x: 10, y: 6,  moves: true },
     { templateId: "male_elder",   job: "villager",    x: 6,  y: 10, moves: false },
-    { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
+    { id: "canyonwatchMarshal", name: "Marshal Tarek", templateId: "guard_male", job: "guard", x: 9, y: 12, moves: false, essential: true },
     { templateId: "guard_female", job: "guard",       x: 11, y: 12, moves: false },
   ],
   bogtown_city: [
@@ -336,7 +342,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_stout",   job: "blacksmith",  x: 4,  y: 12, moves: false, shopIndex: 2 },
     { templateId: "female_stout", job: "innkeeper",   x: 15, y: 12, moves: false, shopIndex: 3 },
     { templateId: "child_boy2",   job: "villager",    x: 10, y: 8,  moves: true },
-    { templateId: "female_elder", job: "cook",        x: 8,  y: 7,  moves: false },
+    { id: "bogtownApothecary", name: "Apothecary Mirel", templateId: "female_elder", job: "cook", x: 8, y: 7, moves: false, essential: true },
     { templateId: "male_young",   job: "farmer",      x: 13, y: 9,  moves: true },
   ],
   thornvale_city: [
@@ -345,7 +351,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",    x: 6,  y: 11, moves: false, shopIndex: 2 },
     { templateId: "female_young", job: "innkeeper",   x: 13, y: 11, moves: false, shopIndex: 3 },
     { templateId: "child_girl2",  job: "villager",    x: 10, y: 7,  moves: true },
-    { templateId: "male_elder",   job: "farmer",      x: 8,  y: 6,  moves: false },
+    { id: "thornvaleGreenwarden", name: "Greenwarden Rowan", templateId: "male_elder", job: "farmer", x: 8, y: 6, moves: false, essential: true },
     { templateId: "female_stout", job: "cook",        x: 11, y: 6,  moves: false },
   ],
   ashfall_city: [
@@ -356,7 +362,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_thin",  job: "merchant",    x: 4,  y: 11, moves: false, shopIndex: 4 },
     { templateId: "male_tall",    job: "merchant",    x: 15, y: 11, moves: false, shopIndex: 5 },
     { templateId: "child_boy1",   job: "villager",    x: 10, y: 9,  moves: true },
-    { templateId: "male_elder",   job: "villager",    x: 7,  y: 9,  moves: false },
+    { id: "ashfallSmith", name: "Smith Kael", templateId: "male_elder", job: "blacksmith", x: 7, y: 9, moves: false, essential: true },
     { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
   ],
   dunerest_city: [
@@ -366,7 +372,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_young", job: "innkeeper",   x: 15, y: 12, moves: false, shopIndex: 3 },
     { templateId: "child_girl1",  job: "villager",    x: 10, y: 7,  moves: true },
     { templateId: "male_stout",   job: "cook",        x: 8,  y: 9,  moves: false },
-    { templateId: "female_elder", job: "farmer",      x: 12, y: 9,  moves: true },
+    { id: "dunerestLorekeeper", name: "Lorekeeper Zahra", templateId: "female_elder", job: "villager", x: 12, y: 9, moves: false, essential: true },
   ],
   ridgewatch_city: [
     { templateId: "male_stout",   job: "blacksmith",  x: 5,  y: 4,  moves: false, shopIndex: 0 },
@@ -377,7 +383,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_elder",   job: "villager",    x: 8,  y: 6,  moves: false },
     { templateId: "female_young", job: "farmer",      x: 12, y: 6,  moves: true },
     { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
-    { templateId: "guard_female", job: "guard",       x: 11, y: 12, moves: false },
+    { id: "ridgewatchSentinel", name: "Sentinel Mira", templateId: "guard_female", job: "guard", x: 11, y: 12, moves: false, essential: true },
   ],
   shadowfen_city: [
     { templateId: "female_thin",  job: "merchant",    x: 5,  y: 4,  moves: false, shopIndex: 0 },
@@ -385,7 +391,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",    x: 5,  y: 12, moves: false, shopIndex: 2 },
     { templateId: "female_stout", job: "innkeeper",   x: 14, y: 12, moves: false, shopIndex: 3 },
     { templateId: "child_boy2",   job: "villager",    x: 10, y: 7,  moves: true },
-    { templateId: "female_elder", job: "villager",    x: 8,  y: 9,  moves: false },
+    { id: "shadowfenFerryman", name: "Ferryman Vey", templateId: "male_elder", job: "villager", x: 8, y: 9, moves: false, essential: true },
     { templateId: "male_stout",   job: "cook",        x: 11, y: 9,  moves: false },
   ],
 };

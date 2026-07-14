@@ -17,6 +17,8 @@ license: MIT
 - `src/managers/fogOfWar.ts`: exploration-key generation and reveal state
 - `src/renderers/map.ts`: terrain and weather rendering
 - `src/renderers/city.ts`: city NPC, animal, and district rendering
+- `src/data/quests.ts`: city/dungeon access and soft-danger definitions
+- `src/renderers/questMarkers.ts`: procedural blocked-location indicators
 
 ## Dimensions
 
@@ -99,6 +101,21 @@ contains `Terrain.DungeonBoss` and a unique `bossId`.
 Dungeon encounters should pass the dungeon ID so the correct exclusive pool is
 used.
 
+## Quest access and danger
+
+Use `getQuestAccessDecision()` for city, dungeon, and fast-travel entry. Apply
+the same decision to prompts and actions, and evaluate it before dungeon keys or
+travel costs. Hard gates belong at location boundaries rather than overworld
+road tiles because chunk borders have many valid crossings.
+
+Use `getQuestDangerState()` for soft-gated regions. Before the associated main
+chapter, encounters use a 1.5 rate multiplier and +4 effective encounter level.
+Show each warning once, require confirmation for soft-gated travel/entry, and do
+not mutate shared map or monster definitions.
+
+Blocked location markers are procedural overlays. Refresh them after quest
+changes and scene/map rebuilds.
+
 ## Chests
 
 Dungeon chest locations may include `dungeonLevel`. Resolve the level map
@@ -150,3 +167,5 @@ to the Willowdale overworld start when necessary.
 - Reusing fog keys across floors or districts
 - Looking up only generic dungeon monsters and omitting exclusive pools/bosses
 - Hardcoding walkability or encounter behavior
+- Checking a quest gate after consuming a dungeon key or fast-travel payment
+- Trying to seal an advanced region with a few ordinary road tiles

@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v2, migration, normalization, and location recovery
+description: Manage 2D&D save schema v3, quest migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -8,6 +8,8 @@ license: MIT
 
 Game state is stored in `localStorage` by `src/systems/save.ts`. Audio
 preferences are stored separately by `src/systems/audio.ts`.
+Quest save defaults and normalization helpers live in
+`src/systems/questState.ts`.
 
 ## Storage keys
 
@@ -16,7 +18,7 @@ preferences are stored separately by `src/systems/audio.ts`.
 
 ## Current schema
 
-`SAVE_VERSION` is 2.
+`SAVE_VERSION` is 3.
 
 ```typescript
 interface SaveData {
@@ -57,11 +59,14 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  quests: QuestLogState;
 }
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
 Codex entries persist `discoveredElements`.
+Quest state persists known quest statuses, stages, objective counters, claimed
+reward IDs, and acknowledged danger-warning IDs.
 
 ## Loading and migration
 
@@ -77,6 +82,10 @@ helpers; do not cast unvalidated nested values directly.
   fields
 - Missing/invalid active status effects
 - Missing/invalid Codex elemental discoveries
+- Missing/invalid quest records, stages, objective counters, warning IDs, and
+  reward claims
+- Quest-item repair and boss-objective reconciliation after defeated bosses are
+  normalized
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
 
@@ -109,6 +118,10 @@ validation.
 Do not silently retain malformed data. Use a safe default or reject the save
 when the top-level payload is unusable.
 
+Quest normalization is unconditional and idempotent. Missing pre-v3 quest state
+starts the main quest at stage 0 and leaves sidequests inactive. Never rely only
+on `version`; every nested field must still be normalized from `unknown`.
+
 ## Status and element rules
 
 - Normalize status IDs, integer durations, and sources with
@@ -136,11 +149,14 @@ top-level save is absent or corrupt.
 - Save/load round trips
 - Legacy flat-state migration
 - Schema-v2 position and progression data
+- Schema-v3 quest state and pre-v3 migration
 - Dungeon-level and city-district clamping
 - Invalid IDs and coordinates
 - Conflicting location flags
 - Status-effect persistence and normalization
 - Codex elemental-discovery normalization
+- Unknown quest IDs, malformed counters/stages, item repair, claimed rewards,
+  and already-defeated boss reconciliation
 
 ## Common pitfalls
 
@@ -148,5 +164,7 @@ top-level save is absent or corrupt.
 - Forgetting the level or district when validating coordinates
 - Reusing city/dungeon fog keys across interiors
 - Keeping unknown status or element strings
+- Trusting quest status, stage, objective, warning, or reward IDs from JSON
+- Regranting ordinary rewards while repairing a completed quest
 - Storing Phaser objects or other non-serializable state
 - Mutating shared game-data definitions while repairing a save

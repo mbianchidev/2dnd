@@ -3,11 +3,24 @@
  */
 
 import * as Phaser from "phaser";
-import type { Monster } from "../data/monsters";
-import { getSpell, type Spell } from "../data/spells";
-import { getAbility, type Ability } from "../data/abilities";
+import type { Monster, MonsterAbility } from "../data/monsters";
+import {
+  createSoloEncounter,
+  type MonsterEncounter,
+} from "../data/monsterGroups";
+import {
+  getSpell,
+  getSpellTargetType,
+  type Spell,
+} from "../data/spells";
+import {
+  getAbility,
+  getAbilityRange,
+  getAbilityTargetType,
+  type Ability,
+} from "../data/abilities";
 import { getItem, type Item } from "../data/items";
-import type { PlayerState, PlayerStats } from "../systems/player";
+import type { PlayerState } from "../systems/player";
 import {
   awardXP,
   getArmorClass,
@@ -15,20 +28,23 @@ import {
   xpForLevel,
 } from "../systems/player";
 import {
-  rollInitiative,
   playerAttack,
   playerOffHandAttack,
-  playerCastSpell,
+  playerCastSpellAtTargets,
   playerUseAbility,
-  monsterAttack,
-  monsterUseAbility,
+  monsterAttackTarget,
+  monsterUseAbilityTarget,
   attemptFlee,
 } from "../systems/combat";
+import type { HealingTarget } from "../systems/combat";
+import {
+  createBattleActionEconomy,
+  type BattleActionEconomyState,
+} from "../systems/battleActions";
 import { abilityModifier } from "../systems/dice";
 import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
 import type { CodexData } from "../systems/codex";
 import {
-  recordDefeat,
   discoverAC,
   discoverElement,
 } from "../systems/codex";
@@ -51,26 +67,95 @@ import {
   processStartOfTurn as processStatusStartOfTurn,
 } from "../systems/statusEffects";
 import type { ActiveStatusEffect } from "../systems/statusEffects";
+import {
+  recordMonsterDefeats,
+  type QuestUpdate,
+} from "../systems/quests";
+import {
+  countAliveCombatants,
+  createBattleResult,
+  createGroupCombatants,
+  createHeroCombatant,
+  deriveMonsterStats,
+  findLowestHpAllyIndex,
+  getAttackRangeForWeapon,
+  getBattleTargetIds,
+  getCombatantById,
+  getFormationAttackPenalty,
+  getMonsterDefendChance,
+  getSelectableTargetIndices,
+  getSynergyACBonus,
+  getSynergyAttackBonus,
+  getSynergyDamageBonus,
+  isCombatantActive,
+  isPartyDefeated,
+  isSynergyActive,
+  recordGroupDefeats,
+  resolveBattleRewards,
+  rollBattleInitiative,
+  selectMonsterTarget,
+  type AttackRange,
+  type BattleCombatantState,
+  type BattleOutcome,
+  type BattleResolutionHooks,
+  type BattleReward,
+  type BattleTurn,
+  type GroupCombatant,
+  type PartyCombatant,
+} from "../systems/groupCombat";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
+interface PendingTargetAction {
+  label: string;
+  range: AttackRange;
+  validIndices: number[];
+  execute(targetIndex: number): void;
+}
+
+export interface BattleSceneData {
+  player: PlayerState;
+  encounter?: MonsterEncounter;
+  /** Legacy solo input retained for callers during scene-contract migration. */
+  monster?: Monster;
+  defeatedBosses: Set<string>;
+  codex: CodexData;
+  timeStep?: number;
+  weatherState?: WeatherState;
+  biome?: string;
+  savedSpecialNpcs?: SavedSpecialNpc[];
+  /** Additional accessor-backed party members supplied by companion systems. */
+  partyCombatants?: PartyCombatant[];
+  /** Runtime-only extension hooks; never persisted in save data. */
+  battleHooks?: BattleResolutionHooks;
+}
+
 export class BattleScene extends Phaser.Scene {
   private player!: PlayerState;
-  private monster!: Monster;
-  private monsterHp!: number;
+  private encounter!: MonsterEncounter;
+  private combatants: GroupCombatant[] = [];
+  private heroCombatant!: PartyCombatant;
+  private partyCombatants: PartyCombatant[] = [];
+  private battleHooks: BattleResolutionHooks | undefined;
+  private battleResultReported = false;
+  private playerEconomy!: BattleActionEconomyState;
   private defeatedBosses!: Set<string>;
   private codex!: CodexData;
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
+  private questUpdates: QuestUpdate[] = [];
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
   private logScrollOffset = 0;
   private logAreaY = 0;
   private logAreaH = 0;
-  private monsterText!: Phaser.GameObjects.Text;
-  private monsterSprite!: Phaser.GameObjects.Sprite;
+  private monsterTexts: Phaser.GameObjects.Text[] = [];
+  private monsterSprites: Phaser.GameObjects.Sprite[] = [];
+  private synergyText!: Phaser.GameObjects.Text;
+  private targetCursor!: Phaser.GameObjects.Text;
+  private targetHint!: Phaser.GameObjects.Text;
   private playerSprite!: Phaser.GameObjects.Sprite;
   private playerStatsText!: Phaser.GameObjects.Text;
   private actionButtons: Phaser.GameObjects.Container[] = [];
@@ -80,28 +165,16 @@ export class BattleScene extends Phaser.Scene {
   private battleSpellPage = 0;
   private battleAbilityPage = 0;
   private battleItemPage = 0;
+  private pendingTargetAction: PendingTargetAction | null = null;
+  private selectedTargetIndex = 0;
+  private turnOrder: BattleTurn[] = [];
+  private currentTurnIndex = 0;
+  private activeMonsterIndex: number | null = null;
+  private warCryCombatants = new Set<number>();
+  private inSurpriseRound = false;
+  private surpriseQueue: number[] = [];
+  private surpriseCursor = 0;
 
-  // Defend state
-  private playerDefending = false;
-  private monsterDefending = false;
-
-  // Bonus action tracking (items are bonus actions, not turn actions)
-  private bonusActionUsed = false;
-  private itemsUsedThisTurn = 0;
-  private turnActionUsed = false;
-
-  // AC discovery tracking
-  private acHighestMiss = 0;
-  private acLowestHit = Infinity;
-  private acDiscovered = false;
-
-  // HP discovery: hidden until monster type has been defeated once
-  private hpRevealed = false;
-
-  // Item drops collected this battle
-  private droppedItemIds: string[] = [];
-  private elementalDiscoveries = new Set<Element>();
-  private monsterEffects: ActiveStatusEffect[] = [];
   private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
   private biome = "grass";
@@ -112,25 +185,109 @@ export class BattleScene extends Phaser.Scene {
     super({ key: "BattleScene" });
   }
 
-  init(data: {
-    player: PlayerState;
-    monster: Monster;
-    defeatedBosses: Set<string>;
-    codex: CodexData;
-    timeStep?: number;
-    weatherState?: WeatherState;
-    biome?: string;
-    savedSpecialNpcs?: SavedSpecialNpc[];
-  }): void {
+  private get targetCombatant(): GroupCombatant {
+    const combatant = this.combatants[this.selectedTargetIndex];
+    if (!combatant) {
+      throw new Error(
+        `[BattleScene] Invalid target index ${this.selectedTargetIndex}`,
+      );
+    }
+    return combatant;
+  }
+
+  private get primaryMonster(): Monster {
+    const monster = this.combatants[0]?.monster;
+    if (!monster) throw new Error("[BattleScene] Encounter has no monsters");
+    return monster;
+  }
+
+  private get monster(): Monster {
+    return this.targetCombatant.monster;
+  }
+
+  private get monsterEffects(): ActiveStatusEffect[] {
+    return this.targetCombatant.effects;
+  }
+
+  private get monsterDefending(): boolean {
+    return this.targetCombatant.isDefending;
+  }
+
+  private get monsterSprite(): Phaser.GameObjects.Sprite {
+    const sprite = this.monsterSprites[this.selectedTargetIndex];
+    if (!sprite) throw new Error("[BattleScene] Target sprite is unavailable");
+    return sprite;
+  }
+
+  private get allCombatants(): BattleCombatantState[] {
+    return [...this.partyCombatants, ...this.combatants];
+  }
+
+  private get playerDefending(): boolean {
+    return this.heroCombatant?.isDefending ?? false;
+  }
+
+  private set playerDefending(value: boolean) {
+    if (this.heroCombatant) this.heroCombatant.isDefending = value;
+  }
+
+  private get bonusActionUsed(): boolean {
+    return this.playerEconomy.bonusActionUsed;
+  }
+
+  private set bonusActionUsed(value: boolean) {
+    this.playerEconomy = Object.freeze({
+      ...this.playerEconomy,
+      bonusActionUsed: value,
+    });
+  }
+
+  private get turnActionUsed(): boolean {
+    return this.playerEconomy.actionUsed;
+  }
+
+  private set turnActionUsed(value: boolean) {
+    this.playerEconomy = Object.freeze({
+      ...this.playerEconomy,
+      actionUsed: value,
+    });
+  }
+
+  private get itemsUsedThisTurn(): number {
+    return this.playerEconomy.itemsUsed;
+  }
+
+  private set itemsUsedThisTurn(value: number) {
+    this.playerEconomy = Object.freeze({
+      ...this.playerEconomy,
+      itemsUsed: value,
+    });
+  }
+
+  init(data: BattleSceneData): void {
     this.player = data.player;
-    this.monster = data.monster;
-    this.monsterHp = data.monster.hp;
+    if (!data.encounter && !data.monster) {
+      throw new Error("[BattleScene] Missing encounter data");
+    }
+    this.encounter = data.encounter ?? createSoloEncounter(data.monster!);
+    this.combatants = createGroupCombatants(this.encounter);
+    this.heroCombatant = createHeroCombatant(this.player);
+    this.partyCombatants = [
+      this.heroCombatant,
+      ...(data.partyCombatants ?? []).filter(
+        (combatant) => combatant.id !== this.heroCombatant.id,
+      ),
+    ];
+    this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
+    this.battleHooks = data.battleHooks;
+    this.battleResultReported = false;
     this.defeatedBosses = data.defeatedBosses;
     this.codex = data.codex;
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
     this.biome = data.biome ?? "grass";
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
+    this.questUpdates = [];
     this.phase = "init";
     this.logLines = [];
     this.logScrollOffset = 0;
@@ -138,18 +295,25 @@ export class BattleScene extends Phaser.Scene {
     this.spellMenu = null;
     this.itemMenu = null;
     this.abilityMenu = null;
-    this.acHighestMiss = 0;
-    this.acLowestHit = Infinity;
-    this.acDiscovered = false;
-    this.hpRevealed = (this.codex.entries[this.monster.id]?.timesDefeated ?? 0) >= 1;
+    this.pendingTargetAction = null;
+    this.selectedTargetIndex = 0;
+    this.turnOrder = [];
+    this.currentTurnIndex = 0;
+    this.activeMonsterIndex = null;
+    this.warCryCombatants = new Set<number>();
+    this.inSurpriseRound = false;
+    this.surpriseQueue = [];
+    this.surpriseCursor = 0;
     this.playerDefending = false;
-    this.monsterDefending = false;
-    this.droppedItemIds = [];
-    this.monsterEffects = [];
+    for (const combatant of this.combatants) {
+      const entry = this.codex.entries[combatant.monster.id];
+      combatant.hpRevealed = (entry?.timesDefeated ?? 0) >= 1;
+      combatant.acDiscovered = entry?.acDiscovered ?? false;
+      combatant.elementalDiscoveries = new Set(
+        entry?.discoveredElements ?? [],
+      );
+    }
     this.isReturningToOverworld = false;
-    this.elementalDiscoveries = new Set(
-      this.codex.entries[this.monster.id]?.discoveredElements ?? [],
-    );
   }
 
   create(): void {
@@ -163,22 +327,33 @@ export class BattleScene extends Phaser.Scene {
     this.createWeatherParticles();
     this.applyDayNightTint();
 
-    // ESC closes any open sub-menu
+    // ESC cancels targeting first, then closes any open sub-menu.
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on("down", () => {
-      this.closeAllSubMenus();
+      if (this.pendingTargetAction) this.cancelTargetSelection();
+      else this.closeAllSubMenus();
     });
-    // A/D or Left/Right for sub-menu paging
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT).on("down", () => this.battleMenuPageChange(-1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT).on("down", () => this.battleMenuPageChange(1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A).on("down", () => this.battleMenuPageChange(-1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D).on("down", () => this.battleMenuPageChange(1));
+    const navigate = (direction: number): void => {
+      if (this.pendingTargetAction) this.cycleTarget(direction);
+      else this.battleMenuPageChange(direction);
+    };
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT).on("down", () => navigate(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT).on("down", () => navigate(1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.UP).on("down", () => this.cycleTarget(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN).on("down", () => this.cycleTarget(1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A).on("down", () => navigate(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D).on("down", () => navigate(1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W).on("down", () => this.cycleTarget(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S).on("down", () => this.cycleTarget(1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER).on("down", () => this.confirmTargetSelection());
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).on("down", () => this.confirmTargetSelection());
 
     this.rollForInitiative();
 
     // Start battle or boss music
     if (audioEngine.initialized) {
-      if (this.monster.isBoss) {
-        audioEngine.playBossMusic(this.monster.id);
+      const boss = this.combatants.find((combatant) => combatant.monster.isBoss);
+      if (boss) {
+        audioEngine.playBossMusic(boss.monster.id);
       } else {
         audioEngine.playBattleMusic();
       }
@@ -195,8 +370,8 @@ export class BattleScene extends Phaser.Scene {
     const h = this.cameras.main.height;
 
     // Full battle background — biome or boss-specific
-    const bgKey = this.monster.isBoss
-      ? `bg_boss_${this.monster.id}`
+    const bgKey = this.primaryMonster.isBoss
+      ? `bg_boss_${this.primaryMonster.id}`
       : `bg_${this.biome}`;
     if (this.textures.exists(bgKey)) {
       this.bgImage = this.add.image(w / 2, h / 2, bgKey);
@@ -209,26 +384,79 @@ export class BattleScene extends Phaser.Scene {
       bg.fillRect(0, 0, w, h);
     }
 
-    // --- Monster (center, below its info box) ---
-    const textureKey = this.monster.isBoss ? "monster_boss" : "monster";
-    this.monsterSprite = this.add.sprite(w * 0.55, h * 0.30, textureKey);
-    this.monsterSprite.setTint(this.monster.color);
-    this.monsterSprite.setScale(this.monster.isBoss ? 1.8 : 2.0);
-    this.monsterSprite.setDepth(1); // above sky overlay
+    // --- Monsters in front/back formation ---
+    this.monsterSprites = [];
+    this.monsterTexts = [];
+    const frontIndices = this.combatants.flatMap((combatant, index) =>
+      combatant.position === "front" ? [index] : []
+    );
+    const backIndices = this.combatants.flatMap((combatant, index) =>
+      combatant.position === "back" ? [index] : []
+    );
 
-    // Monster name and HP bar (centered above monster)
-    this.monsterText = this.add
-      .text(w * 0.55, h * 0.05, "", {
-        fontSize: "13px",
+    for (const [index, combatant] of this.combatants.entries()) {
+      const row = combatant.position === "front" ? frontIndices : backIndices;
+      const rowIndex = row.indexOf(index);
+      const centerX = combatant.position === "front" ? 0.66 : 0.7;
+      const spacing = combatant.position === "front" ? 0.19 : 0.17;
+      const x = w * (centerX + (rowIndex - (row.length - 1) / 2) * spacing);
+      const y = h * (combatant.position === "front" ? 0.39 : 0.23);
+      const textureKey = combatant.monster.isBoss ? "monster_boss" : "monster";
+      const sprite = this.add.sprite(x, y, textureKey);
+      sprite.setTint(combatant.monster.color);
+      sprite.setScale(
+        combatant.monster.isBoss
+          ? 1.7
+          : combatant.position === "front" ? 1.55 : 1.25,
+      );
+      sprite.setDepth(combatant.position === "front" ? 1.4 : 1.1);
+      sprite.setInteractive({ useHandCursor: true });
+      sprite.on("pointerdown", () => this.handleMonsterPointer(index));
+      this.monsterSprites.push(sprite);
+
+      const text = this.add
+        .text(w * 0.47, 6 + index * 38, "", {
+          fontSize: "9px",
+          fontFamily: "monospace",
+          color: "#ff8888",
+          backgroundColor: "#0a0a1acc",
+          padding: { x: 4, y: 2 },
+          wordWrap: { width: w * 0.5 },
+        })
+        .setDepth(2)
+        .setInteractive({ useHandCursor: true });
+      text.on("pointerdown", () => this.handleMonsterPointer(index));
+      this.monsterTexts.push(text);
+    }
+
+    this.synergyText = this.add
+      .text(w * 0.72, h * 0.69, "", {
+        fontSize: "10px",
         fontFamily: "monospace",
-        color: "#ff6666",
+        color: "#ffd166",
         align: "center",
-        backgroundColor: "#0a0a1a80",
-        padding: { x: 6, y: 4 },
-        wordWrap: { width: w * 0.42 },
+        backgroundColor: "#0a0a1acc",
+        padding: { x: 5, y: 3 },
+        wordWrap: { width: w * 0.48 },
       })
       .setOrigin(0.5, 0)
       .setDepth(2);
+    this.targetCursor = this.add
+      .text(0, 0, "▼", {
+        fontSize: "18px",
+        color: "#ffd700",
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(4)
+      .setVisible(false);
+    this.targetHint = this.add
+      .text(w * 0.52, h * 0.745, "", {
+        fontSize: "9px",
+        fontFamily: "monospace",
+        color: "#ffd700",
+      })
+      .setDepth(5)
+      .setVisible(false);
     this.updateMonsterDisplay();
 
     // --- Player (foreground, lower-left) ---
@@ -362,7 +590,9 @@ export class BattleScene extends Phaser.Scene {
         label.setColor("#ddd");
       });
       bg.on("pointerdown", () => {
-        if (this.phase === "playerTurn") act.action();
+        if (this.phase === "playerTurn" && !this.pendingTargetAction) {
+          act.action();
+        }
       });
 
       container.add([bg, label]);
@@ -375,7 +605,7 @@ export class BattleScene extends Phaser.Scene {
 
   /** Dim or enable action buttons based on current phase. */
   private updateButtonStates(): void {
-    const enabled = this.phase === "playerTurn";
+    const enabled = this.phase === "playerTurn" && !this.pendingTargetAction;
     for (const btn of this.actionButtons) {
       btn.setAlpha(enabled ? 1 : 0.4);
     }
@@ -390,10 +620,12 @@ export class BattleScene extends Phaser.Scene {
     ) {
       return;
     }
-    this.bonusActionUsed = false;
-    this.itemsUsedThisTurn = 0;
-    this.turnActionUsed = false;
+    this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
+    this.playerDefending = false;
+    this.activeMonsterIndex = null;
+    this.pendingTargetAction = null;
     this.phase = "playerTurn";
+    this.updateMonsterDisplay();
     this.updateButtonStates();
 
     const statusResult = processStatusStartOfTurn(
@@ -409,10 +641,9 @@ export class BattleScene extends Phaser.Scene {
       this.updatePlayerStats();
     }
     if (this.player.hp <= 0) {
-      this.phase = "defeat";
-      this.updateButtonStates();
-      this.addLog("You have been defeated...");
-      this.time.delayedCall(2000, () => this.handleDefeat());
+      if (this.handlePartyDefeatIfNeeded()) return;
+      this.addLog(`${this.player.name} is knocked out!`);
+      this.advanceTurn(0);
       return;
     }
     if (statusResult.skipTurn) {
@@ -430,24 +661,350 @@ export class BattleScene extends Phaser.Scene {
     this.phase = "monsterTurn";
     this.updatePlayerStats();
     this.updateButtonStates();
-    this.time.delayedCall(delay, () => this.doMonsterTurn());
+    this.advanceTurn(delay);
   }
 
-  private finishMonsterTurn(): void {
-    const statusResult = processStatusEndOfTurn(this.monsterEffects);
+  private startCompanionTurn(combatant: PartyCombatant): void {
+    this.phase = "monsterTurn";
+    combatant.isDefending = false;
+    this.updateButtonStates();
+    const statusResult = processStatusStartOfTurn(
+      combatant.effects,
+      combatant.stats,
+    );
     for (const message of statusResult.messages) {
-      this.addLog(`${this.monster.name}: ${message}`);
+      this.addLog(`${combatant.label}: ${message}`);
     }
-    this.playerDefending = false;
+    if (statusResult.tickDamage > 0) {
+      combatant.currentHp -= statusResult.tickDamage;
+    }
+    if (!isCombatantActive(combatant)) {
+      this.addLog(`${combatant.label} is knocked out!`);
+      if (this.handlePartyDefeatIfNeeded()) return;
+      this.advanceTurn(0);
+      return;
+    }
+    if (statusResult.skipTurn) {
+      this.addLog(`${combatant.label} cannot act this turn!`);
+      this.finishCompanionTurn(combatant);
+      return;
+    }
+
+    let completed = false;
+    const completeTurn = (): void => {
+      if (completed) return;
+      completed = true;
+      this.finishCompanionTurn(combatant);
+    };
+    if (this.battleHooks?.onCompanionTurn) {
+      try {
+        this.battleHooks.onCompanionTurn({
+          combatant,
+          actors: this.allCombatants,
+          enemies: this.combatants,
+          weatherPenalty: getWeatherAccuracyPenalty(this.weatherState.current),
+          getEnemyDefenseBonus: (targetId: string): number => {
+            const targetIndex = this.combatants.findIndex(
+              (enemy) => enemy.id === targetId,
+            );
+            return targetIndex >= 0
+              ? getSynergyACBonus(
+                  this.encounter.synergy,
+                  this.combatants,
+                  targetIndex,
+                )
+              : 0;
+          },
+          recordElementalInteraction: (
+            targetId,
+            interaction,
+            element,
+          ): void => {
+            const targetIndex = this.combatants.findIndex(
+              (enemy) => enemy.id === targetId,
+            );
+            if (targetIndex >= 0) {
+              this.recordElementalDiscovery(
+                interaction,
+                element,
+                targetIndex,
+              );
+            }
+          },
+          addLog: (message: string): void => this.addLog(message),
+          completeTurn,
+        });
+      } catch (error) {
+        this.handleError("onCompanionTurn", error);
+        completeTurn();
+      }
+    } else {
+      this.addLog(`${combatant.label} has no turn handler and waits.`);
+      completeTurn();
+    }
+  }
+
+  private finishCompanionTurn(combatant: PartyCombatant): void {
+    const statusResult = processStatusEndOfTurn(combatant.effects);
+    for (const message of statusResult.messages) {
+      this.addLog(`${combatant.label}: ${message}`);
+    }
+    this.advanceTurn();
+  }
+
+  private finishMonsterTurn(combatantIndex: number): void {
+    const combatant = this.combatants[combatantIndex];
+    if (!combatant) {
+      this.handleError(
+        "finishMonsterTurn",
+        new Error(`Missing combatant ${combatantIndex}`),
+      );
+      return;
+    }
+    const statusResult = processStatusEndOfTurn(combatant.effects);
+    for (const message of statusResult.messages) {
+      this.addLog(`${combatant.label}: ${message}`);
+    }
+    this.activeMonsterIndex = null;
     this.updateMonsterDisplay();
     this.updatePlayerStats();
-    this.startPlayerTurn();
+    if (this.inSurpriseRound) {
+      this.advanceSurpriseRound();
+    } else {
+      this.advanceTurn();
+    }
+  }
+
+  private beginCurrentTurn(): void {
+    if (
+      this.phase === "victory"
+      || this.phase === "defeat"
+      || this.phase === "fled"
+    ) {
+      return;
+    }
+    const turn = this.turnOrder[this.currentTurnIndex];
+    if (!turn) {
+      this.handleError("beginCurrentTurn", new Error("Initiative order is empty"));
+      return;
+    }
+    const actor = getCombatantById(this.allCombatants, turn.combatantId);
+    if (!actor || !isCombatantActive(actor)) {
+      this.advanceTurn(0);
+      return;
+    }
+    if (actor.actorKind === "hero") {
+      this.startPlayerTurn();
+      return;
+    }
+    if (actor.actorKind === "companion") {
+      this.startCompanionTurn(actor as PartyCombatant);
+      return;
+    }
+    const combatantIndex = this.combatants.findIndex(
+      (combatant) => combatant.id === actor.id,
+    );
+    if (combatantIndex < 0) {
+      this.handleError(
+        "beginCurrentTurn",
+        new Error(`Enemy combatant ${actor.id} is unavailable`),
+      );
+      return;
+    }
+    this.doMonsterTurn(combatantIndex);
+  }
+
+  private advanceTurn(delay = 550): void {
+    this.time.delayedCall(delay, () => {
+      if (
+        this.phase === "victory"
+        || this.phase === "defeat"
+        || this.phase === "fled"
+      ) {
+        return;
+      }
+      for (let attempts = 0; attempts < this.turnOrder.length; attempts++) {
+        this.currentTurnIndex =
+          (this.currentTurnIndex + 1) % this.turnOrder.length;
+        const turn = this.turnOrder[this.currentTurnIndex];
+        const actor = turn
+          ? getCombatantById(this.allCombatants, turn.combatantId)
+          : undefined;
+        if (actor && isCombatantActive(actor)) {
+          this.beginCurrentTurn();
+          return;
+        }
+      }
+      if (countAliveCombatants(this.combatants) === 0) {
+        this.checkBattleEnd(false);
+      } else if (isPartyDefeated(this.partyCombatants)) {
+        this.handlePartyDefeatIfNeeded();
+      } else {
+        this.handleError(
+          "advanceTurn",
+          new Error("No active combatant found in initiative order"),
+        );
+      }
+    });
+  }
+
+  private startSurpriseRound(): void {
+    this.surpriseQueue = this.combatants.flatMap((combatant, index) =>
+      combatant.isAlive ? [index] : []
+    );
+    this.surpriseCursor = 0;
+    this.inSurpriseRound = this.surpriseQueue.length > 0;
+    if (!this.inSurpriseRound) {
+      this.beginCurrentTurn();
+      return;
+    }
+    this.addLog("Ambush! The monsters gain a surprise round!");
+    this.phase = "monsterTurn";
+    this.updateButtonStates();
+    this.time.delayedCall(700, () => {
+      const first = this.surpriseQueue[0];
+      if (first !== undefined) this.doMonsterTurn(first);
+    });
+  }
+
+  private advanceSurpriseRound(delay = 350): void {
+    this.time.delayedCall(delay, () => {
+      this.surpriseCursor++;
+      while (
+        this.surpriseCursor < this.surpriseQueue.length
+        && !this.combatants[this.surpriseQueue[this.surpriseCursor]!]?.isAlive
+      ) {
+        this.surpriseCursor++;
+      }
+      const next = this.surpriseQueue[this.surpriseCursor];
+      if (next !== undefined) {
+        this.doMonsterTurn(next);
+        return;
+      }
+      this.inSurpriseRound = false;
+      this.currentTurnIndex = 0;
+      this.beginCurrentTurn();
+    });
   }
 
   private closeAllSubMenus(): void {
     if (this.spellMenu) { this.spellMenu.destroy(); this.spellMenu = null; }
     if (this.itemMenu) { this.itemMenu.destroy(); this.itemMenu = null; }
     if (this.abilityMenu) { this.abilityMenu.destroy(); this.abilityMenu = null; }
+  }
+
+  private handleMonsterPointer(targetIndex: number): void {
+    const combatant = this.combatants[targetIndex];
+    if (!combatant?.isAlive) return;
+    if (this.pendingTargetAction) {
+      if (!this.pendingTargetAction.validIndices.includes(targetIndex)) {
+        this.addLog(`${combatant.label} is protected by the front row!`);
+        return;
+      }
+      this.selectedTargetIndex = targetIndex;
+      this.confirmTargetSelection();
+      return;
+    }
+    this.selectedTargetIndex = targetIndex;
+    this.updateMonsterDisplay();
+  }
+
+  private beginTargetSelection(
+    label: string,
+    range: AttackRange,
+    execute: (targetIndex: number) => void,
+  ): void {
+    const validIndices = getSelectableTargetIndices(this.combatants, range);
+    if (validIndices.length === 0) {
+      this.addLog("No valid targets!");
+      return;
+    }
+    this.closeAllSubMenus();
+    if (!validIndices.includes(this.selectedTargetIndex)) {
+      this.selectedTargetIndex = validIndices[0]!;
+    }
+    this.pendingTargetAction = {
+      label,
+      range,
+      validIndices,
+      execute,
+    };
+    this.updateButtonStates();
+    this.updateMonsterDisplay();
+  }
+
+  private cycleTarget(direction: number): void {
+    const pending = this.pendingTargetAction;
+    if (!pending || pending.validIndices.length === 0) return;
+    const current = pending.validIndices.indexOf(this.selectedTargetIndex);
+    const next = (Math.max(0, current) + direction + pending.validIndices.length)
+      % pending.validIndices.length;
+    this.selectedTargetIndex = pending.validIndices[next]!;
+    this.updateMonsterDisplay();
+  }
+
+  private confirmTargetSelection(): void {
+    const pending = this.pendingTargetAction;
+    if (!pending || !pending.validIndices.includes(this.selectedTargetIndex)) {
+      return;
+    }
+    const targetIndex = this.selectedTargetIndex;
+    this.pendingTargetAction = null;
+    this.updateButtonStates();
+    this.updateMonsterDisplay();
+    pending.execute(targetIndex);
+  }
+
+  private cancelTargetSelection(): void {
+    if (!this.pendingTargetAction) return;
+    this.pendingTargetAction = null;
+    this.addLog("Targeting cancelled.");
+    this.updateButtonStates();
+    this.updateMonsterDisplay();
+  }
+
+  private updateTargetSelectionDisplay(): void {
+    const pending = this.pendingTargetAction;
+    for (const [index, sprite] of this.monsterSprites.entries()) {
+      const combatant = this.combatants[index];
+      if (!combatant?.isAlive) {
+        sprite.setAlpha(0.3);
+      } else if (pending) {
+        sprite.setAlpha(
+          pending.validIndices.includes(index)
+            ? index === this.selectedTargetIndex ? 1 : 0.75
+            : 0.35,
+        );
+      } else if (this.activeMonsterIndex !== null) {
+        sprite.setAlpha(index === this.activeMonsterIndex ? 1 : 0.72);
+      } else {
+        sprite.setAlpha(1);
+      }
+    }
+
+    if (!pending) {
+      this.targetCursor.setVisible(false);
+      this.targetHint.setVisible(false);
+      return;
+    }
+    const sprite = this.monsterSprites[this.selectedTargetIndex];
+    const combatant = this.combatants[this.selectedTargetIndex];
+    if (!sprite || !combatant) return;
+    const penalty = getFormationAttackPenalty(
+      this.combatants,
+      this.selectedTargetIndex,
+      pending.range,
+    );
+    this.targetCursor
+      .setPosition(sprite.x, sprite.y - sprite.displayHeight / 2 - 2)
+      .setVisible(true);
+    this.targetHint
+      .setText(
+        `${pending.label}: ${combatant.label}`
+        + (penalty > 0 ? ` (-${penalty} melee penalty)` : "")
+        + " — arrows/WASD, Enter/Space",
+      )
+      .setVisible(true);
   }
 
   /** Handle A/D or Left/Right paging in open battle sub-menus. */
@@ -634,11 +1191,12 @@ export class BattleScene extends Phaser.Scene {
 
   private doPlayerAbility(abilityId: string): void {
     if (this.phase !== "playerTurn") return;
-
     const ability = getAbility(abilityId);
-    if (!ability) return;
+    if (!ability) {
+      this.addLog("Unknown ability!");
+      return;
+    }
 
-    // Bonus action abilities don't use the turn action
     if (ability.bonusAction) {
       if (this.bonusActionUsed) {
         this.addLog("Bonus action already used this turn!");
@@ -650,34 +1208,105 @@ export class BattleScene extends Phaser.Scene {
         return;
       }
     }
+    if (this.player.mp < ability.mpCost) {
+      this.addLog("Not enough MP!");
+      return;
+    }
+
+    const targetType = getAbilityTargetType(ability);
+    if (
+      targetType === "self"
+      || targetType === "single_ally"
+      || targetType === "all_allies"
+      || targetType === "all_party"
+    ) {
+      const targetIds = getBattleTargetIds(
+        this.allCombatants,
+        this.heroCombatant.id,
+        targetType,
+      );
+      const healingTargets = targetIds.flatMap((targetId) => {
+        const target = getCombatantById(this.partyCombatants, targetId);
+        return target ? [target] : [];
+      });
+      const fallback = this.combatants.findIndex((combatant) => combatant.isAlive);
+      if (fallback >= 0) {
+        this.performPlayerAbility(abilityId, fallback, healingTargets);
+      }
+      return;
+    }
+    const range = getAbilityRange(ability);
+    this.beginTargetSelection(
+      ability.name,
+      range,
+      (targetIndex) => this.performPlayerAbility(abilityId, targetIndex),
+    );
+  }
+
+  private performPlayerAbility(
+    abilityId: string,
+    targetIndex: number,
+    healingTargets?: PartyCombatant[],
+  ): void {
+    if (this.phase !== "playerTurn") return;
+    this.selectedTargetIndex = targetIndex;
+    const ability = getAbility(abilityId);
+    if (!ability) {
+      this.addLog("Unknown ability!");
+      return;
+    }
 
     try {
-      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
+      const targetSprite = this.monsterSprite;
+      const range = getAbilityRange(ability);
+      const formationPenalty = ability.type === "damage"
+        ? getFormationAttackPenalty(this.combatants, targetIndex, range)
+        : 0;
+      const targetProtection = ability.type === "damage"
+        ? (this.monsterDefending ? 2 : 0)
+          + getSynergyACBonus(
+            this.encounter.synergy,
+            this.combatants,
+            targetIndex,
+          )
+        : 0;
+      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current)
+        + formationPenalty
+        + targetProtection;
       const result = playerUseAbility(
         this.player,
         abilityId,
         this.monster,
         weatherPenalty,
         this.monsterEffects,
+        healingTargets,
       );
       debugLog("Player ability", { abilityId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
       if (result.roll !== undefined) {
         debugPanelLog(
-          `  ↳ [Player Ability ${abilityId}] d20=${result.roll} +${result.attackMod ?? 0} = ${result.totalRoll ?? 0} vs AC ${result.targetAC ?? this.monster.ac} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} mp=${result.mpUsed}`,
+          `  ↳ [Player Ability ${abilityId} → ${this.targetCombatant.label}] d20=${result.roll} +${result.attackMod ?? 0} = ${result.totalRoll ?? 0} vs AC ${result.targetAC ?? this.monster.ac} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} mp=${result.mpUsed}`,
           false, "roll-detail"
         );
       }
       const rollSuffix = result.roll !== undefined
-        ? this.formatPlayerRoll(result.roll, result.attackMod ?? 0, result.totalRoll ?? 0, result.hit, result.critical)
+        ? this.formatPlayerRoll(result.roll, result.attackMod ?? 0, result.totalRoll ?? 0, result.hit, result.critical, targetIndex)
         : "";
       this.addLog(result.message + rollSuffix);
+      for (const healingResult of result.healingResults ?? []) {
+        const target = getCombatantById(
+          this.partyCombatants,
+          healingResult.targetId,
+        );
+        if (target) {
+          this.addLog(`${target.label} recovers ${healingResult.healing} HP!`);
+        }
+      }
       if (result.mpUsed === 0 && !result.hit) {
         this.updatePlayerStats();
         return;
       }
 
       this.playerDefending = false;
-      this.monsterDefending = false;
       if (ability.bonusAction) {
         this.bonusActionUsed = true;
       } else {
@@ -685,10 +1314,17 @@ export class BattleScene extends Phaser.Scene {
         this.phase = "monsterTurn";
       }
 
-      this.monsterHp = Math.max(0, this.monsterHp - result.damage);
+      this.recordElementalDiscovery(
+        result.elementalLabel,
+        ability.element,
+        targetIndex,
+      );
+      this.setCombatantHp(
+        targetIndex,
+        this.combatants[targetIndex]!.currentHp - result.damage,
+      );
       this.updateMonsterDisplay();
       this.updatePlayerStats();
-      this.recordElementalDiscovery(result.elementalLabel, ability.element);
 
       // Play distinct sounds for ability outcomes
       if (audioEngine.initialized) {
@@ -703,8 +1339,8 @@ export class BattleScene extends Phaser.Scene {
 
       if (result.hit && result.damage > 0) {
         this.tweens.add({
-          targets: this.monsterSprite,
-          x: this.monsterSprite.x + 10,
+          targets: targetSprite,
+          x: targetSprite.x + 10,
           duration: 50,
           yoyo: true,
           repeat: 2,
@@ -922,24 +1558,46 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private updateMonsterDisplay(): void {
-    const defendTag = this.monsterDefending ? " [DEF]" : "";
-    const effectLine = this.monsterEffects.length > 0
-      ? `\nEffects: ${this.getStatusSummary(this.monsterEffects)}`
-      : "";
-    if (this.hpRevealed) {
-      const hpBar = this.getHpBar(this.monsterHp, this.monster.hp, 14);
-      this.monsterText.setText(
-        `${this.monster.name}${defendTag}\nHP: ${this.monsterHp}/${this.monster.hp}\n${hpBar}${effectLine}`
+    for (const [index, combatant] of this.combatants.entries()) {
+      const text = this.monsterTexts[index];
+      if (!text) continue;
+      const defendTag = combatant.isDefending ? " [DEF]" : "";
+      const selectedTag = index === this.selectedTargetIndex ? "▶ " : "  ";
+      const positionTag = combatant.position.toUpperCase();
+      const effectLine = combatant.effects.length > 0
+        ? ` | ${this.getStatusSummary(combatant.effects)}`
+        : "";
+      const hpLine = combatant.hpRevealed
+        ? `${combatant.currentHp}/${combatant.monster.hp} ${this.getHpBar(combatant.currentHp, combatant.monster.hp, 8)}`
+        : "???";
+      text.setText(
+        `${selectedTag}${combatant.label}${defendTag} [${positionTag}]\n`
+        + `  HP ${hpLine}${effectLine}`,
       );
+    }
+
+    const synergy = this.encounter.synergy;
+    if (!synergy) {
+      this.synergyText.setText("");
     } else {
-      this.monsterText.setText(
-        `${this.monster.name}${defendTag}\nHP: ???${effectLine}`
+      const names: Record<typeof synergy.type, string> = {
+        pack_tactics: "Pack Tactics",
+        shield_wall: "Shield Wall",
+        war_cry: "War Cry",
+        healer_support: "Healer Support",
+        elemental_combo: "Elemental Combo",
+      };
+      const active = isSynergyActive(synergy, this.combatants);
+      const warCry = this.warCryCombatants.size > 0
+        ? ` | ${this.warCryCombatants.size} enraged`
+        : "";
+      this.synergyText.setText(
+        `${names[synergy.type]} ${active ? "ACTIVE" : "BROKEN"}${warCry}\n`
+        + synergy.description,
       );
+      this.synergyText.setColor(active ? "#ffd166" : "#777777");
     }
-    // Flash monster on hit
-    if (this.monsterHp <= 0) {
-      this.monsterSprite.setAlpha(0.3);
-    }
+    this.updateTargetSelectionDisplay();
   }
 
   private updatePlayerStats(): void {
@@ -1017,7 +1675,7 @@ export class BattleScene extends Phaser.Scene {
   // --- Debug ---
 
   private setupDebug(): void {
-    debugPanelLog(`── Battle: ${this.player.name} vs ${this.monster.name} ──`, true);
+    debugPanelLog(`── Battle: ${this.player.name} vs ${this.encounter.name} ──`, true);
 
     const cb = { updateUI: () => this.updatePlayerStats() };
 
@@ -1028,13 +1686,14 @@ export class BattleScene extends Phaser.Scene {
     const kKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K);
     kKey.on("down", () => {
       if (!isDebug()) return;
-      debugLog("CHEAT: Kill monster");
-      debugPanelLog("[CHEAT] Monster killed!", true);
-      this.monsterHp = 0;
+      debugLog("CHEAT: Kill encounter");
+      debugPanelLog("[CHEAT] Encounter defeated!", true);
+      for (const [index, combatant] of this.combatants.entries()) {
+        if (combatant.isAlive) this.setCombatantHp(index, 0);
+      }
       this.updateMonsterDisplay();
       if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
-        this.phase = "playerTurn";
-        this.checkBattleEnd();
+        this.checkBattleEnd(false);
       }
     });
 
@@ -1042,18 +1701,19 @@ export class BattleScene extends Phaser.Scene {
     const cmds = buildSharedCommands(this.player, cb);
 
     cmds.set("kill", () => {
-      this.monsterHp = 0;
+      for (const [index, combatant] of this.combatants.entries()) {
+        if (combatant.isAlive) this.setCombatantHp(index, 0);
+      }
       this.updateMonsterDisplay();
       if (this.phase === "playerTurn" || this.phase === "monsterTurn") {
-        this.phase = "playerTurn";
-        this.checkBattleEnd();
+        this.checkBattleEnd(false);
       }
-      debugPanelLog(`[CMD] Monster killed!`, true);
+      debugPanelLog(`[CMD] Encounter defeated!`, true);
     });
 
     // Help entries
     const helpEntries: HelpEntry[] = [
-      { usage: "/kill", desc: "Kill monster instantly" },
+      { usage: "/kill", desc: "Defeat the encounter instantly" },
       ...SHARED_HELP,
     ];
 
@@ -1063,40 +1723,56 @@ export class BattleScene extends Phaser.Scene {
   private updateDebugPanel(): void {
     const p = this.player;
     const defInfo = this.playerDefending ? " [DEF+2]" : "";
-    const mDefInfo = this.monsterDefending ? " [DEF+2]" : "";
+    const monsters = this.combatants
+      .map((combatant) =>
+        `${combatant.label} ${combatant.currentHp}/${combatant.monster.hp}`
+        + (combatant.isDefending ? "[DEF]" : "")
+      )
+      .join(" | ");
     debugPanelState(
       `BATTLE | Phase: ${this.phase} | ` +
-      `Monster: ${this.monster.name} HP ${this.monsterHp}/${this.monster.hp} AC ${this.monster.ac}${mDefInfo} | ` +
+      `Monsters: ${monsters} | ` +
       `Player: HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} AC ${getArmorClass(p)}${defInfo} | ` +
       `Lv.${p.level} XP ${p.xp}/${xpForLevel(p.level + 1)} Gold ${p.gold}\n` +
       `Cheats: K=Kill H=Heal P=MP G=+100Gold L=LvUp X=MaxXP`
     );
   }
 
-  private getAttackMod(): number {
-    const profBonus = Math.floor((this.player.level - 1) / 4) + 2;
-    return abilityModifier(this.player.stats.strength) + profBonus;
-  }
-
-  private getSpellMod(): number {
-    const profBonus = Math.floor((this.player.level - 1) / 4) + 2;
-    return abilityModifier(this.player.stats.intelligence) + profBonus;
-  }
-
   // --- Combat Flow ---
 
   private rollForInitiative(): void {
     try {
-      const dexMod = abilityModifier(this.player.stats.dexterity);
-      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
-      const result = rollInitiative(dexMod, this.monster.attackBonus + boost.initiativeBonus);
-      debugLog("Initiative", { playerRoll: result.playerRoll, monsterRoll: result.monsterRoll, playerFirst: result.playerFirst });
+      const result = rollBattleInitiative(
+        this.allCombatants,
+        (combatant) => {
+          if (combatant.side === "party") {
+            return abilityModifier((combatant as PartyCombatant).stats.dexterity);
+          }
+          const enemy = combatant as GroupCombatant;
+          return enemy.monster.attackBonus
+            + getMonsterWeatherBoost(
+              enemy.monster.id,
+              this.weatherState.current,
+            ).initiativeBonus;
+        },
+      );
+      this.turnOrder = result.order;
+      this.currentTurnIndex = 0;
+      const playerRoll = result.rolls[this.heroCombatant.id] ?? 0;
+      const monsterRolls = this.combatants.map(
+        (combatant) => result.rolls[combatant.id] ?? 0,
+      );
+      debugLog("Group initiative", {
+        playerRoll,
+        monsterRolls,
+        order: result.order,
+      });
       debugPanelLog(
-        `  ↳ [Initiative] Player d20+mod=${result.playerRoll} vs Monster d20+mod=${result.monsterRoll}`,
+        `  ↳ [Initiative] Party=${this.partyCombatants.map((combatant) => `${combatant.label}:${result.rolls[combatant.id] ?? 0}`).join(", ")}; Monsters=${monsterRolls.join(", ")}`,
         false, "roll-detail"
       );
       this.addLog(
-        `⚔ ${this.monster.name} appears! You rolled ${result.playerRoll} for initiative.`
+        `⚔ ${this.encounter.name} appears (${this.combatants.length} foe${this.combatants.length === 1 ? "" : "s"})!`
       );
 
       // Announce weather effects and monster boost
@@ -1104,18 +1780,32 @@ export class BattleScene extends Phaser.Scene {
       if (this.weatherState.current !== WeatherType.Clear) {
         this.addLog(`${WEATHER_LABEL[this.weatherState.current]} — attacks are harder to land (penalty: ${weatherPenalty})`);
       }
-      if (boost.attackBonus > 0) {
-        this.addLog(`${this.monster.name} thrives in this weather! (+${boost.initiativeBonus} Initiative, +${boost.attackBonus} ATK)`);
+      const boosted = this.combatants.filter((combatant) =>
+        getMonsterWeatherBoost(
+          combatant.monster.id,
+          this.weatherState.current,
+        ).attackBonus > 0
+      );
+      if (boosted.length > 0) {
+        this.addLog(
+          `${boosted.map((combatant) => combatant.label).join(", ")} thrive in this weather!`,
+        );
       }
 
-      if (result.playerFirst) {
-        this.addLog("You act first!");
-        this.startPlayerTurn();
-      } else {
-        this.addLog(`${this.monster.name} acts first!`);
-        this.phase = "monsterTurn";
-        this.time.delayedCall(1000, () => this.doMonsterTurn());
+      if (this.encounter.surpriseRound) {
+        this.startSurpriseRound();
+        return;
       }
+      const first = this.turnOrder[0];
+      const firstActor = first
+        ? getCombatantById(this.allCombatants, first.combatantId)
+        : undefined;
+      this.addLog(
+        firstActor?.actorKind === "hero"
+          ? "You act first!"
+          : `${firstActor?.label ?? "A combatant"} acts first!`,
+      );
+      this.time.delayedCall(700, () => this.beginCurrentTurn());
     } catch (err) {
       this.handleError("rollForInitiative", err);
     }
@@ -1127,14 +1817,35 @@ export class BattleScene extends Phaser.Scene {
       this.addLog("Turn action already used!");
       return;
     }
+    const range = getAttackRangeForWeapon(this.player.equippedWeapon);
+    this.beginTargetSelection(
+      "Attack",
+      range,
+      (targetIndex) => this.performPlayerAttack(targetIndex, range),
+    );
+  }
+
+  private performPlayerAttack(
+    targetIndex: number,
+    range: AttackRange,
+  ): void {
+    if (this.phase !== "playerTurn" || this.turnActionUsed) return;
+    this.selectedTargetIndex = targetIndex;
     this.closeAllSubMenus();
     this.playerDefending = false; // reset defend on new action
     this.turnActionUsed = true;
     this.phase = "monsterTurn"; // prevent double actions
 
     try {
-      const monsterDefBonus = this.monsterDefending ? 2 : 0;
-      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
+      const targetSprite = this.monsterSprite;
+      const monsterDefBonus = (this.monsterDefending ? 2 : 0)
+        + getSynergyACBonus(
+          this.encounter.synergy,
+          this.combatants,
+          targetIndex,
+        );
+      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current)
+        + getFormationAttackPenalty(this.combatants, targetIndex, range);
       const result = playerAttack(
         this.player,
         this.monster,
@@ -1142,20 +1853,22 @@ export class BattleScene extends Phaser.Scene {
         weatherPenalty,
         this.monsterEffects,
       );
-      // Reset monster defend after player attacks
-      this.monsterDefending = false;
-      debugLog("Player attack", { roll: result.roll, hit: result.hit, critical: result.critical, damage: result.damage, monsterAC: this.monster.ac });
+      debugLog("Player attack", { target: this.targetCombatant.label, roll: result.roll, hit: result.hit, critical: result.critical, damage: result.damage, monsterAC: this.monster.ac });
       debugPanelLog(
-        `  ↳ [Player Attack] d20=${result.roll} +${result.attackMod} = ${result.totalRoll} vs AC ${result.targetAC} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage}`,
+        `  ↳ [Player Attack → ${this.targetCombatant.label}] d20=${result.roll} +${result.attackMod} = ${result.totalRoll} vs AC ${result.targetAC} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage}`,
         false, "roll-detail"
       );
-      this.addLog(result.message + this.formatPlayerRoll(result.roll, result.attackMod, result.totalRoll, result.hit, result.critical));
-      this.monsterHp = Math.max(0, this.monsterHp - result.damage);
-      this.updateMonsterDisplay();
+      this.addLog(result.message + this.formatPlayerRoll(result.roll, result.attackMod, result.totalRoll, result.hit, result.critical, targetIndex));
       this.recordElementalDiscovery(
         result.elementalLabel,
         this.player.equippedWeapon?.element,
+        targetIndex,
       );
+      this.setCombatantHp(
+        targetIndex,
+        this.combatants[targetIndex]!.currentHp - result.damage,
+      );
+      this.updateMonsterDisplay();
 
       // Play distinct attack sounds based on outcome
       if (audioEngine.initialized) {
@@ -1170,8 +1883,8 @@ export class BattleScene extends Phaser.Scene {
 
       if (result.hit) {
         this.tweens.add({
-          targets: this.monsterSprite,
-          x: this.monsterSprite.x + 10,
+          targets: targetSprite,
+          x: targetSprite.x + 10,
           duration: 50,
           yoyo: true,
           repeat: 2,
@@ -1180,27 +1893,59 @@ export class BattleScene extends Phaser.Scene {
 
       // Off-hand bonus action: if player has an off-hand weapon and bonus action is unused,
       // automatically follow up with an off-hand attack (no ability mod bonus per D&D 5e TWF)
-      if (this.player.equippedOffHand && !this.bonusActionUsed && this.monsterHp > 0) {
+      if (
+        this.player.equippedOffHand
+        && !this.bonusActionUsed
+        && countAliveCombatants(this.combatants) > 0
+      ) {
         this.bonusActionUsed = true;
+        const offHandTargets = getSelectableTargetIndices(
+          this.combatants,
+          "melee",
+        );
+        const offHandTarget = this.combatants[targetIndex]?.isAlive
+          ? targetIndex
+          : offHandTargets[0];
+        if (offHandTarget === undefined) {
+          this.checkBattleEnd();
+          return;
+        }
+        this.selectedTargetIndex = offHandTarget;
+        const offHandSprite = this.monsterSprite;
+        const offHandDefendBonus = (this.monsterDefending ? 2 : 0)
+          + getSynergyACBonus(
+            this.encounter.synergy,
+            this.combatants,
+            offHandTarget,
+          );
+        const offHandPenalty = getFormationAttackPenalty(
+          this.combatants,
+          offHandTarget,
+          "melee",
+        );
         const offResult = playerOffHandAttack(
           this.player,
           this.monster,
-          0,
-          weatherPenalty,
+          offHandDefendBonus,
+          getWeatherAccuracyPenalty(this.weatherState.current) + offHandPenalty,
           this.monsterEffects,
         );
         debugLog("Player off-hand attack (bonus action)", { roll: offResult.roll, hit: offResult.hit, critical: offResult.critical, damage: offResult.damage });
         debugPanelLog(
-          `  ↳ [Off-Hand] d20=${offResult.roll} +${offResult.attackMod} = ${offResult.totalRoll} vs AC ${offResult.targetAC} → ${offResult.hit ? (offResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${offResult.damage}`,
+          `  ↳ [Off-Hand → ${this.targetCombatant.label}] d20=${offResult.roll} +${offResult.attackMod} = ${offResult.totalRoll} vs AC ${offResult.targetAC} → ${offResult.hit ? (offResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${offResult.damage}`,
           false, "roll-detail"
         );
-        this.addLog(offResult.message + this.formatPlayerRoll(offResult.roll, offResult.attackMod, offResult.totalRoll, offResult.hit, offResult.critical));
-        this.monsterHp = Math.max(0, this.monsterHp - offResult.damage);
-        this.updateMonsterDisplay();
+        this.addLog(offResult.message + this.formatPlayerRoll(offResult.roll, offResult.attackMod, offResult.totalRoll, offResult.hit, offResult.critical, offHandTarget));
         this.recordElementalDiscovery(
           offResult.elementalLabel,
           this.player.equippedOffHand?.element,
+          offHandTarget,
         );
+        this.setCombatantHp(
+          offHandTarget,
+          this.combatants[offHandTarget]!.currentHp - offResult.damage,
+        );
+        this.updateMonsterDisplay();
 
         if (audioEngine.initialized) {
           if (offResult.critical) audioEngine.playCriticalHitSFX();
@@ -1208,7 +1953,7 @@ export class BattleScene extends Phaser.Scene {
           else audioEngine.playMissSFX();
         }
         if (offResult.hit) {
-          this.tweens.add({ targets: this.monsterSprite, x: this.monsterSprite.x + 10, duration: 50, yoyo: true, repeat: 1 });
+          this.tweens.add({ targets: offHandSprite, x: offHandSprite.x + 10, duration: 50, yoyo: true, repeat: 1 });
         }
       }
 
@@ -1225,7 +1970,6 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
     this.closeAllSubMenus();
-    this.monsterDefending = false; // reset monster defend
     this.playerDefending = true;
     this.turnActionUsed = true;
     this.phase = "monsterTurn";
@@ -1252,40 +1996,153 @@ export class BattleScene extends Phaser.Scene {
       this.addLog("Not enough MP!");
       return;
     }
+    const targetType = getSpellTargetType(spell);
+    if (targetType === "single" || targetType === "single_enemy") {
+      this.beginTargetSelection(
+        spell.name,
+        "ranged",
+        (targetIndex) => this.performPlayerSpell(
+          spellId,
+          [this.combatants[targetIndex]!.id],
+        ),
+      );
+      return;
+    }
+    const targetIds = getBattleTargetIds(
+      this.allCombatants,
+      this.heroCombatant.id,
+      targetType,
+    );
+    if (targetIds.length === 0) {
+      this.addLog("No valid targets!");
+      return;
+    }
+    this.performPlayerSpell(spellId, targetIds);
+  }
+
+  private performPlayerSpell(
+    spellId: string,
+    targetIds: string[],
+  ): void {
+    if (this.phase !== "playerTurn" || this.turnActionUsed) return;
+    const spell = getSpell(spellId);
+    if (!spell) {
+      this.addLog("Unknown spell!");
+      return;
+    }
+    if (this.player.mp < spell.mpCost) {
+      this.addLog("Not enough MP!");
+      return;
+    }
+    const isDamageSpell = spell.type === "damage";
+    const enemyTargets = targetIds.flatMap((targetId) => {
+      const index = this.combatants.findIndex(
+        (combatant) => combatant.id === targetId,
+      );
+      return index >= 0
+        ? [{ combatant: this.combatants[index]!, index }]
+        : [];
+    });
+    const healingTargets = targetIds.flatMap((targetId) => {
+      const combatant = getCombatantById(this.partyCombatants, targetId);
+      return combatant ? [combatant as HealingTarget] : [];
+    });
+    if (isDamageSpell && enemyTargets.length === 0) {
+      this.addLog("No valid targets!");
+      return;
+    }
+    const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
+    const targets = enemyTargets.map(({ combatant, index }) => {
+      return {
+        monster: combatant.monster,
+        monsterEffects: combatant.effects,
+        weatherPenalty,
+        acPenalty: (combatant.isDefending ? 2 : 0)
+          + getSynergyACBonus(
+            this.encounter.synergy,
+            this.combatants,
+            index,
+          ),
+      };
+    });
+
     this.playerDefending = false;
-    this.monsterDefending = false;
     this.turnActionUsed = true;
     this.phase = "monsterTurn";
 
     try {
-      const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
-      const result = playerCastSpell(
+      const result = playerCastSpellAtTargets(
         this.player,
         spellId,
-        this.monster,
-        weatherPenalty,
-        this.monsterEffects,
+        targets,
+        healingTargets,
       );
-      debugLog("Player spell", { spellId, roll: result.roll, hit: result.hit, damage: result.damage, mpUsed: result.mpUsed });
-      if (result.roll !== undefined) {
+      debugLog("Player group spell", {
+        spellId,
+        targetIds,
+        hit: result.hit,
+        damage: result.damage,
+        mpUsed: result.mpUsed,
+      });
+      this.addLog(result.message);
+
+      for (const targetResult of result.results) {
+        const target = enemyTargets[targetResult.targetIndex];
+        if (!target) continue;
+        const combatantIndex = target.index;
+        const combatant = target.combatant;
+        const targetSprite = this.monsterSprites[combatantIndex];
+        const rollSuffix = targetResult.roll !== undefined
+          && !targetResult.autoHit
+          ? this.formatPlayerRoll(
+              targetResult.roll,
+              targetResult.spellMod ?? 0,
+              targetResult.totalRoll ?? 0,
+              targetResult.hit,
+              false,
+              combatantIndex,
+            )
+          : "";
+        this.addLog(
+          targetResult.message.replace(
+            combatant.monster.name,
+            combatant.label,
+          ) + rollSuffix,
+        );
         debugPanelLog(
-          `  ↳ [Player Spell ${spellId}] d20=${result.roll} +${result.spellMod ?? 0} = ${result.totalRoll ?? 0} vs AC ${result.targetAC ?? this.monster.ac} → ${result.autoHit ? "AUTO-HIT" : result.hit ? "HIT" : "MISS"} dmg=${result.damage} mp=${result.mpUsed}`,
+          `  ↳ [Player Spell ${spellId} → ${combatant.label}] ${targetResult.autoHit ? "AUTO-HIT" : targetResult.hit ? "HIT" : "MISS"} dmg=${targetResult.damage} mp=${result.mpUsed}`,
           false, "roll-detail"
         );
-      } else {
-        debugPanelLog(
-          `  ↳ [Player Spell ${spellId}] ${result.hit ? "SUCCESS" : "FAIL"} dmg=${result.damage} mp=${result.mpUsed}`,
-          false, "roll-detail"
+        this.recordElementalDiscovery(
+          targetResult.elementalLabel,
+          spell.element,
+          combatantIndex,
         );
+        this.setCombatantHp(
+          combatantIndex,
+          combatant.currentHp - targetResult.damage,
+        );
+        if (targetResult.hit && targetResult.damage > 0 && targetSprite) {
+          this.tweens.add({
+            targets: targetSprite,
+            x: targetSprite.x + 8,
+            duration: 50,
+            yoyo: true,
+            repeat: 2,
+          });
+        }
       }
-      const rollSuffix = result.roll !== undefined && !result.autoHit
-        ? this.formatPlayerRoll(result.roll, result.spellMod ?? 0, result.totalRoll ?? 0, result.hit, false)
-        : "";
-      this.addLog(result.message + rollSuffix);
-      this.monsterHp = Math.max(0, this.monsterHp - result.damage);
+      for (const healingResult of result.healingResults) {
+        const target = getCombatantById(
+          this.partyCombatants,
+          healingResult.targetId,
+        );
+        if (!target) continue;
+        this.addLog(`${target.label} recovers ${healingResult.healing} HP!`);
+      }
+
       this.updateMonsterDisplay();
       this.updatePlayerStats();
-      this.recordElementalDiscovery(result.elementalLabel, spell.element);
 
       if (result.hit && result.damage > 0) {
         if (audioEngine.initialized) audioEngine.playAttackSFX();
@@ -1296,7 +2153,7 @@ export class BattleScene extends Phaser.Scene {
 
       this.checkBattleEnd();
     } catch (err) {
-      this.handleError("doPlayerSpell", err);
+      this.handleError("performPlayerSpell", err);
     }
   }
 
@@ -1306,6 +2163,10 @@ export class BattleScene extends Phaser.Scene {
     // Items are bonus actions: 1st item is free, 2nd item sacrifices turn action
     if (this.itemsUsedThisTurn >= 2) {
       this.addLog("Cannot use more than 2 items per turn!");
+      return;
+    }
+    if (this.itemsUsedThisTurn === 0 && this.bonusActionUsed) {
+      this.addLog("Bonus action already used this turn!");
       return;
     }
     if (this.itemsUsedThisTurn === 1 && this.turnActionUsed) {
@@ -1323,6 +2184,7 @@ export class BattleScene extends Phaser.Scene {
         this.itemsUsedThisTurn++;
         if (this.itemsUsedThisTurn === 1) {
           // First item: bonus action used, player still has turn action
+          this.bonusActionUsed = true;
           this.addLog("(Bonus action — you can still act this turn)");
           this.closeAllSubMenus();
         } else {
@@ -1345,7 +2207,7 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    if (this.monster.isBoss) {
+    if (this.combatants.some((combatant) => combatant.monster.isBoss)) {
       this.addLog("Cannot flee from a boss fight!");
       return;
     }
@@ -1355,8 +2217,9 @@ export class BattleScene extends Phaser.Scene {
     this.phase = "monsterTurn";
     try {
       const dexMod = abilityModifier(this.player.stats.dexterity);
-      const result = attemptFlee(dexMod);
-      debugLog("Flee attempt", { success: result.success, dexMod });
+      const aliveCount = countAliveCombatants(this.combatants);
+      const result = attemptFlee(dexMod, aliveCount);
+      debugLog("Flee attempt", { success: result.success, dexMod, aliveCount });
       debugPanelLog(
         `  ↳ [Flee] dexMod=${dexMod} → ${result.success ? "ESCAPED" : "FAILED"}`,
         false, "roll-detail"
@@ -1365,6 +2228,7 @@ export class BattleScene extends Phaser.Scene {
 
       if (result.success) {
         this.phase = "fled";
+        this.reportBattleResult("fled");
         this.time.delayedCall(1000, () => this.returnToOverworld());
       } else {
         this.finishPlayerTurn();
@@ -1374,116 +2238,156 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  private doMonsterTurn(): void {
+  private doMonsterTurn(combatantIndex: number): void {
     if (this.phase === "victory" || this.phase === "defeat" || this.phase === "fled")
       return;
 
     try {
+      const combatant = this.combatants[combatantIndex];
+      if (!combatant?.isAlive) {
+        if (this.inSurpriseRound) this.advanceSurpriseRound(0);
+        else this.advanceTurn(0);
+        return;
+      }
       this.phase = "monsterTurn";
+      this.activeMonsterIndex = combatantIndex;
+      combatant.isDefending = false;
       this.updateButtonStates();
+      this.updateMonsterDisplay();
       const statusResult = processStatusStartOfTurn(
-        this.monsterEffects,
-        this.getMonsterStatusStats(),
+        combatant.effects,
+        deriveMonsterStats(combatant.monster.attackBonus),
       );
       for (const message of statusResult.messages) {
-        this.addLog(`${this.monster.name}: ${message}`);
+        this.addLog(`${combatant.label}: ${message}`);
       }
       this.updateMonsterDisplay();
       if (statusResult.tickDamage > 0) {
-        this.monsterHp = Math.max(
-          0,
-          this.monsterHp - statusResult.tickDamage,
+        this.setCombatantHp(
+          combatantIndex,
+          combatant.currentHp - statusResult.tickDamage,
         );
         this.updateMonsterDisplay();
       }
-      if (this.monsterHp <= 0) {
+      if (!combatant.isAlive) {
         this.checkBattleEnd(false);
+        if (countAliveCombatants(this.combatants) > 0) {
+          if (this.inSurpriseRound) this.advanceSurpriseRound(0);
+          else this.advanceTurn(0);
+        }
         return;
       }
       if (statusResult.skipTurn) {
-        this.addLog(`${this.monster.name} cannot act this turn!`);
-        this.finishMonsterTurn();
+        this.addLog(`${combatant.label} cannot act this turn!`);
+        this.finishMonsterTurn(combatantIndex);
         return;
       }
 
-      // Small chance (8%) the monster defends instead of attacking
-      if (Math.random() < 0.08) {
-        this.monsterDefending = true;
-        this.addLog(`${this.monster.name} takes a defensive stance!`);
-        const statusAC = getEffectACModifier(this.monsterEffects);
-        debugPanelLog(`  ↳ [Monster Defend] AC ${this.monster.ac + statusAC} → ${this.monster.ac + statusAC + 2}`, false, "roll-detail");
+      const supportAbility = isSynergyActive(
+        this.encounter.synergy,
+        this.combatants,
+      ) && this.encounter.synergy?.type === "healer_support"
+        && combatant.position === "back"
+        ? combatant.monster.abilities?.find(
+            (ability) =>
+              ability.type === "heal"
+              && this.combatants.some(
+                (ally) =>
+                  ally.isAlive && ally.currentHp < ally.monster.hp,
+              ),
+          )
+        : undefined;
+      if (supportAbility) {
+        this.executeMonsterAbility(
+          combatantIndex,
+          supportAbility,
+          this.heroCombatant,
+        );
+        return;
+      }
+
+      const defendChance = getMonsterDefendChance(
+        this.encounter.synergy,
+        this.combatants,
+        combatantIndex,
+      );
+      if (Math.random() < defendChance) {
+        combatant.isDefending = true;
+        this.addLog(`${combatant.label} takes a defensive stance!`);
+        const statusAC = getEffectACModifier(combatant.effects);
+        const synergyAC = getSynergyACBonus(
+          this.encounter.synergy,
+          this.combatants,
+          combatantIndex,
+        );
+        debugPanelLog(`  ↳ [Monster Defend] ${combatant.label} AC ${combatant.monster.ac + statusAC + synergyAC} → ${combatant.monster.ac + statusAC + synergyAC + 2}`, false, "roll-detail");
         this.updateMonsterDisplay();
-        this.finishMonsterTurn();
+        this.finishMonsterTurn(combatantIndex);
         return;
       }
 
-      // Reset monster defend at start of their action turn
-      this.monsterDefending = false;
-      this.updateMonsterDisplay();
+      const partyTarget = selectMonsterTarget(this.partyCombatants);
+      if (!partyTarget) {
+        this.handlePartyDefeatIfNeeded();
+        return;
+      }
 
       // Check for monster ability use
-      if (this.monster.abilities) {
-        for (const ability of this.monster.abilities) {
+      if (combatant.monster.abilities) {
+        for (const ability of combatant.monster.abilities) {
           if (Math.random() < ability.chance) {
-            const result = monsterUseAbility(
-              ability,
-              this.monster,
-              this.player,
-              this.monsterEffects,
-            );
-            debugLog("Monster ability", { name: ability.name, damage: result.damage, healing: result.healing });
-            debugPanelLog(
-              `  ↳ [Monster Ability] ${ability.name} → dmg=${result.damage} heal=${result.healing}`,
-              false, "roll-detail"
-            );
-            this.addLog(result.message);
-
-            if (result.healing > 0) {
-              this.monsterHp = Math.min(this.monster.hp, this.monsterHp + result.healing);
-              this.updateMonsterDisplay();
-            }
-
-            this.updatePlayerStats();
-            if (result.damage > 0) {
-              this.cameras.main.shake(200, 0.015);
-            }
-
-            if (this.player.hp <= 0) {
-              this.phase = "defeat";
-              this.addLog("You have been defeated...");
-              this.time.delayedCall(2000, () => this.handleDefeat());
-              return;
-            }
-
-            this.finishMonsterTurn();
+            this.executeMonsterAbility(combatantIndex, ability, partyTarget);
             return;
           }
         }
       }
 
-      // Normal attack — pass player defend bonus + weather effects
-      const defendBonus = this.playerDefending ? 2 : 0;
+      // Normal attack — target one living party combatant.
+      const defendBonus = partyTarget.isDefending ? 2 : 0;
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
-      const boost = getMonsterWeatherBoost(this.monster.id, this.weatherState.current);
-      const result = monsterAttack(
-        this.monster,
-        this.player,
+      const boost = getMonsterWeatherBoost(combatant.monster.id, this.weatherState.current);
+      const warCryActive = this.warCryCombatants.has(combatantIndex);
+      const synergyAttackBonus = getSynergyAttackBonus(
+        this.encounter.synergy,
+        this.combatants,
+        combatantIndex,
+        warCryActive,
+      );
+      const synergyDamageBonus = getSynergyDamageBonus(
+        this.encounter.synergy,
+        this.combatants,
+        combatantIndex,
+      );
+      const result = monsterAttackTarget(
+        combatant.monster,
+        partyTarget,
         defendBonus,
         weatherPenalty,
         boost.attackBonus,
-        this.monsterEffects,
+        combatant.effects,
+        synergyAttackBonus,
+        synergyDamageBonus,
       );
+      if (warCryActive) this.warCryCombatants.delete(combatantIndex);
 
       // Shield defend bonus: reduce incoming damage by 1 when defending with a shield equipped
-      const shieldDefendReduction = (this.playerDefending && this.player.equippedShield && !this.player.equippedWeapon?.twoHanded) ? 1 : 0;
+      const shieldDefendReduction = (
+        partyTarget.actorKind === "hero"
+        && partyTarget.isDefending
+        && this.player.equippedShield
+        && !this.player.equippedWeapon?.twoHanded
+      ) ? 1 : 0;
       if (shieldDefendReduction > 0 && result.hit && result.damage > 0) {
         const reduced = Math.min(shieldDefendReduction, result.damage);
         result.damage -= reduced;
-        // Re-apply corrected damage to player HP (monsterAttack already subtracted the original)
-        this.player.hp = Math.min(this.player.maxHp, this.player.hp + reduced);
+        partyTarget.currentHp = Math.min(
+          partyTarget.maxHp,
+          partyTarget.currentHp + reduced,
+        );
       }
 
       debugLog("Monster attack", {
+        monster: combatant.label,
         naturalRoll: result.roll,
         attackBonus: result.attackBonus,
         totalRoll: result.totalRoll,
@@ -1491,16 +2395,19 @@ export class BattleScene extends Phaser.Scene {
         hit: result.hit,
         critical: result.critical,
         damage: result.damage,
-        playerHP: this.player.hp,
-        playerDefending: this.playerDefending,
+        target: partyTarget.id,
+        targetHP: partyTarget.currentHp,
+        targetDefending: partyTarget.isDefending,
         shieldDefendReduction,
       });
       debugPanelLog(
-        `  ↳ [Monster Attack] d20=${result.roll} +=${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}${this.playerDefending ? " (DEF+2)" : ""}${shieldDefendReduction ? " (shield -1)" : ""} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → Player HP ${this.player.hp}`,
+        `  ↳ [Monster Attack ${combatant.label} → ${partyTarget.label}] d20=${result.roll} +=${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}${partyTarget.isDefending ? " (DEF+2)" : ""}${shieldDefendReduction ? " (shield -1)" : ""} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → HP ${partyTarget.currentHp}`,
         false, "roll-detail"
       );
       // Only show the outcome message, never the enemy's roll details
-      this.addLog(result.message);
+      this.addLog(
+        result.message.replace(combatant.monster.name, combatant.label),
+      );
 
       if (result.hit) {
         if (audioEngine.initialized) {
@@ -1511,112 +2418,244 @@ export class BattleScene extends Phaser.Scene {
           }
         }
         this.cameras.main.shake(150, 0.01);
-        // Shake player sprite
-        this.tweens.add({
-          targets: this.playerSprite,
-          x: this.playerSprite.x - 8,
-          duration: 50,
-          yoyo: true,
-          repeat: 2,
-        });
+        if (partyTarget.actorKind === "hero") {
+          this.tweens.add({
+            targets: this.playerSprite,
+            x: this.playerSprite.x - 8,
+            duration: 50,
+            yoyo: true,
+            repeat: 2,
+          });
+        }
       } else if (audioEngine.initialized) {
         audioEngine.playMissSFX();
       }
 
-      if (this.player.hp <= 0) {
-        this.phase = "defeat";
-        this.addLog("You have been defeated...");
-        this.time.delayedCall(2000, () => this.handleDefeat());
-        return;
-      }
+      if (this.handlePartyDefeatIfNeeded()) return;
 
-      this.finishMonsterTurn();
+      this.finishMonsterTurn(combatantIndex);
     } catch (err) {
       this.handleError("doMonsterTurn", err);
     }
   }
 
-  private getMonsterStatusStats(): PlayerStats {
-    const physical = Math.min(20, 10 + this.monster.attackBonus);
-    const mental = Math.min(
-      18,
-      10 + Math.floor(this.monster.attackBonus / 2),
+  private executeMonsterAbility(
+    combatantIndex: number,
+    ability: MonsterAbility,
+    partyTarget: PartyCombatant,
+  ): void {
+    const combatant = this.combatants[combatantIndex];
+    if (!combatant?.isAlive) return;
+    const result = monsterUseAbilityTarget(
+      ability,
+      combatant.monster,
+      partyTarget,
+      combatant.effects,
+      getSynergyDamageBonus(
+        this.encounter.synergy,
+        this.combatants,
+        combatantIndex,
+      ),
     );
-    return {
-      strength: physical,
-      dexterity: physical,
-      constitution: physical,
-      intelligence: mental,
-      wisdom: mental,
-      charisma: mental,
-    };
+    debugLog("Monster ability", {
+      monster: combatant.label,
+      name: ability.name,
+      damage: result.damage,
+      healing: result.healing,
+    });
+    debugPanelLog(
+      `  ↳ [Monster Ability ${combatant.label}] ${ability.name} → dmg=${result.damage} heal=${result.healing}`,
+      false, "roll-detail"
+    );
+
+    if (result.healing > 0) {
+      const supportHealing = ability.type === "heal"
+        && this.encounter.synergy?.type === "healer_support"
+        && isSynergyActive(this.encounter.synergy, this.combatants);
+      const healTargetIndex = supportHealing
+        ? (findLowestHpAllyIndex(this.combatants) ?? combatantIndex)
+        : combatantIndex;
+      const healTarget = this.combatants[healTargetIndex]!;
+      this.setCombatantHp(
+        healTargetIndex,
+        Math.min(
+          healTarget.monster.hp,
+          healTarget.currentHp + result.healing,
+        ),
+      );
+      this.addLog(
+        healTargetIndex === combatantIndex
+          ? result.message.replace(combatant.monster.name, combatant.label)
+          : `${combatant.label} uses ${ability.name}! ${healTarget.label} recovers ${result.healing} HP!`,
+      );
+    } else {
+      this.addLog(
+        result.message.replace(combatant.monster.name, combatant.label),
+      );
+    }
+
+    this.updateMonsterDisplay();
+    this.updatePlayerStats();
+    if (result.damage > 0) {
+      this.cameras.main.shake(200, 0.015);
+    }
+    if (this.handlePartyDefeatIfNeeded()) return;
+    this.finishMonsterTurn(combatantIndex);
+  }
+
+  private handlePartyDefeatIfNeeded(): boolean {
+    if (!isPartyDefeated(this.partyCombatants)) return false;
+    this.phase = "defeat";
+    this.updateButtonStates();
+    this.addLog("Your party has been defeated...");
+    this.time.delayedCall(2000, () => this.handleDefeat());
+    return true;
+  }
+
+  private setCombatantHp(combatantIndex: number, value: number): void {
+    const combatant = this.combatants[combatantIndex];
+    if (!combatant) {
+      throw new Error(`[BattleScene] Missing combatant ${combatantIndex}`);
+    }
+    if (!combatant.isAlive && value > 0) return;
+
+    const wasAlive = combatant.isAlive;
+    const synergyWasActive = isSynergyActive(
+      this.encounter.synergy,
+      this.combatants,
+    );
+    combatant.currentHp = Phaser.Math.Clamp(
+      value,
+      0,
+      combatant.monster.hp,
+    );
+    if (combatant.currentHp > 0 || !wasAlive) return;
+
+    combatant.isAlive = false;
+    combatant.isKnockedOut = true;
+    combatant.isDefending = false;
+    this.warCryCombatants.delete(combatantIndex);
+    this.addLog(`${combatant.label} is defeated!`);
+    this.battleHooks?.onCombatantDefeated?.(combatant);
+
+    if (
+      this.encounter.synergy?.type === "war_cry"
+      && synergyWasActive
+    ) {
+      for (const [index, ally] of this.combatants.entries()) {
+        if (ally.isAlive) this.warCryCombatants.add(index);
+      }
+      if (this.warCryCombatants.size > 0) {
+        this.addLog("War Cry! Each survivor gains +2 on its next attack.");
+      }
+    }
+
+    const synergyIsActive = isSynergyActive(
+      this.encounter.synergy,
+      this.combatants,
+    );
+    if (this.encounter.synergy && synergyWasActive && !synergyIsActive) {
+      this.addLog(`${this.encounter.synergy.description} The synergy breaks!`);
+    }
+
+    if (this.selectedTargetIndex === combatantIndex) {
+      const next = this.combatants.findIndex((ally) => ally.isAlive);
+      if (next >= 0) this.selectedTargetIndex = next;
+    }
   }
 
   private checkBattleEnd(endPlayerTurn = true): void {
     try {
-      if (this.monsterHp <= 0) {
-        this.phase = "victory";
-        this.updateButtonStates();
-        this.addLog(`${this.monster.name} is defeated!`);
-
-        // Roll for item drops
-        const droppedItems: Item[] = [];
-        if (this.monster.drops) {
-          for (const drop of this.monster.drops) {
-            if (Math.random() < drop.chance) {
-              const item = getItem(drop.itemId);
-              if (item) {
-                droppedItems.push({ ...item });
-                this.droppedItemIds.push(drop.itemId);
-              }
-            }
-          }
-        }
-
-        // Award XP and gold
-        this.player.gold += this.monster.goldReward;
-        const xpResult = awardXP(this.player, this.monster.xpReward);
-        this.addLog(
-          `Gained ${this.monster.xpReward} XP and ${this.monster.goldReward} gold!`
-        );
-
-        // Award dropped items
-        for (const item of droppedItems) {
-          this.player.inventory.push(item);
-          this.addLog(`🌟 Found: ${item.name}!`);
-        }
-
-        if (xpResult.pendingLevels > 0) {
-          this.addLog(`⬆ ${xpResult.pendingLevels} level-up${xpResult.pendingLevels > 1 ? "s" : ""} pending! Rest to level up.`);
-        }
-
-        // Track boss defeats
-        if (this.monster.isBoss) {
-          this.defeatedBosses.add(this.monster.id);
-        }
-
-        // Record in bestiary
-        recordDefeat(this.codex, this.monster, this.acDiscovered, this.droppedItemIds);
-        for (const element of this.elementalDiscoveries) {
-          discoverElement(this.codex, this.monster.id, element);
-        }
-
-        // Play victory jingle
-        if (audioEngine.initialized) {
-          audioEngine.playVictoryJingle();
-        }
-
-        this.updatePlayerStats();
-        this.time.delayedCall(2500, () => this.returnToOverworld());
-      } else {
-        if (endPlayerTurn) this.finishPlayerTurn();
+      if (countAliveCombatants(this.combatants) === 0) {
+        this.handleVictory();
+      } else if (endPlayerTurn) {
+        this.finishPlayerTurn();
       }
     } catch (err) {
       this.handleError("checkBattleEnd", err);
     }
   }
 
+  private handleVictory(): void {
+    if (this.phase === "victory") return;
+    this.phase = "victory";
+    this.pendingTargetAction = null;
+    this.updateButtonStates();
+    this.updateMonsterDisplay();
+    this.addLog(`${this.encounter.name} is defeated!`);
+
+    const droppedItems: Item[] = [];
+    for (const combatant of this.combatants) {
+      for (const drop of combatant.monster.drops ?? []) {
+        if (Math.random() >= drop.chance) continue;
+        const item = getItem(drop.itemId);
+        if (!item) continue;
+        droppedItems.push({ ...item });
+        combatant.droppedItemIds.push(drop.itemId);
+      }
+    }
+
+    const rewards = resolveBattleRewards(this.encounter, this.battleHooks);
+    this.player.gold += rewards.gold;
+    const xpResult = awardXP(this.player, rewards.xp);
+    this.addLog(`Gained ${rewards.xp} XP and ${rewards.gold} gold!`);
+
+    for (const item of droppedItems) {
+      this.player.inventory.push(item);
+      this.addLog(`🌟 Found: ${item.name}!`);
+    }
+    if (xpResult.pendingLevels > 0) {
+      this.addLog(`⬆ ${xpResult.pendingLevels} level-up${xpResult.pendingLevels > 1 ? "s" : ""} pending! Rest to level up.`);
+    }
+
+    for (const combatant of this.combatants) {
+      if (combatant.monster.isBoss) {
+        this.defeatedBosses.add(combatant.monster.id);
+      }
+    }
+    const questResult = recordMonsterDefeats(
+      this.player,
+      this.defeatedBosses,
+      this.combatants.map((combatant) => combatant.monster.id),
+    );
+    this.questUpdates = questResult.updates;
+    if (questResult.changed) {
+      this.addLog("Quest progress recorded.");
+    }
+    recordGroupDefeats(this.codex, this.combatants);
+    this.reportBattleResult(
+      "victory",
+      rewards,
+      this.combatants.flatMap((combatant) => combatant.droppedItemIds),
+    );
+
+    if (audioEngine.initialized) {
+      audioEngine.playVictoryJingle();
+    }
+    this.updatePlayerStats();
+    this.time.delayedCall(2500, () => this.returnToOverworld());
+  }
+
+  private reportBattleResult(
+    outcome: BattleOutcome,
+    rewards: BattleReward = { xp: 0, gold: 0 },
+    droppedItemIds: string[] = [],
+  ): void {
+    if (this.battleResultReported) return;
+    this.battleResultReported = true;
+    this.battleHooks?.onBattleResolved?.(
+      createBattleResult(
+        outcome,
+        this.partyCombatants,
+        this.combatants,
+        rewards,
+        droppedItemIds,
+      ),
+    );
+  }
+
   private handleDefeat(): void {
+    this.reportBattleResult("defeat");
     // Play defeat music
     if (audioEngine.initialized) {
       audioEngine.playDefeatMusic();
@@ -1645,31 +2684,39 @@ export class BattleScene extends Phaser.Scene {
     mod: number,
     total: number,
     hit: boolean,
-    critical: boolean | undefined
+    critical: boolean | undefined,
+    targetIndex: number = this.selectedTargetIndex,
   ): string {
     if (naturalRoll === undefined || naturalRoll === 20 || naturalRoll === 1) return "";
+    const combatant = this.combatants[targetIndex];
+    if (!combatant) return "";
 
     // Track AC discovery
     if (hit) {
-      this.acLowestHit = Math.min(this.acLowestHit, total);
+      combatant.acLowestHit = Math.min(combatant.acLowestHit, total);
     } else {
-      this.acHighestMiss = Math.max(this.acHighestMiss, total);
+      combatant.acHighestMiss = Math.max(combatant.acHighestMiss, total);
     }
 
-    if (!this.acDiscovered && this.acLowestHit === this.acHighestMiss + 1) {
-      this.acDiscovered = true;
+    if (
+      !combatant.acDiscovered
+      && combatant.acLowestHit === combatant.acHighestMiss + 1
+    ) {
+      combatant.acDiscovered = true;
       // Also update the bestiary immediately
-      discoverAC(this.codex, this.monster.id);
-      this.addLog(`🔍 You deduce the ${this.monster.name}'s AC is ${this.acLowestHit}!`);
+      discoverAC(this.codex, combatant.monster.id);
+      this.addLog(`🔍 You deduce ${combatant.label}'s AC is ${combatant.acLowestHit}!`);
     }
 
-    const acSuffix = this.acDiscovered ? ` vs AC ${this.monster.ac}` : "";
+    const acSuffix = combatant.acDiscovered
+      ? ` vs AC ${combatant.monster.ac}`
+      : "";
     return ` (d20: ${naturalRoll} +${mod} = ${total}${acSuffix})`;
   }
 
   private handleError(context: string, err: unknown): void {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[BattleScene.${context}]`, err);
+    debugLog(`BattleScene.${context}`, err);
     debugPanelLog(`ERROR in ${context}: ${msg}`);
     this.addLog(`⚠ Something went wrong (${context})`);
   }
@@ -1687,7 +2734,17 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private applyDayNightTint(): void {
-    applyBattleDayNightTint(this, this.biome, this.timeStep, this.bgImage, this.monsterSprite, this.monster.color, this.playerSprite);
+    applyBattleDayNightTint(
+      this,
+      this.biome,
+      this.timeStep,
+      this.bgImage,
+      this.monsterSprites.map((sprite, index) => ({
+        sprite,
+        color: this.combatants[index]?.monster.color ?? 0xffffff,
+      })),
+      this.playerSprite,
+    );
   }
 
   private createWeatherParticles(): void {
@@ -1699,8 +2756,12 @@ export class BattleScene extends Phaser.Scene {
   private returnToOverworld(): void {
     if (this.isReturningToOverworld) return;
     this.isReturningToOverworld = true;
-    clearAllEffects(this.player.activeEffects);
-    clearAllEffects(this.monsterEffects);
+    for (const combatant of this.partyCombatants) {
+      clearAllEffects(combatant.effects);
+    }
+    for (const combatant of this.combatants) {
+      clearAllEffects(combatant.effects);
+    }
     this.cameras.main.resetFX();
     this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.start("OverworldScene", {
@@ -1710,6 +2771,7 @@ export class BattleScene extends Phaser.Scene {
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,
+        questUpdates: this.questUpdates,
       });
     });
     this.cameras.main.fadeOut(500, 0, 0, 0);
@@ -1718,9 +2780,12 @@ export class BattleScene extends Phaser.Scene {
   private recordElementalDiscovery(
     interaction: ElementalInteraction | undefined,
     element: Element | undefined,
+    targetIndex: number = this.selectedTargetIndex,
   ): void {
     if (!interaction || !element) return;
-    this.elementalDiscoveries.add(element);
-    discoverElement(this.codex, this.monster.id, element);
+    const combatant = this.combatants[targetIndex];
+    if (!combatant) return;
+    combatant.elementalDiscoveries.add(element);
+    discoverElement(this.codex, combatant.monster.id, element);
   }
 }

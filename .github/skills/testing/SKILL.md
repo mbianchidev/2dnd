@@ -13,8 +13,11 @@ Write comprehensive tests for game mechanics using Vitest while avoiding UI/inte
 ### What TO Test
 ✅ Dice probability distributions
 ✅ Combat calculation accuracy  
+✅ Group initiative, formation, targeting, synergies, rewards, and encounter budgets
 ✅ Player stat progression
 ✅ XP and leveling formulas
+✅ Quest objective counters, prerequisites, rewards, gates, danger rules, and
+save normalization
 ✅ Data integrity (monsters, spells, items)
 ✅ Game logic functions
 ✅ Non-combat skill-check math, outcomes, and save normalization
@@ -32,11 +35,21 @@ Write comprehensive tests for game mechanics using Vitest while avoiding UI/inte
 tests/
 ├── dice.test.ts      # Dice rolling utilities
 ├── combat.test.ts    # Combat mechanics
+├── groupCombat.test.ts # Multi-monster combat rules
+├── battleActions.test.ts # Pure gambit planning and validation
+├── monsterGroups.test.ts # Group templates and generation
+├── partyCombat.test.ts # Stable actor IDs, ally scopes, AI, and result hooks
 ├── player.test.ts    # Player systems
+├── quests.test.ts    # Quest progression and integrity
 ├── skillChecks.test.ts # Exploration/dialogue checks
 ├── save.test.ts      # Persistence and migration
 └── data.test.ts      # Data validation
 ```
+
+Quest tests must cover duplicate matching monsters in one group victory,
+durable boss reconciliation, optional-objective reward cutoffs, hard-gate
+softlock safety, reward idempotency, and flat schema-v4 to nested schema-v5
+migration.
 
 ## Skill Check Testing
 
@@ -386,6 +399,8 @@ npx vitest run --coverage
 6. **Mock randomness when needed** - Make tests deterministic
 7. **Keep tests fast** - Avoid delays, network calls
 8. **One assertion per test (when possible)** - Makes failures clear
+9. **Inject group RNG** - Initiative, weighted generation, and random-two
+   targeting helpers accept deterministic random functions
 
 ## Common Pitfalls
 

@@ -13,7 +13,9 @@ license: MIT
 - `src/data/chunks.ts`: 10x9 overworld chunk grid
 - `src/data/cities.ts`: city layouts, districts, shops, and gates
 - `src/data/dungeons.ts`: dungeon floors and stairs
+- `src/data/quests.ts`: progression-gated city and dungeon entrances
 - `src/systems/movement.ts`: grid, city-gate, and dungeon-stair movement
+- `src/systems/quests.ts`: quest entrance-block checks
 - `src/managers/fogOfWar.ts`: exploration-key generation and reveal state
 - `src/managers/skillChecks.ts`: terrain events, hidden treasure, and chest
   checks
@@ -37,6 +39,9 @@ license: MIT
 
 Use `isWalkable()` and `ENCOUNTER_RATES` for behavior. Stairs, gates, and boss
 tiles are walkable and do not produce random encounters.
+Apply day/night, weather, and mount modifiers through
+`getEffectiveEncounterRate()`; the effective random-encounter chance is capped
+at 15%.
 
 ## Overworld
 
@@ -50,6 +55,24 @@ getTownBiome(chunkX, chunkY, tileX, tileY);
 
 Chunk names drive biome music, weather probabilities, and presentation. New
 names must retain a recognized biome prefix.
+
+## Quest-gated entrances
+
+Quest barriers guard true interaction chokepoints rather than isolated
+overworld edge tiles, which are easy to walk around. Use
+`getBlockedQuestEntrance()` for city/dungeon actions and
+`getBlockedQuestEntranceAt()` for rendering the matching barricade tile.
+
+Sandport and the Heartlands Crypt remain reachable. Canyonwatch opens during
+`sunRoad` after `sandportPass`, Ashfall opens at `ashenWatch`, and the Volcanic
+Forge opens at `lastForge`. Add data-integrity tests that entrance coordinates
+still match their city or dungeon definition.
+
+Premature northern, marsh, and ashen travel uses persisted soft danger rules.
+Pass their encounter multiplier through `getEffectiveEncounterRate()` and add
+their effective-level offset only when choosing random encounters.
+
+## Exploration skill checks
 
 Terrain-driven Wisdom discoveries and Dexterity hazards are defined in
 `src/data/skillChecks.ts`. Select them through the shared skill-check helpers;
@@ -104,6 +127,8 @@ contains `Terrain.DungeonBoss` and a unique `bossId`.
 
 Dungeon encounters should pass the dungeon ID so the correct exclusive pool is
 used.
+Random encounters may be replaced by a level- and environment-valid
+`MonsterEncounter`; dungeon bosses and explicit debug spawns remain solo.
 
 ## Chests
 

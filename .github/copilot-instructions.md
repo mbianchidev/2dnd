@@ -41,6 +41,8 @@ src/
 │   └── Codex.ts
 ├── systems/
 │   ├── combat.ts
+│   ├── groupCombat.ts
+│   ├── battleActions.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
@@ -52,6 +54,9 @@ src/
 │   ├── daynight.ts
 │   ├── weather.ts
 │   ├── audio.ts
+│   ├── quests.ts
+│   ├── questState.ts
+│   ├── questDebug.ts
 │   └── debug.ts
 ├── data/
 │   ├── map.ts
@@ -60,20 +65,30 @@ src/
 │   ├── cities.ts
 │   ├── dungeons.ts
 │   ├── monsters.ts
+│   ├── monsterGroups.ts
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
 │   ├── items.ts
 │   ├── mounts.ts
 │   ├── npcs.ts
+│   ├── quests.ts
 │   ├── skillChecks.ts
 │   └── talents.ts
 ├── managers/
+│   ├── questJournal.ts
+│   └── questFlow.ts
 ├── renderers/
 └── utils/
 
 tests/
 ├── combat.test.ts
+├── groupCombat.test.ts
+├── battleActions.test.ts
+├── partyCombat.test.ts
+├── monsterGroups.test.ts
+├── encounter.test.ts
+├── targeting.test.ts
 ├── elements.test.ts
 ├── statusEffects.test.ts
 ├── save.test.ts
@@ -121,7 +136,10 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 }
 ```
 
-- Battle also receives `monster` and `biome`; Shop receives shop/city context.
+- Battle also receives a `MonsterEncounter` and `biome`; Shop receives
+  shop/city context.
+- Battle may also receive accessor-backed `partyCombatants` and runtime-only
+  `battleHooks`; these are scene contracts, not persisted save fields.
 - Generate textures in `src/renderers/textures.ts`, invoked by Boot.
 - Synthesize all audio in `src/systems/audio.ts`.
 - Store Phaser object references needed for later update/cleanup.
@@ -153,12 +171,45 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  quests: QuestLogState;
   skillChecks: Record<string, SkillCheckRecord>;
 }
 ```
 
 Access fields through `player.position` and `player.progression`.
 `player.activeEffects` stores normalized combat effects.
+
+## Quests
+
+- Definitions, stages, rewards, named NPC IDs, and gated entrances live in
+  `src/data/quests.ts`.
+- Runtime progression, normalization, rewards, NPC resolution, journal data,
+  and gate checks are exposed through `src/systems/quests.ts`; focused save
+  normalization and debug mutation helpers live in `questState.ts` and
+  `questDebug.ts`.
+- `player.progression.quests` is required persistent state. Mutate it through
+  quest-system APIs so completion rewards remain idempotent.
+- The main campaign is the seven-chapter **Twelvefold Covenant**, spanning all
+  12 cities and the Crypt Lich, Frost Warden, and Inferno Forgemaster. Its
+  sidequests are **Ironbound Dispatch** and **Silk Against the Cold**.
+- Quest progress stores per-objective counters and per-reward claimed IDs.
+  Preserve duplicate monster IDs when recording group victories so defeat
+  counters advance once per combatant.
+- Downstream systems such as companion recruitment query `isQuestCompleted()`
+  and persist their own unlock state.
+- Generic completion actions use stable `{ id, type, targetId }` definitions.
+  Replay them with `getQuestCompletionActions()` or
+  `replayQuestCompletionActions()`; consumers own idempotency.
+- Quest stages have stable camelCase `id` values. Resolve them through
+  `getQuestStageIndex()` or the debug-only `setQuestStageById()` rather than
+  titles.
+- Boss objectives derive from `defeatedBosses`; do not rely only on a new battle
+  event because existing saves may already contain the required defeat.
+- Quest NPCs remain available at night. `Q` opens the quest journal.
+- Canyonwatch, Ashfall, and the Volcanic Forge use quest-controlled entrance
+  barricades; Sandport and the Heartlands Crypt remain reachable to avoid
+  softlocks. Premature northern, marsh, and ashen travel uses persisted soft
+  danger warnings plus capped encounter-rate and effective-level modifiers.
 
 ## Character creation
 
@@ -200,6 +251,46 @@ Flow:
 - Items and designated bonus-action abilities do not end the player turn when
   the bonus action is still available.
 - Validate actions before consuming MP, inventory, or turn state.
+- Random battles contain 1-4 combatants. Each monster owns HP, effects, defend
+  state, AC discovery, drops, and elemental discoveries.
+- `BattleCombatantState` is the shared actor contract: stable ID, party/enemy
+  side, hero/companion/monster kind, formation, HP, alive/KO, defend, and
+  effects. Hero state must remain accessor-backed by `PlayerState`.
+- Initiative interleaves the player with every living monster. Player Defend
+  lasts until the next player turn and protects against all intervening turns.
+- Initiative entries store `combatantId`, never player/monster array indices.
+- Target scopes include enemy single/all/rows, self, single/all allies, and the
+  whole party. Healing entries declare scope explicitly; do not infer every
+  heal as self-only.
+- Monsters choose among living, conscious party combatants. Generic monster
+  attack/ability APIs accept `MonsterAttackTarget`; PlayerState wrappers remain
+  only for compatibility.
+- `BattleResolutionHooks` exposes reward adjustment, enemy-defeat,
+  companion-turn, and once-only battle-result callbacks.
+- Ranked AI/gambits use `src/systems/battleActions.ts`: enumerate living actors,
+  resolve a scope with an optional preferred/matched ID, validate resources and
+  per-actor action economy, then execute and consume one frozen
+  `BattleActionPlan`. A bonus action may be followed by one main action. KO
+  actors are omitted before initiative. Do not duplicate these rules inside
+  scenes or companion AI.
+- Outbound actors bind a generic `CombatActorState` to a `PartyCombatant`
+  through `BattleActionSource`. Execute validated attack/spell/ability/item/
+  defend plans with `executeValidatedBattleAction()`; do not bypass combat,
+  item, elemental-discovery, or target-state helpers.
+- Consumable descriptors use canonical item target metadata with preferred
+  stable target IDs and solo self fallback; self-only items remain self.
+  Consume the acting source's inventory, but apply HP/MP/cure effects through
+  the selected target's action source.
+  `BattleActionExecutionContext.sources` is required in every execution
+  context. Equipment remains self-only.
+- Melee attacks must clear living front-row monsters before targeting the back
+  row; exposed back-row melee targets impose a -2 attack penalty. Ranged
+  attacks and spells bypass formation protection.
+- Spells and abilities use `TargetType`. AoE spells consume MP once, roll once,
+  and apply elemental modifiers independently to each living target.
+- Group flee DC is `10 + (aliveCount - 1) * 2`. Group XP and gold are the
+  floored member totals multiplied by 0.85; drops and Codex defeats resolve per
+  monster.
 
 For disadvantage, roll two d20s and select the lower natural roll before
 checking natural 1/20 and adding modifiers. Magic Missile remains auto-hit.
@@ -263,6 +354,8 @@ use combat turns rather than overworld time.
   - `DungeonBoss = 43`
 
 Always use `isWalkable()`, encounter rates, and map helpers.
+Stack terrain, day/night, weather, and mount encounter modifiers through
+`getEffectiveEncounterRate()` so random encounters never exceed 15%.
 
 ### Cities
 
@@ -290,13 +383,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 3.
+Save schema version is 5.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
-records, validates city/dungeon IDs, clamps levels/districts, repairs invalid
-coordinates to the correct spawn, and falls back to Willowdale for unusable
-overworld locations.
+records, validates city/dungeon IDs and quest state, clamps levels/districts,
+repairs invalid coordinates to the correct spawn, and falls back to Willowdale
+for unusable overworld locations. Schema-v3 skill-check saves gain default
+quest state. Flat schema-v4 Ashen Road saves migrate to nested Covenant
+objective/reward/warning state without replaying completed rewards.
 
 When persistent data changes:
 
@@ -330,6 +425,7 @@ Do not add external audio.
 - Never add production `console.log`.
 - `/spawn` resolves every entry in `ALL_MONSTERS`, including dungeon-specific
   monsters and bosses.
+- `/quest` lists, advances, or sets exact quest stages/statuses.
 - Shared debug commands and Overworld-specific commands live in
   `src/systems/debug.ts`.
 

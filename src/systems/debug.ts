@@ -17,6 +17,18 @@ import { SPELLS } from "../data/spells";
 import { ABILITIES } from "../data/abilities";
 import { PLAYER_CLASSES } from "./classes";
 import { TALENTS } from "../data/talents";
+import {
+  MAIN_QUEST_ID,
+  QUEST_IDS,
+  QUESTS,
+  SIDE_QUEST_ID,
+} from "../data/quests";
+import {
+  advanceQuest,
+  setQuestStageById,
+  setQuestState,
+} from "./questDebug";
+import type { QuestId, QuestStatus } from "../data/quests";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -278,6 +290,7 @@ export interface OverworldDebugCallbacks {
   spawnSpecialNpcs(chunk: WorldChunk): void;
   autoSave(): void;
   restartScene(): void;
+  refreshQuestUI(): void;
 }
 
 /** Wrapper so a primitive number can be shared by reference between the scene and this system. */
@@ -497,6 +510,114 @@ export class DebugCommandSystem {
       }
     });
 
+    cmds.set("quest", (args) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const action = parts[0]?.toLowerCase() ?? "list";
+      const normalizeQuery = (value: string): string =>
+        value.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const resolveQuestId = (value: string | undefined): QuestId | undefined => {
+        if (!value) return undefined;
+        const normalized = normalizeQuery(value);
+        if (normalized === "main") return MAIN_QUEST_ID;
+        if (normalized === "side") return SIDE_QUEST_ID;
+        return QUEST_IDS.find((questId) =>
+          normalizeQuery(questId) === normalized
+          || normalizeQuery(QUESTS[questId].name) === normalized
+        );
+      };
+
+      if (action === "list") {
+        debugPanelLog("── Quest State ──", true);
+        for (const questId of QUEST_IDS) {
+          const quest = QUESTS[questId];
+          const progress = this.player.progression.quests.quests[questId];
+          const stage = quest.stages[progress.stage];
+          debugPanelLog(
+            `  ${questId}: ${progress.status} ${progress.stage}/${quest.stages.length - 1} (${stage.id}: ${stage.title})`,
+            true,
+          );
+        }
+        return;
+      }
+
+      const questId = resolveQuestId(parts[1]);
+      if (!questId) {
+        debugPanelLog(
+          `Usage: /quest <list|advance|set> <${QUEST_IDS.join("|")}> [stage|locked|active|completed]`,
+          true,
+        );
+        return;
+      }
+
+      let result;
+      if (action === "advance") {
+        result = advanceQuest(this.player, questId, this.defeatedBosses);
+      } else if (action === "set") {
+        const targetArg = parts[2]?.toLowerCase();
+        const statuses: QuestStatus[] = ["locked", "active", "completed"];
+        const status = statuses.find((value) => value === targetArg);
+        if (status) {
+          result = setQuestState(
+            this.player,
+            questId,
+            status,
+            this.defeatedBosses,
+          );
+        } else if (targetArg && /^\d+$/.test(targetArg)) {
+          result = setQuestState(
+            this.player,
+            questId,
+            Number.parseInt(targetArg, 10),
+            this.defeatedBosses,
+          );
+        } else if (targetArg) {
+          const stageId = QUESTS[questId].stages.find(
+            (stage) => stage.id.toLowerCase() === targetArg,
+          )?.id;
+          result = stageId
+            ? setQuestStageById(
+              this.player,
+              questId,
+              stageId,
+              this.defeatedBosses,
+            )
+            : undefined;
+          if (!result) {
+            debugPanelLog(
+              `Unknown stage "${parts[2]}". Available: ${QUESTS[questId].stages.map((stage) => stage.id).join(", ")}`,
+              true,
+            );
+            return;
+          }
+        } else {
+          debugPanelLog(
+            `Usage: /quest set ${questId} <stage-number|stage-id|locked|active|completed>`,
+            true,
+          );
+          return;
+        }
+      } else {
+        debugPanelLog(
+          `Usage: /quest <list|advance|set> <${QUEST_IDS.join("|")}> [state]`,
+          true,
+        );
+        return;
+      }
+
+      debugPanelLog(`[CMD] ${result.line}`, true);
+      if (result.rewardText) {
+        debugPanelLog(`[CMD] Reward: ${result.rewardText}`, true);
+      }
+      if (result.changed) {
+        this.callbacks.autoSave();
+        this.callbacks.renderMap();
+        this.callbacks.applyDayNightTint();
+        this.callbacks.createPlayer();
+        this.callbacks.updateHUD();
+        this.callbacks.refreshQuestUI();
+      }
+    });
+
     cmds.set("spawn", (args) => {
       const query = args.trim().toLowerCase();
       if (!query) { debugPanelLog(`Usage: /spawn <monster|traveler|adventurer|merchant|hermit>`, true); return; }
@@ -666,6 +787,7 @@ export class DebugCommandSystem {
       { usage: "/item <id|all>", desc: "Add item (or all) to inventory" },
       { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
+      { usage: "/quest <cmd>", desc: "Quest: list | advance <id> | set <id> <state>" },
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },

@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v3, migration, normalization, and location recovery
+description: Manage 2D&D save schema v4, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -16,7 +16,7 @@ preferences are stored separately by `src/systems/audio.ts`.
 
 ## Current schema
 
-`SAVE_VERSION` is 3.
+`SAVE_VERSION` is 5.
 
 ```typescript
 interface SaveData {
@@ -57,12 +57,27 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  quests: QuestLogState;
   skillChecks: Record<string, SkillCheckRecord>;
+}
+
+interface QuestProgress {
+  status: "locked" | "active" | "completed";
+  stage: number;
+  objectives: Record<string, number>;
+  claimedRewards: string[];
+}
+
+interface QuestLogState {
+  quests: Record<QuestId, QuestProgress>;
+  seenWarnings: string[];
 }
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
-Codex entries persist `discoveredElements`. Fixed non-combat checks persist the
+Codex entries persist `discoveredElements`. Quest progress stores status,
+stage, objective counters, claimed reward IDs, and acknowledged danger warnings.
+Fixed non-combat checks persist the
 ability, natural roll, modifier, repaired total, DC, outcome, and optional
 choice ID.
 
@@ -76,10 +91,14 @@ helpers; do not cast unvalidated nested values directly.
 - Legacy `bestiary` to `codex`
 - Legacy flat player position fields to `player.position`
 - Legacy flat progression fields to `player.progression`
+- Schema-v3 skill-check progression to default quest + skill-check state
+- Flat schema-v4 Ashen Road/Warden's Dispatch progress to nested schema-v5
+  Twelvefold Covenant state without replaying completed rewards
 - Missing equipment, talents, abilities, rests, bank, mount, and appearance
   fields
 - Missing/invalid active status effects
 - Missing/invalid Codex elemental discoveries
+- Missing, malformed, or unknown quest entries through `normalizeQuestLog()`
 - Missing/invalid non-combat skill-check records
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
@@ -148,7 +167,10 @@ top-level save is absent or corrupt.
 
 - Save/load round trips
 - Legacy flat-state migration
-- Schema-v3 position, progression, and skill-check data
+- Schema-v5 position, objective/reward/warning quest state, and skill checks
+- Flat schema-v4 quest migration and completed-reward preservation
+- Schema-v3 skill-check saves gaining default normalized quest state
+- Quest reward and skill-check record normalization
 - Dungeon-level and city-district clamping
 - Invalid IDs and coordinates
 - Conflicting location flags
@@ -162,5 +184,6 @@ top-level save is absent or corrupt.
 - Forgetting the level or district when validating coordinates
 - Reusing city/dungeon fog keys across interiors
 - Keeping unknown status or element strings
+- Resetting valid quest progress while filling missing quest defaults
 - Storing Phaser objects or other non-serializable state
 - Mutating shared game-data definitions while repairing a save

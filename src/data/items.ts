@@ -5,6 +5,7 @@
 import { Element } from "./elements";
 
 export type WeaponSpriteType = "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist";
+export type ConsumableTargetType = "self" | "single_ally";
 
 export interface Item {
   id: string;
@@ -24,6 +25,8 @@ export interface Item {
   element?: Element;
   /** Whether the consumable cures status effects tied to its ID. */
   cureEffects?: boolean;
+  /** Battle target scope for consumables; defaults to self. */
+  targetType?: ConsumableTargetType;
 }
 
 export const ITEMS: Item[] = [
@@ -34,6 +37,7 @@ export const ITEMS: Item[] = [
     type: "consumable",
     cost: 15,
     effect: 20,
+    targetType: "single_ally",
   },
   {
     id: "ether",
@@ -42,6 +46,7 @@ export const ITEMS: Item[] = [
     type: "consumable",
     cost: 25,
     effect: 10,
+    targetType: "single_ally",
   },
   {
     id: "greaterPotion",
@@ -51,6 +56,7 @@ export const ITEMS: Item[] = [
     cost: 50,
     effect: 50,
     levelReq: 5,
+    targetType: "single_ally",
   },
   {
     id: "antidote",
@@ -60,6 +66,7 @@ export const ITEMS: Item[] = [
     cost: 20,
     effect: 0,
     cureEffects: true,
+    targetType: "single_ally",
   },
   {
     id: "burnSalve",
@@ -69,6 +76,7 @@ export const ITEMS: Item[] = [
     cost: 20,
     effect: 0,
     cureEffects: true,
+    targetType: "single_ally",
   },
   {
     id: "thawingTonic",
@@ -78,6 +86,7 @@ export const ITEMS: Item[] = [
     cost: 25,
     effect: 0,
     cureEffects: true,
+    targetType: "single_ally",
   },
   {
     id: "paralysisRemedy",
@@ -87,6 +96,7 @@ export const ITEMS: Item[] = [
     cost: 30,
     effect: 0,
     cureEffects: true,
+    targetType: "single_ally",
   },
   {
     id: "smellingSalts",
@@ -96,6 +106,7 @@ export const ITEMS: Item[] = [
     cost: 15,
     effect: 0,
     cureEffects: true,
+    targetType: "single_ally",
   },
   // --- Class starting weapons (cost 0, given at character creation) ---
   {
@@ -267,6 +278,40 @@ export const ITEMS: Item[] = [
     cost: 100,
     effect: 0,
   },
+  // --- Quest items and rewards ---
+  {
+    id: "covenantSigil",
+    name: "Covenant Sigil",
+    description: "Records the renewed oaths of the twelve cities",
+    type: "key",
+    cost: 0,
+    effect: 0,
+  },
+  {
+    id: "sealedDispatch",
+    name: "Ironhold's Sealed Dispatch",
+    description: "A sealed message addressed to Sandport's harbormaster",
+    type: "key",
+    cost: 0,
+    effect: 0,
+  },
+  {
+    id: "frostSilkBundle",
+    name: "Frost Silk Bundle",
+    description: "Enchanted spider silk gathered for Seer Yrsa",
+    type: "key",
+    cost: 0,
+    effect: 0,
+  },
+  {
+    id: "mountShadowSteed",
+    name: "Shadow Steed",
+    description: "A covenant-bonded mount that moves like the wind",
+    type: "mount",
+    cost: 0,
+    effect: 0,
+    mountId: "shadowSteed",
+  },
   // --- Mount items (sold in stables) ---
   {
     id: "mountDonkey",
@@ -407,11 +452,26 @@ export const ITEMS: Item[] = [
     twoHanded: true,
     weaponSprite: "bow",
   },
+  {
+    id: "dawnforgedBlade",
+    name: "Dawnforged Blade",
+    description: "+9 attack, radiant edge restored beneath Ashfall",
+    type: "weapon",
+    cost: 0,
+    effect: 9,
+    weaponSprite: "sword",
+    element: Element.Radiant,
+  },
 ];
 
 /** Look up an item by ID. */
 export function getItem(id: string): Item | undefined {
   return ITEMS.find((item) => item.id === id);
+}
+
+/** Resolve canonical battle targeting, including inventory copies from old saves. */
+export function getItemTargetType(item: Item): ConsumableTargetType {
+  return getItem(item.id)?.targetType ?? item.targetType ?? "self";
 }
 
 /** Get all items available in shops (global fallback). Excludes treasure-only items. */

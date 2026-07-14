@@ -53,20 +53,31 @@ sources. Equipment actions remain self-targeted.
 - Put quest definitions, stage objectives, NPC IDs, rewards, and gated
   entrances in `src/data/quests.ts`.
 - Put progression, normalization, idempotent rewards, NPC interaction
-  resolution, journal entries, and entrance checks in `src/systems/quests.ts`.
+  resolution, journal entries, and entrance checks behind
+  `src/systems/quests.ts`; `questState.ts` and `questDebug.ts` contain focused
+  normalization and debug-only mutation helpers.
 - Persist state only through `player.progression.quests`; use quest-system APIs
   instead of direct mutation.
+- The shipped campaign is the seven-chapter Twelvefold Covenant across all 12
+  cities, with Ironbound Dispatch, Silk Against the Cold, and optional Hydra
+  and Dragon objectives.
+- Persist objective counters and claimed reward IDs. Batch group defeats with
+  duplicate monster IDs intact so three matching combatants count as three.
 - Downstream unlocks such as companions should call `isQuestCompleted()` and
   keep their own persistent state separate from quest reward bookkeeping.
 - Cross-system outcomes use stable quest completion actions with
   `{ id, type, targetId }`. Replay them after load/mutations and make the
   consumer idempotent rather than adding duplicate quest state.
 - Give every stage a stable camelCase `id`; downstream systems use
-  `getQuestStageIndex()` or `setQuestStageById()`, never display titles.
+  `getQuestStageIndex()` or the debug-only `setQuestStageById()`, never display
+  titles.
 - Derive boss objectives from `defeatedBosses` so older saves can report
   already-completed objectives.
 - Keep quest NPCs available at night and test every referenced NPC, boss,
   reward item, and entrance.
+- Canyonwatch, Ashfall, and the Volcanic Forge are hard gates. Sandport and
+  Heartlands Crypt remain open; other premature travel uses one-time soft
+  danger warnings and capped encounter modifiers.
 
 ## Non-combat skill checks
 

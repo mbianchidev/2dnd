@@ -5,6 +5,11 @@ import { saveGame, loadGame, deleteSave } from "../src/systems/save";
 import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createWeatherState } from "../src/systems/weather";
+import {
+  FROST_SILK_QUEST_ID,
+  IRON_DISPATCH_QUEST_ID,
+  MAIN_QUEST_ID,
+} from "../src/data/quests";
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -33,7 +38,12 @@ describe("save system - PlayerState composition migration", () => {
     player.progression.openedChests.push("chest1", "chest2");
     player.progression.collectedTreasures.push("2,3,5,7");
     player.progression.exploredTiles["2,3,5,7"] = true;
-    player.progression.quests.ashenRoad.stage = 2;
+    player.progression.quests.quests[MAIN_QUEST_ID].stage = 2;
+    player.progression.quests.quests[MAIN_QUEST_ID].objectives = {
+      speakElowen: 1,
+      ironholdOath: 1,
+    };
+    player.progression.quests.seenWarnings.push("frostRouteDanger");
     player.progression.skillChecks["shop:city:willowdale_city:0:0"] = {
       ability: "charisma",
       naturalRoll: 15,
@@ -60,8 +70,19 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual(["chest1", "chest2"]);
     expect(loaded!.player.progression.collectedTreasures).toEqual(["2,3,5,7"]);
     expect(loaded!.player.progression.exploredTiles["2,3,5,7"]).toBe(true);
-    expect(loaded!.player.progression.quests.ashenRoad.stage).toBe(2);
-    expect(loaded!.version).toBe(4);
+    expect(
+      loaded!.player.progression.quests.quests[MAIN_QUEST_ID].stage,
+    ).toBe(2);
+    expect(
+      loaded!.player.progression.quests.quests[MAIN_QUEST_ID].objectives,
+    ).toMatchObject({
+      speakElowen: 1,
+      ironholdOath: 1,
+    });
+    expect(loaded!.player.progression.quests.seenWarnings).toEqual([
+      "frostRouteDanger",
+    ]);
+    expect(loaded!.version).toBe(5);
     expect(loaded!.player.progression.skillChecks["shop:city:willowdale_city:0:0"]).toEqual({
       ability: "charisma",
       naturalRoll: 15,
@@ -156,11 +177,13 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual(["oldChest1", "oldChest2"]);
     expect(loaded!.player.progression.collectedTreasures).toEqual(["3,4,8,9"]);
     expect(loaded!.player.progression.exploredTiles["3,4,8,9"]).toBe(true);
-    expect(loaded!.player.progression.quests.ashenRoad).toEqual({
+    expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID]).toEqual({
       status: "active",
       stage: 0,
-      rewardGranted: false,
+      objectives: {},
+      claimedRewards: [],
     });
+    expect(loaded!.player.progression.quests.seenWarnings).toEqual([]);
     
     // Check that old flat fields are removed
     const playerRecord = loaded!.player as unknown as Record<string, unknown>;
@@ -241,7 +264,9 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.openedChests).toEqual([]);
     expect(loaded!.player.progression.collectedTreasures).toEqual([]);
     expect(loaded!.player.progression.exploredTiles).toEqual({});
-    expect(loaded!.player.progression.quests.wardensDispatch.status).toBe("locked");
+    expect(
+      loaded!.player.progression.quests.quests[IRON_DISPATCH_QUEST_ID].status,
+    ).toBe("locked");
     expect(loaded!.player.progression.skillChecks).toEqual({});
   });
 
@@ -385,7 +410,7 @@ describe("save system - PlayerState composition migration", () => {
       strength: 10, dexterity: 10, constitution: 10,
       intelligence: 10, wisdom: 10, charisma: 10,
     });
-    player.progression.quests.ashenRoad.stage = 2;
+    player.progression.quests.quests[MAIN_QUEST_ID].stage = 2;
     saveGame(
       player,
       new Set(),
@@ -424,19 +449,32 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.player.progression.quests.ashenRoad).toEqual({
+    expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID]).toEqual({
       status: "active",
-      stage: 2,
-      rewardGranted: false,
+      stage: 1,
+      objectives: {
+        speakElowen: 1,
+      },
+      claimedRewards: [],
     });
-    expect(loaded!.player.progression.quests.wardensDispatch).toEqual({
+    expect(
+      loaded!.player.progression.quests.quests[IRON_DISPATCH_QUEST_ID],
+    ).toMatchObject({
       status: "completed",
       stage: 1,
-      rewardGranted: true,
+      objectives: {
+        deliverToSable: 1,
+        reportToBrann: 1,
+      },
     });
-    expect(Object.keys(loaded!.player.progression.quests)).toEqual([
-      "ashenRoad",
-      "wardensDispatch",
+    expect(
+      loaded!.player.progression.quests.quests[IRON_DISPATCH_QUEST_ID]
+        .claimedRewards,
+    ).toHaveLength(4);
+    expect(Object.keys(loaded!.player.progression.quests.quests)).toEqual([
+      MAIN_QUEST_ID,
+      IRON_DISPATCH_QUEST_ID,
+      FROST_SILK_QUEST_ID,
     ]);
   });
 
@@ -466,9 +504,11 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(4);
+    expect(loaded!.version).toBe(5);
     expect(loaded!.player.progression.skillChecks).toEqual({});
-    expect(loaded!.player.progression.quests.ashenRoad.status).toBe("active");
+    expect(
+      loaded!.player.progression.quests.quests[MAIN_QUEST_ID].status,
+    ).toBe("active");
   });
 
   it("adds quest progression to schema-v3 skill-check saves", () => {
@@ -505,11 +545,12 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(4);
-    expect(loaded!.player.progression.quests.ashenRoad).toEqual({
+    expect(loaded!.version).toBe(5);
+    expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID]).toEqual({
       status: "active",
       stage: 0,
-      rewardGranted: false,
+      objectives: {},
+      claimedRewards: [],
     });
     expect(loaded!.player.progression.skillChecks["npc:willowdale:rumor"]).toEqual({
       ability: "wisdom",
@@ -590,6 +631,8 @@ describe("save system - PlayerState composition migration", () => {
         optionId: "search",
       },
     });
-    expect(loaded!.player.progression.quests.ashenRoad.status).toBe("active");
+    expect(
+      loaded!.player.progression.quests.quests[MAIN_QUEST_ID].status,
+    ).toBe("active");
   });
 });

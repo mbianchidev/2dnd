@@ -51,7 +51,7 @@ export interface PlayerProgression {
   collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
   discoveredCities: string[]; // IDs of cities the player has visited (enables fast travel)
-  quests: QuestLogState; // main/side quest status, stages, and reward idempotency
+  quests: QuestLogState; // quest stages, objective counters, rewards, and warnings
   skillChecks: Record<string, SkillCheckRecord>; // stable check ID -> one-time result
 }
 

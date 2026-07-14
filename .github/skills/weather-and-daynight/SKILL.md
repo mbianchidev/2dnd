@@ -47,7 +47,7 @@ import {
 ### Gameplay Effects
 - Encounter rate increases at dusk (+25%) and night (+50%)
 - Night-exclusive monsters spawn during Dusk and Night periods
-- Terrain, time, weather, and mount modifiers pass through
+- Terrain, time, weather, mount, and quest-danger modifiers pass through
   `getEffectiveEncounterRate()` and are capped at a 15% effective chance
 - `timeStep` is persisted in save data and passed through all scene transitions
 

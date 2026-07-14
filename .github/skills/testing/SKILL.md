@@ -16,7 +16,8 @@ Write comprehensive tests for game mechanics using Vitest while avoiding UI/inte
 ✅ Group initiative, formation, targeting, synergies, rewards, and encounter budgets
 ✅ Player stat progression
 ✅ XP and leveling formulas
-✅ Quest stages, rewards, gates, and save normalization
+✅ Quest objective counters, prerequisites, rewards, gates, danger rules, and
+save normalization
 ✅ Data integrity (monsters, spells, items)
 ✅ Game logic functions
 ✅ Non-combat skill-check math, outcomes, and save normalization
@@ -44,6 +45,11 @@ tests/
 ├── save.test.ts      # Persistence and migration
 └── data.test.ts      # Data validation
 ```
+
+Quest tests must cover duplicate matching monsters in one group victory,
+durable boss reconciliation, optional-objective reward cutoffs, hard-gate
+softlock safety, reward idempotency, and flat schema-v4 to nested schema-v5
+migration.
 
 ## Skill Check Testing
 

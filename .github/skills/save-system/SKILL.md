@@ -16,7 +16,7 @@ preferences are stored separately by `src/systems/audio.ts`.
 
 ## Current schema
 
-`SAVE_VERSION` is 4.
+`SAVE_VERSION` is 5.
 
 ```typescript
 interface SaveData {
@@ -60,11 +60,23 @@ interface PlayerProgression {
   quests: QuestLogState;
   skillChecks: Record<string, SkillCheckRecord>;
 }
+
+interface QuestProgress {
+  status: "locked" | "active" | "completed";
+  stage: number;
+  objectives: Record<string, number>;
+  claimedRewards: string[];
+}
+
+interface QuestLogState {
+  quests: Record<QuestId, QuestProgress>;
+  seenWarnings: string[];
+}
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
-Codex entries persist `discoveredElements`. Quest progress stores status, stage,
-and reward-granted state for idempotent completion rewards.
+Codex entries persist `discoveredElements`. Quest progress stores status,
+stage, objective counters, claimed reward IDs, and acknowledged danger warnings.
 Fixed non-combat checks persist the
 ability, natural roll, modifier, repaired total, DC, outcome, and optional
 choice ID.
@@ -79,7 +91,9 @@ helpers; do not cast unvalidated nested values directly.
 - Legacy `bestiary` to `codex`
 - Legacy flat player position fields to `player.position`
 - Legacy flat progression fields to `player.progression`
-- Schema-v3 skill-check progression to schema-v4 quest + skill-check state
+- Schema-v3 skill-check progression to default quest + skill-check state
+- Flat schema-v4 Ashen Road/Warden's Dispatch progress to nested schema-v5
+  Twelvefold Covenant state without replaying completed rewards
 - Missing equipment, talents, abilities, rests, bank, mount, and appearance
   fields
 - Missing/invalid active status effects
@@ -153,7 +167,8 @@ top-level save is absent or corrupt.
 
 - Save/load round trips
 - Legacy flat-state migration
-- Schema-v4 position, quest, and skill-check progression
+- Schema-v5 position, objective/reward/warning quest state, and skill checks
+- Flat schema-v4 quest migration and completed-reward preservation
 - Schema-v3 skill-check saves gaining default normalized quest state
 - Quest reward and skill-check record normalization
 - Dungeon-level and city-district clamping

@@ -1,147 +1,311 @@
 /**
- * Quest journal overlay for active and completed story progress.
+ * Quest journal and queued quest-update notifications.
  */
 
 import * as Phaser from "phaser";
 import { getQuestJournalEntries } from "../systems/quests";
-import { calcPanelLayout, createDimGraphics, createPanelGraphics } from "../utils/ui";
+import { createDimGraphics, createPanelGraphics } from "../utils/ui";
 import type { PlayerState } from "../systems/player";
+import type {
+  QuestJournalEntry,
+  QuestUpdate,
+} from "../systems/quests";
+
+type JournalTab = "active" | "completed";
 
 export class QuestJournalManager {
   private readonly scene: Phaser.Scene;
-  private journalOverlay: Phaser.GameObjects.Container | null = null;
+  private readonly showMessage: (message: string, color?: string) => void;
+  private overlay: Phaser.GameObjects.Container | null = null;
+  private tab: JournalTab = "active";
+  private selectedIndex = 0;
+  private notificationQueue: QuestUpdate[] = [];
+  private notificationRunning = false;
 
-  constructor(scene: Phaser.Scene) {
+  constructor(
+    scene: Phaser.Scene,
+    showMessage: (message: string, color?: string) => void,
+  ) {
     this.scene = scene;
+    this.showMessage = showMessage;
   }
 
   isOpen(): boolean {
-    return this.journalOverlay !== null;
+    return this.overlay !== null;
   }
 
   close(): void {
-    this.journalOverlay?.destroy();
-    this.journalOverlay = null;
+    this.overlay?.destroy();
+    this.overlay = null;
   }
 
   toggle(player: PlayerState): void {
-    if (this.journalOverlay) {
+    if (this.overlay) {
       this.close();
       return;
     }
+    this.open(player);
+  }
 
+  open(player: PlayerState): void {
+    this.close();
+    this.render(player);
+  }
+
+  refresh(player: PlayerState): void {
+    if (this.overlay) this.render(player);
+  }
+
+  enqueueUpdates(updates: QuestUpdate[]): void {
+    if (updates.length === 0) return;
+    this.notificationQueue.push(...updates);
+    this.showNextNotification();
+  }
+
+  private showNextNotification(): void {
+    if (this.notificationRunning) return;
+    const update = this.notificationQueue.shift();
+    if (!update) return;
+
+    this.notificationRunning = true;
+    const color = update.type === "quest"
+      ? "#ffd740"
+      : update.type === "stage"
+        ? "#b39ddb"
+        : update.type === "item"
+          ? "#80cbc4"
+          : update.type === "warning"
+            ? "#ffb74d"
+            : "#ccff90";
+    this.showMessage(update.message, color);
+    this.scene.time.delayedCall(3400, () => {
+      this.notificationRunning = false;
+      this.showNextNotification();
+    });
+  }
+
+  private render(player: PlayerState): void {
+    this.overlay?.destroy();
     const entries = getQuestJournalEntries(player);
-    const cameraWidth = this.scene.cameras.main.width;
-    const cameraHeight = this.scene.cameras.main.height;
-    const panelWidth = Math.min(560, cameraWidth - 40);
-    const panelHeight = Math.min(
-      cameraHeight - 40,
-      Math.max(240, 114 + entries.length * 118),
+    const filtered = entries.filter((entry) =>
+      this.tab === "active"
+        ? entry.status === "active"
+        : entry.status === "completed"
     );
-    const layout = calcPanelLayout(this.scene, panelWidth, panelHeight);
-    const container = this.scene.add.container(0, 0).setDepth(90).setScrollFactor(0);
+    if (this.selectedIndex >= filtered.length) {
+      this.selectedIndex = Math.max(0, filtered.length - 1);
+    }
 
-    const dim = createDimGraphics(this.scene, layout.w, layout.h, 0.72);
+    const w = this.scene.cameras.main.width;
+    const h = this.scene.cameras.main.height;
+    const panelW = Math.min(500, w - 40);
+    const panelH = Math.min(330, h - 40);
+    const px = (w - panelW) / 2;
+    const py = (h - panelH) / 2;
+    const listW = 155;
+    const container = this.scene.add.container(0, 0).setDepth(90);
+
+    const dim = createDimGraphics(this.scene, w, h, 0.72);
     dim.setInteractive(
-      new Phaser.Geom.Rectangle(0, 0, layout.w, layout.h),
+      new Phaser.Geom.Rectangle(0, 0, w, h),
       Phaser.Geom.Rectangle.Contains,
     );
-    dim.on("pointerdown", () => this.close());
+    dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (
+        pointer.x < px
+        || pointer.x > px + panelW
+        || pointer.y < py
+        || pointer.y > py + panelH
+      ) {
+        this.close();
+      }
+    });
     container.add(dim);
+    container.add(createPanelGraphics(this.scene, px, py, panelW, panelH));
 
-    const panel = createPanelGraphics(
-      this.scene,
-      layout.px,
-      layout.py,
-      panelWidth,
-      panelHeight,
-    );
-    panel.setInteractive(
-      new Phaser.Geom.Rectangle(layout.px, layout.py, panelWidth, panelHeight),
-      Phaser.Geom.Rectangle.Contains,
-    );
-    container.add(panel);
-
-    const title = this.scene.add.text(
-      layout.px + panelWidth / 2,
-      layout.py + 14,
+    container.add(this.scene.add.text(
+      px + panelW / 2,
+      py + 12,
       "Quest Journal",
       {
-        fontSize: "18px",
+        fontSize: "16px",
         fontFamily: "monospace",
-        color: "#ffd700",
+        color: "#ffd740",
       },
-    ).setOrigin(0.5, 0);
-    container.add(title);
+    ).setOrigin(0.5, 0));
 
-    let y = layout.py + 48;
-    for (const entry of entries) {
-      const typeLabel = entry.type === "main" ? "MAIN" : "SIDE";
-      const statusLabel = entry.status === "completed" ? "COMPLETE" : "ACTIVE";
-      const heading = this.scene.add.text(
-        layout.px + 20,
-        y,
-        `[${typeLabel}] ${entry.name} - ${statusLabel}`,
-        {
-          fontSize: "13px",
-          fontFamily: "monospace",
-          color: entry.status === "completed" ? "#88ff88" : "#ffffff",
-        },
-      );
-      container.add(heading);
+    container.add(this.createTab(
+      px + 18,
+      py + 42,
+      "Active",
+      this.tab === "active",
+      () => {
+        this.tab = "active";
+        this.selectedIndex = 0;
+        this.render(player);
+      },
+    ));
+    container.add(this.createTab(
+      px + 88,
+      py + 42,
+      "Completed",
+      this.tab === "completed",
+      () => {
+        this.tab = "completed";
+        this.selectedIndex = 0;
+        this.render(player);
+      },
+    ));
 
-      const stage = this.scene.add.text(
-        layout.px + 30,
-        y + 22,
-        entry.stageTitle,
-        {
-          fontSize: "12px",
-          fontFamily: "monospace",
-          color: "#ffcc80",
-        },
-      );
-      container.add(stage);
+    const divider = this.scene.add.graphics();
+    divider.lineStyle(1, 0x5c5470, 1);
+    divider.lineBetween(px + listW, py + 70, px + listW, py + panelH - 28);
+    container.add(divider);
 
-      const objective = this.scene.add.text(
-        layout.px + 30,
-        y + 40,
-        entry.objective,
-        {
-          fontSize: "11px",
-          fontFamily: "monospace",
-          color: "#dddddd",
-          wordWrap: { width: panelWidth - 60 },
-        },
-      );
-      container.add(objective);
+    this.renderQuestList(container, player, filtered, px, py, listW);
+    this.renderQuestDetails(
+      container,
+      filtered[this.selectedIndex],
+      px,
+      py,
+      panelW,
+      panelH,
+      listW,
+    );
 
-      const reward = this.scene.add.text(
-        layout.px + 30,
-        y + 70,
-        `Reward: ${entry.reward}`,
+    container.add(this.scene.add.text(
+      px + panelW / 2,
+      py + panelH - 10,
+      "Q or ESC to close",
+      {
+        fontSize: "10px",
+        fontFamily: "monospace",
+        color: "#777788",
+      },
+    ).setOrigin(0.5, 1));
+    this.overlay = container;
+  }
+
+  private createTab(
+    x: number,
+    y: number,
+    label: string,
+    selected: boolean,
+    onSelect: () => void,
+  ): Phaser.GameObjects.Text {
+    const tab = this.scene.add.text(x, y, label, {
+      fontSize: "11px",
+      fontFamily: "monospace",
+      color: selected ? "#ffffff" : "#888899",
+      backgroundColor: selected ? "#4a3f6b" : "#242238",
+      padding: { x: 8, y: 4 },
+    }).setInteractive({ useHandCursor: true });
+    tab.on("pointerdown", onSelect);
+    return tab;
+  }
+
+  private renderQuestList(
+    container: Phaser.GameObjects.Container,
+    player: PlayerState,
+    entries: QuestJournalEntry[],
+    px: number,
+    py: number,
+    listW: number,
+  ): void {
+    if (entries.length === 0) {
+      container.add(this.scene.add.text(
+        px + 16,
+        py + 84,
+        this.tab === "active" ? "No active quests." : "No completed quests.",
         {
           fontSize: "10px",
           fontFamily: "monospace",
-          color: "#9ecbff",
-          wordWrap: { width: panelWidth - 60 },
+          color: "#888899",
+          wordWrap: { width: listW - 28 },
         },
-      );
-      container.add(reward);
-      y += 118;
+      ));
+      return;
     }
 
-    const footer = this.scene.add.text(
-      layout.px + panelWidth / 2,
-      layout.py + panelHeight - 24,
-      "[Q / ESC] Close",
-      {
-        fontSize: "11px",
-        fontFamily: "monospace",
-        color: "#aaaaaa",
-      },
-    ).setOrigin(0.5, 0);
-    container.add(footer);
+    entries.forEach((entry, index) => {
+      const selected = index === this.selectedIndex;
+      const label = this.scene.add.text(
+        px + 12,
+        py + 78 + index * 42,
+        `${entry.type === "main" ? "[Main]" : "[Side]"}\n${entry.name}`,
+        {
+          fontSize: "10px",
+          fontFamily: "monospace",
+          color: selected ? "#ffd740" : "#c9c6d8",
+          backgroundColor: selected ? "#302a46" : undefined,
+          padding: { x: 5, y: 4 },
+          wordWrap: { width: listW - 24 },
+        },
+      ).setInteractive({ useHandCursor: true });
+      label.on("pointerdown", () => {
+        this.selectedIndex = index;
+        this.render(player);
+      });
+      container.add(label);
+    });
+  }
 
-    this.journalOverlay = container;
+  private renderQuestDetails(
+    container: Phaser.GameObjects.Container,
+    entry: QuestJournalEntry | undefined,
+    px: number,
+    py: number,
+    panelW: number,
+    panelH: number,
+    listW: number,
+  ): void {
+    if (!entry) return;
+    const detailX = px + listW + 16;
+    const detailW = panelW - listW - 30;
+
+    container.add(this.scene.add.text(detailX, py + 76, entry.name, {
+      fontSize: "13px",
+      fontFamily: "monospace",
+      color: "#ffffff",
+      wordWrap: { width: detailW },
+    }));
+    container.add(this.scene.add.text(detailX, py + 100, entry.stageTitle, {
+      fontSize: "11px",
+      fontFamily: "monospace",
+      color: "#b39ddb",
+      wordWrap: { width: detailW },
+    }));
+    const summary = this.scene.add.text(detailX, py + 122, entry.summary, {
+      fontSize: "10px",
+      fontFamily: "monospace",
+      color: "#b9b6c8",
+      wordWrap: { width: detailW },
+    });
+    container.add(summary);
+
+    let objectiveY = Math.min(py + 168, summary.y + summary.height + 12);
+    for (const objective of entry.objectives) {
+      if (objectiveY > py + panelH - 54) break;
+      const count = objective.required > 1
+        ? ` ${objective.current}/${objective.required}`
+        : "";
+      const objectiveText = this.scene.add.text(
+        detailX,
+        objectiveY,
+        `${objective.complete ? "[x]" : "[ ]"} ${objective.description}${count}`,
+        {
+          fontSize: "10px",
+          fontFamily: "monospace",
+          color: objective.complete
+            ? "#80cbc4"
+            : objective.optional
+              ? "#ffcc80"
+              : "#eeeeee",
+          wordWrap: { width: detailW },
+        },
+      );
+      container.add(objectiveText);
+      objectiveY += objectiveText.height + 8;
+    }
   }
 }

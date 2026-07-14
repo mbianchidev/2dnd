@@ -54,6 +54,9 @@ src/
 │   ├── daynight.ts
 │   ├── weather.ts
 │   ├── audio.ts
+│   ├── quests.ts
+│   ├── questState.ts
+│   ├── questDebug.ts
 │   └── debug.ts
 ├── data/
 │   ├── map.ts
@@ -69,9 +72,12 @@ src/
 │   ├── items.ts
 │   ├── mounts.ts
 │   ├── npcs.ts
+│   ├── quests.ts
 │   ├── skillChecks.ts
 │   └── talents.ts
 ├── managers/
+│   ├── questJournal.ts
+│   └── questFlow.ts
 ├── renderers/
 └── utils/
 
@@ -178,21 +184,32 @@ Access fields through `player.position` and `player.progression`.
 - Definitions, stages, rewards, named NPC IDs, and gated entrances live in
   `src/data/quests.ts`.
 - Runtime progression, normalization, rewards, NPC resolution, journal data,
-  and gate checks live in `src/systems/quests.ts`.
+  and gate checks are exposed through `src/systems/quests.ts`; focused save
+  normalization and debug mutation helpers live in `questState.ts` and
+  `questDebug.ts`.
 - `player.progression.quests` is required persistent state. Mutate it through
   quest-system APIs so completion rewards remain idempotent.
+- The main campaign is the seven-chapter **Twelvefold Covenant**, spanning all
+  12 cities and the Crypt Lich, Frost Warden, and Inferno Forgemaster. Its
+  sidequests are **Ironbound Dispatch** and **Silk Against the Cold**.
+- Quest progress stores per-objective counters and per-reward claimed IDs.
+  Preserve duplicate monster IDs when recording group victories so defeat
+  counters advance once per combatant.
 - Downstream systems such as companion recruitment query `isQuestCompleted()`
   and persist their own unlock state.
 - Generic completion actions use stable `{ id, type, targetId }` definitions.
   Replay them with `getQuestCompletionActions()` or
   `replayQuestCompletionActions()`; consumers own idempotency.
 - Quest stages have stable camelCase `id` values. Resolve them through
-  `getQuestStageIndex()` or `setQuestStageById()` rather than titles.
+  `getQuestStageIndex()` or the debug-only `setQuestStageById()` rather than
+  titles.
 - Boss objectives derive from `defeatedBosses`; do not rely only on a new battle
   event because existing saves may already contain the required defeat.
 - Quest NPCs remain available at night. `Q` opens the quest journal.
-- Ashfall and the Volcanic Forge use quest-controlled entrance barricades;
-  Sandport and the Heartlands Crypt must remain reachable to avoid softlocks.
+- Canyonwatch, Ashfall, and the Volcanic Forge use quest-controlled entrance
+  barricades; Sandport and the Heartlands Crypt remain reachable to avoid
+  softlocks. Premature northern, marsh, and ashen travel uses persisted soft
+  danger warnings plus capped encounter-rate and effective-level modifiers.
 
 ## Character creation
 
@@ -366,14 +383,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 4.
+Save schema version is 5.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
 records, validates city/dungeon IDs and quest state, clamps levels/districts,
 repairs invalid coordinates to the correct spawn, and falls back to Willowdale
-for unusable overworld locations. Schema-v3 skill-check saves migrate to v4 by
-adding normalized quest state without changing existing check records.
+for unusable overworld locations. Schema-v3 skill-check saves gain default
+quest state. Flat schema-v4 Ashen Road saves migrate to nested Covenant
+objective/reward/warning state without replaying completed rewards.
 
 When persistent data changes:
 

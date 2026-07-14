@@ -57,6 +57,7 @@ import {
   type CompanionState,
 } from "../systems/party";
 import { CompanionFollowerManager } from "../managers/companionFollowers";
+import { PartyOverlayManager } from "../managers/partyOverlay";
 import { isDebug, isLocalDev, debugLog, debugPanelLog, debugPanelState, TILE_SIZE } from "../config";
 import type { CodexData } from "../systems/codex";
 import { createCodex } from "../systems/codex";
@@ -203,6 +204,7 @@ export class OverworldScene extends Phaser.Scene {
   private dungeonTrapManager!: DungeonTrapManager;
   private skillCheckManager!: SkillCheckManager;
   private companionFollowerManager!: CompanionFollowerManager;
+  private partyOverlayManager!: PartyOverlayManager;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -284,6 +286,18 @@ export class OverworldScene extends Phaser.Scene {
       setTimeStep: (t: number) => { this.timeStep = t; },
       evacuateDungeon: () => this.evacuateDungeon(),
       getHUDInfo: () => this.getHUDInfo(),
+    });
+    this.partyOverlayManager = new PartyOverlayManager(this, {
+      updateHUD: () => this.updateHUD(),
+      autoSave: () => this.autoSave(),
+      showMessage: (text, color) => this.showMessage(text, color),
+      refreshActors: () => {
+        this.playerRenderer.refreshPlayerSprite(this.player);
+        this.companionFollowerManager.render(
+          this.player,
+          (companion) => this.showCompanionDialogue(companion),
+        );
+      },
     });
 
     // Load scene data
@@ -410,6 +424,7 @@ export class OverworldScene extends Phaser.Scene {
     cKey.on("down", () => {
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
+      if (this.partyOverlayManager.isOpen()) return;
       this.openCodex();
     });
 
@@ -417,13 +432,22 @@ export class OverworldScene extends Phaser.Scene {
     eKey.on("down", () => {
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
+      if (this.partyOverlayManager.isOpen()) return;
       this.overlayManager.toggleEquipOverlay(this.player);
+    });
+
+    const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+    pKey.on("down", () => {
+      if (this.isMoving) return;
+      if (this.questJournal.isOpen() || this.overlayManager.isOpen()) return;
+      this.partyOverlayManager.toggle(this.player);
     });
 
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     mKey.on("down", () => {
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
+      if (this.partyOverlayManager.isOpen()) return;
       if (this.player.position.inCity) {
         this.overlayManager.toggleCityMap(this.player);
       } else {
@@ -435,7 +459,9 @@ export class OverworldScene extends Phaser.Scene {
     escKey.on("down", () => {
       if (this.isMoving) return;
       // ESC closes the topmost open overlay, or opens the menu
-      if (this.questJournal.isOpen()) {
+      if (this.partyOverlayManager.isOpen()) {
+        this.partyOverlayManager.close();
+      } else if (this.questJournal.isOpen()) {
         this.questJournal.close();
       } else if (this.overlayManager.settingsOverlay) {
         this.overlayManager.toggleSettingsOverlay();
@@ -463,7 +489,7 @@ export class OverworldScene extends Phaser.Scene {
     const qKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     qKey.on("down", () => {
       if (this.isMoving) return;
-      if (this.overlayManager.isOpen()) return;
+      if (this.overlayManager.isOpen() || this.partyOverlayManager.isOpen()) return;
       this.dialogueSystem.dismissDialogue();
       this.questJournal.toggle(this.player);
     });
@@ -778,7 +804,9 @@ export class OverworldScene extends Phaser.Scene {
   // ── Overlay & dialogue state ────────────────────────────────────────────
 
   private isOverlayOpen(): boolean {
-    return this.overlayManager.isOpen() || this.questJournal.isOpen();
+    return this.overlayManager.isOpen()
+      || this.partyOverlayManager.isOpen()
+      || this.questJournal.isOpen();
   }
 
   // ── Player movement ─────────────────────────────────────────────────────
@@ -1152,6 +1180,10 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handleAction(): void {
+    if (this.partyOverlayManager.isOpen()) {
+      this.partyOverlayManager.close();
+      return;
+    }
     if (this.questJournal.isOpen()) {
       this.questJournal.close();
       return;
@@ -1803,6 +1835,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private openCodex(): void {
     if (this.isMoving) return;
+    this.partyOverlayManager.close();
     this.overlayManager.destroyAll();
     this.autoSave();
     this.scene.start("CodexScene", {

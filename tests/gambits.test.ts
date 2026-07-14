@@ -14,6 +14,8 @@ import {
 } from "../src/systems/groupCombat";
 import {
   MAX_GAMBITS_PER_COMPANION,
+  createDefaultGambitRule,
+  formatGambitRule,
   normalizeGambitRules,
   selectGambitAction,
   type GambitRule,
@@ -109,6 +111,13 @@ function rule(overrides: Partial<GambitRule> = {}): GambitRule {
 }
 
 describe("gambit engine", () => {
+  it("creates and formats a structured default rule", () => {
+    const created = createDefaultGambitRule("new-rule", 3);
+    expect(created.rank).toBe(3);
+    expect(formatGambitRule(created)).toBe(
+      "if any enemy is alive do attack on matched subject",
+    );
+  });
   it("uses rank 1 first and binds the lowest matching party member", () => {
     const context = createContext();
     const decision = selectGambitAction(

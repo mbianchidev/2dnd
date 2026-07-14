@@ -108,6 +108,73 @@ export interface GambitDecision {
   trace: string[];
 }
 
+export function createDefaultGambitRule(
+  id: string,
+  rank: number,
+): GambitRule {
+  return {
+    id,
+    rank,
+    enabled: true,
+    subject: { kind: "anyEnemy" },
+    condition: { kind: "state", state: "alive" },
+    action: { kind: "attack" },
+    target: { kind: "matchedSubject" },
+  };
+}
+
+function subjectLabel(subject: GambitSubjectSelector): string {
+  switch (subject.kind) {
+    case "self": return "self";
+    case "hero": return "hero";
+    case "anyPartyMember": return "any party member";
+    case "anyEnemy": return "any enemy";
+    case "companion": return subject.companionId;
+  }
+}
+
+function conditionLabel(condition: GambitCondition): string {
+  switch (condition.kind) {
+    case "resource":
+      return `${condition.resource.toUpperCase()} ${condition.comparison} ${condition.value}${condition.scale === "percent" ? "%" : ""}`;
+    case "status":
+      return `${condition.present ? "has" : "lacks"} ${condition.statusId}`;
+    case "state":
+      return `is ${condition.state === "knockedOut" ? "KO" : "alive"}`;
+    case "stat":
+      return `${condition.stat.toUpperCase()} ${condition.comparison} ${condition.value}`;
+  }
+}
+
+function actionLabel(action: GambitAction): string {
+  switch (action.kind) {
+    case "attack": return "attack";
+    case "defend": return "defend";
+    case "spell": return action.spellId;
+    case "ability": return action.abilityId;
+    case "item": return `item:${action.itemId}`;
+  }
+}
+
+function targetLabel(target: GambitTargetSelector): string {
+  switch (target.kind) {
+    case "matchedSubject": return "matched subject";
+    case "self": return "self";
+    case "hero": return "hero";
+    case "companion": return target.companionId;
+    case "lowestHpAlly": return "lowest HP ally";
+    case "highestHpAlly": return "highest HP ally";
+    case "lowestHpEnemy": return "lowest HP enemy";
+    case "highestHpEnemy": return "highest HP enemy";
+    case "anyEnemy": return "any enemy";
+    case "automatic": return "automatic targets";
+  }
+}
+
+export function formatGambitRule(rule: GambitRule): string {
+  return `if ${subjectLabel(rule.subject)} ${conditionLabel(rule.condition)} do ${actionLabel(rule.action)} on ${targetLabel(rule.target)}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

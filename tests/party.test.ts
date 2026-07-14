@@ -9,6 +9,7 @@ import {
   distributePartyVictory,
   recruitCompanion,
   restPartyAtInn,
+  moveActiveCompanion,
   setCompanionActive,
   transferPartyItem,
   xpFloorForLevel,
@@ -91,6 +92,8 @@ describe("party system", () => {
       true,
     );
     expect(new Set(player.party.activeCompanionIds).size).toBe(3);
+    expect(moveActiveCompanion(player.party, "guardian", -1).changed).toBe(true);
+    expect(player.party.activeCompanionIds[1]).toBe("guardian");
     expect(setCompanionActive(player.party, "unknown", true).changed).toBe(
       false,
     );

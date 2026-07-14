@@ -263,6 +263,7 @@ export function setCompanionActive(
   if (!isCompanionId(targetId)) {
     return { changed: false, message: `Unknown companion: ${targetId}` };
   }
+
   const companion = party.companions.find((entry) => entry.id === targetId);
   if (!companion) {
     return { changed: false, message: `${targetId} is not recruited.` };
@@ -283,6 +284,25 @@ export function setCompanionActive(
   }
   party.activeCompanionIds.push(targetId);
   return { changed: true, message: `${companion.name} joined the active party.` };
+}
+
+export function moveActiveCompanion(
+  party: PartyState,
+  companionId: CompanionId,
+  direction: -1 | 1,
+): PartyMutationResult {
+  const index = party.activeCompanionIds.indexOf(companionId);
+  const targetIndex = index + direction;
+  if (
+    index < 0
+    || targetIndex < 0
+    || targetIndex >= party.activeCompanionIds.length
+  ) {
+    return { changed: false, message: "Active order cannot move further." };
+  }
+  const [moved] = party.activeCompanionIds.splice(index, 1);
+  party.activeCompanionIds.splice(targetIndex, 0, moved!);
+  return { changed: true, message: "Active party order updated." };
 }
 
 function getPartyMember(

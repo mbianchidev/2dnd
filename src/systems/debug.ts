@@ -25,7 +25,16 @@ import {
 } from "../data/quests";
 import { advanceQuest, setQuestStageById, setQuestState } from "./quests";
 import type { QuestId, QuestStatus } from "../data/quests";
-import { synchronizeCompanionRecruitment } from "./party";
+import {
+  getCompanion,
+  recruitCompanion,
+  synchronizeCompanionRecruitment,
+} from "./party";
+import {
+  COMPANION_IDS,
+  isCompanionId,
+} from "../data/companions";
+import { formatGambitRule } from "./gambits";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -601,6 +610,98 @@ export class DebugCommandSystem {
       }
     });
 
+    cmds.set("companion", (args) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const action = parts[0]?.toLowerCase() ?? "list";
+      if (action === "list") {
+        debugPanelLog("── Companion State ──", true);
+        for (const companionId of COMPANION_IDS) {
+          const companion = getCompanion(this.player.party, companionId);
+          debugPanelLog(
+            companion
+              ? `  ${companionId}: Lv.${companion.level} ${companion.controlMode} HP ${companion.hp}/${companion.maxHp}`
+              : `  ${companionId}: not recruited`,
+            true,
+          );
+        }
+        return;
+      }
+      if (action === "recruit") {
+        const query = parts[1]?.toLowerCase();
+        const ids = query === "all"
+          ? [...COMPANION_IDS]
+          : isCompanionId(query) ? [query] : [];
+        if (ids.length === 0) {
+          debugPanelLog(
+            `Usage: /companion recruit <${COMPANION_IDS.join("|")}|all>`,
+            true,
+          );
+          return;
+        }
+        for (const companionId of ids) {
+          debugPanelLog(
+            `[CMD] ${recruitCompanion(this.player, companionId).message}`,
+            true,
+          );
+        }
+      } else if (action === "mode") {
+        const companionId = parts[1]?.toLowerCase();
+        const mode = parts[2]?.toLowerCase();
+        const companion = isCompanionId(companionId)
+          ? getCompanion(this.player.party, companionId)
+          : undefined;
+        if (!companion || (mode !== "manual" && mode !== "gambit")) {
+          debugPanelLog(
+            `Usage: /companion mode <${COMPANION_IDS.join("|")}> <manual|gambit>`,
+            true,
+          );
+          return;
+        }
+        companion.controlMode = mode;
+        debugPanelLog(
+          `[CMD] ${companion.name} control set to ${mode}`,
+          true,
+        );
+      } else if (action === "heal") {
+        this.player.hp = this.player.maxHp;
+        this.player.mp = this.player.maxMp;
+        for (const companion of this.player.party.companions) {
+          companion.hp = companion.maxHp;
+          companion.mp = companion.maxMp;
+        }
+        debugPanelLog("[CMD] Party fully restored", true);
+      } else if (action === "gambits") {
+        const companionId = parts[1]?.toLowerCase();
+        const companion = isCompanionId(companionId)
+          ? getCompanion(this.player.party, companionId)
+          : undefined;
+        if (!companion) {
+          debugPanelLog(
+            `Usage: /companion gambits <${COMPANION_IDS.join("|")}>`,
+            true,
+          );
+          return;
+        }
+        debugPanelLog(`── ${companion.name} Gambits ──`, true);
+        for (const rule of companion.gambits) {
+          debugPanelLog(
+            `  ${rule.rank}. ${rule.enabled ? "ON" : "OFF"} ${formatGambitRule(rule)}`,
+            true,
+          );
+        }
+      } else {
+        debugPanelLog(
+          "Usage: /companion <list|recruit|mode|heal|gambits>",
+          true,
+        );
+        return;
+      }
+      this.callbacks.autoSave();
+      this.callbacks.renderMap();
+      this.callbacks.createPlayer();
+      this.callbacks.updateHUD();
+    });
+
     cmds.set("spawn", (args) => {
       const query = args.trim().toLowerCase();
       if (!query) { debugPanelLog(`Usage: /spawn <monster|traveler|adventurer|merchant|hermit>`, true); return; }
@@ -776,6 +877,7 @@ export class DebugCommandSystem {
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
       { usage: "/mount <id>", desc: "Mount: donkey|horse|warHorse|shadowSteed|none" },
       { usage: "/codex all", desc: "Discover all codex entries" },
+      { usage: "/companion <cmd>", desc: "Companions: list|recruit|mode|heal|gambits" },
     ];
 
     registerCommandRouter(cmds, "Overworld", helpEntries);

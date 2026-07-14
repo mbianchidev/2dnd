@@ -28,8 +28,8 @@ import {
   type ProgressingActorState,
   type PlayerStats,
 } from "./player";
-import type { ActiveStatusEffect } from "./statusEffects";
-import type { GambitRule } from "./gambits";
+import { normalizeActiveEffects, type ActiveStatusEffect } from "./statusEffects";
+import { normalizeGambitRules, type GambitRule } from "./gambits";
 
 export const MAX_ACTIVE_COMPANIONS = 3;
 
@@ -128,7 +128,7 @@ function getKnownTalents(classId: string, level: number): string[] {
   ).map((talent) => talent.id);
 }
 
-function createCompanionState(
+export function createCompanionState(
   companionId: CompanionId,
   level: number,
 ): CompanionState {
@@ -394,4 +394,214 @@ export function getRecruitedCompanionIds(party: PartyState): CompanionId[] {
   return COMPANION_IDS.filter((companionId) =>
     party.companions.some((companion) => companion.id === companionId)
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readInteger(
+  value: unknown,
+  fallback: number,
+  minimum = Number.MIN_SAFE_INTEGER,
+  maximum = Number.MAX_SAFE_INTEGER,
+): number {
+  return typeof value === "number" && Number.isInteger(value)
+    ? Math.min(Math.max(value, minimum), maximum)
+    : fallback;
+}
+
+function normalizeStats(
+  value: unknown,
+  fallback: PlayerStats,
+): PlayerStats {
+  if (!isRecord(value)) return { ...fallback };
+  const readStat = (key: keyof PlayerStats): number =>
+    readInteger(value[key], fallback[key], 1, 30);
+  return {
+    strength: readStat("strength"),
+    dexterity: readStat("dexterity"),
+    constitution: readStat("constitution"),
+    intelligence: readStat("intelligence"),
+    wisdom: readStat("wisdom"),
+    charisma: readStat("charisma"),
+  };
+}
+
+function normalizeKnownIds(
+  value: unknown,
+  isKnown: (id: string) => boolean,
+  fallback: string[],
+): string[] {
+  if (!Array.isArray(value)) return [...fallback];
+  return [
+    ...new Set(
+      value.filter(
+        (entry): entry is string =>
+          typeof entry === "string" && isKnown(entry),
+      ),
+    ),
+  ];
+}
+
+function normalizeInventory(
+  value: unknown,
+  fallback: Item[],
+): Item[] {
+  if (!Array.isArray(value)) return fallback.map((item) => ({ ...item }));
+  return value.flatMap((candidate) => {
+    if (!isRecord(candidate) || typeof candidate["id"] !== "string") return [];
+    const item = getItem(candidate["id"]);
+    return item ? [{ ...item }] : [];
+  });
+}
+
+function readEquippedItemId(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  return isRecord(value) && typeof value["id"] === "string"
+    ? value["id"]
+    : undefined;
+}
+
+function relinkEquipment(
+  inventory: Item[],
+  value: unknown,
+  type: "weapon" | "armor" | "shield",
+): Item | null {
+  const itemId = readEquippedItemId(value);
+  return itemId
+    ? inventory.find((item) => item.id === itemId && item.type === type) ?? null
+    : null;
+}
+
+function normalizeCustomAppearance(
+  value: unknown,
+  fallback: CompanionState["customAppearance"],
+): CompanionState["customAppearance"] {
+  if (!isRecord(value)) return { ...fallback };
+  return {
+    skinColor: readInteger(value["skinColor"], fallback.skinColor, 0, 0xffffff),
+    hairStyle: readInteger(value["hairStyle"], fallback.hairStyle, 0, 3),
+    hairColor: readInteger(value["hairColor"], fallback.hairColor, 0, 0xffffff),
+  };
+}
+
+function normalizeCompanionState(
+  value: unknown,
+): CompanionState | undefined {
+  if (!isRecord(value) || !isCompanionId(value["id"])) return undefined;
+  const level = readInteger(value["level"], 1, 1, 20);
+  const fallback = createCompanionState(value["id"], level);
+  const maxHp = readInteger(value["maxHp"], fallback.maxHp, 1);
+  const maxMp = readInteger(value["maxMp"], fallback.maxMp, 1);
+  const inventory = normalizeInventory(value["inventory"], fallback.inventory);
+  const talentIds = new Set(TALENTS.map((talent) => talent.id));
+  const companion: CompanionState = {
+    ...fallback,
+    xp: Math.max(
+      xpFloorForLevel(level),
+      readInteger(value["xp"], fallback.xp, 0),
+    ),
+    hp: readInteger(value["hp"], fallback.hp, 0, maxHp),
+    maxHp,
+    mp: readInteger(value["mp"], fallback.mp, 0, maxMp),
+    maxMp,
+    stats: normalizeStats(value["stats"], fallback.stats),
+    pendingStatPoints: readInteger(
+      value["pendingStatPoints"],
+      fallback.pendingStatPoints,
+      0,
+    ),
+    pendingLevelUps: readInteger(
+      value["pendingLevelUps"],
+      fallback.pendingLevelUps,
+      0,
+    ),
+    inventory,
+    knownSpells: normalizeKnownIds(
+      value["knownSpells"],
+      (id) => getSpell(id) !== undefined,
+      fallback.knownSpells,
+    ),
+    knownAbilities: normalizeKnownIds(
+      value["knownAbilities"],
+      (id) => getAbility(id) !== undefined,
+      fallback.knownAbilities,
+    ),
+    knownTalents: normalizeKnownIds(
+      value["knownTalents"],
+      (id) => talentIds.has(id),
+      fallback.knownTalents,
+    ),
+    equippedWeapon: relinkEquipment(
+      inventory,
+      value["equippedWeapon"],
+      "weapon",
+    ),
+    equippedOffHand: relinkEquipment(
+      inventory,
+      value["equippedOffHand"],
+      "weapon",
+    ),
+    equippedArmor: relinkEquipment(
+      inventory,
+      value["equippedArmor"],
+      "armor",
+    ),
+    equippedShield: relinkEquipment(
+      inventory,
+      value["equippedShield"],
+      "shield",
+    ),
+    customAppearance: normalizeCustomAppearance(
+      value["customAppearance"],
+      fallback.customAppearance,
+    ),
+    activeEffects: normalizeActiveEffects(value["activeEffects"]),
+    controlMode: value["controlMode"] === "gambit" ? "gambit" : "manual",
+    gambits: normalizeGambitRules(value["gambits"]),
+    dialogueCursor: readInteger(
+      value["dialogueCursor"],
+      fallback.dialogueCursor,
+      0,
+    ),
+  };
+  return companion;
+}
+
+export function normalizePartyState(value: unknown): PartyState {
+  if (!isRecord(value)) return createPartyState();
+  const companions: CompanionState[] = [];
+  const seen = new Set<CompanionId>();
+  if (Array.isArray(value["companions"])) {
+    for (const candidate of value["companions"]) {
+      const companion = normalizeCompanionState(candidate);
+      if (!companion || seen.has(companion.id)) continue;
+      seen.add(companion.id);
+      companions.push(companion);
+    }
+  }
+
+  const activeCompanionIds: CompanionId[] = [];
+  if (Array.isArray(value["activeCompanionIds"])) {
+    for (const candidate of value["activeCompanionIds"]) {
+      if (
+        !isCompanionId(candidate)
+        || activeCompanionIds.includes(candidate)
+        || !companions.some((companion) => companion.id === candidate)
+        || activeCompanionIds.length >= MAX_ACTIVE_COMPANIONS
+      ) {
+        continue;
+      }
+      activeCompanionIds.push(candidate);
+    }
+  } else {
+    activeCompanionIds.push(
+      ...companions
+        .slice(0, MAX_ACTIVE_COMPANIONS)
+        .map((companion) => companion.id),
+    );
+  }
+
+  return { companions, activeCompanionIds };
 }

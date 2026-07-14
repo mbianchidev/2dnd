@@ -29,7 +29,6 @@ import {
   type PlayerState,
   type PlayerStats,
   xpForLevel,
-  processPendingLevelUps,
   allocateStatPoint,
   applyBankInterest,
   equipOffHand,
@@ -39,6 +38,7 @@ import {
   isLightWeapon,
   getArmorClass,
 } from "../systems/player";
+import { restPartyAtInn } from "../systems/party";
 import { getPlayerClass } from "../systems/classes";
 import { abilityModifier } from "../systems/dice";
 import { CYCLE_LENGTH } from "../systems/daynight";
@@ -1318,23 +1318,23 @@ export class OverlayManager {
     this.scene.cameras.main.fadeOut(800, 0, 0, 0);
     this.scene.cameras.main.once("camerafadeoutcomplete", () => {
       player.gold -= innCost;
-      player.hp = player.maxHp;
-      player.mp = player.maxMp;
-      player.shortRestsRemaining = 2;
       this.callbacks.setTimeStep(targetTimeStep);
 
-      const levelResult = processPendingLevelUps(player);
+      const partyRest = restPartyAtInn(player);
       let fullMsg = message;
-      if (levelResult.leveledUp) {
-        fullMsg += ` 🎉 LEVEL UP to ${levelResult.newLevel}!`;
-        for (const spell of levelResult.newSpells) {
-          fullMsg += ` ✦ Learned ${spell.name}!`;
-        }
-        for (const ability of levelResult.newAbilities) {
-          fullMsg += ` ⚡ Learned ${ability.name}!`;
-        }
-        if (levelResult.asiGained > 0) {
-          fullMsg += ` ★ +${levelResult.asiGained} stat points!`;
+      for (const actor of partyRest.actors) {
+        const levelResult = actor.result;
+        if (levelResult.leveledUp) {
+          fullMsg += ` 🎉 ${actor.name} reached Lv.${levelResult.newLevel}!`;
+          for (const spell of levelResult.newSpells) {
+            fullMsg += ` ✦ ${spell.name}!`;
+          }
+          for (const ability of levelResult.newAbilities) {
+            fullMsg += ` ⚡ ${ability.name}!`;
+          }
+          if (levelResult.asiGained > 0) {
+            fullMsg += ` ★ +${levelResult.asiGained} stat points!`;
+          }
         }
       }
 
@@ -1346,7 +1346,7 @@ export class OverlayManager {
       this.scene.cameras.main.fadeIn(800, 0, 0, 0);
       this.callbacks.showMessage(fullMsg, "#88ff88");
 
-      if (levelResult.asiGained > 0 || player.pendingStatPoints > 0) {
+      if (player.pendingStatPoints > 0) {
         this.scene.time.delayedCall(1200, () => this.showStatOverlay(player));
       }
     });

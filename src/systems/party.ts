@@ -88,6 +88,11 @@ export interface PartyVictoryDistribution {
 
 export interface PartyRestResult {
   leveledActorIds: PartyMemberId[];
+  actors: Array<{
+    id: PartyMemberId;
+    name: string;
+    result: ReturnType<typeof processPendingLevelUps>;
+  }>;
 }
 
 export function createPartyState(): PartyState {
@@ -514,16 +519,25 @@ export function restPartyAtInn(player: PlayerState): PartyRestResult {
       state: companion,
     })),
   ];
+  const actorResults: PartyRestResult["actors"] = [];
   for (const actor of actors) {
     actor.state.hp = actor.state.maxHp;
     actor.state.mp = actor.state.maxMp;
     clearAllEffects(actor.state.activeEffects);
-    if (processPendingLevelUps(actor.state).leveledUp) {
+    const result = processPendingLevelUps(actor.state);
+    actor.state.hp = actor.state.maxHp;
+    actor.state.mp = actor.state.maxMp;
+    actorResults.push({
+      id: actor.id,
+      name: actor.state.name,
+      result,
+    });
+    if (result.leveledUp) {
       leveledActorIds.push(actor.id);
     }
   }
   player.shortRestsRemaining = 2;
-  return { leveledActorIds };
+  return { leveledActorIds, actors: actorResults };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

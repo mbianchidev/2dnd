@@ -251,8 +251,10 @@ describe("party system", () => {
     guardian.mp = 0;
     scout.hp = 2;
     scout.mp = 1;
+    guardian.xp = 500;
+    guardian.pendingLevelUps = 1;
 
-    restPartyAtInn(player);
+    const result = restPartyAtInn(player);
 
     expect(player.hp).toBe(player.maxHp);
     expect(player.mp).toBe(player.maxMp);
@@ -260,5 +262,7 @@ describe("party system", () => {
     expect(guardian.mp).toBe(guardian.maxMp);
     expect(scout.hp).toBe(scout.maxHp);
     expect(scout.mp).toBe(scout.maxMp);
+    expect(guardian.level).toBe(2);
+    expect(result.leveledActorIds).toContain("guardian");
   });
 });

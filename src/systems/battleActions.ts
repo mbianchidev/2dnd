@@ -7,8 +7,8 @@ import {
   getAbilityRange,
   getAbilityTargetType,
 } from "../data/abilities";
-import type { Item } from "../data/items";
 import type { Element, ElementalInteraction } from "../data/elements";
+import { getItemTargetType, type Item } from "../data/items";
 import {
   getSpell,
   getSpellTargetType,
@@ -254,7 +254,7 @@ export function getBattleActionDescriptor(
   return {
     kind: "item",
     actionId: item.id,
-    targetType: item.type === "consumable" ? "single_ally" : "self",
+    targetType: getItemTargetType(item),
     range: "ranged",
     mpCost: 0,
     cost: resources.economy.itemsUsed === 0 ? "bonus_action" : "action",

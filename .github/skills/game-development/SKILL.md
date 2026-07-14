@@ -83,6 +83,8 @@ replace bosses or explicit debug monster spawns.
 - Monster abilities use `statusEffect` for effects applied to the player.
 - Cure consumables declare matching cure data and must be wired through
   `useItem()` without consuming the item when no matching ailment exists.
+- Ally-target consumables declare `targetType`; resolve it through
+  `getItemTargetType()` so older inventory copies use canonical item metadata.
 - Preserve action economy: normal actions end the player turn; bonus-action
   abilities and the first item use do not.
 

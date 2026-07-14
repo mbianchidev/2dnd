@@ -199,12 +199,66 @@ describe("pure battle action pipeline", () => {
 
     const item = validateBattleAction(
       actors,
-      { actorId: heroId, kind: "item", itemIndex: 0 },
+      {
+        actorId: heroId,
+        kind: "item",
+        itemIndex: 0,
+        preferredTargetId: companionId,
+      },
       resources(),
     );
     expect(item.valid).toBe(true);
     expect(item.plan?.actionId).toBe("potion");
     expect(item.plan?.targetIds).toEqual([companionId]);
+  });
+
+  it("uses consumable target metadata with solo and self-only fallbacks", () => {
+    const { actors, heroId, companionId } = createActors();
+    const soloActors = actors.filter((actor) => actor.id !== companionId);
+    const legacyPotion = { ...getItem("potion")! };
+    delete legacyPotion.targetType;
+
+    const soloPotion = validateBattleAction(
+      soloActors,
+      { actorId: heroId, kind: "item", itemIndex: 0 },
+      resources({ inventory: [legacyPotion] }),
+    );
+    expect(soloPotion.valid).toBe(true);
+    expect(soloPotion.plan?.descriptor.targetType).toBe("single_ally");
+    expect(soloPotion.plan?.targetIds).toEqual([heroId]);
+
+    const selfOnly = validateBattleAction(
+      actors,
+      {
+        actorId: heroId,
+        kind: "item",
+        itemIndex: 0,
+        preferredTargetId: heroId,
+      },
+      resources({ inventory: [getItem("chimaeraWing")!] }),
+    );
+    expect(selfOnly.valid).toBe(true);
+    expect(selfOnly.plan?.descriptor.targetType).toBe("self");
+    expect(selfOnly.plan?.targetIds).toEqual([heroId]);
+  });
+
+  it("validates defend as a frozen self-targeting action", () => {
+    const { actors, heroId } = createActors();
+    const validation = validateBattleAction(
+      actors,
+      { actorId: heroId, kind: "defend" },
+      resources(),
+    );
+
+    expect(validation.valid).toBe(true);
+    expect(validation.plan?.targetIds).toEqual([heroId]);
+    expect(validation.plan?.descriptor).toMatchObject({
+      kind: "defend",
+      targetType: "self",
+      mpCost: 0,
+      cost: "action",
+    });
+    expect(Object.isFrozen(validation.plan)).toBe(true);
   });
 
   it("returns frozen plans and dispatches exactly one executor", () => {
@@ -304,11 +358,32 @@ describe("pure battle action pipeline", () => {
     expect(duplicate.message).toContain("action");
   });
 
-  it("rejects economy state owned by a different actor", () => {
+  it("consumes defend and rejects duplicate or foreign action economy", () => {
     const { actors, heroId, companionId } = createActors();
+    const initial = createBattleActionEconomy(heroId);
+    const defend = validateBattleAction(
+      actors,
+      { actorId: heroId, kind: "defend" },
+      resources({ economy: initial }),
+    );
+    expect(defend.valid).toBe(true);
+
+    const consumed = consumeBattleActionEconomy(initial, defend.plan!);
+    expect(consumed.valid).toBe(true);
+    expect(consumed.state.actionUsed).toBe(true);
+    expect(consumed.state.bonusActionUsed).toBe(false);
+
+    const duplicate = validateBattleAction(
+      actors,
+      { actorId: heroId, kind: "defend" },
+      resources({ economy: consumed.state }),
+    );
+    expect(duplicate.valid).toBe(false);
+    expect(duplicate.message).toContain("action");
+
     const validation = validateBattleAction(
       actors,
-      { actorId: companionId, kind: "attack", attackRange: "melee" },
+      { actorId: companionId, kind: "defend" },
       resources({ economy: createBattleActionEconomy(heroId) }),
     );
 

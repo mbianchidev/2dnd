@@ -54,6 +54,7 @@ export class DialogueSystem {
     container.add(lineText);
 
     this.dialogueOverlay = container;
+    if (audioEngine.initialized) audioEngine.playDialogueBlips(line);
 
     // Auto-dismiss after 3 seconds
     this.scene.time.delayedCall(3000, () => {

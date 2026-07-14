@@ -10,6 +10,7 @@ import { SKIN_COLOR_OPTIONS } from "../systems/appearance";
 import { NPC_TEMPLATES } from "../data/npcs";
 import { MOUNTS } from "../data/mounts";
 import { TILE_SIZE } from "../config";
+import { generateTrapTextures } from "./trapTextures";
 
 /** Mount body colors keyed by mount ID. */
 const MOUNT_COLORS: Record<string, number> = {
@@ -33,6 +34,7 @@ export function generateAllTextures(scene: Phaser.Scene): void {
   generateUITextures(scene);
   generateBattleBackgrounds(scene);
   generateNpcTextures(scene);
+  generateTrapTextures(scene);
 }
 
 function generateTileTextures(scene: Phaser.Scene): void {
@@ -706,6 +708,26 @@ function generateTileTextures(scene: Phaser.Scene): void {
   openChestGfx.strokeRect(0, 0, TILE_SIZE, TILE_SIZE);
   openChestGfx.generateTexture("tile_chest_open", TILE_SIZE, TILE_SIZE);
   openChestGfx.destroy();
+
+  // Quest barricade — a closed road over the underlying path.
+  const barrierGfx = scene.add.graphics();
+  barrierGfx.fillStyle(0x8d6e63, 1);
+  barrierGfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+  barrierGfx.fillStyle(0x5d4037, 1);
+  barrierGfx.fillRect(2, 7, 28, 5);
+  barrierGfx.fillRect(2, 20, 28, 5);
+  barrierGfx.fillStyle(0x3e2723, 1);
+  barrierGfx.fillRect(6, 3, 4, 26);
+  barrierGfx.fillRect(22, 3, 4, 26);
+  barrierGfx.fillStyle(0xffc107, 1);
+  barrierGfx.fillTriangle(16, 9, 10, 19, 22, 19);
+  barrierGfx.fillStyle(0xb71c1c, 1);
+  barrierGfx.fillRect(15, 12, 2, 4);
+  barrierGfx.fillRect(15, 17, 2, 2);
+  barrierGfx.lineStyle(1, 0x000000, 0.2);
+  barrierGfx.strokeRect(0, 0, TILE_SIZE, TILE_SIZE);
+  barrierGfx.generateTexture("tile_quest_barrier", TILE_SIZE, TILE_SIZE);
+  barrierGfx.destroy();
 
   // Generate biome-colored town textures (building on the biome's base color)
   const townBiomes: { terrain: Terrain; baseColor: number }[] = [

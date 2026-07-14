@@ -10,6 +10,8 @@
 
 import { WeatherType } from "./weather";
 import { TimePeriod } from "./daynight";
+import { TRAP_TYPES, type TrapType } from "../data/traps";
+import { playTrapSound } from "./trapAudio";
 
 // ── Musical constants ──────────────────────────────────────────
 
@@ -939,6 +941,12 @@ class AudioEngine {
 
   // ─── Interaction SFX ──────────────────────────────────────
 
+  /** Play the distinct synthesized trigger sound for a dungeon trap. */
+  playTrapSFX(type: TrapType): void {
+    if (!this.ctx || !this.sfxGain) return;
+    playTrapSound(this.ctx, this.sfxGain, type);
+  }
+
   /** Play a weapon attack swoosh + impact (normal hit). */
   playAttackSFX(): void {
     if (!this.ctx || !this.sfxGain) return;
@@ -1445,6 +1453,12 @@ class AudioEngine {
       { label: "Dialogue blip (low)", fn: () => { this.stopWeather(); for (let i = 0; i < 5; i++) setTimeout(() => this.playDialogueBlip(-5), i * 80); } },
       { label: "Dialogue blip (high)", fn: () => { for (let i = 0; i < 5; i++) setTimeout(() => this.playDialogueBlip(8), i * 80); } },
     ];
+    for (const trapType of TRAP_TYPES) {
+      demos.push({
+        label: `Trap: ${trapType}`,
+        fn: () => this.playTrapSFX(trapType),
+      });
+    }
 
     const durationPerDemo = 3; // seconds
     for (const demo of demos) {

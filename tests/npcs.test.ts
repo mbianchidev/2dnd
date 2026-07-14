@@ -24,6 +24,7 @@ import {
   HERMIT_DIALOGUES,
   HERMIT_FAREWELL,
   SPECIAL_NPC_FAREWELLS,
+  grantsTrapGuidance,
   getSpecialNpcDialogue,
   rollSpecialNpcSpawns,
 } from "../src/data/npcs";
@@ -245,6 +246,7 @@ describe("NPC system", () => {
       const def = SPECIAL_NPC_DEFS.wanderingMerchant;
       expect(def.shopItems).toBeDefined();
       expect(def.shopItems!.length).toBeGreaterThan(0);
+      expect(def.shopItems).toContain("trapKit");
     });
 
     it("traveler dialogue pool should be non-empty", () => {
@@ -253,6 +255,13 @@ describe("NPC system", () => {
 
     it("adventurer dialogue pool should be non-empty", () => {
       expect(ADVENTURER_DIALOGUES.length).toBeGreaterThan(0);
+      expect(ADVENTURER_DIALOGUES[0].toLowerCase()).toContain("trap");
+    });
+
+    it("grants trap guidance only on the first adventurer interaction", () => {
+      expect(grantsTrapGuidance("adventurer", 0)).toBe(true);
+      expect(grantsTrapGuidance("adventurer", 1)).toBe(false);
+      expect(grantsTrapGuidance("traveler", 0)).toBe(false);
     });
 
     it("wandering merchant dialogue pool should be non-empty", () => {

@@ -21,6 +21,7 @@ import {
   type CityShopData,
 } from "../data/map";
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
+import { getBlockedQuestEntranceAt } from "../systems/quests";
 import { WeatherType, WEATHER_TINT, type WeatherState } from "../systems/weather";
 import type { PlayerState } from "../systems/player";
 import type { CityRenderer } from "./city";
@@ -624,6 +625,18 @@ export class MapRenderer {
             texKey = `tile_${Terrain.MinorTreasure}`;
           }
         }
+        if (
+          explored
+          && getBlockedQuestEntranceAt(
+            player,
+            player.position.chunkX,
+            player.position.chunkY,
+            x,
+            y,
+          )
+        ) {
+          texKey = "tile_quest_barrier";
+        }
         const sprite = this.scene.add.sprite(
           x * TILE_SIZE + TILE_SIZE / 2,
           y * TILE_SIZE + TILE_SIZE / 2,
@@ -773,6 +786,17 @@ export class MapRenderer {
             if (!player.progression.collectedTreasures.includes(tKey)) {
               texKey = `tile_${Terrain.MinorTreasure}`;
             }
+          }
+          if (
+            getBlockedQuestEntranceAt(
+              player,
+              player.position.chunkX,
+              player.position.chunkY,
+              x,
+              y,
+            )
+          ) {
+            texKey = "tile_quest_barrier";
           }
           this.tileSprites[y][x].setTexture(texKey);
         }

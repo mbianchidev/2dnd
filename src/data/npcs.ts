@@ -7,6 +7,8 @@
  * randomised per-instance to make each city feel populated and unique.
  */
 
+import type { QuestNpcId } from "./quests";
+
 // ── Visual template types ──
 
 export type NpcAgeGroup = "child" | "male" | "female";
@@ -261,6 +263,8 @@ export interface NpcInstance {
   dialogue?: string;
   /** If set, this NPC is the shopkeeper for the given shop index. */
   shopIndex?: number;
+  /** Named quest role resolved by the quest system. */
+  questNpcId?: QuestNpcId;
 }
 
 /**
@@ -276,7 +280,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_elder",   job: "stablemaster",  x: 10, y: 5,  moves: false, shopIndex: 4 },
     { templateId: "child_boy1",   job: "villager",      x: 8,  y: 7,  moves: true },
     { templateId: "child_girl1",  job: "villager",      x: 12, y: 8,  moves: true },
-    { templateId: "female_young", job: "villager",      x: 6,  y: 9,  moves: true },
+    { templateId: "male_elder",   job: "villager",      x: 6,  y: 9,  moves: false, questNpcId: "elderRowan" },
   ],
   ironhold_city: [
     { templateId: "male_stout",   job: "blacksmith",    x: 4,  y: 3,  moves: false, shopIndex: 0 },
@@ -297,7 +301,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",      x: 5,  y: 12, moves: false, shopIndex: 4 },
     { templateId: "female_stout", job: "merchant",      x: 14, y: 12, moves: false, shopIndex: 5 },
     { templateId: "male_stout",   job: "stablemaster",  x: 10, y: 8,  moves: false, shopIndex: 6 },
-    { templateId: "child_girl2",  job: "villager",      x: 9,  y: 3,  moves: true },
+    { templateId: "guard_female", job: "guard",         x: 9,  y: 3,  moves: false, questNpcId: "wardenIlyra" },
     { templateId: "child_kid",    job: "villager",      x: 8,  y: 9,  moves: true },
   ],
   frostheim_city: [
@@ -356,7 +360,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_thin",  job: "merchant",    x: 4,  y: 11, moves: false, shopIndex: 4 },
     { templateId: "male_tall",    job: "merchant",    x: 15, y: 11, moves: false, shopIndex: 5 },
     { templateId: "child_boy1",   job: "villager",    x: 10, y: 9,  moves: true },
-    { templateId: "male_elder",   job: "villager",    x: 7,  y: 9,  moves: false },
+    { templateId: "male_elder",   job: "villager",    x: 7,  y: 9,  moves: false, questNpcId: "magisterSol" },
     { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
   ],
   dunerest_city: [
@@ -447,7 +451,7 @@ export const SPECIAL_NPC_DEFS: Record<SpecialNpcKind, SpecialNpcDef> = {
     tintColor: 0xffd740,
     spawnChance: 0.025,
     moves: false,
-    shopItems: ["potion", "ether"],
+    shopItems: ["potion", "ether", "trapKit"],
   },
   hermit: {
     kind: "hermit",
@@ -473,7 +477,7 @@ export const TRAVELER_DIALOGUES: string[] = [
 
 /** Dialogue pool for the grumpy but wise Adventurer. */
 export const ADVENTURER_DIALOGUES: string[] = [
-  "Hmph. Another rookie. Fine, listen up...",
+  "Traps kill rookies. Watch for seams, wires, vents, and loose stone.",
   "Save before a boss fight. Trust me.",
   "Don't waste gold on weak gear. Save for plate armour.",
   "Night monsters are tougher. Travel during the day if you're weak.",
@@ -482,6 +486,14 @@ export const ADVENTURER_DIALOGUES: string[] = [
   "Grumble... I've cleared more dungeons than you've had hot meals.",
   "Check the bestiary. Knowing your enemy's AC helps you plan.",
 ];
+
+/** Whether this special-NPC interaction grants persistent trap guidance. */
+export function grantsTrapGuidance(
+  kind: SpecialNpcKind,
+  interactionCount: number,
+): boolean {
+  return kind === "adventurer" && interactionCount === 0;
+}
 
 /** Dialogue pool for the Wandering Merchant. */
 export const WANDERING_MERCHANT_DIALOGUES: string[] = [

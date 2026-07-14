@@ -23,7 +23,11 @@ import {
   QUESTS,
   SIDE_QUEST_ID,
 } from "../data/quests";
-import { advanceQuest, setQuestStageById, setQuestState } from "./quests";
+import {
+  advanceQuest,
+  setQuestStageById,
+  setQuestState,
+} from "./questDebug";
 import type { QuestId, QuestStatus } from "../data/quests";
 import {
   getCompanion,
@@ -296,6 +300,7 @@ export interface OverworldDebugCallbacks {
   spawnSpecialNpcs(chunk: WorldChunk): void;
   autoSave(): void;
   restartScene(): void;
+  refreshQuestUI(): void;
 }
 
 /** Wrapper so a primitive number can be shared by reference between the scene and this system. */
@@ -535,7 +540,7 @@ export class DebugCommandSystem {
         debugPanelLog("── Quest State ──", true);
         for (const questId of QUEST_IDS) {
           const quest = QUESTS[questId];
-          const progress = this.player.progression.quests[questId];
+          const progress = this.player.progression.quests.quests[questId];
           const stage = quest.stages[progress.stage];
           debugPanelLog(
             `  ${questId}: ${progress.status} ${progress.stage}/${quest.stages.length - 1} (${stage.id}: ${stage.title})`,
@@ -556,21 +561,36 @@ export class DebugCommandSystem {
 
       let result;
       if (action === "advance") {
-        result = advanceQuest(this.player, questId);
+        result = advanceQuest(this.player, questId, this.defeatedBosses);
       } else if (action === "set") {
         const targetArg = parts[2]?.toLowerCase();
         const statuses: QuestStatus[] = ["locked", "active", "completed"];
         const status = statuses.find((value) => value === targetArg);
         if (status) {
-          result = setQuestState(this.player, questId, status);
+          result = setQuestState(
+            this.player,
+            questId,
+            status,
+            this.defeatedBosses,
+          );
         } else if (targetArg && /^\d+$/.test(targetArg)) {
-          result = setQuestState(this.player, questId, Number.parseInt(targetArg, 10));
+          result = setQuestState(
+            this.player,
+            questId,
+            Number.parseInt(targetArg, 10),
+            this.defeatedBosses,
+          );
         } else if (targetArg) {
           const stageId = QUESTS[questId].stages.find(
             (stage) => stage.id.toLowerCase() === targetArg,
           )?.id;
           result = stageId
-            ? setQuestStageById(this.player, questId, stageId)
+            ? setQuestStageById(
+              this.player,
+              questId,
+              stageId,
+              this.defeatedBosses,
+            )
             : undefined;
           if (!result) {
             debugPanelLog(
@@ -607,6 +627,7 @@ export class DebugCommandSystem {
         this.callbacks.applyDayNightTint();
         this.callbacks.createPlayer();
         this.callbacks.updateHUD();
+        this.callbacks.refreshQuestUI();
       }
     });
 

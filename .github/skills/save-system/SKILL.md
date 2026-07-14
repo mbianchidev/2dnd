@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v5, migration, normalization, and location recovery
+description: Manage 2D&D save schema v6, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -63,13 +63,25 @@ interface PlayerProgression {
   trapStates: Record<string, TrapState>;
   trapGuidance: boolean;
 }
+
+interface QuestProgress {
+  status: "locked" | "active" | "completed";
+  stage: number;
+  objectives: Record<string, number>;
+  claimedRewards: string[];
+}
+
+interface QuestLogState {
+  quests: Record<QuestId, QuestProgress>;
+  seenWarnings: string[];
+}
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
 Codex entries persist `discoveredElements`. `PlayerState.party` persists unique
 companion states, active order, independent progression/inventories/equipment,
 control modes, dialogue state, and gambits. Quest progress stores status, stage,
-and reward-granted state for idempotent completion rewards.
+objective counters, claimed reward IDs, and acknowledged danger warnings.
 Fixed non-combat checks persist the
 ability, natural roll, modifier, repaired total, DC, outcome, and optional
 choice ID.
@@ -84,7 +96,9 @@ helpers; do not cast unvalidated nested values directly.
 - Legacy `bestiary` to `codex`
 - Legacy flat player position fields to `player.position`
 - Legacy flat progression fields to `player.progression`
-- Schema-v3 skill-check progression to schema-v4 quest + skill-check state
+- Schema-v3 skill-check progression to default quest + skill-check state
+- Flat Ashen Road/Warden's Dispatch and recruitment progress to nested
+  Twelvefold Covenant state without replaying completed rewards
 - Schema-v3/v4 progression to schema-v5 explicit trap state
 - Missing equipment, talents, abilities, rests, bank, mount, and appearance
   fields
@@ -165,9 +179,12 @@ top-level save is absent or corrupt.
 
 - Save/load round trips
 - Legacy flat-state migration
-- Schema-v5 position, quest, skill-check, and trap progression
+- Schema-v6 position, objective/reward/warning quest state, skill checks,
+  traps, and party state
+- Flat schema-v4 quest migration and completed-reward preservation
 - Schema-v3 skill-check saves gaining default normalized quest state
 - Schema-v4 quest saves gaining default trap state
+- Schema-v5 party defaults and completed recruitment replay
 - Quest reward and skill-check record normalization
 - Trap seed/state/guidance normalization and seed-state cross-field repair
 - Dungeon-level and city-district clamping

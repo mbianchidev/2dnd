@@ -66,9 +66,14 @@ overworld edge tiles, which are easy to walk around. Use
 `getBlockedQuestEntrance()` for city/dungeon actions and
 `getBlockedQuestEntranceAt()` for rendering the matching barricade tile.
 
-Sandport and the Heartlands Crypt stay reachable before The Ashen Road opens;
-Ashfall and the Volcanic Forge unlock at main-quest stage 3. Add data-integrity
-tests that entrance coordinates still match their city or dungeon definition.
+Sandport and the Heartlands Crypt remain reachable. Canyonwatch opens during
+`sunRoad` after `sandportPass`, Ashfall opens at `ashenWatch`, and the Volcanic
+Forge opens at `lastForge`. Add data-integrity tests that entrance coordinates
+still match their city or dungeon definition.
+
+Premature northern, marsh, and ashen travel uses persisted soft danger rules.
+Pass their encounter multiplier through `getEffectiveEncounterRate()` and add
+their effective-level offset only when choosing random encounters.
 
 ## Exploration skill checks
 

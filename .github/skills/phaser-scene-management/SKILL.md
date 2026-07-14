@@ -60,7 +60,8 @@ interface SharedSceneState {
 Scene-specific additions:
 
 - Battle: `encounter: MonsterEncounter`, `biome`, optional accessor-backed
-  `partyCombatants`, optional runtime-only `battleHooks`
+  `partyCombatants`, optional runtime-only `battleHooks`; Battle may return
+  transient `questUpdates` to Overworld after victory
 - Shop: `townName`, optional item IDs, city context, discount, and optional
   stable `shopSkillCheckId`
 - Overworld: fields are optional only because Boot can create or load the
@@ -109,6 +110,8 @@ a restarted scene receives fresh helpers, then load persisted data into them:
 - `HUDRenderer`
 - `OverlayManager`
 - NPC and dialogue managers
+- `QuestJournalManager`
+- `QuestFlowManager`
 - `SkillCheckManager`
 - `DebugCommandSystem`
 - `CompanionFollowerManager`
@@ -161,6 +164,9 @@ on mouse-wheel input.
   Overworld.
 - Report victory, defeat, or flee once through `onBattleResolved`; reward
   adjustment happens before XP/gold are granted.
+- After group victory, record every defeated combatant ID for quest counters
+  without deduplicating repeated monster types, then pass transient updates to
+  Overworld for notification and autosave.
 - Clean up weather emitters and timers owned by Battle.
 
 ## Debug and errors

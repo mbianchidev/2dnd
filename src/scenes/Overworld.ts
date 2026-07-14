@@ -106,13 +106,17 @@ import { DialogueSystem } from "../managers/dialogue";
 import { SpecialNpcManager, type SpecialNpcCallbacks } from "../managers/specialNpc";
 import { OverlayManager } from "../managers/overlay";
 import { QuestJournalManager } from "../managers/questJournal";
+import { QuestFlowManager } from "../managers/questFlow";
 import { DebugCommandSystem, type TimeStepRef } from "../systems/debug";
 import { findAdjacentNpc, findAdjacentAnimal } from "../managers/npc";
 import { DungeonTrapManager } from "../managers/dungeonTraps";
 import {
+  completeNpcQuestInteraction,
   getBlockedQuestEntrance,
-  resolveQuestNpcInteraction,
+  getNpcQuestInteraction,
+  getQuestNpcIdleDialogue,
 } from "../systems/quests";
+import type { QuestUpdate } from "../systems/quests";
 import { SkillCheckManager } from "../managers/skillChecks";
 
 /** Terrain enum → human-readable display name for the location HUD. */
@@ -200,6 +204,7 @@ export class OverworldScene extends Phaser.Scene {
   private specialNpcManager!: SpecialNpcManager;
   private overlayManager!: OverlayManager;
   private questJournal!: QuestJournalManager;
+  private questFlow!: QuestFlowManager;
   private debugCommandSystem!: DebugCommandSystem;
   private dungeonTrapManager!: DungeonTrapManager;
   private skillCheckManager!: SkillCheckManager;
@@ -217,6 +222,7 @@ export class OverworldScene extends Phaser.Scene {
     timeStep?: number;
     weatherState?: WeatherState;
     savedSpecialNpcs?: SavedSpecialNpc[];
+    questUpdates?: QuestUpdate[];
   }): void {
     const fogDisabled = this.fogOfWar?.isFogDisabled() ?? false;
     const encountersEnabled = this.encounterSystem?.areEncountersEnabled() ?? true;
@@ -233,7 +239,10 @@ export class OverworldScene extends Phaser.Scene {
     this.companionFollowerManager = new CompanionFollowerManager(this);
     this.dialogueSystem = new DialogueSystem(this);
     this.specialNpcManager = new SpecialNpcManager(this);
-    this.questJournal = new QuestJournalManager(this);
+    this.questJournal = new QuestJournalManager(
+      this,
+      (message, color) => this.showMessage(message, color),
+    );
     this.dungeonTrapManager = new DungeonTrapManager(this, {
       showMessage: (text, color) => this.showMessage(text, color),
       autoSave: () => this.autoSave(),
@@ -274,10 +283,15 @@ export class OverworldScene extends Phaser.Scene {
       applyDayNightTint: () => this.applyDayNightTint(),
       createPlayer: () => this.createPlayerSprite(),
       refreshPlayerSprite: () => this.playerRenderer.refreshPlayerSprite(this.player),
-      respawnCityNpcs: () => this.cityRenderer.respawnCityNpcs(
-        this.player, this.timeStep,
-        (x: number, y: number) => this.fogOfWar.isExplored(x, y, this.player),
-      ),
+      respawnCityNpcs: () => {
+        this.cityRenderer.respawnCityNpcs(
+          this.player,
+          this.timeStep,
+          (x: number, y: number) =>
+            this.fogOfWar.isExplored(x, y, this.player),
+        );
+        this.questFlow?.refreshMarkers();
+      },
       saveAndQuit: () => {
         this.autoSave();
         this.scene.start("BootScene");
@@ -286,6 +300,7 @@ export class OverworldScene extends Phaser.Scene {
       setTimeStep: (t: number) => { this.timeStep = t; },
       evacuateDungeon: () => this.evacuateDungeon(),
       getHUDInfo: () => this.getHUDInfo(),
+      openQuestJournal: () => this.openQuestJournal(),
     });
     this.partyOverlayManager = new PartyOverlayManager(this, {
       updateHUD: () => this.updateHUD(),
@@ -319,6 +334,18 @@ export class OverworldScene extends Phaser.Scene {
     if (data?.savedSpecialNpcs) {
       this.specialNpcManager.savedSpecialNpcs = data.savedSpecialNpcs;
     }
+    this.questFlow = new QuestFlowManager(
+      this.player,
+      this.defeatedBosses,
+      this.questJournal,
+      this.cityRenderer,
+      {
+        renderMap: () => this.renderMap(),
+        showMessage: (message, color) => this.showMessage(message, color),
+        autoSave: () => this.autoSave(),
+      },
+      data?.questUpdates,
+    );
     synchronizeCompanionRecruitment(this.player);
 
     // Reset movement state — a tween may have been orphaned when the scene
@@ -354,6 +381,7 @@ export class OverworldScene extends Phaser.Scene {
     this.updateLocationText();
     this.mapRenderer.updateWeatherParticles(this.weatherState);
     this.updateAudio();
+    this.questFlow.afterInitialRender();
     if (this.player.position.inDungeon) {
       this.time.delayedCall(150, () => {
         this.dungeonTrapManager.scanNearby(this.player);
@@ -398,6 +426,7 @@ export class OverworldScene extends Phaser.Scene {
         timeStep: this.timeStep,
         weatherState: this.weatherState,
       }),
+      refreshQuestUI: () => this.questFlow.refreshUi(),
     });
     this.debugCommandSystem.fogOfWar = this.fogOfWar;
     this.debugCommandSystem.encounterSystem = this.encounterSystem;
@@ -490,8 +519,7 @@ export class OverworldScene extends Phaser.Scene {
     qKey.on("down", () => {
       if (this.isMoving) return;
       if (this.overlayManager.isOpen() || this.partyOverlayManager.isOpen()) return;
-      this.dialogueSystem.dismissDialogue();
-      this.questJournal.toggle(this.player);
+      this.openQuestJournal();
     });
 
     const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
@@ -784,11 +812,14 @@ export class OverworldScene extends Phaser.Scene {
     const encMult = getEncounterMultiplier(this.timeStep);
     const weatherEncMult = getWeatherEncounterMultiplier(this.weatherState.current);
     const mountEncMult = (!p.position.inDungeon && p.mountId) ? (getMount(p.mountId)?.encounterMultiplier ?? 1) : 1;
+    const dangerEncMult = this.questFlow.getCurrentDangerState()
+      ?.encounterRateMultiplier ?? 1;
     const effectiveRate = getEffectiveEncounterRate(
       rate,
       encMult,
       weatherEncMult,
       mountEncMult,
+      dangerEncMult,
     );
     const dungeonTag = p.position.inDungeon ? ` [DUNGEON:${p.position.dungeonId}]` : "";
     const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
@@ -796,7 +827,7 @@ export class OverworldScene extends Phaser.Scene {
     debugPanelState(
       `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${dungeonTag}${mountTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
-      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
+      `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
       `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length} | Checks: ${Object.keys(p.progression.skillChecks).length}`,
     );
   }
@@ -807,6 +838,11 @@ export class OverworldScene extends Phaser.Scene {
     return this.overlayManager.isOpen()
       || this.partyOverlayManager.isOpen()
       || this.questJournal.isOpen();
+  }
+
+  private openQuestJournal(): void {
+    this.dialogueSystem.dismissDialogue();
+    this.questJournal.toggle(this.player);
   }
 
   // ── Player movement ─────────────────────────────────────────────────────
@@ -857,6 +893,7 @@ export class OverworldScene extends Phaser.Scene {
 
     if (this.isMoving) return;
     if (this.isOverlayOpen()) return;
+    if (this.dialogueSystem.isDialogueOpen()) return;
     if (time - this.lastMoveTime < this.getEffectiveMoveDelay()) return;
 
     let dx = 0;
@@ -911,6 +948,7 @@ export class OverworldScene extends Phaser.Scene {
 
       this.tweenPlayerTo(newX, newY, 120, () => {
         this.advanceTime();
+        this.questFlow.warnAboutCurrentDanger();
         this.revealAround();
         this.revealTileSprites();
         if (this.dungeonTrapManager.handleArrival(this.player)) {
@@ -1069,11 +1107,15 @@ export class OverworldScene extends Phaser.Scene {
 
     const mountEncMult = (!this.player.position.inDungeon && this.player.mountId)
       ? (getMount(this.player.mountId)?.encounterMultiplier ?? 1) : 1;
+    const danger = this.questFlow.getCurrentDangerState();
+    const effectiveLevel = this.player.level
+      + (danger?.effectiveLevelOffset ?? 0);
     const rate = getEffectiveEncounterRate(
       ENCOUNTER_RATES[terrain],
       getEncounterMultiplier(this.timeStep),
       getWeatherEncounterMultiplier(this.weatherState.current),
       mountEncMult,
+      danger?.encounterRateMultiplier ?? 1,
     );
 
     const forcedGroup = this.getForcedGroupEncounter();
@@ -1081,18 +1123,21 @@ export class OverworldScene extends Phaser.Scene {
       let monster: Monster;
       const environments: string[] = [];
       if (this.player.position.inDungeon) {
-        monster = getDungeonEncounter(this.player.level, this.player.position.dungeonId);
+        monster = getDungeonEncounter(
+          effectiveLevel,
+          this.player.position.dungeonId,
+        );
         environments.push("dungeon", this.player.position.dungeonId);
       } else if (isNightTime(this.timeStep) && Math.random() < 0.4) {
         const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
-        monster = getNightEncounter(this.player.level, chunk?.name);
+        monster = getNightEncounter(effectiveLevel, chunk?.name);
         environments.push(
           this.terrainToBiome(terrain),
           chunk?.name ?? "",
           "night",
         );
       } else {
-        monster = getRandomEncounter(this.player.level);
+        monster = getRandomEncounter(effectiveLevel);
         const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
         environments.push(
           this.terrainToBiome(terrain),
@@ -1102,7 +1147,7 @@ export class OverworldScene extends Phaser.Scene {
       }
       const encounter = forcedGroup ?? createRandomEncounter(
         monster,
-        this.player.level,
+        effectiveLevel,
         environments,
       );
       debugLog("Encounter!", {
@@ -1182,6 +1227,11 @@ export class OverworldScene extends Phaser.Scene {
   private handleAction(): void {
     if (this.partyOverlayManager.isOpen()) {
       this.partyOverlayManager.close();
+      return;
+    }
+    if (this.dialogueSystem.advanceDialogue()) return;
+    if (this.dialogueSystem.isDialogueOpen()) {
+      this.dialogueSystem.dismissDialogue();
       return;
     }
     if (this.questJournal.isOpen()) {
@@ -1306,26 +1356,38 @@ export class OverworldScene extends Phaser.Scene {
       if (npcResult) {
         const { npcDef, npcIndex } = npcResult;
         if (npcDef.questNpcId) {
-          const result = resolveQuestNpcInteraction(
+          const interaction = getNpcQuestInteraction(
             this.player,
-            this.defeatedBosses,
             npcDef.questNpcId,
           );
-          const line = result.rewardText
-            ? `${result.line} Reward: ${result.rewardText}.`
-            : result.line;
-          this.dialogueSystem.showSpecialDialogue(result.speakerName, line);
-          if (result.changed) {
-            const status = result.completed ? "completed" : "updated";
-            debugPanelLog(`[QUEST] ${result.questId ?? npcDef.questNpcId} ${status}`, true);
-            for (const recruitment of synchronizeCompanionRecruitment(this.player)) {
-              this.showMessage(recruitment.message, "#88ff88");
-            }
-            this.companionFollowerManager.sync(
-              this.player,
-              (companion) => this.showCompanionDialogue(companion),
+          if (interaction) {
+            this.dialogueSystem.showQuestDialogue(
+              interaction.speaker,
+              interaction.pages,
+              () => {
+                const result = completeNpcQuestInteraction(
+                  this.player,
+                  this.defeatedBosses,
+                  interaction,
+                );
+                const recruitments = result.changed
+                  ? synchronizeCompanionRecruitment(this.player)
+                  : [];
+                this.questFlow.handleResult(result);
+                for (const recruitment of recruitments) {
+                  this.showMessage(recruitment.message, "#88ff88");
+                }
+                if (recruitments.length > 0) {
+                  this.companionFollowerManager.sync(
+                    this.player,
+                    (companion) => this.showCompanionDialogue(companion),
+                  );
+                }
+              },
             );
-            this.autoSave();
+          } else {
+            const idle = getQuestNpcIdleDialogue(npcDef.questNpcId);
+            this.dialogueSystem.showSpecialDialogue(idle.speaker, idle.line);
           }
           return;
         }
@@ -1473,6 +1535,9 @@ export class OverworldScene extends Phaser.Scene {
           );
           return;
         }
+        if (!this.questFlow.confirmDanger({ type: "city", id: city.id })) {
+          return;
+        }
         this.player.lastTownX = town.x;
         this.player.lastTownY = town.y;
         this.player.lastTownChunkX = this.player.position.chunkX;
@@ -1544,6 +1609,12 @@ export class OverworldScene extends Phaser.Scene {
             "Road Barricade",
             entranceBlock.blockedMessage,
           );
+          return;
+        }
+        if (!this.questFlow.confirmDanger({
+          type: "dungeon",
+          id: dungeon.id,
+        })) {
           return;
         }
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
@@ -1738,6 +1809,7 @@ export class OverworldScene extends Phaser.Scene {
       const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
       if (chunk) this.spawnSpecialNpcs(chunk);
     }
+    this.questFlow?.refreshMarkers();
   }
 
   private spawnSpecialNpcs(chunk: WorldChunk): void {

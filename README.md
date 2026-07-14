@@ -98,8 +98,10 @@ API, and saves use `localStorage`.
   player to a deeper floor
 - Trap Kits, class talents, and Adventurer guidance improve detection and
   disarming; seeded layouts and four-state trap outcomes persist explicitly
-- A multi-stage main quest, optional sidequest, named story NPCs, a `Q` quest
-  journal, persistent outcomes, unique rewards, and progression-gated roads
+- The seven-chapter **Twelvefold Covenant** main quest spans all 12 cities and
+  three dungeon bosses, with two campaign sidequests, optional boss objectives,
+  named story NPCs, dynamic markers, a `Q` journal, unique rewards, gated roads,
+  and soft danger zones
 - Three additional recruitment quest lines use stable stage IDs and replayable
   completion actions; active conscious companions follow the hero and can be
   spoken to during overworld, city, and dungeon exploration
@@ -154,7 +156,8 @@ src/
 │   ├── daynight.ts
 │   ├── audio.ts
 │   ├── quests.ts
-│   ├── companions.ts
+│   ├── questState.ts
+│   ├── questDebug.ts
 │   └── debug.ts
 ├── data/
 │   ├── map.ts
@@ -164,6 +167,7 @@ src/
 │   ├── dungeons.ts
 │   ├── traps.ts
 │   ├── trapTypes.ts
+│   ├── companions.ts
 │   ├── monsters.ts
 │   ├── monsterGroups.ts
 │   ├── elements.ts
@@ -178,6 +182,7 @@ src/
 │   ├── partyOverlay.ts
 │   ├── battleParty.ts
 │   ├── questJournal.ts
+│   ├── questFlow.ts
 │   └── skillChecks.ts
 └── renderers/
     ├── traps.ts
@@ -190,18 +195,20 @@ src/
 world chunks, cities, and dungeons live in their own data modules. Overworld
 delegates rendering and stateful subsystems to `renderers/` and `managers/`.
 
-Quest content lives in `src/data/quests.ts`; all runtime progression,
-normalization, rewards, NPC interactions, journal entries, and entrance-gate
-checks go through `src/systems/quests.ts`. Add follow-up quest content by
-extending those definitions and APIs rather than mutating
-`player.progression.quests` directly. Systems such as companion recruitment
-should query `isQuestCompleted()` and persist their own unlocked state.
+Quest content lives in `src/data/quests.ts`; runtime progression, rewards, NPC
+interactions, journal entries, access rules, danger states, and completion
+actions go through `src/systems/quests.ts`. Save normalization is isolated in
+`src/systems/questState.ts`, debug-only mutation in
+`src/systems/questDebug.ts`, and Overworld presentation flow in
+`src/managers/questFlow.ts`. Add content through these APIs rather than
+mutating `player.progression.quests` directly. Systems such as companion
+recruitment should query `isQuestCompleted()` and persist their own state.
 Completed quests may also declare stable `{ id, type, targetId }` actions.
 Consumers call `getQuestCompletionActions()` or
 `replayQuestCompletionActions()` after load and quest mutations, then apply
 those actions idempotently in their own state. Every stage also has a stable
-data ID; use `getQuestStageIndex()` or `setQuestStageById()` instead of
-coupling downstream systems to display text.
+data ID; use `getQuestStageIndex()` or the debug-only
+`setQuestStageById()` helper instead of coupling systems to display text.
 
 For companion recruitment, define three distinct quest IDs and one action per
 path using `type: "recruitCompanion"` and the companion ID as `targetId`.
@@ -280,7 +287,8 @@ Save schema version 6 persists:
 - Dungeon ID and level
 - City ID and district index
 - Explored tiles, opened chests, collected treasure, and discovered cities
-- Main/side quest status, stage, and idempotent reward state
+- Quest status, stages, objective counters, claimed reward IDs, and acknowledged
+  danger warnings
 - Per-playthrough trap seed, authoritative detected/missed/disarmed/triggered
   trap states, and Adventurer guidance
 - Defeated bosses, Codex entries, and discovered elemental interactions
@@ -293,8 +301,11 @@ Save schema version 6 persists:
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed
 skill-check records are discarded, while valid totals and outcomes are repaired.
-Schema-v3 skill-check saves gain default quest and trap progress; schema-v4
-quest saves gain default trap progress. Malformed trap seeds reset trap states
+Schema-v3 skill-check saves gain default quest progress, and flat schema-v4
+Ashen Road saves migrate to the nested Covenant state without replaying rewards.
+Flat recruitment quest progress is migrated into the same nested log.
+Schema-v3 skill-check saves gain default trap progress, and schema-v4 quest
+saves gain default trap progress. Malformed trap seeds reset trap states
 so stale IDs cannot resolve against a different layout. Schema-v5 saves gain an
 empty party, and completed recruitment actions replay idempotently after party
 normalization.

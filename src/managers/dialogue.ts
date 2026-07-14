@@ -17,6 +17,13 @@ import { TILE_SIZE } from "../config";
 export class DialogueSystem {
   private scene: Phaser.Scene;
   private dialogueOverlay: Phaser.GameObjects.Container | null = null;
+  private questSequence: {
+    pages: string[];
+    pageIndex: number;
+    lineText: Phaser.GameObjects.Text;
+    pageText: Phaser.GameObjects.Text;
+    onComplete: () => void;
+  } | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -24,10 +31,7 @@ export class DialogueSystem {
 
   /** Show a dialogue box for a special overworld NPC (quest giver, etc.). */
   showSpecialDialogue(speakerName: string, line: string): void {
-    if (this.dialogueOverlay) {
-      this.dialogueOverlay.destroy();
-      this.dialogueOverlay = null;
-    }
+    this.dismissDialogue();
 
     const container = this.scene.add.container(0, 0).setDepth(50);
     const boxW = MAP_WIDTH * TILE_SIZE - 20;
@@ -68,10 +72,7 @@ export class DialogueSystem {
 
   /** Show a dialogue box for a city NPC, including shopkeepers. */
   showNpcDialogue(npcDef: NpcInstance, npcIndex: number, city: CityData, timeStep: number): void {
-    if (this.dialogueOverlay) {
-      this.dialogueOverlay.destroy();
-      this.dialogueOverlay = null;
-    }
+    this.dismissDialogue();
 
     const tpl = getNpcTemplate(npcDef.templateId);
     if (!tpl) return;
@@ -134,10 +135,7 @@ export class DialogueSystem {
 
   /** Show a brief auto-dismissing dialogue for an animal sprite. */
   showAnimalDialogue(spriteName: string): void {
-    if (this.dialogueOverlay) {
-      this.dialogueOverlay.destroy();
-      this.dialogueOverlay = null;
-    }
+    this.dismissDialogue();
 
     const pool = ANIMAL_DIALOGUES[spriteName];
     if (!pool) return;
@@ -181,12 +179,104 @@ export class DialogueSystem {
     });
   }
 
+  /**
+   * Show manual quest dialogue and commit its interaction after the final page.
+   */
+  showQuestDialogue(
+    speakerName: string,
+    pages: string[],
+    onComplete: () => void,
+  ): void {
+    if (pages.length === 0) {
+      throw new Error("[dialogue] Quest dialogue requires at least one page");
+    }
+    this.dismissDialogue();
+
+    const container = this.scene.add.container(0, 0).setDepth(50);
+    const boxW = MAP_WIDTH * TILE_SIZE - 20;
+    const boxH = 58;
+    const boxX = 10;
+    const boxY = MAP_HEIGHT * TILE_SIZE - 12;
+    const bg = this.scene.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 4);
+    bg.lineStyle(2, 0x9575cd, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 4);
+    container.add(bg);
+
+    container.add(this.scene.add.text(
+      boxX + 8,
+      boxY + 4,
+      speakerName,
+      {
+        fontSize: "10px",
+        fontFamily: "monospace",
+        color: "#d1c4e9",
+      },
+    ));
+    const lineText = this.scene.add.text(boxX + 8, boxY + 18, pages[0], {
+      fontSize: "11px",
+      fontFamily: "monospace",
+      color: "#ffffff",
+      wordWrap: { width: boxW - 16 },
+    });
+    container.add(lineText);
+    const pageText = this.scene.add.text(
+      boxX + boxW - 8,
+      boxY + boxH - 10,
+      this.questPageLabel(0, pages.length),
+      {
+        fontSize: "8px",
+        fontFamily: "monospace",
+        color: "#b39ddb",
+      },
+    ).setOrigin(1, 0.5);
+    container.add(pageText);
+
+    this.dialogueOverlay = container;
+    this.questSequence = {
+      pages: [...pages],
+      pageIndex: 0,
+      lineText,
+      pageText,
+      onComplete,
+    };
+    if (audioEngine.initialized) audioEngine.playDialogueBlips(pages[0]);
+  }
+
+  /** Advance quest dialogue, returning true when the action was consumed. */
+  advanceDialogue(): boolean {
+    const sequence = this.questSequence;
+    if (!sequence) return false;
+    if (sequence.pageIndex < sequence.pages.length - 1) {
+      sequence.pageIndex++;
+      const page = sequence.pages[sequence.pageIndex];
+      sequence.lineText.setText(page);
+      sequence.pageText.setText(
+        this.questPageLabel(sequence.pageIndex, sequence.pages.length),
+      );
+      if (audioEngine.initialized) audioEngine.playDialogueBlips(page);
+      return true;
+    }
+
+    const onComplete = sequence.onComplete;
+    this.dismissDialogue();
+    onComplete();
+    return true;
+  }
+
+  private questPageLabel(pageIndex: number, pageCount: number): string {
+    const action = pageIndex >= pageCount - 1 ? "Finish" : "Next";
+    return `[SPACE] ${action}  ${pageIndex + 1}/${pageCount}`;
+  }
+
   /** Dismiss the current dialogue box, if any. */
   dismissDialogue(): void {
     if (this.dialogueOverlay) {
       this.dialogueOverlay.destroy();
       this.dialogueOverlay = null;
     }
+    this.questSequence = null;
   }
 
   /** Returns whether a dialogue box is currently open. */

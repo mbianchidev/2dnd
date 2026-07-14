@@ -76,6 +76,10 @@ import {
 } from "../systems/statusEffects";
 import type { ActiveStatusEffect } from "../systems/statusEffects";
 import {
+  recordMonsterDefeats,
+  type QuestUpdate,
+} from "../systems/quests";
+import {
   countAliveCombatants,
   createBattleResult,
   createGroupCombatants,
@@ -152,6 +156,7 @@ export class BattleScene extends Phaser.Scene {
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
+  private questUpdates: QuestUpdate[] = [];
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
@@ -321,6 +326,7 @@ export class BattleScene extends Phaser.Scene {
     this.weatherState = data.weatherState ?? createWeatherState();
     this.biome = data.biome ?? "grass";
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
+    this.questUpdates = [];
     this.phase = "init";
     this.logLines = [];
     this.logScrollOffset = 0;
@@ -2708,6 +2714,15 @@ export class BattleScene extends Phaser.Scene {
         this.defeatedBosses.add(combatant.monster.id);
       }
     }
+    const questResult = recordMonsterDefeats(
+      this.player,
+      this.defeatedBosses,
+      this.combatants.map((combatant) => combatant.monster.id),
+    );
+    this.questUpdates = questResult.updates;
+    if (questResult.changed) {
+      this.addLog("Quest progress recorded.");
+    }
     recordGroupDefeats(this.codex, this.combatants);
     if (audioEngine.initialized) {
       audioEngine.playVictoryJingle();
@@ -2844,6 +2859,7 @@ export class BattleScene extends Phaser.Scene {
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,
+        questUpdates: this.questUpdates,
       });
     });
     this.cameras.main.fadeOut(500, 0, 0, 0);

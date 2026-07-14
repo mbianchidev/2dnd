@@ -280,7 +280,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_elder",   job: "stablemaster",  x: 10, y: 5,  moves: false, shopIndex: 4 },
     { templateId: "child_boy1",   job: "villager",      x: 8,  y: 7,  moves: true },
     { templateId: "child_girl1",  job: "villager",      x: 12, y: 8,  moves: true },
-    { templateId: "male_elder",   job: "villager",      x: 6,  y: 9,  moves: false, questNpcId: "elderRowan" },
+    { templateId: "female_young", job: "villager",      x: 6,  y: 9,  moves: false, questNpcId: "willowdaleArchivist" },
   ],
   ironhold_city: [
     { templateId: "male_stout",   job: "blacksmith",    x: 4,  y: 3,  moves: false, shopIndex: 0 },
@@ -290,7 +290,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "stablemaster",  x: 10, y: 10, moves: false, shopIndex: 4 },
     { templateId: "child_boy2",   job: "villager",      x: 8,  y: 8,  moves: true },
     { templateId: "female_elder", job: "farmer",        x: 14, y: 10, moves: false },
-    { templateId: "guard_male",   job: "guard",         x: 9,  y: 12, moves: false },
+    { templateId: "guard_male",   job: "guard",         x: 9,  y: 12, moves: false, questNpcId: "ironholdWarden" },
     { templateId: "guard_female", job: "guard",         x: 11, y: 12, moves: false },
     { templateId: "guard_male",   job: "guard",         x: 6,  y: 8,  moves: false, questNpcId: "guardian" },
   ],
@@ -302,7 +302,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",      x: 5,  y: 12, moves: false, shopIndex: 4 },
     { templateId: "female_stout", job: "merchant",      x: 14, y: 12, moves: false, shopIndex: 5 },
     { templateId: "male_stout",   job: "stablemaster",  x: 10, y: 8,  moves: false, shopIndex: 6 },
-    { templateId: "guard_female", job: "guard",         x: 9,  y: 3,  moves: false, questNpcId: "wardenIlyra" },
+    { templateId: "female_young", job: "merchant",      x: 9,  y: 3,  moves: false, questNpcId: "sandportHarbormaster" },
     { templateId: "child_kid",    job: "villager",      x: 8,  y: 9,  moves: true },
     { templateId: "female_young", job: "villager",      x: 11, y: 9,  moves: false, questNpcId: "scout" },
   ],
@@ -314,7 +314,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",    x: 11, y: 11, moves: false, shopIndex: 4 },
     { templateId: "female_tall",  job: "blacksmith",  x: 14, y: 11, moves: false, shopIndex: 5 },
     { templateId: "child_boy1",   job: "villager",    x: 10, y: 5,  moves: true },
-    { templateId: "male_elder",   job: "farmer",      x: 6,  y: 8,  moves: false },
+    { templateId: "female_elder", job: "villager",    x: 6,  y: 8,  moves: false, questNpcId: "frostheimSeer" },
     { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
   ],
   deeproot_city: [
@@ -323,7 +323,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",    x: 5,  y: 12, moves: false, shopIndex: 2 },
     { templateId: "female_young", job: "innkeeper",   x: 14, y: 12, moves: false, shopIndex: 3 },
     { templateId: "child_girl1",  job: "villager",    x: 10, y: 4,  moves: true },
-    { templateId: "female_elder", job: "cook",        x: 8,  y: 8,  moves: false },
+    { templateId: "female_elder", job: "villager",    x: 8,  y: 8,  moves: false, questNpcId: "deeprootRootspeaker" },
     { templateId: "male_stout",   job: "farmer",      x: 12, y: 8,  moves: true },
   ],
   canyonwatch_city: [
@@ -333,7 +333,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_tall",  job: "innkeeper",   x: 12, y: 8,  moves: false, shopIndex: 3 },
     { templateId: "child_kid",    job: "villager",    x: 10, y: 6,  moves: true },
     { templateId: "male_elder",   job: "villager",    x: 6,  y: 10, moves: false },
-    { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
+    { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false, questNpcId: "canyonwatchMarshal" },
     { templateId: "guard_female", job: "guard",       x: 11, y: 12, moves: false },
   ],
   bogtown_city: [
@@ -342,7 +342,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_stout",   job: "blacksmith",  x: 4,  y: 12, moves: false, shopIndex: 2 },
     { templateId: "female_stout", job: "innkeeper",   x: 15, y: 12, moves: false, shopIndex: 3 },
     { templateId: "child_boy2",   job: "villager",    x: 10, y: 8,  moves: true },
-    { templateId: "female_elder", job: "cook",        x: 8,  y: 7,  moves: false },
+    { templateId: "female_elder", job: "cook",        x: 8,  y: 7,  moves: false, questNpcId: "bogtownApothecary" },
     { templateId: "male_young",   job: "farmer",      x: 13, y: 9,  moves: true },
   ],
   thornvale_city: [
@@ -351,7 +351,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",    x: 6,  y: 11, moves: false, shopIndex: 2 },
     { templateId: "female_young", job: "innkeeper",   x: 13, y: 11, moves: false, shopIndex: 3 },
     { templateId: "child_girl2",  job: "villager",    x: 10, y: 7,  moves: true },
-    { templateId: "male_elder",   job: "farmer",      x: 8,  y: 6,  moves: false },
+    { templateId: "male_elder",   job: "farmer",      x: 8,  y: 6,  moves: false, questNpcId: "thornvaleGreenwarden" },
     { templateId: "female_stout", job: "cook",        x: 11, y: 6,  moves: false },
   ],
   ashfall_city: [
@@ -362,7 +362,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_thin",  job: "merchant",    x: 4,  y: 11, moves: false, shopIndex: 4 },
     { templateId: "male_tall",    job: "merchant",    x: 15, y: 11, moves: false, shopIndex: 5 },
     { templateId: "child_boy1",   job: "villager",    x: 10, y: 9,  moves: true },
-    { templateId: "male_elder",   job: "villager",    x: 7,  y: 9,  moves: false, questNpcId: "magisterSol" },
+    { templateId: "male_elder",   job: "blacksmith",  x: 7,  y: 9,  moves: false, questNpcId: "ashfallSmith" },
     { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
     { templateId: "female_elder", job: "villager",    x: 11, y: 9,  moves: false, questNpcId: "mystic" },
   ],
@@ -373,7 +373,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "female_young", job: "innkeeper",   x: 15, y: 12, moves: false, shopIndex: 3 },
     { templateId: "child_girl1",  job: "villager",    x: 10, y: 7,  moves: true },
     { templateId: "male_stout",   job: "cook",        x: 8,  y: 9,  moves: false },
-    { templateId: "female_elder", job: "farmer",      x: 12, y: 9,  moves: true },
+    { templateId: "female_elder", job: "villager",    x: 12, y: 9,  moves: false, questNpcId: "dunerestLorekeeper" },
   ],
   ridgewatch_city: [
     { templateId: "male_stout",   job: "blacksmith",  x: 5,  y: 4,  moves: false, shopIndex: 0 },
@@ -384,7 +384,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_elder",   job: "villager",    x: 8,  y: 6,  moves: false },
     { templateId: "female_young", job: "farmer",      x: 12, y: 6,  moves: true },
     { templateId: "guard_male",   job: "guard",       x: 9,  y: 12, moves: false },
-    { templateId: "guard_female", job: "guard",       x: 11, y: 12, moves: false },
+    { templateId: "guard_female", job: "guard",       x: 11, y: 12, moves: false, questNpcId: "ridgewatchSentinel" },
   ],
   shadowfen_city: [
     { templateId: "female_thin",  job: "merchant",    x: 5,  y: 4,  moves: false, shopIndex: 0 },
@@ -392,7 +392,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young",   job: "merchant",    x: 5,  y: 12, moves: false, shopIndex: 2 },
     { templateId: "female_stout", job: "innkeeper",   x: 14, y: 12, moves: false, shopIndex: 3 },
     { templateId: "child_boy2",   job: "villager",    x: 10, y: 7,  moves: true },
-    { templateId: "female_elder", job: "villager",    x: 8,  y: 9,  moves: false },
+    { templateId: "male_elder",   job: "villager",    x: 8,  y: 9,  moves: false, questNpcId: "shadowfenFerryman" },
     { templateId: "male_stout",   job: "cook",        x: 11, y: 9,  moves: false },
   ],
 };

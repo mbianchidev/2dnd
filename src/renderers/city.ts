@@ -33,8 +33,8 @@ export class CityRenderer {
   cityNpcTimers: Phaser.Time.TimerEvent[] = [];
   /** NPC instance data for the current city. */
   cityNpcData: NpcInstance[] = [];
-  /** Quest markers rendered above named story NPCs. */
-  questNpcMarkers: Phaser.GameObjects.Text[] = [];
+  /** Quest markers aligned with the rendered city NPC arrays. */
+  questNpcMarkers: Array<Phaser.GameObjects.Text | null> = [];
   /** Graphics objects for shop roof overlays. */
   shopRoofGraphics: Phaser.GameObjects.Graphics[] = [];
   /** Bounding rectangles for each shop roof. */
@@ -479,7 +479,7 @@ export class CityRenderer {
     // Destroy existing NPC sprites and timers
     for (const s of this.cityNpcSprites) s.destroy();
     this.cityNpcSprites = [];
-    for (const marker of this.questNpcMarkers) marker.destroy();
+    for (const marker of this.questNpcMarkers) marker?.destroy();
     this.questNpcMarkers = [];
     for (const t of this.cityNpcTimers) t.destroy();
     this.cityNpcTimers = [];
@@ -577,22 +577,6 @@ export class CityRenderer {
       this.cityNpcSprites.push(sprite);
       this.cityNpcData.push(def);
 
-      if (def.questNpcId) {
-        const marker = this.scene.add.text(
-          sprite.x,
-          sprite.y - TILE_SIZE / 2 - 4,
-          "!",
-          {
-            fontSize: "14px",
-            fontFamily: "monospace",
-            color: "#ffd700",
-            stroke: "#000000",
-            strokeThickness: 3,
-          },
-        ).setOrigin(0.5, 1).setDepth(12);
-        this.questNpcMarkers.push(marker);
-      }
-
       if (def.moves) {
         const wander = (): void => {
           const dirs = [
@@ -642,6 +626,36 @@ export class CityRenderer {
     }
   }
 
+  /** Refresh `!` and `?` markers for currently actionable named NPCs. */
+  refreshQuestMarkers(
+    getMarker: (
+      npcId: NonNullable<NpcInstance["questNpcId"]>,
+    ) => "available" | "active" | null,
+  ): void {
+    for (const marker of this.questNpcMarkers) marker?.destroy();
+    this.questNpcMarkers = new Array(this.cityNpcData.length).fill(null);
+
+    for (const [index, npc] of this.cityNpcData.entries()) {
+      if (!npc.questNpcId) continue;
+      const markerType = getMarker(npc.questNpcId);
+      const sprite = this.cityNpcSprites[index];
+      if (!markerType || !sprite) continue;
+      const marker = this.scene.add.text(
+        sprite.x,
+        sprite.y - TILE_SIZE / 2 - 4,
+        markerType === "available" ? "!" : "?",
+        {
+          fontSize: "14px",
+          fontFamily: "monospace",
+          color: markerType === "available" ? "#ffd740" : "#80cbc4",
+          stroke: "#000000",
+          strokeThickness: 3,
+        },
+      ).setOrigin(0.5, 1).setDepth(12);
+      this.questNpcMarkers[index] = marker;
+    }
+  }
+
   // ── Cleanup ──────────────────────────────────────────────────────────
 
   /** Destroy all sprites, timers, and graphics and reset arrays. */
@@ -653,7 +667,7 @@ export class CityRenderer {
 
     for (const s of this.cityNpcSprites) s.destroy();
     this.cityNpcSprites = [];
-    for (const marker of this.questNpcMarkers) marker.destroy();
+    for (const marker of this.questNpcMarkers) marker?.destroy();
     this.questNpcMarkers = [];
     for (const t of this.cityNpcTimers) t.destroy();
     this.cityNpcTimers = [];

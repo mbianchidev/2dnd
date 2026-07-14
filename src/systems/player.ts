@@ -12,12 +12,17 @@ import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "..
 import type { Item } from "../data/items";
 import { getItem } from "../data/items";
 import { getMount } from "../data/mounts";
+import type { SkillCheckRecord } from "../data/skillChecks";
+import { createTrapSeed, type TrapState } from "../data/traps";
 import { getPlayerClass, getClassSpells, getClassAbilities } from "./classes";
+import { createQuestLog } from "./quests";
 import {
   cureWithItem,
   getEffectACModifier,
 } from "./statusEffects";
+import type { QuestLogState } from "../data/quests";
 import type { ActiveStatusEffect } from "./statusEffects";
+import type { PartyState } from "./party";
 
 export interface PlayerStats {
   strength: number;
@@ -48,6 +53,11 @@ export interface PlayerProgression {
   collectedTreasures: string[]; // keys like "cx,cy,x,y" for collected minor treasures
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
   discoveredCities: string[]; // IDs of cities the player has visited (enables fast travel)
+  quests: QuestLogState; // main/side quest status, stages, and reward idempotency
+  skillChecks: Record<string, SkillCheckRecord>; // stable check ID -> one-time result
+  trapSeed: number; // stable per-playthrough seed for procedural dungeon traps
+  trapStates: Record<string, TrapState>; // deterministic trap ID -> authoritative state
+  trapGuidance: boolean; // persistent Adventurer detection/disarm advice
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -107,7 +117,35 @@ export interface PlayerState {
   shortRestsRemaining: number; // short rests available (max 2, reset on inn long rest)
   pendingLevelUps: number; // levels earned but not yet applied (applied on rest)
   activeEffects: ActiveStatusEffect[];
+  party: PartyState;
 }
+
+/** Mutable actor state required by reusable battle action resolvers. */
+export type CombatActorState = Pick<
+  PlayerState,
+  | "name"
+  | "level"
+  | "hp"
+  | "maxHp"
+  | "mp"
+  | "maxMp"
+  | "stats"
+  | "inventory"
+  | "knownSpells"
+  | "knownAbilities"
+  | "knownTalents"
+  | "equippedWeapon"
+  | "equippedOffHand"
+  | "equippedArmor"
+  | "equippedShield"
+  | "appearanceId"
+  | "activeEffects"
+>;
+
+export type ProgressingActorState = CombatActorState & Pick<
+  PlayerState,
+  "xp" | "pendingStatPoints" | "pendingLevelUps"
+>;
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
 export const ASI_LEVELS = [4, 8, 12, 16, 19];
@@ -201,6 +239,11 @@ export function createPlayer(
       collectedTreasures: [],
       exploredTiles: {},
       discoveredCities: [],
+      quests: createQuestLog(),
+      skillChecks: {},
+      trapSeed: createTrapSeed(),
+      trapStates: {},
+      trapGuidance: false,
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,
@@ -212,6 +255,10 @@ export function createPlayer(
     shortRestsRemaining: 2,
     pendingLevelUps: 0,
     activeEffects: [],
+    party: {
+      companions: [],
+      activeCompanionIds: [],
+    },
   };
 }
 
@@ -232,7 +279,7 @@ export function applyBankInterest(player: PlayerState, currentDay: number): numb
 
 /** Get the attack modifier for the player (uses class primary stat for melee). */
 /** Get the melee attack modifier. Uses STR, or max(STR, DEX) for finesse weapons. */
-export function getAttackModifier(player: PlayerState): number {
+export function getAttackModifier(player: CombatActorState): number {
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
   const strMod = abilityModifier(player.stats.strength);
   const dexMod = abilityModifier(player.stats.dexterity);
@@ -242,7 +289,7 @@ export function getAttackModifier(player: PlayerState): number {
 }
 
 /** Get the spell attack modifier (uses class primary stat for casters). */
-export function getSpellModifier(player: PlayerState): number {
+export function getSpellModifier(player: CombatActorState): number {
   const playerClass = getPlayerClass(player.appearanceId);
   const primaryStatValue = player.stats[playerClass.primaryStat];
   const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
@@ -250,7 +297,7 @@ export function getSpellModifier(player: PlayerState): number {
 }
 
 /** Get the player's armor class. Optionally add a temporary bonus (e.g. from defending). */
-export function getArmorClass(player: PlayerState, tempBonus: number = 0): number {
+export function getArmorClass(player: CombatActorState, tempBonus: number = 0): number {
   const baseAC = 10 + abilityModifier(player.stats.dexterity);
   const armorBonus = player.equippedArmor?.effect ?? 0;
   const shieldBonus = player.equippedShield?.effect ?? 0;
@@ -275,7 +322,7 @@ export function canDualWield(player: PlayerState): boolean {
 }
 
 /** Check if the player has the Two-Weapon Fighting talent (adds ability mod to off-hand damage). */
-export function hasTwoWeaponFighting(player: PlayerState): boolean {
+export function hasTwoWeaponFighting(player: CombatActorState): boolean {
   return player.knownTalents.includes("twoWeaponFighting");
 }
 
@@ -306,7 +353,7 @@ export function equipOffHand(
 
 /** Award XP and track pending level-ups. Actual leveling happens during rest. */
 export function awardXP(
-  player: PlayerState,
+  player: ProgressingActorState,
   amount: number
 ): { pendingLevels: number } {
   if (!player) {
@@ -335,7 +382,7 @@ export function awardXP(
  * Returns details for the UI to display.
  */
 export function processPendingLevelUps(
-  player: PlayerState
+  player: ProgressingActorState
 ): { leveledUp: boolean; newLevel: number; newSpells: Spell[]; newAbilities: Ability[]; newTalents: Talent[]; asiGained: number } {
   const pending = player.pendingLevelUps ?? 0;
   if (pending <= 0) {
@@ -520,87 +567,145 @@ export function sellItem(player: PlayerState, itemIndex: number, sellValue: numb
   return { success: true, message: `Sold ${item.name} for ${sellValue}g!` };
 }
 
-/** Use a consumable item from inventory. Returns true if used. */
-export function useItem(
-  player: PlayerState,
-  itemIndex: number
-): { used: boolean; message: string; teleport?: boolean } {
-  if (!player) {
-    throw new Error(`[player] useItem: missing player`);
+export interface UseItemResult {
+  used: boolean;
+  message: string;
+  teleport?: boolean;
+}
+
+export type CombatItemTarget = Pick<
+  CombatActorState,
+  "hp" | "maxHp" | "mp" | "maxMp" | "activeEffects"
+>;
+
+function getInventoryItem(
+  actor: CombatActorState,
+  itemIndex: number,
+  context: string,
+): Item {
+  if (!actor) {
+    throw new Error(`[player] ${context}: missing actor`);
   }
   if (typeof itemIndex !== "number" || itemIndex < 0) {
-    throw new Error(`[player] useItem: invalid itemIndex ${itemIndex}`);
+    throw new Error(`[player] ${context}: invalid itemIndex ${itemIndex}`);
   }
-  const item = player.inventory[itemIndex];
+  const item = actor.inventory[itemIndex];
   if (!item) {
-    throw new Error(`[player] useItem: no item at index ${itemIndex} (inventory size: ${player.inventory.length})`);
+    throw new Error(`[player] ${context}: no item at index ${itemIndex} (inventory size: ${actor.inventory.length})`);
   }
+  return item;
+}
 
+function useStandardItem(
+  actor: CombatActorState,
+  itemIndex: number,
+  item: Item,
+  target: CombatItemTarget = actor,
+): UseItemResult {
   if (item.type === "consumable") {
     if (item.id === "ether") {
-      if (player.mp >= player.maxMp) {
+      if (target.mp >= target.maxMp) {
         return { used: false, message: "MP is already full!" };
       }
-      const restored = Math.min(item.effect, player.maxMp - player.mp);
-      player.mp += restored;
-      player.inventory.splice(itemIndex, 1);
+      const restored = Math.min(item.effect, target.maxMp - target.mp);
+      target.mp += restored;
+      actor.inventory.splice(itemIndex, 1);
       return { used: true, message: `Restored ${restored} MP!` };
     }
-    if (item.id === "chimaeraWing") {
-      if (player.position.inDungeon) {
-        return { used: false, message: "Cannot use Chimaera Wing inside a dungeon!" };
-      }
-      // Chimaera Wing teleportation is handled by the scene;
-      // here we just consume the item and signal success.
-      player.inventory.splice(itemIndex, 1);
-      return { used: true, message: "The Chimaera Wing glows and whisks you away!", teleport: true };
-    }
     if (item.cureEffects) {
-      const cured = cureWithItem(player.activeEffects, item.id);
+      const cured = cureWithItem(target.activeEffects, item.id);
       if (cured.length === 0) {
         return { used: false, message: "No matching ailment to cure!" };
       }
-      player.inventory.splice(itemIndex, 1);
+      actor.inventory.splice(itemIndex, 1);
       return { used: true, message: `Cured: ${cured.join(", ")}!` };
     }
     // All other consumables restore HP (potion, greaterPotion, etc.)
-    if (player.hp >= player.maxHp) {
+    if (target.hp >= target.maxHp) {
       return { used: false, message: "HP is already full!" };
     }
-    const healed = Math.min(item.effect, player.maxHp - player.hp);
-    player.hp += healed;
-    player.inventory.splice(itemIndex, 1);
+    const healed = Math.min(item.effect, target.maxHp - target.hp);
+    target.hp += healed;
+    actor.inventory.splice(itemIndex, 1);
     return { used: true, message: `Healed ${healed} HP!` };
   }
 
   if (item.type === "weapon") {
     // If equipping a two-handed weapon, unequip shield and off-hand
-    if (item.twoHanded && player.equippedShield) {
-      player.equippedShield = null;
+    if (item.twoHanded && actor.equippedShield) {
+      actor.equippedShield = null;
     }
-    if (item.twoHanded && player.equippedOffHand) {
-      player.equippedOffHand = null;
+    if (item.twoHanded && actor.equippedOffHand) {
+      actor.equippedOffHand = null;
     }
-    player.equippedWeapon = item;
+    actor.equippedWeapon = item;
     return { used: true, message: `Equipped ${item.name}!${item.twoHanded ? " (two-handed \u2014 shield & off-hand removed)" : ""}` };
   }
 
   if (item.type === "armor") {
-    player.equippedArmor = item;
+    actor.equippedArmor = item;
     return { used: true, message: `Equipped ${item.name}!` };
   }
 
   if (item.type === "shield") {
     // Cannot equip shield with a two-handed weapon
-    if (player.equippedWeapon?.twoHanded) {
+    if (actor.equippedWeapon?.twoHanded) {
       return { used: false, message: `Cannot equip shield with a two-handed weapon!` };
     }
     // Equipping a shield unequips the off-hand weapon
-    if (player.equippedOffHand) {
-      player.equippedOffHand = null;
+    if (actor.equippedOffHand) {
+      actor.equippedOffHand = null;
     }
-    player.equippedShield = item;
-    return { used: true, message: `Equipped ${item.name}!${player.equippedOffHand === null ? "" : ""}` };
+    actor.equippedShield = item;
+    return { used: true, message: `Equipped ${item.name}!` };
+  }
+
+  return { used: false, message: "Cannot use this item." };
+}
+
+/** Use an inventory item during battle without world-travel side effects. */
+export function useCombatItem(
+  actor: CombatActorState,
+  itemIndex: number,
+): UseItemResult {
+  return useCombatItemOnTarget(actor, itemIndex, actor);
+}
+
+/** Consume an actor's battle item while applying it to a selected ally. */
+export function useCombatItemOnTarget(
+  actor: CombatActorState,
+  itemIndex: number,
+  target: CombatItemTarget,
+): UseItemResult {
+  const item = getInventoryItem(actor, itemIndex, "useCombatItem");
+  if (item.id === "chimaeraWing" || item.type === "mount") {
+    return { used: false, message: `${item.name} cannot be used in battle.` };
+  }
+  if (item.type !== "consumable" && target !== actor) {
+    return {
+      used: false,
+      message: `${item.name} can only be equipped by the acting character.`,
+    };
+  }
+  return useStandardItem(actor, itemIndex, item, target);
+}
+
+/** Use an inventory item in the world or battle scene. */
+export function useItem(
+  player: PlayerState,
+  itemIndex: number
+): UseItemResult {
+  const item = getInventoryItem(player, itemIndex, "useItem");
+  if (item.id === "chimaeraWing") {
+    if (player.position.inDungeon) {
+      return { used: false, message: "Cannot use Chimaera Wing inside a dungeon!" };
+    }
+    player.inventory.splice(itemIndex, 1);
+    return {
+      used: true,
+      message: "The Chimaera Wing glows and whisks you away!",
+      teleport: true,
+    };
   }
 
   if (item.type === "mount") {
@@ -610,12 +715,12 @@ export function useItem(
     return { used: true, message: `You mount the ${mount.name}!` };
   }
 
-  return { used: false, message: "Cannot use this item." };
+  return useStandardItem(player, itemIndex, item);
 }
 
 /** Allocate one pending stat point to the given ability. Returns true if allocated. */
 export function allocateStatPoint(
-  player: PlayerState,
+  player: ProgressingActorState,
   stat: keyof PlayerStats
 ): boolean {
   if (player.pendingStatPoints <= 0) return false;

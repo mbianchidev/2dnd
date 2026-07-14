@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v2, migration, normalization, and location recovery
+description: Manage 2D&D save schema v5, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -16,7 +16,7 @@ preferences are stored separately by `src/systems/audio.ts`.
 
 ## Current schema
 
-`SAVE_VERSION` is 2.
+`SAVE_VERSION` is 6.
 
 ```typescript
 interface SaveData {
@@ -57,11 +57,22 @@ interface PlayerProgression {
   collectedTreasures: string[];
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
+  quests: QuestLogState;
+  skillChecks: Record<string, SkillCheckRecord>;
+  trapSeed: number;
+  trapStates: Record<string, TrapState>;
+  trapGuidance: boolean;
 }
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
-Codex entries persist `discoveredElements`.
+Codex entries persist `discoveredElements`. `PlayerState.party` persists unique
+companion states, active order, independent progression/inventories/equipment,
+control modes, dialogue state, and gambits. Quest progress stores status, stage,
+and reward-granted state for idempotent completion rewards.
+Fixed non-combat checks persist the
+ability, natural roll, modifier, repaired total, DC, outcome, and optional
+choice ID.
 
 ## Loading and migration
 
@@ -73,10 +84,16 @@ helpers; do not cast unvalidated nested values directly.
 - Legacy `bestiary` to `codex`
 - Legacy flat player position fields to `player.position`
 - Legacy flat progression fields to `player.progression`
+- Schema-v3 skill-check progression to schema-v4 quest + skill-check state
+- Schema-v3/v4 progression to schema-v5 explicit trap state
 - Missing equipment, talents, abilities, rests, bank, mount, and appearance
   fields
 - Missing/invalid active status effects
+- Missing/invalid party state and gambit rules
 - Missing/invalid Codex elemental discoveries
+- Missing, malformed, or unknown quest entries through `normalizeQuestLog()`
+- Missing/invalid non-combat skill-check records
+- Missing/invalid trap seed, state, and guidance fields
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
 
@@ -106,6 +123,10 @@ validation.
    corrupt-location recovery.
 7. Update README and repository instructions when the stored shape changes.
 
+For party data, normalize after quests, skill checks, and trap fields. Then
+replay completed `recruitCompanion` quest actions so v5 saves and debug-completed
+quests converge idempotently.
+
 Do not silently retain malformed data. Use a safe default or reject the save
 when the top-level payload is unusable.
 
@@ -115,6 +136,15 @@ when the top-level payload is unusable.
   `normalizeActiveEffects()`.
 - Filter Codex element values with `isElement()`.
 - Unknown values are discarded rather than asserted into the target type.
+
+## Skill-check rules
+
+- Normalize with `normalizeSkillCheckRecords()`.
+- Accept only Dexterity, Intelligence, Wisdom, or Charisma records with integer
+  d20 rolls, modifiers, and positive DCs.
+- Recompute `total` and `success` from the saved natural roll, modifier, and DC.
+- Trim optional choice IDs and discard malformed records.
+- Shop, NPC, chest, and treasure IDs must remain stable across content changes.
 
 ## API
 
@@ -135,12 +165,17 @@ top-level save is absent or corrupt.
 
 - Save/load round trips
 - Legacy flat-state migration
-- Schema-v2 position and progression data
+- Schema-v5 position, quest, skill-check, and trap progression
+- Schema-v3 skill-check saves gaining default normalized quest state
+- Schema-v4 quest saves gaining default trap state
+- Quest reward and skill-check record normalization
+- Trap seed/state/guidance normalization and seed-state cross-field repair
 - Dungeon-level and city-district clamping
 - Invalid IDs and coordinates
 - Conflicting location flags
 - Status-effect persistence and normalization
 - Codex elemental-discovery normalization
+- Missing and malformed skill-check normalization
 
 ## Common pitfalls
 
@@ -148,5 +183,7 @@ top-level save is absent or corrupt.
 - Forgetting the level or district when validating coordinates
 - Reusing city/dungeon fog keys across interiors
 - Keeping unknown status or element strings
+- Resetting valid quest progress while filling missing quest defaults
+- Retaining trap states after replacing a malformed trap seed
 - Storing Phaser objects or other non-serializable state
 - Mutating shared game-data definitions while repairing a save

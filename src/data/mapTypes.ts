@@ -3,6 +3,8 @@
  * Extracted to break circular dependencies between map sub-modules.
  */
 
+import type { DungeonTrapProfile } from "./trapTypes";
+
 export enum Terrain {
   Grass = 0,
   Forest = 1,
@@ -106,6 +108,8 @@ export interface DungeonData {
   bossId?: string;
   /** Explicit level transitions keyed by their source tile. */
   connections: DungeonConnection[];
+  /** Procedural trap population and difficulty for this dungeon. */
+  trapProfile: DungeonTrapProfile;
 }
 
 export type ChestLocation =
@@ -118,6 +122,14 @@ export interface ChestData {
   x: number;
   y: number;
   location: ChestLocation;
+  /** Dexterity DC for a locked or trapped chest. */
+  lockDc?: number;
+  /** Nonlethal damage taken when the lock check fails. */
+  trapDamage?: number;
+  /** Wisdom DC to notice a hidden compartment after opening. */
+  secretDc?: number;
+  /** Bonus gold found when the hidden-compartment check succeeds. */
+  secretGold?: number;
 }
 
 export interface CityShopData {

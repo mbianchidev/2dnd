@@ -17,6 +17,24 @@ import { SPELLS } from "../data/spells";
 import { ABILITIES } from "../data/abilities";
 import { PLAYER_CLASSES } from "./classes";
 import { TALENTS } from "../data/talents";
+import {
+  MAIN_QUEST_ID,
+  QUEST_IDS,
+  QUESTS,
+  SIDE_QUEST_ID,
+} from "../data/quests";
+import { advanceQuest, setQuestStageById, setQuestState } from "./quests";
+import type { QuestId, QuestStatus } from "../data/quests";
+import {
+  getCompanion,
+  recruitCompanion,
+  synchronizeCompanionRecruitment,
+} from "./party";
+import {
+  COMPANION_IDS,
+  isCompanionId,
+} from "../data/companions";
+import { formatGambitRule } from "./gambits";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -41,7 +59,7 @@ export interface HelpEntry {
 
 /**
  * Register the hotkeys that are common to every scene:
- *   G = +100 gold, H = full heal, P = restore MP, L = level up
+ *   G = +100 gold, H = full heal, O = restore MP, L = level up
  *
  * Returns the key objects so the caller can add more keys.
  */
@@ -52,7 +70,7 @@ export function registerSharedHotkeys(
 ): void {
   const gKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
   const hKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
-  const pKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+  const oKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.O);
   const lKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L);
 
   gKey.on("down", () => {
@@ -71,7 +89,7 @@ export function registerSharedHotkeys(
     cb.updateUI();
   });
 
-  pKey.on("down", () => {
+  oKey.on("down", () => {
     if (!isDebug()) return;
     player.mp = player.maxMp;
     debugLog("CHEAT: Restore MP");
@@ -497,6 +515,193 @@ export class DebugCommandSystem {
       }
     });
 
+    cmds.set("quest", (args) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const action = parts[0]?.toLowerCase() ?? "list";
+      const normalizeQuery = (value: string): string =>
+        value.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const resolveQuestId = (value: string | undefined): QuestId | undefined => {
+        if (!value) return undefined;
+        const normalized = normalizeQuery(value);
+        if (normalized === "main") return MAIN_QUEST_ID;
+        if (normalized === "side") return SIDE_QUEST_ID;
+        return QUEST_IDS.find((questId) =>
+          normalizeQuery(questId) === normalized
+          || normalizeQuery(QUESTS[questId].name) === normalized
+        );
+      };
+
+      if (action === "list") {
+        debugPanelLog("── Quest State ──", true);
+        for (const questId of QUEST_IDS) {
+          const quest = QUESTS[questId];
+          const progress = this.player.progression.quests[questId];
+          const stage = quest.stages[progress.stage];
+          debugPanelLog(
+            `  ${questId}: ${progress.status} ${progress.stage}/${quest.stages.length - 1} (${stage.id}: ${stage.title})`,
+            true,
+          );
+        }
+        return;
+      }
+
+      const questId = resolveQuestId(parts[1]);
+      if (!questId) {
+        debugPanelLog(
+          `Usage: /quest <list|advance|set> <${QUEST_IDS.join("|")}> [stage|locked|active|completed]`,
+          true,
+        );
+        return;
+      }
+
+      let result;
+      if (action === "advance") {
+        result = advanceQuest(this.player, questId);
+      } else if (action === "set") {
+        const targetArg = parts[2]?.toLowerCase();
+        const statuses: QuestStatus[] = ["locked", "active", "completed"];
+        const status = statuses.find((value) => value === targetArg);
+        if (status) {
+          result = setQuestState(this.player, questId, status);
+        } else if (targetArg && /^\d+$/.test(targetArg)) {
+          result = setQuestState(this.player, questId, Number.parseInt(targetArg, 10));
+        } else if (targetArg) {
+          const stageId = QUESTS[questId].stages.find(
+            (stage) => stage.id.toLowerCase() === targetArg,
+          )?.id;
+          result = stageId
+            ? setQuestStageById(this.player, questId, stageId)
+            : undefined;
+          if (!result) {
+            debugPanelLog(
+              `Unknown stage "${parts[2]}". Available: ${QUESTS[questId].stages.map((stage) => stage.id).join(", ")}`,
+              true,
+            );
+            return;
+          }
+        } else {
+          debugPanelLog(
+            `Usage: /quest set ${questId} <stage-number|stage-id|locked|active|completed>`,
+            true,
+          );
+          return;
+        }
+      } else {
+        debugPanelLog(
+          `Usage: /quest <list|advance|set> <${QUEST_IDS.join("|")}> [state]`,
+          true,
+        );
+        return;
+      }
+
+      debugPanelLog(`[CMD] ${result.line}`, true);
+      if (result.rewardText) {
+        debugPanelLog(`[CMD] Reward: ${result.rewardText}`, true);
+      }
+      if (result.changed) {
+        for (const recruitment of synchronizeCompanionRecruitment(this.player)) {
+          debugPanelLog(`[CMD] ${recruitment.message}`, true);
+        }
+        this.callbacks.autoSave();
+        this.callbacks.renderMap();
+        this.callbacks.applyDayNightTint();
+        this.callbacks.createPlayer();
+        this.callbacks.updateHUD();
+      }
+    });
+
+    cmds.set("companion", (args) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const action = parts[0]?.toLowerCase() ?? "list";
+      if (action === "list") {
+        debugPanelLog("── Companion State ──", true);
+        for (const companionId of COMPANION_IDS) {
+          const companion = getCompanion(this.player.party, companionId);
+          debugPanelLog(
+            companion
+              ? `  ${companionId}: Lv.${companion.level} ${companion.controlMode} HP ${companion.hp}/${companion.maxHp}`
+              : `  ${companionId}: not recruited`,
+            true,
+          );
+        }
+        return;
+      }
+      if (action === "recruit") {
+        const query = parts[1]?.toLowerCase();
+        const ids = query === "all"
+          ? [...COMPANION_IDS]
+          : isCompanionId(query) ? [query] : [];
+        if (ids.length === 0) {
+          debugPanelLog(
+            `Usage: /companion recruit <${COMPANION_IDS.join("|")}|all>`,
+            true,
+          );
+          return;
+        }
+        for (const companionId of ids) {
+          debugPanelLog(
+            `[CMD] ${recruitCompanion(this.player, companionId).message}`,
+            true,
+          );
+        }
+      } else if (action === "mode") {
+        const companionId = parts[1]?.toLowerCase();
+        const mode = parts[2]?.toLowerCase();
+        const companion = isCompanionId(companionId)
+          ? getCompanion(this.player.party, companionId)
+          : undefined;
+        if (!companion || (mode !== "manual" && mode !== "gambit")) {
+          debugPanelLog(
+            `Usage: /companion mode <${COMPANION_IDS.join("|")}> <manual|gambit>`,
+            true,
+          );
+          return;
+        }
+        companion.controlMode = mode;
+        debugPanelLog(
+          `[CMD] ${companion.name} control set to ${mode}`,
+          true,
+        );
+      } else if (action === "heal") {
+        this.player.hp = this.player.maxHp;
+        this.player.mp = this.player.maxMp;
+        for (const companion of this.player.party.companions) {
+          companion.hp = companion.maxHp;
+          companion.mp = companion.maxMp;
+        }
+        debugPanelLog("[CMD] Party fully restored", true);
+      } else if (action === "gambits") {
+        const companionId = parts[1]?.toLowerCase();
+        const companion = isCompanionId(companionId)
+          ? getCompanion(this.player.party, companionId)
+          : undefined;
+        if (!companion) {
+          debugPanelLog(
+            `Usage: /companion gambits <${COMPANION_IDS.join("|")}>`,
+            true,
+          );
+          return;
+        }
+        debugPanelLog(`── ${companion.name} Gambits ──`, true);
+        for (const rule of companion.gambits) {
+          debugPanelLog(
+            `  ${rule.rank}. ${rule.enabled ? "ON" : "OFF"} ${formatGambitRule(rule)}`,
+            true,
+          );
+        }
+      } else {
+        debugPanelLog(
+          "Usage: /companion <list|recruit|mode|heal|gambits>",
+          true,
+        );
+        return;
+      }
+      this.callbacks.autoSave();
+      this.callbacks.renderMap();
+      this.callbacks.createPlayer();
+      this.callbacks.updateHUD();
+    });
+
     cmds.set("spawn", (args) => {
       const query = args.trim().toLowerCase();
       if (!query) { debugPanelLog(`Usage: /spawn <monster|traveler|adventurer|merchant|hermit>`, true); return; }
@@ -666,11 +871,13 @@ export class DebugCommandSystem {
       { usage: "/item <id|all>", desc: "Add item (or all) to inventory" },
       { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
+      { usage: "/quest <cmd>", desc: "Quest: list | advance <id> | set <id> <state>" },
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
       { usage: "/mount <id>", desc: "Mount: donkey|horse|warHorse|shadowSteed|none" },
       { usage: "/codex all", desc: "Discover all codex entries" },
+      { usage: "/companion <cmd>", desc: "Companions: list|recruit|mode|heal|gambits" },
     ];
 
     registerCommandRouter(cmds, "Overworld", helpEntries);

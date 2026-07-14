@@ -289,8 +289,10 @@ export function applyBattleDayNightTint(
   biome: string,
   timeStep: number,
   bgImage: Phaser.GameObjects.Image | null,
-  monsterSprite: Phaser.GameObjects.Sprite,
-  monsterColor: number,
+  monsters: Array<{
+    sprite: Phaser.GameObjects.Sprite;
+    color: number;
+  }>,
   playerSprite: Phaser.GameObjects.Sprite,
 ): void {
   const period = biome === "dungeon" ? TimePeriod.Dungeon : getTimePeriod(timeStep);
@@ -299,11 +301,11 @@ export function applyBattleDayNightTint(
   if (bgImage) {
     bgImage.setTint(tint);
   }
-  // Tint monster sprite (blend with its color tint)
+  // Tint monster sprites (blend with each base color tint)
   if (tint !== 0xffffff) {
-    // Blend the monster's base color with the time-of-day tint
-    const blended = blendTints(monsterColor, tint);
-    monsterSprite.setTint(blended);
+    for (const monster of monsters) {
+      monster.sprite.setTint(blendTints(monster.color, tint));
+    }
     // Player sprite gets pure time tint
     playerSprite.setTint(tint);
   }

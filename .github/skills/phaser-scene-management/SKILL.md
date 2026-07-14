@@ -59,13 +59,19 @@ interface SharedSceneState {
 
 Scene-specific additions:
 
-- Battle: `monster`, `biome`
-- Shop: `townName`, optional item IDs, city context, discount
+- Battle: `encounter: MonsterEncounter`, `biome`, optional accessor-backed
+  `partyCombatants`, optional runtime-only `battleHooks`
+- Shop: `townName`, optional item IDs, city context, discount, and optional
+  stable `shopSkillCheckId`
 - Overworld: fields are optional only because Boot can create or load the
   initial state
 
 When a scene contract changes, update every `scene.start()` caller in the same
 change.
+
+`player.party` is persistent nested state and travels automatically with
+`player`. Battle may additionally receive runtime-only accessor-backed
+`partyCombatants`; never serialize those wrappers.
 
 ## Transition pattern
 
@@ -103,7 +109,14 @@ a restarted scene receives fresh helpers, then load persisted data into them:
 - `HUDRenderer`
 - `OverlayManager`
 - NPC and dialogue managers
+- `SkillCheckManager`
 - `DebugCommandSystem`
+- `CompanionFollowerManager`
+- `PartyOverlayManager`
+
+Battle delegates companion manual/gambit turn UI to `BattlePartyManager` and
+companion presentation to `BattlePartyRenderer`. Destroy their transient
+containers on scene exit/restart.
 
 Before replacing `FogOfWar` or `EncounterSystem`, preserve their debug toggle
 state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.
@@ -124,10 +137,30 @@ on mouse-wheel input.
 
 - Reinitialize phase, menus, turn flags, discoveries, and monster effects in
   `init()`.
-- Process player and monster statuses at actor-turn boundaries.
+- Build fresh per-monster combatants, sprites, text, status arrays, defend
+  flags, discovery state, and initiative order in `init()`.
+- Create the hero through `createHeroCombatant()` so HP/effects stay backed by
+  PlayerState; companion wrappers use the same `PartyCombatant` contract.
+- Process player and each monster's statuses at that actor's turn boundaries.
+- Dispatch initiative by `combatantId`. Companion turns route through
+  `onCompanionTurn`, which receives all actors plus execution/log adapters and
+  must call `completeTurn()`.
+- Companion turn context also supplies weather penalty, synergy defense, and
+  elemental-discovery adapters for `executeValidatedBattleAction()`.
+- Companion hooks use the pure `battleActions.ts` planner for gambit matching,
+  target validation, and action dispatch rather than scene-local rules.
+- BattleScene's hero action flags are backed by the same
+  `BattleActionEconomyState`; reset it at the start of each hero turn.
+- Skip defeated initiative entries and keep Player Defend active until the
+  next player turn.
+- Target mode supports pointer selection, arrows/WASD cycling, Enter/Space
+  confirmation, and Esc cancellation.
 - Keep bonus-action abilities and the first item use on the player turn.
 - Validate actions before consuming MP, items, or the turn.
-- Clear all combat effects before returning to Overworld.
+- Clear player and every monster's combat effects before returning to
+  Overworld.
+- Report victory, defeat, or flee once through `onBattleResolved`; reward
+  adjustment happens before XP/gold are granted.
 - Clean up weather emitters and timers owned by Battle.
 
 ## Debug and errors

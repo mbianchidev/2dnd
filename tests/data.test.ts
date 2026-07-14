@@ -54,6 +54,7 @@ import { SPELLS, getSpell, getAvailableSpells } from "../src/data/spells";
 import { ITEMS, getItem, getShopItems, getShopItemsForTown } from "../src/data/items";
 import { ABILITIES, getAbility } from "../src/data/abilities";
 import { PLAYER_CLASSES, getPlayerClass, CASTER_CLASSES } from "../src/systems/classes";
+import { TRAP_TYPES, getTrapDefinition } from "../src/data/traps";
 
 describe("game data", () => {
   describe("world map", () => {
@@ -410,6 +411,19 @@ describe("game data", () => {
     it("DungeonStairs and DungeonBoss have zero encounter rate", () => {
       expect(ENCOUNTER_RATES[Terrain.DungeonStairs]).toBe(0);
       expect(ENCOUNTER_RATES[Terrain.DungeonBoss]).toBe(0);
+    });
+
+    it("each dungeon defines a valid procedural trap profile", () => {
+      for (const dungeon of DUNGEONS) {
+        expect(dungeon.trapProfile.trapsPerLevel).toBeGreaterThanOrEqual(3);
+        expect(dungeon.trapProfile.types).toContain(
+          dungeon.trapProfile.thematicType,
+        );
+        for (const type of dungeon.trapProfile.types) {
+          expect(TRAP_TYPES).toContain(type);
+          expect(getTrapDefinition(type)).toBeDefined();
+        }
+      }
     });
   });
 

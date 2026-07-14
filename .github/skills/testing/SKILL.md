@@ -13,10 +13,16 @@ Write comprehensive tests for game mechanics using Vitest while avoiding UI/inte
 ### What TO Test
 ✅ Dice probability distributions
 ✅ Combat calculation accuracy  
+✅ Group initiative, formation, targeting, synergies, rewards, and encounter budgets
 ✅ Player stat progression
 ✅ XP and leveling formulas
+✅ Quest stages, rewards, gates, and save normalization
+✅ Companion definitions, party progression, transfers, KO/reward rules, and
+ranked gambit selection/normalization
 ✅ Data integrity (monsters, spells, items)
 ✅ Game logic functions
+✅ Seeded layouts and persistent state machines
+✅ Non-combat skill-check math, outcomes, and save normalization
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -31,9 +37,47 @@ Write comprehensive tests for game mechanics using Vitest while avoiding UI/inte
 tests/
 ├── dice.test.ts      # Dice rolling utilities
 ├── combat.test.ts    # Combat mechanics
+├── groupCombat.test.ts # Multi-monster combat rules
+├── battleActions.test.ts # Pure gambit planning and validation
+├── monsterGroups.test.ts # Group templates and generation
+├── partyCombat.test.ts # Stable actor IDs, ally scopes, AI, and result hooks
+├── party.test.ts     # Recruitment, progression, transfers, rests, KO/rewards
+├── companions.test.ts # Immutable companion definitions and loadouts
+├── gambits.test.ts   # Ranked conditions/actions/targets and normalization
+├── followers.test.ts # Pure non-blocking follower trail updates
 ├── player.test.ts    # Player systems
+├── traps.test.ts     # Dungeon trap placement, checks, and effects
+├── quests.test.ts    # Quest progression and integrity
+├── skillChecks.test.ts # Exploration/dialogue checks
+├── save.test.ts      # Persistence and migration
 └── data.test.ts      # Data validation
 ```
+
+## Skill Check Testing
+
+- Pass explicit natural d20 values to `resolveSkillCheck()`; do not depend on
+  randomness.
+- Verify total-vs-DC behavior, including that natural 1/20 are not automatic.
+- Test shop discounts for both successful and failed saved choices.
+- Validate NPC identities and chest metadata against live city/map data.
+- Test terrain event selection with explicit random values.
+- Cover reward bounds, nonlethal damage, save round trips, missing fields, and
+  malformed record repair.
+
+## Companion Testing
+
+- Use deterministic companion creation at explicit hero levels; verify
+  independent inventory objects and level-tier loadouts.
+- Test quest completion replay, reload, debug completion, and repeated replay
+  against the same unique recruited-ID guard.
+- Construct `BattleActionSource`/`PartyCombatant` adapters and verify HP/MP
+  writes reach the underlying companion state.
+- Test gambits as pure rank/condition/target selection. Invalid rules must not
+  mutate action economy, MP, inventory, or effects.
+- Cover living-vs-KO XP distribution, level-1 XP floor, party wipe recovery,
+  and party-wide inn rest.
+- Keep Phaser visuals in headless Chromium flows; pure trail positioning and UI
+  mutation helpers belong in Vitest.
 
 ## Dice Testing Patterns
 
@@ -372,6 +416,8 @@ npx vitest run --coverage
 6. **Mock randomness when needed** - Make tests deterministic
 7. **Keep tests fast** - Avoid delays, network calls
 8. **One assertion per test (when possible)** - Makes failures clear
+9. **Inject group RNG** - Initiative, weighted generation, and random-two
+   targeting helpers accept deterministic random functions
 
 ## Common Pitfalls
 

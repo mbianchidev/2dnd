@@ -17,6 +17,7 @@ import {
   getSpellModifier,
   getArmorClass,
   hasTwoWeaponFighting,
+  type CombatActorState,
   type PlayerState,
 } from "./player";
 import { abilityModifier } from "../systems/dice";
@@ -37,6 +38,7 @@ import {
   hasAttackDisadvantage,
 } from "./statusEffects";
 import type { ActiveStatusEffect } from "./statusEffects";
+import { getFleeDC } from "./groupCombat";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -56,14 +58,59 @@ export interface CombatResult {
   disadvantage?: boolean;
 }
 
-export interface CombatState {
-  playerTurn: boolean;
+export interface SpellTarget {
   monster: Monster;
-  monsterCurrentHp: number;
-  turnLog: string[];
-  isOver: boolean;
-  playerWon: boolean;
-  fled: boolean;
+  monsterEffects?: ActiveStatusEffect[];
+  /** Additional AC imposed by formation or other target-specific protection. */
+  acPenalty?: number;
+  weatherPenalty?: number;
+}
+
+export interface HealingTarget {
+  id: string;
+  label: string;
+  currentHp: number;
+  readonly maxHp: number;
+  effects?: ActiveStatusEffect[];
+}
+
+export interface HealingTargetResult {
+  targetIndex: number;
+  targetId: string;
+  healing: number;
+}
+
+export interface SpellEffectTargetResult {
+  targetIndex: number;
+  targetId: string;
+  effectId: string;
+  message: string;
+}
+
+export interface MonsterAttackTarget {
+  label: string;
+  currentHp: number;
+  readonly maxHp: number;
+  effects: ActiveStatusEffect[];
+  getArmorClass(defendBonus: number): number;
+}
+
+export interface SpellTargetResult extends CombatResult {
+  targetIndex: number;
+  spellMod?: number;
+  totalRoll?: number;
+  targetAC?: number;
+  autoHit?: boolean;
+}
+
+export interface MultiTargetSpellResult {
+  message: string;
+  damage: number;
+  hit: boolean;
+  mpUsed: number;
+  results: SpellTargetResult[];
+  healingResults: HealingTargetResult[];
+  effectResults?: SpellEffectTargetResult[];
 }
 
 // ── Shared Attack Resolution ──────────────────────────────────
@@ -166,7 +213,7 @@ export function rollInitiative(
 
 /** Player attacks the monster with a melee weapon. */
 export function playerAttack(
-  player: PlayerState,
+  player: CombatActorState,
   monster: Monster,
   monsterDefendBonus: number = 0,
   weatherPenalty: number = 0,
@@ -250,7 +297,7 @@ export function playerAttack(
  * Two-Weapon Fighting talent or the modifier is negative.
  */
 export function playerOffHandAttack(
-  player: PlayerState,
+  player: CombatActorState,
   monster: Monster,
   monsterDefendBonus: number = 0,
   weatherPenalty: number = 0,
@@ -336,19 +383,18 @@ export function playerOffHandAttack(
   };
 }
 
-/** Player casts a spell. */
-export function playerCastSpell(
-  player: PlayerState,
+/** Resolve one spell cast against zero or more targets, consuming MP once. */
+export function playerCastSpellAtTargets(
+  player: CombatActorState,
   spellId: string,
-  monster: Monster,
-  weatherPenalty: number = 0,
-  monsterEffects: ActiveStatusEffect[] = [],
-): CombatResult & { mpUsed: number; spellMod?: number; totalRoll?: number; targetAC?: number; autoHit?: boolean } {
-  if (!player || !monster) {
-    throw new Error(`[combat] playerCastSpell: missing player or monster`);
+  targets: SpellTarget[],
+  healingTargets?: HealingTarget[],
+): MultiTargetSpellResult {
+  if (!player) {
+    throw new Error("[combat] playerCastSpellAtTargets: missing player");
   }
   if (!spellId) {
-    throw new Error(`[combat] playerCastSpell: missing spellId`);
+    throw new Error("[combat] playerCastSpellAtTargets: missing spellId");
   }
   const spell = getSpell(spellId);
   if (!spell) {
@@ -357,6 +403,8 @@ export function playerCastSpell(
       damage: 0,
       hit: false,
       mpUsed: 0,
+      results: [],
+      healingResults: [],
     };
   }
 
@@ -366,6 +414,8 @@ export function playerCastSpell(
       damage: 0,
       hit: false,
       mpUsed: 0,
+      results: [],
+      healingResults: [],
     };
   }
 
@@ -376,26 +426,144 @@ export function playerCastSpell(
       damage: 0,
       hit: false,
       mpUsed: 0,
+      results: [],
+      healingResults: [],
     };
   }
 
   if (spell.type === "heal") {
+    const resolvedHealingTargets = healingTargets ?? [{
+      id: "party:hero",
+      label: player.name,
+      get currentHp(): number {
+        return player.hp;
+      },
+      set currentHp(value: number) {
+        player.hp = value;
+      },
+      get maxHp(): number {
+        return player.maxHp;
+      },
+      effects: player.activeEffects,
+    }];
+    if (resolvedHealingTargets.length === 0) {
+      return {
+        message: "No valid targets!",
+        damage: 0,
+        hit: false,
+        mpUsed: 0,
+        results: [],
+        healingResults: [],
+      };
+    }
     const healAmount = rollDice(
       spell.damageCount,
       spell.damageDie as DieType
     );
-    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
-    player.hp += actualHeal;
+    const healingResults = resolvedHealingTargets.map(
+      (target, targetIndex): HealingTargetResult => {
+        const actualHeal = Math.min(
+          healAmount,
+          target.maxHp - target.currentHp,
+        );
+        target.currentHp += actualHeal;
+        return {
+          targetIndex,
+          targetId: target.id,
+          healing: actualHeal,
+        };
+      },
+    );
     player.mp -= spell.mpCost;
     return {
-      message: `${player.name} casts ${spell.name}! Healed ${actualHeal} HP!`,
+      message: `${player.name} casts ${spell.name}!`,
       damage: 0,
       hit: true,
       mpUsed: spell.mpCost,
+      results: [],
+      healingResults,
     };
   }
 
-  // Damage spell - use spell attack roll
+  if (spell.type === "buff") {
+    if (!spell.targetEffect) {
+      return {
+        message: `${spell.name} has no effect!`,
+        damage: 0,
+        hit: false,
+        mpUsed: 0,
+        results: [],
+        healingResults: [],
+        effectResults: [],
+      };
+    }
+    const resolvedTargets = healingTargets ?? [{
+      id: "party:hero",
+      label: player.name,
+      get currentHp(): number {
+        return player.hp;
+      },
+      set currentHp(value: number) {
+        player.hp = value;
+      },
+      get maxHp(): number {
+        return player.maxHp;
+      },
+      effects: player.activeEffects,
+    }];
+    const effectResults = resolvedTargets.flatMap(
+      (target, targetIndex): SpellEffectTargetResult[] => {
+        if (!target.effects) return [];
+        const effectResult = applyStatusEffect(
+          target.effects,
+          spell.targetEffect!,
+          player.name,
+        );
+        return effectResult.applied
+          ? [{
+              targetIndex,
+              targetId: target.id,
+              effectId: spell.targetEffect!,
+              message: effectResult.message,
+            }]
+          : [];
+      },
+    );
+    if (effectResults.length === 0) {
+      return {
+        message: "No valid targets!",
+        damage: 0,
+        hit: false,
+        mpUsed: 0,
+        results: [],
+        healingResults: [],
+        effectResults: [],
+      };
+    }
+    player.mp -= spell.mpCost;
+    return {
+      message: `${player.name} casts ${spell.name}!`,
+      damage: 0,
+      hit: true,
+      mpUsed: spell.mpCost,
+      results: [],
+      healingResults: [],
+      effectResults,
+    };
+  }
+
+  if (targets.length === 0) {
+    return {
+      message: "No valid targets!",
+      damage: 0,
+      hit: false,
+      mpUsed: 0,
+      results: [],
+      healingResults: [],
+    };
+  }
+
+  // Damage spell - roll once, then resolve independently against each target.
   const playerEffects = player.activeEffects;
   const spellMod = getSpellModifier(player)
     + getEffectAccuracyModifier(playerEffects);
@@ -404,75 +572,127 @@ export function playerCastSpell(
   const roll = autoHit
     ? { roll: 0, total: 0, disadvantage: false }
     : rollCombatD20(spellMod, playerEffects);
-  const effectiveAC = monster.ac
-    + weatherPenalty
-    + getEffectACModifier(monsterEffects);
-  const outcome = autoHit
-    ? {
-        hit: true,
-        critical: false,
-        fumble: false,
-        roll: 0,
-        total: 0,
-      }
-    : resolveAttackRoll(roll, effectiveAC);
-
   player.mp -= spell.mpCost;
+  const talentDmg = getTalentDamageBonus(player.knownTalents);
+  const baseDamage = rollDice(
+    spell.damageCount,
+    spell.damageDie as DieType,
+  ) + talentDmg + statusDamage;
 
-  if (outcome.hit) {
-    const talentDmg = getTalentDamageBonus(player.knownTalents);
-    const baseDamage = rollDice(
-      spell.damageCount,
-      spell.damageDie as DieType,
-    ) + talentDmg + statusDamage;
-    const { damage, interaction: elementalLabel } = applyElementalModifier(
-      baseDamage,
-      spell.element,
-      monster.elementalProfile,
-    );
-    const elementalMessage = buildElementalMessage(
-      monster.name,
-      spell.element,
-      elementalLabel,
-    );
-    return {
-      message: `${player.name} casts ${spell.name}! ${damage} damage!${elementalMessage}`,
-      damage, hit: true, mpUsed: spell.mpCost,
+  const results = targets.map((target, targetIndex): SpellTargetResult => {
+    const effectiveAC = target.monster.ac
+      + (target.weatherPenalty ?? 0)
+      + (target.acPenalty ?? 0)
+      + getEffectACModifier(target.monsterEffects ?? []);
+    const outcome = autoHit
+      ? {
+          hit: true,
+          critical: false,
+          fumble: false,
+          roll: 0,
+          total: 0,
+        }
+      : resolveAttackRoll(roll, effectiveAC);
+    const meta = {
+      targetIndex,
       roll: autoHit ? undefined : roll.roll,
       spellMod,
       totalRoll: autoHit ? undefined : roll.total,
       targetAC: effectiveAC,
       autoHit,
-      elementalLabel,
       disadvantage: roll.disadvantage,
     };
-  }
+
+    if (!outcome.hit) {
+      return {
+        message: `${spell.name} misses ${target.monster.name}!`,
+        damage: 0,
+        hit: false,
+        ...meta,
+      };
+    }
+
+    const { damage, interaction: elementalLabel } = applyElementalModifier(
+      baseDamage,
+      spell.element,
+      target.monster.elementalProfile,
+    );
+    const elementalMessage = buildElementalMessage(
+      target.monster.name,
+      spell.element,
+      elementalLabel,
+    );
+    return {
+      message: `${target.monster.name} takes ${damage} damage!${elementalMessage}`,
+      damage,
+      hit: true,
+      elementalLabel,
+      ...meta,
+    };
+  });
 
   return {
-    message: `${player.name} casts ${spell.name} but it misses!`,
-    damage: 0, hit: false, mpUsed: spell.mpCost, roll: roll.roll,
-    spellMod, totalRoll: roll.total, targetAC: effectiveAC, autoHit: false,
-    disadvantage: roll.disadvantage,
+    message: `${player.name} casts ${spell.name}!`,
+    damage: results.reduce((total, result) => total + result.damage, 0),
+    hit: results.some((result) => result.hit),
+    mpUsed: spell.mpCost,
+    results,
+    healingResults: [],
   };
 }
 
-/** Monster attacks the player. Returns roll breakdown for debug logging.
+/** Backward-compatible single-target spell wrapper. */
+export function playerCastSpell(
+  player: CombatActorState,
+  spellId: string,
+  monster: Monster,
+  weatherPenalty: number = 0,
+  monsterEffects: ActiveStatusEffect[] = [],
+): CombatResult & { mpUsed: number; spellMod?: number; totalRoll?: number; targetAC?: number; autoHit?: boolean } {
+  if (!player || !monster) {
+    throw new Error("[combat] playerCastSpell: missing player or monster");
+  }
+  const result = playerCastSpellAtTargets(player, spellId, [{
+    monster,
+    weatherPenalty,
+    monsterEffects,
+  }]);
+  const targetResult = result.results[0];
+  if (!targetResult) {
+    return {
+      message: result.message,
+      damage: result.damage,
+      hit: result.hit,
+      mpUsed: result.mpUsed,
+    };
+  }
+  return {
+    ...targetResult,
+    message: `${result.message} ${targetResult.message}`,
+    mpUsed: result.mpUsed,
+  };
+}
+
+/** Monster attacks a party combatant. Returns roll breakdown for debug logging.
  *  weatherPenalty raises the effective AC the monster must beat.
  *  monsterAtkBoost comes from weather affinity. */
-export function monsterAttack(
+export function monsterAttackTarget(
   monster: Monster,
-  player: PlayerState,
+  target: MonsterAttackTarget,
   playerDefendBonus: number = 0,
   weatherPenalty: number = 0,
   monsterAtkBoost: number = 0,
   monsterEffects: ActiveStatusEffect[] = [],
+  synergyAttackBonus: number = 0,
+  synergyDamageBonus: number = 0,
 ): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
-  if (!monster || !player) {
-    throw new Error(`[combat] monsterAttack: missing monster or player`);
+  if (!monster || !target) {
+    throw new Error("[combat] monsterAttackTarget: missing monster or target");
   }
-  const playerAC = getArmorClass(player, playerDefendBonus) + weatherPenalty;
+  const playerAC = target.getArmorClass(playerDefendBonus) + weatherPenalty;
   const effectiveAtkBonus = monster.attackBonus
     + monsterAtkBoost
+    + synergyAttackBonus
     + getEffectAccuracyModifier(monsterEffects);
   const roll = rollCombatD20(effectiveAtkBonus, monsterEffects);
   const outcome = resolveAttackRoll(roll, playerAC);
@@ -495,13 +715,13 @@ export function monsterAttack(
       monster.damageCount,
       monster.damageDie,
       outcome.critical,
-      getEffectDamageModifier(monsterEffects),
+      getEffectDamageModifier(monsterEffects) + synergyDamageBonus,
     );
-    player.hp = Math.max(0, player.hp - damage);
+    target.currentHp = Math.max(0, target.currentHp - damage);
     const prefix = outcome.critical ? "CRITICAL! " : "";
-    const verb = outcome.critical ? "savages you" : "hits you";
+    const verb = outcome.critical ? "savages" : "hits";
     return {
-      message: `${prefix}${monster.name} ${verb} for ${damage} damage!`,
+      message: `${prefix}${monster.name} ${verb} ${target.label} for ${damage} damage!`,
       damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
     };
   }
@@ -512,8 +732,50 @@ export function monsterAttack(
   };
 }
 
-/** Attempt to flee from combat. DC 10 DEX check. */
-export function attemptFlee(dexModifier: number): {
+/** Backward-compatible PlayerState monster-attack adapter. */
+export function monsterAttack(
+  monster: Monster,
+  player: PlayerState,
+  playerDefendBonus: number = 0,
+  weatherPenalty: number = 0,
+  monsterAtkBoost: number = 0,
+  monsterEffects: ActiveStatusEffect[] = [],
+  synergyAttackBonus: number = 0,
+  synergyDamageBonus: number = 0,
+): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
+  return monsterAttackTarget(
+    monster,
+    {
+      label: player.name,
+      get currentHp(): number {
+        return player.hp;
+      },
+      set currentHp(value: number) {
+        player.hp = value;
+      },
+      get maxHp(): number {
+        return player.maxHp;
+      },
+      get effects(): ActiveStatusEffect[] {
+        return player.activeEffects;
+      },
+      set effects(value: ActiveStatusEffect[]) {
+        player.activeEffects = value;
+      },
+      getArmorClass: (defendBonus: number): number =>
+        getArmorClass(player, defendBonus),
+    },
+    playerDefendBonus,
+    weatherPenalty,
+    monsterAtkBoost,
+    monsterEffects,
+    synergyAttackBonus,
+    synergyDamageBonus,
+  );
+}
+
+/** Attempt to flee from combat. Larger living groups raise the DEX-check DC. */
+export function attemptFlee(dexModifier: number, aliveCount: number = 1): {
   success: boolean;
   message: string;
 } {
@@ -521,12 +783,13 @@ export function attemptFlee(dexModifier: number): {
     throw new Error(`[combat] attemptFlee: invalid dexModifier ${dexModifier}`);
   }
   const roll = rollD20(dexModifier);
-  if (roll.total >= 10) {
+  const dc = getFleeDC(aliveCount);
+  if (roll.total >= dc) {
     return { success: true, message: `Escaped! (rolled ${roll.total})` };
   }
   return {
     success: false,
-    message: `Failed to escape! (rolled ${roll.total}, needed 10)`,
+    message: `Failed to escape! (rolled ${roll.total}, needed ${dc})`,
   };
 }
 
@@ -534,12 +797,19 @@ export function attemptFlee(dexModifier: number): {
 
 /** Player uses a martial ability. */
 export function playerUseAbility(
-  player: PlayerState,
+  player: CombatActorState,
   abilityId: string,
   monster: Monster,
   weatherPenalty: number = 0,
   monsterEffects: ActiveStatusEffect[] = [],
-): CombatResult & { mpUsed: number; attackMod?: number; totalRoll?: number; targetAC?: number } {
+  healingTargets?: HealingTarget[],
+): CombatResult & {
+  mpUsed: number;
+  attackMod?: number;
+  totalRoll?: number;
+  targetAC?: number;
+  healingResults?: HealingTargetResult[];
+} {
   if (!player || !monster) {
     throw new Error(`[combat] playerUseAbility: missing player or monster`);
   }
@@ -590,13 +860,50 @@ export function playerUseAbility(
 
   // Heal abilities
   if (ability.type === "heal") {
+    const targets = healingTargets ?? [{
+      id: "party:hero",
+      label: player.name,
+      get currentHp(): number {
+        return player.hp;
+      },
+      set currentHp(value: number) {
+        player.hp = value;
+      },
+      get maxHp(): number {
+        return player.maxHp;
+      },
+    }];
+    if (targets.length === 0) {
+      return {
+        message: "No valid targets!",
+        damage: 0,
+        hit: false,
+        mpUsed: 0,
+        healingResults: [],
+      };
+    }
     const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
-    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
-    player.hp += actualHeal;
+    const healingResults = targets.map(
+      (target, targetIndex): HealingTargetResult => {
+        const actualHeal = Math.min(
+          healAmount,
+          target.maxHp - target.currentHp,
+        );
+        target.currentHp += actualHeal;
+        return {
+          targetIndex,
+          targetId: target.id,
+          healing: actualHeal,
+        };
+      },
+    );
     player.mp -= ability.mpCost;
     return {
-      message: `${player.name} uses ${ability.name}! Healed ${actualHeal} HP!`,
-      damage: 0, hit: true, mpUsed: ability.mpCost,
+      message: `${player.name} uses ${ability.name}!`,
+      damage: 0,
+      hit: true,
+      mpUsed: ability.mpCost,
+      healingResults,
     };
   }
 
@@ -686,12 +993,13 @@ export interface MonsterAbilityResult {
   element?: Element;
 }
 
-/** Monster uses a special ability instead of its basic attack. */
-export function monsterUseAbility(
+/** Monster uses a special ability against a party combatant. */
+export function monsterUseAbilityTarget(
   ability: MonsterAbility,
   monster: Monster,
-  player: PlayerState,
+  target: MonsterAttackTarget,
   monsterEffects: ActiveStatusEffect[] = [],
+  synergyDamageBonus: number = 0,
 ): MonsterAbilityResult {
   if (ability.type === "heal") {
     const healing = rollDice(ability.damageCount, ability.damageDie);
@@ -708,9 +1016,10 @@ export function monsterUseAbility(
   const damage = Math.max(
     0,
     rollDice(ability.damageCount, ability.damageDie)
-      + getEffectDamageModifier(monsterEffects),
+      + getEffectDamageModifier(monsterEffects)
+      + synergyDamageBonus,
   );
-  player.hp = Math.max(0, player.hp - damage);
+  target.currentHp = Math.max(0, target.currentHp - damage);
 
   const selfHealMsg = ability.selfHeal
     ? ` ${monster.name} absorbs the life force!`
@@ -721,7 +1030,7 @@ export function monsterUseAbility(
   let statusMessage = "";
   if (ability.statusEffect && damage > 0) {
     const effectResult = applyStatusEffect(
-      player.activeEffects,
+      target.effects,
       ability.statusEffect,
       monster.name,
     );
@@ -735,4 +1044,40 @@ export function monsterUseAbility(
     abilityName: ability.name,
     element: ability.element,
   };
+}
+
+/** Backward-compatible PlayerState monster-ability adapter. */
+export function monsterUseAbility(
+  ability: MonsterAbility,
+  monster: Monster,
+  player: PlayerState,
+  monsterEffects: ActiveStatusEffect[] = [],
+  synergyDamageBonus: number = 0,
+): MonsterAbilityResult {
+  return monsterUseAbilityTarget(
+    ability,
+    monster,
+    {
+      label: player.name,
+      get currentHp(): number {
+        return player.hp;
+      },
+      set currentHp(value: number) {
+        player.hp = value;
+      },
+      get maxHp(): number {
+        return player.maxHp;
+      },
+      get effects(): ActiveStatusEffect[] {
+        return player.activeEffects;
+      },
+      set effects(value: ActiveStatusEffect[]) {
+        player.activeEffects = value;
+      },
+      getArmorClass: (defendBonus: number): number =>
+        getArmorClass(player, defendBonus),
+    },
+    monsterEffects,
+    synergyDamageBonus,
+  );
 }

@@ -12,6 +12,16 @@ import { CYCLE_LENGTH } from "../systems/daynight";
 import { getInnCost } from "../data/map";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { audioEngine } from "../systems/audio";
+import {
+  SHOP_NEGOTIATION_OPTIONS,
+  type ShopNegotiationOption,
+} from "../data/skillChecks";
+import {
+  formatSkillCheckResult,
+  getShopNegotiationDiscount,
+  rollSkillCheck,
+} from "../systems/skillChecks";
+import { saveGame } from "../systems/save";
 
 export class ShopScene extends Phaser.Scene {
   private player!: PlayerState;
@@ -32,10 +42,13 @@ export class ShopScene extends Phaser.Scene {
   private fromCity = false;
   private cityId = "";
   private discount = 0;
+  private shopSkillCheckId = "";
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
   private mode: "buy" | "sell" = "buy"; // Current shop mode
   private buyTabButton!: Phaser.GameObjects.Text;
   private sellTabButton!: Phaser.GameObjects.Text;
+  private negotiateButton?: Phaser.GameObjects.Text;
+  private negotiationOverlay: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super({ key: "ShopScene" });
@@ -52,6 +65,7 @@ export class ShopScene extends Phaser.Scene {
     fromCity?: boolean;
     cityId?: string;
     discount?: number;
+    shopSkillCheckId?: string;
     savedSpecialNpcs?: SavedSpecialNpc[];
   }): void {
     this.player = data.player;
@@ -62,8 +76,16 @@ export class ShopScene extends Phaser.Scene {
     this.weatherState = data.weatherState ?? createWeatherState();
     this.fromCity = data.fromCity ?? false;
     this.cityId = data.cityId ?? "";
-    this.discount = data.discount ?? 0;
+    this.shopSkillCheckId = data.shopSkillCheckId ?? "";
+    const savedNegotiation = this.shopSkillCheckId
+      ? this.player.progression.skillChecks[this.shopSkillCheckId]
+      : undefined;
+    this.discount = Math.max(
+      data.discount ?? 0,
+      getShopNegotiationDiscount(savedNegotiation),
+    );
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
+    this.negotiationOverlay = null;
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -163,6 +185,18 @@ export class ShopScene extends Phaser.Scene {
         padding: { x: 8, y: 4 },
       })
       .setInteractive({ useHandCursor: true });
+
+    if (this.shopSkillCheckId) {
+      this.negotiateButton = this.add
+        .text(w * 0.39 + 178, tabY, "", {
+          fontSize: "12px",
+          fontFamily: "monospace",
+          color: "#88ddff",
+          backgroundColor: "#2a2a4a",
+          padding: { x: 8, y: 5 },
+        });
+      this.refreshNegotiationButton();
+    }
 
     this.buyTabButton.on("pointerdown", () => this.switchMode("buy"));
     this.sellTabButton.on("pointerdown", () => this.switchMode("sell"));
@@ -269,6 +303,169 @@ export class ShopScene extends Phaser.Scene {
     }
     
     this.renderItems();
+  }
+
+  private refreshNegotiationButton(): void {
+    if (!this.negotiateButton || !this.shopSkillCheckId) return;
+
+    const record = this.player.progression.skillChecks[this.shopSkillCheckId];
+    if (!record) {
+      this.negotiateButton
+        .setText("💬 Negotiate")
+        .setColor("#88ddff")
+        .setInteractive({ useHandCursor: true });
+      this.negotiateButton.removeAllListeners();
+      this.negotiateButton.on("pointerover", () => {
+        this.negotiateButton?.setColor("#ffd700");
+      });
+      this.negotiateButton.on("pointerout", () => {
+        this.negotiateButton?.setColor("#88ddff");
+      });
+      this.negotiateButton.on("pointerdown", () => {
+        this.showNegotiationOptions();
+      });
+      return;
+    }
+
+    this.negotiateButton.removeAllListeners();
+    this.negotiateButton.disableInteractive();
+    const discount = getShopNegotiationDiscount(record);
+    if (discount > 0) {
+      this.negotiateButton
+        .setText(`Deal: -${Math.round(discount * 100)}%`)
+        .setColor("#88ff88");
+    } else {
+      this.negotiateButton
+        .setText("Negotiation failed")
+        .setColor("#ff8888");
+    }
+  }
+
+  private showNegotiationOptions(): void {
+    if (
+      !this.shopSkillCheckId
+      || this.player.progression.skillChecks[this.shopSkillCheckId]
+      || this.negotiationOverlay
+    ) {
+      return;
+    }
+
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const boxW = 390;
+    const boxH = 142;
+    const boxX = (w - boxW) / 2;
+    const boxY = (h - boxH) / 2;
+    const container = this.add.container(0, 0).setDepth(50);
+    this.negotiationOverlay = container;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.98);
+    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
+    bg.lineStyle(2, 0xc0a060, 1);
+    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
+    container.add(bg);
+
+    container.add(
+      this.add
+        .text(
+          boxX + boxW / 2,
+          boxY + 10,
+          "Choose one approach. You get one attempt at this shop.",
+          {
+            fontSize: "12px",
+            fontFamily: "monospace",
+            color: "#ffd700",
+          },
+        )
+        .setOrigin(0.5, 0),
+    );
+
+    SHOP_NEGOTIATION_OPTIONS.forEach((option, index) => {
+      const percent = Math.round(option.discount * 100);
+      const button = this.add
+        .text(
+          boxX + boxW / 2,
+          boxY + 38 + index * 32,
+          `${option.label} (CHA DC ${option.dc}) — ${percent}% off\n${option.description}`,
+          {
+            fontSize: "11px",
+            fontFamily: "monospace",
+            color: "#88ddff",
+            align: "center",
+            backgroundColor: "#2a2a4e",
+            padding: { x: 10, y: 3 },
+          },
+        )
+        .setOrigin(0.5, 0)
+        .setInteractive({ useHandCursor: true });
+      button.on("pointerover", () => button.setColor("#ffd700"));
+      button.on("pointerout", () => button.setColor("#88ddff"));
+      button.on("pointerdown", () => {
+        this.resolveNegotiation(option);
+      });
+      container.add(button);
+    });
+
+    const cancelButton = this.add
+      .text(boxX + boxW / 2, boxY + boxH - 22, "Cancel", {
+        fontSize: "11px",
+        fontFamily: "monospace",
+        color: "#ff8888",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 12, y: 3 },
+      })
+      .setOrigin(0.5, 0)
+      .setInteractive({ useHandCursor: true });
+    cancelButton.on("pointerover", () => cancelButton.setColor("#ffd700"));
+    cancelButton.on("pointerout", () => cancelButton.setColor("#ff8888"));
+    cancelButton.on("pointerdown", () => {
+      container.destroy();
+      this.negotiationOverlay = null;
+    });
+    container.add(cancelButton);
+  }
+
+  private resolveNegotiation(option: ShopNegotiationOption): void {
+    if (
+      !this.shopSkillCheckId
+      || this.player.progression.skillChecks[this.shopSkillCheckId]
+    ) {
+      return;
+    }
+
+    const result = rollSkillCheck(
+      this.player.stats,
+      "charisma",
+      option.dc,
+      { optionId: option.id },
+    );
+    this.player.progression.skillChecks[this.shopSkillCheckId] = result;
+    this.discount = Math.max(
+      this.discount,
+      getShopNegotiationDiscount(result),
+    );
+
+    this.negotiationOverlay?.destroy();
+    this.negotiationOverlay = null;
+    this.refreshNegotiationButton();
+    this.renderItems();
+
+    const outcome = result.success
+      ? `${option.label} succeeded. Prices are ${Math.round(option.discount * 100)}% lower.`
+      : `${option.label} failed. The shopkeeper will not renegotiate.`;
+    this.setMessage(
+      `Charisma check (${formatSkillCheckResult(result)}): ${outcome}`,
+      result.success ? "#88ff88" : "#ff8888",
+    );
+    saveGame(
+      this.player,
+      this.defeatedBosses,
+      this.codex,
+      this.player.appearanceId,
+      this.timeStep,
+      this.weatherState,
+    );
   }
 
   /** Get the icon for an item type. */

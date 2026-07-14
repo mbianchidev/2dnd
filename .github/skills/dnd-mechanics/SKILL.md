@@ -46,6 +46,23 @@ Character creation supports:
 The class `primaryStat` is used for attack/to-hit calculations where the
 specific action does not override the stat.
 
+## Non-combat ability checks
+
+Use `src/systems/skillChecks.ts` for exploration and dialogue checks:
+
+```typescript
+total = naturalD20 + abilityModifier(player.stats[ability]);
+success = total >= dc;
+```
+
+- Dexterity: lockpicking, trap disarming, and escaping hazards
+- Wisdom: hidden loot, paths, passages, and exploration events
+- Charisma: Persuade/Bluff NPC outcomes and shop negotiation
+- Natural 1 and 20 do not automatically fail or succeed on these checks
+- Fixed outcomes are one-time and persist in
+  `player.progression.skillChecks`
+- Exploration damage is nonlethal and cannot reduce the player below 1 HP
+
 ## Core combat
 
 - Attack rolls use d20 + ability modifier + proficiency/bonuses.
@@ -55,6 +72,12 @@ specific action does not override the stat.
 - Spells consume MP rather than spell slots.
 - Armor Class comes from base AC, Dexterity, equipment, talents, active
   statuses, and temporary defense bonuses.
+- Group initiative rolls once for the player and once per monster, then
+  interleaves all actors by total using stable combatant IDs. Companion actors
+  use the same initiative contract.
+- Melee must clear the front row before attacking the back row. Once exposed,
+  back-row melee targets impose -2 to the attack roll; ranged attacks and
+  spells ignore this formation penalty.
 
 Use the combat functions in `src/systems/combat.ts`; do not reimplement formulas
 inside scenes.
@@ -67,6 +90,10 @@ first die rolled.
 
 Poisoned, Frightened, and Prone currently impose attack disadvantage. Magic
 Missile is auto-hit and bypasses attack-roll disadvantage.
+AoE spells pay MP once and share one attack/damage roll, while elemental
+resistance, weakness, and immunity resolve independently per target.
+Healing target scopes are explicit: self, one ally, all allies, or the whole
+party. A single-ally action falls back to self when no ally is present.
 
 ## Elements
 
@@ -113,6 +140,7 @@ Buffs:
 
 - Enraged: increased damage and reduced AC
 - Hasted: increased accuracy and AC
+- Inspired: increased accuracy and damage
 - Raging: increased damage
 - Sneak Stance: increased AC
 
@@ -125,6 +153,22 @@ Lifecycle for each actor:
 A one-turn stun therefore skips exactly one actor turn. Cure items remove only
 matching effects. Combat effects are cleared when leaving Battle.
 
+## Dungeon trap checks
+
+- Detection and disarming use d20 + the configured Dexterity or Intelligence
+  modifier through `resolveSkillCheck()` / `rollSkillCheck()` with a validated
+  situational modifier.
+- Trap Kits, Natural Explorer, Cunning Action, and persistent Adventurer
+  guidance add their defined bonuses; Danger Sense detects automatically.
+- Failed detection persists in authoritative `trapStates`, so checks cannot be
+  farmed by stepping away or reloading.
+- Successful disarming awards XP through `awardXP()`.
+- Trigger damage and MP loss apply immediately and cannot reduce HP below 1.
+  Trap-applied statuses seed the next battle and then follow the existing
+  combat-turn lifecycle.
+- Alarm traps replace the normal encounter roll with a forced dungeon
+  encounter. Hidden floors use the next level's validated spawn.
+
 ## Action economy
 
 - Attack, spell, defend, flee, and normal abilities consume the action.
@@ -132,6 +176,32 @@ matching effects. Combat effects are cleared when leaving Battle.
 - The first item use in a turn is a bonus action.
 - Invalid spell/ability/item choices must not consume MP, inventory, or turn
   state.
+- Every party actor owns an immutable one-action/one-bonus-action economy.
+  Manual and gambit-controlled companion actions use the same validator and
+  executor as the hero-compatible battle contracts.
+
+## Companion progression
+
+- Recruits match the hero level deterministically, then gain XP and levels
+  independently.
+- Living party members receive battle XP. A KO member receives no victory XP
+  and resets to the current-level XP floor (`0` at level 1).
+- Full defeat occurs only when every active party actor is KO. Inn rest revives,
+  restores, and processes pending levels for all recruited companions.
+- Party-wide heal/buff spells consume MP once and resolve each valid target.
+- Gambit and UI actions pass through `validateBattleAction()` before execution;
+  validated plans bind stable actor/target IDs and declare action or bonus
+  action cost.
+- `BattleActionEconomyState` tracks one action and one bonus action per actor;
+  consuming a bonus action leaves the main action available for lower-ranked
+  gambits.
+- Generic outbound actors execute validated plans through the same d20, AC,
+  element, status, healing, MP, inventory, and defend paths as the hero.
+- Battle consumables use item-declared target scopes. Ally items fall back to
+  self when solo, self-only items remain self, and inventory ownership stays
+  separate from the effect target.
+- Flee DC is 10 for one monster and increases by 2 for each additional living
+  monster. Boss encounters cannot be fled.
 
 ## Leveling
 
@@ -150,6 +220,11 @@ Use deterministic dice mocks for:
 - Status plus elemental damage ordering
 - Bonus-action scheduling
 - MP and inventory consumption on invalid actions
+- Seeded trap placement, one-shot checks, modifiers, nonlethal consequences,
+ alarm suppression, and hidden-floor destinations
+- Ability modifiers, DC boundaries, persistent negotiation choices, and
+ nonlethal exploration damage
 
 Relevant suites include `combat.test.ts`, `dice.test.ts`, `elements.test.ts`,
-`statusEffects.test.ts`, and `player.test.ts`.
+`statusEffects.test.ts`, `skillChecks.test.ts`, `player.test.ts`, and
+`traps.test.ts`.

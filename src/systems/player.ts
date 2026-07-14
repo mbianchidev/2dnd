@@ -22,6 +22,7 @@ import {
 } from "./statusEffects";
 import type { QuestLogState } from "../data/quests";
 import type { ActiveStatusEffect } from "./statusEffects";
+import type { PartyState } from "./party";
 
 export interface PlayerStats {
   strength: number;
@@ -116,6 +117,7 @@ export interface PlayerState {
   shortRestsRemaining: number; // short rests available (max 2, reset on inn long rest)
   pendingLevelUps: number; // levels earned but not yet applied (applied on rest)
   activeEffects: ActiveStatusEffect[];
+  party: PartyState;
 }
 
 /** Mutable actor state required by reusable battle action resolvers. */
@@ -138,6 +140,11 @@ export type CombatActorState = Pick<
   | "equippedShield"
   | "appearanceId"
   | "activeEffects"
+>;
+
+export type ProgressingActorState = CombatActorState & Pick<
+  PlayerState,
+  "xp" | "pendingStatPoints" | "pendingLevelUps"
 >;
 
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
@@ -248,6 +255,10 @@ export function createPlayer(
     shortRestsRemaining: 2,
     pendingLevelUps: 0,
     activeEffects: [],
+    party: {
+      companions: [],
+      activeCompanionIds: [],
+    },
   };
 }
 
@@ -342,7 +353,7 @@ export function equipOffHand(
 
 /** Award XP and track pending level-ups. Actual leveling happens during rest. */
 export function awardXP(
-  player: PlayerState,
+  player: ProgressingActorState,
   amount: number
 ): { pendingLevels: number } {
   if (!player) {
@@ -371,7 +382,7 @@ export function awardXP(
  * Returns details for the UI to display.
  */
 export function processPendingLevelUps(
-  player: PlayerState
+  player: ProgressingActorState
 ): { leveledUp: boolean; newLevel: number; newSpells: Spell[]; newAbilities: Ability[]; newTalents: Talent[]; asiGained: number } {
   const pending = player.pendingLevelUps ?? 0;
   if (pending <= 0) {
@@ -709,7 +720,7 @@ export function useItem(
 
 /** Allocate one pending stat point to the given ability. Returns true if allocated. */
 export function allocateStatPoint(
-  player: PlayerState,
+  player: ProgressingActorState,
   stat: keyof PlayerStats
 ): boolean {
   if (player.pendingStatPoints <= 0) return false;

@@ -16,7 +16,8 @@ focused module.
 D&D 5E-inspired combat. It has turn-based battles, point-buy characters,
 procedural graphics/audio, weather, day/night, a 90-chunk world, connected city
 districts, multi-level dungeons, procedural traps, non-combat skill checks,
-elemental interactions, status effects, and boss fights.
+quest-recruited companions, ranked gambits, elemental interactions, status
+effects, and boss fights.
 
 ## Stack
 
@@ -43,6 +44,8 @@ src/
 │   ├── combat.ts
 │   ├── groupCombat.ts
 │   ├── battleActions.ts
+│   ├── party.ts
+│   ├── gambits.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
 │   ├── save.ts
@@ -71,6 +74,7 @@ src/
 │   ├── spells.ts
 │   ├── abilities.ts
 │   ├── items.ts
+│   ├── companions.ts
 │   ├── mounts.ts
 │   ├── npcs.ts
 │   ├── skillChecks.ts
@@ -84,6 +88,10 @@ tests/
 ├── groupCombat.test.ts
 ├── battleActions.test.ts
 ├── partyCombat.test.ts
+├── party.test.ts
+├── companions.test.ts
+├── gambits.test.ts
+├── followers.test.ts
 ├── monsterGroups.test.ts
 ├── encounter.test.ts
 ├── targeting.test.ts
@@ -138,6 +146,8 @@ rendering and scene-owned state to `renderers/` and `managers/`.
   shop/city context.
 - Battle may also receive accessor-backed `partyCombatants` and runtime-only
   `battleHooks`; these are scene contracts, not persisted save fields.
+- Persistent companions live inside `player.party`, so every existing
+  state-bearing transition carries them through the same `player` object.
 - Generate textures in `src/renderers/textures.ts`, invoked by Boot.
 - Synthesize all audio in `src/systems/audio.ts`.
 - Store Phaser object references needed for later update/cleanup.
@@ -179,6 +189,32 @@ interface PlayerProgression {
 
 Access fields through `player.position` and `player.progression`.
 `player.activeEffects` stores normalized combat effects.
+`player.party` stores unique recruited companion states and up to three active
+companion IDs. Companion state composes `CombatActorState` plus independent XP,
+level-up/stat state, control mode, dialogue cursor, and normalized gambits.
+
+## Companions and gambits
+
+- Stable companion IDs are `guardian`, `scout`, and `mystic`.
+- Recruitment quests are canonical quest definitions with stable stage IDs and
+  `recruitCompanion` completion actions. Replay them idempotently after load,
+  Overworld init, NPC changes, and debug quest mutations.
+- Active conscious companions follow visually but never block movement or
+  independently trigger traps, encounters, gates, or world interactions.
+- Press `P` for party order, gear, separate inventories, transfers, targeted
+  healing/items, control mode, stat allocation, and gambit editing.
+- Each companion has at most 12 ranked gambits. Evaluate against a fresh
+  per-turn snapshot, skip invalid rules without mutation, execute at most one
+  bonus and one main action through `battleActions.ts`, then fall back to attack
+  or defend.
+- Manual companion turns and gambits share the validated action planner and
+  concrete executor; do not duplicate d20, target, item, status, or economy
+  rules in UI/AI code.
+- Key items, mounts, and equipped items cannot transfer. Gold, shop purchases,
+  and battle drops remain hero-owned until eligible items are transferred.
+- Living actors receive victory XP. KO actors receive no victory XP and reset
+  to the current-level XP floor. Full defeat requires every active party actor
+  to be KO and preserves the existing single gold/location penalty.
 
 ## Quests
 
@@ -278,6 +314,9 @@ Flow:
   attacks and spells bypass formation protection.
 - Spells and abilities use `TargetType`. AoE spells consume MP once, roll once,
   and apply elemental modifiers independently to each living target.
+- Buff spells use the same target model. Mass Haste and Inspiring Chorus apply
+  party statuses once per resolved target; status definitions remain only in
+  `statusEffects.ts`.
 - Group flee DC is `10 + (aliveCount - 1) * 2`. Group XP and gold are the
   floored member totals multiplied by 0.85; drops and Codex defeats resolve per
   monster.
@@ -387,7 +426,7 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 5.
+Save schema version is 6.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -396,6 +435,10 @@ repairs invalid coordinates to the correct spawn, and falls back to Willowdale
 for unusable overworld locations. Schema-v3 skill-check and schema-v4 quest
 saves gain explicit trap defaults. If a malformed trap seed is replaced,
 `trapStates` is cleared so stale IDs cannot resolve against a different layout.
+Schema-v5 saves gain an empty `player.party`; party normalization validates
+companion IDs, active order, resources, known actions, canonical inventory,
+equipment links, effects, control mode, dialogue state, and gambits before
+replaying completed recruitment actions.
 
 When persistent data changes:
 
@@ -431,6 +474,9 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - `/spawn` resolves every entry in `ALL_MONSTERS`, including dungeon-specific
   monsters and bosses.
 - `/quest` lists, advances, or sets exact quest stages/statuses.
+- `/companion` lists, recruits, changes control mode, heals, or explains stored
+  gambits.
+- `P` opens party management; the debug MP hotkey is `O`.
 - Shared debug commands and Overworld-specific commands live in
   `src/systems/debug.ts`.
 

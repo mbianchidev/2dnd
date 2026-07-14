@@ -59,7 +59,7 @@ export interface HelpEntry {
 
 /**
  * Register the hotkeys that are common to every scene:
- *   G = +100 gold, H = full heal, P = restore MP, L = level up
+ *   G = +100 gold, H = full heal, O = restore MP, L = level up
  *
  * Returns the key objects so the caller can add more keys.
  */
@@ -70,7 +70,7 @@ export function registerSharedHotkeys(
 ): void {
   const gKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
   const hKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
-  const pKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+  const oKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.O);
   const lKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L);
 
   gKey.on("down", () => {
@@ -89,7 +89,7 @@ export function registerSharedHotkeys(
     cb.updateUI();
   });
 
-  pKey.on("down", () => {
+  oKey.on("down", () => {
     if (!isDebug()) return;
     player.mp = player.maxMp;
     debugLog("CHEAT: Restore MP");

@@ -206,6 +206,21 @@ Future party systems pass accessor-backed `partyCombatants` plus runtime-only
 `battleHooks`; do not persist those wrapper objects.
 Keep target `init()` contracts and every caller synchronized.
 
+## Companions and gambits
+
+- Persistent party state lives at `player.party`; do not add a parallel scene
+  payload or companion combat model.
+- Stable companion IDs are `guardian`, `scout`, and `mystic`.
+- Build runtime actors with `createPartyCombatant()` and
+  `createBattleActionSource()`.
+- Manual turns and ranked gambits both validate/execute through
+  `battleActions.ts`; one bonus action may precede or follow one main action.
+- Recruitment consumes replayable quest completion actions idempotently.
+- Active conscious companions may render as non-blocking followers, but only
+  hero movement invokes trap, encounter, gate, and world-interaction logic.
+- Keep party UI/followers/battle presentation in focused managers/renderers
+  rather than growing the existing oversized scene/overlay files.
+
 ## Validation
 
 ```bash

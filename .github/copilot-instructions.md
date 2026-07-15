@@ -205,6 +205,8 @@ level-up/stat state, control mode, dialogue cursor, and normalized gambits.
 - Recruitment quests are canonical quest definitions with stable stage IDs and
   `recruitCompanion` completion actions. Replay them idempotently after load,
   Overworld init, NPC changes, and debug quest mutations.
+- When a debug mutation recruits a companion, refresh the live follower
+  presentation in the same mutation path.
 - Active conscious companions follow visually but never block movement or
   independently trigger traps, encounters, gates, or world interactions.
 - Press `P` for party order, gear, separate inventories, transfers, targeted
@@ -233,8 +235,9 @@ level-up/stat state, control mode, dialogue cursor, and normalized gambits.
 - `player.progression.quests` is required persistent state. Mutate it through
   quest-system APIs so completion rewards remain idempotent.
 - The main campaign is the seven-chapter **Twelvefold Covenant**, spanning all
-  12 cities and the Crypt Lich, Frost Warden, and Inferno Forgemaster. Its
-  sidequests are **Ironbound Dispatch** and **Silk Against the Cold**.
+  12 cities and three keystones guarded by the Crypt Lich, Frost Warden, and
+  Inferno Forgemaster. Its sidequests are **Ironbound Dispatch** and
+  **Silk Against the Cold**.
 - Quest progress stores per-objective counters and per-reward claimed IDs.
   Preserve duplicate monster IDs when recording group victories so defeat
   counters advance once per combatant.
@@ -310,6 +313,11 @@ Flow:
   only for compatibility.
 - `BattleResolutionHooks` exposes reward adjustment, enemy-defeat,
   companion-turn, and once-only battle-result callbacks.
+- Battle return is guarded and starts Overworld only from the camera
+  fade-out-complete event. Reset stale camera effects before the fade and again
+  when Overworld creates; do not replace this with an equal-duration timer.
+- Debug instant victory routes through the same battle-end check even during
+  the pre-turn `init` phase.
 - Ranked AI/gambits use `src/systems/battleActions.ts`: enumerate living actors,
   resolve a scope with an optional preferred/matched ID, validate resources and
   per-actor action economy, then execute and consume one frozen
@@ -495,7 +503,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   monsters and bosses.
 - `/quest` lists, advances, or sets exact quest stages/statuses.
 - `/companion` lists, recruits, changes control mode, heals, or explains stored
-  gambits.
+  gambits. Recruitment mutations refresh follower presentation immediately.
 - `P` opens party management; the debug MP hotkey is `O`.
 - Shared debug commands and Overworld-specific commands live in
   `src/systems/debug.ts`.

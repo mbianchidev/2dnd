@@ -301,6 +301,7 @@ export interface OverworldDebugCallbacks {
   autoSave(): void;
   restartScene(): void;
   refreshQuestUI(): void;
+  refreshPartyActors(): void;
 }
 
 /** Wrapper so a primitive number can be shared by reference between the scene and this system. */
@@ -619,7 +620,8 @@ export class DebugCommandSystem {
         debugPanelLog(`[CMD] Reward: ${result.rewardText}`, true);
       }
       if (result.changed) {
-        for (const recruitment of synchronizeCompanionRecruitment(this.player)) {
+        const recruitments = synchronizeCompanionRecruitment(this.player);
+        for (const recruitment of recruitments) {
           debugPanelLog(`[CMD] ${recruitment.message}`, true);
         }
         this.callbacks.autoSave();
@@ -628,6 +630,9 @@ export class DebugCommandSystem {
         this.callbacks.createPlayer();
         this.callbacks.updateHUD();
         this.callbacks.refreshQuestUI();
+        if (recruitments.length > 0) {
+          this.callbacks.refreshPartyActors();
+        }
       }
     });
 
@@ -721,6 +726,7 @@ export class DebugCommandSystem {
       this.callbacks.renderMap();
       this.callbacks.createPlayer();
       this.callbacks.updateHUD();
+      this.callbacks.refreshPartyActors();
     });
 
     cmds.set("spawn", (args) => {

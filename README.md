@@ -99,9 +99,9 @@ API, and saves use `localStorage`.
 - Trap Kits, class talents, and Adventurer guidance improve detection and
   disarming; seeded layouts and four-state trap outcomes persist explicitly
 - The seven-chapter **Twelvefold Covenant** main quest spans all 12 cities and
-  three dungeon bosses, with two campaign sidequests, optional boss objectives,
-  named story NPCs, dynamic markers, a `Q` journal, unique rewards, gated roads,
-  and soft danger zones
+  restores three keystones guarded by dungeon bosses, with two campaign
+  sidequests, optional boss objectives, named story NPCs, dynamic markers, a
+  `Q` journal, unique rewards, gated roads, and soft danger zones
 - Three additional recruitment quest lines use stable stage IDs and replayable
   completion actions; active conscious companions follow the hero and can be
   spoken to during overworld, city, and dungeon exploration
@@ -213,7 +213,13 @@ data ID; use `getQuestStageIndex()` or the debug-only
 For companion recruitment, define three distinct quest IDs and one action per
 path using `type: "recruitCompanion"` and the companion ID as `targetId`.
 `recruitCompanion()` must keep recruited IDs unique, so reloads, debug quest
-completion, and replay cannot duplicate a companion.
+completion, and replay cannot duplicate a companion. Debug quest and companion
+mutations also refresh live followers immediately.
+
+Battle exits wait for the camera fade-out completion event before starting
+Overworld. Both scenes reset stale camera effects, and the guarded transition
+preserves the complete player, party, world, quest, trap, weather, and NPC
+state payload without a timer fallback.
 
 See [`docs/companions.md`](docs/companions.md) for party state, recruitment,
 inventories, gambit syntax, combat control, KO/reward rules, and debug commands.
@@ -259,7 +265,9 @@ npm run build      # Type-check and create a production build
 On local development hosts, enable the debug checkbox above the canvas.
 Available tools include:
 
-- Battle hotkeys for instant victory, healing, MP, gold, XP, and levels
+- Battle hotkeys for instant victory, healing, MP, gold, XP, and levels;
+  instant victory uses the normal one-shot resolution path even before the
+  first initiative turn begins
 - Overworld hotkeys for revealing the map, toggling fog, and disabling random
   encounters
 - Slash commands for gold, XP, HP, MP, items, weather, time, teleportation,

@@ -307,11 +307,7 @@ export class OverworldScene extends Phaser.Scene {
       autoSave: () => this.autoSave(),
       showMessage: (text, color) => this.showMessage(text, color),
       refreshActors: () => {
-        this.playerRenderer.refreshPlayerSprite(this.player);
-        this.companionFollowerManager.render(
-          this.player,
-          (companion) => this.showCompanionDialogue(companion),
-        );
+        this.refreshPartyActors();
       },
     });
 
@@ -370,11 +366,7 @@ export class OverworldScene extends Phaser.Scene {
     this.renderMap();
     this.applyDayNightTint();
     this.createPlayerSprite();
-    this.playerRenderer.refreshPlayerSprite(this.player);
-    this.companionFollowerManager.render(
-      this.player,
-      (companion) => this.showCompanionDialogue(companion),
-    );
+    this.refreshPartyActors();
     this.setupInput();
     this.createHUD();
     this.setupDebug();
@@ -427,6 +419,7 @@ export class OverworldScene extends Phaser.Scene {
         weatherState: this.weatherState,
       }),
       refreshQuestUI: () => this.questFlow.refreshUi(),
+      refreshPartyActors: () => this.refreshPartyActors(),
     });
     this.debugCommandSystem.fogOfWar = this.fogOfWar;
     this.debugCommandSystem.encounterSystem = this.encounterSystem;
@@ -1829,6 +1822,14 @@ export class OverworldScene extends Phaser.Scene {
   private createPlayerSprite(): void {
     this.playerRenderer.createPlayer(this.player);
     this.playerRenderer.refreshPlayerSprite(this.player);
+  }
+
+  private refreshPartyActors(): void {
+    this.playerRenderer.refreshPlayerSprite(this.player);
+    this.companionFollowerManager.render(
+      this.player,
+      (companion) => this.showCompanionDialogue(companion),
+    );
   }
 
   private showMessage(text: string, color = "#ffd700"): void {

@@ -162,12 +162,17 @@ on mouse-wheel input.
 - Validate actions before consuming MP, items, or the turn.
 - Clear player and every monster's combat effects before returning to
   Overworld.
+- Guard Battle return, reset camera effects, and start Overworld from
+  `FADE_OUT_COMPLETE`; an equal-duration timer can stop the scene before the
+  fade finishes and leave a reused camera black.
 - Report victory, defeat, or flee once through `onBattleResolved`; reward
   adjustment happens before XP/gold are granted.
 - After group victory, record every defeated combatant ID for quest counters
   without deduplicating repeated monster types, then pass transient updates to
   Overworld for notification and autosave.
 - Clean up weather emitters and timers owned by Battle.
+- Route debug instant victory through the normal end check even during the
+  pre-turn `init` phase.
 
 ## Debug and errors
 

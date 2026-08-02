@@ -511,6 +511,7 @@ export class BattleScene extends Phaser.Scene {
     this.playerSprite.setScale(2.0);
     this.playerSprite.setFlipX(false);
     this.playerSprite.setDepth(1.5); // above monster (foreground perspective)
+    this.refreshBattlePlayerSprite();
 
     // Player name + HP/MP bar (right below player sprite)
     this.playerStatsText = this.add
@@ -1588,7 +1589,7 @@ export class BattleScene extends Phaser.Scene {
     const renderer = new PlayerRenderer(this);
     // Create a dummy sprite for the renderer (it needs playerSprite to exist)
     renderer.playerSprite = this.playerSprite;
-    renderer.refreshPlayerSprite(this.player);
+    renderer.refreshPlayerSprite(this.player, false);
     // The texture is regenerated in-place; update our sprite
     const texKey = `player_equipped_${this.player.appearanceId}`;
     if (this.textures.exists(texKey)) {

@@ -12,6 +12,12 @@ import { TILE_SIZE } from "../config";
 const MOUNT_RIDER_OFFSET_X = -3;
 const MOUNT_RIDER_OFFSET_Y = 8;
 
+function isMountedInOverworld(player: PlayerState): boolean {
+  return !!player.mountId
+    && !player.position.inDungeon
+    && !player.position.inCity;
+}
+
 /**
  * Handles rendering and refreshing the player sprite and mount sprite.
  */
@@ -41,7 +47,7 @@ export class PlayerRenderer {
       this.mountSprite = null;
     }
 
-    const isMounted = player.mountId && !player.position.inDungeon && !player.position.inCity;
+    const isMounted = isMountedInOverworld(player);
     const tileX = player.position.x * TILE_SIZE + TILE_SIZE / 2;
     const tileY = player.position.y * TILE_SIZE + TILE_SIZE / 2;
 
@@ -71,7 +77,7 @@ export class PlayerRenderer {
     }
 
     // (Re)generate the equipped texture so legs & equipment are rendered correctly
-    this.refreshPlayerSprite(player);
+    this.refreshPlayerSprite(player, isMounted);
   }
 
   /** Toggle mount / dismount. Returns a status message string or null. */
@@ -111,7 +117,10 @@ export class PlayerRenderer {
 
   /** Regenerate the player texture to reflect current equipment (weapon sprite).
    *  Uses a separate key so the base class texture stays clean for the title screen. */
-  refreshPlayerSprite(player: PlayerState): void {
+  refreshPlayerSprite(
+    player: PlayerState,
+    renderMountedPose = isMountedInOverworld(player),
+  ): void {
     const cls = getPlayerClass(player.appearanceId);
     const texKey = `player_equipped_${player.appearanceId}`;
     const weaponSpr = getActiveWeaponSprite(player.appearanceId, player.equippedWeapon);
@@ -145,8 +154,7 @@ export class PlayerRenderer {
     }
     // Legs — when mounted only draw the near-side leg (far leg hidden behind mount body)
     gfx.fillStyle(cls.legColor, 1);
-    const isMounted = !!player.mountId && !player.position.inDungeon && !player.position.inCity;
-    if (isMounted) {
+    if (renderMountedPose) {
       gfx.fillRect(12, 24, 6, 5);
     } else {
       gfx.fillRect(9, 26, 5, 6);

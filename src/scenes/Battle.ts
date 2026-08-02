@@ -62,6 +62,7 @@ import { drawTimeSky as _drawTimeSky, drawCelestialBody as _drawCelestialBody, d
 import { PlayerRenderer } from "../renderers/player";
 import { BattlePartyRenderer } from "../renderers/battleParty";
 import { BattlePartyManager } from "../managers/battleParty";
+import { SceneTransitionManager } from "../managers/sceneTransition";
 import {
   applyPartyDefeat,
   createPartyActionSources,
@@ -140,6 +141,7 @@ export interface BattleSceneData {
 }
 
 export class BattleScene extends Phaser.Scene {
+  private readonly sceneTransitions = new SceneTransitionManager(this);
   private player!: PlayerState;
   private encounter!: MonsterEncounter;
   private combatants: GroupCombatant[] = [];
@@ -357,7 +359,7 @@ export class BattleScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(0x0a0a1a);
-    this.cameras.main.fadeIn(300);
+    this.sceneTransitions.prepare(300);
 
     this.drawBattleUI();
     this.battlePartyRenderer.render(
@@ -2854,22 +2856,20 @@ export class BattleScene extends Phaser.Scene {
     for (const combatant of this.combatants) {
       clearAllEffects(combatant.effects);
     }
-    this.cameras.main.resetFX();
-    this.cameras.main.once(
-      Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
-      () => {
-        this.scene.start("OverworldScene", {
-          player: this.player,
-          defeatedBosses: this.defeatedBosses,
-          codex: this.codex,
-          timeStep: this.timeStep,
-          weatherState: this.weatherState,
-          savedSpecialNpcs: this.savedSpecialNpcs,
-          questUpdates: this.questUpdates,
-        });
-      },
-    );
-    this.cameras.main.fadeOut(500, 0, 0, 0);
+    this.sceneTransitions.startWithFade(() => {
+      this.scene.start("OverworldScene", {
+        player: this.player,
+        defeatedBosses: this.defeatedBosses,
+        codex: this.codex,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
+        savedSpecialNpcs: this.savedSpecialNpcs,
+        questUpdates: this.questUpdates,
+      });
+    }, {
+      duration: 500,
+      label: "battle return",
+    });
   }
 
   private recordElementalDiscovery(

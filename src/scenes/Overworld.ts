@@ -105,6 +105,7 @@ import { PlayerRenderer } from "../renderers/player";
 import { DialogueSystem } from "../managers/dialogue";
 import { SpecialNpcManager, type SpecialNpcCallbacks } from "../managers/specialNpc";
 import { OverlayManager } from "../managers/overlay";
+import { SceneTransitionManager } from "../managers/sceneTransition";
 import { QuestJournalManager } from "../managers/questJournal";
 import { QuestFlowManager } from "../managers/questFlow";
 import { DebugCommandSystem, type TimeStepRef } from "../systems/debug";
@@ -172,7 +173,18 @@ const TERRAIN_DEBUG_NAMES: Record<number, string> = {
   [Terrain.Canyon]: "Canyon",
 };
 
+interface OverworldSceneData {
+  player?: PlayerState;
+  defeatedBosses?: Set<string>;
+  codex?: CodexData;
+  timeStep?: number;
+  weatherState?: WeatherState;
+  savedSpecialNpcs?: SavedSpecialNpc[];
+  questUpdates?: QuestUpdate[];
+}
+
 export class OverworldScene extends Phaser.Scene {
+  private readonly sceneTransitions = new SceneTransitionManager(this);
   private player!: PlayerState;
   private keys!: {
     W: Phaser.Input.Keyboard.Key;
@@ -215,15 +227,7 @@ export class OverworldScene extends Phaser.Scene {
     super({ key: "OverworldScene" });
   }
 
-  init(data?: {
-    player?: PlayerState;
-    defeatedBosses?: Set<string>;
-    codex?: CodexData;
-    timeStep?: number;
-    weatherState?: WeatherState;
-    savedSpecialNpcs?: SavedSpecialNpc[];
-    questUpdates?: QuestUpdate[];
-  }): void {
+  init(data?: OverworldSceneData): void {
     const fogDisabled = this.fogOfWar?.isFogDisabled() ?? false;
     const encountersEnabled = this.encounterSystem?.areEncountersEnabled() ?? true;
 
@@ -258,14 +262,7 @@ export class OverworldScene extends Phaser.Scene {
       restartDungeon: () => {
         this.revealAround();
         this.autoSave();
-        this.cameras.main.flash(300, 180, 120, 80);
-        this.scene.restart({
-          player: this.player,
-          defeatedBosses: this.defeatedBosses,
-          codex: this.codex,
-          timeStep: this.timeStep,
-          weatherState: this.weatherState,
-        });
+        this.restartOverworld("refresh dungeon traps");
       },
     });
     this.skillCheckManager = new SkillCheckManager({
@@ -294,13 +291,21 @@ export class OverworldScene extends Phaser.Scene {
       },
       saveAndQuit: () => {
         this.autoSave();
-        this.scene.start("BootScene");
+        this.sceneTransitions.startImmediately(
+          () => this.scene.start("BootScene"),
+          "save and quit",
+        );
       },
       getTimeStep: () => this.timeStep,
       setTimeStep: (t: number) => { this.timeStep = t; },
       evacuateDungeon: () => this.evacuateDungeon(),
       getHUDInfo: () => this.getHUDInfo(),
       openQuestJournal: () => this.openQuestJournal(),
+      fadeOutAndIn: (atBlack, duration) =>
+        this.sceneTransitions.fadeOutAndIn(atBlack, {
+          duration,
+          label: "inn rest",
+        }),
     });
     this.partyOverlayManager = new PartyOverlayManager(this, {
       updateHUD: () => this.updateHUD(),
@@ -351,9 +356,8 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.cameras.main.resetFX();
     this.cameras.main.setBackgroundColor(0x111111);
-    this.cameras.main.fadeIn(500);
+    this.sceneTransitions.prepare(500);
 
     // Dungeons are enclosed — always force clear weather
     if (this.player.position.inDungeon) {
@@ -389,6 +393,24 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  private getRestartData(): OverworldSceneData {
+    return {
+      player: this.player,
+      defeatedBosses: this.defeatedBosses,
+      codex: this.codex,
+      timeStep: this.timeStep,
+      weatherState: this.weatherState,
+      savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
+    };
+  }
+
+  private restartOverworld(label: string): void {
+    this.sceneTransitions.startImmediately(
+      () => this.scene.restart(this.getRestartData()),
+      label,
+    );
+  }
+
   // ── Debug ───────────────────────────────────────────────────────────────
 
   private setupDebug(): void {
@@ -411,13 +433,7 @@ export class OverworldScene extends Phaser.Scene {
       startBattle: (monster) => this.startBattle(monster),
       spawnSpecialNpcs: (chunk) => this.spawnSpecialNpcs(chunk),
       autoSave: () => this.autoSave(),
-      restartScene: () => this.scene.restart({
-        player: this.player,
-        defeatedBosses: this.defeatedBosses,
-        codex: this.codex,
-        timeStep: this.timeStep,
-        weatherState: this.weatherState,
-      }),
+      restartScene: () => this.restartOverworld("debug scene refresh"),
       refreshQuestUI: () => this.questFlow.refreshUi(),
       refreshPartyActors: () => this.refreshPartyActors(),
     });
@@ -834,6 +850,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private openQuestJournal(): void {
+    if (this.sceneTransitions.isPending) return;
     this.dialogueSystem.dismissDialogue();
     this.questJournal.toggle(this.player);
   }
@@ -884,6 +901,7 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    if (this.sceneTransitions.isPending) return;
     if (this.isMoving) return;
     if (this.isOverlayOpen()) return;
     if (this.dialogueSystem.isDialogueOpen()) return;
@@ -900,6 +918,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private tryMove(dx: number, dy: number, time: number): void {
+    if (this.sceneTransitions.isPending) return;
     const previousTile = {
       x: this.player.position.x,
       y: this.player.position.y,
@@ -1047,14 +1066,7 @@ export class OverworldScene extends Phaser.Scene {
     if (result.chunkChanged) {
       this.advanceTime();
       this.rerollWeather();
-      this.cameras.main.flash(200, 255, 255, 255);
-      this.scene.restart({
-        player: this.player,
-        defeatedBosses: this.defeatedBosses,
-        codex: this.codex,
-        timeStep: this.timeStep,
-        weatherState: this.weatherState,
-      });
+      this.restartOverworld("change world chunk");
       return;
     }
 
@@ -1191,11 +1203,7 @@ export class OverworldScene extends Phaser.Scene {
     this.player.position.y = dungeon.entranceTileY;
     this.rerollWeather();
     this.autoSave();
-    this.cameras.main.flash(300, 200, 255, 200);
-    this.scene.restart({
-      player: this.player, defeatedBosses: this.defeatedBosses,
-      codex: this.codex, timeStep: this.timeStep, weatherState: this.weatherState,
-    });
+    this.restartOverworld("evacuate dungeon");
   }
 
   // ── SPACE action handler ────────────────────────────────────────────────
@@ -1231,6 +1239,7 @@ export class OverworldScene extends Phaser.Scene {
       this.questJournal.close();
       return;
     }
+    if (this.sceneTransitions.isPending) return;
 
     // ── Dungeon ──
     if (this.player.position.inDungeon) {
@@ -1254,11 +1263,7 @@ export class OverworldScene extends Phaser.Scene {
         this.player.position.y = dungeon.entranceTileY;
         this.rerollWeather();
         this.autoSave();
-        this.cameras.main.flash(300, 255, 255, 255);
-        this.scene.restart({
-          player: this.player, defeatedBosses: this.defeatedBosses,
-          codex: this.codex, timeStep: this.timeStep, weatherState: this.weatherState,
-        });
+        this.restartOverworld("exit dungeon");
         return;
       }
 
@@ -1266,11 +1271,7 @@ export class OverworldScene extends Phaser.Scene {
         if (!useDungeonConnection(this.player)) return;
         this.revealAround();
         this.autoSave();
-        this.cameras.main.flash(300, 200, 200, 255);
-        this.scene.restart({
-          player: this.player, defeatedBosses: this.defeatedBosses,
-          codex: this.codex, timeStep: this.timeStep, weatherState: this.weatherState,
-        });
+        this.restartOverworld("change dungeon level");
         return;
       }
 
@@ -1318,11 +1319,7 @@ export class OverworldScene extends Phaser.Scene {
         this.player.position.y = city.tileY;
         this.rerollWeather();
         this.autoSave();
-        this.cameras.main.flash(300, 255, 255, 255);
-        this.scene.restart({
-          player: this.player, defeatedBosses: this.defeatedBosses,
-          codex: this.codex, timeStep: this.timeStep, weatherState: this.weatherState,
-        });
+        this.restartOverworld("exit city");
         return;
       }
 
@@ -1330,11 +1327,7 @@ export class OverworldScene extends Phaser.Scene {
         if (!useCityConnection(this.player)) return;
         this.revealAround();
         this.autoSave();
-        this.cameras.main.flash(300, 255, 220, 120);
-        this.scene.restart({
-          player: this.player, defeatedBosses: this.defeatedBosses,
-          codex: this.codex, timeStep: this.timeStep, weatherState: this.weatherState,
-        });
+        this.restartOverworld("change city district");
         return;
       }
 
@@ -1419,7 +1412,7 @@ export class OverworldScene extends Phaser.Scene {
               return;
             }
             this.dialogueSystem.showNpcDialogue(npcDef, npcIndex, city, this.timeStep);
-            this.time.delayedCall(800, () => {
+            this.sceneTransitions.startAfter(800, () => {
               this.dialogueSystem.dismissDialogue();
               this.autoSave();
               this.scene.start("ShopScene", {
@@ -1432,13 +1425,14 @@ export class OverworldScene extends Phaser.Scene {
                 weatherState: this.weatherState,
                 fromCity: true,
                 cityId: city.id,
+                savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
                 shopSkillCheckId: getCityShopSkillCheckId(
                   city.id,
                   chunkIndex,
                   shop,
                 ),
               });
-            });
+            }, "open city shop");
             return;
           }
         }
@@ -1489,17 +1483,19 @@ export class OverworldScene extends Phaser.Scene {
           this.autoSave();
         },
         startShopScene: (config) => {
-          this.scene.start("ShopScene", {
-            player: this.player,
-            townName: config.townName,
-            defeatedBosses: this.defeatedBosses,
-            codex: this.codex,
-            shopItemIds: config.shopItemIds,
-            timeStep: this.timeStep,
-            weatherState: this.weatherState,
-            discount: config.discount,
-            savedSpecialNpcs: config.savedSpecialNpcs,
-          });
+          this.sceneTransitions.startImmediately(() => {
+            this.scene.start("ShopScene", {
+              player: this.player,
+              townName: config.townName,
+              defeatedBosses: this.defeatedBosses,
+              codex: this.codex,
+              shopItemIds: config.shopItemIds,
+              timeStep: this.timeStep,
+              weatherState: this.weatherState,
+              discount: config.discount,
+              savedSpecialNpcs: config.savedSpecialNpcs,
+            });
+          }, "open special NPC shop");
         },
       };
       this.specialNpcManager.interactSpecialNpc(specialResult.index, this.dialogueSystem, callbacks, regionName);
@@ -1552,11 +1548,7 @@ export class OverworldScene extends Phaser.Scene {
           this.player.progression.discoveredCities.push(city.id);
         }
         this.autoSave();
-        this.cameras.main.flash(300, 200, 180, 160);
-        this.scene.restart({
-          player: this.player, defeatedBosses: this.defeatedBosses,
-          codex: this.codex, timeStep: this.timeStep, weatherState: this.weatherState,
-        });
+        this.restartOverworld("enter city");
         return;
       }
 
@@ -1568,19 +1560,21 @@ export class OverworldScene extends Phaser.Scene {
       if (this.player.mountId) this.player.mountId = "";
       this.rerollWeather();
       this.autoSave();
-      this.scene.start("ShopScene", {
-        player: this.player, townName: town.name,
-        defeatedBosses: this.defeatedBosses, codex: this.codex,
-        shopItemIds: town.shopItems, timeStep: this.timeStep,
-        weatherState: this.weatherState,
-        savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
-        shopSkillCheckId: getTownShopSkillCheckId(
-          this.player.position.chunkX,
-          this.player.position.chunkY,
-          town.x,
-          town.y,
-        ),
-      });
+      this.sceneTransitions.startImmediately(() => {
+        this.scene.start("ShopScene", {
+          player: this.player, townName: town.name,
+          defeatedBosses: this.defeatedBosses, codex: this.codex,
+          shopItemIds: town.shopItems, timeStep: this.timeStep,
+          weatherState: this.weatherState,
+          savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
+          shopSkillCheckId: getTownShopSkillCheckId(
+            this.player.position.chunkX,
+            this.player.position.chunkY,
+            town.x,
+            town.y,
+          ),
+        });
+      }, "open town shop");
       return;
     }
 
@@ -1630,11 +1624,7 @@ export class OverworldScene extends Phaser.Scene {
           this.weatherState.current = WeatherType.Clear;
           if (audioEngine.initialized) audioEngine.playDungeonEnterSFX();
           this.autoSave();
-          this.cameras.main.flash(300, 100, 100, 100);
-          this.scene.restart({
-            player: this.player, defeatedBosses: this.defeatedBosses,
-            codex: this.codex, timeStep: this.timeStep, weatherState: this.weatherState,
-          });
+          this.restartOverworld("enter dungeon");
         }
       }
       return;
@@ -1685,22 +1675,25 @@ export class OverworldScene extends Phaser.Scene {
     const locationName = districtName === city.name
       ? city.name
       : `${city.name} - ${districtName}`;
-    this.scene.start("ShopScene", {
-      player: this.player,
-      townName: `${locationName} - ${shop.name}`,
-      defeatedBosses: this.defeatedBosses,
-      codex: this.codex,
-      shopItemIds: shop.shopItems,
-      timeStep: this.timeStep,
-      weatherState: this.weatherState,
-      fromCity: true,
-      cityId: city.id,
-      shopSkillCheckId: getCityShopSkillCheckId(
-        city.id,
-        chunkIndex,
-        shop,
-      ),
-    });
+    this.sceneTransitions.startImmediately(() => {
+      this.scene.start("ShopScene", {
+        player: this.player,
+        townName: `${locationName} - ${shop.name}`,
+        defeatedBosses: this.defeatedBosses,
+        codex: this.codex,
+        shopItemIds: shop.shopItems,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
+        fromCity: true,
+        cityId: city.id,
+        savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
+        shopSkillCheckId: getCityShopSkillCheckId(
+          city.id,
+          chunkIndex,
+          shop,
+        ),
+      });
+    }, "open city shop");
   }
 
   private openChest(location: ChestLocation): void {
@@ -1874,6 +1867,7 @@ export class OverworldScene extends Phaser.Scene {
     terrain?: Terrain,
     immediate = false,
   ): void {
+    if (this.sceneTransitions.isPending) return;
     const encounter = "members" in encounterOrMonster
       ? encounterOrMonster
       : createSoloEncounter(encounterOrMonster);
@@ -1897,28 +1891,36 @@ export class OverworldScene extends Phaser.Scene {
       partyCombatants: createActivePartyCombatants(this.player.party),
     };
     if (immediate) {
-      this.scene.start("BattleScene", battleData);
+      this.sceneTransitions.startImmediately(
+        () => this.scene.start("BattleScene", battleData),
+        "start immediate battle",
+      );
       return;
     }
-    this.cameras.main.flash(300, 255, 255, 255);
-    this.time.delayedCall(300, () => {
-      this.scene.start("BattleScene", battleData);
-    });
+    const queued = this.sceneTransitions.startAfter(
+      300,
+      () => this.scene.start("BattleScene", battleData),
+      "start battle",
+    );
+    if (queued) this.cameras.main.flash(300, 255, 255, 255);
   }
 
   private openCodex(): void {
     if (this.isMoving) return;
+    if (this.sceneTransitions.isPending) return;
     this.partyOverlayManager.close();
     this.overlayManager.destroyAll();
     this.autoSave();
-    this.scene.start("CodexScene", {
-      player: this.player,
-      defeatedBosses: this.defeatedBosses,
-      codex: this.codex,
-      timeStep: this.timeStep,
-      weatherState: this.weatherState,
-      savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
-    });
+    this.sceneTransitions.startImmediately(() => {
+      this.scene.start("CodexScene", {
+        player: this.player,
+        defeatedBosses: this.defeatedBosses,
+        codex: this.codex,
+        timeStep: this.timeStep,
+        weatherState: this.weatherState,
+        savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
+      });
+    }, "open codex");
   }
 
   private autoSave(): void {

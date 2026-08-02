@@ -22,8 +22,10 @@ import {
   rollSkillCheck,
 } from "../systems/skillChecks";
 import { saveGame } from "../systems/save";
+import { SceneTransitionManager } from "../managers/sceneTransition";
 
 export class ShopScene extends Phaser.Scene {
+  private readonly sceneTransitions = new SceneTransitionManager(this);
   private player!: PlayerState;
   private townName!: string;
   private defeatedBosses!: Set<string>;
@@ -100,7 +102,7 @@ export class ShopScene extends Phaser.Scene {
     const h = this.cameras.main.height;
 
     this.cameras.main.setBackgroundColor(0x1a1a2e);
-    this.cameras.main.fadeIn(300);
+    this.sceneTransitions.prepare(300);
 
     // Play city music for this town
     if (audioEngine.initialized) {
@@ -947,8 +949,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private leaveShop(): void {
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    this.time.delayedCall(300, () => {
+    this.sceneTransitions.startWithFade(() => {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
@@ -957,6 +958,9 @@ export class ShopScene extends Phaser.Scene {
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,
       });
+    }, {
+      duration: 300,
+      label: "leave shop",
     });
   }
 }

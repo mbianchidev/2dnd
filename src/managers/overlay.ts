@@ -69,6 +69,7 @@ export interface OverlayCallbacks {
   evacuateDungeon: () => void;
   getHUDInfo: () => string;
   openQuestJournal: () => void;
+  fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
 }
 
 export class OverlayManager {
@@ -1334,8 +1335,7 @@ export class OverlayManager {
       return;
     }
 
-    this.scene.cameras.main.fadeOut(800, 0, 0, 0);
-    this.scene.cameras.main.once("camerafadeoutcomplete", () => {
+    const started = this.callbacks.fadeOutAndIn(() => {
       player.gold -= innCost;
       this.callbacks.setTimeStep(targetTimeStep);
 
@@ -1362,13 +1362,15 @@ export class OverlayManager {
       this.callbacks.updateHUD();
       this.callbacks.autoSave();
 
-      this.scene.cameras.main.fadeIn(800, 0, 0, 0);
       this.callbacks.showMessage(fullMsg, "#88ff88");
 
       if (player.pendingStatPoints > 0) {
         this.scene.time.delayedCall(1200, () => this.showStatOverlay(player));
       }
-    });
+    }, 800);
+    if (!started) {
+      this.callbacks.showMessage("Please wait for the current transition.", "#ffcc66");
+    }
   }
 
   /** Dismiss inn confirmation overlay. */

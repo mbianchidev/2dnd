@@ -10,9 +10,12 @@ import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
 import { abilityModifier, rollAbilityScore } from "../systems/dice";
 import { audioEngine } from "../systems/audio";
+import { SceneTransitionManager } from "../managers/sceneTransition";
 
 
 export class BootScene extends Phaser.Scene {
+  private readonly sceneTransitions = new SceneTransitionManager(this);
+
   constructor() {
     super({ key: "BootScene" });
   }
@@ -22,6 +25,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.sceneTransitions.prepare();
     generateAllTextures(this);
     this.showTitleScreen();
   }
@@ -306,6 +310,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   private continueGame(): void {
+    if (this.sceneTransitions.isPending) return;
     const save = loadGame();
     if (!save) return;
     // Regenerate player texture with custom appearance if present.
@@ -327,8 +332,7 @@ export class BootScene extends Phaser.Scene {
         hasShield
       );
     }
-    this.cameras.main.fadeOut(500, 0, 0, 0);
-    this.time.delayedCall(500, () => {
+    this.sceneTransitions.startWithFade(() => {
       this.scene.start("OverworldScene", {
         player: save.player,
         defeatedBosses: new Set(save.defeatedBosses),
@@ -336,6 +340,9 @@ export class BootScene extends Phaser.Scene {
         timeStep: save.timeStep ?? 0,
         weatherState: save.weatherState,
       });
+    }, {
+      duration: 500,
+      label: "continue game",
     });
   }
 
@@ -1040,6 +1047,7 @@ export class BootScene extends Phaser.Scene {
     startBtn.on("pointerout", () => startBtn.setColor("#88ff88"));
 
     const doStart = () => {
+      if (this.sceneTransitions.isPending) return;
       const name = playerName.trim() || "Hero";
       const customAppearance: CustomAppearance = {
         skinColor: selectedSkinColor,
@@ -1064,9 +1072,11 @@ export class BootScene extends Phaser.Scene {
       );
 
       deleteSave();
-      this.cameras.main.fadeOut(500, 0, 0, 0);
-      this.time.delayedCall(500, () => {
+      this.sceneTransitions.startWithFade(() => {
         this.scene.start("OverworldScene", { player });
+      }, {
+        duration: 500,
+        label: "start new game",
       });
     };
 

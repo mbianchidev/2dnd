@@ -24,6 +24,8 @@ ranked gambit selection/normalization
 ✅ Game logic functions
 ✅ Seeded layouts and persistent state machines
 ✅ Non-combat skill-check math, outcomes, and save normalization
+✅ Scene-transition event ordering, duplicate guards, and watchdog recovery with
+mocked camera/time adapters
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics

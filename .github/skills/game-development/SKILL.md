@@ -219,6 +219,14 @@ Future party systems pass accessor-backed `partyCombatants` plus runtime-only
 `battleHooks`; do not persist those wrapper objects.
 Keep target `init()` contracts and every caller synchronized.
 
+Route camera fades and scene handoffs through
+`src/managers/sceneTransition.ts`. Call `prepare()` when each scene creates,
+wait for fade-complete events, and keep the duration-plus-grace watchdog as a
+recovery path only. Restore the outgoing camera before queueing the next scene,
+reject duplicate handoffs, and block state-changing Overworld input until the
+queued start/restart is processed. Every Overworld restart must include a fresh
+`savedSpecialNpcs` snapshot in the shared state payload.
+
 ## Companions and gambits
 
 - Persistent party state lives at `player.party`; do not add a parallel scene

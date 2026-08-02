@@ -13,6 +13,7 @@ import { ALL_MONSTERS, type Monster } from "../data/monsters";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { elementDisplayName } from "../data/elements";
+import { SceneTransitionManager } from "../managers/sceneTransition";
 
 /** How many entries to show per page. */
 const ENTRIES_PER_PAGE = 8;
@@ -28,6 +29,7 @@ const ALL_ARMOR: Item[] = ITEMS.filter((i) => i.type === "armor" || i.type === "
 const ALL_ITEMS: Item[] = ITEMS.filter((i) => i.type === "consumable" || i.type === "key" || i.type === "mount");
 
 export class CodexScene extends Phaser.Scene {
+  private readonly sceneTransitions = new SceneTransitionManager(this);
   private player!: PlayerState;
   private defeatedBosses!: Set<string>;
   private codex!: CodexData;
@@ -115,7 +117,7 @@ export class CodexScene extends Phaser.Scene {
     const h = this.cameras.main.height;
 
     this.cameras.main.setBackgroundColor(0x0e0e1e);
-    this.cameras.main.fadeIn(300);
+    this.sceneTransitions.prepare(300);
 
     // Title
     this.add
@@ -453,8 +455,7 @@ export class CodexScene extends Phaser.Scene {
   }
 
   private goBack(): void {
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    this.time.delayedCall(300, () => {
+    this.sceneTransitions.startWithFade(() => {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
@@ -463,6 +464,9 @@ export class CodexScene extends Phaser.Scene {
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,
       });
+    }, {
+      duration: 300,
+      label: "leave codex",
     });
   }
 }

@@ -4,16 +4,8 @@ vi.mock("phaser", () => ({
   Scene: class {
     constructor(_config?: unknown) {}
   },
-  Cameras: {
-    Scene2D: {
-      Events: {
-        FADE_OUT_COMPLETE: "camerafadeoutcomplete",
-      },
-    },
-  },
 }));
 
-import * as Phaser from "phaser";
 import { BattleScene } from "../src/scenes/Battle";
 import { createCodex, type CodexData } from "../src/systems/codex";
 import { createPlayer, type PlayerState } from "../src/systems/player";
@@ -25,15 +17,11 @@ import type { SavedSpecialNpc } from "../src/data/npcs";
 import type { QuestUpdate } from "../src/systems/quests";
 import type { ActiveStatusEffect } from "../src/systems/statusEffects";
 
-interface FadeCameraHarness {
-  resetFX(): void;
-  once(event: string, callback: () => void): FadeCameraHarness;
-  fadeOut(
-    duration: number,
-    red: number,
-    green: number,
-    blue: number,
-  ): void;
+interface TransitionManagerHarness {
+  startWithFade(
+    startScene: () => void,
+    options: { duration?: number; label?: string },
+  ): boolean;
 }
 
 interface BattleTransitionHarness {
@@ -41,9 +29,9 @@ interface BattleTransitionHarness {
   isReturningToOverworld: boolean;
   battlePartyManager: { clear(): void };
   battlePartyRenderer: { clear(): void };
+  sceneTransitions: TransitionManagerHarness;
   partyCombatants: Array<{ effects: ActiveStatusEffect[] }>;
   combatants: Array<{ effects: ActiveStatusEffect[] }>;
-  cameras: { main: FadeCameraHarness };
   scene: { start(sceneKey: string, data: unknown): void };
   player: PlayerState;
   defeatedBosses: Set<string>;
@@ -93,25 +81,23 @@ describe("BattleScene Overworld transition", () => {
     const clearParty = vi.fn();
     const clearRenderer = vi.fn();
     const start = vi.fn();
-    const resetFX = vi.fn();
-    const fadeOut = vi.fn();
     let fadeComplete: (() => void) | undefined;
-    const camera: FadeCameraHarness = {
-      resetFX,
-      once: vi.fn((event: string, callback: () => void) => {
-        expect(event).toBe(
-          Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
-        );
+    const sceneTransitions: TransitionManagerHarness = {
+      startWithFade: vi.fn((callback, options) => {
+        expect(options).toEqual({
+          duration: 500,
+          label: "battle return",
+        });
         fadeComplete = callback;
-        return camera;
+        return true;
       }),
-      fadeOut,
     };
 
     Object.assign(harness, {
       isReturningToOverworld: false,
       battlePartyManager: { clear: clearParty },
       battlePartyRenderer: { clear: clearRenderer },
+      sceneTransitions,
       partyCombatants: [{ effects: player.activeEffects }],
       combatants: [{ effects: enemyEffects }],
       player,
@@ -123,10 +109,6 @@ describe("BattleScene Overworld transition", () => {
       questUpdates,
     });
     Object.defineProperties(battle, {
-      cameras: {
-        configurable: true,
-        value: { main: camera },
-      },
       scene: {
         configurable: true,
         value: { start },
@@ -140,9 +122,7 @@ describe("BattleScene Overworld transition", () => {
     expect(clearRenderer).toHaveBeenCalledTimes(1);
     expect(player.activeEffects).toEqual([]);
     expect(enemyEffects).toEqual([]);
-    expect(resetFX).toHaveBeenCalledTimes(1);
-    expect(camera.once).toHaveBeenCalledTimes(1);
-    expect(fadeOut).toHaveBeenCalledWith(500, 0, 0, 0);
+    expect(sceneTransitions.startWithFade).toHaveBeenCalledTimes(1);
     expect(start).not.toHaveBeenCalled();
 
     fadeComplete?.();

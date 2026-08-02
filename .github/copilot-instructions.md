@@ -154,6 +154,16 @@ rendering and scene-owned state to `renderers/` and `managers/`.
   `battleHooks`; these are scene contracts, not persisted save fields.
 - Persistent companions live inside `player.party`, so every existing
   state-bearing transition carries them through the same `player` object.
+- Route fades and scene `start()`/`restart()` handoffs through
+  `SceneTransitionManager`. Restore the outgoing camera before queueing the
+  next scene, reject duplicate queued handoffs, and call `prepare()` at the
+  start of every scene `create()`.
+- Fade-complete events are authoritative. The manager's duration-plus-grace
+  watchdog is recovery-only; never use an equal-duration timer as the primary
+  handoff trigger. Remove completed listeners and watchdog timers explicitly.
+- Phaser scene operations are queued until the next Scene Manager update.
+  Block state-changing input while a handoff is pending, and keep Overworld
+  restarts on the shared full-state payload including `savedSpecialNpcs`.
 - Generate textures in `src/renderers/textures.ts`, invoked by Boot.
 - Synthesize all audio in `src/systems/audio.ts`.
 - Store Phaser object references needed for later update/cleanup.
@@ -313,9 +323,9 @@ Flow:
   only for compatibility.
 - `BattleResolutionHooks` exposes reward adjustment, enemy-defeat,
   companion-turn, and once-only battle-result callbacks.
-- Battle return is guarded and starts Overworld only from the camera
-  fade-out-complete event. Reset stale camera effects before the fade and again
-  when Overworld creates; do not replace this with an equal-duration timer.
+- Battle return is guarded and delegates to `SceneTransitionManager`, which
+  starts Overworld after fade completion or the delayed recovery watchdog and
+  restores the outgoing camera before Phaser queues the handoff.
 - Debug instant victory routes through the same battle-end check even during
   the pre-turn `init` phase.
 - Ranked AI/gambits use `src/systems/battleActions.ts`: enumerate living actors,

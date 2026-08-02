@@ -183,7 +183,8 @@ src/
 │   ├── battleParty.ts
 │   ├── questJournal.ts
 │   ├── questFlow.ts
-│   └── skillChecks.ts
+│   ├── skillChecks.ts
+│   └── sceneTransition.ts
 └── renderers/
     ├── traps.ts
     ├── trapTextures.ts
@@ -216,10 +217,12 @@ path using `type: "recruitCompanion"` and the companion ID as `targetId`.
 completion, and replay cannot duplicate a companion. Debug quest and companion
 mutations also refresh live followers immediately.
 
-Battle exits wait for the camera fade-out completion event before starting
-Overworld. Both scenes reset stale camera effects, and the guarded transition
-preserves the complete player, party, world, quest, trap, weather, and NPC
-state payload without a timer fallback.
+`SceneTransitionManager` owns camera fades and scene handoffs. It resets stale
+effects on scene entry, waits for Phaser's fade-complete event, restores the
+outgoing camera before queueing the next scene, rejects duplicate handoffs, and
+uses a delayed watchdog only to recover a missing event. Overworld restarts
+share one complete player, party, world, quest, trap, weather, and NPC payload
+and block state-changing input until Phaser processes the queued handoff.
 
 See [`docs/companions.md`](docs/companions.md) for party state, recruitment,
 inventories, gambit syntax, combat control, KO/reward rules, and debug commands.

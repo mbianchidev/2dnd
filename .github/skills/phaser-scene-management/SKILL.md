@@ -77,18 +77,35 @@ change.
 ## Transition pattern
 
 ```typescript
-this.scene.start("OverworldScene", {
-  player: this.player,
-  defeatedBosses: this.defeatedBosses,
-  codex: this.codex,
-  timeStep: this.timeStep,
-  weatherState: this.weatherState,
-  savedSpecialNpcs: this.savedSpecialNpcs,
+this.sceneTransitions.startWithFade(() => {
+  this.scene.start("OverworldScene", {
+    player: this.player,
+    defeatedBosses: this.defeatedBosses,
+    codex: this.codex,
+    timeStep: this.timeStep,
+    weatherState: this.weatherState,
+    savedSpecialNpcs: this.savedSpecialNpcs,
+  });
+}, {
+  duration: 500,
+  label: "return to overworld",
 });
 ```
 
 Do not serialize `Set<string>` during scene transitions. Conversion to arrays
 belongs in the save system.
+
+`SceneTransitionManager` is the single owner of camera fades and queued scene
+handoffs. Instantiate it once per scene, call `prepare()` at the start of
+`create()`, and use its guarded start/restart methods instead of direct
+fade-plus-timer pairs. Fade-complete events are primary; the duration-plus-grace
+watchdog only recovers missing events. The manager must remove completed
+listeners/timers, restore the outgoing camera before queueing the next scene,
+and suppress duplicate handoffs during Phaser's one-update queue delay.
+
+Overworld restarts use one shared payload that includes a fresh
+`savedSpecialNpcs` snapshot. Block movement and other state-changing actions
+while a handoff is pending.
 
 ## Procedural assets
 
@@ -162,9 +179,9 @@ on mouse-wheel input.
 - Validate actions before consuming MP, items, or the turn.
 - Clear player and every monster's combat effects before returning to
   Overworld.
-- Guard Battle return, reset camera effects, and start Overworld from
-  `FADE_OUT_COMPLETE`; an equal-duration timer can stop the scene before the
-  fade finishes and leave a reused camera black.
+- Guard Battle return through `SceneTransitionManager`. Start Overworld from
+  `FADE_OUT_COMPLETE` or the delayed recovery watchdog, and restore the
+  outgoing camera before Phaser queues the handoff.
 - Report victory, defeat, or flee once through `onBattleResolved`; reward
   adjustment happens before XP/gold are granted.
 - After group victory, record every defeated combatant ID for quest counters

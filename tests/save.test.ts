@@ -21,6 +21,8 @@ import {
 import { getItem } from "../src/data/items";
 import { setQuestState } from "../src/systems/questDebug";
 import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../src/data/cutscenes";
+import { getCity, getDungeon } from "../src/data/map";
+import { shouldShowCampaignEpilogue } from "../src/systems/cutscenes";
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -117,6 +119,146 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.seenCutsceneIds).toEqual([
       CAMPAIGN_EPILOGUE_CUTSCENE_ID,
     ]);
+  });
+
+  it.each([
+    {
+      label: "overworld",
+      configure: (player: ReturnType<typeof createPlayer>) => {
+        player.position.x = 3;
+        player.position.y = 3;
+        player.position.chunkX = 4;
+        player.position.chunkY = 2;
+      },
+    },
+    {
+      label: "city",
+      configure: (player: ReturnType<typeof createPlayer>) => {
+        const city = getCity("willowdale_city")!;
+        player.position.inCity = true;
+        player.position.cityId = city.id;
+        player.position.cityChunkIndex = 0;
+        player.position.x = city.spawnX;
+        player.position.y = city.spawnY;
+      },
+    },
+    {
+      label: "dungeon",
+      configure: (player: ReturnType<typeof createPlayer>) => {
+        const dungeon = getDungeon("heartlands_dungeon")!;
+        player.position.inDungeon = true;
+        player.position.dungeonId = dungeon.id;
+        player.position.dungeonLevel = 0;
+        player.position.x = dungeon.spawnX;
+        player.position.y = dungeon.spawnY;
+      },
+    },
+  ])("round-trips a valid $label save boundary", ({ configure }) => {
+    const player = createPlayer("BoundaryHero", {
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    });
+    configure(player);
+    const expectedPosition = { ...player.position };
+
+    saveGame(
+      player,
+      new Set(["cryptLich"]),
+      createCodex(),
+      player.appearanceId,
+      197,
+      createWeatherState(),
+    );
+    const loaded = loadGame();
+
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.position).toEqual(expectedPosition);
+    expect(loaded!.defeatedBosses).toEqual(["cryptLich"]);
+    expect(loaded!.timeStep).toBe(197);
+  });
+
+  it("round-trips the state persisted immediately after a battle return", () => {
+    const player = createPlayer("BattleReturnHero", {
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    });
+    player.hp -= 4;
+    player.gold += 85;
+    player.progression.quests.seenWarnings.push("frostRouteDanger");
+    player.activeEffects = [];
+    const codex = createCodex();
+    codex.entries.slime = {
+      monsterId: "slime",
+      name: "Slime",
+      color: 0x44cc44,
+      isBoss: false,
+      timesDefeated: 2,
+      acDiscovered: true,
+      ac: 8,
+      hp: 6,
+      xpReward: 10,
+      goldReward: 5,
+      itemsDropped: [],
+      discoveredElements: [],
+    };
+
+    saveGame(
+      player,
+      new Set(["cryptLich"]),
+      codex,
+      player.appearanceId,
+      88,
+      createWeatherState(),
+    );
+    const loaded = loadGame();
+
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.hp).toBe(player.hp);
+    expect(loaded!.player.gold).toBe(player.gold);
+    expect(loaded!.player.activeEffects).toEqual([]);
+    expect(loaded!.player.progression.quests.seenWarnings).toContain(
+      "frostRouteDanger",
+    );
+    expect(loaded!.codex.entries.slime?.timesDefeated).toBe(2);
+  });
+
+  it("recovers a completed but unseen campaign ending after reload", () => {
+    const player = createPlayer("RecoveryHero", {
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    });
+    const defeatedBosses = new Set([
+      "cryptLich",
+      "frostWarden",
+      "infernoForgemaster",
+    ]);
+    setQuestState(player, MAIN_QUEST_ID, "completed", defeatedBosses);
+
+    saveGame(
+      player,
+      defeatedBosses,
+      createCodex(),
+      player.appearanceId,
+      45,
+      createWeatherState(),
+    );
+    const loaded = loadGame();
+
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.progression.seenCutsceneIds).toEqual([]);
+    expect(shouldShowCampaignEpilogue(loaded!.player)).toBe(true);
   });
 
   it("normalizes malformed and unknown seen cutscene IDs", () => {

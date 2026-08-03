@@ -2847,7 +2847,6 @@ export class BattleScene extends Phaser.Scene {
 
   private returnToOverworld(): void {
     if (this.isReturningToOverworld) return;
-    this.isReturningToOverworld = true;
     this.battlePartyManager.clear();
     this.battlePartyRenderer.clear();
     for (const combatant of this.partyCombatants) {
@@ -2856,7 +2855,7 @@ export class BattleScene extends Phaser.Scene {
     for (const combatant of this.combatants) {
       clearAllEffects(combatant.effects);
     }
-    this.sceneTransitions.startWithFade(() => {
+    this.isReturningToOverworld = this.sceneTransitions.startWithFade(() => {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,

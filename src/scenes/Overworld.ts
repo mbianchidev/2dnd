@@ -183,7 +183,7 @@ const TERRAIN_DEBUG_NAMES: Record<number, string> = {
   [Terrain.Canyon]: "Canyon",
 };
 
-interface OverworldSceneData {
+export interface OverworldSceneData {
   player?: PlayerState;
   defeatedBosses?: Set<string>;
   codex?: CodexData;
@@ -339,10 +339,10 @@ export class OverworldScene extends Phaser.Scene {
       });
       this.isNewPlayer = true;
     }
-    if (data?.defeatedBosses) this.defeatedBosses = data.defeatedBosses;
-    if (data?.codex) this.codex = data.codex;
-    if (data?.timeStep !== undefined) this.timeStep = data.timeStep;
-    if (data?.weatherState) this.weatherState = data.weatherState;
+    this.defeatedBosses = data?.defeatedBosses ?? new Set();
+    this.codex = data?.codex ?? createCodex();
+    this.timeStep = data?.timeStep ?? 0;
+    this.weatherState = data?.weatherState ?? createWeatherState();
     if (data?.savedSpecialNpcs) {
       this.specialNpcManager.savedSpecialNpcs = data.savedSpecialNpcs;
     }
@@ -427,6 +427,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private startCampaignEpilogue(replay = false): boolean {
+    if (this.sceneTransitions.isPending) return false;
     const eligible = replay
       ? canReplayCampaignEpilogue(this.player)
       : shouldShowCampaignEpilogue(this.player);

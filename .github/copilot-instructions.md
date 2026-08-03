@@ -24,10 +24,10 @@ continuation.
 
 - Phaser 4.2.1
 - TypeScript 7.0.2 in strict mode
-- Vite 8.1.5
+- Vite 8.2.0
 - Vitest 4.1.10
 - Playwright 1.62.1
-- happy-dom 20.11.0
+- happy-dom 20.11.1
 - Modern browsers, ES2020 target
 
 ## Structure

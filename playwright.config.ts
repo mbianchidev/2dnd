@@ -44,6 +44,13 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
+    launchOptions: {
+      args: [
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+      ],
+    },
   },
   webServer: {
     command: `VITE_BASE_PATH=${basePath} npm run dev -- --host 127.0.0.1 --port ${port} --strictPort`,

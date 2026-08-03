@@ -537,6 +537,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Never add production `console.log`.
 - `/spawn` resolves every entry in `ALL_MONSTERS`, including dungeon-specific
   monsters and bosses.
+- Battle `/return` performs the standard cleanup and full-state Overworld
+  handoff after a terminal debug battle.
 - `/quest` lists, advances, or sets exact quest stages/statuses.
 - `/near <questNpcId>` positions the hero on a valid adjacent tile in the
   current city's primary district; it never completes the interaction.

@@ -181,6 +181,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "BATTLE");
     await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
+    await submitDebug(page, "/return");
     await waitForState(page, "OVERWORLD");
   });
 
@@ -194,6 +195,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "BATTLE");
     await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
+    await submitDebug(page, "/return");
     await waitForState(page, "OVERWORLD");
 
     await submitDebug(page, "/tp Willowdale");

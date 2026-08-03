@@ -290,6 +290,8 @@ Available tools include:
 - Battle hotkeys for instant victory, healing, MP, gold, XP, and levels;
   instant victory uses the normal one-shot resolution path even before the
   first initiative turn begins
+- Battle `/return` to perform the normal cleanup and state handoff after a
+  completed debug battle without waiting on presentation timing
 - Overworld hotkeys for revealing the map, toggling fog, and disabling random
   encounters
 - Slash commands for gold, XP, HP, MP, items, weather, time, teleportation,

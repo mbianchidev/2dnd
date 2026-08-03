@@ -1745,23 +1745,9 @@ export class BattleScene extends Phaser.Scene {
       debugPanelLog(`[CMD] Encounter defeated!`, true);
     });
 
-    cmds.set("return", () => {
-      if (
-        this.phase !== "victory"
-        && this.phase !== "defeat"
-        && this.phase !== "fled"
-      ) {
-        debugPanelLog("[CMD] Finish the battle before returning.", true);
-        return;
-      }
-      debugPanelLog("[CMD] Returning to the overworld.", true);
-      this.returnToOverworld(true);
-    });
-
     // Help entries
     const helpEntries: HelpEntry[] = [
       { usage: "/kill", desc: "Defeat the encounter instantly" },
-      { usage: "/return", desc: "Return after a completed battle" },
       ...SHARED_HELP,
     ];
 
@@ -2859,8 +2845,8 @@ export class BattleScene extends Phaser.Scene {
     this.stormLightningTimer = result.timer;
   }
 
-  private returnToOverworld(immediate = false): void {
-    if (this.isReturningToOverworld && !immediate) return;
+  private returnToOverworld(): void {
+    if (this.isReturningToOverworld) return;
     this.isReturningToOverworld = true;
     this.battlePartyManager.clear();
     this.battlePartyRenderer.clear();
@@ -2870,7 +2856,7 @@ export class BattleScene extends Phaser.Scene {
     for (const combatant of this.combatants) {
       clearAllEffects(combatant.effects);
     }
-    const startOverworld = (): void => {
+    this.sceneTransitions.startWithFade(() => {
       this.scene.start("OverworldScene", {
         player: this.player,
         defeatedBosses: this.defeatedBosses,
@@ -2880,17 +2866,7 @@ export class BattleScene extends Phaser.Scene {
         savedSpecialNpcs: this.savedSpecialNpcs,
         questUpdates: this.questUpdates,
       });
-    };
-    if (immediate) {
-      this.sceneTransitions.prepare();
-      const queued = this.sceneTransitions.startImmediately(
-        startOverworld,
-        "debug battle return",
-      );
-      if (queued) this.game.scene.processQueue();
-      return;
-    }
-    this.sceneTransitions.startWithFade(startOverworld, {
+    }, {
       duration: 500,
       label: "battle return",
     });

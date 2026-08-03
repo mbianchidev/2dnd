@@ -20,6 +20,10 @@ export class CutsceneDirector {
     return this.definition.steps[this.stepIndex]!;
   }
 
+  get currentStepIndex(): number {
+    return this.stepIndex;
+  }
+
   get completed(): boolean {
     return this.isComplete;
   }

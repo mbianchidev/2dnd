@@ -271,14 +271,17 @@ import { audioEngine } from "./audio";
 import { getMount } from "../data/mounts";
 import { getItem } from "../data/items";
 import {
+  getCity,
+  getCityChunkMap,
   getChunk,
+  isWalkable,
   MAP_WIDTH,
   MAP_HEIGHT,
   WORLD_WIDTH,
   WORLD_HEIGHT,
 } from "../data/map";
 import type { WorldChunk } from "../data/map";
-import { SPECIAL_NPC_DEFS } from "../data/npcs";
+import { CITY_NPCS, SPECIAL_NPC_DEFS } from "../data/npcs";
 import type { SpecialNpcKind } from "../data/npcs";
 import type { Monster } from "../data/monsters";
 import { recordDefeat } from "./codex";
@@ -834,6 +837,57 @@ export class DebugCommandSystem {
     });
     cmds.set("tp", cmds.get("teleport")!);
 
+    cmds.set("near", (args) => {
+      const query = args.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (!query) {
+        debugPanelLog("Usage: /near <questNpcId>", true);
+        return;
+      }
+      if (!this.player.position.inCity) {
+        debugPanelLog("[CMD] Enter a city before using /near.", true);
+        return;
+      }
+      const city = getCity(this.player.position.cityId);
+      if (!city || this.player.position.cityChunkIndex !== 0) {
+        debugPanelLog("[CMD] Quest NPC positioning is only available in a city's primary district.", true);
+        return;
+      }
+      const cityNpcs = CITY_NPCS[city.id] ?? [];
+      const target = cityNpcs.find((npc) =>
+        npc.questNpcId?.toLowerCase().replace(/[^a-z0-9]/g, "") === query
+      );
+      if (!target?.questNpcId) {
+        debugPanelLog(`[CMD] No quest NPC matching "${args.trim()}" in ${city.name}.`, true);
+        return;
+      }
+      const occupied = new Set(
+        cityNpcs
+          .filter((npc) => npc !== target)
+          .map((npc) => `${npc.x},${npc.y}`),
+      );
+      const cityMap = getCityChunkMap(city, 0);
+      const adjacent = [
+        { x: target.x, y: target.y + 1 },
+        { x: target.x, y: target.y - 1 },
+        { x: target.x + 1, y: target.y },
+        { x: target.x - 1, y: target.y },
+      ].find(({ x, y }) => {
+        const terrain = cityMap[y]?.[x];
+        return terrain !== undefined
+          && isWalkable(terrain)
+          && !occupied.has(`${x},${y}`);
+      });
+      if (!adjacent) {
+        debugPanelLog(`[CMD] No walkable tile beside ${target.questNpcId}.`, true);
+        return;
+      }
+      this.player.position.x = adjacent.x;
+      this.player.position.y = adjacent.y;
+      this.callbacks.createPlayer();
+      this.callbacks.updateHUD();
+      debugPanelLog(`[CMD] Positioned beside ${target.questNpcId}.`, true);
+    });
+
     cmds.set("audio", (args) => {
       const sub = args.trim().toLowerCase();
       if (sub === "play" || sub === "demo") {
@@ -902,6 +956,7 @@ export class DebugCommandSystem {
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
+      { usage: "/near <questNpcId>", desc: "Stand beside a quest NPC in the current city" },
       { usage: "/mount <id>", desc: "Mount: donkey|horse|warHorse|shadowSteed|none" },
       { usage: "/codex all", desc: "Discover all codex entries" },
       { usage: "/companion <cmd>", desc: "Companions: list|recruit|mode|heal|gambits" },

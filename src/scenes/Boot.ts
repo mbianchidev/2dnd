@@ -11,6 +11,7 @@ import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calcu
 import { abilityModifier, rollAbilityScore } from "../systems/dice";
 import { audioEngine } from "../systems/audio";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { debugPanelState } from "../config";
 
 
 export class BootScene extends Phaser.Scene {
@@ -41,6 +42,7 @@ export class BootScene extends Phaser.Scene {
 
 
   private showTitleScreen(): void {
+    debugPanelState("BOOT | Screen: title");
     const cx = this.cameras.main.centerX;
     const cy = this.cameras.main.centerY;
 
@@ -347,6 +349,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   private showCharacterCreation(): void {
+    debugPanelState("BOOT | Screen: character");
     // Clear the title screen
     this.children.removeAll(true);
     this.tweens.killAll();
@@ -538,6 +541,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   private showStatAllocation(playerName: string, selectedClass: PlayerClass): void {
+    debugPanelState("BOOT | Screen: stats");
     this.children.removeAll(true);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();
@@ -795,6 +799,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   private showAppearanceCustomization(playerName: string, selectedClass: PlayerClass, baseStats: PlayerStats, preset?: { skinColor: number; hairStyle: number; hairColor: number }): void {
+    debugPanelState("BOOT | Screen: appearance");
     this.children.removeAll(true);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();

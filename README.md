@@ -125,9 +125,10 @@ API, and saves use `localStorage`.
 | --- | --- |
 | Phaser | 4.2.1 |
 | TypeScript | 7.0.2 |
-| Vite | 8.1.4 |
+| Vite | 8.1.5 |
 | Vitest | 4.1.10 |
-| happy-dom | 20.10.6 |
+| Playwright | 1.62.1 |
+| happy-dom | 20.11.0 |
 
 ## Project structure
 
@@ -249,6 +250,7 @@ inventories, gambit syntax, combat control, KO/reward rules, and debug commands.
 git clone https://github.com/mbianchidev/2dnd.git
 cd 2dnd
 npm install
+npm run test:browser:install
 npm run dev
 ```
 
@@ -260,6 +262,7 @@ Vite serves the game at `http://localhost:3000`.
 npm run dev        # Start the Vite development server
 npm run typecheck  # Run strict TypeScript checks
 npm test           # Run the Vitest suite once
+npm run test:browser # Run the headless Chromium campaign golden path
 npm run test:watch # Run Vitest in watch mode
 npm run build      # Type-check and create a production build
 ```
@@ -295,6 +298,8 @@ Available tools include:
   dungeon bosses, plus special overworld NPC aliases
 - `/quest list`, `/quest advance <id>`, and
   `/quest set <id> <stage-number|stage-id|locked|active|completed>`
+- `/near <questNpcId>` to stand beside a quest NPC in the current city's
+  primary district without completing the interaction
 - `/companion list`, `/companion recruit <id|all>`,
   `/companion mode <id> <manual|gambit>`, `/companion heal`, and
   `/companion gambits <id>`
@@ -364,6 +369,18 @@ Important integration suites:
 - `tests/gambits.test.ts`
 - `tests/followers.test.ts`
 - `tests/fogOfWar.test.ts`
+
+The committed Playwright suite in `e2e/` runs a real Chromium campaign golden
+path through character creation, quest interaction, city and dungeon entry,
+battle return, reload, final Elowen completion, credits, post-game continuation,
+menu replay, and completed-but-unseen ending recovery. It starts Vite on an
+available strict port and defaults to the deployed `/2dnd/` base path:
+
+```bash
+npm run test:browser:install # One-time Chromium install
+npm run test:browser
+PLAYWRIGHT_BASE_PATH=/ npm run test:browser # Optional root-base check
+```
 
 ## Design constraints
 

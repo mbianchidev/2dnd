@@ -24,9 +24,10 @@ continuation.
 
 - Phaser 4.2.1
 - TypeScript 7.0.2 in strict mode
-- Vite 8.1.4
+- Vite 8.1.5
 - Vitest 4.1.10
-- happy-dom 20.10.6
+- Playwright 1.62.1
+- happy-dom 20.11.0
 - Modern browsers, ES2020 target
 
 ## Structure
@@ -537,6 +538,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - `/spawn` resolves every entry in `ALL_MONSTERS`, including dungeon-specific
   monsters and bosses.
 - `/quest` lists, advances, or sets exact quest stages/statuses.
+- `/near <questNpcId>` positions the hero on a valid adjacent tile in the
+  current city's primary district; it never completes the interaction.
 - `/companion` lists, recruits, changes control mode, heals, or explains stored
   gambits. Recruitment mutations refresh follower presentation immediately.
 - `P` opens party management; the debug MP hotkey is `O`.
@@ -549,17 +552,22 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 npm run dev
 npm run typecheck
 npm test
+npm run test:browser
+npm run test:browser:install
 npm run test:watch
 npm run build
 ```
 
 ## Testing
 
-- Framework: Vitest
-- Files: `tests/*.test.ts`
+- Frameworks: Vitest for logic and Playwright for browser flows.
+- Files: `tests/*.test.ts` and `e2e/*.spec.ts`.
 - Add deterministic tests for mechanics and migrations.
-- Use headless Chromium for changed frontend flows.
-- Run typecheck, full tests, and build before completion.
+- The campaign browser suite uses a fresh strict port, defaults to the deployed
+  `/2dnd/` base path, and asserts page/console errors.
+- Hold frame-polled Phaser keys across animation frames and synchronize on
+  debug-state transitions rather than fixed sleeps alone.
+- Run typecheck, full Vitest, browser tests, and build before completion.
 
 ## Prohibited
 

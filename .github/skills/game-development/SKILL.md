@@ -257,11 +257,13 @@ queued start/restart is processed. Every Overworld restart must include a fresh
 ```bash
 npm run typecheck
 npm test
+npm run test:browser
 npm run build
 ```
 
-For UI changes, run the Vite app and verify the relevant flow with headless
-Chromium.
+For UI changes, run the committed Playwright flow in headless Chromium. Keep
+browser actions synchronized through debug-state transitions, and hold
+frame-polled Phaser keys across frames rather than using instantaneous presses.
 
 ## Common pitfalls
 

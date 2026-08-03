@@ -104,7 +104,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   });
 
   await test.step("create a new character", async () => {
-    await page.goto("./", { waitUntil: "networkidle" });
+    await page.goto("./?e2e=1", { waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
     await clickGame(page, 320, 324);
     await waitForState(page, "BOOT | Screen: character");

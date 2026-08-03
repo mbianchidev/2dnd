@@ -12,6 +12,9 @@ import { CodexScene } from "./scenes/Codex";
 import { EndingScene } from "./scenes/Ending";
 import { GAME_WIDTH, GAME_HEIGHT, toggleDebug, isDebug, onDebugChanged, initDebugCommandInput, isLocalDev } from "./config";
 
+const browserTestMode = isLocalDev()
+  && new URLSearchParams(globalThis.location.search).has("e2e");
+
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: "game-container",
@@ -19,6 +22,9 @@ const config: Phaser.Types.Core.GameConfig = {
   height: GAME_HEIGHT,
   pixelArt: true,
   backgroundColor: "#111111",
+  fps: browserTestMode
+    ? { target: 60, forceSetTimeOut: true }
+    : undefined,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,

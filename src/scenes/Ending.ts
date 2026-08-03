@@ -18,6 +18,7 @@ import type { CodexData } from "../systems/codex";
 import type { PlayerState } from "../systems/player";
 import { saveGame } from "../systems/save";
 import type { WeatherState } from "../systems/weather";
+import { debugPanelState } from "../config";
 
 const INPUT_GRACE_MS = 350;
 
@@ -100,6 +101,7 @@ export class EndingScene extends Phaser.Scene {
     });
     this.inputReadyAt = this.time.now + INPUT_GRACE_MS;
     this.endingRenderer.renderStep(this.director.currentStep, summary);
+    this.updateDebugPanel();
     audioEngine.playEndingMusic();
   }
 
@@ -135,6 +137,7 @@ export class EndingScene extends Phaser.Scene {
     const completed = this.director.advance();
     if (!completed) {
       this.endingRenderer.renderStep(this.director.currentStep, summary);
+      this.updateDebugPanel();
     }
   }
 
@@ -146,6 +149,7 @@ export class EndingScene extends Phaser.Scene {
     this.save();
     this.showingChoices = true;
     this.selectedChoice = 0;
+    debugPanelState("ENDING | Choices");
     this.endingRenderer.showChoices({
       continuePostGame: () => this.continuePostGame(),
       replay: () => this.replayCutscene(),
@@ -193,6 +197,14 @@ export class EndingScene extends Phaser.Scene {
         this.sceneData.defeatedBosses,
         this.sceneData.codex,
       ),
+    );
+    this.updateDebugPanel();
+  }
+
+  private updateDebugPanel(): void {
+    const step = this.director.currentStep;
+    debugPanelState(
+      `ENDING | Step: ${this.director.currentStepIndex + 1}/${this.director.definition.steps.length} | Type: ${step.type}`,
     );
   }
 

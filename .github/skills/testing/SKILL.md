@@ -1,12 +1,14 @@
 ---
 name: testing
-description: Write effective tests for 2D&D game logic using Vitest
+description: Test 2D&D logic with Vitest and browser flows with Playwright
 license: MIT
 ---
 
 # Testing Guide for 2D&D
 
-Write comprehensive tests for game mechanics using Vitest while avoiding UI/integration tests.
+Write comprehensive game-mechanics tests with Vitest. Use the committed
+Playwright suite only for high-value Phaser browser flows that cannot be proven
+through pure logic tests.
 
 ## Testing Philosophy
 
@@ -33,6 +35,9 @@ mocked camera/time adapters
 ❌ User input handling
 ❌ Visual appearance
 ❌ Animation timing
+
+These exclusions apply to Vitest. The focused `e2e/` suite owns the real-browser
+campaign golden path and scene/input integration.
 
 ## Test File Organization
 
@@ -404,6 +409,10 @@ export function createTestMonster(overrides?: Partial<MonsterInstance>): Monster
 # Run all tests once
 npm test
 
+# Install Chromium once, then run the campaign browser suite
+npm run test:browser:install
+npm run test:browser
+
 # Watch mode (re-run on changes)
 npm run test:watch
 
@@ -413,6 +422,21 @@ npm run typecheck
 # Run specific test file
 npx vitest run tests/dice.test.ts
 ```
+
+## Browser Golden Path
+
+- `playwright.config.ts` starts Vite on an unused strict localhost port.
+- Browser tests default to `/2dnd/`; set `PLAYWRIGHT_BASE_PATH=/` to reproduce
+  the root-base development path.
+- Use `#debug-state`, `#debug-log`, and persisted save state as authoritative
+  synchronization surfaces. Canvas text is not DOM text.
+- Hold frame-polled keys with `keyboard.down()`, wait across frames, then
+  `keyboard.up()`. Do not use instantaneous presses for Overworld or Ending
+  actions.
+- Seed randomness before the game loads and assert both `pageerror` and
+  `console.error` remain empty.
+- Debug commands may accelerate setup, but the final Elowen interaction and
+  other behavior under test must still run through their production paths.
 
 ### Test Coverage
 ```bash

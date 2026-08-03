@@ -7,9 +7,11 @@ import { generateAllTextures, generatePlayerTextureWithHair } from "../renderers
 import { PLAYER_CLASSES, type PlayerClass, getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance } from "../systems/appearance";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
-import { createPlayer, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
+import { createCodex } from "../systems/codex";
+import { createPlayer, type PlayerState, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
 import { abilityModifier, rollAbilityScore } from "../systems/dice";
 import { audioEngine } from "../systems/audio";
+import { createWeatherState } from "../systems/weather";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 
 
@@ -339,6 +341,7 @@ export class BootScene extends Phaser.Scene {
         codex: save.codex,
         timeStep: save.timeStep ?? 0,
         weatherState: save.weatherState,
+        savedSpecialNpcs: [],
       });
     }, {
       duration: 500,
@@ -1071,13 +1074,7 @@ export class BootScene extends Phaser.Scene {
         selectedClass.clothingStyle
       );
 
-      deleteSave();
-      this.sceneTransitions.startWithFade(() => {
-        this.scene.start("OverworldScene", { player });
-      }, {
-        duration: 500,
-        label: "start new game",
-      });
+      this.startNewGame(player);
     };
 
     startBtn.on("pointerdown", doStart);
@@ -1091,5 +1088,23 @@ export class BootScene extends Phaser.Scene {
     });
 
     this.input.keyboard!.on("keydown-ENTER", doStart);
+  }
+
+  private startNewGame(player: PlayerState): void {
+    if (this.sceneTransitions.isPending) return;
+    deleteSave();
+    this.sceneTransitions.startWithFade(() => {
+      this.scene.start("OverworldScene", {
+        player,
+        defeatedBosses: new Set<string>(),
+        codex: createCodex(),
+        timeStep: 0,
+        weatherState: createWeatherState(),
+        savedSpecialNpcs: [],
+      });
+    }, {
+      duration: 500,
+      label: "start new game",
+    });
   }
 }

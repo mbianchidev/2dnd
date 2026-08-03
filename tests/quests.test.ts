@@ -42,7 +42,12 @@ import {
   reconcileQuestState,
   recordMonsterDefeats,
   replayQuestCompletionActions,
+  type QuestProcessResult,
 } from "../src/systems/quests";
+import {
+  shouldLaunchCampaignEpilogueAfterQuestUpdate,
+  shouldShowCampaignEpilogue,
+} from "../src/systems/cutscenes";
 import {
   advanceQuest,
   setQuestStageById,
@@ -94,10 +99,10 @@ function interact(
   player: PlayerState,
   defeatedBosses: ReadonlySet<string>,
   npcId: keyof typeof QUEST_NPCS,
-): void {
+): QuestProcessResult {
   const interaction = getNpcQuestInteraction(player, npcId);
   expect(interaction).not.toBeNull();
-  completeNpcQuestInteraction(player, defeatedBosses, interaction!);
+  return completeNpcQuestInteraction(player, defeatedBosses, interaction!);
 }
 
 describe("Twelvefold Covenant progression", () => {
@@ -267,12 +272,16 @@ describe("Twelvefold Covenant progression", () => {
     const goldBefore = player.gold;
     const xpBefore = player.xp;
 
-    interact(player, defeatedBosses, "willowdaleArchivist");
+    const result = interact(player, defeatedBosses, "willowdaleArchivist");
 
     expect(isQuestCompleted(
       player.progression.quests,
       MAIN_QUEST_ID,
     )).toBe(true);
+    expect(shouldShowCampaignEpilogue(player)).toBe(true);
+    expect(shouldLaunchCampaignEpilogueAfterQuestUpdate(false, player)).toBe(
+      true,
+    );
     expect(player.gold).toBe(goldBefore + 1300);
     expect(player.xp).toBe(xpBefore + 2500);
     expect(player.inventory.filter((item) =>
@@ -281,12 +290,28 @@ describe("Twelvefold Covenant progression", () => {
     expect(player.inventory.filter((item) =>
       item.id === QUEST_ITEM_IDS.shadowSteed
     )).toHaveLength(1);
+    expect(result.updates[0]).toMatchObject({
+      type: "objective",
+      questId: MAIN_QUEST_ID,
+    });
+    const questCompletedIndex = result.updates.findIndex(
+      (update) => update.type === "quest",
+    );
+    const firstCompletionRewardIndex = result.updates.findIndex(
+      (update) =>
+        update.message === "Gained 2000 XP for restoring the covenant.",
+    );
+    expect(questCompletedIndex).toBeGreaterThan(0);
+    expect(firstCompletionRewardIndex).toBeGreaterThan(questCompletedIndex);
 
     const inventoryCount = player.inventory.length;
     const goldAfter = player.gold;
     const xpAfter = player.xp;
     reconcileQuestState(player, defeatedBosses);
     reconcileQuestState(player, defeatedBosses);
+    expect(shouldLaunchCampaignEpilogueAfterQuestUpdate(true, player)).toBe(
+      false,
+    );
     expect(player.inventory).toHaveLength(inventoryCount);
     expect(player.gold).toBe(goldAfter);
     expect(player.xp).toBe(xpAfter);

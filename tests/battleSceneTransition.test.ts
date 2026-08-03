@@ -26,12 +26,17 @@ interface TransitionManagerHarness {
 
 interface BattleTransitionHarness {
   returnToOverworld(): void;
+  defeatEncounterForDebug(): void;
   isReturningToOverworld: boolean;
+  phase: string;
   battlePartyManager: { clear(): void };
   battlePartyRenderer: { clear(): void };
   sceneTransitions: TransitionManagerHarness;
   partyCombatants: Array<{ effects: ActiveStatusEffect[] }>;
-  combatants: Array<{ effects: ActiveStatusEffect[] }>;
+  combatants: Array<{ effects: ActiveStatusEffect[]; isAlive?: boolean }>;
+  setCombatantHp(index: number, hp: number): void;
+  updateMonsterDisplay(): void;
+  checkBattleEnd(endPlayerTurn?: boolean): void;
   scene: { start(sceneKey: string, data: unknown): void };
   player: PlayerState;
   defeatedBosses: Set<string>;
@@ -137,5 +142,71 @@ describe("BattleScene Overworld transition", () => {
       savedSpecialNpcs,
       questUpdates,
     });
+  });
+
+  it("allows a retry when the transition manager rejects the first return", () => {
+    const battle = new BattleScene();
+    const harness = battle as unknown as BattleTransitionHarness;
+    const player = createPlayer("RetryHero", {
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    });
+    const startWithFade = vi.fn()
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    Object.assign(harness, {
+      isReturningToOverworld: false,
+      battlePartyManager: { clear: vi.fn() },
+      battlePartyRenderer: { clear: vi.fn() },
+      sceneTransitions: { startWithFade },
+      partyCombatants: [{ effects: [] }],
+      combatants: [{ effects: [] }],
+      player,
+      defeatedBosses: new Set<string>(),
+      codex: createCodex(),
+      timeStep: 0,
+      weatherState: createWeatherState(),
+      savedSpecialNpcs: [],
+      questUpdates: [],
+    });
+
+    harness.returnToOverworld();
+    expect(harness.isReturningToOverworld).toBe(false);
+
+    harness.returnToOverworld();
+    expect(harness.isReturningToOverworld).toBe(true);
+    expect(startWithFade).toHaveBeenCalledTimes(2);
+  });
+
+  it("routes debug instant victory through the normal battle-end check during init", () => {
+    const battle = new BattleScene();
+    const harness = battle as unknown as BattleTransitionHarness;
+    const setCombatantHp = vi.fn((index: number) => {
+      const combatant = harness.combatants[index];
+      if (combatant) combatant.isAlive = false;
+    });
+    const updateMonsterDisplay = vi.fn();
+    const checkBattleEnd = vi.fn();
+    Object.assign(harness, {
+      phase: "init",
+      combatants: [
+        { effects: [], isAlive: true },
+        { effects: [], isAlive: true },
+      ],
+      setCombatantHp,
+      updateMonsterDisplay,
+      checkBattleEnd,
+    });
+
+    harness.defeatEncounterForDebug();
+
+    expect(setCombatantHp).toHaveBeenNthCalledWith(1, 0, 0);
+    expect(setCombatantHp).toHaveBeenNthCalledWith(2, 1, 0);
+    expect(updateMonsterDisplay).toHaveBeenCalledTimes(1);
+    expect(checkBattleEnd).toHaveBeenCalledWith(false);
   });
 });

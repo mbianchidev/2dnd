@@ -197,6 +197,7 @@ export class EndingScene extends Phaser.Scene {
   }
 
   private continuePostGame(): void {
+    if (this.sceneTransitions.isPending) return;
     this.sceneTransitions.startWithFade(() => {
       this.scene.start("OverworldScene", {
         player: this.sceneData.player,
@@ -213,6 +214,7 @@ export class EndingScene extends Phaser.Scene {
   }
 
   private returnToTitle(): void {
+    if (this.sceneTransitions.isPending) return;
     this.save();
     this.sceneTransitions.startWithFade(() => {
       audioEngine.playTitleMusic();

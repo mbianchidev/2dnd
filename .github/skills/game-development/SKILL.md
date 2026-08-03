@@ -22,13 +22,18 @@ and changes spanning scenes, systems, data, renderers, or managers.
 
 ## Current architecture
 
-- Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, and `Codex`
+- Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, and `Ending`
 - Overworld orchestration: `src/scenes/Overworld.ts`
 - Battle orchestration: `src/scenes/Battle.ts`
 - Core mechanics: `src/systems/`
 - Immutable definitions: `src/data/`
 - Extracted presentation: `src/renderers/`
 - Stateful scene helpers: `src/managers/`
+
+Cutscene definitions and stable IDs live in `src/data/cutscenes.ts`; pure
+acknowledgement, eligibility, and summary logic lives in
+`src/systems/cutscenes.ts`; `src/managers/cutscene.ts` owns step progression;
+scenes and renderers own input and presentation.
 
 The map hub is `src/data/map.ts`; terrain/types, chunks, cities, and dungeons
 are split into dedicated modules. Dungeon trap definitions live in
@@ -77,6 +82,9 @@ sources. Equipment actions remain self-targeted.
   already-completed objectives.
 - Keep quest NPCs available at night and test every referenced NPC, boss,
   reward item, and entrance.
+- Campaign completion remains derived from the main quest. Launch the epilogue
+  after the final Elowen dialogue applies rewards, recover completed-but-unseen
+  saves from Overworld creation, and keep replay presentation-only.
 - Map main-quest talk objectives through `QUEST_NPCS` and assert exact coverage
   of all 12 live city IDs; do not accept name-only references.
 - Canyonwatch, Ashfall, and the Volcanic Forge are hard gates. Sandport and

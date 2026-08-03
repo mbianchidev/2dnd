@@ -98,6 +98,11 @@ const TITLE_PROFILE: BiomeProfile = {
   baseNote: -2, scale: HARMONIC_MINOR, bpm: 68, wave: "triangle", padWave: "sine",
 };
 
+/** Campaign ending profile - warm, spacious, and resolved. */
+const ENDING_PROFILE: BiomeProfile = {
+  baseNote: -5, scale: MAJOR_PENTA, bpm: 62, wave: "triangle", padWave: "sine",
+};
+
 /** Defeat / game-over profile (future use). */
 const DEFEAT_PROFILE: BiomeProfile = {
   baseNote: -5, scale: NATURAL_MINOR, bpm: 52, wave: "sine", padWave: "sine",
@@ -185,7 +190,7 @@ export function getProfileForBiome(chunkName: string): BiomeProfile {
 // ── Audio Engine ──────────────────────────────────────────────
 
 /** Current track identifier so we avoid restarting the same music. */
-export type TrackKind = "biome" | "battle" | "boss" | "city" | "title" | "defeat" | "victory" | "none";
+export type TrackKind = "biome" | "battle" | "boss" | "city" | "title" | "ending" | "defeat" | "victory" | "none";
 
 /** Duration in seconds for crossfade between tracks. */
 const CROSSFADE_DURATION = 1.0;
@@ -701,6 +706,16 @@ class AudioEngine {
     this.state.trackId = "title";
     this.state.nightMode = false;
     this.playProfile(TITLE_PROFILE, false);
+  }
+
+  /** Play the campaign ending theme. */
+  playEndingMusic(): void {
+    if (!this.ctx) return;
+    if (this.state.trackKind === "ending") return;
+    this.state.trackKind = "ending";
+    this.state.trackId = "campaign-ending";
+    this.state.nightMode = false;
+    this.playProfile(ENDING_PROFILE, false);
   }
 
   /** Play defeat / game-over music (future use). */
@@ -1421,6 +1436,7 @@ class AudioEngine {
     const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
     const demos: { label: string; fn: () => void }[] = [
       { label: "Title",          fn: () => this.playTitleMusic() },
+      { label: "Campaign ending", fn: () => this.playEndingMusic() },
       { label: "Biome: Woodland", fn: () => this.playBiomeMusic("Woodland Frontier", TimePeriod.Day) },
       { label: "Biome: Frozen (night)", fn: () => this.playBiomeMusic("Frozen Reach", TimePeriod.Night) },
       { label: "Biome: Murky",   fn: () => this.playBiomeMusic("Murky Expanse", TimePeriod.Day) },

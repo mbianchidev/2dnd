@@ -15,6 +15,7 @@ license: MIT
 | `Battle.ts` | `BattleScene` | `BattleScene` |
 | `Shop.ts` | `ShopScene` | `ShopScene` |
 | `Codex.ts` | `CodexScene` | `CodexScene` |
+| `Ending.ts` | `EndingScene` | `EndingScene` |
 
 Register scenes in `src/main.ts`. The Phaser 4 configuration uses FIT scaling,
 centered pixel art, and zoom 6.
@@ -66,6 +67,7 @@ Scene-specific additions:
   stable `shopSkillCheckId`
 - Overworld: fields are optional only because Boot can create or load the
   initial state
+- Ending: the full shared state plus a stable `CutsceneId`
 
 When a scene contract changes, update every `scene.start()` caller in the same
 change.
@@ -106,6 +108,12 @@ and suppress duplicate handoffs during Phaser's one-update queue delay.
 Overworld restarts use one shared payload that includes a fresh
 `savedSpecialNpcs` snapshot. Block movement and other state-changing actions
 while a handoff is pending.
+
+Ending starts only after the final quest turn-in or completed-save recovery. It
+marks the cutscene seen only after completion or skip, saves before presenting
+Continue/Replay/Title choices, and returns the unchanged shared payload for
+post-game play. Add an input grace period when a dialogue keypress can cross a
+scene boundary.
 
 ## Procedural assets
 

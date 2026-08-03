@@ -9,6 +9,7 @@ import { OverworldScene } from "./scenes/Overworld";
 import { BattleScene } from "./scenes/Battle";
 import { ShopScene } from "./scenes/Shop";
 import { CodexScene } from "./scenes/Codex";
+import { EndingScene } from "./scenes/Ending";
 import { GAME_WIDTH, GAME_HEIGHT, toggleDebug, isDebug, onDebugChanged, initDebugCommandInput, isLocalDev } from "./config";
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -23,7 +24,14 @@ const config: Phaser.Types.Core.GameConfig = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
     zoom: 6,
   },
-  scene: [BootScene, OverworldScene, BattleScene, ShopScene, CodexScene],
+  scene: [
+    BootScene,
+    OverworldScene,
+    BattleScene,
+    ShopScene,
+    CodexScene,
+    EndingScene,
+  ],
 };
 
 new Phaser.Game(config);

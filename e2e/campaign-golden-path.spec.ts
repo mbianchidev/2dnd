@@ -331,6 +331,4 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "OVERWORLD");
     expect(browserErrors).toEqual([]);
   });
-
-  await page.goto("about:blank", { waitUntil: "commit" });
 });

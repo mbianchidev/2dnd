@@ -446,6 +446,9 @@ npx vitest run tests/dice.test.ts
 - `playwright.config.ts` starts Vite on an unused strict localhost port.
 - Browser tests default to `/2dnd/`; set `PLAYWRIGHT_BASE_PATH=/` to reproduce
   the root-base development path.
+- Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
+  disable trace screenshots and video. Phaser repaints every frame, so the
+  filmstrip creates thousands of canvas captures that stall context teardown.
 - Use `#debug-state`, `#debug-log`, and persisted save state as authoritative
   synchronization surfaces. Canvas text is not DOM text.
 - Hold frame-polled keys with `keyboard.down()`, wait across frames, then
@@ -457,8 +460,7 @@ npx vitest run tests/dice.test.ts
   other behavior under test must still run through their production paths.
 - Cover interrupted opening recovery, dungeon reveals, skipped boss
   introductions, aftermath chaining, Chronicle replay immutability, and legacy
-  ending recovery. Navigate to `about:blank` before browser teardown so Phaser
-  audio/timer activity cannot hold the context open.
+  ending recovery.
 
 ### Test Coverage
 ```bash

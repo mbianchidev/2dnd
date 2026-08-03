@@ -2882,6 +2882,7 @@ export class BattleScene extends Phaser.Scene {
       });
     };
     if (immediate) {
+      this.game.loop.wake(true);
       this.sceneTransitions.startImmediately(
         startOverworld,
         "debug battle return",

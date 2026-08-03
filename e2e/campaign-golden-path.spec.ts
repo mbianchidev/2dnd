@@ -69,6 +69,15 @@ async function submitDebug(page: Page, command: string): Promise<void> {
   await input.blur();
 }
 
+async function tickGame(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    if (!window.__2dndTestTick) {
+      throw new Error("Missing browser test tick bridge");
+    }
+    window.__2dndTestTick();
+  });
+}
+
 async function readSave(page: Page): Promise<BrowserSave> {
   return page.evaluate((saveKey) => {
     const raw = localStorage.getItem(saveKey);
@@ -182,6 +191,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
     await submitDebug(page, "/return");
+    await tickGame(page);
     await waitForState(page, "OVERWORLD");
   });
 
@@ -196,6 +206,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
     await submitDebug(page, "/return");
+    await tickGame(page);
     await waitForState(page, "OVERWORLD");
 
     await submitDebug(page, "/tp Willowdale");

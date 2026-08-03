@@ -2860,7 +2860,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private returnToOverworld(immediate = false): void {
-    if (this.isReturningToOverworld) return;
+    if (this.isReturningToOverworld && !immediate) return;
     this.isReturningToOverworld = true;
     this.battlePartyManager.clear();
     this.battlePartyRenderer.clear();
@@ -2882,6 +2882,7 @@ export class BattleScene extends Phaser.Scene {
       });
     };
     if (immediate) {
+      this.sceneTransitions.prepare();
       const queued = this.sceneTransitions.startImmediately(
         startOverworld,
         "debug battle return",

@@ -70,12 +70,15 @@ async function submitDebug(page: Page, command: string): Promise<void> {
 }
 
 async function tickGame(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    if (!window.__2dndTestTick) {
-      throw new Error("Missing browser test tick bridge");
-    }
-    window.__2dndTestTick();
-  });
+  for (let frame = 0; frame < 10; frame++) {
+    await page.evaluate(() => {
+      if (!window.__2dndTestTick) {
+        throw new Error("Missing browser test tick bridge");
+      }
+      window.__2dndTestTick();
+    });
+    await page.waitForTimeout(20);
+  }
 }
 
 async function readSave(page: Page): Promise<BrowserSave> {

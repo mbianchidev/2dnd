@@ -17,7 +17,8 @@ D&D 5E-inspired combat. It has turn-based battles, point-buy characters,
 procedural graphics/audio, weather, day/night, a 90-chunk world, connected city
 districts, multi-level dungeons, procedural traps, non-combat skill checks,
 quest-recruited companions, ranked gambits, elemental interactions, status
-effects, and boss fights.
+effects, boss fights, and a replayable campaign epilogue with post-game
+continuation.
 
 ## Stack
 
@@ -39,7 +40,8 @@ src/
 │   ├── Overworld.ts
 │   ├── Battle.ts
 │   ├── Shop.ts
-│   └── Codex.ts
+│   ├── Codex.ts
+│   └── Ending.ts
 ├── systems/
 │   ├── combat.ts
 │   ├── groupCombat.ts
@@ -62,6 +64,7 @@ src/
 │   ├── quests.ts
 │   ├── questState.ts
 │   ├── questDebug.ts
+│   ├── cutscenes.ts
 │   └── debug.ts
 ├── data/
 │   ├── map.ts
@@ -81,12 +84,15 @@ src/
 │   ├── mounts.ts
 │   ├── npcs.ts
 │   ├── quests.ts
+│   ├── cutscenes.ts
 │   ├── skillChecks.ts
 │   └── talents.ts
 ├── managers/
 │   ├── questJournal.ts
-│   └── questFlow.ts
+│   ├── questFlow.ts
+│   └── cutscene.ts
 ├── renderers/
+│   └── ending.ts
 └── utils/
 
 tests/
@@ -104,6 +110,7 @@ tests/
 ├── elements.test.ts
 ├── statusEffects.test.ts
 ├── save.test.ts
+├── cutscenes.test.ts
 ├── data.test.ts
 ├── fogOfWar.test.ts
 └── ...
@@ -132,8 +139,8 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 ## Phaser 4 patterns
 
 - Import Phaser with `import * as Phaser from "phaser"`.
-- Scene keys are `BootScene`, `OverworldScene`, `BattleScene`, `ShopScene`, and
-  `CodexScene`.
+- Scene keys are `BootScene`, `OverworldScene`, `BattleScene`, `ShopScene`,
+  `CodexScene`, and `EndingScene`.
 - Store scene input in `init()` and reset scene-specific transient state there.
 - State-bearing transitions preserve:
 
@@ -150,6 +157,9 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 
 - Battle also receives a `MonsterEncounter` and `biome`; Shop receives
   shop/city context.
+- Ending receives the full shared state plus a stable `CutsceneId`; Continue
+  Post-game returns that same state to Overworld, while Return to Title saves
+  before starting Boot.
 - Battle may also receive accessor-backed `partyCombatants` and runtime-only
   `battleHooks`; these are scene contracts, not persisted save fields.
 - Persistent companions live inside `player.party`, so every existing
@@ -196,6 +206,7 @@ interface PlayerProgression {
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
   quests: QuestLogState;
+  seenCutsceneIds: CutsceneId[];
   skillChecks: Record<string, SkillCheckRecord>;
   trapSeed: number;
   trapStates: Record<string, TrapState>;
@@ -262,6 +273,15 @@ level-up/stat state, control mode, dialogue cursor, and normalized gambits.
 - Boss objectives derive from `defeatedBosses`; do not rely only on a new battle
   event because existing saves may already contain the required defeat.
 - Quest NPCs remain available at night. `Q` opens the quest journal.
+- The campaign ending is derived from `isQuestCompleted(MAIN_QUEST_ID)`. The
+  Inferno Forgemaster victory alone does not end the game; the real
+  `returnToElowen` interaction launches the unseen epilogue after rewards are
+  applied. Completed older saves recover the unseen epilogue on Overworld
+  creation, and replay never mutates quests or rewards.
+- Stable cutscene definitions belong in `src/data/cutscenes.ts`; acknowledgement
+  and eligibility helpers belong in `src/systems/cutscenes.ts`; step progression
+  belongs in `src/managers/cutscene.ts`; Phaser presentation belongs in a scene
+  and renderer.
 - Canyonwatch, Ashfall, and the Volcanic Forge use quest-controlled entrance
   barricades; Sandport and the Heartlands Crypt remain reachable to avoid
   softlocks. Premature northern, marsh, and ashen travel uses persisted soft
@@ -461,7 +481,7 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 6.
+Save schema version is 7.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -477,6 +497,9 @@ Schema-v5 saves gain an empty `player.party`; party normalization validates
 companion IDs, active order, resources, known actions, canonical inventory,
 equipment links, effects, control mode, dialogue state, and gambits before
 replaying completed recruitment actions.
+Schema-v6 and older saves gain an empty `seenCutsceneIds` list. Cutscene
+normalization keeps only known stable IDs and removes malformed or duplicate
+entries.
 
 When persistent data changes:
 
@@ -502,6 +525,8 @@ When persistent data changes:
 
 All music and SFX use Web Audio synthesis. Initialize from a user gesture.
 Volume preferences for Master, Music, SFX, and Dialog persist separately.
+The campaign epilogue uses `audioEngine.playEndingMusic()` and the procedural
+ending profile.
 Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 `audioEngine.playTrapSFX()`. Do not add external audio.
 

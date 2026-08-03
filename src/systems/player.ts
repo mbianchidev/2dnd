@@ -23,6 +23,7 @@ import {
 import type { QuestLogState } from "../data/quests";
 import type { ActiveStatusEffect } from "./statusEffects";
 import type { PartyState } from "./party";
+import type { CutsceneId } from "../data/cutscenes";
 
 export interface PlayerStats {
   strength: number;
@@ -54,6 +55,7 @@ export interface PlayerProgression {
   exploredTiles: Record<string, boolean>; // fog of war — keys like "cx,cy,x,y" or "d:id,x,y"
   discoveredCities: string[]; // IDs of cities the player has visited (enables fast travel)
   quests: QuestLogState; // quest stages, objective counters, rewards, and warnings
+  seenCutsceneIds: CutsceneId[]; // completed or skipped story presentation IDs
   skillChecks: Record<string, SkillCheckRecord>; // stable check ID -> one-time result
   trapSeed: number; // stable per-playthrough seed for procedural dungeon traps
   trapStates: Record<string, TrapState>; // deterministic trap ID -> authoritative state
@@ -240,6 +242,7 @@ export function createPlayer(
       exploredTiles: {},
       discoveredCities: [],
       quests: createQuestLog(),
+      seenCutsceneIds: [],
       skillChecks: {},
       trapSeed: createTrapSeed(),
       trapStates: {},

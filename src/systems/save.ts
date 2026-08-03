@@ -36,9 +36,10 @@ import {
   normalizePartyState,
   synchronizeCompanionRecruitment,
 } from "./party";
+import { normalizeSeenCutsceneIds } from "./cutscenes";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 6;
+const SAVE_VERSION = 7;
 
 export interface SaveData {
   version: number;
@@ -384,6 +385,7 @@ export function loadGame(): SaveData | null {
         exploredTiles: normalizeExploredTiles(playerRecord["exploredTiles"]),
         discoveredCities: [],
         quests: normalizeQuestLog(playerRecord["quests"]),
+        seenCutsceneIds: [],
         skillChecks: {},
         trapSeed: LEGACY_TRAP_SEED,
         trapStates: {},
@@ -406,6 +408,9 @@ export function loadGame(): SaveData | null {
     migrateInterimTrapProgression(data.player);
     data.player.progression.quests = normalizeQuestLog(
       data.player.progression.quests,
+    );
+    data.player.progression.seenCutsceneIds = normalizeSeenCutsceneIds(
+      data.player.progression.seenCutsceneIds,
     );
     data.player.progression.skillChecks = normalizeSkillCheckRecords(
       data.player.progression.skillChecks,

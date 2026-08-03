@@ -116,9 +116,19 @@ import {
   getBlockedQuestEntrance,
   getNpcQuestInteraction,
   getQuestNpcIdleDialogue,
+  isQuestCompleted,
 } from "../systems/quests";
 import type { QuestUpdate } from "../systems/quests";
 import { SkillCheckManager } from "../managers/skillChecks";
+import {
+  CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+} from "../data/cutscenes";
+import { MAIN_QUEST_ID } from "../data/quests";
+import {
+  canReplayCampaignEpilogue,
+  shouldLaunchCampaignEpilogueAfterQuestUpdate,
+  shouldShowCampaignEpilogue,
+} from "../systems/cutscenes";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -301,6 +311,7 @@ export class OverworldScene extends Phaser.Scene {
       evacuateDungeon: () => this.evacuateDungeon(),
       getHUDInfo: () => this.getHUDInfo(),
       openQuestJournal: () => this.openQuestJournal(),
+      replayCampaignEpilogue: () => this.startCampaignEpilogue(true),
       fadeOutAndIn: (atBlack, duration) =>
         this.sceneTransitions.fadeOutAndIn(atBlack, {
           duration,
@@ -378,6 +389,10 @@ export class OverworldScene extends Phaser.Scene {
     this.mapRenderer.updateWeatherParticles(this.weatherState);
     this.updateAudio();
     this.questFlow.afterInitialRender();
+    if (shouldShowCampaignEpilogue(this.player)) {
+      this.startCampaignEpilogue();
+      return;
+    }
     if (this.player.position.inDungeon) {
       this.time.delayedCall(150, () => {
         this.dungeonTrapManager.scanNearby(this.player);
@@ -409,6 +424,34 @@ export class OverworldScene extends Phaser.Scene {
       () => this.scene.restart(this.getRestartData()),
       label,
     );
+  }
+
+  private startCampaignEpilogue(replay = false): boolean {
+    const eligible = replay
+      ? canReplayCampaignEpilogue(this.player)
+      : shouldShowCampaignEpilogue(this.player);
+    if (!eligible) {
+      debugLog(
+        `[ending] Ignored ineligible ${replay ? "replay" : "automatic"} epilogue request`,
+      );
+      return false;
+    }
+
+    this.dialogueSystem.dismissDialogue();
+    this.overlayManager.destroyAll();
+    this.partyOverlayManager.close();
+    this.questJournal.close();
+    this.autoSave();
+    const persistentState = this.getRestartData();
+    return this.sceneTransitions.startWithFade(() => {
+      this.scene.start("EndingScene", {
+        ...persistentState,
+        cutsceneId: CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+      });
+    }, {
+      duration: 500,
+      label: replay ? "replay campaign epilogue" : "campaign epilogue",
+    });
   }
 
   // ── Debug ───────────────────────────────────────────────────────────────
@@ -1351,6 +1394,10 @@ export class OverworldScene extends Phaser.Scene {
               interaction.speaker,
               interaction.pages,
               () => {
+                const wasCampaignCompleted = isQuestCompleted(
+                  this.player.progression.quests,
+                  MAIN_QUEST_ID,
+                );
                 const result = completeNpcQuestInteraction(
                   this.player,
                   this.defeatedBosses,
@@ -1368,6 +1415,12 @@ export class OverworldScene extends Phaser.Scene {
                     this.player,
                     (companion) => this.showCompanionDialogue(companion),
                   );
+                }
+                if (shouldLaunchCampaignEpilogueAfterQuestUpdate(
+                  wasCampaignCompleted,
+                  this.player,
+                )) {
+                  this.startCampaignEpilogue();
                 }
               },
             );

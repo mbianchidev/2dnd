@@ -48,7 +48,7 @@ Six scales define the musical character of each location:
 
 | Scale | Mood | Used For |
 |-------|------|----------|
-| `MAJOR_PENTA` | Happy, bright | Grasslands, villages, highlands |
+| `MAJOR_PENTA` | Happy, bright | Grasslands, villages, highlands, campaign ending |
 | `MINOR_PENTA` | Melancholic | Frozen, ancient, mystical areas |
 | `HARMONIC_MINOR` | Exotic, desert | Arid, canyon, title screen |
 | `DIMINISHED` | Eerie, unsettling | Swamp, murky areas |
@@ -113,6 +113,13 @@ Every track automatically layers these instruments via `playNote()`:
 ### Night Mode
 Major scales automatically shift to their relative minor at night.
 Already-minor scales drop the root by 2–3 semitones for a darker feel.
+
+## Campaign ending music
+
+`audioEngine.playEndingMusic()` selects the warm, resolved `ENDING_PROFILE`.
+Keep `ending` as its own `TrackKind`, include it in `playAllSounds()`, and call
+`playTitleMusic()` before Ending hands off to Boot so the ending loop does not
+continue on the title screen.
 
 ## Adding New SFX
 

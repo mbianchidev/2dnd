@@ -102,6 +102,9 @@ API, and saves use `localStorage`.
   restores three keystones guarded by dungeon bosses, with two campaign
   sidequests, optional boss objectives, named story NPCs, dynamic markers, a
   `Q` journal, unique rewards, gated roads, and soft danger zones
+- The final Elowen turn-in launches a skippable campaign epilogue with rewards,
+  party and exploration summaries, credits, post-game continuation, and
+  presentation-only replay from the in-game menu
 - Three additional recruitment quest lines use stable stage IDs and replayable
   completion actions; active conscious companions follow the hero and can be
   spoken to during overworld, city, and dungeon exploration
@@ -111,7 +114,7 @@ API, and saves use `localStorage`.
 ### Presentation
 
 - Phaser 4 pixel-art rendering with procedural textures
-- Procedural biome, city, battle, boss, and title music
+- Procedural biome, city, battle, boss, title, and campaign-ending music
 - Synthesized combat, weather, movement, item, and interaction sound effects
 - Scrollable overlays and a bounded battle log
 - Local-development debug panel, hotkeys, and slash commands
@@ -137,7 +140,8 @@ src/
 │   ├── Overworld.ts
 │   ├── Battle.ts
 │   ├── Shop.ts
-│   └── Codex.ts
+│   ├── Codex.ts
+│   └── Ending.ts
 ├── systems/
 │   ├── combat.ts
 │   ├── groupCombat.ts
@@ -158,6 +162,7 @@ src/
 │   ├── quests.ts
 │   ├── questState.ts
 │   ├── questDebug.ts
+│   ├── cutscenes.ts
 │   └── debug.ts
 ├── data/
 │   ├── map.ts
@@ -174,6 +179,7 @@ src/
 │   ├── spells.ts
 │   ├── abilities.ts
 │   ├── quests.ts
+│   ├── cutscenes.ts
 │   ├── skillChecks.ts
 │   └── items.ts
 ├── managers/
@@ -183,12 +189,14 @@ src/
 │   ├── battleParty.ts
 │   ├── questJournal.ts
 │   ├── questFlow.ts
+│   ├── cutscene.ts
 │   ├── skillChecks.ts
 │   └── sceneTransition.ts
 └── renderers/
     ├── traps.ts
     ├── trapTextures.ts
     ├── characterTextures.ts
+    ├── ending.ts
     └── battleParty.ts
 ```
 
@@ -210,6 +218,14 @@ Consumers call `getQuestCompletionActions()` or
 those actions idempotently in their own state. Every stage also has a stable
 data ID; use `getQuestStageIndex()` or the debug-only
 `setQuestStageById()` helper instead of coupling systems to display text.
+
+Cutscene definitions and stable IDs live in `src/data/cutscenes.ts`.
+`src/systems/cutscenes.ts` owns acknowledgement normalization, campaign-ending
+eligibility, and presentation-only summary derivation.
+`src/managers/cutscene.ts` advances or skips immutable steps, while
+`EndingScene` and `src/renderers/ending.ts` own Phaser input and presentation.
+Campaign completion remains authoritative quest state; only completed or
+skipped cutscene IDs are persisted.
 
 For companion recruitment, define three distinct quest IDs and one action per
 path using `type: "recruitCompanion"` and the companion ID as `targetId`.
@@ -260,7 +276,7 @@ npm run build      # Type-check and create a production build
 | `C` | Open the Codex |
 | `Q` | Open the quest journal |
 | `T` | Mount or dismount |
-| `Esc` | Close the active overlay |
+| `Esc` | Close the active overlay or skip the active ending cutscene |
 | Mouse / touch | Select buttons and scroll lists |
 
 ## Debug mode
@@ -292,7 +308,7 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 Game state is stored under `2dnd_save`; audio preferences use
 `2dnd_audio_prefs`.
 
-Save schema version 6 persists:
+Save schema version 7 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -300,6 +316,7 @@ Save schema version 6 persists:
 - Explored tiles, opened chests, collected treasure, and discovered cities
 - Quest status, stages, objective counters, claimed reward IDs, and acknowledged
   danger warnings
+- Stable completed-or-skipped cutscene IDs for one-shot story presentation
 - Per-playthrough trap seed, authoritative detected/missed/disarmed/triggered
   trap states, and Adventurer guidance
 - Defeated bosses, Codex entries, and discovered elemental interactions
@@ -319,7 +336,8 @@ Schema-v3 skill-check saves gain default trap progress, and schema-v4 quest
 saves gain default trap progress. Malformed trap seeds reset trap states
 so stale IDs cannot resolve against a different layout. Schema-v5 saves gain an
 empty party, and completed recruitment actions replay idempotently after party
-normalization.
+normalization. Older saves gain an empty cutscene acknowledgement list; unknown,
+duplicate, and malformed cutscene IDs are discarded.
 
 ## Testing
 
@@ -327,7 +345,8 @@ The Vitest suite covers combat, elements, statuses, saves, map and city data,
 dungeon traversal and traps, fog keys, movement, player progression, dice,
 quest and skill-check progression, dice, weather, day/night, mounts, NPCs,
 audio, configuration, group encounter generation, formation targeting,
-synergies, rewards, multi-target actions, and party-ready combat/action-planning
+synergies, rewards, cutscene acknowledgement and ending summaries, multi-target
+actions, and party-ready combat/action-planning
 contracts, companion definitions, party state, gambits, follower trails, and
 recruitment replay.
 

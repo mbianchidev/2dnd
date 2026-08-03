@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v6, migration, normalization, and location recovery
+description: Manage 2D&D save schema v7, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -16,7 +16,7 @@ preferences are stored separately by `src/systems/audio.ts`.
 
 ## Current schema
 
-`SAVE_VERSION` is 6.
+`SAVE_VERSION` is 7.
 
 ```typescript
 interface SaveData {
@@ -58,6 +58,7 @@ interface PlayerProgression {
   exploredTiles: Record<string, boolean>;
   discoveredCities: string[];
   quests: QuestLogState;
+  seenCutsceneIds: CutsceneId[];
   skillChecks: Record<string, SkillCheckRecord>;
   trapSeed: number;
   trapStates: Record<string, TrapState>;
@@ -82,6 +83,8 @@ Codex entries persist `discoveredElements`. `PlayerState.party` persists unique
 companion states, active order, independent progression/inventories/equipment,
 control modes, dialogue state, and gambits. Quest progress stores status, stage,
 objective counters, claimed reward IDs, and acknowledged danger warnings.
+`seenCutsceneIds` stores stable completed-or-skipped story presentation IDs;
+campaign completion remains derived from quest state.
 Fixed non-combat checks persist the
 ability, natural roll, modifier, repaired total, DC, outcome, and optional
 choice ID.
@@ -104,6 +107,8 @@ helpers; do not cast unvalidated nested values directly.
   fields
 - Missing/invalid active status effects
 - Missing/invalid party state and gambit rules
+- Missing, malformed, duplicate, or unknown cutscene IDs through
+  `normalizeSeenCutsceneIds()`
 - Missing/invalid Codex elemental discoveries
 - Missing, malformed, or unknown quest entries through `normalizeQuestLog()`
 - Missing/invalid non-combat skill-check records
@@ -140,6 +145,10 @@ validation.
 For party data, normalize after quests, skill checks, and trap fields. Then
 replay completed `recruitCompanion` quest actions so v5 saves and debug-completed
 quests converge idempotently.
+
+Normalize `seenCutsceneIds` on every load against `CUTSCENE_IDS`. Unknown IDs are
+discarded, IDs remain stable after release, and missing lists default to empty so
+completed older saves can recover unseen one-shot presentation.
 
 Do not silently retain malformed data. Use a safe default or reject the save
 when the top-level payload is unusable.
@@ -178,8 +187,9 @@ top-level save is absent or corrupt.
 `tests/save.test.ts` covers:
 
 - Save/load round trips
+- Cutscene acknowledgement round trips and malformed-ID repair
 - Legacy flat-state migration
-- Schema-v6 position, objective/reward/warning quest state, skill checks,
+- Schema-v7 position, objective/reward/warning quest state, skill checks,
   traps, and party state
 - Flat schema-v4 quest migration and completed-reward preservation
 - Schema-v3 skill-check saves gaining default normalized quest state

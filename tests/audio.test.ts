@@ -98,6 +98,7 @@ describe("audio system", () => {
       expect(typeof audioEngine.setMasterVolume).toBe("function");
       expect(typeof audioEngine.setMusicVolume).toBe("function");
       expect(typeof audioEngine.setSFXVolume).toBe("function");
+      expect(typeof audioEngine.playCutsceneCue).toBe("function");
       expect(typeof audioEngine.setDialogVolume).toBe("function");
       expect(typeof audioEngine.stopAll).toBe("function");
       expect(typeof audioEngine.playBiomeMusic).toBe("function");

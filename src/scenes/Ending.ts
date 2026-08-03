@@ -5,31 +5,26 @@ import {
   isCutsceneId,
   type CutsceneId,
 } from "../data/cutscenes";
-import type { SavedSpecialNpc } from "../data/npcs";
 import { CutsceneDirector } from "../managers/cutscene";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { EndingRenderer } from "../renderers/ending";
 import { audioEngine } from "../systems/audio";
 import {
   buildCampaignEndingSummary,
-  markCutsceneSeen,
+  completeCutscene,
 } from "../systems/cutscenes";
-import type { CodexData } from "../systems/codex";
-import type { PlayerState } from "../systems/player";
 import { saveGame } from "../systems/save";
-import type { WeatherState } from "../systems/weather";
 import { debugPanelState } from "../config";
+import {
+  createSharedSceneState,
+  type SharedSceneState,
+} from "../systems/sceneState";
 
 const INPUT_GRACE_MS = 350;
 
-export interface EndingSceneData {
-  player: PlayerState;
-  defeatedBosses: Set<string>;
-  codex: CodexData;
-  timeStep: number;
-  weatherState: WeatherState;
-  savedSpecialNpcs: SavedSpecialNpc[];
+export interface EndingSceneData extends SharedSceneState {
   cutsceneId?: CutsceneId;
+  replay?: boolean;
 }
 
 interface EndingKeys {
@@ -142,11 +137,13 @@ export class EndingScene extends Phaser.Scene {
   }
 
   private completeCutscene(): void {
-    markCutsceneSeen(
-      this.sceneData.player.progression,
-      this.sceneData.cutsceneId!,
-    );
-    this.save();
+    if (!this.sceneData.replay) {
+      completeCutscene(
+        this.sceneData.player.progression,
+        this.sceneData.cutsceneId!,
+      );
+      this.save();
+    }
     this.showingChoices = true;
     this.selectedChoice = 0;
     debugPanelState("ENDING | Choices");
@@ -211,14 +208,10 @@ export class EndingScene extends Phaser.Scene {
   private continuePostGame(): void {
     if (this.sceneTransitions.isPending) return;
     this.sceneTransitions.startWithFade(() => {
-      this.scene.start("OverworldScene", {
-        player: this.sceneData.player,
-        defeatedBosses: this.sceneData.defeatedBosses,
-        codex: this.sceneData.codex,
-        timeStep: this.sceneData.timeStep,
-        weatherState: this.sceneData.weatherState,
-        savedSpecialNpcs: this.sceneData.savedSpecialNpcs,
-      });
+      this.scene.start(
+        "OverworldScene",
+        createSharedSceneState(this.sceneData),
+      );
     }, {
       duration: 500,
       label: "ending to post-game",

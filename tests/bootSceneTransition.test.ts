@@ -126,18 +126,28 @@ describe("BootScene Overworld transition", () => {
     harness.startNewGame(player);
     harness.startNewGame(player);
 
-    expect(loadGame()).toBeNull();
+    const saved = loadGame();
+    expect(saved).not.toBeNull();
+    expect(saved!.player.name).toBe("NewHero");
+    expect(saved!.defeatedBosses).toEqual([]);
+    expect(saved!.timeStep).toBe(0);
+    expect(saved!.player.progression.pendingCutsceneIds).toEqual([
+      "campaign.opening",
+      "campaign.stage.firstSeal",
+    ]);
     expect(sceneTransitions.startWithFade).toHaveBeenCalledTimes(1);
     fadeComplete?.();
 
     expect(start).toHaveBeenCalledTimes(1);
-    expect(start).toHaveBeenCalledWith("OverworldScene", {
+    expect(start).toHaveBeenCalledWith("CutsceneScene", {
       player,
       defeatedBosses: new Set(),
       codex: { entries: {} },
       timeStep: 0,
       weatherState: createWeatherState(),
       savedSpecialNpcs: [],
+      cutsceneId: "campaign.opening",
+      replay: false,
     });
   });
 });

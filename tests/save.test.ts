@@ -72,6 +72,7 @@ describe("save system - PlayerState composition migration", () => {
     player.progression.seenCutsceneIds.push(
       CAMPAIGN_EPILOGUE_CUTSCENE_ID,
     );
+    player.progression.pendingCutsceneIds.push("campaign.opening");
     
     const bestiary = createCodex();
     const weatherState = createWeatherState();
@@ -101,7 +102,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.quests.seenWarnings).toEqual([
       "frostRouteDanger",
     ]);
-    expect(loaded!.version).toBe(7);
+    expect(loaded!.version).toBe(8);
     expect(loaded!.player.progression.skillChecks["shop:city:willowdale_city:0:0"]).toEqual({
       ability: "charisma",
       naturalRoll: 15,
@@ -118,6 +119,9 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.trapGuidance).toBe(true);
     expect(loaded!.player.progression.seenCutsceneIds).toEqual([
       CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+    ]);
+    expect(loaded!.player.progression.pendingCutsceneIds).toEqual([
+      "campaign.opening",
     ]);
   });
 
@@ -254,11 +258,50 @@ describe("save system - PlayerState composition migration", () => {
       45,
       createWeatherState(),
     );
+    const raw = JSON.parse(localStorage.getItem("2dnd_save")!);
+    raw.version = 7;
+    delete raw.player.progression.pendingCutsceneIds;
+    localStorage.setItem("2dnd_save", JSON.stringify(raw));
     const loaded = loadGame();
 
     expect(loaded).not.toBeNull();
     expect(loaded!.player.progression.seenCutsceneIds).toEqual([]);
+    expect(loaded!.player.progression.pendingCutsceneIds).toEqual([
+      CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+    ]);
     expect(shouldShowCampaignEpilogue(loaded!.player)).toBe(true);
+  });
+
+  it("normalizes malformed pending cutscene IDs and removes seen entries", () => {
+    const player = createPlayer("PendingHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      player.appearanceId,
+      0,
+      createWeatherState(),
+    );
+    const raw = JSON.parse(localStorage.getItem("2dnd_save")!);
+    raw.player.progression.seenCutsceneIds = ["campaign.opening"];
+    raw.player.progression.pendingCutsceneIds = [
+      "campaign.opening",
+      CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+      "unknown.cutscene",
+      CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+      42,
+    ];
+    localStorage.setItem("2dnd_save", JSON.stringify(raw));
+
+    const loaded = loadGame();
+
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.progression.pendingCutsceneIds).toEqual([
+      CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+    ]);
   });
 
   it("normalizes malformed and unknown seen cutscene IDs", () => {
@@ -289,7 +332,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.seenCutsceneIds).toEqual([
       CAMPAIGN_EPILOGUE_CUTSCENE_ID,
     ]);
-    expect(loaded!.version).toBe(7);
+    expect(loaded!.version).toBe(8);
   });
 
   it("migrates old flat structure to new nested structure on load", () => {
@@ -708,7 +751,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(7);
+    expect(loaded!.version).toBe(8);
     expect(loaded!.player.progression.skillChecks).toEqual({});
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].status,
@@ -752,7 +795,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(7);
+    expect(loaded!.version).toBe(8);
     expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID]).toEqual({
       status: "active",
       stage: 0,
@@ -882,7 +925,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(7);
+    expect(loaded!.version).toBe(8);
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].stage,
     ).toBe(2);
@@ -1047,7 +1090,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(7);
+    expect(loaded!.version).toBe(8);
     expect(loaded!.player.progression.trapSeed).toBe(424242);
     expect(loaded!.player.progression.trapStates).toEqual({
       legacyDetected: "detected",
@@ -1104,7 +1147,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(7);
+    expect(loaded!.version).toBe(8);
     expect(loaded!.player.party.activeCompanionIds).toEqual(["guardian"]);
     expect(loaded!.player.party.companions[0]!.controlMode).toBe("gambit");
     expect(loaded!.player.party.companions[0]!.gambits).toEqual(
@@ -1277,7 +1320,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(7);
+    expect(loaded!.version).toBe(8);
     expect(loaded!.player.party).toEqual({
       companions: [],
       activeCompanionIds: [],

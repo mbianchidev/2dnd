@@ -28,6 +28,8 @@ ranked gambit selection/normalization
 ✅ Non-combat skill-check math, outcomes, and save normalization
 ✅ Scene-transition event ordering, duplicate guards, and watchdog recovery with
 mocked camera/time adapters
+✅ Cutscene data integrity, trigger priority, queue recovery, replay immutability,
+accessibility normalization, and director cleanup
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -57,6 +59,9 @@ tests/
 ├── traps.test.ts     # Dungeon trap placement, checks, and effects
 ├── quests.test.ts    # Quest progression and integrity
 ├── skillChecks.test.ts # Exploration/dialogue checks
+├── cutscenes.test.ts # Cutscene data, triggers, queue, and director lifecycle
+├── accessibility.test.ts # Cutscene preference normalization and persistence
+├── cutsceneSceneTransition.test.ts # Generic Cutscene scene contracts
 ├── save.test.ts      # Persistence and migration
 └── data.test.ts      # Data validation
 ```
@@ -77,6 +82,19 @@ coverage of all 12 cities with stable stage/objective identities.
 - Test terrain event selection with explicit random values.
 - Cover reward bounds, nonlethal damage, save round trips, missing fields, and
   malformed record repair.
+
+## Cutscene Testing
+
+- Validate every stable ID, trigger reference, boss mapping, and completion
+  metadata without rendering Phaser.
+- Compare immutable before/after snapshots and assert exact simultaneous-trigger
+  priority.
+- Test that queueing precedes presentation, completion/skip moves pending to
+  seen, reload resumes pending, and replay leaves both collections unchanged.
+- Cover malformed pending IDs, already-seen pending entries, and completed
+  legacy epilogue recovery.
+- Keep generic `CutsceneScene` transition payload tests separate from the
+  Playwright visual/input flow.
 
 ## Companion Testing
 
@@ -437,6 +455,10 @@ npx vitest run tests/dice.test.ts
   `console.error` remain empty.
 - Debug commands may accelerate setup, but the final Elowen interaction and
   other behavior under test must still run through their production paths.
+- Cover interrupted opening recovery, dungeon reveals, skipped boss
+  introductions, aftermath chaining, Chronicle replay immutability, and legacy
+  ending recovery. Navigate to `about:blank` before browser teardown so Phaser
+  audio/timer activity cannot hold the context open.
 
 ### Test Coverage
 ```bash

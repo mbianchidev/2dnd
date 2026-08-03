@@ -41,10 +41,11 @@ interface OverworldTransitionHarness {
   overlayManager: { destroyAll(): void };
   partyOverlayManager: { close(): void };
   questJournal: { close(): void };
+  chronicleManager: { close(): void };
   sceneTransitions: TransitionManagerHarness;
   autoSave(): void;
   handleAction(): void;
-  startCampaignEpilogue(replay?: boolean): boolean;
+  startCutscene(cutsceneId: typeof CAMPAIGN_EPILOGUE_CUTSCENE_ID, replay?: boolean): boolean;
   scene: { start(sceneKey: string, data?: unknown): void };
 }
 
@@ -132,7 +133,7 @@ describe("OverworldScene transition contracts", () => {
     }) => {
       expect(options).toEqual({
         duration: 500,
-        label: "campaign epilogue",
+        label: `play cutscene ${CAMPAIGN_EPILOGUE_CUTSCENE_ID}`,
       });
       fadeComplete = callback;
       transitionManager.isPending = true;
@@ -143,6 +144,7 @@ describe("OverworldScene transition contracts", () => {
     const destroyAll = vi.fn();
     const closeParty = vi.fn();
     const closeJournal = vi.fn();
+    const closeChronicle = vi.fn();
     const autoSave = vi.fn();
     Object.assign(harness, {
       player,
@@ -157,6 +159,7 @@ describe("OverworldScene transition contracts", () => {
       overlayManager: { destroyAll },
       partyOverlayManager: { close: closeParty },
       questJournal: { close: closeJournal },
+      chronicleManager: { close: closeChronicle },
       sceneTransitions: transitionManager,
       autoSave,
     });
@@ -165,13 +168,14 @@ describe("OverworldScene transition contracts", () => {
       value: { start },
     });
 
-    expect(harness.startCampaignEpilogue()).toBe(true);
-    expect(harness.startCampaignEpilogue()).toBe(false);
+    expect(harness.startCutscene(CAMPAIGN_EPILOGUE_CUTSCENE_ID)).toBe(true);
+    expect(harness.startCutscene(CAMPAIGN_EPILOGUE_CUTSCENE_ID)).toBe(false);
     expect(startWithFade).toHaveBeenCalledTimes(1);
     expect(dismissDialogue).toHaveBeenCalledTimes(1);
     expect(destroyAll).toHaveBeenCalledTimes(1);
     expect(closeParty).toHaveBeenCalledTimes(1);
     expect(closeJournal).toHaveBeenCalledTimes(1);
+    expect(closeChronicle).toHaveBeenCalledTimes(1);
     expect(autoSave).toHaveBeenCalledTimes(1);
     expect(start).not.toHaveBeenCalled();
 
@@ -186,6 +190,7 @@ describe("OverworldScene transition contracts", () => {
       weatherState,
       savedSpecialNpcs,
       cutsceneId: CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+      replay: false,
     });
   });
 

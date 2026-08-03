@@ -58,6 +58,7 @@ import {
 } from "../systems/party";
 import { CompanionFollowerManager } from "../managers/companionFollowers";
 import { PartyOverlayManager } from "../managers/partyOverlay";
+import { ChronicleManager } from "../managers/chronicle";
 import { isDebug, isLocalDev, debugLog, debugPanelLog, debugPanelState, TILE_SIZE } from "../config";
 import type { CodexData } from "../systems/codex";
 import { createCodex } from "../systems/codex";
@@ -116,19 +117,22 @@ import {
   getBlockedQuestEntrance,
   getNpcQuestInteraction,
   getQuestNpcIdleDialogue,
-  isQuestCompleted,
 } from "../systems/quests";
 import type { QuestUpdate } from "../systems/quests";
 import { SkillCheckManager } from "../managers/skillChecks";
 import {
   CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+  type CutsceneId,
 } from "../data/cutscenes";
-import { MAIN_QUEST_ID } from "../data/quests";
 import {
-  canReplayCampaignEpilogue,
-  shouldLaunchCampaignEpilogueAfterQuestUpdate,
-  shouldShowCampaignEpilogue,
+  captureCutsceneTriggerSnapshot,
+  collectNewlyTriggeredCutsceneIds,
+  getEventCutsceneIds,
+  getNextPendingCutscene,
+  queueCutscenes,
+  type CutsceneTriggerSnapshot,
 } from "../systems/cutscenes";
+import { createSharedSceneState } from "../systems/sceneState";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -232,6 +236,7 @@ export class OverworldScene extends Phaser.Scene {
   private skillCheckManager!: SkillCheckManager;
   private companionFollowerManager!: CompanionFollowerManager;
   private partyOverlayManager!: PartyOverlayManager;
+  private chronicleManager!: ChronicleManager;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -311,7 +316,7 @@ export class OverworldScene extends Phaser.Scene {
       evacuateDungeon: () => this.evacuateDungeon(),
       getHUDInfo: () => this.getHUDInfo(),
       openQuestJournal: () => this.openQuestJournal(),
-      replayCampaignEpilogue: () => this.startCampaignEpilogue(true),
+      openChronicle: () => this.chronicleManager.open(this.player),
       fadeOutAndIn: (atBlack, duration) =>
         this.sceneTransitions.fadeOutAndIn(atBlack, {
           duration,
@@ -383,14 +388,17 @@ export class OverworldScene extends Phaser.Scene {
     this.createPlayerSprite();
     this.refreshPartyActors();
     this.setupInput();
+    this.chronicleManager = new ChronicleManager(
+      this,
+      (cutsceneId) => this.startCutscene(cutsceneId, true),
+    );
     this.createHUD();
     this.setupDebug();
     this.updateLocationText();
     this.mapRenderer.updateWeatherParticles(this.weatherState);
     this.updateAudio();
     this.questFlow.afterInitialRender();
-    if (shouldShowCampaignEpilogue(this.player)) {
-      this.startCampaignEpilogue();
+    if (this.startNextPendingCutscene()) {
       return;
     }
     if (this.player.position.inDungeon) {
@@ -409,14 +417,14 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private getRestartData(): OverworldSceneData {
-    return {
+    return createSharedSceneState({
       player: this.player,
       defeatedBosses: this.defeatedBosses,
       codex: this.codex,
       timeStep: this.timeStep,
       weatherState: this.weatherState,
       savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
-    };
+    });
   }
 
   private restartOverworld(label: string): void {
@@ -426,33 +434,50 @@ export class OverworldScene extends Phaser.Scene {
     );
   }
 
-  private startCampaignEpilogue(replay = false): boolean {
+  private startCutscene(cutsceneId: CutsceneId, replay = false): boolean {
     if (this.sceneTransitions.isPending) return false;
-    const eligible = replay
-      ? canReplayCampaignEpilogue(this.player)
-      : shouldShowCampaignEpilogue(this.player);
-    if (!eligible) {
-      debugLog(
-        `[ending] Ignored ineligible ${replay ? "replay" : "automatic"} epilogue request`,
-      );
-      return false;
-    }
-
     this.dialogueSystem.dismissDialogue();
     this.overlayManager.destroyAll();
     this.partyOverlayManager.close();
     this.questJournal.close();
+    this.chronicleManager?.close();
     this.autoSave();
     const persistentState = this.getRestartData();
     return this.sceneTransitions.startWithFade(() => {
-      this.scene.start("EndingScene", {
+      const sceneKey = cutsceneId === CAMPAIGN_EPILOGUE_CUTSCENE_ID
+        ? "EndingScene"
+        : "CutsceneScene";
+      this.scene.start(sceneKey, {
         ...persistentState,
-        cutsceneId: CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+        cutsceneId,
+        replay,
       });
     }, {
       duration: 500,
-      label: replay ? "replay campaign epilogue" : "campaign epilogue",
+      label: `${replay ? "replay" : "play"} cutscene ${cutsceneId}`,
     });
+  }
+
+  private startNextPendingCutscene(): boolean {
+    const cutsceneId = getNextPendingCutscene(this.player.progression);
+    return cutsceneId ? this.startCutscene(cutsceneId) : false;
+  }
+
+  private queueNewlyTriggeredCutscenes(
+    before: CutsceneTriggerSnapshot,
+  ): CutsceneId[] {
+    const after = captureCutsceneTriggerSnapshot(
+      this.player,
+      this.defeatedBosses,
+    );
+    const queued = queueCutscenes(
+      this.player.progression,
+      collectNewlyTriggeredCutsceneIds(before, after),
+    );
+    if (queued.length > 0) {
+      this.autoSave();
+    }
+    return queued;
   }
 
   // ── Debug ───────────────────────────────────────────────────────────────
@@ -504,6 +529,10 @@ export class OverworldScene extends Phaser.Scene {
 
     const cKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     cKey.on("down", () => {
+      if (this.chronicleManager?.isOpen()) {
+        this.chronicleManager.close();
+        return;
+      }
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
       if (this.partyOverlayManager.isOpen()) return;
@@ -512,6 +541,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     eKey.on("down", () => {
+      if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
       if (this.partyOverlayManager.isOpen()) return;
@@ -520,6 +550,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     pKey.on("down", () => {
+      if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen() || this.overlayManager.isOpen()) return;
       this.partyOverlayManager.toggle(this.player);
@@ -527,6 +558,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     mKey.on("down", () => {
+      if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
       if (this.partyOverlayManager.isOpen()) return;
@@ -541,7 +573,9 @@ export class OverworldScene extends Phaser.Scene {
     escKey.on("down", () => {
       if (this.isMoving) return;
       // ESC closes the topmost open overlay, or opens the menu
-      if (this.partyOverlayManager.isOpen()) {
+      if (this.chronicleManager?.isOpen()) {
+        this.chronicleManager.close();
+      } else if (this.partyOverlayManager.isOpen()) {
         this.partyOverlayManager.close();
       } else if (this.questJournal.isOpen()) {
         this.questJournal.close();
@@ -570,6 +604,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const qKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     qKey.on("down", () => {
+      if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.overlayManager.isOpen() || this.partyOverlayManager.isOpen()) return;
       this.openQuestJournal();
@@ -577,6 +612,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
     tKey.on("down", () => {
+      if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
       this.toggleMount();
@@ -879,12 +915,11 @@ export class OverworldScene extends Phaser.Scene {
       ? ` [CITY:${p.position.cityId}:${p.position.cityChunkIndex}]`
       : "";
     const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
-    const menuTag = this.overlayManager.menuOverlay
-      ? ` [MENU:${canReplayCampaignEpilogue(p) ? "replay" : "standard"}]`
-      : "";
+    const menuTag = this.overlayManager.menuOverlay ? " [MENU]" : "";
+    const chronicleTag = this.chronicleManager?.isOpen() ? " [CHRONICLE]" : "";
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
       `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length} | Checks: ${Object.keys(p.progression.skillChecks).length}`,
@@ -896,7 +931,8 @@ export class OverworldScene extends Phaser.Scene {
   private isOverlayOpen(): boolean {
     return this.overlayManager.isOpen()
       || this.partyOverlayManager.isOpen()
-      || this.questJournal.isOpen();
+      || this.questJournal.isOpen()
+      || this.chronicleManager?.isOpen();
   }
 
   private openQuestJournal(): void {
@@ -943,6 +979,15 @@ export class OverworldScene extends Phaser.Scene {
 
   update(time: number): void {
     this.updateDebugPanel();
+
+    if (this.chronicleManager?.isOpen()) {
+      if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
+        this.chronicleManager.replaySelected();
+      } else {
+        this.chronicleManager.update();
+      }
+      return;
+    }
 
     // SPACE actions must be processed even when overlays/dialogue are open
     // so the player can dismiss dialogues, inn confirmations, etc.
@@ -1276,6 +1321,10 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handleAction(): void {
+    if (this.chronicleManager?.isOpen()) {
+      this.chronicleManager.replaySelected();
+      return;
+    }
     if (this.partyOverlayManager.isOpen()) {
       this.partyOverlayManager.close();
       return;
@@ -1401,9 +1450,9 @@ export class OverworldScene extends Phaser.Scene {
               interaction.speaker,
               interaction.pages,
               () => {
-                const wasCampaignCompleted = isQuestCompleted(
-                  this.player.progression.quests,
-                  MAIN_QUEST_ID,
+                const cutsceneSnapshot = captureCutsceneTriggerSnapshot(
+                  this.player,
+                  this.defeatedBosses,
                 );
                 const result = completeNpcQuestInteraction(
                   this.player,
@@ -1423,11 +1472,10 @@ export class OverworldScene extends Phaser.Scene {
                     (companion) => this.showCompanionDialogue(companion),
                   );
                 }
-                if (shouldLaunchCampaignEpilogueAfterQuestUpdate(
-                  wasCampaignCompleted,
-                  this.player,
-                )) {
-                  this.startCampaignEpilogue();
+                if (
+                  this.queueNewlyTriggeredCutscenes(cutsceneSnapshot).length > 0
+                ) {
+                  this.startNextPendingCutscene();
                 }
               },
             );
@@ -1666,6 +1714,10 @@ export class OverworldScene extends Phaser.Scene {
         }
         const hasKey = this.player.inventory.some((i) => i.id === "dungeonKey");
         if (hasKey || isDebug()) {
+          const cutsceneSnapshot = captureCutsceneTriggerSnapshot(
+            this.player,
+            this.defeatedBosses,
+          );
           // Consume the dungeon key on first use
           if (hasKey) {
             const keyIdx = this.player.inventory.findIndex((i) => i.id === "dungeonKey");
@@ -1684,7 +1736,13 @@ export class OverworldScene extends Phaser.Scene {
           this.weatherState.current = WeatherType.Clear;
           if (audioEngine.initialized) audioEngine.playDungeonEnterSFX();
           this.autoSave();
-          this.restartOverworld("enter dungeon");
+          if (
+            this.queueNewlyTriggeredCutscenes(cutsceneSnapshot).length === 0
+          ) {
+            this.restartOverworld("enter dungeon");
+          } else {
+            this.startNextPendingCutscene();
+          }
         }
       }
       return;
@@ -1931,6 +1989,19 @@ export class OverworldScene extends Phaser.Scene {
     const encounter = "members" in encounterOrMonster
       ? encounterOrMonster
       : createSoloEncounter(encounterOrMonster);
+    const boss = encounter.members.find((member) => member.monster.isBoss)
+      ?.monster;
+    if (boss) {
+      const queued = queueCutscenes(
+        this.player.progression,
+        getEventCutsceneIds({ type: "bossPre", bossId: boss.id }),
+      );
+      if (queued.length > 0) {
+        this.autoSave();
+        this.startNextPendingCutscene();
+        return;
+      }
+    }
     this.autoSave();
     debugPanelLog(
       `[BATTLE] Fighting ${encounter.name}: `

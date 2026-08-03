@@ -42,6 +42,7 @@ src/
 │   ├── Battle.ts
 │   ├── Shop.ts
 │   ├── Codex.ts
+│   ├── Cutscene.ts
 │   └── Ending.ts
 ├── systems/
 │   ├── combat.ts
@@ -65,6 +66,8 @@ src/
 │   ├── quests.ts
 │   ├── questState.ts
 │   ├── questDebug.ts
+│   ├── accessibility.ts
+│   ├── sceneState.ts
 │   ├── cutscenes.ts
 │   └── debug.ts
 ├── data/
@@ -85,14 +88,20 @@ src/
 │   ├── mounts.ts
 │   ├── npcs.ts
 │   ├── quests.ts
+│   ├── cutsceneTypes.ts
+│   ├── cutsceneCampaign.ts
+│   ├── cutsceneBosses.ts
 │   ├── cutscenes.ts
 │   ├── skillChecks.ts
 │   └── talents.ts
 ├── managers/
 │   ├── questJournal.ts
 │   ├── questFlow.ts
+│   ├── chronicle.ts
 │   └── cutscene.ts
 ├── renderers/
+│   ├── cutscene.ts
+│   ├── settings.ts
 │   └── ending.ts
 └── utils/
 
@@ -141,9 +150,10 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 
 - Import Phaser with `import * as Phaser from "phaser"`.
 - Scene keys are `BootScene`, `OverworldScene`, `BattleScene`, `ShopScene`,
-  `CodexScene`, and `EndingScene`.
+  `CodexScene`, `CutsceneScene`, and `EndingScene`.
 - Store scene input in `init()` and reset scene-specific transient state there.
-- State-bearing transitions preserve:
+- Build state-bearing transition payloads with `createSharedSceneState()` so
+  they preserve:
 
 ```typescript
 {
@@ -158,9 +168,10 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 
 - Battle also receives a `MonsterEncounter` and `biome`; Shop receives
   shop/city context.
-- Ending receives the full shared state plus a stable `CutsceneId`; Continue
-  Post-game returns that same state to Overworld, while Return to Title saves
-  before starting Boot.
+- Cutscene receives the full shared state plus a stable `CutsceneId`, replay
+  mode, return scene, and optional runtime-only quest updates. Ending receives
+  the full shared state plus the epilogue ID. Continue Post-game returns that
+  state to Overworld, while Return to Title saves before starting Boot.
 - Battle may also receive accessor-backed `partyCombatants` and runtime-only
   `battleHooks`; these are scene contracts, not persisted save fields.
 - Persistent companions live inside `player.party`, so every existing
@@ -208,6 +219,7 @@ interface PlayerProgression {
   discoveredCities: string[];
   quests: QuestLogState;
   seenCutsceneIds: CutsceneId[];
+  pendingCutsceneIds: CutsceneId[];
   skillChecks: Record<string, SkillCheckRecord>;
   trapSeed: number;
   trapStates: Record<string, TrapState>;
@@ -279,10 +291,19 @@ level-up/stat state, control mode, dialogue cursor, and normalized gambits.
   `returnToElowen` interaction launches the unseen epilogue after rewards are
   applied. Completed older saves recover the unseen epilogue on Overworld
   creation, and replay never mutates quests or rewards.
-- Stable cutscene definitions belong in `src/data/cutscenes.ts`; acknowledgement
-  and eligibility helpers belong in `src/systems/cutscenes.ts`; step progression
-  belongs in `src/managers/cutscene.ts`; Phaser presentation belongs in a scene
-  and renderer.
+- Immutable cutscene contracts belong in `cutsceneTypes.ts`, focused campaign
+  and boss content in `cutsceneCampaign.ts`/`cutsceneBosses.ts`, and the stable
+  ID hub in `cutscenes.ts`. Trigger snapshots, priority order, queue lifecycle,
+  normalization, recovery, and Chronicle selection belong in
+  `src/systems/cutscenes.ts`; step progression belongs in
+  `src/managers/cutscene.ts`; Phaser presentation belongs in `CutsceneScene`
+  and its renderer.
+- Persist a cutscene ID before presentation. Completion or skip marks it seen
+  and removes it from the pending queue; reload resumes the first pending ID.
+  Chronicle replay mutates neither list. Compare immutable before/after trigger
+  snapshots, and capture Battle's snapshot before adding a defeated boss.
+- Trigger order is opening, boss aftermath, keystone/story/recruitment
+  milestones, route openings, stage introductions, then epilogue.
 - Canyonwatch, Ashfall, and the Volcanic Forge use quest-controlled entrance
   barricades; Sandport and the Heartlands Crypt remain reachable to avoid
   softlocks. Premature northern, marsh, and ashen travel uses persisted soft
@@ -482,7 +503,7 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 7.
+Save schema version is 8.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -500,7 +521,9 @@ equipment links, effects, control mode, dialogue state, and gambits before
 replaying completed recruitment actions.
 Schema-v6 and older saves gain an empty `seenCutsceneIds` list. Cutscene
 normalization keeps only known stable IDs and removes malformed or duplicate
-entries.
+entries. Schema-v7 and older saves gain an empty `pendingCutsceneIds` list;
+normalization removes unknown, duplicate, malformed, or already-seen IDs.
+Legacy recovery queues only a completed-but-unseen epilogue.
 
 When persistent data changes:
 
@@ -528,6 +551,8 @@ All music and SFX use Web Audio synthesis. Initialize from a user gesture.
 Volume preferences for Master, Music, SFX, and Dialog persist separately.
 The campaign epilogue uses `audioEngine.playEndingMusic()` and the procedural
 ending profile.
+Data-driven campaign scenes route short typed cues through
+`audioEngine.playCutsceneCue()`. Disconnect ended cue oscillators and gain nodes.
 Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 `audioEngine.playTrapSFX()`. Do not add external audio.
 
@@ -564,7 +589,8 @@ npm run build
 - Files: `tests/*.test.ts` and `e2e/*.spec.ts`.
 - Add deterministic tests for mechanics and migrations.
 - The campaign browser suite uses a fresh strict port, defaults to the deployed
-  `/2dnd/` base path, and asserts page/console errors.
+  `/2dnd/` base path, and asserts opening recovery, boss cutscenes, Chronicle
+  replay immutability, ending recovery, and page/console errors.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run typecheck, full Vitest, browser tests, and build before completion.

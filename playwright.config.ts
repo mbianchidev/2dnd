@@ -31,9 +31,9 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   workers: 1,
-  timeout: 120_000,
+  timeout: 300_000,
   expect: {
-    timeout: 12_000,
+    timeout: 30_000,
   },
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "line",

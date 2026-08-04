@@ -2,6 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_inventory_prefs";
+const OPENING_CUTSCENE_IDS = [
+  "campaign.opening",
+  "campaign.stage.firstSeal",
+] as const;
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
 
@@ -18,6 +22,10 @@ interface BrowserSave {
   player: {
     inventory: BrowserItem[];
     equippedWeapon: BrowserItem | null;
+    progression: {
+      seenCutsceneIds: string[];
+      pendingCutsceneIds: string[];
+    };
   };
 }
 
@@ -51,22 +59,6 @@ async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
 }
 
-async function drainOpeningCutscenes(page: Page): Promise<void> {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    const state = await page.locator("#debug-state").textContent() ?? "";
-    if (state.includes("OVERWORLD")) return;
-    if (state.includes("CUTSCENE")) {
-      await page.waitForTimeout(420);
-      await holdKey(page, "Enter");
-      await page.waitForTimeout(420);
-    } else {
-      await page.waitForTimeout(250);
-    }
-  }
-  const state = await page.locator("#debug-state").textContent() ?? "unknown";
-  throw new Error(`Timed out reaching the overworld from: ${state}`);
-}
-
 async function createCharacter(page: Page): Promise<void> {
   await page.goto("./", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
@@ -81,7 +73,6 @@ async function createCharacter(page: Page): Promise<void> {
   await clickGame(page, 320, 112);
   await clickGame(page, 420, 312);
   await waitForState(page, "CUTSCENE");
-  await drainOpeningCutscenes(page);
 }
 
 test("large inventories keep stable keyboard and pointer selection", async ({
@@ -105,7 +96,11 @@ test("large inventories keep stable keyboard and pointer selection", async ({
   });
 
   await createCharacter(page);
-  const original = await page.evaluate(({ saveKey, preferencesKey }) => {
+  const original = await page.evaluate(({
+    saveKey,
+    preferencesKey,
+    openingCutsceneIds,
+  }) => {
     const raw = localStorage.getItem(saveKey);
     if (!raw) throw new Error("Missing new-character save");
     const save = JSON.parse(raw) as BrowserSave;
@@ -158,6 +153,12 @@ test("large inventories keep stable keyboard and pointer selection", async ({
       }
     }
     save.player.inventory.push(...additions);
+    save.player.progression.pendingCutsceneIds = [];
+    for (const cutsceneId of openingCutsceneIds) {
+      if (!save.player.progression.seenCutsceneIds.includes(cutsceneId)) {
+        save.player.progression.seenCutsceneIds.push(cutsceneId);
+      }
+    }
     localStorage.setItem(saveKey, JSON.stringify(save));
     localStorage.setItem(preferencesKey, JSON.stringify({
       sortMode: "recent",
@@ -168,7 +169,11 @@ test("large inventories keep stable keyboard and pointer selection", async ({
       inventoryIds: save.player.inventory.map((item) => item.id),
       equippedWeaponId: save.player.equippedWeapon?.id ?? null,
     };
-  }, { saveKey: SAVE_KEY, preferencesKey: PREFERENCES_KEY });
+  }, {
+    saveKey: SAVE_KEY,
+    preferencesKey: PREFERENCES_KEY,
+    openingCutsceneIds: OPENING_CUTSCENE_IDS,
+  });
 
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");

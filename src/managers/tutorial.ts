@@ -407,7 +407,7 @@ export class TutorialManager {
     const hint = this.scene.add.text(
       px + panelW / 2,
       py + panelH - 20,
-      "A/D or arrows: category  |  W/S or arrows: tip  |  H/Esc: close",
+      "A/D or arrows: category  |  W/S or arrows: tip  |  F1/Esc: close",
       {
         fontSize: "10px",
         fontFamily: "monospace",

@@ -636,8 +636,8 @@ export class OverworldScene extends Phaser.Scene {
       this.toggleMount();
     });
 
-    const hKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
-    hKey.on("down", () => {
+    const tipsKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F1);
+    tipsKey.on("down", () => {
       if (this.isMoving) return;
       if (this.tutorialManager.isOpen()) {
         this.tutorialManager.close();

@@ -165,7 +165,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "CUTSCENE | campaign.opening | Step 1/2");
     await drainGenericCutscenesUntil(page, "OVERWORLD");
     await waitForState(page, "[TUTORIAL]");
-    await clickGame(page, 506, 441);
+    await clickGame(page, 506, 455);
     await holdKey(page, "Enter");
     await holdKey(page, "Enter");
     await holdKey(page, "Enter");
@@ -173,9 +173,9 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL]");
     expect((await readSave(page)).player.progression.tutorial.completed).toBe(true);
 
-    await holdKey(page, "h");
+    await holdKey(page, "F1");
     await waitForState(page, "[TIPS]");
-    await holdKey(page, "h");
+    await holdKey(page, "F1");
     await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");

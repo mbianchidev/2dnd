@@ -98,7 +98,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
   tips: {
     id: "tips",
     label: "Open Tips",
-    keyboard: "H",
+    keyboard: "F1",
     pointer: "Esc menu > Tips",
   },
   map: {

@@ -17,6 +17,7 @@ license: MIT
 | `Codex.ts` | `CodexScene` | `CodexScene` |
 | `Cutscene.ts` | `CutsceneScene` | `CutsceneScene` |
 | `Ending.ts` | `EndingScene` | `EndingScene` |
+| `Defeat.ts` | `DefeatScene` | `DefeatScene` |
 
 Register scenes in `src/main.ts`. The Phaser 4 configuration uses FIT scaling,
 centered pixel art, and zoom 6.
@@ -71,6 +72,8 @@ Scene-specific additions:
 - Cutscene: full shared state, stable `CutsceneId`, replay mode, return scene,
   and optional runtime-only `questUpdates`
 - Ending: full shared state plus the campaign-epilogue `CutsceneId`
+- Defeat: full shared state plus encounter name/type and an exact runtime-only
+  `PartyDefeatResult`
 
 When a scene contract changes, update every `scene.start()` caller in the same
 change.
@@ -107,6 +110,14 @@ fade-plus-timer pairs. Fade-complete events are primary; the duration-plus-grace
 watchdog only recovers missing events. The manager must remove completed
 listeners/timers, restore the outgoing camera before queueing the next scene,
 and suppress duplicate handoffs during Phaser's one-update queue delay.
+It resolves fade durations through the shared reduced-motion accessor and uses
+an immediate guarded handoff when motion is disabled.
+
+Call `installSceneAccessibility(this)` in every scene `create()`. The adapter
+applies live text scale and high contrast, exposes preference state on the
+canvas for browser assertions, and suppresses residual tweens in reduced-motion
+mode. New scene animations must also branch through
+`isReducedMotionEnabled()` or `getMotionDuration()`.
 
 Overworld restarts use one shared payload that includes a fresh
 `savedSpecialNpcs` snapshot. Block movement and other state-changing actions
@@ -190,17 +201,21 @@ on mouse-wheel input.
   confirmation, and Esc cancellation.
 - Keep bonus-action abilities and the first item use on the player turn.
 - Validate actions before consuming MP, items, or the turn.
-- Clear player and every monster's combat effects before returning to
-  Overworld.
-- Guard Battle return through `SceneTransitionManager`. Start Overworld from
-  `FADE_OUT_COMPLETE` or the delayed recovery watchdog, and restore the
-  outgoing camera before Phaser queues the handoff.
+- Clear player and every monster's combat effects before leaving Battle.
+- Guard every Battle exit through `SceneTransitionManager`. Start Overworld or
+  `DefeatScene` from `FADE_OUT_COMPLETE` or the delayed recovery watchdog, and
+  restore the outgoing camera before Phaser queues the handoff.
 - Report victory, defeat, or flee once through `onBattleResolved`; reward
   adjustment happens before XP/gold are granted.
+- On defeat, apply the party penalty once, autosave the recovered state, pass
+  the exact receipt to `DefeatScene`, and never recalculate it there. Random and
+  boss encounters use the same recovery mechanics.
 - After group victory, record every defeated combatant ID for quest counters
   without deduplicating repeated monster types, then pass transient updates to
   Overworld for notification and autosave.
 - Clean up weather emitters and timers owned by Battle.
+- Also remove Battle input listeners and transient menus before result or
+  Overworld handoff.
 - Route debug instant victory through the normal end check even during the
   pre-turn `init` phase.
 

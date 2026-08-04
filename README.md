@@ -68,6 +68,10 @@ API, and saves use `localStorage`.
   accuracy/AC/damage modifiers, duration expiration, and cure items
 - Combat effects are cleared when Battle ends because their durations use the
   combat turn clock
+- Full-party defeat opens a dedicated procedural result sequence for random and
+  boss encounters, lists every defeated actor, reports the exact gold and XP
+  losses, autosaves the recovered state, and continues from the last town with
+  half HP/MP and no battle effects or overlapping weather ambience
 
 ### Non-combat skill checks
 
@@ -124,8 +128,10 @@ API, and saves use `localStorage`.
 - Procedural biome, city, battle, boss, title, cutscene, and campaign-ending
   music and cues
 - Synthesized combat, weather, movement, item, and interaction sound effects
-- Cutscene settings for reduced motion, 100%/125%/150% text, and manual or
-  automatic advance
+- Shared title and in-game settings for audio, 100%/125%/150% text, high
+  contrast, reduced motion, and manual or automatic cutscene advance
+- Important selections and trap/battle states pair color with text, symbols,
+  borders, or numeric values
 - Scrollable overlays and a bounded battle log
 - Local-development debug panel, hotkeys, and slash commands
 
@@ -153,7 +159,8 @@ src/
 │   ├── Shop.ts
 │   ├── Codex.ts
 │   ├── Cutscene.ts
-│   └── Ending.ts
+│   ├── Ending.ts
+│   └── Defeat.ts
 ├── systems/
 │   ├── combat.ts
 │   ├── groupCombat.ts
@@ -218,7 +225,7 @@ src/
     ├── itemVisuals.ts
     ├── cutscene.ts
     ├── settings.ts
-    ├── ending.ts
+    ├── result.ts
     └── battleParty.ts
 ```
 
@@ -247,8 +254,9 @@ live in focused modules, and `src/data/cutscenes.ts` remains the stable-ID hub.
 normalization, lifecycle, Chronicle selection, and legacy epilogue recovery.
 `src/managers/cutscene.ts` advances or skips immutable steps.
 `CutsceneScene` and `src/renderers/cutscene.ts` provide generic procedural
-presentation, while `EndingScene` remains the campaign-summary and credits
-surface. IDs are queued and saved before presentation, then removed from
+presentation. `EndingScene` and `DefeatScene` share
+`src/renderers/result.ts` for campaign-summary, credits, and defeat-result
+surfaces. IDs are queued and saved before presentation, then removed from
 `pendingCutsceneIds` and added to `seenCutsceneIds` only after completion or
 skip. Chronicle replay changes neither list.
 
@@ -264,6 +272,11 @@ outgoing camera before queueing the next scene, rejects duplicate handoffs, and
 uses a delayed watchdog only to recover a missing event. Overworld restarts
 share one complete player, party, world, quest, trap, weather, and NPC payload
 and block state-changing input until Phaser processes the queued handoff.
+Battle uses the same guarded handoff for victory, flee, and defeat. Defeat first
+creates an exact `PartyDefeatResult`, saves the recovered player, clears
+transient battle input/effects/weather, then starts `DefeatScene`; continuing
+returns the complete shared state to Overworld without applying the penalty
+again.
 
 See [`docs/companions.md`](docs/companions.md) for party state, recruitment,
 inventories, gambit syntax, combat control, KO/reward rules, and debug commands.
@@ -308,10 +321,11 @@ npm run build      # Type-check and create a production build
 | `Esc` | Close the active overlay or skip an active cutscene |
 | Mouse / touch | Select buttons and scroll lists |
 
-The `Esc` menu includes Party & Inventory, the Chronicle, and cutscene
-accessibility settings. In the inventory view, arrows and Page Up/Down navigate,
-`R` cycles sorting, `F` cycles filters, `/` focuses search, `X` transfers, and
-`Tab` changes the target. `T` remains mount control.
+The `Esc` menu includes Party & Inventory, the Chronicle, and the same audio and
+accessibility settings available on the title screen. In the inventory view,
+arrows and Page Up/Down navigate, `R` cycles sorting, `F` cycles filters, `/`
+focuses search, `X` transfers, and `Tab` changes the target. `T` remains mount
+control, and input remapping remains tracked separately in issue #89.
 
 ## Debug mode
 
@@ -341,10 +355,12 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 
 ## Save data
 
-Game state is stored under `2dnd_save`; audio preferences use
-`2dnd_audio_prefs`; cutscene accessibility preferences use
-`2dnd_cutscene_accessibility`; inventory presentation preferences use
-`2dnd_inventory_prefs`.
+Game state is stored under `2dnd_save`. Audio and accessibility preferences are
+stored separately under the versioned `2dnd_preferences` key, so changing text
+scale, contrast, motion, cutscene advance, volume, or mute never mutates campaign
+progress. Existing `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values
+migrate automatically. Inventory sorting, filtering, and search preferences use
+the separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
 Save schema version 8 persists:
 
@@ -388,7 +404,7 @@ quest and skill-check progression, dice, weather, day/night, mounts, NPCs,
 audio, configuration, group encounter generation, formation targeting,
 synergies, rewards, cutscene data, triggers, queue recovery, accessibility,
 director lifecycle, scene transitions, ending summaries, multi-target actions,
-and party-ready combat/action-planning
+defeat receipts and idempotent result handoffs, and party-ready combat/action-planning
 contracts, companion definitions, party state, gambits, follower trails, and
 recruitment replay.
 
@@ -403,17 +419,20 @@ Important integration suites:
 - `tests/traps.test.ts`
 - `tests/companions.test.ts`
 - `tests/party.test.ts`
+- `tests/defeatSceneTransition.test.ts`
 - `tests/gambits.test.ts`
 - `tests/followers.test.ts`
 - `tests/fogOfWar.test.ts`
 
-The committed Playwright suite in `e2e/` runs a real Chromium campaign golden
-path through character creation, interrupted opening recovery, quest
+The committed Playwright suite in `e2e/` runs real Chromium campaign and defeat
+flows through character creation, interrupted opening recovery, quest
 interaction, dungeon reveals, skipped boss introductions, boss aftermath
 chains, Chronicle replay immutability, final Elowen completion, credits,
-post-game continuation, and completed-but-unseen ending recovery. It starts
+interrupted epilogue recovery, post-game continuation and reload, legacy
+completed-but-unseen ending recovery, corrupt-save fallback to New Game, random
+and boss defeat results, recovery save/reload, and clean continuation. It starts
 Vite on an available strict port and defaults to the deployed `/2dnd/` base
-path:
+path. Pull request CI installs Chromium and runs these suites as a release gate:
 
 ```bash
 npm run test:browser:install # One-time Chromium install

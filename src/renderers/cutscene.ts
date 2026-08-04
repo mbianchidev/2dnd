@@ -12,7 +12,7 @@ import type {
 } from "../data/cutscenes";
 import type { CutscenePresentationAdapter } from "../managers/cutscene";
 import type { PlayerState } from "../systems/player";
-import type { CutsceneAccessibilityPreferences } from "../systems/accessibility";
+import { getAccessibilityPreferences } from "../systems/accessibility";
 
 interface RenderedActor {
   container: Phaser.GameObjects.Container;
@@ -71,7 +71,6 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly player: PlayerState,
-    private readonly preferences: Readonly<CutsceneAccessibilityPreferences>,
   ) {
     this.background = scene.add.graphics();
     this.effects = scene.add.container(0, 0);
@@ -109,7 +108,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       audioEngine.playCutsceneCue(presentation.audioCue);
     }
 
-    const transitionMs = this.preferences.reducedMotion ? 0 : 260;
+    const transitionMs = getAccessibilityPreferences().reducedMotion ? 0 : 260;
     if (transitionMs > 0) {
       this.fade.setAlpha(0.75);
       this.trackTween(this.scene.tweens.add({
@@ -220,7 +219,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
         : placement.entrance === "right"
           ? GAME_WIDTH + 100
           : targetX;
-      if (!this.preferences.reducedMotion && placement.entrance) {
+      if (!getAccessibilityPreferences().reducedMotion && placement.entrance) {
         actor.container.setPosition(entranceX, targetY).setAlpha(0);
         this.trackTween(this.scene.tweens.add({
           targets: actor.container,
@@ -257,7 +256,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   }
 
   private applyCamera(camera: CutsceneCameraCue): void {
-    if (this.preferences.reducedMotion) {
+    if (getAccessibilityPreferences().reducedMotion) {
       this.worldRoot.setPosition(0, 0).setScale(1);
       return;
     }
@@ -272,7 +271,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   }
 
   private applyEffect(effect: CutsceneEffect): void {
-    if (effect === "none" || this.preferences.reducedMotion) {
+    if (effect === "none" || getAccessibilityPreferences().reducedMotion) {
       return;
     }
     if (effect === "shake") {
@@ -335,7 +334,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   }
 
   private drawText(step: CutsceneStep): void {
-    const scale = this.preferences.textScale;
+    const preferences = getAccessibilityPreferences();
     const speaker = step.type === "dialogue"
       ? step.speaker
       : step.type === "narration"
@@ -359,14 +358,14 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     this.textLayer.add(panel);
     if (speaker) {
       const speakerText = this.scene.add.text(38, GAME_HEIGHT - 134, speaker, {
-        fontSize: `${Math.round(15 * scale)}px`,
+        fontSize: "15px",
         color: "#ffdd66",
         fontStyle: "bold",
       });
       this.textLayer.add(speakerText);
     }
     const body = this.scene.add.text(38, GAME_HEIGHT - 108, text, {
-      fontSize: `${Math.round(14 * scale)}px`,
+      fontSize: "14px",
       color: "#f4f1e8",
       wordWrap: { width: GAME_WIDTH - 76 },
       lineSpacing: 4,
@@ -375,7 +374,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     const hint = this.scene.add.text(
       GAME_WIDTH - 38,
       GAME_HEIGHT - 24,
-      this.preferences.advanceMode === "automatic"
+      preferences.advanceMode === "automatic"
         ? "Automatic  |  Esc skip"
         : "Space / Enter / click  |  Esc skip",
       {

@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
 import { debugLog } from "../config";
+import { getMotionDuration } from "../systems/accessibility";
 
 const DEFAULT_FADE_DURATION = 300;
 const WATCHDOG_GRACE_MS = 250;
@@ -42,16 +43,17 @@ export class SceneTransitionManager {
     this.pending = false;
     this.restoreCamera();
 
-    if (fadeInDuration <= 0) return;
+    const duration = getMotionDuration(fadeInDuration);
+    if (duration <= 0) return;
 
     this.waitForCameraEffect(
       Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE,
-      fadeInDuration,
+      duration,
       "scene fade-in",
       () => this.restoreCamera(),
     );
     this.scene.cameras.main.fadeIn(
-      fadeInDuration,
+      duration,
       red,
       green,
       blue,
@@ -65,11 +67,17 @@ export class SceneTransitionManager {
     const label = options.label ?? "scene handoff";
     if (!this.beginTransition(label)) return false;
 
-    const duration = options.duration ?? DEFAULT_FADE_DURATION;
+    const duration = getMotionDuration(
+      options.duration ?? DEFAULT_FADE_DURATION,
+    );
     const red = options.red ?? 0;
     const green = options.green ?? 0;
     const blue = options.blue ?? 0;
 
+    if (duration <= 0) {
+      this.completeSceneHandoff(startScene);
+      return true;
+    }
     this.waitForCameraEffect(
       Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
       duration,
@@ -108,11 +116,19 @@ export class SceneTransitionManager {
     const label = options.label ?? "same-scene fade";
     if (!this.beginTransition(label)) return false;
 
-    const duration = options.duration ?? DEFAULT_FADE_DURATION;
+    const duration = getMotionDuration(
+      options.duration ?? DEFAULT_FADE_DURATION,
+    );
     const red = options.red ?? 0;
     const green = options.green ?? 0;
     const blue = options.blue ?? 0;
 
+    if (duration <= 0) {
+      this.restoreCamera();
+      atBlack();
+      this.pending = false;
+      return true;
+    }
     this.waitForCameraEffect(
       Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
       duration,

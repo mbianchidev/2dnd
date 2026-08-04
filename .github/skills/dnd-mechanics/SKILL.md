@@ -186,8 +186,12 @@ matching effects. Combat effects are cleared when leaving Battle.
   independently.
 - Living party members receive battle XP. A KO member receives no victory XP
   and resets to the current-level XP floor (`0` at level 1).
-- Full defeat occurs only when every active party actor is KO. Inn rest revives,
-  restores, and processes pending levels for all recruited companions.
+- Full defeat occurs only when every active party actor is KO. Apply the
+  current-level XP floors and 30% carried-gold loss once, restore defeated
+  actors to half HP/MP, clear battle effects, and recover at the last town.
+  Return the exact before/after receipt for `DefeatScene`; boss and random
+  encounters use identical mechanics. Inn rest still fully restores and
+  processes pending levels for all recruited companions.
 - Party-wide heal/buff spells consume MP once and resolve each valid target.
 - Gambit and UI actions pass through `validateBattleAction()` before execution;
   validated plans bind stable actor/target IDs and declare action or bonus

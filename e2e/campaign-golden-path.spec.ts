@@ -269,6 +269,17 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
       "dawnforgedBlade",
     );
     expect(save.defeatedBosses).toContain("infernoForgemaster");
+    expect(save.player.progression.pendingCutsceneIds).toContain(EPILOGUE_ID);
+  });
+
+  await test.step("resume an interrupted epilogue from its durable queue", async () => {
+    await page.reload({ waitUntil: "networkidle" });
+    await waitForState(page, "BOOT | Screen: title");
+    await clickGame(page, 320, 324);
+    await waitForState(page, "ENDING | Step: 1/5 | Type: narration");
+    const save = await readSave(page);
+    expect(save.player.progression.pendingCutsceneIds).toContain(EPILOGUE_ID);
+    expect(browserErrors).toEqual([]);
   });
 
   await test.step("view credits and continue post-game", async () => {
@@ -288,6 +299,23 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
 
     const save = await readSave(page);
     expect(save.player.progression.seenCutsceneIds).toContain(EPILOGUE_ID);
+  });
+
+  await test.step("reload the completed campaign into durable post-game", async () => {
+    await page.reload({ waitUntil: "networkidle" });
+    await waitForState(page, "BOOT | Screen: title");
+    await clickGame(page, 320, 324);
+    await waitForState(page, "OVERWORLD");
+
+    const save = await readSave(page);
+    const progress = save.player.progression.quests.quests[MAIN_QUEST_ID];
+    expect(progress?.status).toBe("completed");
+    expect(save.player.progression.pendingCutsceneIds).not.toContain(EPILOGUE_ID);
+    expect(save.player.progression.seenCutsceneIds).toContain(EPILOGUE_ID);
+    expect(save.player.inventory.map((item) => item.id)).toContain(
+      "dawnforgedBlade",
+    );
+    expect(browserErrors).toEqual([]);
   });
 
   await test.step("replay a Chronicle entry without mutating progression", async () => {
@@ -331,4 +359,24 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "OVERWORLD");
     expect(browserErrors).toEqual([]);
   });
+});
+
+test("a corrupt save falls back to a usable new-game path", async ({ page }) => {
+  const browserErrors: string[] = [];
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
+  await page.addInitScript(({ saveKey }) => {
+    localStorage.setItem(saveKey, JSON.stringify({
+      version: 8,
+      player: {},
+    }));
+  }, { saveKey: SAVE_KEY });
+
+  await page.goto("./", { waitUntil: "networkidle" });
+  await waitForState(page, "BOOT | Screen: title");
+  await clickGame(page, 320, 324);
+  await waitForState(page, "BOOT | Screen: character");
+  expect(browserErrors).toEqual([]);
 });

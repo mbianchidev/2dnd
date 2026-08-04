@@ -117,6 +117,10 @@ On a full wipe:
 - the existing 30% hero-gold penalty applies once
 - the party returns to the last town
 - active members recover half HP/MP
+- Battle effects are cleared and the recovered state is autosaved
+- `DefeatScene` shows every defeated member, exact gold/XP losses, and the
+  recovery location before continuing; boss and random encounters share this
+  path
 
 Inn rest revives and fully restores every recruited companion and processes
 their pending level-ups.

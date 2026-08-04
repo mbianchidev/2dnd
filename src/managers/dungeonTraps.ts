@@ -6,6 +6,7 @@ import {
   type DungeonTrap,
 } from "../data/traps";
 import { audioEngine } from "../systems/audio";
+import { isReducedMotionEnabled } from "../systems/accessibility";
 import type { PlayerState } from "../systems/player";
 import {
   attemptTrapDetection,
@@ -264,7 +265,9 @@ export class DungeonTrapManager {
     this.renderCurrent(player);
     this.renderer.animateTrigger(trap);
     if (audioEngine.initialized) audioEngine.playTrapSFX(trap.type);
-    this.scene.cameras.main.shake(260, 0.012);
+    if (!isReducedMotionEnabled()) {
+      this.scene.cameras.main.shake(260, 0.012);
+    }
     this.callbacks.updateHUD();
     this.callbacks.showMessage(result.message, "#ff6666");
     debugPanelLog(

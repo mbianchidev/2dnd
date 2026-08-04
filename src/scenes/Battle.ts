@@ -43,7 +43,13 @@ import {
   type BattleActionEconomyState,
 } from "../systems/battleActions";
 import { abilityModifier } from "../systems/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
+import {
+  isDebug,
+  debugLog,
+  debugPanelLog,
+  debugPanelState,
+  setDebugCommandHandler,
+} from "../config";
 import type { CodexData } from "../systems/codex";
 import {
   discoverAC,
@@ -63,11 +69,17 @@ import { PlayerRenderer } from "../renderers/player";
 import { BattlePartyRenderer } from "../renderers/battleParty";
 import { BattlePartyManager } from "../managers/battleParty";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import {
+  getMotionDuration,
+  installSceneAccessibility,
+  isReducedMotionEnabled,
+} from "../systems/accessibility";
 import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../data/cutscenes";
 import {
   applyPartyDefeat,
   createPartyActionSources,
   distributePartyVictory,
+  type PartyDefeatResult,
 } from "../systems/party";
 import {
   clearAllEffects,
@@ -161,6 +173,7 @@ export class BattleScene extends Phaser.Scene {
   private battlePartyRenderer!: BattlePartyRenderer;
   private battleHooks: BattleResolutionHooks | undefined;
   private battleResultReported = false;
+  private defeatResult: PartyDefeatResult | null = null;
   private playerEconomy!: BattleActionEconomyState;
   private defeatedBosses!: Set<string>;
   private codex!: CodexData;
@@ -182,6 +195,10 @@ export class BattleScene extends Phaser.Scene {
   private playerSprite!: Phaser.GameObjects.Sprite;
   private playerStatsText!: Phaser.GameObjects.Text;
   private actionButtons: Phaser.GameObjects.Container[] = [];
+  private actionButtonLabels: Array<{
+    text: Phaser.GameObjects.Text;
+    label: string;
+  }> = [];
   private spellMenu: Phaser.GameObjects.Container | null = null;
   private itemMenu: Phaser.GameObjects.Container | null = null;
   private abilityMenu: Phaser.GameObjects.Container | null = null;
@@ -331,6 +348,7 @@ export class BattleScene extends Phaser.Scene {
     this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
     this.battleHooks = data.battleHooks;
     this.battleResultReported = false;
+    this.defeatResult = null;
     this.defeatedBosses = data.defeatedBosses;
     this.codex = data.codex;
     this.timeStep = data.timeStep ?? 0;
@@ -342,6 +360,7 @@ export class BattleScene extends Phaser.Scene {
     this.logLines = [];
     this.logScrollOffset = 0;
     this.actionButtons = [];
+    this.actionButtonLabels = [];
     this.spellMenu = null;
     this.itemMenu = null;
     this.abilityMenu = null;
@@ -369,6 +388,7 @@ export class BattleScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(0x0a0a1a);
     this.sceneTransitions.prepare(300);
+    installSceneAccessibility(this);
 
     this.drawBattleUI();
     this.battlePartyRenderer.render(
@@ -583,6 +603,7 @@ export class BattleScene extends Phaser.Scene {
     // Clear existing
     this.actionButtons.forEach((b) => b.destroy());
     this.actionButtons = [];
+    this.actionButtonLabels = [];
     if (this.spellMenu) {
       this.spellMenu.destroy();
       this.spellMenu = null;
@@ -601,21 +622,21 @@ export class BattleScene extends Phaser.Scene {
     const hasAbilities = (this.player.knownAbilities ?? []).length > 0;
     const btnX = w * 0.52;
     const btnY = h * 0.80;
-    const btnW = 110;
+    const btnW = 145;
     const btnH = 28;
     const gap = 5;
 
     const actions: { label: string; action: () => void }[] = [
-      { label: "⚔ Attack", action: () => this.doPlayerAttack() },
+      { label: "Attack", action: () => this.doPlayerAttack() },
     ];
-    actions.push({ label: "🛡 Defend", action: () => this.doDefend() });
+    actions.push({ label: "Defend", action: () => this.doDefend() });
     if (hasAbilities) {
-      actions.push({ label: "⚡ Abilities", action: () => this.showAbilityMenu() });
+      actions.push({ label: "Abilities", action: () => this.showAbilityMenu() });
     }
     actions.push(
-      { label: "✦ Spells", action: () => this.showSpellMenu() },
-      { label: "🎒 Items", action: () => this.showItemMenu() },
-      { label: "🏃 Flee", action: () => this.doFlee() },
+      { label: "Spells", action: () => this.showSpellMenu() },
+      { label: "Items", action: () => this.showItemMenu() },
+      { label: "Flee", action: () => this.doFlee() },
     );
 
     actions.forEach((act, i) => {
@@ -634,7 +655,8 @@ export class BattleScene extends Phaser.Scene {
           fontFamily: "monospace",
           color: "#ddd",
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setData("accessibilityMaxWidth", btnW - 12);
 
       bg.on("pointerover", () => {
         bg.setTexture("buttonHover");
@@ -652,6 +674,7 @@ export class BattleScene extends Phaser.Scene {
 
       container.add([bg, label]);
       this.actionButtons.push(container);
+      this.actionButtonLabels.push({ text: label, label: act.label });
     });
 
     // Set initial visual state
@@ -663,6 +686,9 @@ export class BattleScene extends Phaser.Scene {
     const enabled = this.phase === "playerTurn" && !this.pendingTargetAction;
     for (const btn of this.actionButtons) {
       btn.setAlpha(enabled ? 1 : 0.4);
+    }
+    for (const action of this.actionButtonLabels) {
+      action.text.setText(`${enabled ? "✓" : "×"} ${action.label}`);
     }
   }
 
@@ -1388,7 +1414,11 @@ export class BattleScene extends Phaser.Scene {
         }
       }
 
-      if (result.hit && result.damage > 0) {
+      if (
+        result.hit
+        && result.damage > 0
+        && !isReducedMotionEnabled()
+      ) {
         this.tweens.add({
           targets: targetSprite,
           x: targetSprite.x + 10,
@@ -1753,10 +1783,15 @@ export class BattleScene extends Phaser.Scene {
       this.defeatEncounterForDebug();
       debugPanelLog(`[CMD] Encounter defeated!`, true);
     });
+    cmds.set("defeat", () => {
+      this.defeatPartyForDebug();
+      debugPanelLog("[CMD] Party defeated!", true);
+    });
 
     // Help entries
     const helpEntries: HelpEntry[] = [
       { usage: "/kill", desc: "Defeat the encounter instantly" },
+      { usage: "/defeat", desc: "Defeat the active party instantly" },
       ...SHARED_HELP,
     ];
 
@@ -1776,6 +1811,25 @@ export class BattleScene extends Phaser.Scene {
     }
     this.updateMonsterDisplay();
     this.checkBattleEnd(false);
+  }
+
+  private defeatPartyForDebug(): void {
+    if (
+      this.phase === "victory"
+      || this.phase === "defeat"
+      || this.phase === "fled"
+    ) {
+      return;
+    }
+    for (const combatant of this.partyCombatants) {
+      combatant.currentHp = 0;
+    }
+    this.updatePlayerStats();
+    this.battlePartyRenderer.update(
+      this.partyCombatants,
+      this.partyActionSources,
+    );
+    this.handlePartyDefeatIfNeeded();
   }
 
   private updateDebugPanel(): void {
@@ -1939,7 +1993,7 @@ export class BattleScene extends Phaser.Scene {
         }
       }
 
-      if (result.hit) {
+      if (result.hit && !isReducedMotionEnabled()) {
         this.tweens.add({
           targets: targetSprite,
           x: targetSprite.x + 10,
@@ -2010,7 +2064,7 @@ export class BattleScene extends Phaser.Scene {
           else if (offResult.hit) audioEngine.playAttackSFX();
           else audioEngine.playMissSFX();
         }
-        if (offResult.hit) {
+        if (offResult.hit && !isReducedMotionEnabled()) {
           this.tweens.add({ targets: offHandSprite, x: offHandSprite.x + 10, duration: 50, yoyo: true, repeat: 1 });
         }
       }
@@ -2180,7 +2234,12 @@ export class BattleScene extends Phaser.Scene {
           combatantIndex,
           combatant.currentHp - targetResult.damage,
         );
-        if (targetResult.hit && targetResult.damage > 0 && targetSprite) {
+        if (
+          targetResult.hit
+          && targetResult.damage > 0
+          && targetSprite
+          && !isReducedMotionEnabled()
+        ) {
           this.tweens.add({
             targets: targetSprite,
             x: targetSprite.x + 8,
@@ -2204,7 +2263,9 @@ export class BattleScene extends Phaser.Scene {
 
       if (result.hit && result.damage > 0) {
         if (audioEngine.initialized) audioEngine.playAttackSFX();
-        this.cameras.main.flash(200, 100, 100, 255);
+        if (!isReducedMotionEnabled()) {
+          this.cameras.main.flash(200, 100, 100, 255);
+        }
       } else if (!result.hit && audioEngine.initialized) {
         audioEngine.playMissSFX();
       }
@@ -2477,8 +2538,13 @@ export class BattleScene extends Phaser.Scene {
             audioEngine.playAttackSFX();
           }
         }
-        this.cameras.main.shake(150, 0.01);
-        if (partyTarget.actorKind === "hero") {
+        if (!isReducedMotionEnabled()) {
+          this.cameras.main.shake(getMotionDuration(150), 0.01);
+        }
+        if (
+          partyTarget.actorKind === "hero"
+          && !isReducedMotionEnabled()
+        ) {
           this.tweens.add({
             targets: this.playerSprite,
             x: this.playerSprite.x - 8,
@@ -2486,7 +2552,7 @@ export class BattleScene extends Phaser.Scene {
             yoyo: true,
             repeat: 2,
           });
-        } else {
+        } else if (!isReducedMotionEnabled()) {
           const sprite = this.battlePartyRenderer.getSprite(partyTarget.id);
           if (sprite) {
             this.tweens.add({
@@ -2567,7 +2633,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.updateMonsterDisplay();
     this.updatePlayerStats();
-    if (result.damage > 0) {
+    if (result.damage > 0 && !isReducedMotionEnabled()) {
       this.cameras.main.shake(200, 0.015);
     }
     if (this.handlePartyDefeatIfNeeded()) return;
@@ -2576,6 +2642,7 @@ export class BattleScene extends Phaser.Scene {
 
   private handlePartyDefeatIfNeeded(): boolean {
     if (!isPartyDefeated(this.partyCombatants)) return false;
+    if (this.phase === "defeat") return true;
     this.phase = "defeat";
     this.updateButtonStates();
     this.addLog("Your party has been defeated...");
@@ -2787,14 +2854,21 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private handleDefeat(): void {
+    if (this.defeatResult) return;
     const result = this.reportBattleResult("defeat");
-    // Play defeat music
-    if (audioEngine.initialized) {
-      audioEngine.playDefeatMusic();
-    }
-    applyPartyDefeat(this.player, result.knockedOutPartyIds);
-    this.addLog("You wake up in town, bruised but alive...");
-    this.time.delayedCall(2000, () => this.returnToOverworld());
+    this.defeatResult = applyPartyDefeat(
+      this.player,
+      result.knockedOutPartyIds,
+    );
+    saveGame(
+      this.player,
+      this.defeatedBosses,
+      this.codex,
+      this.player.appearanceId,
+      this.timeStep,
+      this.weatherState,
+    );
+    this.returnToDefeatResult();
   }
 
   /**
@@ -2877,15 +2951,7 @@ export class BattleScene extends Phaser.Scene {
 
   private returnToOverworld(): void {
     if (this.isReturningToOverworld) return;
-    this.battlePartyManager.clear();
-    this.battlePartyRenderer.clear();
-    for (const combatant of this.partyCombatants) {
-      clearAllEffects(combatant.effects);
-    }
-    for (const combatant of this.combatants) {
-      clearAllEffects(combatant.effects);
-    }
-    this.isReturningToOverworld = this.sceneTransitions.startWithFade(() => {
+    this.startBattleHandoff(() => {
       const state = createSharedSceneState({
         player: this.player,
         defeatedBosses: this.defeatedBosses,
@@ -2919,6 +2985,72 @@ export class BattleScene extends Phaser.Scene {
       duration: 500,
       label: "battle return",
     });
+  }
+
+  private returnToDefeatResult(): void {
+    if (!this.defeatResult || this.isReturningToOverworld) return;
+    const defeatResult = this.defeatResult;
+    this.startBattleHandoff(() => {
+      this.scene.start("DefeatScene", {
+        ...createSharedSceneState({
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          codex: this.codex,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+          savedSpecialNpcs: this.savedSpecialNpcs,
+        }),
+        encounterName: this.encounter.name,
+        encounterType: this.combatants.some(
+          (combatant) => combatant.monster.isBoss,
+        )
+          ? "boss"
+          : "random",
+        defeatResult,
+      });
+    }, {
+      duration: 500,
+      red: 24,
+      green: 0,
+      blue: 8,
+      label: "battle defeat result",
+    });
+  }
+
+  private startBattleHandoff(
+    startScene: () => void,
+    options: {
+      duration: number;
+      red?: number;
+      green?: number;
+      blue?: number;
+      label: string;
+    },
+  ): void {
+    if (this.isReturningToOverworld) return;
+    const queued = this.sceneTransitions.startWithFade(startScene, options);
+    if (!queued) return;
+    this.isReturningToOverworld = true;
+    this.cleanupBattleTransientState();
+  }
+
+  private cleanupBattleTransientState(): void {
+    this.closeAllSubMenus();
+    this.pendingTargetAction = null;
+    this.battlePartyManager.clear();
+    this.battlePartyRenderer.clear();
+    this.weatherParticles?.destroy();
+    this.weatherParticles = null;
+    this.stormLightningTimer?.remove(false);
+    this.stormLightningTimer = null;
+    this.input?.keyboard?.removeAllKeys(true, false);
+    setDebugCommandHandler(null);
+    for (const combatant of this.partyCombatants) {
+      clearAllEffects(combatant.effects);
+    }
+    for (const combatant of this.combatants) {
+      clearAllEffects(combatant.effects);
+    }
   }
 
   private recordElementalDiscovery(

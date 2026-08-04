@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("phaser", () => ({
@@ -7,8 +9,18 @@ vi.mock("phaser", () => ({
 }));
 
 import { BattleScene } from "../src/scenes/Battle";
+import { createSoloEncounter } from "../src/data/monsterGroups";
+import { getMonster } from "../src/data/monsters";
 import { createCodex, type CodexData } from "../src/systems/codex";
 import { createPlayer, type PlayerState } from "../src/systems/player";
+import {
+  createGroupCombatants,
+  createHeroCombatant,
+  type GroupCombatant,
+  type PartyCombatant,
+} from "../src/systems/groupCombat";
+import { xpFloorForLevel, type PartyDefeatResult } from "../src/systems/party";
+import { deleteSave, loadGame } from "../src/systems/save";
 import {
   createWeatherState,
   type WeatherState,
@@ -27,13 +39,20 @@ interface TransitionManagerHarness {
 interface BattleTransitionHarness {
   returnToOverworld(): void;
   defeatEncounterForDebug(): void;
+  handleDefeat(): void;
   isReturningToOverworld: boolean;
   phase: string;
+  battleResultReported: boolean;
+  defeatResult: PartyDefeatResult | null;
   battlePartyManager: { clear(): void };
   battlePartyRenderer: { clear(): void };
   sceneTransitions: TransitionManagerHarness;
-  partyCombatants: Array<{ effects: ActiveStatusEffect[] }>;
-  combatants: Array<{ effects: ActiveStatusEffect[]; isAlive?: boolean }>;
+  partyCombatants: Array<{ effects: ActiveStatusEffect[] }> | PartyCombatant[];
+  combatants:
+    | Array<{ effects: ActiveStatusEffect[]; isAlive?: boolean }>
+    | GroupCombatant[];
+  encounter: ReturnType<typeof createSoloEncounter>;
+  battleHooks?: { onBattleResolved(result: unknown): void };
   setCombatantHp(index: number, hp: number): void;
   updateMonsterDisplay(): void;
   checkBattleEnd(endPlayerTurn?: boolean): void;
@@ -209,4 +228,99 @@ describe("BattleScene Overworld transition", () => {
     expect(updateMonsterDisplay).toHaveBeenCalledTimes(1);
     expect(checkBattleEnd).toHaveBeenCalledWith(false);
   });
+
+  it.each([
+    { monsterId: "slime", encounterType: "random" },
+    { monsterId: "troll", encounterType: "boss" },
+  ] as const)(
+    "applies one defeat penalty and routes $encounterType encounters through DefeatScene",
+    ({ monsterId, encounterType }) => {
+      deleteSave();
+      const battle = new BattleScene();
+      const harness = battle as unknown as BattleTransitionHarness;
+      const player = createPlayer("DefeatedHero", {
+        strength: 10,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+      });
+      player.level = 5;
+      player.xp = xpFloorForLevel(5) + 500;
+      player.gold = 101;
+      player.hp = 0;
+      player.activeEffects.push(poisonEffect());
+      const encounter = createSoloEncounter(getMonster(monsterId)!);
+      const partyCombatants = [createHeroCombatant(player)];
+      const combatants = createGroupCombatants(encounter);
+      const resolved = vi.fn();
+      const start = vi.fn();
+      let fadeComplete: (() => void) | undefined;
+      const startWithFade = vi.fn((callback, options) => {
+        expect(options).toEqual({
+          duration: 500,
+          red: 24,
+          green: 0,
+          blue: 8,
+          label: "battle defeat result",
+        });
+        fadeComplete = callback;
+        return true;
+      });
+      Object.assign(harness, {
+        player,
+        encounter,
+        partyCombatants,
+        combatants,
+        battleHooks: { onBattleResolved: resolved },
+        battleResultReported: false,
+        defeatResult: null,
+        defeatedBosses: new Set<string>(),
+        codex: createCodex(),
+        timeStep: 19,
+        weatherState: createWeatherState(),
+        savedSpecialNpcs: [],
+        questUpdates: [],
+        battlePartyManager: { clear: vi.fn() },
+        battlePartyRenderer: { clear: vi.fn() },
+        sceneTransitions: { startWithFade },
+        isReturningToOverworld: false,
+      });
+      Object.defineProperty(battle, "scene", {
+        configurable: true,
+        value: { start },
+      });
+
+      harness.handleDefeat();
+      harness.handleDefeat();
+
+      expect(player.gold).toBe(70);
+      expect(player.xp).toBe(xpFloorForLevel(5));
+      expect(player.activeEffects).toEqual([]);
+      expect(resolved).toHaveBeenCalledTimes(1);
+      expect(startWithFade).toHaveBeenCalledTimes(1);
+      expect(loadGame()?.player.gold).toBe(70);
+      expect(start).not.toHaveBeenCalled();
+
+      fadeComplete?.();
+
+      expect(start).toHaveBeenCalledWith(
+        "DefeatScene",
+        expect.objectContaining({
+          player,
+          encounterName: encounter.name,
+          encounterType,
+          defeatResult: expect.objectContaining({
+            goldBefore: 101,
+            goldAfter: 70,
+            goldLost: 31,
+            recoveryLocation: expect.objectContaining({
+              name: "Willowdale",
+            }),
+          }),
+        }),
+      );
+    },
+  );
 });

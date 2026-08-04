@@ -237,7 +237,7 @@ export class PartyOverlayManager {
       this.addButton(
         x,
         currentY,
-        `${member.name} ${activeLabel}`,
+        `${member.id === this.selectedId ? "▶" : " "} ${member.name} ${activeLabel}`,
         () => {
           this.selectedId = member.id;
           this.targetId = member.id;

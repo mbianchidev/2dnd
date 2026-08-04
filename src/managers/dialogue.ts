@@ -8,6 +8,7 @@ import {
 } from "../data/npcs";
 import type { NpcInstance } from "../data/npcs";
 import { audioEngine } from "../systems/audio";
+import { getMotionDuration } from "../systems/accessibility";
 import { getTimePeriod, TimePeriod } from "../systems/daynight";
 import { TILE_SIZE } from "../config";
 
@@ -63,7 +64,7 @@ export class DialogueSystem {
     // Auto-dismiss after 3 seconds
     this.scene.time.delayedCall(3000, () => {
       if (this.dialogueOverlay === container) {
-        this.scene.tweens.add({ targets: container, alpha: 0, duration: 500, onComplete: () => {
+        this.scene.tweens.add({ targets: container, alpha: 0, duration: getMotionDuration(500), onComplete: () => {
           if (this.dialogueOverlay === container) { container.destroy(); this.dialogueOverlay = null; }
         }});
       }
@@ -126,7 +127,7 @@ export class DialogueSystem {
     // Auto-dismiss after 3 seconds (shops dismiss earlier via handleAction flow)
     this.scene.time.delayedCall(3000, () => {
       if (this.dialogueOverlay === container) {
-        this.scene.tweens.add({ targets: container, alpha: 0, duration: 500, onComplete: () => {
+        this.scene.tweens.add({ targets: container, alpha: 0, duration: getMotionDuration(500), onComplete: () => {
           if (this.dialogueOverlay === container) { container.destroy(); this.dialogueOverlay = null; }
         }});
       }

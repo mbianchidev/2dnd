@@ -6,6 +6,7 @@
 import type Phaser from "phaser";
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { WeatherType, type WeatherState } from "../systems/weather";
+import { isReducedMotionEnabled } from "../systems/accessibility";
 
 /**
  * Draw a time-dependent sky gradient over the sky portion of the battle background.
@@ -389,18 +390,20 @@ export function createBattleWeatherParticles(
   };
 
   const factory = configs[weather];
-  if (factory) {
+  if (factory && !isReducedMotionEnabled()) {
     particles = factory();
     particles.setDepth(5);
   }
 
   // Sporadic lightning flashes during storms
-  if (weather === WeatherType.Storm) {
+  if (weather === WeatherType.Storm && !isReducedMotionEnabled()) {
     const scheduleFlash = (): void => {
       timer = scene.time.delayedCall(
         2000 + Math.random() * 6000,
         () => {
-          scene.cameras.main.flash(120, 255, 255, 255, true);
+          if (!isReducedMotionEnabled()) {
+            scene.cameras.main.flash(120, 255, 255, 255, true);
+          }
           scheduleFlash();
         },
       );

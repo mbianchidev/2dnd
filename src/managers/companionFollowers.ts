@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { getMotionDuration } from "../systems/accessibility";
 import { TILE_SIZE } from "../config";
 import { getCompanionDefinition } from "../data/companions";
 import type { CompanionId } from "../data/companions";
@@ -95,11 +96,18 @@ export class CompanionFollowerManager {
       const target = this.trail[index];
       if (!sprite || !target) return;
       if (dx !== 0) sprite.setFlipX(dx < 0);
+      const x = target.x * TILE_SIZE + TILE_SIZE / 2;
+      const y = target.y * TILE_SIZE + TILE_SIZE / 2;
+      const motionDuration = getMotionDuration(duration);
+      if (motionDuration === 0) {
+        sprite.setPosition(x, y);
+        return;
+      }
       this.scene.tweens.add({
         targets: sprite,
-        x: target.x * TILE_SIZE + TILE_SIZE / 2,
-        y: target.y * TILE_SIZE + TILE_SIZE / 2,
-        duration,
+        x,
+        y,
+        duration: motionDuration,
       });
     });
   }

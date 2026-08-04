@@ -21,6 +21,10 @@ import {
 import { MAP_WIDTH, MAP_HEIGHT, isWalkable, type WorldChunk } from "../data/map";
 import { CYCLE_LENGTH } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
+import {
+  getMotionDuration,
+  isReducedMotionEnabled,
+} from "../systems/accessibility";
 import { debugPanelLog, TILE_SIZE } from "../config";
 import type { CityRenderer } from "../renderers/city";
 import type { DialogueSystem } from "./dialogue";
@@ -199,7 +203,7 @@ export class SpecialNpcManager {
           this.scene.tweens.add({
             targets: spr,
             alpha: 0,
-            duration: 600,
+            duration: getMotionDuration(600),
             onComplete: () => spr.destroy(),
           });
         }
@@ -286,6 +290,7 @@ export class SpecialNpcManager {
 
     if (def.moves) {
       const wander = (): void => {
+        if (isReducedMotionEnabled()) return;
         const dirs = [
           { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
           { dx: 0, dy: 1 }, { dx: 0, dy: -1 },

@@ -30,6 +30,13 @@ and changes spanning scenes, systems, data, renderers, or managers.
 - Immutable definitions: `src/data/`
 - Extracted presentation: `src/renderers/`
 - Stateful scene helpers: `src/managers/`
+- Shared audio/accessibility preferences: `src/systems/accessibility.ts`
+
+The versioned `2dnd_preferences` document is separate from campaign saves and
+backs both title and in-game settings. Install the scene accessibility adapter
+in every scene, use its shared reduced-motion accessors, preserve
+100%/125%/150% text usability, and pair important color states with a textual or
+symbolic cue. Input remapping remains separate under issue #89.
 
 Cutscene contracts live in `src/data/cutsceneTypes.ts`, focused campaign and
 boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and

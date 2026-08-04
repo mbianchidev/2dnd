@@ -6,6 +6,7 @@ import {
   type DefeatResultPresentation,
 } from "../renderers/result";
 import { audioEngine } from "../systems/audio";
+import { installSceneAccessibility } from "../systems/accessibility";
 import type { PartyDefeatResult } from "../systems/party";
 import {
   createSharedSceneState,
@@ -63,6 +64,7 @@ export class DefeatScene extends Phaser.Scene {
 
   create(): void {
     this.sceneTransitions.prepare(500, 24, 0, 8);
+    installSceneAccessibility(this);
     setDebugCommandHandler(null);
     this.resultRenderer = new ResultRenderer(this, "defeat");
     const keyboard = this.input.keyboard;

@@ -110,6 +110,14 @@ fade-plus-timer pairs. Fade-complete events are primary; the duration-plus-grace
 watchdog only recovers missing events. The manager must remove completed
 listeners/timers, restore the outgoing camera before queueing the next scene,
 and suppress duplicate handoffs during Phaser's one-update queue delay.
+It resolves fade durations through the shared reduced-motion accessor and uses
+an immediate guarded handoff when motion is disabled.
+
+Call `installSceneAccessibility(this)` in every scene `create()`. The adapter
+applies live text scale and high contrast, exposes preference state on the
+canvas for browser assertions, and suppresses residual tweens in reduced-motion
+mode. New scene animations must also branch through
+`isReducedMotionEnabled()` or `getMotionDuration()`.
 
 Overworld restarts use one shared payload that includes a fresh
 `savedSpecialNpcs` snapshot. Block movement and other state-changing actions

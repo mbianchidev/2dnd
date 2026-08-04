@@ -3,6 +3,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from "../config";
 import type { CutsceneStep } from "../data/cutscenes";
 import type { CampaignEndingSummary } from "../systems/cutscenes";
 import type { PartyDefeatResult } from "../systems/party";
+import { isReducedMotionEnabled } from "../systems/accessibility";
 
 export interface CampaignEndingChoiceCallbacks {
   continuePostGame: () => void;
@@ -22,6 +23,7 @@ export type ResultTheme = "ending" | "defeat";
 export class ResultRenderer {
   private content: Phaser.GameObjects.Container | null = null;
   private choiceButtons: Phaser.GameObjects.Text[] = [];
+  private choiceLabels: string[] = [];
   private selectedChoice = 0;
   private hintTween: Phaser.Tweens.Tween | null = null;
   private ambientTweens: Phaser.Tweens.Tween[] = [];
@@ -70,13 +72,15 @@ export class ResultRenderer {
       },
     ).setOrigin(0.5);
     this.content.add(hint);
-    this.hintTween = this.scene.tweens.add({
-      targets: hint,
-      alpha: 0.45,
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-    });
+    if (!isReducedMotionEnabled()) {
+      this.hintTween = this.scene.tweens.add({
+        targets: hint,
+        alpha: 0.45,
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
   }
 
   renderDefeatIntro(presentation: DefeatResultPresentation): void {
@@ -236,6 +240,7 @@ export class ResultRenderer {
       "Replay Epilogue",
       "Return to Title",
     ];
+    this.choiceLabels = labels;
     this.choiceButtons = labels.map((label, index) => {
       const button = this.scene.add.text(
         GAME_WIDTH / 2,
@@ -277,6 +282,7 @@ export class ResultRenderer {
     );
     this.choiceButtons.forEach((button, buttonIndex) => {
       const selected = buttonIndex === this.selectedChoice;
+      button.setText(`${selected ? "▶" : " "} ${this.choiceLabels[buttonIndex]}`);
       button.setColor(selected ? "#fff2a8" : "#d9ddff");
       button.setBackgroundColor(selected ? "#48528c" : "#252b52");
     });
@@ -305,15 +311,17 @@ export class ResultRenderer {
           index % 3 === 0 ? 0xc46a73 : 0x72505f,
           0.55,
         ).setDepth(1);
-        this.ambientTweens.push(this.scene.tweens.add({
-          targets: mote,
-          y: mote.y + 36 + (index % 4) * 8,
-          alpha: 0.15,
-          duration: 2200 + (index % 6) * 350,
-          delay: (index % 8) * 120,
-          yoyo: true,
-          repeat: -1,
-        }));
+        if (!isReducedMotionEnabled()) {
+          this.ambientTweens.push(this.scene.tweens.add({
+            targets: mote,
+            y: mote.y + 36 + (index % 4) * 8,
+            alpha: 0.15,
+            duration: 2200 + (index % 6) * 350,
+            delay: (index % 8) * 120,
+            yoyo: true,
+            repeat: -1,
+          }));
+        }
       }
       return;
     }
@@ -509,13 +517,15 @@ export class ResultRenderer {
         color: "#b88d9c",
       },
     ).setOrigin(0.5);
-    this.hintTween = this.scene.tweens.add({
-      targets: hint,
-      alpha: 0.4,
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-    });
+    if (!isReducedMotionEnabled()) {
+      this.hintTween = this.scene.tweens.add({
+        targets: hint,
+        alpha: 0.4,
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
     return hint;
   }
 
@@ -525,5 +535,6 @@ export class ResultRenderer {
     this.content?.destroy();
     this.content = null;
     this.choiceButtons = [];
+    this.choiceLabels = [];
   }
 }

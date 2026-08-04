@@ -12,6 +12,10 @@ import { TimePeriod } from "./daynight";
 import { TRAP_TYPES, type TrapType } from "../data/traps";
 import { playTrapSound } from "./trapAudio";
 import type { CutsceneAudioCue } from "../data/cutscenes";
+import {
+  gamePreferences,
+  type AudioPreferences,
+} from "./accessibility";
 
 // ── Musical constants ──────────────────────────────────────────
 
@@ -217,41 +221,6 @@ export function createAudioState(): AudioState {
   };
 }
 
-// ── Audio preferences persistence ──────────────────────────────
-
-const AUDIO_PREFS_KEY = "2dnd_audio_prefs";
-
-interface AudioPrefs {
-  masterVolume: number;
-  musicVolume: number;
-  sfxVolume: number;
-  dialogVolume: number;
-  muted: boolean;
-}
-
-function loadAudioPrefs(): AudioPrefs | null {
-  try {
-    const raw = localStorage.getItem(AUDIO_PREFS_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (typeof parsed.masterVolume === "number") return parsed as AudioPrefs;
-    return null;
-  } catch { return null; }
-}
-
-function saveAudioPrefs(state: AudioState): void {
-  try {
-    const prefs: AudioPrefs = {
-      masterVolume: state.masterVolume,
-      musicVolume: state.musicVolume,
-      sfxVolume: state.sfxVolume,
-      dialogVolume: state.dialogVolume,
-      muted: state.muted,
-    };
-    localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify(prefs));
-  } catch { /* localStorage may be unavailable in tests */ }
-}
-
 /**
  * The global audio engine instance.
  *
@@ -286,16 +255,10 @@ class AudioEngine {
   state: AudioState = createAudioState();
 
   constructor() {
-    // Restore saved preferences from localStorage
-    const prefs = loadAudioPrefs();
-    if (prefs) {
-      this.state.masterVolume = prefs.masterVolume;
-      this.state.musicVolume = prefs.musicVolume;
-      this.state.sfxVolume = prefs.sfxVolume;
-      this.state.dialogVolume = prefs.dialogVolume;
-      this.state.muted = prefs.muted;
-      this.state.volume = prefs.masterVolume * 0.35;
-    }
+    this.applyPreferences(gamePreferences.getAudio());
+    gamePreferences.subscribe((preferences) => {
+      this.applyPreferences(preferences.audio);
+    });
   }
 
   // ─── Init ──────────────────────────────────────────────────
@@ -355,11 +318,7 @@ class AudioEngine {
   }
 
   setMuted(m: boolean): void {
-    this.state.muted = m;
-    if (this.masterGain) {
-      this.masterGain.gain.value = m ? 0 : this.state.volume;
-    }
-    saveAudioPrefs(this.state);
+    gamePreferences.setAudio({ muted: m });
   }
 
   toggleMute(): boolean {
@@ -369,39 +328,46 @@ class AudioEngine {
 
   /** Set master volume (0–1). Affects all channels. */
   setMasterVolume(v: number): void {
-    this.state.masterVolume = Math.max(0, Math.min(1, v));
-    this.setVolume(this.state.masterVolume * 0.35);
-    saveAudioPrefs(this.state);
+    gamePreferences.setAudio({ masterVolume: v });
   }
 
   /** Set music volume (0–1). */
   setMusicVolume(v: number): void {
-    this.state.musicVolume = Math.max(0, Math.min(1, v));
-    if (this.musicGain) {
-      this.musicGain.gain.value = this.state.musicVolume;
-    }
-    saveAudioPrefs(this.state);
+    gamePreferences.setAudio({ musicVolume: v });
   }
 
   /** Set SFX volume (0–1). */
   setSFXVolume(v: number): void {
-    this.state.sfxVolume = Math.max(0, Math.min(1, v));
-    if (this.sfxGain) {
-      this.sfxGain.gain.value = this.state.sfxVolume;
-    }
-    if (this.footstepGain) {
-      this.footstepGain.gain.value = this.state.sfxVolume * 0.3;
-    }
-    saveAudioPrefs(this.state);
+    gamePreferences.setAudio({ sfxVolume: v });
   }
 
   /** Set dialog volume (0–1). */
   setDialogVolume(v: number): void {
-    this.state.dialogVolume = Math.max(0, Math.min(1, v));
-    if (this.dialogGain) {
-      this.dialogGain.gain.value = this.state.dialogVolume;
+    gamePreferences.setAudio({ dialogVolume: v });
+  }
+
+  private applyPreferences(preferences: Readonly<AudioPreferences>): void {
+    this.state.masterVolume = preferences.masterVolume;
+    this.state.musicVolume = preferences.musicVolume;
+    this.state.sfxVolume = preferences.sfxVolume;
+    this.state.dialogVolume = preferences.dialogVolume;
+    this.state.muted = preferences.muted;
+    this.state.volume = preferences.masterVolume * 0.35;
+    if (this.masterGain) {
+      this.masterGain.gain.value = preferences.muted ? 0 : this.state.volume;
     }
-    saveAudioPrefs(this.state);
+    if (this.musicGain) {
+      this.musicGain.gain.value = preferences.musicVolume;
+    }
+    if (this.sfxGain) {
+      this.sfxGain.gain.value = preferences.sfxVolume;
+    }
+    if (this.dialogGain) {
+      this.dialogGain.gain.value = preferences.dialogVolume;
+    }
+    if (this.footstepGain) {
+      this.footstepGain.gain.value = preferences.sfxVolume * 0.3;
+    }
   }
 
   // ─── Stop helpers ─────────────────────────────────────────

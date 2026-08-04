@@ -9,6 +9,7 @@ import { CutsceneDirector } from "../managers/cutscene";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { ResultRenderer } from "../renderers/result";
 import { audioEngine } from "../systems/audio";
+import { installSceneAccessibility } from "../systems/accessibility";
 import {
   buildCampaignEndingSummary,
   completeCutscene,
@@ -71,6 +72,7 @@ export class EndingScene extends Phaser.Scene {
 
   create(): void {
     this.sceneTransitions.prepare(500);
+    installSceneAccessibility(this);
     this.endingRenderer = new ResultRenderer(this);
     const summary = buildCampaignEndingSummary(
       this.sceneData.player,

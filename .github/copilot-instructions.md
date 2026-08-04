@@ -534,6 +534,11 @@ entries. Schema-v7 and older saves gain an empty `pendingCutsceneIds` list;
 normalization removes unknown, duplicate, malformed, or already-seen IDs.
 Legacy recovery queues only a completed-but-unseen epilogue.
 
+Audio and accessibility preferences are not campaign save fields. The versioned
+`2dnd_preferences` document is normalized by `src/systems/accessibility.ts`,
+migrates the legacy audio and cutscene-accessibility keys, and notifies live
+title/in-game settings consumers immediately.
+
 When persistent data changes:
 
 1. Update its interface and creation default.
@@ -557,7 +562,8 @@ When persistent data changes:
 ## Audio
 
 All music and SFX use Web Audio synthesis. Initialize from a user gesture.
-Volume preferences for Master, Music, SFX, and Dialog persist separately.
+Master, Music, SFX, Dialog, and mute use the shared preference store rather than
+campaign saves. Keep title and in-game controls backed by the same setters.
 The campaign epilogue uses `audioEngine.playEndingMusic()` and the procedural
 ending profile.
 The defeat result sequence uses `audioEngine.playDefeatMusic()` and the slow
@@ -567,6 +573,21 @@ Data-driven campaign scenes route short typed cues through
 `audioEngine.playCutsceneCue()`. Disconnect ended cue oscillators and gain nodes.
 Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 `audioEngine.playTrapSFX()`. Do not add external audio.
+
+## Accessibility
+
+- Install `installSceneAccessibility()` in every Phaser scene.
+- Supported text scales are 100%, 125%, and 150%; core overlays must remain
+  usable at each scale.
+- High contrast updates live through the shared scene adapter.
+- Important state must pair color with text, symbols, borders, patterns, or
+  numeric values.
+- Query reduced motion through `isReducedMotionEnabled()` or
+  `getMotionDuration()`; cutscenes, transitions, ambient movement, and visual
+  effects must not create motion when it is enabled.
+- Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
+- Keep future input remapping aligned with issue #89; do not mix controls work
+  into accessibility settings changes.
 
 ## Debug
 
@@ -604,8 +625,10 @@ npm run build
 - Add deterministic tests for mechanics and migrations.
 - The browser suites use a fresh strict port, default to the deployed `/2dnd/`
   base path, and assert opening recovery, boss cutscenes, Chronicle replay
-  immutability, ending recovery, random/boss defeat recovery, save/reload, and
-  page/console errors.
+  replay immutability, interrupted and legacy ending recovery, durable post-game
+  reload, corrupt-save fallback, random/boss defeat recovery, recovery
+  save/reload, and page/console errors.
+- Pull request CI installs Chromium and runs the browser suites.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run typecheck, full Vitest, browser tests, and build before completion.

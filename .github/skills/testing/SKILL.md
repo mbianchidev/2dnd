@@ -29,7 +29,7 @@ ranked gambit selection/normalization
 ✅ Scene-transition event ordering, duplicate guards, and watchdog recovery with
 mocked camera/time adapters
 ✅ Cutscene data integrity, trigger priority, queue recovery, replay immutability,
-accessibility normalization, and director cleanup
+shared preference normalization/migration, and director cleanup
 ✅ Defeat penalty receipts, once-only Battle resolution, recovered save
 round-trips, result-scene continuation, and random/boss parity
 
@@ -42,6 +42,11 @@ round-trips, result-scene continuation, and random/boss parity
 
 These exclusions apply to Vitest. The focused `e2e/` suite owns the real-browser
 campaign golden path and scene/input integration.
+
+Accessibility browser coverage should change settings from both title and
+in-game surfaces, assert immediate canvas state, exercise core overlays at every
+supported text scale, verify reload persistence, and prove `2dnd_save` is
+unchanged by preference updates.
 
 ## Test File Organization
 
@@ -62,7 +67,7 @@ tests/
 ├── quests.test.ts    # Quest progression and integrity
 ├── skillChecks.test.ts # Exploration/dialogue checks
 ├── cutscenes.test.ts # Cutscene data, triggers, queue, and director lifecycle
-├── accessibility.test.ts # Cutscene preference normalization and persistence
+├── accessibility.test.ts # Shared preference normalization, migration, and persistence
 ├── cutsceneSceneTransition.test.ts # Generic Cutscene scene contracts
 ├── defeatSceneTransition.test.ts # Defeat result continuation contract
 ├── save.test.ts      # Persistence and migration
@@ -450,6 +455,8 @@ npx vitest run tests/dice.test.ts
 - `playwright.config.ts` starts Vite on an unused strict localhost port.
 - Browser tests default to `/2dnd/`; set `PLAYWRIGHT_BASE_PATH=/` to reproduce
   the root-base development path.
+- Pull request CI installs Chromium and runs the browser suite as a release
+  gate.
 - Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
   disable trace screenshots and video. Phaser repaints every frame, so the
   filmstrip creates thousands of canvas captures that stall context teardown.
@@ -466,8 +473,9 @@ npx vitest run tests/dice.test.ts
 - Debug commands may accelerate setup, but the final Elowen interaction and
   other behavior under test must still run through their production paths.
 - Cover interrupted opening recovery, dungeon reveals, skipped boss
-  introductions, aftermath chaining, Chronicle replay immutability, and legacy
-  ending recovery.
+  introductions, aftermath chaining, Chronicle replay immutability, interrupted
+  and legacy ending recovery, durable post-game reload, and corrupt-save
+  fallback to a usable New Game path.
 
 ### Test Coverage
 ```bash

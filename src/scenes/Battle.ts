@@ -69,6 +69,11 @@ import { PlayerRenderer } from "../renderers/player";
 import { BattlePartyRenderer } from "../renderers/battleParty";
 import { BattlePartyManager } from "../managers/battleParty";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import {
+  getMotionDuration,
+  installSceneAccessibility,
+  isReducedMotionEnabled,
+} from "../systems/accessibility";
 import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../data/cutscenes";
 import {
   applyPartyDefeat,
@@ -190,6 +195,10 @@ export class BattleScene extends Phaser.Scene {
   private playerSprite!: Phaser.GameObjects.Sprite;
   private playerStatsText!: Phaser.GameObjects.Text;
   private actionButtons: Phaser.GameObjects.Container[] = [];
+  private actionButtonLabels: Array<{
+    text: Phaser.GameObjects.Text;
+    label: string;
+  }> = [];
   private spellMenu: Phaser.GameObjects.Container | null = null;
   private itemMenu: Phaser.GameObjects.Container | null = null;
   private abilityMenu: Phaser.GameObjects.Container | null = null;
@@ -351,6 +360,7 @@ export class BattleScene extends Phaser.Scene {
     this.logLines = [];
     this.logScrollOffset = 0;
     this.actionButtons = [];
+    this.actionButtonLabels = [];
     this.spellMenu = null;
     this.itemMenu = null;
     this.abilityMenu = null;
@@ -378,6 +388,7 @@ export class BattleScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(0x0a0a1a);
     this.sceneTransitions.prepare(300);
+    installSceneAccessibility(this);
 
     this.drawBattleUI();
     this.battlePartyRenderer.render(
@@ -592,6 +603,7 @@ export class BattleScene extends Phaser.Scene {
     // Clear existing
     this.actionButtons.forEach((b) => b.destroy());
     this.actionButtons = [];
+    this.actionButtonLabels = [];
     if (this.spellMenu) {
       this.spellMenu.destroy();
       this.spellMenu = null;
@@ -610,21 +622,21 @@ export class BattleScene extends Phaser.Scene {
     const hasAbilities = (this.player.knownAbilities ?? []).length > 0;
     const btnX = w * 0.52;
     const btnY = h * 0.80;
-    const btnW = 110;
+    const btnW = 145;
     const btnH = 28;
     const gap = 5;
 
     const actions: { label: string; action: () => void }[] = [
-      { label: "⚔ Attack", action: () => this.doPlayerAttack() },
+      { label: "Attack", action: () => this.doPlayerAttack() },
     ];
-    actions.push({ label: "🛡 Defend", action: () => this.doDefend() });
+    actions.push({ label: "Defend", action: () => this.doDefend() });
     if (hasAbilities) {
-      actions.push({ label: "⚡ Abilities", action: () => this.showAbilityMenu() });
+      actions.push({ label: "Abilities", action: () => this.showAbilityMenu() });
     }
     actions.push(
-      { label: "✦ Spells", action: () => this.showSpellMenu() },
-      { label: "🎒 Items", action: () => this.showItemMenu() },
-      { label: "🏃 Flee", action: () => this.doFlee() },
+      { label: "Spells", action: () => this.showSpellMenu() },
+      { label: "Items", action: () => this.showItemMenu() },
+      { label: "Flee", action: () => this.doFlee() },
     );
 
     actions.forEach((act, i) => {
@@ -643,7 +655,8 @@ export class BattleScene extends Phaser.Scene {
           fontFamily: "monospace",
           color: "#ddd",
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setData("accessibilityMaxWidth", btnW - 12);
 
       bg.on("pointerover", () => {
         bg.setTexture("buttonHover");
@@ -661,6 +674,7 @@ export class BattleScene extends Phaser.Scene {
 
       container.add([bg, label]);
       this.actionButtons.push(container);
+      this.actionButtonLabels.push({ text: label, label: act.label });
     });
 
     // Set initial visual state
@@ -672,6 +686,9 @@ export class BattleScene extends Phaser.Scene {
     const enabled = this.phase === "playerTurn" && !this.pendingTargetAction;
     for (const btn of this.actionButtons) {
       btn.setAlpha(enabled ? 1 : 0.4);
+    }
+    for (const action of this.actionButtonLabels) {
+      action.text.setText(`${enabled ? "✓" : "×"} ${action.label}`);
     }
   }
 
@@ -1397,7 +1414,11 @@ export class BattleScene extends Phaser.Scene {
         }
       }
 
-      if (result.hit && result.damage > 0) {
+      if (
+        result.hit
+        && result.damage > 0
+        && !isReducedMotionEnabled()
+      ) {
         this.tweens.add({
           targets: targetSprite,
           x: targetSprite.x + 10,
@@ -1972,7 +1993,7 @@ export class BattleScene extends Phaser.Scene {
         }
       }
 
-      if (result.hit) {
+      if (result.hit && !isReducedMotionEnabled()) {
         this.tweens.add({
           targets: targetSprite,
           x: targetSprite.x + 10,
@@ -2043,7 +2064,7 @@ export class BattleScene extends Phaser.Scene {
           else if (offResult.hit) audioEngine.playAttackSFX();
           else audioEngine.playMissSFX();
         }
-        if (offResult.hit) {
+        if (offResult.hit && !isReducedMotionEnabled()) {
           this.tweens.add({ targets: offHandSprite, x: offHandSprite.x + 10, duration: 50, yoyo: true, repeat: 1 });
         }
       }
@@ -2213,7 +2234,12 @@ export class BattleScene extends Phaser.Scene {
           combatantIndex,
           combatant.currentHp - targetResult.damage,
         );
-        if (targetResult.hit && targetResult.damage > 0 && targetSprite) {
+        if (
+          targetResult.hit
+          && targetResult.damage > 0
+          && targetSprite
+          && !isReducedMotionEnabled()
+        ) {
           this.tweens.add({
             targets: targetSprite,
             x: targetSprite.x + 8,
@@ -2237,7 +2263,9 @@ export class BattleScene extends Phaser.Scene {
 
       if (result.hit && result.damage > 0) {
         if (audioEngine.initialized) audioEngine.playAttackSFX();
-        this.cameras.main.flash(200, 100, 100, 255);
+        if (!isReducedMotionEnabled()) {
+          this.cameras.main.flash(200, 100, 100, 255);
+        }
       } else if (!result.hit && audioEngine.initialized) {
         audioEngine.playMissSFX();
       }
@@ -2510,8 +2538,13 @@ export class BattleScene extends Phaser.Scene {
             audioEngine.playAttackSFX();
           }
         }
-        this.cameras.main.shake(150, 0.01);
-        if (partyTarget.actorKind === "hero") {
+        if (!isReducedMotionEnabled()) {
+          this.cameras.main.shake(getMotionDuration(150), 0.01);
+        }
+        if (
+          partyTarget.actorKind === "hero"
+          && !isReducedMotionEnabled()
+        ) {
           this.tweens.add({
             targets: this.playerSprite,
             x: this.playerSprite.x - 8,
@@ -2519,7 +2552,7 @@ export class BattleScene extends Phaser.Scene {
             yoyo: true,
             repeat: 2,
           });
-        } else {
+        } else if (!isReducedMotionEnabled()) {
           const sprite = this.battlePartyRenderer.getSprite(partyTarget.id);
           if (sprite) {
             this.tweens.add({
@@ -2600,7 +2633,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.updateMonsterDisplay();
     this.updatePlayerStats();
-    if (result.damage > 0) {
+    if (result.damage > 0 && !isReducedMotionEnabled()) {
       this.cameras.main.shake(200, 0.015);
     }
     if (this.handlePartyDefeatIfNeeded()) return;

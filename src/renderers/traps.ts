@@ -2,10 +2,12 @@ import * as Phaser from "phaser";
 import { getTrapDefinition, type DungeonTrap } from "../data/traps";
 import type { PlayerState } from "../systems/player";
 import { TILE_SIZE } from "../config";
+import { isReducedMotionEnabled } from "../systems/accessibility";
 
 export class TrapRenderer {
   private readonly scene: Phaser.Scene;
   private readonly cueSprites = new Map<string, Phaser.GameObjects.Sprite>();
+  private readonly cueLabels = new Map<string, Phaser.GameObjects.Text>();
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -16,7 +18,9 @@ export class TrapRenderer {
       this.scene.tweens.killTweensOf(sprite);
       sprite.destroy();
     }
+    for (const label of this.cueLabels.values()) label.destroy();
     this.cueSprites.clear();
+    this.cueLabels.clear();
   }
 
   render(
@@ -63,6 +67,24 @@ export class TrapRenderer {
       }
 
       this.cueSprites.set(trap.id, sprite);
+      const cue = state === "detected"
+        ? "!"
+        : state === "disarmed"
+          ? "✓"
+          : state === "triggered"
+            ? "×"
+            : "";
+      if (cue) {
+        const label = this.scene.add.text(sprite.x, sprite.y - 14, cue, {
+          fontSize: "13px",
+          fontFamily: "monospace",
+          color: "#ffffff",
+          backgroundColor: "#000000",
+          fontStyle: "bold",
+          padding: { x: 2, y: 0 },
+        }).setOrigin(0.5).setDepth(7);
+        this.cueLabels.set(trap.id, label);
+      }
     }
   }
 
@@ -70,6 +92,10 @@ export class TrapRenderer {
     const sprite = this.cueSprites.get(trap.id);
     if (!sprite) return;
     this.scene.tweens.killTweensOf(sprite);
+    if (isReducedMotionEnabled()) {
+      sprite.setScale(1).setAlpha(0.95);
+      return;
+    }
     sprite.setScale(0.5).setAlpha(1);
     this.scene.tweens.add({
       targets: sprite,
@@ -95,6 +121,10 @@ export class TrapRenderer {
     if (!sprite) return;
     this.scene.tweens.killTweensOf(sprite);
     sprite.clearTint().setTint(0x66ff99).setAlpha(1);
+    if (isReducedMotionEnabled()) {
+      sprite.setScale(0.65).setAlpha(0.3);
+      return;
+    }
     this.scene.tweens.add({
       targets: sprite,
       scale: 0.65,
@@ -113,6 +143,11 @@ export class TrapRenderer {
     const destroy = (): void => {
       if (sprite.active) sprite.destroy();
     };
+    if (isReducedMotionEnabled()) {
+      sprite.setAlpha(0.8);
+      this.scene.time.delayedCall(250, destroy);
+      return;
+    }
 
     switch (trap.type) {
       case "spikePit":

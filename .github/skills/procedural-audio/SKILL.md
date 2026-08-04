@@ -31,8 +31,11 @@ AudioContext.destination
 ```
 
 ### Volume Persistence
-All volume settings are persisted to `localStorage` under key `2dnd_audio_prefs`.
-The engine loads saved preferences on construction and saves after every setter call.
+All volume settings are persisted with accessibility settings in the versioned
+`2dnd_preferences` document. `audioEngine` subscribes to that shared store so
+title and in-game controls update the live gain graph immediately. The legacy
+`2dnd_audio_prefs` key migrates automatically and preferences remain separate
+from `2dnd_save`.
 
 ```typescript
 audioEngine.setMasterVolume(0.8);  // Affects all channels
@@ -120,6 +123,14 @@ Already-minor scales drop the root by 2–3 semitones for a darker feel.
 Keep `ending` as its own `TrackKind`, include it in `playAllSounds()`, and call
 `playTitleMusic()` before Ending hands off to Boot so the ending loop does not
 continue on the title screen.
+
+## Defeat result music
+
+`audioEngine.playDefeatMusic()` selects the slow natural-minor
+`DEFEAT_PROFILE`. Keep `defeat` as its own `TrackKind`, include it in
+`playAllSounds()`, and start it from `DefeatScene` rather than Battle so the
+result sequence owns its music lifecycle. Stop the weather overlay first with
+`playWeatherSFX(WeatherType.Clear)` without mutating the persisted weather state.
 
 ## Campaign cutscene cues
 

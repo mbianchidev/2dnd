@@ -11,6 +11,7 @@ import { ShopScene } from "./scenes/Shop";
 import { CodexScene } from "./scenes/Codex";
 import { EndingScene } from "./scenes/Ending";
 import { CutsceneScene } from "./scenes/Cutscene";
+import { DefeatScene } from "./scenes/Defeat";
 import { GAME_WIDTH, GAME_HEIGHT, toggleDebug, isDebug, onDebugChanged, initDebugCommandInput, isLocalDev } from "./config";
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -33,6 +34,7 @@ const config: Phaser.Types.Core.GameConfig = {
     CodexScene,
     CutsceneScene,
     EndingScene,
+    DefeatScene,
   ],
 };
 

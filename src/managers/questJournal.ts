@@ -193,7 +193,7 @@ export class QuestJournalManager {
     selected: boolean,
     onSelect: () => void,
   ): Phaser.GameObjects.Text {
-    const tab = this.scene.add.text(x, y, label, {
+    const tab = this.scene.add.text(x, y, `${selected ? "●" : "○"} ${label}`, {
       fontSize: "11px",
       fontFamily: "monospace",
       color: selected ? "#ffffff" : "#888899",
@@ -232,7 +232,9 @@ export class QuestJournalManager {
       const label = this.scene.add.text(
         px + 12,
         py + 78 + index * 42,
-        `${entry.type === "main" ? "[Main]" : "[Side]"}\n${entry.name}`,
+        `${selected ? "▶" : " "} ${
+          entry.type === "main" ? "[Main]" : "[Side]"
+        }\n${entry.name}`,
         {
           fontSize: "10px",
           fontFamily: "monospace",

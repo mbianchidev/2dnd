@@ -111,6 +111,11 @@ import { DialogueSystem } from "../managers/dialogue";
 import { SpecialNpcManager, type SpecialNpcCallbacks } from "../managers/specialNpc";
 import { OverlayManager } from "../managers/overlay";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import {
+  getMotionDuration,
+  installSceneAccessibility,
+  isReducedMotionEnabled,
+} from "../systems/accessibility";
 import { QuestJournalManager } from "../managers/questJournal";
 import { QuestFlowManager } from "../managers/questFlow";
 import { DebugCommandSystem, type TimeStepRef } from "../systems/debug";
@@ -322,6 +327,7 @@ export class OverworldScene extends Phaser.Scene {
       setTimeStep: (t: number) => { this.timeStep = t; },
       evacuateDungeon: () => this.evacuateDungeon(),
       getHUDInfo: () => this.getHUDInfo(),
+      openPartyInventory: () => this.partyOverlayManager.openInventory(this.player),
       openQuestJournal: () => this.openQuestJournal(),
       openChronicle: () => this.chronicleManager.open(this.player),
       openTips: () => this.tutorialManager.showTips(this.player),
@@ -380,6 +386,7 @@ export class OverworldScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(0x111111);
     this.sceneTransitions.prepare(500);
+    installSceneAccessibility(this);
 
     // Dungeons are enclosed — always force clear weather
     if (this.player.position.inDungeon) {
@@ -513,6 +520,7 @@ export class OverworldScene extends Phaser.Scene {
       restartScene: () => this.restartOverworld("debug scene refresh"),
       refreshQuestUI: () => this.questFlow.refreshUi(),
       refreshPartyActors: () => this.refreshPartyActors(),
+      isInputBlocked: () => this.isOverlayOpen(),
     });
     this.debugCommandSystem.fogOfWar = this.fogOfWar;
     this.debugCommandSystem.encounterSystem = this.encounterSystem;
@@ -561,6 +569,7 @@ export class OverworldScene extends Phaser.Scene {
     const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     pKey.on("down", () => {
       if (this.tutorialManager.isOpen()) return;
+      if (this.partyOverlayManager.isInventorySearchActive()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen() || this.overlayManager.isOpen()) return;
@@ -633,6 +642,7 @@ export class OverworldScene extends Phaser.Scene {
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
+      if (this.partyOverlayManager.isOpen()) return;
       this.toggleMount();
     });
 
@@ -727,7 +737,17 @@ export class OverworldScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.hudText);
 
     this.hudFadeTimer = this.time.delayedCall(duration, () => {
-      this.tweens.add({ targets: [this.hudBg, this.hudText], alpha: 0, duration: 800 });
+      const fadeDuration = getMotionDuration(800);
+      if (fadeDuration === 0) {
+        this.hudBg.setAlpha(0);
+        this.hudText.setAlpha(0);
+        return;
+      }
+      this.tweens.add({
+        targets: [this.hudBg, this.hudText],
+        alpha: 0,
+        duration: fadeDuration,
+      });
     });
   }
 
@@ -757,7 +777,18 @@ export class OverworldScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.locationText);
 
     this.hudFadeTimer = this.time.delayedCall(3000, () => {
-      this.tweens.add({ targets: [this.hudBg, this.hudText, this.locationText], alpha: 0, duration: 800 });
+      const fadeDuration = getMotionDuration(800);
+      if (fadeDuration === 0) {
+        this.hudBg.setAlpha(0);
+        this.hudText.setAlpha(0);
+        this.locationText.setAlpha(0);
+        return;
+      }
+      this.tweens.add({
+        targets: [this.hudBg, this.hudText, this.locationText],
+        alpha: 0,
+        duration: fadeDuration,
+      });
     });
   }
 
@@ -973,9 +1004,10 @@ export class OverworldScene extends Phaser.Scene {
       : this.tutorialManager.isTipsOpen()
         ? " [TIPS]"
         : "";
+    const partyTag = this.partyOverlayManager.getDebugState();
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${tutorialTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${tutorialTag}${partyTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
       `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length} | Checks: ${Object.keys(p.progression.skillChecks).length}`,
@@ -1006,12 +1038,21 @@ export class OverworldScene extends Phaser.Scene {
     const mounted = !!this.playerRenderer.mountSprite;
     const flipped = this.playerRenderer.playerSprite.flipX;
     const riderOffX = flipped ? -PlayerRenderer.riderOffsetX : PlayerRenderer.riderOffsetX;
+    const motionDuration = getMotionDuration(duration);
+    const playerX = destX + (mounted ? riderOffX : 0);
+    const playerY = destY - (mounted ? PlayerRenderer.riderOffsetY : 0);
 
+    if (motionDuration === 0) {
+      this.playerRenderer.playerSprite.setPosition(playerX, playerY);
+      this.playerRenderer.mountSprite?.setPosition(destX, destY);
+      onComplete();
+      return;
+    }
     this.tweens.add({
       targets: this.playerRenderer.playerSprite,
-      x: destX + (mounted ? riderOffX : 0),
-      y: destY - (mounted ? PlayerRenderer.riderOffsetY : 0),
-      duration,
+      x: playerX,
+      y: playerY,
+      duration: motionDuration,
       onComplete,
     });
 
@@ -1020,7 +1061,7 @@ export class OverworldScene extends Phaser.Scene {
         targets: this.playerRenderer.mountSprite,
         x: destX,
         y: destY,
-        duration,
+        duration: motionDuration,
       });
     }
   }
@@ -2097,7 +2138,9 @@ export class OverworldScene extends Phaser.Scene {
       () => this.scene.start("BattleScene", battleData),
       "start battle",
     );
-    if (queued) this.cameras.main.flash(300, 255, 255, 255);
+    if (queued && !isReducedMotionEnabled()) {
+      this.cameras.main.flash(300, 255, 255, 255);
+    }
   }
 
   private openCodex(): void {

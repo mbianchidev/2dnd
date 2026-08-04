@@ -60,6 +60,11 @@ The overlay supports:
 - pending companion stat allocation
 - ranked gambit editing
 
+The Items page uses immutable sorted and filtered views, full-text search,
+procedural item visuals, and stable keyboard/pointer selection for large bags.
+Its sort, filter, and search preferences are stored separately from actor
+ownership. See [`inventory.md`](inventory.md) for controls and selector rules.
+
 Key items, mounts, and equipped items cannot be transferred. Gold remains with
 the hero; shop purchases and battle drops enter the hero bag and can then be
 transferred.
@@ -112,6 +117,10 @@ On a full wipe:
 - the existing 30% hero-gold penalty applies once
 - the party returns to the last town
 - active members recover half HP/MP
+- Battle effects are cleared and the recovered state is autosaved
+- `DefeatScene` shows every defeated member, exact gold/XP losses, and the
+  recovery location before continuing; boss and random encounters share this
+  path
 
 Inn rest revives and fully restores every recruited companion and processes
 their pending level-ups.

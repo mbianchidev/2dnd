@@ -17,6 +17,7 @@ import {
   type NpcInstance, type NpcTemplate,
 } from "../data/npcs";
 import { getTimePeriod, TimePeriod } from "../systems/daynight";
+import { isReducedMotionEnabled } from "../systems/accessibility";
 import type { PlayerState } from "../systems/player";
 import { TILE_SIZE } from "../config";
 
@@ -152,6 +153,7 @@ export class CityRenderer {
 
       if (def.moves) {
         const wander = (): void => {
+          if (isReducedMotionEnabled()) return;
           const dirs = [
             { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
             { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
@@ -579,6 +581,7 @@ export class CityRenderer {
 
       if (def.moves) {
         const wander = (): void => {
+          if (isReducedMotionEnabled()) return;
           const dirs = [
             { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
             { dx: 0, dy: 1 }, { dx: 0, dy: -1 },

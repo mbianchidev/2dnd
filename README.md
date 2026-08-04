@@ -22,6 +22,9 @@ API, and saves use `localStorage`.
   progression
 - Hero plus three active companions, reserve/active ordering, item transfers,
   party-wide inn recovery, and persistent manual or gambit control
+- Large hero and companion inventories support immutable sorting by type,
+  value, rarity, recent acquisition, or name; category filters, search,
+  generated item visuals, and stable keyboard/pointer selection
 - Ranked 12-rule gambits use structured subjects, conditions, actions, and
   targets; invalid rules safely fall through without consuming resources
 
@@ -65,6 +68,10 @@ API, and saves use `localStorage`.
   accuracy/AC/damage modifiers, duration expiration, and cure items
 - Combat effects are cleared when Battle ends because their durations use the
   combat turn clock
+- Full-party defeat opens a dedicated procedural result sequence for random and
+  boss encounters, lists every defeated actor, reports the exact gold and XP
+  losses, autosaves the recovered state, and continues from the last town with
+  half HP/MP and no battle effects or overlapping weather ambience
 
 ### Non-combat skill checks
 
@@ -121,8 +128,10 @@ API, and saves use `localStorage`.
 - Procedural biome, city, battle, boss, title, cutscene, and campaign-ending
   music and cues
 - Synthesized combat, weather, movement, item, and interaction sound effects
-- Cutscene settings for reduced motion, 100%/125%/150% text, and manual or
-  automatic advance
+- Shared title and in-game settings for audio, 100%/125%/150% text, high
+  contrast, reduced motion, and manual or automatic cutscene advance
+- Important selections and trap/battle states pair color with text, symbols,
+  borders, or numeric values
 - A five-step new-player tutorial plus an in-game Tips library with
   progression-aware combat, exploration, party, mount, dungeon, skill-check,
   and trap guidance
@@ -153,12 +162,14 @@ src/
 │   ├── Shop.ts
 │   ├── Codex.ts
 │   ├── Cutscene.ts
-│   └── Ending.ts
+│   ├── Ending.ts
+│   └── Defeat.ts
 ├── systems/
 │   ├── combat.ts
 │   ├── groupCombat.ts
 │   ├── battleActions.ts
 │   ├── party.ts
+│   ├── inventory.ts
 │   ├── gambits.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
@@ -217,9 +228,10 @@ src/
     ├── traps.ts
     ├── trapTextures.ts
     ├── characterTextures.ts
+    ├── itemVisuals.ts
     ├── cutscene.ts
     ├── settings.ts
-    ├── ending.ts
+    ├── result.ts
     └── battleParty.ts
 ```
 
@@ -255,8 +267,9 @@ live in focused modules, and `src/data/cutscenes.ts` remains the stable-ID hub.
 normalization, lifecycle, Chronicle selection, and legacy epilogue recovery.
 `src/managers/cutscene.ts` advances or skips immutable steps.
 `CutsceneScene` and `src/renderers/cutscene.ts` provide generic procedural
-presentation, while `EndingScene` remains the campaign-summary and credits
-surface. IDs are queued and saved before presentation, then removed from
+presentation. `EndingScene` and `DefeatScene` share
+`src/renderers/result.ts` for campaign-summary, credits, and defeat-result
+surfaces. IDs are queued and saved before presentation, then removed from
 `pendingCutsceneIds` and added to `seenCutsceneIds` only after completion or
 skip. Chronicle replay changes neither list.
 
@@ -272,9 +285,16 @@ outgoing camera before queueing the next scene, rejects duplicate handoffs, and
 uses a delayed watchdog only to recover a missing event. Overworld restarts
 share one complete player, party, world, quest, trap, weather, and NPC payload
 and block state-changing input until Phaser processes the queued handoff.
+Battle uses the same guarded handoff for victory, flee, and defeat. Defeat first
+creates an exact `PartyDefeatResult`, saves the recovered player, clears
+transient battle input/effects/weather, then starts `DefeatScene`; continuing
+returns the complete shared state to Overworld without applying the penalty
+again.
 
 See [`docs/companions.md`](docs/companions.md) for party state, recruitment,
 inventories, gambit syntax, combat control, KO/reward rules, and debug commands.
+See [`docs/inventory.md`](docs/inventory.md) for immutable inventory views,
+presentation preferences, controls, generated visuals, and transfer restrictions.
 
 ## Getting started
 
@@ -307,7 +327,7 @@ npm run build      # Type-check and create a production build
 | `Space` / `Enter` | Confirm, interact, or disarm a detected adjacent trap |
 | `M` | Open the world or city map |
 | `E` | Open hero equipment |
-| `P` | Open party management, inventories, and gambits |
+| `P` | Open party management, searchable inventories, and gambits |
 | `C` | Open the Codex |
 | `Q` | Open the quest journal |
 | `T` | Mount or dismount |
@@ -315,9 +335,13 @@ npm run build      # Type-check and create a production build
 | `Esc` | Close the active overlay or skip an active cutscene |
 | Mouse / touch | Select buttons and scroll lists |
 
-The `Esc` menu includes Tips, tutorial replay, the Chronicle, and cutscene
-accessibility settings. Advanced Tips unlock automatically as relevant
-progression is reached.
+The `Esc` menu includes Party & Inventory, Tips, tutorial replay, the Chronicle,
+and the same audio and accessibility settings available on the title screen.
+Advanced Tips unlock automatically as relevant progression is reached. In the
+inventory view, arrows and Page Up/Down navigate, `R` cycles sorting, `F` cycles
+filters, `/` focuses search, `X` transfers, and `Tab` changes the target. `T`
+remains mount control, and input remapping remains tracked separately in issue
+#89.
 
 ## Debug mode
 
@@ -347,9 +371,12 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 
 ## Save data
 
-Game state is stored under `2dnd_save`; audio preferences use
-`2dnd_audio_prefs`; cutscene accessibility preferences use
-`2dnd_cutscene_accessibility`.
+Game state is stored under `2dnd_save`. Audio and accessibility preferences are
+stored separately under the versioned `2dnd_preferences` key, so changing text
+scale, contrast, motion, cutscene advance, volume, or mute never mutates campaign
+progress. Existing `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values
+migrate automatically. Inventory sorting, filtering, and search preferences use
+the separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
 Save schema version 9 persists:
 
@@ -395,7 +422,7 @@ quest and skill-check progression, dice, weather, day/night, mounts, NPCs,
 audio, configuration, group encounter generation, formation targeting,
 synergies, rewards, cutscene data, triggers, queue recovery, accessibility,
 director lifecycle, scene transitions, ending summaries, multi-target actions,
-and party-ready combat/action-planning
+defeat receipts and idempotent result handoffs, and party-ready combat/action-planning
 contracts, companion definitions, party state, gambits, follower trails, and
 recruitment replay.
 
@@ -410,19 +437,22 @@ Important integration suites:
 - `tests/traps.test.ts`
 - `tests/companions.test.ts`
 - `tests/party.test.ts`
+- `tests/defeatSceneTransition.test.ts`
 - `tests/gambits.test.ts`
 - `tests/followers.test.ts`
 - `tests/tutorial.test.ts`
 - `tests/fogOfWar.test.ts`
 
-The committed Playwright suite in `e2e/` runs a real Chromium campaign golden
-path through character creation, interrupted opening recovery, quest
+The committed Playwright suite in `e2e/` runs real Chromium campaign and defeat
+flows through character creation, interrupted opening recovery, quest
 interaction, new-player tutorial completion, keyboard and menu Tips access,
 dungeon reveals, skipped boss introductions, boss aftermath chains, Chronicle
-replay immutability, final Elowen completion, credits, post-game continuation,
-and completed-but-unseen ending recovery. It starts
+replay immutability, final Elowen completion, credits, interrupted epilogue
+recovery, post-game continuation and reload, legacy completed-but-unseen ending
+recovery, corrupt-save fallback to New Game, random and boss defeat results,
+recovery save/reload, and clean continuation. It starts
 Vite on an available strict port and defaults to the deployed `/2dnd/` base
-path:
+path. Pull request CI installs Chromium and runs these suites as a release gate:
 
 ```bash
 npm run test:browser:install # One-time Chromium install

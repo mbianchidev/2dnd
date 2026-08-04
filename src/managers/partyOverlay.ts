@@ -5,8 +5,9 @@ import {
   isCompanionId,
   type CompanionId,
 } from "../data/companions";
-import { getItem, type Item } from "../data/items";
+import type { Item } from "../data/items";
 import { getSpell } from "../data/spells";
+import { createItemVisual } from "../renderers/itemVisuals";
 import {
   allocateStatPoint,
   getArmorClass,
@@ -26,6 +27,15 @@ import {
   type CompanionState,
   type PartyMemberId,
 } from "../systems/party";
+import {
+  getItemTransferRestriction,
+  inventoryPreferences,
+  isInventoryItemEquipped,
+  moveInventorySelection,
+  selectInventoryItems,
+  type InventorySemanticAction,
+  type InventoryViewEntry,
+} from "../systems/inventory";
 import {
   MAX_GAMBITS_PER_COMPANION,
   createDefaultGambitRule,
@@ -58,12 +68,9 @@ interface PartyMemberView {
 }
 
 const STAT_LABELS: Array<{ key: keyof PlayerStats; label: string }> = [
-  { key: "strength", label: "STR" },
-  { key: "dexterity", label: "DEX" },
-  { key: "constitution", label: "CON" },
-  { key: "intelligence", label: "INT" },
-  { key: "wisdom", label: "WIS" },
-  { key: "charisma", label: "CHA" },
+  { key: "strength", label: "STR" }, { key: "dexterity", label: "DEX" },
+  { key: "constitution", label: "CON" }, { key: "intelligence", label: "INT" },
+  { key: "wisdom", label: "WIS" }, { key: "charisma", label: "CHA" },
 ];
 
 export class PartyOverlayManager {
@@ -75,7 +82,8 @@ export class PartyOverlayManager {
   private targetId: PartyMemberId = "hero";
   private page: PartyOverlayPage = "status";
   private listPage = 0;
-
+  private inventorySelectedIndex: number | null = null;
+  private inventorySearchActive = false;
   constructor(scene: Phaser.Scene, callbacks: PartyOverlayCallbacks) {
     this.scene = scene;
     this.callbacks = callbacks;
@@ -84,24 +92,53 @@ export class PartyOverlayManager {
   isOpen(): boolean {
     return this.overlay !== null;
   }
-
   toggle(player: PlayerState): void {
     if (this.overlay) {
       this.close();
       return;
     }
+    this.open(player);
+  }
+  open(player: PlayerState, page: PartyOverlayPage = "status"): void {
+    this.close();
     this.player = player;
     this.selectedId = this.resolveSelectedId(player);
     this.targetId = this.selectedId;
-    this.page = "status";
+    this.page = page;
     this.listPage = 0;
+    this.inventorySelectedIndex = null;
+    this.inventorySearchActive = false;
+    this.scene.input.keyboard?.on("keydown", this.handleKeyDown, this);
     this.render();
   }
-
+  openInventory(player: PlayerState): void {
+    this.open(player, "items");
+  }
   close(): void {
+    this.scene.input.keyboard?.off("keydown", this.handleKeyDown, this);
     this.overlay?.destroy();
     this.overlay = null;
     this.player = null;
+    this.inventorySearchActive = false;
+  }
+
+  isInventorySearchActive(): boolean {
+    return this.isOpen() && this.page === "items" && this.inventorySearchActive;
+  }
+
+  getDebugState(): string {
+    if (!this.overlay || !this.player) return "";
+    if (this.page !== "items") return ` [PARTY:${this.page}]`;
+    const entries = this.getInventoryEntries();
+    const selectedPosition = entries.findIndex(
+      (entry) => entry.inventoryIndex === this.inventorySelectedIndex,
+    );
+    const page = selectedPosition < 0
+      ? 1
+      : Math.floor(selectedPosition / 7) + 1;
+    const totalPages = Math.max(1, Math.ceil(entries.length / 7));
+    const preferences = inventoryPreferences.get();
+    return ` [PARTY:items Inventory ${Math.max(selectedPosition + 1, 0)}/${entries.length} Page ${page}/${totalPages} Sort:${preferences.sortMode} Filter:${preferences.filter} Search:${preferences.search || "-"}${this.inventorySearchActive ? " Focus:search" : ""}]`;
   }
 
   private resolveSelectedId(player: PlayerState): PartyMemberId {
@@ -200,11 +237,12 @@ export class PartyOverlayManager {
       this.addButton(
         x,
         currentY,
-        `${member.name} ${activeLabel}`,
+        `${member.id === this.selectedId ? "▶" : " "} ${member.name} ${activeLabel}`,
         () => {
           this.selectedId = member.id;
           this.targetId = member.id;
           this.listPage = 0;
+          this.inventorySelectedIndex = null;
           this.render();
         },
         member.id === this.selectedId ? "#ffd700" : "#b8ddff",
@@ -251,6 +289,8 @@ export class PartyOverlayManager {
         () => {
           this.page = tab.page;
           this.listPage = 0;
+          this.inventorySelectedIndex = null;
+          this.inventorySearchActive = false;
           this.render();
         },
         this.page === tab.page ? "#ffd700" : "#bbbbbb",
@@ -339,92 +379,332 @@ export class PartyOverlayManager {
     const member = this.getMember(this.selectedId);
     const target = this.getMember(this.targetId);
     if (!member || !target) return;
+    const entries = this.getInventoryEntries();
+    this.ensureInventorySelection(entries);
+    const selectedPosition = entries.findIndex(
+      (entry) => entry.inventoryIndex === this.inventorySelectedIndex,
+    );
+    const pageSize = 7;
+    const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
+    const currentPage = selectedPosition < 0
+      ? 0
+      : Math.floor(selectedPosition / pageSize);
+    const visible = entries.slice(
+      currentPage * pageSize,
+      (currentPage + 1) * pageSize,
+    );
+    const preferences = inventoryPreferences.get();
     this.addText(
       x,
       y,
-      `${member.name}'s bag -> ${target.name}`,
+      `${member.name}'s bag  ${entries.length}/${member.state.inventory.length}  Page ${currentPage + 1}/${totalPages}`,
       "#ffd700",
       13,
     );
-    this.addButton(x + width - 112, y - 4, "Next Target", () => {
-      this.cycleTarget();
-      this.render();
-    }, "#bbbbff", 108);
-    const pageSize = 9;
-    const totalPages = Math.max(
-      1,
-      Math.ceil(member.state.inventory.length / pageSize),
-    );
-    this.listPage = Phaser.Math.Clamp(this.listPage, 0, totalPages - 1);
-    const visible = member.state.inventory.slice(
-      this.listPage * pageSize,
-      (this.listPage + 1) * pageSize,
-    );
-    visible.forEach((item, offset) => {
-      const itemIndex = this.listPage * pageSize + offset;
-      const rowY = y + 32 + offset * 34;
-      this.addText(x, rowY, `${item.name} (${item.type})`, "#dddddd");
-      if (
-        item.type === "weapon"
-        || item.type === "armor"
-        || item.type === "shield"
-      ) {
-        this.addButton(x + width - 178, rowY - 5, "Equip", () => {
-          const result = useCombatItem(member.state, itemIndex);
-          this.changed(result.message, result.used);
-        }, "#aaffaa", 70);
-      } else if (item.type === "consumable") {
-        this.addButton(x + width - 178, rowY - 5, "Use", () => {
-          const result = useCombatItemOnTarget(
-            member.state,
-            itemIndex,
-            target.state,
-          );
-          this.changed(result.message, result.used);
-        }, "#aaffaa", 70);
-      }
-      this.addButton(x + width - 100, rowY - 5, "Transfer", () => {
-        const result = transferPartyItem(
-          this.player!,
-          member.id,
-          target.id,
-          itemIndex,
-        );
-        this.changed(result.message, result.transferred);
-      }, "#aaddff", 90);
+    this.addButton(x, y + 22, `Sort:${this.capitalize(preferences.sortMode)}`, () => {
+      this.handleInventoryAction("cycleSort");
+    }, "#b8ddff", 118);
+    this.addButton(x + 124, y + 22, `Filter:${this.capitalize(preferences.filter)}`, () => {
+      this.handleInventoryAction("cycleFilter");
+    }, "#b8ddff", 112);
+    const searchLabel = preferences.search.length > 0
+      ? `Search:${this.truncate(preferences.search, 13)}`
+      : this.inventorySearchActive ? "Search:typing..." : "Search:/";
+    this.addButton(x + 242, y + 22, searchLabel, () => {
+      this.handleInventoryAction("toggleSearch");
+    }, this.inventorySearchActive ? "#ffd700" : "#b8ddff", width - 280);
+    this.addButton(x + width - 32, y + 22, "X", () => {
+      this.handleInventoryAction("clearSearch");
+    }, "#ffaaaa", 32);
+
+    visible.forEach((entry, offset) => {
+      const rowY = y + 52 + offset * 30;
+      const selected = entry.inventoryIndex === this.inventorySelectedIndex;
+      const equipped = isInventoryItemEquipped(member.state, entry.item);
+      const label = `${selected ? ">" : " "} ${this.truncate(entry.item.name, 25)}  ${this.capitalize(entry.rarity)}${equipped ? " [E]" : ""}`;
+      this.addButton(x, rowY, label, () => {
+        this.inventorySelectedIndex = entry.inventoryIndex;
+        this.render();
+      }, selected ? "#ffd700" : "#dddddd", width);
+      this.overlay?.add(createItemVisual(
+        this.scene,
+        entry.item,
+        x + 4,
+        rowY + 1,
+        22,
+      ));
     });
-    this.addButton(x, y + 350, `Page ${this.listPage + 1}/${totalPages}`, () => {
-      this.listPage = (this.listPage + 1) % totalPages;
-      this.render();
-    }, "#bbbbbb", 100);
+
+    const selectedEntry = this.getSelectedInventoryEntry(entries);
+    if (selectedEntry) {
+      const restriction = getItemTransferRestriction(
+        member.state,
+        selectedEntry.item,
+      );
+      this.addText(
+        x,
+        y + 266,
+        `${selectedEntry.item.description} | ${selectedEntry.item.cost}g | ${selectedEntry.item.type}${restriction ? ` | ${restriction}` : ""}`,
+        restriction ? "#ffcc88" : "#bbbbbb",
+        9,
+        width,
+      );
+    } else {
+      this.addText(x, y + 266, "No items match the current view.", "#888888");
+    }
+
+    this.addButton(x, y + 312, "< Page", () => {
+      this.handleInventoryAction("previousPage");
+    }, "#bbbbbb", 58);
+    this.addButton(x + 62, y + 312, "Page >", () => {
+      this.handleInventoryAction("nextPage");
+    }, "#bbbbbb", 58);
+    this.addButton(x + 124, y + 312, this.getPrimaryActionLabel(selectedEntry), () => {
+      this.handleInventoryAction("primaryAction");
+    }, "#aaffaa", 62);
+    this.addButton(x + 190, y + 312, "Transfer", () => {
+      this.handleInventoryAction("transfer");
+    }, "#aaddff", 72);
     const healingSpells = member.state.knownSpells
       .map((spellId) => getSpell(spellId))
       .filter((spell) => spell?.type === "heal");
     if (healingSpells.length > 0) {
-      this.addButton(x + 112, y + 350, "Cast Heal", () => {
-        const spell = healingSpells[0]!;
-        const result = playerCastSpellAtTargets(
-          member.state,
-          spell.id,
-          [],
-          [{
-            id: target.id,
-            label: target.name,
-            get currentHp() {
-              return target.state.hp;
-            },
-            set currentHp(value: number) {
-              target.state.hp = value;
-            },
-            get maxHp() {
-              return target.state.maxHp;
-            },
-            effects: target.state.activeEffects,
-          }],
-        );
-        this.changed(result.message, result.mpUsed > 0);
-      }, "#ccffcc", 100);
+      this.addButton(x + 266, y + 312, "Heal", () => {
+        this.castFirstHealingSpell(member, target);
+      }, "#ccffcc", 54);
     }
+    this.addButton(x + width - 100, y + 312, `To:${this.truncate(target.name, 8)}`, () => {
+      this.handleInventoryAction("nextTarget");
+    }, "#bbbbff", 100);
+  }
+
+  handleInventoryAction(action: InventorySemanticAction): boolean {
+    if (!this.player || this.page !== "items") return false;
+    const member = this.getMember(this.selectedId);
+    const target = this.getMember(this.targetId);
+    if (!member || !target) return false;
+    const entries = this.getInventoryEntries();
+    this.ensureInventorySelection(entries);
+
+    if (action === "cycleSort") {
+      inventoryPreferences.cycleSortMode();
+      this.render();
+      return true;
+    }
+    if (action === "cycleFilter") {
+      inventoryPreferences.cycleFilter();
+      this.render();
+      return true;
+    }
+    if (action === "toggleSearch") {
+      this.inventorySearchActive = !this.inventorySearchActive;
+      this.render();
+      return true;
+    }
+    if (action === "clearSearch") {
+      inventoryPreferences.setSearch("");
+      this.inventorySearchActive = false;
+      this.render();
+      return true;
+    }
+    if (action === "nextTarget") {
+      this.cycleTarget();
+      this.render();
+      return true;
+    }
+    if (action === "previousItem" || action === "nextItem") {
+      this.inventorySelectedIndex = moveInventorySelection(
+        entries,
+        this.inventorySelectedIndex,
+        action === "previousItem" ? -1 : 1,
+      );
+      this.render();
+      return true;
+    }
+    if (action === "previousPage" || action === "nextPage") {
+      this.inventorySelectedIndex = moveInventorySelection(
+        entries,
+        this.inventorySelectedIndex,
+        action === "previousPage" ? -7 : 7,
+      );
+      this.render();
+      return true;
+    }
+    if (action === "firstItem" || action === "lastItem") {
+      const entry = action === "firstItem"
+        ? entries[0]
+        : entries[entries.length - 1];
+      this.inventorySelectedIndex = entry?.inventoryIndex ?? null;
+      this.render();
+      return true;
+    }
+    const selectedEntry = this.getSelectedInventoryEntry(entries);
+    if (!selectedEntry) {
+      this.callbacks.showMessage("No item selected.", "#ff8888");
+      return true;
+    }
+    if (action === "transfer") {
+      const result = transferPartyItem(
+        this.player,
+        member.id,
+        target.id,
+        selectedEntry.inventoryIndex,
+      );
+      this.changed(result.message, result.transferred);
+      return true;
+    }
+    if (action === "primaryAction") {
+      if (
+        selectedEntry.item.type === "weapon"
+        || selectedEntry.item.type === "armor"
+        || selectedEntry.item.type === "shield"
+      ) {
+        const result = useCombatItem(
+          member.state,
+          selectedEntry.inventoryIndex,
+        );
+        this.changed(result.message, result.used);
+      } else if (selectedEntry.item.type === "consumable") {
+        const result = useCombatItemOnTarget(
+          member.state,
+          selectedEntry.inventoryIndex,
+          target.state,
+        );
+        this.changed(result.message, result.used);
+      } else {
+        this.callbacks.showMessage(
+          `${selectedEntry.item.name} has no direct action.`,
+          "#ffcc88",
+        );
+      }
+      return true;
+    }
+    return false;
+  }
+
+  private handleKeyDown(event: KeyboardEvent): void {
+    if (!this.overlay || this.page !== "items") return;
+    if (this.inventorySearchActive) {
+      if (event.key === "Enter") {
+        this.inventorySearchActive = false;
+        this.render();
+        event.preventDefault();
+        return;
+      }
+      if (event.key === "Backspace") {
+        inventoryPreferences.setSearch(
+          inventoryPreferences.get().search.slice(0, -1),
+        );
+        this.render();
+        event.preventDefault();
+        return;
+      }
+      if (/^[a-zA-Z0-9_'’-]$/.test(event.key)) {
+        inventoryPreferences.setSearch(
+          `${inventoryPreferences.get().search}${event.key}`,
+        );
+        this.render();
+        event.preventDefault();
+      }
+      return;
+    }
+    const actions: Partial<Record<string, InventorySemanticAction>> = {
+      ArrowUp: "previousItem",
+      ArrowDown: "nextItem",
+      PageUp: "previousPage",
+      PageDown: "nextPage",
+      Home: "firstItem",
+      End: "lastItem",
+      Enter: "primaryAction",
+      x: "transfer",
+      X: "transfer",
+      r: "cycleSort",
+      R: "cycleSort",
+      f: "cycleFilter",
+      F: "cycleFilter",
+      "/": "toggleSearch",
+      Tab: "nextTarget",
+    };
+    const action = actions[event.key];
+    if (action) {
+      this.handleInventoryAction(action);
+      event.preventDefault();
+    }
+  }
+  private getInventoryEntries(): InventoryViewEntry[] {
+    const member = this.getMember(this.selectedId);
+    return member
+      ? selectInventoryItems(member.state.inventory, inventoryPreferences.get())
+      : [];
+  }
+  private ensureInventorySelection(entries: readonly InventoryViewEntry[]): void {
+    if (
+      this.inventorySelectedIndex === null
+      || !entries.some(
+        (entry) => entry.inventoryIndex === this.inventorySelectedIndex,
+      )
+    ) {
+      this.inventorySelectedIndex = entries[0]?.inventoryIndex ?? null;
+    }
+  }
+  private getSelectedInventoryEntry(
+    entries: readonly InventoryViewEntry[],
+  ): InventoryViewEntry | undefined {
+    return entries.find(
+      (entry) => entry.inventoryIndex === this.inventorySelectedIndex,
+    );
+  }
+  private getPrimaryActionLabel(
+    entry: InventoryViewEntry | undefined,
+  ): string {
+    if (!entry) return "Action";
+    if (entry.item.type === "consumable") return "Use";
+    if (
+      entry.item.type === "weapon"
+      || entry.item.type === "armor"
+      || entry.item.type === "shield"
+    ) {
+      return "Equip";
+    }
+    return "Inspect";
+  }
+  private castFirstHealingSpell(
+    member: PartyMemberView,
+    target: PartyMemberView,
+  ): void {
+    const spell = member.state.knownSpells
+      .map((spellId) => getSpell(spellId))
+      .find((knownSpell) => knownSpell?.type === "heal");
+    if (!spell) {
+      this.callbacks.showMessage("No healing spell is available.", "#ff8888");
+      return;
+    }
+    const result = playerCastSpellAtTargets(
+      member.state,
+      spell.id,
+      [],
+      [{
+        id: target.id,
+        label: target.name,
+        get currentHp() {
+          return target.state.hp;
+        },
+        set currentHp(value: number) {
+          target.state.hp = value;
+        },
+        get maxHp() {
+          return target.state.maxHp;
+        },
+        effects: target.state.activeEffects,
+      }],
+    );
+    this.changed(result.message, result.mpUsed > 0);
+  }
+  private capitalize(value: string): string {
+    return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+  }
+  private truncate(value: string, length: number): string {
+    return value.length <= length ? value : `${value.slice(0, length - 1)}…`;
   }
 
   private renderGambitsPage(x: number, y: number, width: number): void {

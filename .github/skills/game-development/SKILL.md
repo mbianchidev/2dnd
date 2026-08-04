@@ -23,13 +23,20 @@ and changes spanning scenes, systems, data, renderers, or managers.
 ## Current architecture
 
 - Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, `Cutscene`,
-  and `Ending`
+  `Ending`, and `Defeat`
 - Overworld orchestration: `src/scenes/Overworld.ts`
 - Battle orchestration: `src/scenes/Battle.ts`
 - Core mechanics: `src/systems/`
 - Immutable definitions: `src/data/`
 - Extracted presentation: `src/renderers/`
 - Stateful scene helpers: `src/managers/`
+- Shared audio/accessibility preferences: `src/systems/accessibility.ts`
+
+The versioned `2dnd_preferences` document is separate from campaign saves and
+backs both title and in-game settings. Install the scene accessibility adapter
+in every scene, use its shared reduced-motion accessors, preserve
+100%/125%/150% text usability, and pair important color states with a textual or
+symbolic cue. Input remapping remains separate under issue #89.
 
 Cutscene contracts live in `src/data/cutsceneTypes.ts`, focused campaign and
 boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and
@@ -37,6 +44,9 @@ boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and
 ordering, queue lifecycle, recovery, Chronicle selection, and summary logic live
 in `src/systems/cutscenes.ts`; `src/managers/cutscene.ts` owns step progression;
 scenes and renderers own input and presentation.
+`EndingScene` and `DefeatScene` share `src/renderers/result.ts`; defeat receives
+an exact runtime-only `PartyDefeatResult`, while the recovered player state is
+autosaved before presentation.
 
 The map hub is `src/data/map.ts`; terrain/types, chunks, cities, and dungeons
 are split into dedicated modules. Dungeon trap definitions live in
@@ -240,6 +250,8 @@ State-bearing transitions commonly pass:
 
 Battle also receives a `MonsterEncounter` and biome; Shop receives shop/city
 context.
+Defeat receives the full shared state plus encounter name/type and the exact
+applied party defeat receipt. It must not recalculate or reapply penalties.
 Future party systems pass accessor-backed `partyCombatants` plus runtime-only
 `battleHooks`; do not persist those wrapper objects.
 Keep target `init()` contracts and every caller synchronized.
@@ -256,6 +268,9 @@ recovery path only. Restore the outgoing camera before queueing the next scene,
 reject duplicate handoffs, and block state-changing Overworld input until the
 queued start/restart is processed. Every Overworld restart must include a fresh
 `savedSpecialNpcs` snapshot in the shared state payload.
+Use the same guarded Battle exit cleanup for victory, flee, and defeat. Defeat
+clears transient menus, input, effects, particles, and weather timers before
+starting `DefeatScene`, which continues only to Overworld.
 
 ## Companions and gambits
 
@@ -273,6 +288,17 @@ queued start/restart is processed. Every Overworld restart must include a fresh
   hero movement invokes trap, encounter, gate, and world-interaction logic.
 - Keep party UI/followers/battle presentation in focused managers/renderers
   rather than growing the existing oversized scene/overlay files.
+
+## Inventory presentation
+
+- Build immutable views with `src/systems/inventory.ts`; every view entry keeps
+  its original inventory index for actions and transfers.
+- Never sort the owning inventory array or replace equipment object references.
+- Keep sort/filter/search preferences in `2dnd_inventory_prefs`, outside the
+  campaign save schema. Recent acquisition is reverse append order.
+- Use semantic inventory actions for keyboard, pointer, and future gamepad/mobile
+  controls. `T` remains mount control.
+- Generate item visuals procedurally through `src/renderers/itemVisuals.ts`.
 
 ## Validation
 

@@ -318,7 +318,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await page.waitForTimeout(800);
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 220);
+    await clickGame(page, 320, 232);
     await waitForState(page, "[CHRONICLE]");
     await holdKey(page, "Enter");
     await waitForState(page, "CUTSCENE | campaign.opening");

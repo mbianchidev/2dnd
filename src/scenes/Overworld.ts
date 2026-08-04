@@ -1681,8 +1681,18 @@ export class OverworldScene extends Phaser.Scene {
 
     if (this.dialogueSystem.isDialogueOpen()) { this.dialogueSystem.dismissDialogue(); return; }
 
-    // Special NPC interaction
-    const specialResult = this.specialNpcManager.findAdjacentSpecialNpc(this.player.position.x, this.player.position.y);
+    // Current-tile entrances and encounters take priority over adjacent visitors.
+    const currentTerrain = chunk.mapData[this.player.position.y]?.[this.player.position.x];
+    const tileOwnsAction = currentTerrain === Terrain.Town
+      || currentTerrain === Terrain.Dungeon
+      || currentTerrain === Terrain.Boss
+      || currentTerrain === Terrain.Chest;
+    const specialResult = tileOwnsAction
+      ? undefined
+      : this.specialNpcManager.findAdjacentSpecialNpc(
+          this.player.position.x,
+          this.player.position.y,
+        );
     if (specialResult) {
       const regionName = chunk.name ?? "Overworld";
       const callbacks: SpecialNpcCallbacks = {

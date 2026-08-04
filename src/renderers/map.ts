@@ -23,6 +23,7 @@ import {
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { getBlockedQuestEntranceAt } from "../systems/quests";
 import { WeatherType, WEATHER_TINT, type WeatherState } from "../systems/weather";
+import { isReducedMotionEnabled } from "../systems/accessibility";
 import type { PlayerState } from "../systems/player";
 import type { CityRenderer } from "./city";
 import { TILE_SIZE } from "../config";
@@ -296,12 +297,14 @@ export class MapRenderer {
     }
 
     // Sporadic lightning flashes during storms
-    if (weather === WeatherType.Storm) {
+    if (weather === WeatherType.Storm && !isReducedMotionEnabled()) {
       const scheduleFlash = (): void => {
         this.stormLightningTimer = this.scene.time.delayedCall(
           2000 + Math.random() * 6000,
           () => {
-            this.scene.cameras.main.flash(120, 255, 255, 255, true);
+            if (!isReducedMotionEnabled()) {
+              this.scene.cameras.main.flash(120, 255, 255, 255, true);
+            }
             scheduleFlash();
           },
         );

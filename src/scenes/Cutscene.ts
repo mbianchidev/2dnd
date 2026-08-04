@@ -11,7 +11,10 @@ import { getMonster } from "../data/monsters";
 import { CutsceneDirector, type CutscenePresentationAdapter } from "../managers/cutscene";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { CutsceneRenderer } from "../renderers/cutscene";
-import { cutsceneAccessibility } from "../systems/accessibility";
+import {
+  gamePreferences,
+  installSceneAccessibility,
+} from "../systems/accessibility";
 import {
   completeCutscene,
   getNextPendingCutscene,
@@ -76,11 +79,10 @@ export class CutsceneScene extends Phaser.Scene {
 
   create(): void {
     this.sceneTransitions.prepare(350);
-    const preferences = cutsceneAccessibility.get();
+    installSceneAccessibility(this);
     this.cutsceneRenderer = new CutsceneRenderer(
       this,
       this.sceneData.player,
-      preferences,
     );
     const presentation: CutscenePresentationAdapter = {
       present: (step, index, onReady) => {
@@ -158,7 +160,7 @@ export class CutsceneScene extends Phaser.Scene {
 
   private onStepReady(): void {
     this.inputReadyAt = Math.max(this.inputReadyAt, this.time.now + 100);
-    if (cutsceneAccessibility.get().advanceMode !== "automatic") {
+    if (gamePreferences.getAccessibility().advanceMode !== "automatic") {
       return;
     }
     const step = this.director.currentStep;

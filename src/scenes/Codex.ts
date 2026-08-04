@@ -14,6 +14,7 @@ import { type WeatherState, createWeatherState } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { elementDisplayName } from "../data/elements";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { installSceneAccessibility } from "../systems/accessibility";
 
 /** How many entries to show per page. */
 const ENTRIES_PER_PAGE = 8;
@@ -118,6 +119,7 @@ export class CodexScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(0x0e0e1e);
     this.sceneTransitions.prepare(300);
+    installSceneAccessibility(this);
 
     // Title
     this.add

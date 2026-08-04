@@ -43,7 +43,12 @@ import { getPlayerClass } from "../systems/classes";
 import { abilityModifier } from "../systems/dice";
 import { CYCLE_LENGTH } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
-import { addCutsceneSettingsControls } from "../renderers/settings";
+import { isReducedMotionEnabled } from "../systems/accessibility";
+import {
+  addSettingsControls,
+  SETTINGS_PANEL_HEIGHT,
+  SETTINGS_PANEL_WIDTH,
+} from "../renderers/settings";
 import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
 import { calcPanelLayout, createDimGraphics, createPanelGraphics } from "../utils/ui";
@@ -947,7 +952,15 @@ export class OverlayManager {
     }).setOrigin(0.5, 1);
     this.statOverlay.add(closeHint);
 
-    this.scene.tweens.add({ targets: closeHint, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
+    if (!isReducedMotionEnabled()) {
+      this.scene.tweens.add({
+        targets: closeHint,
+        alpha: 0.3,
+        duration: 700,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
 
     const handler = (): void => {
       if (this.statOverlay) {
@@ -1085,11 +1098,15 @@ export class OverlayManager {
     this.showSettingsOverlay();
   }
 
-  /** Show audio settings with volume sliders and mute toggle. */
+  /** Show the shared audio and accessibility settings. */
   showSettingsOverlay(): void {
     this.closeOverlays("menuOverlay", "equipOverlay", "statOverlay", "settingsOverlay");
 
-    const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 300, 420, -10);
+    const { w, h, px, py, panelW, panelH } = calcPanelLayout(
+      this.scene,
+      SETTINGS_PANEL_WIDTH,
+      SETTINGS_PANEL_HEIGHT,
+    );
 
     this.settingsOverlay = this.scene.add.container(0, 0).setDepth(75);
 
@@ -1106,95 +1123,13 @@ export class OverlayManager {
     bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
     this.settingsOverlay.add(bg);
 
-    const title = this.scene.add.text(px + panelW / 2, py + 12, "🔊 Audio Settings", {
-      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
-    }).setOrigin(0.5, 0);
-    this.settingsOverlay.add(title);
-
-    const sliderY = py + 44;
-    const sliderX = px + 16;
-    const sliderW = panelW - 32;
-    const barH = 10;
-    const sliderSpacing = 48;
-
-    const channels: { label: string; value: number; setter: (v: number) => void }[] = [
-      { label: "Master", value: audioEngine.state.masterVolume, setter: (v) => audioEngine.setMasterVolume(v) },
-      { label: "Music", value: audioEngine.state.musicVolume, setter: (v) => audioEngine.setMusicVolume(v) },
-      { label: "SFX", value: audioEngine.state.sfxVolume, setter: (v) => audioEngine.setSFXVolume(v) },
-      { label: "Dialog", value: audioEngine.state.dialogVolume, setter: (v) => audioEngine.setDialogVolume(v) },
-    ];
-
-    channels.forEach((ch, i) => {
-      const y = sliderY + i * sliderSpacing;
-
-      const valText = this.scene.add.text(sliderX + sliderW, y - 2, `${ch.label}: ${Math.round(ch.value * 100)}%`, {
-        fontSize: "11px", fontFamily: "monospace", color: "#ccc",
-      }).setOrigin(1, 0);
-      this.settingsOverlay!.add(valText);
-
-      const track = this.scene.add.graphics();
-      track.fillStyle(0x333355, 1);
-      track.fillRect(sliderX, y + 14, sliderW, barH);
-      track.lineStyle(1, 0x555577, 1);
-      track.strokeRect(sliderX, y + 14, sliderW, barH);
-      this.settingsOverlay!.add(track);
-
-      const fill = this.scene.add.graphics();
-      const drawFill = (v: number): void => {
-        fill.clear();
-        fill.fillStyle(0x4488ff, 1);
-        fill.fillRect(sliderX, y + 14, sliderW * v, barH);
-      };
-      drawFill(ch.value);
-      this.settingsOverlay!.add(fill);
-
-      let currentKnobX = sliderX + sliderW * ch.value;
-      const knob = this.scene.add.graphics();
-      const drawKnob = (kx: number): void => {
-        knob.clear();
-        knob.fillStyle(0xffd700, 1);
-        knob.fillCircle(kx, y + 14 + barH / 2, 7);
-        knob.lineStyle(1, 0xaa8800, 1);
-        knob.strokeCircle(kx, y + 14 + barH / 2, 7);
-      };
-      drawKnob(currentKnobX);
-      this.settingsOverlay!.add(knob);
-
-      const knobZone = this.scene.add.zone(currentKnobX, y + 14 + barH / 2, 22, 22)
-        .setInteractive({ useHandCursor: true, draggable: true });
-      this.settingsOverlay!.add(knobZone);
-
-      knobZone.on("drag", (_pointer: Phaser.Input.Pointer, dragX: number) => {
-        const clampedX = Phaser.Math.Clamp(dragX, sliderX, sliderX + sliderW);
-        const ratio = (clampedX - sliderX) / sliderW;
-        ch.setter(ratio);
-        ch.value = ratio;
-        currentKnobX = clampedX;
-        drawFill(ratio);
-        drawKnob(clampedX);
-        knobZone.setPosition(clampedX, y + 14 + barH / 2);
-        valText.setText(`${ch.label}: ${Math.round(ratio * 100)}%`);
-      });
-    });
-
-    const muteY = sliderY + channels.length * sliderSpacing + 4;
-    const muteBtn = this.scene.add.text(px + panelW / 2, muteY, audioEngine.state.muted ? "🔇 Unmute" : "🔊 Mute All", {
-      fontSize: "13px", fontFamily: "monospace", color: audioEngine.state.muted ? "#ff6666" : "#88ccff",
-      backgroundColor: "#2a2a4e", padding: { x: 12, y: 4 },
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    muteBtn.on("pointerdown", () => {
-      const muted = audioEngine.toggleMute();
-      muteBtn.setText(muted ? "🔇 Unmute" : "🔊 Mute All");
-      muteBtn.setColor(muted ? "#ff6666" : "#88ccff");
-    });
-    this.settingsOverlay.add(muteBtn);
-
-    addCutsceneSettingsControls(
+    addSettingsControls(
       this.scene,
       this.settingsOverlay,
-      px + panelW / 2,
-      muteY + 38,
-      panelW - 32,
+      px,
+      py,
+      panelW,
+      panelH,
     );
 
     const hint = this.scene.add.text(px + panelW / 2, py + panelH - 10, "Click outside or press ESC to close", {

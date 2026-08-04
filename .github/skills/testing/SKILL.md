@@ -29,7 +29,7 @@ ranked gambit selection/normalization
 ✅ Scene-transition event ordering, duplicate guards, and watchdog recovery with
 mocked camera/time adapters
 ✅ Cutscene data integrity, trigger priority, queue recovery, replay immutability,
-accessibility normalization, and director cleanup
+shared preference normalization/migration, and director cleanup
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -40,6 +40,11 @@ accessibility normalization, and director cleanup
 
 These exclusions apply to Vitest. The focused `e2e/` suite owns the real-browser
 campaign golden path and scene/input integration.
+
+Accessibility browser coverage should change settings from both title and
+in-game surfaces, assert immediate canvas state, exercise core overlays at every
+supported text scale, verify reload persistence, and prove `2dnd_save` is
+unchanged by preference updates.
 
 ## Test File Organization
 
@@ -60,7 +65,7 @@ tests/
 ├── quests.test.ts    # Quest progression and integrity
 ├── skillChecks.test.ts # Exploration/dialogue checks
 ├── cutscenes.test.ts # Cutscene data, triggers, queue, and director lifecycle
-├── accessibility.test.ts # Cutscene preference normalization and persistence
+├── accessibility.test.ts # Shared preference normalization, migration, and persistence
 ├── cutsceneSceneTransition.test.ts # Generic Cutscene scene contracts
 ├── save.test.ts      # Persistence and migration
 └── data.test.ts      # Data validation

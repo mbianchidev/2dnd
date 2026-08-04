@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../config";
 import type { CutsceneStep } from "../data/cutscenes";
 import type { CampaignEndingSummary } from "../systems/cutscenes";
+import { isReducedMotionEnabled } from "../systems/accessibility";
 
 export interface EndingChoiceCallbacks {
   continuePostGame: () => void;
@@ -13,6 +14,7 @@ export interface EndingChoiceCallbacks {
 export class EndingRenderer {
   private content: Phaser.GameObjects.Container | null = null;
   private choiceButtons: Phaser.GameObjects.Text[] = [];
+  private choiceLabels: string[] = [];
   private selectedChoice = 0;
   private hintTween: Phaser.Tweens.Tween | null = null;
 
@@ -57,13 +59,15 @@ export class EndingRenderer {
       },
     ).setOrigin(0.5);
     this.content.add(hint);
-    this.hintTween = this.scene.tweens.add({
-      targets: hint,
-      alpha: 0.45,
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-    });
+    if (!isReducedMotionEnabled()) {
+      this.hintTween = this.scene.tweens.add({
+        targets: hint,
+        alpha: 0.45,
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
   }
 
   showChoices(callbacks: EndingChoiceCallbacks): void {
@@ -103,6 +107,7 @@ export class EndingRenderer {
       "Replay Epilogue",
       "Return to Title",
     ];
+    this.choiceLabels = labels;
     this.choiceButtons = labels.map((label, index) => {
       const button = this.scene.add.text(
         GAME_WIDTH / 2,
@@ -144,6 +149,7 @@ export class EndingRenderer {
     );
     this.choiceButtons.forEach((button, buttonIndex) => {
       const selected = buttonIndex === this.selectedChoice;
+      button.setText(`${selected ? "▶" : " "} ${this.choiceLabels[buttonIndex]}`);
       button.setColor(selected ? "#fff2a8" : "#d9ddff");
       button.setBackgroundColor(selected ? "#48528c" : "#252b52");
     });
@@ -338,5 +344,6 @@ export class EndingRenderer {
     this.content?.destroy();
     this.content = null;
     this.choiceButtons = [];
+    this.choiceLabels = [];
   }
 }

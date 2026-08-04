@@ -7,6 +7,7 @@ import { generateAllTextures, generatePlayerTextureWithHair } from "../renderers
 import { PLAYER_CLASSES, type PlayerClass, getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
 import { SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance } from "../systems/appearance";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
+import { saveGame } from "../systems/save";
 import { createCodex } from "../systems/codex";
 import { createPlayer, type PlayerState, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
 import { abilityModifier, rollAbilityScore } from "../systems/dice";
@@ -14,6 +15,13 @@ import { audioEngine } from "../systems/audio";
 import { createWeatherState } from "../systems/weather";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { debugPanelState } from "../config";
+import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../data/cutscenes";
+import { addCutsceneSettingsControls } from "../renderers/settings";
+import {
+  getNewGameCutsceneIds,
+  getNextPendingCutscene,
+  queueCutscenes,
+} from "../systems/cutscenes";
 
 
 export class BootScene extends Phaser.Scene {
@@ -189,7 +197,7 @@ export class BootScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const panelW = 300;
-    const panelH = 290;
+    const panelH = 420;
     const px = Math.floor((w - panelW) / 2);
     const py = Math.floor((h - panelH) / 2);
 
@@ -306,6 +314,14 @@ export class BootScene extends Phaser.Scene {
     });
     container.add(muteBtn);
 
+    addCutsceneSettingsControls(
+      this,
+      container,
+      px + panelW / 2,
+      muteY + 40,
+      panelW - 32,
+    );
+
     // Close hint
     const hint = this.add.text(px + panelW / 2, py + panelH - 10, "Click outside to close", {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
@@ -336,15 +352,42 @@ export class BootScene extends Phaser.Scene {
         hasShield
       );
     }
+    const defeatedBosses = new Set(save.defeatedBosses);
+    const weatherState = save.weatherState ?? createWeatherState();
+    const timeStep = save.timeStep ?? 0;
+    const pendingCutsceneId = getNextPendingCutscene(save.player.progression);
+    saveGame(
+      save.player,
+      defeatedBosses,
+      save.codex,
+      save.player.appearanceId,
+      timeStep,
+      weatherState,
+    );
     this.sceneTransitions.startWithFade(() => {
-      this.scene.start("OverworldScene", {
+      const state = {
         player: save.player,
-        defeatedBosses: new Set(save.defeatedBosses),
+        defeatedBosses,
         codex: save.codex,
-        timeStep: save.timeStep ?? 0,
-        weatherState: save.weatherState,
+        timeStep,
+        weatherState,
         savedSpecialNpcs: [],
-      });
+      };
+      if (pendingCutsceneId === CAMPAIGN_EPILOGUE_CUTSCENE_ID) {
+        this.scene.start("EndingScene", {
+          ...state,
+          cutsceneId: pendingCutsceneId,
+          replay: false,
+        });
+      } else if (pendingCutsceneId) {
+        this.scene.start("CutsceneScene", {
+          ...state,
+          cutsceneId: pendingCutsceneId,
+          replay: false,
+        });
+      } else {
+        this.scene.start("OverworldScene", state);
+      }
     }, {
       duration: 500,
       label: "continue game",
@@ -1098,14 +1141,39 @@ export class BootScene extends Phaser.Scene {
   private startNewGame(player: PlayerState): void {
     if (this.sceneTransitions.isPending) return;
     deleteSave();
+    const defeatedBosses = new Set<string>();
+    const codex = createCodex();
+    const weatherState = createWeatherState();
+    queueCutscenes(
+      player.progression,
+      getNewGameCutsceneIds(player, defeatedBosses),
+    );
+    const cutsceneId = getNextPendingCutscene(player.progression);
+    saveGame(
+      player,
+      defeatedBosses,
+      codex,
+      player.appearanceId,
+      0,
+      weatherState,
+    );
     this.sceneTransitions.startWithFade(() => {
-      this.scene.start("OverworldScene", {
+      const state = {
         player,
-        defeatedBosses: new Set<string>(),
-        codex: createCodex(),
+        defeatedBosses,
+        codex,
         timeStep: 0,
-        weatherState: createWeatherState(),
+        weatherState,
         savedSpecialNpcs: [],
+      };
+      if (!cutsceneId) {
+        this.scene.start("OverworldScene", state);
+        return;
+      }
+      this.scene.start("CutsceneScene", {
+        ...state,
+        cutsceneId,
+        replay: false,
       });
     }, {
       duration: 500,

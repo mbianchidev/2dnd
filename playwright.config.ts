@@ -41,9 +41,16 @@ export default defineConfig({
   use: {
     baseURL: serverUrl,
     viewport: { width: 1440, height: 900 },
-    trace: "retain-on-failure",
+    // Phaser repaints every frame; omit the trace filmstrip so teardown does not
+    // spend minutes flushing thousands of canvas screenshots.
+    trace: {
+      mode: "retain-on-failure",
+      screenshots: false,
+      snapshots: true,
+      sources: true,
+    },
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    video: "off",
     launchOptions: {
       args: [
         "--disable-background-timer-throttling",

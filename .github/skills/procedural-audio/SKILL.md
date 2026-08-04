@@ -121,6 +121,14 @@ Keep `ending` as its own `TrackKind`, include it in `playAllSounds()`, and call
 `playTitleMusic()` before Ending hands off to Boot so the ending loop does not
 continue on the title screen.
 
+## Campaign cutscene cues
+
+`audioEngine.playCutsceneCue()` accepts the typed cues exported by the cutscene
+data hub. Keep cue selection in immutable cutscene definitions and synthesis in
+`audio.ts`. Route cues through the existing SFX channel, keep them short, and
+disconnect each oscillator and gain node after `ended` so long cutscene chains
+do not retain Web Audio graph nodes.
+
 ## Adding New SFX
 
 SFX methods follow this pattern using the `sfxGain` node:
@@ -158,6 +166,7 @@ playNewSFX(): void {
 | `playPotionSFX()` | 3 glug bubbles + healing shimmer | Using a consumable |
 | `playFootstepSFX(terrain)` | Filtered noise burst, varies by terrain | Every player step |
 | `playDialogueBlip(pitch)` | Quick square wave blip | NPC dialogue (future) |
+| `playCutsceneCue(cue)` | Typed procedural sting | Campaign cutscene step |
 
 ### Footstep Terrain Mapping
 The `playFootstepSFX(terrainType)` method uses the Terrain enum value to pick filter parameters:
@@ -191,3 +200,4 @@ expect(() => audioEngine.playAttackSFX()).not.toThrow(); // no-op without AudioC
 - Trap profiles belong in `trapAudio.ts`; keep `audio.ts` as the public routing
   surface.
 - ❌ Don't use volumes above 0.3 for individual oscillators — they stack up quickly
+- ❌ Don't leave ended cutscene oscillators or gain nodes connected

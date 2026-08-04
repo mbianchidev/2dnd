@@ -102,6 +102,10 @@ API, and saves use `localStorage`.
   restores three keystones guarded by dungeon bosses, with two campaign
   sidequests, optional boss objectives, named story NPCs, dynamic markers, a
   `Q` journal, unique rewards, gated roads, and soft danger zones
+- Data-driven campaign cutscenes cover the opening, quest stages, city oaths,
+  companions, dungeon reveals, route openings, keystones, and every boss
+  introduction and aftermath; queued scenes survive reloads until completed or
+  skipped, and the Chronicle replays seen scenes without changing game state
 - The final Elowen turn-in launches a skippable campaign epilogue with rewards,
   party and exploration summaries, credits, post-game continuation, and
   presentation-only replay from the in-game menu
@@ -114,8 +118,11 @@ API, and saves use `localStorage`.
 ### Presentation
 
 - Phaser 4 pixel-art rendering with procedural textures
-- Procedural biome, city, battle, boss, title, and campaign-ending music
+- Procedural biome, city, battle, boss, title, cutscene, and campaign-ending
+  music and cues
 - Synthesized combat, weather, movement, item, and interaction sound effects
+- Cutscene settings for reduced motion, 100%/125%/150% text, and manual or
+  automatic advance
 - Scrollable overlays and a bounded battle log
 - Local-development debug panel, hotkeys, and slash commands
 
@@ -142,6 +149,7 @@ src/
 │   ├── Battle.ts
 │   ├── Shop.ts
 │   ├── Codex.ts
+│   ├── Cutscene.ts
 │   └── Ending.ts
 ├── systems/
 │   ├── combat.ts
@@ -163,6 +171,8 @@ src/
 │   ├── quests.ts
 │   ├── questState.ts
 │   ├── questDebug.ts
+│   ├── accessibility.ts
+│   ├── sceneState.ts
 │   ├── cutscenes.ts
 │   └── debug.ts
 ├── data/
@@ -180,6 +190,9 @@ src/
 │   ├── spells.ts
 │   ├── abilities.ts
 │   ├── quests.ts
+│   ├── cutsceneTypes.ts
+│   ├── cutsceneCampaign.ts
+│   ├── cutsceneBosses.ts
 │   ├── cutscenes.ts
 │   ├── skillChecks.ts
 │   └── items.ts
@@ -191,12 +204,15 @@ src/
 │   ├── questJournal.ts
 │   ├── questFlow.ts
 │   ├── cutscene.ts
+│   ├── chronicle.ts
 │   ├── skillChecks.ts
 │   └── sceneTransition.ts
 └── renderers/
     ├── traps.ts
     ├── trapTextures.ts
     ├── characterTextures.ts
+    ├── cutscene.ts
+    ├── settings.ts
     ├── ending.ts
     └── battleParty.ts
 ```
@@ -220,13 +236,16 @@ those actions idempotently in their own state. Every stage also has a stable
 data ID; use `getQuestStageIndex()` or the debug-only
 `setQuestStageById()` helper instead of coupling systems to display text.
 
-Cutscene definitions and stable IDs live in `src/data/cutscenes.ts`.
-`src/systems/cutscenes.ts` owns acknowledgement normalization, campaign-ending
-eligibility, and presentation-only summary derivation.
-`src/managers/cutscene.ts` advances or skips immutable steps, while
-`EndingScene` and `src/renderers/ending.ts` own Phaser input and presentation.
-Campaign completion remains authoritative quest state; only completed or
-skipped cutscene IDs are persisted.
+Cutscene contracts live in `src/data/cutsceneTypes.ts`; campaign and boss content
+live in focused modules, and `src/data/cutscenes.ts` remains the stable-ID hub.
+`src/systems/cutscenes.ts` owns trigger snapshots, deterministic queue order,
+normalization, lifecycle, Chronicle selection, and legacy epilogue recovery.
+`src/managers/cutscene.ts` advances or skips immutable steps.
+`CutsceneScene` and `src/renderers/cutscene.ts` provide generic procedural
+presentation, while `EndingScene` remains the campaign-summary and credits
+surface. IDs are queued and saved before presentation, then removed from
+`pendingCutsceneIds` and added to `seenCutsceneIds` only after completion or
+skip. Chronicle replay changes neither list.
 
 For companion recruitment, define three distinct quest IDs and one action per
 path using `type: "recruitCompanion"` and the companion ID as `targetId`.
@@ -279,8 +298,10 @@ npm run build      # Type-check and create a production build
 | `C` | Open the Codex |
 | `Q` | Open the quest journal |
 | `T` | Mount or dismount |
-| `Esc` | Close the active overlay or skip the active ending cutscene |
+| `Esc` | Close the active overlay or skip an active cutscene |
 | Mouse / touch | Select buttons and scroll lists |
+
+The `Esc` menu includes the Chronicle plus cutscene accessibility settings.
 
 ## Debug mode
 
@@ -311,9 +332,10 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 ## Save data
 
 Game state is stored under `2dnd_save`; audio preferences use
-`2dnd_audio_prefs`.
+`2dnd_audio_prefs`; cutscene accessibility preferences use
+`2dnd_cutscene_accessibility`.
 
-Save schema version 7 persists:
+Save schema version 8 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -321,7 +343,8 @@ Save schema version 7 persists:
 - Explored tiles, opened chests, collected treasure, and discovered cities
 - Quest status, stages, objective counters, claimed reward IDs, and acknowledged
   danger warnings
-- Stable completed-or-skipped cutscene IDs for one-shot story presentation
+- Stable completed-or-skipped cutscene IDs plus queued IDs awaiting completion
+  or skip
 - Per-playthrough trap seed, authoritative detected/missed/disarmed/triggered
   trap states, and Adventurer guidance
 - Defeated bosses, Codex entries, and discovered elemental interactions
@@ -341,8 +364,10 @@ Schema-v3 skill-check saves gain default trap progress, and schema-v4 quest
 saves gain default trap progress. Malformed trap seeds reset trap states
 so stale IDs cannot resolve against a different layout. Schema-v5 saves gain an
 empty party, and completed recruitment actions replay idempotently after party
-normalization. Older saves gain an empty cutscene acknowledgement list; unknown,
-duplicate, and malformed cutscene IDs are discarded.
+normalization. Older saves gain empty seen and pending cutscene lists; unknown,
+duplicate, malformed, or already-seen pending IDs are discarded. Migration
+queues only a completed-but-unseen campaign epilogue rather than replaying every
+historically eligible scene.
 
 ## Testing
 
@@ -350,8 +375,9 @@ The Vitest suite covers combat, elements, statuses, saves, map and city data,
 dungeon traversal and traps, fog keys, movement, player progression, dice,
 quest and skill-check progression, dice, weather, day/night, mounts, NPCs,
 audio, configuration, group encounter generation, formation targeting,
-synergies, rewards, cutscene acknowledgement and ending summaries, multi-target
-actions, and party-ready combat/action-planning
+synergies, rewards, cutscene data, triggers, queue recovery, accessibility,
+director lifecycle, scene transitions, ending summaries, multi-target actions,
+and party-ready combat/action-planning
 contracts, companion definitions, party state, gambits, follower trails, and
 recruitment replay.
 
@@ -371,10 +397,12 @@ Important integration suites:
 - `tests/fogOfWar.test.ts`
 
 The committed Playwright suite in `e2e/` runs a real Chromium campaign golden
-path through character creation, quest interaction, city and dungeon entry,
-battle return, reload, final Elowen completion, credits, post-game continuation,
-menu replay, and completed-but-unseen ending recovery. It starts Vite on an
-available strict port and defaults to the deployed `/2dnd/` base path:
+path through character creation, interrupted opening recovery, quest
+interaction, dungeon reveals, skipped boss introductions, boss aftermath
+chains, Chronicle replay immutability, final Elowen completion, credits,
+post-game continuation, and completed-but-unseen ending recovery. It starts
+Vite on an available strict port and defaults to the deployed `/2dnd/` base
+path:
 
 ```bash
 npm run test:browser:install # One-time Chromium install

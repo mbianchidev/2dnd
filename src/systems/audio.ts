@@ -12,6 +12,7 @@ import { WeatherType } from "./weather";
 import { TimePeriod } from "./daynight";
 import { TRAP_TYPES, type TrapType } from "../data/traps";
 import { playTrapSound } from "./trapAudio";
+import type { CutsceneAudioCue } from "../data/cutscenes";
 
 // ── Musical constants ──────────────────────────────────────────
 
@@ -1423,6 +1424,48 @@ class AudioEngine {
     }
   }
 
+  /** Play a short procedural cue used by data-driven campaign cutscenes. */
+  playCutsceneCue(cue: CutsceneAudioCue): void {
+    const ctx = this.ctx;
+    const dest = this.sfxGain;
+    if (!ctx || !dest) return;
+    const profiles: Record<CutsceneAudioCue, {
+      notes: readonly number[];
+      waveform: OscillatorType;
+      duration: number;
+    }> = {
+      opening: { notes: [-12, -5, 0, 7], waveform: "triangle", duration: 0.75 },
+      stage: { notes: [-12, -5, 0, 4], waveform: "triangle", duration: 0.75 },
+      oath: { notes: [-12, 0, 4, 7], waveform: "sine", duration: 0.9 },
+      dungeon: { notes: [-12, -8, -3, 2], waveform: "sine", duration: 0.85 },
+      bossReveal: { notes: [-24, -17, -13], waveform: "square", duration: 0.9 },
+      bossDefeat: { notes: [-12, -5, 0, 4, 7], waveform: "triangle", duration: 1.1 },
+      keystone: { notes: [-12, 0, 7, 12], waveform: "sine", duration: 1.1 },
+      recruitment: { notes: [-12, -5, 0, 7], waveform: "triangle", duration: 0.9 },
+      routeOpen: { notes: [-12, -7, -3, 2], waveform: "sine", duration: 0.85 },
+      finale: { notes: [-12, -5, 0, 7, 12], waveform: "triangle", duration: 1.1 },
+    };
+    const profile = profiles[cue];
+    profile.notes.forEach((note, index) => {
+      const start = ctx.currentTime + index * 0.12;
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = profile.waveform;
+      oscillator.frequency.setValueAtTime(noteFreq(note), start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.09, start + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + profile.duration);
+      oscillator.connect(gain);
+      gain.connect(dest);
+      oscillator.onended = () => {
+        oscillator.disconnect();
+        gain.disconnect();
+      };
+      oscillator.start(start);
+      oscillator.stop(start + profile.duration + 0.02);
+    });
+  }
+
   // ─── Debug: play all sounds ───────────────────────────────
 
   /**
@@ -1461,6 +1504,9 @@ class AudioEngine {
       { label: "SFX: Footstep (stone)", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(9), i * 200); } },
       { label: "SFX: Footstep (sand)",  fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(4), i * 200); } },
       { label: "SFX: Mounted hoofbeat", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playMountedFootstepSFX(), i * 200); } },
+      { label: "Cutscene: Opening", fn: () => this.playCutsceneCue("opening") },
+      { label: "Cutscene: Boss", fn: () => this.playCutsceneCue("bossReveal") },
+      { label: "Cutscene: Victory", fn: () => this.playCutsceneCue("bossDefeat") },
       { label: "Weather: Rain",  fn: () => { this.playWeatherSFX(WeatherType.Rain); } },
       { label: "Weather: Storm", fn: () => { this.playWeatherSFX(WeatherType.Storm); } },
       { label: "Weather: Snow",  fn: () => { this.playWeatherSFX(WeatherType.Snow); } },

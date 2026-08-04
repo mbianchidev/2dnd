@@ -36,10 +36,14 @@ import {
   normalizePartyState,
   synchronizeCompanionRecruitment,
 } from "./party";
-import { normalizeSeenCutsceneIds } from "./cutscenes";
+import {
+  ensureLegacyCampaignEpilogueQueued,
+  normalizePendingCutsceneIds,
+  normalizeSeenCutsceneIds,
+} from "./cutscenes";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 7;
+const SAVE_VERSION = 8;
 
 export interface SaveData {
   version: number;
@@ -386,6 +390,7 @@ export function loadGame(): SaveData | null {
         discoveredCities: [],
         quests: normalizeQuestLog(playerRecord["quests"]),
         seenCutsceneIds: [],
+        pendingCutsceneIds: [],
         skillChecks: {},
         trapSeed: LEGACY_TRAP_SEED,
         trapStates: {},
@@ -412,6 +417,10 @@ export function loadGame(): SaveData | null {
     data.player.progression.seenCutsceneIds = normalizeSeenCutsceneIds(
       data.player.progression.seenCutsceneIds,
     );
+    data.player.progression.pendingCutsceneIds = normalizePendingCutsceneIds(
+      data.player.progression.pendingCutsceneIds,
+      data.player.progression.seenCutsceneIds,
+    );
     data.player.progression.skillChecks = normalizeSkillCheckRecords(
       data.player.progression.skillChecks,
     );
@@ -425,6 +434,7 @@ export function loadGame(): SaveData | null {
     );
     data.player.party = normalizePartyState(playerRecord["party"]);
     synchronizeCompanionRecruitment(data.player);
+    ensureLegacyCampaignEpilogueQueued(data.player);
 
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
     if (data.player.equippedOffHand === undefined) data.player.equippedOffHand = null;

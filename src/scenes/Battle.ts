@@ -63,6 +63,7 @@ import { PlayerRenderer } from "../renderers/player";
 import { BattlePartyRenderer } from "../renderers/battleParty";
 import { BattlePartyManager } from "../managers/battleParty";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../data/cutscenes";
 import {
   applyPartyDefeat,
   createPartyActionSources,
@@ -80,6 +81,14 @@ import {
   recordMonsterDefeats,
   type QuestUpdate,
 } from "../systems/quests";
+import {
+  captureCutsceneTriggerSnapshot,
+  collectNewlyTriggeredCutsceneIds,
+  getNextPendingCutscene,
+  queueCutscenes,
+} from "../systems/cutscenes";
+import { saveGame } from "../systems/save";
+import { createSharedSceneState } from "../systems/sceneState";
 import {
   countAliveCombatants,
   createBattleResult,
@@ -2677,6 +2686,10 @@ export class BattleScene extends Phaser.Scene {
 
   private handleVictory(): void {
     if (this.phase === "victory") return;
+    const cutsceneSnapshot = captureCutsceneTriggerSnapshot(
+      this.player,
+      this.defeatedBosses,
+    );
     this.phase = "victory";
     this.pendingTargetAction = null;
     this.updateButtonStates();
@@ -2726,6 +2739,23 @@ export class BattleScene extends Phaser.Scene {
       this.combatants.map((combatant) => combatant.monster.id),
     );
     this.questUpdates = questResult.updates;
+    const queuedCutscenes = queueCutscenes(
+      this.player.progression,
+      collectNewlyTriggeredCutsceneIds(
+        cutsceneSnapshot,
+        captureCutsceneTriggerSnapshot(this.player, this.defeatedBosses),
+      ),
+    );
+    if (queuedCutscenes.length > 0) {
+      saveGame(
+        this.player,
+        this.defeatedBosses,
+        this.codex,
+        this.player.appearanceId,
+        this.timeStep,
+        this.weatherState,
+      );
+    }
     if (questResult.changed) {
       this.addLog("Quest progress recorded.");
     }
@@ -2856,15 +2886,35 @@ export class BattleScene extends Phaser.Scene {
       clearAllEffects(combatant.effects);
     }
     this.isReturningToOverworld = this.sceneTransitions.startWithFade(() => {
-      this.scene.start("OverworldScene", {
+      const state = createSharedSceneState({
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         codex: this.codex,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,
-        questUpdates: this.questUpdates,
       });
+      const cutsceneId = getNextPendingCutscene(this.player.progression);
+      if (cutsceneId === CAMPAIGN_EPILOGUE_CUTSCENE_ID) {
+        this.scene.start("EndingScene", {
+          ...state,
+          cutsceneId,
+          replay: false,
+          questUpdates: this.questUpdates,
+        });
+      } else if (cutsceneId) {
+        this.scene.start("CutsceneScene", {
+          ...state,
+          cutsceneId,
+          replay: false,
+          questUpdates: this.questUpdates,
+        });
+      } else {
+        this.scene.start("OverworldScene", {
+          ...state,
+          questUpdates: this.questUpdates,
+        });
+      }
     }, {
       duration: 500,
       label: "battle return",

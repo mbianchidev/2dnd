@@ -1,15 +1,29 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  BOSS_CUTSCENES,
   CAMPAIGN_EPILOGUE_CUTSCENE,
   CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+  CUTSCENE_IDS,
+  MAIN_QUEST_STAGE_CUTSCENES,
+  getCutsceneDefinition,
 } from "../src/data/cutscenes";
+import { ALL_MONSTERS } from "../src/data/monsters";
 import { CutsceneDirector } from "../src/managers/cutscene";
 import {
   buildCampaignEndingSummary,
   canReplayCampaignEpilogue,
+  captureCutsceneTriggerSnapshot,
+  collectNewlyTriggeredCutsceneIds,
+  completeCutscene,
+  getChronicleCutscenes,
+  getEventCutsceneIds,
+  getNewGameCutsceneIds,
+  getNextPendingCutscene,
   hasSeenCutscene,
   markCutsceneSeen,
+  normalizePendingCutsceneIds,
   normalizeSeenCutsceneIds,
+  queueCutscenes,
   shouldLaunchCampaignEpilogueAfterQuestUpdate,
   shouldShowCampaignEpilogue,
 } from "../src/systems/cutscenes";
@@ -40,6 +54,14 @@ describe("cutscene progression", () => {
       null,
     ])).toEqual([CAMPAIGN_EPILOGUE_CUTSCENE_ID]);
     expect(normalizeSeenCutsceneIds("not-an-array")).toEqual([]);
+    expect(normalizePendingCutsceneIds([
+      "campaign.opening",
+      "unknown.cutscene",
+      "campaign.opening",
+      CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+    ], ["campaign.opening"])).toEqual([
+      CAMPAIGN_EPILOGUE_CUTSCENE_ID,
+    ]);
   });
 
   it("marks a cutscene seen idempotently", () => {
@@ -60,6 +82,104 @@ describe("cutscene progression", () => {
     expect(player.progression.seenCutsceneIds).toEqual([
       CAMPAIGN_EPILOGUE_CUTSCENE_ID,
     ]);
+  });
+
+  it("queues, resumes, and completes cutscenes idempotently", () => {
+    const player = createTestPlayer();
+
+    expect(queueCutscenes(player.progression, [
+      "campaign.opening",
+      "campaign.opening",
+      MAIN_QUEST_STAGE_CUTSCENES.firstSeal,
+    ])).toEqual([
+      "campaign.opening",
+      MAIN_QUEST_STAGE_CUTSCENES.firstSeal,
+    ]);
+    expect(getNextPendingCutscene(player.progression)).toBe("campaign.opening");
+    expect(completeCutscene(player.progression, "campaign.opening")).toBe(true);
+    expect(player.progression.pendingCutsceneIds).toEqual([
+      MAIN_QUEST_STAGE_CUTSCENES.firstSeal,
+    ]);
+    expect(player.progression.seenCutsceneIds).toEqual(["campaign.opening"]);
+    expect(queueCutscenes(player.progression, ["campaign.opening"])).toEqual([]);
+  });
+
+  it("orders new-game and simultaneous campaign triggers deterministically", () => {
+    const player = createTestPlayer();
+    const defeatedBosses = new Set<string>();
+
+    expect(getNewGameCutsceneIds(player, defeatedBosses)).toEqual([
+      "campaign.opening",
+      MAIN_QUEST_STAGE_CUTSCENES.firstSeal,
+    ]);
+
+    const before = captureCutsceneTriggerSnapshot(player, defeatedBosses);
+    defeatedBosses.add("infernoForgemaster");
+    setQuestState(player, MAIN_QUEST_ID, "completed", defeatedBosses);
+    const triggered = collectNewlyTriggeredCutsceneIds(
+      before,
+      captureCutsceneTriggerSnapshot(player, defeatedBosses),
+    );
+
+    expect(triggered.indexOf(BOSS_CUTSCENES.infernoForgemaster.post))
+      .toBeLessThan(triggered.indexOf("campaign.keystone.forge"));
+    expect(triggered.indexOf("campaign.keystone.forge"))
+      .toBeLessThan(triggered.indexOf("campaign.route.volcanicForge"));
+    expect(triggered.indexOf("campaign.route.volcanicForge"))
+      .toBeLessThan(triggered.indexOf(MAIN_QUEST_STAGE_CUTSCENES.lastForge));
+    expect(triggered.indexOf(MAIN_QUEST_STAGE_CUTSCENES.lastForge))
+      .toBeLessThan(triggered.indexOf(CAMPAIGN_EPILOGUE_CUTSCENE_ID));
+  });
+
+  it("defines pre/post scenes for every boss and starts pre-scenes from events", () => {
+    const bossIds = ALL_MONSTERS
+      .filter((monster) => monster.isBoss)
+      .map((monster) => monster.id)
+      .sort();
+
+    expect(Object.keys(BOSS_CUTSCENES).sort()).toEqual(bossIds);
+    for (const bossId of bossIds) {
+      const mapping = BOSS_CUTSCENES[bossId]!;
+      const pre = getCutsceneDefinition(mapping.pre);
+      const post = getCutsceneDefinition(mapping.post);
+      expect(pre.completion).toMatchObject({
+        type: "bossBattle",
+        bossId,
+      });
+      expect(post.category).toBe("bossPost");
+      expect(getEventCutsceneIds({ type: "bossPre", bossId })).toEqual([
+        mapping.pre,
+      ]);
+    }
+  });
+
+  it("exposes exactly one validated definition for every stable ID", () => {
+    expect(new Set(CUTSCENE_IDS).size).toBe(CUTSCENE_IDS.length);
+    expect(CUTSCENE_IDS).toHaveLength(52);
+    for (const cutsceneId of CUTSCENE_IDS) {
+      const definition = getCutsceneDefinition(cutsceneId);
+      expect(definition.id).toBe(cutsceneId);
+      expect(definition.steps.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("lists only seen Chronicle entries without mutating progression", () => {
+    const player = createTestPlayer();
+    player.progression.seenCutsceneIds.push(
+      "campaign.opening",
+      BOSS_CUTSCENES.dragon.pre,
+    );
+    player.progression.pendingCutsceneIds.push(
+      MAIN_QUEST_STAGE_CUTSCENES.firstSeal,
+    );
+    const before = JSON.stringify(player.progression);
+
+    expect(getChronicleCutscenes(player.progression).map(({ id }) => id))
+      .toEqual([
+        "campaign.opening",
+        BOSS_CUTSCENES.dragon.pre,
+      ]);
+    expect(JSON.stringify(player.progression)).toBe(before);
   });
 
   it("shows the automatic epilogue only for a completed unseen campaign", () => {
@@ -174,5 +294,36 @@ describe("CutsceneDirector", () => {
     expect(director.currentStep).toBe(CAMPAIGN_EPILOGUE_CUTSCENE.steps[0]);
     expect(director.skip()).toBe(true);
     expect(onComplete).toHaveBeenCalledTimes(2);
+  });
+
+  it("locks input until presentation completes and ignores stale callbacks", () => {
+    const readyCallbacks: Array<() => void> = [];
+    const adapter = {
+      present: vi.fn((_step, _index, onReady: () => void) => {
+        readyCallbacks.push(onReady);
+      }),
+      reset: vi.fn(),
+      cleanup: vi.fn(),
+    };
+    const director = new CutsceneDirector(
+      getCutsceneDefinition("campaign.opening"),
+      vi.fn(),
+      adapter,
+    );
+
+    expect(director.inputLocked).toBe(true);
+    expect(director.advance()).toBe(false);
+    readyCallbacks[0]!();
+    expect(director.inputLocked).toBe(false);
+    expect(director.advance()).toBe(false);
+    expect(director.inputLocked).toBe(true);
+    readyCallbacks[0]!();
+    expect(director.inputLocked).toBe(true);
+    readyCallbacks[1]!();
+    expect(director.inputLocked).toBe(false);
+
+    director.destroy();
+    expect(adapter.cleanup).toHaveBeenCalledTimes(1);
+    expect(director.advance()).toBe(false);
   });
 });

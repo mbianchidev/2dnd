@@ -43,6 +43,7 @@ import { getPlayerClass } from "../systems/classes";
 import { abilityModifier } from "../systems/dice";
 import { CYCLE_LENGTH } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
+import { addCutsceneSettingsControls } from "../renderers/settings";
 import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
 import { calcPanelLayout, createDimGraphics, createPanelGraphics } from "../utils/ui";
@@ -52,7 +53,6 @@ import {
   getQuestDangerState,
   markQuestWarningSeen,
 } from "../systems/quests";
-import { canReplayCampaignEpilogue } from "../systems/cutscenes";
 
 /** Callbacks the OverlayManager uses to interact with the parent scene. */
 export interface OverlayCallbacks {
@@ -70,7 +70,7 @@ export interface OverlayCallbacks {
   evacuateDungeon: () => void;
   getHUDInfo: () => string;
   openQuestJournal: () => void;
-  replayCampaignEpilogue: () => void;
+  openChronicle: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
 }
 
@@ -974,8 +974,7 @@ export class OverlayManager {
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
 
-    const showReplay = canReplayCampaignEpilogue(player);
-    const menuHeight = showReplay ? 282 : 240;
+    const menuHeight = 282;
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
       220,
@@ -1021,30 +1020,28 @@ export class OverlayManager {
     });
     this.menuOverlay.add(questsBtn);
 
-    if (showReplay) {
-      const replayBtn = this.scene.add.text(
-        px + panelW / 2,
-        py + 132,
-        "Replay Epilogue",
-        {
-          fontSize: "14px",
-          fontFamily: "monospace",
-          color: "#ffe38a",
-          backgroundColor: "#2a2a4e",
-          padding: { x: 16, y: 6 },
-        },
-      ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-      replayBtn.on("pointerover", () => replayBtn.setColor("#ffffff"));
-      replayBtn.on("pointerout", () => replayBtn.setColor("#ffe38a"));
-      replayBtn.on("pointerdown", () => {
-        this.toggleMenuOverlay(player, defeatedBosses, codex);
-        this.callbacks.replayCampaignEpilogue();
-      });
-      this.menuOverlay.add(replayBtn);
-    }
+    const chronicleBtn = this.scene.add.text(
+      px + panelW / 2,
+      py + 132,
+      "Chronicle",
+      {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#ffe38a",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 16, y: 6 },
+      },
+    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    chronicleBtn.on("pointerover", () => chronicleBtn.setColor("#ffffff"));
+    chronicleBtn.on("pointerout", () => chronicleBtn.setColor("#ffe38a"));
+    chronicleBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+      this.callbacks.openChronicle();
+    });
+    this.menuOverlay.add(chronicleBtn);
 
     // Settings
-    const settingsY = showReplay ? 174 : 132;
+    const settingsY = 174;
     const settingsBtn = this.scene.add.text(px + panelW / 2, py + settingsY, "🔊 Settings", {
       fontSize: "14px", fontFamily: "monospace", color: "#aabbff",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
@@ -1058,7 +1055,7 @@ export class OverlayManager {
     this.menuOverlay.add(settingsBtn);
 
     // Quit
-    const quitY = showReplay ? 216 : 174;
+    const quitY = 216;
     const quitBtn = this.scene.add.text(px + panelW / 2, py + quitY, "✕ Quit to Title", {
       fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
@@ -1092,7 +1089,7 @@ export class OverlayManager {
   showSettingsOverlay(): void {
     this.closeOverlays("menuOverlay", "equipOverlay", "statOverlay", "settingsOverlay");
 
-    const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 300, 290, -10);
+    const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 300, 420, -10);
 
     this.settingsOverlay = this.scene.add.container(0, 0).setDepth(75);
 
@@ -1191,6 +1188,14 @@ export class OverlayManager {
       muteBtn.setColor(muted ? "#ff6666" : "#88ccff");
     });
     this.settingsOverlay.add(muteBtn);
+
+    addCutsceneSettingsControls(
+      this.scene,
+      this.settingsOverlay,
+      px + panelW / 2,
+      muteY + 38,
+      panelW - 32,
+    );
 
     const hint = this.scene.add.text(px + panelW / 2, py + panelH - 10, "Click outside or press ESC to close", {
       fontSize: "10px", fontFamily: "monospace", color: "#666",

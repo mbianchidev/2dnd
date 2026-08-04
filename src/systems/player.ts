@@ -56,6 +56,7 @@ export interface PlayerProgression {
   discoveredCities: string[]; // IDs of cities the player has visited (enables fast travel)
   quests: QuestLogState; // quest stages, objective counters, rewards, and warnings
   seenCutsceneIds: CutsceneId[]; // completed or skipped story presentation IDs
+  pendingCutsceneIds: CutsceneId[]; // queued story presentation IDs awaiting completion or skip
   skillChecks: Record<string, SkillCheckRecord>; // stable check ID -> one-time result
   trapSeed: number; // stable per-playthrough seed for procedural dungeon traps
   trapStates: Record<string, TrapState>; // deterministic trap ID -> authoritative state
@@ -243,6 +244,7 @@ export function createPlayer(
       discoveredCities: [],
       quests: createQuestLog(),
       seenCutsceneIds: [],
+      pendingCutsceneIds: [],
       skillChecks: {},
       trapSeed: createTrapSeed(),
       trapStates: {},

@@ -15,6 +15,7 @@ license: MIT
 | `Battle.ts` | `BattleScene` | `BattleScene` |
 | `Shop.ts` | `ShopScene` | `ShopScene` |
 | `Codex.ts` | `CodexScene` | `CodexScene` |
+| `Cutscene.ts` | `CutsceneScene` | `CutsceneScene` |
 | `Ending.ts` | `EndingScene` | `EndingScene` |
 
 Register scenes in `src/main.ts`. The Phaser 4 configuration uses FIT scaling,
@@ -45,7 +46,7 @@ updates or cleanup as class properties.
 
 ## Shared state flow
 
-State-bearing transitions preserve:
+State-bearing transitions use `createSharedSceneState()` and preserve:
 
 ```typescript
 interface SharedSceneState {
@@ -67,7 +68,9 @@ Scene-specific additions:
   stable `shopSkillCheckId`
 - Overworld: fields are optional only because Boot can create or load the
   initial state
-- Ending: the full shared state plus a stable `CutsceneId`
+- Cutscene: full shared state, stable `CutsceneId`, replay mode, return scene,
+  and optional runtime-only `questUpdates`
+- Ending: full shared state plus the campaign-epilogue `CutsceneId`
 
 When a scene contract changes, update every `scene.start()` caller in the same
 change.
@@ -109,11 +112,12 @@ Overworld restarts use one shared payload that includes a fresh
 `savedSpecialNpcs` snapshot. Block movement and other state-changing actions
 while a handoff is pending.
 
-Ending starts only after the final quest turn-in or completed-save recovery. It
-marks the cutscene seen only after completion or skip, saves before presenting
-Continue/Replay/Title choices, and returns the unchanged shared payload for
-post-game play. Add an input grace period when a dialogue keypress can cross a
-scene boundary.
+Queue and save cutscene IDs before presentation. `CutsceneScene` and
+`EndingScene` mark an ID seen and dequeue it only after completion or skip, then
+chain the next pending ID. Reload resumes the first pending scene. Chronicle
+replay never mutates progression. A skipped pre-boss scene still executes its
+completion metadata and starts the selected fight. Add an input grace period
+when a dialogue keypress can cross a scene boundary.
 
 ## Procedural assets
 
@@ -137,6 +141,7 @@ a restarted scene receives fresh helpers, then load persisted data into them:
 - NPC and dialogue managers
 - `QuestJournalManager`
 - `QuestFlowManager`
+- `ChronicleManager`
 - `SkillCheckManager`
 - `DebugCommandSystem`
 - `CompanionFollowerManager`

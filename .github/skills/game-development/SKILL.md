@@ -22,7 +22,8 @@ and changes spanning scenes, systems, data, renderers, or managers.
 
 ## Current architecture
 
-- Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, and `Ending`
+- Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, `Cutscene`,
+  and `Ending`
 - Overworld orchestration: `src/scenes/Overworld.ts`
 - Battle orchestration: `src/scenes/Battle.ts`
 - Core mechanics: `src/systems/`
@@ -30,9 +31,11 @@ and changes spanning scenes, systems, data, renderers, or managers.
 - Extracted presentation: `src/renderers/`
 - Stateful scene helpers: `src/managers/`
 
-Cutscene definitions and stable IDs live in `src/data/cutscenes.ts`; pure
-acknowledgement, eligibility, and summary logic lives in
-`src/systems/cutscenes.ts`; `src/managers/cutscene.ts` owns step progression;
+Cutscene contracts live in `src/data/cutsceneTypes.ts`, focused campaign and
+boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and
+`src/data/cutscenes.ts` is the stable-ID hub. Pure trigger snapshots, priority
+ordering, queue lifecycle, recovery, Chronicle selection, and summary logic live
+in `src/systems/cutscenes.ts`; `src/managers/cutscene.ts` owns step progression;
 scenes and renderers own input and presentation.
 
 The map hub is `src/data/map.ts`; terrain/types, chunks, cities, and dungeons
@@ -85,6 +88,13 @@ sources. Equipment actions remain self-targeted.
 - Campaign completion remains derived from the main quest. Launch the epilogue
   after the final Elowen dialogue applies rewards, recover completed-but-unseen
   saves from Overworld creation, and keep replay presentation-only.
+- Queue stable cutscene IDs and save before presentation. Completion or skip
+  moves an ID from `pendingCutsceneIds` to `seenCutsceneIds`; reload resumes the
+  first pending entry, while Chronicle replay changes neither collection.
+- Detect newly satisfied cutscenes by comparing immutable before/after snapshots.
+  Battle must capture its snapshot before recording the defeated boss. Sort
+  simultaneous triggers by explicit numeric priority rather than discovery
+  order.
 - Map main-quest talk objectives through `QUEST_NPCS` and assert exact coverage
   of all 12 live city IDs; do not accept name-only references.
 - Canyonwatch, Ashfall, and the Volcanic Forge are hard gates. Sandport and

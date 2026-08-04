@@ -18,6 +18,7 @@ interface BrowserSave {
     inventory: Array<{ id: string }>;
     progression: {
       seenCutsceneIds: string[];
+      pendingCutsceneIds: string[];
       quests: {
         quests: Record<string, BrowserQuestProgress>;
       };
@@ -83,6 +84,28 @@ async function advanceQuestDialogue(page: Page): Promise<void> {
   await holdKey(page, "Space");
 }
 
+async function advanceGenericCutscene(page: Page): Promise<void> {
+  await page.waitForTimeout(420);
+  await holdKey(page, "Enter");
+  await page.waitForTimeout(420);
+}
+
+async function drainGenericCutscenesUntil(
+  page: Page,
+  destination: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes(destination)) return;
+    if (state.includes("CUTSCENE")) {
+      await advanceGenericCutscene(page);
+    } else {
+      await page.waitForTimeout(150);
+    }
+  }
+  throw new Error(`Timed out draining cutscenes to ${destination}`);
+}
+
 test("campaign golden path reaches and recovers the post-game ending", async ({
   page,
 }) => {
@@ -125,7 +148,19 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "BOOT | Screen: appearance");
     await clickGame(page, 320, 112);
     await clickGame(page, 420, 312);
-    await waitForState(page, "OVERWORLD");
+    await waitForState(page, "CUTSCENE | campaign.opening | Step 1/2");
+    const interruptedSave = await readSave(page);
+    expect(interruptedSave.player.progression.pendingCutsceneIds).toEqual([
+      "campaign.opening",
+      "campaign.stage.firstSeal",
+    ]);
+
+    await advanceGenericCutscene(page);
+    await page.reload({ waitUntil: "networkidle" });
+    await waitForState(page, "BOOT | Screen: title");
+    await clickGame(page, 320, 324);
+    await waitForState(page, "CUTSCENE | campaign.opening | Step 1/2");
+    await drainGenericCutscenesUntil(page, "OVERWORLD");
     await holdKey(page, "Space");
     await enableDebug(page);
     expect(browserErrors).toEqual([]);
@@ -143,6 +178,8 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
       "[CMD] Positioned beside willowdaleArchivist.",
     );
     await advanceQuestDialogue(page);
+    await waitForState(page, "CUTSCENE");
+    await drainGenericCutscenesUntil(page, "[CITY:willowdale_city:0]");
 
     await expect.poll(async () => {
       const save = await readSave(page);
@@ -173,7 +210,11 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
       "[CMD] Teleported to dungeon Heartlands Crypt",
     );
     await holdKey(page, "Space");
-    await waitForState(page, "[DUNGEON:heartlands_dungeon]");
+    await waitForState(
+      page,
+      "CUTSCENE | campaign.dungeon.heartlandsCrypt.reveal",
+    );
+    await drainGenericCutscenesUntil(page, "[DUNGEON:heartlands_dungeon]");
 
     await submitDebug(page, "/tp Willowdale");
     await waitForState(page, "OVERWORLD");
@@ -191,10 +232,14 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
       return save.player.progression.quests.quests[MAIN_QUEST_ID]?.stage;
     }).toBe(6);
     await submitDebug(page, "/spawn infernoForgemaster");
+    await waitForState(page, "CUTSCENE | boss.infernoForgemaster.pre");
+    await page.waitForTimeout(420);
+    await holdKey(page, "Escape");
     await waitForState(page, "BATTLE");
     await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
-    await waitForState(page, "OVERWORLD");
+    await waitForState(page, "CUTSCENE | boss.infernoForgemaster.post");
+    await drainGenericCutscenesUntil(page, "OVERWORLD");
 
     await submitDebug(page, "/tp Willowdale");
     await holdKey(page, "Space");
@@ -204,6 +249,11 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
       "[CMD] Positioned beside willowdaleArchivist.",
     );
     await advanceQuestDialogue(page);
+    await waitForState(page, "CUTSCENE | campaign.finalReturn");
+    await drainGenericCutscenesUntil(
+      page,
+      "ENDING | Step: 1/5 | Type: narration",
+    );
     await waitForState(page, "ENDING | Step: 1/5 | Type: narration");
 
     const save = await readSave(page);
@@ -240,17 +290,22 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     expect(save.player.progression.seenCutsceneIds).toContain(EPILOGUE_ID);
   });
 
-  await test.step("replay the epilogue from the real menu", async () => {
+  await test.step("replay a Chronicle entry without mutating progression", async () => {
+    const beforeReplay = JSON.stringify(
+      (await readSave(page)).player.progression,
+    );
     await page.waitForTimeout(800);
     await holdKey(page, "Escape");
-    await waitForState(page, "[MENU:replay]");
+    await waitForState(page, "[MENU]");
     await clickGame(page, 320, 260);
-    await waitForState(page, "ENDING | Step: 1/5 | Type: narration");
-    await page.waitForTimeout(400);
-    await holdKey(page, "Escape");
-    await waitForState(page, "ENDING | Choices");
+    await waitForState(page, "[CHRONICLE]");
     await holdKey(page, "Enter");
+    await waitForState(page, "CUTSCENE | campaign.opening");
+    await page.waitForTimeout(420);
+    await holdKey(page, "Escape");
     await waitForState(page, "OVERWORLD");
+    expect(JSON.stringify((await readSave(page)).player.progression))
+      .toBe(beforeReplay);
   });
 
   await test.step("recover a completed but unseen ending after reload", async () => {
@@ -269,6 +324,11 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "BOOT | Screen: title");
     await clickGame(page, 320, 324);
     await waitForState(page, "ENDING | Step: 1/5 | Type: narration");
+    await page.waitForTimeout(420);
+    await holdKey(page, "Escape");
+    await waitForState(page, "ENDING | Choices");
+    await holdKey(page, "Enter");
+    await waitForState(page, "OVERWORLD");
     expect(browserErrors).toEqual([]);
   });
 });

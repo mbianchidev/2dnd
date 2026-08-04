@@ -747,7 +747,7 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Show a message in the HUD bar (auto-fades after delay). */
   private showHUDMessage(text: string, color = "#ddd", duration = 3000): void {
-    if (!this.hudText || !this.hudBg) {
+    if (!this.hudText?.active || !this.hudBg?.active) {
       this.pendingHudMessage = { text, color, duration };
       return;
     }

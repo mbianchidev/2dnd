@@ -193,6 +193,8 @@ test("battle, world, mount, companion, boss, and cutscene presentation animate",
   });
 
   await createRangerCampaign(page);
+  await holdKey(page, "f");
+  await waitForState(page, "[OFF]");
   await moveUntilPresentation(page, "overworld:hero:walk");
   await submitDebug(page, "/level 5");
   await submitDebug(page, "/companion recruit guardian");
@@ -262,10 +264,10 @@ test("reduced motion makes presentation immediate and readable", async ({
   }, PREFERENCES_KEY);
 
   await createRangerCampaign(page);
-  await submitDebug(page, "/companion recruit guardian");
+  await submitDebug(page, "/mount horse");
   await waitForPresentation(
     page,
-    "overworld:companion:guardian:walk:immediate",
+    "overworld:mount:horse:walk:immediate",
   );
   await startEncounter(page, "slime");
   await waitForState(page, "Phase: playerTurn");

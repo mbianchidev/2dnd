@@ -137,14 +137,22 @@ Non-combat checks are split across:
 
 ## Adding monsters
 
-1. Define the monster in the appropriate pool in `src/data/monsters.ts`.
-2. Use a camelCase ID and set stats, rewards, drops, abilities, and `isBoss`.
-3. Add an `elementalProfile` when the monster has resistances, weaknesses, or
+1. Define the monster in the appropriate focused pool (`monsters.ts`,
+   `nightMonsters.ts`, or `monsterVariants.ts`).
+2. Use a camelCase ID and set a valid typed `family`, stats, rewards, drops,
+   abilities, and `isBoss`.
+3. For a palette/stat variant, set `variantOf` to a valid same-family monster,
+   use a distinct color and ability set, and assign a positive
+   `encounterWeight`.
+4. Add an `affinity` and `elementalProfile` when the monster has a dominant
+   element, resistances, weaknesses, or
    immunities.
-4. Add `element` and `statusEffect` to monster abilities when applicable.
-5. Ensure the definition is included in `ALL_MONSTERS`; debug spawning, Codex
+5. Add `element` and `statusEffect` to monster abilities when applicable.
+6. Ensure the definition is included in `ALL_MONSTERS`; debug spawning, Codex
    browsing, and ID lookup depend on the master list.
-6. Add encounter-pool, boss-map, and data-integrity tests.
+7. Reuse `getMonsterTextureKey()` and the family silhouette renderer rather than
+   adding scene-local textures or tints.
+8. Add encounter-pool, family, palette, texture-key, and data-integrity tests.
 
 Use `getMonster(id)` for exact ID lookup and `findMonster(query)` for
 case-insensitive ID/name lookup with partial matching.
@@ -161,6 +169,9 @@ case-insensitive ID/name lookup with partial matching.
 
 Random groups start at level 2, cap at 50% of triggered encounters, and never
 replace bosses or explicit debug monster spawns.
+
+Codex family completion is derived from the current `CodexData.entries`; family
+metadata, affinity, and sort/filter presentation are not save fields.
 
 ## Adding spells, abilities, and equipment
 

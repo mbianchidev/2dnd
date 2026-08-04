@@ -82,6 +82,9 @@ src/
 │   ├── traps.ts
 │   ├── trapTypes.ts
 │   ├── monsters.ts
+│   ├── monsterFamilies.ts
+│   ├── monsterVariants.ts
+│   ├── nightMonsters.ts
 │   ├── monsterGroups.ts
 │   ├── elements.ts
 │   ├── spells.ts
@@ -200,14 +203,16 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 - Phaser scene operations are queued until the next Scene Manager update.
   Block state-changing input while a handoff is pending, and keep Overworld
   restarts on the shared full-state payload including `savedSpecialNpcs`.
-- Generate textures in `src/renderers/textures.ts`, invoked by Boot.
+- Generate textures through `src/renderers/textures.ts`, invoked by Boot.
+  Monster silhouettes live in the focused `monsterTextures.ts` renderer.
 - Keep actor animation contracts in `src/systems/animation.ts`, generic Phaser
   pose/tween ownership in `src/managers/actorAnimation.ts`, and scene-specific
   orchestration in focused battle/world directors. Presentation reads stable
   actor IDs and resolved outcomes; it never mutates combat or quest state.
 - Build `ActorTextureFamily` metadata with explicit frame keys. Optional
-  monster-family art may supply those frames; existing textures must retain a
-  transform-based fallback without hardcoded monster IDs.
+  monster-family art supplies stable `monster-<id>-<normal|boss>-<state>` frames;
+  existing idle textures retain a transform-based fallback without hardcoded
+  monster IDs.
 - Synthesize all audio in `src/systems/audio.ts`.
 - Store Phaser object references needed for later update/cleanup.
 - Calculate actual scaled UI bounds to prevent overlap.
@@ -402,6 +407,16 @@ Flow:
 - Validate actions before consuming MP, inventory, or turn state.
 - Random battles contain 1-4 combatants. Each monster owns HP, effects, defend
   state, AC discovery, drops, and elemental discoveries.
+- Every monster references a typed family from `monsterFamilies.ts`. Deliberate
+  palette/stat variants use a valid same-family `variantOf`, distinct colors and
+  abilities, positive encounter weights, and the canonical nine-element system.
+- Monster visuals use stable `monster-<id>-<normal|boss>-idle` keys. Boot
+  generates each palette procedurally from a family silhouette; bosses add
+  richer family-specific forms. Battle and Codex must both use
+  `getMonsterTextureKey()` and must not mutate shared definitions.
+- Codex family grouping, filters, sorting, traits, affinities, and completion
+  derive from immutable monster data plus existing Codex entries. Do not add a
+  save field for derivable family progress.
 - `BattleCombatantState` is the shared actor contract: stable ID, party/enemy
   side, hero/companion/monster kind, formation, HP, alive/KO, defend, and
   effects. Hero state must remain accessor-backed by `PlayerState`.

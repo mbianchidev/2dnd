@@ -408,6 +408,8 @@ export class OverworldScene extends Phaser.Scene {
     // Reveal tiles around player on creation (fog of war)
     this.fogOfWar.revealAround(this.player.position.x, this.player.position.y, 2, this.player);
 
+    // Special NPC generation during map rendering may publish a HUD message.
+    this.createHUD();
     this.renderMap();
     this.applyDayNightTint();
     this.createPlayerSprite();
@@ -421,7 +423,6 @@ export class OverworldScene extends Phaser.Scene {
       this,
       (cutsceneId) => this.startCutscene(cutsceneId, true),
     );
-    this.createHUD();
     this.setupDebug();
     this.updateLocationText();
     this.mapRenderer.updateWeatherParticles(this.weatherState);
@@ -1713,8 +1714,18 @@ export class OverworldScene extends Phaser.Scene {
 
     if (this.dialogueSystem.isDialogueOpen()) { this.dialogueSystem.dismissDialogue(); return; }
 
-    // Special NPC interaction
-    const specialResult = this.specialNpcManager.findAdjacentSpecialNpc(this.player.position.x, this.player.position.y);
+    // Current-tile entrances and encounters take priority over adjacent visitors.
+    const currentTerrain = chunk.mapData[this.player.position.y]?.[this.player.position.x];
+    const tileOwnsAction = currentTerrain === Terrain.Town
+      || currentTerrain === Terrain.Dungeon
+      || currentTerrain === Terrain.Boss
+      || currentTerrain === Terrain.Chest;
+    const specialResult = tileOwnsAction
+      ? undefined
+      : this.specialNpcManager.findAdjacentSpecialNpc(
+          this.player.position.x,
+          this.player.position.y,
+        );
     if (specialResult) {
       const regionName = chunk.name ?? "Overworld";
       const callbacks: SpecialNpcCallbacks = {

@@ -1,4 +1,5 @@
 import type { Monster } from "../data/monsters";
+import { getMonsterTextureKey } from "../data/monsterFamilies";
 import type {
   ActorAnimationRole,
   ActorAnimationState,
@@ -52,43 +53,28 @@ export function resolveMonsterTextureFamily(
   monster: Monster,
   textureExists: (textureKey: string) => boolean,
 ): ActorTextureFamily {
-  const familyId = readOptionalString(monster, "family")
-    ?? readOptionalString(monster, "textureFamily")
-    ?? (monster.isBoss ? "boss" : "monster");
   const role: ActorAnimationRole = monster.isBoss ? "boss" : "monster";
-  const baseCandidates = monster.isBoss
-    ? [
-        `boss_${familyId}_base`,
-        `monster_${familyId}_boss`,
-        `monster_${familyId}_base`,
-        "monster_boss",
-      ]
-    : [
-        `monster_${familyId}_base`,
-        `monster_${familyId}`,
-        "monster",
-      ];
-  const fallbackTextureKey = baseCandidates.find(textureExists)
-    ?? (monster.isBoss ? "monster_boss" : "monster");
-  const framePrefix = fallbackTextureKey.endsWith("_base")
-    ? fallbackTextureKey.slice(0, -"_base".length)
+  const fallbackTextureKey = getMonsterTextureKey(monster);
+  const framePrefix = fallbackTextureKey.endsWith("-idle")
+    ? fallbackTextureKey.slice(0, -"-idle".length)
     : fallbackTextureKey;
-
-  return createActorTextureFamily({
-    id: `monster.${familyId}`,
+  const family = createActorTextureFamily({
+    id: `monster.${monster.family}`,
     role,
     fallbackTextureKey,
     framePrefix,
   });
-}
-
-function readOptionalString(
-  value: object,
-  property: string,
-): string | undefined {
-  if (!(property in value)) return undefined;
-  const candidate: unknown = Reflect.get(value, property);
-  return typeof candidate === "string" && candidate.length > 0
-    ? candidate
-    : undefined;
+  return {
+    ...family,
+    frames: Object.fromEntries(FRAME_STATES.map((state) => [
+      state,
+      [
+        { textureKey: `${framePrefix}-${state}` },
+        { textureKey: `${framePrefix}-${state}-1` },
+      ],
+    ])),
+    fallbackTextureKey: textureExists(fallbackTextureKey)
+      ? fallbackTextureKey
+      : monster.isBoss ? "monster_boss" : "monster",
+  };
 }

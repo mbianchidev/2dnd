@@ -23,6 +23,8 @@ save normalization
 ✅ Companion definitions, party progression, transfers, KO/reward rules, and
 ranked gambit selection/normalization
 ✅ Data integrity (monsters, spells, items)
+✅ Monster family references, membership, variant differentiation, palette
+uniqueness, encounter weights, Codex family completion, and texture-key coverage
 ✅ Game logic functions
 ✅ Seeded layouts and persistent state machines
 ✅ Non-combat skill-check math, outcomes, and save normalization
@@ -66,6 +68,7 @@ tests/
 ├── groupCombat.test.ts # Multi-monster combat rules
 ├── battleActions.test.ts # Pure gambit planning and validation
 ├── monsterGroups.test.ts # Group templates and generation
+├── monsterFamilies.test.ts # Families, variants, Codex derivation, texture keys
 ├── partyCombat.test.ts # Stable actor IDs, ally scopes, AI, and result hooks
 ├── party.test.ts     # Recruitment, progression, transfers, rests, KO/rewards
 ├── companions.test.ts # Immutable companion definitions and loadouts

@@ -11,6 +11,7 @@ import { NPC_TEMPLATES } from "../data/npcs";
 import { MOUNTS } from "../data/mounts";
 import { TILE_SIZE } from "../config";
 import { generateTrapTextures } from "./trapTextures";
+import { generateMonsterTextures } from "./monsterTextures";
 
 /** Mount body colors keyed by mount ID. */
 const MOUNT_COLORS: Record<string, number> = {
@@ -29,8 +30,7 @@ export function generateAllTextures(scene: Phaser.Scene): void {
   generatePlayerTexture(scene);
   generatePlayerTextures(scene);
   generateMountTextures(scene);
-  generateMonsterTexture(scene);
-  generateBossTexture(scene);
+  generateMonsterTextures(scene);
   generateUITextures(scene);
   generateBattleBackgrounds(scene);
   generateNpcTextures(scene);
@@ -1078,86 +1078,6 @@ function drawShield(gfx: Phaser.GameObjects.Graphics, hasShield: boolean): void 
   gfx.fillStyle(0xffd700, 1);
   gfx.fillRect(3, 15, 2, 4);
   gfx.fillRect(2, 16, 4, 2);
-}
-
-function generateMonsterTexture(scene: Phaser.Scene): void {
-  const gfx = scene.add.graphics();
-  // Generic monster silhouette (recolored in battle)
-  gfx.fillStyle(0xffffff, 1);
-  gfx.fillCircle(48, 32, 28);
-  gfx.fillRect(20, 32, 56, 40);
-  // Eyes
-  gfx.fillStyle(0xff0000, 1);
-  gfx.fillCircle(38, 28, 5);
-  gfx.fillCircle(58, 28, 5);
-  // Mouth
-  gfx.fillStyle(0x000000, 1);
-  gfx.fillRect(34, 42, 28, 6);
-  // Fangs
-  gfx.fillStyle(0xffffff, 1);
-  gfx.fillTriangle(38, 42, 42, 42, 40, 50);
-  gfx.fillTriangle(54, 42, 58, 42, 56, 50);
-
-  gfx.generateTexture("monster", 96, 80);
-  gfx.destroy();
-}
-
-function generateBossTexture(scene: Phaser.Scene): void {
-  const W = 128;
-  const H = 110;
-  const gfx = scene.add.graphics();
-
-  // --- Larger, more menacing boss silhouette ---
-
-  // Wings (behind body)
-  gfx.fillStyle(0xffffff, 0.4);
-  gfx.fillTriangle(4, 50, 30, 20, 40, 60);
-  gfx.fillTriangle(W - 4, 50, W - 30, 20, W - 40, 60);
-
-  // Body (large oval)
-  gfx.fillStyle(0xffffff, 1);
-  gfx.fillCircle(W / 2, 40, 36);
-  gfx.fillRect(W / 2 - 36, 40, 72, 48);
-
-  // Horns
-  gfx.fillStyle(0xffffff, 0.85);
-  gfx.fillTriangle(W / 2 - 20, 12, W / 2 - 30, -8, W / 2 - 14, 8);
-  gfx.fillTriangle(W / 2 + 20, 12, W / 2 + 30, -8, W / 2 + 14, 8);
-
-  // Eyes — larger, glowing
-  gfx.fillStyle(0xff0000, 1);
-  gfx.fillCircle(W / 2 - 14, 34, 8);
-  gfx.fillCircle(W / 2 + 14, 34, 8);
-  // Pupils
-  gfx.fillStyle(0xffff00, 1);
-  gfx.fillCircle(W / 2 - 14, 34, 4);
-  gfx.fillCircle(W / 2 + 14, 34, 4);
-
-  // Mouth with many fangs
-  gfx.fillStyle(0x220000, 1);
-  gfx.fillRect(W / 2 - 18, 52, 36, 10);
-  gfx.fillStyle(0xffffff, 1);
-  for (let i = 0; i < 5; i++) {
-    const fx = W / 2 - 16 + i * 8;
-    gfx.fillTriangle(fx, 52, fx + 4, 52, fx + 2, 64);
-  }
-
-  // Crown / spikes on top
-  gfx.fillStyle(0xffffff, 0.7);
-  for (let i = -2; i <= 2; i++) {
-    const sx = W / 2 + i * 10;
-    gfx.fillTriangle(sx - 4, 10, sx + 4, 10, sx, -2);
-  }
-
-  // Claws at bottom
-  gfx.fillStyle(0xffffff, 0.9);
-  gfx.fillTriangle(W / 2 - 28, 88, W / 2 - 22, 88, W / 2 - 25, H);
-  gfx.fillTriangle(W / 2 - 16, 88, W / 2 - 10, 88, W / 2 - 13, H);
-  gfx.fillTriangle(W / 2 + 10, 88, W / 2 + 16, 88, W / 2 + 13, H);
-  gfx.fillTriangle(W / 2 + 22, 88, W / 2 + 28, 88, W / 2 + 25, H);
-
-  gfx.generateTexture("monster_boss", W, H);
-  gfx.destroy();
 }
 
 function generateUITextures(scene: Phaser.Scene): void {

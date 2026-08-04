@@ -121,8 +121,10 @@ API, and saves use `localStorage`.
 - Procedural biome, city, battle, boss, title, cutscene, and campaign-ending
   music and cues
 - Synthesized combat, weather, movement, item, and interaction sound effects
-- Cutscene settings for reduced motion, 100%/125%/150% text, and manual or
-  automatic advance
+- Shared title and in-game settings for audio, 100%/125%/150% text, high
+  contrast, reduced motion, and manual or automatic cutscene advance
+- Important selections and trap/battle states pair color with text, symbols,
+  borders, or numeric values
 - Scrollable overlays and a bounded battle log
 - Local-development debug panel, hotkeys, and slash commands
 
@@ -301,7 +303,9 @@ npm run build      # Type-check and create a production build
 | `Esc` | Close the active overlay or skip an active cutscene |
 | Mouse / touch | Select buttons and scroll lists |
 
-The `Esc` menu includes the Chronicle plus cutscene accessibility settings.
+The `Esc` menu includes the Chronicle plus the same audio and accessibility
+settings available on the title screen. Input remapping remains tracked
+separately in issue #89.
 
 ## Debug mode
 
@@ -331,9 +335,11 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 
 ## Save data
 
-Game state is stored under `2dnd_save`; audio preferences use
-`2dnd_audio_prefs`; cutscene accessibility preferences use
-`2dnd_cutscene_accessibility`.
+Game state is stored under `2dnd_save`. Audio and accessibility preferences are
+stored separately under the versioned `2dnd_preferences` key, so changing text
+scale, contrast, motion, cutscene advance, volume, or mute never mutates campaign
+progress. Existing `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values
+migrate automatically.
 
 Save schema version 8 persists:
 

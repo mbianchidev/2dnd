@@ -16,7 +16,15 @@ import { createWeatherState } from "../systems/weather";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { debugPanelState } from "../config";
 import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../data/cutscenes";
-import { addCutsceneSettingsControls } from "../renderers/settings";
+import {
+  addSettingsControls,
+  SETTINGS_PANEL_HEIGHT,
+  SETTINGS_PANEL_WIDTH,
+} from "../renderers/settings";
+import {
+  installSceneAccessibility,
+  isReducedMotionEnabled,
+} from "../systems/accessibility";
 import {
   getNewGameCutsceneIds,
   getNextPendingCutscene,
@@ -37,6 +45,7 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     this.sceneTransitions.prepare();
+    installSceneAccessibility(this);
     generateAllTextures(this);
     this.showTitleScreen();
   }
@@ -190,20 +199,15 @@ export class BootScene extends Phaser.Scene {
     }
   }
 
-  /** Show a settings overlay on the title screen with volume sliders. */
+  /** Show the shared audio and accessibility settings on the title screen. */
   private showTitleSettings(): void {
-    const cx = this.cameras.main.centerX;
-    const cy = this.cameras.main.centerY;
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
-    const panelW = 300;
-    const panelH = 420;
+    const panelW = SETTINGS_PANEL_WIDTH;
+    const panelH = SETTINGS_PANEL_HEIGHT;
     const px = Math.floor((w - panelW) / 2);
     const py = Math.floor((h - panelH) / 2);
-
     const container = this.add.container(0, 0).setDepth(90);
-
-    // Dim — only closes when clicking outside the panel
     const dim = this.add.graphics();
     dim.fillStyle(0x000000, 0.7);
     dim.fillRect(0, 0, w, h);
@@ -214,8 +218,6 @@ export class BootScene extends Phaser.Scene {
       }
     });
     container.add(dim);
-
-    // Panel background — absorb clicks so they don't reach the dim layer
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a2e, 0.95);
     bg.fillRect(px, py, panelW, panelH);
@@ -223,106 +225,7 @@ export class BootScene extends Phaser.Scene {
     bg.strokeRect(px, py, panelW, panelH);
     bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
     container.add(bg);
-
-    // Title
-    const title = this.add.text(px + panelW / 2, py + 12, "🔊 Audio Settings", {
-      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
-    }).setOrigin(0.5, 0);
-    container.add(title);
-
-    // Volume sliders
-    const sliderY = py + 44;
-    const sliderX = px + 16;
-    const sliderW = panelW - 32;
-    const barH = 10;
-    const sliderSpacing = 48;
-
-    const channels: { label: string; value: number; setter: (v: number) => void }[] = [
-      { label: "Master", value: audioEngine.state.masterVolume, setter: (v) => audioEngine.setMasterVolume(v) },
-      { label: "Music",  value: audioEngine.state.musicVolume,  setter: (v) => audioEngine.setMusicVolume(v) },
-      { label: "SFX",    value: audioEngine.state.sfxVolume,    setter: (v) => audioEngine.setSFXVolume(v) },
-      { label: "Dialog", value: audioEngine.state.dialogVolume, setter: (v) => audioEngine.setDialogVolume(v) },
-    ];
-
-    channels.forEach((ch, i) => {
-      const y = sliderY + i * sliderSpacing;
-
-      const valText = this.add.text(sliderX + sliderW, y - 2, `${ch.label}: ${Math.round(ch.value * 100)}%`, {
-        fontSize: "11px", fontFamily: "monospace", color: "#ccc",
-      }).setOrigin(1, 0);
-      container.add(valText);
-
-      // Track
-      const track = this.add.graphics();
-      track.fillStyle(0x333355, 1);
-      track.fillRect(sliderX, y + 14, sliderW, barH);
-      track.lineStyle(1, 0x555577, 1);
-      track.strokeRect(sliderX, y + 14, sliderW, barH);
-      container.add(track);
-
-      // Fill
-      const fill = this.add.graphics();
-      const drawFill = (v: number) => {
-        fill.clear();
-        fill.fillStyle(0x4488ff, 1);
-        fill.fillRect(sliderX, y + 14, sliderW * v, barH);
-      };
-      drawFill(ch.value);
-      container.add(fill);
-
-      // Knob
-      let currentKnobX = sliderX + sliderW * ch.value;
-      const knob = this.add.graphics();
-      const drawKnob = (kx: number) => {
-        knob.clear();
-        knob.fillStyle(0xffd700, 1);
-        knob.fillCircle(kx, y + 14 + barH / 2, 7);
-        knob.lineStyle(1, 0xaa8800, 1);
-        knob.strokeCircle(kx, y + 14 + barH / 2, 7);
-      };
-      drawKnob(currentKnobX);
-      container.add(knob);
-
-      // Draggable zone centered on the knob only
-      const knobZone = this.add.zone(currentKnobX, y + 14 + barH / 2, 22, 22)
-        .setInteractive({ useHandCursor: true, draggable: true });
-      container.add(knobZone);
-
-      knobZone.on("drag", (_pointer: Phaser.Input.Pointer, dragX: number) => {
-        const clampedX = Phaser.Math.Clamp(dragX, sliderX, sliderX + sliderW);
-        const ratio = (clampedX - sliderX) / sliderW;
-        ch.setter(ratio);
-        ch.value = ratio;
-        currentKnobX = clampedX;
-        drawFill(ratio);
-        drawKnob(clampedX);
-        knobZone.setPosition(clampedX, y + 14 + barH / 2);
-        valText.setText(`${ch.label}: ${Math.round(ratio * 100)}%`);
-      });
-    });
-
-    // Mute toggle
-    const muteY = sliderY + channels.length * sliderSpacing + 4;
-    const muteBtn = this.add.text(px + panelW / 2, muteY, audioEngine.state.muted ? "🔇 Unmute" : "🔊 Mute All", {
-      fontSize: "13px", fontFamily: "monospace", color: audioEngine.state.muted ? "#ff6666" : "#88ccff",
-      backgroundColor: "#2a2a4e", padding: { x: 12, y: 4 },
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    muteBtn.on("pointerdown", () => {
-      const muted = audioEngine.toggleMute();
-      muteBtn.setText(muted ? "🔇 Unmute" : "🔊 Mute All");
-      muteBtn.setColor(muted ? "#ff6666" : "#88ccff");
-    });
-    container.add(muteBtn);
-
-    addCutsceneSettingsControls(
-      this,
-      container,
-      px + panelW / 2,
-      muteY + 40,
-      panelW - 32,
-    );
-
-    // Close hint
+    addSettingsControls(this, container, px, py, panelW, panelH);
     const hint = this.add.text(px + panelW / 2, py + panelH - 10, "Click outside to close", {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
@@ -403,7 +306,7 @@ export class BootScene extends Phaser.Scene {
 
     const cx = this.cameras.main.centerX;
 
-    this.add
+    const title = this.add
       .text(cx, 15, "Create Your Hero", {
         fontSize: "24px",
         fontFamily: "monospace",
@@ -412,8 +315,8 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
 
     // Name entry
-    this.add
-      .text(cx, 50, "Name:", {
+    const nameLabel = this.add
+      .text(cx, title.y + title.height + 4, "Name:", {
         fontSize: "14px",
         fontFamily: "monospace",
         color: "#c0a060",
@@ -422,7 +325,7 @@ export class BootScene extends Phaser.Scene {
 
     let playerName = "Hero";
     const nameText = this.add
-      .text(cx, 70, playerName, {
+      .text(cx, nameLabel.y + nameLabel.height + 3, playerName, {
         fontSize: "18px",
         fontFamily: "monospace",
         color: "#fff",
@@ -442,8 +345,8 @@ export class BootScene extends Phaser.Scene {
     });
 
     // Class selection
-    this.add
-      .text(cx, 105, "Choose Class:", {
+    const classLabel = this.add
+      .text(cx, nameText.y + nameText.height + 6, "Choose Class:", {
         fontSize: "14px",
         fontFamily: "monospace",
         color: "#c0a060",
@@ -457,7 +360,7 @@ export class BootScene extends Phaser.Scene {
     const optW = 72;
     const optH = 62;
     const startX = cx - ((Math.min(cols, PLAYER_CLASSES.length) * optW) / 2) + optW / 2;
-    const startY = 150;
+    const startY = classLabel.y + classLabel.height + 28;
 
     const optionHighlights: Phaser.GameObjects.Graphics[] = [];
 
@@ -575,13 +478,15 @@ export class BootScene extends Phaser.Scene {
 
     nextBtn.on("pointerdown", goNext);
 
-    this.tweens.add({
-      targets: nextBtn,
-      alpha: 0.4,
-      duration: 900,
-      yoyo: true,
-      repeat: -1,
-    });
+    if (!isReducedMotionEnabled()) {
+      this.tweens.add({
+        targets: nextBtn,
+        alpha: 0.4,
+        duration: 900,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
 
     this.input.keyboard!.on("keydown-ENTER", goNext);
   }
@@ -1127,13 +1032,15 @@ export class BootScene extends Phaser.Scene {
 
     startBtn.on("pointerdown", doStart);
 
-    this.tweens.add({
-      targets: startBtn,
-      alpha: 0.4,
-      duration: 900,
-      yoyo: true,
-      repeat: -1,
-    });
+    if (!isReducedMotionEnabled()) {
+      this.tweens.add({
+        targets: startBtn,
+        alpha: 0.4,
+        duration: 900,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
 
     this.input.keyboard!.on("keydown-ENTER", doStart);
   }

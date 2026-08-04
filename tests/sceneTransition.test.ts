@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("phaser", () => ({
   Cameras: {
@@ -13,6 +13,7 @@ vi.mock("phaser", () => ({
 
 import type * as Phaser from "phaser";
 import { SceneTransitionManager } from "../src/managers/sceneTransition";
+import { gamePreferences } from "../src/systems/accessibility";
 
 interface TimerHarness {
   delay: number;
@@ -120,6 +121,10 @@ function createHarness(): TransitionHarness {
 }
 
 describe("SceneTransitionManager", () => {
+  afterEach(() => {
+    gamePreferences.setReducedMotion(false);
+  });
+
   it("prepares a visible camera and cancels stale timers before fading in", () => {
     const harness = createHarness();
     const manager = new SceneTransitionManager(harness.scene);
@@ -255,5 +260,18 @@ describe("SceneTransitionManager", () => {
 
     expect(manager.isPending).toBe(false);
     expect(harness.camera.resetFX).toHaveBeenCalledTimes(3);
+  });
+
+  it("hands off immediately when reduced motion is enabled", () => {
+    gamePreferences.setReducedMotion(true);
+    const harness = createHarness();
+    const manager = new SceneTransitionManager(harness.scene);
+    const startScene = vi.fn();
+
+    expect(manager.startWithFade(startScene, { duration: 500 })).toBe(true);
+
+    expect(startScene).toHaveBeenCalledTimes(1);
+    expect(harness.camera.fadeOut).not.toHaveBeenCalled();
+    expect(harness.timers).toHaveLength(0);
   });
 });

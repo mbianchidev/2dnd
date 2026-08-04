@@ -7,6 +7,7 @@ import type { PlayerState } from "../systems/player";
 import { xpForLevel } from "../systems/player";
 import { MAP_WIDTH, MAP_HEIGHT } from "../data/map";
 import { TILE_SIZE } from "../config";
+import { isReducedMotionEnabled } from "../systems/accessibility";
 
 export class HUDRenderer {
   private scene: Phaser.Scene;
@@ -90,17 +91,22 @@ export class HUDRenderer {
       padding: { x: 8, y: 4 },
     }).setOrigin(0.5).setDepth(150).setScrollFactor(0);
     
+    const clearMessage = (): void => {
+      if (this.messageText) {
+        this.messageText.destroy();
+        this.messageText = null;
+      }
+    };
+    if (isReducedMotionEnabled()) {
+      this.scene.time.delayedCall(3000, clearMessage);
+      return;
+    }
     this.scene.tweens.add({
       targets: this.messageText,
       alpha: 0,
       duration: 2000,
       delay: 1000,
-      onComplete: () => {
-        if (this.messageText) {
-          this.messageText.destroy();
-          this.messageText = null;
-        }
-      },
+      onComplete: clearMessage,
     });
   }
   

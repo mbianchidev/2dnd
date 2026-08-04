@@ -23,6 +23,7 @@ import {
 } from "../systems/skillChecks";
 import { saveGame } from "../systems/save";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { installSceneAccessibility } from "../systems/accessibility";
 
 export class ShopScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
@@ -103,6 +104,7 @@ export class ShopScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(0x1a1a2e);
     this.sceneTransitions.prepare(300);
+    installSceneAccessibility(this);
 
     // Play city music for this town
     if (audioEngine.initialized) {

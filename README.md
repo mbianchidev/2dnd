@@ -22,6 +22,9 @@ API, and saves use `localStorage`.
   progression
 - Hero plus three active companions, reserve/active ordering, item transfers,
   party-wide inn recovery, and persistent manual or gambit control
+- Large hero and companion inventories support immutable sorting by type,
+  value, rarity, recent acquisition, or name; category filters, search,
+  generated item visuals, and stable keyboard/pointer selection
 - Ranked 12-rule gambits use structured subjects, conditions, actions, and
   targets; invalid rules safely fall through without consuming resources
 
@@ -163,6 +166,7 @@ src/
 │   ├── groupCombat.ts
 │   ├── battleActions.ts
 │   ├── party.ts
+│   ├── inventory.ts
 │   ├── gambits.ts
 │   ├── statusEffects.ts
 │   ├── player.ts
@@ -218,6 +222,7 @@ src/
     ├── traps.ts
     ├── trapTextures.ts
     ├── characterTextures.ts
+    ├── itemVisuals.ts
     ├── cutscene.ts
     ├── settings.ts
     ├── result.ts
@@ -275,6 +280,8 @@ again.
 
 See [`docs/companions.md`](docs/companions.md) for party state, recruitment,
 inventories, gambit syntax, combat control, KO/reward rules, and debug commands.
+See [`docs/inventory.md`](docs/inventory.md) for immutable inventory views,
+presentation preferences, controls, generated visuals, and transfer restrictions.
 
 ## Getting started
 
@@ -307,16 +314,18 @@ npm run build      # Type-check and create a production build
 | `Space` / `Enter` | Confirm, interact, or disarm a detected adjacent trap |
 | `M` | Open the world or city map |
 | `E` | Open hero equipment |
-| `P` | Open party management, inventories, and gambits |
+| `P` | Open party management, searchable inventories, and gambits |
 | `C` | Open the Codex |
 | `Q` | Open the quest journal |
 | `T` | Mount or dismount |
 | `Esc` | Close the active overlay or skip an active cutscene |
 | Mouse / touch | Select buttons and scroll lists |
 
-The `Esc` menu includes the Chronicle plus the same audio and accessibility
-settings available on the title screen. Input remapping remains tracked
-separately in issue #89.
+The `Esc` menu includes Party & Inventory, the Chronicle, and the same audio and
+accessibility settings available on the title screen. In the inventory view,
+arrows and Page Up/Down navigate, `R` cycles sorting, `F` cycles filters, `/`
+focuses search, `X` transfers, and `Tab` changes the target. `T` remains mount
+control, and input remapping remains tracked separately in issue #89.
 
 ## Debug mode
 
@@ -350,7 +359,8 @@ Game state is stored under `2dnd_save`. Audio and accessibility preferences are
 stored separately under the versioned `2dnd_preferences` key, so changing text
 scale, contrast, motion, cutscene advance, volume, or mute never mutates campaign
 progress. Existing `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values
-migrate automatically.
+migrate automatically. Inventory sorting, filtering, and search preferences use
+the separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
 Save schema version 8 persists:
 

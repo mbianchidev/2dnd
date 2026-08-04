@@ -258,6 +258,15 @@ level-up/stat state, control mode, dialogue cursor, and normalized gambits.
   rules in UI/AI code.
 - Key items, mounts, and equipped items cannot transfer. Gold, shop purchases,
   and battle drops remain hero-owned until eligible items are transferred.
+- Inventory presentation goes through `src/systems/inventory.ts`. Sort and
+  filter derived entries by their original inventory indexes; never reorder the
+  owning array or replace equipment object links.
+- Inventory sort/filter/search preferences use `2dnd_inventory_prefs`, separate
+  from the campaign save schema. Recent acquisition is reverse canonical append
+  order.
+- The party Items page and `Esc` menu share one keyboard/pointer surface with
+  semantic actions for future gamepad/mobile controls. `T` remains mount
+  control. Item visuals are generated procedurally in `itemVisuals.ts`.
 - Living actors receive victory XP. KO actors receive no victory XP and reset
   to the current-level XP floor. Full defeat requires every active party actor
   to be KO. Apply the gold/XP/location recovery once, return its exact receipt,
@@ -534,6 +543,8 @@ entries. Schema-v7 and older saves gain an empty `pendingCutsceneIds` list;
 normalization removes unknown, duplicate, malformed, or already-seen IDs.
 Legacy recovery queues only a completed-but-unseen epilogue.
 
+Inventory presentation preferences are not save ownership data and do not
+increment the schema. Store them under `2dnd_inventory_prefs`.
 Audio and accessibility preferences are not campaign save fields. The versioned
 `2dnd_preferences` document is normalized by `src/systems/accessibility.ts`,
 migrates the legacy audio and cutscene-accessibility keys, and notifies live

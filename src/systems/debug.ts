@@ -71,6 +71,7 @@ export function registerSharedHotkeys(
   scene: Phaser.Scene,
   player: PlayerState,
   cb: DebugCallbacks,
+  isInputBlocked: () => boolean = () => false,
 ): void {
   const gKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G);
   const hKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
@@ -78,7 +79,7 @@ export function registerSharedHotkeys(
   const lKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L);
 
   gKey.on("down", () => {
-    if (!isDebug()) return;
+    if (!isDebug() || isInputBlocked()) return;
     player.gold += 100;
     debugLog("CHEAT: +100 gold", { total: player.gold });
     debugPanelLog(`[CHEAT] +100 gold (total: ${player.gold})`, true);
@@ -86,7 +87,7 @@ export function registerSharedHotkeys(
   });
 
   hKey.on("down", () => {
-    if (!isDebug()) return;
+    if (!isDebug() || isInputBlocked()) return;
     player.hp = player.maxHp;
     debugLog("CHEAT: Full heal");
     debugPanelLog(`[CHEAT] HP restored to ${player.maxHp}!`, true);
@@ -94,7 +95,7 @@ export function registerSharedHotkeys(
   });
 
   oKey.on("down", () => {
-    if (!isDebug()) return;
+    if (!isDebug() || isInputBlocked()) return;
     player.mp = player.maxMp;
     debugLog("CHEAT: Restore MP");
     debugPanelLog(`[CHEAT] MP restored to ${player.maxMp}!`, true);
@@ -102,7 +103,7 @@ export function registerSharedHotkeys(
   });
 
   lKey.on("down", () => {
-    if (!isDebug()) return;
+    if (!isDebug() || isInputBlocked()) return;
     const needed = xpForLevel(player.level + 1) - player.xp;
     awardXP(player, Math.max(needed, 0));
     const xpResult = processPendingLevelUps(player);
@@ -305,6 +306,7 @@ export interface OverworldDebugCallbacks {
   restartScene(): void;
   refreshQuestUI(): void;
   refreshPartyActors(): void;
+  isInputBlocked(): boolean;
 }
 
 /** Wrapper so a primitive number can be shared by reference between the scene and this system. */
@@ -374,13 +376,18 @@ export class DebugCommandSystem {
     };
 
     // Shared hotkeys: G=Gold, H=Heal, P=MP, L=LvUp
-    registerSharedHotkeys(this.scene, this.player, cb);
+    registerSharedHotkeys(
+      this.scene,
+      this.player,
+      cb,
+      () => this.callbacks.isInputBlocked(),
+    );
 
     // ── Overworld-only hotkeys ──
 
     const fKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     fKey.on("down", () => {
-      if (!isDebug()) return;
+      if (!isDebug() || this.callbacks.isInputBlocked()) return;
       const newState = !this.encounterSystem.areEncountersEnabled();
       this.encounterSystem.setEncountersEnabled(newState);
       debugLog("CHEAT: Encounters " + (newState ? "ON" : "OFF"));
@@ -389,7 +396,7 @@ export class DebugCommandSystem {
 
     const rKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     rKey.on("down", () => {
-      if (!isDebug()) return;
+      if (!isDebug() || this.callbacks.isInputBlocked()) return;
       this.fogOfWar.revealEntireWorld();
       this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
       this.callbacks.renderMap();
@@ -401,7 +408,7 @@ export class DebugCommandSystem {
 
     const vKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     vKey.on("down", () => {
-      if (!isDebug()) return;
+      if (!isDebug() || this.callbacks.isInputBlocked()) return;
       const newState = !this.fogOfWar.isFogDisabled();
       this.fogOfWar.setFogDisabled(newState);
       debugLog("CHEAT: Fog " + (newState ? "OFF" : "ON"));

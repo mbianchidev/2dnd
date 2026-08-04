@@ -11,7 +11,14 @@ export interface Item {
   id: string;
   name: string;
   description: string;
-  type: "consumable" | "weapon" | "armor" | "shield" | "key" | "mount";
+  type:
+    | "consumable"
+    | "weapon"
+    | "armor"
+    | "shield"
+    | "key"
+    | "mount"
+    | "crafting";
   cost: number;
   effect: number; // healing amount, attack bonus, AC bonus, etc.
   twoHanded?: boolean; // weapons only — cannot equip a shield with a two-handed weapon

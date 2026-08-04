@@ -215,12 +215,12 @@ describe("party system", () => {
     companion.mp = 0;
     player.position.inDungeon = true;
     player.position.dungeonId = "heartlands_dungeon";
-    player.lastTownX = 4;
-    player.lastTownY = 5;
-    player.lastTownChunkX = 6;
-    player.lastTownChunkY = 7;
+    player.lastTownX = 10;
+    player.lastTownY = 7;
+    player.lastTownChunkX = 1;
+    player.lastTownChunkY = 0;
 
-    applyPartyDefeat(player, [
+    const result = applyPartyDefeat(player, [
       "party:hero",
       "party:companion:scout",
     ]);
@@ -235,12 +235,46 @@ describe("party system", () => {
     expect(player.xp).toBe(xpFloorForLevel(5));
     expect(companion.xp).toBe(xpFloorForLevel(5));
     expect(player.position).toMatchObject({
-      x: 4,
-      y: 5,
-      chunkX: 6,
-      chunkY: 7,
+      x: 10,
+      y: 7,
+      chunkX: 1,
+      chunkY: 0,
       inDungeon: false,
       dungeonId: "",
+    });
+    expect(result).toEqual({
+      actors: [
+        {
+          combatantId: "party:hero",
+          name: player.name,
+          level: 5,
+          xpBefore: xpFloorForLevel(5) + 500,
+          xpAfter: xpFloorForLevel(5),
+          xpLost: 500,
+          restoredHp: Math.max(1, Math.floor(player.maxHp / 2)),
+          restoredMp: Math.floor(player.maxMp / 2),
+        },
+        {
+          combatantId: "party:companion:scout",
+          name: companion.name,
+          level: 5,
+          xpBefore: xpFloorForLevel(5) + 500,
+          xpAfter: xpFloorForLevel(5),
+          xpLost: 500,
+          restoredHp: Math.max(1, Math.floor(companion.maxHp / 2)),
+          restoredMp: Math.floor(companion.maxMp / 2),
+        },
+      ],
+      goldBefore: 100,
+      goldAfter: 70,
+      goldLost: 30,
+      recoveryLocation: {
+        name: "Frostheim",
+        x: 10,
+        y: 7,
+        chunkX: 1,
+        chunkY: 0,
+      },
     });
   });
 

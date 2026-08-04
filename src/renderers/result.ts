@@ -2,24 +2,37 @@ import * as Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../config";
 import type { CutsceneStep } from "../data/cutscenes";
 import type { CampaignEndingSummary } from "../systems/cutscenes";
+import type { PartyDefeatResult } from "../systems/party";
 import { isReducedMotionEnabled } from "../systems/accessibility";
 
-export interface EndingChoiceCallbacks {
+export interface CampaignEndingChoiceCallbacks {
   continuePostGame: () => void;
   replay: () => void;
   returnToTitle: () => void;
   select: (index: number) => void;
 }
 
-export class EndingRenderer {
+export interface DefeatResultPresentation {
+  encounterName: string;
+  encounterType: "boss" | "random";
+  result: PartyDefeatResult;
+}
+
+export type ResultTheme = "ending" | "defeat";
+
+export class ResultRenderer {
   private content: Phaser.GameObjects.Container | null = null;
   private choiceButtons: Phaser.GameObjects.Text[] = [];
   private choiceLabels: string[] = [];
   private selectedChoice = 0;
   private hintTween: Phaser.Tweens.Tween | null = null;
+  private ambientTweens: Phaser.Tweens.Tween[] = [];
 
-  constructor(private readonly scene: Phaser.Scene) {
-    this.createBackdrop();
+  constructor(
+    private readonly scene: Phaser.Scene,
+    theme: ResultTheme = "ending",
+  ) {
+    this.createBackdrop(theme);
   }
 
   createAdvanceZone(): Phaser.GameObjects.Zone {
@@ -70,7 +83,127 @@ export class EndingRenderer {
     }
   }
 
-  showChoices(callbacks: EndingChoiceCallbacks): void {
+  renderDefeatIntro(presentation: DefeatResultPresentation): void {
+    this.clearContent();
+    this.content = this.scene.add.container(0, 0).setDepth(2);
+    const encounterLabel = presentation.encounterType === "boss"
+      ? "BOSS ENCOUNTER"
+      : "WILDERNESS ENCOUNTER";
+    const title = this.scene.add.text(
+      GAME_WIDTH / 2,
+      105,
+      "THE PARTY HAS FALLEN",
+      {
+        fontSize: "27px",
+        fontFamily: "monospace",
+        color: "#ff9a9a",
+        fontStyle: "bold",
+      },
+    ).setOrigin(0.5);
+    const encounter = this.scene.add.text(
+      GAME_WIDTH / 2,
+      158,
+      `${encounterLabel}\n${presentation.encounterName}`,
+      {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#d7c2cf",
+        align: "center",
+        lineSpacing: 6,
+      },
+    ).setOrigin(0.5);
+    const party = presentation.result.actors.map((actor) =>
+      `${actor.name}  Lv.${actor.level}  [KO]`
+    );
+    const defeatedParty = this.scene.add.text(
+      GAME_WIDTH / 2,
+      270,
+      ["DEFEATED PARTY", ...party].join("\n"),
+      {
+        fontSize: "16px",
+        fontFamily: "monospace",
+        color: "#f4e8ee",
+        align: "center",
+        lineSpacing: 10,
+      },
+    ).setOrigin(0.5);
+    const hint = this.createHint("SPACE / ENTER / click to view recovery");
+    this.content.add([title, encounter, defeatedParty, hint]);
+  }
+
+  renderDefeatSummary(
+    presentation: DefeatResultPresentation,
+    continueRecovery: () => void,
+  ): void {
+    this.clearContent();
+    this.content = this.scene.add.container(0, 0).setDepth(3);
+    const { result } = presentation;
+    const title = this.scene.add.text(
+      GAME_WIDTH / 2,
+      44,
+      "DEFEAT RECOVERY",
+      {
+        fontSize: "24px",
+        fontFamily: "monospace",
+        color: "#ffb0a6",
+        fontStyle: "bold",
+      },
+    ).setOrigin(0.5);
+    const panels = this.scene.add.graphics();
+    panels.fillStyle(0x180d16, 0.92);
+    panels.fillRoundedRect(34, 82, GAME_WIDTH - 68, 334, 12);
+    panels.lineStyle(2, 0x8e5265, 0.75);
+    panels.strokeRoundedRect(34, 82, GAME_WIDTH - 68, 334, 12);
+    const actorPenaltyLines = result.actors.map((actor) =>
+      `${actor.name}: -${actor.xpLost} XP  (${actor.xpBefore} -> ${actor.xpAfter})`
+    );
+    const lines = [
+      "APPLIED PENALTIES",
+      `Gold: -${result.goldLost}  (${result.goldBefore} -> ${result.goldAfter})`,
+      ...actorPenaltyLines,
+      "",
+      "RECOVERY LOCATION",
+      result.recoveryLocation.name,
+      `Chunk ${result.recoveryLocation.chunkX},${result.recoveryLocation.chunkY}`
+        + `  Tile ${result.recoveryLocation.x},${result.recoveryLocation.y}`,
+      "",
+      "The defeated party awakens at half HP and MP.",
+      "Battle effects have been cleared.",
+    ];
+    const details = this.scene.add.text(64, 108, lines.join("\n"), {
+      fontSize: "14px",
+      fontFamily: "monospace",
+      color: "#f1e4e9",
+      lineSpacing: 8,
+      wordWrap: { width: GAME_WIDTH - 128, useAdvancedWrap: true },
+    });
+    const button = this.scene.add.text(
+      GAME_WIDTH / 2,
+      455,
+      "Continue from Recovery",
+      {
+        fontSize: "16px",
+        fontFamily: "monospace",
+        color: "#fff0e8",
+        backgroundColor: "#6b3345",
+        padding: { x: 22, y: 9 },
+      },
+    ).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    button.on("pointerdown", continueRecovery);
+    const hint = this.scene.add.text(
+      GAME_WIDTH / 2,
+      GAME_HEIGHT - 22,
+      "SPACE / ENTER to continue",
+      {
+        fontSize: "11px",
+        fontFamily: "monospace",
+        color: "#b88d9c",
+      },
+    ).setOrigin(0.5);
+    this.content.add([title, panels, details, button, hint]);
+  }
+
+  showChoices(callbacks: CampaignEndingChoiceCallbacks): void {
     this.clearContent();
     this.content = this.scene.add.container(0, 0).setDepth(3);
 
@@ -155,8 +288,43 @@ export class EndingRenderer {
     });
   }
 
-  private createBackdrop(): void {
+  destroy(): void {
+    this.clearContent();
+    for (const tween of this.ambientTweens) tween.remove();
+    this.ambientTweens = [];
+  }
+
+  private createBackdrop(theme: ResultTheme): void {
     const background = this.scene.add.graphics().setDepth(0);
+    if (theme === "defeat") {
+      background.fillStyle(0x09060b, 1);
+      background.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      background.fillStyle(0x2a101b, 0.94);
+      background.fillCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 15, 220);
+      background.lineStyle(2, 0x8e5265, 0.55);
+      background.strokeCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 15, 168);
+      for (let index = 0; index < 30; index++) {
+        const mote = this.scene.add.circle(
+          (index * 97 + 31) % GAME_WIDTH,
+          (index * 61 + 17) % GAME_HEIGHT,
+          index % 5 === 0 ? 2 : 1,
+          index % 3 === 0 ? 0xc46a73 : 0x72505f,
+          0.55,
+        ).setDepth(1);
+        if (!isReducedMotionEnabled()) {
+          this.ambientTweens.push(this.scene.tweens.add({
+            targets: mote,
+            y: mote.y + 36 + (index % 4) * 8,
+            alpha: 0.15,
+            duration: 2200 + (index % 6) * 350,
+            delay: (index % 8) * 120,
+            yoyo: true,
+            repeat: -1,
+          }));
+        }
+      }
+      return;
+    }
     background.fillStyle(0x080b1d, 1);
     background.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     background.fillStyle(0x171c3f, 0.9);
@@ -336,6 +504,29 @@ export class EndingRenderer {
       ).setOrigin(0.5);
       this.content!.add(text);
     });
+  }
+
+  private createHint(text: string): Phaser.GameObjects.Text {
+    const hint = this.scene.add.text(
+      GAME_WIDTH / 2,
+      GAME_HEIGHT - 24,
+      text,
+      {
+        fontSize: "11px",
+        fontFamily: "monospace",
+        color: "#b88d9c",
+      },
+    ).setOrigin(0.5);
+    if (!isReducedMotionEnabled()) {
+      this.hintTween = this.scene.tweens.add({
+        targets: hint,
+        alpha: 0.4,
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+    return hint;
   }
 
   private clearContent(): void {

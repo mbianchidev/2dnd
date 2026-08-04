@@ -21,6 +21,7 @@ import {
 } from "../src/data/quests";
 import { LEGACY_TRAP_SEED } from "../src/data/traps";
 import {
+  applyPartyDefeat,
   recruitCompanion,
   synchronizeCompanionRecruitment,
 } from "../src/systems/party";
@@ -58,7 +59,7 @@ describe("save system - PlayerState composition migration", () => {
       strength: 10, dexterity: 10, constitution: 10,
       intelligence: 10, wisdom: 10, charisma: 10,
     });
-    
+
     // Modify some position fields
     player.position.x = 5;
     player.position.y = 7;
@@ -143,6 +144,54 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.pendingCutsceneIds).toEqual([
       "campaign.opening",
     ]);
+  });
+
+  it("preserves the applied defeat recovery after save and reload", () => {
+    const player = createPlayer("RecoveredHero", {
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    });
+    player.gold = 101;
+    player.xp = 50;
+    player.hp = 0;
+    player.activeEffects.push({
+      id: "poison",
+      remainingTurns: 2,
+      source: "Save test",
+    });
+
+    const result = applyPartyDefeat(player, ["party:hero"]);
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      player.appearanceId,
+      72,
+      createWeatherState(),
+    );
+    const loaded = loadGame();
+
+    expect(result.goldLost).toBe(31);
+    expect(result.actors[0]?.xpLost).toBe(50);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.player.gold).toBe(70);
+    expect(loaded!.player.xp).toBe(0);
+    expect(loaded!.player.hp).toBe(
+      Math.max(1, Math.floor(loaded!.player.maxHp / 2)),
+    );
+    expect(loaded!.player.activeEffects).toEqual([]);
+    expect(loaded!.player.position).toMatchObject({
+      x: 2,
+      y: 2,
+      chunkX: 4,
+      chunkY: 2,
+      inDungeon: false,
+      inCity: false,
+    });
   });
 
   it.each([

@@ -65,6 +65,10 @@ API, and saves use `localStorage`.
   accuracy/AC/damage modifiers, duration expiration, and cure items
 - Combat effects are cleared when Battle ends because their durations use the
   combat turn clock
+- Full-party defeat opens a dedicated procedural result sequence for random and
+  boss encounters, lists every defeated actor, reports the exact gold and XP
+  losses, autosaves the recovered state, and continues from the last town with
+  half HP/MP and no battle effects or overlapping weather ambience
 
 ### Non-combat skill checks
 
@@ -152,7 +156,8 @@ src/
 │   ├── Shop.ts
 │   ├── Codex.ts
 │   ├── Cutscene.ts
-│   └── Ending.ts
+│   ├── Ending.ts
+│   └── Defeat.ts
 ├── systems/
 │   ├── combat.ts
 │   ├── groupCombat.ts
@@ -215,7 +220,7 @@ src/
     ├── characterTextures.ts
     ├── cutscene.ts
     ├── settings.ts
-    ├── ending.ts
+    ├── result.ts
     └── battleParty.ts
 ```
 
@@ -244,8 +249,9 @@ live in focused modules, and `src/data/cutscenes.ts` remains the stable-ID hub.
 normalization, lifecycle, Chronicle selection, and legacy epilogue recovery.
 `src/managers/cutscene.ts` advances or skips immutable steps.
 `CutsceneScene` and `src/renderers/cutscene.ts` provide generic procedural
-presentation, while `EndingScene` remains the campaign-summary and credits
-surface. IDs are queued and saved before presentation, then removed from
+presentation. `EndingScene` and `DefeatScene` share
+`src/renderers/result.ts` for campaign-summary, credits, and defeat-result
+surfaces. IDs are queued and saved before presentation, then removed from
 `pendingCutsceneIds` and added to `seenCutsceneIds` only after completion or
 skip. Chronicle replay changes neither list.
 
@@ -261,6 +267,11 @@ outgoing camera before queueing the next scene, rejects duplicate handoffs, and
 uses a delayed watchdog only to recover a missing event. Overworld restarts
 share one complete player, party, world, quest, trap, weather, and NPC payload
 and block state-changing input until Phaser processes the queued handoff.
+Battle uses the same guarded handoff for victory, flee, and defeat. Defeat first
+creates an exact `PartyDefeatResult`, saves the recovered player, clears
+transient battle input/effects/weather, then starts `DefeatScene`; continuing
+returns the complete shared state to Overworld without applying the penalty
+again.
 
 See [`docs/companions.md`](docs/companions.md) for party state, recruitment,
 inventories, gambit syntax, combat control, KO/reward rules, and debug commands.
@@ -383,7 +394,7 @@ quest and skill-check progression, dice, weather, day/night, mounts, NPCs,
 audio, configuration, group encounter generation, formation targeting,
 synergies, rewards, cutscene data, triggers, queue recovery, accessibility,
 director lifecycle, scene transitions, ending summaries, multi-target actions,
-and party-ready combat/action-planning
+defeat receipts and idempotent result handoffs, and party-ready combat/action-planning
 contracts, companion definitions, party state, gambits, follower trails, and
 recruitment replay.
 
@@ -398,19 +409,20 @@ Important integration suites:
 - `tests/traps.test.ts`
 - `tests/companions.test.ts`
 - `tests/party.test.ts`
+- `tests/defeatSceneTransition.test.ts`
 - `tests/gambits.test.ts`
 - `tests/followers.test.ts`
 - `tests/fogOfWar.test.ts`
 
-The committed Playwright suite in `e2e/` runs a real Chromium campaign golden
-path through character creation, interrupted opening recovery, quest
+The committed Playwright suite in `e2e/` runs real Chromium campaign and defeat
+flows through character creation, interrupted opening recovery, quest
 interaction, dungeon reveals, skipped boss introductions, boss aftermath
 chains, Chronicle replay immutability, final Elowen completion, credits,
 interrupted epilogue recovery, post-game continuation and reload, legacy
-completed-but-unseen ending recovery, and corrupt-save fallback to New Game. It
-starts Vite on an available strict port and defaults to the deployed `/2dnd/`
-base path. Pull request CI installs Chromium and runs this suite as a release
-gate:
+completed-but-unseen ending recovery, corrupt-save fallback to New Game, random
+and boss defeat results, recovery save/reload, and clean continuation. It starts
+Vite on an available strict port and defaults to the deployed `/2dnd/` base
+path. Pull request CI installs Chromium and runs these suites as a release gate:
 
 ```bash
 npm run test:browser:install # One-time Chromium install

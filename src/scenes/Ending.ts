@@ -7,7 +7,7 @@ import {
 } from "../data/cutscenes";
 import { CutsceneDirector } from "../managers/cutscene";
 import { SceneTransitionManager } from "../managers/sceneTransition";
-import { EndingRenderer } from "../renderers/ending";
+import { ResultRenderer } from "../renderers/result";
 import { audioEngine } from "../systems/audio";
 import { installSceneAccessibility } from "../systems/accessibility";
 import {
@@ -42,7 +42,7 @@ export class EndingScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
   private sceneData!: EndingSceneData;
   private director!: CutsceneDirector;
-  private endingRenderer!: EndingRenderer;
+  private endingRenderer!: ResultRenderer;
   private keys!: EndingKeys;
   private inputReadyAt = 0;
   private showingChoices = false;
@@ -73,7 +73,7 @@ export class EndingScene extends Phaser.Scene {
   create(): void {
     this.sceneTransitions.prepare(500);
     installSceneAccessibility(this);
-    this.endingRenderer = new EndingRenderer(this);
+    this.endingRenderer = new ResultRenderer(this);
     const summary = buildCampaignEndingSummary(
       this.sceneData.player,
       this.sceneData.defeatedBosses,
@@ -98,6 +98,10 @@ export class EndingScene extends Phaser.Scene {
     });
     this.inputReadyAt = this.time.now + INPUT_GRACE_MS;
     this.endingRenderer.renderStep(this.director.currentStep, summary);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.director.destroy();
+      this.endingRenderer.destroy();
+    });
     this.updateDebugPanel();
     audioEngine.playEndingMusic();
   }

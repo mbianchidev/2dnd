@@ -43,7 +43,13 @@ import {
   type BattleActionEconomyState,
 } from "../systems/battleActions";
 import { abilityModifier } from "../systems/dice";
-import { isDebug, debugLog, debugPanelLog, debugPanelState } from "../config";
+import {
+  isDebug,
+  debugLog,
+  debugPanelLog,
+  debugPanelState,
+  setDebugCommandHandler,
+} from "../config";
 import type { CodexData } from "../systems/codex";
 import {
   discoverAC,
@@ -73,6 +79,7 @@ import {
   applyPartyDefeat,
   createPartyActionSources,
   distributePartyVictory,
+  type PartyDefeatResult,
 } from "../systems/party";
 import {
   clearAllEffects,
@@ -166,6 +173,7 @@ export class BattleScene extends Phaser.Scene {
   private battlePartyRenderer!: BattlePartyRenderer;
   private battleHooks: BattleResolutionHooks | undefined;
   private battleResultReported = false;
+  private defeatResult: PartyDefeatResult | null = null;
   private playerEconomy!: BattleActionEconomyState;
   private defeatedBosses!: Set<string>;
   private codex!: CodexData;
@@ -340,6 +348,7 @@ export class BattleScene extends Phaser.Scene {
     this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
     this.battleHooks = data.battleHooks;
     this.battleResultReported = false;
+    this.defeatResult = null;
     this.defeatedBosses = data.defeatedBosses;
     this.codex = data.codex;
     this.timeStep = data.timeStep ?? 0;
@@ -1774,10 +1783,15 @@ export class BattleScene extends Phaser.Scene {
       this.defeatEncounterForDebug();
       debugPanelLog(`[CMD] Encounter defeated!`, true);
     });
+    cmds.set("defeat", () => {
+      this.defeatPartyForDebug();
+      debugPanelLog("[CMD] Party defeated!", true);
+    });
 
     // Help entries
     const helpEntries: HelpEntry[] = [
       { usage: "/kill", desc: "Defeat the encounter instantly" },
+      { usage: "/defeat", desc: "Defeat the active party instantly" },
       ...SHARED_HELP,
     ];
 
@@ -1797,6 +1811,25 @@ export class BattleScene extends Phaser.Scene {
     }
     this.updateMonsterDisplay();
     this.checkBattleEnd(false);
+  }
+
+  private defeatPartyForDebug(): void {
+    if (
+      this.phase === "victory"
+      || this.phase === "defeat"
+      || this.phase === "fled"
+    ) {
+      return;
+    }
+    for (const combatant of this.partyCombatants) {
+      combatant.currentHp = 0;
+    }
+    this.updatePlayerStats();
+    this.battlePartyRenderer.update(
+      this.partyCombatants,
+      this.partyActionSources,
+    );
+    this.handlePartyDefeatIfNeeded();
   }
 
   private updateDebugPanel(): void {
@@ -2609,6 +2642,7 @@ export class BattleScene extends Phaser.Scene {
 
   private handlePartyDefeatIfNeeded(): boolean {
     if (!isPartyDefeated(this.partyCombatants)) return false;
+    if (this.phase === "defeat") return true;
     this.phase = "defeat";
     this.updateButtonStates();
     this.addLog("Your party has been defeated...");
@@ -2820,14 +2854,21 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private handleDefeat(): void {
+    if (this.defeatResult) return;
     const result = this.reportBattleResult("defeat");
-    // Play defeat music
-    if (audioEngine.initialized) {
-      audioEngine.playDefeatMusic();
-    }
-    applyPartyDefeat(this.player, result.knockedOutPartyIds);
-    this.addLog("You wake up in town, bruised but alive...");
-    this.time.delayedCall(2000, () => this.returnToOverworld());
+    this.defeatResult = applyPartyDefeat(
+      this.player,
+      result.knockedOutPartyIds,
+    );
+    saveGame(
+      this.player,
+      this.defeatedBosses,
+      this.codex,
+      this.player.appearanceId,
+      this.timeStep,
+      this.weatherState,
+    );
+    this.returnToDefeatResult();
   }
 
   /**
@@ -2910,15 +2951,7 @@ export class BattleScene extends Phaser.Scene {
 
   private returnToOverworld(): void {
     if (this.isReturningToOverworld) return;
-    this.battlePartyManager.clear();
-    this.battlePartyRenderer.clear();
-    for (const combatant of this.partyCombatants) {
-      clearAllEffects(combatant.effects);
-    }
-    for (const combatant of this.combatants) {
-      clearAllEffects(combatant.effects);
-    }
-    this.isReturningToOverworld = this.sceneTransitions.startWithFade(() => {
+    this.startBattleHandoff(() => {
       const state = createSharedSceneState({
         player: this.player,
         defeatedBosses: this.defeatedBosses,
@@ -2952,6 +2985,72 @@ export class BattleScene extends Phaser.Scene {
       duration: 500,
       label: "battle return",
     });
+  }
+
+  private returnToDefeatResult(): void {
+    if (!this.defeatResult || this.isReturningToOverworld) return;
+    const defeatResult = this.defeatResult;
+    this.startBattleHandoff(() => {
+      this.scene.start("DefeatScene", {
+        ...createSharedSceneState({
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          codex: this.codex,
+          timeStep: this.timeStep,
+          weatherState: this.weatherState,
+          savedSpecialNpcs: this.savedSpecialNpcs,
+        }),
+        encounterName: this.encounter.name,
+        encounterType: this.combatants.some(
+          (combatant) => combatant.monster.isBoss,
+        )
+          ? "boss"
+          : "random",
+        defeatResult,
+      });
+    }, {
+      duration: 500,
+      red: 24,
+      green: 0,
+      blue: 8,
+      label: "battle defeat result",
+    });
+  }
+
+  private startBattleHandoff(
+    startScene: () => void,
+    options: {
+      duration: number;
+      red?: number;
+      green?: number;
+      blue?: number;
+      label: string;
+    },
+  ): void {
+    if (this.isReturningToOverworld) return;
+    const queued = this.sceneTransitions.startWithFade(startScene, options);
+    if (!queued) return;
+    this.isReturningToOverworld = true;
+    this.cleanupBattleTransientState();
+  }
+
+  private cleanupBattleTransientState(): void {
+    this.closeAllSubMenus();
+    this.pendingTargetAction = null;
+    this.battlePartyManager.clear();
+    this.battlePartyRenderer.clear();
+    this.weatherParticles?.destroy();
+    this.weatherParticles = null;
+    this.stormLightningTimer?.remove(false);
+    this.stormLightningTimer = null;
+    this.input?.keyboard?.removeAllKeys(true, false);
+    setDebugCommandHandler(null);
+    for (const combatant of this.partyCombatants) {
+      clearAllEffects(combatant.effects);
+    }
+    for (const combatant of this.combatants) {
+      clearAllEffects(combatant.effects);
+    }
   }
 
   private recordElementalDiscovery(

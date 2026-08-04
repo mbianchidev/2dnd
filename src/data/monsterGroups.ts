@@ -92,6 +92,24 @@ export const MONSTER_GROUP_TEMPLATES: MonsterGroupTemplate[] = [
     encounterWeight: 4,
   },
   {
+    id: "toxicSlimeBloom",
+    name: "Toxic Slime Bloom",
+    members: [
+      { monsterId: "slime", position: "front" },
+      { monsterId: "toxicSlime", position: "front" },
+      { monsterId: "toxicSlime", position: "back" },
+    ],
+    synergy: {
+      type: "elemental_combo",
+      description: "Poison-rich slime attacks deal 1 additional damage.",
+      damageBonus: 1,
+      breakThreshold: 2,
+    },
+    minPlayerLevel: 2,
+    biomes: ["swamp", "forest", "Murky"],
+    encounterWeight: 2,
+  },
+  {
     id: "wolfPack",
     name: "Wolf Pack",
     members: [
@@ -177,6 +195,41 @@ export const MONSTER_GROUP_TEMPLATES: MonsterGroupTemplate[] = [
     },
     minPlayerLevel: 7,
     biomes: ["grass", "canyon", "sand"],
+    encounterWeight: 2,
+  },
+  {
+    id: "shamanEscort",
+    name: "Shaman Escort",
+    members: [
+      { monsterId: "orc", position: "front" },
+      { monsterId: "goblin", position: "front" },
+      { monsterId: "goblinShaman", position: "back" },
+    ],
+    synergy: {
+      type: "elemental_combo",
+      description: "The shaman's storm hex adds 1 damage while guarded.",
+      damageBonus: 1,
+      breakThreshold: 2,
+    },
+    minPlayerLevel: 5,
+    biomes: ["grass", "forest", "canyon"],
+    encounterWeight: 2,
+  },
+  {
+    id: "frozenBulwark",
+    name: "Frozen Bulwark",
+    members: [
+      { monsterId: "iceGolem", position: "front" },
+      { monsterId: "frostSlime", position: "back" },
+    ],
+    synergy: {
+      type: "shield_wall",
+      description: "The construct grants the formation +1 AC.",
+      acBonus: 1,
+      breakThreshold: 1,
+    },
+    minPlayerLevel: 7,
+    biomes: ["dungeon", "frost_cavern", "tundra", "Frozen"],
     encounterWeight: 2,
   },
   {

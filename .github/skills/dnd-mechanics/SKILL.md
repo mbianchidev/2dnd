@@ -119,6 +119,11 @@ Elemental profile order is:
 Status damage modifiers are applied before the elemental modifier. Record
 observed non-neutral interactions in the Codex.
 
+Monster `affinity` is presentation and roster metadata using the same canonical
+nine-element enum. Damage still resolves only through ability/spell elements and
+the target's `elementalProfile`; family data must not create a parallel damage
+rule.
+
 ## Status effects
 
 `src/systems/statusEffects.ts` is the single source of truth.

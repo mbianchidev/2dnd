@@ -274,26 +274,13 @@ export function drawTerrainForeground(scene: Phaser.Scene, biome: string): void 
   }
 }
 
-/** Blend two 0xRRGGBB colors — 70% first, 30% second. */
-export function blendTints(a: number, b: number): number {
-  const rA = (a >> 16) & 0xff, gA = (a >> 8) & 0xff, bA = a & 0xff;
-  const rB = (b >> 16) & 0xff, gB = (b >> 8) & 0xff, bB = b & 0xff;
-  const r = Math.round(rA * 0.7 + rB * 0.3);
-  const g = Math.round(gA * 0.7 + gB * 0.3);
-  const bl = Math.round(bA * 0.7 + bB * 0.3);
-  return (r << 16) | (g << 8) | bl;
-}
-
 /** Apply day/night tint to the battle background, monster, and player sprites. */
 export function applyBattleDayNightTint(
   scene: Phaser.Scene,
   biome: string,
   timeStep: number,
   bgImage: Phaser.GameObjects.Image | null,
-  monsters: Array<{
-    sprite: Phaser.GameObjects.Sprite;
-    color: number;
-  }>,
+  monsters: Array<{ sprite: Phaser.GameObjects.Sprite }>,
   playerSprite: Phaser.GameObjects.Sprite,
 ): void {
   const period = biome === "dungeon" ? TimePeriod.Dungeon : getTimePeriod(timeStep);
@@ -302,10 +289,10 @@ export function applyBattleDayNightTint(
   if (bgImage) {
     bgImage.setTint(tint);
   }
-  // Tint monster sprites (blend with each base color tint)
+  // Monster textures already contain their full palette.
   if (tint !== 0xffffff) {
     for (const monster of monsters) {
-      monster.sprite.setTint(blendTints(monster.color, tint));
+      monster.sprite.setTint(tint);
     }
     // Player sprite gets pure time tint
     playerSprite.setTint(tint);

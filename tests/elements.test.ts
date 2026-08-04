@@ -36,6 +36,7 @@ function createTestMonster(overrides: Partial<Monster> = {}): Monster {
   return {
     id: "testMonster",
     name: "Test Monster",
+    family: "slime",
     hp: 20,
     ac: 1,
     attackBonus: 3,

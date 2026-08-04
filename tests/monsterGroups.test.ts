@@ -56,6 +56,21 @@ describe("monster group data", () => {
     expect(encounter?.members.length).toBeLessThanOrEqual(4);
   });
 
+  it("keeps family variants in weighted, budget-safe environments", () => {
+    expect(
+      getEligibleMonsterGroups(2, ["swamp"])
+        .some((template) => template.id === "toxicSlimeBloom"),
+    ).toBe(true);
+    expect(
+      getEligibleMonsterGroups(5, ["forest"])
+        .some((template) => template.id === "shamanEscort"),
+    ).toBe(true);
+    expect(
+      getEligibleMonsterGroups(7, ["frost_cavern"])
+        .some((template) => template.id === "frozenBulwark"),
+    ).toBe(true);
+  });
+
   it("falls back to the supplied solo encounter when no group is eligible", () => {
     const slime = getMonster("slime")!;
     const encounter = createRandomEncounter(

@@ -4,6 +4,7 @@
 
 import * as Phaser from "phaser";
 import type { Monster, MonsterAbility } from "../data/monsters";
+import { getMonsterTextureKey } from "../data/monsterFamilies";
 import {
   createSoloEncounter,
   type MonsterEncounter,
@@ -475,9 +476,8 @@ export class BattleScene extends Phaser.Scene {
       const spacing = combatant.position === "front" ? 0.19 : 0.17;
       const x = w * (centerX + (rowIndex - (row.length - 1) / 2) * spacing);
       const y = h * (combatant.position === "front" ? 0.39 : 0.23);
-      const textureKey = combatant.monster.isBoss ? "monster_boss" : "monster";
+      const textureKey = getMonsterTextureKey(combatant.monster);
       const sprite = this.add.sprite(x, y, textureKey);
-      sprite.setTint(combatant.monster.color);
       sprite.setScale(
         combatant.monster.isBoss
           ? 1.7
@@ -1838,6 +1838,7 @@ export class BattleScene extends Phaser.Scene {
     const monsters = this.combatants
       .map((combatant) =>
         `${combatant.label} ${combatant.currentHp}/${combatant.monster.hp}`
+        + ` [${combatant.monster.family}:${getMonsterTextureKey(combatant.monster)}]`
         + (combatant.isDefending ? "[DEF]" : "")
       )
       .join(" | ");
@@ -2935,10 +2936,7 @@ export class BattleScene extends Phaser.Scene {
       this.biome,
       this.timeStep,
       this.bgImage,
-      this.monsterSprites.map((sprite, index) => ({
-        sprite,
-        color: this.combatants[index]?.monster.color ?? 0xffffff,
-      })),
+      this.monsterSprites.map((sprite) => ({ sprite })),
       this.playerSprite,
     );
   }

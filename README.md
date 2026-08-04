@@ -61,6 +61,13 @@ API, and saves use `localStorage`.
   immunities prevent damage
 - Elemental interactions are discovered through combat and recorded per
   monster in the Codex
+- Every monster belongs to one of 14 typed families with a stable base/variant
+  relationship, weighted encounter eligibility, and a family-specific
+  procedural silhouette. Palette variants keep distinct abilities, drops,
+  elemental profiles, and difficulty, while bosses use richer family forms.
+- The Codex groups monsters by family, cycles family filters and
+  family/name/defeat/element sorting, shows shared traits and affinity, and
+  derives family completion from existing defeated-monster discovery.
 - 15 status effects shared by players and monsters:
   Poisoned, Burning, Frozen, Paralyzed, Stunned, Frightened, Slowed, Prone,
   Asleep, Confused, Enraged, Hasted, Inspired, Raging, and Sneak Stance
@@ -125,6 +132,9 @@ API, and saves use `localStorage`.
 ### Presentation
 
 - Phaser 4 pixel-art rendering with procedural textures
+- Stable `monster-<id>-<normal|boss>-idle` texture keys provide an animation-ready
+  frame contract without adding an animation director; silhouettes and palettes
+  remain readable through shape, symbols, and detail rather than color alone
 - Procedural biome, city, battle, boss, title, cutscene, and campaign-ending
   music and cues
 - Synthesized combat, weather, movement, item, and interaction sound effects
@@ -200,6 +210,9 @@ src/
 │   ├── trapTypes.ts
 │   ├── companions.ts
 │   ├── monsters.ts
+│   ├── monsterFamilies.ts
+│   ├── monsterVariants.ts
+│   ├── nightMonsters.ts
 │   ├── monsterGroups.ts
 │   ├── elements.ts
 │   ├── spells.ts
@@ -342,6 +355,10 @@ inventory view, arrows and Page Up/Down navigate, `R` cycles sorting, `F` cycles
 filters, `/` focuses search, `X` transfers, and `Tab` changes the target. `T`
 remains mount control, and input remapping remains tracked separately in issue
 #89.
+
+In the Codex monster tab, `F` cycles the family filter and `R` cycles family,
+name, defeat-count, and elemental-affinity sorting. Family completion is derived
+from the existing Codex entries and does not add save data.
 
 ## Debug mode
 

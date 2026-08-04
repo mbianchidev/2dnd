@@ -7,14 +7,27 @@
 
 import * as Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
-import type { CodexData, CodexEntry } from "../systems/codex";
+import {
+  getCodexFamilyProgress,
+  getCodexMonsterList,
+  type CodexData,
+  type CodexEntry,
+  type CodexMonsterSort,
+} from "../systems/codex";
 import { getItem, ITEMS, type Item } from "../data/items";
 import { ALL_MONSTERS, type Monster } from "../data/monsters";
+import {
+  getMonsterFamily,
+  getMonsterTextureKey,
+  MONSTER_FAMILIES,
+  type MonsterFamilyId,
+} from "../data/monsterFamilies";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { elementDisplayName } from "../data/elements";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { installSceneAccessibility } from "../systems/accessibility";
+import { debugPanelState } from "../config";
 
 /** How many entries to show per page. */
 const ENTRIES_PER_PAGE = 8;
@@ -39,6 +52,8 @@ export class CodexScene extends Phaser.Scene {
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
 
   private category: BestiaryCategory = "monsters";
+  private monsterSort: CodexMonsterSort = "family";
+  private familyFilter?: MonsterFamilyId;
   private currentPage = 0;
   private selectedOnPage = 0;
 
@@ -49,6 +64,10 @@ export class CodexScene extends Phaser.Scene {
   private prevBtn!: Phaser.GameObjects.Text;
   private nextBtn!: Phaser.GameObjects.Text;
   private discoveredLabel!: Phaser.GameObjects.Text;
+  private familyFilterText!: Phaser.GameObjects.Text;
+  private sortText!: Phaser.GameObjects.Text;
+  private familyHeaderText!: Phaser.GameObjects.Text;
+  private monsterPreview!: Phaser.GameObjects.Sprite;
   private tabTexts: Phaser.GameObjects.Text[] = [];
   private tabUnderline!: Phaser.GameObjects.Graphics;
 
@@ -71,6 +90,8 @@ export class CodexScene extends Phaser.Scene {
     this.weatherState = data.weatherState ?? createWeatherState();
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.category = "monsters";
+    this.monsterSort = "family";
+    this.familyFilter = undefined;
     this.currentPage = 0;
     this.selectedOnPage = 0;
     this.entryTexts = [];
@@ -82,7 +103,12 @@ export class CodexScene extends Phaser.Scene {
   /** Get the master list for the active category. */
   private get masterList(): (Monster | Item)[] {
     switch (this.category) {
-      case "monsters": return ALL_MONSTERS;
+      case "monsters":
+        return getCodexMonsterList(
+          this.codex,
+          this.monsterSort,
+          this.familyFilter,
+        );
       case "weapons": return ALL_WEAPONS;
       case "armor": return ALL_ARMOR;
       case "items": return ALL_ITEMS;
@@ -159,18 +185,37 @@ export class CodexScene extends Phaser.Scene {
     }
 
     // Discovered counter
+    this.familyFilterText = this.add
+      .text(14, 47, "", {
+        fontSize: "10px",
+        fontFamily: "monospace",
+        color: "#c0a060",
+      })
+      .setInteractive({ useHandCursor: true });
+    this.familyFilterText.on("pointerdown", () => this.cycleFamilyFilter());
+
+    this.sortText = this.add
+      .text(w - 14, 47, "", {
+        fontSize: "10px",
+        fontFamily: "monospace",
+        color: "#c0a060",
+      })
+      .setOrigin(1, 0)
+      .setInteractive({ useHandCursor: true });
+    this.sortText.on("pointerdown", () => this.cycleMonsterSort());
+
     this.discoveredLabel = this.add
-      .text(w / 2, 48, "", { fontSize: "10px", fontFamily: "monospace", color: "#888" })
+      .text(w / 2, 67, "", { fontSize: "10px", fontFamily: "monospace", color: "#888" })
       .setOrigin(0.5, 0);
 
     // Left panel
     const listBg = this.add.graphics();
     listBg.fillStyle(0x181830, 0.95);
-    listBg.fillRect(10, 62, w * 0.38, h - 114);
+    listBg.fillRect(10, 86, w * 0.38, h - 138);
     listBg.lineStyle(1, 0xc0a060, 0.7);
-    listBg.strokeRect(10, 62, w * 0.38, h - 114);
+    listBg.strokeRect(10, 86, w * 0.38, h - 138);
 
-    this.listContainer = this.add.container(20, 68);
+    this.listContainer = this.add.container(20, 92);
 
     // Page nav
     const pageCx = 10 + (w * 0.38) / 2;
@@ -201,13 +246,25 @@ export class CodexScene extends Phaser.Scene {
     // Right panel
     const detailBg = this.add.graphics();
     detailBg.fillStyle(0x181830, 0.95);
-    detailBg.fillRect(w * 0.4, 62, w * 0.58, h - 114);
+    detailBg.fillRect(w * 0.4, 86, w * 0.58, h - 138);
     detailBg.lineStyle(1, 0xc0a060, 0.7);
-    detailBg.strokeRect(w * 0.4, 62, w * 0.58, h - 114);
+    detailBg.strokeRect(w * 0.4, 86, w * 0.58, h - 138);
 
-    this.detailText = this.add.text(w * 0.4 + 15, 70, "", {
-      fontSize: "13px", fontFamily: "monospace", color: "#ccc",
-      lineSpacing: 6, wordWrap: { width: w * 0.55 - 20 },
+    this.familyHeaderText = this.add.text(w * 0.4 + 12, 92, "", {
+      fontSize: "10px",
+      fontFamily: "monospace",
+      color: "#ffd166",
+      lineSpacing: 3,
+      wordWrap: { width: w * 0.55 - 15 },
+    });
+    this.monsterPreview = this.add
+      .sprite(w * 0.48, 210, getMonsterTextureKey(ALL_MONSTERS[0]!))
+      .setScale(0.72)
+      .setVisible(false);
+
+    this.detailText = this.add.text(w * 0.57, 170, "", {
+      fontSize: "11px", fontFamily: "monospace", color: "#ccc",
+      lineSpacing: 3, wordWrap: { width: w * 0.39 - 16 },
     });
 
     this.renderPage();
@@ -236,6 +293,35 @@ export class CodexScene extends Phaser.Scene {
     this.renderPage();
   }
 
+  private cycleFamilyFilter(): void {
+    if (this.category !== "monsters") return;
+    const ids = MONSTER_FAMILIES.map((family) => family.id);
+    const currentIndex = this.familyFilter
+      ? ids.indexOf(this.familyFilter)
+      : -1;
+    this.familyFilter = currentIndex >= ids.length - 1
+      ? undefined
+      : ids[currentIndex + 1];
+    this.currentPage = 0;
+    this.selectedOnPage = 0;
+    this.renderPage();
+  }
+
+  private cycleMonsterSort(): void {
+    if (this.category !== "monsters") return;
+    const sorts: CodexMonsterSort[] = [
+      "family",
+      "name",
+      "defeated",
+      "element",
+    ];
+    const nextIndex = (sorts.indexOf(this.monsterSort) + 1) % sorts.length;
+    this.monsterSort = sorts[nextIndex]!;
+    this.currentPage = 0;
+    this.selectedOnPage = 0;
+    this.renderPage();
+  }
+
   // ── Page rendering ───────────────────────────────────────────
 
   private pageEntries(): (Monster | Item)[] {
@@ -250,6 +336,19 @@ export class CodexScene extends Phaser.Scene {
     this.discoveredLabel.setText(
       `Discovered: ${this.discoveredCountForCategory()} / ${this.masterList.length}`
     );
+    const controlsVisible = this.category === "monsters";
+    this.familyFilterText
+      .setVisible(controlsVisible)
+      .setText(
+        `F Family: ${
+          this.familyFilter
+            ? getMonsterFamily(this.familyFilter).name
+            : "All"
+        }`,
+      );
+    this.sortText
+      .setVisible(controlsVisible)
+      .setText(`R Sort: ${this.monsterSort}`);
 
     const entries = this.pageEntries();
 
@@ -262,12 +361,13 @@ export class CodexScene extends Phaser.Scene {
       if (this.category === "monsters") {
         const m = entry as Monster;
         const bossPrefix = m.isBoss ? "☠ " : "  ";
+        const family = getMonsterFamily(m.family);
         if (discovered) {
           const be = this.codex.entries[m.id];
-          label = `${bossPrefix}${m.name} (×${be.timesDefeated})`;
+          label = `${bossPrefix}${family.symbol} ${m.name} (×${be.timesDefeated})`;
           baseColor = isSelected ? "#ffd700" : "#aaa";
         } else {
-          label = `${bossPrefix}???`;
+          label = `${bossPrefix}${family.symbol} ???`;
           baseColor = isSelected ? "#ffd700" : "#555";
         }
       } else {
@@ -301,6 +401,8 @@ export class CodexScene extends Phaser.Scene {
       this.showDetail(selected);
     } else {
       this.detailText.setText("");
+      this.familyHeaderText.setText("");
+      this.monsterPreview.setVisible(false);
     }
   }
 
@@ -309,20 +411,55 @@ export class CodexScene extends Phaser.Scene {
   private showDetail(entry: Monster | Item): void {
     if (!this.isDiscovered(entry)) {
       this.detailText.setText("???\n\nNot yet discovered.\nFind this in the world to reveal details!");
+      if (this.category === "monsters") {
+        const monster = entry as Monster;
+        const progress = getCodexFamilyProgress(this.codex, monster.family);
+        this.familyHeaderText.setText(
+          `${progress.family.symbol} ${progress.family.name}\n`
+          + `${progress.discovered}/${progress.total} discovered`,
+        );
+        this.monsterPreview
+          .setTexture(getMonsterTextureKey(monster))
+          .setScale(monster.isBoss ? 0.62 : 0.72)
+          .setTint(0x111111)
+          .setVisible(true);
+        this.updateDebugState(monster, progress.complete);
+      } else {
+        this.familyHeaderText.setText("");
+        this.monsterPreview.setVisible(false);
+      }
       return;
     }
     if (this.category === "monsters") {
       this.showMonsterDetail(entry as Monster);
     } else {
+      this.familyHeaderText.setText("");
+      this.monsterPreview.setVisible(false);
       this.showItemDetail(entry as Item);
     }
   }
 
   private showMonsterDetail(monster: Monster): void {
     const entry: CodexEntry = this.codex.entries[monster.id];
+    const familyProgress = getCodexFamilyProgress(this.codex, monster.family);
+    const family = familyProgress.family;
+    this.familyHeaderText.setText(
+      `${family.symbol} ${family.name} — ${familyProgress.discovered}/${familyProgress.total}\n`
+      + `${family.sharedTraits.join(" • ")}`
+      + (familyProgress.complete ? "\n★ FAMILY COMPLETE" : ""),
+    );
+    this.monsterPreview
+      .clearTint()
+      .setTexture(getMonsterTextureKey(monster))
+      .setScale(monster.isBoss ? 0.62 : 0.72)
+      .setVisible(true);
     const lines: string[] = [];
     lines.push(entry.isBoss ? `☠ ${entry.name} (Boss)` : entry.name);
     lines.push(`Times Defeated: ${entry.timesDefeated}`);
+    lines.push(`Family: ${family.name}`);
+    lines.push(
+      `Affinity: ${monster.affinity ? elementDisplayName(monster.affinity) : "None"}`,
+    );
     lines.push("");
     lines.push(`― Stats ―`);
     lines.push(`HP: ${entry.hp}`);
@@ -370,6 +507,20 @@ export class CodexScene extends Phaser.Scene {
       lines.push(`  Not yet discovered.`);
     }
     this.detailText.setText(lines.join("\n"));
+    this.updateDebugState(monster, familyProgress.complete);
+  }
+
+  private updateDebugState(
+    monster: Monster,
+    familyComplete: boolean,
+  ): void {
+    debugPanelState(
+      `CODEX | Category: Monsters | Family: ${
+        this.familyFilter ?? "all"
+      } | Sort: ${this.monsterSort} | Selected: ${monster.id} | `
+      + `Texture: ${getMonsterTextureKey(monster)} | `
+      + `Completion: ${familyComplete ? "complete" : "incomplete"}`,
+    );
   }
 
   private showItemDetail(item: Item): void {
@@ -418,6 +569,8 @@ export class CodexScene extends Phaser.Scene {
     const rightKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D);
     const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     const bKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.B);
+    const fKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+    const rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
 
     upKey.on("down", () => {
       if (this.selectedOnPage > 0) { this.selectedOnPage--; this.renderPage(); }
@@ -429,6 +582,8 @@ export class CodexScene extends Phaser.Scene {
     rightKey.on("down", () => this.goToNextPage());
     escKey.on("down", () => this.goBack());
     bKey.on("down", () => this.goBack());
+    fKey.on("down", () => this.cycleFamilyFilter());
+    rKey.on("down", () => this.cycleMonsterSort());
 
     // Number keys 1-4 to switch category tabs
     const cats: BestiaryCategory[] = ["monsters", "weapons", "armor", "items"];

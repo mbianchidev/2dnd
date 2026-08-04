@@ -6,6 +6,31 @@ import type { DieType } from "../systems/dice";
 import { Element } from "./elements";
 import type { ElementalProfile } from "./elements";
 import type { StatusEffectId } from "../systems/statusEffects";
+import type { MonsterFamilyId } from "./monsterFamilies";
+import {
+  FROST_SLIME,
+  GOBLIN_SHAMAN,
+  ICE_GOLEM,
+  ORC_BERSERKER,
+  RUNIC_MIMIC,
+  TOXIC_SLIME,
+} from "./monsterVariants";
+import {
+  CANYON_NIGHT_MONSTERS,
+  FOREST_NIGHT_MONSTERS,
+  getNightMonsterPool,
+  NIGHT_MONSTERS,
+  SWAMP_NIGHT_MONSTERS,
+  TUNDRA_NIGHT_MONSTERS,
+} from "./nightMonsters";
+
+export {
+  CANYON_NIGHT_MONSTERS,
+  FOREST_NIGHT_MONSTERS,
+  NIGHT_MONSTERS,
+  SWAMP_NIGHT_MONSTERS,
+  TUNDRA_NIGHT_MONSTERS,
+} from "./nightMonsters";
 
 export interface MonsterDrop {
   itemId: string;
@@ -29,6 +54,11 @@ export interface MonsterAbility {
 export interface Monster {
   id: string;
   name: string;
+  family: MonsterFamilyId;
+  /** Base roster member used to validate deliberate palette/stat variants. */
+  variantOf?: string;
+  /** Dominant elemental identity shown by the Codex. */
+  affinity?: Element;
   hp: number;
   ac: number; // armor class
   attackBonus: number;
@@ -38,6 +68,10 @@ export interface Monster {
   goldReward: number;
   isBoss: boolean;
   color: number; // display color in battle
+  /** Earliest player level at which this monster can enter a random pool. */
+  minPlayerLevel?: number;
+  /** Relative selection weight after level eligibility has been applied. */
+  encounterWeight?: number;
   drops?: MonsterDrop[];
   abilities?: MonsterAbility[];
   /** Elemental resistances, weaknesses, and immunities. */
@@ -49,6 +83,7 @@ export const MONSTERS: Monster[] = [
   {
     id: "slime",
     name: "Slime",
+    family: "slime",
     hp: 8,
     ac: 8,
     attackBonus: 1,
@@ -63,9 +98,11 @@ export const MONSTERS: Monster[] = [
       { name: "Acid Spit", chance: 0.2, damageCount: 1, damageDie: 4, type: "damage", element: Element.Poison, statusEffect: "poison" },
     ],
   },
+  TOXIC_SLIME,
   {
     id: "goblin",
     name: "Goblin",
+    family: "raider",
     hp: 15,
     ac: 12,
     attackBonus: 3,
@@ -77,9 +114,11 @@ export const MONSTERS: Monster[] = [
     color: 0x88aa44,
     drops: [{ itemId: "potion", chance: 0.2 }, { itemId: "ether", chance: 0.1 }, { itemId: "antidote", chance: 0.08 }],
   },
+  GOBLIN_SHAMAN,
   {
     id: "skeleton",
     name: "Skeleton",
+    family: "skeletal",
     hp: 22,
     ac: 13,
     attackBonus: 4,
@@ -101,6 +140,7 @@ export const MONSTERS: Monster[] = [
   {
     id: "wolf",
     name: "Dire Wolf",
+    family: "lupine",
     hp: 30,
     ac: 13,
     attackBonus: 5,
@@ -118,6 +158,7 @@ export const MONSTERS: Monster[] = [
   {
     id: "orc",
     name: "Orc Warrior",
+    family: "raider",
     hp: 42,
     ac: 14,
     attackBonus: 6,
@@ -132,9 +173,12 @@ export const MONSTERS: Monster[] = [
       { name: "Cleave", chance: 0.35, damageCount: 2, damageDie: 10, type: "damage" },
     ],
   },
+  ORC_BERSERKER,
   {
     id: "wraith",
     name: "Wraith",
+    family: "spectral",
+    affinity: Element.Necrotic,
     hp: 55,
     ac: 15,
     attackBonus: 6,
@@ -159,6 +203,7 @@ export const MONSTERS: Monster[] = [
   {
     id: "troll",
     name: "Cave Troll",
+    family: "colossus",
     hp: 84,
     ac: 15,
     attackBonus: 7,
@@ -180,6 +225,8 @@ export const MONSTERS: Monster[] = [
   {
     id: "dragon",
     name: "Young Red Dragon",
+    family: "drake",
+    affinity: Element.Fire,
     hp: 178,
     ac: 18,
     attackBonus: 10,
@@ -203,6 +250,9 @@ export const MONSTERS: Monster[] = [
   {
     id: "frostGiant",
     name: "Frost Giant",
+    family: "colossus",
+    variantOf: "troll",
+    affinity: Element.Ice,
     hp: 120,
     ac: 16,
     attackBonus: 8,
@@ -225,6 +275,9 @@ export const MONSTERS: Monster[] = [
   {
     id: "swampHydra",
     name: "Swamp Hydra",
+    family: "chimaera",
+    variantOf: "greatChimaera",
+    affinity: Element.Poison,
     hp: 140,
     ac: 14,
     attackBonus: 8,
@@ -247,6 +300,9 @@ export const MONSTERS: Monster[] = [
   {
     id: "volcanicWyrm",
     name: "Volcanic Wyrm",
+    family: "drake",
+    variantOf: "dragon",
+    affinity: Element.Fire,
     hp: 160,
     ac: 17,
     attackBonus: 9,
@@ -269,6 +325,8 @@ export const MONSTERS: Monster[] = [
   {
     id: "canyonDrake",
     name: "Canyon Drake",
+    family: "drake",
+    variantOf: "dragon",
     hp: 130,
     ac: 16,
     attackBonus: 8,
@@ -288,6 +346,8 @@ export const MONSTERS: Monster[] = [
   {
     id: "chimaera",
     name: "Chimaera",
+    family: "chimaera",
+    affinity: Element.Fire,
     hp: 48,
     ac: 14,
     attackBonus: 8,
@@ -305,6 +365,8 @@ export const MONSTERS: Monster[] = [
   {
     id: "greatChimaera",
     name: "Great Chimaera",
+    family: "chimaera",
+    variantOf: "chimaera",
     hp: 72,
     ac: 16,
     attackBonus: 11,
@@ -327,6 +389,7 @@ export const DUNGEON_MONSTERS: Monster[] = [
   {
     id: "giantRat",
     name: "Giant Rat",
+    family: "stalker",
     hp: 14,
     ac: 11,
     attackBonus: 3,
@@ -344,6 +407,9 @@ export const DUNGEON_MONSTERS: Monster[] = [
   {
     id: "shadow",
     name: "Shadow",
+    family: "spectral",
+    variantOf: "wraith",
+    affinity: Element.Necrotic,
     hp: 26,
     ac: 13,
     attackBonus: 5,
@@ -365,6 +431,7 @@ export const DUNGEON_MONSTERS: Monster[] = [
   {
     id: "mimic",
     name: "Mimic",
+    family: "mimic",
     hp: 40,
     ac: 14,
     attackBonus: 6,
@@ -382,9 +449,11 @@ export const DUNGEON_MONSTERS: Monster[] = [
       { name: "Chomp", chance: 0.3, damageCount: 3, damageDie: 6, type: "damage" },
     ],
   },
+  RUNIC_MIMIC,
   {
     id: "stoneGolem",
     name: "Stone Golem",
+    family: "construct",
     hp: 60,
     ac: 16,
     attackBonus: 7,
@@ -414,6 +483,9 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
   {
     id: "cryptSkeleton",
     name: "Crypt Skeleton",
+    family: "skeletal",
+    variantOf: "skeleton",
+    affinity: Element.Necrotic,
     hp: 30,
     ac: 14,
     attackBonus: 5,
@@ -436,6 +508,9 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
   {
     id: "tombWraith",
     name: "Tomb Wraith",
+    family: "spectral",
+    variantOf: "wraith",
+    affinity: Element.Necrotic,
     hp: 45,
     ac: 15,
     attackBonus: 6,
@@ -458,6 +533,8 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
   {
     id: "bonePile",
     name: "Animated Bone Pile",
+    family: "skeletal",
+    variantOf: "skeleton",
     hp: 55,
     ac: 12,
     attackBonus: 5,
@@ -477,9 +554,12 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
 
 /** Frost Cavern monsters — icy theme. */
 export const FROST_CAVERN_MONSTERS: Monster[] = [
+  FROST_SLIME,
   {
     id: "iceElemental",
     name: "Ice Elemental",
+    family: "elemental",
+    affinity: Element.Ice,
     hp: 35,
     ac: 14,
     attackBonus: 5,
@@ -502,6 +582,9 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
   {
     id: "frostSpider",
     name: "Frost Spider",
+    family: "stalker",
+    variantOf: "giantRat",
+    affinity: Element.Ice,
     hp: 28,
     ac: 13,
     attackBonus: 5,
@@ -524,6 +607,8 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
   {
     id: "glacialBear",
     name: "Glacial Bear",
+    family: "colossus",
+    affinity: Element.Ice,
     hp: 65,
     ac: 15,
     attackBonus: 7,
@@ -542,6 +627,7 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
       weaknesses: [Element.Fire],
     },
   },
+  ICE_GOLEM,
 ];
 
 /** Volcanic Forge monsters — fire theme. */
@@ -549,6 +635,9 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
   {
     id: "magmaSlime",
     name: "Magma Slime",
+    family: "slime",
+    variantOf: "slime",
+    affinity: Element.Fire,
     hp: 32,
     ac: 12,
     attackBonus: 5,
@@ -570,6 +659,9 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
   {
     id: "cinderWraith",
     name: "Cinder Wraith",
+    family: "spectral",
+    variantOf: "wraith",
+    affinity: Element.Fire,
     hp: 42,
     ac: 14,
     attackBonus: 6,
@@ -592,6 +684,9 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
   {
     id: "obsidianGolem",
     name: "Obsidian Golem",
+    family: "construct",
+    variantOf: "stoneGolem",
+    affinity: Element.Fire,
     hp: 70,
     ac: 17,
     attackBonus: 7,
@@ -629,6 +724,9 @@ export const DUNGEON_BOSSES: Monster[] = [
   {
     id: "cryptLich",
     name: "Crypt Lich",
+    family: "skeletal",
+    variantOf: "skeleton",
+    affinity: Element.Necrotic,
     hp: 110,
     ac: 17,
     attackBonus: 8,
@@ -652,6 +750,9 @@ export const DUNGEON_BOSSES: Monster[] = [
   {
     id: "frostWarden",
     name: "Frost Warden",
+    family: "spectral",
+    variantOf: "frostWraith",
+    affinity: Element.Ice,
     hp: 130,
     ac: 18,
     attackBonus: 9,
@@ -675,6 +776,9 @@ export const DUNGEON_BOSSES: Monster[] = [
   {
     id: "infernoForgemaster",
     name: "Inferno Forgemaster",
+    family: "construct",
+    variantOf: "obsidianGolem",
+    affinity: Element.Fire,
     hp: 150,
     ac: 19,
     attackBonus: 10,
@@ -712,28 +816,67 @@ export function getDungeonBoss(dungeonId: string): Monster | undefined {
   return boss ? { ...boss } : undefined;
 }
 
-/** Get a random non-boss monster scaled to player level. */
-export function getRandomEncounter(playerLevel: number): Monster {
-  const nonBoss = MONSTERS.filter((m) => !m.isBoss);
-  // Scale difficulty: higher level = chance of tougher monsters
-  const maxIndex = Math.min(
-    nonBoss.length - 1,
-    Math.floor(playerLevel / 2) + 1
+export function getEligibleEncounterMonsters(
+  pool: readonly Monster[],
+  playerLevel: number,
+  levelDivisor: number,
+): Monster[] {
+  const levelEligible = pool.filter(
+    (monster) => playerLevel >= (monster.minPlayerLevel ?? 0),
   );
-  const index = Math.floor(Math.random() * (maxIndex + 1));
-  // Return a copy so we don't mutate the template
-  return { ...nonBoss[index] };
+  if (levelEligible.length === 0) return [];
+  const maxIndex = Math.min(
+    levelEligible.length - 1,
+    Math.floor(Math.max(0, playerLevel) / levelDivisor) + 1,
+  );
+  return levelEligible.slice(0, maxIndex + 1);
+}
+
+export function selectWeightedMonster(
+  pool: readonly Monster[],
+  random: () => number = Math.random,
+): Monster {
+  if (pool.length === 0) {
+    throw new Error("Cannot select an encounter from an empty monster pool.");
+  }
+  const totalWeight = pool.reduce(
+    (total, monster) => total + Math.max(0, monster.encounterWeight ?? 1),
+    0,
+  );
+  if (totalWeight <= 0) {
+    throw new Error("Encounter pool must contain a positive monster weight.");
+  }
+  let pick = Math.max(0, Math.min(0.999999, random())) * totalWeight;
+  for (const monster of pool) {
+    pick -= Math.max(0, monster.encounterWeight ?? 1);
+    if (pick < 0) return { ...monster };
+  }
+  return { ...pool[pool.length - 1]! };
+}
+
+/** Get a random non-boss monster scaled to player level. */
+export function getRandomEncounter(
+  playerLevel: number,
+  random: () => number = Math.random,
+): Monster {
+  const nonBoss = MONSTERS.filter((m) => !m.isBoss);
+  return selectWeightedMonster(
+    getEligibleEncounterMonsters(nonBoss, playerLevel, 2),
+    random,
+  );
 }
 
 /** Get a random dungeon monster scaled to player level. Uses dungeon-specific pool if available. */
-export function getDungeonEncounter(playerLevel: number, dungeonId?: string): Monster {
+export function getDungeonEncounter(
+  playerLevel: number,
+  dungeonId?: string,
+  random: () => number = Math.random,
+): Monster {
   const pool = (dungeonId && DUNGEON_MONSTER_POOLS[dungeonId]) || DUNGEON_MONSTERS;
-  const maxIndex = Math.min(
-    pool.length - 1,
-    Math.floor(playerLevel / 3) + 1
+  return selectWeightedMonster(
+    getEligibleEncounterMonsters(pool, playerLevel, 3),
+    random,
   );
-  const index = Math.floor(Math.random() * (maxIndex + 1));
-  return { ...pool[index] };
 }
 
 /** Get a specific boss by ID (O(1) lookup). */
@@ -742,268 +885,17 @@ export function getBoss(id: string): Monster | undefined {
   return boss ? { ...boss } : undefined;
 }
 
-/** Night-only overworld monsters — appear during Dusk and Night. */
-export const NIGHT_MONSTERS: Monster[] = [
-  {
-    id: "nightWolf",
-    name: "Night Wolf",
-    hp: 20,
-    ac: 12,
-    attackBonus: 4,
-    damageCount: 2,
-    damageDie: 6,
-    xpReward: 60,
-    goldReward: 8,
-    isBoss: false,
-    color: 0x334466,
-    drops: [{ itemId: "potion", chance: 0.2 }],
-    abilities: [
-      { name: "Shadow Howl", chance: 0.3, damageCount: 2, damageDie: 4, type: "damage" },
-    ],
-  },
-  {
-    id: "vampireBat",
-    name: "Vampire Bat",
-    hp: 28,
-    ac: 14,
-    attackBonus: 5,
-    damageCount: 1,
-    damageDie: 8,
-    xpReward: 80,
-    goldReward: 14,
-    isBoss: false,
-    color: 0x442244,
-    drops: [{ itemId: "ether", chance: 0.2 }],
-    abilities: [
-      { name: "Blood Drain", chance: 0.35, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true, element: Element.Necrotic },
-    ],
-    elementalProfile: {
-      weaknesses: [Element.Radiant, Element.Fire],
-    },
-  },
-  {
-    id: "specter",
-    name: "Specter",
-    hp: 40,
-    ac: 14,
-    attackBonus: 5,
-    damageCount: 2,
-    damageDie: 8,
-    xpReward: 120,
-    goldReward: 20,
-    isBoss: false,
-    color: 0x8888cc,
-    drops: [{ itemId: "ether", chance: 0.2 }, { itemId: "greaterPotion", chance: 0.1 }],
-    abilities: [
-      { name: "Chill Touch", chance: 0.3, damageCount: 3, damageDie: 6, type: "damage", element: Element.Necrotic },
-    ],
-    elementalProfile: {
-      weaknesses: [Element.Radiant],
-      resistances: [Element.Necrotic],
-    },
-  },
-];
-
-/** Tundra night monsters — frost-touched horrors. */
-export const TUNDRA_NIGHT_MONSTERS: Monster[] = [
-  {
-    id: "frostWraith",
-    name: "Frost Wraith",
-    hp: 35,
-    ac: 14,
-    attackBonus: 5,
-    damageCount: 2,
-    damageDie: 8,
-    xpReward: 90,
-    goldReward: 16,
-    isBoss: false,
-    color: 0xb3e5fc,
-    drops: [{ itemId: "ether", chance: 0.25 }],
-    abilities: [
-      { name: "Frostbite", chance: 0.35, damageCount: 3, damageDie: 6, type: "damage", element: Element.Ice },
-      { name: "Glacial Mist", chance: 0.2, damageCount: 2, damageDie: 4, type: "damage", element: Element.Ice },
-    ],
-    elementalProfile: {
-      immunities: [Element.Ice],
-      weaknesses: [Element.Fire, Element.Radiant],
-    },
-  },
-  {
-    id: "snowStalker",
-    name: "Snow Stalker",
-    hp: 25,
-    ac: 13,
-    attackBonus: 5,
-    damageCount: 2,
-    damageDie: 6,
-    xpReward: 70,
-    goldReward: 10,
-    isBoss: false,
-    color: 0xcfd8dc,
-    drops: [{ itemId: "potion", chance: 0.2 }],
-    abilities: [
-      { name: "Ambush", chance: 0.35, damageCount: 3, damageDie: 6, type: "damage" },
-    ],
-  },
-];
-
-/** Swamp night monsters — boggy lurkers. */
-export const SWAMP_NIGHT_MONSTERS: Monster[] = [
-  {
-    id: "willOWisp",
-    name: "Will-o'-Wisp",
-    hp: 22,
-    ac: 16,
-    attackBonus: 4,
-    damageCount: 2,
-    damageDie: 8,
-    xpReward: 85,
-    goldReward: 12,
-    isBoss: false,
-    color: 0x76ff03,
-    drops: [{ itemId: "ether", chance: 0.3 }],
-    abilities: [
-      { name: "Lure Light", chance: 0.35, damageCount: 2, damageDie: 8, type: "damage", element: Element.Lightning },
-      { name: "Consume Life", chance: 0.2, damageCount: 2, damageDie: 6, type: "damage", selfHeal: true, element: Element.Necrotic },
-    ],
-    elementalProfile: {
-      immunities: [Element.Lightning, Element.Poison],
-      weaknesses: [Element.Force],
-    },
-  },
-  {
-    id: "bogCreeper",
-    name: "Bog Creeper",
-    hp: 38,
-    ac: 12,
-    attackBonus: 5,
-    damageCount: 2,
-    damageDie: 8,
-    xpReward: 95,
-    goldReward: 15,
-    isBoss: false,
-    color: 0x33691e,
-    drops: [{ itemId: "potion", chance: 0.25 }],
-    abilities: [
-      { name: "Entangle", chance: 0.3, damageCount: 2, damageDie: 6, type: "damage" },
-      { name: "Toxic Spore", chance: 0.25, damageCount: 3, damageDie: 4, type: "damage", element: Element.Poison },
-    ],
-    elementalProfile: {
-      resistances: [Element.Poison],
-      weaknesses: [Element.Fire, Element.Ice],
-    },
-  },
-];
-
-/** Deep Forest night monsters — ancient woodland terrors. */
-export const FOREST_NIGHT_MONSTERS: Monster[] = [
-  {
-    id: "darkTreent",
-    name: "Dark Treant",
-    hp: 50,
-    ac: 15,
-    attackBonus: 6,
-    damageCount: 2,
-    damageDie: 10,
-    xpReward: 110,
-    goldReward: 20,
-    isBoss: false,
-    color: 0x1b5e20,
-    drops: [{ itemId: "greaterPotion", chance: 0.15 }],
-    abilities: [
-      { name: "Root Crush", chance: 0.35, damageCount: 3, damageDie: 8, type: "damage" },
-      { name: "Bark Shield", chance: 0.2, damageCount: 3, damageDie: 6, type: "heal" },
-    ],
-  },
-  {
-    id: "gloomSprite",
-    name: "Gloom Sprite",
-    hp: 18,
-    ac: 15,
-    attackBonus: 4,
-    damageCount: 1,
-    damageDie: 10,
-    xpReward: 65,
-    goldReward: 10,
-    isBoss: false,
-    color: 0x2e7d32,
-    drops: [{ itemId: "ether", chance: 0.2 }],
-    abilities: [
-      { name: "Thorn Dart", chance: 0.3, damageCount: 2, damageDie: 6, type: "damage" },
-      { name: "Sleep Dust", chance: 0.2, damageCount: 1, damageDie: 6, type: "damage" },
-    ],
-  },
-];
-
-/** Canyon night monsters — stone predators. */
-export const CANYON_NIGHT_MONSTERS: Monster[] = [
-  {
-    id: "stoneLurker",
-    name: "Stone Lurker",
-    hp: 45,
-    ac: 16,
-    attackBonus: 6,
-    damageCount: 2,
-    damageDie: 10,
-    xpReward: 100,
-    goldReward: 18,
-    isBoss: false,
-    color: 0x8d6e63,
-    drops: [{ itemId: "potion", chance: 0.2 }],
-    abilities: [
-      { name: "Rock Slide", chance: 0.35, damageCount: 3, damageDie: 8, type: "damage" },
-      { name: "Burrow", chance: 0.15, damageCount: 2, damageDie: 6, type: "heal" },
-    ],
-  },
-  {
-    id: "dustDevil",
-    name: "Dust Devil",
-    hp: 30,
-    ac: 14,
-    attackBonus: 5,
-    damageCount: 2,
-    damageDie: 8,
-    xpReward: 75,
-    goldReward: 12,
-    isBoss: false,
-    color: 0xbcaaa4,
-    drops: [{ itemId: "ether", chance: 0.2 }],
-    abilities: [
-      { name: "Sand Blast", chance: 0.3, damageCount: 3, damageDie: 4, type: "damage" },
-      { name: "Whirlwind", chance: 0.25, damageCount: 2, damageDie: 8, type: "damage" },
-    ],
-  },
-];
-
-/** Biome-name prefix → night monster pool. */
-const BIOME_NIGHT_POOLS: Record<string, Monster[]> = {
-  Frozen:   TUNDRA_NIGHT_MONSTERS,
-  Murky:    SWAMP_NIGHT_MONSTERS,
-  Woodland: FOREST_NIGHT_MONSTERS,
-  Rocky:    CANYON_NIGHT_MONSTERS,
-  Arid:     CANYON_NIGHT_MONSTERS,
-  Scorched: [], // volcanic — no night encounters in lava fields
-  Highland: NIGHT_MONSTERS,
-  Ancient:  NIGHT_MONSTERS,
-};
-
-/** Get the biome-specific night pool for a given biome name. Falls back to generic. */
-function getBiomeNightPool(biomeName: string): Monster[] {
-  for (const [prefix, pool] of Object.entries(BIOME_NIGHT_POOLS)) {
-    if (biomeName.startsWith(prefix)) return pool.length > 0 ? pool : NIGHT_MONSTERS;
-  }
-  return NIGHT_MONSTERS;
-}
-
 /** Get a random night-only monster scaled to player level, optionally biome-specific. */
-export function getNightEncounter(playerLevel: number, biomeName?: string): Monster {
-  const pool = biomeName ? getBiomeNightPool(biomeName) : NIGHT_MONSTERS;
-  const maxIndex = Math.min(
-    pool.length - 1,
-    Math.floor(playerLevel / 2) + 1
+export function getNightEncounter(
+  playerLevel: number,
+  biomeName?: string,
+  random: () => number = Math.random,
+): Monster {
+  const pool = getNightMonsterPool(biomeName);
+  return selectWeightedMonster(
+    getEligibleEncounterMonsters(pool, playerLevel, 2),
+    random,
   );
-  const index = Math.floor(Math.random() * (maxIndex + 1));
-  return { ...pool[index] };
 }
 
 /**

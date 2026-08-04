@@ -546,10 +546,9 @@ Schema-v6 and older saves gain an empty `seenCutsceneIds` list. Cutscene
 normalization keeps only known stable IDs and removes malformed or duplicate
 entries. Schema-v7 and older saves gain an empty `pendingCutsceneIds` list;
 normalization removes unknown, duplicate, malformed, or already-seen IDs.
-Legacy recovery queues only a completed-but-unseen epilogue. Schema-v8 and
-older saves gain `{ completed: true }` tutorial progress so established
-campaigns are not interrupted; malformed v9 completion values normalize to
-false.
+Legacy recovery queues only a completed-but-unseen epilogue. Pre-v9 saves gain
+`{ completed: true }` tutorial progress so established campaigns are not
+interrupted; malformed v9 completion values normalize to false.
 
 When persistent data changes:
 

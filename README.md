@@ -351,7 +351,7 @@ Game state is stored under `2dnd_save`; audio preferences use
 `2dnd_audio_prefs`; cutscene accessibility preferences use
 `2dnd_cutscene_accessibility`.
 
-Save schema version 8 persists:
+Save schema version 9 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -369,6 +369,8 @@ Save schema version 8 persists:
 - Recruited and active companion IDs; independent progression, resources,
   inventories, equipment, status effects, dialogue state, control modes, and
   normalized ranked gambit rules
+- New-player tutorial completion; pre-v9 campaigns migrate as already completed
+  so established saves are not interrupted
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed

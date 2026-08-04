@@ -206,8 +206,8 @@ top-level save is absent or corrupt.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Schema-v8 position, objective/reward/warning quest state, skill checks, traps,
-  party state, and pending cutscene queue
+- Current schema-v9 position, objective/reward/warning quest state, skill checks,
+  traps, party state, pending cutscene queue, and tutorial completion
 - Flat schema-v4 quest migration and completed-reward preservation
 - Schema-v3 skill-check saves gaining default normalized quest state
 - Schema-v4 quest saves gaining default trap state

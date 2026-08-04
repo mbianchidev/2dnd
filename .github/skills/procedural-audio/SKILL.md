@@ -175,6 +175,11 @@ playNewSFX(): void {
 | `playDungeonEnterSFX()` | Deep boom + eerie tone + stone scrape | Entering a dungeon |
 | `playTrapSFX(type)` | Per-type oscillator/noise profile | Triggering a dungeon trap |
 | `playPotionSFX()` | 3 glug bubbles + healing shimmer | Using a consumable |
+| `playSpellSFX()` | Rising magical charge + bright release | Spell presentation |
+| `playAbilitySFX()` | Compact class-action pulse | Ability presentation |
+| `playDefendSFX()` | Two-tone shield brace | Defend presentation |
+| `playFleeSFX()` | Rising filtered retreat sweep | Flee attempt |
+| `playFaintSFX()` | Descending collapse tone | Once-only faint state |
 | `playFootstepSFX(terrain)` | Filtered noise burst, varies by terrain | Every player step |
 | `playDialogueBlip(pitch)` | Quick square wave blip | NPC dialogue (future) |
 | `playCutsceneCue(cue)` | Typed procedural sting | Campaign cutscene step |
@@ -212,3 +217,5 @@ expect(() => audioEngine.playAttackSFX()).not.toThrow(); // no-op without AudioC
   surface.
 - ❌ Don't use volumes above 0.3 for individual oscillators — they stack up quickly
 - ❌ Don't leave ended cutscene oscillators or gain nodes connected
+- Battle presentation owns action-cue selection so scenes do not play the same
+  synthesized cue twice.

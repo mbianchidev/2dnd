@@ -118,6 +118,11 @@ describe("audio system", () => {
       expect(typeof audioEngine.playDungeonEnterSFX).toBe("function");
       expect(typeof audioEngine.playTrapSFX).toBe("function");
       expect(typeof audioEngine.playPotionSFX).toBe("function");
+      expect(typeof audioEngine.playSpellSFX).toBe("function");
+      expect(typeof audioEngine.playAbilitySFX).toBe("function");
+      expect(typeof audioEngine.playDefendSFX).toBe("function");
+      expect(typeof audioEngine.playFleeSFX).toBe("function");
+      expect(typeof audioEngine.playFaintSFX).toBe("function");
       expect(typeof audioEngine.playFootstepSFX).toBe("function");
       expect(typeof audioEngine.playMountedFootstepSFX).toBe("function");
       expect(typeof audioEngine.playAllSounds).toBe("function");
@@ -153,6 +158,11 @@ describe("audio system", () => {
         expect(() => audioEngine.playTrapSFX(trapType)).not.toThrow();
       }
       expect(() => audioEngine.playPotionSFX()).not.toThrow();
+      expect(() => audioEngine.playSpellSFX()).not.toThrow();
+      expect(() => audioEngine.playAbilitySFX()).not.toThrow();
+      expect(() => audioEngine.playDefendSFX()).not.toThrow();
+      expect(() => audioEngine.playFleeSFX()).not.toThrow();
+      expect(() => audioEngine.playFaintSFX()).not.toThrow();
       expect(() => audioEngine.playFootstepSFX(0)).not.toThrow();
       expect(() => audioEngine.playMountedFootstepSFX()).not.toThrow();
       expect(() => audioEngine.stopAll()).not.toThrow();

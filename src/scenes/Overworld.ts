@@ -111,6 +111,7 @@ import { DialogueSystem } from "../managers/dialogue";
 import { SpecialNpcManager, type SpecialNpcCallbacks } from "../managers/specialNpc";
 import { OverlayManager } from "../managers/overlay";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { WorldPresentationDirector } from "../managers/worldPresentation";
 import {
   getMotionDuration,
   installSceneAccessibility,
@@ -221,6 +222,11 @@ export class OverworldScene extends Phaser.Scene {
   private lastMoveTime = 0;
   private hudText!: Phaser.GameObjects.Text;
   private locationText!: Phaser.GameObjects.Text;
+  private pendingHudMessage: {
+    text: string;
+    color: string;
+    duration: number;
+  } | null = null;
   private lastLocationStr = "";
   private defeatedBosses: Set<string> = new Set();
   private codex: CodexData = createCodex();
@@ -243,6 +249,7 @@ export class OverworldScene extends Phaser.Scene {
   private dungeonTrapManager!: DungeonTrapManager;
   private skillCheckManager!: SkillCheckManager;
   private companionFollowerManager!: CompanionFollowerManager;
+  private worldPresentation!: WorldPresentationDirector;
   private partyOverlayManager!: PartyOverlayManager;
   private chronicleManager!: ChronicleManager;
   private tutorialManager!: TutorialManager;
@@ -264,7 +271,11 @@ export class OverworldScene extends Phaser.Scene {
     this.mapRenderer = new MapRenderer(this);
     this.cityRenderer = new CityRenderer(this);
     this.playerRenderer = new PlayerRenderer(this);
-    this.companionFollowerManager = new CompanionFollowerManager(this);
+    this.worldPresentation = new WorldPresentationDirector(this);
+    this.companionFollowerManager = new CompanionFollowerManager(
+      this,
+      this.worldPresentation,
+    );
     this.dialogueSystem = new DialogueSystem(this);
     this.specialNpcManager = new SpecialNpcManager(this);
     this.questJournal = new QuestJournalManager(
@@ -381,6 +392,7 @@ export class OverworldScene extends Phaser.Scene {
     // switched to battle mid-move, leaving isMoving permanently true.
     this.isMoving = false;
     this.lastMoveTime = 0;
+    this.pendingHudMessage = null;
   }
 
   create(): void {
@@ -403,6 +415,10 @@ export class OverworldScene extends Phaser.Scene {
     this.createPlayerSprite();
     this.refreshPartyActors();
     this.setupInput();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.companionFollowerManager.clear();
+      this.worldPresentation.cleanup();
+    });
     this.chronicleManager = new ChronicleManager(
       this,
       (cutsceneId) => this.startCutscene(cutsceneId, true),
@@ -720,6 +736,11 @@ export class OverworldScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setDepth(21)
       .setAlpha(0);
+    const pending = this.pendingHudMessage;
+    this.pendingHudMessage = null;
+    if (pending) {
+      this.showHUDMessage(pending.text, pending.color, pending.duration);
+    }
   }
 
   private hudBg!: Phaser.GameObjects.Graphics;
@@ -727,6 +748,10 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Show a message in the HUD bar (auto-fades after delay). */
   private showHUDMessage(text: string, color = "#ddd", duration = 3000): void {
+    if (!this.hudText?.active || !this.hudBg?.active) {
+      this.pendingHudMessage = { text, color, duration };
+      return;
+    }
     this.hudText.setText(text);
     this.hudText.setColor(color);
     this.hudBg.setAlpha(1);
@@ -1009,6 +1034,7 @@ export class OverworldScene extends Phaser.Scene {
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
       `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${tutorialTag}${partyTag} | ` +
+      `Anim: ${this.worldPresentation.debugState} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
       `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length} | Checks: ${Object.keys(p.progression.skillChecks).length}`,
@@ -1042,11 +1068,18 @@ export class OverworldScene extends Phaser.Scene {
     const motionDuration = getMotionDuration(duration);
     const playerX = destX + (mounted ? riderOffX : 0);
     const playerY = destY - (mounted ? PlayerRenderer.riderOffsetY : 0);
+    this.worldPresentation.presentPlayerStep(
+      destX < this.playerRenderer.playerSprite.x ? -1 : 1,
+    );
+    const finishPresentation = (): void => {
+      this.worldPresentation.completePlayerStep();
+      onComplete();
+    };
 
     if (motionDuration === 0) {
       this.playerRenderer.playerSprite.setPosition(playerX, playerY);
       this.playerRenderer.mountSprite?.setPosition(destX, destY);
-      onComplete();
+      finishPresentation();
       return;
     }
     this.tweens.add({
@@ -1054,7 +1087,7 @@ export class OverworldScene extends Phaser.Scene {
       x: playerX,
       y: playerY,
       duration: motionDuration,
-      onComplete,
+      onComplete: finishPresentation,
     });
 
     if (this.playerRenderer.mountSprite) {
@@ -2049,6 +2082,19 @@ export class OverworldScene extends Phaser.Scene {
   private createPlayerSprite(): void {
     this.playerRenderer.createPlayer(this.player);
     this.playerRenderer.refreshPlayerSprite(this.player);
+    this.worldPresentation.bindPlayer(
+      this.playerRenderer.playerSprite,
+      this.player.appearanceId,
+    );
+    this.worldPresentation.bindMount(
+      this.playerRenderer.mountSprite,
+      this.player.mountId,
+    );
+    if (this.playerRenderer.mountSprite) {
+      this.worldPresentation.presentPlayerStep(
+        this.playerRenderer.playerSprite.flipX ? -1 : 1,
+      );
+    }
   }
 
   private refreshPartyActors(): void {

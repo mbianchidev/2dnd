@@ -13,6 +13,9 @@ import type {
 import type { CutscenePresentationAdapter } from "../managers/cutscene";
 import type { PlayerState } from "../systems/player";
 import { getAccessibilityPreferences } from "../systems/accessibility";
+import { createActorTextureFamily } from "./actorTextures";
+import { ActorAnimationDirector } from "../managers/actorAnimation";
+import { getMonster } from "../data/monsters";
 
 interface RenderedActor {
   container: Phaser.GameObjects.Container;
@@ -64,9 +67,12 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   private readonly textLayer: Phaser.GameObjects.Container;
   private readonly fade: Phaser.GameObjects.Rectangle;
   private readonly actors = new Map<string, RenderedActor>();
+  private readonly actorAnimations: ActorAnimationDirector;
+  private readonly pendingEntranceIds = new Set<string>();
   private readonly timers: Phaser.Time.TimerEvent[] = [];
   private readonly tweens: Phaser.Tweens.Tween[] = [];
   private currentBackdrop: CutsceneBackdrop | null = null;
+  private lastEvent = "idle";
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -89,9 +95,16 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       this.textLayer,
       this.fade,
     ]).setDepth(100);
+    this.actorAnimations = new ActorAnimationDirector(scene);
   }
 
-  present(step: CutsceneStep, _index: number, onReady: () => void): void {
+  get debugState(): string {
+    return this.lastEvent === "idle"
+      ? this.actorAnimations.state
+      : this.lastEvent;
+  }
+
+  present(step: CutsceneStep, index: number, onReady: () => void): void {
     this.clearTransientPresentation();
     const presentation: CutscenePresentation = step.presentation ?? {
       backdrop: "stars",
@@ -100,9 +113,14 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       effect: "none",
     };
     this.drawBackdrop(presentation.backdrop);
-    this.syncActors(presentation.actors ?? []);
+    const effect = presentation.effect ?? "none";
+    this.lastEvent = `step-${index}:${effect}`
+      + ((presentation.actors ?? []).some(isBossPlacement) ? ":boss" : "")
+      + (getAccessibilityPreferences().reducedMotion ? ":immediate" : "");
+    this.syncActors(presentation.actors ?? [], effect);
     this.applyCamera(presentation.camera ?? { focus: "center" });
-    this.applyEffect(presentation.effect ?? "none");
+    this.applyEffect(effect);
+    this.presentActorStates(presentation.actors ?? [], effect);
     this.drawText(step);
     if (presentation.audioCue) {
       audioEngine.playCutsceneCue(presentation.audioCue);
@@ -124,6 +142,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
 
   reset(): void {
     this.clearTransientPresentation();
+    this.actorAnimations.cleanup();
     this.worldRoot.setPosition(0, 0).setScale(1);
   }
 
@@ -141,6 +160,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       tween.stop();
       tween.remove();
     }
+    this.pendingEntranceIds.clear();
     this.effects.removeAll(true);
     this.textLayer.removeAll(true);
   }
@@ -199,27 +219,41 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     }
   }
 
-  private syncActors(placements: readonly CutsceneActorCue[]): void {
+  private syncActors(
+    placements: readonly CutsceneActorCue[],
+    effect: CutsceneEffect,
+  ): void {
     const activeIds = new Set(placements.map((placement) => placement.id));
     for (const [id, actor] of this.actors) {
       if (!activeIds.has(id)) {
+        this.actorAnimations.unbind(id);
         actor.container.destroy(true);
         this.actors.delete(id);
       }
     }
 
     for (const placement of placements) {
-      const actor = this.actors.get(placement.id) ?? this.createActor(placement);
+      const existingActor = this.actors.get(placement.id);
+      const actor = existingActor ?? this.createActor(placement);
       const targetX = ACTOR_X[placement.slot];
       const targetY = 292;
       actor.label.setText(displayName(placement, this.player));
       actor.container.setAlpha(1).setScale(placement.scale ?? 1);
+      if (!existingActor) {
+        actor.container.setPosition(targetX, targetY);
+        this.bindActorAnimation(placement, actor);
+      }
       const entranceX = placement.entrance === "left"
         ? -100
         : placement.entrance === "right"
           ? GAME_WIDTH + 100
           : targetX;
-      if (!getAccessibilityPreferences().reducedMotion && placement.entrance) {
+      if (
+        !existingActor
+        && !getAccessibilityPreferences().reducedMotion
+        && placement.entrance
+      ) {
+        this.pendingEntranceIds.add(placement.id);
         actor.container.setPosition(entranceX, targetY).setAlpha(0);
         this.trackTween(this.scene.tweens.add({
           targets: actor.container,
@@ -227,9 +261,19 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
           alpha: 1,
           duration: 320,
           ease: "Sine.Out",
+          onComplete: () => {
+            this.pendingEntranceIds.delete(placement.id);
+            actor.container.setPosition(targetX, targetY).setAlpha(1);
+            this.actorAnimations.refreshBase(placement.id);
+            this.presentActorState(placement, effect);
+          },
         }));
       } else {
         actor.container.setPosition(targetX, targetY);
+      }
+      if (existingActor) this.actorAnimations.refreshBase(placement.id);
+      if (isBossPlacement(placement)) {
+        this.drawBossPresence(placement, targetX, targetY);
       }
     }
   }
@@ -253,6 +297,87 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     const rendered = { container, body, label };
     this.actors.set(placement.id, rendered);
     return rendered;
+  }
+
+  private bindActorAnimation(
+    placement: CutsceneActorCue,
+    actor: RenderedActor,
+  ): void {
+    const role = isBossPlacement(placement) ? "boss" : "cutscene";
+    this.actorAnimations.bind({
+      id: placement.id,
+      role,
+      target: actor.container,
+      textureFamily: createActorTextureFamily({
+        id: `cutscene.${placement.id}`,
+        role,
+        fallbackTextureKey: "player",
+        framePrefix: `cutscene_${placement.id}`,
+      }),
+    });
+  }
+
+  private presentActorStates(
+    placements: readonly CutsceneActorCue[],
+    effect: CutsceneEffect,
+  ): void {
+    for (const placement of placements) {
+      if (this.pendingEntranceIds.has(placement.id)) continue;
+      this.presentActorState(placement, effect);
+    }
+  }
+
+  private presentActorState(
+    placement: CutsceneActorCue,
+    effect: CutsceneEffect,
+  ): void {
+    if (!this.actors.has(placement.id)) return;
+    const state = effect === "shake"
+      ? "ability"
+      : effect === "flash" || effect === "runes"
+        ? "cast"
+        : isBossPlacement(placement)
+          ? "attack"
+          : "idle";
+    if (state === "idle") return;
+    const started = this.actorAnimations.play(placement.id, state, {
+      direction: placement.slot === "farLeft" || placement.slot === "left"
+        ? 1
+        : -1,
+    });
+    if (started) this.lastEvent += `:${placement.id}:${state}`;
+  }
+
+  private drawBossPresence(
+    placement: CutsceneActorCue,
+    x: number,
+    y: number,
+  ): void {
+    const ring = this.scene.add.circle(
+      x,
+      y - 54,
+      46 * (placement.scale ?? 1),
+      0x000000,
+      0,
+    ).setStrokeStyle(3, 0xffcf5a, 0.8);
+    const label = this.scene.add.text(x, y - 132, "BOSS", {
+      fontSize: "11px",
+      color: "#ffffff",
+      backgroundColor: "#5b1010",
+      fontStyle: "bold",
+      padding: { x: 5, y: 2 },
+    }).setOrigin(0.5);
+    this.effects.add([ring, label]);
+    if (!getAccessibilityPreferences().reducedMotion) {
+      this.trackTween(this.scene.tweens.add({
+        targets: ring,
+        scale: 1.12,
+        alpha: 0.35,
+        duration: 520,
+        yoyo: true,
+        repeat: -1,
+      }));
+    }
   }
 
   private applyCamera(camera: CutsceneCameraCue): void {
@@ -384,4 +509,9 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     ).setOrigin(1, 0.5);
     this.textLayer.add(hint);
   }
+}
+
+function isBossPlacement(placement: CutsceneActorCue): boolean {
+  return getMonster(placement.id)?.isBoss === true
+    || (placement.scale ?? 1) >= 1.2;
 }

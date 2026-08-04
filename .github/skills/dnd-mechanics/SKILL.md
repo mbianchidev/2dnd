@@ -184,6 +184,9 @@ matching effects. Combat effects are cleared when leaving Battle.
 - Every party actor owns an immutable one-action/one-bonus-action economy.
   Manual and gambit-controlled companion actions use the same validator and
   executor as the hero-compatible battle contracts.
+- Animation is presentation-only: resolve and consume the validated action
+  exactly once before emitting actor/target feedback. Tween completion must
+  never apply damage, spend resources, or advance action economy.
 
 ## Companion progression
 

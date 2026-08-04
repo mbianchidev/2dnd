@@ -936,7 +936,9 @@ export class DebugCommandSystem {
           debugPanelLog(`Unknown mount: ${id}. Available: donkey, horse, warHorse, shadowSteed`, true);
         }
       }
-      this.callbacks.restartScene();
+      this.callbacks.createPlayer();
+      this.callbacks.updateHUD();
+      this.callbacks.autoSave();
     });
 
     cmds.set("codex", (_args) => {

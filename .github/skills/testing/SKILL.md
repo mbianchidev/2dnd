@@ -36,6 +36,8 @@ shared preference normalization/migration, and director cleanup
 normalization, progression-aware tip unlocks, and save migration
 ✅ Defeat penalty receipts, once-only Battle resolution, recovered save
 round-trips, result-scene continuation, and random/boss parity
+✅ Animation state selection, reduced-motion timing, stable actor/target mapping,
+once-only completion and cleanup, and family-frame fallback resolution
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -46,6 +48,11 @@ round-trips, result-scene continuation, and random/boss parity
 
 These exclusions apply to Vitest. The focused `e2e/` suite owns the real-browser
 campaign golden path and scene/input integration.
+
+Animation browser coverage should assert debug-state evidence from real action
+menus and combat turns for hero, companion, monster, and boss presentation;
+spell/ability particles; world/follower/mount gait; boss cutscenes; fainting;
+reduced-motion immediate states; and page/console cleanliness.
 
 Accessibility browser coverage should change settings from both title and
 in-game surfaces, assert immediate canvas state, exercise core overlays at every

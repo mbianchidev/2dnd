@@ -38,6 +38,9 @@ normalization, progression-aware tip unlocks, and save migration
 round-trips, result-scene continuation, and random/boss parity
 ✅ Animation state selection, reduced-motion timing, stable actor/target mapping,
 once-only completion and cleanup, and family-frame fallback resolution
+✅ Semantic mappings, context priority, analog dead zones, repeats, source
+switching, duplicate suppression, disconnect/blur cleanup, and control
+preference migration
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -58,6 +61,12 @@ Accessibility browser coverage should change settings from both title and
 in-game surfaces, assert immediate canvas state, exercise core overlays at every
 supported text scale, verify reload persistence, and prove `2dnd_save` is
 unchanged by preference updates.
+
+Semantic-controls browser coverage uses mobile/touch emulation and deterministic
+standard-gamepad stubs. It covers onboarding and mobile text entry, movement,
+overlays, prompt/source switching, Battle action/target confirmation, defeat
+recovery, gamepad cursor visibility, portrait/landscape layout, and page/console
+cleanliness.
 
 ## Test File Organization
 
@@ -80,6 +89,7 @@ tests/
 ├── skillChecks.test.ts # Exploration/dialogue checks
 ├── cutscenes.test.ts # Cutscene data, triggers, queue, and director lifecycle
 ├── accessibility.test.ts # Shared preference normalization, migration, and persistence
+├── input.test.ts # Semantic mappings, contexts, repeats, cleanup, and suppression
 ├── tutorial.test.ts # Tutorial content, completion, and unlocked Tips
 ├── cutsceneSceneTransition.test.ts # Generic Cutscene scene contracts
 ├── defeatSceneTransition.test.ts # Defeat result continuation contract

@@ -33,6 +33,8 @@
         image-rendering: pixelated;
         flex: 1;
         width: 100%;
+        min-height: 0;
+        touch-action: none;
       }
       #game-header {
         width: 100%;
@@ -136,6 +138,116 @@
       }
       #debug-cmd::placeholder { color: #225522; }
       #debug-cmd:focus { border-color: #33ff33; }
+      #touch-controls {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        pointer-events: none;
+        padding:
+          max(10px, env(safe-area-inset-top))
+          max(10px, env(safe-area-inset-right))
+          max(10px, env(safe-area-inset-bottom))
+          max(10px, env(safe-area-inset-left));
+      }
+      #touch-controls.visible { display: block; }
+      .touch-control {
+        position: absolute;
+        min-width: 48px;
+        min-height: 48px;
+        border: 2px solid #f4f1e8;
+        border-radius: 14px;
+        background: rgba(20, 26, 45, 0.78);
+        color: #fff;
+        font: bold 15px monospace;
+        box-shadow: 0 0 0 2px #000, 0 3px 10px rgba(0, 0, 0, 0.65);
+        pointer-events: auto;
+        user-select: none;
+        touch-action: none;
+      }
+      .touch-control:active,
+      .touch-control:focus-visible {
+        background: #31548a;
+        outline: 3px solid #ffdf66;
+        outline-offset: 2px;
+      }
+      .touch-up { bottom: 126px; }
+      .touch-left { bottom: 72px; }
+      .touch-right { bottom: 72px; }
+      .touch-down { bottom: 18px; }
+      .touch-confirm { bottom: 74px; }
+      .touch-cancel { bottom: 20px; }
+      .touch-menu { top: 40px; }
+      .touch-party { top: 40px; }
+      .touch-tips { top: 40px; }
+      #touch-controls.right-handed .touch-up,
+      #touch-controls.right-handed .touch-down { left: 68px; }
+      #touch-controls.right-handed .touch-left { left: 14px; }
+      #touch-controls.right-handed .touch-right { left: 122px; }
+      #touch-controls.right-handed .touch-confirm { right: 18px; }
+      #touch-controls.right-handed .touch-cancel { right: 82px; }
+      #touch-controls.right-handed .touch-menu { right: 16px; }
+      #touch-controls.right-handed .touch-party { right: 88px; }
+      #touch-controls.right-handed .touch-tips { right: 174px; }
+      #touch-controls.left-handed .touch-up,
+      #touch-controls.left-handed .touch-down { right: 68px; }
+      #touch-controls.left-handed .touch-left { right: 122px; }
+      #touch-controls.left-handed .touch-right { right: 14px; }
+      #touch-controls.left-handed .touch-confirm { left: 18px; }
+      #touch-controls.left-handed .touch-cancel { left: 82px; }
+      #touch-controls.left-handed .touch-menu { left: 16px; }
+      #touch-controls.left-handed .touch-party { left: 88px; }
+      #touch-controls.left-handed .touch-tips { left: 174px; }
+      #gamepad-cursor {
+        display: none;
+        position: fixed;
+        left: -10px;
+        top: -10px;
+        z-index: 60;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #ffdf66;
+        border-radius: 50%;
+        background: rgba(30, 90, 170, 0.55);
+        box-shadow: 0 0 0 2px #000;
+        pointer-events: none;
+      }
+      #mobile-text-input {
+        position: fixed;
+        z-index: 80;
+        left: 50%;
+        top: max(20px, env(safe-area-inset-top));
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        padding: 12px;
+        background: #151a2d;
+        border: 2px solid #ffdf66;
+        border-radius: 10px;
+        box-shadow: 0 8px 32px #000;
+      }
+      #mobile-text-input input,
+      #mobile-text-input button {
+        min-height: 44px;
+        padding: 8px 10px;
+        border: 2px solid #dce8ff;
+        background: #252b45;
+        color: #fff;
+        font: 16px monospace;
+      }
+      @media (orientation: portrait), (max-width: 760px) {
+        #game-header { padding-top: max(4px, env(safe-area-inset-top)); }
+        #controls-panel, #debug-panel { display: none !important; }
+        .touch-party, .touch-tips { top: 92px; }
+      }
+      @media (max-height: 560px) and (orientation: landscape) {
+        .touch-control { min-width: 42px; min-height: 42px; opacity: 0.86; }
+        .touch-up { bottom: 108px; }
+        .touch-left, .touch-right { bottom: 61px; }
+        .touch-down { bottom: 14px; }
+        .touch-confirm { bottom: 62px; }
+        .touch-cancel { bottom: 14px; }
+      }
     </style>
   </head>
   <body>

@@ -30,6 +30,7 @@ import {
   getNextPendingCutscene,
   queueCutscenes,
 } from "../systems/cutscenes";
+import { openMobileTextInput } from "../managers/input";
 
 
 export class BootScene extends Phaser.Scene {
@@ -332,7 +333,14 @@ export class BootScene extends Phaser.Scene {
         backgroundColor: "#1a1a2e",
         padding: { x: 12, y: 4 },
       })
-      .setOrigin(0.5, 0);
+      .setOrigin(0.5, 0)
+      .setInteractive({ useHandCursor: true });
+    nameText.on("pointerdown", () => {
+      openMobileTextInput("Hero name", playerName, 12, (value) => {
+        playerName = value.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 12);
+        nameText.setText(playerName || "_");
+      });
+    });
 
     // Handle typing for name
     this.input.keyboard!.on("keydown", (event: KeyboardEvent) => {

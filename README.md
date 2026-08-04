@@ -24,7 +24,8 @@ API, and saves use `localStorage`.
   party-wide inn recovery, and persistent manual or gambit control
 - Large hero and companion inventories support immutable sorting by type,
   value, rarity, recent acquisition, or name; category filters, search,
-  generated item visuals, and stable keyboard/pointer selection
+  generated item visuals, and stable keyboard, pointer, gamepad, and touch
+  selection
 - Ranked 12-rule gambits use structured subjects, conditions, actions, and
   targets; invalid rules safely fall through without consuming resources
 
@@ -34,7 +35,8 @@ API, and saves use `localStorage`.
   defending, fleeing, off-hand attacks, spells, abilities, consumables, and
   boss abilities
 - Balanced encounters with 1-4 monsters, individual initiative turns,
-  front/back formations, keyboard or pointer target selection, and group
+  front/back formations, semantic keyboard, pointer, gamepad, or touch target
+  selection, and group
   synergies such as Pack Tactics, Shield Wall, War Cry, healer support, and
   elemental combos
 - Party battles use stable combatant IDs, explicit party/enemy allegiance,
@@ -268,9 +270,18 @@ delegates rendering and stateful subsystems to `renderers/` and `managers/`.
 Tutorial steps, semantic control guidance, tips, categories, and unlock
 requirements live in `src/data/tutorial.ts`. `src/systems/tutorial.ts` owns
 Phaser-free completion normalization and progression-aware filtering, while
-`src/managers/tutorial.ts` owns the keyboard/pointer overlay. Completion
+`src/managers/tutorial.ts` owns the adaptive overlay. Completion
 persists at `player.progression.tutorial`; the compact HTML control rail starts
 collapsed now that equivalent guidance is available from the game.
+
+`src/systems/input.ts` defines stable semantic actions, contexts, standard
+keyboard/gamepad mappings, dead-zone normalization, source switching,
+repeat/debounce, context priority, and duplicate-action suppression.
+`src/managers/input.ts` is the single browser/Phaser adapter for keyboard,
+pointer, standard gamepads, and responsive touch controls. It clears held state
+on blur, visibility loss, disconnection, and scene changes; exposes the active
+source on the canvas; and provides a visible right-stick gamepad cursor for
+pointer-first surfaces.
 
 Quest content lives in `src/data/quests.ts`; runtime progression, rewards, NPC
 interactions, journal entries, access rules, danger states, and completion
@@ -369,13 +380,24 @@ npm run build      # Type-check and create a production build
 | `Esc` | Close the active overlay or skip an active cutscene |
 | Mouse / touch | Select buttons and scroll lists |
 
+Standard gamepads use the left stick or D-pad to move and navigate, `A` to
+confirm, `B` to cancel, `X` to interact, `Y`/Menu to open the menu, View to open
+Tips, bumpers to cycle Battle targets/pages, and triggers to scroll the Battle
+log. The right stick moves a visible cursor so every pointer-first button remains
+reachable. Touch devices receive a safe-area-aware D-pad plus A/B, Menu, Party,
+and Tips controls; movement and action buttons support simultaneous touches.
+Character and inventory search text fields open a native mobile text-entry
+surface.
+
 The `Esc` menu includes Party & Inventory, Tips, tutorial replay, the Chronicle,
 and the same audio and accessibility settings available on the title screen.
 Advanced Tips unlock automatically as relevant progression is reached. In the
 inventory view, arrows and Page Up/Down navigate, `R` cycles sorting, `F` cycles
 filters, `/` focuses search, `X` transfers, and `Tab` changes the target. `T`
-remains mount control, and input remapping remains tracked separately in issue
-#89.
+remains mount control. Settings can force touch visibility, swap left/right
+touch layout, and choose automatic or fixed prompt sources. Mappings are stable
+and intentionally not user-remappable; a partial remapper would leave
+pointer-first and text-entry flows inaccessible.
 
 In the Codex monster tab, `F` cycles the family filter and `R` cycles family,
 name, defeat-count, and elemental-affinity sorting. Family completion is derived
@@ -409,12 +431,14 @@ Use `debugLog()` and the debug panel APIs instead of `console.log`.
 
 ## Save data
 
-Game state is stored under `2dnd_save`. Audio and accessibility preferences are
-stored separately under the versioned `2dnd_preferences` key, so changing text
-scale, contrast, motion, cutscene advance, volume, or mute never mutates campaign
-progress. Existing `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values
-migrate automatically. Inventory sorting, filtering, and search preferences use
-the separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
+Game state is stored under `2dnd_save`. Audio, accessibility, and control
+presentation preferences are stored separately under the versioned
+`2dnd_preferences` key, so changing text scale, contrast, motion, cutscene
+advance, volume, mute, touch visibility/handedness, or prompt source never
+mutates campaign progress. Version-1 preference documents and existing
+`2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values migrate
+automatically. Inventory sorting, filtering, and search preferences use the
+separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
 Save schema version 9 persists:
 
@@ -462,7 +486,9 @@ synergies, rewards, cutscene data, triggers, queue recovery, accessibility,
 director lifecycle, scene transitions, ending summaries, multi-target actions,
 defeat receipts and idempotent result handoffs, and party-ready combat/action-planning
 contracts, companion definitions, party state, gambits, follower trails, and
-recruitment replay. Animation coverage verifies deterministic state selection,
+recruitment replay. Semantic-input coverage verifies mappings, context priority,
+analog dead zones, repeats, source switching, disconnect/blur cleanup,
+preference migration, and duplicate suppression. Animation coverage verifies deterministic state selection,
 reduced-motion timing, stable target mapping, once-only cleanup, and texture
 fallback behavior.
 
@@ -484,6 +510,7 @@ Important integration suites:
 - `tests/fogOfWar.test.ts`
 - `tests/animation.test.ts`
 - `tests/actorTextures.test.ts`
+- `tests/input.test.ts`
 
 The committed Playwright suite in `e2e/` runs real Chromium campaign and defeat
 flows through character creation, interrupted opening recovery, quest
@@ -493,7 +520,9 @@ replay immutability, final Elowen completion, credits, interrupted epilogue
 recovery, post-game continuation and reload, legacy completed-but-unseen ending
 recovery, corrupt-save fallback to New Game, random and boss defeat results,
 recovery save/reload, animated battle/world/mount/follower/boss/cutscene
-presentation, reduced-motion immediacy, and clean continuation. It starts
+presentation, reduced-motion immediacy, mobile onboarding and orientation,
+standard-gamepad overlays, Battle targeting/actions, defeat recovery, input
+source switching, and clean continuation. It starts
 Vite on an available strict port and defaults to the deployed `/2dnd/` base
 path. Pull request CI installs Chromium and runs these suites as a release gate:
 

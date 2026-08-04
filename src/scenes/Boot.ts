@@ -325,6 +325,7 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
 
     let playerName = "Hero";
+    const nameInputReadyAt = performance.now() + 75;
     const nameText = this.add
       .text(cx, nameLabel.y + nameLabel.height + 3, playerName, {
         fontSize: "18px",
@@ -344,6 +345,7 @@ export class BootScene extends Phaser.Scene {
 
     // Handle typing for name
     this.input.keyboard!.on("keydown", (event: KeyboardEvent) => {
+      if (event.timeStamp < nameInputReadyAt) return;
       if (event.key === "Backspace") {
         playerName = playerName.slice(0, -1);
       } else if (event.key.length === 1 && playerName.length < 12 && /[a-zA-Z0-9 ]/.test(event.key)) {

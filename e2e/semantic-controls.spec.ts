@@ -84,6 +84,46 @@ async function submitDebug(page: Page, command: string): Promise<void> {
   await page.locator("#game-container canvas").click();
 }
 
+async function setGamepadAxes(page: Page, axes: number[]): Promise<void> {
+  await page.evaluate((values) => {
+    (window as typeof window & {
+      __setGamepadAxes(axes: number[]): void;
+    }).__setGamepadAxes(values);
+  }, axes);
+}
+
+async function moveGamepadCursor(
+  page: Page,
+  gameX: number,
+  gameY: number,
+): Promise<void> {
+  const target = await gamePoint(page, gameX, gameY);
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const bounds = await page.locator("#gamepad-cursor").boundingBox();
+    if (bounds) {
+      const cursorX = bounds.x + bounds.width / 2;
+      const cursorY = bounds.y + bounds.height / 2;
+      const dx = target.x - cursorX;
+      const dy = target.y - cursorY;
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+        await setGamepadAxes(page, [0, 0, 0, 0]);
+        return;
+      }
+      await setGamepadAxes(page, [
+        0,
+        0,
+        Math.abs(dx) < 8 ? 0 : Math.sign(dx) * 0.8,
+        Math.abs(dy) < 8 ? 0 : Math.sign(dy) * 0.8,
+      ]);
+    } else {
+      await setGamepadAxes(page, [0, 0, 0, 0.8]);
+    }
+    await page.waitForTimeout(50);
+  }
+  await setGamepadAxes(page, [0, 0, 0, 0]);
+  throw new Error("Timed out positioning gamepad cursor");
+}
+
 test.describe("touch controls", () => {
   test.use({
     hasTouch: true,
@@ -114,11 +154,19 @@ test.describe("touch controls", () => {
     await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "BOOT | Screen: character");
 
+    await page.locator('[data-action="navigateUp"]').tap();
     await tapGame(page, 320, 76);
     await expect(page.locator("#mobile-text-input")).toBeVisible();
+    await expect(page.locator("#mobile-text-input input")).toHaveValue("Hero");
+    await page.locator("#mobile-text-input input").fill("Touch");
+    await page.locator('[data-action="confirm"]').tap();
+    await expect(page.locator("#mobile-text-input")).not.toBeVisible();
+    await waitForState(page, "BOOT | Screen: character");
+    await tapGame(page, 320, 76);
     await page.locator("#mobile-text-input input").fill("Touch Hero");
     await page.locator("#mobile-text-input input").press("Enter");
     await expect(page.locator("#mobile-text-input")).not.toBeVisible();
+    await waitForState(page, "BOOT | Screen: character");
     await tapGame(page, 284, 160);
     await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "BOOT | Screen: stats");
@@ -248,26 +296,15 @@ test.describe("standard gamepad controls", () => {
 
     await page.goto("./", { waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
-    await page.evaluate(() => {
-      (window as typeof window & {
-        __setGamepadAxes(axes: number[]): void;
-      }).__setGamepadAxes([0, 0, 0.8, 0]);
-    });
-    await page.waitForTimeout(180);
-    await page.evaluate(() => {
-      (window as typeof window & {
-        __setGamepadAxes(axes: number[]): void;
-      }).__setGamepadAxes([0, 0, 0, 0]);
-    });
+    await moveGamepadCursor(page, 320, 324);
     await expect(page.locator("#gamepad-cursor")).toBeVisible();
     await expect(page.locator("#game-container canvas")).toHaveAttribute(
       "data-input-source",
       "gamepad",
     );
-    await pressGamepad(0);
+    await pressGamepad(11);
     await waitForState(page, "BOOT | Screen: character");
-    await clickGame(page, 284, 160);
-    await holdKey(page, "Enter");
+    await pressGamepad(0);
     await waitForState(page, "BOOT | Screen: stats");
     await clickGame(page, 390, 64);
     await clickGame(page, 400, 460);
@@ -301,6 +338,14 @@ test.describe("standard gamepad controls", () => {
     await pressGamepad(8);
     await waitForState(page, "[TIPS");
     await pressGamepad(1);
+    await pressGamepad(9);
+    await waitForState(page, "[MENU]");
+    await clickGame(page, 320, 232);
+    await waitForState(page, "[CHRONICLE_SELECTION:1/");
+    await pressGamepad(13);
+    await waitForState(page, "[CHRONICLE_SELECTION:2/");
+    await pressGamepad(1);
+    await expect(page.locator("#debug-state")).not.toContainText("[CHRONICLE]");
 
     await submitDebug(page, "/spawn goblin");
     await waitForState(page, "BATTLE");

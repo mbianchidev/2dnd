@@ -1024,7 +1024,7 @@ export class OverworldScene extends Phaser.Scene {
       : "";
     const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
     const menuTag = this.overlayManager.menuOverlay ? " [MENU]" : "";
-    const chronicleTag = this.chronicleManager?.isOpen() ? " [CHRONICLE]" : "";
+    const chronicleTag = this.chronicleManager?.getDebugState() ?? "";
     const tutorialTag = this.tutorialManager.isTutorialOpen()
       ? " [TUTORIAL]"
       : this.tutorialManager.isTipsOpen()

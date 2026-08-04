@@ -55,6 +55,7 @@ export type InputContext =
   | "characterCreation"
   | "exploration"
   | "overlay"
+  | "chronicle"
   | "inventory"
   | "shop"
   | "codex"
@@ -68,6 +69,7 @@ export interface SemanticInputEvent {
   source: InputSource;
   timestamp: number;
   repeated: boolean;
+  token?: string;
 }
 
 export interface InputContextRegistration {
@@ -146,6 +148,7 @@ const NAVIGATION_CONTEXTS = new Set<InputContext>([
   "title",
   "characterCreation",
   "overlay",
+  "chronicle",
   "inventory",
   "shop",
   "codex",
@@ -244,6 +247,39 @@ export class InputContextStack {
   }
 }
 
+export class InputKeyOwnership {
+  private readonly heldKeys = new Map<string, string>();
+  private readonly ownerCounts = new Map<string, number>();
+
+  acquire(token: string, key: string): boolean {
+    if (this.heldKeys.has(token)) return false;
+    this.heldKeys.set(token, key);
+    const owners = this.ownerCounts.get(key) ?? 0;
+    this.ownerCounts.set(key, owners + 1);
+    return owners === 0;
+  }
+
+  release(token: string): { key: string; finalOwner: boolean } | null {
+    const key = this.heldKeys.get(token);
+    if (!key) return null;
+    this.heldKeys.delete(token);
+    const owners = this.ownerCounts.get(key) ?? 1;
+    if (owners <= 1) {
+      this.ownerCounts.delete(key);
+      return { key, finalOwner: true };
+    }
+    this.ownerCounts.set(key, owners - 1);
+    return { key, finalOwner: false };
+  }
+
+  clear(): string[] {
+    const keys = [...this.ownerCounts.keys()];
+    this.heldKeys.clear();
+    this.ownerCounts.clear();
+    return keys;
+  }
+}
+
 interface HeldInput {
   action: InputAction;
   source: InputSource;
@@ -278,7 +314,7 @@ export class SemanticInputState {
       source,
       nextRepeatAt: timestamp + this.repeatDelay,
     });
-    return this.createEvent(action, source, timestamp, false);
+    return this.createEvent(action, source, timestamp, false, token);
   }
 
   pulse(
@@ -296,7 +332,7 @@ export class SemanticInputState {
 
   update(timestamp: number): SemanticInputEvent[] {
     const events: SemanticInputEvent[] = [];
-    for (const held of this.held.values()) {
+    for (const [token, held] of this.held) {
       if (
         !isRepeatableAction(held.action)
         || timestamp < held.nextRepeatAt
@@ -309,6 +345,7 @@ export class SemanticInputState {
         held.source,
         timestamp,
         true,
+        token,
       );
       if (event) events.push(event);
     }
@@ -321,14 +358,17 @@ export class SemanticInputState {
     }
   }
 
-  releaseMatching(tokenPrefix: string): InputAction[] {
-    const actions = new Set<InputAction>();
+  releaseMatching(tokenPrefix: string): Array<{
+    token: string;
+    action: InputAction;
+  }> {
+    const released: Array<{ token: string; action: InputAction }> = [];
     for (const [token, held] of this.held) {
       if (!token.startsWith(tokenPrefix)) continue;
-      actions.add(held.action);
+      released.push({ token, action: held.action });
       this.held.delete(token);
     }
-    return [...actions];
+    return released;
   }
 
   clear(): void {
@@ -341,13 +381,14 @@ export class SemanticInputState {
     source: InputSource,
     timestamp: number,
     repeated: boolean,
+    token?: string,
   ): SemanticInputEvent | null {
     const last = this.lastDispatch.get(action);
     if (last !== undefined && timestamp - last < this.duplicateWindow) {
       return null;
     }
     this.lastDispatch.set(action, timestamp);
-    return { action, source, timestamp, repeated };
+    return { action, source, timestamp, repeated, token };
   }
 }
 

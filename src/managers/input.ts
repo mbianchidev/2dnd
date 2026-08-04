@@ -1,10 +1,10 @@
 import type * as Phaser from "phaser";
 import {
   STANDARD_GAMEPAD_BINDINGS,
+  InputKeyOwnership,
   SemanticInputState,
   inputPromptSource,
   inputSource,
-  isRepeatableAction,
   normalizeAnalogAxis,
   resolveGamepadAction,
   type InputAction,
@@ -107,8 +107,11 @@ export class SemanticInputRuntime {
   private readonly state = new SemanticInputState();
   private readonly gamepadSnapshots = new Map<number, GamepadSnapshot>();
   private readonly syntheticEvents = new WeakSet<Event>();
+  private readonly heldSyntheticKeys = new Map<string, KeyDescriptor>();
+  private readonly syntheticKeyOwnership = new InputKeyOwnership();
   private animationFrame = 0;
   private activeSceneKey = "";
+  private activeContext: InputContext = "overlay";
   private touchRoot: HTMLDivElement | null = null;
   private cursor: HTMLDivElement | null = null;
   private cursorX = 0;
@@ -158,10 +161,13 @@ export class SemanticInputRuntime {
 
   private readonly poll = (timestamp: number): void => {
     const sceneKey = this.getActiveSceneKey();
-    if (sceneKey !== this.activeSceneKey) {
-      this.releaseSyntheticKeys();
+    const context = this.getContext();
+    if (sceneKey !== this.activeSceneKey || context !== this.activeContext) {
+      this.closeMobileTextInput();
+      this.releaseAllSyntheticKeys();
       this.state.clear();
       this.activeSceneKey = sceneKey;
+      this.activeContext = context;
       this.cursorActive = false;
       this.updateCursor();
     }
@@ -192,9 +198,9 @@ export class SemanticInputRuntime {
   private readonly handleGamepadConnection = (): void => {
     this.gamepadConnected = navigator.getGamepads().some(Boolean);
     if (!this.gamepadConnected) {
-      this.state.clearSource("gamepad");
+      const released = this.state.releaseMatching("gamepad:");
+      for (const entry of released) this.releaseSyntheticToken(entry.token);
       this.gamepadSnapshots.clear();
-      this.releaseSyntheticKeys();
     }
     this.applyControlPreferences();
   };
@@ -210,7 +216,8 @@ export class SemanticInputRuntime {
   private clearAll(): void {
     this.state.clear();
     this.gamepadSnapshots.clear();
-    this.releaseSyntheticKeys();
+    this.releaseAllSyntheticKeys();
+    this.closeMobileTextInput();
     this.cursorActive = false;
     this.updateCursor();
   }
@@ -236,8 +243,8 @@ export class SemanticInputRuntime {
       this.updateGamepadCursor(pad);
       if (
         this.cursorActive
-        && next.buttons[10] === true
-        && previous.buttons[10] !== true
+        && next.buttons[11] === true
+        && previous.buttons[11] !== true
       ) {
         this.clickCursor();
         inputSource.set("gamepad");
@@ -248,8 +255,8 @@ export class SemanticInputRuntime {
     for (const index of this.gamepadSnapshots.keys()) {
       if (connectedIndices.has(index)) continue;
       this.gamepadSnapshots.delete(index);
-      const releasedActions = this.state.releaseMatching(`gamepad:${index}:`);
-      for (const action of releasedActions) this.releaseAction(action);
+      const released = this.state.releaseMatching(`gamepad:${index}:`);
+      for (const entry of released) this.releaseSyntheticToken(entry.token);
     }
   }
 
@@ -288,10 +295,17 @@ export class SemanticInputRuntime {
         this.updateCursor();
       }
       const event = this.state.press(token, action, "gamepad", timestamp);
-      if (event) this.dispatch(event);
+      if (event) {
+        this.dispatch(event);
+      } else {
+        const descriptor = this.keyForAction(this.contextualizeAction(action));
+        if (descriptor) {
+          this.pressSyntheticToken(token, descriptor, false, false);
+        }
+      }
     } else if (!pressed && wasPressed) {
       this.state.release(token);
-      this.releaseAction(resolveGamepadAction(binding, this.getContext()));
+      this.releaseSyntheticToken(token);
     }
   }
 
@@ -321,36 +335,66 @@ export class SemanticInputRuntime {
     inputSource.set("gamepad");
     this.updatePresentation("gamepad");
     this.updateCursor();
-    const pointerMove = new PointerEvent("pointermove", {
+    const mouseMove = new MouseEvent("mousemove", {
       bubbles: true,
       clientX: this.cursorX,
       clientY: this.cursorY,
-      pointerId: 99,
-      pointerType: "mouse",
     });
-    this.syntheticEvents.add(pointerMove);
-    this.game.canvas.dispatchEvent(pointerMove);
+    this.syntheticEvents.add(mouseMove);
+    this.game.canvas.dispatchEvent(mouseMove);
   }
 
   private dispatch(event: SemanticInputEvent): void {
     inputSource.set(event.source);
     this.updatePresentation(event.source);
     const action = this.contextualizeAction(event.action);
+    if (this.handleMobileTextInput(action)) return;
     if (action === "battleLogUp" || action === "battleLogDown") {
       this.dispatchWheel(action === "battleLogUp" ? -120 : 120);
       return;
     }
-    const descriptor = this.keyForAction(action);
+    const descriptor = event.token && event.repeated
+      ? this.heldSyntheticKeys.get(event.token)
+      : this.keyForAction(action);
     if (!descriptor) return;
-    this.dispatchKey("keydown", descriptor, event.repeated);
-    if (!isRepeatableAction(action)) {
+    if (event.token) {
+      this.pressSyntheticToken(event.token, descriptor, event.repeated);
+    } else {
+      this.dispatchKey("keydown", descriptor, event.repeated);
       window.setTimeout(() => this.dispatchKey("keyup", descriptor, false), 0);
     }
   }
 
-  private releaseAction(action: InputAction): void {
-    const descriptor = this.keyForAction(this.contextualizeAction(action));
-    if (descriptor) this.dispatchKey("keyup", descriptor, false);
+  private pressSyntheticToken(
+    token: string,
+    descriptor: KeyDescriptor,
+    repeated: boolean,
+    dispatchInitial = true,
+  ): void {
+    const existing = this.heldSyntheticKeys.get(token);
+    if (repeated && existing) {
+      this.dispatchKey("keydown", existing, true);
+      return;
+    }
+    if (existing) return;
+    this.heldSyntheticKeys.set(token, descriptor);
+    const firstOwner = this.syntheticKeyOwnership.acquire(
+      token,
+      descriptor.code,
+    );
+    if (dispatchInitial && firstOwner) {
+      this.dispatchKey("keydown", descriptor, false);
+    }
+  }
+
+  private releaseSyntheticToken(token: string): void {
+    const descriptor = this.heldSyntheticKeys.get(token);
+    if (!descriptor) return;
+    this.heldSyntheticKeys.delete(token);
+    const release = this.syntheticKeyOwnership.release(token);
+    if (release?.finalOwner) {
+      this.dispatchKey("keyup", descriptor, false);
+    }
   }
 
   private contextualizeAction(action: InputAction): InputAction {
@@ -377,7 +421,17 @@ export class SemanticInputRuntime {
 
   private keyForAction(action: InputAction): KeyDescriptor | undefined {
     if (
-      (this.getContext() === "shop")
+      (
+        this.getContext() === "shop"
+        || this.getContext() === "chronicle"
+      )
+      && action.startsWith("navigate")
+    ) {
+      const direction = action.slice("navigate".length);
+      return { code: `Arrow${direction}`, key: `Arrow${direction}` };
+    }
+    if (
+      this.getContext() === "characterCreation"
       && action.startsWith("navigate")
     ) {
       const direction = action.slice("navigate".length);
@@ -436,9 +490,15 @@ export class SemanticInputRuntime {
     return 0;
   }
 
-  private releaseSyntheticKeys(): void {
-    for (const descriptor of Object.values(ACTION_KEYS)) {
-      if (descriptor) this.dispatchKey("keyup", descriptor, false);
+  private releaseAllSyntheticKeys(): void {
+    const descriptors = new Map<string, KeyDescriptor>();
+    for (const descriptor of this.heldSyntheticKeys.values()) {
+      descriptors.set(descriptor.code, descriptor);
+    }
+    this.heldSyntheticKeys.clear();
+    this.syntheticKeyOwnership.clear();
+    for (const descriptor of descriptors.values()) {
+      this.dispatchKey("keyup", descriptor, false);
     }
   }
 
@@ -451,25 +511,22 @@ export class SemanticInputRuntime {
   }
 
   private clickCursor(): void {
-    const init: PointerEventInit = {
+    const init: MouseEventInit = {
       bubbles: true,
       cancelable: true,
       clientX: this.cursorX,
       clientY: this.cursorY,
-      pointerId: 99,
-      pointerType: "mouse",
-      isPrimary: true,
       buttons: 1,
     };
-    const pointerDown = new PointerEvent("pointerdown", init);
-    const pointerUp = new PointerEvent("pointerup", {
+    const mouseDown = new MouseEvent("mousedown", init);
+    const mouseUp = new MouseEvent("mouseup", {
       ...init,
       buttons: 0,
     });
-    this.syntheticEvents.add(pointerDown);
-    this.syntheticEvents.add(pointerUp);
-    this.game.canvas.dispatchEvent(pointerDown);
-    this.game.canvas.dispatchEvent(pointerUp);
+    this.syntheticEvents.add(mouseDown);
+    this.syntheticEvents.add(mouseUp);
+    this.game.canvas.dispatchEvent(mouseDown);
+    this.game.canvas.dispatchEvent(mouseUp);
   }
 
   private createTouchControls(): void {
@@ -494,15 +551,20 @@ export class SemanticInputRuntime {
         const action = this.contextualizeAction(definition.action);
         const token = `touch:${event.pointerId}:${definition.action}`;
         const inputEvent = this.state.press(token, action, "touch", now());
-        if (inputEvent) this.dispatch(inputEvent);
+        if (inputEvent) {
+          this.dispatch(inputEvent);
+        } else {
+          const descriptor = this.keyForAction(action);
+          if (descriptor) {
+            this.pressSyntheticToken(token, descriptor, false, false);
+          }
+        }
       });
       const release = (event: PointerEvent): void => {
         if (!HELD_TOUCH_ACTIONS.has(definition.action)) return;
         const token = `touch:${event.pointerId}:${definition.action}`;
         this.state.release(token);
-        window.setTimeout(() => {
-          this.releaseAction(this.contextualizeAction(definition.action));
-        }, 40);
+        window.setTimeout(() => this.releaseSyntheticToken(token), 40);
         if (button.hasPointerCapture(event.pointerId)) {
           button.releasePointerCapture(event.pointerId);
         }
@@ -586,6 +648,31 @@ export class SemanticInputRuntime {
     return this.game.scene.getScenes(true)[0]?.scene.key ?? "";
   }
 
+  private handleMobileTextInput(action: InputAction): boolean {
+    const form = document.getElementById("mobile-text-input");
+    if (!(form instanceof HTMLFormElement)) return false;
+    if (
+      action === "confirm"
+      || action === "interact"
+      || action === "inventoryPrimary"
+    ) {
+      form.requestSubmit();
+    } else if (
+      action === "cancel"
+      || action === "openMenu"
+    ) {
+      const cancel = form.querySelector<HTMLButtonElement>(
+        'button[type="button"]',
+      );
+      cancel?.click();
+    }
+    return true;
+  }
+
+  private closeMobileTextInput(): void {
+    document.getElementById("mobile-text-input")?.remove();
+  }
+
   private getContext(): InputContext {
     const key = this.getActiveSceneKey();
     if (key === "BootScene") {
@@ -595,6 +682,7 @@ export class SemanticInputRuntime {
     if (key === "OverworldScene") {
       const state = document.getElementById("debug-state")?.textContent ?? "";
       if (state.includes("[PARTY:items")) return "inventory";
+      if (state.includes("[CHRONICLE]")) return "chronicle";
       if (
         state.includes("[PARTY:")
         || state.includes("[MENU]")

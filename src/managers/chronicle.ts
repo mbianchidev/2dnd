@@ -34,6 +34,12 @@ export class ChronicleManager {
     return this.container !== null;
   }
 
+  getDebugState(): string {
+    return this.container
+      ? ` [CHRONICLE] [CHRONICLE_SELECTION:${this.selectedIndex + 1}/${this.entries.length}]`
+      : "";
+  }
+
   open(player: PlayerState): void {
     this.entries = getChronicleCutscenes(player.progression);
     this.selectedIndex = 0;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   InputContextStack,
+  InputKeyOwnership,
   SemanticInputState,
   STANDARD_GAMEPAD_BINDINGS,
   isRepeatableAction,
@@ -61,6 +62,7 @@ describe("semantic input state", () => {
       source: "keyboard",
       timestamp: 100,
       repeated: false,
+      token: "keyboard:Space",
     });
     expect(state.press("gamepad:0", "confirm", "gamepad", 120)).toBeNull();
     expect(state.pulse("confirm", "touch", 151)?.source).toBe("touch");
@@ -76,6 +78,7 @@ describe("semantic input state", () => {
       source: "gamepad",
       timestamp: 300,
       repeated: true,
+      token: "gamepad:left",
     }]);
     expect(state.update(399)).toEqual([]);
     expect(state.update(400)).toHaveLength(1);
@@ -97,10 +100,15 @@ describe("semantic input state", () => {
     const state = new SemanticInputState(300, 100, 0);
     state.press("gamepad:0:button:12", "moveUp", "gamepad", 0);
     state.press("gamepad:1:button:15", "moveRight", "gamepad", 0);
+    state.press("touch:7:navigateDown", "moveDown", "touch", 0);
 
-    expect(state.releaseMatching("gamepad:0:")).toEqual(["moveUp"]);
+    expect(state.releaseMatching("gamepad:0:")).toEqual([{
+      token: "gamepad:0:button:12",
+      action: "moveUp",
+    }]);
     expect(state.update(300).map((event) => event.action)).toEqual([
       "moveRight",
+      "moveDown",
     ]);
   });
 });
@@ -116,6 +124,7 @@ describe("input context priority", () => {
       priority: 10,
       enabled: () => overlayOpen,
     });
+
     stack.register({
       id: "inventory",
       context: "inventory",
@@ -130,5 +139,21 @@ describe("input context priority", () => {
     expect(stack.resolve("exploration")).toBe("inventory");
     inventoryOpen = false;
     expect(stack.resolve("exploration")).toBe("overlay");
+  });
+});
+
+describe("synthetic key ownership", () => {
+  it("releases a shared key only after its final controller token", () => {
+    const ownership = new InputKeyOwnership();
+    expect(ownership.acquire("gamepad:0:right", "KeyD")).toBe(true);
+    expect(ownership.acquire("gamepad:1:right", "KeyD")).toBe(false);
+    expect(ownership.release("gamepad:0:right")).toEqual({
+      key: "KeyD",
+      finalOwner: false,
+    });
+    expect(ownership.release("gamepad:1:right")).toEqual({
+      key: "KeyD",
+      finalOwner: true,
+    });
   });
 });

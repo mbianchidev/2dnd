@@ -181,6 +181,7 @@ export class SemanticInputRuntime {
   };
 
   private readonly handlePointerSource = (event: PointerEvent): void => {
+    if (this.syntheticEvents.has(event)) return;
     const source: InputSource = event.pointerType === "touch"
       ? "touch"
       : "pointer";
@@ -233,13 +234,22 @@ export class SemanticInputRuntime {
         this.updateGamepadBinding(pad.index, binding, previous, next, timestamp);
       }
       this.updateGamepadCursor(pad);
+      if (
+        this.cursorActive
+        && next.buttons[10] === true
+        && previous.buttons[10] !== true
+      ) {
+        this.clickCursor();
+        inputSource.set("gamepad");
+        this.updatePresentation("gamepad");
+      }
       this.gamepadSnapshots.set(pad.index, next);
     }
     for (const index of this.gamepadSnapshots.keys()) {
       if (connectedIndices.has(index)) continue;
       this.gamepadSnapshots.delete(index);
-      this.state.clearSource("gamepad");
-      this.releaseSyntheticKeys();
+      const releasedActions = this.state.releaseMatching(`gamepad:${index}:`);
+      for (const action of releasedActions) this.releaseAction(action);
     }
   }
 
@@ -266,13 +276,17 @@ export class SemanticInputRuntime {
         binding.direction ?? 1,
       );
     if (pressed && !wasPressed) {
-      if (binding.button === 0 && this.cursorActive) {
-        this.clickCursor();
-        inputSource.set("gamepad");
-        this.updatePresentation("gamepad");
-        return;
-      }
       const action = resolveGamepadAction(binding, this.getContext());
+      if (
+        this.cursorActive
+        && (
+          action.startsWith("navigate")
+          || action.startsWith("move")
+        )
+      ) {
+        this.cursorActive = false;
+        this.updateCursor();
+      }
       const event = this.state.press(token, action, "gamepad", timestamp);
       if (event) this.dispatch(event);
     } else if (!pressed && wasPressed) {
@@ -307,13 +321,15 @@ export class SemanticInputRuntime {
     inputSource.set("gamepad");
     this.updatePresentation("gamepad");
     this.updateCursor();
-    this.game.canvas.dispatchEvent(new PointerEvent("pointermove", {
+    const pointerMove = new PointerEvent("pointermove", {
       bubbles: true,
       clientX: this.cursorX,
       clientY: this.cursorY,
       pointerId: 99,
       pointerType: "mouse",
-    }));
+    });
+    this.syntheticEvents.add(pointerMove);
+    this.game.canvas.dispatchEvent(pointerMove);
   }
 
   private dispatch(event: SemanticInputEvent): void {
@@ -445,11 +461,15 @@ export class SemanticInputRuntime {
       isPrimary: true,
       buttons: 1,
     };
-    this.game.canvas.dispatchEvent(new PointerEvent("pointerdown", init));
-    this.game.canvas.dispatchEvent(new PointerEvent("pointerup", {
+    const pointerDown = new PointerEvent("pointerdown", init);
+    const pointerUp = new PointerEvent("pointerup", {
       ...init,
       buttons: 0,
-    }));
+    });
+    this.syntheticEvents.add(pointerDown);
+    this.syntheticEvents.add(pointerUp);
+    this.game.canvas.dispatchEvent(pointerDown);
+    this.game.canvas.dispatchEvent(pointerUp);
   }
 
   private createTouchControls(): void {
@@ -618,6 +638,11 @@ export function openMobileTextInput(
   cancel.type = "button";
   cancel.textContent = "Cancel";
   const close = (): void => form.remove();
+  const stopGamePropagation = (event: KeyboardEvent): void => {
+    event.stopPropagation();
+  };
+  form.addEventListener("keydown", stopGamePropagation);
+  form.addEventListener("keyup", stopGamePropagation);
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     onCommit(input.value);

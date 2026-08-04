@@ -57,7 +57,8 @@ visibility loss, disconnect, and shutdown.
 Touch controls use safe-area-aware responsive DOM buttons outside the canvas.
 Held D-pad directions use pointer capture; discrete buttons use click pulses so
 scene transitions cannot strand a press. Standard gamepads use left-stick/D-pad
-navigation and a visible right-stick cursor for pointer-first surfaces.
+navigation and a visible right-stick cursor, clicked by pressing the stick, for
+pointer-first surfaces.
 
 ## Shared state flow
 

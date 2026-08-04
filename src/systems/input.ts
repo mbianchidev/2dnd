@@ -321,6 +321,16 @@ export class SemanticInputState {
     }
   }
 
+  releaseMatching(tokenPrefix: string): InputAction[] {
+    const actions = new Set<InputAction>();
+    for (const [token, held] of this.held) {
+      if (!token.startsWith(tokenPrefix)) continue;
+      actions.add(held.action);
+      this.held.delete(token);
+    }
+    return [...actions];
+  }
+
   clear(): void {
     this.held.clear();
     this.lastDispatch.clear();

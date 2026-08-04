@@ -92,6 +92,17 @@ describe("semantic input state", () => {
     state.clear();
     expect(state.update(800)).toEqual([]);
   });
+
+  it("releases only tokens owned by a disconnected gamepad", () => {
+    const state = new SemanticInputState(300, 100, 0);
+    state.press("gamepad:0:button:12", "moveUp", "gamepad", 0);
+    state.press("gamepad:1:button:15", "moveRight", "gamepad", 0);
+
+    expect(state.releaseMatching("gamepad:0:")).toEqual(["moveUp"]);
+    expect(state.update(300).map((event) => event.action)).toEqual([
+      "moveRight",
+    ]);
+  });
 });
 
 describe("input context priority", () => {

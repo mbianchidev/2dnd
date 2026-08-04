@@ -678,7 +678,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   standard gamepads, and touch. Do not add parallel scene-specific gamepad or
   mobile mappings.
 - Standard gamepads use digital fallback plus analog dead zones. The right
-  stick owns a visible virtual cursor for pointer-first surfaces.
+  stick owns a visible virtual cursor for pointer-first surfaces, and pressing
+  it clicks without replacing the normal A/confirm action.
 - Touch controls are procedural DOM controls with safe-area/orientation CSS,
   pointer capture for held directions, click pulses for discrete actions, and
   simultaneous movement/action support.

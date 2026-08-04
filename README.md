@@ -384,7 +384,8 @@ Standard gamepads use the left stick or D-pad to move and navigate, `A` to
 confirm, `B` to cancel, `X` to interact, `Y`/Menu to open the menu, View to open
 Tips, bumpers to cycle Battle targets/pages, and triggers to scroll the Battle
 log. The right stick moves a visible cursor so every pointer-first button remains
-reachable. Touch devices receive a safe-area-aware D-pad plus A/B, Menu, Party,
+reachable; press the right stick to click it. Touch devices receive a
+safe-area-aware D-pad plus A/B, Menu, Party,
 and Tips controls; movement and action buttons support simultaneous touches.
 Character and inventory search text fields open a native mobile text-entry
 surface.

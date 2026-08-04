@@ -117,7 +117,8 @@ test.describe("touch controls", () => {
     await tapGame(page, 320, 76);
     await expect(page.locator("#mobile-text-input")).toBeVisible();
     await page.locator("#mobile-text-input input").fill("Touch Hero");
-    await page.locator('#mobile-text-input button[type="submit"]').tap();
+    await page.locator("#mobile-text-input input").press("Enter");
+    await expect(page.locator("#mobile-text-input")).not.toBeVisible();
     await tapGame(page, 284, 160);
     await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "BOOT | Screen: stats");
@@ -127,6 +128,10 @@ test.describe("touch controls", () => {
     await tapGame(page, 320, 112);
     await tapGame(page, 420, 312);
     await waitForState(page, "CUTSCENE");
+    expect(await page.evaluate(() => {
+      const save = JSON.parse(localStorage.getItem("2dnd_save")!);
+      return save.player.name;
+    })).toBe("Touch Hero");
     await drainOpening(page, "touch");
     await completeTutorialByTouch(page);
 
@@ -243,6 +248,22 @@ test.describe("standard gamepad controls", () => {
 
     await page.goto("./", { waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
+    await page.evaluate(() => {
+      (window as typeof window & {
+        __setGamepadAxes(axes: number[]): void;
+      }).__setGamepadAxes([0, 0, 0.8, 0]);
+    });
+    await page.waitForTimeout(180);
+    await page.evaluate(() => {
+      (window as typeof window & {
+        __setGamepadAxes(axes: number[]): void;
+      }).__setGamepadAxes([0, 0, 0, 0]);
+    });
+    await expect(page.locator("#gamepad-cursor")).toBeVisible();
+    await expect(page.locator("#game-container canvas")).toHaveAttribute(
+      "data-input-source",
+      "gamepad",
+    );
     await pressGamepad(0);
     await waitForState(page, "BOOT | Screen: character");
     await clickGame(page, 284, 160);

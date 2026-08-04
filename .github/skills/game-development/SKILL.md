@@ -44,7 +44,7 @@ are intentionally not remappable.
 
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a
-visible right-stick cursor. Responsive touch controls use safe areas, pointer
+visible right-stick cursor clicked by pressing the stick. Responsive touch controls use safe areas, pointer
 capture for held directions, click pulses for discrete actions, and mobile text
 entry. Clear held state on blur, visibility loss, disconnect, scene changes,
 and shutdown.

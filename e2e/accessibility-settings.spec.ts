@@ -145,6 +145,12 @@ test("title and in-game accessibility settings share live preferences", async ({
       .toHaveAttribute("data-text-scale", "1.5");
     await submitDebug(page, "/kill");
     await waitForState(page, "OVERWORLD");
+    await submitDebug(page, "/codex all");
+    await holdKey(page, "c");
+    await waitForState(page, "CODEX | Category: Monsters");
+    await waitForState(page, "Texture: monster-slime-normal-idle");
+    await holdKey(page, "Escape");
+    await waitForState(page, "OVERWORLD");
   });
 
   await test.step("change the same settings from the in-game menu", async () => {

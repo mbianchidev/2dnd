@@ -239,10 +239,23 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
 
     await submitDebug(page, "/tp Willowdale");
     await waitForState(page, "OVERWORLD");
-    await submitDebug(page, "/spawn slime");
+    await submitDebug(page, "/spawn toxicSlime");
     await waitForState(page, "BATTLE");
+    await waitForState(page, "monster-toxicSlime-normal-idle");
     await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
+    await waitForState(page, "OVERWORLD");
+
+    await submitDebug(page, "/codex all");
+    await holdKey(page, "c");
+    await waitForState(page, "CODEX | Category: Monsters");
+    await waitForState(page, "Texture: monster-slime-normal-idle");
+    await holdKey(page, "f");
+    await waitForState(page, "Family: slime");
+    await waitForState(page, "Completion: complete");
+    await holdKey(page, "r");
+    await waitForState(page, "Sort: name");
+    await holdKey(page, "Escape");
     await waitForState(page, "OVERWORLD");
   });
 
@@ -257,6 +270,10 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
     await waitForState(page, "BATTLE");
+    await waitForState(
+      page,
+      "monster-infernoForgemaster-boss-idle",
+    );
     await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
     await waitForState(page, "CUTSCENE | boss.infernoForgemaster.post");

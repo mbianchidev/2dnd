@@ -5,7 +5,6 @@ import {
   inputPromptSource,
   inputSource,
   isRepeatableAction,
-  mapKeyboardCode,
   normalizeAnalogAxis,
   resolveGamepadAction,
   type InputAction,
@@ -173,24 +172,12 @@ export class SemanticInputRuntime {
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (this.syntheticEvents.has(event) || event.repeat) return;
-    const action = mapKeyboardCode(event.code, this.getContext());
-    if (!action) {
-      inputSource.set("keyboard");
-      return;
-    }
     inputSource.set("keyboard");
-    this.state.press(
-      `keyboard:${event.code}`,
-      action,
-      "keyboard",
-      event.timeStamp,
-    );
     this.updatePresentation("keyboard");
   };
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
     if (this.syntheticEvents.has(event)) return;
-    this.state.release(`keyboard:${event.code}`);
   };
 
   private readonly handlePointerSource = (event: PointerEvent): void => {
@@ -564,11 +551,15 @@ export class SemanticInputRuntime {
     const promptSource = promptPreference === "auto"
       ? source
       : promptPreference;
-    inputPromptSource.set(promptSource);
     this.game.canvas.dataset.inputSource = source;
     this.game.canvas.dataset.promptSource = promptSource;
     this.game.canvas.dataset.gamepadConnected = String(this.gamepadConnected);
     document.documentElement.dataset.inputSource = source;
+    window.setTimeout(() => {
+      if (this.game.canvas.dataset.promptSource === promptSource) {
+        inputPromptSource.set(promptSource);
+      }
+    }, 0);
   }
 
   private getActiveSceneKey(): string {

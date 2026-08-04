@@ -41,9 +41,10 @@ import {
   normalizePendingCutsceneIds,
   normalizeSeenCutsceneIds,
 } from "./cutscenes";
+import { normalizeTutorialProgress } from "./tutorial";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 8;
+const SAVE_VERSION = 9;
 
 export interface SaveData {
   version: number;
@@ -395,6 +396,7 @@ export function loadGame(): SaveData | null {
         trapSeed: LEGACY_TRAP_SEED,
         trapStates: {},
         trapGuidance: false,
+        tutorial: normalizeTutorialProgress(undefined),
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -431,6 +433,9 @@ export function loadGame(): SaveData | null {
       : {};
     data.player.progression.trapGuidance = readBoolean(
       data.player.progression.trapGuidance,
+    );
+    data.player.progression.tutorial = normalizeTutorialProgress(
+      data.player.progression.tutorial,
     );
     data.player.party = normalizePartyState(playerRecord["party"]);
     synchronizeCompanionRecruitment(data.player);

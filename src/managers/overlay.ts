@@ -71,6 +71,7 @@ export interface OverlayCallbacks {
   getHUDInfo: () => string;
   openQuestJournal: () => void;
   openChronicle: () => void;
+  openTips: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
 }
 
@@ -974,7 +975,7 @@ export class OverlayManager {
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
 
-    const menuHeight = 282;
+    const menuHeight = 300;
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
       220,
@@ -1008,7 +1009,7 @@ export class OverlayManager {
     this.menuOverlay.add(resumeBtn);
 
     // Quest journal
-    const questsBtn = this.scene.add.text(px + panelW / 2, py + 90, "Quest Journal", {
+    const questsBtn = this.scene.add.text(px + panelW / 2, py + 82, "Quest Journal", {
       fontSize: "14px", fontFamily: "monospace", color: "#d1c4e9",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
@@ -1022,7 +1023,7 @@ export class OverlayManager {
 
     const chronicleBtn = this.scene.add.text(
       px + panelW / 2,
-      py + 132,
+      py + 116,
       "Chronicle",
       {
         fontSize: "14px",
@@ -1040,8 +1041,28 @@ export class OverlayManager {
     });
     this.menuOverlay.add(chronicleBtn);
 
+    const tipsBtn = this.scene.add.text(
+      px + panelW / 2,
+      py + 150,
+      "Tips",
+      {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#83d8ff",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 16, y: 6 },
+      },
+    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    tipsBtn.on("pointerover", () => tipsBtn.setColor("#ffffff"));
+    tipsBtn.on("pointerout", () => tipsBtn.setColor("#83d8ff"));
+    tipsBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+      this.callbacks.openTips();
+    });
+    this.menuOverlay.add(tipsBtn);
+
     // Settings
-    const settingsY = 174;
+    const settingsY = 184;
     const settingsBtn = this.scene.add.text(px + panelW / 2, py + settingsY, "🔊 Settings", {
       fontSize: "14px", fontFamily: "monospace", color: "#aabbff",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
@@ -1055,7 +1076,7 @@ export class OverlayManager {
     this.menuOverlay.add(settingsBtn);
 
     // Quit
-    const quitY = 216;
+    const quitY = 226;
     const quitBtn = this.scene.add.text(px + panelW / 2, py + quitY, "✕ Quit to Title", {
       fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },

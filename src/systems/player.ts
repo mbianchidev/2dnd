@@ -24,6 +24,10 @@ import type { QuestLogState } from "../data/quests";
 import type { ActiveStatusEffect } from "./statusEffects";
 import type { PartyState } from "./party";
 import type { CutsceneId } from "../data/cutscenes";
+import {
+  createTutorialProgress,
+  type TutorialProgress,
+} from "./tutorial";
 
 export interface PlayerStats {
   strength: number;
@@ -61,6 +65,7 @@ export interface PlayerProgression {
   trapSeed: number; // stable per-playthrough seed for procedural dungeon traps
   trapStates: Record<string, TrapState>; // deterministic trap ID -> authoritative state
   trapGuidance: boolean; // persistent Adventurer detection/disarm advice
+  tutorial: TutorialProgress; // new-player tutorial completion
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -249,6 +254,7 @@ export function createPlayer(
       trapSeed: createTrapSeed(),
       trapStates: {},
       trapGuidance: false,
+      tutorial: createTutorialProgress(),
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,

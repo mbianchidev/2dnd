@@ -59,6 +59,10 @@ import {
 import { CompanionFollowerManager } from "../managers/companionFollowers";
 import { PartyOverlayManager } from "../managers/partyOverlay";
 import { ChronicleManager } from "../managers/chronicle";
+import {
+  TutorialManager,
+  type TutorialNavigationAction,
+} from "../managers/tutorial";
 import { isDebug, isLocalDev, debugLog, debugPanelLog, debugPanelState, TILE_SIZE } from "../config";
 import type { CodexData } from "../systems/codex";
 import { createCodex } from "../systems/codex";
@@ -215,7 +219,6 @@ export class OverworldScene extends Phaser.Scene {
   private lastLocationStr = "";
   private defeatedBosses: Set<string> = new Set();
   private codex: CodexData = createCodex();
-  private isNewPlayer = false;
   private timeStep = 0;
   private weatherState: WeatherState = createWeatherState();
 
@@ -237,6 +240,7 @@ export class OverworldScene extends Phaser.Scene {
   private companionFollowerManager!: CompanionFollowerManager;
   private partyOverlayManager!: PartyOverlayManager;
   private chronicleManager!: ChronicleManager;
+  private tutorialManager!: TutorialManager;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -287,6 +291,9 @@ export class OverworldScene extends Phaser.Scene {
       revealAround: (radius) => this.revealAround(radius),
       revealTileSprites: () => this.revealTileSprites(),
     });
+    this.tutorialManager = new TutorialManager(this, {
+      autoSave: () => this.autoSave(),
+    });
     this.overlayManager = new OverlayManager(this, {
       updateHUD: () => this.updateHUD(),
       autoSave: () => this.autoSave(),
@@ -317,6 +324,7 @@ export class OverworldScene extends Phaser.Scene {
       getHUDInfo: () => this.getHUDInfo(),
       openQuestJournal: () => this.openQuestJournal(),
       openChronicle: () => this.chronicleManager.open(this.player),
+      openTips: () => this.tutorialManager.showTips(this.player),
       fadeOutAndIn: (atBlack, duration) =>
         this.sceneTransitions.fadeOutAndIn(atBlack, {
           duration,
@@ -335,14 +343,12 @@ export class OverworldScene extends Phaser.Scene {
     // Load scene data
     if (data?.player) {
       this.player = data.player;
-      this.isNewPlayer = false;
       this.fogOfWar.setExploredTiles(this.player.progression.exploredTiles);
     } else {
       this.player = createPlayer("Hero", {
         strength: 10, dexterity: 10, constitution: 10,
         intelligence: 10, wisdom: 10, charisma: 10,
       });
-      this.isNewPlayer = true;
     }
     this.defeatedBosses = data?.defeatedBosses ?? new Set();
     this.codex = data?.codex ?? createCodex();
@@ -408,9 +414,10 @@ export class OverworldScene extends Phaser.Scene {
       });
     }
 
-    // Show rolled stats on new game, or ASI overlay if points are pending
-    if (this.isNewPlayer) {
-      this.overlayManager.showRolledStatsOverlay(this.player);
+    if (!this.player.progression.tutorial.completed) {
+      this.time.delayedCall(150, () => {
+        this.tutorialManager.showTutorial(this.player);
+      });
     } else if (this.player.pendingStatPoints > 0) {
       this.time.delayedCall(400, () => this.overlayManager.showStatOverlay(this.player));
     }
@@ -437,6 +444,7 @@ export class OverworldScene extends Phaser.Scene {
   private startCutscene(cutsceneId: CutsceneId, replay = false): boolean {
     if (this.sceneTransitions.isPending) return false;
     this.dialogueSystem.dismissDialogue();
+    this.tutorialManager.close();
     this.overlayManager.destroyAll();
     this.partyOverlayManager.close();
     this.questJournal.close();
@@ -529,6 +537,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const cKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     cKey.on("down", () => {
+      if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) {
         this.chronicleManager.close();
         return;
@@ -541,6 +550,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     eKey.on("down", () => {
+      if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
@@ -550,6 +560,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     pKey.on("down", () => {
+      if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen() || this.overlayManager.isOpen()) return;
@@ -558,6 +569,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     mKey.on("down", () => {
+      if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
@@ -572,6 +584,10 @@ export class OverworldScene extends Phaser.Scene {
     const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     escKey.on("down", () => {
       if (this.isMoving) return;
+      if (this.tutorialManager.isOpen()) {
+        this.tutorialManager.close();
+        return;
+      }
       // ESC closes the topmost open overlay, or opens the menu
       if (this.chronicleManager?.isOpen()) {
         this.chronicleManager.close();
@@ -604,6 +620,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const qKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     qKey.on("down", () => {
+      if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.overlayManager.isOpen() || this.partyOverlayManager.isOpen()) return;
@@ -612,11 +629,45 @@ export class OverworldScene extends Phaser.Scene {
 
     const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
     tKey.on("down", () => {
+      if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
       this.toggleMount();
     });
+
+    const hKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.H);
+    hKey.on("down", () => {
+      if (this.isMoving) return;
+      if (this.tutorialManager.isOpen()) {
+        this.tutorialManager.close();
+        return;
+      }
+      if (this.isOverlayOpen() || this.dialogueSystem.isDialogueOpen()) return;
+      this.tutorialManager.showTips(this.player);
+    });
+
+    const tutorialKeys: Array<{
+      code: number;
+      action: TutorialNavigationAction;
+    }> = [
+      { code: Phaser.Input.Keyboard.KeyCodes.LEFT, action: "previous" },
+      { code: Phaser.Input.Keyboard.KeyCodes.A, action: "previous" },
+      { code: Phaser.Input.Keyboard.KeyCodes.RIGHT, action: "next" },
+      { code: Phaser.Input.Keyboard.KeyCodes.D, action: "next" },
+      { code: Phaser.Input.Keyboard.KeyCodes.UP, action: "up" },
+      { code: Phaser.Input.Keyboard.KeyCodes.W, action: "up" },
+      { code: Phaser.Input.Keyboard.KeyCodes.DOWN, action: "down" },
+      { code: Phaser.Input.Keyboard.KeyCodes.S, action: "down" },
+      { code: Phaser.Input.Keyboard.KeyCodes.ENTER, action: "confirm" },
+    ];
+    for (const binding of tutorialKeys) {
+      this.input.keyboard!.addKey(binding.code).on("down", () => {
+        if (this.tutorialManager.isOpen()) {
+          this.tutorialManager.handleAction(binding.action);
+        }
+      });
+    }
   }
 
   // ── HUD ─────────────────────────────────────────────────────────────────
@@ -917,9 +968,14 @@ export class OverworldScene extends Phaser.Scene {
     const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
     const menuTag = this.overlayManager.menuOverlay ? " [MENU]" : "";
     const chronicleTag = this.chronicleManager?.isOpen() ? " [CHRONICLE]" : "";
+    const tutorialTag = this.tutorialManager.isTutorialOpen()
+      ? " [TUTORIAL]"
+      : this.tutorialManager.isTipsOpen()
+        ? " [TIPS]"
+        : "";
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${tutorialTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
       `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length} | Checks: ${Object.keys(p.progression.skillChecks).length}`,
@@ -932,7 +988,8 @@ export class OverworldScene extends Phaser.Scene {
     return this.overlayManager.isOpen()
       || this.partyOverlayManager.isOpen()
       || this.questJournal.isOpen()
-      || this.chronicleManager?.isOpen();
+      || this.chronicleManager?.isOpen()
+      || this.tutorialManager.isOpen();
   }
 
   private openQuestJournal(): void {
@@ -979,6 +1036,13 @@ export class OverworldScene extends Phaser.Scene {
 
   update(time: number): void {
     this.updateDebugPanel();
+
+    if (this.tutorialManager.isOpen()) {
+      if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
+        this.tutorialManager.handleAction("confirm");
+      }
+      return;
+    }
 
     if (this.chronicleManager?.isOpen()) {
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
@@ -2039,6 +2103,7 @@ export class OverworldScene extends Phaser.Scene {
   private openCodex(): void {
     if (this.isMoving) return;
     if (this.sceneTransitions.isPending) return;
+    this.tutorialManager.close();
     this.partyOverlayManager.close();
     this.overlayManager.destroyAll();
     this.autoSave();

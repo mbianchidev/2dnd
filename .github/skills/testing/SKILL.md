@@ -459,8 +459,9 @@ npx vitest run tests/dice.test.ts
 - Debug commands may accelerate setup, but the final Elowen interaction and
   other behavior under test must still run through their production paths.
 - Cover interrupted opening recovery, dungeon reveals, skipped boss
-  introductions, aftermath chaining, Chronicle replay immutability, and legacy
-  ending recovery.
+  introductions, aftermath chaining, Chronicle replay immutability, interrupted
+  and legacy ending recovery, durable post-game reload, and corrupt-save
+  fallback to a usable New Game path.
 
 ### Test Coverage
 ```bash

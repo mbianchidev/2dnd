@@ -400,9 +400,10 @@ The committed Playwright suite in `e2e/` runs a real Chromium campaign golden
 path through character creation, interrupted opening recovery, quest
 interaction, dungeon reveals, skipped boss introductions, boss aftermath
 chains, Chronicle replay immutability, final Elowen completion, credits,
-post-game continuation, and completed-but-unseen ending recovery. It starts
-Vite on an available strict port and defaults to the deployed `/2dnd/` base
-path:
+interrupted epilogue recovery, post-game continuation and reload, legacy
+completed-but-unseen ending recovery, and corrupt-save fallback to New Game. It
+starts Vite on an available strict port and defaults to the deployed `/2dnd/`
+base path:
 
 ```bash
 npm run test:browser:install # One-time Chromium install

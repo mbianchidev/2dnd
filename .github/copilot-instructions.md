@@ -590,7 +590,8 @@ npm run build
 - Add deterministic tests for mechanics and migrations.
 - The campaign browser suite uses a fresh strict port, defaults to the deployed
   `/2dnd/` base path, and asserts opening recovery, boss cutscenes, Chronicle
-  replay immutability, ending recovery, and page/console errors.
+  replay immutability, interrupted and legacy ending recovery, durable post-game
+  reload, corrupt-save fallback, and page/console errors.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run typecheck, full Vitest, browser tests, and build before completion.

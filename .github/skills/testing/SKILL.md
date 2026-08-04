@@ -116,6 +116,16 @@ coverage of all 12 cities with stable stage/objective identities.
 - Keep Phaser visuals in headless Chromium flows; pure trail positioning and UI
   mutation helpers belong in Vitest.
 
+## Inventory Testing
+
+- Test type/value/rarity/recent/name selectors without mutating canonical order
+  or equipment links.
+- Cover equipment, consumable, quest, and future crafting filters plus search.
+- Normalize and persist `2dnd_inventory_prefs` separately from `2dnd_save`.
+- Assert equipped, key-item, mount, and duplicate-item transfer restrictions.
+- Use focused Playwright coverage for large-bag keyboard/pointer paging,
+  selection stability, search, and menu access.
+
 ## Dice Testing Patterns
 
 ### Statistical Distribution Testing

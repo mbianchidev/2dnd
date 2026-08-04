@@ -6,14 +6,20 @@ license: MIT
 
 # Save System
 
-Game state is stored in `localStorage` by `src/systems/save.ts`. Audio and
-cutscene accessibility preferences are stored separately.
+Game state is stored in `localStorage` by `src/systems/save.ts`. Audio,
+cutscene accessibility, and inventory presentation preferences are stored
+separately.
 
 ## Storage keys
 
 - `2dnd_save`: game state
 - `2dnd_audio_prefs`: channel volumes and mute state
 - `2dnd_cutscene_accessibility`: reduced motion, text scale, and advance mode
+- `2dnd_inventory_prefs`: inventory sort, filter, and search presentation
+
+Inventory recency derives from reverse canonical append order. Do not add
+presentation fields to item ownership or increment the schema for these
+preferences.
 
 ## Current schema
 

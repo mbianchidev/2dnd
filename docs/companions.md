@@ -60,6 +60,11 @@ The overlay supports:
 - pending companion stat allocation
 - ranked gambit editing
 
+The Items page uses immutable sorted and filtered views, full-text search,
+procedural item visuals, and stable keyboard/pointer selection for large bags.
+Its sort, filter, and search preferences are stored separately from actor
+ownership. See [`inventory.md`](inventory.md) for controls and selector rules.
+
 Key items, mounts, and equipped items cannot be transferred. Gold remains with
 the hero; shop purchases and battle drops enter the hero bag and can then be
 transferred.

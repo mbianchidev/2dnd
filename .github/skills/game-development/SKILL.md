@@ -262,6 +262,17 @@ queued start/restart is processed. Every Overworld restart must include a fresh
 - Keep party UI/followers/battle presentation in focused managers/renderers
   rather than growing the existing oversized scene/overlay files.
 
+## Inventory presentation
+
+- Build immutable views with `src/systems/inventory.ts`; every view entry keeps
+  its original inventory index for actions and transfers.
+- Never sort the owning inventory array or replace equipment object references.
+- Keep sort/filter/search preferences in `2dnd_inventory_prefs`, outside save
+  schema v8. Recent acquisition is reverse append order.
+- Use semantic inventory actions for keyboard, pointer, and future gamepad/mobile
+  controls. `T` remains mount control.
+- Generate item visuals procedurally through `src/renderers/itemVisuals.ts`.
+
 ## Validation
 
 ```bash

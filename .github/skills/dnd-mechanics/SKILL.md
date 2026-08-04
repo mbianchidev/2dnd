@@ -200,6 +200,9 @@ matching effects. Combat effects are cleared when leaving Battle.
 - Battle consumables use item-declared target scopes. Ally items fall back to
   self when solo, self-only items remain self, and inventory ownership stays
   separate from the effect target.
+- Inventory sorting and filtering are presentation-only. Preserve canonical
+  ownership order, exact equipment links, and equipped/key/mount transfer
+  restrictions while resolving actions through original inventory indexes.
 - Flee DC is 10 for one monster and increases by 2 for each additional living
   monster. Boss encounters cannot be fled.
 

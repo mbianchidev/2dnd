@@ -39,6 +39,7 @@ import {
   type ActiveStatusEffect,
 } from "./statusEffects";
 import { normalizeGambitRules, type GambitRule } from "./gambits";
+import { getItemTransferRestriction } from "./inventory";
 import { replayQuestCompletionActions } from "./quests";
 
 export const MAX_ACTIVE_COMPANIONS = 3;
@@ -314,15 +315,6 @@ function getPartyMember(
     : player.party.companions.find((companion) => companion.id === memberId);
 }
 
-function isEquippedByActor(actor: CombatActorState, item: Item): boolean {
-  return [
-    actor.equippedWeapon,
-    actor.equippedOffHand,
-    actor.equippedArmor,
-    actor.equippedShield,
-  ].some((equipped) => equipped === item);
-}
-
 export function transferPartyItem(
   player: PlayerState,
   fromId: PartyMemberId,
@@ -341,16 +333,11 @@ export function transferPartyItem(
   if (!item) {
     return { transferred: false, message: "Item is unavailable." };
   }
-  if (item.type === "key" || item.type === "mount") {
+  const restriction = getItemTransferRestriction(source, item);
+  if (restriction) {
     return {
       transferred: false,
-      message: `${item.name} must remain with the hero.`,
-    };
-  }
-  if (isEquippedByActor(source, item)) {
-    return {
-      transferred: false,
-      message: `${item.name} is currently equipped.`,
+      message: restriction,
     };
   }
   source.inventory.splice(itemIndex, 1);

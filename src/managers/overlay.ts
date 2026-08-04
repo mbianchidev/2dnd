@@ -69,6 +69,7 @@ export interface OverlayCallbacks {
   setTimeStep: (t: number) => void;
   evacuateDungeon: () => void;
   getHUDInfo: () => string;
+  openPartyInventory: () => void;
   openQuestJournal: () => void;
   openChronicle: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
@@ -974,7 +975,7 @@ export class OverlayManager {
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
 
-    const menuHeight = 282;
+    const menuHeight = 324;
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
       220,
@@ -998,7 +999,7 @@ export class OverlayManager {
     this.menuOverlay.add(title);
 
     // Resume
-    const resumeBtn = this.scene.add.text(px + panelW / 2, py + 48, "▶ Resume", {
+    const resumeBtn = this.scene.add.text(px + panelW / 2, py + 69, "▶ Resume", {
       fontSize: "14px", fontFamily: "monospace", color: "#88ff88",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
@@ -1007,8 +1008,28 @@ export class OverlayManager {
     resumeBtn.on("pointerdown", () => this.toggleMenuOverlay(player, defeatedBosses, codex));
     this.menuOverlay.add(resumeBtn);
 
+    const partyBtn = this.scene.add.text(
+      px + panelW / 2,
+      py + 237,
+      "Party & Inventory",
+      {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#9fe8ff",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 16, y: 6 },
+      },
+    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    partyBtn.on("pointerover", () => partyBtn.setColor("#ffd700"));
+    partyBtn.on("pointerout", () => partyBtn.setColor("#9fe8ff"));
+    partyBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+      this.callbacks.openPartyInventory();
+    });
+    this.menuOverlay.add(partyBtn);
+
     // Quest journal
-    const questsBtn = this.scene.add.text(px + panelW / 2, py + 90, "Quest Journal", {
+    const questsBtn = this.scene.add.text(px + panelW / 2, py + 111, "Quest Journal", {
       fontSize: "14px", fontFamily: "monospace", color: "#d1c4e9",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
@@ -1022,7 +1043,7 @@ export class OverlayManager {
 
     const chronicleBtn = this.scene.add.text(
       px + panelW / 2,
-      py + 132,
+      py + 153,
       "Chronicle",
       {
         fontSize: "14px",
@@ -1041,7 +1062,7 @@ export class OverlayManager {
     this.menuOverlay.add(chronicleBtn);
 
     // Settings
-    const settingsY = 174;
+    const settingsY = 195;
     const settingsBtn = this.scene.add.text(px + panelW / 2, py + settingsY, "🔊 Settings", {
       fontSize: "14px", fontFamily: "monospace", color: "#aabbff",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
@@ -1055,7 +1076,7 @@ export class OverlayManager {
     this.menuOverlay.add(settingsBtn);
 
     // Quit
-    const quitY = 216;
+    const quitY = 279;
     const quitBtn = this.scene.add.text(px + panelW / 2, py + quitY, "✕ Quit to Title", {
       fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },

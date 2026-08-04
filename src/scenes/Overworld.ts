@@ -315,6 +315,7 @@ export class OverworldScene extends Phaser.Scene {
       setTimeStep: (t: number) => { this.timeStep = t; },
       evacuateDungeon: () => this.evacuateDungeon(),
       getHUDInfo: () => this.getHUDInfo(),
+      openPartyInventory: () => this.partyOverlayManager.openInventory(this.player),
       openQuestJournal: () => this.openQuestJournal(),
       openChronicle: () => this.chronicleManager.open(this.player),
       fadeOutAndIn: (atBlack, duration) =>
@@ -505,6 +506,7 @@ export class OverworldScene extends Phaser.Scene {
       restartScene: () => this.restartOverworld("debug scene refresh"),
       refreshQuestUI: () => this.questFlow.refreshUi(),
       refreshPartyActors: () => this.refreshPartyActors(),
+      isInputBlocked: () => this.isOverlayOpen(),
     });
     this.debugCommandSystem.fogOfWar = this.fogOfWar;
     this.debugCommandSystem.encounterSystem = this.encounterSystem;
@@ -550,6 +552,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     pKey.on("down", () => {
+      if (this.partyOverlayManager.isInventorySearchActive()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen() || this.overlayManager.isOpen()) return;
@@ -615,6 +618,7 @@ export class OverworldScene extends Phaser.Scene {
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
+      if (this.partyOverlayManager.isOpen()) return;
       this.toggleMount();
     });
   }
@@ -917,9 +921,10 @@ export class OverworldScene extends Phaser.Scene {
     const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
     const menuTag = this.overlayManager.menuOverlay ? " [MENU]" : "";
     const chronicleTag = this.chronicleManager?.isOpen() ? " [CHRONICLE]" : "";
+    const partyTag = this.partyOverlayManager.getDebugState();
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${partyTag} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
       `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length} | Checks: ${Object.keys(p.progression.skillChecks).length}`,

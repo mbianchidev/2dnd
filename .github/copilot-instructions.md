@@ -49,6 +49,7 @@ src/
 │   ├── combat.ts
 │   ├── groupCombat.ts
 │   ├── battleActions.ts
+│   ├── animation.ts
 │   ├── party.ts
 │   ├── gambits.ts
 │   ├── statusEffects.ts
@@ -98,12 +99,16 @@ src/
 │   ├── tutorial.ts
 │   └── talents.ts
 ├── managers/
+│   ├── actorAnimation.ts
+│   ├── battlePresentation.ts
+│   ├── worldPresentation.ts
 │   ├── questJournal.ts
 │   ├── questFlow.ts
 │   ├── chronicle.ts
 │   ├── tutorial.ts
 │   └── cutscene.ts
 ├── renderers/
+│   ├── actorTextures.ts
 │   ├── cutscene.ts
 │   ├── settings.ts
 │   └── result.ts
@@ -113,6 +118,8 @@ tests/
 ├── combat.test.ts
 ├── groupCombat.test.ts
 ├── battleActions.test.ts
+├── animation.test.ts
+├── actorTextures.test.ts
 ├── partyCombat.test.ts
 ├── party.test.ts
 ├── companions.test.ts
@@ -194,6 +201,13 @@ rendering and scene-owned state to `renderers/` and `managers/`.
   Block state-changing input while a handoff is pending, and keep Overworld
   restarts on the shared full-state payload including `savedSpecialNpcs`.
 - Generate textures in `src/renderers/textures.ts`, invoked by Boot.
+- Keep actor animation contracts in `src/systems/animation.ts`, generic Phaser
+  pose/tween ownership in `src/managers/actorAnimation.ts`, and scene-specific
+  orchestration in focused battle/world directors. Presentation reads stable
+  actor IDs and resolved outcomes; it never mutates combat or quest state.
+- Build `ActorTextureFamily` metadata with explicit frame keys. Optional
+  monster-family art may supply those frames; existing textures must retain a
+  transform-based fallback without hardcoded monster IDs.
 - Synthesize all audio in `src/systems/audio.ts`.
 - Store Phaser object references needed for later update/cleanup.
 - Calculate actual scaled UI bounds to prevent overlap.
@@ -411,6 +425,13 @@ Flow:
   the result scene; continuing carries the full shared state to Overworld.
 - Debug instant victory routes through the same battle-end check even during
   the pre-turn `init` phase.
+- Battle presentation registers hero, companions, enemies, and bosses by stable
+  combatant ID. Resolve mechanics first, then animate the immutable result;
+  never consume resources twice or make turn/result transitions depend on a
+  tween callback.
+- Idle, attack, cast, ability, item, defend, damage, victory, faint, and flee
+  states must have once-only completion, a duration-plus-grace visual recovery
+  path, and explicit cleanup on battle handoff or scene shutdown.
 - Ranked AI/gambits use `src/systems/battleActions.ts`: enumerate living actors,
   resolve a scope with an optional preferred/matched ID, validate resources and
   per-actor action economy, then execute and consume one frozen
@@ -607,6 +628,8 @@ natural-minor defeat profile. Stop the active weather audio overlay before
 starting it without changing the persisted weather state.
 Data-driven campaign scenes route short typed cues through
 `audioEngine.playCutsceneCue()`. Disconnect ended cue oscillators and gain nodes.
+Battle presentation routes spell, ability, defend, flee, and faint cues through
+the synthesized SFX graph; do not duplicate cues in scene-local action code.
 Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 `audioEngine.playTrapSFX()`. Do not add external audio.
 
@@ -621,6 +644,9 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Query reduced motion through `isReducedMotionEnabled()` or
   `getMotionDuration()`; cutscenes, transitions, ambient movement, and visual
   effects must not create motion when it is enabled.
+- Reduced-motion actor presentation applies readable state/labels immediately,
+  still completes callbacks exactly once, and never leaves input or scene
+  handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Keep future input remapping aligned with issue #89; do not mix controls work
   into accessibility settings changes.
@@ -664,6 +690,9 @@ npm run build
   immutability, tutorial completion, direct and menu Tips access, interrupted and
   legacy ending recovery, durable post-game reload, corrupt-save fallback,
   random/boss defeat recovery, recovery save/reload, and page/console errors.
+- Animation browser coverage includes hero/companion/monster/boss actions and
+  fainting, spell/ability particles, world/follower/mount gait, boss cutscenes,
+  and reduced-motion immediate states.
 - Pull request CI installs Chromium and runs the browser suites.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.

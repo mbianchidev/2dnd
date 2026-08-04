@@ -119,6 +119,12 @@ canvas for browser assertions, and suppresses residual tweens in reduced-motion
 mode. New scene animations must also branch through
 `isReducedMotionEnabled()` or `getMotionDuration()`.
 
+Use `ActorAnimationDirector` for reusable actor poses and cleanup. Specialized
+battle/world directors register sprites by stable actor ID, use explicit
+`ActorTextureFamily` frame keys with fallback textures, and expose deterministic
+debug state for browser synchronization. Kill owned tweens/timers on shutdown;
+never wait for actor animation before an authoritative fade-complete handoff.
+
 Overworld restarts use one shared payload that includes a fresh
 `savedSpecialNpcs` snapshot. Block movement and other state-changing actions
 while a handoff is pending.
@@ -216,6 +222,9 @@ on mouse-wheel input.
 - Clean up weather emitters and timers owned by Battle.
 - Also remove Battle input listeners and transient menus before result or
   Overworld handoff.
+- Clean up the battle presentation director before destroying party sprites.
+  Debug instant victory must still produce faint/victory presentation through
+  the normal battle-end path.
 - Route debug instant victory through the normal end check even during the
   pre-turn `init` phase.
 

@@ -12,6 +12,7 @@ import {
   type PartyState,
 } from "../systems/party";
 import type { PlayerState } from "../systems/player";
+import { WorldPresentationDirector } from "./worldPresentation";
 
 export interface FollowerTile {
   x: number;
@@ -33,12 +34,15 @@ export function advanceFollowerTrail(
 
 export class CompanionFollowerManager {
   private readonly scene: Phaser.Scene;
-  private sprites = new Map<string, Phaser.GameObjects.Sprite>();
+  private sprites = new Map<CompanionId, Phaser.GameObjects.Sprite>();
   private trail: FollowerTile[] = [];
   private activeIds: CompanionId[] = [];
   private onInteract: ((companion: CompanionState) => void) | null = null;
 
-  constructor(scene: Phaser.Scene) {
+  constructor(
+    scene: Phaser.Scene,
+    private readonly presentation: WorldPresentationDirector,
+  ) {
     this.scene = scene;
   }
 
@@ -64,6 +68,7 @@ export class CompanionFollowerManager {
         .setInteractive({ useHandCursor: true });
       sprite.on("pointerdown", () => this.onInteract?.(companion));
       this.sprites.set(companion.id, sprite);
+      this.presentation.bindFollower(companion.id, sprite);
     });
   }
 
@@ -99,8 +104,10 @@ export class CompanionFollowerManager {
       const x = target.x * TILE_SIZE + TILE_SIZE / 2;
       const y = target.y * TILE_SIZE + TILE_SIZE / 2;
       const motionDuration = getMotionDuration(duration);
+      this.presentation.presentFollowerStep(companionId, dx);
       if (motionDuration === 0) {
         sprite.setPosition(x, y);
+        this.presentation.completeFollowerStep(companionId);
         return;
       }
       this.scene.tweens.add({
@@ -108,6 +115,8 @@ export class CompanionFollowerManager {
         x,
         y,
         duration: motionDuration,
+        onComplete: () =>
+          this.presentation.completeFollowerStep(companionId),
       });
     });
   }
@@ -144,7 +153,11 @@ export class CompanionFollowerManager {
   }
 
   clear(): void {
-    for (const sprite of this.sprites.values()) sprite.destroy();
+    for (const [companionId, sprite] of this.sprites) {
+      this.presentation.unbindFollower(companionId);
+      this.scene.tweens.killTweensOf(sprite);
+      sprite.destroy();
+    }
     this.sprites.clear();
     this.trail = [];
     this.activeIds = [];

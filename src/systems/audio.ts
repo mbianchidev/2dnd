@@ -1207,6 +1207,123 @@ class AudioEngine {
     shimOsc.stop(ctx.currentTime + 0.7);
   }
 
+  /** Play a magical cast cue with a rising tone and bright release. */
+  playSpellSFX(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const ctx = this.ctx;
+    const dest = this.sfxGain;
+    const start = ctx.currentTime;
+
+    const charge = ctx.createOscillator();
+    const chargeGain = ctx.createGain();
+    charge.type = "triangle";
+    charge.frequency.setValueAtTime(220, start);
+    charge.frequency.exponentialRampToValueAtTime(880, start + 0.22);
+    chargeGain.gain.setValueAtTime(0.001, start);
+    chargeGain.gain.linearRampToValueAtTime(0.11, start + 0.08);
+    chargeGain.gain.exponentialRampToValueAtTime(0.001, start + 0.3);
+    charge.connect(chargeGain);
+    chargeGain.connect(dest);
+    charge.start(start);
+    charge.stop(start + 0.32);
+
+    const release = ctx.createOscillator();
+    const releaseGain = ctx.createGain();
+    release.type = "sine";
+    release.frequency.setValueAtTime(1320, start + 0.16);
+    release.frequency.exponentialRampToValueAtTime(440, start + 0.42);
+    releaseGain.gain.setValueAtTime(0.08, start + 0.16);
+    releaseGain.gain.exponentialRampToValueAtTime(0.001, start + 0.45);
+    release.connect(releaseGain);
+    releaseGain.connect(dest);
+    release.start(start + 0.16);
+    release.stop(start + 0.48);
+  }
+
+  /** Play a compact physical or class-ability cue. */
+  playAbilitySFX(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const ctx = this.ctx;
+    const dest = this.sfxGain;
+    const start = ctx.currentTime;
+
+    const pulse = ctx.createOscillator();
+    const pulseGain = ctx.createGain();
+    pulse.type = "square";
+    pulse.frequency.setValueAtTime(180, start);
+    pulse.frequency.exponentialRampToValueAtTime(420, start + 0.16);
+    pulseGain.gain.setValueAtTime(0.09, start);
+    pulseGain.gain.exponentialRampToValueAtTime(0.001, start + 0.22);
+    pulse.connect(pulseGain);
+    pulseGain.connect(dest);
+    pulse.start(start);
+    pulse.stop(start + 0.24);
+  }
+
+  /** Play a shielded defensive stance cue. */
+  playDefendSFX(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const ctx = this.ctx;
+    const dest = this.sfxGain;
+    const start = ctx.currentTime;
+
+    for (const [offset, frequency] of [[0, 180], [0.055, 260]] as const) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.1, start + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + offset + 0.18);
+      osc.connect(gain);
+      gain.connect(dest);
+      osc.start(start + offset);
+      osc.stop(start + offset + 0.2);
+    }
+  }
+
+  /** Play a quick retreat cue for flee attempts. */
+  playFleeSFX(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const ctx = this.ctx;
+    const dest = this.sfxGain;
+    const start = ctx.currentTime;
+
+    const source = this.createNoiseSource();
+    if (source) {
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      filter.type = "highpass";
+      filter.frequency.setValueAtTime(500, start);
+      filter.frequency.exponentialRampToValueAtTime(2800, start + 0.28);
+      gain.gain.setValueAtTime(0.08, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.32);
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(dest);
+      source.start(start);
+      source.stop(start + 0.34);
+    }
+  }
+
+  /** Play a descending cue when an actor faints. */
+  playFaintSFX(): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const ctx = this.ctx;
+    const dest = this.sfxGain;
+    const start = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(300, start);
+    osc.frequency.exponentialRampToValueAtTime(70, start + 0.42);
+    gain.gain.setValueAtTime(0.09, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.48);
+    osc.connect(gain);
+    gain.connect(dest);
+    osc.start(start);
+    osc.stop(start + 0.5);
+  }
+
   /** Play a campfire crackling sound for short rest. */
   playCampfireSFX(): void {
     if (!this.ctx || !this.sfxGain) return;
@@ -1463,6 +1580,11 @@ class AudioEngine {
       { label: "SFX: Chest",     fn: () => this.playChestOpenSFX() },
       { label: "SFX: Dungeon",   fn: () => this.playDungeonEnterSFX() },
       { label: "SFX: Potion",    fn: () => this.playPotionSFX() },
+      { label: "SFX: Spell",     fn: () => this.playSpellSFX() },
+      { label: "SFX: Ability",   fn: () => this.playAbilitySFX() },
+      { label: "SFX: Defend",    fn: () => this.playDefendSFX() },
+      { label: "SFX: Flee",      fn: () => this.playFleeSFX() },
+      { label: "SFX: Faint",     fn: () => this.playFaintSFX() },
       { label: "SFX: Campfire",  fn: () => this.playCampfireSFX() },
       { label: "SFX: Teleport",  fn: () => this.playTeleportSFX() },
       { label: "SFX: Footstep (grass)", fn: () => { for (let i = 0; i < 4; i++) setTimeout(() => this.playFootstepSFX(0), i * 200); } },

@@ -68,6 +68,13 @@ Consumables consume the acting source's inventory while applying HP/MP/cures
 to a selected ally source; execution contexts must include all party action
 sources. Equipment actions remain self-targeted.
 
+`src/systems/animation.ts` is the Phaser-free presentation contract for actor
+states, deterministic timing, stable-ID target mapping, once-only lifecycle,
+and explicit family/frame texture metadata. `src/managers/actorAnimation.ts`
+owns reusable Phaser poses and cleanup; battle/world directors consume resolved
+state without changing mechanics. `src/renderers/actorTextures.ts` supports
+optional family frames from #49 and a generic existing-texture fallback.
+
 Tutorial and Tips content lives in `src/data/tutorial.ts` as immutable steps,
 semantic control actions, categories, and unlock requirements.
 `src/systems/tutorial.ts` owns completion normalization and progression-aware
@@ -271,6 +278,9 @@ queued start/restart is processed. Every Overworld restart must include a fresh
 Use the same guarded Battle exit cleanup for victory, flee, and defeat. Defeat
 clears transient menus, input, effects, particles, and weather timers before
 starting `DefeatScene`, which continues only to Overworld.
+- Resolve an action before presenting it. Actor animation may read stable IDs,
+  targets, hit/damage/healing, and outcome, but must not spend MP/items/actions,
+  apply damage, report results, or control fade-complete scene handoffs.
 
 ## Companions and gambits
 

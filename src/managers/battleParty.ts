@@ -32,6 +32,7 @@ import {
 } from "../systems/gambits";
 
 interface BattlePartyCallbacks {
+  present(result: ResolvedBattleAction): void;
   refresh(): void;
   afterAction(previouslyAliveEnemyIds: ReadonlySet<string>): boolean;
 }
@@ -361,6 +362,7 @@ export class BattlePartyManager {
     }
     const transition = consumeBattleActionEconomy(this.economy, plan);
     if (transition.valid) this.economy = transition.state;
+    this.callbacks.present(result);
     this.callbacks.refresh();
     const battleEnded = this.callbacks.afterAction(previouslyAliveEnemyIds);
     if (battleEnded) {

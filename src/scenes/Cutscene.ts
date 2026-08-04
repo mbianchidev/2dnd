@@ -127,6 +127,7 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   update(time: number): void {
+    this.updateDebugPanel();
     if (
       time < this.inputReadyAt
       || this.sceneTransitions.isPending
@@ -286,7 +287,8 @@ export class CutsceneScene extends Phaser.Scene {
       return;
     }
     debugPanelState(
-      `CUTSCENE | ${this.sceneData.cutsceneId} | Step ${this.director.currentStepIndex + 1}/${this.director.definition.steps.length} | ${this.sceneData.replay ? "Replay" : "Story"}`,
+      `CUTSCENE | ${this.sceneData.cutsceneId} | Step ${this.director.currentStepIndex + 1}/${this.director.definition.steps.length} | ${this.sceneData.replay ? "Replay" : "Story"}`
+      + ` | Anim: ${this.cutsceneRenderer.debugState}`,
     );
   }
 }

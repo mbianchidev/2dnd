@@ -72,6 +72,9 @@ API, and saves use `localStorage`.
   boss encounters, lists every defeated actor, reports the exact gold and XP
   losses, autosaves the recovered state, and continues from the last town with
   half HP/MP and no battle effects or overlapping weather ambience
+- Stable-ID battle presentation animates hero, companion, monster, and boss
+  idle, attack, cast, ability, item, defend, damage, victory, faint, and flee
+  states after mechanics resolve, without changing action economy or outcomes
 
 ### Non-combat skill checks
 
@@ -125,9 +128,14 @@ API, and saves use `localStorage`.
 ### Presentation
 
 - Phaser 4 pixel-art rendering with procedural textures
+- Animated overworld walking, followers, mount gait, battle actions, boss
+  reveals, and cutscene actor states through reusable cleanup-safe directors
+- Explicit family/frame texture metadata consumes future family art when
+  present and falls back to transform-based animation for existing textures
 - Procedural biome, city, battle, boss, title, cutscene, and campaign-ending
   music and cues
-- Synthesized combat, weather, movement, item, and interaction sound effects
+- Synthesized combat, spell, ability, defend, flee, faint, weather, movement,
+  item, and interaction sound effects
 - Shared title and in-game settings for audio, 100%/125%/150% text, high
   contrast, reduced motion, and manual or automatic cutscene advance
 - Important selections and trap/battle states pair color with text, symbols,
@@ -168,6 +176,7 @@ src/
 │   ├── combat.ts
 │   ├── groupCombat.ts
 │   ├── battleActions.ts
+│   ├── animation.ts
 │   ├── party.ts
 │   ├── inventory.ts
 │   ├── gambits.ts
@@ -217,6 +226,9 @@ src/
 │   ├── companionFollowers.ts
 │   ├── partyOverlay.ts
 │   ├── battleParty.ts
+│   ├── actorAnimation.ts
+│   ├── battlePresentation.ts
+│   ├── worldPresentation.ts
 │   ├── questJournal.ts
 │   ├── questFlow.ts
 │   ├── cutscene.ts
@@ -229,6 +241,7 @@ src/
     ├── trapTextures.ts
     ├── characterTextures.ts
     ├── itemVisuals.ts
+    ├── actorTextures.ts
     ├── cutscene.ts
     ├── settings.ts
     ├── result.ts
@@ -272,6 +285,14 @@ presentation. `EndingScene` and `DefeatScene` share
 surfaces. IDs are queued and saved before presentation, then removed from
 `pendingCutsceneIds` and added to `seenCutsceneIds` only after completion or
 skip. Chronicle replay changes neither list.
+
+`src/systems/animation.ts` defines Phaser-free actor states, deterministic
+reduced-motion timing, stable-ID target mapping, once-only lifecycle gates, and
+the family/frame texture contract. `src/managers/actorAnimation.ts` owns generic
+pose/tween cleanup, while battle and world directors orchestrate feedback
+without delaying authoritative turn, result, or scene-transition state.
+`src/renderers/actorTextures.ts` consumes optional family metadata from #49 and
+falls back to current procedural textures when family frames are unavailable.
 
 For companion recruitment, define three distinct quest IDs and one action per
 path using `type: "recruitCompanion"` and the companion ID as `targetId`.
@@ -424,7 +445,9 @@ synergies, rewards, cutscene data, triggers, queue recovery, accessibility,
 director lifecycle, scene transitions, ending summaries, multi-target actions,
 defeat receipts and idempotent result handoffs, and party-ready combat/action-planning
 contracts, companion definitions, party state, gambits, follower trails, and
-recruitment replay.
+recruitment replay. Animation coverage verifies deterministic state selection,
+reduced-motion timing, stable target mapping, once-only cleanup, and texture
+fallback behavior.
 
 Important integration suites:
 
@@ -442,6 +465,8 @@ Important integration suites:
 - `tests/followers.test.ts`
 - `tests/tutorial.test.ts`
 - `tests/fogOfWar.test.ts`
+- `tests/animation.test.ts`
+- `tests/actorTextures.test.ts`
 
 The committed Playwright suite in `e2e/` runs real Chromium campaign and defeat
 flows through character creation, interrupted opening recovery, quest
@@ -450,7 +475,8 @@ dungeon reveals, skipped boss introductions, boss aftermath chains, Chronicle
 replay immutability, final Elowen completion, credits, interrupted epilogue
 recovery, post-game continuation and reload, legacy completed-but-unseen ending
 recovery, corrupt-save fallback to New Game, random and boss defeat results,
-recovery save/reload, and clean continuation. It starts
+recovery save/reload, animated battle/world/mount/follower/boss/cutscene
+presentation, reduced-motion immediacy, and clean continuation. It starts
 Vite on an available strict port and defaults to the deployed `/2dnd/` base
 path. Pull request CI installs Chromium and runs these suites as a release gate:
 

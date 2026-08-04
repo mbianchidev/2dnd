@@ -2,8 +2,7 @@
  * Procedural audio system using the Web Audio API.
  *
  * Provides biome-based background music, weather ambient SFX, boss/battle
- * themes, city themes, day/night tone shifts, and stubs for future
- * defeat music & dialogue blip sounds.
+ * themes, city themes, day/night tone shifts, defeat music, and dialogue blips.
  *
  * All audio is synthesised at runtime – no external assets required.
  */
@@ -104,7 +103,7 @@ const ENDING_PROFILE: BiomeProfile = {
   baseNote: -5, scale: MAJOR_PENTA, bpm: 62, wave: "triangle", padWave: "sine",
 };
 
-/** Defeat / game-over profile (future use). */
+/** Defeat / game-over profile. */
 const DEFEAT_PROFILE: BiomeProfile = {
   baseNote: -5, scale: NATURAL_MINOR, bpm: 52, wave: "sine", padWave: "sine",
 };
@@ -719,7 +718,7 @@ class AudioEngine {
     this.playProfile(ENDING_PROFILE, false);
   }
 
-  /** Play defeat / game-over music (future use). */
+  /** Play defeat / game-over music. */
   playDefeatMusic(): void {
     if (!this.ctx) return;
     if (this.state.trackKind === "defeat") return;

@@ -43,7 +43,8 @@ src/
 │   ├── Shop.ts
 │   ├── Codex.ts
 │   ├── Cutscene.ts
-│   └── Ending.ts
+│   ├── Ending.ts
+│   └── Defeat.ts
 ├── systems/
 │   ├── combat.ts
 │   ├── groupCombat.ts
@@ -102,7 +103,7 @@ src/
 ├── renderers/
 │   ├── cutscene.ts
 │   ├── settings.ts
-│   └── ending.ts
+│   └── result.ts
 └── utils/
 
 tests/
@@ -150,7 +151,7 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 
 - Import Phaser with `import * as Phaser from "phaser"`.
 - Scene keys are `BootScene`, `OverworldScene`, `BattleScene`, `ShopScene`,
-  `CodexScene`, `CutsceneScene`, and `EndingScene`.
+  `CodexScene`, `CutsceneScene`, `EndingScene`, and `DefeatScene`.
 - Store scene input in `init()` and reset scene-specific transient state there.
 - Build state-bearing transition payloads with `createSharedSceneState()` so
   they preserve:
@@ -172,6 +173,9 @@ rendering and scene-owned state to `renderers/` and `managers/`.
   mode, return scene, and optional runtime-only quest updates. Ending receives
   the full shared state plus the epilogue ID. Continue Post-game returns that
   state to Overworld, while Return to Title saves before starting Boot.
+- Defeat receives the full shared state plus the encounter name/type and an
+  exact runtime-only `PartyDefeatResult`. It never reapplies the penalty and
+  only offers continuation through the existing town recovery state.
 - Battle may also receive accessor-backed `partyCombatants` and runtime-only
   `battleHooks`; these are scene contracts, not persisted save fields.
 - Persistent companions live inside `player.party`, so every existing
@@ -256,7 +260,8 @@ level-up/stat state, control mode, dialogue cursor, and normalized gambits.
   and battle drops remain hero-owned until eligible items are transferred.
 - Living actors receive victory XP. KO actors receive no victory XP and reset
   to the current-level XP floor. Full defeat requires every active party actor
-  to be KO and preserves the existing single gold/location penalty.
+  to be KO. Apply the gold/XP/location recovery once, return its exact receipt,
+  autosave the recovered state, and present it in `DefeatScene`.
 
 ## Quests
 
@@ -365,9 +370,13 @@ Flow:
   only for compatibility.
 - `BattleResolutionHooks` exposes reward adjustment, enemy-defeat,
   companion-turn, and once-only battle-result callbacks.
-- Battle return is guarded and delegates to `SceneTransitionManager`, which
-  starts Overworld after fade completion or the delayed recovery watchdog and
-  restores the outgoing camera before Phaser queues the handoff.
+- Battle exits are guarded and delegate to `SceneTransitionManager`, which
+  starts Overworld or `DefeatScene` after fade completion or the delayed
+  recovery watchdog and restores the outgoing camera before Phaser queues the
+  handoff.
+- Random and boss defeats use the same `applyPartyDefeat()` mechanics. Battle
+  clears menus, input listeners, effects, particles, and weather timers before
+  the result scene; continuing carries the full shared state to Overworld.
 - Debug instant victory routes through the same battle-end check even during
   the pre-turn `init` phase.
 - Ranked AI/gambits use `src/systems/battleActions.ts`: enumerate living actors,
@@ -551,6 +560,9 @@ All music and SFX use Web Audio synthesis. Initialize from a user gesture.
 Volume preferences for Master, Music, SFX, and Dialog persist separately.
 The campaign epilogue uses `audioEngine.playEndingMusic()` and the procedural
 ending profile.
+The defeat result sequence uses `audioEngine.playDefeatMusic()` and the slow
+natural-minor defeat profile. Stop the active weather audio overlay before
+starting it without changing the persisted weather state.
 Data-driven campaign scenes route short typed cues through
 `audioEngine.playCutsceneCue()`. Disconnect ended cue oscillators and gain nodes.
 Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
@@ -562,6 +574,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Never add production `console.log`.
 - `/spawn` resolves every entry in `ALL_MONSTERS`, including dungeon-specific
   monsters and bosses.
+- Battle-only `/defeat` knocks out the active party through the production
+  defeat/result/recovery path.
 - `/quest` lists, advances, or sets exact quest stages/statuses.
 - `/near <questNpcId>` positions the hero on a valid adjacent tile in the
   current city's primary district; it never completes the interaction.
@@ -588,9 +602,10 @@ npm run build
 - Frameworks: Vitest for logic and Playwright for browser flows.
 - Files: `tests/*.test.ts` and `e2e/*.spec.ts`.
 - Add deterministic tests for mechanics and migrations.
-- The campaign browser suite uses a fresh strict port, defaults to the deployed
-  `/2dnd/` base path, and asserts opening recovery, boss cutscenes, Chronicle
-  replay immutability, ending recovery, and page/console errors.
+- The browser suites use a fresh strict port, default to the deployed `/2dnd/`
+  base path, and assert opening recovery, boss cutscenes, Chronicle replay
+  immutability, ending recovery, random/boss defeat recovery, save/reload, and
+  page/console errors.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run typecheck, full Vitest, browser tests, and build before completion.

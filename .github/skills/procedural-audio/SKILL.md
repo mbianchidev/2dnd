@@ -121,6 +121,14 @@ Keep `ending` as its own `TrackKind`, include it in `playAllSounds()`, and call
 `playTitleMusic()` before Ending hands off to Boot so the ending loop does not
 continue on the title screen.
 
+## Defeat result music
+
+`audioEngine.playDefeatMusic()` selects the slow natural-minor
+`DEFEAT_PROFILE`. Keep `defeat` as its own `TrackKind`, include it in
+`playAllSounds()`, and start it from `DefeatScene` rather than Battle so the
+result sequence owns its music lifecycle. Stop the weather overlay first with
+`playWeatherSFX(WeatherType.Clear)` without mutating the persisted weather state.
+
 ## Campaign cutscene cues
 
 `audioEngine.playCutsceneCue()` accepts the typed cues exported by the cutscene

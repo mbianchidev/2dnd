@@ -7,6 +7,7 @@ import {
   type CompanionLoadout,
 } from "../data/companions";
 import { getAbility } from "../data/abilities";
+import { getAllTowns } from "../data/chunks";
 import { getItem, type Item } from "../data/items";
 import { getSpell } from "../data/spells";
 import { TALENTS } from "../data/talents";
@@ -93,6 +94,33 @@ export interface PartyRestResult {
     name: string;
     result: ReturnType<typeof processPendingLevelUps>;
   }>;
+}
+
+export interface PartyDefeatActorResult {
+  combatantId: BattleCombatantId;
+  name: string;
+  level: number;
+  xpBefore: number;
+  xpAfter: number;
+  xpLost: number;
+  restoredHp: number;
+  restoredMp: number;
+}
+
+export interface PartyDefeatRecoveryLocation {
+  name: string;
+  x: number;
+  y: number;
+  chunkX: number;
+  chunkY: number;
+}
+
+export interface PartyDefeatResult {
+  actors: PartyDefeatActorResult[];
+  goldBefore: number;
+  goldAfter: number;
+  goldLost: number;
+  recoveryLocation: PartyDefeatRecoveryLocation;
 }
 
 export function createPartyState(): PartyState {
@@ -504,27 +532,65 @@ export function distributePartyVictory(
 export function applyPartyDefeat(
   player: PlayerState,
   knockedOutPartyIds: BattleCombatantId[],
-): void {
+): PartyDefeatResult {
   const actorIds = [...new Set(knockedOutPartyIds)];
+  const actors: PartyDefeatActorResult[] = [];
   for (const combatantId of actorIds) {
     const actor = getProgressingActorByCombatantId(player, combatantId);
-    if (!actor) continue;
+    if (!actor) {
+      throw new Error(
+        `[party] Unknown knocked-out combatant: ${combatantId}`,
+      );
+    }
+    const xpBefore = actor.xp;
     applyKnockoutXpPenalty(actor);
     actor.hp = Math.max(1, Math.floor(actor.maxHp / 2));
     actor.mp = Math.floor(actor.maxMp / 2);
     clearAllEffects(actor.activeEffects);
+    actors.push({
+      combatantId,
+      name: actor.name,
+      level: actor.level,
+      xpBefore,
+      xpAfter: actor.xp,
+      xpLost: Math.max(0, xpBefore - actor.xp),
+      restoredHp: actor.hp,
+      restoredMp: actor.mp,
+    });
   }
+  const goldBefore = player.gold;
   player.gold = Math.floor(player.gold * 0.7);
-  player.position.x = player.lastTownX ?? 2;
-  player.position.y = player.lastTownY ?? 2;
-  player.position.chunkX = player.lastTownChunkX ?? 4;
-  player.position.chunkY = player.lastTownChunkY ?? 2;
+  const recoveryLocation: PartyDefeatRecoveryLocation = {
+    name: "Willowdale",
+    x: player.lastTownX ?? 2,
+    y: player.lastTownY ?? 2,
+    chunkX: player.lastTownChunkX ?? 4,
+    chunkY: player.lastTownChunkY ?? 2,
+  };
+  const town = getAllTowns().find((candidate) =>
+    candidate.x === recoveryLocation.x
+    && candidate.y === recoveryLocation.y
+    && candidate.chunkX === recoveryLocation.chunkX
+    && candidate.chunkY === recoveryLocation.chunkY
+  );
+  if (town) recoveryLocation.name = town.name;
+  player.position.x = recoveryLocation.x;
+  player.position.y = recoveryLocation.y;
+  player.position.chunkX = recoveryLocation.chunkX;
+  player.position.chunkY = recoveryLocation.chunkY;
   player.position.inDungeon = false;
   player.position.dungeonId = "";
   player.position.dungeonLevel = 0;
   player.position.inCity = false;
   player.position.cityId = "";
   player.position.cityChunkIndex = 0;
+  return {
+    actors,
+    goldBefore,
+    goldAfter: player.gold,
+    goldLost: goldBefore - player.gold,
+    recoveryLocation,
+  };
 }
 
 export function restPartyAtInn(player: PlayerState): PartyRestResult {

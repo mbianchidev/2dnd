@@ -149,7 +149,7 @@ test("title and in-game accessibility settings share live preferences", async ({
     await holdKey(page, "c");
     await waitForState(page, "CODEX | Category: Monsters");
     await waitForState(page, "Texture: monster-slime-normal-idle");
-    await holdKey(page, "Escape");
+    await clickGame(page, 320, 498);
     await waitForState(page, "OVERWORLD");
   });
 

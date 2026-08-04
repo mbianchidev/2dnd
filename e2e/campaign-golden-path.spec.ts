@@ -255,7 +255,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "Completion: complete");
     await holdKey(page, "r");
     await waitForState(page, "Sort: name");
-    await holdKey(page, "Escape");
+    await clickGame(page, 320, 498);
     await waitForState(page, "OVERWORLD");
   });
 
@@ -280,6 +280,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await drainGenericCutscenesUntil(page, "OVERWORLD");
 
     await submitDebug(page, "/tp Willowdale");
+    await waitForState(page, "Pos: (2,2) Town");
     await holdKey(page, "Space");
     await waitForState(page, "[CITY:willowdale_city:0]");
     await submitDebug(page, "/near willowdaleArchivist");

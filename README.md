@@ -123,6 +123,9 @@ API, and saves use `localStorage`.
 - Synthesized combat, weather, movement, item, and interaction sound effects
 - Cutscene settings for reduced motion, 100%/125%/150% text, and manual or
   automatic advance
+- A five-step new-player tutorial plus an in-game Tips library with
+  progression-aware combat, exploration, party, mount, dungeon, skill-check,
+  and trap guidance
 - Scrollable overlays and a bounded battle log
 - Local-development debug panel, hotkeys, and slash commands
 
@@ -172,6 +175,7 @@ src/
 │   ├── questState.ts
 │   ├── questDebug.ts
 │   ├── accessibility.ts
+│   ├── tutorial.ts
 │   ├── sceneState.ts
 │   ├── cutscenes.ts
 │   └── debug.ts
@@ -195,6 +199,7 @@ src/
 │   ├── cutsceneBosses.ts
 │   ├── cutscenes.ts
 │   ├── skillChecks.ts
+│   ├── tutorial.ts
 │   └── items.ts
 ├── managers/
 │   ├── dungeonTraps.ts
@@ -205,6 +210,7 @@ src/
 │   ├── questFlow.ts
 │   ├── cutscene.ts
 │   ├── chronicle.ts
+│   ├── tutorial.ts
 │   ├── skillChecks.ts
 │   └── sceneTransition.ts
 └── renderers/
@@ -220,6 +226,13 @@ src/
 `map.ts` is the map hub. Core types and dimensions live in `mapTypes.ts`;
 world chunks, cities, and dungeons live in their own data modules. Overworld
 delegates rendering and stateful subsystems to `renderers/` and `managers/`.
+
+Tutorial steps, semantic control guidance, tips, categories, and unlock
+requirements live in `src/data/tutorial.ts`. `src/systems/tutorial.ts` owns
+Phaser-free completion normalization and progression-aware filtering, while
+`src/managers/tutorial.ts` owns the keyboard/pointer overlay. Completion
+persists at `player.progression.tutorial`; the compact HTML control rail starts
+collapsed now that equivalent guidance is available from the game.
 
 Quest content lives in `src/data/quests.ts`; runtime progression, rewards, NPC
 interactions, journal entries, access rules, danger states, and completion
@@ -298,10 +311,13 @@ npm run build      # Type-check and create a production build
 | `C` | Open the Codex |
 | `Q` | Open the quest journal |
 | `T` | Mount or dismount |
+| `F1` | Open or close Tips |
 | `Esc` | Close the active overlay or skip an active cutscene |
 | Mouse / touch | Select buttons and scroll lists |
 
-The `Esc` menu includes the Chronicle plus cutscene accessibility settings.
+The `Esc` menu includes Tips, tutorial replay, the Chronicle, and cutscene
+accessibility settings. Advanced Tips unlock automatically as relevant
+progression is reached.
 
 ## Debug mode
 
@@ -394,13 +410,15 @@ Important integration suites:
 - `tests/party.test.ts`
 - `tests/gambits.test.ts`
 - `tests/followers.test.ts`
+- `tests/tutorial.test.ts`
 - `tests/fogOfWar.test.ts`
 
 The committed Playwright suite in `e2e/` runs a real Chromium campaign golden
 path through character creation, interrupted opening recovery, quest
-interaction, dungeon reveals, skipped boss introductions, boss aftermath
-chains, Chronicle replay immutability, final Elowen completion, credits,
-post-game continuation, and completed-but-unseen ending recovery. It starts
+interaction, new-player tutorial completion, keyboard and menu Tips access,
+dungeon reveals, skipped boss introductions, boss aftermath chains, Chronicle
+replay immutability, final Elowen completion, credits, post-game continuation,
+and completed-but-unseen ending recovery. It starts
 Vite on an available strict port and defaults to the deployed `/2dnd/` base
 path:
 

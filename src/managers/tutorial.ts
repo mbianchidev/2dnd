@@ -321,12 +321,19 @@ export class TutorialManager {
     });
     const replay = this.addButton(
       container,
-      px + panelW - 94,
+      px + panelW - 154,
       py + 26,
       "Replay Tutorial",
       () => this.showTutorial(this.player!, true),
     );
-    container.add([title, replay]);
+    const close = this.addButton(
+      container,
+      px + panelW - 48,
+      py + 26,
+      "Close",
+      () => this.close(),
+    );
+    container.add([title, replay, close]);
 
     const tabWidth = (panelW - 36) / TIP_CATEGORIES.length;
     TIP_CATEGORIES.forEach((tipCategory, index) => {

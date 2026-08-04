@@ -42,7 +42,10 @@ export function createTutorialTipContext(
   return {
     level: player.level,
     companionCount: player.party.companions.length,
-    hasMount: player.mountId.length > 0,
+    hasMount: player.mountId.length > 0
+      || player.inventory.some((item) =>
+        item.type === "mount" && item.mountId !== undefined
+      ),
     hasEnteredDungeon: player.position.inDungeon
       || Object.keys(player.progression.exploredTiles).some((key) =>
         key.startsWith("d:")

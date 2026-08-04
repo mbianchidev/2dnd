@@ -328,7 +328,7 @@ describe("save system - PlayerState composition migration", () => {
 
     expect(loaded).not.toBeNull();
     expect(loaded!.version).toBe(9);
-    expect(loaded!.player.progression.tutorial).toEqual({ completed: false });
+    expect(loaded!.player.progression.tutorial).toEqual({ completed: true });
   });
 
   it("normalizes malformed and unknown seen cutscene IDs", () => {

@@ -42,6 +42,7 @@ interface OverworldTransitionHarness {
   partyOverlayManager: { close(): void };
   questJournal: { close(): void };
   chronicleManager: { close(): void };
+  tutorialManager: { close(): void };
   sceneTransitions: TransitionManagerHarness;
   autoSave(): void;
   handleAction(): void;
@@ -145,6 +146,7 @@ describe("OverworldScene transition contracts", () => {
     const closeParty = vi.fn();
     const closeJournal = vi.fn();
     const closeChronicle = vi.fn();
+    const closeTutorial = vi.fn();
     const autoSave = vi.fn();
     Object.assign(harness, {
       player,
@@ -160,6 +162,7 @@ describe("OverworldScene transition contracts", () => {
       partyOverlayManager: { close: closeParty },
       questJournal: { close: closeJournal },
       chronicleManager: { close: closeChronicle },
+      tutorialManager: { close: closeTutorial },
       sceneTransitions: transitionManager,
       autoSave,
     });
@@ -176,6 +179,7 @@ describe("OverworldScene transition contracts", () => {
     expect(closeParty).toHaveBeenCalledTimes(1);
     expect(closeJournal).toHaveBeenCalledTimes(1);
     expect(closeChronicle).toHaveBeenCalledTimes(1);
+    expect(closeTutorial).toHaveBeenCalledTimes(1);
     expect(autoSave).toHaveBeenCalledTimes(1);
     expect(start).not.toHaveBeenCalled();
 

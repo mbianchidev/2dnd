@@ -330,6 +330,7 @@ export function loadGame(): SaveData | null {
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed) || !isRecord(parsed["player"])) return null;
     if (typeof parsed["version"] !== "number") return null;
+    const sourceVersion = parsed["version"];
     const data = parsed as unknown as SaveData;
 
     // Migration: old saves stored this field as "bestiary" — map to "codex"
@@ -434,9 +435,11 @@ export function loadGame(): SaveData | null {
     data.player.progression.trapGuidance = readBoolean(
       data.player.progression.trapGuidance,
     );
-    data.player.progression.tutorial = normalizeTutorialProgress(
-      data.player.progression.tutorial,
-    );
+    const tutorialProgress = data.player.progression.tutorial;
+    data.player.progression.tutorial = tutorialProgress === undefined
+        && sourceVersion < SAVE_VERSION
+      ? { completed: true }
+      : normalizeTutorialProgress(tutorialProgress);
     data.player.party = normalizePartyState(playerRecord["party"]);
     synchronizeCompanionRecruitment(data.player);
     ensureLegacyCampaignEpilogueQueued(data.player);

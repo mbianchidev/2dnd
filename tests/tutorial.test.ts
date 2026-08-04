@@ -12,6 +12,7 @@ import {
   normalizeTutorialProgress,
 } from "../src/systems/tutorial";
 import { createPlayer } from "../src/systems/player";
+import { getItem } from "../src/data/items";
 
 function createTestPlayer() {
   return createPlayer("TutorialHero", {
@@ -82,5 +83,18 @@ describe("tutorial and tips", () => {
       hasTrapExperience: true,
     }).map((tip) => tip.id))
       .toEqual(TIPS.map((tip) => tip.id));
+  });
+
+  it("keeps mount advice unlocked while the player is dismounted", () => {
+    const player = createTestPlayer();
+    const mount = getItem("mountDonkey");
+    expect(mount).toBeDefined();
+    player.inventory.push(mount!);
+
+    expect(createTutorialTipContext(player).hasMount).toBe(true);
+    expect(
+      getUnlockedTips(createTutorialTipContext(player), "advanced")
+        .map((tip) => tip.id),
+    ).toContain("advanced.mounts");
   });
 });

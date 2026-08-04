@@ -58,6 +58,13 @@ Consumables consume the acting source's inventory while applying HP/MP/cures
 to a selected ally source; execution contexts must include all party action
 sources. Equipment actions remain self-targeted.
 
+Tutorial and Tips content lives in `src/data/tutorial.ts` as immutable steps,
+semantic control actions, categories, and unlock requirements.
+`src/systems/tutorial.ts` owns completion normalization and progression-aware
+filtering. `src/managers/tutorial.ts` owns the Overworld overlay and routes both
+keyboard and pointer input through shared navigation actions. New saves persist
+`player.progression.tutorial.completed`; replay never resets it.
+
 ## Quests
 
 - Put quest definitions, stage objectives, NPC IDs, rewards, and gated
@@ -236,6 +243,11 @@ context.
 Future party systems pass accessor-backed `partyCombatants` plus runtime-only
 `battleHooks`; do not persist those wrapper objects.
 Keep target `init()` contracts and every caller synchronized.
+
+The new-player tutorial opens only after pending opening cutscenes have drained.
+`F1` and the Esc menu open the consultable Tips surface. Keep the external HTML
+control rail collapsed by default and retain only contextual action prompts in
+the game HUD.
 
 Route camera fades and scene handoffs through
 `src/managers/sceneTransition.ts`. Call `prepare()` when each scene creates,

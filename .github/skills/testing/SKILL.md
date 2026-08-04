@@ -30,6 +30,8 @@ ranked gambit selection/normalization
 mocked camera/time adapters
 ✅ Cutscene data integrity, trigger priority, queue recovery, replay immutability,
 accessibility normalization, and director cleanup
+✅ Tutorial content integrity, semantic control references, completion
+normalization, progression-aware tip unlocks, and save migration
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -61,6 +63,7 @@ tests/
 ├── skillChecks.test.ts # Exploration/dialogue checks
 ├── cutscenes.test.ts # Cutscene data, triggers, queue, and director lifecycle
 ├── accessibility.test.ts # Cutscene preference normalization and persistence
+├── tutorial.test.ts # Tutorial content, completion, and unlocked Tips
 ├── cutsceneSceneTransition.test.ts # Generic Cutscene scene contracts
 ├── save.test.ts      # Persistence and migration
 └── data.test.ts      # Data validation
@@ -71,6 +74,12 @@ durable boss reconciliation, optional-objective reward cutoffs, hard-gate
 softlock safety, reward idempotency, and flat schema-v4 to nested schema-v5
 migration. Map main-quest NPC objectives to live city IDs and require exact
 coverage of all 12 cities with stable stage/objective identities.
+
+Tutorial tests must keep Phaser out of pure logic. Assert stable unique IDs,
+valid semantic control references, idempotent completion, safe malformed-state
+normalization, and exact progression-aware tip unlock sets. The committed
+Playwright flow owns automatic presentation, pointer navigation, persisted
+completion, `F1`, and Esc-menu access.
 
 ## Skill Check Testing
 

@@ -403,7 +403,8 @@ chains, Chronicle replay immutability, final Elowen completion, credits,
 interrupted epilogue recovery, post-game continuation and reload, legacy
 completed-but-unseen ending recovery, and corrupt-save fallback to New Game. It
 starts Vite on an available strict port and defaults to the deployed `/2dnd/`
-base path:
+base path. Pull request CI installs Chromium and runs this suite as a release
+gate:
 
 ```bash
 npm run test:browser:install # One-time Chromium install

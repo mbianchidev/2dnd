@@ -592,6 +592,7 @@ npm run build
   `/2dnd/` base path, and asserts opening recovery, boss cutscenes, Chronicle
   replay immutability, interrupted and legacy ending recovery, durable post-game
   reload, corrupt-save fallback, and page/console errors.
+- Pull request CI installs Chromium and runs the campaign browser suite.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run typecheck, full Vitest, browser tests, and build before completion.

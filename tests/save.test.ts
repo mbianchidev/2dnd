@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { saveGame, loadGame, deleteSave } from "../src/systems/save";
+import {
+  deleteSave,
+  getSaveSummary,
+  hasSave,
+  loadGame,
+  saveGame,
+} from "../src/systems/save";
 import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createWeatherState } from "../src/systems/weather";
@@ -31,6 +37,20 @@ describe("save system - PlayerState composition migration", () => {
 
   afterEach(() => {
     deleteSave();
+  });
+
+  it.each([
+    ["invalid JSON", "{"],
+    ["an incomplete player record", JSON.stringify({
+      version: 8,
+      player: {},
+    })],
+  ])("rejects %s without exposing a broken Continue option", (_label, raw) => {
+    localStorage.setItem("2dnd_save", raw);
+
+    expect(loadGame()).toBeNull();
+    expect(hasSave()).toBe(false);
+    expect(getSaveSummary()).toBeNull();
   });
 
   it("saves PlayerState with nested position and progression", () => {

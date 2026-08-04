@@ -446,6 +446,8 @@ npx vitest run tests/dice.test.ts
 - `playwright.config.ts` starts Vite on an unused strict localhost port.
 - Browser tests default to `/2dnd/`; set `PLAYWRIGHT_BASE_PATH=/` to reproduce
   the root-base development path.
+- Pull request CI installs Chromium and runs the browser suite as a release
+  gate.
 - Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
   disable trace screenshots and video. Phaser repaints every frame, so the
   filmstrip creates thousands of canvas captures that stall context teardown.
@@ -459,8 +461,9 @@ npx vitest run tests/dice.test.ts
 - Debug commands may accelerate setup, but the final Elowen interaction and
   other behavior under test must still run through their production paths.
 - Cover interrupted opening recovery, dungeon reveals, skipped boss
-  introductions, aftermath chaining, Chronicle replay immutability, and legacy
-  ending recovery.
+  introductions, aftermath chaining, Chronicle replay immutability, interrupted
+  and legacy ending recovery, durable post-game reload, and corrupt-save
+  fallback to a usable New Game path.
 
 ### Test Coverage
 ```bash

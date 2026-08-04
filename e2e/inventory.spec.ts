@@ -52,7 +52,7 @@ async function waitForState(page: Page, text: string): Promise<void> {
 }
 
 async function drainOpeningCutscenes(page: Page): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
     const state = await page.locator("#debug-state").textContent() ?? "";
     if (state.includes("OVERWORLD")) return;
     if (state.includes("CUTSCENE")) {
@@ -60,10 +60,11 @@ async function drainOpeningCutscenes(page: Page): Promise<void> {
       await holdKey(page, "Enter");
       await page.waitForTimeout(420);
     } else {
-      await page.waitForTimeout(120);
+      await page.waitForTimeout(250);
     }
   }
-  throw new Error("Timed out reaching the overworld");
+  const state = await page.locator("#debug-state").textContent() ?? "unknown";
+  throw new Error(`Timed out reaching the overworld from: ${state}`);
 }
 
 async function createCharacter(page: Page): Promise<void> {

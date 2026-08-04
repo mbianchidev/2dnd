@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v8, migration, normalization, and location recovery
+description: Manage 2D&D save schema v9, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -23,7 +23,7 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 8.
+`SAVE_VERSION` is 9.
 
 ```typescript
 interface SaveData {
@@ -71,6 +71,7 @@ interface PlayerProgression {
   trapSeed: number;
   trapStates: Record<string, TrapState>;
   trapGuidance: boolean;
+  tutorial: TutorialProgress;
 }
 
 interface QuestProgress {
@@ -95,6 +96,8 @@ objective counters, claimed reward IDs, and acknowledged danger warnings.
 `pendingCutsceneIds` stores queued IDs awaiting completion or skip and is saved
 before presentation. Replay changes neither collection; campaign completion
 remains derived from quest state.
+`tutorial.completed` prevents the new-player tutorial from reopening
+automatically after completion or skip. Tutorial replay does not reset it.
 Fixed non-combat checks persist the
 ability, natural roll, modifier, repaired total, DC, outcome, and optional
 choice ID.
@@ -125,6 +128,8 @@ helpers; do not cast unvalidated nested values directly.
 - Missing, malformed, or unknown quest entries through `normalizeQuestLog()`
 - Missing/invalid non-combat skill-check records
 - Missing/invalid trap seed, state, and guidance fields
+- Missing/invalid tutorial completion state through
+  `normalizeTutorialProgress()`
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
 
@@ -162,6 +167,10 @@ Normalize seen and pending cutscene IDs on every load against `CUTSCENE_IDS`.
 Unknown IDs are discarded, IDs remain stable after release, and pending IDs
 already present in the seen list are removed. Missing lists default to empty;
 legacy recovery may queue only the completed-but-unseen epilogue.
+
+Pre-v9 saves did not have tutorial state and normalize to `completed: true` so
+existing campaigns are not interrupted. New v9 players start false; malformed
+v9 values also normalize safely to false.
 
 Do not silently retain malformed data. Use a safe default or reject the save
 when the top-level payload is unusable.
@@ -203,8 +212,8 @@ top-level save is absent or corrupt.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Schema-v8 position, objective/reward/warning quest state, skill checks, traps,
-  party state, and pending cutscene queue
+- Current schema-v9 position, objective/reward/warning quest state, skill checks,
+  traps, party state, pending cutscene queue, and tutorial completion
 - Flat schema-v4 quest migration and completed-reward preservation
 - Schema-v3 skill-check saves gaining default normalized quest state
 - Schema-v4 quest saves gaining default trap state

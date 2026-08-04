@@ -140,8 +140,14 @@
   </head>
   <body>
     <div id="game-wrapper">
-      <div id="controls-panel">
-        <button id="controls-toggle">? Controls</button>
+      <div id="controls-panel" class="collapsed">
+        <button
+          id="controls-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="controls-body"
+          title="Show keyboard controls"
+        >?</button>
         <div id="controls-body">
           <span class="key">W A S D</span> <span class="desc">Move</span><br/>
           <span class="key">SPACE</span> <span class="desc">Interact</span><br/>
@@ -150,6 +156,7 @@
           <span class="key">M</span> <span class="desc">World Map</span><br/>
           <span class="key">Q</span> <span class="desc">Quest Journal</span><br/>
           <span class="key">P</span> <span class="desc">Party / Gambits</span><br/>
+          <span class="key">F1</span> <span class="desc">Tips</span><br/>
           <span class="key">ESC</span> <span class="desc">Menu / Quit</span><br/>
           <span class="key">T</span> <span class="desc">Mount / Dismount</span>
           <div id="debug-cheats" style="display:none; margin-top:8px; padding-top:6px; border-top:1px solid #333;">
@@ -186,7 +193,10 @@
       document.getElementById('controls-toggle').addEventListener('click', function() {
         const panel = document.getElementById('controls-panel');
         panel.classList.toggle('collapsed');
-        this.textContent = panel.classList.contains('collapsed') ? '?' : '? Controls';
+        const collapsed = panel.classList.contains('collapsed');
+        this.textContent = collapsed ? '?' : '? Controls';
+        this.setAttribute('aria-expanded', String(!collapsed));
+        this.setAttribute('title', collapsed ? 'Show keyboard controls' : 'Hide keyboard controls');
       });
     </script>
   </body>

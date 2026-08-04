@@ -132,6 +132,9 @@ API, and saves use `localStorage`.
   contrast, reduced motion, and manual or automatic cutscene advance
 - Important selections and trap/battle states pair color with text, symbols,
   borders, or numeric values
+- A five-step new-player tutorial plus an in-game Tips library with
+  progression-aware combat, exploration, party, mount, dungeon, skill-check,
+  and trap guidance
 - Scrollable overlays and a bounded battle log
 - Local-development debug panel, hotkeys, and slash commands
 
@@ -183,6 +186,7 @@ src/
 │   ├── questState.ts
 │   ├── questDebug.ts
 │   ├── accessibility.ts
+│   ├── tutorial.ts
 │   ├── sceneState.ts
 │   ├── cutscenes.ts
 │   └── debug.ts
@@ -206,6 +210,7 @@ src/
 │   ├── cutsceneBosses.ts
 │   ├── cutscenes.ts
 │   ├── skillChecks.ts
+│   ├── tutorial.ts
 │   └── items.ts
 ├── managers/
 │   ├── dungeonTraps.ts
@@ -216,6 +221,7 @@ src/
 │   ├── questFlow.ts
 │   ├── cutscene.ts
 │   ├── chronicle.ts
+│   ├── tutorial.ts
 │   ├── skillChecks.ts
 │   └── sceneTransition.ts
 └── renderers/
@@ -232,6 +238,13 @@ src/
 `map.ts` is the map hub. Core types and dimensions live in `mapTypes.ts`;
 world chunks, cities, and dungeons live in their own data modules. Overworld
 delegates rendering and stateful subsystems to `renderers/` and `managers/`.
+
+Tutorial steps, semantic control guidance, tips, categories, and unlock
+requirements live in `src/data/tutorial.ts`. `src/systems/tutorial.ts` owns
+Phaser-free completion normalization and progression-aware filtering, while
+`src/managers/tutorial.ts` owns the keyboard/pointer overlay. Completion
+persists at `player.progression.tutorial`; the compact HTML control rail starts
+collapsed now that equivalent guidance is available from the game.
 
 Quest content lives in `src/data/quests.ts`; runtime progression, rewards, NPC
 interactions, journal entries, access rules, danger states, and completion
@@ -318,14 +331,17 @@ npm run build      # Type-check and create a production build
 | `C` | Open the Codex |
 | `Q` | Open the quest journal |
 | `T` | Mount or dismount |
+| `F1` | Open or close Tips |
 | `Esc` | Close the active overlay or skip an active cutscene |
 | Mouse / touch | Select buttons and scroll lists |
 
-The `Esc` menu includes Party & Inventory, the Chronicle, and the same audio and
-accessibility settings available on the title screen. In the inventory view,
-arrows and Page Up/Down navigate, `R` cycles sorting, `F` cycles filters, `/`
-focuses search, `X` transfers, and `Tab` changes the target. `T` remains mount
-control, and input remapping remains tracked separately in issue #89.
+The `Esc` menu includes Party & Inventory, Tips, tutorial replay, the Chronicle,
+and the same audio and accessibility settings available on the title screen.
+Advanced Tips unlock automatically as relevant progression is reached. In the
+inventory view, arrows and Page Up/Down navigate, `R` cycles sorting, `F` cycles
+filters, `/` focuses search, `X` transfers, and `Tab` changes the target. `T`
+remains mount control, and input remapping remains tracked separately in issue
+#89.
 
 ## Debug mode
 
@@ -362,7 +378,7 @@ progress. Existing `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values
 migrate automatically. Inventory sorting, filtering, and search preferences use
 the separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
-Save schema version 8 persists:
+Save schema version 9 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -380,6 +396,8 @@ Save schema version 8 persists:
 - Recruited and active companion IDs; independent progression, resources,
   inventories, equipment, status effects, dialogue state, control modes, and
   normalized ranked gambit rules
+- New-player tutorial completion; pre-v9 campaigns migrate as already completed
+  so established saves are not interrupted
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed
@@ -422,15 +440,17 @@ Important integration suites:
 - `tests/defeatSceneTransition.test.ts`
 - `tests/gambits.test.ts`
 - `tests/followers.test.ts`
+- `tests/tutorial.test.ts`
 - `tests/fogOfWar.test.ts`
 
 The committed Playwright suite in `e2e/` runs real Chromium campaign and defeat
 flows through character creation, interrupted opening recovery, quest
-interaction, dungeon reveals, skipped boss introductions, boss aftermath
-chains, Chronicle replay immutability, final Elowen completion, credits,
-interrupted epilogue recovery, post-game continuation and reload, legacy
-completed-but-unseen ending recovery, corrupt-save fallback to New Game, random
-and boss defeat results, recovery save/reload, and clean continuation. It starts
+interaction, new-player tutorial completion, keyboard and menu Tips access,
+dungeon reveals, skipped boss introductions, boss aftermath chains, Chronicle
+replay immutability, final Elowen completion, credits, interrupted epilogue
+recovery, post-game continuation and reload, legacy completed-but-unseen ending
+recovery, corrupt-save fallback to New Game, random and boss defeat results,
+recovery save/reload, and clean continuation. It starts
 Vite on an available strict port and defaults to the deployed `/2dnd/` base
 path. Pull request CI installs Chromium and runs these suites as a release gate:
 

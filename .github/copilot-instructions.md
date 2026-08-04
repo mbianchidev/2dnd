@@ -68,6 +68,7 @@ src/
 │   ├── questState.ts
 │   ├── questDebug.ts
 │   ├── accessibility.ts
+│   ├── tutorial.ts
 │   ├── sceneState.ts
 │   ├── cutscenes.ts
 │   └── debug.ts
@@ -94,11 +95,13 @@ src/
 │   ├── cutsceneBosses.ts
 │   ├── cutscenes.ts
 │   ├── skillChecks.ts
+│   ├── tutorial.ts
 │   └── talents.ts
 ├── managers/
 │   ├── questJournal.ts
 │   ├── questFlow.ts
 │   ├── chronicle.ts
+│   ├── tutorial.ts
 │   └── cutscene.ts
 ├── renderers/
 │   ├── cutscene.ts
@@ -228,6 +231,7 @@ interface PlayerProgression {
   trapSeed: number;
   trapStates: Record<string, TrapState>;
   trapGuidance: boolean;
+  tutorial: TutorialProgress;
 }
 ```
 
@@ -236,6 +240,25 @@ Access fields through `player.position` and `player.progression`.
 `player.party` stores unique recruited companion states and up to three active
 companion IDs. Companion state composes `CombatActorState` plus independent XP,
 level-up/stat state, control mode, dialogue cursor, and normalized gambits.
+`player.progression.tutorial.completed` records whether the new-player tutorial
+was completed or skipped.
+
+## Tutorial and tips
+
+- Immutable tutorial steps, semantic control actions, Tips content, categories,
+  and progression unlock requirements live in `src/data/tutorial.ts`.
+- Pure completion normalization and tip filtering live in
+  `src/systems/tutorial.ts`; Phaser presentation and keyboard/pointer navigation
+  live in `src/managers/tutorial.ts`.
+- New saves open the five-step tutorial after pending opening cutscenes.
+  Completing or skipping it persists completion and prevents automatic replay.
+- `F1` opens Tips directly. The Esc menu also opens Tips and can replay the
+  tutorial without changing completion state.
+- Advanced tips unlock from level, companion, mount, dungeon, skill-check, and
+  trap progression. Do not duplicate those conditions in UI code.
+- The external HTML control rail remains keyboard accessible but starts
+  collapsed; do not restore persistent control clutter when equivalent guidance
+  is available through Tips.
 
 ## Companions and gambits
 
@@ -521,7 +544,7 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 8.
+Save schema version is 9.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -541,7 +564,9 @@ Schema-v6 and older saves gain an empty `seenCutsceneIds` list. Cutscene
 normalization keeps only known stable IDs and removes malformed or duplicate
 entries. Schema-v7 and older saves gain an empty `pendingCutsceneIds` list;
 normalization removes unknown, duplicate, malformed, or already-seen IDs.
-Legacy recovery queues only a completed-but-unseen epilogue.
+Legacy recovery queues only a completed-but-unseen epilogue. Pre-v9 saves gain
+`{ completed: true }` tutorial progress so established campaigns are not
+interrupted; malformed v9 completion values normalize to false.
 
 Inventory presentation preferences are not save ownership data and do not
 increment the schema. Store them under `2dnd_inventory_prefs`.
@@ -636,9 +661,9 @@ npm run build
 - Add deterministic tests for mechanics and migrations.
 - The browser suites use a fresh strict port, default to the deployed `/2dnd/`
   base path, and assert opening recovery, boss cutscenes, Chronicle replay
-  replay immutability, interrupted and legacy ending recovery, durable post-game
-  reload, corrupt-save fallback, random/boss defeat recovery, recovery
-  save/reload, and page/console errors.
+  immutability, tutorial completion, direct and menu Tips access, interrupted and
+  legacy ending recovery, durable post-game reload, corrupt-save fallback,
+  random/boss defeat recovery, recovery save/reload, and page/console errors.
 - Pull request CI installs Chromium and runs the browser suites.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.

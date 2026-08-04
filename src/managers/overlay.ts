@@ -77,6 +77,7 @@ export interface OverlayCallbacks {
   openPartyInventory: () => void;
   openQuestJournal: () => void;
   openChronicle: () => void;
+  openTips: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
 }
 
@@ -988,7 +989,7 @@ export class OverlayManager {
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
 
-    const menuHeight = 324;
+    const menuHeight = 366;
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
       220,
@@ -1023,7 +1024,7 @@ export class OverlayManager {
 
     const partyBtn = this.scene.add.text(
       px + panelW / 2,
-      py + 237,
+      py + 279,
       "Party & Inventory",
       {
         fontSize: "14px",
@@ -1074,8 +1075,28 @@ export class OverlayManager {
     });
     this.menuOverlay.add(chronicleBtn);
 
+    const tipsBtn = this.scene.add.text(
+      px + panelW / 2,
+      py + 195,
+      "Tips",
+      {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#83d8ff",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 16, y: 6 },
+      },
+    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    tipsBtn.on("pointerover", () => tipsBtn.setColor("#ffffff"));
+    tipsBtn.on("pointerout", () => tipsBtn.setColor("#83d8ff"));
+    tipsBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+      this.callbacks.openTips();
+    });
+    this.menuOverlay.add(tipsBtn);
+
     // Settings
-    const settingsY = 195;
+    const settingsY = 237;
     const settingsBtn = this.scene.add.text(px + panelW / 2, py + settingsY, "🔊 Settings", {
       fontSize: "14px", fontFamily: "monospace", color: "#aabbff",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
@@ -1089,7 +1110,7 @@ export class OverlayManager {
     this.menuOverlay.add(settingsBtn);
 
     // Quit
-    const quitY = 279;
+    const quitY = 321;
     const quitBtn = this.scene.add.text(px + panelW / 2, py + quitY, "✕ Quit to Title", {
       fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },

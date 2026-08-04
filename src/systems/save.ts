@@ -41,9 +41,10 @@ import {
   normalizePendingCutsceneIds,
   normalizeSeenCutsceneIds,
 } from "./cutscenes";
+import { normalizeTutorialProgress } from "./tutorial";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 8;
+const SAVE_VERSION = 9;
 
 export interface SaveData {
   version: number;
@@ -329,6 +330,7 @@ export function loadGame(): SaveData | null {
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed) || !isRecord(parsed["player"])) return null;
     if (typeof parsed["version"] !== "number") return null;
+    const sourceVersion = parsed["version"];
     const data = parsed as unknown as SaveData;
 
     // Migration: old saves stored this field as "bestiary" — map to "codex"
@@ -395,6 +397,7 @@ export function loadGame(): SaveData | null {
         trapSeed: LEGACY_TRAP_SEED,
         trapStates: {},
         trapGuidance: false,
+        tutorial: normalizeTutorialProgress(undefined),
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -432,6 +435,11 @@ export function loadGame(): SaveData | null {
     data.player.progression.trapGuidance = readBoolean(
       data.player.progression.trapGuidance,
     );
+    const tutorialProgress = data.player.progression.tutorial;
+    data.player.progression.tutorial = tutorialProgress === undefined
+        && sourceVersion < SAVE_VERSION
+      ? { completed: true }
+      : normalizeTutorialProgress(tutorialProgress);
     data.player.party = normalizePartyState(playerRecord["party"]);
     synchronizeCompanionRecruitment(data.player);
     ensureLegacyCampaignEpilogueQueued(data.player);

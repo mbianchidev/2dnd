@@ -19,6 +19,9 @@ interface BrowserSave {
     progression: {
       seenCutsceneIds: string[];
       pendingCutsceneIds: string[];
+      tutorial: {
+        completed: boolean;
+      };
       quests: {
         quests: Record<string, BrowserQuestProgress>;
       };
@@ -161,7 +164,25 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await clickGame(page, 320, 324);
     await waitForState(page, "CUTSCENE | campaign.opening | Step 1/2");
     await drainGenericCutscenesUntil(page, "OVERWORLD");
-    await holdKey(page, "Space");
+    await waitForState(page, "[TUTORIAL]");
+    await clickGame(page, 506, 455);
+    await holdKey(page, "Enter");
+    await holdKey(page, "Enter");
+    await holdKey(page, "Enter");
+    await holdKey(page, "Enter");
+    await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL]");
+    expect((await readSave(page)).player.progression.tutorial.completed).toBe(true);
+
+    await holdKey(page, "F1");
+    await waitForState(page, "[TIPS]");
+    await holdKey(page, "F1");
+    await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
+    await holdKey(page, "Escape");
+    await waitForState(page, "[MENU]");
+    await clickGame(page, 320, 280);
+    await waitForState(page, "[TIPS]");
+    await holdKey(page, "Escape");
+    await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
     await enableDebug(page);
     expect(browserErrors).toEqual([]);
   });
@@ -325,7 +346,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await page.waitForTimeout(800);
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 260);
+    await clickGame(page, 320, 232);
     await waitForState(page, "[CHRONICLE]");
     await holdKey(page, "Enter");
     await waitForState(page, "CUTSCENE | campaign.opening");

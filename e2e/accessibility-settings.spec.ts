@@ -135,6 +135,9 @@ test("title and in-game accessibility settings share live preferences", async ({
     await clickGame(page, 420, 312);
     await waitForState(page, "CUTSCENE");
     await drainCutscenes(page);
+    await waitForState(page, "[TUTORIAL]");
+    await holdKey(page, "Escape");
+    await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL]");
     await enableDebug(page);
     await submitDebug(page, "/spawn slime");
     await waitForState(page, "BATTLE");
@@ -146,7 +149,7 @@ test("title and in-game accessibility settings share live preferences", async ({
 
   await test.step("change the same settings from the in-game menu", async () => {
     await holdKey(page, "Escape");
-    await clickGame(page, 320, 300);
+    await clickGame(page, 320, 322);
     await clickGame(page, 320, 310);
     await clickGame(page, 320, 348);
     await clickGame(page, 320, 386);

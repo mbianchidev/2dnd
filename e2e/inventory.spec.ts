@@ -25,6 +25,9 @@ interface BrowserSave {
     progression: {
       seenCutsceneIds: string[];
       pendingCutsceneIds: string[];
+      tutorial: {
+        completed: boolean;
+      };
     };
   };
 }
@@ -154,6 +157,7 @@ test("large inventories keep stable keyboard and pointer selection", async ({
     }
     save.player.inventory.push(...additions);
     save.player.progression.pendingCutsceneIds = [];
+    save.player.progression.tutorial.completed = true;
     for (const cutsceneId of openingCutsceneIds) {
       if (!save.player.progression.seenCutsceneIds.includes(cutsceneId)) {
         save.player.progression.seenCutsceneIds.push(cutsceneId);

@@ -87,6 +87,18 @@ async function advanceQuestDialogue(page: Page): Promise<void> {
   await holdKey(page, "Space");
 }
 
+async function enterCurrentTown(
+  page: Page,
+  expectedCityState: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await holdKey(page, "Space", 300);
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes(expectedCityState)) return;
+  }
+  throw new Error(`Timed out entering town: ${expectedCityState}`);
+}
+
 async function advanceGenericCutscene(page: Page): Promise<void> {
   await page.waitForTimeout(420);
   await holdKey(page, "Enter");
@@ -192,8 +204,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await expect(page.locator("#debug-log")).toContainText(
       "[CMD] Teleported to city Willowdale",
     );
-    await holdKey(page, "Space");
-    await waitForState(page, "[CITY:willowdale_city:0]");
+    await enterCurrentTown(page, "[CITY:willowdale_city:0]");
     await submitDebug(page, "/near willowdaleArchivist");
     await expect(page.locator("#debug-log")).toContainText(
       "[CMD] Positioned beside willowdaleArchivist.",
@@ -281,8 +292,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
 
     await submitDebug(page, "/tp Willowdale");
     await waitForState(page, "Pos: (2,2) Town");
-    await holdKey(page, "Space");
-    await waitForState(page, "[CITY:willowdale_city:0]");
+    await enterCurrentTown(page, "[CITY:willowdale_city:0]");
     await submitDebug(page, "/near willowdaleArchivist");
     await expect(page.locator("#debug-log")).toContainText(
       "[CMD] Positioned beside willowdaleArchivist.",

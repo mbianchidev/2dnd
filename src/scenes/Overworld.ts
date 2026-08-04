@@ -396,6 +396,8 @@ export class OverworldScene extends Phaser.Scene {
     // Reveal tiles around player on creation (fog of war)
     this.fogOfWar.revealAround(this.player.position.x, this.player.position.y, 2, this.player);
 
+    // Special NPC generation during map rendering may publish a HUD message.
+    this.createHUD();
     this.renderMap();
     this.applyDayNightTint();
     this.createPlayerSprite();
@@ -405,7 +407,6 @@ export class OverworldScene extends Phaser.Scene {
       this,
       (cutsceneId) => this.startCutscene(cutsceneId, true),
     );
-    this.createHUD();
     this.setupDebug();
     this.updateLocationText();
     this.mapRenderer.updateWeatherParticles(this.weatherState);

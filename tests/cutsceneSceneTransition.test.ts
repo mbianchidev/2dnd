@@ -65,6 +65,7 @@ describe("CutsceneScene transition contracts", () => {
   it("starts the chosen boss fight after a skipped pre-boss scene", () => {
     const cutsceneId = BOSS_CUTSCENES.dragon.pre;
     const data = createSceneData(cutsceneId);
+    data.codexDiscoveryIds = ["heartlandsCrypt"];
     data.player.progression.pendingCutsceneIds.push(cutsceneId);
     const cutscene = new CutsceneScene();
     cutscene.init(data);
@@ -97,6 +98,7 @@ describe("CutsceneScene transition contracts", () => {
         player: data.player,
         defeatedBosses: data.defeatedBosses,
         codex: data.codex,
+        codexDiscoveryIds: ["heartlandsCrypt"],
         encounter: expect.objectContaining({
           members: [
             expect.objectContaining({
@@ -104,6 +106,42 @@ describe("CutsceneScene transition contracts", () => {
             }),
           ],
         }),
+      }),
+    );
+  });
+
+  it("forwards cutscene knowledge discoveries to Overworld feedback", () => {
+    const cutsceneId = "campaign.opening";
+    const data = createSceneData(cutsceneId);
+    data.player.progression.pendingCutsceneIds.push(cutsceneId);
+    const cutscene = new CutsceneScene();
+    cutscene.init(data);
+    const harness = cutscene as unknown as CutsceneHarness;
+    const start = vi.fn();
+    let completeFade: (() => void) | undefined;
+    Object.assign(harness, {
+      director: { definition: getCutsceneDefinition(cutsceneId) },
+      sceneTransitions: {
+        isPending: false,
+        startWithFade: vi.fn((callback: () => void) => {
+          completeFade = callback;
+          return true;
+        }),
+      },
+    });
+    Object.defineProperty(cutscene, "scene", {
+      configurable: true,
+      value: { start },
+    });
+
+    harness.finishCutscene();
+    completeFade?.();
+
+    expect(data.codex.unlockedEntryIds).toContain("twelvefoldCovenant");
+    expect(start).toHaveBeenCalledWith(
+      "OverworldScene",
+      expect.objectContaining({
+        codexDiscoveryIds: ["twelvefoldCovenant"],
       }),
     );
   });

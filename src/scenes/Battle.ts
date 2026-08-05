@@ -56,6 +56,7 @@ import type { CodexData } from "../systems/codex";
 import {
   discoverAC,
   discoverElement,
+  replayCodexUnlocks,
 } from "../systems/codex";
 import type {
   Element,
@@ -139,6 +140,7 @@ import {
   type GroupCombatant,
   type PartyCombatant,
 } from "../systems/groupCombat";
+import { CodexDiscoveryManager } from "../managers/codexDiscovery";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -164,6 +166,7 @@ export interface BattleSceneData {
   partyCombatants?: PartyCombatant[];
   /** Runtime-only extension hooks; never persisted in save data. */
   battleHooks?: BattleResolutionHooks;
+  codexDiscoveryIds?: string[];
 }
 
 export class BattleScene extends Phaser.Scene {
@@ -187,6 +190,8 @@ export class BattleScene extends Phaser.Scene {
   private weatherState: WeatherState = createWeatherState();
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
   private questUpdates: QuestUpdate[] = [];
+  private codexDiscoveryIds: string[] = [];
+  private codexDiscovery!: CodexDiscoveryManager;
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
@@ -364,6 +369,7 @@ export class BattleScene extends Phaser.Scene {
     this.weatherState = data.weatherState ?? createWeatherState();
     this.biome = data.biome ?? "grass";
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
+    this.codexDiscoveryIds = data.codexDiscoveryIds ?? [];
     this.questUpdates = [];
     this.phase = "init";
     this.logLines = [];
@@ -401,6 +407,7 @@ export class BattleScene extends Phaser.Scene {
     this.sceneTransitions.prepare(300);
     installSceneAccessibility(this);
     this.battlePresentation = new BattlePresentationDirector(this);
+    this.codexDiscovery = new CodexDiscoveryManager(this);
 
     this.drawBattleUI();
     this.battlePartyRenderer.render(
@@ -440,6 +447,7 @@ export class BattleScene extends Phaser.Scene {
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).on("down", () => this.confirmBattleSelection());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.battlePresentation?.cleanup();
+      this.codexDiscovery.clear();
     });
 
     this.rollForInitiative();
@@ -2887,6 +2895,8 @@ export class BattleScene extends Phaser.Scene {
       this.combatants.map((combatant) => combatant.monster.id),
     );
     this.questUpdates = questResult.updates;
+    recordGroupDefeats(this.codex, this.combatants);
+    const codexUnlocks = replayCodexUnlocks(this.codex, this.player);
     const queuedCutscenes = queueCutscenes(
       this.player.progression,
       collectNewlyTriggeredCutsceneIds(
@@ -2907,7 +2917,7 @@ export class BattleScene extends Phaser.Scene {
     if (questResult.changed) {
       this.addLog("Quest progress recorded.");
     }
-    recordGroupDefeats(this.codex, this.combatants);
+    this.codexDiscovery.show(codexUnlocks.entries);
     if (audioEngine.initialized) {
       audioEngine.playVictoryJingle();
     }
@@ -3042,6 +3052,7 @@ export class BattleScene extends Phaser.Scene {
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,
+        codexDiscoveryIds: this.codexDiscoveryIds,
       });
       const cutsceneId = getNextPendingCutscene(this.player.progression);
       if (cutsceneId === CAMPAIGN_EPILOGUE_CUTSCENE_ID) {
@@ -3082,6 +3093,7 @@ export class BattleScene extends Phaser.Scene {
           timeStep: this.timeStep,
           weatherState: this.weatherState,
           savedSpecialNpcs: this.savedSpecialNpcs,
+          codexDiscoveryIds: this.codexDiscoveryIds,
         }),
         encounterName: this.encounter.name,
         encounterType: this.combatants.some(

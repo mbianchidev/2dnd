@@ -77,6 +77,7 @@ export interface OverlayCallbacks {
   openPartyInventory: () => void;
   openQuestJournal: () => void;
   openChronicle: () => void;
+  openCodex: () => void;
   openTips: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
 }
@@ -992,7 +993,7 @@ export class OverlayManager {
     const menuHeight = 366;
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
-      220,
+      280,
       menuHeight,
       -10,
     );
@@ -1094,6 +1095,26 @@ export class OverlayManager {
       this.callbacks.openTips();
     });
     this.menuOverlay.add(tipsBtn);
+
+    const codexBtn = this.scene.add.text(
+      px + panelW - 40,
+      py + 14,
+      "Codex",
+      {
+        fontSize: "11px",
+        fontFamily: "monospace",
+        color: "#fff3a6",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 16, y: 6 },
+      },
+    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    codexBtn.on("pointerover", () => codexBtn.setColor("#ffffff"));
+    codexBtn.on("pointerout", () => codexBtn.setColor("#fff3a6"));
+    codexBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+      this.callbacks.openCodex();
+    });
+    this.menuOverlay.add(codexBtn);
 
     // Settings
     const settingsY = 237;

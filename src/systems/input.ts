@@ -44,6 +44,9 @@ export const INPUT_ACTIONS = [
   "inventorySearch",
   "inventoryClearSearch",
   "inventoryNextTarget",
+  "codexSearch",
+  "codexCategoryPrevious",
+  "codexCategoryNext",
 ] as const;
 
 export type InputAction = (typeof INPUT_ACTIONS)[number];
@@ -140,7 +143,6 @@ const KEYBOARD_SHORTCUTS: Readonly<Record<string, InputAction>> = {
   PageDown: "battleLogDown",
   Home: "inventoryFirst",
   End: "inventoryLast",
-  Slash: "inventorySearch",
   Tab: "inventoryNextTarget",
 };
 
@@ -207,10 +209,12 @@ export function mapKeyboardCode(
     const inventory: Readonly<Record<string, InputAction>> = {
       KeyR: "inventoryCycleSort",
       KeyF: "inventoryCycleFilter",
+      Slash: "inventorySearch",
       KeyX: "inventoryTransfer",
     };
     if (inventory[code]) return inventory[code];
   }
+  if (context === "codex" && code === "Slash") return "codexSearch";
   return KEYBOARD_SHORTCUTS[code];
 }
 

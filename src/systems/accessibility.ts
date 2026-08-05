@@ -484,6 +484,7 @@ function applyCanvasPresentation(
 
 function isInfiniteTween(tween: Phaser.Tweens.Tween): boolean {
   if (tween.loop < 0) return true;
+  if (!Array.isArray(tween.data)) return false;
   return tween.data.some((entry) => (
     "repeat" in entry
     && typeof entry.repeat === "number"

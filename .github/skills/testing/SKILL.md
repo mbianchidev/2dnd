@@ -25,6 +25,8 @@ ranked gambit selection/normalization
 ✅ Data integrity (monsters, spells, items)
 ✅ Monster family references, membership, variant differentiation, palette
 uniqueness, encounter weights, Codex family completion, and texture-key coverage
+✅ Codex knowledge IDs, canonical references, every unlock signal, idempotency,
+normalization/migration, search/sort/group behavior, and future-hook isolation
 ✅ Game logic functions
 ✅ Seeded layouts and persistent state machines
 ✅ Non-combat skill-check math, outcomes, and save normalization
@@ -68,6 +70,11 @@ overlays, prompt/source switching, Battle action/target confirmation, defeat
 recovery, gamepad cursor visibility, portrait/landscape layout, and page/console
 cleanliness.
 
+Codex browser coverage follows real exploration, quest, cutscene, item, NPC, and
+readable paths; verifies non-blocking feedback, reload persistence, schema-v9
+migration, keyboard/touch/gamepad search and filters, 150% text, reduced motion,
+and page/console cleanliness.
+
 ## Test File Organization
 
 ```
@@ -78,6 +85,7 @@ tests/
 ├── battleActions.test.ts # Pure gambit planning and validation
 ├── monsterGroups.test.ts # Group templates and generation
 ├── monsterFamilies.test.ts # Families, variants, Codex derivation, texture keys
+├── codexKnowledge.test.ts # World knowledge data, triggers, queries, and hooks
 ├── partyCombat.test.ts # Stable actor IDs, ally scopes, AI, and result hooks
 ├── party.test.ts     # Recruitment, progression, transfers, rests, KO/rewards
 ├── companions.test.ts # Immutable companion definitions and loadouts

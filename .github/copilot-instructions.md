@@ -87,6 +87,7 @@ src/
 │   ├── monsterVariants.ts
 │   ├── nightMonsters.ts
 │   ├── monsterGroups.ts
+│   ├── codexKnowledge.ts
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
@@ -105,6 +106,7 @@ src/
 ├── managers/
 │   ├── actorAnimation.ts
 │   ├── input.ts
+│   ├── codexDiscovery.ts
 │   ├── battlePresentation.ts
 │   ├── worldPresentation.ts
 │   ├── questJournal.ts
@@ -419,6 +421,17 @@ Flow:
 - Codex family grouping, filters, sorting, traits, affinities, and completion
   derive from immutable monster data plus existing Codex entries. Do not add a
   save field for derivable family progress.
+- World knowledge definitions and source metadata live in
+  `src/data/codexKnowledge.ts`; normalization, idempotent unlock signals,
+  replay/recovery, search, sorting, and grouping live in `src/systems/codex.ts`.
+  Persist only stable unlocked knowledge IDs. Lore is never authoritative for
+  quests, companions, rewards, gates, reputation, alignment, or event outcomes.
+- Existing systems may emit location, quest-stage/completion, cutscene, item,
+  NPC-dialogue, or readable signals. Future random-event and reputation systems
+  use the typed `worldEvent` and `reputationMilestone` hooks without reading
+  Codex state back into their decisions.
+- `CodexDiscoveryManager` owns short non-interactive notices. Notices never
+  change input context, delay transitions, or outlive scene shutdown.
 - `BattleCombatantState` is the shared actor contract: stable ID, party/enemy
   side, hero/companion/monster kind, formation, HP, alive/KO, defend, and
   effects. Hero state must remain accessor-backed by `PlayerState`.
@@ -582,7 +595,7 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 9.
+Save schema version is 10.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -605,6 +618,10 @@ normalization removes unknown, duplicate, malformed, or already-seen IDs.
 Legacy recovery queues only a completed-but-unseen epilogue. Pre-v9 saves gain
 `{ completed: true }` tutorial progress so established campaigns are not
 interrupted; malformed v9 completion values normalize to false.
+Schema-v9 and older monster-only Codex data gains normalized
+`unlockedEntryIds`; unknown, malformed, and duplicate IDs are removed, valid
+monster discovery is preserved, and durable player evidence is replayed
+idempotently to recover world knowledge.
 
 Inventory presentation preferences are not save ownership data and do not
 increment the schema. Store them under `2dnd_inventory_prefs`.
@@ -666,8 +683,12 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v9
+  visibility, handedness, and prompt source only; they never enter schema-v10
   campaign saves.
+- Codex search uses the shared accessible mobile text input, pointer-first
+  category/filter/sort controls work with touch and the gamepad cursor, and the
+  Esc menu exposes the Codex for touch users. In Codex context, the semantic
+  gamepad interact action opens search and confirm submits it.
 
 ## Semantic controls
 

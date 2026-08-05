@@ -6,7 +6,10 @@ import * as Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import { useItem, ownsEquipment, sellItem, isLastEquipment, isItemEquipped } from "../systems/player";
 import { getShopItems, getShopItemsForTown, getSellValue, canSellItem, type Item } from "../data/items";
-import type { CodexData } from "../systems/codex";
+import {
+  unlockCodexFromSignal,
+  type CodexData,
+} from "../systems/codex";
 import { type WeatherState, createWeatherState } from "../systems/weather";
 import { CYCLE_LENGTH } from "../systems/daynight";
 import { getInnCost } from "../data/map";
@@ -24,6 +27,7 @@ import {
 import { saveGame } from "../systems/save";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { installSceneAccessibility } from "../systems/accessibility";
+import { CodexDiscoveryManager } from "../managers/codexDiscovery";
 
 export class ShopScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
@@ -52,6 +56,7 @@ export class ShopScene extends Phaser.Scene {
   private sellTabButton!: Phaser.GameObjects.Text;
   private negotiateButton?: Phaser.GameObjects.Text;
   private negotiationOverlay: Phaser.GameObjects.Container | null = null;
+  private codexDiscovery!: CodexDiscoveryManager;
 
   constructor() {
     super({ key: "ShopScene" });
@@ -105,6 +110,10 @@ export class ShopScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x1a1a2e);
     this.sceneTransitions.prepare(300);
     installSceneAccessibility(this);
+    this.codexDiscovery = new CodexDiscoveryManager(this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.codexDiscovery.clear();
+    });
 
     // Play city music for this town
     if (audioEngine.initialized) {
@@ -778,6 +787,10 @@ export class ShopScene extends Phaser.Scene {
     }
     this.player.gold -= discountedCost;
     this.player.inventory.push({ ...item });
+    this.codexDiscovery.show(unlockCodexFromSignal(this.codex, {
+      type: "itemAcquired",
+      itemId: item.id,
+    }).entries);
     this.setMessage(`Purchased ${item.name}!`, "#88ff88");
 
     // Auto-equip only if the new item is better than current

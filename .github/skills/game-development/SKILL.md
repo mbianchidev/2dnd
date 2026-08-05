@@ -184,6 +184,13 @@ replace bosses or explicit debug monster spawns.
 Codex family completion is derived from the current `CodexData.entries`; family
 metadata, affinity, and sort/filter presentation are not save fields.
 
+World knowledge definitions live in `src/data/codexKnowledge.ts`. Persist only
+stable unlocked knowledge IDs in `CodexData`; derive category counts, source
+hints, search results, sorting, and grouping from canonical entries. Emit
+idempotent location, quest, cutscene, item, NPC, or readable signals without
+letting Codex state control gameplay. `worldEvent` and `reputationMilestone`
+signals are reserved typed integration points for future systems.
+
 ## Adding spells, abilities, and equipment
 
 - Damage sources may declare an `Element` from `src/data/elements.ts`.

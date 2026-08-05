@@ -142,7 +142,7 @@ describe("BootScene Overworld transition", () => {
     expect(start).toHaveBeenCalledWith("CutsceneScene", {
       player,
       defeatedBosses: new Set(),
-      codex: { entries: {} },
+      codex: { entries: {}, unlockedEntryIds: [] },
       timeStep: 0,
       weatherState: createWeatherState(),
       savedSpecialNpcs: [],

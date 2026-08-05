@@ -579,6 +579,26 @@ function startQuest(
   ) || true;
 }
 
+/** Start an available canonical quest from a non-NPC system such as a world event. */
+export function startQuestById(
+  player: PlayerState,
+  defeatedBosses: ReadonlySet<string>,
+  questId: QuestId,
+): QuestProcessResult {
+  const quest = QUESTS[questId];
+  const updates: QuestUpdate[] = [];
+  if (!questAvailable(player, quest)) {
+    return { changed: false, updates };
+  }
+  let changed = startQuest(player, quest, updates);
+  if (changed) {
+    const reconciled = reconcileQuestState(player, defeatedBosses);
+    updates.push(...reconciled.updates);
+    changed = reconciled.changed || changed;
+  }
+  return { changed, updates };
+}
+
 /** Apply an NPC interaction after its final dialogue page is acknowledged. */
 export function completeNpcQuestInteraction(
   player: PlayerState,

@@ -79,9 +79,24 @@ async function completeTutorialByTouch(page: Page): Promise<void> {
 async function submitDebug(page: Page, command: string): Promise<void> {
   await page.locator("#debug-checkbox").check();
   const input = page.locator("#debug-cmd");
-  await input.fill(command);
-  await input.press("Enter");
-  await page.locator("#game-container canvas").click();
+  if (await input.isVisible()) {
+    await input.fill(command);
+    await input.press("Enter");
+  } else {
+    await input.evaluate((element, value) => {
+      const commandInput = element as HTMLInputElement;
+      commandInput.value = value;
+      commandInput.dispatchEvent(new Event("input", { bubbles: true }));
+      commandInput.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        bubbles: true,
+      }));
+    }, command);
+  }
+  if (!command.startsWith("/event trigger")) {
+    await page.locator("#game-container canvas").click();
+  }
 }
 
 async function setGamepadAxes(page: Page, axes: number[]): Promise<void> {
@@ -182,6 +197,20 @@ test.describe("touch controls", () => {
     })).toBe("Touch Hero");
     await drainOpening(page, "touch");
     await completeTutorialByTouch(page);
+    await submitDebug(page, "/event trigger abandonedSupplyCart");
+    await waitForState(page, "[WORLD_EVENT:abandonedSupplyCart]");
+    await waitForState(page, "[WORLD_EVENT_SELECTION:1/2]");
+    await page.locator('[data-action="navigateDown"]').tap();
+    await waitForState(page, "[WORLD_EVENT_SELECTION:2/2]");
+    await page.locator('[data-action="navigateUp"]').tap();
+    await waitForState(page, "[WORLD_EVENT_SELECTION:1/2]");
+    await page.locator('[data-action="confirm"]').tap();
+    await expect(page.locator("#debug-state")).not.toContainText("[WORLD_EVENT:");
+    expect(await page.evaluate(() => {
+      const save = JSON.parse(localStorage.getItem("2dnd_save")!);
+      const log = save.player.progression.worldEvents.log;
+      return log[log.length - 1]?.eventId;
+    })).toBe("abandonedSupplyCart");
 
     const before = await page.evaluate(() => {
       const save = JSON.parse(localStorage.getItem("2dnd_save")!);
@@ -346,6 +375,21 @@ test.describe("standard gamepad controls", () => {
     await waitForState(page, "[CHRONICLE_SELECTION:2/");
     await pressGamepad(1);
     await expect(page.locator("#debug-state")).not.toContainText("[CHRONICLE]");
+
+    await submitDebug(page, "/event trigger abandonedSupplyCart");
+    await waitForState(page, "[WORLD_EVENT:abandonedSupplyCart]");
+    await waitForState(page, "[WORLD_EVENT_SELECTION:1/2]");
+    await pressGamepad(13);
+    await waitForState(page, "[WORLD_EVENT_SELECTION:2/2]");
+    await pressGamepad(12);
+    await waitForState(page, "[WORLD_EVENT_SELECTION:1/2]");
+    await pressGamepad(0);
+    await expect(page.locator("#debug-state")).not.toContainText("[WORLD_EVENT:");
+    expect(await page.evaluate(() => {
+      const save = JSON.parse(localStorage.getItem("2dnd_save")!);
+      const log = save.player.progression.worldEvents.log;
+      return log[log.length - 1]?.eventId;
+    })).toBe("abandonedSupplyCart");
 
     await submitDebug(page, "/spawn goblin");
     await waitForState(page, "BATTLE");

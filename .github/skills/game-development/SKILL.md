@@ -93,6 +93,13 @@ filtering. `src/managers/tutorial.ts` owns the Overworld overlay and renders pro
 the active keyboard, pointer, gamepad, or touch source. New saves persist
 `player.progression.tutorial.completed`; replay never resets it.
 
+World Event content lives in `src/data/worldEvents.ts`, its deterministic
+Phaser-free state machine in `src/systems/worldEvents.ts`, and accessible choice
+presentation in `src/managers/worldEvents.ts`. Events short-circuit treasure,
+exploration checks, and random encounters for their movement step, while
+transitions, entrances, traps, interactions, and queued cutscenes retain
+priority. Special event combats use normal Battle hooks and saves.
+
 ## Quests
 
 - Put quest definitions, stage objectives, NPC IDs, rewards, and gated
@@ -187,9 +194,26 @@ metadata, affinity, and sort/filter presentation are not save fields.
 World knowledge definitions live in `src/data/codexKnowledge.ts`. Persist only
 stable unlocked knowledge IDs in `CodexData`; derive category counts, source
 hints, search results, sorting, and grouping from canonical entries. Emit
-idempotent location, quest, cutscene, item, NPC, or readable signals without
-letting Codex state control gameplay. `worldEvent` and `reputationMilestone`
-signals are reserved typed integration points for future systems.
+idempotent location, quest, cutscene, item, NPC, readable, or `worldEvent`
+signals without letting Codex state control gameplay. `reputationMilestone`
+remains reserved for the future reputation system.
+
+## World Events
+
+- Filter immutable definitions by terrain, area, time, weather, level, quest
+  state, boss state, prior outcomes, repeat limits, and cooldowns.
+- Keep event chance independently capped at 8%; never feed it into or multiply
+  the 15% random-encounter calculation.
+- Persist the selected pending event before presenting choices or starting a
+  special battle. Reload resumes the same choice or encounter.
+- Apply skill outcomes through `rollSkillCheck()`, quest starts through
+  `startQuestById()`, rewards through canonical item/XP helpers, and lore through
+  `unlockCodexFromFutureSignal()`.
+- Resolve stable outcome/reward IDs once, append at most 40 chronological
+  records, and expose those records through Chronicle without revealing future
+  choices.
+- Alignment/reputation extension hooks are typed runtime outputs only. Do not
+  store or interpret them before #70.
 
 ## Adding spells, abilities, and equipment
 

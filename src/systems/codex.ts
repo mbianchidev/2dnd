@@ -293,6 +293,9 @@ export function replayCodexUnlocks(
   const apply = (signal: CodexUnlockSignal): void => {
     unlockedIds.push(...unlockCodexFromSignal(codex, signal).unlockedIds);
   };
+  const applyFuture = (signal: CodexFutureUnlockSignal): void => {
+    unlockedIds.push(...unlockCodexFromFutureSignal(codex, signal).unlockedIds);
+  };
 
   for (const cityId of player.progression.discoveredCities) {
     apply({ type: "location", locationKind: "city", targetId: cityId });
@@ -321,6 +324,9 @@ export function replayCodexUnlocks(
 
   for (const itemId of collectOwnedItemIds(player)) {
     apply({ type: "itemAcquired", itemId });
+  }
+  for (const record of player.progression.worldEvents.log) {
+    applyFuture({ type: "worldEvent", eventId: record.eventId });
   }
   for (const cutsceneId of player.progression.seenCutsceneIds) {
     apply({ type: "cutscene", cutsceneId });

@@ -2424,6 +2424,14 @@ export class BattleScene extends Phaser.Scene {
       if (result.success) {
         this.phase = "fled";
         this.reportBattleResult("fled");
+        saveGame(
+          this.player,
+          this.defeatedBosses,
+          this.codex,
+          this.player.appearanceId,
+          this.timeStep,
+          this.weatherState,
+        );
         this.time.delayedCall(1000, () => this.returnToOverworld());
       } else {
         this.finishPlayerTurn();
@@ -2897,23 +2905,21 @@ export class BattleScene extends Phaser.Scene {
     this.questUpdates = questResult.updates;
     recordGroupDefeats(this.codex, this.combatants);
     const codexUnlocks = replayCodexUnlocks(this.codex, this.player);
-    const queuedCutscenes = queueCutscenes(
+    queueCutscenes(
       this.player.progression,
       collectNewlyTriggeredCutsceneIds(
         cutsceneSnapshot,
         captureCutsceneTriggerSnapshot(this.player, this.defeatedBosses),
       ),
     );
-    if (queuedCutscenes.length > 0) {
-      saveGame(
-        this.player,
-        this.defeatedBosses,
-        this.codex,
-        this.player.appearanceId,
-        this.timeStep,
-        this.weatherState,
-      );
-    }
+    saveGame(
+      this.player,
+      this.defeatedBosses,
+      this.codex,
+      this.player.appearanceId,
+      this.timeStep,
+      this.weatherState,
+    );
     if (questResult.changed) {
       this.addLog("Quest progress recorded.");
     }

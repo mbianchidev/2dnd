@@ -154,6 +154,12 @@ import {
 } from "../systems/cutscenes";
 import { createSharedSceneState } from "../systems/sceneState";
 import { CodexDiscoveryManager } from "../managers/codexDiscovery";
+import { WorldEventManager } from "../managers/worldEvents";
+import type { BattleResolutionHooks } from "../systems/groupCombat";
+import {
+  resolveOverworldStepTrigger,
+  type WorldEventContext,
+} from "../systems/worldEvents";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -266,6 +272,7 @@ export class OverworldScene extends Phaser.Scene {
   private chronicleManager!: ChronicleManager;
   private tutorialManager!: TutorialManager;
   private codexDiscovery!: CodexDiscoveryManager;
+  private worldEventManager!: WorldEventManager;
   private pendingCodexDiscoveryIds: string[] = [];
 
   constructor() {
@@ -320,6 +327,27 @@ export class OverworldScene extends Phaser.Scene {
       autoSave: () => this.autoSave(),
       revealAround: (radius) => this.revealAround(radius),
       revealTileSprites: () => this.revealTileSprites(),
+    });
+    this.worldEventManager = new WorldEventManager(this, {
+      autoSave: () => this.autoSave(),
+      updateHUD: () => this.updateHUD(),
+      showMessage: (message, color) => this.showMessage(message, color),
+      handleQuestUpdates: (updates) => {
+        if (updates.length > 0) {
+          this.questFlow.handleResult({
+            changed: true,
+            updates: [...updates],
+          });
+        }
+      },
+      showCodexUnlocks: (result) => this.showCodexUnlocks(result),
+      handleFutureHooks: (hooks) => {
+        if (hooks.length > 0) {
+          debugLog("[worldEvents] Future #70 hooks emitted", hooks);
+        }
+      },
+      startBattle: (encounter, terrain, hooks, immediate) =>
+        this.startBattle(encounter, terrain, immediate, hooks),
     });
     this.tutorialManager = new TutorialManager(this, {
       autoSave: () => this.autoSave(),
@@ -437,6 +465,7 @@ export class OverworldScene extends Phaser.Scene {
       this.companionFollowerManager.clear();
       this.worldPresentation.cleanup();
       this.codexDiscovery.clear();
+      this.worldEventManager.clear();
     });
     this.chronicleManager = new ChronicleManager(
       this,
@@ -448,6 +477,13 @@ export class OverworldScene extends Phaser.Scene {
     this.updateAudio();
     this.questFlow.afterInitialRender();
     if (this.startNextPendingCutscene()) {
+      return;
+    }
+    if (this.worldEventManager.resumePending(
+      this.player,
+      this.codex,
+      this.defeatedBosses,
+    )) {
       return;
     }
     if (this.pendingCodexDiscoveryIds.length > 0) {
@@ -583,6 +619,30 @@ export class OverworldScene extends Phaser.Scene {
       refreshQuestUI: () => this.questFlow.refreshUi(),
       refreshPartyActors: () => this.refreshPartyActors(),
       isInputBlocked: () => this.isOverlayOpen(),
+      listWorldEvents: () => this.worldEventManager.list(),
+      triggerWorldEvent: (eventId) => {
+        const terrain = getTerrainAt(
+          this.player.position.chunkX,
+          this.player.position.chunkY,
+          this.player.position.x,
+          this.player.position.y,
+        );
+        if (terrain === undefined || this.player.position.inCity || this.player.position.inDungeon) {
+          return "World events can only be triggered on an overworld tile.";
+        }
+        this.worldEventManager.force(
+          this.player,
+          this.codex,
+          this.defeatedBosses,
+          eventId,
+          this.getWorldEventContext(terrain),
+        );
+        return `Triggered ${eventId}.`;
+      },
+      resetWorldEvents: () => {
+        this.worldEventManager.reset(this.player);
+        return "World event state reset.";
+      },
     });
     this.debugCommandSystem.fogOfWar = this.fogOfWar;
     this.debugCommandSystem.encounterSystem = this.encounterSystem;
@@ -1070,6 +1130,7 @@ export class OverworldScene extends Phaser.Scene {
     const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
     const menuTag = this.overlayManager.menuOverlay ? " [MENU]" : "";
     const chronicleTag = this.chronicleManager?.getDebugState() ?? "";
+    const worldEventTag = this.worldEventManager?.getDebugState() ?? "";
     const tutorialTag = this.tutorialManager.isTutorialOpen()
       ? " [TUTORIAL]"
       : this.tutorialManager.isTipsOpen()
@@ -1078,7 +1139,7 @@ export class OverworldScene extends Phaser.Scene {
     const partyTag = this.partyOverlayManager.getDebugState();
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${tutorialTag}${partyTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${worldEventTag}${tutorialTag}${partyTag} | ` +
       `Anim: ${this.worldPresentation.debugState} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
@@ -1093,6 +1154,7 @@ export class OverworldScene extends Phaser.Scene {
       || this.partyOverlayManager.isOpen()
       || this.questJournal.isOpen()
       || this.chronicleManager?.isOpen()
+      || this.worldEventManager.isOpen()
       || this.tutorialManager.isOpen();
   }
 
@@ -1161,6 +1223,11 @@ export class OverworldScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
         this.tutorialManager.handleAction("confirm");
       }
+      return;
+    }
+
+    if (this.worldEventManager.isOpen()) {
+      this.worldEventManager.update();
       return;
     }
 
@@ -1364,25 +1431,54 @@ export class OverworldScene extends Phaser.Scene {
       this.advanceTime();
       this.revealAround();
       this.revealTileSprites();
-      const foundTreasure = this.skillCheckManager.collectMinorTreasure(
-        this.player,
-        this.mapRenderer,
-      );
       this.updateHUD();
       this.updateLocationText();
-      if (
-        !foundTreasure
-        && !this.skillCheckManager.checkExplorationEvent(
+      resolveOverworldStepTrigger({
+        worldEvent: () => this.worldEventManager.checkAfterStep(
+          this.player,
+          this.codex,
+          this.defeatedBosses,
+          this.getWorldEventContext(result.newTerrain!),
+        ),
+        treasure: () => this.skillCheckManager.collectMinorTreasure(
+          this.player,
+          this.mapRenderer,
+        ),
+        skillCheck: () => this.skillCheckManager.checkExplorationEvent(
           this.player,
           result.newTerrain!,
-        )
-      ) {
-        this.checkEncounter(result.newTerrain!);
-      }
+        ),
+        encounter: () => {
+          this.checkEncounter(result.newTerrain!);
+          return true;
+        },
+      });
+      this.updateHUD();
+      this.updateLocationText();
     });
   }
 
   // ── Encounters & treasure ───────────────────────────────────────────────
+
+  private getWorldEventContext(terrain: Terrain): WorldEventContext {
+    const position = this.player.position;
+    return {
+      location: {
+        chunkX: position.chunkX,
+        chunkY: position.chunkY,
+        x: position.x,
+        y: position.y,
+        areaName: getChunk(position.chunkX, position.chunkY)?.name ?? "Unknown",
+        terrain,
+      },
+      level: this.player.level,
+      timeStep: this.timeStep,
+      period: getTimePeriod(this.timeStep),
+      weather: this.weatherState.current,
+      quests: this.player.progression.quests,
+      defeatedBosses: this.defeatedBosses,
+    };
+  }
 
   private checkEncounter(terrain: Terrain): void {
     this.autoSave();
@@ -2244,6 +2340,7 @@ export class OverworldScene extends Phaser.Scene {
     encounterOrMonster: MonsterEncounter | Monster,
     terrain?: Terrain,
     immediate = false,
+    battleHooks?: BattleResolutionHooks,
   ): void {
     if (this.sceneTransitions.isPending) return;
     const encounter = "members" in encounterOrMonster
@@ -2280,6 +2377,7 @@ export class OverworldScene extends Phaser.Scene {
       biome: this.terrainToBiome(terrain),
       savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
       partyCombatants: createActivePartyCombatants(this.player.party),
+      battleHooks,
     };
     if (immediate) {
       this.sceneTransitions.startImmediately(

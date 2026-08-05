@@ -31,12 +31,23 @@ and changes spanning scenes, systems, data, renderers, or managers.
 - Extracted presentation: `src/renderers/`
 - Stateful scene helpers: `src/managers/`
 - Shared audio/accessibility preferences: `src/systems/accessibility.ts`
+- Typed semantic actions and state: `src/systems/input.ts`
+- Keyboard/pointer/gamepad/touch adapter: `src/managers/input.ts`
 
 The versioned `2dnd_preferences` document is separate from campaign saves and
 backs both title and in-game settings. Install the scene accessibility adapter
 in every scene, use its shared reduced-motion accessors, preserve
 100%/125%/150% text usability, and pair important color states with a textual or
-symbolic cue. Input remapping remains separate under issue #89.
+symbolic cue. Control presentation preferences cover touch visibility,
+handedness, and prompt source without changing campaign saves. Stable mappings
+are intentionally not remappable.
+
+All release input routes through the semantic action layer. Standard gamepads
+use dead zones, digital fallback, repeat/debounce, source switching, and a
+visible right-stick cursor clicked by pressing the stick. Responsive touch controls use safe areas, pointer
+capture for held directions, click pulses for discrete actions, and mobile text
+entry. Clear held state on blur, visibility loss, disconnect, scene changes,
+and shutdown.
 
 Cutscene contracts live in `src/data/cutsceneTypes.ts`, focused campaign and
 boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and
@@ -78,8 +89,8 @@ optional family frames from #49 and a generic existing-texture fallback.
 Tutorial and Tips content lives in `src/data/tutorial.ts` as immutable steps,
 semantic control actions, categories, and unlock requirements.
 `src/systems/tutorial.ts` owns completion normalization and progression-aware
-filtering. `src/managers/tutorial.ts` owns the Overworld overlay and routes both
-keyboard and pointer input through shared navigation actions. New saves persist
+filtering. `src/managers/tutorial.ts` owns the Overworld overlay and renders prompts for
+the active keyboard, pointer, gamepad, or touch source. New saves persist
 `player.progression.tutorial.completed`; replay never resets it.
 
 ## Quests
@@ -317,7 +328,7 @@ starting `DefeatScene`, which continues only to Overworld.
 - Never sort the owning inventory array or replace equipment object references.
 - Keep sort/filter/search preferences in `2dnd_inventory_prefs`, outside the
   campaign save schema. Recent acquisition is reverse append order.
-- Use semantic inventory actions for keyboard, pointer, and future gamepad/mobile
+- Use semantic inventory actions for keyboard, pointer, gamepad, and touch
   controls. `T` remains mount control.
 - Generate item visuals procedurally through `src/renderers/itemVisuals.ts`.
 

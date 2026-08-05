@@ -205,6 +205,8 @@ export class BattleScene extends Phaser.Scene {
     text: Phaser.GameObjects.Text;
     label: string;
   }> = [];
+  private actionButtonActions: Array<() => void> = [];
+  private selectedActionIndex = 0;
   private spellMenu: Phaser.GameObjects.Container | null = null;
   private itemMenu: Phaser.GameObjects.Container | null = null;
   private abilityMenu: Phaser.GameObjects.Container | null = null;
@@ -368,6 +370,8 @@ export class BattleScene extends Phaser.Scene {
     this.logScrollOffset = 0;
     this.actionButtons = [];
     this.actionButtonLabels = [];
+    this.actionButtonActions = [];
+    this.selectedActionIndex = 0;
     this.spellMenu = null;
     this.itemMenu = null;
     this.abilityMenu = null;
@@ -416,20 +420,24 @@ export class BattleScene extends Phaser.Scene {
       if (this.pendingTargetAction) this.cancelTargetSelection();
       else this.closeAllSubMenus();
     });
-    const navigate = (direction: number): void => {
+    const navigateHorizontal = (direction: number): void => {
       if (this.pendingTargetAction) this.cycleTarget(direction);
       else this.battleMenuPageChange(direction);
     };
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT).on("down", () => navigate(-1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT).on("down", () => navigate(1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.UP).on("down", () => this.cycleTarget(-1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN).on("down", () => this.cycleTarget(1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A).on("down", () => navigate(-1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D).on("down", () => navigate(1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W).on("down", () => this.cycleTarget(-1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S).on("down", () => this.cycleTarget(1));
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER).on("down", () => this.confirmTargetSelection());
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).on("down", () => this.confirmTargetSelection());
+    const navigateVertical = (direction: number): void => {
+      if (this.pendingTargetAction) this.cycleTarget(direction);
+      else this.cycleActionSelection(direction);
+    };
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT).on("down", () => navigateHorizontal(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT).on("down", () => navigateHorizontal(1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.UP).on("down", () => navigateVertical(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN).on("down", () => navigateVertical(1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A).on("down", () => navigateHorizontal(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D).on("down", () => navigateHorizontal(1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W).on("down", () => navigateVertical(-1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S).on("down", () => navigateVertical(1));
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER).on("down", () => this.confirmBattleSelection());
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).on("down", () => this.confirmBattleSelection());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.battlePresentation?.cleanup();
     });
@@ -671,6 +679,8 @@ export class BattleScene extends Phaser.Scene {
         .setData("accessibilityMaxWidth", btnW - 12);
 
       bg.on("pointerover", () => {
+        this.selectedActionIndex = i;
+        this.updateButtonStates();
         bg.setTexture("buttonHover");
         label.setColor("#ffd700");
       });
@@ -687,6 +697,7 @@ export class BattleScene extends Phaser.Scene {
       container.add([bg, label]);
       this.actionButtons.push(container);
       this.actionButtonLabels.push({ text: label, label: act.label });
+      this.actionButtonActions.push(act.action);
     });
 
     // Set initial visual state
@@ -699,9 +710,35 @@ export class BattleScene extends Phaser.Scene {
     for (const btn of this.actionButtons) {
       btn.setAlpha(enabled ? 1 : 0.4);
     }
-    for (const action of this.actionButtonLabels) {
-      action.text.setText(`${enabled ? "✓" : "×"} ${action.label}`);
+    for (const [index, action] of this.actionButtonLabels.entries()) {
+      const selected = enabled && index === this.selectedActionIndex;
+      action.text
+        .setText(`${enabled ? selected ? "▶" : "✓" : "×"} ${action.label}`)
+        .setColor(selected ? "#ffd700" : "#dddddd");
     }
+  }
+
+  private cycleActionSelection(direction: number): void {
+    if (
+      this.phase !== "playerTurn"
+      || this.pendingTargetAction
+      || this.actionButtonActions.length === 0
+    ) {
+      return;
+    }
+    this.selectedActionIndex = (
+      this.selectedActionIndex + direction + this.actionButtonActions.length
+    ) % this.actionButtonActions.length;
+    this.updateButtonStates();
+  }
+
+  private confirmBattleSelection(): void {
+    if (this.pendingTargetAction) {
+      this.confirmTargetSelection();
+      return;
+    }
+    if (this.phase !== "playerTurn") return;
+    this.actionButtonActions[this.selectedActionIndex]?.();
   }
 
   /** Start a player turn, including status ticks, saves, and skipped turns. */

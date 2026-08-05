@@ -12,6 +12,11 @@ import {
   createTutorialTipContext,
   getUnlockedTips,
 } from "../systems/tutorial";
+import {
+  getInputPromptSource,
+  inputPromptSource,
+  type InputSource,
+} from "../systems/input";
 import type { PlayerState } from "../systems/player";
 import {
   calcPanelLayout,
@@ -40,11 +45,24 @@ export class TutorialManager {
   private replayingTutorial = false;
   private categoryIndex = 0;
   private tipIndex = 0;
+  private readonly unsubscribePromptSource: () => void;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly callbacks: TutorialManagerCallbacks,
-  ) {}
+  ) {
+    this.unsubscribePromptSource = inputPromptSource.subscribe(() => {
+      if (this.mode === "tutorial") this.renderTutorial();
+      else if (this.mode === "tips") this.renderTips();
+    });
+    if (!this.scene.events) {
+      this.unsubscribePromptSource();
+      return;
+    }
+    this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.unsubscribePromptSource();
+    });
+  }
 
   isOpen(): boolean {
     return this.overlay !== null;
@@ -258,7 +276,7 @@ export class TutorialManager {
       const card = this.scene.add.text(
         cardX,
         cardY,
-        `${control.label}\n${control.keyboard}`,
+        `${control.label}\n${this.controlPrompt(control)}`,
         {
           fontSize: "11px",
           fontFamily: "monospace",
@@ -414,7 +432,7 @@ export class TutorialManager {
     const hint = this.scene.add.text(
       px + panelW / 2,
       py + panelH - 20,
-      "A/D or arrows: category  |  W/S or arrows: tip  |  F1/Esc: close",
+      `${this.navigationPrompt()}  |  ${this.closePrompt()}: close`,
       {
         fontSize: "10px",
         fontFamily: "monospace",
@@ -460,7 +478,7 @@ export class TutorialManager {
     if (!tip?.controls?.length) return;
     const controls = tip.controls.map((id) => {
       const control = CONTROL_GUIDANCE[id];
-      return `${control.keyboard}  ${control.label}`;
+      return `${this.controlPrompt(control)}  ${control.label}`;
     });
     const controlsText = this.scene.add.text(
       x,
@@ -476,6 +494,33 @@ export class TutorialManager {
       },
     ).setFixedSize(width, Math.max(44, controls.length * 22 + 16));
     container.add(controlsText);
+  }
+
+  private controlPrompt(
+    control: (typeof CONTROL_GUIDANCE)[keyof typeof CONTROL_GUIDANCE],
+  ): string {
+    const source = getInputPromptSource();
+    return control[source === "pointer" ? "pointer" : source];
+  }
+
+  private navigationPrompt(): string {
+    const prompts: Record<InputSource, string> = {
+      keyboard: "A/D categories, W/S tips",
+      pointer: "Select a category or tip",
+      gamepad: "D-pad categories and tips",
+      touch: "D-pad or tap categories and tips",
+    };
+    return prompts[getInputPromptSource()];
+  }
+
+  private closePrompt(): string {
+    const prompts: Record<InputSource, string> = {
+      keyboard: "F1/Esc",
+      pointer: "outside panel",
+      gamepad: "B/View",
+      touch: "B/TIPS",
+    };
+    return prompts[getInputPromptSource()];
   }
 
   private getCurrentTips(): TipDefinition[] {

@@ -37,7 +37,7 @@ describe("shared game preferences", () => {
         advanceMode: "instant",
       },
     })).toEqual({
-      version: 1,
+      version: 2,
       audio: {
         masterVolume: 1,
         musicVolume: 0,
@@ -51,6 +51,11 @@ describe("shared game preferences", () => {
         highContrast: false,
         advanceMode: "manual",
       },
+      controls: {
+        touchControls: "auto",
+        handedness: "right",
+        promptSource: "auto",
+      },
     });
   });
 
@@ -62,12 +67,15 @@ describe("shared game preferences", () => {
     store.setHighContrast(true);
     store.setReducedMotion(true);
     store.setAdvanceMode("automatic");
+    store.cycleTouchControls();
+    store.setControlHandedness("left");
+    store.cyclePromptSource();
 
     const saved = JSON.parse(
       localStorage.getItem(GAME_PREFERENCES_STORAGE_KEY)!,
     );
     expect(saved).toEqual({
-      version: 1,
+      version: 2,
       audio: {
         masterVolume: 0.75,
         musicVolume: 0.6,
@@ -80,6 +88,11 @@ describe("shared game preferences", () => {
         textScale: 1.25,
         highContrast: true,
         advanceMode: "automatic",
+      },
+      controls: {
+        touchControls: "on",
+        handedness: "left",
+        promptSource: "keyboard",
       },
     });
     expect(new GamePreferencesStore().get()).toEqual(saved);
@@ -113,6 +126,11 @@ describe("shared game preferences", () => {
       textScale: 1.5,
       highContrast: false,
       advanceMode: "automatic",
+    });
+    expect(store.getControls()).toEqual({
+      touchControls: "auto",
+      handedness: "right",
+      promptSource: "auto",
     });
     expect(localStorage.getItem(GAME_PREFERENCES_STORAGE_KEY)).not.toBeNull();
     expect(localStorage.getItem(LEGACY_AUDIO_PREFERENCES_STORAGE_KEY)).toBeNull();

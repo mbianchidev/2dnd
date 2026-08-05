@@ -32,6 +32,8 @@ export interface ControlGuidance {
   label: string;
   keyboard: string;
   pointer: string;
+  gamepad: string;
+  touch: string;
 }
 
 export interface TutorialStep {
@@ -82,78 +84,104 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Move",
     keyboard: "W A S D",
     pointer: "Keyboard movement",
+    gamepad: "Left stick / D-pad",
+    touch: "Directional pad",
   },
   interact: {
     id: "interact",
     label: "Interact / confirm",
     keyboard: "Space",
     pointer: "Select the highlighted action",
+    gamepad: "A / X",
+    touch: "A or tap the prompt",
   },
   menu: {
     id: "menu",
     label: "Open / close menu",
     keyboard: "Esc",
     pointer: "Use menu buttons",
+    gamepad: "Menu / Y",
+    touch: "MENU",
   },
   tips: {
     id: "tips",
     label: "Open Tips",
     keyboard: "F1",
     pointer: "Esc menu > Tips",
+    gamepad: "View",
+    touch: "TIPS",
   },
   map: {
     id: "map",
     label: "World / city map",
     keyboard: "M",
     pointer: "Map controls",
+    gamepad: "Menu, then Map",
+    touch: "MENU, then Map",
   },
   equipment: {
     id: "equipment",
     label: "Hero gear",
     keyboard: "E",
     pointer: "Equipment controls",
+    gamepad: "Menu, then Equipment",
+    touch: "MENU, then Equipment",
   },
   journal: {
     id: "journal",
     label: "Quest journal",
     keyboard: "Q",
     pointer: "Esc menu > Quest Journal",
+    gamepad: "Menu, then Journal",
+    touch: "MENU, then Journal",
   },
   codex: {
     id: "codex",
     label: "Codex",
     keyboard: "C",
     pointer: "Codex controls",
+    gamepad: "Menu, then Codex",
+    touch: "MENU, then Codex",
   },
   party: {
     id: "party",
     label: "Party management",
     keyboard: "P",
     pointer: "Party controls",
+    gamepad: "PARTY / menu",
+    touch: "PARTY",
   },
   mount: {
     id: "mount",
     label: "Mount / dismount",
     keyboard: "T",
     pointer: "Mount controls",
+    gamepad: "Menu, then Mount",
+    touch: "MENU, then Mount",
   },
   battleNavigate: {
     id: "battleNavigate",
     label: "Choose action / target",
     keyboard: "WASD / arrows",
     pointer: "Select an action or target",
+    gamepad: "D-pad / left stick",
+    touch: "Directional pad or tap",
   },
   battleConfirm: {
     id: "battleConfirm",
     label: "Confirm target",
     keyboard: "Enter / Space",
     pointer: "Select the target",
+    gamepad: "A",
+    touch: "A or tap",
   },
   battleCancel: {
     id: "battleCancel",
     label: "Cancel targeting",
     keyboard: "Esc",
     pointer: "Choose another action",
+    gamepad: "B",
+    touch: "B",
   },
 };
 

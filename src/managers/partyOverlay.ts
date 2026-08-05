@@ -50,6 +50,7 @@ import {
   createDimGraphics,
   createPanelGraphics,
 } from "../utils/ui";
+import { openMobileTextInput } from "./input";
 
 interface PartyOverlayCallbacks {
   updateHUD(): void;
@@ -411,6 +412,23 @@ export class PartyOverlayManager {
       ? `Search:${this.truncate(preferences.search, 13)}`
       : this.inventorySearchActive ? "Search:typing..." : "Search:/";
     this.addButton(x + 242, y + 22, searchLabel, () => {
+      if (
+        this.scene.input.activePointer.event instanceof PointerEvent
+        && this.scene.input.activePointer.event.pointerType === "touch"
+        && !this.inventorySearchActive
+      ) {
+        openMobileTextInput(
+          "Inventory search",
+          preferences.search,
+          32,
+          (value) => {
+            inventoryPreferences.setSearch(value);
+            this.inventorySearchActive = false;
+            this.render();
+          },
+        );
+        return;
+      }
       this.handleInventoryAction("toggleSearch");
     }, this.inventorySearchActive ? "#ffd700" : "#b8ddff", width - 280);
     this.addButton(x + width - 32, y + 22, "X", () => {

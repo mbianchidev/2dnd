@@ -69,6 +69,7 @@ src/
 │   ├── questState.ts
 │   ├── questDebug.ts
 │   ├── accessibility.ts
+│   ├── input.ts
 │   ├── tutorial.ts
 │   ├── sceneState.ts
 │   ├── cutscenes.ts
@@ -103,6 +104,7 @@ src/
 │   └── talents.ts
 ├── managers/
 │   ├── actorAnimation.ts
+│   ├── input.ts
 │   ├── battlePresentation.ts
 │   ├── worldPresentation.ts
 │   ├── questJournal.ts
@@ -306,8 +308,8 @@ was completed or skipped.
 - Inventory sort/filter/search preferences use `2dnd_inventory_prefs`, separate
   from the campaign save schema. Recent acquisition is reverse canonical append
   order.
-- The party Items page and `Esc` menu share one keyboard/pointer surface with
-  semantic actions for future gamepad/mobile controls. `T` remains mount
+- The party Items page and `Esc` menu share semantic keyboard, pointer, gamepad,
+  and touch actions. `T` remains mount
   control. Item visuals are generated procedurally in `itemVisuals.ts`.
 - Living actors receive victory XP. KO actors receive no victory XP and reset
   to the current-level XP floor. Full defeat requires every active party actor
@@ -663,8 +665,33 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   still completes callbacks exactly once, and never leaves input or scene
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
-- Keep future input remapping aligned with issue #89; do not mix controls work
-  into accessibility settings changes.
+- Control presentation preferences in the same versioned document cover touch
+  visibility, handedness, and prompt source only; they never enter schema-v9
+  campaign saves.
+
+## Semantic controls
+
+- Stable typed actions, contexts, mappings, dead zones, repeat/debounce,
+  source switching, priority, and duplicate suppression live in
+  `src/systems/input.ts`.
+- `src/managers/input.ts` is the only browser adapter for keyboard, pointer,
+  standard gamepads, and touch. Do not add parallel scene-specific gamepad or
+  mobile mappings.
+- Standard gamepads use digital fallback plus analog dead zones. The right
+  stick owns a visible virtual cursor for pointer-first surfaces, and pressing
+  it clicks without replacing the normal A/confirm action.
+- Touch controls are procedural DOM controls with safe-area/orientation CSS,
+  pointer capture for held directions, click pulses for discrete actions, and
+  simultaneous movement/action support.
+- Clear held input and synthetic keys on blur, visibility loss, gamepad
+  disconnect, scene changes, and runtime destruction.
+- Resolve key conflicts by semantic context/priority. Never map production
+  controls to debug cheat actions.
+- Prompts and focus state must adapt to the selected/active source using text or
+  symbols, not color alone.
+- Stable mappings are deliberately not user-remappable. Do not add a partial
+  remapper unless every release flow, conflict, text-entry case, and
+  accessibility requirement can be validated.
 
 ## Debug
 

@@ -14,6 +14,13 @@ export const CUTSCENE_TEXT_SCALES = TEXT_SCALES;
 export type TextScale = (typeof TEXT_SCALES)[number];
 export type CutsceneTextScale = TextScale;
 export type CutsceneAdvanceMode = "manual" | "automatic";
+export type TouchControlVisibility = "auto" | "on" | "off";
+export type ControlHandedness = "left" | "right";
+export type PromptSourcePreference =
+  | "auto"
+  | "keyboard"
+  | "gamepad"
+  | "touch";
 
 export interface AudioPreferences {
   masterVolume: number;
@@ -30,12 +37,19 @@ export interface AccessibilityPreferences {
   advanceMode: CutsceneAdvanceMode;
 }
 
+export interface ControlPreferences {
+  touchControls: TouchControlVisibility;
+  handedness: ControlHandedness;
+  promptSource: PromptSourcePreference;
+}
+
 export type CutsceneAccessibilityPreferences = AccessibilityPreferences;
 
 export interface GamePreferences {
-  version: 1;
+  version: 2;
   audio: AudioPreferences;
   accessibility: AccessibilityPreferences;
+  controls: ControlPreferences;
 }
 
 type GamePreferencesListener = (preferences: Readonly<GamePreferences>) => void;
@@ -59,6 +73,12 @@ const DEFAULT_ACCESSIBILITY_PREFERENCES: AccessibilityPreferences = {
   textScale: 1,
   highContrast: false,
   advanceMode: "manual",
+};
+
+const DEFAULT_CONTROL_PREFERENCES: ControlPreferences = {
+  touchControls: "auto",
+  handedness: "right",
+  promptSource: "auto",
 };
 
 const textPresentations = new WeakMap<Phaser.GameObjects.Text, TextPresentation>();
@@ -134,12 +154,32 @@ export function normalizeAccessibilityPreferences(
 export const normalizeCutsceneAccessibilityPreferences =
   normalizeAccessibilityPreferences;
 
+export function normalizeControlPreferences(
+  value: unknown,
+): ControlPreferences {
+  const source = isRecord(value) ? value : {};
+  const touchControls = source.touchControls;
+  const promptSource = source.promptSource;
+  return {
+    touchControls: touchControls === "on" || touchControls === "off"
+      ? touchControls
+      : "auto",
+    handedness: source.handedness === "left" ? "left" : "right",
+    promptSource: promptSource === "keyboard"
+      || promptSource === "gamepad"
+      || promptSource === "touch"
+      ? promptSource
+      : "auto",
+  };
+}
+
 export function normalizeGamePreferences(value: unknown): GamePreferences {
   const source = isRecord(value) ? value : {};
   return {
-    version: 1,
+    version: 2,
     audio: normalizeAudioPreferences(source.audio),
     accessibility: normalizeAccessibilityPreferences(source.accessibility),
+    controls: normalizeControlPreferences(source.controls),
   };
 }
 
@@ -191,6 +231,10 @@ export class GamePreferencesStore {
     return this.preferences.accessibility;
   }
 
+  getControls(): Readonly<ControlPreferences> {
+    return this.preferences.controls;
+  }
+
   setAudio(changes: Partial<AudioPreferences>): void {
     this.update({
       audio: normalizeAudioPreferences({
@@ -220,6 +264,31 @@ export class GamePreferencesStore {
     this.setAccessibility({ textScale: next });
   }
 
+  cycleTouchControls(): void {
+    const order: readonly TouchControlVisibility[] = ["auto", "on", "off"];
+    const current = order.indexOf(this.preferences.controls.touchControls);
+    this.setControls({
+      touchControls: order[(current + 1) % order.length],
+    });
+  }
+
+  setControlHandedness(handedness: ControlHandedness): void {
+    this.setControls({ handedness });
+  }
+
+  cyclePromptSource(): void {
+    const order: readonly PromptSourcePreference[] = [
+      "auto",
+      "keyboard",
+      "gamepad",
+      "touch",
+    ];
+    const current = order.indexOf(this.preferences.controls.promptSource);
+    this.setControls({
+      promptSource: order[(current + 1) % order.length],
+    });
+  }
+
   subscribe(listener: GamePreferencesListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -236,6 +305,15 @@ export class GamePreferencesStore {
     this.update({
       accessibility: normalizeAccessibilityPreferences({
         ...this.preferences.accessibility,
+        ...changes,
+      }),
+    });
+  }
+
+  private setControls(changes: Partial<ControlPreferences>): void {
+    this.update({
+      controls: normalizeControlPreferences({
+        ...this.preferences.controls,
         ...changes,
       }),
     });
@@ -399,6 +477,9 @@ function applyCanvasPresentation(
   );
   canvas.dataset.masterVolume = String(preferences.audio.masterVolume);
   canvas.dataset.audioMuted = String(preferences.audio.muted);
+  canvas.dataset.touchControlsPreference = preferences.controls.touchControls;
+  canvas.dataset.controlHandedness = preferences.controls.handedness;
+  canvas.dataset.promptPreference = preferences.controls.promptSource;
 }
 
 function isInfiniteTween(tween: Phaser.Tweens.Tween): boolean {

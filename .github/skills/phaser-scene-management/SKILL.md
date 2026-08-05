@@ -45,6 +45,21 @@ export class ExampleScene extends Phaser.Scene {
 Use explicit types and return values. Store Phaser objects that need later
 updates or cleanup as class properties.
 
+## Semantic input
+
+`src/systems/input.ts` owns stable action/context contracts and pure state.
+`src/managers/input.ts` is the single browser adapter for keyboard, pointer,
+standard gamepads, and touch. Scenes must use the shared actions or existing
+keyboard/pointer behavior reached by that adapter rather than adding independent
+gamepad/mobile mappings. The adapter clears held input on scene changes, blur,
+visibility loss, disconnect, and shutdown.
+
+Touch controls use safe-area-aware responsive DOM buttons outside the canvas.
+Held D-pad directions use pointer capture; discrete buttons use click pulses so
+scene transitions cannot strand a press. Standard gamepads use left-stick/D-pad
+navigation and a visible right-stick cursor, clicked by pressing the stick, for
+pointer-first surfaces.
+
 ## Shared state flow
 
 State-bearing transitions use `createSharedSceneState()` and preserve:
@@ -204,7 +219,9 @@ on mouse-wheel input.
 - Skip defeated initiative entries and keep Player Defend active until the
   next player turn.
 - Target mode supports pointer selection, arrows/WASD cycling, Enter/Space
-  confirmation, and Esc cancellation.
+  confirmation, Esc cancellation, gamepad selection/confirmation, and touch.
+- Battle action buttons expose a non-color `▶` selection marker for keyboard and
+  gamepad focus before targeting.
 - Keep bonus-action abilities and the first item use on the player turn.
 - Validate actions before consuming MP, items, or the turn.
 - Clear player and every monster's combat effects before leaving Battle.

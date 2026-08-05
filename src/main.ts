@@ -13,6 +13,7 @@ import { EndingScene } from "./scenes/Ending";
 import { CutsceneScene } from "./scenes/Cutscene";
 import { DefeatScene } from "./scenes/Defeat";
 import { GAME_WIDTH, GAME_HEIGHT, toggleDebug, isDebug, onDebugChanged, initDebugCommandInput, isLocalDev } from "./config";
+import { SemanticInputRuntime } from "./managers/input";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -38,7 +39,12 @@ const config: Phaser.Types.Core.GameConfig = {
   ],
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+const semanticInput = new SemanticInputRuntime(game);
+semanticInput.start();
+window.addEventListener("beforeunload", () => semanticInput.destroy(), {
+  once: true,
+});
 
 // Wire up the HTML debug toggle (local dev only)
 const debugToggle = document.getElementById("debug-toggle") as HTMLElement | null;

@@ -237,16 +237,59 @@ export function addSettingsControls(
         : "manual",
     ),
   );
-  const controlsToUpdate = [mute, textScale, contrast, motion, advance];
-  const roadmap = scene.add.text(
+  const controlsTitle = scene.add.text(contentX, py + 430, "Controls", {
+    fontSize: "12px",
+    fontFamily: "monospace",
+    color: "#ffffff",
+    fontStyle: "bold",
+  });
+  const compactWidth = Math.floor((contentWidth - 12) / 3);
+  const touch = createControl(
+    scene,
+    contentX + compactWidth / 2,
+    py + 450,
+    compactWidth,
+    () => `Touch\n${gamePreferences.getControls().touchControls}`,
+    () => gamePreferences.cycleTouchControls(),
+  );
+  const handedness = createControl(
+    scene,
+    contentX + compactWidth + 6 + compactWidth / 2,
+    py + 450,
+    compactWidth,
+    () => `Layout\n${gamePreferences.getControls().handedness}`,
+    () => gamePreferences.setControlHandedness(
+      gamePreferences.getControls().handedness === "right" ? "left" : "right",
+    ),
+  );
+  const prompts = createControl(
+    scene,
+    contentX + (compactWidth + 6) * 2 + compactWidth / 2,
+    py + 450,
+    compactWidth,
+    () => `Prompts\n${gamePreferences.getControls().promptSource}`,
+    () => gamePreferences.cyclePromptSource(),
+  );
+  const controlsToUpdate = [
+    mute,
+    textScale,
+    contrast,
+    motion,
+    advance,
+    touch,
+    handedness,
+    prompts,
+  ];
+  const mappingNote = scene.add.text(
     centerX,
-    py + panelHeight - 34,
-    "Input remapping remains tracked in #89.",
+    py + panelHeight - 4,
+    "Stable standard mappings; custom remapping is deliberately unsupported.",
     {
-      fontSize: "9px",
+      fontSize: "8px",
       fontFamily: "monospace",
       color: "#b8bfd8",
       align: "center",
+      wordWrap: { width: contentWidth },
     },
   ).setOrigin(0.5, 1);
   container.add([
@@ -256,7 +299,11 @@ export function addSettingsControls(
     contrast.text,
     motion.text,
     advance.text,
-    roadmap,
+    controlsTitle,
+    touch.text,
+    handedness.text,
+    prompts.text,
+    mappingNote,
   ]);
   controls.push(
     mute.text,
@@ -265,7 +312,11 @@ export function addSettingsControls(
     contrast.text,
     motion.text,
     advance.text,
-    roadmap,
+    controlsTitle,
+    touch.text,
+    handedness.text,
+    prompts.text,
+    mappingNote,
   );
 
   const unsubscribe = gamePreferences.subscribe(() => {

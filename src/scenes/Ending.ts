@@ -149,10 +149,16 @@ export class EndingScene extends Phaser.Scene {
         this.sceneData.player.progression,
         this.sceneData.cutsceneId!,
       );
-      unlockCodexFromSignal(this.sceneData.codex, {
+      const unlock = unlockCodexFromSignal(this.sceneData.codex, {
         type: "cutscene",
         cutsceneId: this.sceneData.cutsceneId!,
       });
+      this.sceneData.codexDiscoveryIds = [
+        ...new Set([
+          ...(this.sceneData.codexDiscoveryIds ?? []),
+          ...unlock.unlockedIds,
+        ]),
+      ];
       this.save();
     }
     this.showingChoices = true;

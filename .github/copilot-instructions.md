@@ -687,7 +687,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the
-  Esc menu exposes the Codex for touch users.
+  Esc menu exposes the Codex for touch users. In Codex context, the semantic
+  gamepad interact action opens search and confirm submits it.
 
 ## Semantic controls
 

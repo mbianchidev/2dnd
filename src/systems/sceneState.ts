@@ -10,11 +10,16 @@ export interface SharedSceneState {
   timeStep: number;
   weatherState: WeatherState;
   savedSpecialNpcs: SavedSpecialNpc[];
+  /** Runtime-only Codex notices awaiting a safe Overworld presentation. */
+  codexDiscoveryIds?: string[];
 }
 
 export function createSharedSceneState(
   state: SharedSceneState,
 ): SharedSceneState {
+  const codexDiscoveryIds = state.codexDiscoveryIds?.length
+    ? { codexDiscoveryIds: [...state.codexDiscoveryIds] }
+    : {};
   return {
     player: state.player,
     defeatedBosses: state.defeatedBosses,
@@ -22,5 +27,6 @@ export function createSharedSceneState(
     timeStep: state.timeStep,
     weatherState: state.weatherState,
     savedSpecialNpcs: state.savedSpecialNpcs,
+    ...codexDiscoveryIds,
   };
 }

@@ -482,6 +482,7 @@ export class OverworldScene extends Phaser.Scene {
       timeStep: this.timeStep,
       weatherState: this.weatherState,
       savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
+      codexDiscoveryIds: this.pendingCodexDiscoveryIds,
     });
   }
 
@@ -1975,11 +1976,13 @@ export class OverworldScene extends Phaser.Scene {
             targetId: dungeon.id,
           });
           this.autoSave();
-          if (
-            this.queueNewlyTriggeredCutscenes(cutsceneSnapshot).length === 0
-          ) {
+          const queuedCutscenes = this.queueNewlyTriggeredCutscenes(
+            cutsceneSnapshot,
+          );
+          if (queuedCutscenes.length === 0) {
             this.restartOverworld("enter dungeon", dungeonUnlock.unlockedIds);
           } else {
+            this.pendingCodexDiscoveryIds = [...dungeonUnlock.unlockedIds];
             this.startNextPendingCutscene();
           }
         }

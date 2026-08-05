@@ -250,6 +250,10 @@ export function unlockCodexFromSignal(
   );
 }
 
+/**
+ * Reserved dispatch boundary for #69 world events and #70 reputation.
+ * Active scenes must not call this until those systems own the signal.
+ */
 export function unlockCodexFromFutureSignal(
   codex: CodexData,
   signal: CodexFutureUnlockSignal,

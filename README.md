@@ -413,7 +413,8 @@ In the Codex, `1`-`6` or `Q`/`E` change categories, `/` opens accessible search,
 `F` cycles the monster-family filter or knowledge discovery grouping, and `R`
 cycles the active category's sort. Family completion and all category counts are
 derived rather than persisted. Touch opens the Codex from the Esc menu, while a
-gamepad can use the same menu and right-stick cursor.
+gamepad can use the same menu and right-stick cursor; `X` opens Codex search
+and `A` submits the shared text-entry form.
 
 ## Debug mode
 

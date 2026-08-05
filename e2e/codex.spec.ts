@@ -400,11 +400,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   await moveCursor(183, 32);
   await pressGamepad(11);
   await waitForState(page, "Category: Locations");
-  for (const y of [48, 52, 44, 56]) {
-    await moveCursor(320, y);
-    await pressGamepad(11);
-    if (await page.locator("#mobile-text-input").isVisible()) break;
-  }
+  await pressGamepad(2);
   await expect(page.locator("#mobile-text-input")).toBeVisible();
   await page.locator("#mobile-text-input input").fill("willow");
   await pressGamepad(0);

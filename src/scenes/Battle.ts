@@ -166,6 +166,7 @@ export interface BattleSceneData {
   partyCombatants?: PartyCombatant[];
   /** Runtime-only extension hooks; never persisted in save data. */
   battleHooks?: BattleResolutionHooks;
+  codexDiscoveryIds?: string[];
 }
 
 export class BattleScene extends Phaser.Scene {
@@ -189,6 +190,7 @@ export class BattleScene extends Phaser.Scene {
   private weatherState: WeatherState = createWeatherState();
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
   private questUpdates: QuestUpdate[] = [];
+  private codexDiscoveryIds: string[] = [];
   private codexDiscovery!: CodexDiscoveryManager;
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
@@ -367,6 +369,7 @@ export class BattleScene extends Phaser.Scene {
     this.weatherState = data.weatherState ?? createWeatherState();
     this.biome = data.biome ?? "grass";
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
+    this.codexDiscoveryIds = data.codexDiscoveryIds ?? [];
     this.questUpdates = [];
     this.phase = "init";
     this.logLines = [];
@@ -3049,6 +3052,7 @@ export class BattleScene extends Phaser.Scene {
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,
+        codexDiscoveryIds: this.codexDiscoveryIds,
       });
       const cutsceneId = getNextPendingCutscene(this.player.progression);
       if (cutsceneId === CAMPAIGN_EPILOGUE_CUTSCENE_ID) {
@@ -3089,6 +3093,7 @@ export class BattleScene extends Phaser.Scene {
           timeStep: this.timeStep,
           weatherState: this.weatherState,
           savedSpecialNpcs: this.savedSpecialNpcs,
+          codexDiscoveryIds: this.codexDiscoveryIds,
         }),
         encounterName: this.encounter.name,
         encounterType: this.combatants.some(

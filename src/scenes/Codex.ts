@@ -544,7 +544,12 @@ export class CodexScene extends Phaser.Scene {
       this.detailText.setText(
         "UNDISCOVERED MONSTER\n\nDefeat this creature to reveal its record.",
       );
-      this.updateDebugState(monster.id, false);
+      this.updateDebugState(
+        monster.id,
+        false,
+        ` | Texture: ${getMonsterTextureKey(monster)}`
+        + ` | Completion: ${progress.complete ? "complete" : "incomplete"}`,
+      );
       return;
     }
 
@@ -581,7 +586,12 @@ export class CodexScene extends Phaser.Scene {
       }
     }
     this.detailText.setText(lines.join("\n"));
-    this.updateDebugState(monster.id, true);
+    this.updateDebugState(
+      monster.id,
+      true,
+      ` | Texture: ${getMonsterTextureKey(monster)}`
+      + ` | Completion: ${progress.complete ? "complete" : "incomplete"}`,
+    );
   }
 
   private showKnowledgeDetail(entry: CodexKnowledgeEntry): void {
@@ -625,6 +635,7 @@ export class CodexScene extends Phaser.Scene {
   private updateDebugState(
     selectedId = "none",
     discovered = false,
+    detail = "",
   ): void {
     const sort = this.category === "monsters"
       ? this.monsterSort
@@ -640,7 +651,8 @@ export class CodexScene extends Phaser.Scene {
       + ` | Sort: ${sort}`
       + ` | Search: ${this.search || "-"}`
       + ` | Selected: ${selectedId}`
-      + ` | ${discovered ? "DISCOVERED" : "UNDISCOVERED"}`,
+      + ` | ${discovered ? "DISCOVERED" : "UNDISCOVERED"}`
+      + detail,
     );
   }
 

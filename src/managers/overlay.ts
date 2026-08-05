@@ -990,10 +990,10 @@ export class OverlayManager {
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
 
-    const menuHeight = 408;
+    const menuHeight = 366;
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
-      220,
+      280,
       menuHeight,
       -10,
     );
@@ -1025,7 +1025,7 @@ export class OverlayManager {
 
     const partyBtn = this.scene.add.text(
       px + panelW / 2,
-      py + 321,
+      py + 279,
       "Party & Inventory",
       {
         fontSize: "14px",
@@ -1097,11 +1097,11 @@ export class OverlayManager {
     this.menuOverlay.add(tipsBtn);
 
     const codexBtn = this.scene.add.text(
-      px + panelW / 2,
-      py + 237,
+      px + panelW - 40,
+      py + 14,
       "Codex",
       {
-        fontSize: "14px",
+        fontSize: "11px",
         fontFamily: "monospace",
         color: "#fff3a6",
         backgroundColor: "#2a2a4e",
@@ -1117,7 +1117,7 @@ export class OverlayManager {
     this.menuOverlay.add(codexBtn);
 
     // Settings
-    const settingsY = 279;
+    const settingsY = 237;
     const settingsBtn = this.scene.add.text(px + panelW / 2, py + settingsY, "🔊 Settings", {
       fontSize: "14px", fontFamily: "monospace", color: "#aabbff",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
@@ -1131,7 +1131,7 @@ export class OverlayManager {
     this.menuOverlay.add(settingsBtn);
 
     // Quit
-    const quitY = 363;
+    const quitY = 321;
     const quitBtn = this.scene.add.text(px + panelW / 2, py + quitY, "✕ Quit to Title", {
       fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },

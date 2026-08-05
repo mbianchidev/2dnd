@@ -45,6 +45,8 @@ export const INPUT_ACTIONS = [
   "inventoryClearSearch",
   "inventoryNextTarget",
   "codexSearch",
+  "codexCategoryPrevious",
+  "codexCategoryNext",
 ] as const;
 
 export type InputAction = (typeof INPUT_ACTIONS)[number];

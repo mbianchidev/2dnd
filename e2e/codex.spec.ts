@@ -261,7 +261,7 @@ test.describe("touch Codex controls", () => {
     await page.waitForTimeout(350);
     await page.locator('[data-action="openMenu"]').tap();
     await waitForState(page, "[MENU]");
-    await tapGame(page, 320, 300);
+    await tapGame(page, 420, 92);
     await waitForState(page, "CODEX | Category: Monsters");
     await tapGame(page, 183, 32);
     await waitForState(page, "Category: Locations");
@@ -397,8 +397,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   await pressGamepad(13);
   await expect(page.locator("#game-container canvas"))
     .toHaveAttribute("data-input-source", "gamepad");
-  await moveCursor(183, 32);
-  await pressGamepad(11);
+  await pressGamepad(5);
   await waitForState(page, "Category: Locations");
   await pressGamepad(2);
   await expect(page.locator("#mobile-text-input")).toBeVisible();

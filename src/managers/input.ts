@@ -70,6 +70,8 @@ const ACTION_KEYS: Partial<Record<InputAction, KeyDescriptor>> = {
   inventoryClearSearch: { code: "Backspace", key: "Backspace" },
   inventoryNextTarget: { code: "Tab", key: "Tab" },
   codexSearch: { code: "Slash", key: "/" },
+  codexCategoryPrevious: { code: "KeyQ", key: "q" },
+  codexCategoryNext: { code: "KeyE", key: "e" },
 };
 
 const TOUCH_BUTTONS: ReadonlyArray<{
@@ -417,8 +419,10 @@ export class SemanticInputRuntime {
       };
       return inventoryActions[action] ?? action;
     }
-    if (context === "codex" && action === "interact") {
-      return "codexSearch";
+    if (context === "codex") {
+      if (action === "interact") return "codexSearch";
+      if (action === "battleTargetPrevious") return "codexCategoryPrevious";
+      if (action === "battleTargetNext") return "codexCategoryNext";
     }
     return action;
   }

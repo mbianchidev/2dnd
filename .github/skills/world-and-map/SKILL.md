@@ -22,6 +22,9 @@ license: MIT
 - `src/managers/fogOfWar.ts`: exploration-key generation and reveal state
 - `src/managers/skillChecks.ts`: terrain events, hidden treasure, and chest
   checks
+- `src/data/worldEvents.ts`: immutable World Event definitions and eligibility
+- `src/systems/worldEvents.ts`: seeded selection, outcomes, persistence repair
+- `src/managers/worldEvents.ts`: accessible choices and Battle handoff
 - `src/renderers/map.ts`: terrain and weather rendering
 - `src/renderers/city.ts`: city NPC, animal, and district rendering
 
@@ -58,6 +61,20 @@ getTownBiome(chunkX, chunkY, tileX, tileY);
 
 Chunk names drive biome music, weather probabilities, and presentation. New
 names must retain a recognized biome prefix.
+
+## Random World Events
+
+World Events run only on ordinary overworld movement after the move and
+day/weather updates complete. Chunk transitions, city/dungeon entrances, traps,
+NPC/special interactions, and queued cutscenes have priority. Within the
+post-movement chain the order is World Event, minor treasure, exploration skill
+check, then random encounter.
+
+Event probability uses its own data-driven 8% cap and never changes
+`getEffectiveEncounterRate()` or its 15% cap. Eligibility may include terrain,
+chunk-name area prefixes, day/night period, weather, level, quest/boss state,
+prior outcomes, repeat limits, and cooldowns. Persist the selected pending event
+before presentation so reload cannot reroll it.
 
 ## Quest-gated entrances
 

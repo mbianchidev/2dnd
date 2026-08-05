@@ -28,6 +28,10 @@ import {
   createTutorialProgress,
   type TutorialProgress,
 } from "./tutorial";
+import {
+  createWorldEventState,
+  type WorldEventState,
+} from "./worldEvents";
 
 export interface PlayerStats {
   strength: number;
@@ -66,6 +70,7 @@ export interface PlayerProgression {
   trapStates: Record<string, TrapState>; // deterministic trap ID -> authoritative state
   trapGuidance: boolean; // persistent Adventurer detection/disarm advice
   tutorial: TutorialProgress; // new-player tutorial completion
+  worldEvents: WorldEventState; // deterministic overworld event state and record
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -255,6 +260,7 @@ export function createPlayer(
       trapStates: {},
       trapGuidance: false,
       tutorial: createTutorialProgress(),
+      worldEvents: createWorldEventState(),
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,

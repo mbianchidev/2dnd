@@ -4,10 +4,21 @@ import { getChronicleCutscenes } from "../systems/cutscenes";
 
 import type { CutsceneDefinition, CutsceneId } from "../data/cutscenes";
 import type { PlayerState } from "../systems/player";
+import type { WorldEventLogEntry } from "../systems/worldEvents";
+
+type ChronicleEntry =
+  | {
+    kind: "cutscene";
+    cutscene: CutsceneDefinition<CutsceneId>;
+  }
+  | {
+    kind: "worldEvent";
+    record: WorldEventLogEntry;
+  };
 
 export class ChronicleManager {
   private container: Phaser.GameObjects.Container | null = null;
-  private entries: readonly CutsceneDefinition<CutsceneId>[] = [];
+  private entries: readonly ChronicleEntry[] = [];
   private selectedIndex = 0;
   private readonly keys: {
     up: Phaser.Input.Keyboard.Key;
@@ -35,13 +46,25 @@ export class ChronicleManager {
   }
 
   getDebugState(): string {
-    return this.container
-      ? ` [CHRONICLE] [CHRONICLE_SELECTION:${this.selectedIndex + 1}/${this.entries.length}]`
+    if (!this.container) return "";
+    const selected = this.entries[this.selectedIndex];
+    const recordTag = selected?.kind === "worldEvent"
+      ? ` [WORLD_EVENT_RECORD:${selected.record.eventId}:${selected.record.outcomeId}]`
       : "";
+    return ` [CHRONICLE] [CHRONICLE_SELECTION:${this.selectedIndex + 1}/${this.entries.length}]${recordTag}`;
   }
 
   open(player: PlayerState): void {
-    this.entries = getChronicleCutscenes(player.progression);
+    this.entries = [
+      ...getChronicleCutscenes(player.progression).map((cutscene) => ({
+        kind: "cutscene" as const,
+        cutscene,
+      })),
+      ...player.progression.worldEvents.log.slice().reverse().map((record) => ({
+        kind: "worldEvent" as const,
+        record,
+      })),
+    ];
     this.selectedIndex = 0;
     this.render();
   }
@@ -67,8 +90,8 @@ export class ChronicleManager {
 
   replaySelected(): void {
     const selected = this.entries[this.selectedIndex];
-    if (selected) {
-      this.onReplay(selected.id);
+    if (selected?.kind === "cutscene") {
+      this.onReplay(selected.cutscene.id);
     }
   }
 
@@ -109,7 +132,7 @@ export class ChronicleManager {
     const subtitle = this.scene.add.text(
       GAME_WIDTH / 2,
       78,
-      "Revisit completed story moments",
+      "Story memories and resolved World Events",
       { fontSize: "12px", color: "#b8bdca" },
     ).setOrigin(0.5);
     container.add([backdrop, panel, title, subtitle]);
@@ -122,7 +145,7 @@ export class ChronicleManager {
         { fontSize: "16px", color: "#dddddd" },
       ).setOrigin(0.5));
     } else {
-      const pageSize = 8;
+      const pageSize = 6;
       const pageStart = Math.floor(this.selectedIndex / pageSize) * pageSize;
       const pageEntries = this.entries.slice(pageStart, pageStart + pageSize);
       pageEntries.forEach((entry, rowIndex) => {
@@ -131,7 +154,11 @@ export class ChronicleManager {
         const row = this.scene.add.text(
           94,
           112 + rowIndex * 34,
-          `${selected ? ">" : " "} ${entry.title}`,
+          `${selected ? ">" : " "} ${
+            entry.kind === "cutscene"
+              ? entry.cutscene.title
+              : `[Event] ${entry.record.title}`
+          }`,
           {
             fontSize: "14px",
             color: selected ? "#ffdd66" : "#e3e5eb",
@@ -144,7 +171,11 @@ export class ChronicleManager {
           this.selectedIndex = index;
           this.render();
         });
-        row.on("pointerdown", () => this.replaySelected());
+        row.on("pointerdown", () => {
+          this.selectedIndex = index;
+          if (entry.kind === "cutscene") this.replaySelected();
+          else this.render();
+        });
         container.add(row);
       });
       const page = Math.floor(this.selectedIndex / pageSize) + 1;
@@ -155,11 +186,30 @@ export class ChronicleManager {
         `Page ${page}/${pageCount}`,
         { fontSize: "11px", color: "#aeb4c2" },
       ).setOrigin(0.5));
+      const selectedEntry = this.entries[this.selectedIndex];
+      if (selectedEntry?.kind === "worldEvent") {
+        const record = selectedEntry.record;
+        container.add(this.scene.add.text(
+          94,
+          320,
+          `${record.source} | ${record.location.areaName} `
+          + `(${record.location.chunkX},${record.location.chunkY})\n`
+          + `${record.period}, ${record.weather} | ${record.outcome}`,
+          {
+            fontSize: "11px",
+            color: "#d7dae2",
+            backgroundColor: "#151a27",
+            padding: { x: 8, y: 6 },
+            fixedWidth: 452,
+            wordWrap: { width: 432 },
+          },
+        ));
+      }
     }
     const footer = this.scene.add.text(
       GAME_WIDTH / 2,
       426,
-      "Up/Down select  |  Enter/Space replay  |  C/Esc close",
+      "Up/Down select | Enter replays story entries | C/Esc close",
       { fontSize: "11px", color: "#aeb4c2" },
     ).setOrigin(0.5);
     container.add(footer);

@@ -311,6 +311,9 @@ export interface OverworldDebugCallbacks {
   refreshQuestUI(): void;
   refreshPartyActors(): void;
   isInputBlocked(): boolean;
+  listWorldEvents(): readonly string[];
+  triggerWorldEvent(eventId: string): string;
+  resetWorldEvents(): string;
 }
 
 /** Wrapper so a primitive number can be shared by reference between the scene and this system. */
@@ -648,6 +651,35 @@ export class DebugCommandSystem {
           this.callbacks.refreshPartyActors();
         }
       }
+    });
+
+    cmds.set("event", (args) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const action = parts[0]?.toLowerCase() ?? "list";
+      if (action === "list") {
+        debugPanelLog("── World Events ──", true);
+        for (const line of this.callbacks.listWorldEvents()) {
+          debugPanelLog(`  ${line}`, true);
+        }
+        return;
+      }
+      if (action === "trigger" && parts[1]) {
+        try {
+          debugPanelLog(
+            `[CMD] ${this.callbacks.triggerWorldEvent(parts[1])}`,
+            true,
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          debugPanelLog(`[CMD] Event trigger failed: ${message}`, true);
+        }
+        return;
+      }
+      if (action === "reset") {
+        debugPanelLog(`[CMD] ${this.callbacks.resetWorldEvents()}`, true);
+        return;
+      }
+      debugPanelLog("Usage: /event <list|trigger eventId|reset>", true);
     });
 
     cmds.set("companion", (args) => {
@@ -1018,6 +1050,7 @@ export class DebugCommandSystem {
       { usage: "/weather <w>", desc: "Set weather (clear|rain|snow|sandstorm|storm|fog)" },
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
       { usage: "/quest <cmd>", desc: "Quest: list | advance <id> | set <id> <state>" },
+      { usage: "/event <cmd>", desc: "World events: list | trigger <id> | reset" },
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },

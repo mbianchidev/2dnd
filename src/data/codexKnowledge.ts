@@ -726,6 +726,81 @@ const HISTORY_ENTRIES: readonly CodexKnowledgeEntry[] = [
   },
 ];
 
+const WORLD_EVENT_ENTRIES: readonly CodexKnowledgeEntry[] = [
+  {
+    id: "roadsideShrines",
+    category: "history",
+    name: "Roadside Shrines",
+    summary: "Small covenant shrines still answer travelers who approach without demanding certainty.",
+    details: [
+      "Their runes were maintained by roadwardens rather than priests.",
+      "Each shrine records the route around it, but reveals that record only through patient study.",
+    ],
+    tags: ["worldEvent", "shrine", "roads"],
+    sortOrder: 20,
+    sources: [{
+      type: "worldEvent",
+      eventId: "moonlitShrine",
+      label: "A Moonlit Shrine",
+      hint: "Encounter an old shrine while traveling at dusk or night.",
+    }],
+  },
+  {
+    id: "forgottenRoadbooks",
+    category: "history",
+    name: "Forgotten Roadbooks",
+    summary: "Old route journals preserve paths, tolls, and shelters omitted from modern maps.",
+    details: [
+      "Waxed roadbooks were hidden beneath milestones so stranded travelers could recover them.",
+      "Their notes describe travel as a shared duty rather than a private risk.",
+    ],
+    tags: ["worldEvent", "journal", "travel"],
+    sortOrder: 21,
+    sources: [{
+      type: "worldEvent",
+      eventId: "weatheredRoadbook",
+      label: "A Weathered Roadbook",
+      hint: "Discover a travel journal beside an overworld road.",
+    }],
+  },
+  {
+    id: "ironholdCouriers",
+    category: "faction",
+    name: "Ironhold Couriers",
+    summary: "Ironhold's sealed couriers keep agreements moving when official roads fail.",
+    details: [
+      "A warden's seal identifies the duty, not the person carrying it.",
+      "Any traveler may accept an interrupted dispatch and become responsible for its safe delivery.",
+    ],
+    tags: ["worldEvent", "ironhold", "courier"],
+    sortOrder: 22,
+    sources: [{
+      type: "worldEvent",
+      eventId: "woundedCourier",
+      label: "The Wounded Courier",
+      hint: "Meet an Ironhold courier on the eastern roads.",
+    }],
+  },
+  {
+    id: "stormCrossings",
+    category: "location",
+    name: "Storm-Washed Crossings",
+    summary: "Heavy rain can turn ordinary trails into short-lived but dangerous rivers.",
+    details: [
+      "Roadwardens mark runoff channels, but storms can erase those signs within minutes.",
+      "Waiting is often safer than trusting familiar ground beneath unfamiliar water.",
+    ],
+    tags: ["worldEvent", "weather", "hazard"],
+    sortOrder: 23,
+    sources: [{
+      type: "worldEvent",
+      eventId: "stormWashedCrossing",
+      label: "Storm-Washed Crossing",
+      hint: "Travel across exposed terrain during rain or storms.",
+    }],
+  },
+];
+
 export const CODEX_READABLES: readonly CodexReadableDefinition[] = [
   {
     id: "willowdaleFoundingVolume",
@@ -774,6 +849,7 @@ export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
   ...CHARACTER_ENTRIES,
   ...FACTION_ENTRIES,
   ...HISTORY_ENTRIES,
+  ...WORLD_EVENT_ENTRIES,
 ];
 
 const ENTRY_BY_ID = new Map(

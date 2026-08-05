@@ -695,6 +695,7 @@ export class SemanticInputRuntime {
         state.includes("[PARTY:")
         || state.includes("[MENU]")
         || state.includes("[TIPS")
+        || state.includes("[WORLD_EVENT:")
       ) {
         return "overlay";
       }

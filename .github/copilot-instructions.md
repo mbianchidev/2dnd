@@ -68,6 +68,7 @@ src/
 │   ├── quests.ts
 │   ├── questState.ts
 │   ├── questDebug.ts
+│   ├── worldEvents.ts
 │   ├── accessibility.ts
 │   ├── input.ts
 │   ├── tutorial.ts
@@ -101,6 +102,7 @@ src/
 │   ├── cutsceneBosses.ts
 │   ├── cutscenes.ts
 │   ├── skillChecks.ts
+│   ├── worldEvents.ts
 │   ├── tutorial.ts
 │   └── talents.ts
 ├── managers/
@@ -112,6 +114,7 @@ src/
 │   ├── questJournal.ts
 │   ├── questFlow.ts
 │   ├── chronicle.ts
+│   ├── worldEvents.ts
 │   ├── tutorial.ts
 │   └── cutscene.ts
 ├── renderers/
@@ -427,9 +430,9 @@ Flow:
   Persist only stable unlocked knowledge IDs. Lore is never authoritative for
   quests, companions, rewards, gates, reputation, alignment, or event outcomes.
 - Existing systems may emit location, quest-stage/completion, cutscene, item,
-  NPC-dialogue, or readable signals. Future random-event and reputation systems
-  use the typed `worldEvent` and `reputationMilestone` hooks without reading
-  Codex state back into their decisions.
+  NPC-dialogue, readable, or World Event signals. The World Event system owns
+  `worldEvent`; future reputation owns `reputationMilestone`. Neither may read
+  Codex state back into gameplay decisions.
 - `CodexDiscoveryManager` owns short non-interactive notices. Notices never
   change input context, delay transitions, or outlive scene shutdown.
 - `BattleCombatantState` is the shared actor contract: stable ID, party/enemy
@@ -593,9 +596,35 @@ statuses use the existing combat-turn lifecycle.
 
 Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
+## World Events
+
+- Immutable definitions live in `src/data/worldEvents.ts`, deterministic
+  eligibility/selection/outcomes/normalization in `src/systems/worldEvents.ts`,
+  and Phaser choice presentation in `src/managers/worldEvents.ts`.
+- Events run only after a completed ordinary overworld step and before treasure,
+  exploration skill checks, or random monster encounters. Transitions, chunk
+  changes, cities/dungeons, traps, NPC/special interactions, and queued
+  cutscenes take priority.
+- Event chance is independently capped at 8%. It never modifies the existing
+  15% random-encounter calculation; an ambush selected as an event replaces the
+  normal encounter roll for that step.
+- Eligibility may use terrain, area prefix, time period, weather, level, quest
+  state, defeated bosses, prior resolutions, repeat limits, and cooldowns.
+- Choices reuse `rollSkillCheck()`, `startQuestById()`, `awardXP()`, canonical
+  items, and `unlockCodexFromFutureSignal({ type: "worldEvent" })`.
+- Special event combats remain pending while Battle runs and use normal
+  encounter, action, reward, defeat, save, and return paths. Victory, flee, or
+  defeat resolves the pending event exactly once before Battle saves.
+- Persist only mechanics-owned event state and a bounded 40-entry record.
+  Chronicle presentation is consultable evidence, never authority for quests,
+  rewards, access, Codex decisions, alignment, or reputation.
+- World Event outcomes may emit typed runtime-only alignment/reputation hooks
+  for #70. Do not persist or interpret those hooks until that system exists.
+- `/event list|trigger <id>|reset` is debug-only.
+
 ## Save system
 
-Save schema version is 10.
+Save schema version is 11.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -622,6 +651,10 @@ Schema-v9 and older monster-only Codex data gains normalized
 `unlockedEntryIds`; unknown, malformed, and duplicate IDs are removed, valid
 monster discovery is preserved, and durable player evidence is replayed
 idempotently to recover world knowledge.
+Schema-v10 and older saves gain default World Event state. Event normalization
+validates the seed, counters, known event/choice IDs, pending phase/location,
+repeat counters, claimed/resolved IDs, and bounded record. Replacing a malformed
+seed clears the pending event so it cannot resolve against corrupt state.
 
 Inventory presentation preferences are not save ownership data and do not
 increment the schema. Store them under `2dnd_inventory_prefs`.
@@ -683,7 +716,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v10
+  visibility, handedness, and prompt source only; they never enter schema-v11
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

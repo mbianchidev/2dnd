@@ -113,6 +113,14 @@ API, and saves use `localStorage`.
   day/night lighting, fog of war, treasure, NPCs, animals, and special NPCs
 - Random encounter modifiers stack but the effective chance is capped at 15%;
   group encounters begin at level 2 and use level budgets and biome filters
+- Seeded, data-driven World Events add shrines, ambushes, travelers, discoveries,
+  weather hazards, and supply finds. Eligibility uses terrain, area, day/night,
+  weather, level, quest state, prior outcomes, repeat limits, and cooldowns.
+- Event choices reuse normal skill checks, quest/reward helpers, Codex
+  `worldEvent` signals, and the standard Battle pipeline. Pending choices and
+  special combats recover after reload without rerolling or duplicating rewards.
+- The Chronicle includes a bounded World Events record with source, location,
+  time, weather, choice, and resolved outcome.
 - 12 cities with connected districts, district-specific shops, gates,
   discovery, fast travel, inns, banks, stables, and city music
 - Three multi-level dungeons with bidirectional stairs, floor-specific
@@ -213,6 +221,7 @@ src/
 │   ├── quests.ts
 │   ├── questState.ts
 │   ├── questDebug.ts
+│   ├── worldEvents.ts
 │   ├── accessibility.ts
 │   ├── tutorial.ts
 │   ├── sceneState.ts
@@ -242,6 +251,7 @@ src/
 │   ├── cutsceneBosses.ts
 │   ├── cutscenes.ts
 │   ├── skillChecks.ts
+│   ├── worldEvents.ts
 │   ├── tutorial.ts
 │   └── items.ts
 ├── managers/
@@ -257,6 +267,7 @@ src/
 │   ├── questFlow.ts
 │   ├── cutscene.ts
 │   ├── chronicle.ts
+│   ├── worldEvents.ts
 │   ├── tutorial.ts
 │   ├── skillChecks.ts
 │   └── sceneTransition.ts
@@ -438,6 +449,8 @@ Available tools include:
 - `/companion list`, `/companion recruit <id|all>`,
   `/companion mode <id> <manual|gambit>`, `/companion heal`, and
   `/companion gambits <id>`
+- `/event list`, `/event trigger <eventId>`, and `/event reset` for deterministic
+  World Event browser and gameplay checks
 - Local browser checks can force the next random encounter with
   `?forceGroup=<templateId>` (for example, `?forceGroup=slimeSwarm`)
 
@@ -454,7 +467,7 @@ mutates campaign progress. Version-1 preference documents and existing
 automatically. Inventory sorting, filtering, and search preferences use the
 separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
-Save schema version 10 persists:
+Save schema version 11 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -475,6 +488,9 @@ Save schema version 10 persists:
   normalized ranked gambit rules
 - New-player tutorial completion; pre-v9 campaigns migrate as already completed
   so established saves are not interrupted
+- A stable World Event seed, roll/cooldown counters, one pending choice or
+  special encounter, idempotent resolved/claimed IDs, repeat counters, and a
+  bounded chronological event record
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed
@@ -494,6 +510,10 @@ Schema-v9 monster-only Codex saves gain an empty knowledge-ID collection, then
 recover deterministic unlocks from durable city, dungeon, item, quest, and
 cutscene evidence. Unknown, malformed, and duplicate knowledge IDs are removed
 without changing valid monster records.
+Schema-v10 and older saves gain default World Event state. Loading normalizes
+known event/choice IDs, bounds counters and records, rejects invalid locations,
+clears malformed pending encounters, and discards pending instances already
+present in the resolved record.
 
 ## Testing
 

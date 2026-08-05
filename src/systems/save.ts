@@ -439,7 +439,6 @@ export function loadGame(): SaveData | null {
     data.player.party = normalizePartyState(playerRecord["party"]);
     synchronizeCompanionRecruitment(data.player);
     ensureLegacyCampaignEpilogueQueued(data.player);
-    replayCodexUnlocks(data.codex, data.player);
 
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
     if (data.player.equippedOffHand === undefined) data.player.equippedOffHand = null;
@@ -497,6 +496,7 @@ export function loadGame(): SaveData | null {
     }
 
     normalizePlayerLocation(data.player);
+    replayCodexUnlocks(data.codex, data.player);
     data.version = SAVE_VERSION;
     return data;
   } catch (error) {

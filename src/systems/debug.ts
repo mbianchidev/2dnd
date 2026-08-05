@@ -285,8 +285,12 @@ import type { WorldChunk } from "../data/map";
 import { CITY_NPCS, SPECIAL_NPC_DEFS } from "../data/npcs";
 import type { SpecialNpcKind } from "../data/npcs";
 import type { Monster } from "../data/monsters";
-import { recordDefeat } from "./codex";
+import { recordDefeat, unlockCodexEntries } from "./codex";
 import type { CodexData } from "./codex";
+import {
+  CODEX_KNOWLEDGE_ENTRIES,
+  CODEX_READABLES,
+} from "../data/codexKnowledge";
 import type { FogOfWar } from "../managers/fogOfWar";
 import type { EncounterSystem } from "../managers/encounter";
 
@@ -895,6 +899,51 @@ export class DebugCommandSystem {
       debugPanelLog(`[CMD] Positioned beside ${target.questNpcId}.`, true);
     });
 
+    cmds.set("readable", (args) => {
+      const query = args.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+      const readable = CODEX_READABLES.find((candidate) =>
+        candidate.id.toLowerCase().replace(/[^a-z0-9]/g, "") === query
+      );
+      if (!readable) {
+        debugPanelLog(`Usage: /readable <${CODEX_READABLES.map(
+          (candidate) => candidate.id,
+        ).join("|")}>`, true);
+        return;
+      }
+      if (
+        !this.player.position.inCity
+        || this.player.position.cityId !== readable.cityId
+        || this.player.position.cityChunkIndex !== readable.cityChunkIndex
+      ) {
+        debugPanelLog(
+          `[CMD] Enter ${readable.cityId} district ${readable.cityChunkIndex} first.`,
+          true,
+        );
+        return;
+      }
+      const city = getCity(readable.cityId);
+      if (!city) return;
+      const cityMap = getCityChunkMap(city, readable.cityChunkIndex);
+      const adjacent = [
+        { x: readable.x + 1, y: readable.y },
+        { x: readable.x - 1, y: readable.y },
+        { x: readable.x, y: readable.y + 1 },
+        { x: readable.x, y: readable.y - 1 },
+      ].find(({ x, y }) => {
+        const terrain = cityMap[y]?.[x];
+        return terrain !== undefined && isWalkable(terrain);
+      });
+      if (!adjacent) {
+        debugPanelLog(`[CMD] No walkable tile beside ${readable.id}.`, true);
+        return;
+      }
+      this.player.position.x = adjacent.x;
+      this.player.position.y = adjacent.y;
+      this.callbacks.createPlayer();
+      this.callbacks.updateHUD();
+      debugPanelLog(`[CMD] Positioned beside readable ${readable.id}.`, true);
+    });
+
     cmds.set("audio", (args) => {
       const sub = args.trim().toLowerCase();
       if (sub === "play" || sub === "demo") {
@@ -949,7 +998,14 @@ export class DebugCommandSystem {
           count++;
         }
       }
-      debugPanelLog(`[CMD] Discovered ${count} new codex entries (${Object.keys(this.codex.entries).length} total)`, true);
+      const knowledge = unlockCodexEntries(
+        this.codex,
+        CODEX_KNOWLEDGE_ENTRIES.map((entry) => entry.id),
+      );
+      debugPanelLog(
+        `[CMD] Discovered ${count} monsters and ${knowledge.unlockedIds.length} knowledge entries`,
+        true,
+      );
     });
 
     const helpEntries: HelpEntry[] = [
@@ -966,6 +1022,7 @@ export class DebugCommandSystem {
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
       { usage: "/near <questNpcId>", desc: "Stand beside a quest NPC in the current city" },
+      { usage: "/readable <id>", desc: "Stand beside a Codex readable in the current city" },
       { usage: "/mount <id>", desc: "Mount: donkey|horse|warHorse|shadowSteed|none" },
       { usage: "/codex all", desc: "Discover all codex entries" },
       { usage: "/companion <cmd>", desc: "Companions: list|recruit|mode|heal|gambits" },

@@ -81,6 +81,13 @@ Terrain-driven Wisdom discoveries and Dexterity hazards are defined in
 `src/data/skillChecks.ts`. Select them through the shared skill-check helpers;
 do not hardcode event rolls in the scene.
 
+## Codex exploration
+
+City and dungeon entry emit idempotent Codex location signals. Readable records
+reuse stable non-walkable temple/statue coordinates defined in
+`src/data/codexKnowledge.ts`; interaction is adjacent and presentation-only.
+Do not add lore flags to map terrain or use Codex state for access decisions.
+
 ## Multi-chunk cities
 
 `CityData.mapData`, `spawnX`, `spawnY`, and `shops` represent chunk 0. The

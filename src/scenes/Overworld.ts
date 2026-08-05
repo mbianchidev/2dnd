@@ -64,10 +64,20 @@ import {
   type TutorialNavigationAction,
 } from "../managers/tutorial";
 import { isDebug, isLocalDev, debugLog, debugPanelLog, debugPanelState, TILE_SIZE } from "../config";
-import type { CodexData } from "../systems/codex";
-import { createCodex } from "../systems/codex";
+import {
+  createCodex,
+  replayCodexUnlocks,
+  unlockCodexFromSignal,
+  type CodexData,
+  type CodexUnlockResult,
+} from "../systems/codex";
 import { saveGame } from "../systems/save";
 import { getItem } from "../data/items";
+import {
+  getAdjacentCodexReadable,
+  getCodexKnowledgeEntry,
+  type CodexKnowledgeEntry,
+} from "../data/codexKnowledge";
 import {
   getCityShopSkillCheckId,
   getNpcSkillChallenge,
@@ -143,6 +153,7 @@ import {
   type CutsceneTriggerSnapshot,
 } from "../systems/cutscenes";
 import { createSharedSceneState } from "../systems/sceneState";
+import { CodexDiscoveryManager } from "../managers/codexDiscovery";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -205,6 +216,7 @@ export interface OverworldSceneData {
   weatherState?: WeatherState;
   savedSpecialNpcs?: SavedSpecialNpc[];
   questUpdates?: QuestUpdate[];
+  codexDiscoveryIds?: string[];
 }
 
 export class OverworldScene extends Phaser.Scene {
@@ -253,6 +265,8 @@ export class OverworldScene extends Phaser.Scene {
   private partyOverlayManager!: PartyOverlayManager;
   private chronicleManager!: ChronicleManager;
   private tutorialManager!: TutorialManager;
+  private codexDiscovery!: CodexDiscoveryManager;
+  private pendingCodexDiscoveryIds: string[] = [];
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -341,6 +355,7 @@ export class OverworldScene extends Phaser.Scene {
       openPartyInventory: () => this.partyOverlayManager.openInventory(this.player),
       openQuestJournal: () => this.openQuestJournal(),
       openChronicle: () => this.chronicleManager.open(this.player),
+      openCodex: () => this.openCodex(),
       openTips: () => this.tutorialManager.showTips(this.player),
       fadeOutAndIn: (atBlack, duration) =>
         this.sceneTransitions.fadeOutAndIn(atBlack, {
@@ -369,6 +384,8 @@ export class OverworldScene extends Phaser.Scene {
     }
     this.defeatedBosses = data?.defeatedBosses ?? new Set();
     this.codex = data?.codex ?? createCodex();
+    replayCodexUnlocks(this.codex, this.player);
+    this.pendingCodexDiscoveryIds = data?.codexDiscoveryIds ?? [];
     this.timeStep = data?.timeStep ?? 0;
     this.weatherState = data?.weatherState ?? createWeatherState();
     if (data?.savedSpecialNpcs) {
@@ -386,6 +403,7 @@ export class OverworldScene extends Phaser.Scene {
       },
       data?.questUpdates,
     );
+    this.codexDiscovery = new CodexDiscoveryManager(this);
     synchronizeCompanionRecruitment(this.player);
 
     // Reset movement state — a tween may have been orphaned when the scene
@@ -418,6 +436,7 @@ export class OverworldScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.companionFollowerManager.clear();
       this.worldPresentation.cleanup();
+      this.codexDiscovery.clear();
     });
     this.chronicleManager = new ChronicleManager(
       this,
@@ -430,6 +449,14 @@ export class OverworldScene extends Phaser.Scene {
     this.questFlow.afterInitialRender();
     if (this.startNextPendingCutscene()) {
       return;
+    }
+    if (this.pendingCodexDiscoveryIds.length > 0) {
+      this.codexDiscovery.show(
+        this.pendingCodexDiscoveryIds
+          .map(getCodexKnowledgeEntry)
+          .filter((entry): entry is CodexKnowledgeEntry => entry !== undefined),
+      );
+      this.pendingCodexDiscoveryIds = [];
     }
     if (this.player.position.inDungeon) {
       this.time.delayedCall(150, () => {
@@ -447,7 +474,7 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  private getRestartData(): OverworldSceneData {
+  private getSharedState(): ReturnType<typeof createSharedSceneState> {
     return createSharedSceneState({
       player: this.player,
       defeatedBosses: this.defeatedBosses,
@@ -458,11 +485,28 @@ export class OverworldScene extends Phaser.Scene {
     });
   }
 
-  private restartOverworld(label: string): void {
+  private getRestartData(codexDiscoveryIds: readonly string[] = []): OverworldSceneData {
+    return {
+      ...this.getSharedState(),
+      codexDiscoveryIds: [...codexDiscoveryIds],
+    };
+  }
+
+  private restartOverworld(
+    label: string,
+    codexDiscoveryIds: readonly string[] = [],
+  ): void {
     this.sceneTransitions.startImmediately(
-      () => this.scene.restart(this.getRestartData()),
+      () => this.scene.restart(this.getRestartData(codexDiscoveryIds)),
       label,
     );
+  }
+
+  private showCodexUnlocks(
+    ...results: readonly CodexUnlockResult[]
+  ): void {
+    const entries = results.flatMap((result) => result.entries);
+    this.codexDiscovery.show(entries);
   }
 
   private startCutscene(cutsceneId: CutsceneId, replay = false): boolean {
@@ -474,7 +518,7 @@ export class OverworldScene extends Phaser.Scene {
     this.questJournal.close();
     this.chronicleManager?.close();
     this.autoSave();
-    const persistentState = this.getRestartData();
+    const persistentState = this.getSharedState();
     return this.sceneTransitions.startWithFade(() => {
       const sceneKey = cutsceneId === CAMPAIGN_EPILOGUE_CUTSCENE_ID
         ? "EndingScene"
@@ -1569,6 +1613,28 @@ export class OverworldScene extends Phaser.Scene {
         return;
       }
 
+      const readable = getAdjacentCodexReadable(
+        city.id,
+        chunkIndex,
+        this.player.position.x,
+        this.player.position.y,
+      );
+      if (readable) {
+        this.dialogueSystem.showQuestDialogue(
+          readable.title,
+          [...readable.text],
+          () => {
+            const unlock = unlockCodexFromSignal(this.codex, {
+              type: "readable",
+              readableId: readable.id,
+            });
+            this.showCodexUnlocks(unlock);
+            this.autoSave();
+          },
+        );
+        return;
+      }
+
       // NPC interaction
       const npcResult = findAdjacentNpc(
         cityMap,
@@ -1589,6 +1655,10 @@ export class OverworldScene extends Phaser.Scene {
               interaction.speaker,
               interaction.pages,
               () => {
+                const npcUnlock = unlockCodexFromSignal(this.codex, {
+                  type: "npcDialogue",
+                  npcId: npcDef.questNpcId!,
+                });
                 const cutsceneSnapshot = captureCutsceneTriggerSnapshot(
                   this.player,
                   this.defeatedBosses,
@@ -1601,6 +1671,11 @@ export class OverworldScene extends Phaser.Scene {
                 const recruitments = result.changed
                   ? synchronizeCompanionRecruitment(this.player)
                   : [];
+                const progressionUnlock = replayCodexUnlocks(
+                  this.codex,
+                  this.player,
+                );
+                this.showCodexUnlocks(npcUnlock, progressionUnlock);
                 this.questFlow.handleResult(result);
                 for (const recruitment of recruitments) {
                   this.showMessage(recruitment.message, "#88ff88");
@@ -1621,6 +1696,11 @@ export class OverworldScene extends Phaser.Scene {
           } else {
             const idle = getQuestNpcIdleDialogue(npcDef.questNpcId);
             this.dialogueSystem.showSpecialDialogue(idle.speaker, idle.line);
+            this.showCodexUnlocks(unlockCodexFromSignal(this.codex, {
+              type: "npcDialogue",
+              npcId: npcDef.questNpcId,
+            }));
+            this.autoSave();
           }
           return;
         }
@@ -1804,8 +1884,13 @@ export class OverworldScene extends Phaser.Scene {
         if (!this.player.progression.discoveredCities.includes(city.id)) {
           this.player.progression.discoveredCities.push(city.id);
         }
+        const cityUnlock = unlockCodexFromSignal(this.codex, {
+          type: "location",
+          locationKind: "city",
+          targetId: city.id,
+        });
         this.autoSave();
-        this.restartOverworld("enter city");
+        this.restartOverworld("enter city", cityUnlock.unlockedIds);
         return;
       }
 
@@ -1884,11 +1969,16 @@ export class OverworldScene extends Phaser.Scene {
           this.player.position.y = dungeon.spawnY;
           this.weatherState.current = WeatherType.Clear;
           if (audioEngine.initialized) audioEngine.playDungeonEnterSFX();
+          const dungeonUnlock = unlockCodexFromSignal(this.codex, {
+            type: "location",
+            locationKind: "dungeon",
+            targetId: dungeon.id,
+          });
           this.autoSave();
           if (
             this.queueNewlyTriggeredCutscenes(cutsceneSnapshot).length === 0
           ) {
-            this.restartOverworld("enter dungeon");
+            this.restartOverworld("enter dungeon", dungeonUnlock.unlockedIds);
           } else {
             this.startNextPendingCutscene();
           }
@@ -1980,6 +2070,10 @@ export class OverworldScene extends Phaser.Scene {
 
     this.player.progression.openedChests.push(chest.id);
     this.player.inventory.push({ ...item });
+    const itemUnlock = unlockCodexFromSignal(this.codex, {
+      type: "itemAcquired",
+      itemId: item.id,
+    });
     if (audioEngine.initialized) audioEngine.playChestOpenSFX();
 
     // Auto-equip if better
@@ -1999,6 +2093,7 @@ export class OverworldScene extends Phaser.Scene {
 
     feedback.push(`Found ${item.name}!`);
     this.showMessage(feedback.join(" "), "#ffd700");
+    this.showCodexUnlocks(itemUnlock);
     this.updateHUD();
     this.autoSave();
   }
@@ -2220,6 +2315,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private autoSave(): void {
+    replayCodexUnlocks(this.codex, this.player);
     saveGame(this.player, this.defeatedBosses, this.codex, this.player.appearanceId, this.timeStep, this.weatherState);
   }
 

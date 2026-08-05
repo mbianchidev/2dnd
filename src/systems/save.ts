@@ -4,7 +4,10 @@
 
 import type { PlayerState } from "./player";
 import type { CodexData } from "./codex";
-import { createCodex } from "./codex";
+import {
+  normalizeCodexData,
+  replayCodexUnlocks,
+} from "./codex";
 import type { WeatherState } from "./weather";
 import { createWeatherState } from "./weather";
 import {
@@ -23,7 +26,6 @@ import {
   isWalkable,
 } from "../data/map";
 import { debugLog } from "../config";
-import { isElement } from "../data/elements";
 import {
   LEGACY_TRAP_SEED,
   isTrapState,
@@ -44,7 +46,8 @@ import {
 import { normalizeTutorialProgress } from "./tutorial";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 9;
+const SAVE_VERSION = 10;
+const TUTORIAL_SAVE_VERSION = 9;
 
 export interface SaveData {
   version: number;
@@ -339,14 +342,7 @@ export function loadGame(): SaveData | null {
       delete parsed["bestiary"];
     }
 
-    if (!data.codex || !isRecord(data.codex.entries)) {
-      data.codex = createCodex();
-    }
-    for (const entry of Object.values(data.codex.entries)) {
-      entry.discoveredElements = Array.isArray(entry.discoveredElements)
-        ? entry.discoveredElements.filter(isElement)
-        : [];
-    }
+    data.codex = normalizeCodexData(data.codex);
     data.appearanceId = readString(data.appearanceId, "knight");
     data.defeatedBosses = normalizeStringArray(data.defeatedBosses);
     data.player.knownAbilities = normalizeStringArray(data.player.knownAbilities);
@@ -437,12 +433,13 @@ export function loadGame(): SaveData | null {
     );
     const tutorialProgress = data.player.progression.tutorial;
     data.player.progression.tutorial = tutorialProgress === undefined
-        && sourceVersion < SAVE_VERSION
+        && sourceVersion < TUTORIAL_SAVE_VERSION
       ? { completed: true }
       : normalizeTutorialProgress(tutorialProgress);
     data.player.party = normalizePartyState(playerRecord["party"]);
     synchronizeCompanionRecruitment(data.player);
     ensureLegacyCampaignEpilogueQueued(data.player);
+    replayCodexUnlocks(data.codex, data.player);
 
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
     if (data.player.equippedOffHand === undefined) data.player.equippedOffHand = null;

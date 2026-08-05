@@ -67,9 +67,16 @@ API, and saves use `localStorage`.
   relationship, weighted encounter eligibility, and a family-specific
   procedural silhouette. Palette variants keep distinct abilities, drops,
   elemental profiles, and difficulty, while bosses use richer family forms.
-- The Codex groups monsters by family, cycles family filters and
-  family/name/defeat/element sorting, shows shared traits and affinity, and
-  derives family completion from existing defeated-monster discovery.
+- The typed Codex preserves monster defeat, AC, elemental, drop, family, and
+  completion discovery while adding locations, items, characters, factions,
+  and history from canonical campaign data.
+- Knowledge unlocks are idempotent and source-driven through city/dungeon
+  exploration, quest stages/completions, cutscenes, item acquisition, named NPC
+  dialogue, and readable statues or temple records. Lore never controls quests,
+  rewards, companions, gates, or outcomes.
+- Category filters, search, canonical/name/source sorting, discovered grouping,
+  source hints, and non-blocking discovery notices support keyboard, pointer,
+  touch, gamepad cursor, 150% text, high contrast, and reduced motion.
 - 15 status effects shared by players and monsters:
   Poisoned, Burning, Frozen, Paralyzed, Stunned, Frightened, Slowed, Prone,
   Asleep, Confused, Enraged, Hasted, Inspired, Raging, and Sneak Stance
@@ -225,6 +232,7 @@ src/
 │   ├── monsterVariants.ts
 │   ├── nightMonsters.ts
 │   ├── monsterGroups.ts
+│   ├── codexKnowledge.ts
 │   ├── elements.ts
 │   ├── spells.ts
 │   ├── abilities.ts
@@ -237,6 +245,7 @@ src/
 │   ├── tutorial.ts
 │   └── items.ts
 ├── managers/
+│   ├── codexDiscovery.ts
 │   ├── dungeonTraps.ts
 │   ├── companionFollowers.ts
 │   ├── partyOverlay.ts
@@ -400,9 +409,11 @@ touch layout, and choose automatic or fixed prompt sources. Mappings are stable
 and intentionally not user-remappable; a partial remapper would leave
 pointer-first and text-entry flows inaccessible.
 
-In the Codex monster tab, `F` cycles the family filter and `R` cycles family,
-name, defeat-count, and elemental-affinity sorting. Family completion is derived
-from the existing Codex entries and does not add save data.
+In the Codex, `1`-`6` or `Q`/`E` change categories, `/` opens accessible search,
+`F` cycles the monster-family filter or knowledge discovery grouping, and `R`
+cycles the active category's sort. Family completion and all category counts are
+derived rather than persisted. Touch opens the Codex from the Esc menu, while a
+gamepad can use the same menu and right-stick cursor.
 
 ## Debug mode
 
@@ -422,6 +433,7 @@ Available tools include:
   `/quest set <id> <stage-number|stage-id|locked|active|completed>`
 - `/near <questNpcId>` to stand beside a quest NPC in the current city's
   primary district without completing the interaction
+- `/readable <id>` to stand beside a Codex-readable record in the current city
 - `/companion list`, `/companion recruit <id|all>`,
   `/companion mode <id> <manual|gambit>`, `/companion heal`, and
   `/companion gambits <id>`
@@ -441,7 +453,7 @@ mutates campaign progress. Version-1 preference documents and existing
 automatically. Inventory sorting, filtering, and search preferences use the
 separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
-Save schema version 9 persists:
+Save schema version 10 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -453,7 +465,8 @@ Save schema version 9 persists:
   or skip
 - Per-playthrough trap seed, authoritative detected/missed/disarmed/triggered
   trap states, and Adventurer guidance
-- Defeated bosses, Codex entries, and discovered elemental interactions
+- Defeated bosses, monster Codex entries, discovered elemental interactions,
+  and normalized stable knowledge-entry unlock IDs
 - Active status effects, time step, and weather state
 - Normalized non-combat skill-check rolls, choices, and outcomes
 - Recruited and active companion IDs; independent progression, resources,
@@ -476,6 +489,10 @@ normalization. Older saves gain empty seen and pending cutscene lists; unknown,
 duplicate, malformed, or already-seen pending IDs are discarded. Migration
 queues only a completed-but-unseen campaign epilogue rather than replaying every
 historically eligible scene.
+Schema-v9 monster-only Codex saves gain an empty knowledge-ID collection, then
+recover deterministic unlocks from durable city, dungeon, item, quest, and
+cutscene evidence. Unknown, malformed, and duplicate knowledge IDs are removed
+without changing valid monster records.
 
 ## Testing
 

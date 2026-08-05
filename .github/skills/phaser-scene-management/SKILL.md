@@ -60,6 +60,12 @@ scene transitions cannot strand a press. Standard gamepads use left-stick/D-pad
 navigation and a visible right-stick cursor, clicked by pressing the stick, for
 pointer-first surfaces.
 
+`CodexScene` keeps category, filter, sort, and search controls pointer-first so
+touch and the gamepad cursor share the keyboard surface. Search uses
+`openMobileTextInput()`. `CodexDiscoveryManager` owns non-interactive,
+scene-local notices and must be cleared on shutdown; it never changes input
+context or delays scene transitions.
+
 ## Shared state flow
 
 State-bearing transitions use `createSharedSceneState()` and preserve:

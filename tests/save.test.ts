@@ -9,7 +9,7 @@ import {
   saveGame,
 } from "../src/systems/save";
 import { createPlayer } from "../src/systems/player";
-import { createCodex } from "../src/systems/codex";
+import { createCodex, recordDefeat } from "../src/systems/codex";
 import { createWeatherState } from "../src/systems/weather";
 import {
   IRON_DISPATCH_QUEST_ID,
@@ -29,6 +29,7 @@ import { getItem } from "../src/data/items";
 import { setQuestState } from "../src/systems/questDebug";
 import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../src/data/cutscenes";
 import { getCity, getDungeon } from "../src/data/map";
+import { getMonster } from "../src/data/monsters";
 import { shouldShowCampaignEpilogue } from "../src/systems/cutscenes";
 
 describe("save system - PlayerState composition migration", () => {
@@ -124,7 +125,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.quests.seenWarnings).toEqual([
       "frostRouteDanger",
     ]);
-    expect(loaded!.version).toBe(9);
+    expect(loaded!.version).toBe(10);
     expect(loaded!.player.progression.skillChecks["shop:city:willowdale_city:0:0"]).toEqual({
       ability: "charisma",
       naturalRoll: 15,
@@ -145,6 +146,111 @@ describe("save system - PlayerState composition migration", () => {
     ]);
     expect(loaded!.player.progression.pendingCutsceneIds).toEqual([
       "campaign.opening",
+    ]);
+  });
+
+  it("round-trips schema-v10 knowledge unlocks", () => {
+    const player = createPlayer("LoreHero", {
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    });
+    const codex = createCodex();
+    codex.unlockedEntryIds.push("willowdale", "twelvefoldCovenant");
+
+    saveGame(
+      player,
+      new Set(),
+      codex,
+      player.appearanceId,
+      0,
+      createWeatherState(),
+    );
+
+    expect(loadGame()!.codex.unlockedEntryIds).toEqual([
+      "willowdale",
+      "twelvefoldCovenant",
+      player.equippedWeapon!.id,
+    ]);
+  });
+
+  it("migrates legacy monster-only schema-v9 Codex data without loss", () => {
+    const player = createPlayer("LegacyLoreHero", {
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    });
+    const codex = createCodex();
+    recordDefeat(codex, getMonster("slime")!, true, ["potion"]);
+    saveGame(
+      player,
+      new Set(),
+      codex,
+      player.appearanceId,
+      0,
+      createWeatherState(),
+    );
+    const raw = JSON.parse(localStorage.getItem("2dnd_save")!) as {
+      version: number;
+      codex: { unlockedEntryIds?: unknown };
+    };
+    raw.version = 9;
+    delete raw.codex.unlockedEntryIds;
+    localStorage.setItem("2dnd_save", JSON.stringify(raw));
+
+    const loaded = loadGame();
+
+    expect(loaded!.version).toBe(10);
+    expect(loaded!.codex.entries.slime).toMatchObject({
+      timesDefeated: 1,
+      acDiscovered: true,
+      itemsDropped: ["potion"],
+    });
+    expect(loaded!.codex.unlockedEntryIds).toContain(
+      player.equippedWeapon!.id,
+    );
+  });
+
+  it("repairs malformed and duplicate schema-v10 knowledge IDs", () => {
+    const player = createPlayer("CorruptLoreHero", {
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    });
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      player.appearanceId,
+      0,
+      createWeatherState(),
+    );
+    const raw = JSON.parse(localStorage.getItem("2dnd_save")!) as {
+      codex: { unlockedEntryIds: unknown[] };
+    };
+    raw.codex.unlockedEntryIds = [
+      "willowdale",
+      "willowdale",
+      "unknownLore",
+      42,
+      null,
+    ];
+    localStorage.setItem("2dnd_save", JSON.stringify(raw));
+
+    const loaded = loadGame();
+
+    expect(loaded!.codex.unlockedEntryIds).toEqual([
+      "willowdale",
+      player.equippedWeapon!.id,
     ]);
   });
 
@@ -396,8 +502,38 @@ describe("save system - PlayerState composition migration", () => {
     const loaded = loadGame();
 
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(9);
+    expect(loaded!.version).toBe(10);
     expect(loaded!.player.progression.tutorial).toEqual({ completed: true });
+  });
+
+  it("treats missing schema-v9 tutorial progress as malformed current data", () => {
+    const player = createPlayer("SchemaNineHero", {
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    });
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      player.appearanceId,
+      0,
+      createWeatherState(),
+    );
+    const raw = JSON.parse(localStorage.getItem("2dnd_save")!) as {
+      version: number;
+      player: { progression: { tutorial?: unknown } };
+    };
+    raw.version = 9;
+    delete raw.player.progression.tutorial;
+    localStorage.setItem("2dnd_save", JSON.stringify(raw));
+
+    expect(loadGame()!.player.progression.tutorial).toEqual({
+      completed: false,
+    });
   });
 
   it("normalizes malformed and unknown seen cutscene IDs", () => {
@@ -428,7 +564,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.seenCutsceneIds).toEqual([
       CAMPAIGN_EPILOGUE_CUTSCENE_ID,
     ]);
-    expect(loaded!.version).toBe(9);
+    expect(loaded!.version).toBe(10);
   });
 
   it("migrates old flat structure to new nested structure on load", () => {
@@ -847,7 +983,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(9);
+    expect(loaded!.version).toBe(10);
     expect(loaded!.player.progression.skillChecks).toEqual({});
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].status,
@@ -891,7 +1027,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(9);
+    expect(loaded!.version).toBe(10);
     expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID]).toEqual({
       status: "active",
       stage: 0,
@@ -1021,7 +1157,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(9);
+    expect(loaded!.version).toBe(10);
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].stage,
     ).toBe(2);
@@ -1186,7 +1322,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(9);
+    expect(loaded!.version).toBe(10);
     expect(loaded!.player.progression.trapSeed).toBe(424242);
     expect(loaded!.player.progression.trapStates).toEqual({
       legacyDetected: "detected",
@@ -1243,7 +1379,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(9);
+    expect(loaded!.version).toBe(10);
     expect(loaded!.player.party.activeCompanionIds).toEqual(["guardian"]);
     expect(loaded!.player.party.companions[0]!.controlMode).toBe("gambit");
     expect(loaded!.player.party.companions[0]!.gambits).toEqual(
@@ -1416,7 +1552,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(9);
+    expect(loaded!.version).toBe(10);
     expect(loaded!.player.party).toEqual({
       companions: [],
       activeCompanionIds: [],

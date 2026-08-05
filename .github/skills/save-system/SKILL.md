@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v9, migration, normalization, and location recovery
+description: Manage 2D&D save schema v10, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -23,7 +23,7 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 9.
+`SAVE_VERSION` is 10.
 
 ```typescript
 interface SaveData {
@@ -40,6 +40,17 @@ interface SaveData {
 
 `Set<string>` values are serialized as arrays and reconstructed by the scene
 loading path.
+
+```typescript
+interface CodexData {
+  entries: Record<string, CodexEntry>;
+  unlockedEntryIds: string[];
+}
+```
+
+Monster entries retain defeat, AC, drop, and elemental discovery. Knowledge
+IDs are normalized against `CODEX_KNOWLEDGE_ENTRIES`; completion and counts are
+derived.
 
 ## Player persistence
 
@@ -125,6 +136,9 @@ helpers; do not cast unvalidated nested values directly.
 - Completed-but-unseen legacy epilogue recovery without deriving every
   historically eligible campaign scene
 - Missing/invalid Codex elemental discoveries
+- Missing, malformed, unknown, or duplicate Codex knowledge IDs
+- Schema-v9 monster-only Codex migration plus idempotent recovery from durable
+  city, dungeon, item, quest, and cutscene evidence
 - Missing, malformed, or unknown quest entries through `normalizeQuestLog()`
 - Missing/invalid non-combat skill-check records
 - Missing/invalid trap seed, state, and guidance fields
@@ -212,7 +226,7 @@ top-level save is absent or corrupt.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v9 position, objective/reward/warning quest state, skill checks,
+- Current schema-v10 position, objective/reward/warning quest state, skill checks,
   traps, party state, pending cutscene queue, and tutorial completion
 - Flat schema-v4 quest migration and completed-reward preservation
 - Schema-v3 skill-check saves gaining default normalized quest state
@@ -225,7 +239,8 @@ top-level save is absent or corrupt.
 - Invalid IDs and coordinates
 - Conflicting location flags
 - Status-effect persistence and normalization
-- Codex elemental-discovery normalization
+- Codex elemental-discovery and knowledge-ID normalization
+- Legacy monster-only Codex preservation and deterministic knowledge recovery
 - Missing and malformed skill-check normalization
 
 ## Common pitfalls

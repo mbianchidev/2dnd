@@ -26,6 +26,7 @@ import {
   type SharedSceneState,
 } from "../systems/sceneState";
 import type { QuestUpdate } from "../systems/quests";
+import { unlockCodexFromSignal } from "../systems/codex";
 
 const INPUT_GRACE_MS = 300;
 
@@ -190,6 +191,10 @@ export class CutsceneScene extends Phaser.Scene {
         this.sceneData.player.progression,
         this.sceneData.cutsceneId,
       );
+      unlockCodexFromSignal(this.sceneData.codex, {
+        type: "cutscene",
+        cutsceneId: this.sceneData.cutsceneId,
+      });
       this.save();
     }
 

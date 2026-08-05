@@ -71,6 +71,7 @@ describe("OverworldScene transition contracts", () => {
       player: firstPlayer,
       defeatedBosses: new Set(["infernoForgemaster"]),
       codex: {
+        unlockedEntryIds: [],
         entries: {
           slime: {
             monsterId: "slime",
@@ -99,7 +100,10 @@ describe("OverworldScene transition contracts", () => {
     const harness = overworld as unknown as OverworldTransitionHarness;
     expect(harness.player).toBe(secondPlayer);
     expect(harness.defeatedBosses).toEqual(new Set());
-    expect(harness.codex).toEqual(createCodex());
+    expect(harness.codex).toEqual({
+      ...createCodex(),
+      unlockedEntryIds: ["startSword"],
+    });
     expect(harness.timeStep).toBe(0);
     expect(harness.weatherState).toEqual(createWeatherState());
   });

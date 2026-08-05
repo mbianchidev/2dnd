@@ -641,13 +641,13 @@ export class CodexScene extends Phaser.Scene {
       ? this.monsterSort
       : this.knowledgeSort;
     const filter = this.category === "monsters"
-      ? this.familyFilter ?? "all"
-      : this.groupDiscovered
-      ? "knownFirst"
-      : "canonical";
+      ? `Family: ${this.familyFilter ?? "all"}`
+      : `Filter: ${
+        this.groupDiscovered ? "knownFirst" : "canonical"
+      }`;
     debugPanelState(
       `CODEX | Category: ${CATEGORY_LABELS[this.category]}`
-      + ` | Filter: ${filter}`
+      + ` | ${filter}`
       + ` | Sort: ${sort}`
       + ` | Search: ${this.search || "-"}`
       + ` | Selected: ${selectedId}`

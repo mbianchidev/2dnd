@@ -21,6 +21,7 @@ import {
   type SharedSceneState,
 } from "../systems/sceneState";
 import { unlockCodexFromSignal } from "../systems/codex";
+import { reconcileAchievements } from "../systems/achievements";
 
 const INPUT_GRACE_MS = 350;
 
@@ -248,6 +249,13 @@ export class EndingScene extends Phaser.Scene {
   }
 
   private save(): void {
+    reconcileAchievements({
+      player: this.sceneData.player,
+      defeatedBosses: this.sceneData.defeatedBosses,
+      codex: this.sceneData.codex,
+    }, {
+      sourceId: `ending:${this.sceneData.cutsceneId ?? CAMPAIGN_EPILOGUE_CUTSCENE_ID}`,
+    });
     saveGame(
       this.sceneData.player,
       this.sceneData.defeatedBosses,

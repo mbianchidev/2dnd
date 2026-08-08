@@ -454,7 +454,7 @@ export function loadGame(): SaveData | null {
     data.player.progression.worldEvents = normalizeWorldEventState(
       data.player.progression.worldEvents,
     );
-    data.player.progression.social = sourceVersion < SAVE_VERSION
+    data.player.progression.social = sourceVersion < 12
       ? createSocialState()
       : normalizeSocialState(data.player.progression.social);
     if (sourceVersion < 12) {

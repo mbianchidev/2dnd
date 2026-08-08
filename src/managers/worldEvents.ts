@@ -133,8 +133,14 @@ export class WorldEventManager {
     defeatedBosses: ReadonlySet<string>,
     eventId: string,
     context: WorldEventContext,
+    debug = false,
   ): void {
-    forceWorldEvent(player.progression.worldEvents, eventId, context);
+    forceWorldEvent(
+      player.progression.worldEvents,
+      eventId,
+      context,
+      debug ? "debug" : "natural",
+    );
     this.callbacks.autoSave();
     this.open(player, codex, defeatedBosses, context.location.terrain);
   }

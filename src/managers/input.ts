@@ -45,6 +45,7 @@ const ACTION_KEYS: Partial<Record<InputAction, KeyDescriptor>> = {
   openJournal: { code: "KeyQ", key: "q" },
   openParty: { code: "KeyP", key: "p" },
   openCodex: { code: "KeyC", key: "c" },
+  openAchievements: { code: "KeyY", key: "y" },
   openTips: { code: "F1", key: "F1" },
   openSettings: { code: "Escape", key: "Escape" },
   openMap: { code: "KeyM", key: "m" },

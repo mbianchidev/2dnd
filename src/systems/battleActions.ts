@@ -142,6 +142,7 @@ export interface ResolvedBattleActionTarget {
   hit: boolean;
   damage: number;
   healing: number;
+  hpBefore?: number;
   elementalLabel?: ElementalInteraction;
 }
 
@@ -643,6 +644,7 @@ export function executeValidatedBattleAction(
         itemUsed: false,
       };
     }
+    const hpBefore = target.currentHp;
     const result = playerAttack(
       source.state,
       target.monster,
@@ -671,6 +673,7 @@ export function executeValidatedBattleAction(
         hit: result.hit,
         damage: result.damage,
         healing: 0,
+        hpBefore,
         elementalLabel: result.elementalLabel,
       }],
       mpUsed: 0,
@@ -705,6 +708,7 @@ export function executeValidatedBattleAction(
     for (const targetResult of result.results) {
       const target = enemies[targetResult.targetIndex];
       if (!target) continue;
+      const hpBefore = target.currentHp;
       target.currentHp = Math.max(0, target.currentHp - targetResult.damage);
       if (target.currentHp === 0) {
         target.isAlive = false;
@@ -721,6 +725,7 @@ export function executeValidatedBattleAction(
         hit: targetResult.hit,
         damage: targetResult.damage,
         healing: 0,
+        hpBefore,
         elementalLabel: targetResult.elementalLabel,
       });
     }
@@ -781,6 +786,7 @@ export function executeValidatedBattleAction(
       itemUsed: false,
     };
   }
+  const hpBefore = target.currentHp;
   const result = playerUseAbility(
     source.state,
     plan.actionId,
@@ -808,6 +814,7 @@ export function executeValidatedBattleAction(
         hit: result.hit,
         damage: result.damage,
         healing: 0,
+        hpBefore,
         elementalLabel: result.elementalLabel,
       }]
     : [];

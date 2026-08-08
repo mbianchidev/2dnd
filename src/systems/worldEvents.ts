@@ -40,6 +40,11 @@ import {
   type SocialMutationResult,
   type SocialState,
 } from "./reputation";
+import {
+  consumeSocialAchievementHooks,
+  reconcileAchievements,
+  recordAchievementEvent,
+} from "./achievements";
 
 export const WORLD_EVENT_LOG_LIMIT = 40;
 export const LEGACY_WORLD_EVENT_SEED = 0x2d0d0069;
@@ -330,10 +335,13 @@ function createPendingEvent(
   state: WorldEventState,
   event: WorldEventDefinition,
   context: WorldEventContext,
+  source: "natural" | "debug" = "natural",
 ): PendingWorldEvent {
   state.triggerCount++;
   const pending: PendingWorldEvent = {
-    instanceId: `${event.id}:${state.triggerCount}`,
+    instanceId: source === "debug"
+      ? `debug:${event.id}:${state.triggerCount}`
+      : `${event.id}:${state.triggerCount}`,
     eventId: event.id,
     phase: "choice",
     location: { ...context.location },
@@ -399,6 +407,7 @@ export function forceWorldEvent(
   state: WorldEventState,
   eventId: string,
   context: WorldEventContext,
+  source: "natural" | "debug" = "natural",
 ): PendingWorldEvent {
   const event = getWorldEventDefinition(eventId);
   if (!event) throw new Error(`[worldEvents] Unknown event ${eventId}`);
@@ -407,7 +416,7 @@ export function forceWorldEvent(
       `[worldEvents] Cannot force ${eventId} while ${state.pending.eventId} is pending`,
     );
   }
-  return createPendingEvent(state, event, context);
+  return createPendingEvent(state, event, context, source);
 }
 
 function getPendingDefinition(
@@ -545,6 +554,9 @@ function completeOutcome(
         }),
     }, codex)
   );
+  for (const effect of socialEffects) {
+    consumeSocialAchievementHooks(player, effect.achievementHooks);
+  }
   const socialCodexIds = socialEffects.flatMap(
     (effect) => effect.codexUnlocks.unlockedIds,
   );
@@ -555,6 +567,21 @@ function completeOutcome(
   state.repeatCounters[event.id] = (state.repeatCounters[event.id] ?? 0) + 1;
   appendLog(state, event, pending, choiceId, outcome);
   state.pending = null;
+  const debug = pending.instanceId.startsWith("debug:");
+  recordAchievementEvent(player, {
+    type: "worldEventResolved",
+    sourceId: `worldEvent:${resolutionId}`,
+    debug,
+  });
+  if (!debug) {
+    reconcileAchievements({
+      player,
+      defeatedBosses,
+      codex,
+    }, {
+      sourceId: `worldEvent:${resolutionId}`,
+    });
+  }
   return {
     resolved: true,
     summary: outcome.summary,

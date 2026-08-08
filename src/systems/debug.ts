@@ -288,6 +288,13 @@ import type { Monster } from "../data/monsters";
 import { recordDefeat, unlockCodexEntries } from "./codex";
 import type { CodexData } from "./codex";
 import {
+  beginAchievementDebugMutation,
+  endAchievementDebugMutation,
+  executeAchievementDebugCommand,
+  markNextBattleAsDebug,
+  suppressCurrentlyMetAchievements,
+} from "./achievements";
+import {
   CODEX_KNOWLEDGE_ENTRIES,
   CODEX_READABLES,
 } from "../data/codexKnowledge";
@@ -366,6 +373,14 @@ export class DebugCommandSystem {
     this.callbacks = callbacks;
   }
 
+  private suppressDebugAchievements(): void {
+    suppressCurrentlyMetAchievements({
+      player: this.player,
+      defeatedBosses: this.defeatedBosses,
+      codex: this.codex,
+    });
+  }
+
   /**
    * Register all debug hotkeys and slash commands.
    * Must be called after all public fields (fogOfWar, encounterSystem, etc.) are assigned.
@@ -407,6 +422,8 @@ export class DebugCommandSystem {
       if (!isDebug() || this.callbacks.isInputBlocked()) return;
       this.fogOfWar.revealEntireWorld();
       this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
+      this.suppressDebugAchievements();
+      this.callbacks.autoSave();
       this.callbacks.renderMap();
       this.callbacks.applyDayNightTint();
       this.callbacks.createPlayer();
@@ -433,6 +450,8 @@ export class DebugCommandSystem {
     cmds.set("reveal", () => {
       this.fogOfWar.revealEntireWorld();
       this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
+      this.suppressDebugAchievements();
+      this.callbacks.autoSave();
       this.callbacks.renderMap();
       this.callbacks.applyDayNightTint();
       this.callbacks.createPlayer();
@@ -487,11 +506,15 @@ export class DebugCommandSystem {
           count++;
         }
         debugPanelLog(`[CMD] Added all ${count} items to inventory`, true);
+        this.suppressDebugAchievements();
+        this.callbacks.autoSave();
       } else if (itemId) {
         const item = getItem(itemId);
         if (item) {
           this.player.inventory.push({ ...item });
           debugPanelLog(`[CMD] Added ${item.name} to inventory`, true);
+          this.suppressDebugAchievements();
+          this.callbacks.autoSave();
         } else {
           debugPanelLog(`[CMD] Unknown item: ${itemId}`, true);
         }
@@ -579,58 +602,63 @@ export class DebugCommandSystem {
       }
 
       let result;
-      if (action === "advance") {
-        result = advanceQuest(this.player, questId, this.defeatedBosses);
-      } else if (action === "set") {
-        const targetArg = parts[2]?.toLowerCase();
-        const statuses: QuestStatus[] = ["locked", "active", "completed"];
-        const status = statuses.find((value) => value === targetArg);
-        if (status) {
-          result = setQuestState(
-            this.player,
-            questId,
-            status,
-            this.defeatedBosses,
-          );
-        } else if (targetArg && /^\d+$/.test(targetArg)) {
-          result = setQuestState(
-            this.player,
-            questId,
-            Number.parseInt(targetArg, 10),
-            this.defeatedBosses,
-          );
-        } else if (targetArg) {
-          const stageId = QUESTS[questId].stages.find(
-            (stage) => stage.id.toLowerCase() === targetArg,
-          )?.id;
-          result = stageId
-            ? setQuestStageById(
+      beginAchievementDebugMutation(this.player);
+      try {
+        if (action === "advance") {
+          result = advanceQuest(this.player, questId, this.defeatedBosses);
+        } else if (action === "set") {
+          const targetArg = parts[2]?.toLowerCase();
+          const statuses: QuestStatus[] = ["locked", "active", "completed"];
+          const status = statuses.find((value) => value === targetArg);
+          if (status) {
+            result = setQuestState(
               this.player,
               questId,
-              stageId,
+              status,
               this.defeatedBosses,
-            )
-            : undefined;
-          if (!result) {
+            );
+          } else if (targetArg && /^\d+$/.test(targetArg)) {
+            result = setQuestState(
+              this.player,
+              questId,
+              Number.parseInt(targetArg, 10),
+              this.defeatedBosses,
+            );
+          } else if (targetArg) {
+            const stageId = QUESTS[questId].stages.find(
+              (stage) => stage.id.toLowerCase() === targetArg,
+            )?.id;
+            result = stageId
+              ? setQuestStageById(
+                this.player,
+                questId,
+                stageId,
+                this.defeatedBosses,
+              )
+              : undefined;
+            if (!result) {
+              debugPanelLog(
+                `Unknown stage "${parts[2]}". Available: ${QUESTS[questId].stages.map((stage) => stage.id).join(", ")}`,
+                true,
+              );
+              return;
+            }
+          } else {
             debugPanelLog(
-              `Unknown stage "${parts[2]}". Available: ${QUESTS[questId].stages.map((stage) => stage.id).join(", ")}`,
+              `Usage: /quest set ${questId} <stage-number|stage-id|locked|active|completed>`,
               true,
             );
             return;
           }
         } else {
           debugPanelLog(
-            `Usage: /quest set ${questId} <stage-number|stage-id|locked|active|completed>`,
+            `Usage: /quest <list|advance|set> <${QUEST_IDS.join("|")}> [state]`,
             true,
           );
           return;
         }
-      } else {
-        debugPanelLog(
-          `Usage: /quest <list|advance|set> <${QUEST_IDS.join("|")}> [state]`,
-          true,
-        );
-        return;
+      } finally {
+        endAchievementDebugMutation(this.player);
       }
 
       debugPanelLog(`[CMD] ${result.line}`, true);
@@ -638,6 +666,7 @@ export class DebugCommandSystem {
         debugPanelLog(`[CMD] Reward: ${result.rewardText}`, true);
       }
       if (result.changed) {
+        this.suppressDebugAchievements();
         const recruitments = synchronizeCompanionRecruitment(this.player);
         for (const recruitment of recruitments) {
           debugPanelLog(`[CMD] ${recruitment.message}`, true);
@@ -697,6 +726,7 @@ export class DebugCommandSystem {
         debugPanelLog(`[CMD] ${line}`, true);
       }
       if (result.changed) {
+        this.suppressDebugAchievements();
         this.callbacks.updateHUD();
         this.callbacks.autoSave();
       }
@@ -791,6 +821,7 @@ export class DebugCommandSystem {
         );
         return;
       }
+      this.suppressDebugAchievements();
       this.callbacks.autoSave();
       this.callbacks.renderMap();
       this.callbacks.createPlayer();
@@ -829,6 +860,7 @@ export class DebugCommandSystem {
       const found = findMonster(query);
       if (found) {
         debugPanelLog(`[CMD] Spawning ${found.name}...`, true);
+        markNextBattleAsDebug(this.player);
         this.callbacks.startBattle({ ...found });
       } else {
         debugPanelLog(`[CMD] Unknown: "${args.trim()}". Try a monster name/id, or: traveler, adventurer, merchant, hermit`, true);
@@ -1061,7 +1093,22 @@ export class DebugCommandSystem {
         `[CMD] Discovered ${count} monsters and ${knowledge.unlockedIds.length} knowledge entries`,
         true,
       );
+      this.suppressDebugAchievements();
+      this.callbacks.autoSave();
     });
+
+    cmds.set("achievement", (args) => {
+      const result = executeAchievementDebugCommand({
+        player: this.player,
+        defeatedBosses: this.defeatedBosses,
+        codex: this.codex,
+      }, args);
+      for (const line of result.lines) {
+        debugPanelLog(`[CMD] ${line}`, true);
+      }
+      if (result.changed) this.callbacks.autoSave();
+    });
+    cmds.set("achievements", cmds.get("achievement")!);
 
     const helpEntries: HelpEntry[] = [
       ...SHARED_HELP,
@@ -1083,6 +1130,7 @@ export class DebugCommandSystem {
       { usage: "/readable <id>", desc: "Stand beside a Codex readable in the current city" },
       { usage: "/mount <id>", desc: "Mount: donkey|horse|warHorse|shadowSteed|none" },
       { usage: "/codex all", desc: "Discover all codex entries" },
+      { usage: "/achievement <cmd>", desc: "Achievements: list|unlock|reset|progress|explain" },
       { usage: "/companion <cmd>", desc: "Companions: list|recruit|mode|heal|gambits" },
     ];
 

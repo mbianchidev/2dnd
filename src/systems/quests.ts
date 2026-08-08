@@ -16,6 +16,7 @@ import {
 } from "../data/quests";
 import { awardXP } from "./player";
 import { applySocialMutation } from "./reputation";
+import { consumeSocialAchievementHooks } from "./achievements";
 import {
   createQuestLog,
   normalizeQuestLog,
@@ -222,6 +223,7 @@ function applyRewards(
         reputation: reward.reputation,
       });
       if (!result.changed) continue;
+      consumeSocialAchievementHooks(player, result.achievementHooks);
     }
 
     progress.claimedRewards.push(reward.id);

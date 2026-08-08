@@ -10,14 +10,17 @@ import { MONSTER_FAMILIES } from "../src/data/monsterFamilies";
 import { ALL_MONSTERS, getMonster } from "../src/data/monsters";
 import { QUESTS } from "../src/data/quests";
 import { WORLD_EVENT_DEFINITIONS } from "../src/data/worldEvents";
+import { getItem } from "../src/data/items";
 import {
   acknowledgeAchievementNotification,
   createAchievementState,
+  consumeSocialAchievementHooks,
   equipAchievementTitle,
   executeAchievementDebugCommand,
   getAchievementList,
   getAchievementProgress,
   getAchievementSummary,
+  isOneHitDefeat,
   normalizeAchievementState,
   reconcileAchievements,
   recordAchievementEvent,
@@ -25,6 +28,9 @@ import {
 } from "../src/systems/achievements";
 import { createCodex, recordDefeat } from "../src/systems/codex";
 import { createPlayer } from "../src/systems/player";
+import { recruitCompanion } from "../src/systems/party";
+import { createDefaultGambitRule } from "../src/systems/gambits";
+import { applySocialMutation } from "../src/systems/reputation";
 
 const BASE_STATS = {
   strength: 10,
@@ -141,6 +147,89 @@ describe("achievement progress and reconciliation", () => {
     ).current).toBe(3);
   });
 
+  it("derives complete dungeon, companion, gambit, inventory, and equipment milestones", () => {
+    const context = createContext();
+    for (const dungeon of DUNGEONS) {
+      if (dungeon.bossId) context.defeatedBosses.add(dungeon.bossId);
+    }
+    for (const companionId of ["guardian", "scout", "mystic"] as const) {
+      recruitCompanion(context.player, companionId);
+      const companion = context.player.party.companions.find(
+        (entry) => entry.id === companionId,
+      )!;
+      companion.gambits.push(createDefaultGambitRule(
+        `${companionId}-achievement`,
+        1,
+      ));
+    }
+    const armor = getItem("leatherArmor")!;
+    const shield = getItem("woodenShield")!;
+    context.player.inventory.push(armor, shield);
+    context.player.equippedArmor = armor;
+    context.player.equippedShield = shield;
+    for (const monster of ALL_MONSTERS.slice(0, 20)) {
+      const item = monster.drops?.[0]
+        ? getItem(monster.drops[0].itemId)
+        : undefined;
+      if (item) context.player.inventory.push({ ...item });
+    }
+
+    expect(getAchievementProgress(
+      getAchievement("threeDungeonsCleared"),
+      context,
+    ).complete).toBe(true);
+    expect(getAchievementProgress(
+      getAchievement("fullFellowship"),
+      context,
+    ).complete).toBe(true);
+    expect(getAchievementProgress(
+      getAchievement("gambitMaster"),
+      context,
+    ).complete).toBe(true);
+    expect(getAchievementProgress(
+      getAchievement("fullyEquipped"),
+      context,
+    ).complete).toBe(true);
+  });
+
+  it("consumes natural social hooks and ignores debug social mutations", () => {
+    const context = createContext();
+    const natural = applySocialMutation(context.player, {
+      sourceId: "test:social:natural",
+      cause: "Kept a difficult promise",
+      alignment: { goodEvil: 30 },
+      reputation: [{
+        kind: "town",
+        targetId: "willowdale_city",
+        delta: 60,
+      }],
+    });
+    const naturalUnlocks = consumeSocialAchievementHooks(
+      context.player,
+      natural.achievementHooks,
+    );
+    expect(naturalUnlocks.newlyUnlocked).toEqual(
+      expect.arrayContaining(["goodHeart", "trustedTown"]),
+    );
+
+    const debug = applySocialMutation(context.player, {
+      sourceId: "debug:social:test",
+      cause: "Debug reputation",
+      reputation: [{
+        kind: "faction",
+        targetId: "roadwardens",
+        delta: 100,
+      }],
+    });
+    expect(consumeSocialAchievementHooks(
+      context.player,
+      debug.achievementHooks,
+    ).newlyUnlocked).toEqual([]);
+    expect(context.player.progression.achievements.earned.some(
+      (record) => record.id === "exaltedFaction",
+    )).toBe(false);
+  });
+
   it("reconciles state achievements once and queues natural notifications", () => {
     const context = createContext();
     context.player.progression.discoveredCities.push(
@@ -215,6 +304,14 @@ describe("achievement progress and reconciliation", () => {
       oneHitDefeats: 0,
     });
     expect(context.player.progression.achievements.counters.defeatCount).toBe(1);
+  });
+
+  it("recognizes only full-health defeats as one-hit defeats", () => {
+    expect(isOneHitDefeat(20, 20, 20)).toBe(true);
+    expect(isOneHitDefeat(20, 20, 30)).toBe(true);
+    expect(isOneHitDefeat(19, 20, 20)).toBe(false);
+    expect(isOneHitDefeat(20, 20, 19)).toBe(false);
+    expect(isOneHitDefeat(0, 0, 10)).toBe(false);
   });
 
   it("does not infer a no-defeat campaign from a migrated save", () => {

@@ -53,6 +53,7 @@ export interface AchievementState {
   defeatTrackingComplete: boolean;
   debugSuppressedIds: AchievementId[];
   debugPendingBattle: boolean;
+  debugMutationActive: boolean;
 }
 
 export interface AchievementContext {
@@ -120,6 +121,7 @@ export function createAchievementState(
     defeatTrackingComplete,
     debugSuppressedIds: [],
     debugPendingBattle: false,
+    debugMutationActive: false,
   };
 }
 
@@ -208,6 +210,7 @@ export function normalizeAchievementState(
       isAchievementId,
     ).filter((id) => !earnedIds.has(id)),
     debugPendingBattle: value["debugPendingBattle"] === true,
+    debugMutationActive: false,
   };
 
   const earnedTitles = new Set<TitleId>();
@@ -506,6 +509,19 @@ export function recordAchievementEvent(
   return true;
 }
 
+export function isOneHitDefeat(
+  hpBefore: number,
+  maxHp: number,
+  damage: number,
+): boolean {
+  return Number.isFinite(hpBefore)
+    && Number.isFinite(maxHp)
+    && Number.isFinite(damage)
+    && maxHp > 0
+    && hpBefore === maxHp
+    && damage >= hpBefore;
+}
+
 export function nextBattleAchievementSourceId(
   player: PlayerState,
   encounterId: string,
@@ -518,9 +534,53 @@ export function nextBattleAchievementSourceId(
 export function consumeSocialAchievementHooks(
   player: PlayerState,
   hooks: readonly SocialAchievementHook[],
-): boolean {
-  if (hooks.length === 0) return false;
-  return hooks.some((hook) => !hook.sourceId.startsWith("debug:"));
+  options: { notify?: boolean; unlockedAt?: number } = {},
+): AchievementUnlockResult {
+  const newlyUnlocked: AchievementId[] = [];
+  const titleUnlocks: TitleId[] = [];
+  for (const hook of hooks) {
+    if (
+      player.progression.achievements.debugMutationActive
+      || hook.sourceId.startsWith("debug:")
+    ) {
+      continue;
+    }
+    for (const definition of ACHIEVEMENTS) {
+      const criteria = definition.criteria;
+      const relevant = hook.type === "alignmentChanged"
+        ? criteria.type === "alignmentAxis"
+        : criteria.type === "reputationTargetsAtTier";
+      if (
+        !relevant
+        || isAchievementEarned(player.progression.achievements, definition.id)
+        || player.progression.achievements.debugSuppressedIds.includes(
+          definition.id,
+        )
+      ) {
+        continue;
+      }
+      let complete = false;
+      if (criteria.type === "alignmentAxis") {
+        complete = player.progression.social.alignment[criteria.axis]
+          >= criteria.minimum;
+      } else if (criteria.type === "reputationTargetsAtTier") {
+        complete = countReputationTargetsAtTier(player, criteria)
+          >= criteria.threshold;
+      }
+      if (!complete) continue;
+      const titleId = unlockAchievement(
+        player,
+        definition.id,
+        `social:${hook.sourceId}:${definition.id}`,
+        options.unlockedAt ?? Date.now(),
+        options.notify ?? true,
+        false,
+      );
+      newlyUnlocked.push(definition.id);
+      if (titleId) titleUnlocks.push(titleId);
+    }
+  }
+  return { newlyUnlocked, titleUnlocks };
 }
 
 export function suppressCurrentlyMetAchievements(
@@ -543,6 +603,14 @@ export function suppressCurrentlyMetAchievements(
 
 export function markNextBattleAsDebug(player: PlayerState): void {
   player.progression.achievements.debugPendingBattle = true;
+}
+
+export function beginAchievementDebugMutation(player: PlayerState): void {
+  player.progression.achievements.debugMutationActive = true;
+}
+
+export function endAchievementDebugMutation(player: PlayerState): void {
+  player.progression.achievements.debugMutationActive = false;
 }
 
 export function consumeNextBattleDebugFlag(player: PlayerState): boolean {
@@ -737,6 +805,7 @@ export function executeAchievementDebugCommand(
       false,
       true,
     );
+    suppressCurrentlyMetAchievements(context);
     return {
       changed: !alreadyEarned,
       lines: [
@@ -752,6 +821,7 @@ export function executeAchievementDebugCommand(
     context.player.progression.achievements = createAchievementState(
       defeatTrackingComplete,
     );
+    suppressCurrentlyMetAchievements(context);
     return {
       changed: true,
       lines: ["Achievement state reset. Authoritative game state was not changed."],

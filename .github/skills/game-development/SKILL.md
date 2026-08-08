@@ -227,8 +227,21 @@ is owned by the schema-v12 reputation system and must remain idempotent.
   variants.
 - Apply social outcomes only for meaningful choices. Never reward routine
   movement, unavoidable combat, or farming.
-- Return runtime-only `SocialAchievementHook` values for future #50 consumers;
-  do not persist or implement achievements in this system.
+- Return runtime-only `SocialAchievementHook` values for the achievement
+  consumer; do not persist achievements inside the social system.
+
+## Achievements
+
+- Put immutable definitions and cosmetic titles in `src/data/achievements.ts`;
+  put normalization, deterministic progress, reconciliation, stable event
+  counters, debug exclusion, and title equip rules in
+  `src/systems/achievements.ts`.
+- Prefer reconciliation from authoritative quest, boss, Codex, exploration,
+  trap, skill-check, event, social, party, and inventory state. Add persisted
+  counters only for non-reconstructable event history such as battle wins,
+  one-hit defeats, and explicit defeat count.
+- Achievement state never controls gameplay authority. Titles are
+  presentation-only and notices are queued for safe Overworld presentation.
 
 ## Adding spells, abilities, and equipment
 

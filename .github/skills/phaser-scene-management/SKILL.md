@@ -66,6 +66,13 @@ touch and the gamepad cursor share the keyboard surface. Search uses
 scene-local notices and must be cleared on shutdown; it never changes input
 context or delays scene transitions.
 
+`AchievementOverlayManager` owns the accessible Achievements/profile surface and
+presentation-only title selection. `AchievementNotificationManager` reads
+persisted pending IDs but displays them only in safe Overworld states; scene
+shutdown clears visuals without acknowledging an interrupted notice. Both must
+support keyboard, pointer, touch-menu access, gamepad cursor, text scaling,
+high contrast, and reduced motion.
+
 ## Shared state flow
 
 State-bearing transitions use `createSharedSceneState()` and preserve:

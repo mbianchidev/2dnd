@@ -152,6 +152,11 @@ API, and saves use `localStorage`.
 - Quest, dialogue, World Event, trap, and morally relevant event-combat outcomes
   apply through stable idempotent source IDs. The Party Social page shows both
   axes, scores, thresholds, standing tiers, and a bounded recent-cause history
+- 34 data-driven achievements cover campaign chapters, bosses and dungeons,
+  combat, secrets, exploration, Codex families, companions and gambits, World
+  Events, social milestones, and meaningful equipment collection. Progress is
+  derived from authoritative game state where possible; one-shot battle history
+  uses stable once-only counters. Optional title rewards are cosmetic only.
 - Three additional recruitment quest lines use stable stage IDs and replayable
   completion actions; active conscious companions follow the hero and can be
   spoken to during overworld, city, and dungeon exploration
@@ -232,6 +237,7 @@ src/
 │   ├── questDebug.ts
 │   ├── worldEvents.ts
 │   ├── reputation.ts
+│   ├── achievements.ts
 │   ├── accessibility.ts
 │   ├── tutorial.ts
 │   ├── sceneState.ts
@@ -251,6 +257,7 @@ src/
 │   ├── monsterVariants.ts
 │   ├── nightMonsters.ts
 │   ├── monsterGroups.ts
+│   ├── achievements.ts
 │   ├── codexKnowledge.ts
 │   ├── elements.ts
 │   ├── spells.ts
@@ -404,6 +411,7 @@ npm run build      # Type-check and create a production build
 | `E` | Open hero equipment |
 | `P` | Open party management, searchable inventories, and gambits |
 | `C` | Open the Codex |
+| `Y` | Open Achievements and manage cosmetic titles |
 | `Q` | Open the quest journal |
 | `T` | Mount or dismount |
 | `F1` | Open or close Tips |
@@ -420,8 +428,9 @@ and Tips controls; movement and action buttons support simultaneous touches.
 Character and inventory search text fields open a native mobile text-entry
 surface.
 
-The `Esc` menu includes Party & Inventory, Tips, tutorial replay, the Chronicle,
-and the same audio and accessibility settings available on the title screen.
+The `Esc` menu includes Achievements, Party & Inventory, Tips, tutorial replay,
+the Chronicle, and the same audio and accessibility settings available on the
+title screen.
 Advanced Tips unlock automatically as relevant progression is reached. In the
 inventory view, arrows and Page Up/Down navigate, `R` cycles sorting, `F` cycles
 filters, `/` focuses search, `X` transfers, and `Tab` changes the target. `T`
@@ -464,6 +473,8 @@ Available tools include:
 - `/alignment list|explain|set|adjust` and
   `/reputation list|explain|set|adjust` (`/rep`) for validated social-state
   inspection and mutation
+- `/achievement list|unlock|reset|progress|explain`; debug unlocks are marked,
+  grant no points or titles, and debug mutations cannot satisfy natural criteria
 - Local browser checks can force the next random encounter with
   `?forceGroup=<templateId>` (for example, `?forceGroup=slimeSwarm`)
 
@@ -480,7 +491,7 @@ mutates campaign progress. Version-1 preference documents and existing
 automatically. Inventory sorting, filtering, and search preferences use the
 separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
-Save schema version 12 persists:
+Save schema version 13 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -508,6 +519,10 @@ Save schema version 12 persists:
   applied source IDs, and a bounded recent-cause history. Alignment names,
   reputation tiers, thresholds, shop modifiers, Codex milestones, and ending
   variants are derived from canonical data
+- Achievement completion records, stable event counters/IDs, explicit defeat
+  history, unlocked/equipped cosmetic titles, debug exclusions, and queued
+  non-blocking notices. Definitions, categories, descriptions, points, totals,
+  and all safely reconstructable progress remain derived
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed
@@ -535,6 +550,10 @@ Schema-v11 and older saves gain the Chaotic Neutral baseline with neutral
 reputation. Historical quest/event outcomes are not retroactively replayed;
 already-reached quest social source IDs are marked as consumed so existing
 quest, reward, Codex, and event state remains unchanged.
+Schema-v12 and older saves gain normalized achievement state and silently
+reconcile durable quest, boss, exploration, Codex, party, event, social, and
+inventory milestones. Legacy defeat history is deliberately marked unknown, so
+older completed campaigns cannot receive the no-defeat achievement by inference.
 
 ## Testing
 

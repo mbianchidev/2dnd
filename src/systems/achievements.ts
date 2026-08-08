@@ -53,6 +53,7 @@ export interface AchievementState {
   defeatTrackingComplete: boolean;
   debugSuppressedIds: AchievementId[];
   debugPendingBattle: boolean;
+  debugWorldEventInstanceIds: string[];
   debugMutationActive: boolean;
 }
 
@@ -121,6 +122,7 @@ export function createAchievementState(
     defeatTrackingComplete,
     debugSuppressedIds: [],
     debugPendingBattle: false,
+    debugWorldEventInstanceIds: [],
     debugMutationActive: false,
   };
 }
@@ -210,6 +212,14 @@ export function normalizeAchievementState(
       isAchievementId,
     ).filter((id) => !earnedIds.has(id)),
     debugPendingBattle: value["debugPendingBattle"] === true,
+    debugWorldEventInstanceIds: Array.isArray(
+      value["debugWorldEventInstanceIds"],
+    )
+      ? [...new Set(value["debugWorldEventInstanceIds"].filter(
+        (entry): entry is string =>
+          typeof entry === "string" && entry.trim().length > 0,
+      ).map((entry) => entry.trim()))]
+      : [],
     debugMutationActive: false,
   };
 
@@ -616,6 +626,37 @@ export function endAchievementDebugMutation(player: PlayerState): void {
 export function consumeNextBattleDebugFlag(player: PlayerState): boolean {
   const debug = player.progression.achievements.debugPendingBattle;
   player.progression.achievements.debugPendingBattle = false;
+  return debug;
+}
+
+export function markWorldEventAsDebug(
+  player: PlayerState,
+  instanceId: string,
+): void {
+  const ids = player.progression.achievements.debugWorldEventInstanceIds;
+  if (!ids.includes(instanceId)) ids.push(instanceId);
+}
+
+export function isWorldEventMarkedDebug(
+  player: PlayerState,
+  instanceId: string,
+): boolean {
+  return player.progression.achievements.debugWorldEventInstanceIds.includes(
+    instanceId,
+  );
+}
+
+export function consumeWorldEventDebugFlag(
+  player: PlayerState,
+  instanceId: string,
+): boolean {
+  const ids = player.progression.achievements.debugWorldEventInstanceIds;
+  const debug = ids.includes(instanceId);
+  if (debug) {
+    player.progression.achievements.debugWorldEventInstanceIds = ids.filter(
+      (id) => id !== instanceId,
+    );
+  }
   return debug;
 }
 

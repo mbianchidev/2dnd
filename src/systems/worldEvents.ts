@@ -42,6 +42,7 @@ import {
 } from "./reputation";
 import {
   consumeSocialAchievementHooks,
+  consumeWorldEventDebugFlag,
   reconcileAchievements,
   recordAchievementEvent,
 } from "./achievements";
@@ -335,13 +336,10 @@ function createPendingEvent(
   state: WorldEventState,
   event: WorldEventDefinition,
   context: WorldEventContext,
-  source: "natural" | "debug" = "natural",
 ): PendingWorldEvent {
   state.triggerCount++;
   const pending: PendingWorldEvent = {
-    instanceId: source === "debug"
-      ? `debug:${event.id}:${state.triggerCount}`
-      : `${event.id}:${state.triggerCount}`,
+    instanceId: `${event.id}:${state.triggerCount}`,
     eventId: event.id,
     phase: "choice",
     location: { ...context.location },
@@ -407,7 +405,6 @@ export function forceWorldEvent(
   state: WorldEventState,
   eventId: string,
   context: WorldEventContext,
-  source: "natural" | "debug" = "natural",
 ): PendingWorldEvent {
   const event = getWorldEventDefinition(eventId);
   if (!event) throw new Error(`[worldEvents] Unknown event ${eventId}`);
@@ -416,7 +413,7 @@ export function forceWorldEvent(
       `[worldEvents] Cannot force ${eventId} while ${state.pending.eventId} is pending`,
     );
   }
-  return createPendingEvent(state, event, context, source);
+  return createPendingEvent(state, event, context);
 }
 
 function getPendingDefinition(
@@ -567,7 +564,7 @@ function completeOutcome(
   state.repeatCounters[event.id] = (state.repeatCounters[event.id] ?? 0) + 1;
   appendLog(state, event, pending, choiceId, outcome);
   state.pending = null;
-  const debug = pending.instanceId.startsWith("debug:");
+  const debug = consumeWorldEventDebugFlag(player, pending.instanceId);
   recordAchievementEvent(player, {
     type: "worldEventResolved",
     sourceId: `worldEvent:${resolutionId}`,

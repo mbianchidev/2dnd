@@ -108,6 +108,13 @@ import {
 import { saveGame } from "../systems/save";
 import { createSharedSceneState } from "../systems/sceneState";
 import {
+  consumeNextBattleDebugFlag,
+  nextBattleAchievementSourceId,
+  reconcileAchievements,
+  recordAchievementEvent,
+  isOneHitDefeat,
+} from "../systems/achievements";
+import {
   countAliveCombatants,
   createBattleResult,
   createGroupCombatants,
@@ -194,6 +201,9 @@ export class BattleScene extends Phaser.Scene {
   private codexDiscoveryIds: string[] = [];
   private codexDiscovery!: CodexDiscoveryManager;
   private battleHookCodexEntries: CodexKnowledgeEntry[] = [];
+  private achievementBattleSourceId = "";
+  private achievementBattleDebug = false;
+  private oneHitDefeatIds = new Set<string>();
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
@@ -325,6 +335,13 @@ export class BattleScene extends Phaser.Scene {
       throw new Error("[BattleScene] Missing encounter data");
     }
     this.encounter = data.encounter ?? createSoloEncounter(data.monster!);
+    this.achievementBattleSourceId = nextBattleAchievementSourceId(
+      this.player,
+      this.encounter.id,
+    );
+    this.achievementBattleDebug = consumeNextBattleDebugFlag(this.player)
+      || this.encounter.id.includes("debug:");
+    this.oneHitDefeatIds = new Set();
     this.combatants = createGroupCombatants(this.encounter);
     this.heroCombatant = createHeroCombatant(this.player);
     this.partyCombatants = [
@@ -1457,10 +1474,7 @@ export class BattleScene extends Phaser.Scene {
         ability.element,
         targetIndex,
       );
-      this.setCombatantHp(
-        targetIndex,
-        this.combatants[targetIndex]!.currentHp - result.damage,
-      );
+      this.applyPartyDamageToEnemy(targetIndex, result.damage);
       this.updateMonsterDisplay();
       this.battlePresentation.presentAction({
         actorId: this.heroCombatant.id,
@@ -2035,10 +2049,7 @@ export class BattleScene extends Phaser.Scene {
         this.player.equippedWeapon?.element,
         targetIndex,
       );
-      this.setCombatantHp(
-        targetIndex,
-        this.combatants[targetIndex]!.currentHp - result.damage,
-      );
+      this.applyPartyDamageToEnemy(targetIndex, result.damage);
       this.updateMonsterDisplay();
       this.battlePresentation.presentAction({
         actorId: this.heroCombatant.id,
@@ -2102,10 +2113,7 @@ export class BattleScene extends Phaser.Scene {
           this.player.equippedOffHand?.element,
           offHandTarget,
         );
-        this.setCombatantHp(
-          offHandTarget,
-          this.combatants[offHandTarget]!.currentHp - offResult.damage,
-        );
+        this.applyPartyDamageToEnemy(offHandTarget, offResult.damage);
         this.updateMonsterDisplay();
         this.battlePresentation.presentAction({
           actorId: this.heroCombatant.id,
@@ -2292,10 +2300,7 @@ export class BattleScene extends Phaser.Scene {
           spell.element,
           combatantIndex,
         );
-        this.setCombatantHp(
-          combatantIndex,
-          combatant.currentHp - targetResult.damage,
-        );
+        this.applyPartyDamageToEnemy(combatantIndex, targetResult.damage);
       }
       for (const healingResult of result.healingResults) {
         const target = getCombatantById(
@@ -2908,6 +2913,13 @@ export class BattleScene extends Phaser.Scene {
     this.questUpdates = questResult.updates;
     recordGroupDefeats(this.codex, this.combatants);
     const codexUnlocks = replayCodexUnlocks(this.codex, this.player);
+    reconcileAchievements({
+      player: this.player,
+      defeatedBosses: this.defeatedBosses,
+      codex: this.codex,
+    }, {
+      sourceId: this.achievementBattleSourceId,
+    });
     queueCutscenes(
       this.player.progression,
       collectNewlyTriggeredCutsceneIds(
@@ -2956,6 +2968,13 @@ export class BattleScene extends Phaser.Scene {
     );
     if (!this.battleResultReported) {
       this.battleResultReported = true;
+      recordAchievementEvent(this.player, {
+        type: "battleResolved",
+        sourceId: this.achievementBattleSourceId,
+        outcome,
+        oneHitDefeats: this.oneHitDefeatIds.size,
+        debug: this.achievementBattleDebug,
+      });
       const feedback = this.battleHooks?.onBattleResolved?.(result);
       for (const message of feedback?.messages ?? []) {
         this.addLog(message);
@@ -2972,6 +2991,13 @@ export class BattleScene extends Phaser.Scene {
       this.player,
       result.knockedOutPartyIds,
     );
+    reconcileAchievements({
+      player: this.player,
+      defeatedBosses: this.defeatedBosses,
+      codex: this.codex,
+    }, {
+      sourceId: this.achievementBattleSourceId,
+    });
     saveGame(
       this.player,
       this.defeatedBosses,
@@ -3215,12 +3241,45 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private presentResolvedBattleAction(result: ResolvedBattleAction): void {
+    for (const targetResult of result.targets) {
+      if (targetResult.hpBefore === undefined) {
+        continue;
+      }
+      const target = this.combatants.find(
+        (combatant) => combatant.id === targetResult.targetId,
+      );
+      if (
+        target
+        && isOneHitDefeat(
+          targetResult.hpBefore,
+          target.monster.hp,
+          targetResult.damage,
+        )
+      ) {
+        this.oneHitDefeatIds.add(target.id);
+      }
+    }
     this.battlePresentation.presentAction({
       actorId: result.plan.actorId,
       kind: result.plan.kind,
       successful: result.executed,
       targets: result.targets,
     });
+  }
+
+  private applyPartyDamageToEnemy(
+    combatantIndex: number,
+    damage: number,
+  ): void {
+    const combatant = this.combatants[combatantIndex];
+    if (!combatant) {
+      throw new Error(`[BattleScene] Missing combatant ${combatantIndex}`);
+    }
+    const hpBefore = combatant.currentHp;
+    if (isOneHitDefeat(hpBefore, combatant.monster.hp, damage)) {
+      this.oneHitDefeatIds.add(combatant.id);
+    }
+    this.setCombatantHp(combatantIndex, hpBefore - damage);
   }
 
   private recordElementalDiscovery(

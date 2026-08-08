@@ -21,6 +21,7 @@ export type ControlActionId =
   | "equipment"
   | "journal"
   | "codex"
+  | "achievements"
   | "party"
   | "mount"
   | "battleNavigate"
@@ -143,6 +144,14 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     gamepad: "Menu, then Codex",
     touch: "MENU, then Codex",
   },
+  achievements: {
+    id: "achievements",
+    label: "Achievements and titles",
+    keyboard: "Y",
+    pointer: "Esc menu > Achievements",
+    gamepad: "Menu, then Achievements",
+    touch: "MENU, then Achievements",
+  },
   party: {
     id: "party",
     label: "Party management",
@@ -251,8 +260,16 @@ export const TIPS: readonly TipDefinition[] = [
     id: "controls.shortcuts",
     category: "controls",
     title: "Useful shortcuts",
-    body: "The map, equipment, journal, Codex, party, mount, menu, and Tips each have a direct keyboard shortcut.",
-    controls: ["map", "equipment", "journal", "codex", "party", "mount", "menu", "tips"],
+    body: "The map, equipment, journal, Codex, achievements, party, mount, menu, and Tips each have a direct keyboard shortcut.",
+    controls: ["map", "equipment", "journal", "codex", "achievements", "party", "mount", "menu", "tips"],
+    unlock: { type: "always" },
+  },
+  {
+    id: "progression.achievements",
+    category: "controls",
+    title: "Achievements and titles",
+    body: "Achievements reward durable gameplay milestones with points and presentation-only titles. Hidden entries reveal themselves when completed.",
+    controls: ["achievements"],
     unlock: { type: "always" },
   },
   {

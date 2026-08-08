@@ -202,6 +202,11 @@ Always generate keys through `FogOfWar.exploredKey()`.
 The level-zero and chunk-zero formats intentionally preserve existing saves.
 `revealEntireWorld()` must cover every dungeon level and city district.
 
+Achievement exploration progress reads `discoveredCities`, persistent
+skill-check/trap state, and `FogOfWar.exploredKey()` values. It may derive unique
+overworld chunks or dungeon completion, but it must never write map access,
+terrain, fog, city, dungeon, or quest state.
+
 ## Player position
 
 ```typescript

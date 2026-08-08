@@ -45,8 +45,11 @@ switching, duplicate suppression, disconnect/blur cleanup, and control
 preference migration
 ✅ Alignment boundaries, reputation tiers, clamping, stable-source
 idempotency, quest/dialogue/event/trap/combat hooks, shop composition, Codex
-milestones, schema-v12 migration, bounded history, debug commands, and future
-achievement-hook isolation
+milestones, schema-v12 migration, bounded history, and debug commands
+✅ Achievement definition integrity, deterministic progress, hidden entries,
+idempotent battle/event/social hooks, reconciliation, schema-v13 migration,
+one-hit/no-defeat rules, cosmetic titles, debug exclusion, notices, and
+authority isolation
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -100,6 +103,7 @@ tests/
 ├── quests.test.ts    # Quest progression and integrity
 ├── skillChecks.test.ts # Exploration/dialogue checks
 ├── reputation.test.ts # Alignment, reputation, integrations, and migration policy
+├── achievements.test.ts # Definitions, progress, hooks, titles, and migration policy
 ├── cutscenes.test.ts # Cutscene data, triggers, queue, and director lifecycle
 ├── accessibility.test.ts # Shared preference normalization, migration, and persistence
 ├── input.test.ts # Semantic mappings, contexts, repeats, cleanup, and suppression

@@ -18,6 +18,7 @@ import { awardXP, type PlayerState } from "./player";
 import { resolveSkillCheck, rollSkillCheck } from "./skillChecks";
 import { applyStatusEffect } from "./statusEffects";
 import { applySocialMutation } from "./reputation";
+import { consumeSocialAchievementHooks } from "./achievements";
 
 interface TrapCandidate {
   x: number;
@@ -399,6 +400,7 @@ export function attemptTrapDisarm(
       cause: `Disarmed ${definition.name}`,
       alignment: { lawChaos: 1, goodEvil: 1 },
     });
+    consumeSocialAchievementHooks(player, social.achievementHooks);
     return {
       ...mapTrapCheckResult(record, trap.rewardXp),
       ...(social.changed ? { socialSummary: social.summary } : {}),

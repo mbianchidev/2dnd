@@ -155,11 +155,16 @@ import {
 import { createSharedSceneState } from "../systems/sceneState";
 import { CodexDiscoveryManager } from "../managers/codexDiscovery";
 import { WorldEventManager } from "../managers/worldEvents";
+import { AchievementOverlayManager } from "../managers/achievementOverlay";
+import { AchievementNotificationManager } from "../managers/achievementNotifications";
 import type { BattleResolutionHooks } from "../systems/groupCombat";
 import {
   resolveOverworldStepTrigger,
   type WorldEventContext,
 } from "../systems/worldEvents";
+import {
+  reconcileAchievements,
+} from "../systems/achievements";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -273,6 +278,8 @@ export class OverworldScene extends Phaser.Scene {
   private tutorialManager!: TutorialManager;
   private codexDiscovery!: CodexDiscoveryManager;
   private worldEventManager!: WorldEventManager;
+  private achievementOverlayManager!: AchievementOverlayManager;
+  private achievementNotifications!: AchievementNotificationManager;
   private pendingCodexDiscoveryIds: string[] = [];
 
   constructor() {
@@ -386,6 +393,7 @@ export class OverworldScene extends Phaser.Scene {
       openQuestJournal: () => this.openQuestJournal(),
       openChronicle: () => this.chronicleManager.open(this.player),
       openCodex: () => this.openCodex(),
+      openAchievements: () => this.openAchievements(),
       openTips: () => this.tutorialManager.showTips(this.player),
       fadeOutAndIn: (atBlack, duration) =>
         this.sceneTransitions.fadeOutAndIn(atBlack, {
@@ -415,6 +423,15 @@ export class OverworldScene extends Phaser.Scene {
     this.defeatedBosses = data?.defeatedBosses ?? new Set();
     this.codex = data?.codex ?? createCodex();
     replayCodexUnlocks(this.codex, this.player);
+    this.achievementOverlayManager = new AchievementOverlayManager(this, {
+      autoSave: () => this.autoSave(),
+      showMessage: (message, color) => this.showMessage(message, color),
+    });
+    this.achievementNotifications = new AchievementNotificationManager(
+      this,
+      this.player,
+      () => this.autoSave(),
+    );
     this.pendingCodexDiscoveryIds = data?.codexDiscoveryIds ?? [];
     this.timeStep = data?.timeStep ?? 0;
     this.weatherState = data?.weatherState ?? createWeatherState();
@@ -467,6 +484,8 @@ export class OverworldScene extends Phaser.Scene {
       this.companionFollowerManager.clear();
       this.worldPresentation.cleanup();
       this.codexDiscovery.clear();
+      this.achievementOverlayManager.close();
+      this.achievementNotifications.clear();
       this.worldEventManager.clear();
     });
     this.chronicleManager = new ChronicleManager(
@@ -638,6 +657,7 @@ export class OverworldScene extends Phaser.Scene {
           this.defeatedBosses,
           eventId,
           this.getWorldEventContext(terrain),
+          true,
         );
         return `Triggered ${eventId}.`;
       },
@@ -677,7 +697,27 @@ export class OverworldScene extends Phaser.Scene {
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
       if (this.partyOverlayManager.isOpen()) return;
+      if (this.achievementOverlayManager.isOpen()) return;
       this.openCodex();
+    });
+
+    const yKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Y);
+    yKey.on("down", () => {
+      if (this.achievementOverlayManager.isOpen()) {
+        this.achievementOverlayManager.close();
+        return;
+      }
+      if (
+        this.isMoving
+        || this.tutorialManager.isOpen()
+        || this.chronicleManager?.isOpen()
+        || this.questJournal.isOpen()
+        || this.partyOverlayManager.isOpen()
+        || this.overlayManager.isOpen()
+      ) {
+        return;
+      }
+      this.openAchievements();
     });
 
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
@@ -687,6 +727,7 @@ export class OverworldScene extends Phaser.Scene {
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
       if (this.partyOverlayManager.isOpen()) return;
+      if (this.achievementOverlayManager.isOpen()) return;
       this.overlayManager.toggleEquipOverlay(this.player);
     });
 
@@ -697,6 +738,7 @@ export class OverworldScene extends Phaser.Scene {
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.questJournal.isOpen() || this.overlayManager.isOpen()) return;
+      if (this.achievementOverlayManager.isOpen()) return;
       this.partyOverlayManager.toggle(this.player);
     });
 
@@ -707,6 +749,7 @@ export class OverworldScene extends Phaser.Scene {
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
       if (this.partyOverlayManager.isOpen()) return;
+      if (this.achievementOverlayManager.isOpen()) return;
       if (this.player.position.inCity) {
         this.overlayManager.toggleCityMap(this.player);
       } else {
@@ -724,6 +767,8 @@ export class OverworldScene extends Phaser.Scene {
       // ESC closes the topmost open overlay, or opens the menu
       if (this.chronicleManager?.isOpen()) {
         this.chronicleManager.close();
+      } else if (this.achievementOverlayManager.isOpen()) {
+        this.achievementOverlayManager.close();
       } else if (this.partyOverlayManager.isOpen()) {
         this.partyOverlayManager.close();
       } else if (this.questJournal.isOpen()) {
@@ -756,7 +801,11 @@ export class OverworldScene extends Phaser.Scene {
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
-      if (this.overlayManager.isOpen() || this.partyOverlayManager.isOpen()) return;
+      if (
+        this.overlayManager.isOpen()
+        || this.partyOverlayManager.isOpen()
+        || this.achievementOverlayManager.isOpen()
+      ) return;
       this.openQuestJournal();
     });
 
@@ -767,6 +816,7 @@ export class OverworldScene extends Phaser.Scene {
       if (this.isMoving) return;
       if (this.questJournal.isOpen()) return;
       if (this.partyOverlayManager.isOpen()) return;
+      if (this.achievementOverlayManager.isOpen()) return;
       this.toggleMount();
     });
 
@@ -1139,9 +1189,10 @@ export class OverworldScene extends Phaser.Scene {
         ? " [TIPS]"
         : "";
     const partyTag = this.partyOverlayManager.getDebugState();
+    const achievementTag = this.achievementOverlayManager.getDebugState();
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${worldEventTag}${tutorialTag}${partyTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${worldEventTag}${tutorialTag}${partyTag}${achievementTag} | ` +
       `Anim: ${this.worldPresentation.debugState} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
@@ -1154,6 +1205,7 @@ export class OverworldScene extends Phaser.Scene {
   private isOverlayOpen(): boolean {
     return this.overlayManager.isOpen()
       || this.partyOverlayManager.isOpen()
+      || this.achievementOverlayManager.isOpen()
       || this.questJournal.isOpen()
       || this.chronicleManager?.isOpen()
       || this.worldEventManager.isOpen()
@@ -1220,6 +1272,13 @@ export class OverworldScene extends Phaser.Scene {
 
   update(time: number): void {
     this.updateDebugPanel();
+    this.achievementNotifications.update(
+      !this.sceneTransitions.isPending
+      && !this.isMoving
+      && !this.isOverlayOpen()
+      && !this.dialogueSystem.isDialogueOpen()
+      && !this.codexDiscovery.isShowing(),
+    );
 
     if (this.tutorialManager.isOpen()) {
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
@@ -2420,7 +2479,24 @@ export class OverworldScene extends Phaser.Scene {
 
   private autoSave(): void {
     replayCodexUnlocks(this.codex, this.player);
+    reconcileAchievements({
+      player: this.player,
+      defeatedBosses: this.defeatedBosses,
+      codex: this.codex,
+    }, {
+      sourceId: "overworld:autoSave",
+    });
     saveGame(this.player, this.defeatedBosses, this.codex, this.player.appearanceId, this.timeStep, this.weatherState);
+  }
+
+  private openAchievements(): void {
+    if (this.sceneTransitions.isPending || this.isMoving) return;
+    this.autoSave();
+    this.achievementOverlayManager.open({
+      player: this.player,
+      defeatedBosses: this.defeatedBosses,
+      codex: this.codex,
+    });
   }
 
   // ── Time, weather & audio ───────────────────────────────────────────────

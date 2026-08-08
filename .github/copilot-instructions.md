@@ -644,11 +644,37 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
   epilogue presentation, but canonical quest completion and rewards remain
   authoritative and reachable for every alignment.
 - `reputationMilestone` Codex signals are idempotent. Runtime-only typed
-  `SocialAchievementHook` results are the deliberate extension point for #50.
+  `SocialAchievementHook` results are consumed by `src/systems/achievements.ts`;
+  the social system never persists achievement state.
+
+## Achievements
+
+- Immutable definitions, stable camelCase IDs, categories, hidden rules, points,
+  source metadata, criteria, and cosmetic titles live in
+  `src/data/achievements.ts`. Mechanics, normalization, progress, reconciliation,
+  event counters, debug exclusion, notifications, and title equip rules live in
+  `src/systems/achievements.ts`.
+- Achievements are never authoritative for quests, rewards, access, alignment,
+  reputation, Codex, combat, or endings. Reconcile from those authoritative
+  domains after load and autosave. Persist counters only for event history that
+  cannot be reconstructed safely.
+- Battle results use stable once-only source IDs. A one-hit defeat requires one
+  damaging action to reduce a full-health enemy to zero. No-defeat completion
+  requires schema-v13 defeat tracking from character creation; never infer it
+  for older saves.
+- Achievement title rewards are presentation-only. Normalize unlocked IDs,
+  require the equipped title to be unlocked, and never apply title-based stats.
+- `AchievementOverlayManager` owns filters, search, sorting, progress text/bars,
+  hidden presentation, completion order/timestamps, summary points, and title
+  selection. `AchievementNotificationManager` shows persisted notices only
+  during safe Overworld states and leaves interrupted notices queued.
+- Debug unlocks are marked and grant no points or titles. Debug mutations must
+  suppress newly satisfied natural criteria, and debug-spawned battles/events
+  must not advance event counters.
 
 ## Save system
 
-Save schema version is 12.
+Save schema version is 13.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -682,6 +708,12 @@ seed clears the pending event so it cannot resolve against corrupt state.
 Schema-v11 and older saves gain the exact Chaotic Neutral baseline and neutral
 reputation. Do not replay historical social outcomes; mark deterministic quest
 social sources consumed while preserving existing quest/reward/Codex/event state.
+Schema-v12 and older saves gain normalized achievement state and silently
+reconcile reconstructable milestones. Their defeat history remains explicitly
+unknown, preventing retroactive no-defeat credit. Unknown/duplicate achievement
+or title IDs are removed, counters are clamped, completion order is repaired,
+pending notices must reference earned achievements, and equipped titles must be
+unlocked.
 
 Inventory presentation preferences are not save ownership data and do not
 increment the schema. Store them under `2dnd_inventory_prefs`.
@@ -743,7 +775,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v12
+  visibility, handedness, and prompt source only; they never enter schema-v13
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the
@@ -787,6 +819,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   current city's primary district; it never completes the interaction.
 - `/companion` lists, recruits, changes control mode, heals, or explains stored
   gambits. Recruitment mutations refresh follower presentation immediately.
+- `/achievement` lists, debug-unlocks, resets, reports progress, or explains
+  authoritative criteria. Debug unlocks never grant natural points or titles.
 - `P` opens party management; the debug MP hotkey is `O`.
 - Shared debug commands and Overworld-specific commands live in
   `src/systems/debug.ts`.

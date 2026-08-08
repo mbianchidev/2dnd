@@ -431,7 +431,7 @@ Flow:
   quests, companions, rewards, gates, reputation, alignment, or event outcomes.
 - Existing systems may emit location, quest-stage/completion, cutscene, item,
   NPC-dialogue, readable, or World Event signals. The World Event system owns
-  `worldEvent`; future reputation owns `reputationMilestone`. Neither may read
+  `worldEvent`; reputation owns `reputationMilestone`. Neither may read
   Codex state back into gameplay decisions.
 - `CodexDiscoveryManager` owns short non-interactive notices. Notices never
   change input context, delay transitions, or outlive scene shutdown.
@@ -618,13 +618,37 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 - Persist only mechanics-owned event state and a bounded 40-entry record.
   Chronicle presentation is consultable evidence, never authority for quests,
   rewards, access, Codex decisions, alignment, or reputation.
-- World Event outcomes may emit typed runtime-only alignment/reputation hooks
-  for #70. Do not persist or interpret those hooks until that system exists.
+- World Event outcomes emit typed alignment/reputation hooks that
+  `src/systems/worldEvents.ts` consumes through the centralized social mutation
+  API before autosave. Never add parallel event-owned social persistence.
 - `/event list|trigger <id>|reset` is debug-only.
+
+## Alignment and reputation
+
+- Canonical definitions and thresholds live in `src/data/reputation.ts`; pure
+  normalization, classification, mutations, shop composition, reactions, and
+  future achievement hooks live in `src/systems/reputation.ts`.
+- Alignment has bounded `lawChaos` and `goodEvil` axes. New players start at
+  `{ lawChaos: -50, goodEvil: 0 }`, exactly Chaotic Neutral. Named alignments
+  are always derived.
+- Town and faction reputation use stable existing IDs, bounded scores, and
+  derived tiers. Alignment and reputation never overwrite each other.
+- Every mutation requires one stable source/action ID. Persist scores, applied
+  IDs, and at most 40 recent cause entries; never persist derived names, tiers,
+  thresholds, price modifiers, Codex milestones, or achievement hooks.
+- Apply only morally meaningful quest/dialogue/event/trap/combat outcomes.
+  Routine movement, unavoidable combat, and repeat farming never shift scores.
+- Shop reputation adjustments add to saved Charisma negotiation outcomes and
+  clamp the combined adjustment from a 25% surcharge to a 35% discount.
+- Social conditions may vary optional dialogue, approaches, World Events, and
+  epilogue presentation, but canonical quest completion and rewards remain
+  authoritative and reachable for every alignment.
+- `reputationMilestone` Codex signals are idempotent. Runtime-only typed
+  `SocialAchievementHook` results are the deliberate extension point for #50.
 
 ## Save system
 
-Save schema version is 11.
+Save schema version is 12.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -655,6 +679,9 @@ Schema-v10 and older saves gain default World Event state. Event normalization
 validates the seed, counters, known event/choice IDs, pending phase/location,
 repeat counters, claimed/resolved IDs, and bounded record. Replacing a malformed
 seed clears the pending event so it cannot resolve against corrupt state.
+Schema-v11 and older saves gain the exact Chaotic Neutral baseline and neutral
+reputation. Do not replay historical social outcomes; mark deterministic quest
+social sources consumed while preserving existing quest/reward/Codex/event state.
 
 Inventory presentation preferences are not save ownership data and do not
 increment the schema. Store them under `2dnd_inventory_prefs`.
@@ -716,7 +743,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v11
+  visibility, handedness, and prompt source only; they never enter schema-v12
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

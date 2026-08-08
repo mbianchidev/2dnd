@@ -24,6 +24,10 @@ import { ITEMS } from "../data/items";
 import { QUESTS, type QuestId } from "../data/quests";
 import type { PlayerState } from "./player";
 import { isElement } from "../data/elements";
+import {
+  REPUTATION_MILESTONE_IDS,
+  REPUTATION_TIERS,
+} from "../data/reputation";
 
 export interface CodexEntry {
   monsterId: string;
@@ -296,6 +300,31 @@ export function replayCodexUnlocks(
   const applyFuture = (signal: CodexFutureUnlockSignal): void => {
     unlockedIds.push(...unlockCodexFromFutureSignal(codex, signal).unlockedIds);
   };
+
+  for (const [factionId, score] of Object.entries(
+    player.progression.social.factionReputation,
+  )) {
+    const tierIndex = [...REPUTATION_TIERS].reverse().findIndex(
+      (tier) => (score ?? 0) >= tier.minimum,
+    );
+    const resolvedTier = tierIndex < 0
+      ? REPUTATION_TIERS[0]
+      : [...REPUTATION_TIERS].reverse()[tierIndex]!;
+    const resolvedIndex = REPUTATION_TIERS.findIndex(
+      (tier) => tier.id === resolvedTier.id,
+    );
+    for (const milestoneId of REPUTATION_MILESTONE_IDS) {
+      const milestoneIndex = REPUTATION_TIERS.findIndex(
+        (tier) => tier.id === milestoneId,
+      );
+      if (milestoneIndex > resolvedIndex) continue;
+      applyFuture({
+        type: "reputationMilestone",
+        factionId,
+        milestoneId,
+      });
+    }
+  }
 
   for (const cityId of player.progression.discoveredCities) {
     apply({ type: "location", locationKind: "city", targetId: cityId });

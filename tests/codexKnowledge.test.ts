@@ -136,7 +136,7 @@ describe("Codex knowledge unlocks", () => {
     }
   });
 
-  it("keeps future event and reputation hooks isolated", () => {
+  it("unlocks reputation milestones without mutating quest state", () => {
     const codex = createCodex();
     const player = createTestPlayer();
     const before = structuredClone(player.progression.quests);
@@ -145,6 +145,11 @@ describe("Codex knowledge unlocks", () => {
       type: "worldEvent",
       eventId: "futureStorm",
     }).unlockedIds).toEqual([]);
+    expect(unlockCodexFromFutureSignal(codex, {
+      type: "reputationMilestone",
+      factionId: "heartlandsWardens",
+      milestoneId: "trusted",
+    }).unlockedIds).toEqual(["heartlandsWardens"]);
     expect(unlockCodexFromFutureSignal(codex, {
       type: "reputationMilestone",
       factionId: "heartlandsWardens",

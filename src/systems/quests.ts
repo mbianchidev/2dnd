@@ -15,6 +15,7 @@ import {
   QUESTS,
 } from "../data/quests";
 import { awardXP } from "./player";
+import { applySocialMutation } from "./reputation";
 import {
   createQuestLog,
   normalizeQuestLog,
@@ -206,13 +207,21 @@ function applyRewards(
       player.gold += reward.amount;
     } else if (reward.type === "xp") {
       awardXP(player, reward.amount);
-    } else {
+    } else if (reward.type === "item") {
       addItem(
         player,
         reward.itemId,
         reward.quantity ?? 1,
         reward.unique ?? false,
       );
+    } else {
+      const result = applySocialMutation(player, {
+        sourceId: getQuestSocialSourceId(quest.id, reward.id),
+        cause: `${quest.name}: ${reward.message}`,
+        alignment: reward.alignment,
+        reputation: reward.reputation,
+      });
+      if (!result.changed) continue;
     }
 
     progress.claimedRewards.push(reward.id);
@@ -224,6 +233,42 @@ function applyRewards(
     changed = true;
   }
   return changed;
+}
+
+export function getQuestSocialSourceId(
+  questId: QuestId,
+  rewardId: string,
+): string {
+  return `quest:${questId}:reward:${rewardId}`;
+}
+
+export function getHistoricalQuestSocialSourceIds(
+  questLog: QuestLogState,
+): string[] {
+  const sourceIds: string[] = [];
+  for (const questId of QUEST_IDS) {
+    const quest = QUESTS[questId];
+    const progress = questLog.quests[questId];
+    if (!progress || progress.status === "locked") continue;
+    const completedStages = progress.status === "completed"
+      ? quest.stages.length
+      : progress.stage;
+    const rewards = [
+      ...(quest.startRewards ?? []),
+      ...quest.stages.slice(0, completedStages).flatMap(
+        (stage) => stage.rewards ?? [],
+      ),
+      ...(progress.status === "completed" ? quest.completionRewards ?? [] : []),
+    ];
+    for (const reward of rewards) {
+      if (reward.type !== "social") continue;
+      if (!optionalObjectiveComplete(progress, reward.optionalObjectiveId)) {
+        continue;
+      }
+      sourceIds.push(getQuestSocialSourceId(questId, reward.id));
+    }
+  }
+  return sourceIds;
 }
 
 function completeObjective(

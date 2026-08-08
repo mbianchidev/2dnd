@@ -32,6 +32,10 @@ import {
   createWorldEventState,
   type WorldEventState,
 } from "./worldEvents";
+import {
+  createSocialState,
+  type SocialState,
+} from "./reputation";
 
 export interface PlayerStats {
   strength: number;
@@ -71,6 +75,7 @@ export interface PlayerProgression {
   trapGuidance: boolean; // persistent Adventurer detection/disarm advice
   tutorial: TutorialProgress; // new-player tutorial completion
   worldEvents: WorldEventState; // deterministic overworld event state and record
+  social: SocialState; // alignment, town/faction reputation, idempotency, and recent causes
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -261,6 +266,7 @@ export function createPlayer(
       trapGuidance: false,
       tutorial: createTutorialProgress(),
       worldEvents: createWorldEventState(),
+      social: createSocialState(),
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,

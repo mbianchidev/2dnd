@@ -8,6 +8,10 @@ import {
 import { TimePeriod } from "../systems/daynight";
 import { WeatherType } from "../systems/weather";
 import type { SkillCheckAbility } from "./skillChecks";
+import type {
+  AlignmentName,
+  ReputationTargetKind,
+} from "./reputation";
 
 export const WORLD_EVENT_FAMILIES = [
   "shrine",
@@ -23,7 +27,7 @@ export type WorldEventFamily = (typeof WORLD_EVENT_FAMILIES)[number];
 export type WorldEventFutureHook =
   | {
     readonly type: "alignment";
-    readonly axis: "compassion" | "curiosity" | "resolve";
+    readonly axis: "lawChaos" | "goodEvil";
     readonly delta: number;
     readonly reasonId: string;
   }
@@ -68,6 +72,13 @@ export interface WorldEventEligibility {
   readonly questConditions?: readonly WorldEventQuestCondition[];
   readonly requiredDefeatedBossIds?: readonly string[];
   readonly excludedDefeatedBossIds?: readonly string[];
+  readonly alignmentNames?: readonly AlignmentName[];
+  readonly reputationConditions?: readonly {
+    readonly kind: ReputationTargetKind;
+    readonly targetId: string;
+    readonly minimum: number;
+    readonly maximum?: number;
+  }[];
 }
 
 export interface WorldEventResolveChoice {
@@ -167,8 +178,8 @@ export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
           rewards: [{ id: "insightXp", type: "xp", amount: 90 }],
           futureHooks: [{
             type: "alignment",
-            axis: "curiosity",
-            delta: 1,
+            axis: "lawChaos",
+            delta: -2,
             reasonId: "moonlitShrine.studyRunes",
           }],
         },
@@ -187,8 +198,8 @@ export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
           summary: "You leave the old stones undisturbed.",
           futureHooks: [{
             type: "alignment",
-            axis: "resolve",
-            delta: 1,
+            axis: "lawChaos",
+            delta: 2,
             reasonId: "moonlitShrine.leaveShrine",
           }],
         },
@@ -228,7 +239,12 @@ export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
           futureHooks: [{
             type: "reputation",
             factionId: "roadwardens",
-            delta: 1,
+            delta: 4,
+            reasonId: "goblinRoadAmbush.victory",
+          }, {
+            type: "alignment",
+            axis: "lawChaos",
+            delta: 2,
             reasonId: "goblinRoadAmbush.victory",
           }],
         },
@@ -249,6 +265,12 @@ export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
         outcome: {
           id: "ambushAvoided",
           summary: "You find another route and leave the raiders behind.",
+          futureHooks: [{
+            type: "alignment",
+            axis: "lawChaos",
+            delta: -3,
+            reasonId: "goblinRoadAmbush.avoidAmbush",
+          }],
         },
       },
     ],
@@ -289,8 +311,13 @@ export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
           startQuestId: IRON_DISPATCH_QUEST_ID,
           futureHooks: [{
             type: "alignment",
-            axis: "compassion",
-            delta: 1,
+            axis: "goodEvil",
+            delta: 5,
+            reasonId: "woundedCourier.takeDispatch",
+          }, {
+            type: "reputation",
+            factionId: "heartlandsWardens",
+            delta: 5,
             reasonId: "woundedCourier.takeDispatch",
           }],
         },
@@ -429,6 +456,12 @@ export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
             itemId: "potion",
             quantity: 1,
           }],
+          futureHooks: [{
+            type: "alignment",
+            axis: "goodEvil",
+            delta: -4,
+            reasonId: "abandonedSupplyCart.searchCart",
+          }],
         },
       },
       {
@@ -441,9 +474,82 @@ export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
           summary: "You mark the cart so another traveler can find it.",
           futureHooks: [{
             type: "reputation",
-            factionId: "travelers",
-            delta: 1,
+            factionId: "roadwardens",
+            delta: 5,
             reasonId: "abandonedSupplyCart.markCart",
+          }, {
+            type: "alignment",
+            axis: "goodEvil",
+            delta: 4,
+            reasonId: "abandonedSupplyCart.markCart",
+          }],
+        },
+      },
+    ],
+  },
+  {
+    id: "roadwardenCouncil",
+    family: "traveler",
+    title: "A Roadwarden Council",
+    source: "Covenant roadwardens",
+    prompt: "A roadside council recognizes your service and offers a voice in how the next patrols are governed.",
+    weight: 4,
+    cooldownSteps: 24,
+    maxRepeats: 1,
+    eligibility: {
+      terrains: [Terrain.Path, Terrain.Grass],
+      minLevel: 3,
+      reputationConditions: [{
+        kind: "faction",
+        targetId: "roadwardens",
+        minimum: 15,
+      }],
+    },
+    choices: [
+      {
+        id: "acceptCharter",
+        label: "Accept the patrol charter",
+        detail: "Bind your service to shared law",
+        type: "resolve",
+        outcome: {
+          id: "charterAccepted",
+          summary: "You accept the charter and help set fair patrol duties.",
+          futureHooks: [{
+            type: "alignment",
+            axis: "lawChaos",
+            delta: 8,
+            reasonId: "roadwardenCouncil.acceptCharter",
+          }, {
+            type: "alignment",
+            axis: "goodEvil",
+            delta: 4,
+            reasonId: "roadwardenCouncil.acceptCharter",
+          }, {
+            type: "reputation",
+            factionId: "twelvefoldCovenant",
+            delta: 10,
+            reasonId: "roadwardenCouncil.acceptCharter",
+          }],
+        },
+      },
+      {
+        id: "keepFreeHand",
+        label: "Keep a free hand",
+        detail: "Continue serving without formal authority",
+        type: "resolve",
+        outcome: {
+          id: "independentRoadwarden",
+          summary: "The council respects your aid, even without an oath.",
+          futureHooks: [{
+            type: "alignment",
+            axis: "lawChaos",
+            delta: -8,
+            reasonId: "roadwardenCouncil.keepFreeHand",
+          }, {
+            type: "reputation",
+            factionId: "roadwardens",
+            delta: 5,
+            reasonId: "roadwardenCouncil.keepFreeHand",
           }],
         },
       },
@@ -460,4 +566,3 @@ export function getWorldEventDefinition(
 ): WorldEventDefinition | undefined {
   return WORLD_EVENT_DEFINITIONS.find((event) => event.id === eventId);
 }
-

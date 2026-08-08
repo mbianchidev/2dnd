@@ -32,7 +32,10 @@ import {
   type TrapState,
 } from "../data/traps";
 import { normalizeActiveEffects } from "./statusEffects";
-import { normalizeQuestLog } from "./quests";
+import {
+  getHistoricalQuestSocialSourceIds,
+  normalizeQuestLog,
+} from "./quests";
 import { normalizeSkillCheckRecords } from "./skillChecks";
 import {
   normalizePartyState,
@@ -45,9 +48,13 @@ import {
 } from "./cutscenes";
 import { normalizeTutorialProgress } from "./tutorial";
 import { normalizeWorldEventState } from "./worldEvents";
+import {
+  createSocialState,
+  normalizeSocialState,
+} from "./reputation";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 11;
+const SAVE_VERSION = 12;
 const TUTORIAL_SAVE_VERSION = 9;
 
 export interface SaveData {
@@ -396,6 +403,7 @@ export function loadGame(): SaveData | null {
         trapGuidance: false,
         tutorial: normalizeTutorialProgress(undefined),
         worldEvents: normalizeWorldEventState(undefined),
+        social: createSocialState(),
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -441,6 +449,14 @@ export function loadGame(): SaveData | null {
     data.player.progression.worldEvents = normalizeWorldEventState(
       data.player.progression.worldEvents,
     );
+    data.player.progression.social = sourceVersion < SAVE_VERSION
+      ? createSocialState()
+      : normalizeSocialState(data.player.progression.social);
+    if (sourceVersion < SAVE_VERSION) {
+      data.player.progression.social.appliedSourceIds.push(
+        ...getHistoricalQuestSocialSourceIds(data.player.progression.quests),
+      );
+    }
     data.player.party = normalizePartyState(playerRecord["party"]);
     synchronizeCompanionRecruitment(data.player);
     ensureLegacyCampaignEpilogueQueued(data.player);

@@ -141,6 +141,7 @@ import {
   type PartyCombatant,
 } from "../systems/groupCombat";
 import { CodexDiscoveryManager } from "../managers/codexDiscovery";
+import type { CodexKnowledgeEntry } from "../data/codexKnowledge";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -192,6 +193,7 @@ export class BattleScene extends Phaser.Scene {
   private questUpdates: QuestUpdate[] = [];
   private codexDiscoveryIds: string[] = [];
   private codexDiscovery!: CodexDiscoveryManager;
+  private battleHookCodexEntries: CodexKnowledgeEntry[] = [];
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
@@ -370,6 +372,7 @@ export class BattleScene extends Phaser.Scene {
     this.biome = data.biome ?? "grass";
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.codexDiscoveryIds = data.codexDiscoveryIds ?? [];
+    this.battleHookCodexEntries = [];
     this.questUpdates = [];
     this.phase = "init";
     this.logLines = [];
@@ -2923,7 +2926,10 @@ export class BattleScene extends Phaser.Scene {
     if (questResult.changed) {
       this.addLog("Quest progress recorded.");
     }
-    this.codexDiscovery.show(codexUnlocks.entries);
+    this.codexDiscovery.show([
+      ...codexUnlocks.entries,
+      ...this.battleHookCodexEntries,
+    ]);
     if (audioEngine.initialized) {
       audioEngine.playVictoryJingle();
     }
@@ -2950,7 +2956,11 @@ export class BattleScene extends Phaser.Scene {
     );
     if (!this.battleResultReported) {
       this.battleResultReported = true;
-      this.battleHooks?.onBattleResolved?.(result);
+      const feedback = this.battleHooks?.onBattleResolved?.(result);
+      for (const message of feedback?.messages ?? []) {
+        this.addLog(message);
+      }
+      this.battleHookCodexEntries.push(...(feedback?.codexEntries ?? []));
     }
     return result;
   }

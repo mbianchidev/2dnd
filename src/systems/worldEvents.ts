@@ -5,7 +5,6 @@ import {
   type WorldEventBattleChoice,
   type WorldEventChoiceDefinition,
   type WorldEventDefinition,
-  type WorldEventFutureHook,
   type WorldEventOutcomeDefinition,
 } from "../data/worldEvents";
 import { getItem } from "../data/items";
@@ -34,6 +33,13 @@ import {
 import { getMonster } from "../data/monsters";
 import { createSoloEncounter, type MonsterEncounter } from "../data/monsterGroups";
 import type { BattleOutcome } from "./groupCombat";
+import {
+  applySocialMutation,
+  getAlignmentName,
+  getReputationScore,
+  type SocialMutationResult,
+  type SocialState,
+} from "./reputation";
 
 export const WORLD_EVENT_LOG_LIMIT = 40;
 export const LEGACY_WORLD_EVENT_SEED = 0x2d0d0069;
@@ -94,6 +100,7 @@ export interface WorldEventContext {
   weather: WeatherType;
   quests: PlayerState["progression"]["quests"];
   defeatedBosses: ReadonlySet<string>;
+  social: SocialState;
 }
 
 export interface WorldEventTriggerResult {
@@ -108,7 +115,7 @@ export interface WorldEventResolution {
   summary: string;
   questUpdates: readonly QuestUpdate[];
   codexUnlocks: CodexUnlockResult;
-  futureHooks: readonly WorldEventFutureHook[];
+  socialEffects: readonly SocialMutationResult[];
 }
 
 export type OverworldStepTrigger =
@@ -223,6 +230,26 @@ export function isWorldEventEligible(
   if (
     eligibility.terrains
     && !eligibility.terrains.includes(context.location.terrain)
+  ) {
+    return false;
+  }
+  if (
+    eligibility.alignmentNames
+    && !eligibility.alignmentNames.includes(getAlignmentName(context.social.alignment))
+  ) {
+    return false;
+  }
+  if (
+    eligibility.reputationConditions
+    && !eligibility.reputationConditions.every((condition) => {
+      const score = getReputationScore(
+        context.social,
+        condition.kind,
+        condition.targetId,
+      );
+      return score >= condition.minimum
+        && (condition.maximum === undefined || score <= condition.maximum);
+    })
   ) {
     return false;
   }
@@ -478,7 +505,7 @@ function completeOutcome(
       summary: outcome.summary,
       questUpdates: [],
       codexUnlocks: { unlockedIds: [], entries: [] },
-      futureHooks: [],
+      socialEffects: [],
     };
   }
 
@@ -503,6 +530,27 @@ function completeOutcome(
     type: "worldEvent",
     eventId: event.id,
   });
+  const socialEffects = (outcome.futureHooks ?? []).map((hook) =>
+    applySocialMutation(player, {
+      sourceId: `worldEvent:${pending.instanceId}:${outcome.id}:${hook.type}:${hook.type === "alignment" ? hook.axis : hook.factionId}:${hook.reasonId}`,
+      cause: `${event.title}: ${outcome.summary}`,
+      ...(hook.type === "alignment"
+        ? { alignment: { [hook.axis]: hook.delta } }
+        : {
+          reputation: [{
+            kind: "faction" as const,
+            targetId: hook.factionId,
+            delta: hook.delta,
+          }],
+        }),
+    }, codex)
+  );
+  const socialCodexIds = socialEffects.flatMap(
+    (effect) => effect.codexUnlocks.unlockedIds,
+  );
+  const socialCodexEntries = socialEffects.flatMap(
+    (effect) => effect.codexUnlocks.entries,
+  );
   state.resolvedOutcomeIds.push(resolutionId);
   state.repeatCounters[event.id] = (state.repeatCounters[event.id] ?? 0) + 1;
   appendLog(state, event, pending, choiceId, outcome);
@@ -511,8 +559,17 @@ function completeOutcome(
     resolved: true,
     summary: outcome.summary,
     questUpdates,
-    codexUnlocks,
-    futureHooks: outcome.futureHooks ?? [],
+    codexUnlocks: {
+      unlockedIds: [...new Set([
+        ...codexUnlocks.unlockedIds,
+        ...socialCodexIds,
+      ])],
+      entries: [...new Map([
+        ...codexUnlocks.entries,
+        ...socialCodexEntries,
+      ].map((entry) => [entry.id, entry])).values()],
+    },
+    socialEffects,
   };
 }
 

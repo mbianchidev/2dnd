@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v11, migration, normalization, and location recovery
+description: Manage 2D&D save schema v12, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -23,7 +23,7 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 11.
+`SAVE_VERSION` is 12.
 
 ```typescript
 interface SaveData {
@@ -84,6 +84,7 @@ interface PlayerProgression {
   trapGuidance: boolean;
   tutorial: TutorialProgress;
   worldEvents: WorldEventState;
+  social: SocialState;
 }
 
 interface QuestProgress {
@@ -116,6 +117,10 @@ choice ID.
 `worldEvents` persists a stable seed, deterministic roll/cooldown counters, one
 pending choice or special battle, idempotent resolved/claimed IDs, repeat
 counters, and the bounded chronological World Events record.
+`social` persists bounded alignment axes, per-town/per-faction reputation
+scores, stable applied source IDs, and at most 40 recent cause entries. Names,
+tiers, thresholds, shop modifiers, Codex milestones, and achievement hooks are
+derived.
 
 ## Loading and migration
 
@@ -151,6 +156,9 @@ helpers; do not cast unvalidated nested values directly.
 - Missing/invalid World Event state through `normalizeWorldEventState()`;
   malformed seeds clear pending encounters, unknown events/choices are removed,
   and records are bounded
+- Missing/invalid social state through `normalizeSocialState()`; unknown town
+  and faction IDs are removed, scores are clamped, applied IDs are deduplicated,
+  and history is validated against those IDs
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
 
@@ -233,9 +241,9 @@ top-level save is absent or corrupt.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v11 position, objective/reward/warning quest state, skill checks,
+- Current schema-v12 position, objective/reward/warning quest state, skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
-  Event recovery
+  Event recovery, plus alignment/reputation round trips and corruption repair
 - Flat schema-v4 quest migration and completed-reward preservation
 - Schema-v3 skill-check saves gaining default normalized quest state
 - Schema-v4 quest saves gaining default trap state

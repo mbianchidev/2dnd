@@ -143,6 +143,15 @@ API, and saves use `localStorage`.
 - The final Elowen turn-in launches a skippable campaign epilogue with rewards,
   party and exploration summaries, credits, post-game continuation, and
   presentation-only replay from the in-game menu
+- Alignment uses bounded Law/Chaos and Good/Evil axes. New heroes begin exactly
+  Chaotic Neutral, while stable named alignments and epilogue legacy text are
+  derived from deterministic thresholds
+- Reputation is tracked independently for all 12 towns and canonical factions.
+  Its named tiers influence NPC reactions, optional World Events, and additive
+  shop discounts or surcharges without gating campaign completion
+- Quest, dialogue, World Event, trap, and morally relevant event-combat outcomes
+  apply through stable idempotent source IDs. The Party Social page shows both
+  axes, scores, thresholds, standing tiers, and a bounded recent-cause history
 - Three additional recruitment quest lines use stable stage IDs and replayable
   completion actions; active conscious companions follow the hero and can be
   spoken to during overworld, city, and dungeon exploration
@@ -222,6 +231,7 @@ src/
 │   ├── questState.ts
 │   ├── questDebug.ts
 │   ├── worldEvents.ts
+│   ├── reputation.ts
 │   ├── accessibility.ts
 │   ├── tutorial.ts
 │   ├── sceneState.ts
@@ -451,6 +461,9 @@ Available tools include:
   `/companion gambits <id>`
 - `/event list`, `/event trigger <eventId>`, and `/event reset` for deterministic
   World Event browser and gameplay checks
+- `/alignment list|explain|set|adjust` and
+  `/reputation list|explain|set|adjust` (`/rep`) for validated social-state
+  inspection and mutation
 - Local browser checks can force the next random encounter with
   `?forceGroup=<templateId>` (for example, `?forceGroup=slimeSwarm`)
 
@@ -467,7 +480,7 @@ mutates campaign progress. Version-1 preference documents and existing
 automatically. Inventory sorting, filtering, and search preferences use the
 separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
-Save schema version 11 persists:
+Save schema version 12 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -491,6 +504,10 @@ Save schema version 11 persists:
 - A stable World Event seed, roll/cooldown counters, one pending choice or
   special encounter, idempotent resolved/claimed IDs, repeat counters, and a
   bounded chronological event record
+- Bounded alignment axes, per-town and per-faction reputation scores, stable
+  applied source IDs, and a bounded recent-cause history. Alignment names,
+  reputation tiers, thresholds, shop modifiers, Codex milestones, and ending
+  variants are derived from canonical data
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed
@@ -514,12 +531,17 @@ Schema-v10 and older saves gain default World Event state. Loading normalizes
 known event/choice IDs, bounds counters and records, rejects invalid locations,
 clears malformed pending encounters, and discards pending instances already
 present in the resolved record.
+Schema-v11 and older saves gain the Chaotic Neutral baseline with neutral
+reputation. Historical quest/event outcomes are not retroactively replayed;
+already-reached quest social source IDs are marked as consumed so existing
+quest, reward, Codex, and event state remains unchanged.
 
 ## Testing
 
 The Vitest suite covers combat, elements, statuses, saves, map and city data,
 dungeon traversal and traps, fog keys, movement, player progression, dice,
-quest and skill-check progression, dice, weather, day/night, mounts, NPCs,
+quest and skill-check progression, alignment classification, reputation tiers,
+idempotent social outcomes, shop composition, dice, weather, day/night, mounts, NPCs,
 audio, configuration, group encounter generation, formation targeting,
 synergies, rewards, cutscene data, triggers, queue recovery, accessibility,
 director lifecycle, scene transitions, ending summaries, multi-target actions,

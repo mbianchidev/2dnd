@@ -240,6 +240,8 @@ test.describe("touch controls", () => {
     await expect(page.locator("#debug-state")).not.toContainText("[MENU]");
     await page.locator('[data-action="openParty"]').tap();
     await waitForState(page, "[PARTY:status]");
+    await tapGame(page, 337, 95);
+    await waitForState(page, "[PARTY:social]");
     await page.locator('[data-action="cancel"]').tap();
 
     await page.setViewportSize({ width: 932, height: 430 });
@@ -366,6 +368,15 @@ test.describe("standard gamepad controls", () => {
     await expect(page.locator("#debug-state")).not.toContainText("[MENU]");
     await pressGamepad(8);
     await waitForState(page, "[TIPS");
+    await pressGamepad(1);
+    await pressGamepad(9);
+    await waitForState(page, "[MENU]");
+    await moveGamepadCursor(page, 320, 365);
+    await pressGamepad(11);
+    await waitForState(page, "[PARTY:items");
+    await moveGamepadCursor(page, 337, 95);
+    await pressGamepad(11);
+    await waitForState(page, "[PARTY:social]");
     await pressGamepad(1);
     await pressGamepad(9);
     await waitForState(page, "[MENU]");

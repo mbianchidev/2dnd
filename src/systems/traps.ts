@@ -17,6 +17,7 @@ import { abilityModifier, rollDice } from "./dice";
 import { awardXP, type PlayerState } from "./player";
 import { resolveSkillCheck, rollSkillCheck } from "./skillChecks";
 import { applyStatusEffect } from "./statusEffects";
+import { applySocialMutation } from "./reputation";
 
 interface TrapCandidate {
   x: number;
@@ -39,6 +40,7 @@ export interface TrapCheckResult {
   total: number;
   dc: number;
   rewardXp: number;
+  socialSummary?: string;
 }
 
 export type TrapEntryDisposition = "safe" | "blocked" | "trigger";
@@ -392,8 +394,17 @@ export function attemptTrapDisarm(
   if (record.success) {
     player.progression.trapStates[trap.id] = "disarmed";
     awardXP(player, trap.rewardXp);
+    const social = applySocialMutation(player, {
+      sourceId: `trap:${trap.id}:disarm`,
+      cause: `Disarmed ${definition.name}`,
+      alignment: { lawChaos: 1, goodEvil: 1 },
+    });
+    return {
+      ...mapTrapCheckResult(record, trap.rewardXp),
+      ...(social.changed ? { socialSummary: social.summary } : {}),
+    };
   }
-  return mapTrapCheckResult(record, record.success ? trap.rewardXp : 0);
+  return mapTrapCheckResult(record);
 }
 
 export function getTrapEntryDisposition(

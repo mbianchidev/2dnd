@@ -3,6 +3,7 @@
  */
 
 import type { Element, ElementalInteraction } from "../data/elements";
+import type { CodexKnowledgeEntry } from "../data/codexKnowledge";
 import type {
   GroupSynergy,
   MonsterEncounter,
@@ -139,7 +140,12 @@ export interface BattleResolutionHooks {
   ): BattleReward;
   onCombatantDefeated?(combatant: GroupCombatant): void;
   onCompanionTurn?(context: CompanionTurnContext): void;
-  onBattleResolved?(result: BattleResult): void;
+  onBattleResolved?(result: BattleResult): BattleResolutionFeedback | void;
+}
+
+export interface BattleResolutionFeedback {
+  readonly messages?: readonly string[];
+  readonly codexEntries?: readonly CodexKnowledgeEntry[];
 }
 
 /** Create an accessor-backed party combatant without duplicating source state. */

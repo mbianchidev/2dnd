@@ -4,7 +4,6 @@ import {
   getWorldEventDefinition,
   WORLD_EVENT_DEFINITIONS,
   type WorldEventChoiceDefinition,
-  type WorldEventFutureHook,
 } from "../data/worldEvents";
 import {
   forceWorldEvent,
@@ -22,6 +21,7 @@ import type { MonsterEncounter } from "../data/monsterGroups";
 import type { PlayerState } from "../systems/player";
 import type { QuestUpdate } from "../systems/quests";
 import type { Terrain } from "../data/mapTypes";
+import type { SocialMutationResult } from "../systems/reputation";
 
 export interface WorldEventManagerCallbacks {
   autoSave(): void;
@@ -29,7 +29,7 @@ export interface WorldEventManagerCallbacks {
   showMessage(message: string, color?: string): void;
   handleQuestUpdates(updates: readonly QuestUpdate[]): void;
   showCodexUnlocks(result: CodexUnlockResult): void;
-  handleFutureHooks(hooks: readonly WorldEventFutureHook[]): void;
+  handleSocialEffects(effects: readonly SocialMutationResult[]): void;
   startBattle(
     encounter: MonsterEncounter,
     terrain: Terrain,
@@ -247,7 +247,7 @@ export class WorldEventManager {
       );
       this.callbacks.handleQuestUpdates(resolution.questUpdates);
       this.callbacks.showCodexUnlocks(resolution.codexUnlocks);
-      this.callbacks.handleFutureHooks(resolution.futureHooks);
+      this.callbacks.handleSocialEffects(resolution.socialEffects);
       this.callbacks.updateHUD();
       this.callbacks.showMessage(resolution.summary, "#f7c948");
       this.callbacks.autoSave();
@@ -271,11 +271,16 @@ export class WorldEventManager {
             this.defeatedBosses,
             result.outcome,
           );
-          this.callbacks.handleFutureHooks(resolution.futureHooks);
           debugPanelLog(
             `[EVENT] battle ${result.outcome}: ${resolution.summary}`,
             true,
           );
+          return {
+            messages: resolution.socialEffects
+              .filter((effect) => effect.changed)
+              .map((effect) => `Social: ${effect.summary}`),
+            codexEntries: resolution.codexUnlocks.entries,
+          };
         },
       },
       true,

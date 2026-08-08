@@ -67,6 +67,7 @@ function createContext(
     weather: WeatherType.Clear,
     quests: player.progression.quests,
     defeatedBosses: new Set(),
+    social: player.progression.social,
     ...overrides,
   };
 }
@@ -305,7 +306,7 @@ describe("world event outcomes", () => {
     expect(player.progression.worldEvents.log[0]?.outcomeId).toBe("ambushDefeated");
   });
 
-  it("keeps future alignment and reputation hooks transient", () => {
+  it("consumes alignment and reputation hooks into idempotent social state", () => {
     const player = createTestPlayer();
     const codex = createCodex();
     forceWorldEvent(
@@ -319,14 +320,13 @@ describe("world event outcomes", () => {
       new Set(),
       "markCart",
     );
-    expect(result.futureHooks).toEqual([{
-      type: "reputation",
-      factionId: "travelers",
-      delta: 1,
-      reasonId: "abandonedSupplyCart.markCart",
-    }]);
-    expect(JSON.stringify(player.progression.worldEvents)).not.toContain("reputation");
-    expect(JSON.stringify(player.progression.worldEvents)).not.toContain("alignment");
+    expect(result.socialEffects).toHaveLength(2);
+    expect(player.progression.social.factionReputation.roadwardens).toBe(5);
+    expect(player.progression.social.alignment.goodEvil).toBe(4);
+    expect(player.progression.social.appliedSourceIds).toEqual([
+      "worldEvent:abandonedSupplyCart:1:cartMarked:reputation:roadwardens:abandonedSupplyCart.markCart",
+      "worldEvent:abandonedSupplyCart:1:cartMarked:alignment:goodEvil:abandonedSupplyCart.markCart",
+    ]);
   });
 
   it("bounds the chronological record and unlocks Codex worldEvent sources", () => {

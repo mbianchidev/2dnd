@@ -43,6 +43,10 @@ once-only completion and cleanup, and family-frame fallback resolution
 ✅ Semantic mappings, context priority, analog dead zones, repeats, source
 switching, duplicate suppression, disconnect/blur cleanup, and control
 preference migration
+✅ Alignment boundaries, reputation tiers, clamping, stable-source
+idempotency, quest/dialogue/event/trap/combat hooks, shop composition, Codex
+milestones, schema-v12 migration, bounded history, debug commands, and future
+achievement-hook isolation
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -95,6 +99,7 @@ tests/
 ├── traps.test.ts     # Dungeon trap placement, checks, and effects
 ├── quests.test.ts    # Quest progression and integrity
 ├── skillChecks.test.ts # Exploration/dialogue checks
+├── reputation.test.ts # Alignment, reputation, integrations, and migration policy
 ├── cutscenes.test.ts # Cutscene data, triggers, queue, and director lifecycle
 ├── accessibility.test.ts # Shared preference normalization, migration, and persistence
 ├── input.test.ts # Semantic mappings, contexts, repeats, cleanup, and suppression

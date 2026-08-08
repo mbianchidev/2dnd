@@ -2,6 +2,8 @@
  * Immutable quest content for the Twelvefold Covenant story arc.
  */
 
+import type { SocialOutcomeDefinition } from "./reputation";
+
 export const MAIN_QUEST_ID = "twelvefoldCovenant" as const;
 export const IRON_DISPATCH_QUEST_ID = "ironboundDispatch" as const;
 export const FROST_SILK_QUEST_ID = "silkAgainstTheCold" as const;
@@ -187,10 +189,16 @@ export interface QuestItemReward extends QuestRewardBase {
   unique?: boolean;
 }
 
+export interface QuestSocialReward
+  extends QuestRewardBase, SocialOutcomeDefinition {
+  type: "social";
+}
+
 export type QuestRewardDefinition =
   | QuestGoldReward
   | QuestXpReward
-  | QuestItemReward;
+  | QuestItemReward
+  | QuestSocialReward;
 
 export interface QuestObjectiveDefinition {
   id: string;
@@ -501,6 +509,17 @@ const MAIN_QUEST: QuestDefinition = {
       message: "The Shadow Steed is now yours.",
     },
     {
+      id: "main.covenantStanding",
+      type: "social",
+      alignment: { lawChaos: 8, goodEvil: 8 },
+      reputation: [
+        { kind: "faction", targetId: "twelvefoldCovenant", delta: 30 },
+        { kind: "faction", targetId: "roadwardens", delta: 30 },
+        { kind: "town", targetId: "willowdale_city", delta: 20 },
+      ],
+      message: "Your covenant service is recognized across the realm.",
+    },
+    {
       id: "main.hydraBonus",
       type: "gold",
       amount: 300,
@@ -601,6 +620,18 @@ const IRON_DISPATCH_QUEST: QuestDefinition = {
       itemId: "dungeonKey",
       message: "Received a Dungeon Key.",
     },
+    {
+      id: "dispatch.routeStanding",
+      type: "social",
+      alignment: { lawChaos: 6, goodEvil: 3 },
+      reputation: [
+        { kind: "town", targetId: "ironhold_city", delta: 25 },
+        { kind: "town", targetId: "sandport_city", delta: 20 },
+        { kind: "faction", targetId: "heartlandsWardens", delta: 25 },
+        { kind: "faction", targetId: "sunRoadCompact", delta: 15 },
+      ],
+      message: "The reopened route strengthens your lawful reputation.",
+    },
   ],
   completionActions: [
     {
@@ -691,6 +722,16 @@ const FROST_SILK_QUEST: QuestDefinition = {
       type: "item",
       itemId: "ether",
       message: "Received an Ether.",
+    },
+    {
+      id: "frostSilk.winterStanding",
+      type: "social",
+      alignment: { goodEvil: 8 },
+      reputation: [
+        { kind: "town", targetId: "frostheim_city", delta: 25 },
+        { kind: "faction", targetId: "winterWitnesses", delta: 25 },
+      ],
+      message: "Frostheim remembers the warmth you restored.",
     },
   ],
   completionActions: [

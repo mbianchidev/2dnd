@@ -341,9 +341,11 @@ export class OverworldScene extends Phaser.Scene {
         }
       },
       showCodexUnlocks: (result) => this.showCodexUnlocks(result),
-      handleFutureHooks: (hooks) => {
-        if (hooks.length > 0) {
-          debugLog("[worldEvents] Future #70 hooks emitted", hooks);
+      handleSocialEffects: (effects) => {
+        for (const effect of effects) {
+          if (effect.changed) {
+            this.showMessage(`Social: ${effect.summary}`, "#80cbc4");
+          }
         }
       },
       startBattle: (encounter, terrain, hooks, immediate) =>
@@ -1477,6 +1479,7 @@ export class OverworldScene extends Phaser.Scene {
       weather: this.weatherState.current,
       quests: this.player.progression.quests,
       defeatedBosses: this.defeatedBosses,
+      social: this.player.progression.social,
     };
   }
 
@@ -1816,7 +1819,7 @@ export class OverworldScene extends Phaser.Scene {
           const shop = chunk.shops[npcShopIndex];
           if (shop) {
             if (shop.type === "inn") {
-              this.dialogueSystem.showNpcDialogue(npcDef, npcIndex, city, this.timeStep);
+              this.dialogueSystem.showNpcDialogue(this.player, npcDef, npcIndex, city, this.timeStep);
               this.time.delayedCall(300, () => {
                 this.dialogueSystem.dismissDialogue();
                 this.overlayManager.showInnConfirmation(this.player);
@@ -1828,14 +1831,14 @@ export class OverworldScene extends Phaser.Scene {
               return;
             }
             if (shop.type === "bank") {
-              this.dialogueSystem.showNpcDialogue(npcDef, npcIndex, city, this.timeStep);
+              this.dialogueSystem.showNpcDialogue(this.player, npcDef, npcIndex, city, this.timeStep);
               this.time.delayedCall(800, () => {
                 this.dialogueSystem.dismissDialogue();
                 this.overlayManager.showBankOverlay(this.player);
               });
               return;
             }
-            this.dialogueSystem.showNpcDialogue(npcDef, npcIndex, city, this.timeStep);
+            this.dialogueSystem.showNpcDialogue(this.player, npcDef, npcIndex, city, this.timeStep);
             this.sceneTransitions.startAfter(800, () => {
               this.dialogueSystem.dismissDialogue();
               this.autoSave();
@@ -1860,7 +1863,7 @@ export class OverworldScene extends Phaser.Scene {
             return;
           }
         }
-        this.dialogueSystem.showNpcDialogue(npcDef, npcIndex, city, this.timeStep);
+        this.dialogueSystem.showNpcDialogue(this.player, npcDef, npcIndex, city, this.timeStep);
         return;
       }
 

@@ -225,6 +225,19 @@ matching effects. Combat effects are cleared when leaving Battle.
 - Pending level gains are applied by the existing rest/level processing logic.
 - Class hit dice and unlock tables are defined in `src/systems/classes.ts`.
 
+## Alignment and reputation
+
+- Alignment uses two bounded axes: Law/Chaos and Good/Evil, both from -100 to
+  100. Scores at +25 or higher use the positive label; scores at -25 or lower
+  use the negative label; the middle band is Neutral.
+- New heroes begin at `lawChaos: -50`, `goodEvil: 0`, exactly Chaotic Neutral.
+- Reputation is independent per canonical town and faction. Tiers are Hostile,
+  Wary, Neutral, Friendly, Trusted, and Exalted.
+- Apply shifts only through `applySocialMutation()` with a stable source ID.
+  Routine combat and movement never change alignment or reputation.
+- Reputation shop adjustments are additive with Charisma negotiation and clamp
+  to a 25% surcharge or 35% discount.
+
 ## Testing
 
 Use deterministic dice mocks for:
@@ -239,7 +252,9 @@ Use deterministic dice mocks for:
  alarm suppression, and hidden-floor destinations
 - Ability modifiers, DC boundaries, persistent negotiation choices, and
  nonlethal exploration damage
+- Alignment boundaries, reputation tiers, clamping, stable-source idempotency,
+ social hooks, and shop-adjustment composition
 
 Relevant suites include `combat.test.ts`, `dice.test.ts`, `elements.test.ts`,
-`statusEffects.test.ts`, `skillChecks.test.ts`, `player.test.ts`, and
+`statusEffects.test.ts`, `skillChecks.test.ts`, `reputation.test.ts`, `player.test.ts`, and
 `traps.test.ts`.

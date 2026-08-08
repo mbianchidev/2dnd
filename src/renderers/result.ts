@@ -447,6 +447,8 @@ export class ResultRenderer {
       "",
       `CITIES: ${summary.discoveredCities.current}/${summary.discoveredCities.total}`,
       `CODEX ENTRIES: ${summary.codexEntries}`,
+      `ALIGNMENT: ${summary.alignment}`,
+      `ROADWARDENS: ${summary.roadwardenStanding}`,
       ...summary.pendingProgression.map((line) => `- ${line}`),
     ];
     const rightLines = [
@@ -458,6 +460,9 @@ export class ResultRenderer {
       "",
       "KEYSTONE GUARDIANS",
       ...summary.campaignBosses.map((boss) => `- ${boss}`),
+      "",
+      "LEGACY",
+      summary.epilogueVariant,
     ];
     const left = this.scene.add.text(52, 98, leftLines.join("\n"), {
       fontSize: "11px",

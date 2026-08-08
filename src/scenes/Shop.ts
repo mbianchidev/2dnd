@@ -28,6 +28,10 @@ import { saveGame } from "../systems/save";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { installSceneAccessibility } from "../systems/accessibility";
 import { CodexDiscoveryManager } from "../managers/codexDiscovery";
+import {
+  combineShopAdjustments,
+  getTownShopAdjustment,
+} from "../systems/reputation";
 
 export class ShopScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
@@ -49,6 +53,8 @@ export class ShopScene extends Phaser.Scene {
   private fromCity = false;
   private cityId = "";
   private discount = 0;
+  private negotiationDiscount = 0;
+  private reputationAdjustment = 0;
   private shopSkillCheckId = "";
   private savedSpecialNpcs: SavedSpecialNpc[] = [];
   private mode: "buy" | "sell" = "buy"; // Current shop mode
@@ -88,9 +94,17 @@ export class ShopScene extends Phaser.Scene {
     const savedNegotiation = this.shopSkillCheckId
       ? this.player.progression.skillChecks[this.shopSkillCheckId]
       : undefined;
-    this.discount = Math.max(
+    this.negotiationDiscount = Math.max(
       data.discount ?? 0,
       getShopNegotiationDiscount(savedNegotiation),
+    );
+    this.reputationAdjustment = getTownShopAdjustment(
+      this.player,
+      this.cityId,
+    );
+    this.discount = combineShopAdjustments(
+      this.negotiationDiscount,
+      this.reputationAdjustment,
     );
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.negotiationOverlay = null;
@@ -454,9 +468,13 @@ export class ShopScene extends Phaser.Scene {
       { optionId: option.id },
     );
     this.player.progression.skillChecks[this.shopSkillCheckId] = result;
-    this.discount = Math.max(
-      this.discount,
+    this.negotiationDiscount = Math.max(
+      this.negotiationDiscount,
       getShopNegotiationDiscount(result),
+    );
+    this.discount = combineShopAdjustments(
+      this.negotiationDiscount,
+      this.reputationAdjustment,
     );
 
     this.negotiationOverlay?.destroy();
@@ -527,8 +545,8 @@ export class ShopScene extends Phaser.Scene {
       const ownedTag = ownedCount > 0 ? ` (owned: ${ownedCount})` : "";
       const tag = alreadyOwned ? " [OWNED]" : levelLocked ? ` [Lv.${item.levelReq}]` : ownedTag;
 
-      const priceLabel = this.discount > 0
-        ? `${discountedCost}g`
+      const priceLabel = this.discount !== 0
+        ? `${discountedCost}g (${this.discount > 0 ? "discount" : "surcharge"})`
         : `${item.cost}g`;
 
       const text = this.add
@@ -956,6 +974,7 @@ export class ShopScene extends Phaser.Scene {
       `Weapon: ${weapon}\n` +
         `Armor: ${armor}\n` +
         `Shield: ${shield}\n\n` +
+        `Prices: ${this.discount === 0 ? "standard" : `${Math.abs(Math.round(this.discount * 100))}% ${this.discount > 0 ? "discount" : "surcharge"}`}\n` +
         `Inventory:\n` +
         `  Potions: ${potionCount}\n` +
         `  Ethers: ${etherCount}\n` +

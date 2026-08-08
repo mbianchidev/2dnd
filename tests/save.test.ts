@@ -33,6 +33,7 @@ import { Terrain } from "../src/data/mapTypes";
 import { getMonster } from "../src/data/monsters";
 import { shouldShowCampaignEpilogue } from "../src/systems/cutscenes";
 import { TimePeriod } from "../src/systems/daynight";
+import { applySocialMutation } from "../src/systems/reputation";
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -119,6 +120,15 @@ describe("save system - PlayerState composition migration", () => {
       period: TimePeriod.Day,
       weather: WeatherType.Clear,
     };
+    applySocialMutation(player, {
+      sourceId: "test:save-roundtrip",
+      cause: "Save test",
+      alignment: { goodEvil: 30 },
+      reputation: [
+        { kind: "town", targetId: "willowdale_city", delta: 20 },
+        { kind: "faction", targetId: "roadwardens", delta: 50 },
+      ],
+    });
     
     const bestiary = createCodex();
     const weatherState = createWeatherState();
@@ -148,7 +158,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.quests.seenWarnings).toEqual([
       "frostRouteDanger",
     ]);
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
     expect(loaded!.player.progression.skillChecks["shop:city:willowdale_city:0:0"]).toEqual({
       ability: "charisma",
       naturalRoll: 15,
@@ -182,6 +192,12 @@ describe("save system - PlayerState composition migration", () => {
         selectedChoiceId: "fightAmbush",
       },
     });
+    expect(loaded!.player.progression.social).toMatchObject({
+      alignment: { lawChaos: -50, goodEvil: 30 },
+      townReputation: { willowdale_city: 20 },
+      factionReputation: { roadwardens: 50 },
+      appliedSourceIds: ["test:save-roundtrip"],
+    });
   });
 
   it("migrates schema-v10 saves to default world event state", () => {
@@ -189,6 +205,7 @@ describe("save system - PlayerState composition migration", () => {
       strength: 10, dexterity: 10, constitution: 10,
       intelligence: 10, wisdom: 10, charisma: 10,
     });
+
     const progression = player.progression as unknown as Record<string, unknown>;
     delete progression["worldEvents"];
     localStorage.setItem("2dnd_save", JSON.stringify({
@@ -204,7 +221,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
     expect(loaded!.player.progression.worldEvents).toMatchObject({
       rollCounter: 0,
       triggerCount: 0,
@@ -214,6 +231,83 @@ describe("save system - PlayerState composition migration", () => {
       claimedRewardIds: [],
       repeatCounters: {},
       log: [],
+    });
+  });
+
+  it("migrates schema-v11 saves to Chaotic Neutral without replaying historical social rewards", () => {
+    const player = createPlayer("LegacySocialHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.progression.quests.quests[IRON_DISPATCH_QUEST_ID] = {
+      status: "completed",
+      stage: 1,
+      objectives: {},
+      claimedRewards: ["dispatch.xp"],
+    };
+    delete (player.progression as unknown as Record<string, unknown>)["social"];
+    localStorage.setItem("2dnd_save", JSON.stringify({
+      version: 11,
+      player,
+      defeatedBosses: [],
+      codex: createCodex(),
+      appearanceId: "knight",
+      timestamp: Date.now(),
+      timeStep: 0,
+      weatherState: createWeatherState(),
+    }));
+
+    const loaded = loadGame()!;
+    expect(loaded.version).toBe(12);
+    expect(loaded.player.progression.social.alignment).toEqual({
+      lawChaos: -50,
+      goodEvil: 0,
+    });
+    expect(loaded.player.progression.social.townReputation).toEqual({});
+    expect(loaded.player.progression.social.factionReputation).toEqual({});
+    expect(loaded.player.progression.social.history).toEqual([]);
+    expect(loaded.player.progression.social.appliedSourceIds).toContain(
+      "quest:ironboundDispatch:reward:dispatch.routeStanding",
+    );
+    expect(
+      loaded.player.progression.quests.quests[IRON_DISPATCH_QUEST_ID]
+        .claimedRewards,
+    ).toEqual(["dispatch.xp"]);
+  });
+
+  it("normalizes corrupt schema-v12 social state", () => {
+    const player = createPlayer("CorruptSocialHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    (player.progression as unknown as Record<string, unknown>)["social"] = {
+      alignment: { lawChaos: 999, goodEvil: "bad" },
+      townReputation: { willowdale_city: -999, unknown: 20 },
+      factionReputation: { roadwardens: 999, unknown: 20 },
+      appliedSourceIds: ["kept", "kept", null],
+      history: [
+        { sourceId: "kept", cause: "Known", summary: "Valid" },
+        { sourceId: "unknown", cause: "Dropped", summary: "Invalid" },
+      ],
+    };
+    localStorage.setItem("2dnd_save", JSON.stringify({
+      version: 12,
+      player,
+      defeatedBosses: [],
+      codex: createCodex(),
+      appearanceId: "knight",
+      timestamp: Date.now(),
+      timeStep: 0,
+      weatherState: createWeatherState(),
+    }));
+
+    const loaded = loadGame()!;
+    expect(loaded.player.progression.social).toEqual({
+      alignment: { lawChaos: 100, goodEvil: 0 },
+      townReputation: { willowdale_city: -100 },
+      factionReputation: { roadwardens: 100 },
+      appliedSourceIds: ["kept"],
+      history: [{ sourceId: "kept", cause: "Known", summary: "Valid" }],
     });
   });
 
@@ -329,7 +423,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
 
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
     expect(loaded!.codex.entries.slime).toMatchObject({
       timesDefeated: 1,
       acDiscovered: true,
@@ -625,7 +719,7 @@ describe("save system - PlayerState composition migration", () => {
     const loaded = loadGame();
 
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
     expect(loaded!.player.progression.tutorial).toEqual({ completed: true });
   });
 
@@ -687,7 +781,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.seenCutsceneIds).toEqual([
       CAMPAIGN_EPILOGUE_CUTSCENE_ID,
     ]);
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
   });
 
   it("migrates old flat structure to new nested structure on load", () => {
@@ -1074,7 +1168,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(
       loaded!.player.progression.quests.quests[IRON_DISPATCH_QUEST_ID]
         .claimedRewards,
-    ).toHaveLength(4);
+    ).toHaveLength(5);
     expect(Object.keys(loaded!.player.progression.quests.quests)).toEqual(
       QUEST_IDS,
     );
@@ -1106,7 +1200,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
     expect(loaded!.player.progression.skillChecks).toEqual({});
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].status,
@@ -1150,7 +1244,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
     expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID]).toEqual({
       status: "active",
       stage: 0,
@@ -1280,7 +1374,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].stage,
     ).toBe(2);
@@ -1445,7 +1539,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
     expect(loaded!.player.progression.trapSeed).toBe(424242);
     expect(loaded!.player.progression.trapStates).toEqual({
       legacyDetected: "detected",
@@ -1502,7 +1596,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
     expect(loaded!.player.party.activeCompanionIds).toEqual(["guardian"]);
     expect(loaded!.player.party.companions[0]!.controlMode).toBe("gambit");
     expect(loaded!.player.party.companions[0]!.gambits).toEqual(
@@ -1675,7 +1769,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(11);
+    expect(loaded!.version).toBe(12);
     expect(loaded!.player.party).toEqual({
       companions: [],
       activeCompanionIds: [],

@@ -293,6 +293,7 @@ import {
 } from "../data/codexKnowledge";
 import type { FogOfWar } from "../managers/fogOfWar";
 import type { EncounterSystem } from "../managers/encounter";
+import { executeSocialDebugCommand } from "./reputation";
 
 /** Callbacks the OverworldScene provides so the debug system can trigger UI/game updates. */
 export interface OverworldDebugCallbacks {
@@ -682,6 +683,28 @@ export class DebugCommandSystem {
       debugPanelLog("Usage: /event <list|trigger eventId|reset>", true);
     });
 
+    const runSocialCommand = (
+      domain: "alignment" | "reputation",
+      args: string,
+    ): void => {
+      const result = executeSocialDebugCommand(
+        this.player,
+        domain,
+        args,
+        this.codex,
+      );
+      for (const line of result.lines) {
+        debugPanelLog(`[CMD] ${line}`, true);
+      }
+      if (result.changed) {
+        this.callbacks.updateHUD();
+        this.callbacks.autoSave();
+      }
+    };
+    cmds.set("alignment", (args) => runSocialCommand("alignment", args));
+    cmds.set("reputation", (args) => runSocialCommand("reputation", args));
+    cmds.set("rep", cmds.get("reputation")!);
+
     cmds.set("companion", (args) => {
       const parts = args.trim().split(/\s+/).filter(Boolean);
       const action = parts[0]?.toLowerCase() ?? "list";
@@ -1051,6 +1074,8 @@ export class DebugCommandSystem {
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
       { usage: "/quest <cmd>", desc: "Quest: list | advance <id> | set <id> <state>" },
       { usage: "/event <cmd>", desc: "World events: list | trigger <id> | reset" },
+      { usage: "/alignment <cmd>", desc: "Alignment: list|explain|set|adjust" },
+      { usage: "/reputation <cmd>", desc: "Reputation: list|explain|set|adjust (alias: /rep)" },
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },

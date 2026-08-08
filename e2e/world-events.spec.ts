@@ -29,6 +29,13 @@ interface BrowserSave {
           source: string;
         }>;
       };
+      social: {
+        alignment: { lawChaos: number; goodEvil: number };
+        townReputation: Record<string, number>;
+        factionReputation: Record<string, number>;
+        appliedSourceIds: string[];
+        history: Array<{ sourceId: string; cause: string; summary: string }>;
+      };
     };
   };
 }
@@ -170,6 +177,10 @@ test("resolves, recovers, battles, and records accessible World Events", async (
   }, PREFERENCES_KEY);
 
   await createCampaign(page);
+  expect((await readSave(page)).player.progression.social.alignment).toEqual({
+    lawChaos: -50,
+    goodEvil: 0,
+  });
   await expect(page.locator("#game-container canvas"))
     .toHaveAttribute("data-text-scale", "1.5");
   await expect(page.locator("#game-container canvas"))
@@ -177,7 +188,8 @@ test("resolves, recovers, battles, and records accessible World Events", async (
 
   await submitDebug(page, "/event trigger moonlitShrine");
   await waitForState(page, "[WORLD_EVENT:moonlitShrine]");
-  await clickVisibleEventChoice(page);
+  await holdKey(page, "ArrowDown");
+  await holdKey(page, "Enter");
   await expect(page.locator("#debug-state")).not.toContainText("[WORLD_EVENT:");
   let save = await readSave(page);
   expect(
@@ -187,6 +199,7 @@ test("resolves, recovers, battles, and records accessible World Events", async (
   )
     .toBe("moonlitShrine");
   expect(save.codex.unlockedEntryIds).toContain("roadsideShrines");
+  expect(save.player.progression.social.alignment.lawChaos).toBeGreaterThan(-50);
 
   await submitDebug(page, "/quest set main 1");
   expect(
@@ -222,6 +235,7 @@ test("resolves, recovers, battles, and records accessible World Events", async (
   expect(save.player.inventory.filter((item) => item.id === "potion")).toHaveLength(
     potionCount + 1,
   );
+  expect(save.player.progression.social.alignment.goodEvil).toBe(1);
 
   await submitDebug(page, "/event trigger weatheredRoadbook");
   await waitForState(page, "[WORLD_EVENT:weatheredRoadbook]");
@@ -264,6 +278,26 @@ test("resolves, recovers, battles, and records accessible World Events", async (
     eventId: "goblinRoadAmbush",
     outcomeId: "ambushDefeated",
   });
+  expect(save.player.progression.social.factionReputation.roadwardens)
+    .toBeGreaterThan(0);
+
+  await submitDebug(page, "/alignment set goodEvil 30");
+  await submitDebug(page, "/reputation set town willowdale_city 50");
+  save = await readSave(page);
+  expect(save.player.progression.social.alignment.goodEvil).toBe(30);
+  expect(save.player.progression.social.townReputation.willowdale_city).toBe(50);
+  const sourceCount = save.player.progression.social.appliedSourceIds.length;
+  await page.reload({ waitUntil: "networkidle" });
+  await waitForState(page, "BOOT | Screen: title");
+  await clickGame(page, 320, 324);
+  await waitForState(page, "OVERWORLD");
+  expect((await readSave(page)).player.progression.social.appliedSourceIds)
+    .toHaveLength(sourceCount);
+  await holdKey(page, "p");
+  await waitForState(page, "[PARTY:status]");
+  await holdKey(page, "2");
+  await waitForState(page, "[PARTY:social]");
+  await holdKey(page, "Escape");
 
   await submitDebug(page, "/event trigger goblinRoadAmbush");
   await waitForState(page, "[WORLD_EVENT:goblinRoadAmbush]");

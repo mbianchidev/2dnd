@@ -196,7 +196,7 @@ stable unlocked knowledge IDs in `CodexData`; derive category counts, source
 hints, search results, sorting, and grouping from canonical entries. Emit
 idempotent location, quest, cutscene, item, NPC, readable, or `worldEvent`
 signals without letting Codex state control gameplay. `reputationMilestone`
-remains reserved for the future reputation system.
+is owned by the schema-v12 reputation system and must remain idempotent.
 
 ## World Events
 
@@ -212,8 +212,23 @@ remains reserved for the future reputation system.
 - Resolve stable outcome/reward IDs once, append at most 40 chronological
   records, and expose those records through Chronicle without revealing future
   choices.
-- Alignment/reputation extension hooks are typed runtime outputs only. Do not
-  store or interpret them before #70.
+- Alignment/reputation hooks are consumed by the centralized social mutation
+  API with stable source IDs. World Event state never persists duplicate social
+  scores or applied IDs.
+
+## Alignment and reputation
+
+- Keep canonical axes, faction IDs, reputation tiers, and thresholds in
+  `src/data/reputation.ts`; reusable mechanics belong in
+  `src/systems/reputation.ts`.
+- New players begin exactly Chaotic Neutral (`lawChaos: -50`, `goodEvil: 0`).
+- Persist only bounded scores, stable applied source IDs, and the bounded
+  recent-cause history. Derive names, tiers, pricing, milestones, and ending
+  variants.
+- Apply social outcomes only for meaningful choices. Never reward routine
+  movement, unavoidable combat, or farming.
+- Return runtime-only `SocialAchievementHook` values for future #50 consumers;
+  do not persist or implement achievements in this system.
 
 ## Adding spells, abilities, and equipment
 

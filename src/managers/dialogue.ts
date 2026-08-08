@@ -11,6 +11,8 @@ import { audioEngine } from "../systems/audio";
 import { getMotionDuration } from "../systems/accessibility";
 import { getTimePeriod, TimePeriod } from "../systems/daynight";
 import { TILE_SIZE } from "../config";
+import type { PlayerState } from "../systems/player";
+import { getNpcSocialReaction } from "../systems/reputation";
 
 /**
  * Manages NPC dialogue boxes — regular city NPCs, animals, and special overworld NPCs.
@@ -72,7 +74,13 @@ export class DialogueSystem {
   }
 
   /** Show a dialogue box for a city NPC, including shopkeepers. */
-  showNpcDialogue(npcDef: NpcInstance, npcIndex: number, city: CityData, timeStep: number): void {
+  showNpcDialogue(
+    player: PlayerState,
+    npcDef: NpcInstance,
+    npcIndex: number,
+    city: CityData,
+    timeStep: number,
+  ): void {
     this.dismissDialogue();
 
     const tpl = getNpcTemplate(npcDef.templateId);
@@ -96,6 +104,7 @@ export class DialogueSystem {
       line = getNpcDialogue(city.id, npcIndex, tpl.ageGroup, npcDef.templateId, isNight);
     }
 
+    line = `${getNpcSocialReaction(player, city.id)}${line}`;
     if (audioEngine.initialized) audioEngine.playDialogueBlips(line);
 
     const container = this.scene.add.container(0, 0).setDepth(50);

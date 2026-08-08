@@ -178,7 +178,7 @@ export class DungeonTrapManager {
       this.callbacks.updateHUD();
       this.callbacks.autoSave();
       this.callbacks.showMessage(
-        `${definition.name} disarmed! +${result.rewardXp} XP`,
+        `${definition.name} disarmed! +${result.rewardXp} XP${result.socialSummary ? ` | ${result.socialSummary}` : ""}`,
         "#88ff88",
       );
       debugPanelLog(`[TRAP] Disarmed ${definition.name}`, true);

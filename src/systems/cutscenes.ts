@@ -26,6 +26,11 @@ import type {
   PlayerProgression,
   PlayerState,
 } from "./player";
+import {
+  getAlignmentName,
+  getReputationScore,
+  getReputationTier,
+} from "./reputation";
 
 export interface CampaignEndingSummary {
   hero: string;
@@ -39,6 +44,9 @@ export interface CampaignEndingSummary {
   };
   codexEntries: number;
   pendingProgression: string[];
+  alignment: string;
+  epilogueVariant: string;
+  roadwardenStanding: string;
 }
 
 export interface CutsceneTriggerSnapshot {
@@ -370,6 +378,23 @@ export function buildCampaignEndingSummary(
   const claimedRewards = new Set(progress.claimedRewards);
   const rewards = QUESTS[MAIN_QUEST_ID].completionRewards ?? [];
   const pendingProgression: string[] = [];
+  const alignment = getAlignmentName(player.progression.social.alignment);
+  const epilogueVariants: Record<typeof alignment, string> = {
+    "Lawful Good": "The renewed covenant becomes a promise of fair law and mutual protection.",
+    "Neutral Good": "The renewed covenant bends toward mercy wherever rigid rules fall short.",
+    "Chaotic Good": "The renewed covenant protects free choices and aid given without command.",
+    "Lawful Neutral": "The renewed covenant endures through clear duties and measured authority.",
+    "True Neutral": "The renewed covenant balances local freedom, shared duty, and hard necessity.",
+    "Chaotic Neutral": "The renewed covenant leaves every road open and every oath freely chosen.",
+    "Lawful Evil": "The renewed covenant is orderly, effective, and watched carefully by those beneath it.",
+    "Neutral Evil": "The renewed covenant survives, though many wonder whose interests its new order serves.",
+    "Chaotic Evil": "The renewed covenant holds, but its cities brace for the unpredictable roadwarden who restored it.",
+  };
+  const roadwardenScore = getReputationScore(
+    player.progression.social,
+    "faction",
+    "roadwardens",
+  );
   if (player.pendingLevelUps > 0) {
     pendingProgression.push(
       `${player.name} has ${player.pendingLevelUps} level up${player.pendingLevelUps === 1 ? "" : "s"} ready at the next rest.`,
@@ -408,5 +433,9 @@ export function buildCampaignEndingSummary(
     },
     codexEntries: Object.keys(codex.entries).length,
     pendingProgression,
+    alignment,
+    epilogueVariant: epilogueVariants[alignment],
+    roadwardenStanding:
+      `${getReputationTier(roadwardenScore).name} (${roadwardenScore})`,
   };
 }

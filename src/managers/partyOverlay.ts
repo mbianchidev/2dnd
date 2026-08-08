@@ -1,23 +1,10 @@
 import * as Phaser from "phaser";
 import { getAbility } from "../data/abilities";
-import {
-  COMPANION_IDS,
-  isCompanionId,
-  type CompanionId,
-} from "../data/companions";
+import { COMPANION_IDS, isCompanionId, type CompanionId } from "../data/companions";
 import type { Item } from "../data/items";
 import { getSpell } from "../data/spells";
 import { createItemVisual } from "../renderers/itemVisuals";
-import {
-  allocateStatPoint,
-  getArmorClass,
-  useCombatItem,
-  useCombatItemOnTarget,
-  type CombatActorState,
-  type PlayerState,
-  type PlayerStats,
-  type ProgressingActorState,
-} from "../systems/player";
+import { useCombatItem, useCombatItemOnTarget, type CombatActorState, type PlayerState, type ProgressingActorState } from "../systems/player";
 import { playerCastSpellAtTargets } from "../systems/combat";
 import {
   getCompanion,
@@ -46,11 +33,10 @@ import {
   type GambitSubjectSelector,
   type GambitTargetSelector,
 } from "../systems/gambits";
-import {
-  createDimGraphics,
-  createPanelGraphics,
-} from "../utils/ui";
+import { createDimGraphics, createPanelGraphics } from "../utils/ui";
 import { openMobileTextInput } from "./input";
+import { getSocialSummaryPageCount, renderSocialSummary } from "../renderers/social";
+import { renderPartyStatus } from "../renderers/partyStatus";
 
 interface PartyOverlayCallbacks {
   updateHUD(): void;
@@ -59,7 +45,7 @@ interface PartyOverlayCallbacks {
   refreshActors(): void;
 }
 
-type PartyOverlayPage = "status" | "items" | "gambits";
+type PartyOverlayPage = "status" | "social" | "items" | "gambits";
 
 interface PartyMemberView {
   id: PartyMemberId;
@@ -67,12 +53,6 @@ interface PartyMemberView {
   state: ProgressingActorState;
   companion?: CompanionState;
 }
-
-const STAT_LABELS: Array<{ key: keyof PlayerStats; label: string }> = [
-  { key: "strength", label: "STR" }, { key: "dexterity", label: "DEX" },
-  { key: "constitution", label: "CON" }, { key: "intelligence", label: "INT" },
-  { key: "wisdom", label: "WIS" }, { key: "charisma", label: "CHA" },
-];
 
 export class PartyOverlayManager {
   private readonly scene: Phaser.Scene;
@@ -209,6 +189,8 @@ export class PartyOverlayManager {
     this.renderTabs(panelX + 176, panelY + 42, panelWidth - 188);
     if (this.page === "status") {
       this.renderStatusPage(panelX + 176, panelY + 74, panelWidth - 188);
+    } else if (this.page === "social") {
+      this.renderSocialPage(panelX + 176, panelY + 74, panelWidth - 188);
     } else if (this.page === "items") {
       this.renderItemsPage(panelX + 176, panelY + 74, panelWidth - 188);
     } else {
@@ -278,6 +260,7 @@ export class PartyOverlayManager {
   private renderTabs(x: number, y: number, width: number): void {
     const tabs: Array<{ page: PartyOverlayPage; label: string }> = [
       { page: "status", label: "Status" },
+      { page: "social", label: "Social" },
       { page: "items", label: "Items" },
       { page: "gambits", label: "Gambits" },
     ];
@@ -303,77 +286,49 @@ export class PartyOverlayManager {
   private renderStatusPage(x: number, y: number, width: number): void {
     const member = this.getMember(this.selectedId);
     if (!member) return;
-    const state = member.state;
-    let currentY = y;
-    this.addText(x, currentY, `${member.name} Lv.${state.level}`, "#ffd700", 14);
-    currentY += 24;
-    this.addText(
+    renderPartyStatus({
+      memberName: member.name,
+      state: member.state,
+      companion: member.companion,
+      targetName: this.getMember(this.targetId)?.name ?? "Hero",
       x,
-      currentY,
-      `HP ${state.hp}/${state.maxHp}  MP ${state.mp}/${state.maxMp}  AC ${getArmorClass(state)}`,
-    );
-    currentY += 22;
-    this.addText(
-      x,
-      currentY,
-      `XP ${state.xp}  Pending levels ${state.pendingLevelUps}`,
-    );
-    currentY += 24;
-    if (member.companion) {
-      this.addButton(x, currentY, `Control: ${member.companion.controlMode}`, () => {
-        member.companion!.controlMode =
-          member.companion!.controlMode === "manual" ? "gambit" : "manual";
-        this.changed("Companion control updated.");
-      }, "#aaffaa", 180);
-      currentY += 34;
-    }
-    this.addText(x, currentY, "Stats", "#c0a060");
-    currentY += 20;
-    STAT_LABELS.forEach(({ key, label }, index) => {
-      const column = index % 3;
-      const row = Math.floor(index / 3);
-      this.addText(
-        x + column * 105,
-        currentY + row * 26,
-        `${label} ${state.stats[key]}`,
-      );
-      if (state.pendingStatPoints > 0) {
-        this.addButton(
-          x + column * 105 + 62,
-          currentY + row * 26 - 3,
-          "+",
-          () => {
-            if (allocateStatPoint(state, key)) {
-              this.changed(`${label} increased.`);
-            }
-          },
-          "#88ff88",
-          26,
-        );
-      }
+      y,
+      addText: (...args) => this.addText(...args),
+      addButton: (...args) => this.addButton(...args),
+      changed: (message) => this.changed(message),
+      nextTarget: () => {
+        this.cycleTarget();
+        this.render();
+      },
     });
-    currentY += 64;
-    this.addText(x, currentY, "Equipment", "#c0a060");
-    currentY += 20;
-    const equipment = [
-      state.equippedWeapon?.name ?? "Bare Hands",
-      state.equippedArmor?.name ?? "No Armor",
-      state.equippedShield?.name ?? "No Shield",
-    ];
-    for (const label of equipment) {
-      this.addText(x + 8, currentY, label);
-      currentY += 18;
-    }
-    this.addText(
+  }
+
+  private renderSocialPage(x: number, y: number, width: number): void {
+    renderSocialSummary(
+      this.scene,
+      this.overlay!,
+      this.player!,
       x,
-      currentY + 8,
-      `Target: ${this.getMember(this.targetId)?.name ?? "Hero"}`,
-      "#c0a060",
+      y,
+      width,
+      this.listPage,
     );
-    this.addButton(x + 210, currentY + 3, "Next Target", () => {
-      this.cycleTarget();
+    const pageCount = getSocialSummaryPageCount(this.player!);
+    this.addButton(x, y + 350, "< Page", () => {
+      this.listPage = (this.listPage - 1 + pageCount) % pageCount;
       this.render();
-    }, "#bbbbff", 110);
+    }, "#bbbbbb", 70);
+    this.addText(
+      x + 78,
+      y + 356,
+      `Page ${this.listPage + 1}/${pageCount}`,
+      "#aaaaaa",
+      9,
+    );
+    this.addButton(x + 150, y + 350, "Page >", () => {
+      this.listPage = (this.listPage + 1) % pageCount;
+      this.render();
+    }, "#bbbbbb", 70);
   }
 
   private renderItemsPage(x: number, y: number, width: number): void {
@@ -601,7 +556,34 @@ export class PartyOverlayManager {
   }
 
   private handleKeyDown(event: KeyboardEvent): void {
-    if (!this.overlay || this.page !== "items") return;
+    if (!this.overlay) return;
+    const pageKeys: Partial<Record<string, PartyOverlayPage>> = {
+      "1": "status",
+      "2": "social",
+      "3": "items",
+      "4": "gambits",
+    };
+    const page = pageKeys[event.key];
+    if (page && !this.inventorySearchActive) {
+      this.page = page;
+      this.render();
+      event.preventDefault();
+      return;
+    }
+    if (this.page === "social") {
+      const pageCount = getSocialSummaryPageCount(this.player!);
+      if (event.key === "PageUp" || event.key === "ArrowLeft") {
+        this.listPage = (this.listPage - 1 + pageCount) % pageCount;
+        this.render();
+        event.preventDefault();
+      } else if (event.key === "PageDown" || event.key === "ArrowRight") {
+        this.listPage = (this.listPage + 1) % pageCount;
+        this.render();
+        event.preventDefault();
+      }
+      return;
+    }
+    if (this.page !== "items") return;
     if (this.inventorySearchActive) {
       if (event.key === "Enter") {
         this.inventorySearchActive = false;

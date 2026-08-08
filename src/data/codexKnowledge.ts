@@ -424,12 +424,21 @@ const FACTION_ENTRIES: readonly CodexKnowledgeEntry[] = [
     ],
     tags: ["covenant", "twelveCities"],
     sortOrder: 0,
-    sources: [{
-      type: "cutscene",
-      cutsceneId: "campaign.opening",
-      label: "The opening chronicle",
-      hint: "Witness the campaign opening.",
-    }],
+    sources: [
+      {
+        type: "cutscene",
+        cutsceneId: "campaign.opening",
+        label: "The opening chronicle",
+        hint: "Witness the campaign opening.",
+      },
+      {
+        type: "reputationMilestone",
+        factionId: "twelvefoldCovenant",
+        milestoneId: "friendly",
+        label: "Covenant standing",
+        hint: "Become Friendly with the Twelvefold Covenant.",
+      },
+    ],
   },
   {
     id: "heartlandsWardens",
@@ -442,12 +451,21 @@ const FACTION_ENTRIES: readonly CodexKnowledgeEntry[] = [
     ],
     tags: ["ironhold", "guardian"],
     sortOrder: 1,
-    sources: [{
-      type: "npcDialogue",
-      npcId: "ironholdWarden",
-      label: "Warden Brann",
-      hint: "Speak with Warden Brann.",
-    }],
+    sources: [
+      {
+        type: "npcDialogue",
+        npcId: "ironholdWarden",
+        label: "Warden Brann",
+        hint: "Speak with Warden Brann.",
+      },
+      {
+        type: "reputationMilestone",
+        factionId: "heartlandsWardens",
+        milestoneId: "trusted",
+        label: "Warden trust",
+        hint: "Become Trusted by the Heartlands Wardens.",
+      },
+    ],
   },
   {
     id: "rootspeakers",
@@ -552,12 +570,21 @@ const FACTION_ENTRIES: readonly CodexKnowledgeEntry[] = [
     ],
     tags: ["covenant", "postGame"],
     sortOrder: 7,
-    sources: [{
-      type: "questCompletion",
-      questId: "twelvefoldCovenant",
-      label: "Restore the covenant",
-      hint: "Complete the Twelvefold Covenant.",
-    }],
+    sources: [
+      {
+        type: "questCompletion",
+        questId: "twelvefoldCovenant",
+        label: "Restore the covenant",
+        hint: "Complete the Twelvefold Covenant.",
+      },
+      {
+        type: "reputationMilestone",
+        factionId: "roadwardens",
+        milestoneId: "trusted",
+        label: "Roadwarden trust",
+        hint: "Become Trusted by the Roadwardens.",
+      },
+    ],
   },
 ];
 

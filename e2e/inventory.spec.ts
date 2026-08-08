@@ -56,6 +56,7 @@ async function clickGame(
     bounds.x + (gameX / GAME_WIDTH) * bounds.width,
     bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
+  await page.waitForTimeout(120);
 }
 
 async function waitForState(page: Page, text: string): Promise<void> {
@@ -185,7 +186,7 @@ test("large inventories keep stable keyboard and pointer selection", async ({
   await waitForState(page, "OVERWORLD");
   await holdKey(page, "P");
   await waitForState(page, "[PARTY:status]");
-  await clickGame(page, 400, 88);
+  await clickGame(page, 450, 88);
   await waitForState(page, "[PARTY:items");
   await waitForState(page, "Sort:recent Filter:all");
 

@@ -564,7 +564,7 @@ export class PartyOverlayManager {
       "4": "gambits",
     };
     const page = pageKeys[event.key];
-    if (page) {
+    if (page && !this.inventorySearchActive) {
       this.page = page;
       this.render();
       event.preventDefault();

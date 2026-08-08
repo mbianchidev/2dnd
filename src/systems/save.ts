@@ -52,9 +52,13 @@ import {
   createSocialState,
   normalizeSocialState,
 } from "./reputation";
+import {
+  normalizeAchievementState,
+  reconcileAchievements,
+} from "./achievements";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 12;
+const SAVE_VERSION = 13;
 const TUTORIAL_SAVE_VERSION = 9;
 
 export interface SaveData {
@@ -404,6 +408,7 @@ export function loadGame(): SaveData | null {
         tutorial: normalizeTutorialProgress(undefined),
         worldEvents: normalizeWorldEventState(undefined),
         social: createSocialState(),
+        achievements: normalizeAchievementState(undefined, sourceVersion),
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -452,11 +457,15 @@ export function loadGame(): SaveData | null {
     data.player.progression.social = sourceVersion < SAVE_VERSION
       ? createSocialState()
       : normalizeSocialState(data.player.progression.social);
-    if (sourceVersion < SAVE_VERSION) {
+    if (sourceVersion < 12) {
       data.player.progression.social.appliedSourceIds.push(
         ...getHistoricalQuestSocialSourceIds(data.player.progression.quests),
       );
     }
+    data.player.progression.achievements = normalizeAchievementState(
+      data.player.progression.achievements,
+      sourceVersion,
+    );
     data.player.party = normalizePartyState(playerRecord["party"]);
     synchronizeCompanionRecruitment(data.player);
     ensureLegacyCampaignEpilogueQueued(data.player);
@@ -518,6 +527,17 @@ export function loadGame(): SaveData | null {
 
     normalizePlayerLocation(data.player);
     replayCodexUnlocks(data.codex, data.player);
+    reconcileAchievements({
+      player: data.player,
+      defeatedBosses: new Set(data.defeatedBosses),
+      codex: data.codex,
+    }, {
+      sourceId: sourceVersion < SAVE_VERSION
+        ? `migration:v${sourceVersion}:v${SAVE_VERSION}`
+        : "load:reconcile",
+      unlockedAt: readInteger(data.timestamp, Date.now()),
+      notify: false,
+    });
     data.version = SAVE_VERSION;
     return data;
   } catch (error) {

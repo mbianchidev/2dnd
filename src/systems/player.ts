@@ -36,6 +36,10 @@ import {
   createSocialState,
   type SocialState,
 } from "./reputation";
+import {
+  createAchievementState,
+  type AchievementState,
+} from "./achievements";
 
 export interface PlayerStats {
   strength: number;
@@ -76,6 +80,7 @@ export interface PlayerProgression {
   tutorial: TutorialProgress; // new-player tutorial completion
   worldEvents: WorldEventState; // deterministic overworld event state and record
   social: SocialState; // alignment, town/faction reputation, idempotency, and recent causes
+  achievements: AchievementState; // derived milestones, event counters, cosmetic titles, and notices
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -267,6 +272,7 @@ export function createPlayer(
       tutorial: createTutorialProgress(),
       worldEvents: createWorldEventState(),
       social: createSocialState(),
+      achievements: createAchievementState(),
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,

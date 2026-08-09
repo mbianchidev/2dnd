@@ -121,6 +121,16 @@ API, and saves use `localStorage`.
   special combats recover after reload without rerolling or duplicating rewards.
 - The Chronicle includes a bounded World Events record with source, location,
   time, weather, choice, and resolved outcome.
+- Fishing, mining, and foraging use stable location-derived nodes and distinct
+  bite/tension, strike/precision, and search/memory minigames. Eligibility uses
+  canonical terrain, location context, biome, time, weather, and node cooldowns.
+- Gathering outcomes are selected and saved before play so reload cannot reroll
+  rewards. Reduced motion replaces animation timing with deliberate steps while
+  preserving patterns, score thresholds, outcomes, and rewards.
+- Thirteen canonical fish, ores, gems, herbs, plants, wood, and relic materials
+  stack through normal inventory semantics, can be sold at bounded values, and
+  expose stable recipe-input metadata for future crafting without implementing
+  recipes yet. Rare guarded finds enter the normal Battle pipeline.
 - 12 cities with connected districts, district-specific shops, gates,
   discovery, fast travel, inns, banks, stables, and city music
 - Three multi-level dungeons with bidirectional stairs, floor-specific
@@ -152,8 +162,8 @@ API, and saves use `localStorage`.
 - Quest, dialogue, World Event, trap, and morally relevant event-combat outcomes
   apply through stable idempotent source IDs. The Party Social page shows both
   axes, scores, thresholds, standing tiers, and a bounded recent-cause history
-- 34 data-driven achievements cover campaign chapters, bosses and dungeons,
-  combat, secrets, exploration, Codex families, companions and gambits, World
+- 37 data-driven achievements cover campaign chapters, bosses and dungeons,
+  combat, secrets, exploration, Codex families, companions and gambits, gathering, World
   Events, social milestones, and meaningful equipment collection. Progress is
   derived from authoritative game state where possible; one-shot battle history
   uses stable once-only counters. Optional title rewards are cosmetic only.
@@ -236,6 +246,8 @@ src/
 │   ├── questState.ts
 │   ├── questDebug.ts
 │   ├── worldEvents.ts
+│   ├── gathering.ts
+│   ├── gatheringState.ts
 │   ├── reputation.ts
 │   ├── achievements.ts
 │   ├── accessibility.ts
@@ -269,6 +281,7 @@ src/
 │   ├── cutscenes.ts
 │   ├── skillChecks.ts
 │   ├── worldEvents.ts
+│   ├── gathering.ts
 │   ├── tutorial.ts
 │   └── items.ts
 ├── managers/
@@ -412,6 +425,7 @@ npm run build      # Type-check and create a production build
 | `P` | Open party management, searchable inventories, and gambits |
 | `C` | Open the Codex |
 | `Y` | Open Achievements and manage cosmetic titles |
+| `K` | Open the Gathering record and material details |
 | `Q` | Open the quest journal |
 | `T` | Mount or dismount |
 | `F1` | Open or close Tips |
@@ -428,7 +442,7 @@ and Tips controls; movement and action buttons support simultaneous touches.
 Character and inventory search text fields open a native mobile text-entry
 surface.
 
-The `Esc` menu includes Achievements, Party & Inventory, Tips, tutorial replay,
+The `Esc` menu includes Achievements, Gathering, Party & Inventory, Tips, tutorial replay,
 the Chronicle, and the same audio and accessibility settings available on the
 title screen.
 Advanced Tips unlock automatically as relevant progression is reached. In the
@@ -457,7 +471,8 @@ Available tools include:
 - Overworld hotkeys for revealing the map, toggling fog, and disabling random
   encounters
 - Slash commands for gold, XP, HP, MP, items, weather, time, teleportation,
-  classes, mounts, audio, Codex discovery, quest state, and companions
+  classes, mounts, audio, Codex discovery, quest state, companions, and
+  gathering node/list/near/trigger/resolve/reset/status controls
 - `/spawn <name-or-id>` for every monster in `ALL_MONSTERS`, including unique
   dungeon bosses, plus special overworld NPC aliases
 - `/quest list`, `/quest advance <id>`, and
@@ -491,7 +506,7 @@ mutates campaign progress. Version-1 preference documents and existing
 automatically. Inventory sorting, filtering, and search preferences use the
 separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
-Save schema version 13 persists:
+Save schema version 14 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -523,6 +538,9 @@ Save schema version 13 persists:
   history, unlocked/equipped cosmetic titles, debug exclusions, and queued
   non-blocking notices. Definitions, categories, descriptions, points, totals,
   and all safely reconstructable progress remain derived
+- A deterministic gathering seed, node cooldown/depletion state, discovered
+  nodes/resources, once-only claimed outcomes, per-discipline statistics,
+  bounded history, and an exact pending minigame or special encounter
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed
@@ -554,6 +572,10 @@ Schema-v12 and older saves gain normalized achievement state and silently
 reconcile durable quest, boss, exploration, Codex, party, event, social, and
 inventory milestones. Legacy defeat history is deliberately marked unknown, so
 older completed campaigns cannot receive the no-defeat achievement by inference.
+Schema-v13 and older saves gain default gathering state. Schema-v14 loading
+normalizes stable IDs, statistics, cooldowns, history, and pending outcomes;
+replacing a malformed seed clears generated node state and pending play so
+rewards cannot resolve against an incompatible layout.
 
 ## Testing
 
@@ -571,6 +593,10 @@ analog dead zones, repeats, source switching, disconnect/blur cleanup,
 preference migration, and duplicate suppression. Animation coverage verifies deterministic state selection,
 reduced-motion timing, stable target mapping, once-only cleanup, and texture
 fallback behavior.
+Gathering coverage verifies terrain safety, deterministic tables, environmental
+weights, all three state machines, reduced-motion equivalence, cooldowns,
+economy, rare Battle handoffs, achievements, recipe-input isolation, pending
+reloads, and schema-v14 corruption recovery.
 
 Important integration suites:
 
@@ -591,6 +617,7 @@ Important integration suites:
 - `tests/animation.test.ts`
 - `tests/actorTextures.test.ts`
 - `tests/input.test.ts`
+- `tests/gathering.test.ts`
 
 The committed Playwright suite in `e2e/` runs real Chromium campaign and defeat
 flows through character creation, interrupted opening recovery, quest
@@ -602,7 +629,8 @@ recovery, corrupt-save fallback to New Game, random and boss defeat results,
 recovery save/reload, animated battle/world/mount/follower/boss/cutscene
 presentation, reduced-motion immediacy, mobile onboarding and orientation,
 standard-gamepad overlays, Battle targeting/actions, defeat recovery, input
-source switching, and clean continuation. It starts
+source switching, all three gathering disciplines, pending gathering reload,
+rare guarded finds, 150% text, reduced motion, and clean continuation. It starts
 Vite on an available strict port and defaults to the deployed `/2dnd/` base
 path. Pull request CI installs Chromium and runs these suites as a release gate:
 

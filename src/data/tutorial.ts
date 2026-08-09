@@ -22,6 +22,7 @@ export type ControlActionId =
   | "journal"
   | "codex"
   | "achievements"
+  | "gathering"
   | "party"
   | "mount"
   | "battleNavigate"
@@ -151,6 +152,14 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     pointer: "Esc menu > Achievements",
     gamepad: "Menu, then Achievements",
     touch: "MENU, then Achievements",
+  },
+  gathering: {
+    id: "gathering",
+    label: "Gathering record",
+    keyboard: "K",
+    pointer: "Esc menu > Gathering",
+    gamepad: "Menu, then Gathering",
+    touch: "MENU, then Gathering",
   },
   party: {
     id: "party",
@@ -315,6 +324,14 @@ export const TIPS: readonly TipDefinition[] = [
     title: "Dungeon preparation",
     body: "Dungeons have persistent fog, multiple floors, unique encounters, and safe transition tiles. Rest and stock supplies before descending.",
     unlock: { type: "dungeon" },
+  },
+  {
+    id: "exploration.gathering",
+    category: "exploration",
+    title: "Fishing, mining, and foraging",
+    body: "Use Space beside water, stone, or useful growth. Each discipline has a different readable challenge; reduced motion changes timing into deliberate steps without changing rewards.",
+    controls: ["interact", "gathering"],
+    unlock: { type: "always" },
   },
   {
     id: "party.recruitment",

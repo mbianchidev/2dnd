@@ -391,6 +391,15 @@ starting `DefeatScene`, which continues only to Overworld.
   controls. `T` remains mount control.
 - Generate item visuals procedurally through `src/renderers/itemVisuals.ts`.
 
+## Gathering
+
+Gathering content lives in `src/data/gathering.ts`, deterministic node/table/
+minigame logic in `src/systems/gathering.ts`, schema normalization in
+`gatheringState.ts`, and accessible Phaser presentation in
+`src/managers/gathering.ts`. Persist selected outcomes before play, use safe
+location-derived nodes, route guarded finds through normal Battle hooks, and
+keep future crafting limited to stable material recipe-input metadata.
+
 ## Validation
 
 ```bash

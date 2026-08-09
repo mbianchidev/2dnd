@@ -107,6 +107,11 @@ const boost = getMonsterWeatherBoost(monster.id, weatherState.current);
 // boost.acBonus, boost.attackBonus, boost.damageBonus
 ```
 
+Gathering reads current time and weather without mutating either. Rain/Storm
+favor special fishing outcomes, Fog/Rain favor damp forage, and day/night/
+biome weighting remains deterministic. Reduced motion never changes the selected
+outcome or reward.
+
 ### Adding a New Weather Type
 1. Add to `WeatherType` enum
 2. Add probability weights in `BIOME_WEATHER` records

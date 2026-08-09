@@ -414,6 +414,28 @@ export function getAchievementProgress(
         ? 1
         : 0;
       break;
+    case "gatheringSuccesses":
+      target = criteria.threshold;
+      current = criteria.discipline
+        ? player.progression.gathering.stats[criteria.discipline].successes
+        : Object.values(player.progression.gathering.stats).reduce(
+          (sum, stats) => sum + stats.successes,
+          0,
+        );
+      break;
+    case "gatheringRareFinds":
+      target = criteria.threshold;
+      current = Object.values(player.progression.gathering.stats).reduce(
+        (sum, stats) => sum + stats.rareFinds,
+        0,
+      );
+      break;
+    case "gatheringDisciplinesMastered":
+      target = 3;
+      current = Object.values(player.progression.gathering.stats).filter(
+        (stats) => stats.successes >= criteria.successesPerDiscipline,
+      ).length;
+      break;
   }
 
   return {

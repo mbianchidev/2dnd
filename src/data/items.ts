@@ -3,6 +3,11 @@
  */
 
 import { Element } from "./elements";
+import type {
+  GatheringDiscipline,
+  GatheringRarity,
+  RecipeInputContract,
+} from "./gathering";
 
 export type WeaponSpriteType = "sword" | "staff" | "dagger" | "bow" | "mace" | "axe" | "fist";
 export type ConsumableTargetType = "self" | "single_ally";
@@ -38,6 +43,15 @@ export interface Item {
   trapDisarmBonus?: number;
   /** Battle target scope for consumables; defaults to self. */
   targetType?: ConsumableTargetType;
+  /** Searchable canonical tags for inventory and future recipe selection. */
+  tags?: readonly string[];
+  /** Stable material identity consumed by future crafting recipes (#56). */
+  material?: {
+    readonly resourceId: string;
+    readonly discipline: GatheringDiscipline;
+    readonly rarity: GatheringRarity;
+    readonly recipeInput: RecipeInputContract;
+  };
 }
 
 export const ITEMS: Item[] = [
@@ -332,6 +346,267 @@ export const ITEMS: Item[] = [
     effect: 0,
     trapDetectionBonus: 3,
     trapDisarmBonus: 3,
+  },
+  // --- Gathering resources and future crafting inputs ---
+  {
+    id: "brookTrout",
+    name: "Brook Trout",
+    description: "A common freshwater fish suited to simple meals",
+    type: "crafting",
+    cost: 6,
+    effect: 0,
+    tags: ["fish", "freshwater", "cooking"],
+    material: {
+      resourceId: "brookTrout",
+      discipline: "fishing",
+      rarity: "common",
+      recipeInput: {
+        materialId: "brookTrout",
+        categories: ["fish"],
+        tier: 1,
+        tags: ["freshwater", "protein", "cooking"],
+      },
+    },
+  },
+  {
+    id: "silverfin",
+    name: "Silverfin",
+    description: "A bright-scaled fish valued by cooks and alchemists",
+    type: "crafting",
+    cost: 12,
+    effect: 0,
+    tags: ["fish", "freshwater", "silver", "cooking"],
+    material: {
+      resourceId: "silverfin",
+      discipline: "fishing",
+      rarity: "uncommon",
+      recipeInput: {
+        materialId: "silverfin",
+        categories: ["fish"],
+        tier: 2,
+        tags: ["freshwater", "silver", "cooking"],
+      },
+    },
+  },
+  {
+    id: "stormEel",
+    name: "Storm Eel",
+    description: "A charged eel found when rough weather stirs deep water",
+    type: "crafting",
+    cost: 26,
+    effect: 0,
+    tags: ["fish", "storm", "conductive"],
+    material: {
+      resourceId: "stormEel",
+      discipline: "fishing",
+      rarity: "rare",
+      recipeInput: {
+        materialId: "stormEel",
+        categories: ["fish"],
+        tier: 3,
+        tags: ["storm", "conductive", "cooking"],
+      },
+    },
+  },
+  {
+    id: "moonKoi",
+    name: "Moon Koi",
+    description: "A rare night fish whose scales retain a pale lunar glow",
+    type: "crafting",
+    cost: 40,
+    effect: 0,
+    tags: ["fish", "lunar", "arcane", "relic"],
+    material: {
+      resourceId: "moonKoi",
+      discipline: "fishing",
+      rarity: "epic",
+      recipeInput: {
+        materialId: "moonKoi",
+        categories: ["fish", "relic"],
+        tier: 4,
+        tags: ["night", "lunar", "arcane"],
+      },
+    },
+  },
+  {
+    id: "ironOre",
+    name: "Iron Ore",
+    description: "Unrefined iron for future weapons, armor, and tools",
+    type: "crafting",
+    cost: 8,
+    effect: 0,
+    tags: ["ore", "metal", "weapon", "armor"],
+    material: {
+      resourceId: "ironOre",
+      discipline: "mining",
+      rarity: "common",
+      recipeInput: {
+        materialId: "ironOre",
+        categories: ["ore"],
+        tier: 1,
+        tags: ["metal", "weapon", "armor"],
+      },
+    },
+  },
+  {
+    id: "copperOre",
+    name: "Copper Ore",
+    description: "A workable conductive ore for future tools and fittings",
+    type: "crafting",
+    cost: 6,
+    effect: 0,
+    tags: ["ore", "metal", "conductive", "tool"],
+    material: {
+      resourceId: "copperOre",
+      discipline: "mining",
+      rarity: "common",
+      recipeInput: {
+        materialId: "copperOre",
+        categories: ["ore"],
+        tier: 1,
+        tags: ["metal", "conductive", "tool"],
+      },
+    },
+  },
+  {
+    id: "moonstoneGem",
+    name: "Moonstone Gem",
+    description: "A cool gem with a shifting inner light",
+    type: "crafting",
+    cost: 30,
+    effect: 0,
+    tags: ["gem", "lunar", "jewelry", "arcane"],
+    material: {
+      resourceId: "moonstoneGem",
+      discipline: "mining",
+      rarity: "rare",
+      recipeInput: {
+        materialId: "moonstoneGem",
+        categories: ["gem"],
+        tier: 3,
+        tags: ["lunar", "jewelry", "arcane"],
+      },
+    },
+  },
+  {
+    id: "runicShard",
+    name: "Runic Shard",
+    description: "A guarded stone fragment still humming with old wards",
+    type: "crafting",
+    cost: 44,
+    effect: 0,
+    tags: ["gem", "relic", "rune", "ward"],
+    material: {
+      resourceId: "runicShard",
+      discipline: "mining",
+      rarity: "epic",
+      recipeInput: {
+        materialId: "runicShard",
+        categories: ["gem", "relic"],
+        tier: 4,
+        tags: ["rune", "ward", "arcane"],
+      },
+    },
+  },
+  {
+    id: "wildHerbs",
+    name: "Wild Herbs",
+    description: "Useful leaves and stems gathered from healthy growth",
+    type: "crafting",
+    cost: 5,
+    effect: 0,
+    tags: ["herb", "medicine", "tea", "potion"],
+    material: {
+      resourceId: "wildHerbs",
+      discipline: "foraging",
+      rarity: "common",
+      recipeInput: {
+        materialId: "wildHerbs",
+        categories: ["herb"],
+        tier: 1,
+        tags: ["medicine", "tea", "potion"],
+      },
+    },
+  },
+  {
+    id: "redcapMushroom",
+    name: "Redcap Mushroom",
+    description: "A potent fungus used carefully in tonics and toxins",
+    type: "crafting",
+    cost: 10,
+    effect: 0,
+    tags: ["herb", "plant", "fungus", "potion", "poison"],
+    material: {
+      resourceId: "redcapMushroom",
+      discipline: "foraging",
+      rarity: "uncommon",
+      recipeInput: {
+        materialId: "redcapMushroom",
+        categories: ["herb", "plant"],
+        tier: 2,
+        tags: ["fungus", "potion", "poison"],
+      },
+    },
+  },
+  {
+    id: "frostbloom",
+    name: "Frostbloom",
+    description: "A resilient flower that stores winter's chill",
+    type: "crafting",
+    cost: 24,
+    effect: 0,
+    tags: ["herb", "plant", "cold", "medicine", "ward"],
+    material: {
+      resourceId: "frostbloom",
+      discipline: "foraging",
+      rarity: "rare",
+      recipeInput: {
+        materialId: "frostbloom",
+        categories: ["herb", "plant"],
+        tier: 3,
+        tags: ["cold", "medicine", "ward"],
+      },
+    },
+  },
+  {
+    id: "sunleaf",
+    name: "Sunleaf",
+    description: "A warm desert leaf prized for restorative mixtures",
+    type: "crafting",
+    cost: 24,
+    effect: 0,
+    tags: ["herb", "plant", "desert", "radiant", "medicine"],
+    material: {
+      resourceId: "sunleaf",
+      discipline: "foraging",
+      rarity: "rare",
+      recipeInput: {
+        materialId: "sunleaf",
+        categories: ["herb", "plant"],
+        tier: 3,
+        tags: ["desert", "radiant", "medicine"],
+      },
+    },
+  },
+  {
+    id: "elderBark",
+    name: "Elder Bark",
+    description: "Ancient living wood protected by a hostile forest spirit",
+    type: "crafting",
+    cost: 42,
+    effect: 0,
+    tags: ["wood", "relic", "ancient", "focus", "ward"],
+    material: {
+      resourceId: "elderBark",
+      discipline: "foraging",
+      rarity: "epic",
+      recipeInput: {
+        materialId: "elderBark",
+        categories: ["wood", "relic"],
+        tier: 4,
+        tags: ["ancient", "focus", "ward"],
+      },
+    },
   },
   // --- Mount items (sold in stables) ---
   {

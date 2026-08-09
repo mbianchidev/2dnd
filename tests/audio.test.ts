@@ -115,6 +115,9 @@ describe("audio system", () => {
       expect(typeof audioEngine.playMissSFX).toBe("function");
       expect(typeof audioEngine.playCriticalHitSFX).toBe("function");
       expect(typeof audioEngine.playChestOpenSFX).toBe("function");
+      expect(typeof audioEngine.playGatheringStartSFX).toBe("function");
+      expect(typeof audioEngine.playGatheringActionSFX).toBe("function");
+      expect(typeof audioEngine.playGatheringResultSFX).toBe("function");
       expect(typeof audioEngine.playDungeonEnterSFX).toBe("function");
       expect(typeof audioEngine.playTrapSFX).toBe("function");
       expect(typeof audioEngine.playPotionSFX).toBe("function");
@@ -153,6 +156,9 @@ describe("audio system", () => {
       expect(() => audioEngine.playMissSFX()).not.toThrow();
       expect(() => audioEngine.playCriticalHitSFX()).not.toThrow();
       expect(() => audioEngine.playChestOpenSFX()).not.toThrow();
+      expect(() => audioEngine.playGatheringStartSFX("fishing")).not.toThrow();
+      expect(() => audioEngine.playGatheringActionSFX("mining", "confirm")).not.toThrow();
+      expect(() => audioEngine.playGatheringResultSFX(true, "rare")).not.toThrow();
       expect(() => audioEngine.playDungeonEnterSFX()).not.toThrow();
       for (const trapType of TRAP_TYPES) {
         expect(() => audioEngine.playTrapSFX(trapType)).not.toThrow();

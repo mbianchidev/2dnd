@@ -51,6 +51,9 @@ export const ACHIEVEMENT_IDS = [
   "exaltedFaction",
   "fullyEquipped",
   "relicCollector",
+  "resourceGatherer",
+  "rareHarvest",
+  "masterGatherer",
 ] as const;
 
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
@@ -69,6 +72,7 @@ export const TITLE_IDS = [
   "eventWitness",
   "exalted",
   "relicKeeper",
+  "realmGatherer",
 ] as const;
 
 export type TitleId = (typeof TITLE_IDS)[number];
@@ -158,6 +162,19 @@ export type AchievementCriteria =
   }
   | {
     readonly type: "fullyEquipped";
+  }
+  | {
+    readonly type: "gatheringSuccesses";
+    readonly threshold: number;
+    readonly discipline?: "fishing" | "mining" | "foraging";
+  }
+  | {
+    readonly type: "gatheringRareFinds";
+    readonly threshold: number;
+  }
+  | {
+    readonly type: "gatheringDisciplinesMastered";
+    readonly successesPerDiscipline: number;
   };
 
 export interface AchievementSourceMetadata {
@@ -176,7 +193,8 @@ export interface AchievementSourceMetadata {
     | "worldEvent"
     | "alignment"
     | "reputation"
-    | "inventory";
+    | "inventory"
+    | "gathering";
   readonly authoritativeState: string;
   readonly targetIds?: readonly string[];
 }
@@ -525,6 +543,38 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     rewardTitleId: "relicKeeper",
     source: { kind: "inventory", authoritativeState: "Canonical inventory item IDs" },
   },
+  {
+    id: "resourceGatherer",
+    name: "Working the Wilds",
+    description: "Complete 10 successful gathering attempts.",
+    category: "collection",
+    points: 15,
+    criteria: { type: "gatheringSuccesses", threshold: 10 },
+    source: { kind: "gathering", authoritativeState: "Persistent gathering discipline statistics" },
+  },
+  {
+    id: "rareHarvest",
+    name: "Against the Odds",
+    description: "Secure a rare gathering find.",
+    category: "collection",
+    points: 20,
+    hidden: true,
+    criteria: { type: "gatheringRareFinds", threshold: 1 },
+    source: { kind: "gathering", authoritativeState: "Persistent once-only rare gathering rewards" },
+  },
+  {
+    id: "masterGatherer",
+    name: "Threefold Provider",
+    description: "Succeed at fishing, mining, and foraging at least 5 times each.",
+    category: "collection",
+    points: 35,
+    criteria: {
+      type: "gatheringDisciplinesMastered",
+      successesPerDiscipline: 5,
+    },
+    rewardTitleId: "realmGatherer",
+    source: { kind: "gathering", authoritativeState: "Per-discipline gathering statistics" },
+  },
 ] as const;
 
 export const TITLES: readonly TitleDefinition[] = [
@@ -541,6 +591,7 @@ export const TITLES: readonly TitleDefinition[] = [
   { id: "eventWitness", name: "Realm Witness", description: "Witnessed every kind of World Event.", achievementId: "worldEventMaster" },
   { id: "exalted", name: "The Exalted", description: "Earned a faction's highest regard.", achievementId: "exaltedFaction" },
   { id: "relicKeeper", name: "Relic Keeper", description: "Carried a collection worthy of a royal archive.", achievementId: "relicCollector" },
+  { id: "realmGatherer", name: "Realm Gatherer", description: "Mastered fishing, mining, and foraging.", achievementId: "masterGatherer" },
 ] as const;
 
 const ACHIEVEMENT_BY_ID = new Map(

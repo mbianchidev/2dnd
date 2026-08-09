@@ -15,6 +15,7 @@ export const INPUT_ACTIONS = [
   "openParty",
   "openCodex",
   "openAchievements",
+  "openGathering",
   "openTips",
   "openSettings",
   "openMap",
@@ -61,6 +62,7 @@ export type InputContext =
   | "overlay"
   | "chronicle"
   | "inventory"
+  | "gathering"
   | "shop"
   | "codex"
   | "battle"
@@ -136,6 +138,7 @@ const KEYBOARD_SHORTCUTS: Readonly<Record<string, InputAction>> = {
   F1: "openTips",
   KeyC: "openCodex",
   KeyY: "openAchievements",
+  KeyK: "openGathering",
   KeyE: "openEquipment",
   KeyM: "openMap",
   KeyP: "openParty",
@@ -154,6 +157,7 @@ const NAVIGATION_CONTEXTS = new Set<InputContext>([
   "overlay",
   "chronicle",
   "inventory",
+  "gathering",
   "shop",
   "codex",
   "battle",

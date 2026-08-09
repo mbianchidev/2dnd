@@ -322,6 +322,12 @@ export interface OverworldDebugCallbacks {
   listWorldEvents(): readonly string[];
   triggerWorldEvent(eventId: string): string;
   resetWorldEvents(): string;
+  listGatheringNodes(): readonly string[];
+  triggerGathering(discipline: string): string;
+  nearGathering(discipline: string): string;
+  resolveGathering(success: boolean): string;
+  resetGathering(): string;
+  gatheringStatus(): readonly string[];
 }
 
 /** Wrapper so a primitive number can be shared by reference between the scene and this system. */
@@ -710,6 +716,47 @@ export class DebugCommandSystem {
         return;
       }
       debugPanelLog("Usage: /event <list|trigger eventId|reset>", true);
+    });
+
+    cmds.set("gather", (args) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const action = parts[0]?.toLowerCase() ?? "status";
+      if (action === "list") {
+        const nodes = this.callbacks.listGatheringNodes();
+        debugPanelLog("── Gathering Nodes ──", true);
+        if (nodes.length === 0) debugPanelLog("  No reachable nodes.", true);
+        for (const line of nodes) debugPanelLog(`  ${line}`, true);
+        return;
+      }
+      if (action === "status") {
+        for (const line of this.callbacks.gatheringStatus()) {
+          debugPanelLog(`[CMD] ${line}`, true);
+        }
+        return;
+      }
+      if (action === "trigger" && parts[1]) {
+        debugPanelLog(`[CMD] ${this.callbacks.triggerGathering(parts[1])}`, true);
+        return;
+      }
+      if (action === "near" && parts[1]) {
+        debugPanelLog(`[CMD] ${this.callbacks.nearGathering(parts[1])}`, true);
+        return;
+      }
+      if (action === "resolve" && (parts[1] === "success" || parts[1] === "failure")) {
+        debugPanelLog(
+          `[CMD] ${this.callbacks.resolveGathering(parts[1] === "success")}`,
+          true,
+        );
+        return;
+      }
+      if (action === "reset") {
+        debugPanelLog(`[CMD] ${this.callbacks.resetGathering()}`, true);
+        return;
+      }
+      debugPanelLog(
+        "Usage: /gather <list|status|near|trigger fishing|mining|foraging|resolve success|failure|reset>",
+        true,
+      );
     });
 
     const runSocialCommand = (
@@ -1121,6 +1168,7 @@ export class DebugCommandSystem {
       { usage: "/time <t>", desc: "Set time (dawn|day|dusk|night)" },
       { usage: "/quest <cmd>", desc: "Quest: list | advance <id> | set <id> <state>" },
       { usage: "/event <cmd>", desc: "World events: list | trigger <id> | reset" },
+      { usage: "/gather <cmd>", desc: "Gathering: list|status|trigger|resolve|reset" },
       { usage: "/alignment <cmd>", desc: "Alignment: list|explain|set|adjust" },
       { usage: "/reputation <cmd>", desc: "Reputation: list|explain|set|adjust (alias: /rep)" },
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },

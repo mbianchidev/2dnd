@@ -63,6 +63,11 @@ success = total >= dc;
   `player.progression.skillChecks`
 - Exploration damage is nonlethal and cannot reduce the player below 1 HP
 
+Gathering minigames do not apply unrelated ability modifiers silently. Related
+future talents or tools may modify explicit data-driven difficulty, but fishing,
+mining, and foraging use readable input patterns with identical reduced-motion
+thresholds and rewards.
+
 ## Core combat
 
 - Attack rolls use d20 + ability modifier + proficiency/bonuses.

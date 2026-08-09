@@ -79,6 +79,7 @@ export interface OverlayCallbacks {
   openChronicle: () => void;
   openCodex: () => void;
   openAchievements: () => void;
+  openGathering: () => void;
   openTips: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
 }
@@ -1013,6 +1014,26 @@ export class OverlayManager {
       fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
     }).setOrigin(0.5, 0);
     this.menuOverlay.add(title);
+
+    const gatheringBtn = this.scene.add.text(
+      px + panelW / 2,
+      py + 41,
+      "Gathering",
+      {
+        fontSize: "11px",
+        fontFamily: "monospace",
+        color: "#80cbc4",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 12, y: 4 },
+      },
+    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    gatheringBtn.on("pointerover", () => gatheringBtn.setColor("#ffffff"));
+    gatheringBtn.on("pointerout", () => gatheringBtn.setColor("#80cbc4"));
+    gatheringBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+      this.callbacks.openGathering();
+    });
+    this.menuOverlay.add(gatheringBtn);
 
     // Resume
     const resumeBtn = this.scene.add.text(px + panelW / 2, py + 69, "▶ Resume", {

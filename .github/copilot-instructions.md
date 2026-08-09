@@ -18,7 +18,7 @@ procedural graphics/audio, weather, day/night, a 90-chunk world, connected city
 districts, multi-level dungeons, procedural traps, non-combat skill checks,
 quest-recruited companions, ranked gambits, elemental interactions, status
 effects, boss fights, and a replayable campaign epilogue with post-game
-continuation.
+continuation, plus deterministic fishing, mining, and foraging minigames.
 
 ## Stack
 
@@ -69,6 +69,8 @@ src/
 │   ├── questState.ts
 │   ├── questDebug.ts
 │   ├── worldEvents.ts
+│   ├── gathering.ts
+│   ├── gatheringState.ts
 │   ├── accessibility.ts
 │   ├── input.ts
 │   ├── tutorial.ts
@@ -103,6 +105,7 @@ src/
 │   ├── cutscenes.ts
 │   ├── skillChecks.ts
 │   ├── worldEvents.ts
+│   ├── gathering.ts
 │   ├── tutorial.ts
 │   └── talents.ts
 ├── managers/
@@ -115,6 +118,7 @@ src/
 │   ├── questFlow.ts
 │   ├── chronicle.ts
 │   ├── worldEvents.ts
+│   ├── gathering.ts
 │   ├── tutorial.ts
 │   └── cutscene.ts
 ├── renderers/
@@ -258,6 +262,10 @@ interface PlayerProgression {
   trapStates: Record<string, TrapState>;
   trapGuidance: boolean;
   tutorial: TutorialProgress;
+  worldEvents: WorldEventState;
+  social: SocialState;
+  achievements: AchievementState;
+  gathering: GatheringState;
 }
 ```
 
@@ -623,6 +631,32 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
   API before autosave. Never add parallel event-owned social persistence.
 - `/event list|trigger <id>|reset` is debug-only.
 
+## Gathering
+
+- Immutable discipline, resource, rarity, table, outcome, and recipe-input
+  contracts live in `src/data/gathering.ts`; deterministic mechanics live in
+  `src/systems/gathering.ts`, save normalization in `gatheringState.ts`, and
+  Phaser presentation in `src/managers/gathering.ts`.
+- Fishing targets adjacent Water/River terrain, mining targets adjacent
+  mountain/canyon/volcanic/dungeon-wall terrain, and foraging targets current or
+  adjacent forest/vegetation terrain. Resolve maps through existing city,
+  dungeon, and chunk helpers and keep the hero on a safe walkable approach.
+- Select and persist the exact outcome, quantity, pattern, and pending phase
+  before presentation. Reload resumes that state and never rerolls a reward.
+- Reduced motion replaces bite/reveal timers with explicit confirm steps while
+  keeping the same sequence, score threshold, outcome, and reward.
+- Nodes use stable location-derived IDs, per-node cooldown/depletion, bounded
+  history, and deterministic time/weather/biome modifiers. Active gathering
+  blocks movement, World Events, encounters, traps, and other interactions.
+- Canonical resources are `crafting` inventory items with `material.resourceId`,
+  discipline, rarity, and a stable `RecipeInputContract` containing
+  `materialId`, categories, tier, and tags. #56 recipes may consume those
+  contracts later; gathering must not implement recipes or capacity limits.
+- Rare guarded finds use normal Battle hooks and rewards. Codex item acquisition
+  and derived gathering achievements are consumers, never gameplay authority.
+- `K` opens the Gathering record. `/gather
+  list|near|trigger|resolve|reset|status` is debug-only.
+
 ## Alignment and reputation
 
 - Canonical definitions and thresholds live in `src/data/reputation.ts`; pure
@@ -674,7 +708,7 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 13.
+Save schema version is 14.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -714,6 +748,10 @@ unknown, preventing retroactive no-defeat credit. Unknown/duplicate achievement
 or title IDs are removed, counters are clamped, completion order is repaired,
 pending notices must reference earned achievements, and equipped titles must be
 unlocked.
+Schema-v13 and older saves gain default deterministic gathering state. Schema-v14
+normalization validates discipline/resource/outcome IDs, patterns, locations,
+statistics, cooldowns, claimed IDs, and bounded history. Replacing a malformed
+gathering seed clears node state, discovered generated nodes, and pending play.
 
 Inventory presentation preferences are not save ownership data and do not
 increment the schema. Store them under `2dnd_inventory_prefs`.
@@ -775,7 +813,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v13
+  visibility, handedness, and prompt source only; they never enter schema-v14
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

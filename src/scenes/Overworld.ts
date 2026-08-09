@@ -164,7 +164,10 @@ import {
 } from "../systems/worldEvents";
 import {
   reconcileAchievements,
+  suppressCurrentlyMetAchievements,
 } from "../systems/achievements";
+import { GatheringManager } from "../managers/gathering";
+import { tickGatheringCooldowns } from "../systems/gathering";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -280,6 +283,7 @@ export class OverworldScene extends Phaser.Scene {
   private worldEventManager!: WorldEventManager;
   private achievementOverlayManager!: AchievementOverlayManager;
   private achievementNotifications!: AchievementNotificationManager;
+  private gatheringManager!: GatheringManager;
   private pendingCodexDiscoveryIds: string[] = [];
 
   constructor() {
@@ -358,6 +362,20 @@ export class OverworldScene extends Phaser.Scene {
       startBattle: (encounter, terrain, hooks, immediate) =>
         this.startBattle(encounter, terrain, immediate, hooks),
     });
+    this.gatheringManager = new GatheringManager(this, {
+      autoSave: () => this.autoSave(),
+      updateHUD: () => this.updateHUD(),
+      updateLocation: () => this.updateLocationText(),
+      showMessage: (message, color) => this.showMessage(message, color),
+      showCodexUnlocks: (result) => this.showCodexUnlocks(result),
+      suppressDebugAchievements: () => suppressCurrentlyMetAchievements({
+        player: this.player,
+        defeatedBosses: this.defeatedBosses,
+        codex: this.codex,
+      }),
+      startBattle: (encounter, terrain, hooks, immediate) =>
+        this.startBattle(encounter, terrain, immediate, hooks),
+    });
     this.tutorialManager = new TutorialManager(this, {
       autoSave: () => this.autoSave(),
     });
@@ -394,6 +412,7 @@ export class OverworldScene extends Phaser.Scene {
       openChronicle: () => this.chronicleManager.open(this.player),
       openCodex: () => this.openCodex(),
       openAchievements: () => this.openAchievements(),
+      openGathering: () => this.openGatheringStatus(),
       openTips: () => this.tutorialManager.showTips(this.player),
       fadeOutAndIn: (atBlack, duration) =>
         this.sceneTransitions.fadeOutAndIn(atBlack, {
@@ -487,6 +506,7 @@ export class OverworldScene extends Phaser.Scene {
       this.achievementOverlayManager.close();
       this.achievementNotifications.clear();
       this.worldEventManager.clear();
+      this.gatheringManager.clear();
     });
     this.chronicleManager = new ChronicleManager(
       this,
@@ -498,6 +518,14 @@ export class OverworldScene extends Phaser.Scene {
     this.updateAudio();
     this.questFlow.afterInitialRender();
     if (this.startNextPendingCutscene()) {
+      return;
+    }
+    if (this.gatheringManager.resumePending(
+      this.player,
+      this.codex,
+      this.timeStep,
+      this.weatherState.current,
+    )) {
       return;
     }
     if (this.worldEventManager.resumePending(
@@ -665,6 +693,28 @@ export class OverworldScene extends Phaser.Scene {
         this.worldEventManager.reset(this.player);
         return "World event state reset.";
       },
+      listGatheringNodes: () => this.gatheringManager.listNodes(this.player),
+      triggerGathering: (discipline) => this.gatheringManager.trigger(
+        this.player,
+        this.codex,
+        discipline,
+        this.timeStep,
+        this.weatherState.current,
+        isReducedMotionEnabled(),
+      ),
+      nearGathering: (discipline) => {
+        const result = this.gatheringManager.near(this.player, discipline);
+        if (result.startsWith("Moved near")) {
+          this.restartOverworld("debug near gathering");
+        }
+        return result;
+      },
+      resolveGathering: (success) => this.gatheringManager.resolveDebug(success),
+      resetGathering: () => {
+        this.gatheringManager.reset(this.player);
+        return "Gathering state reset.";
+      },
+      gatheringStatus: () => this.gatheringManager.status(this.player),
     });
     this.debugCommandSystem.fogOfWar = this.fogOfWar;
     this.debugCommandSystem.encounterSystem = this.encounterSystem;
@@ -829,6 +879,16 @@ export class OverworldScene extends Phaser.Scene {
       }
       if (this.isOverlayOpen() || this.dialogueSystem.isDialogueOpen()) return;
       this.tutorialManager.showTips(this.player);
+    });
+
+    const gatheringKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K);
+    gatheringKey.on("down", () => {
+      if (
+        this.isMoving
+        || this.isOverlayOpen()
+        || this.dialogueSystem.isDialogueOpen()
+      ) return;
+      this.openGatheringStatus();
     });
 
     const tutorialKeys: Array<{
@@ -1045,6 +1105,8 @@ export class OverworldScene extends Phaser.Scene {
         }
         return "Opened Chest";
       }
+      const gatheringPrompt = this.gatheringManager.getPrompt(this.player);
+      if (gatheringPrompt) return `${dungeon.name}${levelLabel}  ${gatheringPrompt}`;
       return `${dungeon.name}${levelLabel}`;
     }
 
@@ -1077,7 +1139,11 @@ export class OverworldScene extends Phaser.Scene {
         this.player.position.x,
         this.player.position.y,
       );
-      return shop ? `${shop.name}  [SPACE] Enter` : `${city.name}: ${chunk.name}`;
+      if (shop) return `${shop.name}  [SPACE] Enter`;
+      const gatheringPrompt = this.gatheringManager.getPrompt(this.player);
+      return gatheringPrompt
+        ? `${city.name}: ${chunk.name}  ${gatheringPrompt}`
+        : `${city.name}: ${chunk.name}`;
     }
 
     const terrain = getTerrainAt(this.player.position.chunkX, this.player.position.chunkY, this.player.position.x, this.player.position.y);
@@ -1142,6 +1208,10 @@ export class OverworldScene extends Phaser.Scene {
         locStr = "Opened Chest";
       }
     }
+    if (!locStr.includes("[SPACE]")) {
+      const gatheringPrompt = this.gatheringManager.getPrompt(this.player);
+      if (gatheringPrompt) locStr = `${locStr}  ${gatheringPrompt}`;
+    }
 
     return locStr;
   }
@@ -1183,6 +1253,7 @@ export class OverworldScene extends Phaser.Scene {
     const menuTag = this.overlayManager.menuOverlay ? " [MENU]" : "";
     const chronicleTag = this.chronicleManager?.getDebugState() ?? "";
     const worldEventTag = this.worldEventManager?.getDebugState() ?? "";
+    const gatheringTag = this.gatheringManager?.getDebugState() ?? "";
     const tutorialTag = this.tutorialManager.isTutorialOpen()
       ? " [TUTORIAL]"
       : this.tutorialManager.isTipsOpen()
@@ -1192,7 +1263,7 @@ export class OverworldScene extends Phaser.Scene {
     const achievementTag = this.achievementOverlayManager.getDebugState();
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${worldEventTag}${tutorialTag}${partyTag}${achievementTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${worldEventTag}${gatheringTag}${tutorialTag}${partyTag}${achievementTag} | ` +
       `Anim: ${this.worldPresentation.debugState} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
@@ -1209,6 +1280,7 @@ export class OverworldScene extends Phaser.Scene {
       || this.questJournal.isOpen()
       || this.chronicleManager?.isOpen()
       || this.worldEventManager.isOpen()
+      || this.gatheringManager.isOpen()
       || this.tutorialManager.isOpen();
   }
 
@@ -1284,6 +1356,11 @@ export class OverworldScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
         this.tutorialManager.handleAction("confirm");
       }
+      return;
+    }
+
+    if (this.gatheringManager.isOpen()) {
+      this.gatheringManager.update();
       return;
     }
 
@@ -1732,6 +1809,7 @@ export class OverworldScene extends Phaser.Scene {
         });
         return;
       }
+      if (this.startGatheringNearby()) return;
       if (this.tryInteractCompanion()) return;
       return;
     }
@@ -1943,6 +2021,7 @@ export class OverworldScene extends Phaser.Scene {
         this.dialogueSystem.showAnimalDialogue(animalResult.spriteName);
         return;
       }
+      if (this.startGatheringNearby()) return;
       if (this.tryInteractCompanion()) return;
       return;
     }
@@ -2165,6 +2244,7 @@ export class OverworldScene extends Phaser.Scene {
         return;
       }
     }
+    if (this.startGatheringNearby()) return;
     this.tryInteractCompanion();
   }
 
@@ -2489,6 +2569,22 @@ export class OverworldScene extends Phaser.Scene {
     saveGame(this.player, this.defeatedBosses, this.codex, this.player.appearanceId, this.timeStep, this.weatherState);
   }
 
+  private startGatheringNearby(): boolean {
+    return this.gatheringManager.startNearby(
+      this.player,
+      this.codex,
+      this.timeStep,
+      this.weatherState.current,
+      isReducedMotionEnabled(),
+    );
+  }
+
+  private openGatheringStatus(): void {
+    if (this.sceneTransitions.isPending || this.isMoving) return;
+    this.autoSave();
+    this.gatheringManager.openStatus(this.player);
+  }
+
   private openAchievements(): void {
     if (this.sceneTransitions.isPending || this.isMoving) return;
     this.autoSave();
@@ -2502,6 +2598,7 @@ export class OverworldScene extends Phaser.Scene {
   // ── Time, weather & audio ───────────────────────────────────────────────
 
   private advanceTime(): void {
+    tickGatheringCooldowns(this.player);
     if (this.player.position.inCity || this.player.position.inDungeon) return;
 
     const oldPeriod = getTimePeriod(this.timeStep);

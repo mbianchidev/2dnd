@@ -228,6 +228,16 @@ Dungeon and city flags are mutually exclusive. Save loading validates IDs,
 clamps levels/chunks, repairs invalid tiles to the correct spawn, and falls back
 to the Willowdale overworld start when necessary.
 
+## Gathering nodes
+
+Fishing uses adjacent Water/River terrain, mining uses adjacent blocked rock,
+mountain, volcanic, or dungeon-wall terrain, and foraging uses current or
+adjacent forest/vegetation terrain. Resolve current maps through chunk/city/
+dungeon helpers, keep approaches walkable and clear of transition/chest/boss
+tiles, and derive stable node IDs from context, sublevel, discipline, and target
+tile. Gathering is an explicit interaction and blocks movement-step events,
+skill checks, traps, and encounters while active.
+
 ## Common pitfalls
 
 - Indexing maps as `[x][y]`

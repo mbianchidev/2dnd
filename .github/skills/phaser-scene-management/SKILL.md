@@ -73,6 +73,11 @@ shutdown clears visuals without acknowledging an interrupted notice. Both must
 support keyboard, pointer, touch-menu access, gamepad cursor, text scaling,
 high contrast, and reduced motion.
 
+`GatheringManager` owns the in-place fishing/mining/foraging overlay, input,
+timers, pointer controls, status record, and cleanup. Overworld resumes pending
+gathering before World Events, blocks movement and other interactions while it
+is open, and routes guarded rare finds through Battle with resolution hooks.
+
 ## Shared state flow
 
 State-bearing transitions use `createSharedSceneState()` and preserve:

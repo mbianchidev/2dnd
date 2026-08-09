@@ -46,6 +46,7 @@ const ACTION_KEYS: Partial<Record<InputAction, KeyDescriptor>> = {
   openParty: { code: "KeyP", key: "p" },
   openCodex: { code: "KeyC", key: "c" },
   openAchievements: { code: "KeyY", key: "y" },
+  openGathering: { code: "KeyK", key: "k" },
   openTips: { code: "F1", key: "F1" },
   openSettings: { code: "Escape", key: "Escape" },
   openMap: { code: "KeyM", key: "m" },
@@ -691,6 +692,7 @@ export class SemanticInputRuntime {
     if (key === "OverworldScene") {
       const state = document.getElementById("debug-state")?.textContent ?? "";
       if (state.includes("[PARTY:items")) return "inventory";
+      if (state.includes("[GATHERING")) return "gathering";
       if (state.includes("[CHRONICLE]")) return "chronicle";
       if (
         state.includes("[PARTY:")

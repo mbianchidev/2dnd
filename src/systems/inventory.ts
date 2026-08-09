@@ -206,6 +206,7 @@ export function getInventoryCategory(item: Item): InventoryCategory {
 
 export function getItemRarity(item: Item): ItemRarity {
   const canonical = getItem(item.id) ?? item;
+  if (canonical.material) return canonical.material.rarity;
   const equipmentPower = getInventoryCategory(canonical) === "equipment"
     ? canonical.effect
     : 0;
@@ -246,6 +247,10 @@ function matchesSearch(entry: InventoryViewEntry, search: string): boolean {
     entry.item.type,
     entry.category,
     entry.rarity,
+    ...(entry.item.tags ?? []),
+    ...(entry.item.material?.recipeInput.categories ?? []),
+    ...(entry.item.material?.recipeInput.tags ?? []),
+    entry.item.material?.discipline ?? "",
   ].some((value) => value.toLocaleLowerCase().includes(query));
 }
 

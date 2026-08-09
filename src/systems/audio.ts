@@ -12,6 +12,10 @@ import { TimePeriod } from "./daynight";
 import { TRAP_TYPES, type TrapType } from "../data/traps";
 import { playTrapSound } from "./trapAudio";
 import type { CutsceneAudioCue } from "../data/cutscenes";
+import type {
+  GatheringDiscipline,
+  GatheringRarity,
+} from "../data/gathering";
 import {
   gamePreferences,
   type AudioPreferences,
@@ -1115,7 +1119,97 @@ class AudioEngine {
         shim.start(startTime);
         shim.stop(startTime + 0.5);
       }
+
     }
+  }
+
+  playGatheringStartSFX(discipline: GatheringDiscipline): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const frequencies: Record<GatheringDiscipline, readonly [number, number]> = {
+      fishing: [330, 440],
+      mining: [180, 120],
+      foraging: [392, 523],
+    };
+    const [start, end] = frequencies[discipline];
+    const oscillator = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    oscillator.type = discipline === "mining" ? "square" : "sine";
+    oscillator.frequency.setValueAtTime(start, this.ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(
+      end,
+      this.ctx.currentTime + 0.18,
+    );
+    gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.24);
+    oscillator.connect(gain);
+    gain.connect(this.sfxGain);
+    oscillator.start();
+    oscillator.stop(this.ctx.currentTime + 0.25);
+    oscillator.addEventListener("ended", () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    }, { once: true });
+  }
+
+  playGatheringActionSFX(
+    discipline: GatheringDiscipline,
+    action: string,
+  ): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const oscillator = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const base = discipline === "fishing"
+      ? 520
+      : discipline === "mining"
+        ? 150
+        : 420;
+    const offset = action === "confirm" ? 80 : action === "tick" ? -40 : 20;
+    oscillator.type = discipline === "mining" ? "square" : "triangle";
+    oscillator.frequency.value = Math.max(80, base + offset);
+    gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
+    oscillator.connect(gain);
+    gain.connect(this.sfxGain);
+    oscillator.start();
+    oscillator.stop(this.ctx.currentTime + 0.11);
+    oscillator.addEventListener("ended", () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    }, { once: true });
+  }
+
+  playGatheringResultSFX(
+    success: boolean,
+    rarity?: GatheringRarity,
+  ): void {
+    if (!this.ctx || !this.sfxGain) return;
+    const rarityLift: Partial<Record<GatheringRarity, number>> = {
+      uncommon: 2,
+      rare: 4,
+      epic: 7,
+      legendary: 12,
+    };
+    const notes = success
+      ? [0, 4, 7 + (rarityLift[rarity ?? "common"] ?? 0)]
+      : [5, 2, -2];
+    notes.forEach((offset, index) => {
+      const oscillator = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      const start = this.ctx!.currentTime + index * 0.08;
+      oscillator.type = success ? "sine" : "sawtooth";
+      oscillator.frequency.value = noteFreq(-5 + offset);
+      gain.gain.setValueAtTime(0.001, start);
+      gain.gain.linearRampToValueAtTime(0.1, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.2);
+      oscillator.connect(gain);
+      gain.connect(this.sfxGain!);
+      oscillator.start(start);
+      oscillator.stop(start + 0.21);
+      oscillator.addEventListener("ended", () => {
+        oscillator.disconnect();
+        gain.disconnect();
+      }, { once: true });
+    });
   }
 
   /** Play a dungeon-enter boom — ominous deep impact. */
@@ -1578,6 +1672,9 @@ class AudioEngine {
       { label: "SFX: Miss",      fn: () => this.playMissSFX() },
       { label: "SFX: Crit Hit",  fn: () => this.playCriticalHitSFX() },
       { label: "SFX: Chest",     fn: () => this.playChestOpenSFX() },
+      { label: "SFX: Fishing",   fn: () => this.playGatheringStartSFX("fishing") },
+      { label: "SFX: Mining",    fn: () => this.playGatheringActionSFX("mining", "confirm") },
+      { label: "SFX: Rare find", fn: () => this.playGatheringResultSFX(true, "rare") },
       { label: "SFX: Dungeon",   fn: () => this.playDungeonEnterSFX() },
       { label: "SFX: Potion",    fn: () => this.playPotionSFX() },
       { label: "SFX: Spell",     fn: () => this.playSpellSFX() },

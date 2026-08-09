@@ -50,6 +50,9 @@ milestones, schema-v12 migration, bounded history, and debug commands
 idempotent battle/event/social hooks, reconciliation, schema-v13 migration,
 one-hit/no-defeat rules, cosmetic titles, debug exclusion, notices, and
 authority isolation
+✅ Gathering terrain safety, seeded tables, all three state machines,
+reduced-motion equivalence, cooldowns, environmental weights, economy, guarded
+Battle handoffs, recipe-input isolation, schema-v14 migration, and pending reload
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -108,6 +111,7 @@ tests/
 ├── accessibility.test.ts # Shared preference normalization, migration, and persistence
 ├── input.test.ts # Semantic mappings, contexts, repeats, cleanup, and suppression
 ├── tutorial.test.ts # Tutorial content, completion, and unlocked Tips
+├── gathering.test.ts # Gathering data, state machines, rewards, and save rules
 ├── cutsceneSceneTransition.test.ts # Generic Cutscene scene contracts
 ├── defeatSceneTransition.test.ts # Defeat result continuation contract
 ├── save.test.ts      # Persistence and migration

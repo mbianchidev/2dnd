@@ -183,6 +183,9 @@ playNewSFX(): void {
 | `playFootstepSFX(terrain)` | Filtered noise burst, varies by terrain | Every player step |
 | `playDialogueBlip(pitch)` | Quick square wave blip | NPC dialogue (future) |
 | `playCutsceneCue(cue)` | Typed procedural sting | Campaign cutscene step |
+| `playGatheringStartSFX(discipline)` | Discipline-specific start cue | Gathering begins |
+| `playGatheringActionSFX(discipline, action)` | Short input feedback | Gathering input |
+| `playGatheringResultSFX(success, rarity)` | Success/failure rarity phrase | Gathering resolves |
 
 ### Footstep Terrain Mapping
 The `playFootstepSFX(terrainType)` method uses the Terrain enum value to pick filter parameters:

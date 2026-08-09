@@ -40,6 +40,10 @@ import {
   createAchievementState,
   type AchievementState,
 } from "./achievements";
+import {
+  createGatheringState,
+  type GatheringState,
+} from "./gathering";
 
 export interface PlayerStats {
   strength: number;
@@ -81,6 +85,7 @@ export interface PlayerProgression {
   worldEvents: WorldEventState; // deterministic overworld event state and record
   social: SocialState; // alignment, town/faction reputation, idempotency, and recent causes
   achievements: AchievementState; // derived milestones, event counters, cosmetic titles, and notices
+  gathering: GatheringState; // deterministic gathering nodes, minigames, rewards, and records
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -273,6 +278,7 @@ export function createPlayer(
       worldEvents: createWorldEventState(),
       social: createSocialState(),
       achievements: createAchievementState(),
+      gathering: createGatheringState(),
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,

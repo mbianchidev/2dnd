@@ -574,7 +574,7 @@ Stack terrain, day/night, weather, and mount encounter modifiers through
 
 ### Cities
 
-There are 12 cities. Logical city chunk 0 uses `CityData.mapData`; optional
+There are 12 campaign cities plus the optional island port Tidehaven. Logical city chunk 0 uses `CityData.mapData`; optional
 `city.chunks` stores additional districts beginning at logical index 1.
 Use `getCityChunk*()` and `getCityConnectionAt()` helpers. Connections update
 `player.position.cityChunkIndex` and destination coordinates.
@@ -743,7 +743,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 15.
+Save schema version is 16.
+
+Schema v16 adds `player.progression.nautical`: typed boat ownership, condition,
+upgrades and cosmetics; discovered ports, routes, islands, continents, and sea
+fog keys; bounded navigation statistics; and recoverable pending merchant
+routes, hazards, and encounters. Canonical continent/zone/port/island metadata
+is derived and never persisted. Invalid sailing locations recover to a safe
+known port or Willowdale without renumbering legacy chunks or changing
+level-zero/chunk-zero fog formats.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -853,7 +861,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v15
+  visibility, handedness, and prompt source only; they never enter schema-v16
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

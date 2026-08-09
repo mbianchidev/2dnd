@@ -25,6 +25,8 @@ export const BOSS_CUTSCENE_IDS = [
   "boss.frostWarden.post",
   "boss.infernoForgemaster.pre",
   "boss.infernoForgemaster.post",
+  "boss.kraken.pre",
+  "boss.kraken.post",
 ] as const;
 
 export type BossCutsceneId = (typeof BOSS_CUTSCENE_IDS)[number];
@@ -150,6 +152,18 @@ const BOSS_STORIES: readonly BossStory[] = [
     biome: "dungeon",
     challenge: "The Forgemaster raises a white-hot hammer. Every chain in the forge pulls taut at once.",
     defeat: "The hammer falls silent. Clean fire moves through the forge, no longer bound to the Forgemaster's will.",
+  },
+  {
+    id: "kraken",
+    name: "Deepwake Kraken",
+    pre: "boss.kraken.pre",
+    post: "boss.kraken.post",
+    color: 0x311b92,
+    backdrop: "marsh",
+    effect: "mist",
+    biome: "sea",
+    challenge: "The sea folds inward. Tentacles rise around the boat as an ancient eye opens beneath the wake.",
+    defeat: "The Kraken releases the hull and sinks into the deep. Dawn reaches water no chart had ever named.",
   },
 ];
 

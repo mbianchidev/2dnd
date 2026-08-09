@@ -151,6 +151,66 @@ export const WORLD_EVENT_TRIGGER_RULES = {
 
 export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
   {
+    id: "adriftChartCase",
+    family: "discovery",
+    title: "An Adrift Chart Case",
+    source: "Open sea",
+    prompt: "A sealed brass chart case bobs between the swells.",
+    weight: 5,
+    cooldownSteps: 18,
+    maxRepeats: 2,
+    eligibility: {
+      terrains: [Terrain.Water],
+      minLevel: 4,
+    },
+    choices: [
+      {
+        id: "recoverCase",
+        label: "Recover the case",
+        detail: "Dexterity check, DC 12",
+        type: "skill",
+        ability: "dexterity",
+        dc: 12,
+        success: {
+          id: "chartCaseRecovered",
+          summary: "The case holds preserved navigation supplies.",
+          rewards: [{
+            id: "chartSupplies",
+            type: "item",
+            itemId: "navigationSupplies",
+          }],
+          futureHooks: [{
+            type: "reputation",
+            factionId: "roadwardens",
+            delta: 3,
+            reasonId: "adriftChartCase.recovered",
+          }],
+        },
+        failure: {
+          id: "chartCaseLost",
+          summary: "The case slips beneath the wake. The failed reach costs 3 HP.",
+          nonlethalDamage: 3,
+        },
+      },
+      {
+        id: "markHazard",
+        label: "Mark the drift and continue",
+        detail: "Avoid risking the crew.",
+        type: "resolve",
+        outcome: {
+          id: "chartCaseMarked",
+          summary: "The drift is marked for the next merchant convoy.",
+          futureHooks: [{
+            type: "alignment",
+            axis: "goodEvil",
+            delta: 2,
+            reasonId: "adriftChartCase.marked",
+          }],
+        },
+      },
+    ],
+  },
+  {
     id: "moonlitShrine",
     family: "shrine",
     title: "A Moonlit Shrine",

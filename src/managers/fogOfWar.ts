@@ -5,6 +5,8 @@
 
 import { MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, DUNGEONS, CITIES, getCityChunkCount } from "../data/map";
 import type { PlayerState } from "../systems/player";
+import { getSeaZoneAt } from "../data/nautical";
+import { seaFogKey } from "../systems/nautical";
 
 export class FogOfWar {
   private exploredTiles: Record<string, boolean> = {};
@@ -28,6 +30,23 @@ export class FogOfWar {
         return `c:${player.position.cityId},${ci},${x},${y}`;
       }
       return `c:${player.position.cityId},${x},${y}`;
+    }
+    if (player.progression.nautical.sailing) {
+      const sea = getSeaZoneAt(
+        player.position.chunkX,
+        player.position.chunkY,
+        x,
+        y,
+      );
+      if (sea) {
+        return seaFogKey(
+          sea.zoneId,
+          player.position.chunkX,
+          player.position.chunkY,
+          x,
+          y,
+        );
+      }
     }
     return `${player.position.chunkX},${player.position.chunkY},${x},${y}`;
   }

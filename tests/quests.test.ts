@@ -670,8 +670,11 @@ describe("quest data integrity", () => {
     }
 
     expect(main.stages).toHaveLength(7);
+    const campaignCityIds = CITIES
+      .map((city) => city.id)
+      .filter((cityId) => cityId !== "tidehaven_city");
     expect(new Set(cityNpcCounts.keys())).toEqual(
-      new Set(CITIES.map((city) => city.id)),
+      new Set(campaignCityIds),
     );
     expect([...cityNpcCounts.values()]).toEqual(
       expect.arrayContaining(Array.from({ length: 12 }, () => 1)),
@@ -803,8 +806,8 @@ describe("quest data integrity", () => {
         ]);
       }
     }
-    expect(CITIES).toHaveLength(12);
-    expect(DUNGEONS).toHaveLength(3);
+    expect(CITIES).toHaveLength(13);
+    expect(DUNGEONS).toHaveLength(4);
     expect(QUEST_DANGER_RULES.length).toBeGreaterThan(0);
   });
 

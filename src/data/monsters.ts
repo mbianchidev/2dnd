@@ -23,6 +23,11 @@ import {
   SWAMP_NIGHT_MONSTERS,
   TUNDRA_NIGHT_MONSTERS,
 } from "./nightMonsters";
+import {
+  KRAKEN,
+  SEA_DAY_MONSTER_DEFINITIONS,
+  SEA_NIGHT_MONSTER_DEFINITIONS,
+} from "./seaMonsters";
 
 export {
   CANYON_NIGHT_MONSTERS,
@@ -31,6 +36,11 @@ export {
   SWAMP_NIGHT_MONSTERS,
   TUNDRA_NIGHT_MONSTERS,
 } from "./nightMonsters";
+export {
+  KRAKEN,
+  SEA_DAY_MONSTER_DEFINITIONS,
+  SEA_NIGHT_MONSTER_DEFINITIONS,
+} from "./seaMonsters";
 
 export interface MonsterDrop {
   itemId: string;
@@ -714,6 +724,11 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
 
 /** Map of dungeon ID → unique monster pool. Falls back to generic DUNGEON_MONSTERS. */
 export const DUNGEON_MONSTER_POOLS: Record<string, Monster[]> = {
+  tideglass_grotto: [
+    ...DUNGEON_MONSTERS,
+    ...SEA_DAY_MONSTER_DEFINITIONS,
+    ...SEA_NIGHT_MONSTER_DEFINITIONS,
+  ],
   heartlands_dungeon: [...DUNGEON_MONSTERS, ...HEARTLANDS_CRYPT_MONSTERS],
   frost_cavern: [...DUNGEON_MONSTERS, ...FROST_CAVERN_MONSTERS],
   volcanic_forge: [...DUNGEON_MONSTERS, ...VOLCANIC_FORGE_MONSTERS],
@@ -721,6 +736,7 @@ export const DUNGEON_MONSTER_POOLS: Record<string, Monster[]> = {
 
 /** Unique dungeon bosses — one per dungeon, encountered on the deepest level. */
 export const DUNGEON_BOSSES: Monster[] = [
+  KRAKEN,
   {
     id: "cryptLich",
     name: "Crypt Lich",
@@ -803,6 +819,7 @@ export const DUNGEON_BOSSES: Monster[] = [
 
 /** Map of dungeon ID → unique boss ID. */
 export const DUNGEON_BOSS_MAP: Record<string, string> = {
+  tideglass_grotto: "kraken",
   heartlands_dungeon: "cryptLich",
   frost_cavern: "frostWarden",
   volcanic_forge: "infernoForgemaster",
@@ -918,6 +935,9 @@ export const ALL_MONSTERS: Monster[] = (() => {
     SWAMP_NIGHT_MONSTERS,
     FOREST_NIGHT_MONSTERS,
     CANYON_NIGHT_MONSTERS,
+    SEA_DAY_MONSTER_DEFINITIONS,
+    SEA_NIGHT_MONSTER_DEFINITIONS,
+    [KRAKEN],
   ];
   for (const pool of pools) {
     for (const m of pool) {

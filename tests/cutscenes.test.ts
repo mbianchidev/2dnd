@@ -155,7 +155,7 @@ describe("cutscene progression", () => {
 
   it("exposes exactly one validated definition for every stable ID", () => {
     expect(new Set(CUTSCENE_IDS).size).toBe(CUTSCENE_IDS.length);
-    expect(CUTSCENE_IDS).toHaveLength(52);
+    expect(CUTSCENE_IDS).toHaveLength(54);
     for (const cutsceneId of CUTSCENE_IDS) {
       const definition = getCutsceneDefinition(cutsceneId);
       expect(definition.id).toBe(cutsceneId);
@@ -251,7 +251,7 @@ describe("cutscene progression", () => {
       "Frost Warden",
       "Inferno Forgemaster",
     ]);
-    expect(summary.discoveredCities).toEqual({ current: 3, total: 12 });
+    expect(summary.discoveredCities).toEqual({ current: 3, total: 13 });
     expect(summary.codexEntries).toBe(1);
     expect(JSON.stringify(player)).toBe(before);
   });

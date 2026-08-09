@@ -8,6 +8,7 @@ import {
   RECRUIT_GUARDIAN_QUEST_ID,
   RECRUIT_MYSTIC_QUEST_ID,
   RECRUIT_SCOUT_QUEST_ID,
+  TIDEGLASS_CHARTER_QUEST_ID,
 } from "../data/quests";
 import type {
   QuestDefinition,
@@ -78,6 +79,9 @@ export function createQuestLog(): QuestLogState {
         IRON_DISPATCH_QUEST_ID,
       ),
       [FROST_SILK_QUEST_ID]: createDefaultProgress(FROST_SILK_QUEST_ID),
+      [TIDEGLASS_CHARTER_QUEST_ID]: createDefaultProgress(
+        TIDEGLASS_CHARTER_QUEST_ID,
+      ),
       [RECRUIT_GUARDIAN_QUEST_ID]: createDefaultProgress(
         RECRUIT_GUARDIAN_QUEST_ID,
       ),

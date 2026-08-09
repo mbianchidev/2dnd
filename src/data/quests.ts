@@ -7,6 +7,7 @@ import type { SocialOutcomeDefinition } from "./reputation";
 export const MAIN_QUEST_ID = "twelvefoldCovenant" as const;
 export const IRON_DISPATCH_QUEST_ID = "ironboundDispatch" as const;
 export const FROST_SILK_QUEST_ID = "silkAgainstTheCold" as const;
+export const TIDEGLASS_CHARTER_QUEST_ID = "tideglassCharter" as const;
 export const SIDE_QUEST_ID = IRON_DISPATCH_QUEST_ID;
 export const RECRUIT_GUARDIAN_QUEST_ID = "recruitGuardian" as const;
 export const RECRUIT_SCOUT_QUEST_ID = "recruitScout" as const;
@@ -16,6 +17,7 @@ export const QUEST_IDS = [
   MAIN_QUEST_ID,
   IRON_DISPATCH_QUEST_ID,
   FROST_SILK_QUEST_ID,
+  TIDEGLASS_CHARTER_QUEST_ID,
   RECRUIT_GUARDIAN_QUEST_ID,
   RECRUIT_SCOUT_QUEST_ID,
   RECRUIT_MYSTIC_QUEST_ID,
@@ -754,6 +756,84 @@ const FROST_SILK_QUEST: QuestDefinition = {
   outcome: "Frostheim's ward-cloths are restored before the deepest cold.",
 };
 
+const TIDEGLASS_CHARTER_QUEST: QuestDefinition = {
+  id: TIDEGLASS_CHARTER_QUEST_ID,
+  name: "The Tideglass Charter",
+  type: "side",
+  summary: "Help Sandport reopen its island charter and earn a seaworthy skiff.",
+  startNpcId: QUEST_NPC_IDS.sandport,
+  unlockMainStage: 3,
+  startDialogue: [
+    "The old Tideglass route is charted, but no captain will risk its first run.",
+    "Clear the Canyon Drake from the coastal thermals, then return. I will put a skiff under your command.",
+  ],
+  stages: [
+    {
+      id: "clearCoastalThermals",
+      title: "Clear the Coastal Thermals",
+      summary: "Defeat the Canyon Drake that threatens Sandport's sea lane.",
+      objectives: [{
+        id: "defeatCharterDrake",
+        type: "defeat",
+        targetId: "canyonDrake",
+        description: "Defeat the Canyon Drake.",
+      }],
+    },
+    {
+      id: "signCharter",
+      title: "Sign the Tideglass Charter",
+      summary: "Return to Harbormaster Sable in Sandport.",
+      objectives: [{
+        id: "returnToSable",
+        type: "talk",
+        targetId: QUEST_NPC_IDS.sandport,
+        description: "Return to Harbormaster Sable.",
+        dialogue: [
+          "The thermals are clear, and the convoy masters have signed.",
+          "This Reed Skiff is yours. Discover ports, then choose merchant passage or sail under your own heading.",
+        ],
+      }],
+    },
+  ],
+  completionRewards: [
+    {
+      id: "tideglassCharter.xp",
+      type: "xp",
+      amount: 500,
+      message: "Gained 500 XP.",
+    },
+    {
+      id: "tideglassCharter.gold",
+      type: "gold",
+      amount: 200,
+      message: "Received 200 gold for clearing the sea lane.",
+    },
+    {
+      id: "tideglassCharter.standing",
+      type: "social",
+      alignment: { goodEvil: 6 },
+      reputation: [
+        { kind: "town", targetId: "sandport_city", delta: 25 },
+        { kind: "faction", targetId: "roadwardens", delta: 15 },
+      ],
+      message: "Sandport recognizes you as a charter captain.",
+    },
+  ],
+  completionActions: [
+    {
+      id: "nautical.acquire.reedSkiff",
+      type: "acquireBoat",
+      targetId: "reedSkiff",
+    },
+    {
+      id: "crafting.navigationSupplies",
+      type: "unlockRecipe",
+      targetId: "navigationSupplies",
+    },
+  ],
+  outcome: "Sandport's Tideglass route reopens under your charter.",
+};
+
 const RECRUIT_GUARDIAN_QUEST: QuestDefinition = {
   id: RECRUIT_GUARDIAN_QUEST_ID,
   name: "The Ironward Oath",
@@ -938,6 +1018,7 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
   [MAIN_QUEST_ID]: MAIN_QUEST,
   [IRON_DISPATCH_QUEST_ID]: IRON_DISPATCH_QUEST,
   [FROST_SILK_QUEST_ID]: FROST_SILK_QUEST,
+  [TIDEGLASS_CHARTER_QUEST_ID]: TIDEGLASS_CHARTER_QUEST,
   [RECRUIT_GUARDIAN_QUEST_ID]: RECRUIT_GUARDIAN_QUEST,
   [RECRUIT_SCOUT_QUEST_ID]: RECRUIT_SCOUT_QUEST,
   [RECRUIT_MYSTIC_QUEST_ID]: RECRUIT_MYSTIC_QUEST,

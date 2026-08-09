@@ -81,6 +81,7 @@ describe("tutorial and tips", () => {
       level: 3,
       companionCount: 1,
       hasMount: true,
+      hasNauticalDiscovery: true,
       hasEnteredDungeon: true,
       hasSkillCheck: true,
       hasTrapExperience: true,

@@ -145,6 +145,7 @@ export interface GatheringStartContext {
   timeStep: number;
   weather: WeatherType;
   reducedMotion: boolean;
+  sea?: boolean;
 }
 
 export interface GatheringResolution {
@@ -365,7 +366,10 @@ function chooseOutcome(
   context: GatheringStartContext,
   instanceId: string,
 ): GatheringOutcomeDefinition {
-  const table = getGatheringTable(GATHERING_DEFINITIONS[node.discipline].tableId);
+  const tableId = node.discipline === "fishing" && context.sea
+    ? "openSeaCatch"
+    : GATHERING_DEFINITIONS[node.discipline].tableId;
+  const table = getGatheringTable(tableId);
   if (!table) throw new Error(`[gathering] Missing table for ${node.discipline}`);
   const eligible = table.outcomes.filter((outcome) =>
     matchesOutcome(outcome, node, context)

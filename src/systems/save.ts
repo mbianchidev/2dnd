@@ -12,6 +12,7 @@ import type { WeatherState } from "./weather";
 import { createWeatherState } from "./weather";
 import {
   CITIES,
+  Terrain,
   MAP_HEIGHT,
   MAP_WIDTH,
   WORLD_HEIGHT,
@@ -59,9 +60,12 @@ import {
 import { normalizeGatheringState } from "./gatheringState";
 import { normalizeCraftingState } from "./craftingState";
 import { reconcileCraftingRecipes } from "./crafting";
+import { normalizeNauticalState } from "./nauticalState";
+import { getBoat, getPort, getSeaZoneAt } from "../data/nautical";
+import { synchronizeNauticalQuestRewards } from "./nautical";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 15;
+const SAVE_VERSION = 16;
 const TUTORIAL_SAVE_VERSION = 9;
 
 export interface SaveData {
@@ -332,11 +336,46 @@ function normalizePlayerLocation(player: PlayerState): void {
     position.x,
     position.y,
   );
+  const wasSailing = player.progression.nautical.sailing;
+  if (wasSailing && terrain === Terrain.Water) {
+    const boat = player.progression.nautical.ownedBoats.find(
+      (owned) => owned.id === player.progression.nautical.activeBoatId,
+    );
+    const sea = getSeaZoneAt(
+      position.chunkX,
+      position.chunkY,
+      position.x,
+      position.y,
+    );
+    if (
+      boat
+      && boat.condition > 0
+      && sea
+      && (sea.depth === "shallow" || getBoat(boat.id).deepWaterCapable)
+    ) {
+      return;
+    }
+    player.progression.nautical.sailing = false;
+  }
+  if (wasSailing && terrain !== Terrain.Water) {
+    player.progression.nautical.sailing = false;
+  }
   if (terrain === undefined || !isWalkable(terrain)) {
-    position.chunkX = 4;
-    position.chunkY = 2;
-    position.x = 3;
-    position.y = 3;
+    if (wasSailing) {
+      const discoveredPorts = player.progression.nautical.discoveredPortIds;
+      const recoveryPortId =
+        discoveredPorts[discoveredPorts.length - 1] ?? "sandportHarbor";
+      const recoveryPort = getPort(recoveryPortId);
+      position.chunkX = recoveryPort.location.chunkX;
+      position.chunkY = recoveryPort.location.chunkY;
+      position.x = recoveryPort.location.tileX;
+      position.y = recoveryPort.location.tileY;
+    } else {
+      position.chunkX = 4;
+      position.chunkY = 2;
+      position.x = 3;
+      position.y = 3;
+    }
   }
 }
 
@@ -414,6 +453,7 @@ export function loadGame(): SaveData | null {
         achievements: normalizeAchievementState(undefined, sourceVersion),
         gathering: normalizeGatheringState(undefined, sourceVersion),
         crafting: normalizeCraftingState(undefined, sourceVersion),
+        nautical: normalizeNauticalState(undefined, sourceVersion),
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -479,8 +519,13 @@ export function loadGame(): SaveData | null {
       data.player.progression.crafting,
       sourceVersion,
     );
+    data.player.progression.nautical = normalizeNauticalState(
+      data.player.progression.nautical,
+      sourceVersion,
+    );
     data.player.party = normalizePartyState(playerRecord["party"]);
     synchronizeCompanionRecruitment(data.player);
+    synchronizeNauticalQuestRewards(data.player);
     ensureLegacyCampaignEpilogueQueued(data.player);
 
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;

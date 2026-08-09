@@ -9,6 +9,7 @@ import { PLAYER_CLASSES } from "../systems/classes";
 import { SKIN_COLOR_OPTIONS } from "../systems/appearance";
 import { NPC_TEMPLATES } from "../data/npcs";
 import { MOUNTS } from "../data/mounts";
+import { BOATS } from "../data/nautical";
 import { TILE_SIZE } from "../config";
 import { generateTrapTextures } from "./trapTextures";
 import { generateMonsterTextures } from "./monsterTextures";
@@ -30,11 +31,37 @@ export function generateAllTextures(scene: Phaser.Scene): void {
   generatePlayerTexture(scene);
   generatePlayerTextures(scene);
   generateMountTextures(scene);
+  generateBoatTextures(scene);
   generateMonsterTextures(scene);
   generateUITextures(scene);
   generateBattleBackgrounds(scene);
   generateNpcTextures(scene);
   generateTrapTextures(scene);
+}
+
+function generateBoatTextures(scene: Phaser.Scene): void {
+  for (const boat of BOATS) {
+    const gfx = scene.add.graphics();
+    gfx.fillStyle(0x5d4037, 1);
+    gfx.fillTriangle(3, 19, 29, 19, 23, 28);
+    gfx.fillStyle(0x8d6e63, 1);
+    gfx.fillRect(7, 15, 18, 6);
+    gfx.lineStyle(2, 0xeeeeee, 1);
+    gfx.lineBetween(16, 4, 16, 17);
+    gfx.fillStyle(
+      boat.id === "stormcutter"
+        ? 0x90caf9
+        : boat.id === "merchantSloop"
+          ? 0xfff3c4
+          : 0xc8e6c9,
+      1,
+    );
+    gfx.fillTriangle(17, 5, 17, 15, 27, 15);
+    gfx.fillStyle(0xbbdefb, 0.85);
+    gfx.fillRect(2, 27, 28, 2);
+    gfx.generateTexture(`boat_${boat.id}`, TILE_SIZE, TILE_SIZE);
+    gfx.destroy();
+  }
 }
 
 function generateTileTextures(scene: Phaser.Scene): void {

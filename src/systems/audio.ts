@@ -79,6 +79,7 @@ export const BIOME_PROFILES: Record<string, BiomeProfile> = {
   Woodland: { baseNote: 0,  scale: MAJOR_PENTA,      bpm: 88,  wave: "triangle", padWave: "sine" },
   Highland: { baseNote: 2,  scale: MAJOR_PENTA,      bpm: 82,  wave: "sine",     padWave: "triangle" },
   Rolling:  { baseNote: 0,  scale: MAJOR_PENTA,      bpm: 90,  wave: "sine",     padWave: "sine" },
+  Sea:      { baseNote: -2, scale: MINOR_PENTA,      bpm: 76,  wave: "sine",     padWave: "triangle" },
 };
 
 /** Default/fallback profile (Heartlands, plains, etc.) */
@@ -131,6 +132,7 @@ const BOSS_OVERRIDES: Record<string, Partial<BiomeProfile>> = {
   volcanicWyrm: { baseNote: -14, bpm: 160, scale: HARMONIC_MINOR,  wave: "square",   padWave: "sawtooth" },
   // Canyon Drake — agile, soaring, sharp attacks
   canyonDrake:  { baseNote: -7,  bpm: 145, scale: HARMONIC_MINOR,  wave: "sawtooth", padWave: "triangle" },
+  kraken:       { baseNote: -15, bpm: 148, scale: DIMINISHED,       wave: "sawtooth", padWave: "square" },
 };
 
 // ── City-specific tuning overrides ─────────────────────────────
@@ -632,6 +634,28 @@ class AudioEngine {
     this.state.trackId = trackId;
     this.state.nightMode = isNight;
     this.playProfile(profile, isNight);
+  }
+
+  playSailingMusic(period: TimePeriod): void {
+    this.playBiomeMusic("Sea Passage", period);
+  }
+
+  playSailingSFX(): void {
+    if (!this.ctx || !this.sfxGain || !this.noiseBuffer) return;
+    const now = this.ctx.currentTime;
+    const noise = this.ctx.createBufferSource();
+    const filter = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+    noise.buffer = this.noiseBuffer;
+    filter.type = "highpass";
+    filter.frequency.value = 900;
+    gain.gain.setValueAtTime(0.045, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain);
+    noise.start(now);
+    noise.stop(now + 0.2);
   }
 
   /** Play battle music (non-boss). */

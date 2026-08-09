@@ -56,6 +56,42 @@ export interface MonsterEncounter {
 
 export const MONSTER_GROUP_TEMPLATES: MonsterGroupTemplate[] = [
   {
+    id: "reefHunters",
+    name: "Reef Hunters",
+    members: [
+      { monsterId: "coralCrab", position: "front" },
+      { monsterId: "razorfin", position: "front" },
+      { monsterId: "reefSlime", position: "back" },
+    ],
+    synergy: {
+      type: "elemental_combo",
+      description: "The reef pack churns the water for 1 bonus damage.",
+      damageBonus: 1,
+      breakThreshold: 2,
+    },
+    minPlayerLevel: 7,
+    biomes: ["sea", "shallow"],
+    encounterWeight: 4,
+  },
+  {
+    id: "nightwakeHunt",
+    name: "Nightwake Hunt",
+    members: [
+      { monsterId: "drownedSailor", position: "front" },
+      { monsterId: "moonJelly", position: "back" },
+      { monsterId: "abyssalEel", position: "back" },
+    ],
+    synergy: {
+      type: "war_cry",
+      description: "A drowned chant grants the deep host +1 attack.",
+      attackBonus: 1,
+      breakThreshold: 2,
+    },
+    minPlayerLevel: 10,
+    biomes: ["sea", "deep", "night"],
+    encounterWeight: 3,
+  },
+  {
     id: "slimeSwarm",
     name: "Slime Swarm",
     members: [

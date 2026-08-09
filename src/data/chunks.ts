@@ -1717,6 +1717,13 @@ const CHUNK_9_8: Terrain[][] = [
 ];
 
 
+function withIslandLandmarks(mapData: Terrain[][]): Terrain[][] {
+  const map = mapData.map((row) => [...row]);
+  map[1]![6] = Terrain.Town;
+  map[1]![7] = Terrain.Dungeon;
+  return map;
+}
+
 export const WORLD_CHUNKS: WorldChunk[][] = [
   // Row 0
   [
@@ -1750,7 +1757,7 @@ export const WORLD_CHUNKS: WorldChunk[][] = [
     { name: "Ancient Frontier", mapData: CHUNK_1_2, towns: [], bosses: [] },
     { name: "Woodland Reach", mapData: CHUNK_2_2, towns: [], bosses: [] },
     { name: "Western Plains", mapData: CHUNK_3_2, towns: [{ name: "Ironhold", x: 5, y: 7, hasShop: true, shopItems: ["greaterPotion", "ether", "greatSword", "plateArmor", "towerShield"] }], bosses: [] },
-    { name: "Heartlands", mapData: CHUNK_4_2, towns: [{ name: "Willowdale", x: 2, y: 2, hasShop: true, shopItems: ["potion", "ether", "shortSword", "leatherArmor", "woodenShield", "dungeonKey"] }], bosses: [] },
+    { name: "Heartlands", mapData: withIslandLandmarks(CHUNK_4_2), towns: [{ name: "Willowdale", x: 2, y: 2, hasShop: true, shopItems: ["potion", "ether", "shortSword", "leatherArmor", "woodenShield", "dungeonKey"] }, { name: "Tidehaven", x: 6, y: 1, hasShop: true, shopItems: ["navigationSupplies", "saltfin", "oceanPearl"] }], bosses: [] },
     { name: "Eastern Desert", mapData: CHUNK_5_2, towns: [{ name: "Sandport", x: 12, y: 6, hasShop: true, shopItems: ["potion", "greaterPotion", "longSword", "chainMail", "ironShield"] }], bosses: [] },
     { name: "Arid Ridge", mapData: CHUNK_6_2, towns: [], bosses: [] },
     { name: "Arid Crossing", mapData: CHUNK_7_2, towns: [{ name: "Canyonwatch", x: 10, y: 7, hasShop: true, shopItems: ["potion", "greaterPotion", "longSword", "ironShield"] }], bosses: [] },

@@ -272,6 +272,14 @@ export interface NpcInstance {
  * link to the corresponding entry in the city's `shops` array.
  */
 export const CITY_NPCS: Record<string, NpcInstance[]> = {
+  tidehaven_city: [
+    { templateId: "female_tall", job: "merchant", x: 4, y: 6, moves: false, shopIndex: 0 },
+    { templateId: "male_stout", job: "blacksmith", x: 15, y: 6, moves: false, shopIndex: 1 },
+    { templateId: "female_elder", job: "innkeeper", x: 4, y: 8, moves: false, shopIndex: 2 },
+    { templateId: "male_young", job: "merchant", x: 15, y: 8, moves: false, shopIndex: 3 },
+    { templateId: "child_girl2", job: "villager", x: 8, y: 10, moves: true },
+    { templateId: "guard_female", job: "guard", x: 11, y: 3, moves: false },
+  ],
   willowdale_city: [
     { templateId: "male_stout",   job: "blacksmith",    x: 4,  y: 5,  moves: false, shopIndex: 0 },
     { templateId: "female_tall",  job: "merchant",      x: 15, y: 5,  moves: false, shopIndex: 1 },

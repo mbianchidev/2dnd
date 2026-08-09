@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v15, migration, normalization, and location recovery
+description: Manage 2D&D save schema v16, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -23,7 +23,7 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 15.
+`SAVE_VERSION` is 16.
 
 ```typescript
 interface SaveData {
@@ -135,6 +135,10 @@ bounded history, and one exact pending minigame or guarded Battle outcome.
 natural craft and equipment-upgrade statistics, per-recipe counts, bounded
 recent history, and the next sequence. Recipe definitions and values are
 canonical derived data.
+`nautical` persists boat ownership/condition/upgrades/cosmetics, discovered
+ports/routes/islands/continents/sea tiles, bounded navigation statistics, and
+recoverable pending merchant routes, hazards, and encounters. Continents, sea
+zones, ports, routes, islands, boats, and encounter pools remain canonical data.
 
 ## Loading and migration
 
@@ -183,6 +187,10 @@ helpers; do not cast unvalidated nested values directly.
 - Missing/invalid crafting state through `normalizeCraftingState()`; schema-v14
   saves gain defaults, unknown/duplicate IDs are removed, statistics are clamped,
   history is bounded/resequenced, and durable discovery is reconciled
+- Missing/invalid nautical state through `normalizeNauticalState()`; schema-v15
+  and older saves gain defaults, unknown IDs and malformed pending records are
+  removed, condition/statistics are clamped, and invalid sea positions recover
+  to a safe port without losing other progression
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
 
@@ -265,7 +273,7 @@ top-level save is absent or corrupt.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v15 position, objective/reward/warning quest state, skill checks,
+- Current schema-v16 position, objective/reward/warning quest state, skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
 - Flat schema-v4 quest migration and completed-reward preservation

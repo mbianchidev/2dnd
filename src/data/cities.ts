@@ -4,6 +4,7 @@
  */
 
 import { Terrain } from "./mapTypes";
+import { TIDEHAVEN_CITY } from "./islands";
 import type { CityConnection, CityData, CityShopData, CityChunk } from "./mapTypes";
 
 // ─── City Interior Maps ─────────────────────────────────────────
@@ -522,6 +523,7 @@ const SHADOWFEN_HOLLOW: Terrain[][] = [
 ];
 
 export const CITIES: CityData[] = [
+  TIDEHAVEN_CITY,
   {
     id: "willowdale_city", name: "Willowdale", chunkX: 4, chunkY: 2, tileX: 2, tileY: 2,
     mapData: withNorthGate(WILLOWDALE_INTERIOR), spawnX: 10, spawnY: 13,

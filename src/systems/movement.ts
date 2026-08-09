@@ -10,6 +10,7 @@ import type { PlayerState } from "./player";
 import {
   MAP_WIDTH,
   MAP_HEIGHT,
+  Terrain,
   isWalkable,
   getTerrainAt,
   getDungeon,
@@ -19,6 +20,8 @@ import {
   getCityConnectionAt,
   getCityChunkMap,
 } from "../data/map";
+import { canSailTo } from "./nautical";
+import { isIslandLandmarkAt } from "../data/nautical";
 
 /** Result of a grid move attempt. */
 export interface MoveResult {
@@ -123,7 +126,21 @@ export function tryGridMove(
   else if (newY >= MAP_HEIGHT) { newChunkY++; newY = 0; }
 
   const terrain = getTerrainAt(newChunkX, newChunkY, newX, newY);
-  if (terrain === undefined || !isWalkable(terrain)) return noMove;
+  if (isIslandLandmarkAt(newChunkX, newChunkY, newX, newY)) return noMove;
+  const navigable = terrain !== undefined && (
+    isWalkable(terrain)
+    || (
+      terrain === Terrain.Water
+      && canSailTo(
+        player.progression.nautical,
+        newChunkX,
+        newChunkY,
+        newX,
+        newY,
+      )
+    )
+  );
+  if (!navigable) return noMove;
 
   const chunkChanged = newChunkX !== player.position.chunkX || newChunkY !== player.position.chunkY;
   player.position.x = newX;

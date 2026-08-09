@@ -11,6 +11,7 @@ const HERO_ACTOR_ID = "overworld:hero";
 export class WorldPresentationDirector {
   private readonly actors: ActorAnimationDirector;
   private mountActorId: string | null = null;
+  private boatActorId: string | null = null;
   private followerActorIds = new Map<CompanionId, string>();
   private readonly eventHistory: string[] = [];
   private lastEvent = "idle";
@@ -54,6 +55,28 @@ export class WorldPresentationDirector {
         role: "mount",
         fallbackTextureKey: sprite.texture.key,
         framePrefix: `mount_${mountId}_world`,
+      }),
+    });
+  }
+
+  public bindBoat(
+    sprite: Phaser.GameObjects.Sprite | null,
+    boatId: string,
+  ): void {
+    if (this.boatActorId) this.actors.unbind(this.boatActorId);
+    this.boatActorId = null;
+    if (!sprite || !boatId) return;
+    const actorId = `overworld:boat:${boatId}`;
+    this.boatActorId = actorId;
+    this.actors.bind({
+      id: actorId,
+      role: "mount",
+      target: sprite,
+      textureFamily: createActorTextureFamily({
+        id: `boat.${boatId}`,
+        role: "mount",
+        fallbackTextureKey: sprite.texture.key,
+        framePrefix: `boat_${boatId}_world`,
       }),
     });
   }
@@ -106,6 +129,16 @@ export class WorldPresentationDirector {
         + (isReducedMotionEnabled() ? ":immediate" : ""),
       );
     }
+    if (this.boatActorId) {
+      this.actors.play(this.boatActorId, "walk", {
+        direction,
+        restorePosition: false,
+      });
+      this.recordEvent(
+        `${this.boatActorId}:sail`
+        + (isReducedMotionEnabled() ? ":immediate" : ""),
+      );
+    }
   }
 
   public presentFollowerStep(companionId: CompanionId, dx: number): void {
@@ -124,6 +157,7 @@ export class WorldPresentationDirector {
   public completePlayerStep(): void {
     this.actors.refreshBase(HERO_ACTOR_ID);
     if (this.mountActorId) this.actors.refreshBase(this.mountActorId);
+    if (this.boatActorId) this.actors.refreshBase(this.boatActorId);
   }
 
   public completeFollowerStep(companionId: CompanionId): void {
@@ -139,6 +173,7 @@ export class WorldPresentationDirector {
   public cleanup(): void {
     this.actors.cleanup();
     this.mountActorId = null;
+    this.boatActorId = null;
     this.followerActorIds.clear();
     this.eventHistory.length = 0;
     this.lastEvent = "clean";

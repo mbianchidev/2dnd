@@ -57,6 +57,10 @@ Battle handoffs, recipe-input isolation, schema-v14 migration, and pending reloa
 items, atomic batches, repeated-input suppression, equipment-link upgrades,
 ownership, discovery, acquisition tables, anti-arbitrage, achievements, debug
 exclusion, authority isolation, schema-v15 migration, and corruption repair
+✅ Nautical continent/zone/port/island integrity, pre-boat merchant routes,
+boat acquisition/upgrades, embark/disembark safety, sea fog, capped encounters,
+weather hazards, Kraken hooks, sea gathering/crafting economy, schema-v16
+migration/corruption recovery, debug commands, and browser reload while sailing
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics

@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v12, migration, normalization, and location recovery
+description: Manage 2D&D save schema v13, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -23,7 +23,7 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 12.
+`SAVE_VERSION` is 13.
 
 ```typescript
 interface SaveData {
@@ -85,6 +85,7 @@ interface PlayerProgression {
   tutorial: TutorialProgress;
   worldEvents: WorldEventState;
   social: SocialState;
+  achievements: AchievementState;
 }
 
 interface QuestProgress {
@@ -121,6 +122,10 @@ counters, and the bounded chronological World Events record.
 scores, stable applied source IDs, and at most 40 recent cause entries. Names,
 tiers, thresholds, shop modifiers, Codex milestones, and achievement hooks are
 derived.
+`achievements` persists earned records, once-only event counters/IDs, explicit
+defeat-history validity, unlocked/equipped cosmetic titles, debug suppression,
+and pending notice IDs. Definitions, categories, points, totals, and
+reconstructable progress are derived from canonical data.
 
 ## Loading and migration
 
@@ -159,6 +164,10 @@ helpers; do not cast unvalidated nested values directly.
 - Missing/invalid social state through `normalizeSocialState()`; unknown town
   and faction IDs are removed, scores are clamped, applied IDs are deduplicated,
   and history is validated against those IDs
+- Missing/invalid achievement state through `normalizeAchievementState()`;
+  unknown/duplicate IDs are removed, counters/order are repaired, title
+  cross-fields are validated, and schema-v12 or older saves reconcile durable
+  milestones silently while retaining unknown defeat history
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
 
@@ -241,7 +250,7 @@ top-level save is absent or corrupt.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v12 position, objective/reward/warning quest state, skill checks,
+- Current schema-v13 position, objective/reward/warning quest state, skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
 - Flat schema-v4 quest migration and completed-reward preservation

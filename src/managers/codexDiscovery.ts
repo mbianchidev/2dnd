@@ -9,6 +9,10 @@ export class CodexDiscoveryManager {
 
   constructor(private readonly scene: Phaser.Scene) {}
 
+  isShowing(): boolean {
+    return this.container !== null;
+  }
+
   show(entries: readonly CodexKnowledgeEntry[]): void {
     if (entries.length === 0) return;
     this.clear();

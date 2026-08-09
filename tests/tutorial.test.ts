@@ -69,6 +69,7 @@ describe("tutorial and tips", () => {
       .toEqual([
         "controls.context",
         "controls.shortcuts",
+        "progression.achievements",
         "combat.turns",
         "combat.resources",
         "exploration.fog",

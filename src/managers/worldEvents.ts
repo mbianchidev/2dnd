@@ -15,6 +15,11 @@ import {
   rollWorldEvent,
   type WorldEventContext,
 } from "../systems/worldEvents";
+import {
+  isWorldEventMarkedDebug,
+  markNextBattleAsDebug,
+  markWorldEventAsDebug,
+} from "../systems/achievements";
 import type { CodexData, CodexUnlockResult } from "../systems/codex";
 import type { BattleResolutionHooks } from "../systems/groupCombat";
 import type { MonsterEncounter } from "../data/monsterGroups";
@@ -133,8 +138,14 @@ export class WorldEventManager {
     defeatedBosses: ReadonlySet<string>,
     eventId: string,
     context: WorldEventContext,
+    debug = false,
   ): void {
-    forceWorldEvent(player.progression.worldEvents, eventId, context);
+    const pending = forceWorldEvent(
+      player.progression.worldEvents,
+      eventId,
+      context,
+    );
+    if (debug) markWorldEventAsDebug(player, pending.instanceId);
     this.callbacks.autoSave();
     this.open(player, codex, defeatedBosses, context.location.terrain);
   }
@@ -259,6 +270,10 @@ export class WorldEventManager {
     const codex = this.codex;
     const terrain = this.terrain;
     if (!player || !codex || terrain === null) return;
+    const pending = player.progression.worldEvents.pending;
+    if (pending && isWorldEventMarkedDebug(player, pending.instanceId)) {
+      markNextBattleAsDebug(player);
+    }
     const encounter = getPendingWorldEventEncounter(player);
     this.callbacks.startBattle(
       encounter,

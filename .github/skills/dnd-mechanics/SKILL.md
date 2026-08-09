@@ -238,6 +238,15 @@ matching effects. Combat effects are cleared when leaving Battle.
 - Reputation shop adjustments are additive with Charisma negotiation and clamp
   to a 25% surcharge or 35% discount.
 
+## Achievement-specific mechanics
+
+- A one-hit defeat requires one damaging action to take an enemy from its full
+  maximum HP to zero; prior chip or status damage disqualifies it.
+- The no-defeat campaign achievement uses explicit schema-v13 party-defeat
+  history. Older saves have unknown history and cannot receive it by inference.
+- Achievements and equipped cosmetic titles never modify ability scores, AC,
+  attacks, damage, rewards, or action economy.
+
 ## Testing
 
 Use deterministic dice mocks for:

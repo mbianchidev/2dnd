@@ -78,6 +78,7 @@ export interface OverlayCallbacks {
   openQuestJournal: () => void;
   openChronicle: () => void;
   openCodex: () => void;
+  openAchievements: () => void;
   openTips: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
 }
@@ -1115,6 +1116,26 @@ export class OverlayManager {
       this.callbacks.openCodex();
     });
     this.menuOverlay.add(codexBtn);
+
+    const achievementsBtn = this.scene.add.text(
+      px + 46,
+      py + 14,
+      "Achievements",
+      {
+        fontSize: "11px",
+        fontFamily: "monospace",
+        color: "#aaffdd",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 10, y: 6 },
+      },
+    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    achievementsBtn.on("pointerover", () => achievementsBtn.setColor("#ffffff"));
+    achievementsBtn.on("pointerout", () => achievementsBtn.setColor("#aaffdd"));
+    achievementsBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+      this.callbacks.openAchievements();
+    });
+    this.menuOverlay.add(achievementsBtn);
 
     // Settings
     const settingsY = 237;

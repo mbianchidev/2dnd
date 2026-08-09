@@ -34,6 +34,11 @@ import { getMonster } from "../src/data/monsters";
 import { shouldShowCampaignEpilogue } from "../src/systems/cutscenes";
 import { TimePeriod } from "../src/systems/daynight";
 import { applySocialMutation } from "../src/systems/reputation";
+import {
+  equipAchievementTitle,
+  reconcileAchievements,
+  recordAchievementEvent,
+} from "../src/systems/achievements";
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -158,7 +163,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.quests.seenWarnings).toEqual([
       "frostRouteDanger",
     ]);
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
     expect(loaded!.player.progression.skillChecks["shop:city:willowdale_city:0:0"]).toEqual({
       ability: "charisma",
       naturalRoll: 15,
@@ -221,7 +226,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
     expect(loaded!.player.progression.worldEvents).toMatchObject({
       rollCounter: 0,
       triggerCount: 0,
@@ -258,7 +263,7 @@ describe("save system - PlayerState composition migration", () => {
     }));
 
     const loaded = loadGame()!;
-    expect(loaded.version).toBe(12);
+    expect(loaded.version).toBe(13);
     expect(loaded.player.progression.social.alignment).toEqual({
       lawChaos: -50,
       goodEvil: 0,
@@ -309,6 +314,180 @@ describe("save system - PlayerState composition migration", () => {
       appliedSourceIds: ["kept"],
       history: [{ sourceId: "kept", cause: "Known", summary: "Valid" }],
     });
+  });
+
+  it("round-trips schema-v13 achievement counters, rewards, titles, and notices", () => {
+    const player = createPlayer("AchievementSaveHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.progression.quests.quests[MAIN_QUEST_ID].status = "completed";
+    recordAchievementEvent(player, {
+      type: "battleResolved",
+      sourceId: "battle:1:slime",
+      outcome: "victory",
+      oneHitDefeats: 1,
+      debug: false,
+    });
+    reconcileAchievements({
+      player,
+      defeatedBosses: new Set([
+        "cryptLich",
+        "frostWarden",
+        "infernoForgemaster",
+      ]),
+      codex: createCodex(),
+    }, {
+      sourceId: "test:save-achievements",
+      unlockedAt: 1234,
+    });
+    equipAchievementTitle(player, "covenantRoadwarden");
+
+    saveGame(
+      player,
+      new Set(["cryptLich", "frostWarden", "infernoForgemaster"]),
+      createCodex(),
+      player.appearanceId,
+      0,
+      createWeatherState(),
+    );
+    const loaded = loadGame()!;
+    expect(loaded.version).toBe(13);
+    expect(loaded.player.progression.achievements.counters).toMatchObject({
+      battleWins: 1,
+      oneHitDefeats: 1,
+      defeatCount: 0,
+    });
+    expect(loaded.player.progression.achievements.earned.map(
+      (record) => record.id,
+    )).toContain("twelvefoldCovenantComplete");
+    expect(loaded.player.progression.achievements.unlockedTitleIds)
+      .toContain("covenantRoadwarden");
+    expect(loaded.player.progression.achievements.equippedTitleId)
+      .toBe("covenantRoadwarden");
+    expect(loaded.player.progression.achievements.pendingNotificationIds)
+      .toContain("twelvefoldCovenantComplete");
+  });
+
+  it("migrates schema-v12 achievements with silent reconciliation and unknown defeat history", () => {
+    const player = createPlayer("LegacyAchievementHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    player.progression.discoveredCities.push(
+      "willowdale_city",
+      "ironhold_city",
+      "deeproot_city",
+      "frostheim_city",
+      "thornvale_city",
+      "sandport_city",
+    );
+    delete (player.progression as unknown as Record<string, unknown>)[
+      "achievements"
+    ];
+    localStorage.setItem("2dnd_save", JSON.stringify({
+      version: 12,
+      player,
+      defeatedBosses: [],
+      codex: createCodex(),
+      appearanceId: "knight",
+      timestamp: 9876,
+      timeStep: 0,
+      weatherState: createWeatherState(),
+    }));
+
+    const loaded = loadGame()!;
+    expect(loaded.player.progression.achievements.defeatTrackingComplete)
+      .toBe(false);
+    expect(loaded.player.progression.achievements.earned).toContainEqual(
+      expect.objectContaining({
+        id: "sixCities",
+        unlockedAt: 9876,
+        sourceId: "migration:v12:v13",
+      }),
+    );
+    expect(loaded.player.progression.achievements.pendingNotificationIds)
+      .toEqual([]);
+  });
+
+  it("repairs corrupt schema-v13 achievement IDs, counters, titles, and cross-fields", () => {
+    const player = createPlayer("CorruptAchievementHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    (player.progression as unknown as Record<string, unknown>)["achievements"] = {
+      earned: [
+        {
+          id: "twelvefoldCovenantComplete",
+          unlockedAt: 100,
+          order: 8,
+          sourceId: "kept",
+          debug: false,
+        },
+        {
+          id: "twelvefoldCovenantComplete",
+          unlockedAt: 200,
+          order: 9,
+          sourceId: "duplicate",
+        },
+        { id: "unknown", unlockedAt: 1, order: 1 },
+      ],
+      counters: {
+        battleWins: -5,
+        oneHitDefeats: 2,
+        defeatCount: "bad",
+        battleSequence: 4,
+      },
+      processedEventIds: ["event", "event", 7],
+      pendingNotificationIds: [
+        "twelvefoldCovenantComplete",
+        "unknown",
+      ],
+      unlockedTitleIds: [
+        "covenantRoadwarden",
+        "unbroken",
+        "unknown",
+      ],
+      equippedTitleId: "unbroken",
+      debugSuppressedIds: ["sixCities", "unknown"],
+      defeatTrackingComplete: true,
+      debugPendingBattle: "bad",
+    };
+    localStorage.setItem("2dnd_save", JSON.stringify({
+      version: 13,
+      player,
+      defeatedBosses: [],
+      codex: createCodex(),
+      appearanceId: "knight",
+      timestamp: Date.now(),
+      timeStep: 0,
+      weatherState: createWeatherState(),
+    }));
+
+    const loaded = loadGame()!;
+    const state = loaded.player.progression.achievements;
+    expect(state.earned.map((record) => record.id)).toEqual([
+      "twelvefoldCovenantComplete",
+      "singleStroke",
+    ]);
+    expect(state.earned[0]?.order).toBe(1);
+    expect(state.counters).toMatchObject({
+      battleWins: 0,
+      oneHitDefeats: 2,
+      defeatCount: 0,
+      battleSequence: 4,
+    });
+    expect(state.processedEventIds).toEqual(["event"]);
+    expect(state.pendingNotificationIds).toEqual([
+      "twelvefoldCovenantComplete",
+    ]);
+    expect(state.unlockedTitleIds).toEqual([
+      "covenantRoadwarden",
+      "oneStroke",
+    ]);
+    expect(state.equippedTitleId).toBe("");
+    expect(state.debugSuppressedIds).toEqual(["sixCities"]);
+    expect(state.debugPendingBattle).toBe(false);
   });
 
   it("repairs corrupt world event state without retaining an invalid pending event", () => {
@@ -423,7 +602,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
 
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
     expect(loaded!.codex.entries.slime).toMatchObject({
       timesDefeated: 1,
       acDiscovered: true,
@@ -719,7 +898,7 @@ describe("save system - PlayerState composition migration", () => {
     const loaded = loadGame();
 
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
     expect(loaded!.player.progression.tutorial).toEqual({ completed: true });
   });
 
@@ -781,7 +960,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.seenCutsceneIds).toEqual([
       CAMPAIGN_EPILOGUE_CUTSCENE_ID,
     ]);
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
   });
 
   it("migrates old flat structure to new nested structure on load", () => {
@@ -1200,7 +1379,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
     expect(loaded!.player.progression.skillChecks).toEqual({});
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].status,
@@ -1244,7 +1423,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
     expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID]).toEqual({
       status: "active",
       stage: 0,
@@ -1374,7 +1553,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].stage,
     ).toBe(2);
@@ -1539,7 +1718,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
     expect(loaded!.player.progression.trapSeed).toBe(424242);
     expect(loaded!.player.progression.trapStates).toEqual({
       legacyDetected: "detected",
@@ -1596,7 +1775,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
     expect(loaded!.player.party.activeCompanionIds).toEqual(["guardian"]);
     expect(loaded!.player.party.companions[0]!.controlMode).toBe("gambit");
     expect(loaded!.player.party.companions[0]!.gambits).toEqual(
@@ -1769,7 +1948,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(12);
+    expect(loaded!.version).toBe(13);
     expect(loaded!.player.party).toEqual({
       companions: [],
       activeCompanionIds: [],

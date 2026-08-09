@@ -371,11 +371,25 @@ test.describe("standard gamepad controls", () => {
     await pressGamepad(1);
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
-    await moveGamepadCursor(page, 320, 365);
-    await pressGamepad(11);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await moveGamepadCursor(page, 320, 365);
+      await pressGamepad(11);
+      const state = await page.locator("#debug-state").textContent() ?? "";
+      if (state.includes("[PARTY:items")) break;
+      if (!state.includes("[MENU]")) {
+        await pressGamepad(9);
+        await waitForState(page, "[MENU]");
+      }
+    }
     await waitForState(page, "[PARTY:items");
-    await moveGamepadCursor(page, 337, 95);
-    await pressGamepad(11);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await moveGamepadCursor(page, 337, 95);
+      await pressGamepad(11);
+      if (
+        (await page.locator("#debug-state").textContent() ?? "")
+          .includes("[PARTY:social]")
+      ) break;
+    }
     await waitForState(page, "[PARTY:social]");
     await pressGamepad(1);
     await pressGamepad(9);

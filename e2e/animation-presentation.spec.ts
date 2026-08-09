@@ -228,8 +228,11 @@ test("battle, world, mount, companion, boss, and cutscene presentation animate",
   await waitForPresentation(page, ":troll:ability");
   await holdKey(page, "Escape");
   await waitForState(page, "BATTLE");
-  if ((await page.locator("#debug-state").textContent())?.includes("playerTurn")) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (!state.includes("playerTurn")) break;
     await clickGame(page, 483, 435);
+    await page.waitForTimeout(250);
   }
   await waitForPresentation(page, ":enemy:troll:");
   await finishBattle(page, true);

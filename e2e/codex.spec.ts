@@ -232,7 +232,7 @@ test("unlocks campaign knowledge and supports the full keyboard Codex flow", asy
   await clickGame(page, 320, 324);
   await waitForState(page, "[DUNGEON:heartlands_dungeon]");
   save = await readSave(page);
-  expect(save.version).toBe(13);
+  expect(save.version).toBe(14);
   expect(save.codex.unlockedEntryIds).toEqual(expect.arrayContaining([
     "willowdale",
     "foundingOfTheCovenant",
@@ -412,7 +412,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   await waitForState(page, "OVERWORLD");
 
   const migrated = await readSave(page);
-  expect(migrated.version).toBe(13);
+  expect(migrated.version).toBe(14);
   expect(migrated.codex.entries.slime.timesDefeated).toBe(4);
   expect(Array.isArray(migrated.codex.unlockedEntryIds)).toBe(true);
   expect(errors).toEqual([]);

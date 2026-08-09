@@ -67,6 +67,7 @@ export function purchaseBoat(
   }
   wallet.gold -= definition.price;
   const result = acquireBoat(state, boatId);
+  if (result.acquired) state.activeBoatId = boatId;
   return { purchased: result.acquired, boat: result.boat };
 }
 

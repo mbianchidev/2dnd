@@ -128,8 +128,8 @@ export function tryGridMove(
   const terrain = getTerrainAt(newChunkX, newChunkY, newX, newY);
   if (isIslandLandmarkAt(newChunkX, newChunkY, newX, newY)) return noMove;
   const navigable = terrain !== undefined && (
-    isWalkable(terrain)
-    || (
+    player.progression.nautical.sailing
+      ? (
       terrain === Terrain.Water
       && canSailTo(
         player.progression.nautical,
@@ -138,7 +138,8 @@ export function tryGridMove(
         newX,
         newY,
       )
-    )
+      )
+      : isWalkable(terrain)
   );
   if (!navigable) return noMove;
 

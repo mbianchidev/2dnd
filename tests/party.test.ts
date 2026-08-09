@@ -215,6 +215,19 @@ describe("party system", () => {
     companion.mp = 0;
     player.position.inDungeon = true;
     player.position.dungeonId = "heartlands_dungeon";
+    player.progression.nautical.sailing = true;
+    player.progression.nautical.pendingEncounter = {
+      instanceId: "enc:defeat",
+      stepId: "defeat",
+      monsterId: "reefSlime",
+      boatId: "reedSkiff",
+      zoneId: "covenantStrait",
+      depth: "shallow",
+      chunkX: 4,
+      chunkY: 2,
+      tileX: 6,
+      tileY: 0,
+    };
     player.lastTownX = 10;
     player.lastTownY = 7;
     player.lastTownChunkX = 1;
@@ -242,6 +255,8 @@ describe("party system", () => {
       inDungeon: false,
       dungeonId: "",
     });
+    expect(player.progression.nautical.sailing).toBe(false);
+    expect(player.progression.nautical.pendingEncounter).toBeNull();
     expect(result).toEqual({
       actors: [
         {

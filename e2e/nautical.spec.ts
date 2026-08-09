@@ -84,6 +84,8 @@ test("sails, enters Tidehaven, opens the world map, and reloads at sea", async (
   });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.addInitScript(() => {
+    if (sessionStorage.getItem("nauticalInitialized")) return;
+    sessionStorage.setItem("nauticalInitialized", "true");
     localStorage.clear();
     localStorage.setItem("2dnd_preferences", JSON.stringify({
       version: 2,
@@ -122,11 +124,19 @@ test("sails, enters Tidehaven, opens the world map, and reloads at sea", async (
 
   await submitDebug(page, "/sail on");
   await holdKey(page, "d");
-  await waitForState(page, "[BOAT:merchantSloop]");
+  await expect(page.locator("#debug-state")).toContainText(/BATTLE|OVERWORLD/);
   await page.setViewportSize({ width: 430, height: 932 });
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 382);
+  await clickGame(page, 320, 324);
+  await expect(page.locator("#debug-state")).toContainText(/BATTLE|OVERWORLD/);
+  const resumedState = await page.locator("#debug-state").textContent() ?? "";
+  if (resumedState.includes("BATTLE")) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await submitDebug(page, "/kill");
+    await waitForState(page, "[BOAT:merchantSloop]");
+    await page.setViewportSize({ width: 430, height: 932 });
+  }
   await waitForState(page, "[BOAT:merchantSloop]");
 
   expect(browserErrors).toEqual([]);

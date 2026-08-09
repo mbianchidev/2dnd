@@ -1466,11 +1466,12 @@ export class OverworldScene extends Phaser.Scene {
     const destX = tileX * TILE_SIZE + TILE_SIZE / 2;
     const destY = tileY * TILE_SIZE + TILE_SIZE / 2;
     const mounted = !!this.playerRenderer.mountSprite;
+    const sailing = !!this.playerRenderer.boatSprite;
     const flipped = this.playerRenderer.playerSprite.flipX;
     const riderOffX = flipped ? -PlayerRenderer.riderOffsetX : PlayerRenderer.riderOffsetX;
     const motionDuration = getMotionDuration(duration);
-    const playerX = destX + (mounted ? riderOffX : 0);
-    const playerY = destY - (mounted ? PlayerRenderer.riderOffsetY : 0);
+    const playerX = destX + (mounted ? riderOffX : sailing ? -2 : 0);
+    const playerY = destY - (mounted ? PlayerRenderer.riderOffsetY : sailing ? 7 : 0);
     this.worldPresentation.presentPlayerStep(
       destX < this.playerRenderer.playerSprite.x ? -1 : 1,
     );
@@ -1482,6 +1483,7 @@ export class OverworldScene extends Phaser.Scene {
     if (motionDuration === 0) {
       this.playerRenderer.playerSprite.setPosition(playerX, playerY);
       this.playerRenderer.mountSprite?.setPosition(destX, destY);
+      this.playerRenderer.boatSprite?.setPosition(destX, destY);
       finishPresentation();
       return;
     }
@@ -1496,6 +1498,14 @@ export class OverworldScene extends Phaser.Scene {
     if (this.playerRenderer.mountSprite) {
       this.tweens.add({
         targets: this.playerRenderer.mountSprite,
+        x: destX,
+        y: destY,
+        duration: motionDuration,
+      });
+    }
+    if (this.playerRenderer.boatSprite) {
+      this.tweens.add({
+        targets: this.playerRenderer.boatSprite,
         x: destX,
         y: destY,
         duration: motionDuration,

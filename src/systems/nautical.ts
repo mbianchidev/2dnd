@@ -477,6 +477,7 @@ export function executeMerchantRoute(
     (portId) => portId !== currentPortId,
   );
   const boat = findBoat(state);
+  const routeBoat = boat && boat.condition > 0 ? boat : undefined;
   if (!state.discoveredRouteIds.includes(routeId)) {
     return {
       ok: false,
@@ -493,7 +494,7 @@ export function executeMerchantRoute(
       pending: state.pendingMerchantRoute,
     };
   }
-  if ((boat && boat.condition <= 0) || state.sailing) {
+  if (state.sailing) {
     return {
       ok: false,
       idempotent: false,
@@ -531,7 +532,7 @@ export function executeMerchantRoute(
     routeId,
     fromPortId: currentPortId,
     toPortId: destinationPortId,
-    boatId: boat?.id ?? null,
+    boatId: routeBoat?.id ?? null,
     feePaid: route.fee,
     safety: route.safety,
     distance: route.distance,

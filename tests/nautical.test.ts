@@ -398,6 +398,23 @@ describe("merchant routes", () => {
       true,
     ).purchased).toBe(true);
     expect(wallet.gold).toBe(200);
+    expect(state.activeBoatId).toBe("stormcutter");
+  });
+
+  it("allows merchant passage when a personal boat is disabled", () => {
+    const state = createNauticalState();
+    acquireBoat(state, "reedSkiff").boat.condition = 0;
+    discoverPort(state, "sandportHarbor");
+    const wallet = { gold: 100 };
+    const started = executeMerchantRoute(
+      state,
+      wallet,
+      "sandportTidehavenRun",
+      "sandportHarbor",
+      "disabled-boat-route",
+    );
+    expect(started.ok).toBe(true);
+    expect(started.pending?.boatId).toBeNull();
   });
 
   it("charges atomically, resolves once, and discovers the destination", () => {

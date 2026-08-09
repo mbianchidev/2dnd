@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { tryGridMove } from "../src/systems/movement";
 import { createPlayer, type PlayerState, type PlayerStats, type PlayerPosition } from "../src/systems/player";
 import { MAP_WIDTH, getDungeon, getCity } from "../src/data/map";
+import { acquireBoat } from "../src/systems/nautical";
 
 const defaultStats: PlayerStats = {
   strength: 10, dexterity: 10, constitution: 10,
@@ -112,6 +113,19 @@ describe("tryGridMove", () => {
       const result = tryGridMove(player, 0, 1);
       expect(result.moved).toBe(false);
       expect(result.chunkChanged).toBe(false);
+    });
+
+    it("keeps a sailing boat on Water until explicit disembarkation", () => {
+      const player = testPlayer({
+        position: { chunkX: 4, chunkY: 2, x: 6, y: 0 },
+      });
+      acquireBoat(player.progression.nautical, "merchantSloop");
+      player.progression.nautical.sailing = true;
+
+      expect(tryGridMove(player, 1, 0).moved).toBe(true);
+      expect(player.position).toMatchObject({ x: 7, y: 0 });
+      expect(tryGridMove(player, 1, 0).moved).toBe(false);
+      expect(player.position).toMatchObject({ x: 7, y: 0 });
     });
   });
 

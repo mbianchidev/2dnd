@@ -183,7 +183,7 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
     };
   }, SAVE_KEY);
   expect(crafted).toMatchObject({
-    version: 15,
+    version: 16,
     potionCount: 2,
     totalCrafts: 2,
   });

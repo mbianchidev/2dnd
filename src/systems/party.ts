@@ -571,6 +571,10 @@ export function applyPartyDefeat(
   player.position.inCity = false;
   player.position.cityId = "";
   player.position.cityChunkIndex = 0;
+  player.progression.nautical.sailing = false;
+  player.progression.nautical.pendingMerchantRoute = null;
+  player.progression.nautical.pendingHazard = null;
+  player.progression.nautical.pendingEncounter = null;
   return {
     actors,
     goldBefore,

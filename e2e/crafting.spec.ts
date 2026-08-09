@@ -95,7 +95,12 @@ async function createCharacter(page: Page): Promise<void> {
   await clickGame(page, 400, 460);
   await waitForState(page, "BOOT | Screen: appearance");
   await clickGame(page, 320, 112);
-  await clickGame(page, 420, 312);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await clickGame(page, 420, 312);
+    await page.waitForTimeout(300);
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes("CUTSCENE")) break;
+  }
   await waitForState(page, "CUTSCENE");
   await page.evaluate(({ saveKey, openingCutsceneIds }) => {
     const raw = localStorage.getItem(saveKey);
@@ -141,7 +146,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("discovers, searches, batch crafts, and reloads consumables", async ({
+test("crafts batches and upgrades across reloads and responsive locations", async ({
   page,
 }) => {
   const browserErrors: string[] = [];
@@ -194,18 +199,7 @@ test("discovers, searches, batch crafts, and reloads consumables", async ({
   await waitForState(page, "OVERWORLD");
   await holdKey(page, "v");
   await waitForState(page, "[CRAFTING");
-  expect(browserErrors).toEqual([]);
-});
-
-test("preserves equipped upgrades and remains usable in dungeon responsive modes", async ({
-  page,
-}) => {
-  const browserErrors: string[] = [];
-  page.on("pageerror", (error) => browserErrors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") browserErrors.push(message.text());
-  });
-  await createCharacter(page);
+  await holdKey(page, "Escape");
   await submitDebug(page, "/item shortSword");
   await submitDebug(page, "/craft material ironOre 3");
   await submitDebug(page, "/craft unlock temperedLongSword");
@@ -286,7 +280,7 @@ test("preserves equipped upgrades and remains usable in dungeon responsive modes
   await waitForState(page, "OVERWORLD");
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await clickGame(page, 320, 340);
+  await clickGame(page, 422, 134);
   await waitForState(page, "[CRAFTING");
   await page.setViewportSize({ width: 844, height: 390 });
   await expect(page.locator("#game-container canvas")).toBeVisible();

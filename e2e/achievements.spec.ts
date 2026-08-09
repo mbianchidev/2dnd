@@ -215,7 +215,7 @@ async function continueToOverworld(page: Page): Promise<void> {
     const saveModule = await import(modulePath);
     return saveModule.loadGame()?.version ?? null;
   });
-  expect(validSaveVersion).toBe(14);
+  expect(validSaveVersion).toBe(15);
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
   await holdKey(page, "Space");

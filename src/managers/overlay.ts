@@ -993,7 +993,7 @@ export class OverlayManager {
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
 
-    const menuHeight = 408;
+    const menuHeight = 366;
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
       280,
@@ -1048,7 +1048,7 @@ export class OverlayManager {
 
     const partyBtn = this.scene.add.text(
       px + panelW / 2,
-      py + 321,
+      py + 279,
       "Party & Inventory",
       {
         fontSize: "14px",
@@ -1067,15 +1067,15 @@ export class OverlayManager {
     this.menuOverlay.add(partyBtn);
 
     const craftingBtn = this.scene.add.text(
-      px + panelW / 2,
-      py + 279,
+      px + panelW - 38,
+      py + 58,
       "Crafting",
       {
-        fontSize: "14px",
+        fontSize: "10px",
         fontFamily: "monospace",
         color: "#f7c948",
         backgroundColor: "#2a2a4e",
-        padding: { x: 16, y: 6 },
+        padding: { x: 6, y: 4 },
       },
     ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     craftingBtn.on("pointerover", () => craftingBtn.setColor("#ffffff"));
@@ -1194,7 +1194,7 @@ export class OverlayManager {
     this.menuOverlay.add(settingsBtn);
 
     // Quit
-    const quitY = 363;
+    const quitY = 321;
     const quitBtn = this.scene.add.text(px + panelW / 2, py + quitY, "✕ Quit to Title", {
       fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },

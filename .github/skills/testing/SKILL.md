@@ -53,6 +53,10 @@ authority isolation
 ✅ Gathering terrain safety, seeded tables, all three state machines,
 reduced-motion equivalence, cooldowns, environmental weights, economy, guarded
 Battle handoffs, recipe-input isolation, schema-v14 migration, and pending reload
+✅ Crafting recipe integrity, alternative material matching, protected/equipped
+items, atomic batches, repeated-input suppression, equipment-link upgrades,
+ownership, discovery, acquisition tables, anti-arbitrage, achievements, debug
+exclusion, authority isolation, schema-v15 migration, and corruption repair
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -112,6 +116,7 @@ tests/
 ├── input.test.ts # Semantic mappings, contexts, repeats, cleanup, and suppression
 ├── tutorial.test.ts # Tutorial content, completion, and unlocked Tips
 ├── gathering.test.ts # Gathering data, state machines, rewards, and save rules
+├── crafting.test.ts # Recipes, transactions, discovery, economy, and save rules
 ├── cutsceneSceneTransition.test.ts # Generic Cutscene scene contracts
 ├── defeatSceneTransition.test.ts # Defeat result continuation contract
 ├── save.test.ts      # Persistence and migration

@@ -9,9 +9,11 @@ import {
   applyNonlethalDamage,
   formatSkillCheckResult,
   getMinorTreasureGold,
+  getMinorTreasureMaterialId,
   rollSkillCheck,
   selectExplorationEvent,
 } from "../systems/skillChecks";
+import { getItem } from "../data/items";
 import { debugPanelLog } from "../config";
 import type { ChestData } from "../data/map";
 import type { NpcInstance } from "../data/npcs";
@@ -46,6 +48,9 @@ export class SkillCheckManager {
     player.progression.collectedTreasures.push(key);
     const goldAmount = getMinorTreasureGold(result.success);
     player.gold += goldAmount;
+    const materialId = getMinorTreasureMaterialId(key, result.success);
+    const material = materialId ? getItem(materialId) : undefined;
+    if (material) player.inventory.push({ ...material });
 
     const terrain = getTerrainAt(chunkX, chunkY, x, y);
     if (mapRenderer.tileSprites[y]?.[x] && terrain !== undefined) {
@@ -56,7 +61,7 @@ export class SkillCheckManager {
     }
 
     const outcome = result.success
-      ? `You uncover the hidden cache: ${goldAmount} gold.`
+      ? `You uncover the hidden cache: ${goldAmount} gold${material ? ` and ${material.name}` : ""}.`
       : `You miss the cache but recover ${goldAmount} loose gold.`;
     this.callbacks.showMessage(
       `Wisdom check (${formatSkillCheckResult(result)}): ${outcome}`,

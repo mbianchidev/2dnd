@@ -54,6 +54,9 @@ export const ACHIEVEMENT_IDS = [
   "resourceGatherer",
   "rareHarvest",
   "masterGatherer",
+  "firstCraft",
+  "versatileCrafter",
+  "masterSmith",
 ] as const;
 
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
@@ -73,6 +76,7 @@ export const TITLE_IDS = [
   "exalted",
   "relicKeeper",
   "realmGatherer",
+  "artisan",
 ] as const;
 
 export type TitleId = (typeof TITLE_IDS)[number];
@@ -175,6 +179,18 @@ export type AchievementCriteria =
   | {
     readonly type: "gatheringDisciplinesMastered";
     readonly successesPerDiscipline: number;
+  }
+  | {
+    readonly type: "craftCount";
+    readonly threshold: number;
+  }
+  | {
+    readonly type: "craftUniqueRecipes";
+    readonly threshold: number;
+  }
+  | {
+    readonly type: "craftEquipmentUpgrades";
+    readonly threshold: number;
   };
 
 export interface AchievementSourceMetadata {
@@ -194,7 +210,8 @@ export interface AchievementSourceMetadata {
     | "alignment"
     | "reputation"
     | "inventory"
-    | "gathering";
+    | "gathering"
+    | "crafting";
   readonly authoritativeState: string;
   readonly targetIds?: readonly string[];
 }
@@ -575,6 +592,34 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     rewardTitleId: "realmGatherer",
     source: { kind: "gathering", authoritativeState: "Per-discipline gathering statistics" },
   },
+  {
+    id: "firstCraft",
+    name: "Made by Hand",
+    description: "Craft an item without debug assistance.",
+    category: "collection",
+    points: 10,
+    criteria: { type: "craftCount", threshold: 1 },
+    source: { kind: "crafting", authoritativeState: "Natural crafting statistics" },
+  },
+  {
+    id: "versatileCrafter",
+    name: "Many Tools",
+    description: "Craft 8 different recipes.",
+    category: "collection",
+    points: 25,
+    criteria: { type: "craftUniqueRecipes", threshold: 8 },
+    source: { kind: "crafting", authoritativeState: "Natural per-recipe craft counts" },
+  },
+  {
+    id: "masterSmith",
+    name: "Master Smith",
+    description: "Complete 3 deterministic equipment upgrades.",
+    category: "collection",
+    points: 30,
+    criteria: { type: "craftEquipmentUpgrades", threshold: 3 },
+    rewardTitleId: "artisan",
+    source: { kind: "crafting", authoritativeState: "Natural equipment-upgrade count" },
+  },
 ] as const;
 
 export const TITLES: readonly TitleDefinition[] = [
@@ -592,6 +637,7 @@ export const TITLES: readonly TitleDefinition[] = [
   { id: "exalted", name: "The Exalted", description: "Earned a faction's highest regard.", achievementId: "exaltedFaction" },
   { id: "relicKeeper", name: "Relic Keeper", description: "Carried a collection worthy of a royal archive.", achievementId: "relicCollector" },
   { id: "realmGatherer", name: "Realm Gatherer", description: "Mastered fishing, mining, and foraging.", achievementId: "masterGatherer" },
+  { id: "artisan", name: "Master Artisan", description: "Forged dependable equipment from gathered materials.", achievementId: "masterSmith" },
 ] as const;
 
 const ACHIEVEMENT_BY_ID = new Map(

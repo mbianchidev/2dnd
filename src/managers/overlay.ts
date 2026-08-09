@@ -80,6 +80,7 @@ export interface OverlayCallbacks {
   openCodex: () => void;
   openAchievements: () => void;
   openGathering: () => void;
+  openCrafting: () => void;
   openTips: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
 }
@@ -992,7 +993,7 @@ export class OverlayManager {
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
 
-    const menuHeight = 366;
+    const menuHeight = 408;
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
       280,
@@ -1047,7 +1048,7 @@ export class OverlayManager {
 
     const partyBtn = this.scene.add.text(
       px + panelW / 2,
-      py + 279,
+      py + 321,
       "Party & Inventory",
       {
         fontSize: "14px",
@@ -1064,6 +1065,26 @@ export class OverlayManager {
       this.callbacks.openPartyInventory();
     });
     this.menuOverlay.add(partyBtn);
+
+    const craftingBtn = this.scene.add.text(
+      px + panelW / 2,
+      py + 279,
+      "Crafting",
+      {
+        fontSize: "14px",
+        fontFamily: "monospace",
+        color: "#f7c948",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 16, y: 6 },
+      },
+    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    craftingBtn.on("pointerover", () => craftingBtn.setColor("#ffffff"));
+    craftingBtn.on("pointerout", () => craftingBtn.setColor("#f7c948"));
+    craftingBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+      this.callbacks.openCrafting();
+    });
+    this.menuOverlay.add(craftingBtn);
 
     // Quest journal
     const questsBtn = this.scene.add.text(px + panelW / 2, py + 111, "Quest Journal", {
@@ -1173,7 +1194,7 @@ export class OverlayManager {
     this.menuOverlay.add(settingsBtn);
 
     // Quit
-    const quitY = 321;
+    const quitY = 363;
     const quitBtn = this.scene.add.text(px + panelW / 2, py + quitY, "✕ Quit to Title", {
       fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
       backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },

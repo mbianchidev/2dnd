@@ -212,7 +212,14 @@ export function getTownBiome(chunkX: number, chunkY: number, tileX: number, tile
 }
 
 export const CHESTS: ChestData[] = [
-  { id: "crypt_flame", itemId: "flameBlade", x: 18, y: 1, location: { type: "dungeon", dungeonId: "heartlands_dungeon" } },
+  {
+    id: "crypt_flame",
+    itemId: "flameBlade",
+    bonusItems: [{ itemId: "runicShard", quantity: 1 }],
+    x: 18,
+    y: 1,
+    location: { type: "dungeon", dungeonId: "heartlands_dungeon" },
+  },
   {
     id: "crypt_guardian", itemId: "cryptGuardian", x: 9, y: 7,
     location: { type: "dungeon", dungeonId: "heartlands_dungeon" },
@@ -222,10 +229,18 @@ export const CHESTS: ChestData[] = [
   {
     id: "forest_shadow", itemId: "shadowCloak", x: 3, y: 13,
     location: { type: "overworld", chunkX: 4, chunkY: 1 },
+    bonusItems: [{ itemId: "elderBark", quantity: 1 }],
     secretDc: 12, secretGold: 25,
   },
   { id: "frost_blade_chest", itemId: "frostBrand", x: 17, y: 1, location: { type: "dungeon", dungeonId: "frost_cavern" } },
-  { id: "frost_pelt_chest", itemId: "tundraPelt", x: 16, y: 13, location: { type: "dungeon", dungeonId: "frost_cavern" } },
+  {
+    id: "frost_pelt_chest",
+    itemId: "tundraPelt",
+    bonusItems: [{ itemId: "frostbloom", quantity: 2 }],
+    x: 16,
+    y: 13,
+    location: { type: "dungeon", dungeonId: "frost_cavern" },
+  },
   {
     id: "frost_aegis_chest", itemId: "glacialAegis", x: 9, y: 7,
     location: { type: "dungeon", dungeonId: "frost_cavern" },
@@ -234,6 +249,7 @@ export const CHESTS: ChestData[] = [
   {
     id: "forge_core_chest", itemId: "magmaCore", x: 18, y: 1,
     location: { type: "dungeon", dungeonId: "volcanic_forge" },
+    bonusItems: [{ itemId: "moonstoneGem", quantity: 1 }],
     lockDc: 15, trapDamage: 12, secretDc: 14, secretGold: 50,
   },
   { id: "forge_shield_chest", itemId: "volcanicShield", x: 9, y: 7, location: { type: "dungeon", dungeonId: "volcanic_forge" } },

@@ -74,6 +74,7 @@ describe("tutorial and tips", () => {
         "combat.resources",
         "exploration.fog",
         "exploration.gathering",
+        "exploration.crafting",
       ]);
 
     expect(getUnlockedTips({

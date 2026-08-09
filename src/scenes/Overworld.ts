@@ -168,6 +168,12 @@ import {
 } from "../systems/achievements";
 import { GatheringManager } from "../managers/gathering";
 import { tickGatheringCooldowns } from "../systems/gathering";
+import { CraftingManager } from "../managers/crafting";
+import {
+  discoverCraftingRecipes,
+  reconcileCraftingRecipes,
+} from "../systems/crafting";
+import { getCraftingRecipe, type CraftingRecipeId } from "../data/crafting";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -284,6 +290,7 @@ export class OverworldScene extends Phaser.Scene {
   private achievementOverlayManager!: AchievementOverlayManager;
   private achievementNotifications!: AchievementNotificationManager;
   private gatheringManager!: GatheringManager;
+  private craftingManager!: CraftingManager;
   private pendingCodexDiscoveryIds: string[] = [];
 
   constructor() {
@@ -362,12 +369,27 @@ export class OverworldScene extends Phaser.Scene {
       startBattle: (encounter, terrain, hooks, immediate) =>
         this.startBattle(encounter, terrain, immediate, hooks),
     });
+    this.craftingManager = new CraftingManager(this, {
+      autoSave: () => this.autoSave(),
+      updateHUD: () => this.updateHUD(),
+      showMessage: (message, color) => this.showMessage(message, color),
+      refreshActors: () => this.refreshPartyActors(),
+      reconcileAchievements: () => {
+        reconcileAchievements({
+          player: this.player,
+          defeatedBosses: this.defeatedBosses,
+          codex: this.codex,
+        }, { sourceId: "crafting:transaction" });
+      },
+    });
     this.gatheringManager = new GatheringManager(this, {
       autoSave: () => this.autoSave(),
       updateHUD: () => this.updateHUD(),
       updateLocation: () => this.updateLocationText(),
       showMessage: (message, color) => this.showMessage(message, color),
       showCodexUnlocks: (result) => this.showCodexUnlocks(result),
+      showCraftingUnlocks: (recipeIds) =>
+        this.showCraftingUnlocks(recipeIds),
       suppressDebugAchievements: () => suppressCurrentlyMetAchievements({
         player: this.player,
         defeatedBosses: this.defeatedBosses,
@@ -413,6 +435,7 @@ export class OverworldScene extends Phaser.Scene {
       openCodex: () => this.openCodex(),
       openAchievements: () => this.openAchievements(),
       openGathering: () => this.openGatheringStatus(),
+      openCrafting: () => this.openCrafting(),
       openTips: () => this.tutorialManager.showTips(this.player),
       fadeOutAndIn: (atBlack, duration) =>
         this.sceneTransitions.fadeOutAndIn(atBlack, {
@@ -427,6 +450,7 @@ export class OverworldScene extends Phaser.Scene {
       refreshActors: () => {
         this.refreshPartyActors();
       },
+      openCrafting: () => this.openCrafting(),
     });
 
     // Load scene data
@@ -442,6 +466,7 @@ export class OverworldScene extends Phaser.Scene {
     this.defeatedBosses = data?.defeatedBosses ?? new Set();
     this.codex = data?.codex ?? createCodex();
     replayCodexUnlocks(this.codex, this.player);
+    reconcileCraftingRecipes(this.player, this.codex);
     this.achievementOverlayManager = new AchievementOverlayManager(this, {
       autoSave: () => this.autoSave(),
       showMessage: (message, color) => this.showMessage(message, color),
@@ -507,6 +532,7 @@ export class OverworldScene extends Phaser.Scene {
       this.achievementNotifications.clear();
       this.worldEventManager.clear();
       this.gatheringManager.clear();
+      this.craftingManager.clear();
     });
     this.chronicleManager = new ChronicleManager(
       this,
@@ -595,12 +621,19 @@ export class OverworldScene extends Phaser.Scene {
     this.codexDiscovery.show(entries);
   }
 
+  private showCraftingUnlocks(recipeIds: readonly CraftingRecipeId[]): void {
+    if (recipeIds.length === 0) return;
+    const names = recipeIds.map((recipeId) => getCraftingRecipe(recipeId).name);
+    this.showMessage(`Recipe discovered: ${names.join(", ")}.`, "#f7c948");
+  }
+
   private startCutscene(cutsceneId: CutsceneId, replay = false): boolean {
     if (this.sceneTransitions.isPending) return false;
     this.dialogueSystem.dismissDialogue();
     this.tutorialManager.close();
     this.overlayManager.destroyAll();
     this.partyOverlayManager.close();
+    this.craftingManager?.close();
     this.questJournal.close();
     this.chronicleManager?.close();
     this.autoSave();
@@ -819,6 +852,8 @@ export class OverworldScene extends Phaser.Scene {
         this.chronicleManager.close();
       } else if (this.achievementOverlayManager.isOpen()) {
         this.achievementOverlayManager.close();
+      } else if (this.craftingManager.isOpen()) {
+        this.craftingManager.close();
       } else if (this.partyOverlayManager.isOpen()) {
         this.partyOverlayManager.close();
       } else if (this.questJournal.isOpen()) {
@@ -889,6 +924,17 @@ export class OverworldScene extends Phaser.Scene {
         || this.dialogueSystem.isDialogueOpen()
       ) return;
       this.openGatheringStatus();
+    });
+
+    const craftingKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.V);
+    craftingKey.on("down", () => {
+      if (
+        this.isMoving
+        || this.isOverlayOpen()
+        || this.dialogueSystem.isDialogueOpen()
+        || this.sceneTransitions.isPending
+      ) return;
+      this.openCrafting();
     });
 
     const tutorialKeys: Array<{
@@ -1261,9 +1307,10 @@ export class OverworldScene extends Phaser.Scene {
         : "";
     const partyTag = this.partyOverlayManager.getDebugState();
     const achievementTag = this.achievementOverlayManager.getDebugState();
+    const craftingTag = this.craftingManager.getDebugState();
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${worldEventTag}${gatheringTag}${tutorialTag}${partyTag}${achievementTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${worldEventTag}${gatheringTag}${tutorialTag}${partyTag}${achievementTag}${craftingTag} | ` +
       `Anim: ${this.worldPresentation.debugState} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
@@ -1281,6 +1328,7 @@ export class OverworldScene extends Phaser.Scene {
       || this.chronicleManager?.isOpen()
       || this.worldEventManager.isOpen()
       || this.gatheringManager.isOpen()
+      || this.craftingManager.isOpen()
       || this.tutorialManager.isOpen();
   }
 
@@ -1288,6 +1336,18 @@ export class OverworldScene extends Phaser.Scene {
     if (this.sceneTransitions.isPending) return;
     this.dialogueSystem.dismissDialogue();
     this.questJournal.toggle(this.player);
+  }
+
+  private openCrafting(): void {
+    if (
+      this.sceneTransitions.isPending
+      || this.isMoving
+      || this.dialogueSystem.isDialogueOpen()
+    ) return;
+    this.overlayManager.destroyAll();
+    this.partyOverlayManager.close();
+    this.autoSave();
+    this.craftingManager.open(this.player, this.codex);
   }
 
   // ── Player movement ─────────────────────────────────────────────────────
@@ -1865,6 +1925,10 @@ export class OverworldScene extends Phaser.Scene {
               type: "readable",
               readableId: readable.id,
             });
+            this.showCraftingUnlocks(discoverCraftingRecipes(this.player, {
+              type: "readable",
+              readableId: readable.id,
+            }));
             this.showCodexUnlocks(unlock);
             this.autoSave();
           },
@@ -1896,6 +1960,10 @@ export class OverworldScene extends Phaser.Scene {
                   type: "npcDialogue",
                   npcId: npcDef.questNpcId!,
                 });
+                this.showCraftingUnlocks(discoverCraftingRecipes(this.player, {
+                  type: "npc",
+                  npcId: npcDef.questNpcId!,
+                }));
                 const cutsceneSnapshot = captureCutsceneTriggerSnapshot(
                   this.player,
                   this.defeatedBosses,
@@ -1935,6 +2003,10 @@ export class OverworldScene extends Phaser.Scene {
             this.dialogueSystem.showSpecialDialogue(idle.speaker, idle.line);
             this.showCodexUnlocks(unlockCodexFromSignal(this.codex, {
               type: "npcDialogue",
+              npcId: npcDef.questNpcId,
+            }));
+            this.showCraftingUnlocks(discoverCraftingRecipes(this.player, {
+              type: "npc",
               npcId: npcDef.questNpcId,
             }));
             this.autoSave();
@@ -2127,6 +2199,10 @@ export class OverworldScene extends Phaser.Scene {
           locationKind: "city",
           targetId: city.id,
         });
+        this.showCraftingUnlocks(discoverCraftingRecipes(this.player, {
+          type: "city",
+          cityId: city.id,
+        }));
         this.autoSave();
         this.restartOverworld("enter city", cityUnlock.unlockedIds);
         return;
@@ -2269,6 +2345,10 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    this.showCraftingUnlocks(discoverCraftingRecipes(this.player, {
+      type: "shop",
+      shopId: `${city.id}:${chunkIndex}:${shop.type}:${shop.x},${shop.y}`,
+    }));
     this.autoSave();
     const locationName = districtName === city.name
       ? city.name
@@ -2310,11 +2390,27 @@ export class OverworldScene extends Phaser.Scene {
     );
 
     this.player.progression.openedChests.push(chest.id);
-    this.player.inventory.push({ ...item });
-    const itemUnlock = unlockCodexFromSignal(this.codex, {
-      type: "itemAcquired",
-      itemId: item.id,
-    });
+    const rewards = [
+      item,
+      ...(chest.bonusItems ?? []).flatMap((bonus) => {
+        const bonusItem = getItem(bonus.itemId);
+        return bonusItem
+          ? Array.from({ length: bonus.quantity }, () => bonusItem)
+          : [];
+      }),
+    ];
+    const itemUnlocks: CodexUnlockResult[] = [];
+    for (const reward of rewards) {
+      this.player.inventory.push({ ...reward });
+      itemUnlocks.push(unlockCodexFromSignal(this.codex, {
+        type: "itemAcquired",
+        itemId: reward.id,
+      }));
+      this.showCraftingUnlocks(discoverCraftingRecipes(this.player, {
+        type: "item",
+        itemId: reward.id,
+      }));
+    }
     if (audioEngine.initialized) audioEngine.playChestOpenSFX();
 
     // Auto-equip if better
@@ -2332,9 +2428,9 @@ export class OverworldScene extends Phaser.Scene {
       this.playerRenderer.refreshPlayerSprite(this.player);
     }
 
-    feedback.push(`Found ${item.name}!`);
+    feedback.push(`Found ${rewards.map((reward) => reward.name).join(", ")}!`);
     this.showMessage(feedback.join(" "), "#ffd700");
-    this.showCodexUnlocks(itemUnlock);
+    this.showCodexUnlocks(...itemUnlocks);
     this.updateHUD();
     this.autoSave();
   }

@@ -18,7 +18,10 @@ export const TOXIC_SLIME: Monster = {
   color: 0x9c27b0,
   minPlayerLevel: 1,
   encounterWeight: 0.7,
-  drops: [{ itemId: "antidote", chance: 0.3 }],
+  drops: [
+    { itemId: "antidote", chance: 0.3 },
+    { itemId: "redcapMushroom", chance: 0.18 },
+  ],
   abilities: [
     {
       name: "Venom Bubble",
@@ -123,7 +126,10 @@ export const RUNIC_MIMIC: Monster = {
   color: 0x1565c0,
   minPlayerLevel: 4,
   encounterWeight: 0.3,
-  drops: [{ itemId: "ether", chance: 0.4 }],
+  drops: [
+    { itemId: "ether", chance: 0.4 },
+    { itemId: "runicShard", chance: 0.08 },
+  ],
   abilities: [
     {
       name: "Runic Snap",
@@ -193,7 +199,10 @@ export const ICE_GOLEM: Monster = {
   color: 0x64b5f6,
   minPlayerLevel: 6,
   encounterWeight: 0.45,
-  drops: [{ itemId: "chainMail", chance: 0.12 }],
+  drops: [
+    { itemId: "chainMail", chance: 0.12 },
+    { itemId: "frostbloom", chance: 0.14 },
+  ],
   abilities: [
     {
       name: "Permafrost Slam",
@@ -263,7 +272,10 @@ export const STORM_DRAKE: Monster = {
   color: 0x3949ab,
   minPlayerLevel: 8,
   encounterWeight: 0.2,
-  drops: [{ itemId: "ether", chance: 0.35 }],
+  drops: [
+    { itemId: "ether", chance: 0.35 },
+    { itemId: "stormEel", chance: 0.1 },
+  ],
   abilities: [
     {
       name: "Thunder Dive",

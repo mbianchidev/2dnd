@@ -89,6 +89,33 @@ describe("achievement definitions", () => {
 });
 
 describe("achievement progress and reconciliation", () => {
+  it("derives natural crafting achievements without debug leakage", () => {
+    const context = createContext();
+    context.player.progression.crafting.statistics.totalCrafts = 1;
+    context.player.progression.crafting.statistics.recipeCraftCounts = {
+      fieldPotion: 1,
+    };
+
+    expect(
+      getAchievementProgress(getAchievement("firstCraft"), context).complete,
+    ).toBe(true);
+    expect(reconcileAchievements(context).newlyUnlocked).toContain("firstCraft");
+
+    const debugContext = createContext();
+    debugContext.player.progression.crafting.recentHistory.push({
+      sequence: 1,
+      recipeId: "fieldPotion",
+      actorId: "hero",
+      quantity: 1,
+      outputItemId: "potion",
+      outputQuantity: 1,
+      debug: true,
+    });
+    expect(
+      getAchievementProgress(getAchievement("firstCraft"), debugContext).complete,
+    ).toBe(false);
+  });
+
   it("derives quest, boss, dungeon, exploration, Codex, party, and event progress", () => {
     const context = createContext();
     context.player.progression.quests.quests.twelvefoldCovenant.stage = 3;

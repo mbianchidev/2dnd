@@ -43,6 +43,8 @@ export interface Item {
   trapDisarmBonus?: number;
   /** Battle target scope for consumables; defaults to self. */
   targetType?: ConsumableTargetType;
+  /** Whether this consumable restores MP instead of HP. */
+  restoresMp?: boolean;
   /** Searchable canonical tags for inventory and future recipe selection. */
   tags?: readonly string[];
   /** Stable material identity consumed by future crafting recipes (#56). */
@@ -132,6 +134,27 @@ export const ITEMS: Item[] = [
     effect: 0,
     cureEffects: true,
     targetType: "single_ally",
+  },
+  {
+    id: "trailRations",
+    name: "Trail Rations",
+    description: "Restores 12 HP",
+    type: "consumable",
+    cost: 12,
+    effect: 12,
+    targetType: "single_ally",
+    tags: ["food", "exploration", "cooking"],
+  },
+  {
+    id: "aetherTea",
+    name: "Aether Tea",
+    description: "Restores 15 MP",
+    type: "consumable",
+    cost: 36,
+    effect: 15,
+    targetType: "single_ally",
+    restoresMp: true,
+    tags: ["tea", "arcane", "medicine"],
   },
   // --- Class starting weapons (cost 0, given at character creation) ---
   {
@@ -607,6 +630,47 @@ export const ITEMS: Item[] = [
         tags: ["ancient", "focus", "ward"],
       },
     },
+  },
+  // --- Crafted equipment variants ---
+  {
+      id: "frostWardMail",
+      name: "Frost Ward Mail",
+      description: "+5 AC, winter wards set into fitted links",
+      type: "armor",
+      cost: 0,
+      effect: 5,
+      tags: ["crafted", "armor", "frost", "ward"],
+  },
+  {
+      id: "stormforgedBlade",
+      name: "Stormforged Blade",
+      description: "+6 attack, lightning held in tempered steel",
+      type: "weapon",
+      cost: 0,
+      effect: 6,
+      weaponSprite: "sword",
+      element: Element.Lightning,
+      tags: ["crafted", "weapon", "storm", "conductive"],
+  },
+  {
+      id: "runicAegis",
+      name: "Runic Aegis",
+      description: "+5 AC, moonstone-bound runic ward",
+      type: "shield",
+      cost: 0,
+      effect: 5,
+      tags: ["crafted", "shield", "rune", "ward"],
+  },
+  {
+      id: "elderwoodFocus",
+      name: "Elderwood Focus",
+      description: "+6 attack, living wood channels pure force",
+      type: "weapon",
+      cost: 0,
+      effect: 6,
+      weaponSprite: "staff",
+      element: Element.Force,
+      tags: ["crafted", "weapon", "wood", "arcane"],
   },
   // --- Mount items (sold in stables) ---
   {

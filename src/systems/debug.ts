@@ -301,6 +301,7 @@ import {
 import type { FogOfWar } from "../managers/fogOfWar";
 import type { EncounterSystem } from "../managers/encounter";
 import { executeSocialDebugCommand } from "./reputation";
+import { executeCraftingDebugCommand } from "./crafting";
 
 /** Callbacks the OverworldScene provides so the debug system can trigger UI/game updates. */
 export interface OverworldDebugCallbacks {
@@ -759,6 +760,23 @@ export class DebugCommandSystem {
       );
     });
 
+    cmds.set("craft", (args) => {
+      const result = executeCraftingDebugCommand(
+        this.player,
+        this.codex,
+        args,
+      );
+      for (const line of result.lines) {
+        debugPanelLog(`[CMD] ${line}`, true);
+      }
+      if (result.changed) {
+        this.suppressDebugAchievements();
+        this.callbacks.updateHUD();
+        this.callbacks.refreshPartyActors();
+        this.callbacks.autoSave();
+      }
+    });
+
     const runSocialCommand = (
       domain: "alignment" | "reputation",
       args: string,
@@ -1169,6 +1187,7 @@ export class DebugCommandSystem {
       { usage: "/quest <cmd>", desc: "Quest: list | advance <id> | set <id> <state>" },
       { usage: "/event <cmd>", desc: "World events: list | trigger <id> | reset" },
       { usage: "/gather <cmd>", desc: "Gathering: list|status|trigger|resolve|reset" },
+      { usage: "/craft <cmd>", desc: "Crafting: list|unlock|lock|craft|material|status|reset" },
       { usage: "/alignment <cmd>", desc: "Alignment: list|explain|set|adjust" },
       { usage: "/reputation <cmd>", desc: "Reputation: list|explain|set|adjust (alias: /rep)" },
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },

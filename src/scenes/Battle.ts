@@ -21,6 +21,7 @@ import {
   type Ability,
 } from "../data/abilities";
 import { getItem, type Item } from "../data/items";
+import { discoverCraftingRecipes } from "../systems/crafting";
 import type { PlayerState } from "../systems/player";
 import {
   getArmorClass,
@@ -2898,6 +2899,10 @@ export class BattleScene extends Phaser.Scene {
 
     for (const item of droppedItems) {
       this.player.inventory.push(item);
+      discoverCraftingRecipes(this.player, {
+        type: "item",
+        itemId: item.id,
+      });
       this.addLog(`🌟 Found: ${item.name}!`);
     }
     for (const combatant of this.combatants) {

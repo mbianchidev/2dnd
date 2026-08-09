@@ -23,6 +23,7 @@ export type ControlActionId =
   | "codex"
   | "achievements"
   | "gathering"
+  | "crafting"
   | "party"
   | "mount"
   | "battleNavigate"
@@ -161,6 +162,14 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     gamepad: "Menu, then Gathering",
     touch: "MENU, then Gathering",
   },
+  crafting: {
+    id: "crafting",
+    label: "Crafting",
+    keyboard: "V",
+    pointer: "Esc menu > Crafting",
+    gamepad: "Menu, then Crafting",
+    touch: "MENU, then Crafting",
+  },
   party: {
     id: "party",
     label: "Party management",
@@ -269,8 +278,8 @@ export const TIPS: readonly TipDefinition[] = [
     id: "controls.shortcuts",
     category: "controls",
     title: "Useful shortcuts",
-    body: "The map, equipment, journal, Codex, achievements, party, mount, menu, and Tips each have a direct keyboard shortcut.",
-    controls: ["map", "equipment", "journal", "codex", "achievements", "party", "mount", "menu", "tips"],
+    body: "The map, equipment, journal, Codex, achievements, gathering record, crafting, party, mount, menu, and Tips each have a direct keyboard shortcut.",
+    controls: ["map", "equipment", "journal", "codex", "achievements", "gathering", "crafting", "party", "mount", "menu", "tips"],
     unlock: { type: "always" },
   },
   {
@@ -332,6 +341,22 @@ export const TIPS: readonly TipDefinition[] = [
     body: "Use Space beside water, stone, or useful growth. Each discipline has a different readable challenge; reduced motion changes timing into deliberate steps without changing rewards.",
     controls: ["interact", "gathering"],
     unlock: { type: "always" },
+  },
+  {
+    id: "exploration.crafting",
+    category: "exploration",
+    title: "Recipes and field crafting",
+    body: "Press V or choose Crafting from the Esc or Party & Inventory menus. Recipes consume only the selected hero or companion bag, show exact owned counts, and never fail randomly.",
+    controls: ["crafting", "party"],
+    unlock: { type: "always" },
+  },
+  {
+    id: "advanced.crafting",
+    category: "advanced",
+    title: "Discovery, batches, and upgrades",
+    body: "Exploration, gathering, quests, shops, NPCs, readable lore, Codex records, and World Events reveal recipes. Forge upgrades preserve equipped links and rare recipes remain optional.",
+    controls: ["crafting"],
+    unlock: { type: "level", minimum: 3 },
   },
   {
     id: "party.recruitment",

@@ -80,6 +80,7 @@ export interface OverlayCallbacks {
   openCodex: () => void;
   openAchievements: () => void;
   openGathering: () => void;
+  openCrafting: () => void;
   openTips: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
 }
@@ -1064,6 +1065,26 @@ export class OverlayManager {
       this.callbacks.openPartyInventory();
     });
     this.menuOverlay.add(partyBtn);
+
+    const craftingBtn = this.scene.add.text(
+      px + panelW - 38,
+      py + 58,
+      "Crafting",
+      {
+        fontSize: "10px",
+        fontFamily: "monospace",
+        color: "#f7c948",
+        backgroundColor: "#2a2a4e",
+        padding: { x: 6, y: 4 },
+      },
+    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    craftingBtn.on("pointerover", () => craftingBtn.setColor("#ffffff"));
+    craftingBtn.on("pointerout", () => craftingBtn.setColor("#f7c948"));
+    craftingBtn.on("pointerdown", () => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+      this.callbacks.openCrafting();
+    });
+    this.menuOverlay.add(craftingBtn);
 
     // Quest journal
     const questsBtn = this.scene.add.text(px + panelW / 2, py + 111, "Quest Journal", {

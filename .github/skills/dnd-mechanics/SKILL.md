@@ -220,6 +220,10 @@ matching effects. Combat effects are cleared when leaving Battle.
 - Inventory sorting and filtering are presentation-only. Preserve canonical
   ownership order, exact equipment links, and equipped/key/mount transfer
   restrictions while resolving actions through original inventory indexes.
+- Crafting is deterministic rather than a d20 check. Validate every ingredient,
+  batch, gold/station requirement, and output before mutation; equipment upgrades
+  intentionally replace exact equipped links while unrelated equipped, key,
+  mount, and quest items remain protected.
 - Flee DC is 10 for one monster and increases by 2 for each additional living
   monster. Boss encounters cannot be fled.
 

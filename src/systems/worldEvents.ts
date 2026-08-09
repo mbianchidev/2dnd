@@ -46,6 +46,7 @@ import {
   reconcileAchievements,
   recordAchievementEvent,
 } from "./achievements";
+import { discoverCraftingRecipes } from "./crafting";
 
 export const WORLD_EVENT_LOG_LIMIT = 40;
 export const LEGACY_WORLD_EVENT_SEED = 0x2d0d0069;
@@ -464,6 +465,10 @@ function applyReward(
     for (let index = 0; index < quantity; index++) {
       player.inventory.push({ ...item });
     }
+    discoverCraftingRecipes(player, {
+      type: "item",
+      itemId: item.id,
+    });
   }
   state.claimedRewardIds.push(claimId);
 }

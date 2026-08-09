@@ -6,6 +6,7 @@ import * as Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import { useItem, ownsEquipment, sellItem, isLastEquipment, isItemEquipped } from "../systems/player";
 import { getShopItems, getShopItemsForTown, getSellValue, canSellItem, type Item } from "../data/items";
+import { discoverCraftingRecipes } from "../systems/crafting";
 import {
   unlockCodexFromSignal,
   type CodexData,
@@ -805,6 +806,10 @@ export class ShopScene extends Phaser.Scene {
     }
     this.player.gold -= discountedCost;
     this.player.inventory.push({ ...item });
+    discoverCraftingRecipes(this.player, {
+      type: "item",
+      itemId: item.id,
+    });
     this.codexDiscovery.show(unlockCodexFromSignal(this.codex, {
       type: "itemAcquired",
       itemId: item.id,

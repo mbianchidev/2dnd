@@ -119,6 +119,10 @@ export type ChestLocation =
 export interface ChestData {
   id: string;
   itemId: string;
+  bonusItems?: readonly {
+    itemId: string;
+    quantity: number;
+  }[];
   x: number;
   y: number;
   location: ChestLocation;

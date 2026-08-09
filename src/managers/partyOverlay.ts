@@ -43,6 +43,7 @@ interface PartyOverlayCallbacks {
   autoSave(): void;
   showMessage(text: string, color?: string): void;
   refreshActors(): void;
+  openCrafting(): void;
 }
 
 type PartyOverlayPage = "status" | "social" | "items" | "gambits";
@@ -66,19 +67,12 @@ export class PartyOverlayManager {
   private inventorySelectedIndex: number | null = null;
   private inventorySearchActive = false;
   constructor(scene: Phaser.Scene, callbacks: PartyOverlayCallbacks) {
-    this.scene = scene;
-    this.callbacks = callbacks;
+    this.scene = scene; this.callbacks = callbacks;
   }
-
-  isOpen(): boolean {
-    return this.overlay !== null;
-  }
+  isOpen(): boolean { return this.overlay !== null; }
   toggle(player: PlayerState): void {
-    if (this.overlay) {
-      this.close();
-      return;
-    }
-    this.open(player);
+    if (this.overlay) this.close();
+    else this.open(player);
   }
   open(player: PlayerState, page: PartyOverlayPage = "status"): void {
     this.close();
@@ -92,9 +86,7 @@ export class PartyOverlayManager {
     this.scene.input.keyboard?.on("keydown", this.handleKeyDown, this);
     this.render();
   }
-  openInventory(player: PlayerState): void {
-    this.open(player, "items");
-  }
+  openInventory(player: PlayerState): void { this.open(player, "items"); }
   close(): void {
     this.scene.input.keyboard?.off("keydown", this.handleKeyDown, this);
     this.overlay?.destroy();
@@ -363,6 +355,9 @@ export class PartyOverlayManager {
     this.addButton(x + 124, y + 22, `Filter:${this.capitalize(preferences.filter)}`, () => {
       this.handleInventoryAction("cycleFilter");
     }, "#b8ddff", 112);
+    this.addButton(x + 242, y + 22, "Craft", () => {
+      this.close(); this.callbacks.openCrafting();
+    }, "#f7c948", 66);
     const searchLabel = preferences.search.length > 0
       ? `Search:${this.truncate(preferences.search, 13)}`
       : this.inventorySearchActive ? "Search:typing..." : "Search:/";
@@ -584,6 +579,11 @@ export class PartyOverlayManager {
       return;
     }
     if (this.page !== "items") return;
+    if (!this.inventorySearchActive && event.key.toLowerCase() === "v") {
+      this.close(); this.callbacks.openCrafting();
+      event.preventDefault();
+      return;
+    }
     if (this.inventorySearchActive) {
       if (event.key === "Enter") {
         this.inventorySearchActive = false;

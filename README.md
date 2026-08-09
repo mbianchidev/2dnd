@@ -129,8 +129,16 @@ API, and saves use `localStorage`.
   preserving patterns, score thresholds, outcomes, and rewards.
 - Thirteen canonical fish, ores, gems, herbs, plants, wood, and relic materials
   stack through normal inventory semantics, can be sold at bounded values, and
-  expose stable recipe-input metadata for future crafting without implementing
-  recipes yet. Rare guarded finds enter the normal Battle pipeline.
+  expose stable recipe-input metadata consumed directly by crafting recipes.
+  Rare guarded finds enter the normal Battle pipeline.
+- Fourteen data-driven recipes cover healing, cures, travel supplies, trap
+  tools, deterministic equipment upgrades, and rare elemental gear. Crafting
+  validates one selected hero or companion inventory, gold, batch size, station,
+  protected items, outputs, and equipment links before one atomic transaction.
+- Recipe discovery is idempotent across exploration, cities, quests, gathering,
+  shops, NPCs, readable lore, Codex knowledge, items, and World Events. Monster
+  drops, chests, shops, event rewards, and deterministic minor treasures provide
+  balanced canonical materials without replacing existing rewards.
 - 12 cities with connected districts, district-specific shops, gates,
   discovery, fast travel, inns, banks, stables, and city music
 - Three multi-level dungeons with bidirectional stairs, floor-specific
@@ -426,6 +434,7 @@ npm run build      # Type-check and create a production build
 | `C` | Open the Codex |
 | `Y` | Open Achievements and manage cosmetic titles |
 | `K` | Open the Gathering record and material details |
+| `V` | Open Crafting |
 | `Q` | Open the quest journal |
 | `T` | Mount or dismount |
 | `F1` | Open or close Tips |
@@ -442,7 +451,7 @@ and Tips controls; movement and action buttons support simultaneous touches.
 Character and inventory search text fields open a native mobile text-entry
 surface.
 
-The `Esc` menu includes Achievements, Gathering, Party & Inventory, Tips, tutorial replay,
+The `Esc` menu includes Achievements, Gathering, Crafting, Party & Inventory, Tips, tutorial replay,
 the Chronicle, and the same audio and accessibility settings available on the
 title screen.
 Advanced Tips unlock automatically as relevant progression is reached. In the
@@ -452,6 +461,11 @@ remains mount control. Settings can force touch visibility, swap left/right
 touch layout, and choose automatic or fixed prompt sources. Mappings are stable
 and intentionally not user-remappable; a partial remapper would leave
 pointer-first and text-entry flows inaccessible.
+
+Crafting uses Up/Down and Page Up/Down for recipes, Left/Right for batch size,
+`Q`/`E` for categories, `R` for sorting, `F` for mobile-safe search, and `Tab`
+for explicit hero/companion ownership. Pointer, touch, and the gamepad cursor
+share the same buttons.
 
 In the Codex, `1`-`6` or `Q`/`E` change categories, `/` opens accessible search,
 `F` cycles the monster-family filter or knowledge discovery grouping, and `R`
@@ -506,7 +520,7 @@ mutates campaign progress. Version-1 preference documents and existing
 automatically. Inventory sorting, filtering, and search preferences use the
 separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
-Save schema version 14 persists:
+Save schema version 15 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -541,6 +555,9 @@ Save schema version 14 persists:
 - A deterministic gathering seed, node cooldown/depletion state, discovered
   nodes/resources, once-only claimed outcomes, per-discipline statistics,
   bounded history, and an exact pending minigame or special encounter
+- Known recipe IDs, stable discovery and transaction IDs, natural craft and
+  equipment-upgrade statistics, per-recipe counts, and bounded recent history.
+  Recipe definitions, ingredient contracts, categories, and values are derived
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed
@@ -576,6 +593,10 @@ Schema-v13 and older saves gain default gathering state. Schema-v14 loading
 normalizes stable IDs, statistics, cooldowns, history, and pending outcomes;
 replacing a malformed seed clears generated node state and pending play so
 rewards cannot resolve against an incompatible layout.
+Schema-v14 and older saves gain default crafting state. Schema-v15 removes
+unknown or duplicate recipe/discovery/transaction IDs, clamps statistics,
+repairs bounded history, preserves inventory/equipment links, and replays
+durable recipe discovery idempotently.
 
 ## Testing
 
@@ -597,6 +618,13 @@ Gathering coverage verifies terrain safety, deterministic tables, environmental
 weights, all three state machines, reduced-motion equivalence, cooldowns,
 economy, rare Battle handoffs, achievements, recipe-input isolation, pending
 reloads, and schema-v14 corruption recovery.
+Crafting coverage verifies recipe integrity, alternative material matching,
+protected/equipped restrictions, atomic batches, repeated-input suppression,
+upgrade link preservation, ownership, discovery, acquisition tables,
+anti-arbitrage, debug exclusion, achievements, and schema-v15 repair. Browser
+coverage includes search, batch crafting, forge upgrades, save/reload, dungeon
+access, responsive layouts, 150% text, high contrast, reduced motion, and
+page/console cleanliness.
 
 Important integration suites:
 

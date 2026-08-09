@@ -436,6 +436,20 @@ export function getAchievementProgress(
         (stats) => stats.successes >= criteria.successesPerDiscipline,
       ).length;
       break;
+    case "craftCount":
+      target = criteria.threshold;
+      current = player.progression.crafting.statistics.totalCrafts;
+      break;
+    case "craftUniqueRecipes":
+      target = criteria.threshold;
+      current = Object.values(
+        player.progression.crafting.statistics.recipeCraftCounts,
+      ).filter((count) => (count ?? 0) > 0).length;
+      break;
+    case "craftEquipmentUpgrades":
+      target = criteria.threshold;
+      current = player.progression.crafting.statistics.equipmentUpgrades;
+      break;
   }
 
   return {

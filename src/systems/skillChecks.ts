@@ -128,9 +128,33 @@ export function getMinorTreasureGold(
   if (randomValue < 0 || randomValue >= 1 || !Number.isFinite(randomValue)) {
     throw new Error(`[skillChecks] Invalid treasure roll: ${randomValue}`);
   }
+
   return success
     ? 15 + Math.floor(randomValue * 21)
     : 1 + Math.floor(randomValue * 5);
+}
+
+const MINOR_TREASURE_MATERIAL_IDS = [
+  "wildHerbs",
+  "copperOre",
+  "brookTrout",
+  "ironOre",
+] as const;
+
+export function getMinorTreasureMaterialId(
+  treasureKey: string,
+  success: boolean,
+): string | undefined {
+  let hash = 2166136261;
+  for (let index = 0; index < treasureKey.length; index += 1) {
+    hash ^= treasureKey.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  const normalized = hash >>> 0;
+  if (!success && normalized % 2 !== 0) return undefined;
+  return MINOR_TREASURE_MATERIAL_IDS[
+    normalized % MINOR_TREASURE_MATERIAL_IDS.length
+  ];
 }
 
 export function applyNonlethalDamage(currentHp: number, damage: number): number {

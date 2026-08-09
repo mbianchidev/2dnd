@@ -639,6 +639,11 @@ const IRON_DISPATCH_QUEST: QuestDefinition = {
       type: "worldState",
       targetId: "ironRouteRestored",
     },
+    {
+      id: "crafting.ironworkMastery",
+      type: "unlockRecipe",
+      targetId: "temperedLongSword",
+    },
   ],
   outcome: "Ironhold and Sandport reopen the iron route.",
 };
@@ -739,6 +744,11 @@ const FROST_SILK_QUEST: QuestDefinition = {
       id: "world.frostWardRestored",
       type: "worldState",
       targetId: "frostWardRestored",
+    },
+    {
+      id: "crafting.frostWardArmor",
+      type: "unlockRecipe",
+      targetId: "frostWardArmor",
     },
   ],
   outcome: "Frostheim's ward-cloths are restored before the deepest cold.",

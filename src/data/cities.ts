@@ -529,14 +529,14 @@ export const CITIES: CityData[] = [
     shops: [
       { type: "weapon", name: "Blade & Bow", x: 3, y: 4, shopItems: ["shortSword", "longSword"] },
       { type: "armor", name: "Hide & Mail", x: 16, y: 4, shopItems: ["leatherArmor", "woodenShield"] },
-      { type: "general", name: "General Store", x: 3, y: 11, shopItems: ["potion", "ether", "antidote", "burnSalve", "thawingTonic", "paralysisRemedy", "smellingSalts", "dungeonKey"] },
+      { type: "general", name: "General Store", x: 3, y: 11, shopItems: ["potion", "ether", "antidote", "burnSalve", "thawingTonic", "paralysisRemedy", "smellingSalts", "wildHerbs", "brookTrout", "dungeonKey"] },
       { type: "inn", name: "Willow Inn", x: 16, y: 11, shopItems: [] },
       { type: "stable", name: "Willowdale Stables", x: 10, y: 5, shopItems: ["mountDonkey", "mountHorse"] },
     ],
     chunks: [{
       name: "Riverside", mapData: WILLOWDALE_RIVERSIDE, spawnX: 10, spawnY: 1,
       shops: [
-        { type: "general", name: "River Market", x: 3, y: 6, shopItems: ["potion", "ether"] },
+        { type: "general", name: "River Market", x: 3, y: 6, shopItems: ["potion", "ether", "brookTrout", "silverfin"] },
         { type: "magic", name: "Willow Apothecary", x: 16, y: 6, shopItems: ["potion", "ether", "greaterPotion"] },
       ],
     }],
@@ -548,7 +548,7 @@ export const CITIES: CityData[] = [
     shops: [
       { type: "weapon", name: "The Iron Anvil", x: 3, y: 2, shopItems: ["longSword", "greatSword"] },
       { type: "armor", name: "Fortress Armory", x: 16, y: 2, shopItems: ["chainMail", "plateArmor", "ironShield", "towerShield"] },
-      { type: "general", name: "Ironhold Supply", x: 7, y: 5, shopItems: ["potion", "ether", "greaterPotion", "chimaeraWing"] },
+      { type: "general", name: "Ironhold Supply", x: 7, y: 5, shopItems: ["potion", "ether", "greaterPotion", "ironOre", "copperOre", "chimaeraWing"] },
       { type: "inn", name: "Anvil Rest", x: 12, y: 5, shopItems: [] },
       { type: "stable", name: "Ironhold Stables", x: 10, y: 10, shopItems: ["mountHorse", "mountWarHorse"] },
     ],
@@ -615,7 +615,7 @@ export const CITIES: CityData[] = [
       name: "Sacred Grove", mapData: DEEPROOT_GROVE, spawnX: 10, spawnY: 1,
       shops: [
         { type: "magic", name: "Grove Herbalist", x: 3, y: 6, shopItems: ["potion", "ether"] },
-        { type: "general", name: "Forager's Cache", x: 16, y: 6, shopItems: ["potion", "ether"] },
+        { type: "general", name: "Forager's Cache", x: 16, y: 6, shopItems: ["potion", "ether", "wildHerbs", "redcapMushroom"] },
       ],
     }],
   },

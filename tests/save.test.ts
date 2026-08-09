@@ -44,6 +44,7 @@ import {
   movePlayerNearGatheringNode,
   startGathering,
 } from "../src/systems/gathering";
+import { createCraftingState } from "../src/systems/craftingState";
 
 describe("save system - PlayerState composition migration", () => {
   beforeEach(() => {
@@ -187,7 +188,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.quests.seenWarnings).toEqual([
       "frostRouteDanger",
     ]);
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
     expect(loaded!.player.progression.skillChecks["shop:city:willowdale_city:0:0"]).toEqual({
       ability: "charisma",
       naturalRoll: 15,
@@ -271,7 +272,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
     expect(loaded!.player.progression.worldEvents).toMatchObject({
       rollCounter: 0,
       triggerCount: 0,
@@ -289,6 +290,7 @@ describe("save system - PlayerState composition migration", () => {
       strength: 10, dexterity: 10, constitution: 10,
       intelligence: 10, wisdom: 10, charisma: 10,
     });
+
     delete (player.progression as unknown as Record<string, unknown>)["gathering"];
     localStorage.setItem("2dnd_save", JSON.stringify({
       version: 13,
@@ -302,7 +304,7 @@ describe("save system - PlayerState composition migration", () => {
     }));
 
     const loaded = loadGame()!;
-    expect(loaded.version).toBe(14);
+    expect(loaded.version).toBe(15);
     expect(loaded.player.progression.gathering).toMatchObject({
       sequence: 0,
       nodeStates: {},
@@ -312,6 +314,94 @@ describe("save system - PlayerState composition migration", () => {
       pending: null,
       history: [],
     });
+  });
+
+  it("migrates schema-v14 saves to default schema-v15 crafting state", () => {
+    const player = createPlayer("LegacyCrafter", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    delete (player.progression as Partial<PlayerState["progression"]>).crafting;
+    localStorage.setItem("2dnd_save", JSON.stringify({
+      version: 14,
+      player,
+      defeatedBosses: [],
+      codex: createCodex(),
+      appearanceId: "knight",
+      timestamp: 1,
+    }));
+
+    const loaded = loadGame()!;
+
+    expect(loaded.version).toBe(15);
+    expect(loaded.player.progression.crafting).toEqual(createCraftingState());
+    expect(loaded.player.progression.gathering.seed)
+      .toBe(player.progression.gathering.seed);
+  });
+
+  it("repairs malformed schema-v15 crafting state without disturbing equipment", () => {
+    const player = createPlayer("CorruptCrafter", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    const equippedWeaponId = player.equippedWeapon!.id;
+    player.progression.crafting = {
+      knownRecipeIds: ["fieldPotion", "fieldPotion", "unknown"] as never,
+      appliedDiscoveryIds: ["city:ironhold_city", "", "city:ironhold_city"],
+      appliedTransactionIds: ["tx:1", "tx:1", ""],
+      statistics: {
+        totalCrafts: -10,
+        equipmentUpgrades: 2,
+        recipeCraftCounts: {
+          fieldPotion: 3,
+          unknown: 7,
+        } as never,
+      },
+      recentHistory: [{
+        sequence: 5,
+        recipeId: "fieldPotion",
+        actorId: "hero",
+        quantity: 1,
+        outputItemId: "potion",
+        outputQuantity: 1,
+        debug: false,
+      }, {
+        sequence: -2,
+        recipeId: "unknown",
+        actorId: "hero",
+        quantity: 0,
+        outputItemId: "",
+        outputQuantity: 0,
+        debug: false,
+      } as never],
+      nextSequence: -4,
+    };
+    localStorage.setItem("2dnd_save", JSON.stringify({
+      version: 15,
+      player,
+      defeatedBosses: [],
+      codex: createCodex(),
+      appearanceId: "knight",
+      timestamp: 1,
+    }));
+
+    const loaded = loadGame()!;
+
+    expect(loaded.player.progression.crafting.knownRecipeIds).toEqual(
+      expect.arrayContaining(["fieldPotion", "antidotePoultice", "trailRations"]),
+    );
+    expect(loaded.player.progression.crafting.statistics).toMatchObject({
+      totalCrafts: 0,
+      equipmentUpgrades: 2,
+      recipeCraftCounts: { fieldPotion: 3 },
+    });
+    expect(loaded.player.progression.crafting.appliedTransactionIds).toEqual([
+      "tx:1",
+    ]);
+    expect(loaded.player.progression.crafting.nextSequence).toBe(6);
+    expect(loaded.player.equippedWeapon).toBe(
+      loaded.player.inventory.find((item) => item.id === equippedWeaponId),
+    );
   });
 
   it("repairs malformed schema-v14 gathering state and clears seed-coupled data", () => {
@@ -415,7 +505,7 @@ describe("save system - PlayerState composition migration", () => {
     }));
 
     const loaded = loadGame()!;
-    expect(loaded.version).toBe(14);
+    expect(loaded.version).toBe(15);
     expect(loaded.player.progression.social.alignment).toEqual({
       lawChaos: -50,
       goodEvil: 0,
@@ -504,7 +594,7 @@ describe("save system - PlayerState composition migration", () => {
       createWeatherState(),
     );
     const loaded = loadGame()!;
-    expect(loaded.version).toBe(14);
+    expect(loaded.version).toBe(15);
     expect(loaded.player.progression.achievements.counters).toMatchObject({
       battleWins: 1,
       oneHitDefeats: 1,
@@ -555,7 +645,7 @@ describe("save system - PlayerState composition migration", () => {
       expect.objectContaining({
         id: "sixCities",
         unlockedAt: 9876,
-        sourceId: "migration:v12:v14",
+        sourceId: "migration:v12:v15",
       }),
     );
     expect(loaded.player.progression.achievements.pendingNotificationIds)
@@ -754,7 +844,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
 
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
     expect(loaded!.codex.entries.slime).toMatchObject({
       timesDefeated: 1,
       acDiscovered: true,
@@ -1050,7 +1140,7 @@ describe("save system - PlayerState composition migration", () => {
     const loaded = loadGame();
 
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
     expect(loaded!.player.progression.tutorial).toEqual({ completed: true });
   });
 
@@ -1112,7 +1202,7 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.progression.seenCutsceneIds).toEqual([
       CAMPAIGN_EPILOGUE_CUTSCENE_ID,
     ]);
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
   });
 
   it("migrates old flat structure to new nested structure on load", () => {
@@ -1531,7 +1621,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
     expect(loaded!.player.progression.skillChecks).toEqual({});
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].status,
@@ -1575,7 +1665,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
     expect(loaded!.player.progression.quests.quests[MAIN_QUEST_ID]).toEqual({
       status: "active",
       stage: 0,
@@ -1705,7 +1795,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
     expect(
       loaded!.player.progression.quests.quests[MAIN_QUEST_ID].stage,
     ).toBe(2);
@@ -1870,7 +1960,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
     expect(loaded!.player.progression.trapSeed).toBe(424242);
     expect(loaded!.player.progression.trapStates).toEqual({
       legacyDetected: "detected",
@@ -1927,7 +2017,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
     expect(loaded!.player.party.activeCompanionIds).toEqual(["guardian"]);
     expect(loaded!.player.party.companions[0]!.controlMode).toBe("gambit");
     expect(loaded!.player.party.companions[0]!.gambits).toEqual(
@@ -2100,7 +2190,7 @@ describe("save system - PlayerState composition migration", () => {
 
     const loaded = loadGame();
     expect(loaded).not.toBeNull();
-    expect(loaded!.version).toBe(14);
+    expect(loaded!.version).toBe(15);
     expect(loaded!.player.party).toEqual({
       companions: [],
       activeCompanionIds: [],

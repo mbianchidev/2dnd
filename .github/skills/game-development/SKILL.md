@@ -398,7 +398,18 @@ minigame logic in `src/systems/gathering.ts`, schema normalization in
 `gatheringState.ts`, and accessible Phaser presentation in
 `src/managers/gathering.ts`. Persist selected outcomes before play, use safe
 location-derived nodes, route guarded finds through normal Battle hooks, and
-keep future crafting limited to stable material recipe-input metadata.
+keep material identity limited to stable `Item.material` recipe-input metadata.
+
+## Crafting
+
+Crafting recipes live in `src/data/crafting.ts`, atomic mechanics and discovery
+in `src/systems/crafting.ts`, persistence normalization in `craftingState.ts`,
+and accessible Overworld presentation in `src/managers/crafting.ts`. Validate
+the selected actor inventory, protected/equipped restrictions, batch, gold,
+station, output, and transaction ID before mutation. Equipment upgrades replace
+exact equipped object links with canonical outputs. Never pull companion
+materials implicitly, reroll a craft, duplicate material identity, or let
+recipes/achievements control quests, Codex, access, or rewards.
 
 ## Validation
 

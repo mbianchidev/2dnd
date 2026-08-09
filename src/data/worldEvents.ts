@@ -455,6 +455,11 @@ export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
             type: "item",
             itemId: "potion",
             quantity: 1,
+          }, {
+            id: "fieldHerbs",
+            type: "item",
+            itemId: "wildHerbs",
+            quantity: 2,
           }],
           futureHooks: [{
             type: "alignment",

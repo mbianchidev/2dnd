@@ -57,9 +57,11 @@ import {
   reconcileAchievements,
 } from "./achievements";
 import { normalizeGatheringState } from "./gatheringState";
+import { normalizeCraftingState } from "./craftingState";
+import { reconcileCraftingRecipes } from "./crafting";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 14;
+const SAVE_VERSION = 15;
 const TUTORIAL_SAVE_VERSION = 9;
 
 export interface SaveData {
@@ -411,6 +413,7 @@ export function loadGame(): SaveData | null {
         social: createSocialState(),
         achievements: normalizeAchievementState(undefined, sourceVersion),
         gathering: normalizeGatheringState(undefined, sourceVersion),
+        crafting: normalizeCraftingState(undefined, sourceVersion),
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -470,6 +473,10 @@ export function loadGame(): SaveData | null {
     );
     data.player.progression.gathering = normalizeGatheringState(
       data.player.progression.gathering,
+      sourceVersion,
+    );
+    data.player.progression.crafting = normalizeCraftingState(
+      data.player.progression.crafting,
       sourceVersion,
     );
     data.player.party = normalizePartyState(playerRecord["party"]);
@@ -533,6 +540,7 @@ export function loadGame(): SaveData | null {
 
     normalizePlayerLocation(data.player);
     replayCodexUnlocks(data.codex, data.player);
+    reconcileCraftingRecipes(data.player, data.codex);
     reconcileAchievements({
       player: data.player,
       defeatedBosses: new Set(data.defeatedBosses),

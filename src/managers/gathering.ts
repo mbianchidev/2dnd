@@ -34,6 +34,9 @@ import { unlockCodexFromSignal } from "../systems/codex";
 import type { BattleResolutionHooks } from "../systems/groupCombat";
 import type { PlayerState } from "../systems/player";
 import type { WeatherType } from "../systems/weather";
+import { discoverCraftingRecipes } from "../systems/crafting";
+import { reconcileCraftingRecipes } from "../systems/crafting";
+import type { CraftingRecipeId } from "../data/crafting";
 
 export interface GatheringManagerCallbacks {
   autoSave(): void;
@@ -41,6 +44,7 @@ export interface GatheringManagerCallbacks {
   updateLocation(): void;
   showMessage(message: string, color?: string): void;
   showCodexUnlocks(result: CodexUnlockResult): void;
+  showCraftingUnlocks(recipeIds: readonly CraftingRecipeId[]): void;
   suppressDebugAchievements(): void;
   startBattle(
     encounter: MonsterEncounter,
@@ -412,6 +416,17 @@ export class GatheringManager {
               player,
               result.outcome === "victory",
             );
+            if (reward.success && reward.itemId) {
+              discoverCraftingRecipes(player, {
+                type: "item",
+                itemId: reward.itemId,
+              });
+              if (codex) {
+                this.callbacks.showCraftingUnlocks(
+                  reconcileCraftingRecipes(player, codex),
+                );
+              }
+            }
             const codexUnlocks = reward.success
               ? this.unlockRewardCodex(reward.itemId, codex)
               : { unlockedIds: [], entries: [] };
@@ -429,6 +444,17 @@ export class GatheringManager {
     }
     audioEngine.playGatheringResultSFX(resolution.success, resolution.rarity);
     if (resolution.success) {
+      if (resolution.itemId) {
+        discoverCraftingRecipes(player, {
+          type: "item",
+          itemId: resolution.itemId,
+        });
+      }
+      if (this.codex) {
+        this.callbacks.showCraftingUnlocks(
+          reconcileCraftingRecipes(player, this.codex),
+        );
+      }
       this.callbacks.showCodexUnlocks(this.unlockRewardCodex(resolution.itemId));
     }
     if (debug) this.callbacks.suppressDebugAchievements();
@@ -486,6 +512,17 @@ export class GatheringManager {
       {
         onBattleResolved: (result) => {
           const reward = claimGatheringReward(player, result.outcome === "victory");
+          if (reward.success && reward.itemId) {
+            discoverCraftingRecipes(player, {
+              type: "item",
+              itemId: reward.itemId,
+            });
+            if (codex) {
+              this.callbacks.showCraftingUnlocks(
+                reconcileCraftingRecipes(player, codex),
+              );
+            }
+          }
           const codexUnlocks = reward.success
             ? this.unlockRewardCodex(reward.itemId, codex)
             : { unlockedIds: [], entries: [] };

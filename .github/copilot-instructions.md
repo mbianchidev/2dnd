@@ -71,6 +71,8 @@ src/
 │   ├── worldEvents.ts
 │   ├── gathering.ts
 │   ├── gatheringState.ts
+│   ├── crafting.ts
+│   ├── craftingState.ts
 │   ├── accessibility.ts
 │   ├── input.ts
 │   ├── tutorial.ts
@@ -106,6 +108,7 @@ src/
 │   ├── skillChecks.ts
 │   ├── worldEvents.ts
 │   ├── gathering.ts
+│   ├── crafting.ts
 │   ├── tutorial.ts
 │   └── talents.ts
 ├── managers/
@@ -119,6 +122,7 @@ src/
 │   ├── chronicle.ts
 │   ├── worldEvents.ts
 │   ├── gathering.ts
+│   ├── crafting.ts
 │   ├── tutorial.ts
 │   └── cutscene.ts
 ├── renderers/
@@ -266,6 +270,7 @@ interface PlayerProgression {
   social: SocialState;
   achievements: AchievementState;
   gathering: GatheringState;
+  crafting: CraftingState;
 }
 ```
 
@@ -650,12 +655,42 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
   blocks movement, World Events, encounters, traps, and other interactions.
 - Canonical resources are `crafting` inventory items with `material.resourceId`,
   discipline, rarity, and a stable `RecipeInputContract` containing
-  `materialId`, categories, tier, and tags. #56 recipes may consume those
-  contracts later; gathering must not implement recipes or capacity limits.
+  `materialId`, categories, tier, and tags. Crafting consumes those exact
+  contracts; gathering must not duplicate recipe or material identity.
 - Rare guarded finds use normal Battle hooks and rewards. Codex item acquisition
   and derived gathering achievements are consumers, never gameplay authority.
 - `K` opens the Gathering record. `/gather
   list|near|trigger|resolve|reset|status` is debug-only.
+
+## Crafting
+
+- Immutable recipe IDs, categories, ingredients, unlock sources, outputs,
+  stations, upgrades, and preview metadata live in `src/data/crafting.ts`.
+  Atomic validation/execution, discovery reconciliation, queries, ownership,
+  economy checks, and debug commands live in `src/systems/crafting.ts`;
+  schema-v15 normalization lives in `craftingState.ts`; accessible Phaser
+  presentation lives in `src/managers/crafting.ts`.
+- Match materials only through canonical `Item.material.resourceId` and
+  `recipeInput` material ID/category/tier/tag metadata. Never create parallel
+  material identity or mutate item definitions at runtime.
+- A craft validates recipe knowledge, selected hero/companion ownership,
+  protected/equipped restrictions, batch, gold, station, output, and all
+  ingredient indexes before consuming anything. Transactions are deterministic,
+  atomic, once-only, and have no random failure.
+- Equipment upgrades consume exactly one declared canonical base item, produce a
+  canonical variant, and replace every equipped reference to that exact object
+  with the output. Other equipped, key, mount, and quest items remain protected.
+- Recipe discovery is stable and idempotent across cities, quest completion
+  actions, gathering milestones, shops, NPCs, readable lore, Codex evidence,
+  acquired items, and World Event outcomes. Recipes and achievements never
+  become authority for quests, Codex, rewards, access, or endings.
+- `V`, Party & Inventory, and the Esc menu open Crafting in safe Overworld,
+  city, or dungeon states. Search, filters, sorting, batches, ownership,
+  ingredient counts, output comparison, source hints, and history must remain
+  usable with keyboard, pointer, touch, gamepad cursor, 150% text, high contrast,
+  reduced motion, and mobile safe areas.
+- `/craft list|unlock|lock|craft|material|status|reset` is debug-only. Debug
+  crafting and discovery do not advance natural crafting achievements.
 
 ## Alignment and reputation
 
@@ -708,7 +743,7 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 14.
+Save schema version is 15.
 
 `loadGame()` treats parsed data as `unknown`, migrates legacy flat position and
 progression fields, normalizes active effects, Codex elements, and skill-check
@@ -752,6 +787,11 @@ Schema-v13 and older saves gain default deterministic gathering state. Schema-v1
 normalization validates discipline/resource/outcome IDs, patterns, locations,
 statistics, cooldowns, claimed IDs, and bounded history. Replacing a malformed
 gathering seed clears node state, discovered generated nodes, and pending play.
+Schema-v14 and older saves gain default crafting state. Schema-v15 normalization
+keeps known canonical recipes, deduplicates discovery and transaction IDs,
+clamps natural statistics and per-recipe counts, bounds/repairs recent history,
+preserves prior gathering/inventory/equipment/achievement state, and replays
+durable recipe discovery idempotently.
 
 Inventory presentation preferences are not save ownership data and do not
 increment the schema. Store them under `2dnd_inventory_prefs`.
@@ -813,7 +853,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v14
+  visibility, handedness, and prompt source only; they never enter schema-v15
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

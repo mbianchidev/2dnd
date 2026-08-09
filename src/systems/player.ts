@@ -44,6 +44,10 @@ import {
   createGatheringState,
   type GatheringState,
 } from "./gathering";
+import {
+  createCraftingState,
+  type CraftingState,
+} from "./craftingState";
 
 export interface PlayerStats {
   strength: number;
@@ -86,6 +90,7 @@ export interface PlayerProgression {
   social: SocialState; // alignment, town/faction reputation, idempotency, and recent causes
   achievements: AchievementState; // derived milestones, event counters, cosmetic titles, and notices
   gathering: GatheringState; // deterministic gathering nodes, minigames, rewards, and records
+  crafting: CraftingState; // known recipes, atomic transactions, statistics, and history
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -279,6 +284,7 @@ export function createPlayer(
       social: createSocialState(),
       achievements: createAchievementState(),
       gathering: createGatheringState(),
+      crafting: createCraftingState(),
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,
@@ -638,7 +644,7 @@ function useStandardItem(
   target: CombatItemTarget = actor,
 ): UseItemResult {
   if (item.type === "consumable") {
-    if (item.id === "ether") {
+    if (item.id === "ether" || item.restoresMp) {
       if (target.mp >= target.maxMp) {
         return { used: false, message: "MP is already full!" };
       }

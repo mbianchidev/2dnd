@@ -238,6 +238,14 @@ tiles, and derive stable node IDs from context, sublevel, discipline, and target
 tile. Gathering is an explicit interaction and blocks movement-step events,
 skill checks, traps, and encounters while active.
 
+## Crafting acquisition
+
+Minor overworld treasures derive a canonical common material deterministically
+from their stable location key while preserving gold. Selected chests use typed
+bonus material rewards without replacing their primary item. Shops and monster
+drop tables may expose balanced canonical materials, but epic materials stay
+rare and no campaign-critical route may require them.
+
 ## Common pitfalls
 
 - Indexing maps as `[x][y]`

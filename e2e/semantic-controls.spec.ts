@@ -113,7 +113,7 @@ async function moveGamepadCursor(
   gameY: number,
 ): Promise<void> {
   const target = await gamePoint(page, gameX, gameY);
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
     const bounds = await page.locator("#gamepad-cursor").boundingBox();
     if (bounds) {
       const cursorX = bounds.x + bounds.width / 2;

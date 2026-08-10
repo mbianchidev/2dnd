@@ -107,6 +107,12 @@ async function setGamepadAxes(page: Page, axes: number[]): Promise<void> {
   }, axes);
 }
 
+function cursorAxis(delta: number): number {
+  const distance = Math.abs(delta);
+  if (distance < 5) return 0;
+  return Math.sign(delta) * (distance < 32 ? 0.35 : 0.8);
+}
+
 async function moveGamepadCursor(
   page: Page,
   gameX: number,
@@ -120,15 +126,15 @@ async function moveGamepadCursor(
       const cursorY = bounds.y + bounds.height / 2;
       const dx = target.x - cursorX;
       const dy = target.y - cursorY;
-      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
         await setGamepadAxes(page, [0, 0, 0, 0]);
         return;
       }
       await setGamepadAxes(page, [
         0,
         0,
-        Math.abs(dx) < 8 ? 0 : Math.sign(dx) * 0.8,
-        Math.abs(dy) < 8 ? 0 : Math.sign(dy) * 0.8,
+        cursorAxis(dx),
+        cursorAxis(dy),
       ]);
     } else {
       await setGamepadAxes(page, [0, 0, 0, 0.8]);

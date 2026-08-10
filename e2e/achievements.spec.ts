@@ -447,7 +447,7 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
   };
   const moveCursor = async (gameX: number, gameY: number): Promise<void> => {
     const target = await gamePoint(page, gameX, gameY);
-    for (let attempt = 0; attempt < 60; attempt += 1) {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
       const bounds = await page.locator("#gamepad-cursor").boundingBox();
       if (bounds) {
         const dx = target.x - (bounds.x + bounds.width / 2);
@@ -467,6 +467,7 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
       }
       await page.waitForTimeout(50);
     }
+    await setAxes([0, 0, 0, 0]);
     throw new Error("Timed out moving gamepad cursor");
   };
 

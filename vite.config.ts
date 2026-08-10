@@ -6,7 +6,7 @@ export default defineConfig({
     ?? (process.env.GITHUB_ACTIONS ? "/2dnd/" : "/"),
   resolve: {
     alias: {
-      "@": resolve(__dirname, "src"),
+      "@": resolve(import.meta.dirname, "src"),
     },
   },
   build: {

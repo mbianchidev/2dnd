@@ -167,6 +167,7 @@ export class GatheringManager {
       timeStep,
       weather,
       reducedMotion,
+      sea: player.progression.nautical.sailing,
     });
     this.callbacks.autoSave();
     audioEngine.playGatheringStartSFX(available.node.discipline);
@@ -273,7 +274,12 @@ export class GatheringManager {
     this.codex = codex;
     this.timeStep = timeStep;
     this.weather = weather;
-    startGathering(player, node, { timeStep, weather, reducedMotion });
+    startGathering(player, node, {
+      timeStep,
+      weather,
+      reducedMotion,
+      sea: player.progression.nautical.sailing,
+    });
     this.callbacks.autoSave();
     this.openGame();
     return `Triggered ${discipline} at ${node.id}.`;

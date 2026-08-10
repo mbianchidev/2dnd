@@ -30,6 +30,8 @@ export const CRAFTING_RECIPE_IDS = [
   "stormforgedBlade",
   "runicAegis",
   "elderwoodFocus",
+  "navigationSupplies",
+  "reinforcedHullKit",
 ] as const;
 
 export type CraftingRecipeId = (typeof CRAFTING_RECIPE_IDS)[number];
@@ -105,6 +107,75 @@ export interface CraftingRecipe {
 }
 
 export const CRAFTING_RECIPES: readonly CraftingRecipe[] = [
+  {
+    id: "navigationSupplies",
+    name: "Navigation Supplies",
+    category: "exploration",
+    ingredients: [
+      {
+        id: "saltfin",
+        label: "Saltfin",
+        quantity: 2,
+        match: { kind: "material", materialIds: ["saltfin"] },
+      },
+      {
+        id: "chartPigment",
+        label: "Navigation pigment",
+        quantity: 1,
+        match: {
+          kind: "material",
+          tags: ["navigation"],
+          minimumTier: 3,
+        },
+      },
+    ],
+    outputItemId: "navigationSupplies",
+    outputQuantity: 1,
+    goldCost: 20,
+    maxBatch: 5,
+    unlockSources: [{ type: "city", cityId: "sandport_city" }],
+    preview: {
+      summary: "Pack preserved sea rations and weatherproof route marks.",
+      benefit: "Canonical voyage supply used by nautical upgrades.",
+      sourceHint: "Learned at Sandport's docks.",
+    },
+  },
+  {
+    id: "reinforcedHullKit",
+    name: "Reinforced Hull Kit",
+    category: "special",
+    ingredients: [
+      {
+        id: "iron",
+        label: "Iron Ore",
+        quantity: 3,
+        match: { kind: "material", materialIds: ["ironOre"] },
+      },
+      {
+        id: "pearl",
+        label: "Ocean Pearl",
+        quantity: 1,
+        match: { kind: "material", materialIds: ["oceanPearl"] },
+      },
+      {
+        id: "supplies",
+        label: "Navigation Supplies",
+        quantity: 1,
+        match: { kind: "item", itemId: "navigationSupplies" },
+      },
+    ],
+    outputItemId: "reinforcedHullKit",
+    outputQuantity: 1,
+    goldCost: 120,
+    station: "forge",
+    maxBatch: 1,
+    unlockSources: [{ type: "item", itemId: "oceanPearl" }],
+    preview: {
+      summary: "Brace a hull with iron ribs and a pearl-balanced keel plate.",
+      benefit: "Installs the Reinforced Hull boat upgrade at a harbor.",
+      sourceHint: "Discovered after acquiring an Ocean Pearl.",
+    },
+  },
   {
     id: "fieldPotion",
     name: "Field Potion",

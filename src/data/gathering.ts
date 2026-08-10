@@ -243,6 +243,44 @@ export const GATHERING_RESOURCES: readonly GatheringResourceDefinition[] = [
     },
     hiddenUntilFound: true,
   },
+  {
+    id: "saltfin",
+    discipline: "fishing",
+    itemId: "saltfin",
+    rarity: "common",
+    recipeInput: {
+      materialId: "saltfin",
+      categories: ["fish"],
+      tier: 1,
+      tags: ["sea", "protein", "cooking"],
+    },
+  },
+  {
+    id: "oceanPearl",
+    discipline: "fishing",
+    itemId: "oceanPearl",
+    rarity: "rare",
+    recipeInput: {
+      materialId: "oceanPearl",
+      categories: ["gem", "relic"],
+      tier: 3,
+      tags: ["sea", "navigation", "luminous"],
+    },
+    hiddenUntilFound: true,
+  },
+  {
+    id: "krakenInk",
+    discipline: "fishing",
+    itemId: "krakenInk",
+    rarity: "epic",
+    recipeInput: {
+      materialId: "krakenInk",
+      categories: ["relic"],
+      tier: 4,
+      tags: ["sea", "navigation", "abyssal"],
+    },
+    hiddenUntilFound: true,
+  },
 ] as const;
 
 export const GATHERING_TABLES: readonly GatheringTableDefinition[] = [
@@ -266,6 +304,36 @@ export const GATHERING_TABLES: readonly GatheringTableDefinition[] = [
         weight: 5,
         quantity: [1, 1],
         periods: [TimePeriod.Dusk, TimePeriod.Night],
+      },
+    ],
+  },
+  {
+    id: "openSeaCatch",
+    discipline: "fishing",
+    outcomes: [
+      {
+        id: "catchSaltfin",
+        resourceId: "saltfin",
+        weight: 72,
+        quantity: [1, 3],
+        terrain: [Terrain.Water],
+      },
+      {
+        id: "diveOceanPearl",
+        resourceId: "oceanPearl",
+        weight: 22,
+        quantity: [1, 1],
+        terrain: [Terrain.Water],
+        weather: [WeatherType.Clear, WeatherType.Fog],
+      },
+      {
+        id: "hookAbyssalInk",
+        resourceId: "krakenInk",
+        weight: 6,
+        quantity: [1, 1],
+        terrain: [Terrain.Water],
+        periods: [TimePeriod.Dusk, TimePeriod.Night],
+        battleMonsterId: "abyssalEel",
       },
     ],
   },

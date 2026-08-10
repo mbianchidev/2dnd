@@ -62,6 +62,20 @@ getTownBiome(chunkX, chunkY, tileX, tileY);
 Chunk names drive biome music, weather probabilities, and presentation. New
 names must retain a recognized biome prefix.
 
+## Nautical world
+
+`src/data/nautical.ts` overlays four stable landmasses, five sea zones, ports,
+merchant routes, islands, boats, and sea pools on the unchanged 10x9 chunk
+grid. `src/systems/nauticalState.ts` owns schema-v16 normalization;
+`nautical.ts` owns sailing/routes/hazards/encounters; `nauticalOwnership.ts`
+owns acquisition, upgrades, cosmetics, and repairs. Only a serviceable active
+boat may traverse `Terrain.Water`; walking still uses `isWalkable()`.
+
+Sea fog keys use `s:zoneId,chunkX,chunkY,x,y`. Merchant routes are atomic and
+available before boat ownership. Disembarkation validates canonical walkability
+and rejects towns, dungeons, bosses, chests, events, and other blocked landing
+tiles. Sea encounter rates always pass through `getEffectiveEncounterRate()`.
+
 ## Random World Events
 
 World Events run only on ordinary overworld movement after the move and

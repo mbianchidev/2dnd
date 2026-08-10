@@ -37,6 +37,7 @@ import {
   getBoss,
   getDungeonBoss,
   getNightEncounter,
+  getMonster,
 } from "../data/monsters";
 import type { Monster } from "../data/monsters";
 import {
@@ -137,6 +138,7 @@ import {
   getBlockedQuestEntrance,
   getNpcQuestInteraction,
   getQuestNpcIdleDialogue,
+  isQuestCompleted,
 } from "../systems/quests";
 import type { QuestUpdate } from "../systems/quests";
 import { SkillCheckManager } from "../managers/skillChecks";
@@ -166,6 +168,7 @@ import {
   reconcileAchievements,
   suppressCurrentlyMetAchievements,
 } from "../systems/achievements";
+import { applySocialMutation } from "../systems/reputation";
 import { GatheringManager } from "../managers/gathering";
 import { tickGatheringCooldowns } from "../systems/gathering";
 import { CraftingManager } from "../managers/crafting";
@@ -174,6 +177,32 @@ import {
   reconcileCraftingRecipes,
 } from "../systems/crafting";
 import { getCraftingRecipe, type CraftingRecipeId } from "../data/crafting";
+import {
+  PORTS,
+  getPort,
+  getSeaZone,
+  getSeaZoneAt,
+  type CardinalHeading,
+} from "../data/nautical";
+import {
+  canDisembark,
+  canEmbark,
+  discoverPort,
+  discoverSeaTile,
+  disembark,
+  embark,
+  getActiveBoatState,
+  prepareSeaEncounter,
+  prepareSeaHazard,
+  resolvePendingSeaEncounter,
+  resolvePendingSeaHazard,
+  synchronizeNauticalQuestRewards,
+  executeMerchantRoute,
+  resolvePendingMerchantRoute,
+  installBoatUpgrade,
+  purchaseBoat,
+  repairActiveBoat,
+} from "../systems/nautical";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -442,6 +471,8 @@ export class OverworldScene extends Phaser.Scene {
           duration,
           label: "inn rest",
         }),
+      travelMerchantRoute: (routeId, currentPortId) =>
+        this.travelMerchantRoute(routeId, currentPortId),
     });
     this.partyOverlayManager = new PartyOverlayManager(this, {
       updateHUD: () => this.updateHUD(),
@@ -465,6 +496,17 @@ export class OverworldScene extends Phaser.Scene {
     }
     this.defeatedBosses = data?.defeatedBosses ?? new Set();
     this.codex = data?.codex ?? createCodex();
+    if (this.defeatedBosses.has("kraken")) {
+      applySocialMutation(this.player, {
+        sourceId: "boss:kraken:harborSafety",
+        cause: "Defeated the Deepwake Kraken",
+        alignment: { goodEvil: 5 },
+        reputation: [
+          { kind: "town", targetId: "tidehaven_city", delta: 30 },
+          { kind: "faction", targetId: "roadwardens", delta: 15 },
+        ],
+      }, this.codex);
+    }
     replayCodexUnlocks(this.codex, this.player);
     reconcileCraftingRecipes(this.player, this.codex);
     this.achievementOverlayManager = new AchievementOverlayManager(this, {
@@ -546,6 +588,9 @@ export class OverworldScene extends Phaser.Scene {
     if (this.startNextPendingCutscene()) {
       return;
     }
+    if (this.resumePendingNautical()) {
+      return;
+    }
     if (this.gatheringManager.resumePending(
       this.player,
       this.codex,
@@ -569,6 +614,7 @@ export class OverworldScene extends Phaser.Scene {
       );
       this.pendingCodexDiscoveryIds = [];
     }
+    this.discoverCurrentPort();
     if (this.player.position.inDungeon) {
       this.time.delayedCall(150, () => {
         this.dungeonTrapManager.scanNearby(this.player);
@@ -1094,13 +1140,32 @@ export class OverworldScene extends Phaser.Scene {
       regionName = city && chunk ? `🏘 ${city.name}: ${chunk.name}` : "City";
     } else {
       const chunk = getChunk(p.position.chunkX, p.position.chunkY);
-      regionName = chunk?.name ?? "Unknown";
+      const sea = p.progression.nautical.sailing
+        ? getSeaZoneAt(
+          p.position.chunkX,
+          p.position.chunkY,
+          p.position.x,
+          p.position.y,
+        )
+        : undefined;
+      regionName = sea
+        ? `⛵ ${getSeaZoneAt(
+          p.position.chunkX,
+          p.position.chunkY,
+          p.position.x,
+          p.position.y,
+        )?.zoneId ?? "Sea"} (${sea.depth})`
+        : chunk?.name ?? "Unknown";
     }
     const timeLabel = p.position.inDungeon ? PERIOD_LABEL[TimePeriod.Dungeon] : PERIOD_LABEL[getTimePeriod(this.timeStep)];
     const weatherLabel = WEATHER_LABEL[this.weatherState.current];
     const mountLabel = (p.mountId && !p.position.inDungeon && !p.position.inCity)
       ? `  🐴 ${getMount(p.mountId)?.name ?? "Mount"}` : "";
-    return `${regionName}  ${timeLabel}  ${weatherLabel}${mountLabel}`;
+    const boat = getActiveBoatState(p.progression.nautical);
+    const boatLabel = p.progression.nautical.sailing && boat
+      ? `  ⛵ ${boat.id} ${boat.condition}%`
+      : "";
+    return `${regionName}  ${timeLabel}  ${weatherLabel}${mountLabel}${boatLabel}`;
   }
 
   private updateHUD(): void {
@@ -1165,6 +1230,9 @@ export class OverworldScene extends Phaser.Scene {
       const cityMap = chunk.mapData;
       const terrain = cityMap[this.player.position.y]?.[this.player.position.x];
       if (terrain === Terrain.CityExit) return `${city.name}  [SPACE] Leave`;
+      if (city.id === "tidehaven_city" && terrain === Terrain.Dungeon) {
+        return "Tideglass Grotto  [SPACE] Enter Dungeon";
+      }
       if (terrain === Terrain.CityGate) {
         const connection = getCityConnectionAt(
           city,
@@ -1193,6 +1261,33 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     const terrain = getTerrainAt(this.player.position.chunkX, this.player.position.chunkY, this.player.position.x, this.player.position.y);
+    const nautical = this.player.progression.nautical;
+    if (nautical.sailing) {
+      const tidehaven = getPort("tidehavenPort");
+      if (
+        this.player.position.chunkX === tidehaven.location.chunkX
+        && this.player.position.chunkY === tidehaven.location.chunkY
+        && this.player.position.x === tidehaven.location.tileX
+        && this.player.position.y === tidehaven.location.tileY
+      ) {
+        return "Tidehaven Free Port  [SPACE] Enter";
+      }
+      const sea = getSeaZoneAt(
+        this.player.position.chunkX,
+        this.player.position.chunkY,
+        this.player.position.x,
+        this.player.position.y,
+      );
+      const landing = canDisembark(
+        nautical,
+        this.player.position,
+        nautical.heading,
+        getTerrainAt,
+        (position) => this.isNauticalLandingBlocked(position),
+      );
+      return `${sea?.zoneId ?? "Open Sea"} (${sea?.depth ?? "unknown"})`
+        + (landing.ok ? "  [SPACE] Disembark" : "");
+    }
     const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
     const town = chunk?.towns.find(
       (t) => t.x === this.player.position.x && t.y === this.player.position.y,
@@ -1255,6 +1350,18 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     if (!locStr.includes("[SPACE]")) {
+      const embarkation = canEmbark(
+        nautical,
+        this.player.position,
+        nautical.heading,
+        getTerrainAt,
+        () => false,
+      );
+      if (embarkation.ok) {
+        locStr = `${locStr}  [SPACE] Embark`;
+      }
+    }
+    if (!locStr.includes("[SPACE]")) {
       const gatheringPrompt = this.gatheringManager.getPrompt(this.player);
       if (gatheringPrompt) locStr = `${locStr}  ${gatheringPrompt}`;
     }
@@ -1296,6 +1403,9 @@ export class OverworldScene extends Phaser.Scene {
       ? ` [CITY:${p.position.cityId}:${p.position.cityChunkIndex}]`
       : "";
     const mountTag = p.mountId ? ` [MOUNT:${p.mountId}]` : "";
+    const boatTag = p.progression.nautical.sailing
+      ? ` [BOAT:${p.progression.nautical.activeBoatId ?? "none"}]`
+      : "";
     const menuTag = this.overlayManager.menuOverlay ? " [MENU]" : "";
     const chronicleTag = this.chronicleManager?.getDebugState() ?? "";
     const worldEventTag = this.worldEventManager?.getDebugState() ?? "";
@@ -1310,7 +1420,7 @@ export class OverworldScene extends Phaser.Scene {
     const craftingTag = this.craftingManager.getDebugState();
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${menuTag}${chronicleTag}${worldEventTag}${gatheringTag}${tutorialTag}${partyTag}${achievementTag}${craftingTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${boatTag}${menuTag}${chronicleTag}${worldEventTag}${gatheringTag}${tutorialTag}${partyTag}${achievementTag}${craftingTag} | ` +
       `Anim: ${this.worldPresentation.debugState} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
@@ -1356,11 +1466,12 @@ export class OverworldScene extends Phaser.Scene {
     const destX = tileX * TILE_SIZE + TILE_SIZE / 2;
     const destY = tileY * TILE_SIZE + TILE_SIZE / 2;
     const mounted = !!this.playerRenderer.mountSprite;
+    const sailing = !!this.playerRenderer.boatSprite;
     const flipped = this.playerRenderer.playerSprite.flipX;
     const riderOffX = flipped ? -PlayerRenderer.riderOffsetX : PlayerRenderer.riderOffsetX;
     const motionDuration = getMotionDuration(duration);
-    const playerX = destX + (mounted ? riderOffX : 0);
-    const playerY = destY - (mounted ? PlayerRenderer.riderOffsetY : 0);
+    const playerX = destX + (mounted ? riderOffX : sailing ? -2 : 0);
+    const playerY = destY - (mounted ? PlayerRenderer.riderOffsetY : sailing ? 7 : 0);
     this.worldPresentation.presentPlayerStep(
       destX < this.playerRenderer.playerSprite.x ? -1 : 1,
     );
@@ -1372,6 +1483,7 @@ export class OverworldScene extends Phaser.Scene {
     if (motionDuration === 0) {
       this.playerRenderer.playerSprite.setPosition(playerX, playerY);
       this.playerRenderer.mountSprite?.setPosition(destX, destY);
+      this.playerRenderer.boatSprite?.setPosition(destX, destY);
       finishPresentation();
       return;
     }
@@ -1391,15 +1503,423 @@ export class OverworldScene extends Phaser.Scene {
         duration: motionDuration,
       });
     }
+    if (this.playerRenderer.boatSprite) {
+      this.tweens.add({
+        targets: this.playerRenderer.boatSprite,
+        x: destX,
+        y: destY,
+        duration: motionDuration,
+      });
+    }
   }
 
   private getEffectiveMoveDelay(): number {
+    if (this.player.progression.nautical.sailing) {
+      return Math.round(this.moveDelay / 1.35);
+    }
     if (this.player.position.inDungeon || this.player.position.inCity || !this.player.mountId) {
       return this.moveDelay;
     }
     const mount = getMount(this.player.mountId);
     if (!mount) return this.moveDelay;
     return Math.round(this.moveDelay / mount.speedMultiplier);
+  }
+
+  private headingFromDelta(dx: number, dy: number): CardinalHeading {
+    if (dy < 0) return "north";
+    if (dx > 0) return "east";
+    if (dy > 0) return "south";
+    return "west";
+  }
+
+  private isNauticalLandingBlocked(position: PlayerState["position"]): boolean {
+    const terrain = getTerrainAt(
+      position.chunkX,
+      position.chunkY,
+      position.x,
+      position.y,
+    );
+    return terrain === undefined
+      || terrain === Terrain.Town
+      || terrain === Terrain.Dungeon
+      || terrain === Terrain.Boss
+      || terrain === Terrain.Chest
+      || terrain === Terrain.MinorTreasure;
+  }
+
+  private handleNauticalAction(): boolean {
+    const state = this.player.progression.nautical;
+    const heading = state.heading;
+    const blocked = (position: PlayerState["position"]): boolean =>
+      this.isNauticalLandingBlocked(position);
+    if (state.sailing) {
+      const tidehaven = getPort("tidehavenPort");
+      if (
+        this.player.position.chunkX === tidehaven.location.chunkX
+        && this.player.position.chunkY === tidehaven.location.chunkY
+        && this.player.position.x === tidehaven.location.tileX
+        && this.player.position.y === tidehaven.location.tileY
+      ) {
+        const city = getCity(tidehaven.cityId);
+        if (!city) return false;
+        state.sailing = false;
+        this.player.position.inCity = true;
+        this.player.position.cityId = city.id;
+        this.player.position.cityChunkIndex = 0;
+        this.player.position.x = city.spawnX;
+        this.player.position.y = city.spawnY;
+        this.player.lastTownX = tidehaven.location.tileX;
+        this.player.lastTownY = tidehaven.location.tileY;
+        this.player.lastTownChunkX = tidehaven.location.chunkX;
+        this.player.lastTownChunkY = tidehaven.location.chunkY;
+        discoverPort(state, "tidehavenPort");
+        if (!this.player.progression.discoveredCities.includes(city.id)) {
+          this.player.progression.discoveredCities.push(city.id);
+        }
+        const cityUnlock = unlockCodexFromSignal(this.codex, {
+          type: "location",
+          locationKind: "city",
+          targetId: city.id,
+        });
+        this.weatherState.current = WeatherType.Clear;
+        this.autoSave();
+        this.restartOverworld("enter Tidehaven", cityUnlock.unlockedIds);
+        return true;
+      }
+      const check = canDisembark(
+        state,
+        this.player.position,
+        heading,
+        getTerrainAt,
+        blocked,
+      );
+      if (!check.ok) return false;
+      const result = disembark(
+        state,
+        this.player.position,
+        heading,
+        getTerrainAt,
+        blocked,
+      );
+      if (!result.ok) {
+        this.showMessage(result.reason ?? "No safe landing.", "#ff8888");
+        return true;
+      }
+      Object.assign(this.player.position, result.position);
+      this.createPlayerSprite();
+      this.refreshPartyActors();
+      this.updateAudio();
+      this.autoSave();
+      this.restartOverworld("disembark boat");
+      return true;
+    }
+
+    const check = canEmbark(
+      state,
+      this.player.position,
+      heading,
+      getTerrainAt,
+      () => false,
+    );
+    if (!check.ok) return false;
+    const result = embark(
+      state,
+      this.player.position,
+      heading,
+      getTerrainAt,
+      () => false,
+    );
+    if (!result.ok) {
+      this.showMessage(result.reason ?? "Cannot embark.", "#ff8888");
+      return true;
+    }
+    this.player.mountId = "";
+    Object.assign(this.player.position, result.position);
+    this.companionFollowerManager.clear();
+    this.createPlayerSprite();
+    this.updateAudio();
+    this.autoSave();
+    this.restartOverworld("embark boat");
+    return true;
+  }
+
+  private discoverCurrentPort(): void {
+    const position = this.player.position;
+    const port = PORTS.find((candidate) =>
+      position.inCity
+        ? candidate.cityId === position.cityId
+        : candidate.location.chunkX === position.chunkX
+          && candidate.location.chunkY === position.chunkY
+          && candidate.location.tileX === position.x
+          && candidate.location.tileY === position.y
+    );
+    if (!port || !discoverPort(this.player.progression.nautical, port.id)) return;
+    this.showMessage(`⚓ Discovered ${port.name}.`, "#80cbc4");
+    this.autoSave();
+  }
+
+  private travelMerchantRoute(
+    routeId: Parameters<typeof executeMerchantRoute>[2],
+    currentPortId: Parameters<typeof executeMerchantRoute>[3],
+  ): void {
+    const state = this.player.progression.nautical;
+    const instanceId = `route:${routeId}:${state.stats.routesCompleted + 1}`;
+    const started = executeMerchantRoute(
+      state,
+      this.player,
+      routeId,
+      currentPortId,
+      instanceId,
+      (questId) => isQuestCompleted(this.player.progression.quests, questId),
+    );
+    if (!started.ok || !started.pending) {
+      this.showMessage(started.reason ?? "Route unavailable.", "#ff8888");
+      return;
+    }
+    this.autoSave();
+    const resolved = resolvePendingMerchantRoute(state, instanceId);
+    if (!resolved.ok || !resolved.destinationPortId) {
+      this.showMessage(resolved.reason ?? "Route handoff failed.", "#ff8888");
+      return;
+    }
+    this.applyMerchantRouteDestination(resolved.destinationPortId);
+    const destination = getPort(resolved.destinationPortId);
+    this.overlayManager.toggleWorldMap(this.player, this.defeatedBosses);
+    this.showMessage(
+      `Merchant route arrived at ${destination.name} `
+      + `(${resolved.conditionLost} hull wear).`,
+      "#80cbc4",
+    );
+    this.autoSave();
+    this.restartOverworld("merchant route arrival");
+  }
+
+  private applyMerchantRouteDestination(
+    destinationPortId: Parameters<typeof getPort>[0],
+  ): void {
+    const destination = getPort(destinationPortId);
+    const destinationCity = destination.cityId === "tidehaven_city"
+      ? getCity(destination.cityId)
+      : undefined;
+    Object.assign(this.player.position, {
+      inCity: false,
+      cityId: "",
+      cityChunkIndex: 0,
+      inDungeon: false,
+      dungeonId: "",
+      dungeonLevel: 0,
+      chunkX: destination.location.chunkX,
+      chunkY: destination.location.chunkY,
+      x: destination.location.tileX,
+      y: destination.location.tileY,
+    });
+    if (destinationCity) {
+      Object.assign(this.player.position, {
+        inCity: true,
+        cityId: destinationCity.id,
+        cityChunkIndex: 0,
+        x: destinationCity.spawnX,
+        y: destinationCity.spawnY,
+      });
+      if (!this.player.progression.discoveredCities.includes(destinationCity.id)) {
+        this.player.progression.discoveredCities.push(destinationCity.id);
+      }
+    }
+  }
+
+  private resumePendingNautical(): boolean {
+    const state = this.player.progression.nautical;
+    if (state.pendingMerchantRoute) {
+      const pending = state.pendingMerchantRoute;
+      const resolved = resolvePendingMerchantRoute(state, pending.instanceId);
+      if (resolved.ok && resolved.destinationPortId) {
+        this.applyMerchantRouteDestination(resolved.destinationPortId);
+        this.autoSave();
+        this.restartOverworld("resume merchant route");
+        return true;
+      }
+    }
+    if (state.pendingHazard) {
+      const pending = state.pendingHazard;
+      const result = resolvePendingSeaHazard(
+        state,
+        this.player,
+        pending.instanceId,
+      );
+      this.showMessage(
+        `${pending.hazardId}: ${result.hpLost} HP, `
+        + `${result.conditionLost} hull damage.`,
+        result.check?.success ? "#80cbc4" : "#ffab91",
+      );
+      const boat = getActiveBoatState(state);
+      if (boat?.condition === 0) {
+        const port = getPort("sandportHarbor");
+        state.sailing = false;
+        Object.assign(this.player.position, {
+          chunkX: port.location.chunkX,
+          chunkY: port.location.chunkY,
+          x: port.location.tileX,
+          y: port.location.tileY,
+        });
+        this.autoSave();
+        this.restartOverworld("recover pending hazard");
+        return true;
+      }
+      this.autoSave();
+      return false;
+    }
+    if (state.pendingEncounter) {
+      const pending = state.pendingEncounter;
+      const monster = getMonster(pending.monsterId);
+      if (!monster) {
+        resolvePendingSeaEncounter(state, pending.instanceId, "fled");
+        this.autoSave();
+        return false;
+      }
+      const encounter = createRandomEncounter(monster, this.player.level, [
+        "sea",
+        pending.depth,
+        pending.zoneId,
+        isNightTime(this.timeStep) ? "night" : "day",
+      ]);
+      const hooks: BattleResolutionHooks = {
+        onBattleResolved: (result) => {
+          resolvePendingSeaEncounter(
+            state,
+            pending.instanceId,
+            result.outcome,
+          );
+        },
+      };
+      this.startBattle(encounter, Terrain.Water, true, hooks);
+      return true;
+    }
+    return false;
+  }
+
+  private resolveNauticalStep(): boolean {
+    const position = this.player.position;
+    const state = this.player.progression.nautical;
+    const sea = getSeaZoneAt(
+      position.chunkX,
+      position.chunkY,
+      position.x,
+      position.y,
+    );
+    const boat = getActiveBoatState(state);
+    if (!sea || !boat) return false;
+    discoverSeaTile(
+      state,
+      sea.zoneId,
+      position.chunkX,
+      position.chunkY,
+      position.x,
+      position.y,
+    );
+    const stepId = [
+      this.timeStep,
+      position.chunkX,
+      position.chunkY,
+      position.x,
+      position.y,
+    ].join(":");
+    const seed = (
+      this.timeStep * 73856093
+      ^ position.chunkX * 19349663
+      ^ position.chunkY * 83492791
+      ^ position.x * 2654435761
+      ^ position.y
+    ) | 0;
+    const hazard = prepareSeaHazard({
+      state,
+      stepId,
+      seed,
+      zoneId: sea.zoneId,
+      depth: sea.depth,
+      timeStep: this.timeStep,
+      weather: this.weatherState.current,
+    });
+    if (hazard) {
+      this.autoSave();
+      const resolution = resolvePendingSeaHazard(
+        state,
+        this.player,
+        hazard.instanceId,
+      );
+      const outcome = resolution.check?.success ? "avoided" : "struck";
+      this.showMessage(
+        `${hazard.hazardId}: ${outcome}; `
+        + `${resolution.hpLost} HP, ${resolution.conditionLost} hull.`,
+        resolution.check?.success ? "#80cbc4" : "#ffab91",
+      );
+      if (boat.condition <= 0) {
+        const port = getPort("sandportHarbor");
+        state.sailing = false;
+        Object.assign(this.player.position, {
+          chunkX: port.location.chunkX,
+          chunkY: port.location.chunkY,
+          x: port.location.tileX,
+          y: port.location.tileY,
+        });
+        this.showMessage("The damaged boat is towed to Sandport.", "#ffab91");
+        this.autoSave();
+        this.restartOverworld("recover disabled boat");
+      } else {
+        this.autoSave();
+      }
+      return true;
+    }
+
+    const krakenEligible = sea.zoneId === "southreachDeep"
+      && sea.depth === "deep"
+      && this.player.level >= 15
+      && state.stats.seaSteps >= 40
+      && !this.defeatedBosses.has("kraken")
+      && Math.random() < 0.03;
+    const pending = krakenEligible
+      ? null
+      : prepareSeaEncounter({
+        state,
+        stepId,
+        rateRoll: Math.random(),
+        selectionRoll: Math.random(),
+        zoneId: sea.zoneId,
+        depth: sea.depth,
+        timeStep: this.timeStep,
+        weather: this.weatherState.current,
+        boat,
+        position,
+      });
+    const monster = krakenEligible
+      ? getMonster("kraken")
+      : pending
+        ? getMonster(pending.monsterId)
+        : undefined;
+    if (!monster) return false;
+    const encounter = createRandomEncounter(monster, this.player.level, [
+      "sea",
+      sea.depth,
+      isNightTime(this.timeStep) ? "night" : "day",
+      sea.zoneId,
+    ]);
+    const pendingId = pending?.instanceId;
+    const hooks: BattleResolutionHooks = pendingId
+      ? {
+        onBattleResolved: (result) => {
+          resolvePendingSeaEncounter(
+            state,
+            pendingId,
+            result.outcome,
+          );
+          return {
+            messages: [`The ${getSeaZone(sea.zoneId).name} grows quiet again.`],
+          };
+        },
+      }
+      : {};
+    this.autoSave();
+    this.startBattle(encounter, Terrain.Water, false, hooks);
+    return true;
   }
 
   update(time: number): void {
@@ -1469,6 +1989,7 @@ export class OverworldScene extends Phaser.Scene {
     };
     const newX = this.player.position.x + dx;
     const newY = this.player.position.y + dy;
+    this.player.progression.nautical.heading = this.headingFromDelta(dx, dy);
 
     // Update sprite facing direction based on horizontal movement
     if (dx !== 0) {
@@ -1499,7 +2020,9 @@ export class OverworldScene extends Phaser.Scene {
       this.isMoving = true;
       this.player.position.x = newX;
       this.player.position.y = newY;
-      this.companionFollowerManager.followStep(previousTile, 120, dx);
+      if (!this.player.progression.nautical.sailing) {
+        this.companionFollowerManager.followStep(previousTile, 120, dx);
+      }
       if (audioEngine.initialized) audioEngine.playFootstepSFX(terrain);
 
       this.tweenPlayerTo(newX, newY, 120, () => {
@@ -1617,7 +2140,9 @@ export class OverworldScene extends Phaser.Scene {
     this.companionFollowerManager.followStep(previousTile, 120, dx);
 
     if (audioEngine.initialized && result.newTerrain !== undefined) {
-      if (!this.player.position.inDungeon && !this.player.position.inCity && this.player.mountId) {
+      if (this.player.progression.nautical.sailing) {
+        audioEngine.playSailingSFX();
+      } else if (!this.player.position.inDungeon && !this.player.position.inCity && this.player.mountId) {
         audioEngine.playMountedFootstepSFX();
       } else {
         audioEngine.playFootstepSFX(result.newTerrain);
@@ -1631,6 +2156,9 @@ export class OverworldScene extends Phaser.Scene {
       this.revealTileSprites();
       this.updateHUD();
       this.updateLocationText();
+      if (this.player.progression.nautical.sailing) {
+        if (this.resolveNauticalStep()) return;
+      }
       resolveOverworldStepTrigger({
         worldEvent: () => this.worldEventManager.checkAfterStep(
           this.player,
@@ -1684,6 +2212,7 @@ export class OverworldScene extends Phaser.Scene {
     if (terrain === Terrain.Boss || terrain === Terrain.Town || terrain === Terrain.DungeonExit || terrain === Terrain.Chest || terrain === Terrain.DungeonStairs || terrain === Terrain.DungeonBoss) return;
     if (isDebug() && !this.encounterSystem.areEncountersEnabled()) return;
 
+    if (terrain === Terrain.Water && !this.player.progression.nautical.sailing) return;
     const mountEncMult = (!this.player.position.inDungeon && this.player.mountId)
       ? (getMount(this.player.mountId)?.encounterMultiplier ?? 1) : 1;
     const danger = this.questFlow.getCurrentDangerState();
@@ -1819,6 +2348,10 @@ export class OverworldScene extends Phaser.Scene {
     }
     if (this.sceneTransitions.isPending) return;
 
+    if (!this.player.position.inDungeon && !this.player.position.inCity) {
+      if (this.handleNauticalAction()) return;
+    }
+
     // ── Dungeon ──
     if (this.player.position.inDungeon) {
       const dungeon = getDungeon(this.player.position.dungeonId);
@@ -1832,6 +2365,22 @@ export class OverworldScene extends Phaser.Scene {
 
       if (terrain === Terrain.DungeonExit) {
         if (this.player.position.dungeonLevel !== 0) return;
+        if (dungeon.id === "tideglass_grotto") {
+          const city = getCity("tidehaven_city");
+          if (!city) return;
+          this.player.position.inDungeon = false;
+          this.player.position.dungeonId = "";
+          this.player.position.dungeonLevel = 0;
+          this.player.position.inCity = true;
+          this.player.position.cityId = city.id;
+          this.player.position.cityChunkIndex = 0;
+          this.player.position.x = city.spawnX;
+          this.player.position.y = city.spawnY;
+          this.weatherState.current = WeatherType.Clear;
+          this.autoSave();
+          this.restartOverworld("return to Tidehaven");
+          return;
+        }
         this.player.position.inDungeon = false;
         this.player.position.dungeonId = "";
         this.player.position.dungeonLevel = 0;
@@ -1889,6 +2438,29 @@ export class OverworldScene extends Phaser.Scene {
       const terrain = cityMap[this.player.position.y]?.[this.player.position.x];
 
       if (terrain === Terrain.CityExit) {
+        if (city.id === "tidehaven_city") {
+          const boat = getActiveBoatState(this.player.progression.nautical);
+          if (!boat || boat.condition <= 0) {
+            this.showMessage(
+              "No serviceable boat. Use the world map for a merchant route.",
+              "#ffab91",
+            );
+            return;
+          }
+          const port = getPort("tidehavenPort");
+          this.player.position.inCity = false;
+          this.player.position.cityId = "";
+          this.player.position.cityChunkIndex = 0;
+          this.player.position.chunkX = port.location.chunkX;
+          this.player.position.chunkY = port.location.chunkY;
+          this.player.position.x = port.location.tileX;
+          this.player.position.y = port.location.tileY;
+          this.player.progression.nautical.sailing = true;
+          this.rerollWeather();
+          this.autoSave();
+          this.restartOverworld("sail from Tidehaven");
+          return;
+        }
         this.player.position.inCity = false;
         this.player.position.cityId = "";
         this.player.position.cityChunkIndex = 0;
@@ -1899,6 +2471,32 @@ export class OverworldScene extends Phaser.Scene {
         this.rerollWeather();
         this.autoSave();
         this.restartOverworld("exit city");
+        return;
+      }
+
+      if (city.id === "tidehaven_city" && terrain === Terrain.Dungeon) {
+        const dungeon = getDungeon("tideglass_grotto");
+        if (!dungeon) return;
+        this.player.position.inCity = false;
+        this.player.position.cityId = "";
+        this.player.position.cityChunkIndex = 0;
+        this.player.position.inDungeon = true;
+        this.player.position.dungeonId = dungeon.id;
+        this.player.position.dungeonLevel = 0;
+        this.player.position.x = dungeon.spawnX;
+        this.player.position.y = dungeon.spawnY;
+        this.weatherState.current = WeatherType.Clear;
+        if (audioEngine.initialized) audioEngine.playDungeonEnterSFX();
+        const dungeonUnlock = unlockCodexFromSignal(this.codex, {
+          type: "location",
+          locationKind: "dungeon",
+          targetId: dungeon.id,
+        });
+        this.autoSave();
+        this.restartOverworld(
+          "enter Tideglass Grotto",
+          dungeonUnlock.unlockedIds,
+        );
         return;
       }
 
@@ -1976,6 +2574,9 @@ export class OverworldScene extends Phaser.Scene {
                 const recruitments = result.changed
                   ? synchronizeCompanionRecruitment(this.player)
                   : [];
+                const boats = result.changed
+                  ? synchronizeNauticalQuestRewards(this.player)
+                  : [];
                 const progressionUnlock = replayCodexUnlocks(
                   this.codex,
                   this.player,
@@ -1984,6 +2585,9 @@ export class OverworldScene extends Phaser.Scene {
                 this.questFlow.handleResult(result);
                 for (const recruitment of recruitments) {
                   this.showMessage(recruitment.message, "#88ff88");
+                }
+                for (const boat of boats) {
+                  this.showMessage(`⛵ Acquired ${boat.id}.`, "#80cbc4");
                 }
                 if (recruitments.length > 0) {
                   this.companionFollowerManager.sync(
@@ -2083,6 +2687,13 @@ export class OverworldScene extends Phaser.Scene {
         this.player.position.y,
       );
       if (nearbyShop) {
+        if (
+          city.id === "tidehaven_city"
+          && nearbyShop.name === "Tidehaven Shipwright"
+          && this.serviceTidehavenShipwright()
+        ) {
+          return;
+        }
         this.openCityShop(city, chunk.name, nearbyShop, chunkIndex);
         return;
       }
@@ -2522,6 +3133,10 @@ export class OverworldScene extends Phaser.Scene {
       this.playerRenderer.mountSprite,
       this.player.mountId,
     );
+    this.worldPresentation.bindBoat(
+      this.playerRenderer.boatSprite,
+      this.player.progression.nautical.activeBoatId ?? "",
+    );
     if (this.playerRenderer.mountSprite) {
       this.worldPresentation.presentPlayerStep(
         this.playerRenderer.playerSprite.flipX ? -1 : 1,
@@ -2531,10 +3146,70 @@ export class OverworldScene extends Phaser.Scene {
 
   private refreshPartyActors(): void {
     this.playerRenderer.refreshPlayerSprite(this.player);
+    if (this.player.progression.nautical.sailing) {
+      this.companionFollowerManager.clear();
+      return;
+    }
     this.companionFollowerManager.render(
       this.player,
       (companion) => this.showCompanionDialogue(companion),
     );
+  }
+
+  private serviceTidehavenShipwright(): boolean {
+    const state = this.player.progression.nautical;
+    const boat = getActiveBoatState(state);
+    const kitIndex = this.player.inventory.findIndex(
+      (item) => item.id === "reinforcedHullKit",
+    );
+    if (
+      boat
+      && kitIndex >= 0
+      && installBoatUpgrade(state, "reinforcedHull")
+    ) {
+      this.player.inventory.splice(kitIndex, 1);
+      this.showMessage("Installed Reinforced Hull.", "#80cbc4");
+      this.autoSave();
+      return true;
+    }
+    if (boat && boat.condition < 100) {
+      const missing = 100 - boat.condition;
+      const repairable = Math.min(missing, Math.floor(this.player.gold / 2));
+      if (repairable <= 0) {
+        this.showMessage("Hull repairs cost 2 gold per condition.", "#ffab91");
+        return true;
+      }
+      this.player.gold -= repairable * 2;
+      repairActiveBoat(state, repairable);
+      this.showMessage(
+        `Repaired ${repairable} hull condition for ${repairable * 2} gold.`,
+        "#80cbc4",
+      );
+      this.autoSave();
+      return true;
+    }
+    const charterComplete = isQuestCompleted(
+      this.player.progression.quests,
+      "tideglassCharter",
+    );
+    if (
+      charterComplete
+      && !state.ownedBoats.some((owned) => owned.id === "merchantSloop")
+      && this.player.gold >= 900
+    ) {
+      const result = purchaseBoat(
+        state,
+        this.player,
+        "merchantSloop",
+        true,
+      );
+      if (result.purchased) {
+        this.showMessage("Purchased Merchant Sloop for 900 gold.", "#80cbc4");
+        this.autoSave();
+        return true;
+      }
+    }
+    return false;
   }
 
   private showMessage(text: string, color = "#ffd700"): void {
@@ -2726,7 +3401,11 @@ export class OverworldScene extends Phaser.Scene {
     const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
     const biomeName = chunk?.name ?? "Heartlands";
     const period = getTimePeriod(this.timeStep);
-    audioEngine.playBiomeMusic(biomeName, period);
+    if (this.player.progression.nautical.sailing) {
+      audioEngine.playSailingMusic(period);
+    } else {
+      audioEngine.playBiomeMusic(biomeName, period);
+    }
     audioEngine.playWeatherSFX(this.weatherState.current);
   }
 }

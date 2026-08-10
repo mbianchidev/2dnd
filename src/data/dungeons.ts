@@ -7,6 +7,7 @@
  */
 
 import { Terrain } from "./mapTypes";
+import { TIDEGLASS_GROTTO } from "./islands";
 import type { DungeonConnection, DungeonData } from "./mapTypes";
 
 const dW = Terrain.DungeonWall;
@@ -145,6 +146,7 @@ const VOLCANIC_FORGE_LEVEL2: Terrain[][] = [
 ];
 
 export const DUNGEONS: DungeonData[] = [
+  TIDEGLASS_GROTTO,
   {
     id: "heartlands_dungeon", name: "Heartlands Crypt",
     entranceChunkX: 4, entranceChunkY: 2, entranceTileX: 16, entranceTileY: 2,

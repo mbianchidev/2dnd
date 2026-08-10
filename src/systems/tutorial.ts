@@ -10,6 +10,7 @@ export interface TutorialTipContext {
   level: number;
   companionCount: number;
   hasMount: boolean;
+  hasNauticalDiscovery: boolean;
   hasEnteredDungeon: boolean;
   hasSkillCheck: boolean;
   hasTrapExperience: boolean;
@@ -46,6 +47,9 @@ export function createTutorialTipContext(
       || player.inventory.some((item) =>
         item.type === "mount" && item.mountId !== undefined
       ),
+    hasNauticalDiscovery:
+      player.progression.nautical.discoveredPortIds.length > 0
+      || player.progression.nautical.ownedBoats.length > 0,
     hasEnteredDungeon: player.position.inDungeon
       || Object.keys(player.progression.exploredTiles).some((key) =>
         key.startsWith("d:")
@@ -69,6 +73,8 @@ export function isTipUnlocked(
       return context.companionCount > 0;
     case "mount":
       return context.hasMount;
+    case "nautical":
+      return context.hasNauticalDiscovery;
     case "dungeon":
       return context.hasEnteredDungeon;
     case "skillCheck":

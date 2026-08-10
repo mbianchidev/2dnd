@@ -14,6 +14,7 @@ const MOUNT_RIDER_OFFSET_Y = 8;
 
 function isMountedInOverworld(player: PlayerState): boolean {
   return !!player.mountId
+    && !player.progression.nautical.sailing
     && !player.position.inDungeon
     && !player.position.inCity;
 }
@@ -25,6 +26,7 @@ export class PlayerRenderer {
   private scene: Phaser.Scene;
   playerSprite!: Phaser.GameObjects.Sprite;
   mountSprite: Phaser.GameObjects.Sprite | null = null;
+  boatSprite: Phaser.GameObjects.Sprite | null = null;
   /** Current facing direction: front (down), back (up), or side (left/right). */
   private facing: "front" | "back" | "side" = "front";
 
@@ -46,6 +48,10 @@ export class PlayerRenderer {
       this.mountSprite.destroy();
       this.mountSprite = null;
     }
+    if (this.boatSprite) {
+      this.boatSprite.destroy();
+      this.boatSprite = null;
+    }
 
     const isMounted = isMountedInOverworld(player);
     const tileX = player.position.x * TILE_SIZE + TILE_SIZE / 2;
@@ -58,7 +64,14 @@ export class PlayerRenderer {
       ? equippedKey
       : this.scene.textures.exists(baseKey) ? baseKey : "player";
 
-    if (isMounted) {
+    if (player.progression.nautical.sailing) {
+      const boatId = player.progression.nautical.activeBoatId ?? "reedSkiff";
+      this.boatSprite = this.scene.add.sprite(tileX, tileY, `boat_${boatId}`);
+      this.boatSprite.setDepth(9);
+      this.playerSprite = this.scene.add.sprite(tileX - 2, tileY - 7, playerKey);
+      this.playerSprite.setScale(0.72);
+      this.playerSprite.setDepth(10);
+    } else if (isMounted) {
       // Render mount sprite beneath the player
       const mountKey = `mount_${player.mountId}`;
       this.mountSprite = this.scene.add.sprite(tileX, tileY, mountKey);
@@ -77,7 +90,10 @@ export class PlayerRenderer {
     }
 
     // (Re)generate the equipped texture so legs & equipment are rendered correctly
-    this.refreshPlayerSprite(player, isMounted);
+    this.refreshPlayerSprite(
+      player,
+      isMounted || player.progression.nautical.sailing,
+    );
   }
 
   /** Toggle mount / dismount. Returns a status message string or null. */

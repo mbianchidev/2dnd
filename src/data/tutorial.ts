@@ -52,6 +52,7 @@ export type TipUnlock =
   | { type: "level"; minimum: number }
   | { type: "companion" }
   | { type: "mount" }
+  | { type: "nautical" }
   | { type: "dungeon" }
   | { type: "skillCheck" }
   | { type: "trap" };
@@ -387,6 +388,14 @@ export const TIPS: readonly TipDefinition[] = [
     body: "Mounts change travel speed, encounter rates, and terrain access. Dismount when a route or interaction requires it.",
     controls: ["mount"],
     unlock: { type: "mount" },
+  },
+  {
+    id: "advanced.nautical",
+    category: "advanced",
+    title: "Ports, routes, and sailing",
+    body: "Visiting a harbor reveals merchant routes. Complete The Tideglass Charter to acquire a boat, use contextual Space prompts to embark or land, and consult the world map for known ports, sea zones, and island routes.",
+    controls: ["interact", "map"],
+    unlock: { type: "nautical" },
   },
   {
     id: "advanced.traps",

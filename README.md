@@ -109,6 +109,16 @@ API, and saves use `localStorage`.
 ### World exploration
 
 - A 10x9 world grid containing 90 chunks, each 20x15 tiles
+- Four named landmasses—Frostcrown, Verdant Covenant, Ember March, and
+  Southreach—assigned over the unchanged 90 legacy chunk identities, with five
+  navigable sea zones and compatible overworld fog coordinates
+- Discoverable ports and merchant routes support paid passage before boat
+  ownership; The Tideglass Charter grants a Reed Skiff and unlocks free sailing,
+  safe contextual embark/disembark, boat condition, upgrades, and cosmetics
+- Tidehaven island adds a two-district town, harbor shops and inn, sea materials,
+  a multi-level trapped grotto, and the optional Deepwake Kraken boss
+- Sailing alone enables capped sea encounters, day/night sea pools, weather
+  hazards, open-sea fishing, synthesized wake/audio, and procedural boat art
 - Distinct terrain, biome encounter tables, night encounters, weather,
   day/night lighting, fog of war, treasure, NPCs, animals, and special NPCs
 - Random encounter modifiers stack but the effective chance is capped at 15%;
@@ -139,9 +149,9 @@ API, and saves use `localStorage`.
   shops, NPCs, readable lore, Codex knowledge, items, and World Events. Monster
   drops, chests, shops, event rewards, and deterministic minor treasures provide
   balanced canonical materials without replacing existing rewards.
-- 12 cities with connected districts, district-specific shops, gates,
+- 13 cities, including the optional island port Tidehaven, with connected districts, district-specific shops, gates,
   discovery, fast travel, inns, banks, stables, and city music
-- Three multi-level dungeons with bidirectional stairs, floor-specific
+- Four multi-level dungeons with bidirectional stairs, floor-specific
   encounters, chests, fog, procedural traps, and a unique deepest-floor boss
 - Seeded trap layouts with spike pits, poison darts, falling rocks, alarms,
   hidden floors, and dungeon-specific runes; nearby checks use Dexterity or
@@ -170,7 +180,7 @@ API, and saves use `localStorage`.
 - Quest, dialogue, World Event, trap, and morally relevant event-combat outcomes
   apply through stable idempotent source IDs. The Party Social page shows both
   axes, scores, thresholds, standing tiers, and a bounded recent-cause history
-- 37 data-driven achievements cover campaign chapters, bosses and dungeons,
+- 39 data-driven achievements cover campaign chapters, bosses and dungeons,
   combat, secrets, exploration, Codex families, companions and gambits, gathering, World
   Events, social milestones, and meaningful equipment collection. Progress is
   derived from authoritative game state where possible; one-shot battle history
@@ -520,7 +530,7 @@ mutates campaign progress. Version-1 preference documents and existing
 automatically. Inventory sorting, filtering, and search preferences use the
 separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
-Save schema version 15 persists:
+Save schema version 16 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -536,6 +546,9 @@ Save schema version 15 persists:
   and normalized stable knowledge-entry unlock IDs
 - Active status effects, time step, and weather state
 - Normalized non-combat skill-check rolls, choices, and outcomes
+- Nautical boat ownership/condition/upgrades/cosmetics, discovered
+  ports/routes/islands/continents/sea tiles, bounded navigation statistics, and
+  recoverable pending merchant routes, hazards, and sea encounters
 - Recruited and active companion IDs; independent progression, resources,
   inventories, equipment, status effects, dialogue state, control modes, and
   normalized ranked gambit rules
@@ -625,6 +638,11 @@ anti-arbitrage, debug exclusion, achievements, and schema-v15 repair. Browser
 coverage includes search, batch crafting, forge upgrades, save/reload, dungeon
 access, responsive layouts, 150% text, high contrast, reduced motion, and
 page/console cleanliness.
+Nautical coverage verifies continent/zone/port/island integrity, route fees and
+gates, pre-boat passage, embark/disembark safety, the 15% encounter cap,
+weather hazards, sea materials and recipes, Kraken content, schema-v16
+corruption recovery, debug commands, responsive world-map presentation, and
+save/reload while sailing.
 
 Important integration suites:
 

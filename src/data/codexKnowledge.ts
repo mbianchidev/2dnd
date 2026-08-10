@@ -877,6 +877,80 @@ export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
   ...FACTION_ENTRIES,
   ...HISTORY_ENTRIES,
   ...WORLD_EVENT_ENTRIES,
+  {
+    id: "locationTidehaven",
+    category: "location",
+    name: "Tidehaven",
+    summary: "An island free port built around blue tideglass reefs.",
+    details: [
+      "Tidehaven's harbor serves merchant routes before a captain owns a vessel.",
+      "Its shipwrights maintain the charts leading into Tideglass Grotto.",
+    ],
+    tags: ["island", "port", "tideglass"],
+    sortOrder: 980,
+    sources: [{
+      type: "location",
+      locationKind: "city",
+      targetId: "tidehaven_city",
+      label: "Visit Tidehaven",
+      hint: "Reach the island through a discovered merchant route or by boat.",
+    }],
+  },
+  {
+    id: "locationTideglassGrotto",
+    category: "location",
+    name: "Tideglass Grotto",
+    summary: "A flooded, multi-level cavern beneath Tidehaven.",
+    details: [
+      "Old harbor wards still mark safe stairs through the flooded chambers.",
+      "The deepest pool opens toward the Kraken's hunting ground.",
+    ],
+    tags: ["island", "dungeon", "sea"],
+    sortOrder: 981,
+    sources: [{
+      type: "location",
+      locationKind: "dungeon",
+      targetId: "tideglass_grotto",
+      label: "Enter Tideglass Grotto",
+      hint: "Explore beneath Tidehaven.",
+    }],
+  },
+  {
+    id: "historyFourContinents",
+    category: "history",
+    name: "The Four Landmasses",
+    summary: "Frostcrown, Verdant Covenant, Ember March, and Southreach divide the known world.",
+    details: [
+      "The old ninety-chunk survey remains authoritative; sailors group those regions into four stable landmasses.",
+      "Frostwake, Westwind, Covenant, Emberwake, and Southreach waters connect them without changing old roads.",
+    ],
+    tags: ["continents", "navigation", "history"],
+    sortOrder: 982,
+    sources: [{
+      type: "questCompletion",
+      questId: "tideglassCharter",
+      label: "Complete The Tideglass Charter",
+      hint: "Earn a captain's chart in Sandport.",
+    }],
+  },
+  {
+    id: "historyDeepwakeKraken",
+    category: "history",
+    name: "The Deepwake Kraken",
+    summary: "An ancient sea predator whose defeat changes no covenant or crown.",
+    details: [
+      "The Kraken guards no campaign keystone and is never authority for the Twelvefold Covenant.",
+      "Captains remember the victory through trophies, Codex evidence, and achievement records.",
+    ],
+    tags: ["kraken", "boss", "sea"],
+    sortOrder: 983,
+    sources: [{
+      type: "cutscene",
+      cutsceneId: "boss.kraken.post",
+      label: "Defeat the Deepwake Kraken",
+      hint: "Survive the deep-sea encounter.",
+    }],
+  },
 ];
 
 const ENTRY_BY_ID = new Map(

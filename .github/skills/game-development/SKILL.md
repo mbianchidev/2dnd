@@ -304,6 +304,13 @@ can persist and display them.
   the normal random-encounter check for that step.
 - Use `FogOfWar.exploredKey()` for exploration keys.
 - Use `isWalkable()` and `ENCOUNTER_RATES`; do not hardcode terrain behavior.
+- Nautical metadata lives in `src/data/nautical.ts`; state normalization,
+  ownership, and mechanics live in the focused `nauticalState.ts`,
+  `nauticalOwnership.ts`, and `nautical.ts` modules. Preserve all 90 legacy
+  chunk IDs and use `s:zoneId,chunkX,chunkY,x,y` for sea fog.
+- Merchant routes work before boat ownership. Free sailing requires a
+  serviceable active boat, uses canonical Water eligibility, and runs hazards
+  before World Events, gathering, and random sea encounters.
 
 ## Non-combat skill checks
 

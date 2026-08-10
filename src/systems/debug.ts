@@ -302,6 +302,7 @@ import type { FogOfWar } from "../managers/fogOfWar";
 import type { EncounterSystem } from "../managers/encounter";
 import { executeSocialDebugCommand } from "./reputation";
 import { executeCraftingDebugCommand } from "./crafting";
+import { registerNauticalDebugCommands } from "./nauticalDebug";
 
 /** Callbacks the OverworldScene provides so the debug system can trigger UI/game updates. */
 export interface OverworldDebugCallbacks {
@@ -453,6 +454,15 @@ export class DebugCommandSystem {
     // ── Slash commands: shared + overworld-specific ──
 
     const cmds = buildSharedCommands(this.player, cb);
+    registerNauticalDebugCommands(cmds, this.player, {
+      autoSave: () => this.callbacks.autoSave(),
+      refreshWorld: () => {
+        this.callbacks.renderMap();
+        this.callbacks.createPlayer();
+        this.callbacks.refreshWorldMap();
+      },
+      startBattle: (monster) => this.callbacks.startBattle(monster),
+    });
 
     cmds.set("reveal", () => {
       this.fogOfWar.revealEntireWorld();
@@ -1199,6 +1209,13 @@ export class DebugCommandSystem {
       { usage: "/codex all", desc: "Discover all codex entries" },
       { usage: "/achievement <cmd>", desc: "Achievements: list|unlock|reset|progress|explain" },
       { usage: "/companion <cmd>", desc: "Companions: list|recruit|mode|heal|gambits" },
+      { usage: "/boat <cmd>", desc: "Boats: list|status|<id>" },
+      { usage: "/port <cmd>", desc: "Ports: list|<id>" },
+      { usage: "/route <cmd>", desc: "Routes: list|<id>" },
+      { usage: "/sail on|off", desc: "Toggle validated debug sailing" },
+      { usage: "/sea <cmd>", desc: "Sea: status|<monsterId>" },
+      { usage: "/kraken", desc: "Start the Kraken encounter" },
+      { usage: "/island <cmd>", desc: "Islands: list|<id>" },
     ];
 
     registerCommandRouter(cmds, "Overworld", helpEntries);

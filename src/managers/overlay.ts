@@ -43,6 +43,13 @@ import { getPlayerClass } from "../systems/classes";
 import { abilityModifier } from "../systems/dice";
 import { CYCLE_LENGTH } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
+import {
+  CONTINENTS,
+  MERCHANT_ROUTES,
+  PORTS,
+  type MerchantRouteId,
+  type PortId,
+} from "../data/nautical";
 import { isReducedMotionEnabled } from "../systems/accessibility";
 import {
   addSettingsControls,
@@ -83,6 +90,10 @@ export interface OverlayCallbacks {
   openCrafting: () => void;
   openTips: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
+  travelMerchantRoute: (
+    routeId: MerchantRouteId,
+    currentPortId: PortId,
+  ) => void;
 }
 
 export class OverlayManager {
@@ -1967,7 +1978,7 @@ export class OverlayManager {
     this.worldMapOverlay.add(dim);
 
     const panelPad = 12;
-    const titleH = 28;
+    const titleH = 46;
     const legendH = 36;
     const panelW = w - 20;
     const panelH = h - 20;
@@ -1982,6 +1993,35 @@ export class OverlayManager {
       fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
     }).setOrigin(0.5, 0);
     this.worldMapOverlay.add(title);
+    const boat = player.progression.nautical.ownedBoats.find(
+      (owned) => owned.id === player.progression.nautical.activeBoatId,
+    );
+    const routeLabels = MERCHANT_ROUTES
+      .filter((route) =>
+        player.progression.nautical.discoveredRouteIds.includes(route.id)
+      )
+      .map((route) =>
+        `${route.name}: ${route.fee}g`
+        + ("questGate" in route ? " · quest required" : "")
+      );
+    const nauticalStatus = this.scene.add.text(
+      px + panelW / 2,
+      py + 23,
+      `Boat: ${boat ? `${boat.id} ${boat.condition}%` : "none"} · `
+      + `Ports ${player.progression.nautical.discoveredPortIds.length}/${PORTS.length}`
+      + (routeLabels.length > 0
+        ? ` · ${routeLabels.slice(0, 2).join(" | ")}`
+          + (routeLabels.length > 2 ? ` +${routeLabels.length - 2}` : "")
+        : ""),
+      {
+        fontSize: "7px",
+        fontFamily: "monospace",
+        color: "#b0bec5",
+        align: "center",
+        wordWrap: { width: panelW - 24 },
+      },
+    ).setOrigin(0.5, 0);
+    this.worldMapOverlay.add(nauticalStatus);
 
     const contentX = px + panelPad;
     const contentY = py + titleH + panelPad;
@@ -2197,6 +2237,98 @@ export class OverlayManager {
           }
         }
       }
+
+      const currentPort = PORTS.find((port) =>
+        player.position.inCity
+          ? port.cityId === player.position.cityId
+          : port.location.chunkX === player.position.chunkX
+            && port.location.chunkY === player.position.chunkY
+            && port.location.tileX === player.position.x
+            && port.location.tileY === player.position.y
+      );
+      for (const continent of CONTINENTS) {
+        if (!player.progression.nautical.discoveredContinentIds.includes(
+          continent.id,
+        )) continue;
+        const chunk = continent.chunks[Math.floor(continent.chunks.length / 2)];
+        if (!chunk) continue;
+        const label = this.scene.add.text(
+          baseX + chunk.chunkX * (chunkW + gapZ) + chunkW / 2,
+          baseY + chunk.chunkY * (chunkH + gapZ) + chunkH / 2,
+          continent.name,
+          {
+            fontSize: "8px",
+            fontFamily: "monospace",
+            color: "#d7ccc8",
+            stroke: "#000000",
+            strokeThickness: 2,
+          },
+        ).setOrigin(0.5).setAlpha(0.8);
+        mapContainer.add(label);
+      }
+      for (const route of MERCHANT_ROUTES) {
+        if (!player.progression.nautical.discoveredRouteIds.includes(route.id)) {
+          continue;
+        }
+        const from = PORTS.find((port) => port.id === route.portIds[0]);
+        const to = PORTS.find((port) => port.id === route.portIds[1]);
+        if (!from || !to) continue;
+        const routeLine = this.scene.add.graphics();
+        routeLine.lineStyle(2, 0x80cbc4, 0.75);
+        routeLine.lineBetween(
+          baseX + from.location.chunkX * (chunkW + gapZ)
+            + from.location.tileX * tp,
+          baseY + from.location.chunkY * (chunkH + gapZ)
+            + from.location.tileY * tp,
+          baseX + to.location.chunkX * (chunkW + gapZ)
+            + to.location.tileX * tp,
+          baseY + to.location.chunkY * (chunkH + gapZ)
+            + to.location.tileY * tp,
+        );
+        mapContainer.add(routeLine);
+      }
+      for (const port of PORTS) {
+        const discovered = player.progression.nautical.discoveredPortIds.includes(
+          port.id,
+        );
+        const knownByRoute = MERCHANT_ROUTES.some((route) =>
+          player.progression.nautical.discoveredRouteIds.includes(route.id)
+          && (route.portIds as readonly PortId[]).includes(port.id)
+        );
+        if (!discovered && !knownByRoute) {
+          continue;
+        }
+        const marker = this.scene.add.text(
+          baseX + port.location.chunkX * (chunkW + gapZ)
+            + port.location.tileX * tp,
+          baseY + port.location.chunkY * (chunkH + gapZ)
+            + port.location.tileY * tp,
+          discovered ? "⚓" : "◇",
+          {
+            fontSize: "11px",
+            fontFamily: "monospace",
+            color: discovered ? "#80cbc4" : "#b0bec5",
+            stroke: "#000000",
+            strokeThickness: 2,
+          },
+        ).setOrigin(0.5);
+        const route = currentPort
+          ? MERCHANT_ROUTES.find((candidate) =>
+            (candidate.portIds as readonly PortId[]).includes(currentPort.id)
+            && (candidate.portIds as readonly PortId[]).includes(port.id)
+            && player.progression.nautical.discoveredRouteIds.includes(
+              candidate.id,
+            )
+          )
+          : undefined;
+        if (route && currentPort && port.id !== currentPort.id) {
+          marker.setInteractive({ useHandCursor: true });
+          marker.on("pointerdown", () => {
+            this.callbacks.travelMerchantRoute(route.id, currentPort.id);
+          });
+        }
+        mapContainer.add(marker);
+      }
     };
 
     redraw();
@@ -2236,6 +2368,7 @@ export class OverlayManager {
       { text: "● ", color: "#00ff00" }, { text: "You  ", color: "#aaa" },
       { text: "● ", color: "#ff4444" }, { text: "Boss  ", color: "#aaa" },
       { text: "● ", color: "#ab47bc" }, { text: "Town  ", color: "#aaa" },
+      { text: "⚓ ", color: "#80cbc4" }, { text: "Known port/route  ", color: "#aaa" },
       { text: "|  Scroll to zoom · Drag to pan · Click chunk for detail  |  N to close", color: "#aaa" },
     ];
     let legendCursorX = 0;

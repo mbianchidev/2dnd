@@ -48,6 +48,10 @@ import {
   createCraftingState,
   type CraftingState,
 } from "./craftingState";
+import {
+  createNauticalState,
+  type NauticalState,
+} from "./nauticalState";
 
 export interface PlayerStats {
   strength: number;
@@ -91,6 +95,7 @@ export interface PlayerProgression {
   achievements: AchievementState; // derived milestones, event counters, cosmetic titles, and notices
   gathering: GatheringState; // deterministic gathering nodes, minigames, rewards, and records
   crafting: CraftingState; // known recipes, atomic transactions, statistics, and history
+  nautical: NauticalState; // boats, ports, routes, sea discovery, and pending travel
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -285,6 +290,7 @@ export function createPlayer(
       achievements: createAchievementState(),
       gathering: createGatheringState(),
       crafting: createCraftingState(),
+      nautical: createNauticalState(),
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,

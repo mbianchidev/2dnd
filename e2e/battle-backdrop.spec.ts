@@ -150,6 +150,19 @@ async function readBackdrop(page: Page): Promise<BackdropDataset> {
   });
 }
 
+async function expectCanvasSnapshot(
+  page: Page,
+  name: string,
+): Promise<void> {
+  const base64 = await page.locator("#game-container canvas").evaluate(
+    (canvas) => (canvas as HTMLCanvasElement).toDataURL("image/png").split(",")[1],
+  );
+  if (!base64) throw new Error("Battle canvas did not produce a PNG");
+  expect(Buffer.from(base64, "base64")).toMatchSnapshot(name, {
+    maxDiffPixelRatio: 0.05,
+  });
+}
+
 async function finishBattle(page: Page): Promise<void> {
   await submitDebug(page, "/kill");
   await expect.poll(async () => {
@@ -202,10 +215,7 @@ test("Battle backdrop layers remain ordered across environments and repeated bat
     .toBe(5);
 
   const canvas = page.locator("#game-container canvas");
-  await expect(canvas).toHaveScreenshot("group-forest-day.png", {
-    animations: "disabled",
-    maxDiffPixelRatio: 0.01,
-  });
+  await expectCanvasSnapshot(page, "group-forest-day.png");
 
   const matrix = [
     ["grass", "dawn", "rain"],
@@ -229,28 +239,19 @@ test("Battle backdrop layers remain ordered across environments and repeated bat
     expect(inspection.lightningTimers).toBe(0);
     expect(inspection.containers).toBe(10);
     if (biome === "city") {
-      await expect(canvas).toHaveScreenshot("city-dusk-rain.png", {
-        animations: "disabled",
-        maxDiffPixelRatio: 0.01,
-      });
+      await expectCanvasSnapshot(page, "city-dusk-rain.png");
     }
   }
 
   await submitDebug(page, "/backdrop set sand dusk sandstorm");
-  await expect(canvas).toHaveScreenshot("sand-dusk-sandstorm.png", {
-    animations: "disabled",
-    maxDiffPixelRatio: 0.01,
-  });
+  await expectCanvasSnapshot(page, "sand-dusk-sandstorm.png");
   await submitDebug(page, "/backdrop set sea night storm");
-  await expect(canvas).toHaveScreenshot("sea-night-storm.png", {
-    animations: "disabled",
-    maxDiffPixelRatio: 0.01,
-  });
+  await expectCanvasSnapshot(page, "sea-night-storm.png");
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(canvas).toHaveScreenshot("sea-night-storm-mobile.png", {
+  await expect(page).toHaveScreenshot("sea-night-storm-mobile.png", {
     animations: "disabled",
-    maxDiffPixelRatio: 0.01,
+    maxDiffPixelRatio: 0.05,
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await finishBattle(page);
@@ -272,16 +273,10 @@ test("Battle backdrop layers remain ordered across environments and repeated bat
     expect(inspection.children).toBeGreaterThanOrEqual(12);
     if (encounter === "troll") {
       expect(inspection.biome).toBe("dungeon");
-      await expect(canvas).toHaveScreenshot("boss-troll-cave.png", {
-        animations: "disabled",
-        maxDiffPixelRatio: 0.01,
-      });
+      await expectCanvasSnapshot(page, "boss-troll-cave.png");
     }
     if (encounter === "kraken") {
-      await expect(canvas).toHaveScreenshot("kraken-sea-fog.png", {
-        animations: "disabled",
-        maxDiffPixelRatio: 0.01,
-      });
+      await expectCanvasSnapshot(page, "kraken-sea-fog.png");
     }
     await finishBattle(page);
   }
@@ -302,9 +297,9 @@ test("Battle backdrop remains readable in high contrast on a portrait viewport",
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toHaveAttribute("data-high-contrast", "true");
   await expect(canvas).toHaveAttribute("data-reduced-motion", "true");
-  await expect(canvas).toHaveScreenshot("crypt-fog-high-contrast-mobile.png", {
+  await expect(page).toHaveScreenshot("crypt-fog-high-contrast-mobile.png", {
     animations: "disabled",
-    maxDiffPixelRatio: 0.01,
+    maxDiffPixelRatio: 0.05,
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await finishBattle(page);

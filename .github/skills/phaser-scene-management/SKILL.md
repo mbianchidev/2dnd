@@ -60,6 +60,12 @@ scene transitions cannot strand a press. Standard gamepads use left-stick/D-pad
 navigation and a visible right-stick cursor, clicked by pressing the stick, for
 pointer-first surfaces.
 
+Feature-gated semantic actions use `src/systems/featureDiscovery.ts`. Dynamic
+menus and tabs rebuild from filtered entries, clamp selection, remove hidden
+hit areas, and update procedural touch controls. Untaught shortcuts stay inert,
+while always-safe cancel, Tips, Settings, Inventory, Map, Equipment, and
+save/title paths remain available.
+
 `CodexScene` keeps category, filter, sort, and search controls pointer-first so
 touch and the gamepad cursor share the keyboard surface. Search uses
 `openMobileTextInput()`. `CodexDiscoveryManager` owns non-interactive,

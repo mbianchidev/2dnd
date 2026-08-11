@@ -75,9 +75,22 @@ async function submitDebug(page: Page, command: string): Promise<void> {
   const checkbox = page.locator("#debug-checkbox");
   if (!await checkbox.isChecked()) await checkbox.check();
   const input = page.locator("#debug-cmd");
-  await input.fill(command);
-  await input.press("Enter");
-  await input.blur();
+  if (await input.isVisible()) {
+    await input.fill(command);
+    await input.press("Enter");
+    await input.blur();
+  } else {
+    await input.evaluate((element, value) => {
+      const commandInput = element as HTMLInputElement;
+      commandInput.value = value;
+      commandInput.dispatchEvent(new Event("input", { bubbles: true }));
+      commandInput.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        bubbles: true,
+      }));
+    }, command);
+  }
   await page.locator("#game-container canvas").click();
 }
 
@@ -209,6 +222,7 @@ test("unlocks campaign knowledge and supports the full keyboard Codex flow", asy
   expect((await readSave(page)).codex.unlockedEntryIds)
     .toContain("heartlandsCrypt");
 
+  await submitDebug(page, "/feature reveal codexMonsters");
   await holdKey(page, "c");
   await waitForState(page, "CODEX | Category: Monsters");
   await holdKey(page, "2");
@@ -233,7 +247,7 @@ test("unlocks campaign knowledge and supports the full keyboard Codex flow", asy
   await clickGame(page, 320, 324);
   await waitForState(page, "[DUNGEON:heartlands_dungeon]");
   save = await readSave(page);
-  expect(save.version).toBe(16);
+  expect(save.version).toBe(17);
   expect(save.codex.unlockedEntryIds).toEqual(expect.arrayContaining([
     "willowdale",
     "foundingOfTheCovenant",
@@ -258,6 +272,7 @@ test.describe("touch Codex controls", () => {
     const errors = trackErrors(page);
     await page.addInitScript(() => localStorage.clear());
     await createCampaign(page);
+    await submitDebug(page, "/feature reveal codexLocation");
 
     await page.waitForTimeout(350);
     await page.locator('[data-action="openMenu"]').tap();
@@ -267,9 +282,9 @@ test.describe("touch Codex controls", () => {
     }
     await waitForState(page, "[MENU]");
     await tapLayoutItem(page, "escape-menu-codex");
-    await waitForState(page, "CODEX | Category: Monsters");
-    await tapGame(page, 183, 32);
-    await waitForState(page, "Category: Locations");
+    await waitForState(page, "CODEX | Category: Locations");
+    await holdKey(page, "e");
+    await waitForState(page, "Category: Items");
     await tapGame(page, 320, 50);
     await expect(page.locator("#mobile-text-input")).toBeVisible();
     await page.locator("#mobile-text-input input").fill("crypt");
@@ -392,6 +407,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   await waitForState(page, "BOOT | Screen: title");
   await clickGame(page, 320, 324);
   await waitForState(page, "OVERWORLD");
+  await submitDebug(page, "/feature reveal codexLocation");
 
   await setAxes([0, 0, 0.8, 0]);
   await page.waitForTimeout(250);
@@ -413,7 +429,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   await waitForState(page, "OVERWORLD");
 
   const migrated = await readSave(page);
-  expect(migrated.version).toBe(16);
+  expect(migrated.version).toBe(17);
   expect(migrated.codex.entries.slime.timesDefeated).toBe(4);
   expect(Array.isArray(migrated.codex.unlockedEntryIds)).toBe(true);
   expect(errors).toEqual([]);

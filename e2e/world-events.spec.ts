@@ -294,9 +294,11 @@ test("resolves, recovers, battles, and records accessible World Events", async (
   await waitForState(page, "OVERWORLD");
   expect((await readSave(page)).player.progression.social.appliedSourceIds)
     .toHaveLength(sourceCount);
-  await holdKey(page, "p");
-  await waitForState(page, "[PARTY:status]");
-  await holdKey(page, "2");
+  await holdKey(page, "Escape");
+  await holdKey(page, "ArrowDown");
+  await holdKey(page, "Enter");
+  await waitForState(page, "[PARTY:items");
+  await holdKey(page, "1");
   await waitForState(page, "[PARTY:social]");
   await holdKey(page, "Escape");
 

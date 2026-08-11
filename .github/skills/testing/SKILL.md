@@ -36,6 +36,9 @@ mocked camera/time adapters
 shared preference normalization/migration, and director cleanup
 ✅ Tutorial content integrity, semantic control references, completion
 normalization, progression-aware tip unlocks, and save migration
+✅ Feature registry integrity, authoritative reconciliation, irreversible
+visibility, dynamic menu/tab filtering, focus clamping, shortcut/touch gating,
+debug exclusion, category-specific discovery, and schema-v17 migration
 ✅ Defeat penalty receipts, once-only Battle resolution, recovered save
 round-trips, result-scene continuation, and random/boss parity
 ✅ Animation state selection, reduced-motion timing, stable actor/target mapping,
@@ -128,6 +131,7 @@ tests/
 ├── accessibility.test.ts # Shared preference normalization, migration, and persistence
 ├── input.test.ts # Semantic mappings, contexts, repeats, cleanup, and suppression
 ├── tutorial.test.ts # Tutorial content, completion, and unlocked Tips
+├── featureDiscovery.test.ts # Registry, reconciliation, filtering, debug, migration
 ├── gathering.test.ts # Gathering data, state machines, rewards, and save rules
 ├── crafting.test.ts # Recipes, transactions, discovery, economy, and save rules
 ├── cutsceneSceneTransition.test.ts # Generic Cutscene scene contracts

@@ -55,7 +55,8 @@ export type TipUnlock =
   | { type: "nautical" }
   | { type: "dungeon" }
   | { type: "skillCheck" }
-  | { type: "trap" };
+  | { type: "trap" }
+  | { type: "feature"; featureId: FeatureId };
 
 export interface TipDefinition {
   id: string;
@@ -259,7 +260,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     title: "Build Your Strategy",
     summary: "Quests unlock companions, routes, equipment, mounts, and harder challenges.",
     details: [
-      "The Codex records monsters and elemental discoveries. Party management controls gear and gambits.",
+      "New journals, records, crafting disciplines, and party controls appear after you discover them.",
       "Reopen this tutorial or browse progression-aware Tips from the Esc menu at any time.",
     ],
     controls: ["party", "mount", "tips"],
@@ -279,7 +280,7 @@ export const TIPS: readonly TipDefinition[] = [
     id: "controls.shortcuts",
     category: "controls",
     title: "Useful shortcuts",
-    body: "The map, equipment, journal, Codex, achievements, gathering record, crafting, party, mount, menu, and Tips each have a direct keyboard shortcut.",
+    body: "The map, equipment, menu, and Tips are always available. New shortcuts and menu entries appear only after their systems are discovered.",
     controls: ["map", "equipment", "journal", "codex", "achievements", "gathering", "crafting", "party", "mount", "menu", "tips"],
     unlock: { type: "always" },
   },
@@ -289,7 +290,7 @@ export const TIPS: readonly TipDefinition[] = [
     title: "Achievements and titles",
     body: "Achievements reward durable gameplay milestones with points and presentation-only titles. Hidden entries reveal themselves when completed.",
     controls: ["achievements"],
-    unlock: { type: "always" },
+    unlock: { type: "feature", featureId: "achievements" },
   },
   {
     id: "combat.turns",
@@ -341,7 +342,7 @@ export const TIPS: readonly TipDefinition[] = [
     title: "Fishing, mining, and foraging",
     body: "Use Space beside water, stone, or useful growth. Each discipline has a different readable challenge; reduced motion changes timing into deliberate steps without changing rewards.",
     controls: ["interact", "gathering"],
-    unlock: { type: "always" },
+    unlock: { type: "feature", featureId: "gathering" },
   },
   {
     id: "exploration.crafting",
@@ -349,7 +350,7 @@ export const TIPS: readonly TipDefinition[] = [
     title: "Recipes and field crafting",
     body: "Press V or choose Crafting from the Esc or Party & Inventory menus. Recipes consume only the selected hero or companion bag, show exact owned counts, and never fail randomly.",
     controls: ["crafting", "party"],
-    unlock: { type: "always" },
+    unlock: { type: "feature", featureId: "crafting" },
   },
   {
     id: "advanced.crafting",
@@ -406,3 +407,4 @@ export const TIPS: readonly TipDefinition[] = [
     unlock: { type: "trap" },
   },
 ];
+import type { FeatureId } from "./featureDiscovery";

@@ -1,4 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import {
+  clickLayoutItem,
+  expectCleanLayout,
+  layoutItemCenter,
+} from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -38,42 +43,6 @@ async function clickGame(
 
 async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
-}
-
-async function expectCleanLayout(page: Page): Promise<void> {
-  const canvas = page.locator("#game-container canvas");
-  await expect(canvas).toHaveAttribute("data-layout-overlap-count", "0");
-  await expect(canvas).toHaveAttribute("data-layout-clipping-count", "0");
-}
-
-async function layoutItemCenter(
-  page: Page,
-  id: string,
-): Promise<{ x: number; y: number }> {
-  await expect(page.locator("#layout-report")).not.toHaveText("");
-  const item = await page.locator("#layout-report").evaluate((element, itemId) => {
-    const report = JSON.parse(element.textContent ?? "{}") as {
-      groups?: Record<string, {
-        items?: Array<{
-          id: string;
-          bounds: { x: number; y: number; width: number; height: number };
-        }>;
-      }>;
-    };
-    return Object.values(report.groups ?? {})
-      .flatMap((group) => group.items ?? [])
-      .find((candidate) => candidate.id === itemId);
-  }, id);
-  if (!item) throw new Error(`Missing layout item: ${id}`);
-  return {
-    x: item.bounds.x + item.bounds.width / 2,
-    y: item.bounds.y + item.bounds.height / 2,
-  };
-}
-
-async function clickLayoutItem(page: Page, id: string): Promise<void> {
-  const point = await layoutItemCenter(page, id);
-  await clickGame(page, point.x, point.y);
 }
 
 async function holdKey(
@@ -240,6 +209,7 @@ test.describe("touch controls", () => {
     })).toBe("Touch Hero");
     await drainOpening(page, "touch");
     await completeTutorialByTouch(page);
+    await submitDebug(page, "/gather reset");
     await submitDebug(page, "/event trigger abandonedSupplyCart");
     await waitForState(page, "[WORLD_EVENT:abandonedSupplyCart]");
     await waitForState(page, "[WORLD_EVENT_SELECTION:1/2]");
@@ -282,9 +252,12 @@ test.describe("touch controls", () => {
     await waitForState(page, "[MENU]");
     await page.locator('[data-action="cancel"]').tap();
     await expect(page.locator("#debug-state")).not.toContainText("[MENU]");
+    await submitDebug(page, "/feature reveal party");
+    await submitDebug(page, "/feature reveal partyGambits");
+    await submitDebug(page, "/feature reveal socialProfile");
     await page.locator('[data-action="openParty"]').tap();
     await waitForState(page, "[PARTY:status]");
-    await tapGame(page, 337, 95);
+    await holdKey(page, "2");
     await waitForState(page, "[PARTY:social]");
     await page.locator('[data-action="cancel"]').tap();
 
@@ -377,7 +350,7 @@ test.describe("standard gamepad controls", () => {
       "data-input-source",
       "gamepad",
     );
-    await pressGamepad(11);
+    await pressGamepad(0);
     await waitForState(page, "BOOT | Screen: character");
     await pressGamepad(0);
     await waitForState(page, "BOOT | Screen: stats");
@@ -405,6 +378,8 @@ test.describe("standard gamepad controls", () => {
       "data-gamepad-connected",
       "true",
     );
+    await submitDebug(page, "/feature reveal party");
+    await submitDebug(page, "/feature reveal socialProfile");
 
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
@@ -420,22 +395,14 @@ test.describe("standard gamepad controls", () => {
       await moveGamepadCursor(page, party.x, party.y);
       await pressGamepad(11);
       const state = await page.locator("#debug-state").textContent() ?? "";
-      if (state.includes("[PARTY:items")) break;
+      if (state.includes("[PARTY:status")) break;
       if (!state.includes("[MENU]")) {
         await pressGamepad(9);
         await waitForState(page, "[MENU]");
       }
     }
-    await waitForState(page, "[PARTY:items");
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const social = await layoutItemCenter(page, "party-tab-social");
-      await moveGamepadCursor(page, social.x, social.y);
-      await pressGamepad(11);
-      if (
-        (await page.locator("#debug-state").textContent() ?? "")
-          .includes("[PARTY:social]")
-      ) break;
-    }
+    await waitForState(page, "[PARTY:status");
+    await clickLayoutItem(page, "party-tab-social");
     await waitForState(page, "[PARTY:social]");
     await pressGamepad(1);
     await pressGamepad(9);

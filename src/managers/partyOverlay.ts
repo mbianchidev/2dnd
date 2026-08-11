@@ -4,16 +4,9 @@ import { COMPANION_IDS, isCompanionId, type CompanionId } from "../data/companio
 import type { Item } from "../data/items";
 import { getSpell } from "../data/spells";
 import { createItemVisual } from "../renderers/itemVisuals";
-import { useCombatItem, useCombatItemOnTarget, type CombatActorState, type PlayerState, type ProgressingActorState } from "../systems/player";
+import { useCombatItem, useCombatItemOnTarget, type CombatActorState, type PlayerState } from "../systems/player";
 import { playerCastSpellAtTargets } from "../systems/combat";
-import {
-  getCompanion,
-  moveActiveCompanion,
-  setCompanionActive,
-  transferPartyItem,
-  type CompanionState,
-  type PartyMemberId,
-} from "../systems/party";
+import { getCompanion, moveActiveCompanion, setCompanionActive, transferPartyItem, type CompanionState, type PartyMemberId } from "../systems/party";
 import {
   getItemTransferRestriction,
   inventoryPreferences,
@@ -41,23 +34,8 @@ import {
 import { openMobileTextInput } from "./input";
 import { getSocialSummaryPageCount, renderSocialSummary } from "../renderers/social";
 import { renderPartyStatus } from "../renderers/partyStatus";
-
-interface PartyOverlayCallbacks {
-  updateHUD(): void;
-  autoSave(): void;
-  showMessage(text: string, color?: string): void;
-  refreshActors(): void;
-  openCrafting(): void;
-}
-
-type PartyOverlayPage = "status" | "social" | "items" | "gambits";
-
-interface PartyMemberView {
-  id: PartyMemberId;
-  name: string;
-  state: ProgressingActorState;
-  companion?: CompanionState;
-}
+import { getPartyDiscoveryPages, isFeatureAvailable } from "../systems/featureDiscovery";
+import type { PartyMemberView, PartyOverlayCallbacks, PartyOverlayPage } from "./partyOverlayTypes";
 
 export class PartyOverlayManager {
   private static readonly INVENTORY_PAGE_SIZE = 6;
@@ -84,7 +62,8 @@ export class PartyOverlayManager {
     this.player = player;
     this.selectedId = this.resolveSelectedId(player);
     this.targetId = this.selectedId;
-    this.page = page;
+    const availablePages = this.getAvailablePages(player);
+    this.page = availablePages.includes(page) ? page : availablePages[0]!;
     this.listPage = 0;
     this.inventorySelectedIndex = null;
     this.inventorySearchActive = false;
@@ -144,6 +123,10 @@ export class PartyOverlayManager {
     ];
   }
 
+  private getAvailablePages(player: PlayerState): PartyOverlayPage[] {
+    return getPartyDiscoveryPages(player);
+  }
+
   private getMember(memberId: PartyMemberId): PartyMemberView | undefined {
     return this.getMembers().find((member) => member.id === memberId);
   }
@@ -185,10 +168,11 @@ export class PartyOverlayManager {
       0.98,
       0xc0a060,
     ));
+    const hasParty = isFeatureAvailable(player, "party");
     container.add(this.scene.add.text(
       panelX + panelWidth / 2,
       panelY + 10,
-      "Party",
+      hasParty ? "Party & Inventory" : "Inventory",
       {
         fontSize: "16px",
         fontFamily: "monospace",
@@ -197,16 +181,20 @@ export class PartyOverlayManager {
     ).setOrigin(0.5, 0));
     this.overlay = container;
 
-    this.renderMemberList(panelX + 12, panelY + 42, 150);
-    this.renderTabs(panelX + 176, panelY + 42, panelWidth - 188);
+    if (hasParty) {
+      this.renderMemberList(panelX + 12, panelY + 42, 150);
+    }
+    const contentX = hasParty ? panelX + 176 : panelX + 16;
+    const contentWidth = hasParty ? panelWidth - 188 : panelWidth - 32;
+    this.renderTabs(contentX, panelY + 42, contentWidth);
     if (this.page === "status") {
-      this.renderStatusPage(panelX + 176, panelY + 74, panelWidth - 188);
+      this.renderStatusPage(contentX, panelY + 74, contentWidth);
     } else if (this.page === "social") {
-      this.renderSocialPage(panelX + 176, panelY + 74, panelWidth - 188);
+      this.renderSocialPage(contentX, panelY + 74, contentWidth);
     } else if (this.page === "items") {
-      this.renderItemsPage(panelX + 176, panelY + 74, panelWidth - 188);
+      this.renderItemsPage(contentX, panelY + 74, contentWidth);
     } else {
-      this.renderGambitsPage(panelX + 176, panelY + 74, panelWidth - 188);
+      this.renderGambitsPage(contentX, panelY + 74, contentWidth);
     }
     this.addButton(
       panelX + panelWidth - 70,
@@ -270,12 +258,14 @@ export class PartyOverlayManager {
   }
 
   private renderTabs(x: number, y: number, width: number): void {
-    const tabs: Array<{ page: PartyOverlayPage; label: string }> = [
+    const definitions: Array<{ page: PartyOverlayPage; label: string }> = [
       { page: "status", label: "Status" },
       { page: "social", label: "Social" },
       { page: "items", label: "Items" },
       { page: "gambits", label: "Gambits" },
     ];
+    const available = new Set(this.getAvailablePages(this.player!));
+    const tabs = definitions.filter((tab) => available.has(tab.page));
     const tabWidth = Math.floor((width - 12) / tabs.length);
     tabs.forEach((tab, index) => {
       this.addButton(
@@ -376,9 +366,11 @@ export class PartyOverlayManager {
     this.addButton(x + 124, y + 22, `Filter:${this.capitalize(preferences.filter)}`, () => {
       this.handleInventoryAction("cycleFilter");
     }, "#b8ddff", 112);
-    this.addButton(x + 242, y + 22, "Craft", () => {
-      this.close(); this.callbacks.openCrafting();
-    }, "#f7c948", 66);
+    if (isFeatureAvailable(this.player!, "crafting")) {
+      this.addButton(x + 242, y + 22, "Craft", () => {
+        this.close(); this.callbacks.openCrafting();
+      }, "#f7c948", 66);
+    }
     const searchLabel = preferences.search.length > 0
       ? `Search:${this.truncate(preferences.search, 13)}`
       : this.inventorySearchActive ? "Search:typing..." : "Search:/";
@@ -575,13 +567,10 @@ export class PartyOverlayManager {
 
   private handleKeyDown(event: KeyboardEvent): void {
     if (!this.overlay) return;
-    const pageKeys: Partial<Record<string, PartyOverlayPage>> = {
-      "1": "status",
-      "2": "social",
-      "3": "items",
-      "4": "gambits",
-    };
-    const page = pageKeys[event.key];
+    const pageIndex = Number.parseInt(event.key, 10) - 1;
+    const page = Number.isInteger(pageIndex)
+      ? this.getAvailablePages(this.player!)[pageIndex]
+      : undefined;
     if (page && !this.inventorySearchActive) {
       this.page = page;
       this.render();
@@ -602,7 +591,11 @@ export class PartyOverlayManager {
       return;
     }
     if (this.page !== "items") return;
-    if (!this.inventorySearchActive && event.key.toLowerCase() === "v") {
+    if (
+      !this.inventorySearchActive
+      && event.key.toLowerCase() === "v"
+      && isFeatureAvailable(this.player!, "crafting")
+    ) {
       this.close(); this.callbacks.openCrafting();
       event.preventDefault();
       return;

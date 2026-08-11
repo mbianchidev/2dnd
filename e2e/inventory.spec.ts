@@ -64,6 +64,19 @@ async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
 }
 
+async function cycleUntil(
+  page: Page,
+  key: string,
+  expected: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes(expected)) return;
+    await page.keyboard.press(key);
+  }
+  throw new Error(`Failed to reach ${expected}`);
+}
+
 async function createCharacter(page: Page): Promise<void> {
   await page.goto("./", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
@@ -185,24 +198,19 @@ test("large inventories keep stable keyboard and pointer selection", async ({
   await waitForState(page, "BOOT | Screen: title");
   await clickGame(page, 320, 324);
   await waitForState(page, "OVERWORLD");
-  await holdKey(page, "P");
-  await waitForState(page, "[PARTY:status]");
-  await clickGame(page, 450, 88);
+  await holdKey(page, "Escape");
+  await clickLayoutItem(page, "escape-menu-inventory");
   await waitForState(page, "[PARTY:items");
   await waitForState(page, "Sort:recent Filter:all");
 
   await page.locator("#debug-checkbox").check();
-  for (const key of ["r", "f", "g", "h", "o", "l"]) {
+  for (const key of ["g", "h", "o", "l"]) {
     await page.keyboard.press(key);
   }
   await expect(page.locator("#debug-log")).not.toContainText("[CHEAT]");
-  for (let index = 0; index < 4; index += 1) {
-    await clickGame(page, 235, 137);
-  }
+  await cycleUntil(page, "r", "Sort:recent");
   await waitForState(page, "Sort:recent");
-  for (let index = 0; index < 4; index += 1) {
-    await clickGame(page, 340, 137);
-  }
+  await cycleUntil(page, "f", "Filter:all");
   await waitForState(page, "Filter:all");
 
   await page.keyboard.press("End");
@@ -224,19 +232,19 @@ test("large inventories keep stable keyboard and pointer selection", async ({
 
   await clickLayoutItem(page, "party-inventory-clear-search");
   await waitForState(page, "Search:-");
-  await clickGame(page, 235, 137);
+  await page.keyboard.press("r");
   await waitForState(page, "Sort:name");
-  await clickGame(page, 340, 137);
+  await page.keyboard.press("f");
   await waitForState(page, "Filter:equipment");
   await clickGame(page, 350, 200);
   await waitForState(page, "[PARTY:items");
   await page.keyboard.press("PageDown");
   await expect(page.locator("#debug-state")).toContainText("Page 2/");
-  await holdKey(page, "P");
+  await holdKey(page, "Escape");
   await expect(page.locator("#debug-state")).not.toContainText("[PARTY:");
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await clickLayoutItem(page, "escape-menu-party");
+  await clickLayoutItem(page, "escape-menu-inventory");
   await waitForState(page, "[PARTY:items");
 
   const persisted = await page.evaluate(({ saveKey, preferencesKey }) => {

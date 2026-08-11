@@ -65,13 +65,22 @@ import {
   createPanelGraphics,
 } from "../utils/ui";
 import { syncInteractiveHitArea } from "./layout";
-import { layoutResponsiveGrid } from "../systems/layout";
+import {
+  layoutResponsiveGrid,
+  restoreLayoutFocus,
+} from "../systems/layout";
 import { TILE_SIZE } from "../config";
 import {
   getQuestAccessDecision,
   getQuestDangerState,
   markQuestWarningSeen,
 } from "../systems/quests";
+import {
+  getEscapeMenuEntries,
+  isFeatureAvailable,
+  type EscapeMenuAction,
+  type EscapeMenuEntry,
+} from "../systems/featureDiscovery";
 
 /** Callbacks the OverlayManager uses to interact with the parent scene. */
 export interface OverlayCallbacks {
@@ -88,7 +97,8 @@ export interface OverlayCallbacks {
   setTimeStep: (t: number) => void;
   evacuateDungeon: () => void;
   getHUDInfo: () => string;
-  openPartyInventory: () => void;
+  openInventory: () => void;
+  openParty: () => void;
   openQuestJournal: () => void;
   openChronicle: () => void;
   openCodex: () => void;
@@ -117,6 +127,12 @@ export class OverlayManager {
   bankOverlay: Phaser.GameObjects.Container | null = null;
   townPickerOverlay: Phaser.GameObjects.Container | null = null;
   cityMapOverlay: Phaser.GameObjects.Container | null = null;
+  private menuSelectedIndex = 0;
+  private menuEntries: EscapeMenuEntry[] = [];
+  private menuButtons: Phaser.GameObjects.Text[] = [];
+  private menuPlayer: PlayerState | null = null;
+  private menuDefeatedBosses: Set<string> | null = null;
+  private menuCodex: CodexData | null = null;
 
   // Pagination state
   equipPage: "gear" | "skills" | "items" = "gear";
@@ -152,6 +168,14 @@ export class OverlayManager {
     );
   }
 
+  getMenuDebugState(player: PlayerState): string {
+    if (!this.menuOverlay) return "";
+    const entries = getEscapeMenuEntries(player);
+    const selected = entries[this.menuSelectedIndex]?.action ?? "-";
+    return ` [MENU] [MENU_ENTRIES:${entries.map((entry) => entry.action).join(",")}]`
+      + ` [MENU_SELECTION:${selected}]`;
+  }
+
   /** Safely destroy and nullify specific overlays by property name. */
   private closeOverlays(...names: (keyof Pick<OverlayManager,
     "equipOverlay" | "statOverlay" | "menuOverlay" | "worldMapOverlay" |
@@ -161,6 +185,7 @@ export class OverlayManager {
     for (const name of names) {
       const overlay = this[name];
       if (overlay) {
+        if (name === "menuOverlay") this.clearMenuInput();
         overlay.destroy();
         this[name] = null;
       }
@@ -465,85 +490,87 @@ export class OverlayManager {
     }
     cy += 4;
 
-    // Mount slot
-    const mountLabel = this.scene.add.text(px + 14, cy, "Mount:", {
+    // Mount controls are introduced only after the first owned mount.
+    if (isFeatureAvailable(p, "mounts")) {
+      const mountLabel = this.scene.add.text(px + 14, cy, "Mount:", {
       fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
-    });
-    this.equipOverlay!.add(mountLabel);
-    cy += 16;
-
-    const ownedMounts = p.inventory.filter((i) => i.type === "mount");
-    const currentMount = p.mountId ? getMount(p.mountId) : undefined;
-    const MAX_MOUNT_VISIBLE = 3;
-
-    if (ownedMounts.length === 0 && !currentMount) {
-      const none = this.scene.add.text(px + 20, cy, "On Foot", {
-        fontSize: "11px", fontFamily: "monospace", color: "#666",
       });
-      this.equipOverlay!.add(none);
+      this.equipOverlay!.add(mountLabel);
       cy += 16;
-    } else {
-      const mountEntries: { mountId: string; name: string; speed: number; isActive: boolean }[] = [];
-      if (currentMount) {
-        mountEntries.push({ mountId: currentMount.id, name: currentMount.name, speed: currentMount.speedMultiplier, isActive: true });
-      }
-      for (const mi of ownedMounts) {
-        if (mi.mountId && mi.mountId !== p.mountId) {
-          const md = getMount(mi.mountId);
-          if (md) mountEntries.push({ mountId: md.id, name: md.name, speed: md.speedMultiplier, isActive: false });
-        }
-      }
-      if (currentMount) {
-        mountEntries.push({ mountId: "", name: "Dismount (on foot)", speed: 0, isActive: false });
-      }
 
-      const mountTotalPages = Math.max(1, Math.ceil(mountEntries.length / MAX_MOUNT_VISIBLE));
-      const mountPage = Math.min(this.gearMountPage, mountTotalPages - 1);
-      const mountStart = mountPage * MAX_MOUNT_VISIBLE;
-      const visibleMounts = mountEntries.slice(mountStart, mountStart + MAX_MOUNT_VISIBLE);
+      const ownedMounts = p.inventory.filter((i) => i.type === "mount");
+      const currentMount = p.mountId ? getMount(p.mountId) : undefined;
+      const MAX_MOUNT_VISIBLE = 3;
 
-      for (const me of visibleMounts) {
-        if (me.mountId === "" && me.speed === 0) {
-          const dismountTxt = this.scene.add.text(px + 20, cy, "  Dismount (on foot)", {
-            fontSize: "11px", fontFamily: "monospace", color: "#aaddff",
-          }).setInteractive({ useHandCursor: true });
-          dismountTxt.on("pointerover", () => dismountTxt.setColor("#ffd700"));
-          dismountTxt.on("pointerout", () => dismountTxt.setColor("#aaddff"));
-          dismountTxt.on("pointerdown", () => { p.mountId = ""; this.buildEquipOverlay(player); });
-          this.equipOverlay!.add(dismountTxt);
-        } else {
-          const prefix = me.isActive ? "► " : "  ";
-          const color = me.isActive ? "#88ff88" : "#aaddff";
-          const txt = this.scene.add.text(px + 20, cy,
-            `${prefix}${me.name} (×${me.speed} speed)${me.isActive ? " [riding]" : ""}`,
-            { fontSize: "11px", fontFamily: "monospace", color },
-          ).setInteractive({ useHandCursor: true });
-          if (me.isActive) {
-            txt.on("pointerover", () => txt.setColor("#ff6666"));
-            txt.on("pointerout", () => txt.setColor(color));
-            txt.on("pointerdown", () => { p.mountId = ""; this.buildEquipOverlay(player); });
-          } else {
-            txt.on("pointerover", () => txt.setColor("#ffd700"));
-            txt.on("pointerout", () => txt.setColor(color));
-            txt.on("pointerdown", () => { p.mountId = me.mountId; this.buildEquipOverlay(player); });
-          }
-          this.equipOverlay!.add(txt);
-        }
-        cy += 14;
-      }
-
-      if (mountTotalPages > 1) {
-        const nav = this.scene.add.text(px + 20, cy, `◄ ${mountPage + 1}/${mountTotalPages} ►`, {
-          fontSize: "10px", fontFamily: "monospace", color: "#888",
-        }).setInteractive({ useHandCursor: true });
-        nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-          const mid = nav.x + nav.width / 2;
-          this.gearMountPage += pointer.x < mid ? -1 : 1;
-          this.gearMountPage = Math.max(0, Math.min(this.gearMountPage, mountTotalPages - 1));
-          this.buildEquipOverlay(player);
+      if (ownedMounts.length === 0 && !currentMount) {
+        const none = this.scene.add.text(px + 20, cy, "On Foot", {
+          fontSize: "11px", fontFamily: "monospace", color: "#666",
         });
-        this.equipOverlay!.add(nav);
-        cy += 14;
+        this.equipOverlay!.add(none);
+        cy += 16;
+      } else {
+        const mountEntries: { mountId: string; name: string; speed: number; isActive: boolean }[] = [];
+        if (currentMount) {
+          mountEntries.push({ mountId: currentMount.id, name: currentMount.name, speed: currentMount.speedMultiplier, isActive: true });
+        }
+        for (const mi of ownedMounts) {
+          if (mi.mountId && mi.mountId !== p.mountId) {
+            const md = getMount(mi.mountId);
+            if (md) mountEntries.push({ mountId: md.id, name: md.name, speed: md.speedMultiplier, isActive: false });
+          }
+        }
+        if (currentMount) {
+          mountEntries.push({ mountId: "", name: "Dismount (on foot)", speed: 0, isActive: false });
+        }
+
+        const mountTotalPages = Math.max(1, Math.ceil(mountEntries.length / MAX_MOUNT_VISIBLE));
+        const mountPage = Math.min(this.gearMountPage, mountTotalPages - 1);
+        const mountStart = mountPage * MAX_MOUNT_VISIBLE;
+        const visibleMounts = mountEntries.slice(mountStart, mountStart + MAX_MOUNT_VISIBLE);
+
+        for (const me of visibleMounts) {
+          if (me.mountId === "" && me.speed === 0) {
+            const dismountTxt = this.scene.add.text(px + 20, cy, "  Dismount (on foot)", {
+              fontSize: "11px", fontFamily: "monospace", color: "#aaddff",
+            }).setInteractive({ useHandCursor: true });
+            dismountTxt.on("pointerover", () => dismountTxt.setColor("#ffd700"));
+            dismountTxt.on("pointerout", () => dismountTxt.setColor("#aaddff"));
+            dismountTxt.on("pointerdown", () => { p.mountId = ""; this.buildEquipOverlay(player); });
+            this.equipOverlay!.add(dismountTxt);
+          } else {
+            const prefix = me.isActive ? "► " : "  ";
+            const color = me.isActive ? "#88ff88" : "#aaddff";
+            const txt = this.scene.add.text(px + 20, cy,
+              `${prefix}${me.name} (×${me.speed} speed)${me.isActive ? " [riding]" : ""}`,
+              { fontSize: "11px", fontFamily: "monospace", color },
+            ).setInteractive({ useHandCursor: true });
+            if (me.isActive) {
+              txt.on("pointerover", () => txt.setColor("#ff6666"));
+              txt.on("pointerout", () => txt.setColor(color));
+              txt.on("pointerdown", () => { p.mountId = ""; this.buildEquipOverlay(player); });
+            } else {
+              txt.on("pointerover", () => txt.setColor("#ffd700"));
+              txt.on("pointerout", () => txt.setColor(color));
+              txt.on("pointerdown", () => { p.mountId = me.mountId; this.buildEquipOverlay(player); });
+            }
+            this.equipOverlay!.add(txt);
+          }
+          cy += 14;
+        }
+
+        if (mountTotalPages > 1) {
+          const nav = this.scene.add.text(px + 20, cy, `◄ ${mountPage + 1}/${mountTotalPages} ►`, {
+            fontSize: "10px", fontFamily: "monospace", color: "#888",
+          }).setInteractive({ useHandCursor: true });
+          nav.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+            const mid = nav.x + nav.width / 2;
+            this.gearMountPage += pointer.x < mid ? -1 : 1;
+            this.gearMountPage = Math.max(0, Math.min(this.gearMountPage, mountTotalPages - 1));
+            this.buildEquipOverlay(player);
+          });
+          this.equipOverlay!.add(nav);
+          cy += 14;
+        }
       }
     }
   }
@@ -1000,6 +1027,7 @@ export class OverlayManager {
   /** Toggle the in-game menu. */
   toggleMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     if (this.menuOverlay) {
+      this.clearMenuInput();
       this.menuOverlay.destroy();
       this.menuOverlay = null;
       return;
@@ -1010,94 +1038,28 @@ export class OverlayManager {
   /** Show the menu overlay with campaign and settings actions. */
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
-    interface MenuAction {
-      id: string;
-      label: string;
-      color: string;
-      hoverColor?: string;
-      activate: () => void;
-    }
-    const close = (): void => {
-      this.toggleMenuOverlay(player, defeatedBosses, codex);
-    };
-    const open = (callback: () => void): void => {
-      close();
-      callback();
-    };
-    const actions: MenuAction[] = [
-      { id: "resume", label: "▶ Resume", color: "#88ff88", activate: close },
-      {
-        id: "party",
-        label: "Party & Inventory",
-        color: "#9fe8ff",
-        activate: () => open(this.callbacks.openPartyInventory),
-      },
-      {
-        id: "quests",
-        label: "Quest Journal",
-        color: "#d1c4e9",
-        activate: () => open(this.callbacks.openQuestJournal),
-      },
-      {
-        id: "chronicle",
-        label: "Chronicle",
-        color: "#ffe38a",
-        activate: () => open(this.callbacks.openChronicle),
-      },
-      {
-        id: "codex",
-        label: "Codex",
-        color: "#fff3a6",
-        activate: () => open(this.callbacks.openCodex),
-      },
-      {
-        id: "tips",
-        label: "Tips",
-        color: "#83d8ff",
-        activate: () => open(this.callbacks.openTips),
-      },
-      {
-        id: "achievements",
-        label: "Achievements",
-        color: "#aaffdd",
-        activate: () => open(this.callbacks.openAchievements),
-      },
-      {
-        id: "gathering",
-        label: "Gathering",
-        color: "#80cbc4",
-        activate: () => open(this.callbacks.openGathering),
-      },
-      {
-        id: "crafting",
-        label: "Crafting",
-        color: "#f7c948",
-        activate: () => open(this.callbacks.openCrafting),
-      },
-      {
-        id: "settings",
-        label: "🔊 Settings",
-        color: "#aabbff",
-        activate: () => {
-          close();
-          this.showSettingsOverlay();
-        },
-      },
-      {
-        id: "quit",
-        label: "✕ Quit to Title",
-        color: "#ff7777",
-        hoverColor: "#ffaaaa",
-        activate: this.callbacks.saveAndQuit,
-      },
-    ];
+    const previousAction = this.menuEntries[this.menuSelectedIndex]?.action;
+    const entries = getEscapeMenuEntries(player);
+    this.menuEntries = entries;
+    this.menuSelectedIndex = restoreLayoutFocus(
+      entries.map((entry) => ({
+        id: entry.action,
+        visible: true,
+        enabled: true,
+      })),
+      previousAction,
+      this.menuSelectedIndex,
+    ).index;
+    this.menuPlayer = player;
+    this.menuDefeatedBosses = defeatedBosses;
+    this.menuCodex = codex;
     const menuWidth = 520;
     const grid = layoutResponsiveGrid({
       availableWidth: menuWidth - 40,
       minColumnWidth: 210,
       columnGap: 12,
       rowGap: 8,
-      itemHeights: actions.map(() => 44),
+      itemHeights: entries.map(() => 44),
       maxColumns: 2,
     });
     const menuHeight = Math.min(440, grid.height + 102);
@@ -1128,16 +1090,16 @@ export class OverlayManager {
     this.menuOverlay.add(title);
     const contentX = px + 20;
     const contentY = py + 52;
-    actions.forEach((action, index) => {
-      const cell = grid.cells[index];
+    this.menuButtons = entries.map((entry, index) => {
+      const cell = grid.cells[index]!;
       const button = this.scene.add.text(
         contentX + cell.x + cell.width / 2,
         contentY + cell.y,
-        action.label,
+        entry.label,
         {
           fontSize: "13px",
           fontFamily: "monospace",
-          color: action.color,
+          color: entry.color,
           backgroundColor: "#2a2a4e",
           align: "center",
           padding: { x: 10, y: 6 },
@@ -1145,22 +1107,151 @@ export class OverlayManager {
           fixedHeight: cell.height,
         },
       ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-      button.setData("layoutId", `escape-menu-${action.id}`);
+      button.setData("testId", entry.testId);
+      button.setData("layoutId", `escape-menu-${entry.action}`);
       syncInteractiveHitArea(button);
-      button.on(
-        "pointerover",
-        () => button.setColor(action.hoverColor ?? "#ffffff"),
-      );
-      button.on("pointerout", () => button.setColor(action.color));
-      button.on("pointerdown", action.activate);
-      this.menuOverlay!.add(button);
+      button.on("pointerover", () => {
+        this.menuSelectedIndex = index;
+        this.updateMenuSelection();
+      });
+      button.on("pointerout", () => this.updateMenuSelection());
+      button.on("pointerdown", () => {
+        this.activateMenuAction(
+          entry.action,
+          player,
+          defeatedBosses,
+          codex,
+        );
+      });
+      this.menuOverlay?.add(button);
+      return button;
     });
+    this.scene.input.keyboard?.on("keydown", this.handleMenuKeyDown, this);
+    this.updateMenuSelection();
 
     const hint = this.scene.add.text(px + panelW / 2, py + panelH - 8, "Press ESC to close", {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
     hint.setData("layoutId", "escape-menu-hint");
     this.menuOverlay.add(hint);
+  }
+
+  private readonly handleMenuKeyDown = (event: KeyboardEvent): void => {
+    if (!this.menuOverlay || this.menuEntries.length === 0) return;
+    if (
+      event.key === "ArrowUp"
+      || event.key === "w"
+      || event.key === "W"
+    ) {
+      this.menuSelectedIndex = (
+        this.menuSelectedIndex - 1 + this.menuEntries.length
+      ) % this.menuEntries.length;
+      this.updateMenuSelection();
+      event.preventDefault();
+      return;
+    }
+    if (
+      event.key === "ArrowDown"
+      || event.key === "s"
+      || event.key === "S"
+    ) {
+      this.menuSelectedIndex =
+        (this.menuSelectedIndex + 1) % this.menuEntries.length;
+      this.updateMenuSelection();
+      event.preventDefault();
+      return;
+    }
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const entry = this.menuEntries[this.menuSelectedIndex];
+    if (
+      entry
+      && this.menuPlayer
+      && this.menuDefeatedBosses
+      && this.menuCodex
+    ) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const player = this.menuPlayer;
+      const defeatedBosses = this.menuDefeatedBosses;
+      const codex = this.menuCodex;
+      const activate = (): void => {
+        this.activateMenuAction(entry.action, player, defeatedBosses, codex);
+      };
+      const keyboard = this.scene.input.keyboard;
+      if (keyboard) {
+        keyboard.once(event.key === " " ? "keyup-SPACE" : "keyup-ENTER", activate);
+      } else {
+        this.scene.time.delayedCall(200, activate);
+      }
+    }
+  };
+
+  private updateMenuSelection(): void {
+    this.menuButtons.forEach((button, index) => {
+      const entry = this.menuEntries[index]!;
+      button.setText(
+        `${index === this.menuSelectedIndex ? "▶ " : "  "}${entry.label}`,
+      );
+      button.setColor(
+        index === this.menuSelectedIndex ? "#ffffff" : entry.color,
+      );
+    });
+  }
+
+  private clearMenuInput(): void {
+    this.scene.input.keyboard?.off("keydown", this.handleMenuKeyDown, this);
+    this.menuEntries = [];
+    this.menuButtons = [];
+    this.menuPlayer = null;
+    this.menuDefeatedBosses = null;
+    this.menuCodex = null;
+  }
+
+  private activateMenuAction(
+    action: EscapeMenuAction,
+    player: PlayerState,
+    defeatedBosses: Set<string>,
+    codex: CodexData,
+  ): void {
+    if (action === "quit") {
+      this.callbacks.saveAndQuit();
+      return;
+    }
+    this.toggleMenuOverlay(player, defeatedBosses, codex);
+    switch (action) {
+      case "resume":
+        return;
+      case "inventory":
+        this.callbacks.openInventory();
+        return;
+      case "party":
+        this.callbacks.openParty();
+        return;
+      case "questJournal":
+        this.callbacks.openQuestJournal();
+        return;
+      case "chronicle":
+        this.callbacks.openChronicle();
+        return;
+      case "codex":
+        this.callbacks.openCodex();
+        return;
+      case "achievements":
+        this.callbacks.openAchievements();
+        return;
+      case "gathering":
+        this.callbacks.openGathering();
+        return;
+      case "crafting":
+        this.callbacks.openCrafting();
+        return;
+      case "tips":
+        this.callbacks.openTips();
+        return;
+      case "settings":
+        this.showSettingsOverlay();
+        return;
+    }
   }
 
   // ── Settings Overlay ───────────────────────────────────────────────
@@ -1949,24 +2040,36 @@ export class OverlayManager {
         `${route.name}: ${route.fee}g`
         + ("questGate" in route ? " · quest required" : "")
       );
-    const nauticalStatus = this.scene.add.text(
-      px + panelW / 2,
-      py + 23,
-      `Boat: ${boat ? `${boat.id} ${boat.condition}%` : "none"} · `
-      + `Ports ${player.progression.nautical.discoveredPortIds.length}/${PORTS.length}`
-      + (routeLabels.length > 0
-        ? ` · ${routeLabels.slice(0, 2).join(" | ")}`
-          + (routeLabels.length > 2 ? ` +${routeLabels.length - 2}` : "")
-        : ""),
-      {
-        fontSize: "7px",
-        fontFamily: "monospace",
-        color: "#b0bec5",
-        align: "center",
-        wordWrap: { width: panelW - 24 },
-      },
-    ).setOrigin(0.5, 0);
-    this.worldMapOverlay.add(nauticalStatus);
+    const nauticalParts: string[] = [];
+    if (isFeatureAvailable(player, "nauticalBoat")) {
+      nauticalParts.push(`Boat: ${boat ? `${boat.id} ${boat.condition}%` : "none"}`);
+    }
+    if (isFeatureAvailable(player, "nauticalHarbors")) {
+      nauticalParts.push(
+        `Ports ${player.progression.nautical.discoveredPortIds.length}/${PORTS.length}`,
+      );
+    }
+    if (isFeatureAvailable(player, "nauticalRoutes") && routeLabels.length > 0) {
+      nauticalParts.push(
+        routeLabels.slice(0, 2).join(" | ")
+        + (routeLabels.length > 2 ? ` +${routeLabels.length - 2}` : ""),
+      );
+    }
+    if (nauticalParts.length > 0) {
+      const nauticalStatus = this.scene.add.text(
+        px + panelW / 2,
+        py + 23,
+        nauticalParts.join(" · "),
+        {
+          fontSize: "7px",
+          fontFamily: "monospace",
+          color: "#b0bec5",
+          align: "center",
+          wordWrap: { width: panelW - 24 },
+        },
+      ).setOrigin(0.5, 0);
+      this.worldMapOverlay.add(nauticalStatus);
+    }
 
     const contentX = px + panelPad;
     const contentY = py + titleH + panelPad;

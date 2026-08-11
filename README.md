@@ -451,13 +451,13 @@ npm run build      # Type-check and create a production build
 | `Space` / `Enter` | Confirm, interact, or disarm a detected adjacent trap |
 | `M` | Open the world or city map |
 | `E` | Open hero equipment |
-| `P` | Open party management, searchable inventories, and gambits |
-| `C` | Open the Codex |
-| `Y` | Open Achievements and manage cosmetic titles |
-| `K` | Open the Gathering record and material details |
-| `V` | Open Crafting |
-| `Q` | Open the quest journal |
-| `T` | Mount or dismount |
+| `P` | Open party management after recruiting a companion |
+| `C` | Open the Codex after its first discovery |
+| `Y` | Open Achievements after the first natural unlock |
+| `K` | Open the Gathering record after discovering a gathering discipline |
+| `V` | Open Crafting after learning a non-starting recipe |
+| `Q` | Open the quest journal after a quest starts |
+| `T` | Mount or dismount after owning a mount |
 | `F1` | Open or close Tips |
 | `Esc` | Close the active overlay or skip an active cutscene |
 | Mouse / touch | Select buttons and scroll lists |
@@ -469,12 +469,16 @@ log. The right stick moves a visible cursor so every pointer-first button remain
 reachable; press the right stick to click it. Touch devices receive a
 safe-area-aware D-pad plus A/B, Menu, Party,
 and Tips controls; movement and action buttons support simultaneous touches.
+Progression-specific touch actions remain hidden until their feature is
+discovered.
 Character and inventory search text fields open a native mobile text-entry
 surface.
 
-The `Esc` menu includes Achievements, Gathering, Crafting, Party & Inventory, Tips, tutorial replay,
-the Chronicle, and the same audio and accessibility settings available on the
-title screen.
+The `Esc` menu is data-driven. Resume, Inventory, Tips, Settings, and
+save/title controls are always available; quests, Chronicle, Codex,
+Achievements, Gathering, Crafting, Party, social details, mounts, and nautical
+controls appear only after authoritative gameplay evidence reveals them.
+Inventory remains usable before companion recruitment.
 Advanced Tips unlock automatically as relevant progression is reached. In the
 inventory view, arrows and Page Up/Down navigate, `R` cycles sorting, `F` cycles
 filters, `/` focuses search, `X` transfers, and `Tab` changes the target. `T`
@@ -529,6 +533,8 @@ Available tools include:
   inspection and mutation
 - `/achievement list|unlock|reset|progress|explain`; debug unlocks are marked,
   grant no points or titles, and debug mutations cannot satisfy natural criteria
+- `/feature list|reveal|hide|reset|explain`; explicit debug reveals are marked
+  separately and ordinary debug mutations do not create natural feature unlocks
 - Local browser checks can force the next random encounter with
   `?forceGroup=<templateId>` (for example, `?forceGroup=slimeSwarm`)
 
@@ -545,7 +551,7 @@ mutates campaign progress. Version-1 preference documents and existing
 automatically. Inventory sorting, filtering, and search preferences use the
 separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
 
-Save schema version 16 persists:
+Save schema version 17 persists:
 
 - Composed player position and progression data
 - Dungeon ID and level
@@ -586,6 +592,10 @@ Save schema version 16 persists:
 - Known recipe IDs, stable discovery and transaction IDs, natural craft and
   equipment-upgrade statistics, per-recipe counts, and bounded recent history.
   Recipe definitions, ingredient contracts, categories, and values are derived
+- Stable discovered feature IDs, queued one-time reveal feedback, explicit
+  debug reveals, and debug-suppressed evidence. Feature availability is
+  reconciled from authoritative quest, party, Codex, achievement, crafting,
+  gathering, event, social, mount, and nautical state
 
 `loadGame()` migrates older flat player saves, normalizes new fields, and
 recovers invalid or conflicting world, city, and dungeon locations. Malformed
@@ -625,6 +635,10 @@ Schema-v14 and older saves gain default crafting state. Schema-v15 removes
 unknown or duplicate recipe/discovery/transaction IDs, clamps statistics,
 repairs bounded history, preserves inventory/equipment links, and replays
 durable recipe discovery idempotently.
+Schema-v16 and older saves gain empty feature-discovery state, then silently
+reconcile every already-earned feature from durable gameplay evidence. Unknown,
+duplicate, malformed, pending, and debug-only IDs are removed so mature saves do
+not emit a storm of reveal notices.
 
 ## Testing
 

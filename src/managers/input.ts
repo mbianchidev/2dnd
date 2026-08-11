@@ -14,6 +14,10 @@ import {
   type StandardGamepadBinding,
 } from "../systems/input";
 import {
+  featureAvailability,
+  getInputActionFeature,
+} from "../systems/featureDiscovery";
+import {
   gamePreferences,
   type TouchControlVisibility,
 } from "../systems/accessibility";
@@ -125,6 +129,7 @@ export class SemanticInputRuntime {
   private cursorActive = false;
   private gamepadConnected = false;
   private unsubscribePreferences: (() => void) | null = null;
+  private unsubscribeFeatures: (() => void) | null = null;
 
   constructor(private readonly game: Phaser.Game) {}
 
@@ -142,6 +147,9 @@ export class SemanticInputRuntime {
     this.unsubscribePreferences = gamePreferences.subscribe(() => {
       this.applyControlPreferences();
     });
+    this.unsubscribeFeatures = featureAvailability.subscribe(() => {
+      this.applyFeatureAvailability();
+    });
     this.applyControlPreferences();
     this.animationFrame = window.requestAnimationFrame(this.poll);
   }
@@ -158,6 +166,8 @@ export class SemanticInputRuntime {
     this.game.canvas.removeEventListener("pointermove", this.handlePointerSource, true);
     this.unsubscribePreferences?.();
     this.unsubscribePreferences = null;
+    this.unsubscribeFeatures?.();
+    this.unsubscribeFeatures = null;
     this.touchRoot?.remove();
     this.cursor?.remove();
     this.touchRoot = null;
@@ -549,6 +559,7 @@ export class SemanticInputRuntime {
       button.type = "button";
       button.className = `touch-control ${definition.className}`;
       button.dataset.action = definition.action;
+      button.dataset.action = definition.action;
       button.textContent = definition.label;
       button.setAttribute("aria-label", definition.action);
       button.addEventListener("pointerdown", (event) => {
@@ -599,6 +610,21 @@ export class SemanticInputRuntime {
     }
     document.getElementById("game-inner")?.append(root);
     this.touchRoot = root;
+    this.applyFeatureAvailability();
+  }
+
+  private applyFeatureAvailability(): void {
+    if (!this.touchRoot) return;
+    for (const button of this.touchRoot.querySelectorAll<HTMLButtonElement>(
+      ".touch-control",
+    )) {
+      const action = button.dataset.action;
+      const featureId = action
+        ? getInputActionFeature(action as InputAction)
+        : undefined;
+      button.hidden = featureId !== undefined
+        && !featureAvailability.has(featureId);
+    }
   }
 
   private createCursor(): void {

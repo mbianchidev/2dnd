@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { layoutItemCenter } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_preferences";
@@ -46,31 +47,6 @@ async function tapGame(
 
 async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
-}
-
-async function layoutItemCenter(
-  page: Page,
-  id: string,
-): Promise<{ x: number; y: number }> {
-  await expect(page.locator("#layout-report")).not.toHaveText("");
-  const item = await page.locator("#layout-report").evaluate((element, itemId) => {
-    const report = JSON.parse(element.textContent ?? "{}") as {
-      groups?: Record<string, {
-        items?: Array<{
-          id: string;
-          bounds: { x: number; y: number; width: number; height: number };
-        }>;
-      }>;
-    };
-    return Object.values(report.groups ?? {})
-      .flatMap((group) => group.items ?? [])
-      .find((candidate) => candidate.id === itemId);
-  }, id);
-  if (!item) throw new Error(`Missing layout item: ${id}`);
-  return {
-    x: item.bounds.x + item.bounds.width / 2,
-    y: item.bounds.y + item.bounds.height / 2,
-  };
 }
 
 async function holdKey(
@@ -240,7 +216,7 @@ async function continueToOverworld(page: Page): Promise<void> {
     const saveModule = await import(modulePath);
     return saveModule.loadGame()?.version ?? null;
   });
-  expect(validSaveVersion).toBe(16);
+  expect(validSaveVersion).toBe(17);
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
   await holdKey(page, "Space");

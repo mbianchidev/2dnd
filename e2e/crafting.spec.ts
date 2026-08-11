@@ -157,6 +157,8 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
   });
   await createCharacter(page);
   await submitDebug(page, "/craft material wildHerbs 4");
+  await submitDebug(page, "/feature reveal crafting");
+  await submitDebug(page, "/feature reveal craftingConsumable");
 
   await holdKey(page, "v");
   await waitForState(page, "[CRAFTING");
@@ -184,7 +186,7 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
     };
   }, SAVE_KEY);
   expect(crafted).toMatchObject({
-    version: 16,
+    version: 17,
     potionCount: 2,
     totalCrafts: 2,
   });

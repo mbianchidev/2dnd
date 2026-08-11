@@ -1,6 +1,7 @@
 import type { PlayerState } from "./player";
 import type { TipCategory, TipDefinition, TipUnlock } from "../data/tutorial";
 import { TIPS } from "../data/tutorial";
+import type { FeatureId } from "../data/featureDiscovery";
 
 export interface TutorialProgress {
   completed: boolean;
@@ -14,6 +15,7 @@ export interface TutorialTipContext {
   hasEnteredDungeon: boolean;
   hasSkillCheck: boolean;
   hasTrapExperience: boolean;
+  discoveredFeatureIds?: ReadonlySet<FeatureId>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -57,6 +59,7 @@ export function createTutorialTipContext(
     hasSkillCheck: Object.keys(player.progression.skillChecks).length > 0,
     hasTrapExperience: player.progression.trapGuidance
       || Object.keys(player.progression.trapStates).length > 0,
+    discoveredFeatureIds: new Set(player.progression.discoveredFeatureIds),
   };
 }
 
@@ -81,6 +84,8 @@ export function isTipUnlocked(
       return context.hasSkillCheck;
     case "trap":
       return context.hasTrapExperience;
+    case "feature":
+      return context.discoveredFeatureIds?.has(unlock.featureId) === true;
   }
 }
 

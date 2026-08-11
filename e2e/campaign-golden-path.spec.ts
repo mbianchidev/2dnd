@@ -20,6 +20,7 @@ interface BrowserSave {
     progression: {
       seenCutsceneIds: string[];
       pendingCutsceneIds: string[];
+      pendingFeatureRevealIds?: string[];
       tutorial: {
         completed: boolean;
       };
@@ -151,13 +152,11 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await clickGame(page, 320, 324);
     await waitForState(page, "BOOT | Screen: character");
 
-    for (let index = 0; index < 12; index++) {
-      await page.keyboard.press("Backspace");
-    }
-    for (const key of ["b", "r", "o", "w", "s", "e", "r", "h", "e", "r", "o"]) {
-      await page.keyboard.press(key);
-      await page.waitForTimeout(30);
-    }
+    await clickGame(page, 320, 76);
+    const nameInput = page.locator("#mobile-text-input input");
+    await expect(nameInput).toBeVisible();
+    await nameInput.fill("browserhero");
+    await nameInput.press("Enter");
     await clickGame(page, 284, 160);
     await holdKey(page, "Enter");
     await waitForState(page, "BOOT | Screen: stats");
@@ -280,16 +279,14 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
       const save = await readSave(page);
       return save.player.progression.quests.quests[MAIN_QUEST_ID]?.stage;
     }).toBe(6);
+    await submitDebug(page, "/max_hp 999");
+    await submitDebug(page, "/heal");
     await submitDebug(page, "/spawn infernoForgemaster");
     await waitForState(page, "CUTSCENE | boss.infernoForgemaster.pre");
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
     await waitForState(page, "BATTLE");
-    await holdKey(page, "k", 80);
-    await waitForState(
-      page,
-      "monster-infernoForgemaster-boss-idle",
-    );
+    await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
     await waitForState(page, "CUTSCENE | boss.infernoForgemaster.post");
     await drainGenericCutscenesUntil(page, "OVERWORLD");

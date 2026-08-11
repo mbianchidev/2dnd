@@ -308,6 +308,7 @@ import type { EncounterSystem } from "../managers/encounter";
 import { executeSocialDebugCommand } from "./reputation";
 import { executeCraftingDebugCommand } from "./crafting";
 import { registerNauticalDebugCommands } from "./nauticalDebug";
+import { executeFeatureDiscoveryDebugCommand } from "./featureDiscovery";
 
 /** Callbacks the OverworldScene provides so the debug system can trigger UI/game updates. */
 export interface OverworldDebugCallbacks {
@@ -1241,6 +1242,15 @@ export class DebugCommandSystem {
     });
     cmds.set("achievements", cmds.get("achievement")!);
 
+    cmds.set("feature", (args) => {
+      const result = executeFeatureDiscoveryDebugCommand(this.player, args);
+      for (const line of result.lines) {
+        debugPanelLog(`[CMD] ${line}`, true);
+      }
+      if (result.changed) this.callbacks.autoSave();
+    });
+    cmds.set("features", cmds.get("feature")!);
+
     const helpEntries: HelpEntry[] = [
       ...SHARED_HELP,
       { usage: "/reveal", desc: "Reveal entire world map" },
@@ -1268,6 +1278,7 @@ export class DebugCommandSystem {
       { usage: "/mount <id>", desc: "Mount: donkey|horse|warHorse|shadowSteed|none" },
       { usage: "/codex all", desc: "Discover all codex entries" },
       { usage: "/achievement <cmd>", desc: "Achievements: list|unlock|reset|progress|explain" },
+      { usage: "/feature <cmd>", desc: "Features: list|reveal|hide|reset|explain" },
       { usage: "/companion <cmd>", desc: "Companions: list|recruit|mode|heal|gambits" },
       { usage: "/boat <cmd>", desc: "Boats: list|status|<id>" },
       { usage: "/port <cmd>", desc: "Ports: list|<id>" },

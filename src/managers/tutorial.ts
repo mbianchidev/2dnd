@@ -12,6 +12,7 @@ import {
   createTutorialTipContext,
   getUnlockedTips,
 } from "../systems/tutorial";
+import { isControlGuidanceAvailable } from "../systems/featureDiscovery";
 import {
   getInputPromptSource,
   inputPromptSource,
@@ -283,7 +284,9 @@ export class TutorialManager {
       },
     );
     container.add(controlsTitle);
-    const controlCards = step.controls.map((controlId) => {
+    const controlCards = step.controls.filter((controlId) =>
+      isControlGuidanceAvailable(this.player!, controlId)
+    ).map((controlId) => {
       const control = CONTROL_GUIDANCE[controlId];
       const card = this.scene.add.text(
         0,
@@ -497,7 +500,9 @@ export class TutorialManager {
     );
     container.add([heading, body]);
     if (!tip?.controls?.length) return;
-    const controls = tip.controls.map((id) => {
+    const controls = tip.controls.filter((id) =>
+      isControlGuidanceAvailable(this.player!, id)
+    ).map((id) => {
       const control = CONTROL_GUIDANCE[id];
       return `${this.controlPrompt(control)}  ${control.label}`;
     });

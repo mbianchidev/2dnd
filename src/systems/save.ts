@@ -63,9 +63,13 @@ import { reconcileCraftingRecipes } from "./crafting";
 import { normalizeNauticalState } from "./nauticalState";
 import { getBoat, getPort, getSeaZoneAt } from "../data/nautical";
 import { synchronizeNauticalQuestRewards } from "./nautical";
+import {
+  normalizeFeatureDiscoveryProgress,
+  reconcileFeatureDiscovery,
+} from "./featureDiscovery";
 
 const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 16;
+const SAVE_VERSION = 17;
 const TUTORIAL_SAVE_VERSION = 9;
 
 export interface SaveData {
@@ -454,6 +458,10 @@ export function loadGame(): SaveData | null {
         gathering: normalizeGatheringState(undefined, sourceVersion),
         crafting: normalizeCraftingState(undefined, sourceVersion),
         nautical: normalizeNauticalState(undefined, sourceVersion),
+        discoveredFeatureIds: [],
+        pendingFeatureRevealIds: [],
+        debugDiscoveredFeatureIds: [],
+        debugSuppressedFeatureIds: [],
       };
       delete playerRecord["openedChests"];
       delete playerRecord["collectedTreasures"];
@@ -523,6 +531,10 @@ export function loadGame(): SaveData | null {
       data.player.progression.nautical,
       sourceVersion,
     );
+    const featureDiscovery = sourceVersion < 17
+      ? normalizeFeatureDiscoveryProgress({})
+      : normalizeFeatureDiscoveryProgress(data.player.progression);
+    Object.assign(data.player.progression, featureDiscovery);
     data.player.party = normalizePartyState(playerRecord["party"]);
     synchronizeCompanionRecruitment(data.player);
     synchronizeNauticalQuestRewards(data.player);
@@ -597,6 +609,7 @@ export function loadGame(): SaveData | null {
       unlockedAt: readInteger(data.timestamp, Date.now()),
       notify: false,
     });
+    reconcileFeatureDiscovery(data.player, data.codex, { silent: true });
     data.version = SAVE_VERSION;
     return data;
   } catch (error) {

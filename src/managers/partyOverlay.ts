@@ -291,6 +291,7 @@ export class PartyOverlayManager {
         },
         this.page === tab.page ? "#ffd700" : "#bbbbbb",
         tabWidth,
+        `party-tab-${tab.page}`,
       );
     });
   }

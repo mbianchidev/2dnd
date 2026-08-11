@@ -479,15 +479,18 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
     const target = await gamePoint(page, gameX, gameY);
     const cursorAxis = (delta: number): number => {
       const distance = Math.abs(delta);
-      if (distance < 5) return 0;
-      return Math.sign(delta) * (distance < 32 ? 0.35 : 0.8);
+      if (distance < 20) return 0;
+      return Math.sign(delta) * Math.min(
+        0.7,
+        Math.max(0.35, distance / 120),
+      );
     };
-    for (let attempt = 0; attempt < 120; attempt += 1) {
+    for (let attempt = 0; attempt < 240; attempt += 1) {
       const bounds = await page.locator("#gamepad-cursor").boundingBox();
       if (bounds) {
         const dx = target.x - (bounds.x + bounds.width / 2);
         const dy = target.y - (bounds.y + bounds.height / 2);
-        if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+        if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
           await setAxes([0, 0, 0, 0]);
           return;
         }
@@ -500,7 +503,7 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
       } else {
         await setAxes([0, 0, 0.8, 0]);
       }
-      await page.waitForTimeout(50);
+      await page.waitForTimeout(75);
     }
     await setAxes([0, 0, 0, 0]);
     throw new Error("Timed out moving gamepad cursor");

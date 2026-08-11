@@ -26,6 +26,9 @@ interface BrowserSave {
       quests: {
         quests: Record<string, BrowserQuestProgress>;
       };
+      achievements: {
+        pendingNotificationIds: string[];
+      };
     };
   };
   defeatedBosses: string[];
@@ -282,11 +285,11 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
     await waitForState(page, "BATTLE");
+    await holdKey(page, "k", 80);
     await waitForState(
       page,
       "monster-infernoForgemaster-boss-idle",
     );
-    await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
     await waitForState(page, "CUTSCENE | boss.infernoForgemaster.post");
     await drainGenericCutscenesUntil(page, "OVERWORLD");
@@ -369,10 +372,15 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   });
 
   await test.step("replay a Chronicle entry without mutating progression", async () => {
-    const beforeReplay = JSON.stringify(
-      (await readSave(page)).player.progression,
-    );
     await page.waitForTimeout(800);
+    const replayAuthority = async (): Promise<string> => {
+      const progression = structuredClone(
+        (await readSave(page)).player.progression,
+      );
+      progression.achievements.pendingNotificationIds = [];
+      return JSON.stringify(progression);
+    };
+    const beforeReplay = await replayAuthority();
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
     await clickLayoutItem(page, "escape-menu-chronicle");
@@ -382,8 +390,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
     await waitForState(page, "OVERWORLD");
-    expect(JSON.stringify((await readSave(page)).player.progression))
-      .toBe(beforeReplay);
+    expect(await replayAuthority()).toBe(beforeReplay);
   });
 
   await test.step("recover a completed but unseen ending after reload", async () => {

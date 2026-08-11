@@ -42,7 +42,7 @@ export class PlayerRenderer {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    scene.events?.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.heroTextureLease?.release();
       this.heroTextureLease = null;
     });

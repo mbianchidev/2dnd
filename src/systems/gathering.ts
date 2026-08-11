@@ -767,9 +767,12 @@ export function resetGatheringState(
   player.progression.gathering = createGatheringState(seed);
 }
 
-export function getGatheringStatusLines(player: PlayerState): string[] {
+export function getGatheringStatusLines(
+  player: PlayerState,
+  disciplines: readonly GatheringDiscipline[] = GATHERING_DISCIPLINES,
+): string[] {
   const state = player.progression.gathering;
-  const lines = GATHERING_DISCIPLINES.map((discipline) => {
+  const lines = disciplines.map((discipline) => {
     const stats = state.stats[discipline];
     return `${GATHERING_DEFINITIONS[discipline].name}: ${stats.successes}/${stats.attempts} successes, ${stats.rareFinds} rare, best ${stats.bestScore}`;
   });

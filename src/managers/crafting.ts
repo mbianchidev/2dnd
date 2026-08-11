@@ -1,7 +1,6 @@
 import * as Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../config";
 import {
-  CRAFTING_CATEGORIES,
   getCraftingRecipe,
   type CraftingCategory,
   type CraftingRecipeId,
@@ -25,6 +24,7 @@ import {
 import type { PlayerState } from "../systems/player";
 import { createDimGraphics, createPanelGraphics } from "../utils/ui";
 import { openMobileTextInput } from "./input";
+import { getCraftingDiscoveryCategories } from "../systems/featureDiscovery";
 
 export interface CraftingManagerCallbacks {
   autoSave(): void;
@@ -35,11 +35,6 @@ export interface CraftingManagerCallbacks {
 }
 
 const PAGE_SIZE = 6;
-const CATEGORY_OPTIONS: readonly (CraftingCategory | "all")[] = [
-  "all",
-  ...CRAFTING_CATEGORIES,
-];
-
 export class CraftingManager {
   private container: Phaser.GameObjects.Container | null = null;
   private player: PlayerState | null = null;
@@ -113,6 +108,15 @@ export class CraftingManager {
       sort: this.sort,
       includeUnknown: true,
     }, this.actorId, this.getStation());
+  }
+
+  private getCategoryOptions(): Array<CraftingCategory | "all"> {
+    const player = this.player;
+    if (!player) return ["all"];
+    return [
+      "all",
+      ...getCraftingDiscoveryCategories(player),
+    ];
   }
 
   private getSelectedEntry(
@@ -462,9 +466,10 @@ export class CraftingManager {
   }
 
   private cycleCategory(delta: number): void {
-    const current = CATEGORY_OPTIONS.indexOf(this.category);
-    this.category = CATEGORY_OPTIONS[
-      (current + delta + CATEGORY_OPTIONS.length) % CATEGORY_OPTIONS.length
+    const options = this.getCategoryOptions();
+    const current = options.indexOf(this.category);
+    this.category = options[
+      (Math.max(current, 0) + delta + options.length) % options.length
     ]!;
     this.selectedRecipeId = null;
     this.batch = 1;

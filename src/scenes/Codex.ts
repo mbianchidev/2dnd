@@ -34,6 +34,7 @@ import {
   createWeatherState,
   type WeatherState,
 } from "../systems/weather";
+import { getCodexDiscoveryCategories } from "../systems/featureDiscovery";
 
 const ENTRIES_PER_PAGE = 8;
 
@@ -126,7 +127,7 @@ export class CodexScene extends Phaser.Scene {
     this.timeStep = data.timeStep ?? 0;
     this.weatherState = data.weatherState ?? createWeatherState();
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
-    this.category = "monsters";
+    this.category = this.getAvailableCategoryTabs()[0]?.category ?? "monsters";
     this.monsterSort = "family";
     this.knowledgeSort = "category";
     this.familyFilter = undefined;
@@ -198,11 +199,12 @@ export class CodexScene extends Phaser.Scene {
   }
 
   private createCategoryTabs(width: number): void {
+    const tabs = this.getAvailableCategoryTabs();
     const tabY = 28;
-    const tabSpacing = width / (CATEGORY_TABS.length + 1);
+    const tabSpacing = width / (tabs.length + 1);
     this.tabUnderline = this.add.graphics();
-    for (let index = 0; index < CATEGORY_TABS.length; index++) {
-      const definition = CATEGORY_TABS[index]!;
+    for (let index = 0; index < tabs.length; index++) {
+      const definition = tabs[index]!;
       const x = tabSpacing * (index + 1);
       const tab = this.add.text(
         x,
@@ -320,7 +322,13 @@ export class CodexScene extends Phaser.Scene {
   }
 
   private switchCategory(category: CodexCategory): void {
-    if (this.sceneTransitions.isPending || this.category === category) return;
+    if (
+      this.sceneTransitions.isPending
+      || this.category === category
+      || !this.getAvailableCategoryTabs().some((tab) => tab.category === category)
+    ) {
+      return;
+    }
     this.category = category;
     this.currentPage = 0;
     this.selectedOnPage = 0;
@@ -329,19 +337,22 @@ export class CodexScene extends Phaser.Scene {
   }
 
   private cycleCategory(direction: number): void {
-    const index = CATEGORY_TABS.findIndex(
+    const tabs = this.getAvailableCategoryTabs();
+    if (tabs.length === 0) return;
+    const index = tabs.findIndex(
       (tab) => tab.category === this.category,
     );
     const next = (
-      index + direction + CATEGORY_TABS.length
-    ) % CATEGORY_TABS.length;
-    this.switchCategory(CATEGORY_TABS[next]!.category);
+      index + direction + tabs.length
+    ) % tabs.length;
+    this.switchCategory(tabs[next]!.category);
   }
 
   private updateTabPresentation(): void {
+    const tabs = this.getAvailableCategoryTabs();
     this.tabUnderline.clear();
     for (let index = 0; index < this.tabTexts.length; index++) {
-      const active = CATEGORY_TABS[index]!.category === this.category;
+      const active = tabs[index]!.category === this.category;
       const tab = this.tabTexts[index]!;
       tab.setColor(active ? "#ffd700" : "#999999");
       if (active) {
@@ -355,6 +366,13 @@ export class CodexScene extends Phaser.Scene {
         );
       }
     }
+  }
+
+  private getAvailableCategoryTabs(): CategoryTab[] {
+    const categories = new Set(getCodexDiscoveryCategories(this.player));
+    return CATEGORY_TABS.filter((tab) =>
+      categories.has(tab.category)
+    );
   }
 
   private cycleFilter(): void {
@@ -721,9 +739,10 @@ export class CodexScene extends Phaser.Scene {
     bind([Phaser.Input.Keyboard.KeyCodes.FORWARD_SLASH], () => this.openSearch());
     bind([Phaser.Input.Keyboard.KeyCodes.BACKSPACE], () => this.clearSearch());
 
-    for (let key = 1; key <= CATEGORY_TABS.length; key++) {
+    const tabs = this.getAvailableCategoryTabs();
+    for (let key = 1; key <= tabs.length; key++) {
       keyboard.addKey(48 + key).on("down", () => {
-        this.switchCategory(CATEGORY_TABS[key - 1]!.category);
+        this.switchCategory(tabs[key - 1]!.category);
       });
     }
   }

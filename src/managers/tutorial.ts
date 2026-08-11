@@ -12,6 +12,7 @@ import {
   createTutorialTipContext,
   getUnlockedTips,
 } from "../systems/tutorial";
+import { isControlGuidanceAvailable } from "../systems/featureDiscovery";
 import {
   getInputPromptSource,
   inputPromptSource,
@@ -267,7 +268,9 @@ export class TutorialManager {
     container.add(controlsTitle);
     const controlStartY = controlsTitle.y + 26;
     const cardWidth = (panelW - 72) / 2;
-    step.controls.forEach((controlId, index) => {
+    step.controls.filter((controlId) =>
+      isControlGuidanceAvailable(this.player!, controlId)
+    ).forEach((controlId, index) => {
       const control = CONTROL_GUIDANCE[controlId];
       const column = index % 2;
       const row = Math.floor(index / 2);
@@ -476,7 +479,9 @@ export class TutorialManager {
     );
     container.add([heading, body]);
     if (!tip?.controls?.length) return;
-    const controls = tip.controls.map((id) => {
+    const controls = tip.controls.filter((id) =>
+      isControlGuidanceAvailable(this.player!, id)
+    ).map((id) => {
       const control = CONTROL_GUIDANCE[id];
       return `${this.controlPrompt(control)}  ${control.label}`;
     });

@@ -271,6 +271,11 @@ interface PlayerProgression {
   achievements: AchievementState;
   gathering: GatheringState;
   crafting: CraftingState;
+  nautical: NauticalState;
+  discoveredFeatureIds: FeatureId[];
+  pendingFeatureRevealIds: FeatureId[];
+  debugDiscoveredFeatureIds: FeatureId[];
+  debugSuppressedFeatureIds: FeatureId[];
 }
 ```
 
@@ -281,6 +286,27 @@ companion IDs. Companion state composes `CombatActorState` plus independent XP,
 level-up/stat state, control mode, dialogue cursor, and normalized gambits.
 `player.progression.tutorial.completed` records whether the new-player tutorial
 was completed or skipped.
+
+## Feature discovery
+
+- Stable feature IDs, display metadata, ownership, prerequisites, and test IDs
+  live in `src/data/featureDiscovery.ts`; reconciliation, filtering, reveal
+  queues, action gating, and debug commands live in
+  `src/systems/featureDiscovery.ts`.
+- Resume/cancel, Inventory, Map, Equipment, Tips, Settings/accessibility, and
+  save/title controls remain available for safety.
+- Quest, Chronicle, Codex/category, natural Achievement, Crafting/category,
+  Gathering/discipline, World Event, social, Party/gambit, mount, harbor, route,
+  and boat surfaces reveal only after authoritative gameplay evidence.
+- Build menus and tabs from filtered definitions. Hidden entries must leave no
+  blank row, stale index, invisible hit area, separator, shortcut, touch action,
+  or gamepad gap. Inventory remains independent from Party discovery.
+- Persist discovery only to preserve irreversible visibility and one-time
+  feedback. It never controls quests, companions, rewards, Codex, achievements,
+  recipes, social state, navigation, or endings.
+- Reconcile mature saves silently. Natural reveals queue accessible,
+  non-blocking Overworld feedback; explicit debug reveals are marked and debug
+  mutations are excluded from natural discovery.
 
 ## Tutorial and tips
 
@@ -743,7 +769,13 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 16.
+Save schema version is 17.
+
+Schema v17 adds normalized feature-discovery IDs, pending one-time reveal IDs,
+explicit debug reveals, and debug-suppressed evidence. Schema-v16 and older
+saves start with empty discovery metadata and silently reconcile all durable
+authoritative evidence, so mature saves regain earned menus without replaying
+rewards or showing reveal storms.
 
 Schema v16 adds `player.progression.nautical`: typed boat ownership, condition,
 upgrades and cosmetics; discovered ports, routes, islands, continents, and sea
@@ -861,7 +893,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v16
+  visibility, handedness, and prompt source only; they never enter schema-v17
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the
@@ -888,6 +920,9 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   controls to debug cheat actions.
 - Prompts and focus state must adapt to the selected/active source using text or
   symbols, not color alone.
+- Progression actions must consult feature discovery before dispatch. Untaught
+  shortcuts and touch actions stay hidden/inert; dynamic menu focus clamps to
+  the filtered entry list.
 - Stable mappings are deliberately not user-remappable. Do not add a partial
   remapper unless every release flow, conflict, text-entry case, and
   accessibility requirement can be validated.
@@ -907,6 +942,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   gambits. Recruitment mutations refresh follower presentation immediately.
 - `/achievement` lists, debug-unlocks, resets, reports progress, or explains
   authoritative criteria. Debug unlocks never grant natural points or titles.
+- `/feature` lists, explicitly debug-reveals, hides, resets, or explains stable
+  feature IDs. Only explicit feature commands create marked debug reveals.
 - `P` opens party management; the debug MP hotkey is `O`.
 - Shared debug commands and Overworld-specific commands live in
   `src/systems/debug.ts`.

@@ -52,6 +52,10 @@ import {
   createNauticalState,
   type NauticalState,
 } from "./nauticalState";
+import {
+  createFeatureDiscoveryProgress,
+  type FeatureDiscoveryProgress,
+} from "./featureDiscovery";
 
 export interface PlayerStats {
   strength: number;
@@ -96,6 +100,10 @@ export interface PlayerProgression {
   gathering: GatheringState; // deterministic gathering nodes, minigames, rewards, and records
   crafting: CraftingState; // known recipes, atomic transactions, statistics, and history
   nautical: NauticalState; // boats, ports, routes, sea discovery, and pending travel
+  discoveredFeatureIds: FeatureDiscoveryProgress["discoveredFeatureIds"];
+  pendingFeatureRevealIds: FeatureDiscoveryProgress["pendingFeatureRevealIds"];
+  debugDiscoveredFeatureIds: FeatureDiscoveryProgress["debugDiscoveredFeatureIds"];
+  debugSuppressedFeatureIds: FeatureDiscoveryProgress["debugSuppressedFeatureIds"];
 }
 
 // ── Point Buy System (D&D 5e) ─────────────────────────────────
@@ -239,6 +247,7 @@ export function createPlayer(
   // D&D 5e starting gold: roll Nd4 × 10 (N = class-specific dice count)
   const startingGold = rollDice(playerClass.startingGoldDice, 4) * 10;
 
+  const featureDiscovery = createFeatureDiscoveryProgress();
   return {
     name,
     level: 1,
@@ -291,6 +300,7 @@ export function createPlayer(
       gathering: createGatheringState(),
       crafting: createCraftingState(),
       nautical: createNauticalState(),
+      ...featureDiscovery,
     },
     lastTownX: 2,       // Willowdale default
     lastTownY: 2,

@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v16, migration, normalization, and location recovery
+description: Manage 2D&D save schema v17, migration, normalization, and location recovery
 license: MIT
 ---
 
@@ -23,7 +23,7 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 16.
+`SAVE_VERSION` is 17.
 
 ```typescript
 interface SaveData {
@@ -88,6 +88,11 @@ interface PlayerProgression {
   achievements: AchievementState;
   gathering: GatheringState;
   crafting: CraftingState;
+  nautical: NauticalState;
+  discoveredFeatureIds: FeatureId[];
+  pendingFeatureRevealIds: FeatureId[];
+  debugDiscoveredFeatureIds: FeatureId[];
+  debugSuppressedFeatureIds: FeatureId[];
 }
 
 interface QuestProgress {
@@ -139,6 +144,9 @@ canonical derived data.
 ports/routes/islands/continents/sea tiles, bounded navigation statistics, and
 recoverable pending merchant routes, hazards, and encounters. Continents, sea
 zones, ports, routes, islands, boats, and encounter pools remain canonical data.
+Feature discovery persists only stable revealed IDs, pending one-time feedback,
+marked debug reveals, and debug-suppressed evidence. Availability is reconciled
+from authoritative gameplay state and never controls that state.
 
 ## Loading and migration
 
@@ -191,6 +199,9 @@ helpers; do not cast unvalidated nested values directly.
   and older saves gain defaults, unknown IDs and malformed pending records are
   removed, condition/statistics are clamped, and invalid sea positions recover
   to a safe port without losing other progression
+- Missing, malformed, duplicate, or unknown feature IDs through
+  `normalizeFeatureDiscoveryProgress()`; schema-v16 and older saves discard
+  pending/debug metadata and silently reconcile mature authoritative evidence
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
 
@@ -273,7 +284,7 @@ top-level save is absent or corrupt.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v16 position, objective/reward/warning quest state, skill checks,
+- Current schema-v17 position, objective/reward/warning quest state, skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
 - Flat schema-v4 quest migration and completed-reward preservation

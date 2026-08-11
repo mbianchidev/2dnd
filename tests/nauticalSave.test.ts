@@ -51,7 +51,7 @@ describe("schema-v16 nautical persistence", () => {
       120,
       createWeatherState(),
     );
-    expect(readRawSave()["version"]).toBe(16);
+    expect(readRawSave()["version"]).toBe(17);
 
     const loaded = loadGame()!;
     expect(loaded.player.progression.nautical).toMatchObject({
@@ -82,7 +82,7 @@ describe("schema-v16 nautical persistence", () => {
     localStorage.setItem("2dnd_save", JSON.stringify(raw));
 
     const loaded = loadGame()!;
-    expect(loaded.version).toBe(16);
+    expect(loaded.version).toBe(17);
     expect(loaded.player.progression.nautical).toEqual(createNauticalState());
   });
 

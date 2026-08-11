@@ -13,6 +13,7 @@ import {
 } from "../src/systems/tutorial";
 import { createPlayer } from "../src/systems/player";
 import { getItem } from "../src/data/items";
+import { FEATURE_IDS } from "../src/data/featureDiscovery";
 
 function createTestPlayer() {
   return createPlayer("TutorialHero", {
@@ -69,12 +70,9 @@ describe("tutorial and tips", () => {
       .toEqual([
         "controls.context",
         "controls.shortcuts",
-        "progression.achievements",
         "combat.turns",
         "combat.resources",
         "exploration.fog",
-        "exploration.gathering",
-        "exploration.crafting",
       ]);
 
     expect(getUnlockedTips({
@@ -85,6 +83,7 @@ describe("tutorial and tips", () => {
       hasEnteredDungeon: true,
       hasSkillCheck: true,
       hasTrapExperience: true,
+      discoveredFeatureIds: new Set(FEATURE_IDS),
     }).map((tip) => tip.id))
       .toEqual(TIPS.map((tip) => tip.id));
   });

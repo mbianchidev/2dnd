@@ -93,6 +93,13 @@ filtering. `src/managers/tutorial.ts` owns the Overworld overlay and renders pro
 the active keyboard, pointer, gamepad, or touch source. New saves persist
 `player.progression.tutorial.completed`; replay never resets it.
 
+Progressive feature discovery is data-driven through
+`src/data/featureDiscovery.ts` and `src/systems/featureDiscovery.ts`. Filter
+menus, tabs, shortcuts, prompts, touch actions, and Codex/crafting/gathering
+categories through the shared registry. Preserve always-safe Inventory, Map,
+Equipment, Tips, Settings, and save/title controls, and never use discovery as
+authority for gameplay state.
+
 World Event content lives in `src/data/worldEvents.ts`, its deterministic
 Phaser-free state machine in `src/systems/worldEvents.ts`, and accessible choice
 presentation in `src/managers/worldEvents.ts`. Events short-circuit treasure,

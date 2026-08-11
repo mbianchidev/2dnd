@@ -28,6 +28,9 @@ import {
   type GatheringNode,
   type PendingGathering,
 } from "../systems/gathering";
+import { getGatheringDiscoveryDisciplines } from "../systems/featureDiscovery";
+import { GATHERING_DISCIPLINE_FEATURES } from "../data/featureDiscovery";
+import { revealFeature } from "../systems/featureDiscovery";
 import { audioEngine } from "../systems/audio";
 import type { CodexData, CodexUnlockResult } from "../systems/codex";
 import { unlockCodexFromSignal } from "../systems/codex";
@@ -135,10 +138,23 @@ export class GatheringManager {
     if (available.node) {
       return `[SPACE] ${GATHERING_DEFINITIONS[available.node.discipline].prompt}`;
     }
+
     if (available.cooldown && available.remainingSteps) {
       return `${GATHERING_DEFINITIONS[available.cooldown.discipline].name} node recovers in ${available.remainingSteps} steps`;
     }
     return undefined;
+  }
+
+  discoverNearby(player: PlayerState): boolean {
+    const available = getAvailableGatheringNode(player);
+    const discipline = available.node?.discipline ?? available.cooldown?.discipline;
+    if (!discipline) return false;
+    const disciplineChanged = revealFeature(
+      player,
+      GATHERING_DISCIPLINE_FEATURES[discipline],
+    );
+    const gatheringChanged = revealFeature(player, "gathering");
+    return disciplineChanged || gatheringChanged;
   }
 
   startNearby(
@@ -702,7 +718,8 @@ export class GatheringManager {
       "Gathering Record",
       "Totals, discovered materials, and nearby recovery hints. Rare entries remain hidden until found.",
     );
-    const lines = getGatheringStatusLines(player);
+    const visibleDisciplines = getGatheringDiscoveryDisciplines(player);
+    const lines = getGatheringStatusLines(player, visibleDisciplines);
     container.add(this.scene.add.text(70, 145, lines.join("\n"), {
       fontFamily: "monospace",
       fontSize: "14px",

@@ -403,7 +403,7 @@ export class PartyOverlayManager {
     }, this.inventorySearchActive ? "#ffd700" : "#b8ddff", width - 38);
     this.addButton(x + width - 32, y + 50, "X", () => {
       this.handleInventoryAction("clearSearch");
-    }, "#ffaaaa", 32);
+    }, "#ffaaaa", 32, "party-inventory-clear-search");
 
     visible.forEach((entry, offset) => {
       const rowY = y + 80 + offset * 30;
@@ -1002,6 +1002,7 @@ export class PartyOverlayManager {
     action: () => void,
     color = "#dddddd",
     width = 120,
+    layoutId?: string,
   ): Phaser.GameObjects.Text {
     const button = this.scene.add.text(x, y, label, {
       fontSize: "10px",
@@ -1012,6 +1013,7 @@ export class PartyOverlayManager {
       fixedWidth: width,
       align: "center",
     }).setInteractive({ useHandCursor: true });
+    if (layoutId) button.setData("layoutId", layoutId);
     button.on("pointerover", () => button.setColor("#ffd700"));
     button.on("pointerout", () => button.setColor(color));
     button.on("pointerdown", action);

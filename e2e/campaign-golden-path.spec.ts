@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const MAIN_QUEST_ID = "twelvefoldCovenant";
@@ -191,7 +192,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 280);
+    await clickLayoutItem(page, "escape-menu-tips");
     await waitForState(page, "[TIPS]");
     await holdKey(page, "Escape");
     await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
@@ -374,7 +375,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await page.waitForTimeout(800);
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 232);
+    await clickLayoutItem(page, "escape-menu-chronicle");
     await waitForState(page, "[CHRONICLE]");
     await holdKey(page, "Enter");
     await waitForState(page, "CUTSCENE | campaign.opening");

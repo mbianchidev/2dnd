@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { tapLayoutItem } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -265,7 +266,7 @@ test.describe("touch Codex controls", () => {
       await page.locator('[data-action="openMenu"]').tap();
     }
     await waitForState(page, "[MENU]");
-    await tapGame(page, 420, 92);
+    await tapLayoutItem(page, "escape-menu-codex");
     await waitForState(page, "CODEX | Category: Monsters");
     await tapGame(page, 183, 32);
     await waitForState(page, "Category: Locations");

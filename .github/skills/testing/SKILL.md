@@ -77,6 +77,12 @@ menus and combat turns for hero, companion, monster, and boss presentation;
 spell/ability particles; world/follower/mount gait; boss cutscenes; fainting;
 reduced-motion immediate states; and page/console cleanliness.
 
+Battle backdrop browser coverage uses deterministic `/battleview` and
+`/backdrop` controls, programmatic depth/bounds/cleanup assertions, and focused
+canvas screenshots for group, boss, Kraken, mobile, weather, and high-contrast
+combinations. Keep the full biome/time/weather matrix assertion-driven rather
+than committing hundreds of redundant images.
+
 Accessibility browser coverage should change settings from both title and
 in-game surfaces, assert immediate canvas state, exercise core overlays at every
 supported text scale, verify reload persistence, and prove `2dnd_save` is

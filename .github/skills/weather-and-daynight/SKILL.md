@@ -37,7 +37,8 @@ import {
 
 ### Visual Effects
 - **Overworld:** Tint applied to every tile sprite via `applyDayNightTint()`
-- **Battle:** Background image tinted + celestial body drawn (sun/moon)
+- **Battle:** `BattleBackdropRenderer` composes separate sky, star, celestial,
+  cloud, scenery, ground, prop, shadow, and weather bands
   - Dawn: sun low-left (rising)
   - Day: sun upper-left with rays
   - Dusk: sun mid-left (setting, redder)
@@ -119,7 +120,8 @@ outcome or reward.
 4. Add encounter multiplier in `WEATHER_ENCOUNTER_MULT`
 5. Add tint color in `WEATHER_TINT`
 6. Add label in `WEATHER_LABEL`
-7. Add particle config in overworld `updateWeatherParticles()` (in `renderers/map.ts`) and `Battle.createWeatherParticles()`
+7. Add particle/static reduced-motion rendering in overworld
+   `updateWeatherParticles()` and `BattleBackdropRenderer`
 8. Add ambient SFX in `audioEngine.playWeatherSFX()`
 
 ## Scene Data Flow

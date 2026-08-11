@@ -18,6 +18,7 @@ import {
   ActorAnimationDirector,
   type ActorAnimationBinding,
 } from "./actorAnimation";
+import { BATTLE_DEPTH } from "../renderers/battleDepth";
 
 export interface BattlePresentationTarget {
   readonly targetId: BattleCombatantId;
@@ -221,7 +222,7 @@ export class BattlePresentationDirector {
       color: preferences.highContrast ? "#ffffff" : `#${color.toString(16).padStart(6, "0")}`,
       backgroundColor: preferences.highContrast ? "#000000" : "#080a10cc",
       padding: { x: 4, y: 2 },
-    }).setOrigin(0.5).setDepth(8);
+    }).setOrigin(0.5).setDepth(BATTLE_DEPTH.actionParticles);
     this.transientObjects.add(text);
     if (isReducedMotionEnabled()) {
       const timer = this.scene.time.delayedCall(260, () => {
@@ -266,7 +267,7 @@ export class BattlePresentationDirector {
         index % 2 === 0 ? 3 : 2,
         color,
         0.9,
-      ).setDepth(7);
+      ).setDepth(BATTLE_DEPTH.actionParticles);
       this.transientObjects.add(particle);
       const tween = this.scene.tweens.add({
         targets: particle,

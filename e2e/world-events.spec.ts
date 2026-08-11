@@ -80,6 +80,18 @@ async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
 }
 
+async function activateMenuEntry(page: Page, action: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes(`[MENU_SELECTION:${action}]`)) {
+      await holdKey(page, "Enter");
+      return;
+    }
+    await holdKey(page, "ArrowDown");
+  }
+  throw new Error(`Menu entry not found: ${action}`);
+}
+
 async function clickVisibleEventChoice(page: Page): Promise<void> {
   for (let y = 190; y <= 390; y += 16) {
     await clickGame(page, 320, y);
@@ -293,9 +305,11 @@ test("resolves, recovers, battles, and records accessible World Events", async (
   await waitForState(page, "OVERWORLD");
   expect((await readSave(page)).player.progression.social.appliedSourceIds)
     .toHaveLength(sourceCount);
-  await holdKey(page, "p");
-  await waitForState(page, "[PARTY:status]");
-  await holdKey(page, "2");
+  await holdKey(page, "Escape");
+  await holdKey(page, "ArrowDown");
+  await holdKey(page, "Enter");
+  await waitForState(page, "[PARTY:items");
+  await holdKey(page, "1");
   await waitForState(page, "[PARTY:social]");
   await holdKey(page, "Escape");
 
@@ -324,7 +338,7 @@ test("resolves, recovers, battles, and records accessible World Events", async (
 
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await clickGame(page, 320, 232);
+  await activateMenuEntry(page, "chronicle");
   await waitForState(page, "[CHRONICLE]");
   for (let index = 0; index < 12; index++) {
     const state = await page.locator("#debug-state").textContent() ?? "";

@@ -48,6 +48,18 @@ async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
 }
 
+async function activateMenuEntry(page: Page, action: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes(`[MENU_SELECTION:${action}]`)) {
+      await holdKey(page, "Enter");
+      return;
+    }
+    await holdKey(page, "ArrowDown");
+  }
+  throw new Error(`Menu entry not found: ${action}`);
+}
+
 async function enableDebug(page: Page): Promise<void> {
   const checkbox = page.locator("#debug-checkbox");
   if (!await checkbox.isChecked()) await checkbox.check();
@@ -155,7 +167,7 @@ test("title and in-game accessibility settings share live preferences", async ({
 
   await test.step("change the same settings from the in-game menu", async () => {
     await holdKey(page, "Escape");
-    await clickGame(page, 320, 322);
+    await activateMenuEntry(page, "settings");
     await clickGame(page, 320, 310);
     await clickGame(page, 320, 348);
     await clickGame(page, 320, 386);

@@ -3427,10 +3427,15 @@ export class OverworldScene extends Phaser.Scene {
       this.scheduleFeatureRevealFeedback(500);
       return;
     }
-    const featureId = this.player.progression.pendingFeatureRevealIds[0];
-    if (!featureId) return;
-    acknowledgeFeatureReveal(this.player, featureId);
-    this.showMessage(getFeatureRevealMessage(featureId), "#83d8ff");
+    const featureIds = [...this.player.progression.pendingFeatureRevealIds];
+    if (featureIds.length === 0) return;
+    for (const featureId of featureIds) {
+      acknowledgeFeatureReveal(this.player, featureId);
+    }
+    this.showMessage(
+      featureIds.map(getFeatureRevealMessage).join(" "),
+      "#83d8ff",
+    );
     saveGame(
       this.player,
       this.defeatedBosses,
@@ -3439,7 +3444,6 @@ export class OverworldScene extends Phaser.Scene {
       this.timeStep,
       this.weatherState,
     );
-    this.scheduleFeatureRevealFeedback(2600);
   }
 
   // ── Time, weather & audio ───────────────────────────────────────────────

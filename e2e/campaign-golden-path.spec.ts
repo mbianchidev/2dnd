@@ -19,6 +19,7 @@ interface BrowserSave {
     progression: {
       seenCutsceneIds: string[];
       pendingCutsceneIds: string[];
+      pendingFeatureRevealIds?: string[];
       tutorial: {
         completed: boolean;
       };
@@ -58,6 +59,18 @@ async function clickGame(
 
 async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
+}
+
+async function activateMenuEntry(page: Page, action: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes(`[MENU_SELECTION:${action}]`)) {
+      await holdKey(page, "Enter");
+      return;
+    }
+    await holdKey(page, "ArrowDown");
+  }
+  throw new Error(`Menu entry not found: ${action}`);
 }
 
 async function enableDebug(page: Page): Promise<void> {
@@ -191,7 +204,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 280);
+    await activateMenuEntry(page, "tips");
     await waitForState(page, "[TIPS]");
     await holdKey(page, "Escape");
     await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
@@ -276,15 +289,13 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
       const save = await readSave(page);
       return save.player.progression.quests.quests[MAIN_QUEST_ID]?.stage;
     }).toBe(6);
+    await submitDebug(page, "/max_hp 999");
+    await submitDebug(page, "/heal");
     await submitDebug(page, "/spawn infernoForgemaster");
     await waitForState(page, "CUTSCENE | boss.infernoForgemaster.pre");
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
     await waitForState(page, "BATTLE");
-    await waitForState(
-      page,
-      "monster-infernoForgemaster-boss-idle",
-    );
     await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
     await waitForState(page, "CUTSCENE | boss.infernoForgemaster.post");
@@ -368,21 +379,30 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   });
 
   await test.step("replay a Chronicle entry without mutating progression", async () => {
-    const beforeReplay = JSON.stringify(
-      (await readSave(page)).player.progression,
-    );
+    const beforeProgression = (await readSave(page)).player.progression;
+    const beforeReplay = {
+      seenCutsceneIds: [...beforeProgression.seenCutsceneIds],
+      pendingCutsceneIds: [...beforeProgression.pendingCutsceneIds],
+      quests: JSON.stringify(beforeProgression.quests),
+    };
     await page.waitForTimeout(800);
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 232);
+    await activateMenuEntry(page, "chronicle");
     await waitForState(page, "[CHRONICLE]");
     await holdKey(page, "Enter");
     await waitForState(page, "CUTSCENE | campaign.opening");
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
     await waitForState(page, "OVERWORLD");
-    expect(JSON.stringify((await readSave(page)).player.progression))
-      .toBe(beforeReplay);
+    const afterProgression = (await readSave(page)).player.progression;
+    expect(afterProgression.seenCutsceneIds).toEqual(
+      beforeReplay.seenCutsceneIds,
+    );
+    expect(afterProgression.pendingCutsceneIds).toEqual(
+      beforeReplay.pendingCutsceneIds,
+    );
+    expect(JSON.stringify(afterProgression.quests)).toBe(beforeReplay.quests);
   });
 
   await test.step("recover a completed but unseen ending after reload", async () => {

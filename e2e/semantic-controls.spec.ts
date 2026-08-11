@@ -244,9 +244,12 @@ test.describe("touch controls", () => {
     await waitForState(page, "[MENU]");
     await page.locator('[data-action="cancel"]').tap();
     await expect(page.locator("#debug-state")).not.toContainText("[MENU]");
+    await submitDebug(page, "/feature reveal party");
+    await submitDebug(page, "/feature reveal partyGambits");
+    await submitDebug(page, "/feature reveal socialProfile");
     await page.locator('[data-action="openParty"]').tap();
     await waitForState(page, "[PARTY:status]");
-    await tapGame(page, 337, 95);
+    await holdKey(page, "2");
     await waitForState(page, "[PARTY:social]");
     await page.locator('[data-action="cancel"]').tap();
 
@@ -367,6 +370,7 @@ test.describe("standard gamepad controls", () => {
       "data-gamepad-connected",
       "true",
     );
+    await submitDebug(page, "/feature reveal socialProfile");
 
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
@@ -377,30 +381,26 @@ test.describe("standard gamepad controls", () => {
     await pressGamepad(1);
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      await moveGamepadCursor(page, 320, 365);
-      await pressGamepad(11);
+    await moveGamepadCursor(page, 320, 365);
+    await expect(page.locator("#gamepad-cursor")).toBeVisible();
+    for (let attempt = 0; attempt < 20; attempt += 1) {
       const state = await page.locator("#debug-state").textContent() ?? "";
-      if (state.includes("[PARTY:items")) break;
-      if (!state.includes("[MENU]")) {
-        await pressGamepad(9);
-        await waitForState(page, "[MENU]");
-      }
+      if (state.includes("[MENU_SELECTION:inventory]")) break;
+      await pressGamepad(13);
     }
+    await pressGamepad(0);
     await waitForState(page, "[PARTY:items");
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      await moveGamepadCursor(page, 337, 95);
-      await pressGamepad(11);
-      if (
-        (await page.locator("#debug-state").textContent() ?? "")
-          .includes("[PARTY:social]")
-      ) break;
-    }
+    await page.keyboard.press("1");
     await waitForState(page, "[PARTY:social]");
     await pressGamepad(1);
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 232);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const state = await page.locator("#debug-state").textContent() ?? "";
+      if (state.includes("[MENU_SELECTION:chronicle]")) break;
+      await pressGamepad(13);
+    }
+    await pressGamepad(0);
     await waitForState(page, "[CHRONICLE_SELECTION:1/");
     await pressGamepad(13);
     await waitForState(page, "[CHRONICLE_SELECTION:2/");

@@ -83,6 +83,18 @@ async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
 }
 
+async function activateMenuEntry(page: Page, action: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes(`[MENU_SELECTION:${action}]`)) {
+      await holdKey(page, "Enter");
+      return;
+    }
+    await holdKey(page, "ArrowDown");
+  }
+  throw new Error(`Menu entry not found: ${action}`);
+}
+
 async function createCharacter(page: Page): Promise<void> {
   await page.goto("./", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
@@ -156,6 +168,8 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
   });
   await createCharacter(page);
   await submitDebug(page, "/craft material wildHerbs 4");
+  await submitDebug(page, "/feature reveal crafting");
+  await submitDebug(page, "/feature reveal craftingConsumable");
 
   await holdKey(page, "v");
   await waitForState(page, "[CRAFTING");
@@ -183,7 +197,7 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
     };
   }, SAVE_KEY);
   expect(crafted).toMatchObject({
-    version: 16,
+    version: 17,
     potionCount: 2,
     totalCrafts: 2,
   });
@@ -280,7 +294,7 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
   await waitForState(page, "OVERWORLD");
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await clickGame(page, 422, 134);
+  await activateMenuEntry(page, "crafting");
   await waitForState(page, "[CRAFTING");
   await page.setViewportSize({ width: 844, height: 390 });
   await expect(page.locator("#game-container canvas")).toBeVisible();

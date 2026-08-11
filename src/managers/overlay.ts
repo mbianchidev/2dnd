@@ -163,7 +163,7 @@ export class OverlayManager {
     if (!this.menuOverlay) return "";
     const entries = getEscapeMenuEntries(player);
     const selected = entries[this.menuSelectedIndex]?.action ?? "-";
-    return ` [MENU:${entries.map((entry) => entry.action).join(",")}]`
+    return ` [MENU] [MENU_ENTRIES:${entries.map((entry) => entry.action).join(",")}]`
       + ` [MENU_SELECTION:${selected}]`;
   }
 
@@ -1135,13 +1135,20 @@ export class OverlayManager {
       && this.menuDefeatedBosses
       && this.menuCodex
     ) {
-      this.activateMenuAction(
-        entry.action,
-        this.menuPlayer,
-        this.menuDefeatedBosses,
-        this.menuCodex,
-      );
       event.preventDefault();
+      event.stopImmediatePropagation();
+      const player = this.menuPlayer;
+      const defeatedBosses = this.menuDefeatedBosses;
+      const codex = this.menuCodex;
+      const activate = (): void => {
+        this.activateMenuAction(entry.action, player, defeatedBosses, codex);
+      };
+      const keyboard = this.scene.input.keyboard;
+      if (keyboard) {
+        keyboard.once(event.key === " " ? "keyup-SPACE" : "keyup-ENTER", activate);
+      } else {
+        this.scene.time.delayedCall(200, activate);
+      }
     }
   };
 

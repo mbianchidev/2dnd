@@ -122,7 +122,7 @@ test("progressively grows menus, tabs, shortcuts, and touch actions", async ({
   await holdKey(page, "Escape");
   await waitForState(
     page,
-    "[MENU:resume,inventory,questJournal,chronicle,codex,gathering,tips,settings,quit]",
+    "[MENU_ENTRIES:resume,inventory,questJournal,chronicle,codex,gathering,tips,settings,quit]",
   );
   await waitForState(page, "[MENU_SELECTION:resume]");
   await holdKey(page, "ArrowDown");
@@ -161,10 +161,10 @@ test("progressively grows menus, tabs, shortcuts, and touch actions", async ({
   await holdKey(page, "Escape");
   await waitForState(
     page,
-    "[MENU:resume,inventory,party,questJournal,chronicle,codex,achievements,gathering,crafting,tips,settings,quit]",
+    "[MENU_ENTRIES:resume,inventory,party,questJournal,chronicle,codex,achievements,gathering,crafting,tips,settings,quit]",
   );
   await page.setViewportSize({ width: 932, height: 430 });
-  await waitForState(page, "[MENU:");
+  await waitForState(page, "[MENU_ENTRIES:");
   await page.setViewportSize({ width: 430, height: 932 });
   await holdKey(page, "Escape");
 
@@ -206,7 +206,7 @@ test("progressively grows menus, tabs, shortcuts, and touch actions", async ({
   await holdKey(page, "Escape");
   await waitForState(
     page,
-    "[MENU:resume,inventory,party,questJournal,chronicle,codex,achievements,gathering,crafting,tips,settings,quit]",
+    "[MENU_ENTRIES:resume,inventory,party,questJournal,chronicle,codex,achievements,gathering,crafting,tips,settings,quit]",
   );
 
   const discovery = await page.evaluate((saveKey) => {

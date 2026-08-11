@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { tapLayoutItem } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -68,18 +69,6 @@ async function holdKey(
 
 async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
-}
-
-async function activateMenuEntry(page: Page, action: string): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const state = await page.locator("#debug-state").textContent() ?? "";
-    if (state.includes(`[MENU_SELECTION:${action}]`)) {
-      await holdKey(page, "Enter");
-      return;
-    }
-    await holdKey(page, "ArrowDown");
-  }
-  throw new Error(`Menu entry not found: ${action}`);
 }
 
 async function submitDebug(page: Page, command: string): Promise<void> {
@@ -292,7 +281,7 @@ test.describe("touch Codex controls", () => {
       await page.locator('[data-action="openMenu"]').tap();
     }
     await waitForState(page, "[MENU]");
-    await activateMenuEntry(page, "codex");
+    await tapLayoutItem(page, "escape-menu-codex");
     await waitForState(page, "CODEX | Category: Locations");
     await holdKey(page, "e");
     await waitForState(page, "Category: Items");

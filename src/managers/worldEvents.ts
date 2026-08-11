@@ -27,6 +27,9 @@ import type { PlayerState } from "../systems/player";
 import type { QuestUpdate } from "../systems/quests";
 import type { Terrain } from "../data/mapTypes";
 import type { SocialMutationResult } from "../systems/reputation";
+import { createOverlayContainer } from "../utils/ui";
+import { layoutTextStack } from "./layout";
+import { paginateMeasuredItems } from "../systems/layout";
 
 export interface WorldEventManagerCallbacks {
   autoSave(): void;
@@ -310,7 +313,21 @@ export class WorldEventManager {
       : undefined;
     if (!event || pending?.phase !== "choice") return;
 
-    const container = this.scene.add.container(0, 0).setDepth(98);
+    const panelWidth = 520;
+    const panelHeight = 360;
+    const panelX = (GAME_WIDTH - panelWidth) / 2;
+    const panelY = (GAME_HEIGHT - panelHeight) / 2;
+    const container = createOverlayContainer(
+      this.scene,
+      "world-event",
+      98,
+      {
+        x: panelX,
+        y: panelY,
+        width: panelWidth,
+        height: panelHeight,
+      },
+    );
     const backdrop = this.scene.add.rectangle(
       GAME_WIDTH / 2,
       GAME_HEIGHT / 2,
@@ -322,14 +339,14 @@ export class WorldEventManager {
     const panel = this.scene.add.rectangle(
       GAME_WIDTH / 2,
       GAME_HEIGHT / 2,
-      520,
-      360,
+      panelWidth,
+      panelHeight,
       0x111827,
       0.99,
     ).setStrokeStyle(3, 0xf7c948);
     const family = this.scene.add.text(
       GAME_WIDTH / 2,
-      70,
+      panelY + 18,
       `[${event.family.toUpperCase()} EVENT]`,
       {
         fontSize: "12px",
@@ -339,7 +356,7 @@ export class WorldEventManager {
     ).setOrigin(0.5);
     const title = this.scene.add.text(
       GAME_WIDTH / 2,
-      92,
+      panelY + 44,
       event.title,
       {
         fontSize: "22px",
@@ -350,7 +367,7 @@ export class WorldEventManager {
     ).setOrigin(0.5);
     const prompt = this.scene.add.text(
       GAME_WIDTH / 2,
-      126,
+      panelY + 76,
       event.prompt,
       {
         fontSize: "13px",
@@ -362,12 +379,11 @@ export class WorldEventManager {
     ).setOrigin(0.5, 0);
     container.add([backdrop, panel, family, title, prompt]);
 
-    const choiceStartY = Math.max(205, prompt.y + prompt.height + 16);
-    event.choices.forEach((choice, index) => {
+    const rows = event.choices.map((choice, index) => {
       const selected = index === this.selectedIndex;
       const row = this.scene.add.text(
-        112,
-        choiceStartY + index * 48,
+        0,
+        0,
         `${selected ? ">" : " "} ${choice.label}\n  ${choice.detail}`,
         {
           fontSize: "12px",
@@ -376,8 +392,10 @@ export class WorldEventManager {
           backgroundColor: selected ? "#374151" : "#1f2937",
           padding: { x: 10, y: 5 },
           fixedWidth: 416,
+          wordWrap: { width: 396, useAdvancedWrap: true },
         },
       ).setInteractive({ useHandCursor: true });
+      row.setData("layoutId", `world-event-choice-${choice.id}`);
       row.on("pointerover", () => {
         if (this.selectedIndex === index) return;
         this.selectedIndex = index;
@@ -387,18 +405,49 @@ export class WorldEventManager {
         this.selectedIndex = index;
         this.chooseSelected();
       });
-      container.add(row);
+      return row;
     });
-    container.add(this.scene.add.text(
+    const choiceStartY = Math.max(panelY + 118, prompt.y + prompt.height + 16);
+    const footerY = panelY + panelHeight - 18;
+    const pages = paginateMeasuredItems(
+      rows.map((row) => row.displayHeight),
+      Math.max(1, footerY - choiceStartY - 30),
+      8,
+    );
+    const pageIndex = Math.max(
+      0,
+      pages.findIndex((page) => page.includes(this.selectedIndex)),
+    );
+    const visibleIndexes = new Set(pages[pageIndex] ?? []);
+    const visibleRows = rows.filter((_row, index) => visibleIndexes.has(index));
+    rows
+      .filter((_row, index) => !visibleIndexes.has(index))
+      .forEach((row) => row.destroy());
+    container.add(visibleRows);
+    layoutTextStack(visibleRows, {
+      x: 112,
+      y: choiceStartY,
+      width: 416,
+      gap: 8,
+      hitAreaPadding: 4,
+    });
+    const pageLabel = pages.length > 1
+      ? ` | Page ${pageIndex + 1}/${pages.length}`
+      : "";
+    const footer = this.scene.add.text(
       GAME_WIDTH / 2,
-      408,
-      "Up/Down choose | Enter/Space confirm | Esc selects the safe exit",
+      footerY,
+      `Up/Down choose | Enter/Space confirm | Esc selects the safe exit${pageLabel}`,
       {
         fontSize: "10px",
         fontFamily: "monospace",
         color: "#cbd5e1",
+        align: "center",
+        wordWrap: { width: panelWidth - 40 },
       },
-    ).setOrigin(0.5));
+    ).setOrigin(0.5, 1);
+    footer.setData("layoutId", "world-event-footer");
+    container.add(footer);
     this.container = container;
   }
 }

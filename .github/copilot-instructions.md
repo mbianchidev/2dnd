@@ -907,6 +907,16 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   category/filter/sort controls work with touch and the gamepad cursor, and the
   Esc menu exposes the Codex for touch users. In Codex context, the semantic
   gamepad interact action opens search and confirm submits it.
+- Put pure stack, grid, wrapping, pagination, safe-area, focus restoration, and
+  overlap math in `src/systems/layout.ts`. Phaser scaled-bounds, reflow,
+  hit-area synchronization, group registration, and debug/test reporting belong
+  in `src/managers/layout.ts`.
+- Register modal content with `createOverlayContainer()` and a bounded viewport.
+  Filter hidden/disabled entries before layout, keep stable item IDs for focus
+  restoration, and never leave blank interactive rows after feature filtering.
+- `#layout-report` and `data-layout-overlap-count` /
+  `data-layout-clipping-count` are local debug/test selectors. Registered groups
+  must report zero unintended intersections and zero visible-content clipping.
 
 ## Semantic controls
 
@@ -973,6 +983,10 @@ npm run build
 - Frameworks: Vitest for logic and Playwright for browser flows.
 - Files: `tests/*.test.ts` and `e2e/*.spec.ts`.
 - Add deterministic tests for mechanics and migrations.
+- Add deterministic layout tests for measured stacks/grids, long wrapping,
+  pagination/scroll ranges, safe areas, focus/hit-area alignment, and overlap
+  detection. Browser coverage should assert registered groups remain clean at
+  100%/125%/150% text and representative desktop/mobile viewports.
 - The browser suites use a fresh strict port, default to the deployed `/2dnd/`
   base path, and assert opening recovery, boss cutscenes, Chronicle replay
   immutability, tutorial completion, direct and menu Tips access, interrupted and

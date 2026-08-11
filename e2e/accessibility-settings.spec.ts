@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem, expectCleanLayout } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -46,18 +47,6 @@ async function holdKey(
 
 async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
-}
-
-async function activateMenuEntry(page: Page, action: string): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const state = await page.locator("#debug-state").textContent() ?? "";
-    if (state.includes(`[MENU_SELECTION:${action}]`)) {
-      await holdKey(page, "Enter");
-      return;
-    }
-    await holdKey(page, "ArrowDown");
-  }
-  throw new Error(`Menu entry not found: ${action}`);
 }
 
 async function enableDebug(page: Page): Promise<void> {
@@ -113,11 +102,16 @@ test("title and in-game accessibility settings share live preferences", async ({
 
   await test.step("change title settings at the largest text scale", async () => {
     await clickGame(page, 320, 364);
-    await clickGame(page, 320, 95);
-    await clickGame(page, 320, 310);
-    await clickGame(page, 320, 310);
-    await clickGame(page, 320, 348);
-    await clickGame(page, 320, 386);
+    await expectCleanLayout(page);
+    await clickGame(page, 194, 115);
+    await clickLayoutItem(page, "settings-text-scale");
+    await clickLayoutItem(page, "settings-text-scale");
+    await clickLayoutItem(page, "settings-high-contrast");
+    await clickLayoutItem(page, "settings-reduced-motion");
+    await expectCleanLayout(page);
+    await page.screenshot({
+      path: test.info().outputPath("title-settings-150.png"),
+    });
 
     const preferences = await readPreferences(page);
     expect(preferences.audio.masterVolume).toBeCloseTo(0.5, 1);
@@ -167,11 +161,16 @@ test("title and in-game accessibility settings share live preferences", async ({
 
   await test.step("change the same settings from the in-game menu", async () => {
     await holdKey(page, "Escape");
-    await activateMenuEntry(page, "settings");
-    await clickGame(page, 320, 310);
-    await clickGame(page, 320, 348);
-    await clickGame(page, 320, 386);
-    await clickGame(page, 320, 250);
+    await expectCleanLayout(page);
+    await clickLayoutItem(page, "escape-menu-settings");
+    await clickLayoutItem(page, "settings-text-scale");
+    await clickLayoutItem(page, "settings-high-contrast");
+    await clickLayoutItem(page, "settings-reduced-motion");
+    await clickLayoutItem(page, "settings-mute");
+    await expectCleanLayout(page);
+    await page.screenshot({
+      path: test.info().outputPath("ingame-settings-100.png"),
+    });
 
     const preferences = await readPreferences(page);
     expect(preferences.audio.muted).toBe(true);

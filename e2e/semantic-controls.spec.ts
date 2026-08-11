@@ -1,4 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import {
+  clickLayoutItem,
+  expectCleanLayout,
+  layoutItemCenter,
+} from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -69,6 +74,7 @@ async function drainOpening(page: Page, source: "touch" | "keyboard"): Promise<v
 
 async function completeTutorialByTouch(page: Page): Promise<void> {
   await waitForState(page, "[TUTORIAL");
+  await expectCleanLayout(page);
   for (let step = 0; step < 5; step += 1) {
     await page.locator('[data-action="confirm"]').tap();
     await page.waitForTimeout(100);
@@ -109,8 +115,8 @@ async function setGamepadAxes(page: Page, axes: number[]): Promise<void> {
 
 function cursorAxis(delta: number): number {
   const distance = Math.abs(delta);
-  if (distance < 5) return 0;
-  return Math.sign(delta) * (distance < 32 ? 0.35 : 0.8);
+  if (distance < 20) return 0;
+  return Math.sign(delta) * Math.min(0.7, Math.max(0.35, distance / 120));
 }
 
 async function moveGamepadCursor(
@@ -119,14 +125,14 @@ async function moveGamepadCursor(
   gameY: number,
 ): Promise<void> {
   const target = await gamePoint(page, gameX, gameY);
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     const bounds = await page.locator("#gamepad-cursor").boundingBox();
     if (bounds) {
       const cursorX = bounds.x + bounds.width / 2;
       const cursorY = bounds.y + bounds.height / 2;
       const dx = target.x - cursorX;
       const dy = target.y - cursorY;
-      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+      if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
         await setGamepadAxes(page, [0, 0, 0, 0]);
         return;
       }
@@ -139,7 +145,7 @@ async function moveGamepadCursor(
     } else {
       await setGamepadAxes(page, [0, 0, 0, 0.8]);
     }
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(75);
   }
   await setGamepadAxes(page, [0, 0, 0, 0]);
   throw new Error("Timed out positioning gamepad cursor");
@@ -207,6 +213,7 @@ test.describe("touch controls", () => {
     await submitDebug(page, "/event trigger abandonedSupplyCart");
     await waitForState(page, "[WORLD_EVENT:abandonedSupplyCart]");
     await waitForState(page, "[WORLD_EVENT_SELECTION:1/2]");
+    await expectCleanLayout(page);
     await page.locator('[data-action="navigateDown"]').tap();
     await waitForState(page, "[WORLD_EVENT_SELECTION:2/2]");
     await page.locator('[data-action="navigateUp"]').tap();
@@ -343,7 +350,7 @@ test.describe("standard gamepad controls", () => {
       "data-input-source",
       "gamepad",
     );
-    await pressGamepad(11);
+    await pressGamepad(0);
     await waitForState(page, "BOOT | Screen: character");
     await pressGamepad(0);
     await waitForState(page, "BOOT | Screen: stats");
@@ -371,6 +378,7 @@ test.describe("standard gamepad controls", () => {
       "data-gamepad-connected",
       "true",
     );
+    await submitDebug(page, "/feature reveal party");
     await submitDebug(page, "/feature reveal socialProfile");
 
     await pressGamepad(9);
@@ -382,26 +390,24 @@ test.describe("standard gamepad controls", () => {
     await pressGamepad(1);
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
-    await moveGamepadCursor(page, 320, 365);
-    await expect(page.locator("#gamepad-cursor")).toBeVisible();
-    for (let attempt = 0; attempt < 20; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const party = await layoutItemCenter(page, "escape-menu-party");
+      await moveGamepadCursor(page, party.x, party.y);
+      await pressGamepad(11);
       const state = await page.locator("#debug-state").textContent() ?? "";
-      if (state.includes("[MENU_SELECTION:inventory]")) break;
-      await pressGamepad(13);
+      if (state.includes("[PARTY:status")) break;
+      if (!state.includes("[MENU]")) {
+        await pressGamepad(9);
+        await waitForState(page, "[MENU]");
+      }
     }
-    await pressGamepad(0);
-    await waitForState(page, "[PARTY:items");
-    await page.keyboard.press("1");
+    await waitForState(page, "[PARTY:status");
+    await clickLayoutItem(page, "party-tab-social");
     await waitForState(page, "[PARTY:social]");
     await pressGamepad(1);
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      const state = await page.locator("#debug-state").textContent() ?? "";
-      if (state.includes("[MENU_SELECTION:chronicle]")) break;
-      await pressGamepad(13);
-    }
-    await pressGamepad(0);
+    await clickLayoutItem(page, "escape-menu-chronicle");
     await waitForState(page, "[CHRONICLE_SELECTION:1/");
     await pressGamepad(13);
     await waitForState(page, "[CHRONICLE_SELECTION:2/");

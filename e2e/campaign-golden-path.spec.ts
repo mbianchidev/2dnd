@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const MAIN_QUEST_ID = "twelvefoldCovenant";
@@ -25,6 +26,9 @@ interface BrowserSave {
       };
       quests: {
         quests: Record<string, BrowserQuestProgress>;
+      };
+      achievements: {
+        pendingNotificationIds: string[];
       };
     };
   };
@@ -59,18 +63,6 @@ async function clickGame(
 
 async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
-}
-
-async function activateMenuEntry(page: Page, action: string): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const state = await page.locator("#debug-state").textContent() ?? "";
-    if (state.includes(`[MENU_SELECTION:${action}]`)) {
-      await holdKey(page, "Enter");
-      return;
-    }
-    await holdKey(page, "ArrowDown");
-  }
-  throw new Error(`Menu entry not found: ${action}`);
 }
 
 async function enableDebug(page: Page): Promise<void> {
@@ -160,13 +152,11 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await clickGame(page, 320, 324);
     await waitForState(page, "BOOT | Screen: character");
 
-    for (let index = 0; index < 12; index++) {
-      await page.keyboard.press("Backspace");
-    }
-    for (const key of ["b", "r", "o", "w", "s", "e", "r", "h", "e", "r", "o"]) {
-      await page.keyboard.press(key);
-      await page.waitForTimeout(30);
-    }
+    await clickGame(page, 320, 76);
+    const nameInput = page.locator("#mobile-text-input input");
+    await expect(nameInput).toBeVisible();
+    await nameInput.fill("browserhero");
+    await nameInput.press("Enter");
     await clickGame(page, 284, 160);
     await holdKey(page, "Enter");
     await waitForState(page, "BOOT | Screen: stats");
@@ -204,7 +194,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await activateMenuEntry(page, "tips");
+    await clickLayoutItem(page, "escape-menu-tips");
     await waitForState(page, "[TIPS]");
     await holdKey(page, "Escape");
     await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
@@ -379,30 +369,25 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   });
 
   await test.step("replay a Chronicle entry without mutating progression", async () => {
-    const beforeProgression = (await readSave(page)).player.progression;
-    const beforeReplay = {
-      seenCutsceneIds: [...beforeProgression.seenCutsceneIds],
-      pendingCutsceneIds: [...beforeProgression.pendingCutsceneIds],
-      quests: JSON.stringify(beforeProgression.quests),
-    };
     await page.waitForTimeout(800);
+    const replayAuthority = async (): Promise<string> => {
+      const progression = structuredClone(
+        (await readSave(page)).player.progression,
+      );
+      progression.achievements.pendingNotificationIds = [];
+      return JSON.stringify(progression);
+    };
+    const beforeReplay = await replayAuthority();
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await activateMenuEntry(page, "chronicle");
+    await clickLayoutItem(page, "escape-menu-chronicle");
     await waitForState(page, "[CHRONICLE]");
     await holdKey(page, "Enter");
     await waitForState(page, "CUTSCENE | campaign.opening");
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
     await waitForState(page, "OVERWORLD");
-    const afterProgression = (await readSave(page)).player.progression;
-    expect(afterProgression.seenCutsceneIds).toEqual(
-      beforeReplay.seenCutsceneIds,
-    );
-    expect(afterProgression.pendingCutsceneIds).toEqual(
-      beforeReplay.pendingCutsceneIds,
-    );
-    expect(JSON.stringify(afterProgression.quests)).toBe(beforeReplay.quests);
+    expect(await replayAuthority()).toBe(beforeReplay);
   });
 
   await test.step("recover a completed but unseen ending after reload", async () => {

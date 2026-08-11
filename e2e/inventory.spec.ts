@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_inventory_prefs";
@@ -74,18 +75,6 @@ async function cycleUntil(
     await page.keyboard.press(key);
   }
   throw new Error(`Failed to reach ${expected}`);
-}
-
-async function activateMenuEntry(page: Page, action: string): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const state = await page.locator("#debug-state").textContent() ?? "";
-    if (state.includes(`[MENU_SELECTION:${action}]`)) {
-      await holdKey(page, "Enter");
-      return;
-    }
-    await holdKey(page, "ArrowDown");
-  }
-  throw new Error(`Menu entry not found: ${action}`);
 }
 
 async function createCharacter(page: Page): Promise<void> {
@@ -210,7 +199,7 @@ test("large inventories keep stable keyboard and pointer selection", async ({
   await clickGame(page, 320, 324);
   await waitForState(page, "OVERWORLD");
   await holdKey(page, "Escape");
-  await activateMenuEntry(page, "inventory");
+  await clickLayoutItem(page, "escape-menu-inventory");
   await waitForState(page, "[PARTY:items");
   await waitForState(page, "Sort:recent Filter:all");
 
@@ -241,7 +230,7 @@ test("large inventories keep stable keyboard and pointer selection", async ({
   await waitForState(page, "Search:Relic42");
   await page.keyboard.press("Enter");
 
-  await clickGame(page, 592, 137);
+  await clickLayoutItem(page, "party-inventory-clear-search");
   await waitForState(page, "Search:-");
   await page.keyboard.press("r");
   await waitForState(page, "Sort:name");
@@ -255,7 +244,7 @@ test("large inventories keep stable keyboard and pointer selection", async ({
   await expect(page.locator("#debug-state")).not.toContainText("[PARTY:");
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await activateMenuEntry(page, "inventory");
+  await clickLayoutItem(page, "escape-menu-inventory");
   await waitForState(page, "[PARTY:items");
 
   const persisted = await page.evaluate(({ saveKey, preferencesKey }) => {

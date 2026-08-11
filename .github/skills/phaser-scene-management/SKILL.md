@@ -217,8 +217,14 @@ state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.
 
 ## UI layout
 
-- Calculate actual text and container bounds, including scale.
-- Use shared panel/dimmer helpers where available.
+- Use `src/systems/layout.ts` for pure measured stacks, grids, wrapping,
+  pagination, safe-area clamping, and focus restoration.
+- Use `src/managers/layout.ts` for actual scaled Phaser bounds, text-stack
+  reflow, hit-area synchronization, and debug/test overlap audits.
+- Register modal containers with `createOverlayContainer()` and their final
+  content viewport. Give interactive rows stable `layoutId` values.
+- Filter hidden or disabled entries before layout; variable-length menus must
+  not retain fixed indexes, blank rows, or invisible hit targets.
 - Keep action buttons visibly disabled outside the player turn.
 - Destroy or replace transient menus before opening another.
 - For scrollable text, bound what is rendered to the visible area.

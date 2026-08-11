@@ -40,6 +40,7 @@ import type { WeatherType } from "../systems/weather";
 import { discoverCraftingRecipes } from "../systems/crafting";
 import { reconcileCraftingRecipes } from "../systems/crafting";
 import type { CraftingRecipeId } from "../data/crafting";
+import { createOverlayContainer } from "../utils/ui";
 
 export interface GatheringManagerCallbacks {
   autoSave(): void;
@@ -634,7 +635,21 @@ export class GatheringManager {
   }
 
   private createPanel(title: string, subtitle: string): Phaser.GameObjects.Container {
-    const container = this.scene.add.container(0, 0).setDepth(105);
+    const panelWidth = 560;
+    const panelHeight = 410;
+    const panelX = (GAME_WIDTH - panelWidth) / 2;
+    const panelY = (GAME_HEIGHT - panelHeight) / 2;
+    const container = createOverlayContainer(
+      this.scene,
+      "gathering",
+      105,
+      {
+        x: panelX,
+        y: panelY,
+        width: panelWidth,
+        height: panelHeight,
+      },
+    );
     const backdrop = this.scene.add.rectangle(
       GAME_WIDTH / 2,
       GAME_HEIGHT / 2,
@@ -646,8 +661,8 @@ export class GatheringManager {
     const panel = this.scene.add.rectangle(
       GAME_WIDTH / 2,
       GAME_HEIGHT / 2,
-      560,
-      410,
+      panelWidth,
+      panelHeight,
       0x101820,
       0.99,
     ).setStrokeStyle(3, 0x80cbc4);

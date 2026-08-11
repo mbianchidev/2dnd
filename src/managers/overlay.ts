@@ -58,7 +58,17 @@ import {
 } from "../renderers/settings";
 import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
-import { calcPanelLayout, createDimGraphics, createPanelGraphics } from "../utils/ui";
+import {
+  calcPanelLayout,
+  createDimGraphics,
+  createOverlayContainer,
+  createPanelGraphics,
+} from "../utils/ui";
+import { syncInteractiveHitArea } from "./layout";
+import {
+  layoutResponsiveGrid,
+  restoreLayoutFocus,
+} from "../systems/layout";
 import { TILE_SIZE } from "../config";
 import {
   getQuestAccessDecision,
@@ -66,7 +76,6 @@ import {
   markQuestWarningSeen,
 } from "../systems/quests";
 import {
-  clampFeatureSelection,
   getEscapeMenuEntries,
   isFeatureAvailable,
   type EscapeMenuAction,
@@ -1029,24 +1038,42 @@ export class OverlayManager {
   /** Show the menu overlay with campaign and settings actions. */
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
+    const previousAction = this.menuEntries[this.menuSelectedIndex]?.action;
     const entries = getEscapeMenuEntries(player);
     this.menuEntries = entries;
-    this.menuSelectedIndex = clampFeatureSelection(
+    this.menuSelectedIndex = restoreLayoutFocus(
+      entries.map((entry) => ({
+        id: entry.action,
+        visible: true,
+        enabled: true,
+      })),
+      previousAction,
       this.menuSelectedIndex,
-      entries.length,
-    );
+    ).index;
     this.menuPlayer = player;
     this.menuDefeatedBosses = defeatedBosses;
     this.menuCodex = codex;
-    const menuHeight = Math.max(190, 74 + entries.length * 34);
+    const menuWidth = 520;
+    const grid = layoutResponsiveGrid({
+      availableWidth: menuWidth - 40,
+      minColumnWidth: 210,
+      columnGap: 12,
+      rowGap: 8,
+      itemHeights: entries.map(() => 44),
+      maxColumns: 2,
+    });
+    const menuHeight = Math.min(440, grid.height + 102);
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
-      280,
+      menuWidth,
       menuHeight,
-      -10,
     );
-
-    this.menuOverlay = this.scene.add.container(0, 0).setDepth(70);
+    this.menuOverlay = createOverlayContainer(
+      this.scene,
+      "escape-menu",
+      70,
+      { x: px, y: py, width: panelW, height: panelH },
+    );
 
     const dim = createDimGraphics(this.scene, w, h);
     this.menuOverlay.add(dim);
@@ -1057,26 +1084,32 @@ export class OverlayManager {
     this.menuOverlay.add(bg);
 
     const title = this.scene.add.text(px + panelW / 2, py + 14, "⚙ Menu", {
-      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
+      fontSize: "16px", fontFamily: "monospace", color: "#ffd700",
     }).setOrigin(0.5, 0);
+    title.setData("layoutId", "escape-menu-title");
     this.menuOverlay.add(title);
+    const contentX = px + 20;
+    const contentY = py + 52;
     this.menuButtons = entries.map((entry, index) => {
-      const marker = entry.action === "resume"
-        ? "▶ "
-        : entry.action === "quit" ? "✕ " : "";
+      const cell = grid.cells[index]!;
       const button = this.scene.add.text(
-        px + panelW / 2,
-        py + 43 + index * 34,
-        `${marker}${entry.label}`,
+        contentX + cell.x + cell.width / 2,
+        contentY + cell.y,
+        entry.label,
         {
           fontSize: "13px",
           fontFamily: "monospace",
           color: entry.color,
           backgroundColor: "#2a2a4e",
-          padding: { x: 16, y: 5 },
+          align: "center",
+          padding: { x: 10, y: 6 },
+          fixedWidth: cell.width,
+          fixedHeight: cell.height,
         },
       ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
       button.setData("testId", entry.testId);
+      button.setData("layoutId", `escape-menu-${entry.action}`);
+      syncInteractiveHitArea(button);
       button.on("pointerover", () => {
         this.menuSelectedIndex = index;
         this.updateMenuSelection();
@@ -1099,6 +1132,7 @@ export class OverlayManager {
     const hint = this.scene.add.text(px + panelW / 2, py + panelH - 8, "Press ESC to close", {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
+    hint.setData("layoutId", "escape-menu-hint");
     this.menuOverlay.add(hint);
   }
 
@@ -1242,7 +1276,12 @@ export class OverlayManager {
       SETTINGS_PANEL_HEIGHT,
     );
 
-    this.settingsOverlay = this.scene.add.container(0, 0).setDepth(75);
+    this.settingsOverlay = createOverlayContainer(
+      this.scene,
+      "settings",
+      75,
+      { x: px, y: py, width: panelW, height: panelH },
+    );
 
     const dim = createDimGraphics(this.scene, w, h);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);

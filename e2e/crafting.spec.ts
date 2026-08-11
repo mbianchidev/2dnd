@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_preferences";
@@ -81,18 +82,6 @@ async function clickGame(
 
 async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
-}
-
-async function activateMenuEntry(page: Page, action: string): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const state = await page.locator("#debug-state").textContent() ?? "";
-    if (state.includes(`[MENU_SELECTION:${action}]`)) {
-      await holdKey(page, "Enter");
-      return;
-    }
-    await holdKey(page, "ArrowDown");
-  }
-  throw new Error(`Menu entry not found: ${action}`);
 }
 
 async function createCharacter(page: Page): Promise<void> {
@@ -294,7 +283,7 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
   await waitForState(page, "OVERWORLD");
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await activateMenuEntry(page, "crafting");
+  await clickLayoutItem(page, "escape-menu-crafting");
   await waitForState(page, "[CRAFTING");
   await page.setViewportSize({ width: 844, height: 390 });
   await expect(page.locator("#game-container canvas")).toBeVisible();

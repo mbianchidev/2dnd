@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { layoutItemCenter } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_preferences";
@@ -57,18 +58,6 @@ async function holdKey(
   await page.waitForTimeout(duration);
   await page.keyboard.up(key);
   await page.waitForTimeout(120);
-}
-
-async function activateMenuEntry(page: Page, action: string): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const state = await page.locator("#debug-state").textContent() ?? "";
-    if (state.includes(`[MENU_SELECTION:${action}]`)) {
-      await holdKey(page, "Enter");
-      return;
-    }
-    await holdKey(page, "ArrowDown");
-  }
-  throw new Error(`Menu entry not found: ${action}`);
 }
 
 async function typeKeys(page: Page, value: string): Promise<void> {
@@ -237,7 +226,8 @@ async function continueToOverworld(page: Page): Promise<void> {
 async function openAchievementsFromMenu(page: Page): Promise<void> {
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await activateMenuEntry(page, "achievements");
+  const achievements = await layoutItemCenter(page, "escape-menu-achievements");
+  await clickGame(page, achievements.x, achievements.y);
   await waitForState(page, "[ACHIEVEMENTS");
 }
 
@@ -378,7 +368,11 @@ test.describe("mobile achievement profile", () => {
       .toHaveAttribute("data-reduced-motion", "true");
     await page.locator('[data-action="openMenu"]').tap();
     await waitForState(page, "[MENU]");
-    await activateMenuEntry(page, "achievements");
+    const achievements = await layoutItemCenter(
+      page,
+      "escape-menu-achievements",
+    );
+    await tapGame(page, achievements.x, achievements.y);
     await waitForState(page, "[ACHIEVEMENTS");
     await expect(page.locator("#touch-controls")).toHaveClass(/visible/);
     expect(browserErrors).toEqual([]);
@@ -459,17 +453,20 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
   };
   const cursorAxis = (delta: number): number => {
     const distance = Math.abs(delta);
-    if (distance < 5) return 0;
-    return Math.sign(delta) * (distance < 32 ? 0.35 : 0.8);
+    if (distance < 20) return 0;
+    return Math.sign(delta) * Math.min(
+      0.7,
+      Math.max(0.35, distance / 120),
+    );
   };
   const moveCursor = async (gameX: number, gameY: number): Promise<void> => {
     const target = await gamePoint(page, gameX, gameY);
-    for (let attempt = 0; attempt < 120; attempt += 1) {
+    for (let attempt = 0; attempt < 240; attempt += 1) {
       const bounds = await page.locator("#gamepad-cursor").boundingBox();
       if (bounds) {
         const dx = target.x - (bounds.x + bounds.width / 2);
         const dy = target.y - (bounds.y + bounds.height / 2);
-        if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+        if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
           await setAxes([0, 0, 0, 0]);
           return;
         }
@@ -482,7 +479,7 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
       } else {
         await setAxes([0, 0, 0.8, 0]);
       }
-      await page.waitForTimeout(50);
+      await page.waitForTimeout(75);
     }
     await setAxes([0, 0, 0, 0]);
     throw new Error("Timed out moving gamepad cursor");
@@ -493,12 +490,20 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
   await continueToOverworld(page);
   await pressGamepad(9);
   await waitForState(page, "[MENU]");
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const achievements = await layoutItemCenter(
+      page,
+      "escape-menu-achievements",
+    );
+    await moveCursor(achievements.x, achievements.y);
+    await pressGamepad(11);
     const state = await page.locator("#debug-state").textContent() ?? "";
-    if (state.includes("[MENU_SELECTION:achievements]")) break;
-    await pressGamepad(13);
+    if (state.includes("[ACHIEVEMENTS")) break;
+    if (!state.includes("[MENU]")) {
+      await pressGamepad(9);
+      await waitForState(page, "[MENU]");
+    }
   }
-  await pressGamepad(0);
   await waitForState(page, "[ACHIEVEMENTS");
   expect(browserErrors).toEqual([]);
 });

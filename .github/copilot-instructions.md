@@ -220,6 +220,10 @@ rendering and scene-owned state to `renderers/` and `managers/`.
   restarts on the shared full-state payload including `savedSpecialNpcs`.
 - Generate textures through `src/renderers/textures.ts`, invoked by Boot.
   Monster silhouettes live in the focused `monsterTextures.ts` renderer.
+- Battle backdrop geometry is scene-sized procedural rendering owned by
+  `src/renderers/battleBackdrop.ts`. Use the typed bands in `battleDepth.ts`;
+  never bake sky and scenery into one opaque layer or introduce scene-local
+  magic depths.
 - Keep actor animation contracts in `src/systems/animation.ts`, generic Phaser
   pose/tween ownership in `src/managers/actorAnimation.ts`, and scene-specific
   orchestration in focused battle/world directors. Presentation reads stable
@@ -234,6 +238,10 @@ rendering and scene-owned state to `renderers/` and `managers/`.
 - Default game zoom is 6.
 - Do not use geometry masks for the Battle log. Render the bounded visible
   message window and scroll by message offset.
+- Keep Battle ordering as sky/stars/celestial/clouds, distant scenery, ground
+  and props, actor shadows, back/front actors, action particles, front weather,
+  UI, then debug/transition overlays. Backdrop cleanup owns its emitters,
+  lightning timers, inspection labels, and containers.
 
 ## Player state
 

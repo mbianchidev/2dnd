@@ -203,6 +203,7 @@ test.describe("touch controls", () => {
     })).toBe("Touch Hero");
     await drainOpening(page, "touch");
     await completeTutorialByTouch(page);
+    await submitDebug(page, "/gather reset");
     await submitDebug(page, "/event trigger abandonedSupplyCart");
     await waitForState(page, "[WORLD_EVENT:abandonedSupplyCart]");
     await waitForState(page, "[WORLD_EVENT_SELECTION:1/2]");

@@ -325,6 +325,8 @@ src/
     ├── characterTextures.ts
     ├── itemVisuals.ts
     ├── actorTextures.ts
+    ├── battleBackdrop.ts
+    ├── battleDepth.ts
     ├── cutscene.ts
     ├── settings.ts
     ├── result.ts
@@ -385,6 +387,10 @@ pose/tween cleanup, while battle and world directors orchestrate feedback
 without delaying authoritative turn, result, or scene-transition state.
 `src/renderers/actorTextures.ts` consumes optional family metadata from #49 and
 falls back to current procedural textures when family frames are unavailable.
+`src/renderers/battleBackdrop.ts` owns Battle's procedural sky, celestial,
+scenery, ground, prop, shadow, and split weather layers. The typed global order
+is centralized in `src/renderers/battleDepth.ts`, keeping world layers below
+actors/effects and all of them below Battle UI and camera transitions.
 
 For companion recruitment, define three distinct quest IDs and one action per
 path using `type: "recruitCompanion"` and the companion ID as `targetId`.
@@ -503,6 +509,10 @@ Available tools include:
   gathering node/list/near/trigger/resolve/reset/status controls
 - `/spawn <name-or-id>` for every monster in `ALL_MONSTERS`, including unique
   dungeon bosses, plus special overworld NPC aliases
+- `/battleview <monster-or-group> <biome> <time> <weather>` launches a
+  deterministic visual-test battle; Battle's `/backdrop inspect`,
+  `/backdrop labels on|off`, and `/backdrop set ...` expose layer depths,
+  bounds, and representative combinations
 - `/quest list`, `/quest advance <id>`, and
   `/quest set <id> <stage-number|stage-id|locked|active|completed>`
 - `/near <questNpcId>` to stand beside a quest NPC in the current city's

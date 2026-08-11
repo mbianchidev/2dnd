@@ -66,9 +66,13 @@ import type {
 import { type WeatherState, WeatherType, createWeatherState, getWeatherAccuracyPenalty, getMonsterWeatherBoost, WEATHER_LABEL } from "../systems/weather";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { registerSharedHotkeys, buildSharedCommands, registerCommandRouter, SHARED_HELP, type HelpEntry } from "../systems/debug";
-import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
+import { getTimePeriod, TimePeriod } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
-import { drawTimeSky as _drawTimeSky, drawCelestialBody as _drawCelestialBody, drawTerrainForeground as _drawTerrainForeground, applyBattleDayNightTint, createBattleWeatherParticles } from "../renderers/battleEffects";
+import {
+  applyBattleActorTint,
+  BattleBackdropRenderer,
+} from "../renderers/battleBackdrop";
+import { BATTLE_DEPTH } from "../renderers/battleDepth";
 import { PlayerRenderer } from "../renderers/player";
 import { BattlePartyRenderer } from "../renderers/battleParty";
 import { BattlePartyManager } from "../managers/battleParty";
@@ -241,10 +245,8 @@ export class BattleScene extends Phaser.Scene {
   private surpriseQueue: number[] = [];
   private surpriseCursor = 0;
 
-  private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
-  private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
+  private battleBackdrop!: BattleBackdropRenderer;
   private biome = "grass";
-  private bgImage: Phaser.GameObjects.Image | null = null;
   private isReturningToOverworld = false;
 
   constructor() {
@@ -429,18 +431,35 @@ export class BattleScene extends Phaser.Scene {
     installSceneAccessibility(this);
     this.battlePresentation = new BattlePresentationDirector(this);
     this.codexDiscovery = new CodexDiscoveryManager(this);
+    this.battleBackdrop = new BattleBackdropRenderer(this);
+    this.battleBackdrop.render({
+      biome: this.getInitialBackdropBiome(),
+      timeStep: this.timeStep,
+      weather: this.weatherState.current,
+      primaryMonster: this.primaryMonster,
+    });
 
     this.drawBattleUI();
     this.battlePartyRenderer.render(
       this.partyCombatants,
       this.partyActionSources,
     );
+    for (const combatant of this.partyCombatants) {
+      if (combatant.actorKind !== "companion") continue;
+      const sprite = this.battlePartyRenderer.getSprite(combatant.id);
+      if (sprite) {
+        this.battleBackdrop.addActorShadow(
+          combatant.id,
+          sprite.x,
+          sprite.y + 20,
+          14,
+          5,
+        );
+      }
+    }
     this.registerBattlePresentationActors();
     this.battlePresentation.syncCombatants(this.allCombatants);
-    this.drawTimeSky();
-    this.drawCelestialBody();
     this.setupDebug();
-    this.createWeatherParticles();
     this.applyDayNightTint();
 
     // ESC cancels targeting first, then closes any open sub-menu.
@@ -468,6 +487,7 @@ export class BattleScene extends Phaser.Scene {
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).on("down", () => this.confirmBattleSelection());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.battlePresentation?.cleanup();
+      this.battleBackdrop?.destroy();
       this.codexDiscovery.clear();
     });
 
@@ -493,21 +513,6 @@ export class BattleScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
 
-    // Full battle background — biome or boss-specific
-    const bgKey = this.primaryMonster.isBoss
-      ? `bg_boss_${this.primaryMonster.id}`
-      : `bg_${this.biome}`;
-    if (this.textures.exists(bgKey)) {
-      this.bgImage = this.add.image(w / 2, h / 2, bgKey);
-    } else {
-      // Fallback flat fill
-      const bg = this.add.graphics();
-      bg.fillStyle(0x151530, 1);
-      bg.fillRect(0, 0, w, h);
-      this.bgImage = null;
-      bg.fillRect(0, 0, w, h);
-    }
-
     // --- Monsters in front/back formation ---
     this.monsterSprites = [];
     this.monsterTexts = [];
@@ -532,10 +537,21 @@ export class BattleScene extends Phaser.Scene {
           ? 1.7
           : combatant.position === "front" ? 1.55 : 1.25,
       );
-      sprite.setDepth(combatant.position === "front" ? 1.4 : 1.1);
+      sprite.setDepth(
+        combatant.position === "front"
+          ? BATTLE_DEPTH.frontActors
+          : BATTLE_DEPTH.backActors,
+      );
       sprite.setInteractive({ useHandCursor: true });
       sprite.on("pointerdown", () => this.handleMonsterPointer(index));
       this.monsterSprites.push(sprite);
+      this.battleBackdrop.addActorShadow(
+        combatant.id,
+        x,
+        y + (combatant.position === "front" ? 28 : 22),
+        combatant.monster.isBoss ? 28 : 20,
+        combatant.monster.isBoss ? 8 : 6,
+      );
 
       const text = this.add
         .text(w * 0.47, 6 + index * 38, "", {
@@ -546,7 +562,7 @@ export class BattleScene extends Phaser.Scene {
           padding: { x: 4, y: 2 },
           wordWrap: { width: w * 0.5 },
         })
-        .setDepth(2)
+        .setDepth(BATTLE_DEPTH.ui)
         .setInteractive({ useHandCursor: true });
       text.on("pointerdown", () => this.handleMonsterPointer(index));
       this.monsterTexts.push(text);
@@ -563,14 +579,14 @@ export class BattleScene extends Phaser.Scene {
         wordWrap: { width: w * 0.48 },
       })
       .setOrigin(0.5, 0)
-      .setDepth(2);
+      .setDepth(BATTLE_DEPTH.ui);
     this.targetCursor = this.add
       .text(0, 0, "▼", {
         fontSize: "18px",
         color: "#ffd700",
       })
       .setOrigin(0.5, 1)
-      .setDepth(4)
+      .setDepth(BATTLE_DEPTH.uiOverlay)
       .setVisible(false);
     this.targetHint = this.add
       .text(w * 0.52, h * 0.745, "", {
@@ -578,7 +594,7 @@ export class BattleScene extends Phaser.Scene {
         fontFamily: "monospace",
         color: "#ffd700",
       })
-      .setDepth(5)
+      .setDepth(BATTLE_DEPTH.uiOverlay)
       .setVisible(false);
     this.updateMonsterDisplay();
 
@@ -590,7 +606,14 @@ export class BattleScene extends Phaser.Scene {
     this.playerSprite = this.add.sprite(w * 0.22, h * 0.50, playerTextureKey);
     this.playerSprite.setScale(2.0);
     this.playerSprite.setFlipX(false);
-    this.playerSprite.setDepth(1.5); // above monster (foreground perspective)
+    this.playerSprite.setDepth(BATTLE_DEPTH.frontActors);
+    this.battleBackdrop.addActorShadow(
+      this.heroCombatant.id,
+      this.playerSprite.x,
+      this.playerSprite.y + 30,
+      22,
+      7,
+    );
     this.refreshBattlePlayerSprite();
 
     // Player name + HP/MP bar (right below player sprite)
@@ -606,11 +629,8 @@ export class BattleScene extends Phaser.Scene {
         wordWrap: { width: w * 0.4 },
       })
       .setOrigin(0.5, 0)
-      .setDepth(2);
+      .setDepth(BATTLE_DEPTH.ui);
     this.updatePlayerStats();
-
-    // Draw biome-specific foreground terrain for depth
-    this.drawTerrainForeground();
 
     // Battle log (bottom strip) — scrollable
     this.logAreaY = h * 0.78;
@@ -620,7 +640,7 @@ export class BattleScene extends Phaser.Scene {
     logBg.fillRect(0, this.logAreaY, w, this.logAreaH);
     logBg.lineStyle(1, 0xc0a060, 0.5);
     logBg.strokeRect(0, this.logAreaY, w, this.logAreaH);
-    logBg.setDepth(3);
+    logBg.setDepth(BATTLE_DEPTH.uiBackdrop);
 
     this.logText = this.add.text(10, this.logAreaY + 4, "", {
       fontSize: "12px",
@@ -628,7 +648,7 @@ export class BattleScene extends Phaser.Scene {
       color: "#ccc",
       wordWrap: { width: w * 0.5 - 20 },
       lineSpacing: 5,
-    }).setDepth(4);
+    }).setDepth(BATTLE_DEPTH.ui);
 
     // Mouse wheel scrolling on the log area
     this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gos: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
@@ -690,7 +710,7 @@ export class BattleScene extends Phaser.Scene {
 
     actions.forEach((act, i) => {
       const container = this.add.container(btnX + (i % 2) * (btnW + gap), btnY + Math.floor(i / 2) * (btnH + gap));
-      container.setDepth(5);
+      container.setDepth(BATTLE_DEPTH.ui);
 
       const bg = this.add
         .image(0, 0, "button")
@@ -1203,7 +1223,7 @@ export class BattleScene extends Phaser.Scene {
     const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
 
     const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
-    container.setDepth(6);
+    container.setDepth(BATTLE_DEPTH.uiOverlay);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
@@ -1286,7 +1306,7 @@ export class BattleScene extends Phaser.Scene {
     const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
 
     const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
-    container.setDepth(6);
+    container.setDepth(BATTLE_DEPTH.uiOverlay);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a2a1e, 0.95);
@@ -1602,7 +1622,7 @@ export class BattleScene extends Phaser.Scene {
     const navH = 22;
     const menuH = headerH + rows.length * rowH + navH + 10;
     const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
-    container.setDepth(6);
+    container.setDepth(BATTLE_DEPTH.uiOverlay);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
@@ -1860,11 +1880,16 @@ export class BattleScene extends Phaser.Scene {
       this.defeatPartyForDebug();
       debugPanelLog("[CMD] Party defeated!", true);
     });
+    cmds.set("backdrop", (args) => this.handleBackdropDebugCommand(args));
 
     // Help entries
     const helpEntries: HelpEntry[] = [
       { usage: "/kill", desc: "Defeat the encounter instantly" },
       { usage: "/defeat", desc: "Defeat the active party instantly" },
+      {
+        usage: "/backdrop <inspect|labels|set>",
+        desc: "Inspect or set biome/time/weather layers",
+      },
       ...SHARED_HELP,
     ];
 
@@ -1918,11 +1943,86 @@ export class BattleScene extends Phaser.Scene {
     debugPanelState(
       `BATTLE | Phase: ${this.phase} | ` +
       `Anim: ${this.battlePresentation?.debugState ?? "init"} | ` +
+      `Backdrop: ${this.biome}/${getTimePeriod(this.timeStep)}/${this.weatherState.current} | ` +
       `Monsters: ${monsters} | ` +
       `Player: HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} AC ${getArmorClass(p)}${defInfo} | ` +
       `Lv.${p.level} XP ${p.xp}/${xpForLevel(p.level + 1)} Gold ${p.gold}\n` +
       `Cheats: K=Kill H=Heal P=MP G=+100Gold L=LvUp X=MaxXP`
     );
+  }
+
+  private handleBackdropDebugCommand(args: string): void {
+    const [action = "inspect", biomeArg, timeArg, weatherArg] = args
+      .trim()
+      .toLowerCase()
+      .split(/\s+/);
+    if (action === "inspect") {
+      debugPanelLog(
+        `[BACKDROP] ${this.battleBackdrop.getInspectionReport()}`,
+        true,
+      );
+      return;
+    }
+
+    if (action === "labels") {
+      const visible = biomeArg !== "off";
+      this.battleBackdrop.setInspectionLabels(visible);
+      debugPanelLog(`[BACKDROP] Labels ${visible ? "on" : "off"}`, true);
+      return;
+    }
+    if (action !== "set" || !biomeArg || !timeArg || !weatherArg) {
+      debugPanelLog(
+        "Usage: /backdrop set <biome> <dawn|day|dusk|night> "
+          + "<clear|rain|snow|sandstorm|storm|fog>",
+        true,
+      );
+      return;
+    }
+    const timeSteps: Record<string, number> = {
+      dawn: 10,
+      day: 100,
+      dusk: 235,
+      night: 300,
+    };
+    const weatherTypes: Record<string, WeatherType> = {
+      clear: WeatherType.Clear,
+      rain: WeatherType.Rain,
+      snow: WeatherType.Snow,
+      sandstorm: WeatherType.Sandstorm,
+      storm: WeatherType.Storm,
+      fog: WeatherType.Fog,
+    };
+    const timeStep = timeSteps[timeArg];
+    const weather = weatherTypes[weatherArg];
+    if (timeStep === undefined || weather === undefined) {
+      debugPanelLog("[BACKDROP] Unknown time or weather value", true);
+      return;
+    }
+    this.biome = biomeArg;
+    this.timeStep = timeStep;
+    this.weatherState.current = weather;
+    this.battleBackdrop.render({
+      biome: this.biome,
+      timeStep: this.timeStep,
+      weather,
+      primaryMonster: this.primaryMonster,
+    });
+    this.applyDayNightTint();
+    debugPanelLog(
+      `[BACKDROP] Set ${this.biome}/${timeArg}/${weather}`,
+      true,
+    );
+  }
+
+  private getInitialBackdropBiome(): string {
+    const bossBiome: Record<string, string> = {
+      troll: "dungeon",
+      cryptLich: "dungeon",
+      frostWarden: "tundra",
+      infernoForgemaster: "volcanic",
+      kraken: "sea",
+    };
+    return bossBiome[this.primaryMonster.id] ?? this.biome;
   }
 
   // --- Combat Flow ---
@@ -1933,6 +2033,12 @@ export class BattleScene extends Phaser.Scene {
         this.allCombatants,
         (combatant) => {
           if (combatant.side === "party") {
+            if (
+              this.achievementBattleDebug
+              && combatant.id === this.heroCombatant.id
+            ) {
+              return 1_000;
+            }
             return abilityModifier((combatant as PartyCombatant).stats.dexterity);
           }
           const enemy = combatant as GroupCombatant;
@@ -3060,33 +3166,20 @@ export class BattleScene extends Phaser.Scene {
     this.addLog(`⚠ Something went wrong (${context})`);
   }
 
-  private drawTimeSky(): void {
-    _drawTimeSky(this, this.biome, this.timeStep);
-  }
-
-  private drawCelestialBody(): void {
-    _drawCelestialBody(this, this.biome, this.timeStep);
-  }
-
-  private drawTerrainForeground(): void {
-    _drawTerrainForeground(this, this.biome);
-  }
-
   private applyDayNightTint(): void {
-    applyBattleDayNightTint(
-      this,
+    applyBattleActorTint(
       this.biome,
       this.timeStep,
-      this.bgImage,
-      this.monsterSprites.map((sprite) => ({ sprite })),
-      this.playerSprite,
+      [
+        ...this.monsterSprites,
+        this.playerSprite,
+        ...this.partyCombatants.flatMap((combatant) => {
+          if (combatant.actorKind !== "companion") return [];
+          const sprite = this.battlePartyRenderer.getSprite(combatant.id);
+          return sprite ? [sprite] : [];
+        }),
+      ],
     );
-  }
-
-  private createWeatherParticles(): void {
-    const result = createBattleWeatherParticles(this, this.weatherState, this.weatherParticles, this.stormLightningTimer);
-    this.weatherParticles = result.particles;
-    this.stormLightningTimer = result.timer;
   }
 
   private returnToOverworld(): void {
@@ -3182,10 +3275,7 @@ export class BattleScene extends Phaser.Scene {
     this.battlePartyManager.clear();
     this.battlePartyRenderer.clear();
     this.battlePresentation?.cleanup();
-    this.weatherParticles?.destroy();
-    this.weatherParticles = null;
-    this.stormLightningTimer?.remove(false);
-    this.stormLightningTimer = null;
+    this.battleBackdrop?.stopDynamicEffects();
     this.input?.keyboard?.removeAllKeys(true, false);
     setDebugCommandHandler(null);
     for (const combatant of this.partyCombatants) {

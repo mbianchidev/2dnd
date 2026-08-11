@@ -757,7 +757,8 @@ export class OverworldScene extends Phaser.Scene {
       refreshWorldMap: () => this.overlayManager.refreshWorldMap(this.player, this.defeatedBosses),
       updateWeatherParticles: () => this.mapRenderer.updateWeatherParticles(this.weatherState),
       updateAudio: () => this.updateAudio(),
-      startBattle: (monster) => this.startBattle(monster),
+      startBattle: (monster, biomeOverride) =>
+        this.startBattle(monster, undefined, false, undefined, biomeOverride),
       spawnSpecialNpcs: (chunk) => this.spawnSpecialNpcs(chunk),
       autoSave: () => {
         suppressCurrentlyAvailableFeatures(this.player, this.codex);
@@ -3269,6 +3270,8 @@ export class OverworldScene extends Phaser.Scene {
 
   private terrainToBiome(terrain?: Terrain): string {
     if (this.player.position.inDungeon) return "dungeon";
+    if (this.player.progression.nautical.sailing) return "sea";
+    if (this.player.position.inCity) return "city";
     switch (terrain) {
       case Terrain.Forest: return "forest";
       case Terrain.DeepForest: return "deep_forest";
@@ -3277,6 +3280,7 @@ export class OverworldScene extends Phaser.Scene {
       case Terrain.Swamp: case Terrain.Mushroom: return "swamp";
       case Terrain.Volcanic: case Terrain.Geyser: return "volcanic";
       case Terrain.Canyon: return "canyon";
+      case Terrain.Water: case Terrain.River: return "sea";
       default: return "grass";
     }
   }
@@ -3286,6 +3290,7 @@ export class OverworldScene extends Phaser.Scene {
     terrain?: Terrain,
     immediate = false,
     battleHooks?: BattleResolutionHooks,
+    biomeOverride?: string,
   ): void {
     if (this.sceneTransitions.isPending) return;
     const encounter = "members" in encounterOrMonster
@@ -3319,7 +3324,7 @@ export class OverworldScene extends Phaser.Scene {
       codex: this.codex,
       timeStep: this.timeStep,
       weatherState: this.weatherState,
-      biome: this.terrainToBiome(terrain),
+      biome: biomeOverride ?? this.terrainToBiome(terrain),
       savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
       partyCombatants: createActivePartyCombatants(this.player.party),
       battleHooks,

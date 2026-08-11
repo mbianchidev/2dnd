@@ -142,8 +142,12 @@ test("random and boss defeats recover cleanly through the result sequence", asyn
   await clickGame(page, 320, 112);
   await clickGame(page, 420, 312);
   await drainOpeningCutscenes(page);
-  await holdKey(page, "Space");
+  await page.waitForTimeout(300);
+  if ((await page.locator("#debug-state").textContent())?.includes("[TUTORIAL")) {
+    await holdKey(page, "Escape");
+  }
   await enableDebug(page);
+  await submitDebug(page, "/gather reset");
 
   await submitDebug(page, "/gold 101");
   await submitDebug(page, "/xp 50");

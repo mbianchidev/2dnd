@@ -13,6 +13,11 @@ import { ITEMS } from "../data/items";
 import { MOUNTS } from "../data/mounts";
 import { CITIES, DUNGEONS } from "../data/map";
 import { ALL_MONSTERS, findMonster } from "../data/monsters";
+import {
+  createGroupEncounter,
+  getMonsterGroupTemplate,
+  type MonsterEncounter,
+} from "../data/monsterGroups";
 import { SPELLS } from "../data/spells";
 import { ABILITIES } from "../data/abilities";
 import { PLAYER_CLASSES } from "./classes";
@@ -315,7 +320,10 @@ export interface OverworldDebugCallbacks {
   refreshWorldMap(): void;
   updateWeatherParticles(): void;
   updateAudio(): void;
-  startBattle(monster: Monster): void;
+  startBattle(
+    encounter: Monster | MonsterEncounter,
+    biomeOverride?: string,
+  ): void;
   spawnSpecialNpcs(chunk: WorldChunk): void;
   autoSave(): void;
   restartScene(): void;
@@ -943,6 +951,54 @@ export class DebugCommandSystem {
       }
     });
 
+    cmds.set("battleview", (args) => {
+      const [monsterQuery, biome, timeArg, weatherArg] = args
+        .trim()
+        .split(/\s+/);
+      const monster = monsterQuery ? findMonster(monsterQuery) : undefined;
+      const groupTemplate = monsterQuery
+        ? getMonsterGroupTemplate(monsterQuery)
+        : undefined;
+      const encounter = monster ?? (
+        groupTemplate ? createGroupEncounter(groupTemplate) : undefined
+      );
+      const timeSteps: Record<string, number> = {
+        dawn: 10,
+        day: 100,
+        dusk: 235,
+        night: 300,
+      };
+      const weatherTypes: Record<string, WeatherType> = {
+        clear: WeatherType.Clear,
+        rain: WeatherType.Rain,
+        snow: WeatherType.Snow,
+        sandstorm: WeatherType.Sandstorm,
+        storm: WeatherType.Storm,
+        fog: WeatherType.Fog,
+      };
+      const timeStep = timeArg ? timeSteps[timeArg.toLowerCase()] : undefined;
+      const weather = weatherArg
+        ? weatherTypes[weatherArg.toLowerCase()]
+        : undefined;
+      if (!encounter || !biome || timeStep === undefined || weather === undefined) {
+        debugPanelLog(
+          "Usage: /battleview <monster|group> <biome> "
+            + "<dawn|day|dusk|night> "
+            + "<clear|rain|snow|sandstorm|storm|fog>",
+          true,
+        );
+        return;
+      }
+      this.timeStep = timeStep;
+      this.weatherState.current = weather;
+      markNextBattleAsDebug(this.player);
+      debugPanelLog(
+        `[CMD] Battle view ${monsterQuery}/${biome}/${timeArg}/${weather}`,
+        true,
+      );
+      this.callbacks.startBattle(encounter, biome);
+    });
+
     cmds.set("teleport", (args) => {
       const parts = args.trim().split(/\s+/);
       const nameArg = args.trim().toLowerCase();
@@ -1211,6 +1267,10 @@ export class DebugCommandSystem {
       { usage: "/alignment <cmd>", desc: "Alignment: list|explain|set|adjust" },
       { usage: "/reputation <cmd>", desc: "Reputation: list|explain|set|adjust (alias: /rep)" },
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },
+      {
+        usage: "/battleview <monster> <biome> <time> <weather>",
+        desc: "Launch a deterministic backdrop test battle",
+      },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },
       { usage: "/near <questNpcId>", desc: "Stand beside a quest NPC in the current city" },

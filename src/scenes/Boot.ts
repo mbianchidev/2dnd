@@ -31,6 +31,12 @@ import {
   queueCutscenes,
 } from "../systems/cutscenes";
 import { openMobileTextInput } from "../managers/input";
+import {
+  calcPanelLayout,
+  createDimGraphics,
+  createOverlayContainer,
+  createPanelGraphics,
+} from "../utils/ui";
 
 
 export class BootScene extends Phaser.Scene {
@@ -202,16 +208,18 @@ export class BootScene extends Phaser.Scene {
 
   /** Show the shared audio and accessibility settings on the title screen. */
   private showTitleSettings(): void {
-    const w = this.cameras.main.width;
-    const h = this.cameras.main.height;
-    const panelW = SETTINGS_PANEL_WIDTH;
-    const panelH = SETTINGS_PANEL_HEIGHT;
-    const px = Math.floor((w - panelW) / 2);
-    const py = Math.floor((h - panelH) / 2);
-    const container = this.add.container(0, 0).setDepth(90);
-    const dim = this.add.graphics();
-    dim.fillStyle(0x000000, 0.7);
-    dim.fillRect(0, 0, w, h);
+    const { w, h, px, py, panelW, panelH } = calcPanelLayout(
+      this,
+      SETTINGS_PANEL_WIDTH,
+      SETTINGS_PANEL_HEIGHT,
+    );
+    const container = createOverlayContainer(
+      this,
+      "title-settings",
+      90,
+      { x: px, y: py, width: panelW, height: panelH },
+    );
+    const dim = createDimGraphics(this, w, h, 0.7);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
     dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.x < px || pointer.x > px + panelW || pointer.y < py || pointer.y > py + panelH) {
@@ -219,11 +227,7 @@ export class BootScene extends Phaser.Scene {
       }
     });
     container.add(dim);
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRect(px, py, panelW, panelH);
-    bg.lineStyle(2, 0xffd700, 1);
-    bg.strokeRect(px, py, panelW, panelH);
+    const bg = createPanelGraphics(this, px, py, panelW, panelH);
     bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
     container.add(bg);
     addSettingsControls(this, container, px, py, panelW, panelH);

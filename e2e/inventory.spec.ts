@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_inventory_prefs";
@@ -221,7 +222,7 @@ test("large inventories keep stable keyboard and pointer selection", async ({
   await waitForState(page, "Search:Relic42");
   await page.keyboard.press("Enter");
 
-  await clickGame(page, 592, 137);
+  await clickLayoutItem(page, "party-inventory-clear-search");
   await waitForState(page, "Search:-");
   await clickGame(page, 235, 137);
   await waitForState(page, "Sort:name");
@@ -235,7 +236,7 @@ test("large inventories keep stable keyboard and pointer selection", async ({
   await expect(page.locator("#debug-state")).not.toContainText("[PARTY:");
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await clickGame(page, 320, 365);
+  await clickLayoutItem(page, "escape-menu-party");
   await waitForState(page, "[PARTY:items");
 
   const persisted = await page.evaluate(({ saveKey, preferencesKey }) => {

@@ -113,6 +113,9 @@
         color: #33ff33;
         font-size: 10px;
       }
+      #layout-report {
+        display: none;
+      }
       #debug-log {
         padding: 4px 8px;
         height: calc(100% - 80px);
@@ -296,6 +299,7 @@
       </div>
       <div id="debug-panel">
         <div id="debug-state"></div>
+        <output id="layout-report" aria-hidden="true"></output>
         <input id="debug-cmd" type="text" placeholder="/gold 1000, /exp 500, /item flameBlade..." autocomplete="off" />
         <div id="debug-log"></div>
       </div>

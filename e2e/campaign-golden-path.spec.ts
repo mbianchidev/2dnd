@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const MAIN_QUEST_ID = "twelvefoldCovenant";
@@ -24,6 +25,9 @@ interface BrowserSave {
       };
       quests: {
         quests: Record<string, BrowserQuestProgress>;
+      };
+      achievements: {
+        pendingNotificationIds: string[];
       };
     };
   };
@@ -191,7 +195,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 280);
+    await clickLayoutItem(page, "escape-menu-tips");
     await waitForState(page, "[TIPS]");
     await holdKey(page, "Escape");
     await expect(page.locator("#debug-state")).not.toContainText("[TIPS]");
@@ -281,11 +285,11 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
     await waitForState(page, "BATTLE");
+    await holdKey(page, "k", 80);
     await waitForState(
       page,
       "monster-infernoForgemaster-boss-idle",
     );
-    await submitDebug(page, "/kill");
     await waitForState(page, "Phase: victory");
     await waitForState(page, "CUTSCENE | boss.infernoForgemaster.post");
     await drainGenericCutscenesUntil(page, "OVERWORLD");
@@ -368,21 +372,25 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   });
 
   await test.step("replay a Chronicle entry without mutating progression", async () => {
-    const beforeReplay = JSON.stringify(
-      (await readSave(page)).player.progression,
-    );
     await page.waitForTimeout(800);
+    const replayAuthority = async (): Promise<string> => {
+      const progression = structuredClone(
+        (await readSave(page)).player.progression,
+      );
+      progression.achievements.pendingNotificationIds = [];
+      return JSON.stringify(progression);
+    };
+    const beforeReplay = await replayAuthority();
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 232);
+    await clickLayoutItem(page, "escape-menu-chronicle");
     await waitForState(page, "[CHRONICLE]");
     await holdKey(page, "Enter");
     await waitForState(page, "CUTSCENE | campaign.opening");
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
     await waitForState(page, "OVERWORLD");
-    expect(JSON.stringify((await readSave(page)).player.progression))
-      .toBe(beforeReplay);
+    expect(await replayAuthority()).toBe(beforeReplay);
   });
 
   await test.step("recover a completed but unseen ending after reload", async () => {

@@ -40,6 +40,42 @@ async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
 }
 
+async function expectCleanLayout(page: Page): Promise<void> {
+  const canvas = page.locator("#game-container canvas");
+  await expect(canvas).toHaveAttribute("data-layout-overlap-count", "0");
+  await expect(canvas).toHaveAttribute("data-layout-clipping-count", "0");
+}
+
+async function layoutItemCenter(
+  page: Page,
+  id: string,
+): Promise<{ x: number; y: number }> {
+  await expect(page.locator("#layout-report")).not.toHaveText("");
+  const item = await page.locator("#layout-report").evaluate((element, itemId) => {
+    const report = JSON.parse(element.textContent ?? "{}") as {
+      groups?: Record<string, {
+        items?: Array<{
+          id: string;
+          bounds: { x: number; y: number; width: number; height: number };
+        }>;
+      }>;
+    };
+    return Object.values(report.groups ?? {})
+      .flatMap((group) => group.items ?? [])
+      .find((candidate) => candidate.id === itemId);
+  }, id);
+  if (!item) throw new Error(`Missing layout item: ${id}`);
+  return {
+    x: item.bounds.x + item.bounds.width / 2,
+    y: item.bounds.y + item.bounds.height / 2,
+  };
+}
+
+async function clickLayoutItem(page: Page, id: string): Promise<void> {
+  const point = await layoutItemCenter(page, id);
+  await clickGame(page, point.x, point.y);
+}
+
 async function holdKey(
   page: Page,
   key: string,
@@ -69,6 +105,7 @@ async function drainOpening(page: Page, source: "touch" | "keyboard"): Promise<v
 
 async function completeTutorialByTouch(page: Page): Promise<void> {
   await waitForState(page, "[TUTORIAL");
+  await expectCleanLayout(page);
   for (let step = 0; step < 5; step += 1) {
     await page.locator('[data-action="confirm"]').tap();
     await page.waitForTimeout(100);
@@ -109,8 +146,8 @@ async function setGamepadAxes(page: Page, axes: number[]): Promise<void> {
 
 function cursorAxis(delta: number): number {
   const distance = Math.abs(delta);
-  if (distance < 5) return 0;
-  return Math.sign(delta) * (distance < 32 ? 0.35 : 0.8);
+  if (distance < 20) return 0;
+  return Math.sign(delta) * Math.min(0.7, Math.max(0.35, distance / 120));
 }
 
 async function moveGamepadCursor(
@@ -119,14 +156,14 @@ async function moveGamepadCursor(
   gameY: number,
 ): Promise<void> {
   const target = await gamePoint(page, gameX, gameY);
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     const bounds = await page.locator("#gamepad-cursor").boundingBox();
     if (bounds) {
       const cursorX = bounds.x + bounds.width / 2;
       const cursorY = bounds.y + bounds.height / 2;
       const dx = target.x - cursorX;
       const dy = target.y - cursorY;
-      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+      if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
         await setGamepadAxes(page, [0, 0, 0, 0]);
         return;
       }
@@ -139,7 +176,7 @@ async function moveGamepadCursor(
     } else {
       await setGamepadAxes(page, [0, 0, 0, 0.8]);
     }
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(75);
   }
   await setGamepadAxes(page, [0, 0, 0, 0]);
   throw new Error("Timed out positioning gamepad cursor");
@@ -206,6 +243,7 @@ test.describe("touch controls", () => {
     await submitDebug(page, "/event trigger abandonedSupplyCart");
     await waitForState(page, "[WORLD_EVENT:abandonedSupplyCart]");
     await waitForState(page, "[WORLD_EVENT_SELECTION:1/2]");
+    await expectCleanLayout(page);
     await page.locator('[data-action="navigateDown"]').tap();
     await waitForState(page, "[WORLD_EVENT_SELECTION:2/2]");
     await page.locator('[data-action="navigateUp"]').tap();
@@ -378,7 +416,8 @@ test.describe("standard gamepad controls", () => {
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      await moveGamepadCursor(page, 320, 365);
+      const party = await layoutItemCenter(page, "escape-menu-party");
+      await moveGamepadCursor(page, party.x, party.y);
       await pressGamepad(11);
       const state = await page.locator("#debug-state").textContent() ?? "";
       if (state.includes("[PARTY:items")) break;
@@ -389,7 +428,8 @@ test.describe("standard gamepad controls", () => {
     }
     await waitForState(page, "[PARTY:items");
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      await moveGamepadCursor(page, 337, 95);
+      const social = await layoutItemCenter(page, "party-tab-social");
+      await moveGamepadCursor(page, social.x, social.y);
       await pressGamepad(11);
       if (
         (await page.locator("#debug-state").textContent() ?? "")
@@ -400,7 +440,7 @@ test.describe("standard gamepad controls", () => {
     await pressGamepad(1);
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 232);
+    await clickLayoutItem(page, "escape-menu-chronicle");
     await waitForState(page, "[CHRONICLE_SELECTION:1/");
     await pressGamepad(13);
     await waitForState(page, "[CHRONICLE_SELECTION:2/");

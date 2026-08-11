@@ -15,7 +15,11 @@ import {
   type AchievementVisibility,
 } from "../systems/achievements";
 import { openMobileTextInput } from "./input";
-import { createDimGraphics, createPanelGraphics } from "../utils/ui";
+import {
+  createDimGraphics,
+  createOverlayContainer,
+  createPanelGraphics,
+} from "../utils/ui";
 
 interface AchievementOverlayCallbacks {
   autoSave(): void;
@@ -104,7 +108,12 @@ export class AchievementOverlayManager {
     const height = Math.min(494, camera.height - 16);
     const x = Math.floor((camera.width - width) / 2);
     const y = Math.floor((camera.height - height) / 2);
-    const container = this.scene.add.container(0, 0).setDepth(95);
+    const container = createOverlayContainer(
+      this.scene,
+      "achievements",
+      95,
+      { x, y, width, height },
+    );
     const dim = createDimGraphics(this.scene, camera.width, camera.height, 0.76)
       .setInteractive(
         new Phaser.Geom.Rectangle(0, 0, camera.width, camera.height),

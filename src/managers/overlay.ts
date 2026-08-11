@@ -58,7 +58,14 @@ import {
 } from "../renderers/settings";
 import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
-import { calcPanelLayout, createDimGraphics, createPanelGraphics } from "../utils/ui";
+import {
+  calcPanelLayout,
+  createDimGraphics,
+  createOverlayContainer,
+  createPanelGraphics,
+} from "../utils/ui";
+import { syncInteractiveHitArea } from "./layout";
+import { layoutResponsiveGrid } from "../systems/layout";
 import { TILE_SIZE } from "../config";
 import {
   getQuestAccessDecision,
@@ -1003,16 +1010,108 @@ export class OverlayManager {
   /** Show the menu overlay with campaign and settings actions. */
   showMenuOverlay(player: PlayerState, defeatedBosses: Set<string>, codex: CodexData): void {
     this.closeOverlays("equipOverlay", "statOverlay");
-
-    const menuHeight = 366;
+    interface MenuAction {
+      id: string;
+      label: string;
+      color: string;
+      hoverColor?: string;
+      activate: () => void;
+    }
+    const close = (): void => {
+      this.toggleMenuOverlay(player, defeatedBosses, codex);
+    };
+    const open = (callback: () => void): void => {
+      close();
+      callback();
+    };
+    const actions: MenuAction[] = [
+      { id: "resume", label: "▶ Resume", color: "#88ff88", activate: close },
+      {
+        id: "party",
+        label: "Party & Inventory",
+        color: "#9fe8ff",
+        activate: () => open(this.callbacks.openPartyInventory),
+      },
+      {
+        id: "quests",
+        label: "Quest Journal",
+        color: "#d1c4e9",
+        activate: () => open(this.callbacks.openQuestJournal),
+      },
+      {
+        id: "chronicle",
+        label: "Chronicle",
+        color: "#ffe38a",
+        activate: () => open(this.callbacks.openChronicle),
+      },
+      {
+        id: "codex",
+        label: "Codex",
+        color: "#fff3a6",
+        activate: () => open(this.callbacks.openCodex),
+      },
+      {
+        id: "tips",
+        label: "Tips",
+        color: "#83d8ff",
+        activate: () => open(this.callbacks.openTips),
+      },
+      {
+        id: "achievements",
+        label: "Achievements",
+        color: "#aaffdd",
+        activate: () => open(this.callbacks.openAchievements),
+      },
+      {
+        id: "gathering",
+        label: "Gathering",
+        color: "#80cbc4",
+        activate: () => open(this.callbacks.openGathering),
+      },
+      {
+        id: "crafting",
+        label: "Crafting",
+        color: "#f7c948",
+        activate: () => open(this.callbacks.openCrafting),
+      },
+      {
+        id: "settings",
+        label: "🔊 Settings",
+        color: "#aabbff",
+        activate: () => {
+          close();
+          this.showSettingsOverlay();
+        },
+      },
+      {
+        id: "quit",
+        label: "✕ Quit to Title",
+        color: "#ff7777",
+        hoverColor: "#ffaaaa",
+        activate: this.callbacks.saveAndQuit,
+      },
+    ];
+    const menuWidth = 520;
+    const grid = layoutResponsiveGrid({
+      availableWidth: menuWidth - 40,
+      minColumnWidth: 210,
+      columnGap: 12,
+      rowGap: 8,
+      itemHeights: actions.map(() => 44),
+      maxColumns: 2,
+    });
+    const menuHeight = Math.min(440, grid.height + 102);
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
-      280,
+      menuWidth,
       menuHeight,
-      -10,
     );
-
-    this.menuOverlay = this.scene.add.container(0, 0).setDepth(70);
+    this.menuOverlay = createOverlayContainer(
+      this.scene,
+      "escape-menu",
+      70,
+      { x: px, y: py, width: panelW, height: panelH },
+    );
 
     const dim = createDimGraphics(this.scene, w, h);
     this.menuOverlay.add(dim);
@@ -1023,203 +1122,44 @@ export class OverlayManager {
     this.menuOverlay.add(bg);
 
     const title = this.scene.add.text(px + panelW / 2, py + 14, "⚙ Menu", {
-      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
+      fontSize: "16px", fontFamily: "monospace", color: "#ffd700",
     }).setOrigin(0.5, 0);
+    title.setData("layoutId", "escape-menu-title");
     this.menuOverlay.add(title);
-
-    const gatheringBtn = this.scene.add.text(
-      px + panelW / 2,
-      py + 41,
-      "Gathering",
-      {
-        fontSize: "11px",
-        fontFamily: "monospace",
-        color: "#80cbc4",
-        backgroundColor: "#2a2a4e",
-        padding: { x: 12, y: 4 },
-      },
-    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    gatheringBtn.on("pointerover", () => gatheringBtn.setColor("#ffffff"));
-    gatheringBtn.on("pointerout", () => gatheringBtn.setColor("#80cbc4"));
-    gatheringBtn.on("pointerdown", () => {
-      this.toggleMenuOverlay(player, defeatedBosses, codex);
-      this.callbacks.openGathering();
+    const contentX = px + 20;
+    const contentY = py + 52;
+    actions.forEach((action, index) => {
+      const cell = grid.cells[index];
+      const button = this.scene.add.text(
+        contentX + cell.x + cell.width / 2,
+        contentY + cell.y,
+        action.label,
+        {
+          fontSize: "13px",
+          fontFamily: "monospace",
+          color: action.color,
+          backgroundColor: "#2a2a4e",
+          align: "center",
+          padding: { x: 10, y: 6 },
+          fixedWidth: cell.width,
+          fixedHeight: cell.height,
+        },
+      ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+      button.setData("layoutId", `escape-menu-${action.id}`);
+      syncInteractiveHitArea(button);
+      button.on(
+        "pointerover",
+        () => button.setColor(action.hoverColor ?? "#ffffff"),
+      );
+      button.on("pointerout", () => button.setColor(action.color));
+      button.on("pointerdown", action.activate);
+      this.menuOverlay!.add(button);
     });
-    this.menuOverlay.add(gatheringBtn);
-
-    // Resume
-    const resumeBtn = this.scene.add.text(px + panelW / 2, py + 69, "▶ Resume", {
-      fontSize: "14px", fontFamily: "monospace", color: "#88ff88",
-      backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    resumeBtn.on("pointerover", () => resumeBtn.setColor("#ffd700"));
-    resumeBtn.on("pointerout", () => resumeBtn.setColor("#88ff88"));
-    resumeBtn.on("pointerdown", () => this.toggleMenuOverlay(player, defeatedBosses, codex));
-    this.menuOverlay.add(resumeBtn);
-
-    const partyBtn = this.scene.add.text(
-      px + panelW / 2,
-      py + 279,
-      "Party & Inventory",
-      {
-        fontSize: "14px",
-        fontFamily: "monospace",
-        color: "#9fe8ff",
-        backgroundColor: "#2a2a4e",
-        padding: { x: 16, y: 6 },
-      },
-    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    partyBtn.on("pointerover", () => partyBtn.setColor("#ffd700"));
-    partyBtn.on("pointerout", () => partyBtn.setColor("#9fe8ff"));
-    partyBtn.on("pointerdown", () => {
-      this.toggleMenuOverlay(player, defeatedBosses, codex);
-      this.callbacks.openPartyInventory();
-    });
-    this.menuOverlay.add(partyBtn);
-
-    const craftingBtn = this.scene.add.text(
-      px + panelW - 38,
-      py + 58,
-      "Crafting",
-      {
-        fontSize: "10px",
-        fontFamily: "monospace",
-        color: "#f7c948",
-        backgroundColor: "#2a2a4e",
-        padding: { x: 6, y: 4 },
-      },
-    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    craftingBtn.on("pointerover", () => craftingBtn.setColor("#ffffff"));
-    craftingBtn.on("pointerout", () => craftingBtn.setColor("#f7c948"));
-    craftingBtn.on("pointerdown", () => {
-      this.toggleMenuOverlay(player, defeatedBosses, codex);
-      this.callbacks.openCrafting();
-    });
-    this.menuOverlay.add(craftingBtn);
-
-    // Quest journal
-    const questsBtn = this.scene.add.text(px + panelW / 2, py + 111, "Quest Journal", {
-      fontSize: "14px", fontFamily: "monospace", color: "#d1c4e9",
-      backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    questsBtn.on("pointerover", () => questsBtn.setColor("#ffd700"));
-    questsBtn.on("pointerout", () => questsBtn.setColor("#d1c4e9"));
-    questsBtn.on("pointerdown", () => {
-      this.toggleMenuOverlay(player, defeatedBosses, codex);
-      this.callbacks.openQuestJournal();
-    });
-    this.menuOverlay.add(questsBtn);
-
-    const chronicleBtn = this.scene.add.text(
-      px + panelW / 2,
-      py + 153,
-      "Chronicle",
-      {
-        fontSize: "14px",
-        fontFamily: "monospace",
-        color: "#ffe38a",
-        backgroundColor: "#2a2a4e",
-        padding: { x: 16, y: 6 },
-      },
-    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    chronicleBtn.on("pointerover", () => chronicleBtn.setColor("#ffffff"));
-    chronicleBtn.on("pointerout", () => chronicleBtn.setColor("#ffe38a"));
-    chronicleBtn.on("pointerdown", () => {
-      this.toggleMenuOverlay(player, defeatedBosses, codex);
-      this.callbacks.openChronicle();
-    });
-    this.menuOverlay.add(chronicleBtn);
-
-    const tipsBtn = this.scene.add.text(
-      px + panelW / 2,
-      py + 195,
-      "Tips",
-      {
-        fontSize: "14px",
-        fontFamily: "monospace",
-        color: "#83d8ff",
-        backgroundColor: "#2a2a4e",
-        padding: { x: 16, y: 6 },
-      },
-    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    tipsBtn.on("pointerover", () => tipsBtn.setColor("#ffffff"));
-    tipsBtn.on("pointerout", () => tipsBtn.setColor("#83d8ff"));
-    tipsBtn.on("pointerdown", () => {
-      this.toggleMenuOverlay(player, defeatedBosses, codex);
-      this.callbacks.openTips();
-    });
-    this.menuOverlay.add(tipsBtn);
-
-    const codexBtn = this.scene.add.text(
-      px + panelW - 40,
-      py + 14,
-      "Codex",
-      {
-        fontSize: "11px",
-        fontFamily: "monospace",
-        color: "#fff3a6",
-        backgroundColor: "#2a2a4e",
-        padding: { x: 16, y: 6 },
-      },
-    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    codexBtn.on("pointerover", () => codexBtn.setColor("#ffffff"));
-    codexBtn.on("pointerout", () => codexBtn.setColor("#fff3a6"));
-    codexBtn.on("pointerdown", () => {
-      this.toggleMenuOverlay(player, defeatedBosses, codex);
-      this.callbacks.openCodex();
-    });
-    this.menuOverlay.add(codexBtn);
-
-    const achievementsBtn = this.scene.add.text(
-      px + 46,
-      py + 14,
-      "Achievements",
-      {
-        fontSize: "11px",
-        fontFamily: "monospace",
-        color: "#aaffdd",
-        backgroundColor: "#2a2a4e",
-        padding: { x: 10, y: 6 },
-      },
-    ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    achievementsBtn.on("pointerover", () => achievementsBtn.setColor("#ffffff"));
-    achievementsBtn.on("pointerout", () => achievementsBtn.setColor("#aaffdd"));
-    achievementsBtn.on("pointerdown", () => {
-      this.toggleMenuOverlay(player, defeatedBosses, codex);
-      this.callbacks.openAchievements();
-    });
-    this.menuOverlay.add(achievementsBtn);
-
-    // Settings
-    const settingsY = 237;
-    const settingsBtn = this.scene.add.text(px + panelW / 2, py + settingsY, "🔊 Settings", {
-      fontSize: "14px", fontFamily: "monospace", color: "#aabbff",
-      backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    settingsBtn.on("pointerover", () => settingsBtn.setColor("#ffd700"));
-    settingsBtn.on("pointerout", () => settingsBtn.setColor("#aabbff"));
-    settingsBtn.on("pointerdown", () => {
-      this.toggleMenuOverlay(player, defeatedBosses, codex);
-      this.showSettingsOverlay();
-    });
-    this.menuOverlay.add(settingsBtn);
-
-    // Quit
-    const quitY = 321;
-    const quitBtn = this.scene.add.text(px + panelW / 2, py + quitY, "✕ Quit to Title", {
-      fontSize: "14px", fontFamily: "monospace", color: "#ff6666",
-      backgroundColor: "#2a2a4e", padding: { x: 16, y: 6 },
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    quitBtn.on("pointerover", () => quitBtn.setColor("#ff4444"));
-    quitBtn.on("pointerout", () => quitBtn.setColor("#ff6666"));
-    quitBtn.on("pointerdown", () => {
-      this.callbacks.saveAndQuit();
-    });
-    this.menuOverlay.add(quitBtn);
 
     const hint = this.scene.add.text(px + panelW / 2, py + panelH - 8, "Press ESC to close", {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
+    hint.setData("layoutId", "escape-menu-hint");
     this.menuOverlay.add(hint);
   }
 
@@ -1245,7 +1185,12 @@ export class OverlayManager {
       SETTINGS_PANEL_HEIGHT,
     );
 
-    this.settingsOverlay = this.scene.add.container(0, 0).setDepth(75);
+    this.settingsOverlay = createOverlayContainer(
+      this.scene,
+      "settings",
+      75,
+      { x: px, y: py, width: panelW, height: panelH },
+    );
 
     const dim = createDimGraphics(this.scene, w, h);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);

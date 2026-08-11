@@ -4,7 +4,16 @@
 
 import * as Phaser from "phaser";
 import { getQuestJournalEntries } from "../systems/quests";
-import { createDimGraphics, createPanelGraphics } from "../utils/ui";
+import {
+  createDimGraphics,
+  createOverlayContainer,
+  createPanelGraphics,
+} from "../utils/ui";
+import {
+  layoutTextStack,
+  syncInteractiveHitArea,
+} from "./layout";
+import { paginateMeasuredItems } from "../systems/layout";
 import type { PlayerState } from "../systems/player";
 import type {
   QuestJournalEntry,
@@ -103,7 +112,12 @@ export class QuestJournalManager {
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2;
     const listW = 155;
-    const container = this.scene.add.container(0, 0).setDepth(90);
+    const container = createOverlayContainer(
+      this.scene,
+      "quest-journal",
+      90,
+      { x: px, y: py, width: panelW, height: panelH },
+    );
 
     const dim = createDimGraphics(this.scene, w, h, 0.72);
     dim.setInteractive(
@@ -162,7 +176,7 @@ export class QuestJournalManager {
     divider.lineBetween(px + listW, py + 70, px + listW, py + panelH - 28);
     container.add(divider);
 
-    this.renderQuestList(container, player, filtered, px, py, listW);
+    this.renderQuestList(container, player, filtered, px, py, listW, panelH);
     this.renderQuestDetails(
       container,
       filtered[this.selectedIndex],
@@ -200,6 +214,8 @@ export class QuestJournalManager {
       backgroundColor: selected ? "#4a3f6b" : "#242238",
       padding: { x: 8, y: 4 },
     }).setInteractive({ useHandCursor: true });
+    tab.setData("layoutId", `quest-tab-${label.toLowerCase()}`);
+    syncInteractiveHitArea(tab, 6);
     tab.on("pointerdown", onSelect);
     return tab;
   }
@@ -211,6 +227,7 @@ export class QuestJournalManager {
     px: number,
     py: number,
     listW: number,
+    panelH: number,
   ): void {
     if (entries.length === 0) {
       container.add(this.scene.add.text(
@@ -227,11 +244,11 @@ export class QuestJournalManager {
       return;
     }
 
-    entries.forEach((entry, index) => {
+    const labels = entries.map((entry, index) => {
       const selected = index === this.selectedIndex;
       const label = this.scene.add.text(
-        px + 12,
-        py + 78 + index * 42,
+        0,
+        0,
         `${selected ? "▶" : " "} ${
           entry.type === "main" ? "[Main]" : "[Side]"
         }\n${entry.name}`,
@@ -244,12 +261,48 @@ export class QuestJournalManager {
           wordWrap: { width: listW - 24 },
         },
       ).setInteractive({ useHandCursor: true });
+      label.setData("layoutId", `quest-row-${entry.id}`);
       label.on("pointerdown", () => {
         this.selectedIndex = index;
         this.render(player);
       });
-      container.add(label);
+      return label;
     });
+    const availableHeight = Math.max(1, panelH - 122);
+    const pages = paginateMeasuredItems(
+      labels.map((label) => label.displayHeight),
+      availableHeight,
+      6,
+    );
+    const pageIndex = Math.max(
+      0,
+      pages.findIndex((page) => page.includes(this.selectedIndex)),
+    );
+    const visibleIndexes = new Set(pages[pageIndex] ?? []);
+    const visibleLabels = labels.filter((_label, index) => visibleIndexes.has(index));
+    labels
+      .filter((_label, index) => !visibleIndexes.has(index))
+      .forEach((label) => label.destroy());
+    container.add(visibleLabels);
+    layoutTextStack(visibleLabels, {
+      x: px + 12,
+      y: py + 78,
+      width: listW - 24,
+      gap: 6,
+      hitAreaPadding: 6,
+    });
+    if (pages.length > 1) {
+      container.add(this.scene.add.text(
+        px + listW / 2,
+        py + panelH - 34,
+        `Page ${pageIndex + 1}/${pages.length}`,
+        {
+          fontSize: "9px",
+          fontFamily: "monospace",
+          color: "#888899",
+        },
+      ).setOrigin(0.5, 1));
+    }
   }
 
   private renderQuestDetails(

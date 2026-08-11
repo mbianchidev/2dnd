@@ -4,9 +4,10 @@ import {
   gamePreferences,
   type AudioPreferences,
 } from "../systems/accessibility";
+import { layoutTextStack, syncInteractiveHitArea } from "../managers/layout";
 
-export const SETTINGS_PANEL_WIDTH = 320;
-export const SETTINGS_PANEL_HEIGHT = 500;
+export const SETTINGS_PANEL_WIDTH = 520;
+export const SETTINGS_PANEL_HEIGHT = 480;
 
 interface SettingsControl {
   text: Phaser.GameObjects.Text;
@@ -28,6 +29,7 @@ export interface SettingsControls {
 
 function createControl(
   scene: Phaser.Scene,
+  id: string,
   x: number,
   y: number,
   width: number,
@@ -43,12 +45,12 @@ function createControl(
     align: "center",
     wordWrap: { width: width - 16 },
   }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+  text.setData("layoutId", id);
   const updateLabel = (): void => {
     text.setText(label());
-    if (text.input?.hitArea instanceof Phaser.Geom.Rectangle) {
-      text.input.hitArea.setSize(text.width, text.height);
-    }
+    syncInteractiveHitArea(text, 8);
   };
+  syncInteractiveHitArea(text, 8);
   text.on("pointerover", () => text.setStroke("#ffffff", 1));
   text.on("pointerout", () => text.setStroke("", 0));
   text.on("pointerdown", () => {
@@ -75,7 +77,7 @@ function createAudioSlider(
   const track = scene.add.graphics();
   const fill = scene.add.graphics();
   const knob = scene.add.graphics();
-  const zone = scene.add.zone(x, trackY, 24, 28)
+  const zone = scene.add.zone(x + width / 2, trackY, width, 44)
     .setInteractive({ useHandCursor: true, draggable: true });
   container.add([label, track, fill, knob, zone]);
 
@@ -95,7 +97,6 @@ function createAudioSlider(
     knob.clear();
     knob.fillStyle(0xffdf66, 1).fillCircle(knobX, trackY, 7);
     knob.lineStyle(2, 0x000000, 1).strokeCircle(knobX, trackY, 7);
-    zone.setPosition(knobX, trackY);
   };
 
   const setFromX = (pointerX: number): void => {
@@ -104,11 +105,7 @@ function createAudioSlider(
   zone.on("drag", (_pointer: Phaser.Input.Pointer, dragX: number) => {
     setFromX(dragX);
   });
-  track.setInteractive(
-    new Phaser.Geom.Rectangle(x, trackY - 10, width, 20),
-    Phaser.Geom.Rectangle.Contains,
-  );
-  track.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+  zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
     setFromX(pointer.x);
   });
   draw();
@@ -126,6 +123,9 @@ export function addSettingsControls(
   const centerX = px + panelWidth / 2;
   const contentX = px + 18;
   const contentWidth = panelWidth - 36;
+  const columnGap = 20;
+  const columnWidth = Math.floor((contentWidth - columnGap) / 2);
+  const rightX = contentX + columnWidth + columnGap;
   const controls: Phaser.GameObjects.GameObject[] = [];
   const title = scene.add.text(centerX, py + 10, "Settings", {
     fontSize: "15px",
@@ -133,7 +133,7 @@ export function addSettingsControls(
     color: "#ffdf66",
     fontStyle: "bold",
   }).setOrigin(0.5, 0);
-  const audioTitle = scene.add.text(contentX, py + 42, "Audio", {
+  const audioTitle = scene.add.text(contentX, py + 48, "Audio", {
     fontSize: "12px",
     fontFamily: "monospace",
     color: "#ffffff",
@@ -169,19 +169,20 @@ export function addSettingsControls(
     container,
     channel,
     contentX,
-    py + 62 + index * 39,
-    contentWidth,
+    py + 72 + index * 46,
+    columnWidth,
   ));
 
   const mute = createControl(
     scene,
-    centerX,
-    py + 222,
-    contentWidth,
+    "settings-mute",
+    contentX + columnWidth / 2,
+    py + 264,
+    columnWidth,
     () => `Audio: ${gamePreferences.getAudio().muted ? "Muted" : "On"}`,
     () => audioEngine.toggleMute(),
   );
-  const accessibilityTitle = scene.add.text(contentX, py + 260, "Accessibility", {
+  const accessibilityTitle = scene.add.text(rightX, py + 48, "Accessibility", {
     fontSize: "12px",
     fontFamily: "monospace",
     color: "#ffffff",
@@ -189,9 +190,10 @@ export function addSettingsControls(
   });
   const textScale = createControl(
     scene,
-    centerX,
-    py + 282,
-    contentWidth,
+    "settings-text-scale",
+    rightX + columnWidth / 2,
+    0,
+    columnWidth,
     () => `Text Scale: ${Math.round(
       gamePreferences.getAccessibility().textScale * 100,
     )}%`,
@@ -199,9 +201,10 @@ export function addSettingsControls(
   );
   const contrast = createControl(
     scene,
-    centerX,
-    py + 320,
-    contentWidth,
+    "settings-high-contrast",
+    rightX + columnWidth / 2,
+    0,
+    columnWidth,
     () => `High Contrast: ${
       gamePreferences.getAccessibility().highContrast ? "On" : "Off"
     }`,
@@ -211,9 +214,10 @@ export function addSettingsControls(
   );
   const motion = createControl(
     scene,
-    centerX,
-    py + 358,
-    contentWidth,
+    "settings-reduced-motion",
+    rightX + columnWidth / 2,
+    0,
+    columnWidth,
     () => `Reduced Motion: ${
       gamePreferences.getAccessibility().reducedMotion ? "On" : "Off"
     }`,
@@ -223,9 +227,10 @@ export function addSettingsControls(
   );
   const advance = createControl(
     scene,
-    centerX,
-    py + 396,
-    contentWidth,
+    "settings-cutscene-advance",
+    rightX + columnWidth / 2,
+    0,
+    columnWidth,
     () => `Cutscene Advance: ${
       gamePreferences.getAccessibility().advanceMode === "manual"
         ? "Manual"
@@ -237,25 +242,44 @@ export function addSettingsControls(
         : "manual",
     ),
   );
-  const controlsTitle = scene.add.text(contentX, py + 430, "Controls", {
+  const accessibilityControls = [
+    textScale.text,
+    contrast.text,
+    motion.text,
+    advance.text,
+  ];
+  const layoutAccessibility = (): void => {
+    layoutTextStack(accessibilityControls, {
+      x: rightX,
+      y: py + 76,
+      width: columnWidth,
+      gap: 8,
+      align: "center",
+      hitAreaPadding: 8,
+    });
+  };
+  layoutAccessibility();
+  const controlsTitle = scene.add.text(contentX, py + 330, "Controls", {
     fontSize: "12px",
     fontFamily: "monospace",
     color: "#ffffff",
     fontStyle: "bold",
   });
-  const compactWidth = Math.floor((contentWidth - 12) / 3);
+  const compactWidth = Math.floor((contentWidth - 16) / 3);
   const touch = createControl(
     scene,
+    "settings-touch-controls",
     contentX + compactWidth / 2,
-    py + 450,
+    py + 354,
     compactWidth,
     () => `Touch\n${gamePreferences.getControls().touchControls}`,
     () => gamePreferences.cycleTouchControls(),
   );
   const handedness = createControl(
     scene,
-    contentX + compactWidth + 6 + compactWidth / 2,
-    py + 450,
+    "settings-handedness",
+    contentX + compactWidth + 8 + compactWidth / 2,
+    py + 354,
     compactWidth,
     () => `Layout\n${gamePreferences.getControls().handedness}`,
     () => gamePreferences.setControlHandedness(
@@ -264,8 +288,9 @@ export function addSettingsControls(
   );
   const prompts = createControl(
     scene,
-    contentX + (compactWidth + 6) * 2 + compactWidth / 2,
-    py + 450,
+    "settings-prompts",
+    contentX + (compactWidth + 8) * 2 + compactWidth / 2,
+    py + 354,
     compactWidth,
     () => `Prompts\n${gamePreferences.getControls().promptSource}`,
     () => gamePreferences.cyclePromptSource(),
@@ -282,8 +307,8 @@ export function addSettingsControls(
   ];
   const mappingNote = scene.add.text(
     centerX,
-    py + panelHeight - 4,
-    "Stable standard mappings; custom remapping is deliberately unsupported.",
+    py + panelHeight - 48,
+    "Stable mappings; custom remapping is unsupported.",
     {
       fontSize: "8px",
       fontFamily: "monospace",
@@ -322,6 +347,7 @@ export function addSettingsControls(
   const unsubscribe = gamePreferences.subscribe(() => {
     redrawAudio.forEach((redraw) => redraw());
     controlsToUpdate.forEach((control) => control.updateLabel());
+    layoutAccessibility();
   });
   container.once(Phaser.GameObjects.Events.DESTROY, unsubscribe);
   return { controls };

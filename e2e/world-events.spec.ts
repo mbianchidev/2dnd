@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -324,7 +325,7 @@ test("resolves, recovers, battles, and records accessible World Events", async (
 
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await clickGame(page, 320, 232);
+  await clickLayoutItem(page, "escape-menu-chronicle");
   await waitForState(page, "[CHRONICLE]");
   for (let index = 0; index < 12; index++) {
     const state = await page.locator("#debug-state").textContent() ?? "";

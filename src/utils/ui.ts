@@ -5,6 +5,11 @@
  */
 
 import * as Phaser from "phaser";
+import {
+  registerLayoutGroup,
+  updateLayoutGroupViewport,
+} from "../managers/layout";
+import { centeredRect, type LayoutInsets } from "../systems/layout";
 
 /** Standard panel background color. */
 export const PANEL_BG_COLOR = 0x1a1a2e;
@@ -28,17 +33,44 @@ export function calcPanelLayout(
   panelW: number,
   panelH: number,
   offsetY = 0,
+  safeArea: Partial<LayoutInsets> = {},
 ): PanelLayout {
   const w = scene.cameras.main.width;
   const h = scene.cameras.main.height;
+  const panel = centeredRect(
+    { x: 0, y: 0, width: w, height: h },
+    { width: panelW, height: panelH },
+    safeArea,
+  );
   return {
     w,
     h,
-    panelW,
-    panelH,
-    px: Math.floor((w - panelW) / 2),
-    py: Math.floor((h - panelH) / 2) + offsetY,
+    panelW: panel.width,
+    panelH: panel.height,
+    px: panel.x,
+    py: panel.y + offsetY,
   };
+}
+
+/** Create a modal container and register its content bounds for debug/test audits. */
+export function createOverlayContainer(
+  scene: Phaser.Scene,
+  id: string,
+  depth: number,
+  viewport?: { x: number; y: number; width: number; height: number },
+): Phaser.GameObjects.Container {
+  const container = scene.add.container(0, 0).setDepth(depth);
+  registerLayoutGroup(scene, id, container, viewport);
+  return container;
+}
+
+/** Update an overlay audit viewport after responsive panel bounds are measured. */
+export function setOverlayViewport(
+  scene: Phaser.Scene,
+  id: string,
+  viewport: { x: number; y: number; width: number; height: number },
+): void {
+  updateLayoutGroupViewport(scene, id, viewport);
 }
 
 /** Create a full-screen dim overlay graphics object. */

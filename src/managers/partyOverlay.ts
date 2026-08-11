@@ -33,7 +33,11 @@ import {
   type GambitSubjectSelector,
   type GambitTargetSelector,
 } from "../systems/gambits";
-import { createDimGraphics, createPanelGraphics } from "../utils/ui";
+import {
+  createDimGraphics,
+  createOverlayContainer,
+  createPanelGraphics,
+} from "../utils/ui";
 import { openMobileTextInput } from "./input";
 import { getSocialSummaryPageCount, renderSocialSummary } from "../renderers/social";
 import { renderPartyStatus } from "../renderers/partyStatus";
@@ -56,6 +60,7 @@ interface PartyMemberView {
 }
 
 export class PartyOverlayManager {
+  private static readonly INVENTORY_PAGE_SIZE = 6;
   private readonly scene: Phaser.Scene;
   private readonly callbacks: PartyOverlayCallbacks;
   private overlay: Phaser.GameObjects.Container | null = null;
@@ -108,8 +113,13 @@ export class PartyOverlayManager {
     );
     const page = selectedPosition < 0
       ? 1
-      : Math.floor(selectedPosition / 7) + 1;
-    const totalPages = Math.max(1, Math.ceil(entries.length / 7));
+      : Math.floor(
+        selectedPosition / PartyOverlayManager.INVENTORY_PAGE_SIZE,
+      ) + 1;
+    const totalPages = Math.max(
+      1,
+      Math.ceil(entries.length / PartyOverlayManager.INVENTORY_PAGE_SIZE),
+    );
     const preferences = inventoryPreferences.get();
     return ` [PARTY:items Inventory ${Math.max(selectedPosition + 1, 0)}/${entries.length} Page ${page}/${totalPages} Sort:${preferences.sortMode} Filter:${preferences.filter} Search:${preferences.search || "-"}${this.inventorySearchActive ? " Focus:search" : ""}]`;
   }
@@ -148,7 +158,17 @@ export class PartyOverlayManager {
     const panelHeight = Math.min(450, height - 24);
     const panelX = Math.floor((width - panelWidth) / 2);
     const panelY = Math.floor((height - panelHeight) / 2);
-    const container = this.scene.add.container(0, 0).setDepth(80);
+    const container = createOverlayContainer(
+      this.scene,
+      `party-${this.page}`,
+      80,
+      {
+        x: panelX,
+        y: panelY,
+        width: panelWidth,
+        height: panelHeight,
+      },
+    );
     const dim = createDimGraphics(this.scene, width, height, 0.7)
       .setInteractive(
         new Phaser.Geom.Rectangle(0, 0, width, height),
@@ -271,6 +291,7 @@ export class PartyOverlayManager {
         },
         this.page === tab.page ? "#ffd700" : "#bbbbbb",
         tabWidth,
+        `party-tab-${tab.page}`,
       );
     });
   }
@@ -332,7 +353,7 @@ export class PartyOverlayManager {
     const selectedPosition = entries.findIndex(
       (entry) => entry.inventoryIndex === this.inventorySelectedIndex,
     );
-    const pageSize = 7;
+    const pageSize = PartyOverlayManager.INVENTORY_PAGE_SIZE;
     const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
     const currentPage = selectedPosition < 0
       ? 0
@@ -361,7 +382,7 @@ export class PartyOverlayManager {
     const searchLabel = preferences.search.length > 0
       ? `Search:${this.truncate(preferences.search, 13)}`
       : this.inventorySearchActive ? "Search:typing..." : "Search:/";
-    this.addButton(x + 242, y + 22, searchLabel, () => {
+    this.addButton(x, y + 50, searchLabel, () => {
       if (
         this.scene.input.activePointer.event instanceof PointerEvent
         && this.scene.input.activePointer.event.pointerType === "touch"
@@ -380,13 +401,13 @@ export class PartyOverlayManager {
         return;
       }
       this.handleInventoryAction("toggleSearch");
-    }, this.inventorySearchActive ? "#ffd700" : "#b8ddff", width - 280);
-    this.addButton(x + width - 32, y + 22, "X", () => {
+    }, this.inventorySearchActive ? "#ffd700" : "#b8ddff", width - 38);
+    this.addButton(x + width - 32, y + 50, "X", () => {
       this.handleInventoryAction("clearSearch");
-    }, "#ffaaaa", 32);
+    }, "#ffaaaa", 32, "party-inventory-clear-search");
 
     visible.forEach((entry, offset) => {
-      const rowY = y + 52 + offset * 30;
+      const rowY = y + 80 + offset * 30;
       const selected = entry.inventoryIndex === this.inventorySelectedIndex;
       const equipped = isInventoryItemEquipped(member.state, entry.item);
       const label = `${selected ? ">" : " "} ${this.truncate(entry.item.name, 25)}  ${this.capitalize(entry.rarity)}${equipped ? " [E]" : ""}`;
@@ -493,7 +514,9 @@ export class PartyOverlayManager {
       this.inventorySelectedIndex = moveInventorySelection(
         entries,
         this.inventorySelectedIndex,
-        action === "previousPage" ? -7 : 7,
+        action === "previousPage"
+          ? -PartyOverlayManager.INVENTORY_PAGE_SIZE
+          : PartyOverlayManager.INVENTORY_PAGE_SIZE,
       );
       this.render();
       return true;
@@ -980,6 +1003,7 @@ export class PartyOverlayManager {
     action: () => void,
     color = "#dddddd",
     width = 120,
+    layoutId?: string,
   ): Phaser.GameObjects.Text {
     const button = this.scene.add.text(x, y, label, {
       fontSize: "10px",
@@ -990,6 +1014,7 @@ export class PartyOverlayManager {
       fixedWidth: width,
       align: "center",
     }).setInteractive({ useHandCursor: true });
+    if (layoutId) button.setData("layoutId", layoutId);
     button.on("pointerover", () => button.setColor("#ffd700"));
     button.on("pointerout", () => button.setColor(color));
     button.on("pointerdown", action);

@@ -23,7 +23,11 @@ import {
   type PartyMemberId,
 } from "../systems/party";
 import type { PlayerState } from "../systems/player";
-import { createDimGraphics, createPanelGraphics } from "../utils/ui";
+import {
+  createDimGraphics,
+  createOverlayContainer,
+  createPanelGraphics,
+} from "../utils/ui";
 import { openMobileTextInput } from "./input";
 
 export interface CraftingManagerCallbacks {
@@ -140,12 +144,22 @@ export class CraftingManager {
     const player = this.player;
     if (!player) return;
     this.container?.destroy();
-    const container = this.scene.add.container(0, 0).setDepth(320);
-    this.container = container;
     const panelWidth = Math.min(760, GAME_WIDTH - 32);
     const panelHeight = Math.min(520, GAME_HEIGHT - 24);
     const panelX = (GAME_WIDTH - panelWidth) / 2;
     const panelY = (GAME_HEIGHT - panelHeight) / 2;
+    const container = createOverlayContainer(
+      this.scene,
+      "crafting",
+      320,
+      {
+        x: panelX,
+        y: panelY,
+        width: panelWidth,
+        height: panelHeight,
+      },
+    );
+    this.container = container;
     const dim = createDimGraphics(this.scene, GAME_WIDTH, GAME_HEIGHT);
     dim.setInteractive(
       new Phaser.Geom.Rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT),

@@ -4,6 +4,7 @@ import type { CutsceneStep } from "../data/cutscenes";
 import type { CampaignEndingSummary } from "../systems/cutscenes";
 import type { PartyDefeatResult } from "../systems/party";
 import { isReducedMotionEnabled } from "../systems/accessibility";
+import { registerLayoutGroup } from "../managers/layout";
 
 export interface CampaignEndingChoiceCallbacks {
   continuePostGame: () => void;
@@ -50,6 +51,7 @@ export class ResultRenderer {
   ): void {
     this.clearContent();
     this.content = this.scene.add.container(0, 0).setDepth(2);
+    this.registerContentLayout("ending-step");
 
     if (step.type === "narration") {
       this.renderNarration(step.heading, step.text);
@@ -86,6 +88,7 @@ export class ResultRenderer {
   renderDefeatIntro(presentation: DefeatResultPresentation): void {
     this.clearContent();
     this.content = this.scene.add.container(0, 0).setDepth(2);
+    this.registerContentLayout("defeat-intro");
     const encounterLabel = presentation.encounterType === "boss"
       ? "BOSS ENCOUNTER"
       : "WILDERNESS ENCOUNTER";
@@ -137,6 +140,7 @@ export class ResultRenderer {
   ): void {
     this.clearContent();
     this.content = this.scene.add.container(0, 0).setDepth(3);
+    this.registerContentLayout("defeat-summary");
     const { result } = presentation;
     const title = this.scene.add.text(
       GAME_WIDTH / 2,
@@ -157,11 +161,12 @@ export class ResultRenderer {
     const actorPenaltyLines = result.actors.map((actor) =>
       `${actor.name}: -${actor.xpLost} XP  (${actor.xpBefore} -> ${actor.xpAfter})`
     );
-    const lines = [
+    const penaltyLines = [
       "APPLIED PENALTIES",
       `Gold: -${result.goldLost}  (${result.goldBefore} -> ${result.goldAfter})`,
       ...actorPenaltyLines,
-      "",
+    ];
+    const recoveryLines = [
       "RECOVERY LOCATION",
       result.recoveryLocation.name,
       `Chunk ${result.recoveryLocation.chunkX},${result.recoveryLocation.chunkY}`
@@ -170,12 +175,19 @@ export class ResultRenderer {
       "The defeated party awakens at half HP and MP.",
       "Battle effects have been cleared.",
     ];
-    const details = this.scene.add.text(64, 108, lines.join("\n"), {
+    const penaltyDetails = this.scene.add.text(56, 108, penaltyLines.join("\n"), {
       fontSize: "14px",
       fontFamily: "monospace",
       color: "#f1e4e9",
       lineSpacing: 8,
-      wordWrap: { width: GAME_WIDTH - 128, useAdvancedWrap: true },
+      wordWrap: { width: 245, useAdvancedWrap: true },
+    });
+    const recoveryDetails = this.scene.add.text(334, 108, recoveryLines.join("\n"), {
+      fontSize: "14px",
+      fontFamily: "monospace",
+      color: "#f1e4e9",
+      lineSpacing: 8,
+      wordWrap: { width: 245, useAdvancedWrap: true },
     });
     const button = this.scene.add.text(
       GAME_WIDTH / 2,
@@ -200,12 +212,20 @@ export class ResultRenderer {
         color: "#b88d9c",
       },
     ).setOrigin(0.5);
-    this.content.add([title, panels, details, button, hint]);
+    this.content.add([
+      title,
+      panels,
+      penaltyDetails,
+      recoveryDetails,
+      button,
+      hint,
+    ]);
   }
 
   showChoices(callbacks: CampaignEndingChoiceCallbacks): void {
     this.clearContent();
     this.content = this.scene.add.container(0, 0).setDepth(3);
+    this.registerContentLayout("ending-choices");
 
     const title = this.scene.add.text(
       GAME_WIDTH / 2,
@@ -541,5 +561,15 @@ export class ResultRenderer {
     this.content = null;
     this.choiceButtons = [];
     this.choiceLabels = [];
+  }
+
+  private registerContentLayout(id: string): void {
+    if (!this.content) return;
+    registerLayoutGroup(this.scene, id, this.content, {
+      x: 0,
+      y: 0,
+      width: GAME_WIDTH,
+      height: GAME_HEIGHT,
+    });
   }
 }

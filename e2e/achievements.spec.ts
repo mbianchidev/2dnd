@@ -48,6 +48,31 @@ async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
 }
 
+async function layoutItemCenter(
+  page: Page,
+  id: string,
+): Promise<{ x: number; y: number }> {
+  await expect(page.locator("#layout-report")).not.toHaveText("");
+  const item = await page.locator("#layout-report").evaluate((element, itemId) => {
+    const report = JSON.parse(element.textContent ?? "{}") as {
+      groups?: Record<string, {
+        items?: Array<{
+          id: string;
+          bounds: { x: number; y: number; width: number; height: number };
+        }>;
+      }>;
+    };
+    return Object.values(report.groups ?? {})
+      .flatMap((group) => group.items ?? [])
+      .find((candidate) => candidate.id === itemId);
+  }, id);
+  if (!item) throw new Error(`Missing layout item: ${id}`);
+  return {
+    x: item.bounds.x + item.bounds.width / 2,
+    y: item.bounds.y + item.bounds.height / 2,
+  };
+}
+
 async function holdKey(
   page: Page,
   key: string,
@@ -225,7 +250,8 @@ async function continueToOverworld(page: Page): Promise<void> {
 async function openAchievementsFromMenu(page: Page): Promise<void> {
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await clickGame(page, 226, 95);
+  const achievements = await layoutItemCenter(page, "escape-menu-achievements");
+  await clickGame(page, achievements.x, achievements.y);
   await waitForState(page, "[ACHIEVEMENTS");
 }
 
@@ -366,7 +392,11 @@ test.describe("mobile achievement profile", () => {
       .toHaveAttribute("data-reduced-motion", "true");
     await page.locator('[data-action="openMenu"]').tap();
     await waitForState(page, "[MENU]");
-    await tapGame(page, 226, 95);
+    const achievements = await layoutItemCenter(
+      page,
+      "escape-menu-achievements",
+    );
+    await tapGame(page, achievements.x, achievements.y);
     await waitForState(page, "[ACHIEVEMENTS");
     await expect(page.locator("#touch-controls")).toHaveClass(/visible/);
     expect(browserErrors).toEqual([]);
@@ -447,17 +477,20 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
   };
   const cursorAxis = (delta: number): number => {
     const distance = Math.abs(delta);
-    if (distance < 5) return 0;
-    return Math.sign(delta) * (distance < 32 ? 0.35 : 0.8);
+    if (distance < 20) return 0;
+    return Math.sign(delta) * Math.min(
+      0.7,
+      Math.max(0.35, distance / 120),
+    );
   };
   const moveCursor = async (gameX: number, gameY: number): Promise<void> => {
     const target = await gamePoint(page, gameX, gameY);
-    for (let attempt = 0; attempt < 120; attempt += 1) {
+    for (let attempt = 0; attempt < 240; attempt += 1) {
       const bounds = await page.locator("#gamepad-cursor").boundingBox();
       if (bounds) {
         const dx = target.x - (bounds.x + bounds.width / 2);
         const dy = target.y - (bounds.y + bounds.height / 2);
-        if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+        if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
           await setAxes([0, 0, 0, 0]);
           return;
         }
@@ -470,7 +503,7 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
       } else {
         await setAxes([0, 0, 0.8, 0]);
       }
-      await page.waitForTimeout(50);
+      await page.waitForTimeout(75);
     }
     await setAxes([0, 0, 0, 0]);
     throw new Error("Timed out moving gamepad cursor");
@@ -482,7 +515,11 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
   await pressGamepad(9);
   await waitForState(page, "[MENU]");
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    await moveCursor(226, 95);
+    const achievements = await layoutItemCenter(
+      page,
+      "escape-menu-achievements",
+    );
+    await moveCursor(achievements.x, achievements.y);
     await pressGamepad(11);
     const state = await page.locator("#debug-state").textContent() ?? "";
     if (state.includes("[ACHIEVEMENTS")) break;

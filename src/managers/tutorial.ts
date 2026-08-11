@@ -21,8 +21,10 @@ import type { PlayerState } from "../systems/player";
 import {
   calcPanelLayout,
   createDimGraphics,
+  createOverlayContainer,
   createPanelGraphics,
 } from "../utils/ui";
+import { layoutTextStack } from "./layout";
 
 export type TutorialNavigationAction =
   | "previous"
@@ -185,7 +187,12 @@ export class TutorialManager {
       width,
       height,
     );
-    const container = this.scene.add.container(0, 0).setDepth(95);
+    const container = createOverlayContainer(
+      this.scene,
+      this.mode === "tips" ? "tips" : "tutorial",
+      95,
+      { x: px, y: py, width: panelW, height: panelH },
+    );
     const dim = createDimGraphics(this.scene, w, h, 0.82);
     dim.setInteractive(
       new Phaser.Geom.Rectangle(0, 0, w, h),
@@ -199,7 +206,7 @@ export class TutorialManager {
 
   private renderTutorial(): void {
     const step = TUTORIAL_STEPS[this.tutorialStepIndex];
-    const { container, px, py, panelW, panelH } = this.createOverlay(560, 450);
+    const { container, px, py, panelW, panelH } = this.createOverlay(580, 450);
     const title = this.scene.add.text(
       px + panelW / 2,
       py + 18,
@@ -221,41 +228,52 @@ export class TutorialManager {
         color: "#8da2c9",
       },
     ).setOrigin(1, 0);
+    const contentTop = py + 68;
+    const contentGap = 24;
+    const controlsWidth = 180;
+    const detailWidth = panelW - 56 - controlsWidth - contentGap;
+    const controlsX = px + panelW - 28 - controlsWidth;
     const summary = this.scene.add.text(
       px + 28,
-      py + 62,
+      contentTop,
       step.summary,
       {
         fontSize: "14px",
         fontFamily: "monospace",
         color: "#f2f4ff",
-        wordWrap: { width: panelW - 56, useAdvancedWrap: true },
+        wordWrap: { width: detailWidth, useAdvancedWrap: true },
         lineSpacing: 5,
       },
     );
     container.add([title, progress, summary]);
 
-    let y = summary.y + summary.height + 18;
+    const detailTexts: Phaser.GameObjects.Text[] = [];
     for (const detail of step.details) {
       const detailText = this.scene.add.text(
-        px + 34,
-        y,
+        0,
+        0,
         `- ${detail}`,
         {
           fontSize: "12px",
           fontFamily: "monospace",
           color: "#c7cee0",
-          wordWrap: { width: panelW - 68, useAdvancedWrap: true },
+          wordWrap: { width: detailWidth - 12, useAdvancedWrap: true },
           lineSpacing: 4,
         },
       );
       container.add(detailText);
-      y += detailText.height + 10;
+      detailTexts.push(detailText);
     }
+    layoutTextStack(detailTexts, {
+      x: px + 34,
+      y: summary.y + summary.height + 18,
+      width: detailWidth - 12,
+      gap: 10,
+    });
 
     const controlsTitle = this.scene.add.text(
-      px + 28,
-      Math.max(y + 4, py + 225),
+      controlsX,
+      contentTop,
       "Controls",
       {
         fontSize: "13px",
@@ -265,17 +283,11 @@ export class TutorialManager {
       },
     );
     container.add(controlsTitle);
-    const controlStartY = controlsTitle.y + 26;
-    const cardWidth = (panelW - 72) / 2;
-    step.controls.forEach((controlId, index) => {
+    const controlCards = step.controls.map((controlId) => {
       const control = CONTROL_GUIDANCE[controlId];
-      const column = index % 2;
-      const row = Math.floor(index / 2);
-      const cardX = px + 28 + column * (cardWidth + 16);
-      const cardY = controlStartY + row * 42;
       const card = this.scene.add.text(
-        cardX,
-        cardY,
+        0,
+        0,
         `${control.label}\n${this.controlPrompt(control)}`,
         {
           fontSize: "11px",
@@ -284,9 +296,18 @@ export class TutorialManager {
           backgroundColor: "#252b42",
           padding: { x: 9, y: 5 },
           lineSpacing: 2,
+          wordWrap: { width: controlsWidth - 18, useAdvancedWrap: true },
+          fixedWidth: controlsWidth,
         },
-      ).setFixedSize(cardWidth, 36);
+      );
       container.add(card);
+      return card;
+    });
+    layoutTextStack(controlCards, {
+      x: controlsX,
+      y: controlsTitle.y + controlsTitle.height + 12,
+      width: controlsWidth,
+      gap: 8,
     });
 
     const previous = this.addButton(

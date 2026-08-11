@@ -5,6 +5,9 @@ import { getChronicleCutscenes } from "../systems/cutscenes";
 import type { CutsceneDefinition, CutsceneId } from "../data/cutscenes";
 import type { PlayerState } from "../systems/player";
 import type { WorldEventLogEntry } from "../systems/worldEvents";
+import { createOverlayContainer } from "../utils/ui";
+import { layoutTextStack } from "./layout";
+import { paginateMeasuredItems } from "../systems/layout";
 
 type ChronicleEntry =
   | {
@@ -107,7 +110,21 @@ export class ChronicleManager {
 
   private render(): void {
     this.container?.destroy(true);
-    const container = this.scene.add.container(0, 0).setDepth(95);
+    const panelWidth = 500;
+    const panelHeight = 390;
+    const panelX = (GAME_WIDTH - panelWidth) / 2;
+    const panelY = (GAME_HEIGHT - panelHeight) / 2;
+    const container = createOverlayContainer(
+      this.scene,
+      "chronicle",
+      95,
+      {
+        x: panelX,
+        y: panelY,
+        width: panelWidth,
+        height: panelHeight,
+      },
+    );
     const backdrop = this.scene.add.rectangle(
       GAME_WIDTH / 2,
       GAME_HEIGHT / 2,
@@ -119,19 +136,19 @@ export class ChronicleManager {
     const panel = this.scene.add.rectangle(
       GAME_WIDTH / 2,
       GAME_HEIGHT / 2,
-      500,
-      390,
+      panelWidth,
+      panelHeight,
       0x111522,
       0.98,
     ).setStrokeStyle(2, 0xc9a84c);
-    const title = this.scene.add.text(GAME_WIDTH / 2, 48, "Chronicle", {
+    const title = this.scene.add.text(GAME_WIDTH / 2, panelY + 20, "Chronicle", {
       fontSize: "25px",
       color: "#ffdd66",
       fontStyle: "bold",
     }).setOrigin(0.5);
     const subtitle = this.scene.add.text(
       GAME_WIDTH / 2,
-      78,
+      panelY + 52,
       "Story memories and resolved World Events",
       { fontSize: "12px", color: "#b8bdca" },
     ).setOrigin(0.5);
@@ -145,15 +162,11 @@ export class ChronicleManager {
         { fontSize: "16px", color: "#dddddd" },
       ).setOrigin(0.5));
     } else {
-      const pageSize = 6;
-      const pageStart = Math.floor(this.selectedIndex / pageSize) * pageSize;
-      const pageEntries = this.entries.slice(pageStart, pageStart + pageSize);
-      pageEntries.forEach((entry, rowIndex) => {
-        const index = pageStart + rowIndex;
+      const rows = this.entries.map((entry, index) => {
         const selected = index === this.selectedIndex;
         const row = this.scene.add.text(
-          94,
-          112 + rowIndex * 34,
+          0,
+          0,
           `${selected ? ">" : " "} ${
             entry.kind === "cutscene"
               ? entry.cutscene.title
@@ -165,8 +178,15 @@ export class ChronicleManager {
             backgroundColor: selected ? "#252c41" : "#151a27",
             padding: { x: 8, y: 6 },
             fixedWidth: 452,
+            wordWrap: { width: 436, useAdvancedWrap: true },
           },
         ).setInteractive({ useHandCursor: true });
+        row.setData(
+          "layoutId",
+          entry.kind === "cutscene"
+            ? `chronicle-cutscene-${entry.cutscene.id}`
+            : `chronicle-event-${entry.record.eventId}`,
+        );
         row.on("pointerover", () => {
           this.selectedIndex = index;
           this.render();
@@ -176,14 +196,34 @@ export class ChronicleManager {
           if (entry.kind === "cutscene") this.replaySelected();
           else this.render();
         });
-        container.add(row);
+        return row;
       });
-      const page = Math.floor(this.selectedIndex / pageSize) + 1;
-      const pageCount = Math.ceil(this.entries.length / pageSize);
+      const pages = paginateMeasuredItems(
+        rows.map((row) => row.displayHeight),
+        155,
+        6,
+      );
+      const pageIndex = Math.max(
+        0,
+        pages.findIndex((page) => page.includes(this.selectedIndex)),
+      );
+      const visibleIndexes = new Set(pages[pageIndex] ?? []);
+      const visibleRows = rows.filter((_row, index) => visibleIndexes.has(index));
+      rows
+        .filter((_row, index) => !visibleIndexes.has(index))
+        .forEach((row) => row.destroy());
+      container.add(visibleRows);
+      layoutTextStack(visibleRows, {
+        x: 94,
+        y: panelY + 80,
+        width: 452,
+        gap: 6,
+        hitAreaPadding: 4,
+      });
       container.add(this.scene.add.text(
         GAME_WIDTH / 2,
         390,
-        `Page ${page}/${pageCount}`,
+        `Page ${pageIndex + 1}/${pages.length}`,
         { fontSize: "11px", color: "#aeb4c2" },
       ).setOrigin(0.5));
       const selectedEntry = this.entries[this.selectedIndex];

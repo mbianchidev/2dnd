@@ -413,6 +413,13 @@ function applyTextPresentation(
   if (typeof maxWidth === "number" && maxWidth > 0) {
     text.setScale(Math.min(1, maxWidth / text.width), 1);
   }
+  if (
+    text.input?.enabled
+    && "setSize" in text.input.hitArea
+    && typeof text.input.hitArea.setSize === "function"
+  ) {
+    text.input.hitArea.setSize(text.width, text.height);
+  }
   if (preferences.highContrast) {
     text.setStroke("#000000", Math.max(2, base.strokeThickness));
   } else {
@@ -519,6 +526,11 @@ export function applySceneAccessibility(scene: Phaser.Scene): void {
 export function installSceneAccessibility(scene: Phaser.Scene): void {
   if (installedScenes.has(scene)) return;
   installedScenes.add(scene);
+  void import("../managers/layout")
+    .then(({ installSceneLayoutAudit }) => installSceneLayoutAudit(scene))
+    .catch((error: unknown) => {
+      debugLog(`Could not install scene layout audit: ${String(error)}`);
+    });
   const originalAddText = scene.add.text;
   scene.add.text = (
     x: number,

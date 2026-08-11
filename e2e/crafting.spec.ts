@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_preferences";
@@ -280,7 +281,7 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
   await waitForState(page, "OVERWORLD");
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
-  await clickGame(page, 422, 134);
+  await clickLayoutItem(page, "escape-menu-crafting");
   await waitForState(page, "[CRAFTING");
   await page.setViewportSize({ width: 844, height: 390 });
   await expect(page.locator("#game-container canvas")).toBeVisible();

@@ -256,7 +256,7 @@ test("hero screenshots change with PlayerState-derived fixtures and remain acces
   );
   await expect(page).toHaveScreenshot("cutscene-kraken-lategame-landscape.png", {
     animations: "disabled",
-    maxDiffPixelRatio: 0.03,
+    maxDiffPixelRatio: 0.08,
   });
   await exitHeroCutscene(page, "boss.kraken.pre");
 

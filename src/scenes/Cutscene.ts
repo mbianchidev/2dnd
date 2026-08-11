@@ -27,6 +27,7 @@ import {
 } from "../systems/sceneState";
 import type { QuestUpdate } from "../systems/quests";
 import { unlockCodexFromSignal } from "../systems/codex";
+import type { HeroVisualDescriptor } from "../systems/heroVisuals";
 
 const INPUT_GRACE_MS = 300;
 
@@ -34,6 +35,7 @@ export interface CutsceneSceneData extends SharedSceneState {
   cutsceneId: CutsceneId;
   replay?: boolean;
   questUpdates?: QuestUpdate[];
+  debugHeroVisual?: HeroVisualDescriptor;
 }
 
 interface CutsceneKeys {
@@ -73,6 +75,7 @@ export class CutsceneScene extends Phaser.Scene {
       cutsceneId: data.cutsceneId,
       replay: data.replay === true,
       questUpdates: data.questUpdates,
+      debugHeroVisual: data.debugHeroVisual,
     };
     this.inputReadyAt = 0;
     this.automaticAdvance = null;
@@ -84,6 +87,7 @@ export class CutsceneScene extends Phaser.Scene {
     this.cutsceneRenderer = new CutsceneRenderer(
       this,
       this.sceneData.player,
+      this.sceneData.debugHeroVisual,
     );
     const presentation: CutscenePresentationAdapter = {
       present: (step, index, onReady) => {
@@ -299,7 +303,8 @@ export class CutsceneScene extends Phaser.Scene {
     }
     debugPanelState(
       `CUTSCENE | ${this.sceneData.cutsceneId} | Step ${this.director.currentStepIndex + 1}/${this.director.definition.steps.length} | ${this.sceneData.replay ? "Replay" : "Story"}`
-      + ` | Anim: ${this.cutsceneRenderer.debugState}`,
+      + ` | Anim: ${this.cutsceneRenderer.debugState}`
+      + ` | Hero: ${this.cutsceneRenderer.heroInspectionReport}`,
     );
   }
 }

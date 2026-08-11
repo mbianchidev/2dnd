@@ -73,7 +73,11 @@ import {
   BattleBackdropRenderer,
 } from "../renderers/battleBackdrop";
 import { BATTLE_DEPTH } from "../renderers/battleDepth";
-import { PlayerRenderer } from "../renderers/player";
+import { resolveHeroVisualDescriptor } from "../systems/heroVisuals";
+import {
+  acquireHeroTexture,
+  type HeroTextureLease,
+} from "../renderers/heroTextures";
 import { BattlePartyRenderer } from "../renderers/battleParty";
 import { BattlePartyManager } from "../managers/battleParty";
 import { BattlePresentationDirector } from "../managers/battlePresentation";
@@ -221,6 +225,7 @@ export class BattleScene extends Phaser.Scene {
   private targetCursor!: Phaser.GameObjects.Text;
   private targetHint!: Phaser.GameObjects.Text;
   private playerSprite!: Phaser.GameObjects.Sprite;
+  private heroTextureLease: HeroTextureLease | null = null;
   private playerStatsText!: Phaser.GameObjects.Text;
   private actionButtons: Phaser.GameObjects.Container[] = [];
   private actionButtonLabels: Array<{
@@ -599,11 +604,15 @@ export class BattleScene extends Phaser.Scene {
     this.updateMonsterDisplay();
 
     // --- Player (foreground, lower-left) ---
-    // Prefer the equipped texture (reflects weapon, shield, custom skin & hair)
-    const equippedKey = `player_equipped_${this.player.appearanceId}`;
-    const baseKey = `player_${this.player.appearanceId}`;
-    const playerTextureKey = this.textures.exists(equippedKey) ? equippedKey : baseKey;
-    this.playerSprite = this.add.sprite(w * 0.22, h * 0.50, playerTextureKey);
+    this.heroTextureLease = acquireHeroTexture(
+      this,
+      resolveHeroVisualDescriptor(this.player),
+    );
+    this.playerSprite = this.add.sprite(
+      w * 0.22,
+      h * 0.50,
+      this.heroTextureLease.key,
+    );
     this.playerSprite.setScale(2.0);
     this.playerSprite.setFlipX(false);
     this.playerSprite.setDepth(BATTLE_DEPTH.frontActors);
@@ -614,7 +623,6 @@ export class BattleScene extends Phaser.Scene {
       22,
       7,
     );
-    this.refreshBattlePlayerSprite();
 
     // Player name + HP/MP bar (right below player sprite)
     this.playerStatsText = this.add
@@ -1720,15 +1728,13 @@ export class BattleScene extends Phaser.Scene {
 
   /** Regenerate the player equipped texture and update the battle sprite. */
   private refreshBattlePlayerSprite(): void {
-    const renderer = new PlayerRenderer(this);
-    // Create a dummy sprite for the renderer (it needs playerSprite to exist)
-    renderer.playerSprite = this.playerSprite;
-    renderer.refreshPlayerSprite(this.player, false);
-    // The texture is regenerated in-place; update our sprite
-    const texKey = `player_equipped_${this.player.appearanceId}`;
-    if (this.textures.exists(texKey)) {
-      this.playerSprite.setTexture(texKey);
-    }
+    const nextLease = acquireHeroTexture(
+      this,
+      resolveHeroVisualDescriptor(this.player),
+    );
+    this.playerSprite.setTexture(nextLease.key);
+    this.heroTextureLease?.release();
+    this.heroTextureLease = nextLease;
   }
 
   private updateMonsterDisplay(): void {
@@ -3276,6 +3282,8 @@ export class BattleScene extends Phaser.Scene {
     this.battlePartyRenderer.clear();
     this.battlePresentation?.cleanup();
     this.battleBackdrop?.stopDynamicEffects();
+    this.heroTextureLease?.release();
+    this.heroTextureLease = null;
     this.input?.keyboard?.removeAllKeys(true, false);
     setDebugCommandHandler(null);
     for (const combatant of this.partyCombatants) {

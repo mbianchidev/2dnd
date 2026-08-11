@@ -169,9 +169,9 @@ const BOSS_STORIES: readonly BossStory[] = [
 
 function hero(): CutsceneActorCue {
   return {
+    role: "hero",
     id: "hero",
     label: "{hero}",
-    color: 0x4dd0e1,
     slot: "left",
     entrance: "left",
   };
@@ -179,6 +179,7 @@ function hero(): CutsceneActorCue {
 
 function boss(story: BossStory): CutsceneActorCue {
   return {
+    role: "boss",
     id: story.id,
     label: story.name,
     color: story.color,

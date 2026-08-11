@@ -309,6 +309,19 @@ import { executeSocialDebugCommand } from "./reputation";
 import { executeCraftingDebugCommand } from "./crafting";
 import { registerNauticalDebugCommands } from "./nauticalDebug";
 import { executeFeatureDiscoveryDebugCommand } from "./featureDiscovery";
+import {
+  getHeroCutsceneIds,
+  isCutsceneId,
+  type CutsceneId,
+} from "../data/cutscenes";
+import {
+  createDebugHeroVisualDescriptor,
+  HERO_VISUAL_FIXTURE_IDS,
+  HERO_VISUAL_LOADOUT_IDS,
+  isHeroVisualFixtureId,
+  isHeroVisualLoadoutId,
+  type HeroVisualDescriptor,
+} from "./heroVisuals";
 
 /** Callbacks the OverworldScene provides so the debug system can trigger UI/game updates. */
 export interface OverworldDebugCallbacks {
@@ -339,6 +352,10 @@ export interface OverworldDebugCallbacks {
   resolveGathering(success: boolean): string;
   resetGathering(): string;
   gatheringStatus(): readonly string[];
+  startCutsceneView(
+    cutsceneId: CutsceneId,
+    heroVisual: HeroVisualDescriptor,
+  ): boolean;
 }
 
 /** Wrapper so a primitive number can be shared by reference between the scene and this system. */
@@ -999,6 +1016,57 @@ export class DebugCommandSystem {
       this.callbacks.startBattle(encounter, biome);
     });
 
+    cmds.set("cutsceneview", (args) => {
+      const [cutsceneArg, fixtureArg, loadoutArg] = args.trim().split(/\s+/);
+      if (cutsceneArg === "list") {
+        debugPanelLog(
+          `Hero cutscenes (${getHeroCutsceneIds().length}):`,
+          true,
+        );
+        for (const cutsceneId of getHeroCutsceneIds()) {
+          debugPanelLog(`  ${cutsceneId}`, true);
+        }
+        debugPanelLog(
+          `Fixtures: ${HERO_VISUAL_FIXTURE_IDS.join(", ")}`,
+          true,
+        );
+        debugPanelLog(
+          `Loadouts: ${HERO_VISUAL_LOADOUT_IDS.join(", ")}`,
+          true,
+        );
+        return;
+      }
+      if (
+        !cutsceneArg
+        || !isCutsceneId(cutsceneArg)
+        || !getHeroCutsceneIds().includes(cutsceneArg)
+        || !fixtureArg
+        || !isHeroVisualFixtureId(fixtureArg)
+        || !loadoutArg
+        || !isHeroVisualLoadoutId(loadoutArg)
+      ) {
+        debugPanelLog(
+          "Usage: /cutsceneview <hero-cutscene-id> "
+          + `<${HERO_VISUAL_FIXTURE_IDS.join("|")}> `
+          + `<${HERO_VISUAL_LOADOUT_IDS.join("|")}>`,
+          true,
+        );
+        return;
+      }
+      const heroVisual = createDebugHeroVisualDescriptor(
+        fixtureArg,
+        loadoutArg,
+      );
+      if (!this.callbacks.startCutsceneView(cutsceneArg, heroVisual)) {
+        debugPanelLog("[CMD] Cutscene view could not start.", true);
+        return;
+      }
+      debugPanelLog(
+        `[CMD] Cutscene view ${cutsceneArg} / ${fixtureArg} / ${loadoutArg}`,
+        true,
+      );
+    });
+
     cmds.set("teleport", (args) => {
       const parts = args.trim().split(/\s+/);
       const nameArg = args.trim().toLowerCase();
@@ -1270,6 +1338,10 @@ export class DebugCommandSystem {
       {
         usage: "/battleview <monster> <biome> <time> <weather>",
         desc: "Launch a deterministic backdrop test battle",
+      },
+      {
+        usage: "/cutsceneview <id> <fixture> <loadout>",
+        desc: "Launch any hero cutscene with deterministic hero visuals",
       },
       { usage: "/audio <cmd>", desc: "Audio: play (demo all) | mute | stop" },
       { usage: "/teleport <x> <y>", desc: "Teleport to chunk or /tp <name>" },

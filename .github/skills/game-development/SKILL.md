@@ -58,6 +58,11 @@ boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and
 ordering, queue lifecycle, recovery, Chronicle selection, and summary logic live
 in `src/systems/cutscenes.ts`; `src/managers/cutscene.ts` owns step progression;
 scenes and renderers own input and presentation.
+Hero-role actors remain immutable staging cues and resolve at presentation time
+from the current `PlayerState`. Build the canonical descriptor with
+`src/systems/heroVisuals.ts` and acquire cleanup-safe procedural textures through
+`src/renderers/heroTextures.ts`; do not duplicate class, appearance, equipment
+layer, fallback, or cache-key rules in Cutscene, Overworld, Battle, or Ending.
 `EndingScene` and `DefeatScene` share `src/renderers/result.ts`; defeat receives
 an exact runtime-only `PartyDefeatResult`, while the recovered player state is
 autosaved before presentation.

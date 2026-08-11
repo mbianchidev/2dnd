@@ -155,6 +155,7 @@ import {
   type CutsceneTriggerSnapshot,
 } from "../systems/cutscenes";
 import { createSharedSceneState } from "../systems/sceneState";
+import type { HeroVisualDescriptor } from "../systems/heroVisuals";
 import { CodexDiscoveryManager } from "../managers/codexDiscovery";
 import { WorldEventManager } from "../managers/worldEvents";
 import { AchievementOverlayManager } from "../managers/achievementOverlay";
@@ -690,7 +691,11 @@ export class OverworldScene extends Phaser.Scene {
     this.showMessage(`Recipe discovered: ${names.join(", ")}.`, "#f7c948");
   }
 
-  private startCutscene(cutsceneId: CutsceneId, replay = false): boolean {
+  private startCutscene(
+    cutsceneId: CutsceneId,
+    replay = false,
+    debugHeroVisual?: HeroVisualDescriptor,
+  ): boolean {
     if (this.sceneTransitions.isPending) return false;
     this.dialogueSystem.dismissDialogue();
     this.tutorialManager.close();
@@ -709,6 +714,7 @@ export class OverworldScene extends Phaser.Scene {
         ...persistentState,
         cutsceneId,
         replay,
+        debugHeroVisual,
       });
     }, {
       duration: 500,
@@ -815,6 +821,8 @@ export class OverworldScene extends Phaser.Scene {
         return "Gathering state reset.";
       },
       gatheringStatus: () => this.gatheringManager.status(this.player),
+      startCutsceneView: (cutsceneId, heroVisual) =>
+        this.startCutscene(cutsceneId, true, heroVisual),
     });
     this.debugCommandSystem.fogOfWar = this.fogOfWar;
     this.debugCommandSystem.encounterSystem = this.encounterSystem;

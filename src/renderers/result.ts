@@ -5,6 +5,17 @@ import type { CampaignEndingSummary } from "../systems/cutscenes";
 import type { PartyDefeatResult } from "../systems/party";
 import { isReducedMotionEnabled } from "../systems/accessibility";
 import { registerLayoutGroup } from "../managers/layout";
+import type { PlayerState } from "../systems/player";
+import {
+  describeHeroVisual,
+  resolveHeroVisualDescriptor,
+  type HeroVisualDescriptor,
+} from "../systems/heroVisuals";
+import {
+  acquireHeroTexture,
+  type HeroTextureLease,
+} from "./heroTextures";
+import { getAccessibilityPreferences } from "../systems/accessibility";
 
 export interface CampaignEndingChoiceCallbacks {
   continuePostGame: () => void;
@@ -28,12 +39,23 @@ export class ResultRenderer {
   private selectedChoice = 0;
   private hintTween: Phaser.Tweens.Tween | null = null;
   private ambientTweens: Phaser.Tweens.Tween[] = [];
+  private heroTextureLease: HeroTextureLease | null = null;
+  private readonly heroDescriptor: HeroVisualDescriptor | null;
+  private heroInspection = "";
 
   constructor(
     private readonly scene: Phaser.Scene,
     theme: ResultTheme = "ending",
+    player?: PlayerState,
+    heroDescriptor?: HeroVisualDescriptor,
   ) {
+    this.heroDescriptor = heroDescriptor
+      ?? (player ? resolveHeroVisualDescriptor(player) : null);
     this.createBackdrop(theme);
+  }
+
+  get heroInspectionReport(): string {
+    return this.heroInspection;
   }
 
   createAdvanceZone(): Phaser.GameObjects.Zone {
@@ -62,6 +84,12 @@ export class ResultRenderer {
     } else {
       this.renderCredits(step.lines);
     }
+    if (
+      this.heroDescriptor
+      && step.presentation?.actors?.some((actor) => actor.role === "hero")
+    ) {
+      this.renderHero();
+    }
 
     const hint = this.scene.add.text(
       GAME_WIDTH / 2,
@@ -83,6 +111,32 @@ export class ResultRenderer {
         repeat: -1,
       });
     }
+  }
+
+  private renderHero(): void {
+    if (!this.content || !this.heroDescriptor) return;
+    this.heroTextureLease?.release();
+    this.heroTextureLease = acquireHeroTexture(
+      this.scene,
+      this.heroDescriptor,
+      "front",
+      "standard",
+      getAccessibilityPreferences().highContrast,
+    );
+    const sprite = this.scene.add.sprite(
+      GAME_WIDTH / 2,
+      405,
+      this.heroTextureLease.key,
+    ).setScale(3).setOrigin(0.5, 1);
+    this.content.add(sprite);
+    const fallbacks = this.heroDescriptor.equipmentLayers
+      .filter((layer) => layer.fallbackUsed)
+      .map((layer) => `${layer.slot}:${layer.itemId}`)
+      .join(",") || "none";
+    this.heroInspection = `actor=hero`
+      + ` descriptor=${describeHeroVisual(this.heroDescriptor)}`
+      + ` texture=${this.heroTextureLease.key}`
+      + ` fallback=${fallbacks}`;
   }
 
   renderDefeatIntro(presentation: DefeatResultPresentation): void {
@@ -557,6 +611,9 @@ export class ResultRenderer {
   private clearContent(): void {
     this.hintTween?.remove();
     this.hintTween = null;
+    this.heroTextureLease?.release();
+    this.heroTextureLease = null;
+    this.heroInspection = "";
     this.content?.destroy();
     this.content = null;
     this.choiceButtons = [];

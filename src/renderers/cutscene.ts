@@ -168,11 +168,11 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
 
   cleanup(): void {
     this.clearTransientPresentation();
+    this.root.destroy(true);
     for (const actor of this.actors.values()) {
       actor.heroTextureLease?.release();
     }
     this.actors.clear();
-    this.root.destroy(true);
   }
 
   private clearTransientPresentation(): void {

@@ -611,10 +611,10 @@ export class ResultRenderer {
   private clearContent(): void {
     this.hintTween?.remove();
     this.hintTween = null;
+    this.content?.destroy();
     this.heroTextureLease?.release();
     this.heroTextureLease = null;
     this.heroInspection = "";
-    this.content?.destroy();
     this.content = null;
     this.choiceButtons = [];
     this.choiceLabels = [];

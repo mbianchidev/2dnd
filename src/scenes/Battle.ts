@@ -494,6 +494,9 @@ export class BattleScene extends Phaser.Scene {
       this.battlePresentation?.cleanup();
       this.battleBackdrop?.destroy();
       this.codexDiscovery.clear();
+      this.playerSprite?.destroy();
+      this.heroTextureLease?.release();
+      this.heroTextureLease = null;
     });
 
     this.rollForInitiative();
@@ -3282,8 +3285,6 @@ export class BattleScene extends Phaser.Scene {
     this.battlePartyRenderer.clear();
     this.battlePresentation?.cleanup();
     this.battleBackdrop?.stopDynamicEffects();
-    this.heroTextureLease?.release();
-    this.heroTextureLease = null;
     this.input?.keyboard?.removeAllKeys(true, false);
     setDebugCommandHandler(null);
     for (const combatant of this.partyCombatants) {

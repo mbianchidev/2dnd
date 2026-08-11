@@ -43,6 +43,9 @@ once-only completion and cleanup, and family-frame fallback resolution
 ✅ Semantic mappings, context priority, analog dead zones, repeats, source
 switching, duplicate suppression, disconnect/blur cleanup, and control
 preference migration
+✅ Measured stacks/grids, safe-area clamping, long-string wrapping,
+pagination/visible ranges, filtered focus restoration, scaled bounds,
+hit-area alignment, and debug/test overlap detection
 ✅ Alignment boundaries, reputation tiers, clamping, stable-source
 idempotency, quest/dialogue/event/trap/combat hooks, shop composition, Codex
 milestones, schema-v12 migration, bounded history, and debug commands
@@ -531,6 +534,10 @@ npx vitest run tests/dice.test.ts
   filmstrip creates thousands of canvas captures that stall context teardown.
 - Use `#debug-state`, `#debug-log`, and persisted save state as authoritative
   synchronization surfaces. Canvas text is not DOM text.
+- Registered Phaser layout groups expose bounds and audit results through
+  `#layout-report`, `data-layout-overlap-count`, and
+  `data-layout-clipping-count`; use stable `layoutId` values instead of brittle
+  coordinate-only clicks.
 - Hold frame-polled keys with `keyboard.down()`, wait across frames, then
   `keyboard.up()`. Do not use instantaneous presses for Overworld or Ending
   actions.

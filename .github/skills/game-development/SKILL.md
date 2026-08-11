@@ -430,6 +430,9 @@ npm run build
 For UI changes, run the committed Playwright flow in headless Chromium. Keep
 browser actions synchronized through debug-state transitions, and hold
 frame-polled Phaser keys across frames rather than using instantaneous presses.
+Build responsive UI from `src/systems/layout.ts`, register modal groups through
+`createOverlayContainer()`, and assert the local `#layout-report` reports zero
+unintended overlap or clipping at supported text scales.
 
 ## Common pitfalls
 

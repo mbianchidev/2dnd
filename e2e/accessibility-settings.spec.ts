@@ -17,6 +17,17 @@ interface BrowserPreferences {
   };
 }
 
+interface LayoutReportItem {
+  id: string;
+  bounds: { x: number; y: number; width: number; height: number };
+}
+
+interface LayoutReport {
+  overlapCount: number;
+  clippingCount: number;
+  groups: Record<string, { items: LayoutReportItem[] }>;
+}
+
 async function clickGame(
   page: Page,
   gameX: number,
@@ -31,6 +42,42 @@ async function clickGame(
     bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
   await page.waitForTimeout(120);
+}
+
+async function readLayoutReport(page: Page): Promise<LayoutReport> {
+  await expect(page.locator("#layout-report")).not.toHaveText("");
+  return page.locator("#layout-report").evaluate((element) =>
+    JSON.parse(element.textContent ?? "{}") as LayoutReport
+  );
+}
+
+async function clickLayoutItem(page: Page, id: string): Promise<void> {
+  await expect.poll(async () => {
+    const report = await readLayoutReport(page);
+    return Object.values(report.groups)
+      .flatMap((group) => group.items)
+      .some((item) => item.id === id);
+  }).toBe(true);
+  const report = await readLayoutReport(page);
+  const item = Object.values(report.groups)
+    .flatMap((group) => group.items)
+    .find((candidate) => candidate.id === id);
+  if (!item) throw new Error(`Missing layout item: ${id}`);
+  await clickGame(
+    page,
+    item.bounds.x + item.bounds.width / 2,
+    item.bounds.y + item.bounds.height / 2,
+  );
+}
+
+async function expectCleanLayout(page: Page): Promise<void> {
+  await expect.poll(async () => {
+    const report = await readLayoutReport(page);
+    return {
+      overlaps: report.overlapCount,
+      clipping: report.clippingCount,
+    };
+  }).toEqual({ overlaps: 0, clipping: 0 });
 }
 
 async function holdKey(
@@ -101,11 +148,16 @@ test("title and in-game accessibility settings share live preferences", async ({
 
   await test.step("change title settings at the largest text scale", async () => {
     await clickGame(page, 320, 364);
-    await clickGame(page, 320, 95);
-    await clickGame(page, 320, 310);
-    await clickGame(page, 320, 310);
-    await clickGame(page, 320, 348);
-    await clickGame(page, 320, 386);
+    await expectCleanLayout(page);
+    await clickGame(page, 194, 115);
+    await clickLayoutItem(page, "settings-text-scale");
+    await clickLayoutItem(page, "settings-text-scale");
+    await clickLayoutItem(page, "settings-high-contrast");
+    await clickLayoutItem(page, "settings-reduced-motion");
+    await expectCleanLayout(page);
+    await page.screenshot({
+      path: test.info().outputPath("title-settings-150.png"),
+    });
 
     const preferences = await readPreferences(page);
     expect(preferences.audio.masterVolume).toBeCloseTo(0.5, 1);
@@ -155,11 +207,16 @@ test("title and in-game accessibility settings share live preferences", async ({
 
   await test.step("change the same settings from the in-game menu", async () => {
     await holdKey(page, "Escape");
-    await clickGame(page, 320, 322);
-    await clickGame(page, 320, 310);
-    await clickGame(page, 320, 348);
-    await clickGame(page, 320, 386);
-    await clickGame(page, 320, 250);
+    await expectCleanLayout(page);
+    await clickLayoutItem(page, "escape-menu-settings");
+    await clickLayoutItem(page, "settings-text-scale");
+    await clickLayoutItem(page, "settings-high-contrast");
+    await clickLayoutItem(page, "settings-reduced-motion");
+    await clickLayoutItem(page, "settings-mute");
+    await expectCleanLayout(page);
+    await page.screenshot({
+      path: test.info().outputPath("ingame-settings-100.png"),
+    });
 
     const preferences = await readPreferences(page);
     expect(preferences.audio.muted).toBe(true);

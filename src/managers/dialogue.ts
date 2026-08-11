@@ -36,7 +36,9 @@ export class DialogueSystem {
   showSpecialDialogue(speakerName: string, line: string): void {
     this.dismissDialogue();
 
-    const container = this.scene.add.container(0, 0).setDepth(50);
+    const container = this.scene.add.container(0, 0)
+      .setDepth(50)
+      .setScrollFactor(0);
     const boxW = MAP_WIDTH * TILE_SIZE - 20;
     const boxH = 46;
     const boxX = 10;
@@ -107,7 +109,9 @@ export class DialogueSystem {
     line = `${getNpcSocialReaction(player, city.id)}${line}`;
     if (audioEngine.initialized) audioEngine.playDialogueBlips(line);
 
-    const container = this.scene.add.container(0, 0).setDepth(50);
+    const container = this.scene.add.container(0, 0)
+      .setDepth(50)
+      .setScrollFactor(0);
     const boxW = MAP_WIDTH * TILE_SIZE - 20;
     const boxH = 46;
     const boxX = 10;
@@ -156,7 +160,9 @@ export class DialogueSystem {
 
     if (audioEngine.initialized) audioEngine.playDialogueBlips(line, -5);
 
-    const container = this.scene.add.container(0, 0).setDepth(50);
+    const container = this.scene.add.container(0, 0)
+      .setDepth(50)
+      .setScrollFactor(0);
     const boxW = MAP_WIDTH * TILE_SIZE - 20;
     const boxH = 46;
     const boxX = 10;
@@ -202,7 +208,9 @@ export class DialogueSystem {
     }
     this.dismissDialogue();
 
-    const container = this.scene.add.container(0, 0).setDepth(50);
+    const container = this.scene.add.container(0, 0)
+      .setDepth(50)
+      .setScrollFactor(0);
     const boxW = MAP_WIDTH * TILE_SIZE - 20;
     const boxH = 58;
     const boxX = 10;

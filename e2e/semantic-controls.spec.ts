@@ -40,6 +40,42 @@ async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
 }
 
+async function expectCleanLayout(page: Page): Promise<void> {
+  const canvas = page.locator("#game-container canvas");
+  await expect(canvas).toHaveAttribute("data-layout-overlap-count", "0");
+  await expect(canvas).toHaveAttribute("data-layout-clipping-count", "0");
+}
+
+async function layoutItemCenter(
+  page: Page,
+  id: string,
+): Promise<{ x: number; y: number }> {
+  await expect(page.locator("#layout-report")).not.toHaveText("");
+  const item = await page.locator("#layout-report").evaluate((element, itemId) => {
+    const report = JSON.parse(element.textContent ?? "{}") as {
+      groups?: Record<string, {
+        items?: Array<{
+          id: string;
+          bounds: { x: number; y: number; width: number; height: number };
+        }>;
+      }>;
+    };
+    return Object.values(report.groups ?? {})
+      .flatMap((group) => group.items ?? [])
+      .find((candidate) => candidate.id === itemId);
+  }, id);
+  if (!item) throw new Error(`Missing layout item: ${id}`);
+  return {
+    x: item.bounds.x + item.bounds.width / 2,
+    y: item.bounds.y + item.bounds.height / 2,
+  };
+}
+
+async function clickLayoutItem(page: Page, id: string): Promise<void> {
+  const point = await layoutItemCenter(page, id);
+  await clickGame(page, point.x, point.y);
+}
+
 async function holdKey(
   page: Page,
   key: string,
@@ -69,6 +105,7 @@ async function drainOpening(page: Page, source: "touch" | "keyboard"): Promise<v
 
 async function completeTutorialByTouch(page: Page): Promise<void> {
   await waitForState(page, "[TUTORIAL");
+  await expectCleanLayout(page);
   for (let step = 0; step < 5; step += 1) {
     await page.locator('[data-action="confirm"]').tap();
     await page.waitForTimeout(100);
@@ -206,6 +243,7 @@ test.describe("touch controls", () => {
     await submitDebug(page, "/event trigger abandonedSupplyCart");
     await waitForState(page, "[WORLD_EVENT:abandonedSupplyCart]");
     await waitForState(page, "[WORLD_EVENT_SELECTION:1/2]");
+    await expectCleanLayout(page);
     await page.locator('[data-action="navigateDown"]').tap();
     await waitForState(page, "[WORLD_EVENT_SELECTION:2/2]");
     await page.locator('[data-action="navigateUp"]').tap();
@@ -378,7 +416,8 @@ test.describe("standard gamepad controls", () => {
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      await moveGamepadCursor(page, 320, 365);
+      const party = await layoutItemCenter(page, "escape-menu-party");
+      await moveGamepadCursor(page, party.x, party.y);
       await pressGamepad(11);
       const state = await page.locator("#debug-state").textContent() ?? "";
       if (state.includes("[PARTY:items")) break;
@@ -400,7 +439,7 @@ test.describe("standard gamepad controls", () => {
     await pressGamepad(1);
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
-    await clickGame(page, 320, 232);
+    await clickLayoutItem(page, "escape-menu-chronicle");
     await waitForState(page, "[CHRONICLE_SELECTION:1/");
     await pressGamepad(13);
     await waitForState(page, "[CHRONICLE_SELECTION:2/");

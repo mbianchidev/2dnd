@@ -207,6 +207,11 @@ API, and saves use `localStorage`.
   item, and interaction sound effects
 - Shared title and in-game settings for audio, 100%/125%/150% text, high
   contrast, reduced motion, and manual or automatic cutscene advance
+- Measured stacks, responsive grids, safe-area panel clamping, measured
+  pagination, and synchronized text hit areas through the shared layout system
+- Local-development layout reports expose registered scene/group bounds,
+  unintended overlaps, and clipping through `#layout-report` and canvas data
+  attributes without production logging
 - Important selections and trap/battle states pair color with text, symbols,
   borders, or numeric values
 - A five-step new-player tutorial plus an in-game Tips library with
@@ -627,6 +632,9 @@ analog dead zones, repeats, source switching, disconnect/blur cleanup,
 preference migration, and duplicate suppression. Animation coverage verifies deterministic state selection,
 reduced-motion timing, stable target mapping, once-only cleanup, and texture
 fallback behavior.
+Measured-layout coverage verifies safe-area clamping, variable-height stacks,
+responsive grids, wrapping, pagination, visible scroll ranges, filtered focus
+restoration, scaled bounds, and overlap/clipping detection.
 Gathering coverage verifies terrain safety, deterministic tables, environmental
 weights, all three state machines, reduced-motion equivalence, cooldowns,
 economy, rare Battle handoffs, achievements, recipe-input isolation, pending

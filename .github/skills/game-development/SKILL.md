@@ -14,8 +14,9 @@ and changes spanning scenes, systems, data, renderers, or managers.
 1. Use strict TypeScript with explicit parameter and return types.
 2. Keep content data-driven in `src/data/`; keep reusable logic in
    `src/systems/`.
-3. Generate graphics in `src/renderers/textures.ts` and synthesize audio in
-   `src/systems/audio.ts`; do not add external assets.
+3. Generate reusable textures in `src/renderers/textures.ts`; scene-sized
+   procedural Battle scenery belongs in `battleBackdrop.ts`. Synthesize audio
+   in `src/systems/audio.ts`; do not add external assets.
 4. Preserve shared scene state across transitions.
 5. Use `debugLog()` and debug-panel APIs instead of `console.log`.
 6. Add deterministic Vitest coverage for game logic.
@@ -29,6 +30,8 @@ and changes spanning scenes, systems, data, renderers, or managers.
 - Core mechanics: `src/systems/`
 - Immutable definitions: `src/data/`
 - Extracted presentation: `src/renderers/`
+- Battle environment composition: `src/renderers/battleBackdrop.ts`
+- Shared Battle depth contract: `src/renderers/battleDepth.ts`
 - Stateful scene helpers: `src/managers/`
 - Shared audio/accessibility preferences: `src/systems/accessibility.ts`
 - Typed semantic actions and state: `src/systems/input.ts`

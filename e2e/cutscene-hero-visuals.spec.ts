@@ -29,20 +29,6 @@ async function holdKey(page: Page, key: string, duration = 120): Promise<void> {
   await page.waitForTimeout(120);
 }
 
-async function tapGame(
-  page: Page,
-  gameX: number,
-  gameY: number,
-): Promise<void> {
-  const canvas = page.locator("#game-container canvas");
-  const bounds = await canvas.boundingBox();
-  if (!bounds) throw new Error("Game canvas has no rendered bounds");
-  await page.touchscreen.tap(
-    bounds.x + (gameX / GAME_WIDTH) * bounds.width,
-    bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
-  );
-}
-
 async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
 }
@@ -244,7 +230,7 @@ test("hero screenshots change with PlayerState-derived fixtures and remain acces
     animations: "disabled",
     maxDiffPixelRatio: 0.03,
   });
-  await tapGame(page, 320, 260);
+  await page.locator('[data-action="confirm"]').tap();
   await waitForState(page, "OVERWORLD");
 
   await page.setViewportSize({ width: 844, height: 390 });

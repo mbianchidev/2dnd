@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import type { BattleActionSource } from "../systems/battleActions";
 import type { PartyCombatant } from "../systems/groupCombat";
 import { getActiveEffectNames } from "../systems/statusEffects";
+import { BATTLE_DEPTH } from "./battleDepth";
 
 export class BattlePartyRenderer {
   private readonly scene: Phaser.Scene;
@@ -33,7 +34,7 @@ export class BattlePartyRenderer {
       const y = height * 0.65;
       const sprite = this.scene.add.sprite(x, y, textureKey)
         .setScale(1.35)
-        .setDepth(2);
+        .setDepth(BATTLE_DEPTH.frontActors);
       const label = this.scene.add.text(x, y + 22, "", {
         fontSize: "9px",
         fontFamily: "monospace",
@@ -41,7 +42,7 @@ export class BattlePartyRenderer {
         align: "center",
         backgroundColor: "#0a0a1acc",
         padding: { x: 3, y: 2 },
-      }).setOrigin(0.5, 0).setDepth(3);
+      }).setOrigin(0.5, 0).setDepth(BATTLE_DEPTH.ui);
       this.sprites.set(combatant.id, sprite);
       this.labels.set(combatant.id, label);
     });

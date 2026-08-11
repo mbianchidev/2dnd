@@ -475,16 +475,16 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
       }).__setGamepadAxes(values);
     }, axes);
   };
+  const cursorAxis = (delta: number): number => {
+    const distance = Math.abs(delta);
+    if (distance < 20) return 0;
+    return Math.sign(delta) * Math.min(
+      0.7,
+      Math.max(0.35, distance / 120),
+    );
+  };
   const moveCursor = async (gameX: number, gameY: number): Promise<void> => {
     const target = await gamePoint(page, gameX, gameY);
-    const cursorAxis = (delta: number): number => {
-      const distance = Math.abs(delta);
-      if (distance < 20) return 0;
-      return Math.sign(delta) * Math.min(
-        0.7,
-        Math.max(0.35, distance / 120),
-      );
-    };
     for (let attempt = 0; attempt < 240; attempt += 1) {
       const bounds = await page.locator("#gamepad-cursor").boundingBox();
       if (bounds) {
@@ -514,9 +514,20 @@ test("gamepad cursor opens achievements from the menu", async ({ page }) => {
   await continueToOverworld(page);
   await pressGamepad(9);
   await waitForState(page, "[MENU]");
-  const achievements = await layoutItemCenter(page, "escape-menu-achievements");
-  await moveCursor(achievements.x, achievements.y);
-  await pressGamepad(11);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const achievements = await layoutItemCenter(
+      page,
+      "escape-menu-achievements",
+    );
+    await moveCursor(achievements.x, achievements.y);
+    await pressGamepad(11);
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes("[ACHIEVEMENTS")) break;
+    if (!state.includes("[MENU]")) {
+      await pressGamepad(9);
+      await waitForState(page, "[MENU]");
+    }
+  }
   await waitForState(page, "[ACHIEVEMENTS");
   expect(browserErrors).toEqual([]);
 });

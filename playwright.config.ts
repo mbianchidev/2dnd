@@ -38,6 +38,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "line",
   outputDir: "test-results",
+  snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}{ext}",
   use: {
     baseURL: serverUrl,
     viewport: { width: 1440, height: 900 },

@@ -201,6 +201,11 @@ Battle delegates companion manual/gambit turn UI to `BattlePartyManager` and
 companion presentation to `BattlePartyRenderer`. Destroy their transient
 containers on scene exit/restart.
 
+`BattleBackdropRenderer` owns all scene-sized environment containers, actor
+shadows, split rear/front weather, lightning timers, inspection labels, and
+cleanup. Use `BATTLE_DEPTH` for backdrop, actor, presentation, weather, and UI
+objects; opaque sky geometry must remain below celestial bodies and scenery.
+
 Before replacing `FogOfWar` or `EncounterSystem`, preserve their debug toggle
 state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.
 
@@ -260,7 +265,8 @@ on mouse-wheel input.
 - After group victory, record every defeated combatant ID for quest counters
   without deduplicating repeated monster types, then pass transient updates to
   Overworld for notification and autosave.
-- Clean up weather emitters and timers owned by Battle.
+- Destroy `BattleBackdropRenderer` so its weather emitters, lightning timers,
+  labels, shadows, and containers are released together.
 - Also remove Battle input listeners and transient menus before result or
   Overworld handoff.
 - Clean up the battle presentation director before destroying party sprites.

@@ -30,6 +30,7 @@ import {
 import {
   selectGambitAction,
 } from "../systems/gambits";
+import { BATTLE_DEPTH } from "../renderers/battleDepth";
 
 interface BattlePartyCallbacks {
   present(result: ResolvedBattleAction): void;
@@ -408,7 +409,9 @@ export class BattlePartyManager {
     const height = 42 + rows.length * rowHeight;
     const x = this.scene.cameras.main.width - width - 10;
     const y = Math.max(10, this.scene.cameras.main.height - height - 10);
-    const container = this.scene.add.container(x, y).setDepth(30);
+    const container = this.scene.add.container(x, y).setDepth(
+      BATTLE_DEPTH.uiOverlay,
+    );
     const background = this.scene.add.graphics();
     background.fillStyle(0x121a2e, 0.97);
     background.fillRoundedRect(0, 0, width, height, 6);

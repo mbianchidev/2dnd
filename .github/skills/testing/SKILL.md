@@ -6,6 +6,10 @@ license: MIT
 
 # Testing Guide for 2D&D
 
+See [`AGENTS.md`](../../../AGENTS.md) and
+[`docs/testing.md`](../../../docs/testing.md) for the release gate, CI ownership,
+and browser-test setup.
+
 Write comprehensive game-mechanics tests with Vitest. Use the committed
 Playwright suite only for high-value Phaser browser flows that cannot be proven
 through pure logic tests.

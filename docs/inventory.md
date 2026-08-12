@@ -1,5 +1,8 @@
 # Inventory presentation
 
+[Documentation index](README.md) | [Gameplay](gameplay.md) |
+[Companions and gambits](companions.md)
+
 ## Ownership and presentation
 
 Hero and companion item ownership remains in each actor's canonical

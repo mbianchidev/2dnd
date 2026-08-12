@@ -6,6 +6,10 @@ license: MIT
 
 # Save System
 
+See [`AGENTS.md`](../../../AGENTS.md) and
+[`docs/save-system.md`](../../../docs/save-system.md) for the operational
+checklist and current persistence boundaries.
+
 Game state is stored in `localStorage` by `src/systems/save.ts`. Shared audio
 and accessibility preferences plus inventory presentation preferences are
 stored separately.
@@ -229,7 +233,8 @@ validation.
 5. Increment `SAVE_VERSION` for a schema change.
 6. Add tests for valid persistence, missing values, malformed values, and
    corrupt-location recovery.
-7. Update README and repository instructions when the stored shape changes.
+7. Update README, `AGENTS.md`, `docs/save-system.md`, repository instructions,
+   and this skill when the stored shape changes.
 
 For party data, normalize after quests, skill checks, and trap fields. Then
 replay completed `recruitCompanion` quest actions so v5 saves and debug-completed

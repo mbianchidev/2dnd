@@ -6,6 +6,10 @@ license: MIT
 
 # Phaser 4 Scene Management
 
+See [`AGENTS.md`](../../../AGENTS.md) and
+[`docs/architecture.md`](../../../docs/architecture.md) before changing scene
+contracts, transitions, input, or layout.
+
 ## Scenes and keys
 
 | File | Class | Scene key |

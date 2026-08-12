@@ -6,6 +6,10 @@ license: MIT
 
 # D&D-Inspired Mechanics
 
+See [`AGENTS.md`](../../../AGENTS.md) and
+[`docs/architecture.md`](../../../docs/architecture.md) before changing shared
+combat authority or action economy.
+
 2D&D adapts D&D 5E concepts to a single-player JRPG. Follow the implemented
 rules in `src/systems/` when they intentionally differ from tabletop rules.
 

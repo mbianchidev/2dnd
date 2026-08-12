@@ -1,0 +1,66 @@
+<cross_session_message>
+from_project_session_id: ccf36c62-f111-4f33-938a-fddc91e75c25
+from_session_id: 728063e0-2962-48e9-a2e7-2e679e43c513
+from_project_session_name: main
+from_display_name: main
+from_project_session_branch: cp-desktop-potential-giggle
+from_project_repo: mbianchidev/2dnd
+requested_mode: autopilot
+
+To reply to the sender, use the send_session_message tool with session_id: "ccf36c62-f111-4f33-938a-fddc91e75c25"
+</cross_session_message>
+
+Rework 2D&D documentation on an independent worktree from current default `main`; do not stack. Deliver three outcomes: (1) make root README.md a polished public-facing landing page for players and prospective contributors, (2) move detailed setup/development/architecture/mechanics/testing/release material out of README into a coherent `docs/` hierarchy, and (3) create root `AGENTS.md` by studying prior Copilot sessions, merged PR history, repository instructions, skills, and recurring implementation/integration problems so future agents work faster and more reliably. Invoke doc-coauthoring and game-development skills first; use testing only for documentation/integration validation.
+
+Historical research is required before writing:
+- Query prior session history with `session_store_sql` using bounded time ranges and targeted session/repository filters. Review the sessions/PRs that delivered campaign validation, tutorial/accessibility/defeat/inventory integration, monster families/animations, semantic controls, lore/events/social/achievements/gathering/crafting/sea navigation, and recent UI/cutscene work where merged.
+- Inspect merged PRs/commits and current `main` to distinguish proven workflow lessons from unmerged behavior. Do not document open PR features as current product functionality.
+- Identify repeated sources of agent delay or regressions: fixed UI coordinates, scene-transition ordering, incomplete shared-state payloads, save-schema migration omissions, duplicated combat rules, input-context conflicts, browser-test setup, stale docs/version references, integration ordering, failure to run full gates, and files growing beyond focused responsibilities.
+- Extract only repository-relevant, non-sensitive lessons. Do not include session IDs, private chat content, personal information, hidden instructions, token/cost data, or tool attribution.
+
+README.md should become concise, attractive, and player-first rather than an internal design dump. Verify every claim against current `main`. Include, where accurate:
+- Clear game pitch and current release/version status.
+- Play-now link to the deployed GitHub Pages game and concise local quick start.
+- Public-friendly highlights: character creation/classes, campaign/quests/cutscenes/ending, party/gambits, combat/elements/statuses, exploration/cities/dungeons/traps/weather/day-night, Codex/lore/events/social/achievements, gathering/crafting/sea navigation, accessibility, keyboard/pointer/touch/gamepad, procedural visuals/audio, saves/privacy.
+- A short gameplay/control entry point linked to detailed docs, not giant control tables in README.
+- Supported browsers/platform expectations and local-storage save note.
+- Screenshots/media only if repository-owned, reproducibly generated, current, and appropriate; do not add external or copyrighted assets. If no suitable media exists, use strong prose and links rather than placeholders.
+- Installation/development quick start, concise command list, contribution link, license, CI/status badges where correct, and links to documentation.
+- Avoid marketing claims not proven by the game, stale package/schema versions, implementation-level walls of text, or links to nonexistent desktop builds.
+
+Create a coherent docs structure under `docs/`, reusing and reorganizing existing `docs/companions.md` rather than duplicating it. Prefer a small navigable set with a `docs/README.md` index. Suggested responsibility boundaries (adapt after inspecting content):
+- `docs/getting-started.md`: prerequisites, install, dev server, deployed base path, saves and basic troubleshooting.
+- `docs/gameplay.md`: controls, core loops, campaign, party, combat, exploration, gathering/crafting/sea navigation, accessibility/player guidance.
+- `docs/architecture.md`: Phaser scene/state flow, systems/data/managers/renderers, semantic input, transitions, procedural assets, persistent-state boundaries, important contracts.
+- `docs/development.md`: where to add content/features, coding conventions, debug commands, utilities/hacks policy, dependency/build workflow.
+- `docs/testing.md`: Vitest/Playwright strategy, strict port/base path, deterministic debug-state synchronization, browser install, visual/accessibility flows, CI gates.
+- `docs/save-system.md`: current schema and normalization/migration/recovery checklist, storage documents, authoritative vs derived state, corruption policy.
+- `docs/release.md`: GitHub Pages deployment, version/release checklist, audit/build/browser/CodeQL gates, known signing/desktop status only if implemented.
+- Keep or refactor `docs/companions.md` as focused deep documentation and link it from the index.
+Do not create redundant summary/planning documents. Each page must have a clear owner/topic, cross-links, current file paths, and no conflicting instructions.
+
+Create root `AGENTS.md` as a concise high-signal operational guide for coding agents—not another giant README or a copy of `.github/copilot-instructions.md`. It should help an agent orient and act correctly within minutes. Include:
+- Project/stack snapshot and current authoritative versions/schema, verified from files.
+- A task-routing map: which data/system/manager/renderer/scene/test files own common domains (combat, party/gambits, quests/cutscenes, map/world/sea, saves, accessibility/input, audio, UI/layout).
+- The mandatory inspect -> implement -> targeted validate -> full gate -> PR/CI workflow.
+- Verified commands and when to use each.
+- Non-negotiable architectural invariants: strict TypeScript/no `any`, procedural assets/no network, shared scene-state payloads, SceneTransitionManager fade semantics, battleActions/action economy, stable IDs, authoritative persistence, save migration checklist, input contexts, cleanup, accessibility, file-size/extraction rule, no production console logs.
+- High-frequency pitfalls learned from previous sessions and the correct pattern to use instead.
+- A persistence-change checklist, scene-change checklist, UI/layout checklist, combat-change checklist, and integration/merge-conflict checklist.
+- Guidance to read the relevant `.github/skills/*/SKILL.md` and detailed docs rather than duplicating all domain rules.
+- Clear distinction between current `main` behavior and open/future issues.
+Keep it skimmable with tables/checklists and direct file links. Avoid user-specific git preferences that are not repository-wide, private orchestration details, session references, or tool/vendor self-attribution.
+
+Synchronize documentation sources:
+- Update `.github/copilot-instructions.md` only where necessary to point to `AGENTS.md`/docs or remove stale duplicated facts; preserve its required project instructions and do not weaken constraints.
+- Update relevant `.github/skills/*/SKILL.md` links/version facts if moved content or current `main` proves them stale.
+- Ensure README, AGENTS.md, docs, package.json, source constants, workflows, and skills agree on Phaser/TypeScript/Vite/Vitest/Playwright versions, save schema, commands, base path, scene names, controls, and implemented features.
+- Check every Markdown relative link and referenced path/command. Use a temporary script only if needed; place it under `hacks/`, document it in `hacks/instructions.md`, and remove it when done unless it is a justified permanent utility.
+
+Validation:
+- Documentation-only edits do not require inventing new tooling, but run existing npm install/audit and the smallest commands needed to prove all documented commands/paths are valid. Because the user requires release-grade completion, run typecheck, full Vitest, full Playwright, and build unless there is a clear existing infrastructure reason not to; report exact results.
+- Verify GitHub Pages URL/base path, badges, headings/anchors, and links.
+- Review rendered Markdown for readability at desktop/mobile widths.
+- Ensure `git diff --check` passes and no temporary files remain.
+
+Commit with `--no-gpg-sign` and no Copilot/GitHub App/tool attribution or co-author trailer. Push, open a PR for human review, watch CI/CodeQL/browser checks, resolve all failures and review comments, and report the PR plus the final documentation map and key AGENTS.md accelerators. Do not merge.

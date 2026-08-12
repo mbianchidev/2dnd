@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01KZTQTN2FGK53EWZZMEAYPXHY",
+  "strategy": "manual-commit",
+  "branch": "cp-desktop-public-docs-agent-guide",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/dnd-mechanics/SKILL.md",
+    ".github/skills/game-development/SKILL.md",
+    ".github/skills/phaser-scene-management/SKILL.md",
+    ".github/skills/save-system/SKILL.md",
+    ".github/skills/testing/SKILL.md",
+    ".github/skills/world-and-map/SKILL.md",
+    "AGENTS.md",
+    "README.md",
+    "docs/README.md",
+    "docs/architecture.md",
+    "docs/companions.md",
+    "docs/development.md",
+    "docs/gameplay.md",
+    "docs/getting-started.md",
+    "docs/inventory.md",
+    "docs/release.md",
+    "docs/save-system.md",
+    "docs/testing.md",
+    "package-lock.json",
+    "package.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 76608,
+    "api_call_count": 189
+  }
+}

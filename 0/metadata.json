@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01KZTQTN2FGK53EWZZMEAYPXHY",
+  "session_id": "5027918d-af67-4781-a0a8-475122a43fb3",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-12T10:21:05.271176Z",
+  "branch": "cp-desktop-public-docs-agent-guide",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/dnd-mechanics/SKILL.md",
+    ".github/skills/game-development/SKILL.md",
+    ".github/skills/phaser-scene-management/SKILL.md",
+    ".github/skills/save-system/SKILL.md",
+    ".github/skills/testing/SKILL.md",
+    ".github/skills/world-and-map/SKILL.md",
+    "AGENTS.md",
+    "README.md",
+    "docs/README.md",
+    "docs/architecture.md",
+    "docs/companions.md",
+    "docs/development.md",
+    "docs/gameplay.md",
+    "docs/getting-started.md",
+    "docs/inventory.md",
+    "docs/release.md",
+    "docs/save-system.md",
+    "docs/testing.md",
+    "package-lock.json",
+    "package.json"
+  ],
+  "agent": "Copilot CLI",
+  "model": "",
+  "turn_id": "4c6644846030",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 76608,
+    "api_call_count": 189
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-12T10:21:04.791307Z",
+    "agent_lines": 1138,
+    "agent_removed": 714,
+    "human_added": 3,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1141,
+    "total_lines_changed": 1855,
+    "agent_percentage": 99.83827493261455,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

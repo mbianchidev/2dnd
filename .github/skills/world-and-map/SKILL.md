@@ -6,6 +6,10 @@ license: MIT
 
 # World and Map System
 
+See [`AGENTS.md`](../../../AGENTS.md) and
+[`docs/architecture.md`](../../../docs/architecture.md) for repository-wide
+ownership and integration rules.
+
 ## Module layout
 
 - `src/data/map.ts`: hub, shared helpers, encounter rates, and re-exports

@@ -1,8 +1,12 @@
 # Companions and Gambits
 
+[Documentation index](README.md) | [Gameplay](gameplay.md) |
+[Architecture](architecture.md)
+
 ## Party model
 
-The persistent party lives at `player.party` in save schema v6:
+The persistent party was introduced in schema v6 and lives at `player.party` in
+the current schema v17:
 
 - `companions`: unique recruited `CompanionState` records
 - `activeCompanionIds`: up to three recruited IDs in battle/follower order

@@ -6,6 +6,11 @@ license: MIT
 
 # 2D&D Game Development
 
+Start with [`AGENTS.md`](../../../AGENTS.md), then use
+[`docs/architecture.md`](../../../docs/architecture.md) and
+[`docs/development.md`](../../../docs/development.md) for current ownership and
+workflow.
+
 Use this skill for cross-cutting game features, new content, combat behavior,
 and changes spanning scenes, systems, data, renderers, or managers.
 

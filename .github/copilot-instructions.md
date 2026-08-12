@@ -1,7 +1,9 @@
 # 2D&D Project Instructions
 
-Keep this file, the repository skills, and `README.md` synchronized with game
-design, architecture, tooling, and persistent data changes.
+Read `AGENTS.md` for the operational workflow and `docs/README.md` for detailed
+topic ownership. Keep this file, `AGENTS.md`, the repository skills, and the
+relevant docs synchronized with game design, architecture, tooling, and
+persistent data changes.
 
 If a utility script is required, place it in `hacks/`, document it in
 `hacks/instructions.md`, and remove temporary utilities when the task is done.
@@ -24,7 +26,7 @@ continuation, plus deterministic fishing, mining, and foraging minigames.
 
 - Phaser 4.2.1
 - TypeScript 7.0.2 in strict mode
-- Vite 8.2.0
+- Vite 8.2.1
 - Vitest 4.1.10
 - Playwright 1.62.1
 - happy-dom 20.11.1

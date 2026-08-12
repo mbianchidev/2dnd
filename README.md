@@ -1,738 +1,110 @@
 # 2D&D
 
-A browser-based JRPG that combines Dragon Quest-style exploration with
-Dungeons & Dragons 5E-inspired combat. The game runs entirely in the browser:
-graphics are procedurally generated, audio is synthesized with the Web Audio
-API, and saves use `localStorage`.
+[![Release](https://img.shields.io/github/v/release/mbianchidev/2dnd)](https://github.com/mbianchidev/2dnd/releases/latest)
+[![Pull request checks](https://github.com/mbianchidev/2dnd/actions/workflows/pr.yml/badge.svg?branch=main)](https://github.com/mbianchidev/2dnd/actions/workflows/pr.yml)
+[![GitHub Pages](https://github.com/mbianchidev/2dnd/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/mbianchidev/2dnd/actions/workflows/deploy.yml)
+[![CodeQL](https://github.com/mbianchidev/2dnd/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/mbianchidev/2dnd/actions/workflows/codeql.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-## Features
+**A browser JRPG with Dragon Quest-style exploration and D&D 5E-inspired
+combat.** Build a hero, recruit a party, cross a 90-chunk world, and complete
+the seven-chapter Twelvefold Covenant campaign.
 
-### Character creation and progression
+**[Play 2D&D now](https://mbianchidev.github.io/2dnd/)**
 
-- 12 classes: Knight, Ranger, Wizard, Sorcerer, Rogue, Paladin, Warlock,
-  Cleric, Druid, Barbarian, Monk, and Bard
-- D&D 5E point buy: 27 points, base scores from 8 to 15
-- Optional 4d6-drop-lowest random stat generation
-- Class ability boosts, class-specific primary stats, spells, martial
-  abilities, talents, equipment, shields, mounts, and banking
-- Leveling to 20 with hit-die HP growth, proficiency bonuses, and ability score
-  improvements
-- Three quest-recruited companions (Guardian, Scout, Mystic) with independent
-  levels, stats, HP/MP, spells, abilities, equipment, inventories, and ASI
-  progression
-- Hero plus three active companions, reserve/active ordering, item transfers,
-  party-wide inn recovery, and persistent manual or gambit control
-- Large hero and companion inventories support immutable sorting by type,
-  value, rarity, recent acquisition, or name; category filters, search,
-  generated item visuals, and stable keyboard, pointer, gamepad, and touch
-  selection
-- Ranked 12-rule gambits use structured subjects, conditions, actions, and
-  targets; invalid rules safely fall through without consuming resources
+Current release: **v1.0.0**
 
-### Combat
+2D&D runs entirely in the browser. Its pixel-art textures are generated at
+runtime, its music and sound effects are synthesized with the Web Audio API,
+and campaign saves stay in your browser's local storage.
 
-- Turn-based d20 combat with initiative, natural 1/20 outcomes, critical hits,
-  defending, fleeing, off-hand attacks, spells, abilities, consumables, and
-  boss abilities
-- Balanced encounters with 1-4 monsters, individual initiative turns,
-  front/back formations, semantic keyboard, pointer, gamepad, or touch target
-  selection, and group
-  synergies such as Pack Tactics, Shield Wall, War Cry, healer support, and
-  elemental combos
-- Party battles use stable combatant IDs, explicit party/enemy allegiance,
-  individual initiative, ally/enemy target scopes, living-party monster target
-  selection, manual companion turns, automated gambits, and shared result hooks
-- `battleActions.ts` provides a Phaser-free gambit pipeline to enumerate living
-  actors, bind matched and item-declared ally/self targets, validate
-  MP/inventory/action economy, freeze an action plan, consume one action plus
-  one bonus action per actor, and dispatch one attack, defend, spell, ability,
-  or item action
-- Generic `BattleActionSource` and `executeValidatedBattleAction()` reuse the
-  game's d20, AC, elements, statuses, MP, inventory, healing, and defend rules
-  for player or future companion actors
-- Battle consumables use item-declared target scopes: ally items fall back to
-  self when solo, self-only items remain self, and the acting actor consumes
-  the item while HP, MP, or cures apply to the selected target
-- Single-target, row-targeted, random-two, and all-enemy spell targeting; AoE
-  spells pay MP and roll damage once, then resolve each monster independently
-- Single/all-party healing, Mass Haste, and Inspiring Chorus apply one shared
-  roll/cost across the resolved party targets
-- Nine damage elements: Fire, Ice, Lightning, Poison, Necrotic, Radiant,
-  Thunder, Force, and Psychic
-- Monster weaknesses deal double damage, resistances halve damage, and
-  immunities prevent damage
-- Elemental interactions are discovered through combat and recorded per
-  monster in the Codex
-- Every monster belongs to one of 14 typed families with a stable base/variant
-  relationship, weighted encounter eligibility, and a family-specific
-  procedural silhouette. Palette variants keep distinct abilities, drops,
-  elemental profiles, and difficulty, while bosses use richer family forms.
-- The typed Codex preserves monster defeat, AC, elemental, drop, family, and
-  completion discovery while adding locations, items, characters, factions,
-  and history from canonical campaign data.
-- Knowledge unlocks are idempotent and source-driven through city/dungeon
-  exploration, quest stages/completions, cutscenes, item acquisition, named NPC
-  dialogue, and readable statues or temple records. Lore never controls quests,
-  rewards, companions, gates, or outcomes.
-- Category filters, search, canonical/name/source sorting, discovered grouping,
-  source hints, and non-blocking discovery notices support keyboard, pointer,
-  touch, gamepad cursor, 150% text, high contrast, and reduced motion.
-- 15 status effects shared by players and monsters:
-  Poisoned, Burning, Frozen, Paralyzed, Stunned, Frightened, Slowed, Prone,
-  Asleep, Confused, Enraged, Hasted, Inspired, Raging, and Sneak Stance
-- Start-of-turn damage and saving throws, skipped turns, attack disadvantage,
-  accuracy/AC/damage modifiers, duration expiration, and cure items
-- Combat effects are cleared when Battle ends because their durations use the
-  combat turn clock
-- Full-party defeat opens a dedicated procedural result sequence for random and
-  boss encounters, lists every defeated actor, reports the exact gold and XP
-  losses, autosaves the recovered state, and continues from the last town with
-  half HP/MP and no battle effects or overlapping weather ambience
-- Stable-ID battle presentation animates hero, companion, monster, and boss
-  idle, attack, cast, ability, item, defend, damage, victory, faint, and flee
-  states after mechanics resolve, without changing action economy or outcomes
+## Highlights
 
-### Non-combat skill checks
+- **Create your hero:** choose from 12 classes, use 27-point buy or
+  4d6-drop-lowest stats, customize appearance, level to 20, and collect
+  equipment, talents, spells, abilities, and mounts.
+- **Complete a full campaign:** follow the Twelvefold Covenant through 12
+  mainland cities, three keystone dungeons, data-driven cutscenes, boss
+  encounters, an epilogue, and post-game continuation.
+- **Build a party:** recruit the Guardian, Scout, and Mystic; manage their
+  equipment and inventories; control them manually or automate turns with
+  ranked gambits.
+- **Fight tactical battles:** face groups of up to four enemies with initiative,
+  formations, ally and enemy targeting, nine elements, status effects, healing,
+  items, bosses, and full-party defeat recovery.
+- **Explore a changing world:** travel through connected city districts,
+  multi-level dungeons, seeded traps, fog of war, weather, day and night,
+  non-combat skill checks, World Events, and optional danger zones.
+- **Discover more than monsters:** expand the Codex with lore, make alignment
+  and reputation choices, earn achievements and cosmetic titles, and replay
+  unlocked story scenes in the Chronicle.
+- **Gather, craft, and sail:** fish, mine, forage, craft deterministic recipes
+  and equipment upgrades, use merchant routes, earn a boat, explore Tidehaven,
+  and challenge the Deepwake Kraken.
+- **Play your way:** use keyboard, pointer, touch, or a standard gamepad.
+  Accessibility settings include 100%/125%/150% text, high contrast, reduced
+  motion, adjustable audio, cutscene advance options, and adaptive prompts.
 
-- D20 ability checks use the player's Dexterity, Intelligence, Wisdom, or
-  Charisma modifier;
-  natural 1 and 20 are not automatic outcomes outside attack rolls
-- Charisma supports persistent Persuade/Bluff NPC outcomes and one-attempt shop
-  negotiations with 10% or 20% discounts
-- Wisdom uncovers hidden trails, dungeon passages, secret chest compartments,
-  and better rewards from overworld treasure
-- Dexterity avoids exploration hazards and resolves locked or trapped chests;
-  failed hazards can cost HP but cannot defeat the player outside combat
-- Fixed checks use stable save IDs, while repeatable terrain events remain
-  data-driven by environment and terrain
+See the [gameplay guide](docs/gameplay.md) for controls, progression, and player
+guidance.
 
-### World exploration
+## Browser and save support
 
-- A 10x9 world grid containing 90 chunks, each 20x15 tiles
-- Four named landmasses—Frostcrown, Verdant Covenant, Ember March, and
-  Southreach—assigned over the unchanged 90 legacy chunk identities, with five
-  navigable sea zones and compatible overworld fog coordinates
-- Discoverable ports and merchant routes support paid passage before boat
-  ownership; The Tideglass Charter grants a Reed Skiff and unlocks free sailing,
-  safe contextual embark/disembark, boat condition, upgrades, and cosmetics
-- Tidehaven island adds a two-district town, harbor shops and inn, sea materials,
-  a multi-level trapped grotto, and the optional Deepwake Kraken boss
-- Sailing alone enables capped sea encounters, day/night sea pools, weather
-  hazards, open-sea fishing, synthesized wake/audio, and procedural boat art
-- Distinct terrain, biome encounter tables, night encounters, weather,
-  day/night lighting, fog of war, treasure, NPCs, animals, and special NPCs
-- Random encounter modifiers stack but the effective chance is capped at 15%;
-  group encounters begin at level 2 and use level budgets and biome filters
-- Seeded, data-driven World Events add shrines, ambushes, travelers, discoveries,
-  weather hazards, and supply finds. Eligibility uses terrain, area, day/night,
-  weather, level, quest state, prior outcomes, repeat limits, and cooldowns.
-- Event choices reuse normal skill checks, quest/reward helpers, Codex
-  `worldEvent` signals, and the standard Battle pipeline. Pending choices and
-  special combats recover after reload without rerolling or duplicating rewards.
-- The Chronicle includes a bounded World Events record with source, location,
-  time, weather, choice, and resolved outcome.
-- Fishing, mining, and foraging use stable location-derived nodes and distinct
-  bite/tension, strike/precision, and search/memory minigames. Eligibility uses
-  canonical terrain, location context, biome, time, weather, and node cooldowns.
-- Gathering outcomes are selected and saved before play so reload cannot reroll
-  rewards. Reduced motion replaces animation timing with deliberate steps while
-  preserving patterns, score thresholds, outcomes, and rewards.
-- Thirteen canonical fish, ores, gems, herbs, plants, wood, and relic materials
-  stack through normal inventory semantics, can be sold at bounded values, and
-  expose stable recipe-input metadata consumed directly by crafting recipes.
-  Rare guarded finds enter the normal Battle pipeline.
-- Fourteen data-driven recipes cover healing, cures, travel supplies, trap
-  tools, deterministic equipment upgrades, and rare elemental gear. Crafting
-  validates one selected hero or companion inventory, gold, batch size, station,
-  protected items, outputs, and equipment links before one atomic transaction.
-- Recipe discovery is idempotent across exploration, cities, quests, gathering,
-  shops, NPCs, readable lore, Codex knowledge, items, and World Events. Monster
-  drops, chests, shops, event rewards, and deterministic minor treasures provide
-  balanced canonical materials without replacing existing rewards.
-- 13 cities, including the optional island port Tidehaven, with connected districts, district-specific shops, gates,
-  discovery, fast travel, inns, banks, stables, and city music
-- Four multi-level dungeons with bidirectional stairs, floor-specific
-  encounters, chests, fog, procedural traps, and a unique deepest-floor boss
-- Seeded trap layouts with spike pits, poison darts, falling rocks, alarms,
-  hidden floors, and dungeon-specific runes; nearby checks use Dexterity or
-  Intelligence, detected traps can be disarmed for XP, and unresolved traps can
-  deal HP/MP damage, inflict combat statuses, summon encounters, or drop the
-  player to a deeper floor
-- Trap Kits, class talents, and Adventurer guidance improve detection and
-  disarming; seeded layouts and four-state trap outcomes persist explicitly
-- The seven-chapter **Twelvefold Covenant** main quest spans all 12 cities and
-  restores three keystones guarded by dungeon bosses, with two campaign
-  sidequests, optional boss objectives, named story NPCs, dynamic markers, a
-  `Q` journal, unique rewards, gated roads, and soft danger zones
-- Data-driven campaign cutscenes cover the opening, quest stages, city oaths,
-  companions, dungeon reveals, route openings, keystones, and every boss
-  introduction and aftermath; queued scenes survive reloads until completed or
-  skipped, and the Chronicle replays seen scenes without changing game state
-- The final Elowen turn-in launches a skippable campaign epilogue with rewards,
-  party and exploration summaries, credits, post-game continuation, and
-  presentation-only replay from the in-game menu
-- Alignment uses bounded Law/Chaos and Good/Evil axes. New heroes begin exactly
-  Chaotic Neutral, while stable named alignments and epilogue legacy text are
-  derived from deterministic thresholds
-- Reputation is tracked independently for all 12 towns and canonical factions.
-  Its named tiers influence NPC reactions, optional World Events, and additive
-  shop discounts or surcharges without gating campaign completion
-- Quest, dialogue, World Event, trap, and morally relevant event-combat outcomes
-  apply through stable idempotent source IDs. The Party Social page shows both
-  axes, scores, thresholds, standing tiers, and a bounded recent-cause history
-- 39 data-driven achievements cover campaign chapters, bosses and dungeons,
-  combat, secrets, exploration, Codex families, companions and gambits, gathering, World
-  Events, social milestones, and meaningful equipment collection. Progress is
-  derived from authoritative game state where possible; one-shot battle history
-  uses stable once-only counters. Optional title rewards are cosmetic only.
-- Three additional recruitment quest lines use stable stage IDs and replayable
-  completion actions; active conscious companions follow the hero and can be
-  spoken to during overworld, city, and dungeon exploration
-- Fog keys separate every dungeon level and city district while preserving
-  legacy level-zero/chunk-zero save keys
+2D&D is designed for current desktop and mobile browsers. Release CI validates
+the game in Chromium; other current evergreen browsers are expected to work but
+are not part of the automated release gate. There is no desktop installer.
 
-### Presentation
+Campaign saves, accessibility/audio settings, and inventory-view preferences
+are stored locally in the current browser profile. Saves do not automatically
+sync between browsers, devices, private windows, or cleared site data. The game
+has no account system, analytics, or server-side save service.
 
-- Phaser 4 pixel-art rendering with procedural textures
-- Every campaign, optional-boss, Kraken, Chronicle, recovery, and epilogue
-  cutscene resolves the hero from the current `PlayerState`, including class
-  build, custom skin/hair colors, armor, main/off-hand weapons, and shields
-- Animated overworld walking, followers, mount gait, battle actions, boss
-  reveals, and cutscene actor states through reusable cleanup-safe directors
-- Stable `monster-<id>-<normal|boss>-idle` texture keys provide an animation-ready
-  family/frame contract; the animation director consumes matching action frames
-  when present and falls back to transform-based poses for existing idle art
-- Monster silhouettes and palettes remain readable through shape, symbols, and
-  detail rather than color alone
-- Procedural biome, city, battle, boss, title, cutscene, and campaign-ending
-  music and cues
-- Synthesized combat, spell, ability, defend, flee, faint, weather, movement,
-  item, and interaction sound effects
-- Shared title and in-game settings for audio, 100%/125%/150% text, high
-  contrast, reduced motion, and manual or automatic cutscene advance
-- Measured stacks, responsive grids, safe-area panel clamping, measured
-  pagination, and synchronized text hit areas through the shared layout system
-- Local-development layout reports expose registered scene/group bounds,
-  unintended overlaps, and clipping through `#layout-report` and canvas data
-  attributes without production logging
-- Important selections and trap/battle states pair color with text, symbols,
-  borders, or numeric values
-- A five-step new-player tutorial plus an in-game Tips library with
-  progression-aware combat, exploration, party, mount, dungeon, skill-check,
-  and trap guidance
-- Scrollable overlays and a bounded battle log
-- Local-development debug panel, hotkeys, and slash commands
+## Run locally
 
-## Tech stack
-
-| Component | Version |
-| --- | --- |
-| Phaser | 4.2.1 |
-| TypeScript | 7.0.2 |
-| Vite | 8.2.0 |
-| Vitest | 4.1.10 |
-| Playwright | 1.62.1 |
-| happy-dom | 20.11.1 |
-
-## Project structure
-
-```text
-src/
-├── main.ts
-├── config.ts
-├── scenes/
-│   ├── Boot.ts
-│   ├── Overworld.ts
-│   ├── Battle.ts
-│   ├── Shop.ts
-│   ├── Codex.ts
-│   ├── Cutscene.ts
-│   ├── Ending.ts
-│   └── Defeat.ts
-├── systems/
-│   ├── combat.ts
-│   ├── groupCombat.ts
-│   ├── battleActions.ts
-│   ├── animation.ts
-│   ├── party.ts
-│   ├── inventory.ts
-│   ├── gambits.ts
-│   ├── statusEffects.ts
-│   ├── player.ts
-│   ├── save.ts
-│   ├── codex.ts
-│   ├── movement.ts
-│   ├── traps.ts
-│   ├── trapAudio.ts
-│   ├── skillChecks.ts
-│   ├── weather.ts
-│   ├── daynight.ts
-│   ├── audio.ts
-│   ├── quests.ts
-│   ├── questState.ts
-│   ├── questDebug.ts
-│   ├── worldEvents.ts
-│   ├── gathering.ts
-│   ├── gatheringState.ts
-│   ├── reputation.ts
-│   ├── achievements.ts
-│   ├── accessibility.ts
-│   ├── tutorial.ts
-│   ├── sceneState.ts
-│   ├── cutscenes.ts
-│   └── debug.ts
-├── data/
-│   ├── map.ts
-│   ├── mapTypes.ts
-│   ├── chunks.ts
-│   ├── cities.ts
-│   ├── dungeons.ts
-│   ├── traps.ts
-│   ├── trapTypes.ts
-│   ├── companions.ts
-│   ├── monsters.ts
-│   ├── monsterFamilies.ts
-│   ├── monsterVariants.ts
-│   ├── nightMonsters.ts
-│   ├── monsterGroups.ts
-│   ├── achievements.ts
-│   ├── codexKnowledge.ts
-│   ├── elements.ts
-│   ├── spells.ts
-│   ├── abilities.ts
-│   ├── quests.ts
-│   ├── cutsceneTypes.ts
-│   ├── cutsceneCampaign.ts
-│   ├── cutsceneBosses.ts
-│   ├── cutscenes.ts
-│   ├── skillChecks.ts
-│   ├── worldEvents.ts
-│   ├── gathering.ts
-│   ├── tutorial.ts
-│   └── items.ts
-├── managers/
-│   ├── codexDiscovery.ts
-│   ├── dungeonTraps.ts
-│   ├── companionFollowers.ts
-│   ├── partyOverlay.ts
-│   ├── battleParty.ts
-│   ├── actorAnimation.ts
-│   ├── battlePresentation.ts
-│   ├── worldPresentation.ts
-│   ├── questJournal.ts
-│   ├── questFlow.ts
-│   ├── cutscene.ts
-│   ├── chronicle.ts
-│   ├── worldEvents.ts
-│   ├── tutorial.ts
-│   ├── skillChecks.ts
-│   └── sceneTransition.ts
-└── renderers/
-    ├── traps.ts
-    ├── trapTextures.ts
-    ├── characterTextures.ts
-    ├── itemVisuals.ts
-    ├── actorTextures.ts
-    ├── battleBackdrop.ts
-    ├── battleDepth.ts
-    ├── cutscene.ts
-    ├── settings.ts
-    ├── result.ts
-    └── battleParty.ts
-```
-
-`map.ts` is the map hub. Core types and dimensions live in `mapTypes.ts`;
-world chunks, cities, and dungeons live in their own data modules. Overworld
-delegates rendering and stateful subsystems to `renderers/` and `managers/`.
-
-Tutorial steps, semantic control guidance, tips, categories, and unlock
-requirements live in `src/data/tutorial.ts`. `src/systems/tutorial.ts` owns
-Phaser-free completion normalization and progression-aware filtering, while
-`src/managers/tutorial.ts` owns the adaptive overlay. Completion
-persists at `player.progression.tutorial`; the compact HTML control rail starts
-collapsed now that equivalent guidance is available from the game.
-
-`src/systems/input.ts` defines stable semantic actions, contexts, standard
-keyboard/gamepad mappings, dead-zone normalization, source switching,
-repeat/debounce, context priority, and duplicate-action suppression.
-`src/managers/input.ts` is the single browser/Phaser adapter for keyboard,
-pointer, standard gamepads, and responsive touch controls. It clears held state
-on blur, visibility loss, disconnection, and scene changes; exposes the active
-source on the canvas; and provides a visible right-stick gamepad cursor for
-pointer-first surfaces.
-
-Quest content lives in `src/data/quests.ts`; runtime progression, rewards, NPC
-interactions, journal entries, access rules, danger states, and completion
-actions go through `src/systems/quests.ts`. Save normalization is isolated in
-`src/systems/questState.ts`, debug-only mutation in
-`src/systems/questDebug.ts`, and Overworld presentation flow in
-`src/managers/questFlow.ts`. Add content through these APIs rather than
-mutating `player.progression.quests` directly. Systems such as companion
-recruitment should query `isQuestCompleted()` and persist their own state.
-Completed quests may also declare stable `{ id, type, targetId }` actions.
-Consumers call `getQuestCompletionActions()` or
-`replayQuestCompletionActions()` after load and quest mutations, then apply
-those actions idempotently in their own state. Every stage also has a stable
-data ID; use `getQuestStageIndex()` or the debug-only
-`setQuestStageById()` helper instead of coupling systems to display text.
-
-Cutscene contracts live in `src/data/cutsceneTypes.ts`; campaign and boss content
-live in focused modules, and `src/data/cutscenes.ts` remains the stable-ID hub.
-`src/systems/cutscenes.ts` owns trigger snapshots, deterministic queue order,
-normalization, lifecycle, Chronicle selection, and legacy epilogue recovery.
-`src/managers/cutscene.ts` advances or skips immutable steps.
-`CutsceneScene` and `src/renderers/cutscene.ts` provide procedural presentation.
-Hero-role actors are runtime-resolved through the canonical descriptor in
-`src/systems/heroVisuals.ts` and leased procedural textures in
-`src/renderers/heroTextures.ts`; immutable cutscene data stores staging roles,
-not appearance snapshots. The same pipeline supplies Overworld, Battle, and
-hero-bearing Ending steps, with stable keys covering every visible input and
-safe category fallbacks for equipment without a dedicated family. Debug mode
-provides `/cutsceneview <id> <fixture> <loadout>` plus an inspection report.
-`EndingScene` and `DefeatScene` share
-`src/renderers/result.ts` for campaign-summary, credits, and defeat-result
-surfaces. IDs are queued and saved before presentation, then removed from
-`pendingCutsceneIds` and added to `seenCutsceneIds` only after completion or
-skip. Chronicle replay changes neither list.
-
-`src/systems/animation.ts` defines Phaser-free actor states, deterministic
-reduced-motion timing, stable-ID target mapping, once-only lifecycle gates, and
-the family/frame texture contract. `src/managers/actorAnimation.ts` owns generic
-pose/tween cleanup, while battle and world directors orchestrate feedback
-without delaying authoritative turn, result, or scene-transition state.
-`src/renderers/actorTextures.ts` consumes optional family metadata from #49 and
-falls back to current procedural textures when family frames are unavailable.
-`src/renderers/battleBackdrop.ts` owns Battle's procedural sky, celestial,
-scenery, ground, prop, shadow, and split weather layers. The typed global order
-is centralized in `src/renderers/battleDepth.ts`, keeping world layers below
-actors/effects and all of them below Battle UI and camera transitions.
-
-For companion recruitment, define three distinct quest IDs and one action per
-path using `type: "recruitCompanion"` and the companion ID as `targetId`.
-`recruitCompanion()` must keep recruited IDs unique, so reloads, debug quest
-completion, and replay cannot duplicate a companion. Debug quest and companion
-mutations also refresh live followers immediately.
-
-`SceneTransitionManager` owns camera fades and scene handoffs. It resets stale
-effects on scene entry, waits for Phaser's fade-complete event, restores the
-outgoing camera before queueing the next scene, rejects duplicate handoffs, and
-uses a delayed watchdog only to recover a missing event. Overworld restarts
-share one complete player, party, world, quest, trap, weather, and NPC payload
-and block state-changing input until Phaser processes the queued handoff.
-Battle uses the same guarded handoff for victory, flee, and defeat. Defeat first
-creates an exact `PartyDefeatResult`, saves the recovered player, clears
-transient battle input/effects/weather, then starts `DefeatScene`; continuing
-returns the complete shared state to Overworld without applying the penalty
-again.
-
-See [`docs/companions.md`](docs/companions.md) for party state, recruitment,
-inventories, gambit syntax, combat control, KO/reward rules, and debug commands.
-See [`docs/inventory.md`](docs/inventory.md) for immutable inventory views,
-presentation preferences, controls, generated visuals, and transfer restrictions.
-
-## Getting started
+The CI baseline is Node.js 24 with npm.
 
 ```bash
 git clone https://github.com/mbianchidev/2dnd.git
 cd 2dnd
-npm install
-npm run test:browser:install
+npm ci
 npm run dev
 ```
 
-Vite serves the game at `http://localhost:3000`.
-
-## Commands
+Open `http://localhost:3000`.
 
 ```bash
-npm run dev        # Start the Vite development server
-npm run typecheck  # Run strict TypeScript checks
-npm test           # Run the Vitest suite once
-npm run test:browser # Run the headless Chromium campaign golden path
-npm run test:watch # Run Vitest in watch mode
-npm run build      # Type-check and create a production build
+npm run typecheck      # Strict TypeScript validation
+npm test               # Full Vitest suite
+npm run test:browser   # Full Playwright/Chromium suite
+npm run build          # Type-check and build dist/
 ```
 
-## Controls
+Install Chromium once before the browser suite with
+`npm run test:browser:install`.
 
-| Input | Action |
+## Documentation
+
+| Guide | Contents |
 | --- | --- |
-| `WASD` / arrow keys | Move, navigate, and cycle valid Battle targets |
-| `Space` / `Enter` | Confirm, interact, or disarm a detected adjacent trap |
-| `M` | Open the world or city map |
-| `E` | Open hero equipment |
-| `P` | Open party management after recruiting a companion |
-| `C` | Open the Codex after its first discovery |
-| `Y` | Open Achievements after the first natural unlock |
-| `K` | Open the Gathering record after discovering a gathering discipline |
-| `V` | Open Crafting after learning a non-starting recipe |
-| `Q` | Open the quest journal after a quest starts |
-| `T` | Mount or dismount after owning a mount |
-| `F1` | Open or close Tips |
-| `Esc` | Close the active overlay or skip an active cutscene |
-| Mouse / touch | Select buttons and scroll lists |
+| [Documentation index](docs/README.md) | Complete documentation map |
+| [Getting started](docs/getting-started.md) | Installation, local hosting, saves, troubleshooting |
+| [Gameplay](docs/gameplay.md) | Controls, campaign, combat, exploration, accessibility |
+| [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
+| [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
+| [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
+| [Save system](docs/save-system.md) | Schema v17, migration, recovery, persistence rules |
+| [Release](docs/release.md) | GitHub Pages and release checklist |
+| [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |
+| [Inventory presentation](docs/inventory.md) | Ownership-safe sorting, filtering, controls, transfers |
 
-Standard gamepads use the left stick or D-pad to move and navigate, `A` to
-confirm, `B` to cancel, `X` to interact, `Y`/Menu to open the menu, View to open
-Tips, bumpers to cycle Battle targets/pages, and triggers to scroll the Battle
-log. The right stick moves a visible cursor so every pointer-first button remains
-reachable; press the right stick to click it. Touch devices receive a
-safe-area-aware D-pad plus A/B, Menu, Party,
-and Tips controls; movement and action buttons support simultaneous touches.
-Progression-specific touch actions remain hidden until their feature is
-discovered.
-Character and inventory search text fields open a native mobile text-entry
-surface.
+## Contributing
 
-The `Esc` menu is data-driven. Resume, Inventory, Tips, Settings, and
-save/title controls are always available; quests, Chronicle, Codex,
-Achievements, Gathering, Crafting, Party, social details, mounts, and nautical
-controls appear only after authoritative gameplay evidence reveals them.
-Inventory remains usable before companion recruitment.
-Advanced Tips unlock automatically as relevant progression is reached. In the
-inventory view, arrows and Page Up/Down navigate, `R` cycles sorting, `F` cycles
-filters, `/` focuses search, `X` transfers, and `Tab` changes the target. `T`
-remains mount control. Settings can force touch visibility, swap left/right
-touch layout, and choose automatic or fixed prompt sources. Mappings are stable
-and intentionally not user-remappable; a partial remapper would leave
-pointer-first and text-entry flows inaccessible.
+Read [AGENTS.md](AGENTS.md), the
+[development guide](docs/development.md), and the
+[testing guide](docs/testing.md) before changing the game. Open an
+[issue](https://github.com/mbianchidev/2dnd/issues) for bugs or proposals and
+submit changes through a pull request.
 
-Crafting uses Up/Down and Page Up/Down for recipes, Left/Right for batch size,
-`Q`/`E` for categories, `R` for sorting, `F` for mobile-safe search, and `Tab`
-for explicit hero/companion ownership. Pointer, touch, and the gamepad cursor
-share the same buttons.
+## License
 
-In the Codex, `1`-`6` or `Q`/`E` change categories, `/` opens accessible search,
-`F` cycles the monster-family filter or knowledge discovery grouping, and `R`
-cycles the active category's sort. Family completion and all category counts are
-derived rather than persisted. Touch opens the Codex from the Esc menu, while a
-gamepad can use the same menu and right-stick cursor; `X` opens Codex search
-and `A` submits the shared text-entry form.
-
-## Debug mode
-
-On local development hosts, enable the debug checkbox above the canvas.
-Available tools include:
-
-- Battle hotkeys for instant victory, healing, MP, gold, XP, and levels;
-  instant victory uses the normal one-shot resolution path even before the
-  first initiative turn begins
-- Overworld hotkeys for revealing the map, toggling fog, and disabling random
-  encounters
-- Slash commands for gold, XP, HP, MP, items, weather, time, teleportation,
-  classes, mounts, audio, Codex discovery, quest state, companions, and
-  gathering node/list/near/trigger/resolve/reset/status controls
-- `/spawn <name-or-id>` for every monster in `ALL_MONSTERS`, including unique
-  dungeon bosses, plus special overworld NPC aliases
-- `/battleview <monster-or-group> <biome> <time> <weather>` launches a
-  deterministic visual-test battle; Battle's `/backdrop inspect`,
-  `/backdrop labels on|off`, and `/backdrop set ...` expose layer depths,
-  bounds, and representative combinations
-- `/quest list`, `/quest advance <id>`, and
-  `/quest set <id> <stage-number|stage-id|locked|active|completed>`
-- `/near <questNpcId>` to stand beside a quest NPC in the current city's
-  primary district without completing the interaction
-- `/readable <id>` to stand beside a Codex-readable record in the current city
-- `/companion list`, `/companion recruit <id|all>`,
-  `/companion mode <id> <manual|gambit>`, `/companion heal`, and
-  `/companion gambits <id>`
-- `/event list`, `/event trigger <eventId>`, and `/event reset` for deterministic
-  World Event browser and gameplay checks
-- `/alignment list|explain|set|adjust` and
-  `/reputation list|explain|set|adjust` (`/rep`) for validated social-state
-  inspection and mutation
-- `/achievement list|unlock|reset|progress|explain`; debug unlocks are marked,
-  grant no points or titles, and debug mutations cannot satisfy natural criteria
-- `/feature list|reveal|hide|reset|explain`; explicit debug reveals are marked
-  separately and ordinary debug mutations do not create natural feature unlocks
-- Local browser checks can force the next random encounter with
-  `?forceGroup=<templateId>` (for example, `?forceGroup=slimeSwarm`)
-
-Use `debugLog()` and the debug panel APIs instead of `console.log`.
-
-## Save data
-
-Game state is stored under `2dnd_save`. Audio, accessibility, and control
-presentation preferences are stored separately under the versioned
-`2dnd_preferences` key, so changing text scale, contrast, motion, cutscene
-advance, volume, mute, touch visibility/handedness, or prompt source never
-mutates campaign progress. Version-1 preference documents and existing
-`2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values migrate
-automatically. Inventory sorting, filtering, and search preferences use the
-separate `2dnd_inventory_prefs` key and likewise never mutate item ownership.
-
-Save schema version 17 persists:
-
-- Composed player position and progression data
-- Dungeon ID and level
-- City ID and district index
-- Explored tiles, opened chests, collected treasure, and discovered cities
-- Quest status, stages, objective counters, claimed reward IDs, and acknowledged
-  danger warnings
-- Stable completed-or-skipped cutscene IDs plus queued IDs awaiting completion
-  or skip
-- Per-playthrough trap seed, authoritative detected/missed/disarmed/triggered
-  trap states, and Adventurer guidance
-- Defeated bosses, monster Codex entries, discovered elemental interactions,
-  and normalized stable knowledge-entry unlock IDs
-- Active status effects, time step, and weather state
-- Normalized non-combat skill-check rolls, choices, and outcomes
-- Nautical boat ownership/condition/upgrades/cosmetics, discovered
-  ports/routes/islands/continents/sea tiles, bounded navigation statistics, and
-  recoverable pending merchant routes, hazards, and sea encounters
-- Recruited and active companion IDs; independent progression, resources,
-  inventories, equipment, status effects, dialogue state, control modes, and
-  normalized ranked gambit rules
-- New-player tutorial completion; pre-v9 campaigns migrate as already completed
-  so established saves are not interrupted
-- A stable World Event seed, roll/cooldown counters, one pending choice or
-  special encounter, idempotent resolved/claimed IDs, repeat counters, and a
-  bounded chronological event record
-- Bounded alignment axes, per-town and per-faction reputation scores, stable
-  applied source IDs, and a bounded recent-cause history. Alignment names,
-  reputation tiers, thresholds, shop modifiers, Codex milestones, and ending
-  variants are derived from canonical data
-- Achievement completion records, stable event counters/IDs, explicit defeat
-  history, unlocked/equipped cosmetic titles, debug exclusions, and queued
-  non-blocking notices. Definitions, categories, descriptions, points, totals,
-  and all safely reconstructable progress remain derived
-- A deterministic gathering seed, node cooldown/depletion state, discovered
-  nodes/resources, once-only claimed outcomes, per-discipline statistics,
-  bounded history, and an exact pending minigame or special encounter
-- Known recipe IDs, stable discovery and transaction IDs, natural craft and
-  equipment-upgrade statistics, per-recipe counts, and bounded recent history.
-  Recipe definitions, ingredient contracts, categories, and values are derived
-- Stable discovered feature IDs, queued one-time reveal feedback, explicit
-  debug reveals, and debug-suppressed evidence. Feature availability is
-  reconciled from authoritative quest, party, Codex, achievement, crafting,
-  gathering, event, social, mount, and nautical state
-
-`loadGame()` migrates older flat player saves, normalizes new fields, and
-recovers invalid or conflicting world, city, and dungeon locations. Malformed
-skill-check records are discarded, while valid totals and outcomes are repaired.
-Schema-v3 skill-check saves gain default quest progress, and flat schema-v4
-Ashen Road saves migrate to the nested Covenant state without replaying rewards.
-Flat recruitment quest progress is migrated into the same nested log.
-Schema-v3 skill-check saves gain default trap progress, and schema-v4 quest
-saves gain default trap progress. Malformed trap seeds reset trap states
-so stale IDs cannot resolve against a different layout. Schema-v5 saves gain an
-empty party, and completed recruitment actions replay idempotently after party
-normalization. Older saves gain empty seen and pending cutscene lists; unknown,
-duplicate, malformed, or already-seen pending IDs are discarded. Migration
-queues only a completed-but-unseen campaign epilogue rather than replaying every
-historically eligible scene.
-Schema-v9 monster-only Codex saves gain an empty knowledge-ID collection, then
-recover deterministic unlocks from durable city, dungeon, item, quest, and
-cutscene evidence. Unknown, malformed, and duplicate knowledge IDs are removed
-without changing valid monster records.
-Schema-v10 and older saves gain default World Event state. Loading normalizes
-known event/choice IDs, bounds counters and records, rejects invalid locations,
-clears malformed pending encounters, and discards pending instances already
-present in the resolved record.
-Schema-v11 and older saves gain the Chaotic Neutral baseline with neutral
-reputation. Historical quest/event outcomes are not retroactively replayed;
-already-reached quest social source IDs are marked as consumed so existing
-quest, reward, Codex, and event state remains unchanged.
-Schema-v12 and older saves gain normalized achievement state and silently
-reconcile durable quest, boss, exploration, Codex, party, event, social, and
-inventory milestones. Legacy defeat history is deliberately marked unknown, so
-older completed campaigns cannot receive the no-defeat achievement by inference.
-Schema-v13 and older saves gain default gathering state. Schema-v14 loading
-normalizes stable IDs, statistics, cooldowns, history, and pending outcomes;
-replacing a malformed seed clears generated node state and pending play so
-rewards cannot resolve against an incompatible layout.
-Schema-v14 and older saves gain default crafting state. Schema-v15 removes
-unknown or duplicate recipe/discovery/transaction IDs, clamps statistics,
-repairs bounded history, preserves inventory/equipment links, and replays
-durable recipe discovery idempotently.
-Schema-v16 and older saves gain empty feature-discovery state, then silently
-reconcile every already-earned feature from durable gameplay evidence. Unknown,
-duplicate, malformed, pending, and debug-only IDs are removed so mature saves do
-not emit a storm of reveal notices.
-
-## Testing
-
-The Vitest suite covers combat, elements, statuses, saves, map and city data,
-dungeon traversal and traps, fog keys, movement, player progression, dice,
-quest and skill-check progression, alignment classification, reputation tiers,
-idempotent social outcomes, shop composition, dice, weather, day/night, mounts, NPCs,
-audio, configuration, group encounter generation, formation targeting,
-synergies, rewards, cutscene data, triggers, queue recovery, accessibility,
-director lifecycle, scene transitions, ending summaries, multi-target actions,
-defeat receipts and idempotent result handoffs, and party-ready combat/action-planning
-contracts, companion definitions, party state, gambits, follower trails, and
-recruitment replay. Semantic-input coverage verifies mappings, context priority,
-analog dead zones, repeats, source switching, disconnect/blur cleanup,
-preference migration, and duplicate suppression. Animation coverage verifies deterministic state selection,
-reduced-motion timing, stable target mapping, once-only cleanup, and texture
-fallback behavior.
-Measured-layout coverage verifies safe-area clamping, variable-height stacks,
-responsive grids, wrapping, pagination, visible scroll ranges, filtered focus
-restoration, scaled bounds, and overlap/clipping detection.
-Gathering coverage verifies terrain safety, deterministic tables, environmental
-weights, all three state machines, reduced-motion equivalence, cooldowns,
-economy, rare Battle handoffs, achievements, recipe-input isolation, pending
-reloads, and schema-v14 corruption recovery.
-Crafting coverage verifies recipe integrity, alternative material matching,
-protected/equipped restrictions, atomic batches, repeated-input suppression,
-upgrade link preservation, ownership, discovery, acquisition tables,
-anti-arbitrage, debug exclusion, achievements, and schema-v15 repair. Browser
-coverage includes search, batch crafting, forge upgrades, save/reload, dungeon
-access, responsive layouts, 150% text, high contrast, reduced motion, and
-page/console cleanliness.
-Nautical coverage verifies continent/zone/port/island integrity, route fees and
-gates, pre-boat passage, embark/disembark safety, the 15% encounter cap,
-weather hazards, sea materials and recipes, Kraken content, schema-v16
-corruption recovery, debug commands, responsive world-map presentation, and
-save/reload while sailing.
-
-Important integration suites:
-
-- `tests/elements.test.ts`
-- `tests/statusEffects.test.ts`
-- `tests/save.test.ts`
-- `tests/quests.test.ts`
-- `tests/skillChecks.test.ts`
-- `tests/data.test.ts`
-- `tests/traps.test.ts`
-- `tests/companions.test.ts`
-- `tests/party.test.ts`
-- `tests/defeatSceneTransition.test.ts`
-- `tests/gambits.test.ts`
-- `tests/followers.test.ts`
-- `tests/tutorial.test.ts`
-- `tests/fogOfWar.test.ts`
-- `tests/animation.test.ts`
-- `tests/actorTextures.test.ts`
-- `tests/input.test.ts`
-- `tests/gathering.test.ts`
-
-The committed Playwright suite in `e2e/` runs real Chromium campaign and defeat
-flows through character creation, interrupted opening recovery, quest
-interaction, new-player tutorial completion, keyboard and menu Tips access,
-dungeon reveals, skipped boss introductions, boss aftermath chains, Chronicle
-replay immutability, final Elowen completion, credits, interrupted epilogue
-recovery, post-game continuation and reload, legacy completed-but-unseen ending
-recovery, corrupt-save fallback to New Game, random and boss defeat results,
-recovery save/reload, animated battle/world/mount/follower/boss/cutscene
-presentation, reduced-motion immediacy, mobile onboarding and orientation,
-standard-gamepad overlays, Battle targeting/actions, defeat recovery, input
-source switching, all three gathering disciplines, pending gathering reload,
-rare guarded finds, 150% text, reduced motion, and clean continuation. It starts
-Vite on an available strict port and defaults to the deployed `/2dnd/` base
-path. Pull request CI installs Chromium and runs these suites as a release gate:
-
-```bash
-npm run test:browser:install # One-time Chromium install
-npm run test:browser
-PLAYWRIGHT_BASE_PATH=/ npm run test:browser # Optional root-base check
-```
-
-## Design constraints
-
-- No external image or audio assets
-- No network calls
-- Strict TypeScript; avoid `any`
-- Keep game data immutable at runtime
-- Use explicit map helpers instead of hardcoding terrain behavior
-- Preserve complete scene state across transitions
+2D&D is licensed under the [GNU Affero General Public License v3.0](LICENSE).

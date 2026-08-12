@@ -4,7 +4,7 @@
 
 import * as Phaser from "phaser";
 import { generateAllTextures, generatePlayerTextureWithHair } from "../renderers/textures";
-import { PLAYER_CLASSES, type PlayerClass, getPlayerClass, getActiveWeaponSprite } from "../systems/classes";
+import { PLAYER_CLASSES, type PlayerClass } from "../systems/classes";
 import { SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance } from "../systems/appearance";
 import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
 import { saveGame } from "../systems/save";
@@ -241,25 +241,6 @@ export class BootScene extends Phaser.Scene {
     if (this.sceneTransitions.isPending) return;
     const save = loadGame();
     if (!save) return;
-    // Regenerate player texture with custom appearance if present.
-    // Use a separate "equipped" key so base class textures stay clean for New Game.
-    if (save.player.customAppearance) {
-      const cls = getPlayerClass(save.player.appearanceId);
-      const key = `player_equipped_${save.player.appearanceId}`;
-      if (this.textures.exists(key)) this.textures.remove(key);
-      const hasShield = !!save.player.equippedShield && !save.player.equippedWeapon?.twoHanded;
-      generatePlayerTextureWithHair(this,
-        key,
-        cls.bodyColor,
-        save.player.customAppearance.skinColor,
-        cls.legColor,
-        save.player.customAppearance.hairStyle,
-        save.player.customAppearance.hairColor,
-        getActiveWeaponSprite(save.player.appearanceId, save.player.equippedWeapon),
-        cls.clothingStyle,
-        hasShield
-      );
-    }
     const defeatedBosses = new Set(save.defeatedBosses);
     const weatherState = save.weatherState ?? createWeatherState();
     const timeStep = save.timeStep ?? 0;
@@ -1025,21 +1006,6 @@ export class BootScene extends Phaser.Scene {
         hairColor: selectedHairColor,
       };
       const player = createPlayer(name, baseStats, selectedClass.id, customAppearance);
-
-      // Generate final player texture with custom appearance into a separate key
-      // so the base class texture stays clean for future New Game class selection.
-      const texKey = `player_equipped_${selectedClass.id}`;
-      if (this.textures.exists(texKey)) this.textures.remove(texKey);
-      generatePlayerTextureWithHair(this,
-        texKey,
-        selectedClass.bodyColor,
-        selectedSkinColor,
-        selectedClass.legColor,
-        selectedHairStyle,
-        selectedHairColor,
-        getActiveWeaponSprite(selectedClass.id, player.equippedWeapon),
-        selectedClass.clothingStyle
-      );
 
       this.startNewGame(player);
     };

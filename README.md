@@ -194,6 +194,9 @@ API, and saves use `localStorage`.
 ### Presentation
 
 - Phaser 4 pixel-art rendering with procedural textures
+- Every campaign, optional-boss, Kraken, Chronicle, recovery, and epilogue
+  cutscene resolves the hero from the current `PlayerState`, including class
+  build, custom skin/hair colors, armor, main/off-hand weapons, and shields
 - Animated overworld walking, followers, mount gait, battle actions, boss
   reveals, and cutscene actor states through reusable cleanup-safe directors
 - Stable `monster-<id>-<normal|boss>-idle` texture keys provide an animation-ready
@@ -378,8 +381,15 @@ live in focused modules, and `src/data/cutscenes.ts` remains the stable-ID hub.
 `src/systems/cutscenes.ts` owns trigger snapshots, deterministic queue order,
 normalization, lifecycle, Chronicle selection, and legacy epilogue recovery.
 `src/managers/cutscene.ts` advances or skips immutable steps.
-`CutsceneScene` and `src/renderers/cutscene.ts` provide generic procedural
-presentation. `EndingScene` and `DefeatScene` share
+`CutsceneScene` and `src/renderers/cutscene.ts` provide procedural presentation.
+Hero-role actors are runtime-resolved through the canonical descriptor in
+`src/systems/heroVisuals.ts` and leased procedural textures in
+`src/renderers/heroTextures.ts`; immutable cutscene data stores staging roles,
+not appearance snapshots. The same pipeline supplies Overworld, Battle, and
+hero-bearing Ending steps, with stable keys covering every visible input and
+safe category fallbacks for equipment without a dedicated family. Debug mode
+provides `/cutsceneview <id> <fixture> <loadout>` plus an inspection report.
+`EndingScene` and `DefeatScene` share
 `src/renderers/result.ts` for campaign-summary, credits, and defeat-result
 surfaces. IDs are queued and saved before presentation, then removed from
 `pendingCutsceneIds` and added to `seenCutsceneIds` only after completion or

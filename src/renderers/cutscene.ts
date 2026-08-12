@@ -15,12 +15,24 @@ import type { PlayerState } from "../systems/player";
 import { getAccessibilityPreferences } from "../systems/accessibility";
 import { createActorTextureFamily } from "./actorTextures";
 import { ActorAnimationDirector } from "../managers/actorAnimation";
-import { getMonster } from "../data/monsters";
+import {
+  describeHeroVisual,
+  resolveHeroVisualDescriptor,
+  type HeroFacing,
+  type HeroVisualDescriptor,
+} from "../systems/heroVisuals";
+import {
+  acquireHeroTexture,
+  type HeroTextureLease,
+} from "./heroTextures";
 
 interface RenderedActor {
   container: Phaser.GameObjects.Container;
-  body: Phaser.GameObjects.Graphics;
+  body: Phaser.GameObjects.GameObject;
   label: Phaser.GameObjects.Text;
+  textureKey: string;
+  heroSprite?: Phaser.GameObjects.Sprite;
+  heroTextureLease?: HeroTextureLease;
 }
 
 const ACTOR_X: Record<CutsceneActorCue["slot"], number> = {
@@ -73,11 +85,15 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   private readonly tweens: Phaser.Tweens.Tween[] = [];
   private currentBackdrop: CutsceneBackdrop | null = null;
   private lastEvent = "idle";
+  private heroInspection = "";
+  private readonly heroDescriptor: HeroVisualDescriptor;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly player: PlayerState,
+    heroDescriptor?: HeroVisualDescriptor,
   ) {
+    this.heroDescriptor = heroDescriptor ?? resolveHeroVisualDescriptor(player);
     this.background = scene.add.graphics();
     this.effects = scene.add.container(0, 0);
     this.actorsLayer = scene.add.container(0, 0);
@@ -102,6 +118,10 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     return this.lastEvent === "idle"
       ? this.actorAnimations.state
       : this.lastEvent;
+  }
+
+  get heroInspectionReport(): string {
+    return this.heroInspection;
   }
 
   present(step: CutsceneStep, index: number, onReady: () => void): void {
@@ -148,8 +168,11 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
 
   cleanup(): void {
     this.clearTransientPresentation();
-    this.actors.clear();
     this.root.destroy(true);
+    for (const actor of this.actors.values()) {
+      actor.heroTextureLease?.release();
+    }
+    this.actors.clear();
   }
 
   private clearTransientPresentation(): void {
@@ -228,6 +251,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       if (!activeIds.has(id)) {
         this.actorAnimations.unbind(id);
         actor.container.destroy(true);
+        actor.heroTextureLease?.release();
         this.actors.delete(id);
       }
     }
@@ -238,6 +262,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       const targetX = ACTOR_X[placement.slot];
       const targetY = 292;
       actor.label.setText(displayName(placement, this.player));
+      this.updateActorVisual(placement, actor);
       actor.container.setAlpha(1).setScale(placement.scale ?? 1);
       if (!existingActor) {
         actor.container.setPosition(targetX, targetY);
@@ -279,13 +304,22 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   }
 
   private createActor(placement: CutsceneActorCue): RenderedActor {
-    const body = this.scene.add.graphics();
-    body.fillStyle(placement.color ?? actorColor(placement.id), 1);
-    body.fillCircle(0, -86, 21);
-    body.fillRoundedRect(-30, -64, 60, 76, 12);
-    body.fillStyle(0xe6d2b5, 1);
-    body.fillCircle(-7, -90, 3);
-    body.fillCircle(7, -90, 3);
+    const heroFacing = getHeroFacing(placement);
+    const heroTextureLease = placement.role === "hero"
+      ? acquireHeroTexture(
+        this.scene,
+        this.heroDescriptor,
+        heroFacing,
+        "standard",
+        getAccessibilityPreferences().highContrast,
+      )
+      : undefined;
+    const heroSprite = heroTextureLease
+      ? this.scene.add.sprite(0, 12, heroTextureLease.key)
+        .setOrigin(0.5, 1)
+        .setScale(3)
+      : undefined;
+    const body = heroSprite ?? this.createGenericActorBody(placement);
     const label = this.scene.add.text(0, 20, "", {
       fontSize: "12px",
       color: "#ffffff",
@@ -294,9 +328,64 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     }).setOrigin(0.5, 0);
     const container = this.scene.add.container(0, 0, [body, label]);
     this.actorsLayer.add(container);
-    const rendered = { container, body, label };
+    const rendered: RenderedActor = {
+      container,
+      body,
+      label,
+      textureKey: heroTextureLease?.key ?? `cutscene.actor.${placement.id}`,
+      heroSprite,
+      heroTextureLease,
+    };
     this.actors.set(placement.id, rendered);
+    this.updateActorVisual(placement, rendered);
     return rendered;
+  }
+
+  private createGenericActorBody(
+    placement: CutsceneActorCue,
+  ): Phaser.GameObjects.Graphics {
+    const body = this.scene.add.graphics();
+    const color = placement.role === "hero"
+      ? actorColor(placement.id)
+      : placement.color;
+    body.fillStyle(color, 1);
+    body.fillCircle(0, -86, 21);
+    body.fillRoundedRect(-30, -64, 60, 76, 12);
+    body.fillStyle(0xe6d2b5, 1);
+    body.fillCircle(-7, -90, 3);
+    body.fillCircle(7, -90, 3);
+    return body;
+  }
+
+  private updateActorVisual(
+    placement: CutsceneActorCue,
+    actor: RenderedActor,
+  ): void {
+    if (placement.role !== "hero" || !actor.heroSprite) return;
+    const facing = getHeroFacing(placement);
+    const nextLease = acquireHeroTexture(
+      this.scene,
+      this.heroDescriptor,
+      facing,
+      "standard",
+      getAccessibilityPreferences().highContrast,
+    );
+    actor.heroSprite.setTexture(nextLease.key);
+    actor.heroSprite.setFlipX(
+      facing === "side"
+      && (placement.slot === "right" || placement.slot === "farRight"),
+    );
+    actor.heroTextureLease?.release();
+    actor.heroTextureLease = nextLease;
+    actor.textureKey = nextLease.key;
+    const fallbacks = this.heroDescriptor.equipmentLayers
+      .filter((layer) => layer.fallbackUsed)
+      .map((layer) => `${layer.slot}:${layer.itemId}`)
+      .join(",") || "none";
+    this.heroInspection = `actor=${placement.id}`
+      + ` descriptor=${describeHeroVisual(this.heroDescriptor)}`
+      + ` texture=${nextLease.key}`
+      + ` fallback=${fallbacks}`;
   }
 
   private bindActorAnimation(
@@ -311,7 +400,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       textureFamily: createActorTextureFamily({
         id: `cutscene.${placement.id}`,
         role,
-        fallbackTextureKey: "player",
+        fallbackTextureKey: actor.textureKey,
         framePrefix: `cutscene_${placement.id}`,
       }),
     });
@@ -512,6 +601,9 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
 }
 
 function isBossPlacement(placement: CutsceneActorCue): boolean {
-  return getMonster(placement.id)?.isBoss === true
-    || (placement.scale ?? 1) >= 1.2;
+  return placement.role === "boss";
+}
+
+function getHeroFacing(placement: CutsceneActorCue): HeroFacing {
+  return placement.slot === "center" ? "front" : "side";
 }

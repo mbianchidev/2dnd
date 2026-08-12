@@ -182,6 +182,13 @@ when a dialogue keypress can cross a scene boundary.
 invoke it through the existing aggregate generator. Do not load image, sprite,
 or audio files.
 
+Player-specific runtime textures are the exception to Boot-time aggregation:
+resolve their typed descriptor from live `PlayerState` with `heroVisuals.ts`,
+acquire them through `heroTextures.ts`, and release the lease only after the
+owning sprite/container is destroyed or has switched textures. This keeps
+cutscene recovery and Chronicle replay current without generic-frame flashes or
+texture leaks.
+
 ## Scene-owned subsystems
 
 Overworld delegates to renderers and managers. Instantiate these in `init()` so

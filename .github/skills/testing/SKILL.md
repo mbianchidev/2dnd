@@ -34,6 +34,9 @@ normalization/migration, search/sort/group behavior, and future-hook isolation
 mocked camera/time adapters
 ✅ Cutscene data integrity, trigger priority, queue recovery, replay immutability,
 shared preference normalization/migration, and director cleanup
+✅ Runtime hero descriptor normalization, collision-free visual keys, every
+cutscene hero-role cue, equipment layer ordering/fallbacks, texture leases, and
+current-player rendering across opening, recovery, Chronicle, bosses, and ending
 ✅ Tutorial content integrity, semantic control references, completion
 normalization, progression-aware tip unlocks, and save migration
 ✅ Feature registry integrity, authoritative reconciliation, irreversible

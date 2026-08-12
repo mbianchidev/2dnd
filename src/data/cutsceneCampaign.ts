@@ -51,9 +51,9 @@ export const CAMPAIGN_CUTSCENE_IDS = [
 export type CampaignCutsceneId = (typeof CAMPAIGN_CUTSCENE_IDS)[number];
 
 const HERO: CutsceneActorCue = {
+  role: "hero",
   id: "hero",
   label: "{hero}",
-  color: 0x4dd0e1,
   slot: "left",
   entrance: "left",
 };
@@ -64,7 +64,14 @@ function npc(
   color: number,
   slot: CutsceneActorCue["slot"] = "right",
 ): CutsceneActorCue {
-  return { id, label, color, slot, entrance: "right" };
+  return {
+    role: "character",
+    id,
+    label,
+    color,
+    slot,
+    entrance: "right",
+  };
 }
 
 function presentation(

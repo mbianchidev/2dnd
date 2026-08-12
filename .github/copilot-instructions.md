@@ -220,6 +220,11 @@ rendering and scene-owned state to `renderers/` and `managers/`.
   restarts on the shared full-state payload including `savedSpecialNpcs`.
 - Generate textures through `src/renderers/textures.ts`, invoked by Boot.
   Monster silhouettes live in the focused `monsterTextures.ts` renderer.
+- Resolve hero visuals from live `PlayerState` through
+  `src/systems/heroVisuals.ts` and lease generated textures through
+  `src/renderers/heroTextures.ts`. Overworld, Battle, Cutscene, and hero-bearing
+  Ending steps share this pipeline. Cutscene data stores stable hero roles and
+  staging only; never store generic hero colors or appearance snapshots.
 - Battle backdrop geometry is scene-sized procedural rendering owned by
   `src/renderers/battleBackdrop.ts`. Use the typed bands in `battleDepth.ts`;
   never bake sky and scenery into one opaque layer or introduce scene-local

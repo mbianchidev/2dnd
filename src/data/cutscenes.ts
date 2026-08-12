@@ -25,6 +25,8 @@ export {
 };
 export type {
   CutsceneActorCue,
+  CutsceneCharacterActorCue,
+  CutsceneHeroActorCue,
   CutsceneAudioCue,
   CutsceneBackdrop,
   CutsceneBossBattleCompletion,
@@ -111,4 +113,16 @@ export function getCutsceneDefinition(
 
 export function getCutsceneDefinitions(): readonly CutsceneDefinition<CutsceneId>[] {
   return CUTSCENE_IDS.map((id) => CUTSCENES[id]);
+}
+
+export function cutsceneContainsHero(
+  definition: CutsceneDefinition<CutsceneId>,
+): boolean {
+  return definition.steps.some((step) =>
+    step.presentation?.actors?.some((actor) => actor.role === "hero") === true
+  );
+}
+
+export function getHeroCutsceneIds(): readonly CutsceneId[] {
+  return CUTSCENE_IDS.filter((id) => cutsceneContainsHero(CUTSCENES[id]));
 }

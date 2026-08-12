@@ -22,12 +22,14 @@ import {
 } from "../systems/sceneState";
 import { unlockCodexFromSignal } from "../systems/codex";
 import { reconcileAchievements } from "../systems/achievements";
+import type { HeroVisualDescriptor } from "../systems/heroVisuals";
 
 const INPUT_GRACE_MS = 350;
 
 export interface EndingSceneData extends SharedSceneState {
   cutsceneId?: CutsceneId;
   replay?: boolean;
+  debugHeroVisual?: HeroVisualDescriptor;
 }
 
 interface EndingKeys {
@@ -66,6 +68,7 @@ export class EndingScene extends Phaser.Scene {
       ...data,
       savedSpecialNpcs: data.savedSpecialNpcs ?? [],
       cutsceneId,
+      debugHeroVisual: data.debugHeroVisual,
     };
     this.inputReadyAt = 0;
     this.showingChoices = false;
@@ -75,7 +78,12 @@ export class EndingScene extends Phaser.Scene {
   create(): void {
     this.sceneTransitions.prepare(500);
     installSceneAccessibility(this);
-    this.endingRenderer = new ResultRenderer(this);
+    this.endingRenderer = new ResultRenderer(
+      this,
+      "ending",
+      this.sceneData.player,
+      this.sceneData.debugHeroVisual,
+    );
     const summary = buildCampaignEndingSummary(
       this.sceneData.player,
       this.sceneData.defeatedBosses,
@@ -219,7 +227,8 @@ export class EndingScene extends Phaser.Scene {
   private updateDebugPanel(): void {
     const step = this.director.currentStep;
     debugPanelState(
-      `ENDING | Step: ${this.director.currentStepIndex + 1}/${this.director.definition.steps.length} | Type: ${step.type}`,
+      `ENDING | Step: ${this.director.currentStepIndex + 1}/${this.director.definition.steps.length} | Type: ${step.type}`
+      + ` | Hero: ${this.endingRenderer.heroInspectionReport}`,
     );
   }
 

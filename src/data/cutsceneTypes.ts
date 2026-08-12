@@ -55,14 +55,28 @@ export type CutsceneStageSlot =
   | "right"
   | "farRight";
 
-export interface CutsceneActorCue {
+interface CutsceneActorCueBase {
   readonly id: string;
   readonly label: string;
-  readonly color: number;
   readonly slot: CutsceneStageSlot;
   readonly scale?: number;
   readonly entrance?: "left" | "right" | "fade";
 }
+
+export interface CutsceneHeroActorCue extends CutsceneActorCueBase {
+  readonly role: "hero";
+  readonly id: "hero";
+  readonly label: "{hero}";
+}
+
+export interface CutsceneCharacterActorCue extends CutsceneActorCueBase {
+  readonly role: "character" | "boss";
+  readonly color: number;
+}
+
+export type CutsceneActorCue =
+  | CutsceneHeroActorCue
+  | CutsceneCharacterActorCue;
 
 export interface CutsceneCameraCue {
   readonly focus: CutsceneStageSlot;

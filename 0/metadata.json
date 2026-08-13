@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01KZYCTK4G28KK20ZCBSJ37DKZ",
+  "session_id": "5d7b3680-468a-4c6d-a871-9c231976d705",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-13T20:25:46.760595Z",
+  "branch": "cp-desktop-fix-v17-contracts",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/testing/SKILL.md",
+    "AGENTS.md",
+    "docs/testing.md",
+    "hacks/instructions.md",
+    "hacks/measure-performance-baseline.mjs",
+    "package.json",
+    "src/scenes/Boot.ts"
+  ],
+  "agent": "Copilot CLI",
+  "model": "",
+  "turn_id": "cdf2ea237a59",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 99403,
+    "api_call_count": 88
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-13T20:25:46.594626Z",
+    "agent_lines": 776,
+    "agent_removed": 0,
+    "human_added": 33,
+    "human_modified": 14,
+    "human_removed": 0,
+    "total_committed": 823,
+    "total_lines_changed": 823,
+    "agent_percentage": 94.2891859052248,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

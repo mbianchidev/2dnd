@@ -983,6 +983,7 @@ npm run test:browser
 npm run test:browser:install
 npm run test:watch
 npm run build
+npm run benchmark:baseline
 ```
 
 ## Testing
@@ -1005,6 +1006,9 @@ npm run build
 - Pull request CI installs Chromium and runs the browser suites.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
+- Run `npm run benchmark:baseline` on the current base commit before
+  performance-affecting work and record the environment and output in the
+  owning issue or pull request.
 - Run typecheck, full Vitest, browser tests, and build before completion.
 
 ## Prohibited

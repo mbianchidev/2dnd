@@ -7,8 +7,12 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
 **A browser JRPG with Dragon Quest-style exploration and D&D 5E-inspired
-combat.** Build a hero, recruit a party, cross a 90-chunk world, and complete
+combat.** 
+
+Build a hero, recruit a party, cross a 90-chunk world, and complete
 the seven-chapter Twelvefold Covenant campaign.
+
+<img width="1154" height="952" alt="image" src="https://github.com/user-attachments/assets/43e6afcf-f33a-43d3-8097-e23715a1d000" />
 
 **[Play 2D&D now](https://mbianchidev.github.io/2dnd/)**
 

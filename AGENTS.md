@@ -63,6 +63,9 @@ git diff --check
 ```
 
 Run `npm run test:browser:install` once when Chromium is absent.
+Run `npm run benchmark:baseline` on the current base commit before
+performance-affecting work and record its commit, environment, and output in the
+owning issue or pull request.
 
 ## Non-negotiable invariants
 

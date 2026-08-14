@@ -38,6 +38,9 @@ import {
   createPanelGraphics,
 } from "../utils/ui";
 
+const BOOT_TEXTURE_MEASURE = "2dnd:boot-textures";
+const BOOT_TEXTURE_START_MARK = `${BOOT_TEXTURE_MEASURE}:start`;
+const BOOT_TEXTURE_END_MARK = `${BOOT_TEXTURE_MEASURE}:end`;
 
 export class BootScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
@@ -53,7 +56,19 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.sceneTransitions.prepare();
     installSceneAccessibility(this);
+    performance.clearMeasures(BOOT_TEXTURE_MEASURE);
+    performance.clearMarks(BOOT_TEXTURE_START_MARK);
+    performance.clearMarks(BOOT_TEXTURE_END_MARK);
+    performance.mark(BOOT_TEXTURE_START_MARK);
     generateAllTextures(this);
+    performance.mark(BOOT_TEXTURE_END_MARK);
+    performance.measure(
+      BOOT_TEXTURE_MEASURE,
+      BOOT_TEXTURE_START_MARK,
+      BOOT_TEXTURE_END_MARK,
+    );
+    performance.clearMarks(BOOT_TEXTURE_START_MARK);
+    performance.clearMarks(BOOT_TEXTURE_END_MARK);
     this.showTitleScreen();
   }
 

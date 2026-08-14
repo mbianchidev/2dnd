@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "benchmark:baseline": "node hacks/measure-performance-baseline.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:browser": "node hacks/run-browser-tests.mjs",

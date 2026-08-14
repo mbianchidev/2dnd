@@ -16,6 +16,7 @@ npm test
 npm run test:browser:install
 npm run test:browser
 npm run build
+npm run benchmark:baseline
 ```
 
 `npm run build` already performs a TypeScript check before Vite builds `dist/`,
@@ -56,6 +57,24 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
 a strict port. `hacks/run-browser-tests.mjs` allocates a free port and disables
 server reuse so tests cannot silently attach to stale code.
+
+## Performance baseline
+
+Run `npm run benchmark:baseline` on the current base commit before
+performance-affecting work. The command rebuilds the production `/2dnd/`
+target, launches it on an unused local port, and samples cache-disabled
+headless Chromium startup with both empty storage and a fresh schema-v17 save.
+It reports:
+
+- deployed and JavaScript raw/gzip sizes plus source-map size
+- title readiness and the named `2dnd:boot-textures` generation measure
+- JavaScript heap, DOM-node, and event-listener counts at the title screen
+- fresh-save size plus stringify and localStorage write latency
+
+Record the command output in the owning issue or pull request together with the
+commit and environment. Compare regressions against a like-for-like machine and
+browser baseline; these local measurements are evidence for budgets, not a
+portable timing threshold by themselves.
 
 To exercise the local root base explicitly:
 

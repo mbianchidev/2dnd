@@ -1,9 +1,937 @@
-Give me a good ordered roadmap for the next implementations
+Work on #162 Electron packaging
 
 ---
 
-Work on #162 Electron packaging
+<skill-context name="save-system">
+Base directory for this skill: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-vigilant-waddle/.github/skills/save-system
 
-<system_notification>
-Reminder: This session currently has an auto-generated or placeholder name. Before replying to the user, call the `rename_session` tool to give it a short, descriptive title based on the user's intent.
-</system_notification>
+# Save System
+
+See [`AGENTS.md`](../../../AGENTS.md) and
+[`docs/save-system.md`](../../../docs/save-system.md) for the operational
+checklist and current persistence boundaries.
+
+Game state is stored in `localStorage` by `src/systems/save.ts`. Shared audio
+and accessibility preferences plus inventory presentation preferences are
+stored separately.
+
+## Storage keys
+
+- `2dnd_save`: game state
+- `2dnd_preferences`: versioned audio and accessibility preferences
+- `2dnd_inventory_prefs`: inventory sort, filter, and search presentation
+
+Legacy `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values migrate into
+`2dnd_preferences`. Inventory recency derives from reverse canonical append
+order. Do not add presentation fields to item ownership or increment the
+campaign schema for these preferences.
+
+## Current schema
+
+`SAVE_VERSION` is 17.
+
+```typescript
+interface SaveData {
+  version: number;
+  player: PlayerState;
+  defeatedBosses: string[];
+  codex: CodexData;
+  appearanceId: string;
+  timestamp: number;
+  timeStep?: number;
+  weatherState?: WeatherState;
+}
+```
+
+`Set<string>` values are serialized as arrays and reconstructed by the scene
+loading path.
+
+```typescript
+interface CodexData {
+  entries: Record<string, CodexEntry>;
+  unlockedEntryIds: string[];
+}
+```
+
+Monster entries retain defeat, AC, drop, and elemental discovery. Knowledge
+IDs are normalized against `CODEX_KNOWLEDGE_ENTRIES`; completion and counts are
+derived.
+
+## Player persistence
+
+Important composed fields:
+
+```typescript
+interface PlayerPosition {
+  x: number;
+  y: number;
+  chunkX: number;
+  chunkY: number;
+  inDungeon: boolean;
+  dungeonId: string;
+  dungeonLevel: number;
+  inCity: boolean;
+  cityId: string;
+  cityChunkIndex: number;
+}
+
+interface PlayerProgression {
+  openedChests: string[];
+  collectedTreasures: string[];
+  exploredTiles: Record<string, boolean>;
+  discoveredCities: string[];
+  quests: QuestLogState;
+  seenCutsceneIds: CutsceneId[];
+  pendingCutsceneIds: CutsceneId[];
+  skillChecks: Record<string, SkillCheckRecord>;
+  trapSeed: number;
+  trapStates: Record<string, TrapState>;
+  trapGuidance: boolean;
+  tutorial: TutorialProgress;
+  worldEvents: WorldEventState;
+  social: SocialState;
+  achievements: AchievementState;
+  gathering: GatheringState;
+  crafting: CraftingState;
+  nautical: NauticalState;
+  discoveredFeatureIds: FeatureId[];
+  pendingFeatureRevealIds: FeatureId[];
+  debugDiscoveredFeatureIds: FeatureId[];
+  debugSuppressedFeatureIds: FeatureId[];
+}
+
+interface QuestProgress {
+  status: "locked" | "active" | "completed";
+  stage: number;
+  objectives: Record<string, number>;
+  claimedRewards: string[];
+}
+
+interface QuestLogState {
+  quests: Record<QuestId, QuestProgress>;
+  seenWarnings: string[];
+}
+```
+
+`PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
+Codex entries persist `discoveredElements`. `PlayerState.party` persists unique
+companion states, active order, independent progression/inventories/equipment,
+control modes, dialogue state, and gambits. Quest progress stores status, stage,
+objective counters, claimed reward IDs, and acknowledged danger warnings.
+`seenCutsceneIds` stores stable completed-or-skipped story presentation IDs.
+`pendingCutsceneIds` stores queued IDs awaiting completion or skip and is saved
+before presentation. Replay changes neither collection; campaign completion
+remains derived from quest state.
+`tutorial.completed` prevents the new-player tutorial from reopening
+automatically after completion or skip. Tutorial replay does not reset it.
+Fixed non-combat checks persist the
+ability, natural roll, modifier, repaired total, DC, outcome, and optional
+choice ID.
+`worldEvents` persists a stable seed, deterministic roll/cooldown counters, one
+pending choice or special battle, idempotent resolved/claimed IDs, repeat
+counters, and the bounded chronological World Events record.
+`social` persists bounded alignment axes, per-town/per-faction reputation
+scores, stable applied source IDs, and at most 40 recent cause entries. Names,
+tiers, thresholds, shop modifiers, Codex milestones, and achievement hooks are
+derived.
+`achievements` persists earned records, once-only event counters/IDs, explicit
+defeat-history validity, unlocked/equipped cosmetic titles, debug suppression,
+and pending notice IDs. Definitions, categories, points, totals, and
+reconstructable progress are derived from canonical data.
+`gathering` persists a deterministic seed, stable node cooldown/depletion,
+discovered node/resource IDs, once-only claimed outcomes, discipline statistics,
+bounded history, and one exact pending minigame or guarded Battle outcome.
+`crafting` persists known recipe IDs, stable applied discovery/transaction IDs,
+natural craft and equipment-upgrade statistics, per-recipe counts, bounded
+recent history, and the next sequence. Recipe definitions and values are
+canonical derived data.
+`nautical` persists boat ownership/condition/upgrades/cosmetics, discovered
+ports/routes/islands/continents/sea tiles, bounded navigation statistics, and
+recoverable pending merchant routes, hazards, and encounters. Continents, sea
+zones, ports, routes, islands, boats, and encounter pools remain canonical data.
+Feature discovery persists only stable revealed IDs, pending one-time feedback,
+marked debug reveals, and debug-suppressed evidence. Availability is reconciled
+from authoritative gameplay state and never controls that state.
+
+## Loading and migration
+
+Treat parsed JSON as `unknown`. Use typed record guards and normalization
+helpers; do not cast unvalidated nested values directly.
+
+`loadGame()` currently handles:
+
+- Legacy `bestiary` to `codex`
+- Legacy flat player position fields to `player.position`
+- Legacy flat progression fields to `player.progression`
+- Schema-v3 skill-check progression to default quest + skill-check state
+- Flat Ashen Road/Warden's Dispatch and recruitment progress to nested
+  Twelvefold Covenant state without replaying completed rewards
+- Schema-v3/v4 progression to schema-v5 explicit trap state
+- Missing equipment, talents, abilities, rests, bank, mount, and appearance
+  fields
+- Missing/invalid active status effects
+- Missing/invalid party state and gambit rules
+- Missing, malformed, duplicate, unknown, or already-seen cutscene queue entries
+  through `normalizeSeenCutsceneIds()` and `normalizePendingCutsceneIds()`
+- Completed-but-unseen legacy epilogue recovery without deriving every
+  historically eligible campaign scene
+- Missing/invalid Codex elemental discoveries
+- Missing, malformed, unknown, or duplicate Codex knowledge IDs
+- Schema-v9 monster-only Codex migration plus idempotent recovery from durable
+  city, dungeon, item, quest, and cutscene evidence
+- Missing, malformed, or unknown quest entries through `normalizeQuestLog()`
+- Missing/invalid non-combat skill-check records
+- Missing/invalid trap seed, state, and guidance fields
+- Missing/invalid tutorial completion state through
+  `normalizeTutorialProgress()`
+- Missing/invalid World Event state through `normalizeWorldEventState()`;
+  malformed seeds clear pending encounters, unknown events/choices are removed,
+  and records are bounded
+- Missing/invalid social state through `normalizeSocialState()`; unknown town
+  and faction IDs are removed, scores are clamped, applied IDs are deduplicated,
+  and history is validated against those IDs
+- Missing/invalid achievement state through `normalizeAchievementState()`;
+  unknown/duplicate IDs are removed, counters/order are repaired, title
+  cross-fields are validated, and schema-v12 or older saves reconcile durable
+  milestones silently while retaining unknown defeat history
+- Missing/invalid gathering state through `normalizeGatheringState()`; schema-v13
+  saves gain defaults, malformed seeds clear generated node/pending state, and
+  pending outcome/resource/pattern/location cross-fields are validated
+- Missing/invalid crafting state through `normalizeCraftingState()`; schema-v14
+  saves gain defaults, unknown/duplicate IDs are removed, statistics are clamped,
+  history is bounded/resequenced, and durable discovery is reconciled
+- Missing/invalid nautical state through `normalizeNauticalState()`; schema-v15
+  and older saves gain defaults, unknown IDs and malformed pending records are
+  removed, condition/statistics are clamped, and invalid sea positions recover
+  to a safe port without losing other progression
+- Missing, malformed, duplicate, or unknown feature IDs through
+  `normalizeFeatureDiscoveryProgress()`; schema-v16 and older saves discard
+  pending/debug metadata and silently reconcile mature authoritative evidence
+- Missing time and weather data
+- Invalid string arrays and explored-tile records
+
+## Location recovery
+
+After migration, normalize location state:
+
+1. Dungeon and city flags are mutually exclusive.
+2. Unknown dungeon/city IDs are cleared.
+3. Dungeon levels and city district indexes are clamped.
+4. Coordinates must be in bounds and walkable on the resolved level/chunk.
+5. Invalid interior coordinates move to that level/district spawn.
+6. Invalid overworld chunks/tiles fall back to the Willowdale start at chunk
+   `(4, 2)`, tile `(3, 3)`.
+
+Always resolve maps through `getDungeonLevelMap()` and `getCityChunk()` during
+validation.
+
+## Adding or changing persistent data
+
+1. Update the TypeScript interface.
+2. Set the creation default.
+3. Normalize the loaded value from `unknown`.
+4. Validate cross-field invariants.
+5. Increment `SAVE_VERSION` for a schema change.
+6. Add tests for valid persistence, missing values, malformed values, and
+   corrupt-location recovery.
+7. Update README, `AGENTS.md`, `docs/save-system.md`, repository instructions,
+   and this skill when the stored shape changes.
+
+For party data, normalize after quests, skill checks, and trap fields. Then
+replay completed `recruitCompanion` quest actions so v5 saves and debug-completed
+quests converge idempotently.
+
+Normalize seen and pending cutscene IDs on every load against `CUTSCENE_IDS`.
+Unknown IDs are discarded, IDs remain stable after release, and pending IDs
+already present in the seen list are removed. Missing lists default to empty;
+legacy recovery may queue only the completed-but-unseen epilogue.
+
+Pre-v9 saves did not have tutorial state and normalize to `completed: true` so
+existing campaigns are not interrupted. New v9 players start false; malformed
+v9 values also normalize safely to false.
+
+Do not silently retain malformed data. Use a safe default or reject the save
+when the top-level payload is unusable.
+
+## Status and element rules
+
+- Normalize status IDs, integer durations, and sources with
+  `normalizeActiveEffects()`.
+- Filter Codex element values with `isElement()`.
+- Unknown values are discarded rather than asserted into the target type.
+
+## Skill-check rules
+
+- Normalize with `normalizeSkillCheckRecords()`.
+- Accept only Dexterity, Intelligence, Wisdom, or Charisma records with integer
+  d20 rolls, modifiers, and positive DCs.
+- Recompute `total` and `success` from the saved natural roll, modifier, and DC.
+- Trim optional choice IDs and discard malformed records.
+- Shop, NPC, chest, and treasure IDs must remain stable across content changes.
+
+## API
+
+```typescript
+saveGame(player, defeatedBosses, codex, appearanceId, timeStep, weatherState);
+const save = loadGame();
+hasSave();
+deleteSave();
+getSaveSummary();
+```
+
+Save failures are reported with `debugLog()`. Loading returns `null` when the
+top-level save is absent or corrupt.
+
+## Tests
+
+`tests/save.test.ts` covers:
+
+- Save/load round trips
+- Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
+  recovery
+- Legacy flat-state migration
+- Current schema-v17 position, objective/reward/warning quest state, skill checks,
+  traps, party state, pending cutscene queue, tutorial completion, and World
+  Event recovery, plus alignment/reputation round trips and corruption repair
+- Flat schema-v4 quest migration and completed-reward preservation
+- Schema-v3 skill-check saves gaining default normalized quest state
+- Schema-v4 quest saves gaining default trap state
+- Schema-v5 party defaults plus all-three completed recruitment replay after
+  malformed duplicate/unknown party entries are normalized
+- Quest reward and skill-check record normalization
+- Trap seed/state/guidance normalization and seed-state cross-field repair
+- Dungeon-level and city-district clamping
+- Invalid IDs and coordinates
+- Conflicting location flags
+- Status-effect persistence and normalization
+- Codex elemental-discovery and knowledge-ID normalization
+- Legacy monster-only Codex preservation and deterministic knowledge recovery
+- Missing and malformed skill-check normalization
+
+## Common pitfalls
+
+- Parsing directly into `SaveData` without runtime validation
+- Forgetting the level or district when validating coordinates
+- Reusing city/dungeon fog keys across interiors
+- Keeping unknown status or element strings
+- Resetting valid quest progress while filling missing quest defaults
+- Retaining trap states after replacing a malformed trap seed
+- Storing Phaser objects or other non-serializable state
+- Mutating shared game-data definitions while repairing a save
+
+</skill-context>
+
+---
+
+<skill-context name="testing">
+Base directory for this skill: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-vigilant-waddle/.github/skills/testing
+
+# Testing Guide for 2D&D
+
+See [`AGENTS.md`](../../../AGENTS.md) and
+[`docs/testing.md`](../../../docs/testing.md) for the release gate, CI ownership,
+and browser-test setup.
+
+Write comprehensive game-mechanics tests with Vitest. Use the committed
+Playwright suite only for high-value Phaser browser flows that cannot be proven
+through pure logic tests.
+
+## Testing Philosophy
+
+### What TO Test
+✅ Dice probability distributions
+✅ Combat calculation accuracy  
+✅ Group initiative, formation, targeting, synergies, rewards, and encounter budgets
+✅ Player stat progression
+✅ XP and leveling formulas
+✅ Quest objective counters, prerequisites, rewards, gates, danger rules, and
+save normalization
+✅ Companion definitions, party progression, transfers, KO/reward rules, and
+ranked gambit selection/normalization
+✅ Data integrity (monsters, spells, items)
+✅ Monster family references, membership, variant differentiation, palette
+uniqueness, encounter weights, Codex family completion, and texture-key coverage
+✅ Codex knowledge IDs, canonical references, every unlock signal, idempotency,
+normalization/migration, search/sort/group behavior, and future-hook isolation
+✅ Game logic functions
+✅ Seeded layouts and persistent state machines
+✅ Non-combat skill-check math, outcomes, and save normalization
+✅ Scene-transition event ordering, duplicate guards, and watchdog recovery with
+mocked camera/time adapters
+✅ Cutscene data integrity, trigger priority, queue recovery, replay immutability,
+shared preference normalization/migration, and director cleanup
+✅ Runtime hero descriptor normalization, collision-free visual keys, every
+cutscene hero-role cue, equipment layer ordering/fallbacks, texture leases, and
+current-player rendering across opening, recovery, Chronicle, bosses, and ending
+✅ Tutorial content integrity, semantic control references, completion
+normalization, progression-aware tip unlocks, and save migration
+✅ Feature registry integrity, authoritative reconciliation, irreversible
+visibility, dynamic menu/tab filtering, focus clamping, shortcut/touch gating,
+debug exclusion, category-specific discovery, and schema-v17 migration
+✅ Defeat penalty receipts, once-only Battle resolution, recovered save
+round-trips, result-scene continuation, and random/boss parity
+✅ Animation state selection, reduced-motion timing, stable actor/target mapping,
+once-only completion and cleanup, and family-frame fallback resolution
+✅ Semantic mappings, context priority, analog dead zones, repeats, source
+switching, duplicate suppression, disconnect/blur cleanup, and control
+preference migration
+✅ Measured stacks/grids, safe-area clamping, long-string wrapping,
+pagination/visible ranges, filtered focus restoration, scaled bounds,
+hit-area alignment, and debug/test overlap detection
+✅ Alignment boundaries, reputation tiers, clamping, stable-source
+idempotency, quest/dialogue/event/trap/combat hooks, shop composition, Codex
+milestones, schema-v12 migration, bounded history, and debug commands
+✅ Achievement definition integrity, deterministic progress, hidden entries,
+idempotent battle/event/social hooks, reconciliation, schema-v13 migration,
+one-hit/no-defeat rules, cosmetic titles, debug exclusion, notices, and
+authority isolation
+✅ Gathering terrain safety, seeded tables, all three state machines,
+reduced-motion equivalence, cooldowns, environmental weights, economy, guarded
+Battle handoffs, recipe-input isolation, schema-v14 migration, and pending reload
+✅ Crafting recipe integrity, alternative material matching, protected/equipped
+items, atomic batches, repeated-input suppression, equipment-link upgrades,
+ownership, discovery, acquisition tables, anti-arbitrage, achievements, debug
+exclusion, authority isolation, schema-v15 migration, and corruption repair
+✅ Nautical continent/zone/port/island integrity, pre-boat merchant routes,
+boat acquisition/upgrades, embark/disembark safety, sea fog, capped encounters,
+weather hazards, Kraken hooks, sea gathering/crafting economy, schema-v16
+migration/corruption recovery, debug commands, and browser reload while sailing
+
+### What NOT to Test  
+❌ Phaser rendering/graphics
+❌ Scene transitions
+❌ User input handling
+❌ Visual appearance
+❌ Animation timing
+
+These exclusions apply to Vitest. The focused `e2e/` suite owns the real-browser
+campaign golden path and scene/input integration.
+
+Animation browser coverage should assert debug-state evidence from real action
+menus and combat turns for hero, companion, monster, and boss presentation;
+spell/ability particles; world/follower/mount gait; boss cutscenes; fainting;
+reduced-motion immediate states; and page/console cleanliness.
+
+Battle backdrop browser coverage uses deterministic `/battleview` and
+`/backdrop` controls, programmatic depth/bounds/cleanup assertions, and focused
+canvas screenshots for group, boss, Kraken, mobile, weather, and high-contrast
+combinations. Keep the full biome/time/weather matrix assertion-driven rather
+than committing hundreds of redundant images.
+
+Accessibility browser coverage should change settings from both title and
+in-game surfaces, assert immediate canvas state, exercise core overlays at every
+supported text scale, verify reload persistence, and prove `2dnd_save` is
+unchanged by preference updates.
+
+Semantic-controls browser coverage uses mobile/touch emulation and deterministic
+standard-gamepad stubs. It covers onboarding and mobile text entry, movement,
+overlays, prompt/source switching, Battle action/target confirmation, defeat
+recovery, gamepad cursor visibility, portrait/landscape layout, and page/console
+cleanliness.
+
+Codex browser coverage follows real exploration, quest, cutscene, item, NPC, and
+readable paths; verifies non-blocking feedback, reload persistence, schema-v9
+migration, keyboard/touch/gamepad search and filters, 150% text, reduced motion,
+and page/console cleanliness.
+
+## Test File Organization
+
+```
+tests/
+├── dice.test.ts      # Dice rolling utilities
+├── combat.test.ts    # Combat mechanics
+├── groupCombat.test.ts # Multi-monster combat rules
+├── battleActions.test.ts # Pure gambit planning and validation
+├── monsterGroups.test.ts # Group templates and generation
+├── monsterFamilies.test.ts # Families, variants, Codex derivation, texture keys
+├── codexKnowledge.test.ts # World knowledge data, triggers, queries, and hooks
+├── partyCombat.test.ts # Stable actor IDs, ally scopes, AI, and result hooks
+├── party.test.ts     # Recruitment, progression, transfers, rests, KO/rewards
+├── companions.test.ts # Immutable companion definitions and loadouts
+├── gambits.test.ts   # Ranked conditions/actions/targets and normalization
+├── followers.test.ts # Pure non-blocking follower trail updates
+├── player.test.ts    # Player systems
+├── traps.test.ts     # Dungeon trap placement, checks, and effects
+├── quests.test.ts    # Quest progression and integrity
+├── skillChecks.test.ts # Exploration/dialogue checks
+├── reputation.test.ts # Alignment, reputation, integrations, and migration policy
+├── achievements.test.ts # Definitions, progress, hooks, titles, and migration policy
+├── cutscenes.test.ts # Cutscene data, triggers, queue, and director lifecycle
+├── accessibility.test.ts # Shared preference normalization, migration, and persistence
+├── input.test.ts # Semantic mappings, contexts, repeats, cleanup, and suppression
+├── tutorial.test.ts # Tutorial content, completion, and unlocked Tips
+├── featureDiscovery.test.ts # Registry, reconciliation, filtering, debug, migration
+├── gathering.test.ts # Gathering data, state machines, rewards, and save rules
+├── crafting.test.ts # Recipes, transactions, discovery, economy, and save rules
+├── cutsceneSceneTransition.test.ts # Generic Cutscene scene contracts
+├── defeatSceneTransition.test.ts # Defeat result continuation contract
+├── save.test.ts      # Persistence and migration
+└── data.test.ts      # Data validation
+```
+
+Quest tests must cover duplicate matching monsters in one group victory,
+durable boss reconciliation, optional-objective reward cutoffs, hard-gate
+softlock safety, reward idempotency, and flat schema-v4 to nested schema-v5
+migration. Map main-quest NPC objectives to live city IDs and require exact
+coverage of all 12 cities with stable stage/objective identities.
+
+Tutorial tests must keep Phaser out of pure logic. Assert stable unique IDs,
+valid semantic control references, idempotent completion, safe malformed-state
+normalization, and exact progression-aware tip unlock sets. The committed
+Playwright flow owns automatic presentation, pointer navigation, persisted
+completion, `F1`, and Esc-menu access.
+
+## Skill Check Testing
+
+- Pass explicit natural d20 values to `resolveSkillCheck()`; do not depend on
+  randomness.
+- Verify total-vs-DC behavior, including that natural 1/20 are not automatic.
+- Test shop discounts for both successful and failed saved choices.
+- Validate NPC identities and chest metadata against live city/map data.
+- Test terrain event selection with explicit random values.
+- Cover reward bounds, nonlethal damage, save round trips, missing fields, and
+  malformed record repair.
+
+## Cutscene Testing
+
+- Validate every stable ID, trigger reference, boss mapping, and completion
+  metadata without rendering Phaser.
+- Compare immutable before/after snapshots and assert exact simultaneous-trigger
+  priority.
+- Test that queueing precedes presentation, completion/skip moves pending to
+  seen, reload resumes pending, and replay leaves both collections unchanged.
+- Cover malformed pending IDs, already-seen pending entries, and completed
+  legacy epilogue recovery.
+- Keep generic `CutsceneScene` transition payload tests separate from the
+  Playwright visual/input flow.
+
+## Companion Testing
+
+- Use deterministic companion creation at explicit hero levels; verify
+  independent inventory objects and level-tier loadouts.
+- Test quest completion replay, reload, debug completion, and repeated replay
+  against the same unique recruited-ID guard.
+- Parameterize those paths across Guardian, Scout, and Mystic; one companion
+  path is not representative coverage.
+- Construct `BattleActionSource`/`PartyCombatant` adapters and verify HP/MP
+  writes reach the underlying companion state.
+- Test gambits as pure rank/condition/target selection. Invalid rules must not
+  mutate action economy, MP, inventory, or effects.
+- Cover living-vs-KO XP distribution, level-1 XP floor, party wipe recovery,
+  exact defeat receipts, and party-wide inn rest.
+- Keep a focused Battle transition regression that asserts fade-complete
+  ordering, one-shot scene start, transient cleanup, the full Overworld payload,
+  and once-only DefeatScene routing for random and boss encounters without
+  rendering Phaser UI.
+- Keep Phaser visuals in headless Chromium flows; pure trail positioning and UI
+  mutation helpers belong in Vitest.
+
+## Inventory Testing
+
+- Test type/value/rarity/recent/name selectors without mutating canonical order
+  or equipment links.
+- Cover equipment, consumable, quest, and future crafting filters plus search.
+- Normalize and persist `2dnd_inventory_prefs` separately from `2dnd_save`.
+- Assert equipped, key-item, mount, and duplicate-item transfer restrictions.
+- Use focused Playwright coverage for large-bag keyboard/pointer paging,
+  selection stability, search, and menu access.
+
+## Dice Testing Patterns
+
+### Statistical Distribution Testing
+```typescript
+import { describe, it, expect } from "vitest";
+import { rollD20, rollDice, abilityModifier } from "../src/systems/dice";
+
+describe("rollD20 distribution", () => {
+  it("returns values between 1 and 20", () => {
+    const rolls = Array.from({ length: 200 }, () => rollD20());
+    
+    expect(Math.min(...rolls)).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...rolls)).toBeLessThanOrEqual(20);
+  });
+
+  it("produces roughly uniform distribution", () => {
+    const rolls = Array.from({ length: 10000 }, () => rollD20());
+    const counts = rolls.reduce((acc, roll) => {
+      acc[roll] = (acc[roll] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+
+    // Each face should appear ~500 times (10000/20)
+    // Allow 20% variance (400-600)
+    Object.values(counts).forEach(count => {
+      expect(count).toBeGreaterThan(400);
+      expect(count).toBeLessThan(600);
+    });
+  });
+});
+```
+
+### Modifier Calculation Testing
+```typescript
+describe("abilityModifier", () => {
+  it("calculates correct modifiers for standard scores", () => {
+    expect(abilityModifier(8)).toBe(-1);
+    expect(abilityModifier(10)).toBe(0);
+    expect(abilityModifier(11)).toBe(0);
+    expect(abilityModifier(12)).toBe(1);
+    expect(abilityModifier(16)).toBe(3);
+    expect(abilityModifier(20)).toBe(5);
+  });
+
+  it("handles edge cases", () => {
+    expect(abilityModifier(1)).toBe(-5);
+    expect(abilityModifier(3)).toBe(-4);
+    expect(abilityModifier(30)).toBe(10);
+  });
+});
+```
+
+## Combat Testing Patterns
+
+### Attack Roll Validation
+```typescript
+import { calculateAttackRoll, resolveAttack } from "../src/systems/combat";
+
+describe("attack mechanics", () => {
+  it("hits when roll meets or exceeds AC", () => {
+    const attacker = createTestPlayer({ strength: 16 });  // +3 mod
+    const target = createTestMonster({ ac: 13 });
+    
+    // Mock d20 roll of 10
+    const mockRoll = 10;
+    const attackBonus = abilityModifier(attacker.stats.strength);
+    const total = mockRoll + attackBonus;  // 13
+    
+    expect(total).toBeGreaterThanOrEqual(target.ac);
+  });
+
+  it("applies critical hit on natural 20", () => {
+    const attacker = createTestPlayer();
+    const target = createTestMonster({ hp: 50 });
+    
+    const normalDamage = resolveDamage(attacker, false);
+    const criticalDamage = resolveDamage(attacker, true);
+    
+    // Critical should deal more damage
+    expect(criticalDamage).toBeGreaterThan(normalDamage);
+  });
+});
+```
+
+### Damage Calculation Testing
+```typescript
+describe("damage calculation", () => {
+  it("adds ability modifier to weapon damage", () => {
+    const attacker = createTestPlayer({ 
+      strength: 18,  // +4 modifier
+      equipment: { weapon: { damage: "1d8" } }
+    });
+    
+    // Test multiple rolls
+    const damages = Array.from({ length: 100 }, () => 
+      calculateDamage(attacker)
+    );
+    
+    // Minimum: 1 (min roll) + 4 (modifier) = 5
+    // Maximum: 8 (max roll) + 4 (modifier) = 12
+    expect(Math.min(...damages)).toBe(5);
+    expect(Math.max(...damages)).toBe(12);
+  });
+});
+```
+
+## Player System Testing
+
+### Leveling Logic
+```typescript
+import { gainXP, levelUp, calculateMaxHP } from "../src/systems/player";
+
+describe("player leveling", () => {
+  it("levels up when reaching XP threshold", () => {
+    const player = createTestPlayer({ level: 1, xp: 0 });
+    const xpNeeded = getXPForLevel(2);
+    
+    gainXP(player, xpNeeded);
+    
+    expect(player.level).toBe(2);
+    expect(player.xp).toBe(0);  // XP resets after level
+  });
+
+  it("increases max HP on level up", () => {
+    const player = createTestPlayer({ 
+      level: 1, 
+      maxHp: 10,
+      stats: { constitution: 14 }  // +2 modifier
+    });
+    
+    const oldMaxHP = player.maxHp;
+    levelUp(player);
+    
+    expect(player.maxHp).toBeGreaterThan(oldMaxHP);
+    // Should increase by at least 1 (minimum HP gain)
+    expect(player.maxHp - oldMaxHP).toBeGreaterThanOrEqual(1);
+  });
+
+  it("unlocks spells at correct levels", () => {
+    const player = createTestPlayer({ level: 1, class: "wizard" });
+    
+    expect(player.knownSpells).not.toContain("fireball");
+    
+    // Level up to spell unlock level
+    player.level = 5;
+    updateKnownSpells(player);
+    
+    expect(player.knownSpells).toContain("fireball");
+  });
+});
+```
+
+### Inventory Management
+```typescript
+describe("player inventory", () => {
+  it("equips weapon and updates attack damage", () => {
+    const player = createTestPlayer();
+    const sword = { id: "longsword", damage: "1d8", bonus: 1 };
+    
+    equipWeapon(player, sword);
+    
+    expect(player.equipment.weapon).toBe(sword);
+    expect(player.attackDamage).toContain("1d8");
+  });
+
+  it("prevents purchasing when insufficient gold", () => {
+    const player = createTestPlayer({ gold: 10 });
+    const expensiveItem = { id: "plate", price: 1500 };
+    
+    const result = purchaseItem(player, expensiveItem);
+    
+    expect(result).toBe(false);
+    expect(player.gold).toBe(10);  // Unchanged
+  });
+});
+```
+
+## Data Integrity Testing
+
+### Monster Data Validation
+```typescript
+import { MONSTERS, ENCOUNTER_TABLES } from "../src/data/monsters";
+
+describe("monster data integrity", () => {
+  it("all monsters have required fields", () => {
+    Object.values(MONSTERS).forEach(monster => {
+      expect(monster.id).toBeDefined();
+      expect(monster.name).toBeDefined();
+      expect(monster.level).toBeGreaterThan(0);
+      expect(monster.hp).toBeGreaterThan(0);
+      expect(monster.ac).toBeGreaterThan(0);
+      expect(monster.xp).toBeGreaterThan(0);
+    });
+  });
+
+  it("all encounter tables reference valid monsters", () => {
+    Object.values(ENCOUNTER_TABLES).forEach(table => {
+      table.forEach(entry => {
+        expect(MONSTERS[entry.monster]).toBeDefined();
+      });
+    });
+  });
+
+  it("monster IDs use camelCase", () => {
+    Object.keys(MONSTERS).forEach(id => {
+      expect(id).toMatch(/^[a-z][a-zA-Z0-9]*$/);
+      expect(id).not.toContain("-");
+      expect(id).not.toContain("_");
+    });
+  });
+});
+```
+
+### Spell Data Validation
+```typescript
+import { SPELLS } from "../src/data/spells";
+
+describe("spell data integrity", () => {
+  it("healing spells have healing field", () => {
+    Object.values(SPELLS).forEach(spell => {
+      if (spell.damage) {
+        expect(spell.healing).toBeUndefined();
+      }
+      if (spell.healing) {
+        expect(spell.damage).toBeUndefined();
+      }
+    });
+  });
+
+  it("all spells have valid MP costs", () => {
+    Object.values(SPELLS).forEach(spell => {
+      expect(spell.mpCost).toBeGreaterThan(0);
+      expect(spell.mpCost).toBeLessThan(50);
+    });
+  });
+
+  it("spell unlock levels are reasonable", () => {
+    Object.values(SPELLS).forEach(spell => {
+      expect(spell.levelRequired).toBeGreaterThanOrEqual(1);
+      expect(spell.levelRequired).toBeLessThanOrEqual(20);
+    });
+  });
+});
+```
+
+## Test Utilities
+
+### Helper Functions
+```typescript
+// createPlayer now requires baseStats — never called without them
+const defaultStats: PlayerStats = {
+  strength: 10, dexterity: 10, constitution: 10,
+  intelligence: 10, wisdom: 10, charisma: 10,
+};
+
+function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
+  const player = createPlayer("Test", {
+    strength: 10, dexterity: 8, constitution: 12,
+    intelligence: 8, wisdom: 8, charisma: 8,
+  });
+  // Pin stats for deterministic tests
+  player.stats = {
+    strength: 12, dexterity: 10, constitution: 14,
+    intelligence: 10, wisdom: 10, charisma: 8,
+  };
+  player.maxHp = 30; player.hp = 30;
+  player.maxMp = 10; player.mp = 10;
+  if (overrides) Object.assign(player, overrides);
+  return player;
+}
+```
+
+### Point Buy Tests
+```typescript
+import { calculatePointsSpent, isValidPointBuy, POINT_BUY_TOTAL } from "../src/systems/player";
+
+// Standard array costs exactly 27
+expect(calculatePointsSpent({ strength: 15, dexterity: 14, constitution: 13, intelligence: 12, wisdom: 10, charisma: 8 })).toBe(27);
+
+// All 8s costs 0
+expect(calculatePointsSpent({ strength: 8, dexterity: 8, constitution: 8, intelligence: 8, wisdom: 8, charisma: 8 })).toBe(0);
+
+// Validates correctly
+expect(isValidPointBuy({ strength: 15, dexterity: 14, constitution: 13, intelligence: 12, wisdom: 10, charisma: 8 })).toBe(true);
+expect(isValidPointBuy({ strength: 16, dexterity: 8, constitution: 8, intelligence: 8, wisdom: 8, charisma: 8 })).toBe(false); // >15
+```
+
+export function createTestMonster(overrides?: Partial<MonsterInstance>): MonsterInstance {
+  return {
+    id: "testMonster",
+    name: "Test Monster",
+    level: 1,
+    hp: 10,
+    maxHp: 10,
+    ac: 10,
+    attack: 2,
+    damage: "1d6",
+    xp: 50,
+    gold: 10,
+    ...overrides,
+  };
+}
+```
+
+## Running Tests
+
+### Command Line
+```bash
+# Run all tests once
+npm test
+
+# Install Chromium once, then run the campaign browser suite
+npm run test:browser:install
+npm run test:browser
+
+# Watch mode (re-run on changes)
+npm run test:watch
+
+# Type checking
+npm run typecheck
+
+# Run specific test file
+npx vitest run tests/dice.test.ts
+```
+
+## Browser Golden Path
+
+- `playwright.config.ts` starts Vite on an unused strict localhost port.
+- Browser tests default to `/2dnd/`; set `PLAYWRIGHT_BASE_PATH=/` to reproduce
+  the root-base development path.
+- Pull request CI installs Chromium and runs the browser suite as a release
+  gate.
+- Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
+  disable trace screenshots and video. Phaser repaints every frame, so the
+  filmstrip creates thousands of canvas captures that stall context teardown.
+- Use `#debug-state`, `#debug-log`, and persisted save state as authoritative
+  synchronization surfaces. Canvas text is not DOM text.
+- Registered Phaser layout groups expose bounds and audit results through
+  `#layout-report`, `data-layout-overlap-count`, and
+  `data-layout-clipping-count`; use stable `layoutId` values instead of brittle
+  coordinate-only clicks.
+- Hold frame-polled keys with `keyboard.down()`, wait across frames, then
+  `keyboard.up()`. Do not use instantaneous presses for Overworld or Ending
+  actions.
+- Seed randomness before the game loads and assert both `pageerror` and
+  `console.error` remain empty.
+- Cover random and boss defeat results, exact displayed penalties, clean
+  continuation, and recovered save/reload state through the production
+  `/defeat` debug path.
+- Debug commands may accelerate setup, but the final Elowen interaction and
+  other behavior under test must still run through their production paths.
+- Cover interrupted opening recovery, dungeon reveals, skipped boss
+  introductions, aftermath chaining, Chronicle replay immutability, interrupted
+  and legacy ending recovery, durable post-game reload, and corrupt-save
+  fallback to a usable New Game path.
+
+### Test Coverage
+```bash
+# Generate coverage report
+npx vitest run --coverage
+```
+
+## Best Practices
+
+1. **Test behavior, not implementation** - Focus on inputs/outputs
+2. **Use descriptive test names** - "it calculates X when Y"
+3. **Arrange-Act-Assert pattern** - Setup, execute, verify
+4. **Avoid magic numbers** - Use named constants
+5. **Test edge cases** - Zero, negative, maximum values
+6. **Mock randomness when needed** - Make tests deterministic
+7. **Keep tests fast** - Avoid delays, network calls
+8. **One assertion per test (when possible)** - Makes failures clear
+9. **Inject group RNG** - Initiative, weighted generation, and random-two
+   targeting helpers accept deterministic random functions
+
+## Common Pitfalls
+
+❌ Testing Phaser objects directly (use pure functions)
+❌ Relying on random values without bounds checking
+❌ Not testing edge cases (0, negative, null)
+❌ Tests that depend on execution order
+❌ Overly complex test setup
+❌ Not cleaning up state between tests
+
+## Related Files
+
+- Test files: `tests/*.test.ts`
+- Vitest config: `vitest.config.ts`
+- TypeScript config: `tsconfig.json`
+
+</skill-context>
+
+---
+
+Review the complete change set on branch cp-desktop-electron-packaging against main in repository /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-vigilant-waddle. Focus only on high-confidence correctness, security, and cross-platform defects in the new Electron 43.4 runtime, custom app:// protocol, sandboxed preload IPC, CSP/network/navigation controls, localStorage persistence, electron-builder configuration/icons, macOS/Windows/Linux workflow, and Playwright Electron smoke test. Include both committed and uncommitted changes. Do not comment on style. Report concrete findings with file/line and proposed fixes; if none, say so.
+
+---
+
+In /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-vigilant-waddle, run the complete release validation for issue #162 without editing files: npm ci; npm audit; npm run typecheck; npm test; npm run test:browser; npm run test:desktop; npm run build; npm run build:desktop; CSC_IDENTITY_AUTO_DISCOVERY=false npm run package:desktop; git diff --check; git status --short --branch. Run sequentially and stop at the first failure. Return a concise success summary with test counts and artifact results, or full relevant failure output. Do not commit, push, or modify source files.

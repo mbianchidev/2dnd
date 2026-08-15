@@ -13,11 +13,14 @@
 | Vitest | 4.1.10 |
 | Playwright | 1.62.1 |
 | happy-dom | 20.11.1 |
+| Electron | 43.4.0 |
+| electron-builder | 26.15.7 |
 | Campaign save schema | 17 |
 
-The game is a static browser application. It loads no external image or audio
-assets and makes no gameplay network calls. Textures are generated
-procedurally; music and sound effects use Web Audio synthesis.
+The game is a static browser application with an optional Electron shell. It
+loads no external image or audio assets and makes no gameplay network calls.
+Textures are generated procedurally; music and sound effects use Web Audio
+synthesis.
 
 ## Responsibility boundaries
 
@@ -30,6 +33,8 @@ procedurally; music and sound effects use Web Audio synthesis.
 | Scene orchestration and lifecycle | `src/scenes/` |
 | Logic and contract tests | `tests/` |
 | Real-browser release flows | `e2e/` |
+| Desktop main/preload/security boundary | `electron/` |
+| Production-like desktop flows | `electron-tests/` |
 
 `src/data/map.ts` is the map hub. World chunks, cities, dungeons, islands,
 nautical metadata, monsters, quests, cutscenes, crafting, gathering, and other
@@ -110,6 +115,22 @@ stable layout IDs. Tests should select those IDs rather than canvas coordinates.
 Every scene installs shared accessibility. New motion must use the reduced-motion
 accessors and complete callbacks exactly once even when animation duration is
 zero.
+
+## Desktop shell
+
+Electron production builds load `dist/` from the standard, secure
+`app://2dnd` origin. `electron/main.ts` owns BrowserWindow lifecycle, protocol
+resolution, permissions, remote-request denial, navigation, crash reporting,
+and IPC validation. The sandboxed single-file `electron/preload.cts` exposes
+only typed window/log state, fullscreen control, bounded renderer-error
+reporting, and application quit.
+
+The renderer remains the same Vite/Phaser application. `window.desktop` is
+optional, so browser builds never depend on Electron. Native code must not
+mutate game state, read arbitrary files, execute commands, or create a second
+persistence implementation. The main process owns bounded rotating diagnostic
+logs and trusted quit/fullscreen IPC; the in-game return-to-title path remains a
+save-first Phaser transition. See [Desktop application](desktop.md).
 
 ## Combat authority
 

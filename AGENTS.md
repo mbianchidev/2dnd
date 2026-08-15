@@ -9,13 +9,13 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 
 | Contract | Current value |
 | --- | --- |
-| Product | Browser JRPG, release v1.0.0 |
+| Product | Browser/Electron JRPG, release v1.0.0 |
 | Runtime | Phaser 4.2.1 |
 | Language | TypeScript 7.0.2, strict, ES2020 |
-| Build/test | Vite 8.2.1, Vitest 4.1.10, Playwright 1.62.1 |
+| Build/test | Vite 8.2.1, Electron 43.4.0, electron-builder 26.15.7, Vitest 4.1.10, Playwright 1.62.1 |
 | DOM tests | happy-dom 20.11.1 |
 | Save schema | 17 |
-| Deployment | GitHub Pages at `/2dnd/` |
+| Deployment | GitHub Pages at `/2dnd/`; unsigned desktop CI artifacts |
 | Assets | Procedural graphics and Web Audio only |
 
 Only current `main` is shipped behavior. Treat issues and open pull requests as
@@ -36,6 +36,7 @@ future work until merged.
 | Accessibility/input | tutorial/feature definitions | `accessibility.ts`, `input.ts`, `featureDiscovery.ts` | input/tutorial/layout managers | accessibility/input/layout/feature E2E |
 | Audio | typed data cues | `audio.ts`, `trapAudio.ts` | callers only | audio + representative browser flows |
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
+| Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
 
 ## Required workflow
 
@@ -46,8 +47,8 @@ future work until merged.
    presentation. Keep IDs stable and edits focused.
 3. **Targeted validate:** run the smallest related Vitest files and focused
    Playwright specs.
-4. **Full gate:** run install/audit, typecheck, full Vitest, full Playwright,
-   build, and `git diff --check`.
+4. **Full gate:** run install/audit, typecheck, full Vitest, browser and Electron
+   Playwright, web/desktop builds, and `git diff --check`.
 5. **PR/CI:** push a review branch, open a PR, wait for PR CI and CodeQL, and
    resolve every failure and review comment. Do not merge without explicit
    instruction.
@@ -58,7 +59,9 @@ npm audit
 npm run typecheck
 npm test
 npm run test:browser
+npm run test:desktop
 npm run build
+npm run build:desktop
 git diff --check
 ```
 
@@ -72,6 +75,11 @@ owning issue or pull request.
 - Strict TypeScript, explicit types, no `any`, no unsafe nested save casts.
 - No external image/audio assets, gameplay network calls, or runtime mutation
   of shared definitions.
+- Electron uses `app://2dnd`, sandboxed context isolation, denied permissions
+  and remote requests, traversal-safe protocol resolution, and narrow typed IPC.
+- Desktop diagnostics use bounded rotating logs under Electron user data.
+  Save & Return to Title remains autosave-first; only the title renderer may
+  request application quit through the validated zero-argument IPC.
 - Build scene payloads with `createSharedSceneState()`; preserve player, bosses,
   Codex, time, weather, and special NPCs.
 - `SceneTransitionManager` owns fades. Fade-complete is authoritative; the

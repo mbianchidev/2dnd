@@ -134,7 +134,12 @@ const ESCAPE_MENU_ENTRIES: readonly EscapeMenuEntry[] = [
     featureId: "settings",
     testId: "menu-settings",
   },
-  { action: "quit", label: "Quit to Title", color: "#ff6666", testId: "menu-quit" },
+  {
+    action: "quit",
+    label: "Save & Return to Title",
+    color: "#ff7777",
+    testId: "menu-quit",
+  },
 ];
 
 const INPUT_FEATURES: Partial<Record<InputAction, FeatureId>> = {

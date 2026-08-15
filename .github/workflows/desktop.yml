@@ -1,0 +1,73 @@
+name: Desktop artifacts
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Package (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            runner: ubuntu-latest
+            builderArgument: --linux
+          - name: macOS
+            runner: macos-latest
+            builderArgument: --mac
+          - name: Windows
+            runner: windows-latest
+            builderArgument: --win
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm audit
+      - run: npm run generate:desktop-icons
+      - run: npm run build:desktop
+
+      - name: Install Linux runtime dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+
+      - name: Run Electron smoke test
+        if: runner.os != 'Linux'
+        run: npm run test:desktop:built
+
+      - name: Run Electron smoke test under Xvfb
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:desktop:built
+
+      - name: Build unsigned desktop artifacts
+        run: npm run package:desktop:ci -- ${{ matrix.builderArgument }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 2dnd-${{ matrix.name }}-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            release/*
+            !release/mac/
+            !release/mac-arm64/
+            !release/win-unpacked/
+            !release/linux-unpacked/

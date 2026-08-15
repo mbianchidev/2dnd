@@ -26,8 +26,21 @@ describe("isLocalDev", () => {
     expect(isLocalDev()).toBe(false);
   });
 
-  it("returns true for a domain that contains but does not end with github.io", () => {
+  it("returns false for a non-loopback domain containing github.io", () => {
     vi.stubGlobal("location", { hostname: "github.io.example.com" });
-    expect(isLocalDev()).toBe(true);
+    expect(isLocalDev()).toBe(false);
+  });
+
+  it.each(["127.0.0.1", "[::1]", "game.localhost"])(
+    "returns true for loopback host %s",
+    (hostname) => {
+      vi.stubGlobal("location", { hostname });
+      expect(isLocalDev()).toBe(true);
+    },
+  );
+
+  it("returns false for an Electron custom-protocol host", () => {
+    vi.stubGlobal("location", { hostname: "2dnd" });
+    expect(isLocalDev()).toBe(false);
   });
 });

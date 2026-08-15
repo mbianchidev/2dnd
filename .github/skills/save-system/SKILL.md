@@ -14,6 +14,10 @@ Game state is stored in `localStorage` by `src/systems/save.ts`. Shared audio
 and accessibility preferences plus inventory presentation preferences are
 stored separately.
 
+Browser builds use their HTTP/HTTPS origin. Packaged Electron builds use the
+stable secure `app://2dnd` origin and the same save implementation. The stores
+remain isolated and are never copied or merged implicitly.
+
 ## Storage keys
 
 - `2dnd_save`: game state
@@ -306,6 +310,10 @@ top-level save is absent or corrupt.
 - Codex elemental-discovery and knowledge-ID normalization
 - Legacy monster-only Codex preservation and deterministic knowledge recovery
 - Missing and malformed skill-check normalization
+
+`electron-tests/desktop.spec.ts` creates a real schema-v17 campaign, relaunches
+with the same Electron user-data directory, and continues it from
+`app://2dnd`.
 
 ## Common pitfalls
 

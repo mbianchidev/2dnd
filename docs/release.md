@@ -9,9 +9,10 @@
 
 <https://mbianchidev.github.io/2dnd/>
 
-The repository currently has no Electron, Tauri, native desktop, or signed
-installer target. Do not publish desktop download instructions unless such a
-target is implemented and validated.
+The repository also builds an Electron desktop target for macOS, Windows, and
+Linux. Pull requests produce unsigned review artifacts. The current v1.0.0
+release has no signed public installer; do not describe unsigned CI artifacts
+as an endorsed desktop release.
 
 ## GitHub Pages
 
@@ -29,6 +30,24 @@ target is implemented and validated.
 development. Playwright defaults to `/2dnd/` so release paths are tested before
 deployment.
 
+## Desktop artifacts
+
+`.github/workflows/desktop.yml` runs on pull requests and manual dispatch:
+
+1. Install with Node.js 24 and run `npm audit`.
+2. Generate procedural repository-owned icons.
+3. Type-check and build the Electron main/preload process and relative Vite
+   renderer.
+4. Run the production-like Electron save/fullscreen/relaunch/quit/log smoke test.
+5. Build unsigned macOS, Windows, or Linux artifacts.
+6. Upload versioned review artifacts for 14 days without publishing them.
+
+macOS public releases require Developer ID signing and notarization. Windows
+public releases require Authenticode signing. Keep certificates and credentials
+in protected release environments; never commit them or expose them to pull
+requests. Linux artifacts remain unsigned unless a future release process adds
+documented package signing.
+
 ## Release checklist
 
 1. Confirm all claimed features are merged into current `main`; do not use open
@@ -44,12 +63,16 @@ deployment.
 7. Run `npm run typecheck`.
 8. Run full `npm test`.
 9. Run full `npm run test:browser`.
-10. Run `npm run build`.
-11. Run `git diff --check` and verify Markdown links/anchors.
-12. Open a pull request and wait for PR CI and both CodeQL analyses.
-13. Resolve every failure and review comment before merge.
-14. After merge, verify the Pages workflow and deployed URL.
-15. Create the GitHub release/tag and verify the public README reports the same
+10. Run full `npm run test:desktop`.
+11. Run `npm run build` and `npm run build:desktop`.
+12. Run `npm run package:desktop` on the current host.
+13. Run `git diff --check` and verify Markdown links/anchors.
+14. Open a pull request and wait for browser, desktop, and both CodeQL analyses.
+15. Resolve every failure and review comment before merge.
+16. After merge, verify the Pages workflow and deployed URL.
+17. For a desktop release, sign/notarize in the protected release environment
+    and verify installation before publishing.
+18. Create the GitHub release/tag and verify the public README reports the same
     version.
 
 ## Release gates
@@ -65,7 +88,8 @@ Pull requests to `main` use `.github/workflows/pr.yml`:
 
 `.github/workflows/codeql.yml` analyzes GitHub Actions and
 JavaScript/TypeScript. The release is not ready while any required PR, browser,
-build, audit, deployment, or CodeQL check is unresolved.
+desktop, build, audit, deployment, packaging, signing, or CodeQL check is
+unresolved.
 
 ## Documentation audit
 

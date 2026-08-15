@@ -1,6 +1,6 @@
 ---
 name: testing
-description: Test 2D&D logic with Vitest and browser flows with Playwright
+description: Test 2D&D logic and browser/Electron flows with Vitest and Playwright
 license: MIT
 ---
 
@@ -13,6 +13,11 @@ and browser-test setup.
 Write comprehensive game-mechanics tests with Vitest. Use the committed
 Playwright suite only for high-value Phaser browser flows that cannot be proven
 through pure logic tests.
+
+Use `playwright.desktop.config.ts` for the production-like Electron flow. It
+must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
+schema-v17 save creation/relaunch/continue, Save & Return to Title, title-screen
+quit, bounded lifecycle logs, and renderer error cleanliness.
 
 ## Testing Philosophy
 
@@ -529,6 +534,9 @@ npm test
 npm run test:browser:install
 npm run test:browser
 
+# Build and run the Electron smoke suite
+npm run test:desktop
+
 # Watch mode (re-run on changes)
 npm run test:watch
 
@@ -576,6 +584,18 @@ npx vitest run tests/dice.test.ts
   introductions, aftermath chaining, Chronicle replay immutability, interrupted
   and legacy ending recovery, durable post-game reload, and corrupt-save
   fallback to a usable New Game path.
+
+## Desktop Golden Path
+
+- Build with the relative desktop Vite mode and compiled main/preload process.
+- Launch with a fresh explicit test-only Electron user-data directory.
+- Assert `location.origin === "app://2dnd"` and the fullscreen bridge shape.
+- Create a character through production controls, then close and relaunch the
+  shell and continue the same schema-v17 campaign.
+- Return to title through the keyboard menu, quit through the visible title
+  action, and verify lifecycle/quit logs without save-content leakage.
+- Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.
+- Never weaken sandbox, navigation, IPC, CSP, or network policy for tests.
 
 ### Test Coverage
 ```bash

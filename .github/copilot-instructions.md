@@ -14,8 +14,8 @@ focused module.
 
 ## Project
 
-2D&D is a browser JRPG combining Dragon Quest-style exploration with
-D&D 5E-inspired combat. It has turn-based battles, point-buy characters,
+2D&D is a browser and Electron JRPG combining Dragon Quest-style exploration
+with D&D 5E-inspired combat. It has turn-based battles, point-buy characters,
 procedural graphics/audio, weather, day/night, a 90-chunk world, connected city
 districts, multi-level dungeons, procedural traps, non-combat skill checks,
 quest-recruited companions, ranked gambits, elemental interactions, status
@@ -30,6 +30,8 @@ continuation, plus deterministic fishing, mining, and foraging minigames.
 - Vitest 4.1.10
 - Playwright 1.62.1
 - happy-dom 20.11.1
+- Electron 43.4.0
+- electron-builder 26.15.7
 - Modern browsers, ES2020 target
 
 ## Structure
@@ -160,6 +162,9 @@ tests/
 `src/data/map.ts` is the map hub. Shared map types/dimensions, world chunks,
 cities, and dungeons are split into their own modules. Overworld delegates
 rendering and scene-owned state to `renderers/` and `managers/`.
+The secure desktop boundary lives in `electron/`, with production-like
+Playwright coverage in `electron-tests/`. The renderer remains browser-safe and
+loads from `app://2dnd` in packaged builds.
 
 ## TypeScript and style
 
@@ -792,6 +797,14 @@ saves start with empty discovery metadata and silently reconcile all durable
 authoritative evidence, so mature saves regain earned menus without replaying
 rewards or showing reveal storms.
 
+Electron persists the same documents through the stable `app://2dnd` origin.
+The native shell never owns or mutates campaign state, and browser/desktop
+origins never silently merge.
+Desktop lifecycle and failures append to bounded rotating logs below Electron
+user data without recording save payloads. Save & Return to Title autosaves
+before Boot; application quit is exposed only on the desktop title screen
+through trusted zero-argument IPC.
+
 Schema v16 adds `player.progression.nautical`: typed boat ownership, condition,
 upgrades and cosmetics; discovered ports, routes, islands, continents, and sea
 fog keys; bounded navigation statistics; and recoverable pending merchant
@@ -981,15 +994,18 @@ npm run typecheck
 npm test
 npm run test:browser
 npm run test:browser:install
+npm run test:desktop
 npm run test:watch
 npm run build
+npm run build:desktop
+npm run package:desktop
 npm run benchmark:baseline
 ```
 
 ## Testing
 
-- Frameworks: Vitest for logic and Playwright for browser flows.
-- Files: `tests/*.test.ts` and `e2e/*.spec.ts`.
+- Frameworks: Vitest for logic and Playwright for browser/Electron flows.
+- Files: `tests/*.test.ts`, `e2e/*.spec.ts`, and `electron-tests/*.spec.ts`.
 - Add deterministic tests for mechanics and migrations.
 - Add deterministic layout tests for measured stacks/grids, long wrapping,
   pagination/scroll ranges, safe areas, focus/hit-area alignment, and overlap
@@ -1004,6 +1020,8 @@ npm run benchmark:baseline
   fainting, spell/ability particles, world/follower/mount gait, boss cutscenes,
   and reduced-motion immediate states.
 - Pull request CI installs Chromium and runs the browser suites.
+- Desktop CI audits, smoke-tests `app://2dnd`, and creates unsigned macOS,
+  Windows, and Linux artifacts. It never receives signing credentials.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run `npm run benchmark:baseline` on the current base commit before

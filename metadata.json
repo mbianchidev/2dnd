@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01M02DS4HKMYYQJV85HNAVRHVB",
+  "strategy": "manual-commit",
+  "branch": "cp-desktop-electron-packaging",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/testing/SKILL.md",
+    "AGENTS.md",
+    "README.md",
+    "docs/testing.md",
+    "hacks/instructions.md",
+    "hacks/measure-performance-baseline.mjs",
+    "package.json",
+    "src/scenes/Boot.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 5008,
+    "api_call_count": 20
+  }
+}

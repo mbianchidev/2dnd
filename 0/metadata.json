@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01M02DS4HKMYYQJV85HNAVRHVB",
+  "session_id": "c88e14ce-7e53-40bb-9f08-226df81e7ee1",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-15T09:59:28.720041Z",
+  "branch": "cp-desktop-electron-packaging",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/testing/SKILL.md",
+    "AGENTS.md",
+    "README.md",
+    "docs/testing.md",
+    "hacks/instructions.md",
+    "hacks/measure-performance-baseline.mjs",
+    "package.json",
+    "src/scenes/Boot.ts"
+  ],
+  "agent": "Copilot CLI",
+  "model": "",
+  "turn_id": "19be7181e856",
+  "checkpoint_transcript_start": 1080,
+  "transcript_lines_at_start": 1080,
+  "compact_transcript_start": 76,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 5008,
+    "api_call_count": 20
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-15T09:59:28.331467Z",
+    "agent_lines": 828,
+    "agent_removed": 1,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 828,
+    "total_lines_changed": 829,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

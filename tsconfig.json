@@ -18,6 +18,13 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "tests/**/*", "e2e/**/*", "playwright.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*",
+    "tests/**/*",
+    "e2e/**/*",
+    "electron-tests/**/*",
+    "playwright.config.ts",
+    "playwright.desktop.config.ts"
+  ],
+  "exclude": ["node_modules", "dist", "dist-electron", "release"]
 }

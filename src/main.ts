@@ -12,7 +12,16 @@ import { CodexScene } from "./scenes/Codex";
 import { EndingScene } from "./scenes/Ending";
 import { CutsceneScene } from "./scenes/Cutscene";
 import { DefeatScene } from "./scenes/Defeat";
-import { GAME_WIDTH, GAME_HEIGHT, toggleDebug, isDebug, onDebugChanged, initDebugCommandInput, isLocalDev } from "./config";
+import {
+  GAME_WIDTH,
+  GAME_HEIGHT,
+  debugLog,
+  toggleDebug,
+  isDebug,
+  onDebugChanged,
+  initDebugCommandInput,
+  isLocalDev,
+} from "./config";
 import { SemanticInputRuntime } from "./managers/input";
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -42,9 +51,68 @@ const config: Phaser.Types.Core.GameConfig = {
 const game = new Phaser.Game(config);
 const semanticInput = new SemanticInputRuntime(game);
 semanticInput.start();
-window.addEventListener("beforeunload", () => semanticInput.destroy(), {
-  once: true,
+let disposeDesktopListener: (() => void) | undefined;
+window.addEventListener("beforeunload", () => {
+  disposeDesktopListener?.();
+  semanticInput.destroy();
+}, { once: true });
+
+const controlsToggle = document.getElementById(
+  "controls-toggle",
+) as HTMLButtonElement | null;
+const controlsPanel = document.getElementById("controls-panel");
+controlsToggle?.addEventListener("click", () => {
+  controlsPanel?.classList.toggle("collapsed");
+  const collapsed = controlsPanel?.classList.contains("collapsed") ?? true;
+  controlsToggle.textContent = collapsed ? "?" : "? Controls";
+  controlsToggle.setAttribute("aria-expanded", String(!collapsed));
+  controlsToggle.setAttribute(
+    "title",
+    collapsed ? "Show keyboard controls" : "Hide keyboard controls",
+  );
 });
+
+const desktopFullscreen = document.getElementById(
+  "desktop-fullscreen",
+) as HTMLButtonElement | null;
+if (window.desktop && desktopFullscreen) {
+  desktopFullscreen.style.display = "block";
+  const updateFullscreenLabel = (isFullscreen: boolean): void => {
+    desktopFullscreen.textContent = isFullscreen
+      ? "Windowed (F11)"
+      : "Fullscreen (F11)";
+    desktopFullscreen.setAttribute("aria-pressed", String(isFullscreen));
+  };
+  window.desktop.getState()
+    .then((state) => updateFullscreenLabel(state.isFullscreen))
+    .catch((error: unknown) => {
+      desktopFullscreen.disabled = true;
+      desktopFullscreen.title = "Fullscreen control unavailable";
+      debugLog("[desktop] Failed to read window state", error);
+    });
+  const toggleFullscreen = (): void => {
+    window.desktop?.toggleFullscreen()
+      .then(updateFullscreenLabel)
+      .catch((error: unknown) => {
+        debugLog("[desktop] Failed to toggle fullscreen", error);
+      });
+  };
+  const handleFullscreenShortcut = (event: KeyboardEvent): void => {
+    if (event.key !== "F11") return;
+    event.preventDefault();
+    toggleFullscreen();
+  };
+  desktopFullscreen.addEventListener("click", toggleFullscreen);
+  document.addEventListener("keydown", handleFullscreenShortcut);
+  const disposeFullscreenChange = window.desktop.onFullscreenChanged(
+    updateFullscreenLabel,
+  );
+  disposeDesktopListener = () => {
+    disposeFullscreenChange();
+    desktopFullscreen.removeEventListener("click", toggleFullscreen);
+    document.removeEventListener("keydown", handleFullscreenShortcut);
+  };
+}
 
 // Wire up the HTML debug toggle (local dev only)
 const debugToggle = document.getElementById("debug-toggle") as HTMLElement | null;

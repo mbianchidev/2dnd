@@ -15,11 +15,13 @@ on discovering and playing the game.
 | Test and CI changes | [Testing](testing.md) |
 | Persistent-state changes | [Save system](save-system.md) |
 | Maintainers preparing a release | [Release](release.md) |
+| Desktop developers and packagers | [Desktop application](desktop.md) |
 | Coding agents | [AGENTS.md](../AGENTS.md) |
 
 ## Focused references
 
 - [Companions and gambits](companions.md)
+- [Desktop application](desktop.md)
 - [Inventory presentation](inventory.md)
 
 Repository-wide constraints remain authoritative in

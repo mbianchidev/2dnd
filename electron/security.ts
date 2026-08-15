@@ -64,8 +64,9 @@ export function isAllowedRendererNavigation(
   const target = parseUrl(value);
   const renderer = parseUrl(rendererUrl);
   if (!target || !renderer || !hasSafeCredentials(target)) return false;
-  return target.origin === renderer.origin
-    && target.protocol === renderer.protocol;
+  return target.protocol === renderer.protocol
+    && target.hostname === renderer.hostname
+    && target.port === renderer.port;
 }
 
 export function isAllowedRendererResource(

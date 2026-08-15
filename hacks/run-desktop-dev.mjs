@@ -2,16 +2,13 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import { resolve } from "node:path";
+import electronPath from "electron";
 
 const root = process.cwd();
-const binaryExtension = process.platform === "win32" ? ".cmd" : "";
-const vitePath = resolve(root, "node_modules", ".bin", `vite${binaryExtension}`);
-const electronPath = resolve(
-  root,
-  "node_modules",
-  ".bin",
-  `electron${binaryExtension}`,
-);
+const vitePath = resolve(root, "node_modules", "vite", "bin", "vite.js");
+if (typeof electronPath !== "string" || electronPath.length === 0) {
+  throw new Error("Electron executable is unavailable; run npm ci first");
+}
 
 async function findAvailablePort() {
   const server = createServer();
@@ -61,8 +58,15 @@ function stopChild(child) {
 const port = await findAvailablePort();
 const rendererUrl = `http://127.0.0.1:${port}/`;
 const vite = spawn(
-  vitePath,
-  ["--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+  process.execPath,
+  [
+    vitePath,
+    "--host",
+    "127.0.0.1",
+    "--port",
+    String(port),
+    "--strictPort",
+  ],
   {
     cwd: root,
     env: process.env,

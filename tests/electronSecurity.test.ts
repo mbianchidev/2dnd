@@ -43,6 +43,9 @@ describe("Electron security policy", () => {
     expect(
       isAllowedRendererNavigation("https://example.com/", DESKTOP_APP_URL),
     ).toBe(false);
+    expect(
+      isAllowedRendererNavigation("app://other/index.html", DESKTOP_APP_URL),
+    ).toBe(false);
     expect(isAllowedRendererResource("app://2dnd/assets/game.js")).toBe(true);
     expect(isAllowedRendererResource("app://other/assets/game.js")).toBe(false);
     expect(

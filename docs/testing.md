@@ -15,7 +15,9 @@ npm run typecheck
 npm test
 npm run test:browser:install
 npm run test:browser
+npm run test:desktop
 npm run build
+npm run build:desktop
 ```
 
 `npm run build` already performs a TypeScript check before Vite builds `dist/`,
@@ -34,6 +36,7 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - semantic input mappings, context priority, repeats, cleanup, and suppression
 - pure layout, wrapping, pagination, safe-area, and focus math
 - transition contracts with mocked camera/time adapters
+- Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
 
 Random mechanics must accept deterministic values or seeded state. Test the
 authoritative helper rather than reproducing formulas in assertions.
@@ -56,6 +59,19 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
 a strict port. `hacks/run-browser-tests.mjs` allocates a free port and disables
 server reuse so tests cannot silently attach to stale code.
+
+## Electron responsibilities
+
+`playwright.desktop.config.ts` launches the compiled production shell against
+the relative desktop renderer. The smoke flow verifies:
+
+- the stable `app://2dnd` origin and typed sandboxed preload bridge
+- fullscreen button and F11 behavior
+- real character creation, schema-v17 save persistence, relaunch, and continue
+- renderer/page error cleanliness
+
+`.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
+Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
 
 To exercise the local root base explicitly:
 
@@ -91,8 +107,10 @@ Playwright specs for changed UI/scene flows. Before a pull request, run:
 3. `npm run typecheck`
 4. `npm test`
 5. `npm run test:browser`
-6. `npm run build`
-7. `git diff --check`
+6. `npm run test:desktop`
+7. `npm run build`
+8. `npm run build:desktop`
+9. `git diff --check`
 
 If a dependency install reports vulnerabilities, resolve or explicitly account
 for them before release.
@@ -105,4 +123,5 @@ requests to `main`.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the production
-build from `main`.
+build from `main`. `.github/workflows/desktop.yml` audits, builds, smoke-tests,
+and packages each desktop platform without signing or publishing.

@@ -48,11 +48,16 @@ and campaign saves stay in your browser's local storage.
 See the [gameplay guide](docs/gameplay.md) for controls, progression, and player
 guidance.
 
-## Browser and save support
+## Browser, desktop, and save support
 
 2D&D is designed for current desktop and mobile browsers. Release CI validates
 the game in Chromium; other current evergreen browsers are expected to work but
-are not part of the automated release gate. There is no desktop installer.
+are not part of the automated browser gate.
+
+The source also includes a secure Electron target for macOS, Windows, and Linux.
+Desktop CI builds unsigned review artifacts, but the current v1.0.0 public
+release does not yet publish signed installers. See the
+[desktop guide](docs/desktop.md) for its security and packaging model.
 
 Campaign saves, accessibility/audio settings, and inventory-view preferences
 are stored locally in the current browser profile. Saves do not automatically
@@ -76,11 +81,16 @@ Open `http://localhost:3000`.
 npm run typecheck      # Strict TypeScript validation
 npm test               # Full Vitest suite
 npm run test:browser   # Full Playwright/Chromium suite
+npm run test:desktop   # Production-like Electron smoke suite
 npm run build          # Type-check and build dist/
+npm run build:desktop  # Type-check and build the desktop renderer and shell
 ```
 
 Install Chromium once before the browser suite with
 `npm run test:browser:install`.
+
+Use `npm run dev:desktop` for Electron development and
+`npm run package:desktop` for unsigned artifacts on the current host.
 
 ## Documentation
 
@@ -93,6 +103,7 @@ Install Chromium once before the browser suite with
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
 | [Save system](docs/save-system.md) | Schema v17, migration, recovery, persistence rules |
+| [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
 | [Release](docs/release.md) | GitHub Pages and release checklist |
 | [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |
 | [Inventory presentation](docs/inventory.md) | Ownership-safe sorting, filtering, controls, transfers |

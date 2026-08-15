@@ -37,6 +37,7 @@
 | UI layout | `src/systems/layout.ts`, `src/managers/layout.ts`, owning manager/renderer |
 | Texture | focused renderer aggregated by `src/renderers/textures.ts` |
 | Audio | `src/systems/audio.ts` and typed domain profile helpers |
+| Desktop shell or packaging | `electron/`, `electron-tests/`, `package.json`, desktop workflow |
 
 Read the matching `.github/skills/*/SKILL.md` before implementing domain work.
 
@@ -51,11 +52,18 @@ npm run typecheck
 npm test
 npm run test:browser
 npm run build
+npm run test:desktop
+npm run build:desktop
 ```
 
 Do not add a new linter, test runner, formatter, or build system for a one-off
 task. Change dependencies only when the feature requires it, keep
 `package-lock.json` synchronized, and verify the audit result.
+
+Electron development uses `npm run dev:desktop`. Keep preload single-file for
+Chromium sandbox compatibility, expose only narrow typed IPC, and preserve the
+browser build as the authoritative renderer. Packaging commands and security
+rules are documented in [Desktop application](desktop.md).
 
 ## Debug tools
 

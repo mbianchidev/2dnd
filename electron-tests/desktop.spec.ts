@@ -99,17 +99,22 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   return { name: "Desktop Hero", version: 17 };
 }
 
+function monitorRendererErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  return errors;
+}
+
 test("secure desktop shell persists a campaign across launches", async () => {
   const userDataDirectory = await mkdtemp(join(tmpdir(), "2dnd-electron-"));
   let desktop: ElectronApplication | undefined;
   try {
     desktop = await launchDesktop(userDataDirectory);
     let page = await desktop.firstWindow();
-    const rendererErrors: string[] = [];
-    page.on("pageerror", (error) => rendererErrors.push(error.message));
-    page.on("console", (message) => {
-      if (message.type() === "error") rendererErrors.push(message.text());
-    });
+    const rendererErrors = monitorRendererErrors(page);
 
     await expect(page).toHaveTitle(/2D&D/);
     await expect(page.locator("#desktop-fullscreen")).toBeVisible();
@@ -139,14 +144,25 @@ test("secure desktop shell persists a campaign across launches", async () => {
 
     desktop = await launchDesktop(userDataDirectory);
     page = await desktop.firstWindow();
+    const relaunchedRendererErrors = monitorRendererErrors(page);
     await expect(page.locator("#desktop-fullscreen")).toBeVisible();
     const loaded = await page.evaluate((key) => {
       const raw = localStorage.getItem(key);
       if (!raw) throw new Error("Desktop campaign save was not persisted");
-      const parsed = JSON.parse(raw) as {
-        version: number;
-        player: { name: string };
-      };
+      const parsed: unknown = JSON.parse(raw);
+      if (
+        typeof parsed !== "object"
+        || parsed === null
+        || !("version" in parsed)
+        || typeof parsed.version !== "number"
+        || !("player" in parsed)
+        || typeof parsed.player !== "object"
+        || parsed.player === null
+        || !("name" in parsed.player)
+        || typeof parsed.player.name !== "string"
+      ) {
+        throw new Error("Desktop campaign save has an invalid shape");
+      }
       return {
         name: parsed.player.name,
         version: parsed.version,
@@ -156,6 +172,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await page.keyboard.press("Space");
     await page.waitForTimeout(1_000);
     await expect(page.locator("#game-container canvas")).toBeVisible();
+    expect(relaunchedRendererErrors).toEqual([]);
   } finally {
     await desktop?.close();
     await rm(userDataDirectory, { recursive: true, force: true });

@@ -15,6 +15,11 @@ Legacy `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values migrate into
 `2dnd_preferences`. Presentation preferences do not increment the campaign
 schema.
 
+Browser deployments store these documents under their HTTP/HTTPS origin.
+Packaged Electron builds use the stable secure `app://2dnd` origin and the same
+schema and normalization code. Browser and desktop stores are intentionally
+isolated and never silently merged.
+
 The save implementation is `src/systems/save.ts`. Focused normalization lives
 beside its domain where appropriate, including `questState.ts`,
 `gatheringState.ts`, `craftingState.ts`, and `nauticalState.ts`.

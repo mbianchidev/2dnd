@@ -5,7 +5,11 @@ import {
   type ElectronApplication,
   type Page,
 } from "@playwright/test";
-import { mkdtemp, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -56,6 +60,21 @@ async function clickGame(
   );
 }
 
+async function holdKey(
+  page: Page,
+  key: string,
+  duration = 180,
+): Promise<void> {
+  await page.keyboard.down(key);
+  await page.waitForTimeout(duration);
+  await page.keyboard.up(key);
+  await page.waitForTimeout(120);
+}
+
+async function waitForState(page: Page, text: string): Promise<void> {
+  await expect(page.locator("#debug-state")).toContainText(text);
+}
+
 async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await page.waitForTimeout(800);
   await page.keyboard.press("Space");
@@ -99,6 +118,30 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   return { name: "Desktop Hero", version: 17 };
 }
 
+async function prepareSaveForOverworld(page: Page): Promise<void> {
+  await page.evaluate((key) => {
+    const isRecord = (value: unknown): value is Record<string, unknown> =>
+      typeof value === "object" && value !== null && !Array.isArray(value);
+    const raw = localStorage.getItem(key);
+    if (!raw) throw new Error("Missing desktop campaign save");
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      !isRecord(parsed)
+      || !("player" in parsed)
+      || !isRecord(parsed.player)
+      || !("progression" in parsed.player)
+      || !isRecord(parsed.player.progression)
+    ) {
+      throw new Error("Desktop campaign save has invalid progression");
+    }
+    const progression = parsed.player.progression;
+    progression.pendingCutsceneIds = [];
+    progression.pendingFeatureRevealIds = [];
+    progression.tutorial = { completed: true };
+    localStorage.setItem(key, JSON.stringify(parsed));
+  }, SAVE_KEY);
+}
+
 function monitorRendererErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -111,6 +154,7 @@ function monitorRendererErrors(page: Page): string[] {
 test("secure desktop shell persists a campaign across launches", async () => {
   const userDataDirectory = await mkdtemp(join(tmpdir(), "2dnd-electron-"));
   let desktop: ElectronApplication | undefined;
+  let logPath = "";
   try {
     desktop = await launchDesktop(userDataDirectory);
     let page = await desktop.firstWindow();
@@ -124,6 +168,8 @@ test("secure desktop shell persists a campaign across launches", async () => {
     const desktopState = await page.evaluate(() => window.desktop?.getState());
     expect(desktopState?.appVersion).toBe("1.0.0");
     expect(desktopState?.isFullscreen).toBe(false);
+    logPath = desktopState?.logPath ?? "";
+    expect(logPath).toBe(join(userDataDirectory, "logs", "2dnd.log"));
 
     await page.locator("#desktop-fullscreen").click();
     await expect.poll(() => page.evaluate(
@@ -138,6 +184,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     )).toBe(false);
 
     const saved = await createDesktopSave(page);
+    await prepareSaveForOverworld(page);
     expect(rendererErrors).toEqual([]);
     await desktop.close();
     desktop = undefined;
@@ -169,10 +216,27 @@ test("secure desktop shell persists a campaign across launches", async () => {
       };
     }, SAVE_KEY);
     expect(loaded).toEqual(saved);
-    await page.keyboard.press("Space");
-    await page.waitForTimeout(1_000);
-    await expect(page.locator("#game-container canvas")).toBeVisible();
+    await holdKey(page, "Space");
+    await waitForState(page, "OVERWORLD");
+    await holdKey(page, "Escape");
+    await waitForState(page, "[MENU]");
+    await holdKey(page, "ArrowUp");
+    await waitForState(page, "[MENU_SELECTION:quit]");
+    await holdKey(page, "Enter");
+    await waitForState(page, "BOOT | Screen: title");
     expect(relaunchedRendererErrors).toEqual([]);
+
+    const closePromise = desktop.waitForEvent("close");
+    await clickGame(page, 320, 456);
+    await closePromise;
+    desktop = undefined;
+
+    const log = await readFile(logPath, "utf8");
+    expect(log).toContain("[INFO] Application starting");
+    expect(log).toContain("[INFO] Renderer ready");
+    expect(log).toContain("[INFO] Quit requested by renderer");
+    expect(log).toContain("[INFO] Application will quit");
+    expect(log).not.toContain("Desktop Hero");
   } finally {
     await desktop?.close();
     await rm(userDataDirectory, { recursive: true, force: true });

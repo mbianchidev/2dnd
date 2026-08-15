@@ -68,13 +68,18 @@ describe("feature discovery registry", () => {
   it("starts with a minimal safe menu and inventory-only shared overlay", () => {
     const { player } = createContext();
 
-    expect(getEscapeMenuEntries(player).map((entry) => entry.action)).toEqual([
+    const menuEntries = getEscapeMenuEntries(player);
+    expect(menuEntries.map((entry) => entry.action)).toEqual([
       "resume",
       "inventory",
       "tips",
       "settings",
       "quit",
     ]);
+    expect(menuEntries[menuEntries.length - 1]).toMatchObject({
+      action: "quit",
+      label: "Save & Return to Title",
+    });
     expect(getPartyDiscoveryPages(player)).toEqual(["items"]);
     expect(isFeatureAvailable(player, "inventory")).toBe(true);
     expect(isFeatureAvailable(player, "party")).toBe(false);

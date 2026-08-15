@@ -16,7 +16,8 @@ through pure logic tests.
 
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
-schema-v17 save creation/relaunch/continue, and renderer error cleanliness.
+schema-v17 save creation/relaunch/continue, Save & Return to Title, title-screen
+quit, bounded lifecycle logs, and renderer error cleanliness.
 
 ## Testing Philosophy
 
@@ -591,6 +592,8 @@ npx vitest run tests/dice.test.ts
 - Assert `location.origin === "app://2dnd"` and the fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
   shell and continue the same schema-v17 campaign.
+- Return to title through the keyboard menu, quit through the visible title
+  action, and verify lifecycle/quit logs without save-content leakage.
 - Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.
 - Never weaken sandbox, navigation, IPC, CSP, or network policy for tests.
 

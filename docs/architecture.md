@@ -14,7 +14,7 @@
 | Playwright | 1.62.1 |
 | happy-dom | 20.11.1 |
 | Electron | 43.4.0 |
-| electron-builder | 26.15.3 |
+| electron-builder | 26.15.7 |
 | Campaign save schema | 17 |
 
 The game is a static browser application with an optional Electron shell. It
@@ -122,12 +122,15 @@ Electron production builds load `dist/` from the standard, secure
 `app://2dnd` origin. `electron/main.ts` owns BrowserWindow lifecycle, protocol
 resolution, permissions, remote-request denial, navigation, crash reporting,
 and IPC validation. The sandboxed single-file `electron/preload.cts` exposes
-only typed fullscreen state and control.
+only typed window/log state, fullscreen control, bounded renderer-error
+reporting, and application quit.
 
 The renderer remains the same Vite/Phaser application. `window.desktop` is
 optional, so browser builds never depend on Electron. Native code must not
 mutate game state, read arbitrary files, execute commands, or create a second
-persistence implementation. See [Desktop application](desktop.md).
+persistence implementation. The main process owns bounded rotating diagnostic
+logs and trusted quit/fullscreen IPC; the in-game return-to-title path remains a
+save-first Phaser transition. See [Desktop application](desktop.md).
 
 ## Combat authority
 

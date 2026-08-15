@@ -69,6 +69,8 @@ the relative desktop renderer. The smoke flow verifies:
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
 - real character creation, schema-v17 save persistence, relaunch, and continue
+- keyboard Save & Return to Title plus pointer Quit Desktop
+- lifecycle/quit log creation without campaign-content leakage
 - renderer/page error cleanliness
 
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and

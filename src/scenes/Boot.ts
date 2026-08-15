@@ -212,6 +212,23 @@ export class BootScene extends Phaser.Scene {
     settingsBtn.on("pointerout", () => settingsBtn.setColor("#aabbcc"));
     settingsBtn.on("pointerdown", () => this.showTitleSettings());
 
+    if (window.desktop) {
+      menuY += 38;
+      const quitBtn = this.add
+        .text(cx, menuY, "[ Quit Desktop ]", {
+          fontSize: "16px",
+          fontFamily: "monospace",
+          color: "#ff7777",
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+      quitBtn.setData("testId", "title-quit-desktop");
+      quitBtn.on("pointerover", () => quitBtn.setColor("#ffffff"));
+      quitBtn.on("pointerout", () => quitBtn.setColor("#ff7777"));
+      quitBtn.on("pointerdown", () => this.quitDesktopApp());
+      this.input.keyboard!.once("keydown-Q", () => this.quitDesktopApp());
+    }
+
     // Keyboard shortcuts
     if (saveExists) {
       this.input.keyboard!.once("keydown-SPACE", () => this.continueGame());
@@ -219,6 +236,12 @@ export class BootScene extends Phaser.Scene {
     } else {
       this.input.keyboard!.once("keydown-SPACE", () => this.showCharacterCreation());
     }
+  }
+
+  private quitDesktopApp(): void {
+    if (!window.desktop) return;
+    debugPanelState("BOOT | Screen: title [QUITTING]");
+    window.desktop.quitApp();
   }
 
   /** Show the shared audio and accessibility settings on the title screen. */

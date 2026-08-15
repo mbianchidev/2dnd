@@ -52,7 +52,25 @@ const game = new Phaser.Game(config);
 const semanticInput = new SemanticInputRuntime(game);
 semanticInput.start();
 let disposeDesktopListener: (() => void) | undefined;
+const formatRendererError = (value: unknown): string => {
+  if (value instanceof Error) return value.stack ?? value.message;
+  return String(value);
+};
+const handleRendererError = (event: ErrorEvent): void => {
+  window.desktop?.reportError(
+    `Unhandled error: ${formatRendererError(event.error ?? event.message)}`,
+  );
+};
+const handleRendererRejection = (event: PromiseRejectionEvent): void => {
+  window.desktop?.reportError(
+    `Unhandled rejection: ${formatRendererError(event.reason)}`,
+  );
+};
+window.addEventListener("error", handleRendererError);
+window.addEventListener("unhandledrejection", handleRendererRejection);
 window.addEventListener("beforeunload", () => {
+  window.removeEventListener("error", handleRendererError);
+  window.removeEventListener("unhandledrejection", handleRendererRejection);
   disposeDesktopListener?.();
   semanticInput.destroy();
 }, { once: true });

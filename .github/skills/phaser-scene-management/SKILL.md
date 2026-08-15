@@ -70,6 +70,11 @@ hit areas, and update procedural touch controls. Untaught shortcuts stay inert,
 while always-safe cancel, Tips, Settings, Inventory, Map, Equipment, and
 save/title paths remain available.
 
+The Esc menu's **Save & Return to Title** action autosaves before a guarded
+`BootScene` handoff. Packaged Electron builds expose **Quit Desktop** only on
+the title screen through the optional typed desktop API; browser scenes never
+attempt to close their own tab.
+
 `CodexScene` keeps category, filter, sort, and search controls pointer-first so
 touch and the gamepad cursor share the keyboard surface. Search uses
 `openMobileTextInput()`. `CodexDiscoveryManager` owns non-interactive,

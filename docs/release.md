@@ -38,7 +38,7 @@ deployment.
 2. Generate procedural repository-owned icons.
 3. Type-check and build the Electron main/preload process and relative Vite
    renderer.
-4. Run the production-like Electron save/fullscreen/relaunch smoke test.
+4. Run the production-like Electron save/fullscreen/relaunch/quit/log smoke test.
 5. Build unsigned macOS, Windows, or Linux artifacts.
 6. Upload versioned review artifacts for 14 days without publishing them.
 

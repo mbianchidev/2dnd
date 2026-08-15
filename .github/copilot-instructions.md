@@ -31,7 +31,7 @@ continuation, plus deterministic fishing, mining, and foraging minigames.
 - Playwright 1.62.1
 - happy-dom 20.11.1
 - Electron 43.4.0
-- electron-builder 26.15.3
+- electron-builder 26.15.7
 - Modern browsers, ES2020 target
 
 ## Structure
@@ -800,6 +800,10 @@ rewards or showing reveal storms.
 Electron persists the same documents through the stable `app://2dnd` origin.
 The native shell never owns or mutates campaign state, and browser/desktop
 origins never silently merge.
+Desktop lifecycle and failures append to bounded rotating logs below Electron
+user data without recording save payloads. Save & Return to Title autosaves
+before Boot; application quit is exposed only on the desktop title screen
+through trusted zero-argument IPC.
 
 Schema v16 adds `player.progression.nautical`: typed boat ownership, condition,
 upgrades and cosmetics; discovered ports, routes, islands, continents, and sea

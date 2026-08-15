@@ -458,11 +458,11 @@ export class OverworldScene extends Phaser.Scene {
         );
         this.questFlow?.refreshMarkers();
       },
-      saveAndQuit: () => {
+      saveAndReturnToTitle: () => {
         this.autoSave();
         this.sceneTransitions.startImmediately(
           () => this.scene.start("BootScene"),
-          "save and quit",
+          "save and return to title",
         );
       },
       getTimeStep: () => this.timeStep,

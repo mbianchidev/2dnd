@@ -92,7 +92,7 @@ export interface OverlayCallbacks {
   createPlayer: () => void;
   refreshPlayerSprite: () => void;
   respawnCityNpcs: () => void;
-  saveAndQuit: () => void;
+  saveAndReturnToTitle: () => void;
   getTimeStep: () => number;
   setTimeStep: (t: number) => void;
   evacuateDungeon: () => void;
@@ -1214,7 +1214,7 @@ export class OverlayManager {
     codex: CodexData,
   ): void {
     if (action === "quit") {
-      this.callbacks.saveAndQuit();
+      this.callbacks.saveAndReturnToTitle();
       return;
     }
     this.toggleMenuOverlay(player, defeatedBosses, codex);

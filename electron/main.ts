@@ -7,6 +7,7 @@ import {
   protocol,
   session,
   shell,
+  type IpcMainEvent,
   type IpcMainInvokeEvent,
   type WebContents,
 } from "electron";
@@ -30,6 +31,14 @@ import {
   resolveAppAssetPath,
 } from "./security.js";
 import { createDesktopWindowOptions } from "./windowOptions.js";
+import {
+  createDesktopLogger,
+  type DesktopLogger,
+} from "./logger.js";
+import {
+  isWindowFullscreen,
+  setWindowFullscreen,
+} from "./fullscreen.js";
 
 const PRODUCT_NAME = "2D&D";
 const REMOTE_REQUEST_FILTER = {
@@ -40,8 +49,10 @@ const REMOTE_REQUEST_FILTER = {
     "wss://*/*",
   ],
 };
+const MAX_RENDERER_ERROR_LENGTH = 4_096;
 
 let mainWindow: BrowserWindow | null = null;
+let desktopLogger: DesktopLogger | null = null;
 
 function formatError(error: unknown): string {
   if (error instanceof Error) return error.stack ?? error.message;
@@ -49,7 +60,24 @@ function formatError(error: unknown): string {
 }
 
 function reportDesktopError(context: string, error: unknown): void {
-  process.stderr.write(`[desktop] ${context}: ${formatError(error)}\n`);
+  const message = `${context}: ${formatError(error)}`;
+  desktopLogger?.error(message);
+  process.stderr.write(`[desktop] ${message}\n`);
+}
+
+function reportDesktopInfo(message: string): void {
+  desktopLogger?.info(message);
+  process.stdout.write(`[desktop] ${message}\n`);
+}
+
+function configureDesktopLogger(): void {
+  try {
+    desktopLogger = createDesktopLogger(
+      join(app.getPath("userData"), "logs"),
+    );
+  } catch (error) {
+    reportDesktopError("Failed to initialize persistent logging", error);
+  }
 }
 
 function readDevelopmentUrl(): string | undefined {
@@ -81,7 +109,9 @@ function getDesktopPlatform(): DesktopPlatform {
   return "other";
 }
 
-function assertTrustedSender(event: IpcMainInvokeEvent): BrowserWindow {
+function assertTrustedSender(
+  event: IpcMainEvent | IpcMainInvokeEvent,
+): BrowserWindow {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!window || window !== mainWindow) {
     throw new Error("Rejected desktop IPC from an untrusted renderer");
@@ -99,7 +129,8 @@ function registerIpcHandlers(): void {
       const window = assertTrustedSender(event);
       return {
         appVersion: app.getVersion(),
-        isFullscreen: window.isFullScreen(),
+        isFullscreen: isWindowFullscreen(window),
+        logPath: desktopLogger?.filePath ?? "",
         platform: getDesktopPlatform(),
       };
     },
@@ -111,9 +142,44 @@ function registerIpcHandlers(): void {
         throw new Error("desktop:toggle-fullscreen does not accept arguments");
       }
       const window = assertTrustedSender(event);
-      const nextFullscreen = !window.isFullScreen();
-      window.setFullScreen(nextFullscreen);
+      const nextFullscreen = !isWindowFullscreen(window);
+      setWindowFullscreen(window, nextFullscreen);
+      sendFullscreenState(window);
       return nextFullscreen;
+    },
+  );
+  ipcMain.on(
+    DESKTOP_CHANNELS.quitApp,
+    (event: IpcMainEvent, ...args: unknown[]): void => {
+      try {
+        if (!hasNoIpcArguments(args)) {
+          throw new Error("desktop:quit-app does not accept arguments");
+        }
+        assertTrustedSender(event);
+        reportDesktopInfo("Quit requested by renderer");
+        app.quit();
+      } catch (error) {
+        reportDesktopError("Rejected desktop quit request", error);
+      }
+    },
+  );
+  ipcMain.on(
+    DESKTOP_CHANNELS.reportError,
+    (event: IpcMainEvent, ...args: unknown[]): void => {
+      try {
+        assertTrustedSender(event);
+        if (
+          args.length !== 1
+          || typeof args[0] !== "string"
+          || args[0].length === 0
+          || args[0].length > MAX_RENDERER_ERROR_LENGTH
+        ) {
+          throw new Error("desktop:report-error requires one bounded string");
+        }
+        reportDesktopError("Renderer error", args[0]);
+      } catch (error) {
+        reportDesktopError("Rejected renderer error report", error);
+      }
     },
   );
 }
@@ -122,7 +188,7 @@ function sendFullscreenState(window: BrowserWindow): void {
   if (!window.isDestroyed()) {
     window.webContents.send(
       DESKTOP_CHANNELS.fullscreenChanged,
-      window.isFullScreen(),
+      isWindowFullscreen(window),
     );
   }
 }
@@ -230,6 +296,7 @@ async function createMainWindow(
   );
   mainWindow = window;
   const rendererUrl = developmentUrl ?? DESKTOP_APP_URL;
+  reportDesktopInfo(`Creating renderer window for ${rendererUrl}`);
   secureWebContents(window.webContents, rendererUrl, isDevelopment);
 
   window.on("enter-full-screen", () => sendFullscreenState(window));
@@ -238,7 +305,11 @@ async function createMainWindow(
     reportDesktopError("Renderer became unresponsive", rendererUrl);
   });
   window.on("closed", () => {
+    reportDesktopInfo("Renderer window closed");
     if (mainWindow === window) mainWindow = null;
+  });
+  window.webContents.on("preload-error", (_event, preloadPath, error) => {
+    reportDesktopError(`Preload failed (${preloadPath})`, error);
   });
   window.webContents.on(
     "render-process-gone",
@@ -256,7 +327,10 @@ async function createMainWindow(
       );
     },
   );
-  window.once("ready-to-show", () => window.show());
+  window.once("ready-to-show", () => {
+    reportDesktopInfo("Renderer ready");
+    window.show();
+  });
   await window.loadURL(rendererUrl);
 }
 
@@ -275,6 +349,10 @@ protocol.registerSchemesAsPrivileged([
 
 app.setName(PRODUCT_NAME);
 configureTestUserData();
+configureDesktopLogger();
+reportDesktopInfo(
+  `Application starting version=${app.getVersion()} platform=${process.platform} arch=${process.arch}`,
+);
 
 process.on("uncaughtException", (error) => {
   reportDesktopError("Uncaught main-process error", error);
@@ -312,4 +390,7 @@ app.whenReady()
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+app.on("before-quit", () => {
+  reportDesktopInfo("Application will quit");
 });

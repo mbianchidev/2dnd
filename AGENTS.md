@@ -12,7 +12,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Product | Browser/Electron JRPG, release v1.0.0 |
 | Runtime | Phaser 4.2.1 |
 | Language | TypeScript 7.0.2, strict, ES2020 |
-| Build/test | Vite 8.2.1, Electron 43.4.0, Vitest 4.1.10, Playwright 1.62.1 |
+| Build/test | Vite 8.2.1, Electron 43.4.0, electron-builder 26.15.7, Vitest 4.1.10, Playwright 1.62.1 |
 | DOM tests | happy-dom 20.11.1 |
 | Save schema | 17 |
 | Deployment | GitHub Pages at `/2dnd/`; unsigned desktop CI artifacts |
@@ -77,6 +77,9 @@ owning issue or pull request.
   of shared definitions.
 - Electron uses `app://2dnd`, sandboxed context isolation, denied permissions
   and remote requests, traversal-safe protocol resolution, and narrow typed IPC.
+- Desktop diagnostics use bounded rotating logs under Electron user data.
+  Save & Return to Title remains autosave-first; only the title renderer may
+  request application quit through the validated zero-argument IPC.
 - Build scene payloads with `createSharedSceneState()`; preserve player, bosses,
   Codex, time, weather, and special NPCs.
 - `SceneTransitionManager` owns fades. Fade-complete is authoritative; the

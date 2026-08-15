@@ -23,7 +23,7 @@ system has been discovered. The Escape menu remains the reliable entry point.
 | --- | --- |
 | `WASD` / arrows | Move, navigate menus, cycle valid Battle targets |
 | `Space` / `Enter` | Confirm, interact, or disarm a detected adjacent trap |
-| `Esc` | Cancel, close the active overlay, or skip an active cutscene |
+| `Esc` | Open the in-game menu, cancel/close an overlay, or skip a cutscene |
 | `F1` | Open Tips |
 | `M` | Open the map |
 | `E` | Open equipment |
@@ -44,6 +44,10 @@ press the stick to click pointer-first controls.
 
 Mappings are stable rather than user-remappable. Settings can control touch
 visibility, handedness, and automatic or fixed prompt sources.
+
+The in-game menu includes **Save & Return to Title**. Desktop builds also show
+**Quit Desktop** on the title screen, with `Q` as a title-screen shortcut.
+Browser builds rely on the browser tab/window controls instead.
 
 ## Character creation and progression
 

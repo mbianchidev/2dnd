@@ -59,6 +59,9 @@ npm run build:desktop
 Do not add a new linter, test runner, formatter, or build system for a one-off
 task. Change dependencies only when the feature requires it, keep
 `package-lock.json` synchronized, and verify the audit result.
+Review install scripts with `npm install-scripts ls`. Keep approvals pinned to
+the exact reviewed versions, omit unused packaging peers, and do not suppress
+deprecation warnings with incompatible major-version overrides.
 
 Electron development uses `npm run dev:desktop`. Keep preload single-file for
 Chromium sandbox compatibility, expose only narrow typed IPC, and preserve the

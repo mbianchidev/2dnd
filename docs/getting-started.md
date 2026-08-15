@@ -33,6 +33,25 @@ Vite serves the game at <http://localhost:3000/> with the root base path.
 Use `npm install` only when intentionally changing dependencies or refreshing
 the lockfile. For reproducible setup and CI parity, prefer `npm ci`.
 
+## Run the desktop shell
+
+```bash
+npm run dev:desktop
+```
+
+The command builds the strict Electron main/preload process, starts Vite on an
+unused loopback port, and closes both processes together. For a production-like
+desktop build and smoke test:
+
+```bash
+npm run build:desktop
+npm run test:desktop:built
+```
+
+Create unsigned artifacts for the current operating system with
+`npm run package:desktop`. See [Desktop application](desktop.md) before changing
+the native security boundary or preparing distribution artifacts.
+
 ## Browser tests
 
 Install the Playwright Chromium build once:
@@ -73,7 +92,9 @@ or switching profiles can remove or hide local saves. There is no cloud sync.
 - **Browser tests cannot launch Chromium:** run
   `npm run test:browser:install`.
 - **Desktop shell does not start:** rerun `npm run build:electron`, confirm the
-  Vite loopback port is not blocked, and inspect main-process stderr.
+  Vite loopback port is not blocked, inspect main-process stderr, then check
+  `logs/2dnd.log` beneath the platform user-data root documented in
+  [Desktop application](desktop.md#diagnostic-logs).
 - **Packaging cannot sign an artifact:** local and CI artifacts are intentionally
   unsigned; see [Release](release.md) for signing prerequisites.
 - **The deployed route loads locally but fails under Pages:** run the browser
@@ -81,25 +102,6 @@ or switching profiles can remove or hide local saves. There is no cloud sync.
 - **Old dependencies or inexplicable type errors:** remove only the local
   dependency installation if appropriate, then rerun `npm ci`; do not edit the
   lockfile unless dependencies are changing.
-
-  ## Run the desktop shell
-
-  ```bash
-  npm run dev:desktop
-  ```
-
-  The command builds the strict Electron main/preload process, starts Vite on an
-  unused loopback port, and closes both processes together. For a production-like
-  desktop build and smoke test:
-
-  ```bash
-  npm run build:desktop
-  npm run test:desktop:built
-  ```
-
-  Create unsigned artifacts for the current operating system with
-  `npm run package:desktop`. See [Desktop application](desktop.md) before changing
-  the native security boundary or preparing distribution artifacts.
 - **A save no longer loads:** do not patch the stored JSON manually. Reproduce
   it in `tests/save.test.ts` and fix normalization or recovery as described in
   [Save system](save-system.md).

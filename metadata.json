@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01M02BJR86SA8JW949H2Q8837D",
+  "strategy": "manual-commit",
+  "branch": "cp-desktop-electron-packaging",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".gitignore",
+    "build/icon.icns",
+    "build/icon.ico",
+    "build/icon.png",
+    "build/icons/1024x1024.png",
+    "build/icons/128x128.png",
+    "build/icons/16x16.png",
+    "build/icons/256x256.png",
+    "build/icons/32x32.png",
+    "build/icons/48x48.png",
+    "build/icons/512x512.png",
+    "build/icons/64x64.png",
+    "electron-tests/desktop.spec.ts",
+    "electron/channels.cts",
+    "electron/contracts.ts",
+    "electron/main.ts",
+    "electron/preload.cts",
+    "electron/security.ts",
+    "electron/windowOptions.ts",
+    "hacks/generate-desktop-icons.mjs",
+    "hacks/instructions.md",
+    "hacks/run-desktop-dev.mjs",
+    "index.html",
+    "package-lock.json",
+    "package.json",
+    "playwright.desktop.config.ts",
+    "src/config.ts",
+    "src/main.ts",
+    "src/types/desktop.d.ts",
+    "tests/desktopIcons.test.ts",
+    "tests/electronSecurity.test.ts",
+    "tsconfig.electron.json",
+    "tsconfig.json",
+    "vite.config.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 405004,
+    "cache_creation_tokens": 84673,
+    "cache_read_tokens": 320313,
+    "output_tokens": 8086,
+    "api_call_count": 6
+  }
+}

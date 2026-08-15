@@ -4,6 +4,7 @@
   "description": "2D&D - A browser and desktop JRPG with Dragon Quest gameplay and D&D mechanics",
   "type": "module",
   "main": "dist-electron/main.js",
+  "desktopName": "2D-and-D.desktop",
   "scripts": {
     "dev": "vite",
     "dev:desktop": "npm run build:electron && node hacks/run-desktop-dev.mjs",
@@ -55,6 +56,7 @@
   "build": {
     "appId": "dev.mbianchidev.2dnd",
     "productName": "2D&D",
+    "executableName": "2D-and-D",
     "asar": true,
     "npmRebuild": false,
     "artifactName": "2D-and-D-${version}-${os}-${arch}.${ext}",
@@ -114,6 +116,7 @@
     "linux": {
       "category": "Game",
       "icon": "build/icons",
+      "syncDesktopName": true,
       "target": [
         {
           "target": "AppImage",

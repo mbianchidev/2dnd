@@ -542,6 +542,9 @@ npm run test:watch
 # Type checking
 npm run typecheck
 
+# Production bundle/startup/memory/save baseline
+npm run benchmark:baseline
+
 # Run specific test file
 npx vitest run tests/dice.test.ts
 ```
@@ -567,6 +570,10 @@ npx vitest run tests/dice.test.ts
   actions.
 - Seed randomness before the game loads and assert both `pageerror` and
   `console.error` remain empty.
+- Run `npm run benchmark:baseline` before performance-affecting work and attach
+  its commit, environment, and output to the owning issue or pull request. The
+  harness uses the named `2dnd:boot-textures` browser performance measure and a
+  fresh schema-v17 save.
 - Cover random and boss defeat results, exact displayed penalties, clean
   continuation, and recovered save/reload state through the production
   `/defeat` debug path.

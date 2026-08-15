@@ -13,6 +13,7 @@
     "generate:desktop-icons": "node hacks/generate-desktop-icons.mjs",
     "package:desktop": "npm run generate:desktop-icons && npm run build:desktop && electron-builder --publish never",
     "package:desktop:ci": "electron-builder --publish never",
+    "benchmark:baseline": "node hacks/measure-performance-baseline.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:browser": "node hacks/run-browser-tests.mjs",

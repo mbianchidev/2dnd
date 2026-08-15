@@ -1,0 +1,77 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01M031EZJBY128SZV5SGV569HW",
+  "session_id": "c88e14ce-7e53-40bb-9f08-226df81e7ee1",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-15T15:43:32.678413Z",
+  "branch": "cp-desktop-electron-packaging",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/game-development/SKILL.md",
+    ".github/skills/phaser-scene-management/SKILL.md",
+    ".github/skills/testing/SKILL.md",
+    ".npmrc",
+    "AGENTS.md",
+    "docs/architecture.md",
+    "docs/desktop.md",
+    "docs/development.md",
+    "docs/gameplay.md",
+    "docs/getting-started.md",
+    "docs/release.md",
+    "docs/testing.md",
+    "electron-tests/desktop.spec.ts",
+    "electron/channels.cts",
+    "electron/contracts.ts",
+    "electron/logger.ts",
+    "electron/main.ts",
+    "electron/preload.cts",
+    "package-lock.json",
+    "package.json",
+    "src/main.ts",
+    "src/managers/overlay.ts",
+    "src/scenes/Boot.ts",
+    "src/scenes/Overworld.ts",
+    "src/systems/featureDiscovery.ts",
+    "tests/electronLogger.test.ts",
+    "tests/electronPackaging.test.ts",
+    "tests/featureDiscovery.test.ts"
+  ],
+  "agent": "Copilot CLI",
+  "model": "gpt-5.6-sol",
+  "turn_id": "81d9a8dd137b",
+  "checkpoint_transcript_start": 1417,
+  "transcript_lines_at_start": 1417,
+  "compact_transcript_start": 111,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 48624,
+    "api_call_count": 79
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-15T15:43:31.994728Z",
+    "agent_lines": 631,
+    "agent_removed": 248,
+    "human_added": 81,
+    "human_modified": 14,
+    "human_removed": 0,
+    "total_committed": 726,
+    "total_lines_changed": 974,
+    "agent_percentage": 90.24640657084188,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

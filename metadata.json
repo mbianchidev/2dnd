@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01M031EZJBY128SZV5SGV569HW",
+  "strategy": "manual-commit",
+  "branch": "cp-desktop-electron-packaging",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/game-development/SKILL.md",
+    ".github/skills/phaser-scene-management/SKILL.md",
+    ".github/skills/testing/SKILL.md",
+    ".npmrc",
+    "AGENTS.md",
+    "docs/architecture.md",
+    "docs/desktop.md",
+    "docs/development.md",
+    "docs/gameplay.md",
+    "docs/getting-started.md",
+    "docs/release.md",
+    "docs/testing.md",
+    "electron-tests/desktop.spec.ts",
+    "electron/channels.cts",
+    "electron/contracts.ts",
+    "electron/logger.ts",
+    "electron/main.ts",
+    "electron/preload.cts",
+    "package-lock.json",
+    "package.json",
+    "src/main.ts",
+    "src/managers/overlay.ts",
+    "src/scenes/Boot.ts",
+    "src/scenes/Overworld.ts",
+    "src/systems/featureDiscovery.ts",
+    "tests/electronLogger.test.ts",
+    "tests/electronPackaging.test.ts",
+    "tests/featureDiscovery.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 48624,
+    "api_call_count": 79
+  }
+}

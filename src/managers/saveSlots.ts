@@ -264,7 +264,7 @@ export class SaveSlotManager {
 
     const instruction = this.scene.add.text(
       px + panelW / 2,
-      py + 40,
+      py + 43,
       this.copySourceSlotId
         ? "Choose a manual destination, then Confirm."
         : "Up/Down: slot  Left/Right: action  Enter/Space: select  Esc: back",
@@ -279,7 +279,7 @@ export class SaveSlotManager {
     container.add(instruction);
 
     const rowX = px + 22;
-    const rowY = py + 62;
+    const rowY = py + 65;
     const rowWidth = panelW - 44;
     this.slots.forEach((slot, index) => {
       const selected = index === this.selectedSlotIndex;

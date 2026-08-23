@@ -18,6 +18,7 @@ describe("tagged desktop release workflow", () => {
     expect(workflow).toContain("actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c");
     expect(workflow).toContain("gh release create");
     expect(workflow).toContain("gh release upload");
+    expect(workflow).toContain("GH_REPO: ${{ github.repository }}");
     expect(workflow).toContain("contents: write");
   });
 });

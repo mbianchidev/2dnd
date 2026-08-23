@@ -121,6 +121,7 @@ jobs:
       - name: Create release and attach desktop packages
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG_NAME: ${{ github.ref_name }}
         shell: bash
         run: |

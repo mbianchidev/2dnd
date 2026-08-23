@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v17, migration, normalization, and location recovery
+description: Manage 2D&D save schema v18, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -10,9 +10,12 @@ See [`AGENTS.md`](../../../AGENTS.md) and
 [`docs/save-system.md`](../../../docs/save-system.md) for the operational
 checklist and current persistence boundaries.
 
-Game state is stored in `localStorage` by `src/systems/save.ts`. Shared audio
-and accessibility preferences plus inventory presentation preferences are
-stored separately.
+Campaign normalization and autosave compatibility live in
+`src/systems/save.ts`; slot metadata and operations live in
+`src/systems/saveSlots.ts`; the typed atomic adapter lives in
+`src/systems/saveStorage.ts`; and shared Phaser presentation lives in
+`src/managers/saveSlots.ts`. Shared audio, accessibility, and inventory
+presentation preferences stay separate.
 
 Browser builds use their HTTP/HTTPS origin. Packaged Electron builds use the
 stable secure `app://2dnd` origin and the same save implementation. The stores
@@ -20,7 +23,10 @@ remain isolated and are never copied or merged implicitly.
 
 ## Storage keys
 
-- `2dnd_save`: game state
+- `2dnd_save`: dedicated autosave and legacy-compatible default slot
+- `2dnd_save_slot_manual-1` through `manual-3`: manual campaigns
+- per-slot `:staging`, `:backup`, and `:name`: atomic recovery and labels
+- `2dnd_save_slots_migrated_v1`: verified legacy migration marker
 - `2dnd_preferences`: versioned audio and accessibility preferences
 - `2dnd_inventory_prefs`: inventory sort, filter, and search presentation
 
@@ -31,7 +37,7 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 17.
+`SAVE_VERSION` is 18.
 
 ```typescript
 interface SaveData {
@@ -41,6 +47,7 @@ interface SaveData {
   codex: CodexData;
   appearanceId: string;
   timestamp: number;
+  playtimeSeconds: number;
   timeStep?: number;
   weatherState?: WeatherState;
 }
@@ -48,6 +55,10 @@ interface SaveData {
 
 `Set<string>` values are serialized as arrays and reconstructed by the scene
 loading path.
+
+Schema v18 normalizes malformed or missing playtime to zero. Storage metadata
+does not enter the campaign payload. Autosave and manual slot IDs are stable;
+manual saves are independent snapshots.
 
 ```typescript
 interface CodexData {
@@ -276,24 +287,33 @@ when the top-level payload is unusable.
 
 ```typescript
 saveGame(player, defeatedBosses, codex, appearanceId, timeStep, weatherState);
-const save = loadGame();
-hasSave();
-deleteSave();
-getSaveSummary();
+saveGameToSlot("manual-1", player, defeatedBosses, codex, appearanceId);
+const save = loadGame("manual-1");
+listSaveSlots();
+renameSaveSlot("manual-1", "Before Frostheim");
+copySaveSlot("manual-1", "manual-2");
+exportSaveSlot("manual-1");
+importSaveSlot("manual-2", json);
+deleteSave("manual-1");
 ```
 
-Save failures are reported with `debugLog()`. Loading returns `null` when the
-top-level save is absent or corrupt.
+Writes verify staging before replacing primary, retain the prior valid primary
+as backup, and roll back failures. Reads recover primary, interrupted staging,
+or backup in that order. Save failures use `debugLog()` and a visible
+screen-reader alert. Loading returns `null` only when the selected slot has no
+recoverable valid campaign.
 
 ## Tests
 
-`tests/save.test.ts` covers:
+`tests/save.test.ts`, `tests/saveSlots.test.ts`, and
+`tests/saveStorage.test.ts` cover:
 
 - Save/load round trips
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v17 position, objective/reward/warning quest state, skill checks,
+- Current schema-v18 playtime, position, objective/reward/warning quest state,
+  skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
 - Flat schema-v4 quest migration and completed-reward preservation
@@ -310,10 +330,15 @@ top-level save is absent or corrupt.
 - Codex elemental-discovery and knowledge-ID normalization
 - Legacy monster-only Codex preservation and deterministic knowledge recovery
 - Missing and malformed skill-check normalization
+- one-time schema-v17 autosave migration, atomic writes, quota failures,
+  corruption isolation, backup/staging recovery, metadata, independent slots,
+  overwrite, rename, copy, delete, and validated deterministic import/export
 
-`electron-tests/desktop.spec.ts` creates a real schema-v17 campaign, relaunches
-with the same Electron user-data directory, and continues it from
-`app://2dnd`.
+`e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
+semantic-control coverage includes gamepad save creation.
+`electron-tests/desktop.spec.ts` creates a real schema-v18 campaign and manual
+snapshot, relaunches with the same Electron user-data directory, and continues
+it from `app://2dnd`.
 
 ## Common pitfalls
 
@@ -325,3 +350,5 @@ with the same Electron user-data directory, and continues it from
 - Retaining trap states after replacing a malformed trap seed
 - Storing Phaser objects or other non-serializable state
 - Mutating shared game-data definitions while repairing a save
+- Rewriting one manual slot while autosaving or loading another
+- Deleting the legacy autosave before its staged/default-slot copy is verified

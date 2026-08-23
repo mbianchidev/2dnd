@@ -46,9 +46,9 @@ generic IPC APIs through preload.
 
 ## Persistence
 
-The desktop shell uses the same schema-v17 `localStorage` documents as the web
-game. The stable `app://2dnd` origin keeps them available across launches and
-upgrades:
+The desktop shell uses the same schema-v18 autosave, manual-slot, staging, and
+backup `localStorage` documents as the web game. The stable `app://2dnd` origin
+keeps them available across launches and upgrades:
 
 | Platform | Electron user-data root |
 | --- | --- |
@@ -58,6 +58,8 @@ upgrades:
 
 Chromium stores the documents beneath that root. Browser and desktop origins
 remain isolated; they do not silently copy or merge saves.
+Slot import/export uses validated JSON through renderer browser APIs; preload
+does not expose filesystem access.
 
 ## Diagnostic logs
 

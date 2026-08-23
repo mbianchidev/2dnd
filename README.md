@@ -68,10 +68,11 @@ and attaches the unsigned builds to the matching GitHub release. The current
 v1.0.0 release predates that publishing workflow. See the
 [desktop guide](docs/desktop.md) for security, signing, and packaging details.
 
-Campaign saves, accessibility/audio settings, and inventory-view preferences
-are stored locally in the current browser profile. Saves do not automatically
-sync between browsers, devices, private windows, or cleared site data. The game
-has no account system, analytics, or server-side save service.
+Each profile has a dedicated autosave, three named manual campaign slots,
+per-slot backup recovery, and validated JSON import/export. Accessibility/audio
+settings and inventory-view preferences remain separate. Saves do not
+automatically sync between browsers, devices, private windows, or cleared site
+data. The game has no account system, analytics, or server-side save service.
 
 ## Run locally
 

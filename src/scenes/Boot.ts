@@ -6,8 +6,13 @@ import * as Phaser from "phaser";
 import { generateAllTextures, generatePlayerTextureWithHair } from "../renderers/textures";
 import { PLAYER_CLASSES, type PlayerClass } from "../systems/classes";
 import { SKIN_COLOR_OPTIONS, HAIR_STYLE_OPTIONS, HAIR_COLOR_OPTIONS, type CustomAppearance } from "../systems/appearance";
-import { hasSave, loadGame, deleteSave, getSaveSummary } from "../systems/save";
-import { saveGame } from "../systems/save";
+import {
+  getSaveSummary,
+  hasSave,
+  loadGame,
+  saveGame,
+  type SaveSlotId,
+} from "../systems/save";
 import { createCodex } from "../systems/codex";
 import { createPlayer, type PlayerState, type PlayerStats, POINT_BUY_COSTS, POINT_BUY_TOTAL, calculatePointsSpent } from "../systems/player";
 import { abilityModifier, rollAbilityScore } from "../systems/dice";
@@ -31,6 +36,7 @@ import {
   queueCutscenes,
 } from "../systems/cutscenes";
 import { openMobileTextInput } from "../managers/input";
+import { SaveSlotManager } from "../managers/saveSlots";
 import {
   calcPanelLayout,
   createDimGraphics,
@@ -44,6 +50,7 @@ const BOOT_TEXTURE_END_MARK = `${BOOT_TEXTURE_MEASURE}:end`;
 
 export class BootScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
+  private saveSlotManager!: SaveSlotManager;
 
   constructor() {
     super({ key: "BootScene" });
@@ -69,6 +76,16 @@ export class BootScene extends Phaser.Scene {
     );
     performance.clearMarks(BOOT_TEXTURE_START_MARK);
     performance.clearMarks(BOOT_TEXTURE_END_MARK);
+    this.saveSlotManager = new SaveSlotManager(this, {
+      load: (slotId) => this.continueGame(slotId),
+      save: () => ({
+        ok: false,
+        code: "unsupported",
+        message: "Campaigns can only be saved during play.",
+      }),
+      onStateChange: () => this.updateTitleDebugState(),
+    });
+    this.events.once("shutdown", () => this.saveSlotManager.destroy());
     this.showTitleScreen();
   }
 
@@ -83,7 +100,7 @@ export class BootScene extends Phaser.Scene {
 
 
   private showTitleScreen(): void {
-    debugPanelState("BOOT | Screen: title");
+    this.updateTitleDebugState();
     const cx = this.cameras.main.centerX;
     const cy = this.cameras.main.centerY;
 
@@ -195,9 +212,25 @@ export class BootScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     newBtn.on("pointerover", () => newBtn.setColor("#ffd700"));
     newBtn.on("pointerout", () => newBtn.setColor("#fff"));
-    newBtn.on("pointerdown", () => this.showCharacterCreation());
+    newBtn.on("pointerdown", () => this.requestNewGame());
 
     menuY += 40;
+
+    const slotsBtn = this.add
+      .text(cx, menuY, "▤ Load / Manage Saves", {
+        fontSize: "16px",
+        fontFamily: "monospace",
+        color: "#9fe8ff",
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    slotsBtn.setData("testId", "title-save-slots");
+    slotsBtn.setData("layoutId", "title-save-slots");
+    slotsBtn.on("pointerover", () => slotsBtn.setColor("#ffd700"));
+    slotsBtn.on("pointerout", () => slotsBtn.setColor("#9fe8ff"));
+    slotsBtn.on("pointerdown", () => this.saveSlotManager.open("load"));
+
+    menuY += 36;
 
     // Settings button
     const settingsBtn = this.add
@@ -231,11 +264,30 @@ export class BootScene extends Phaser.Scene {
 
     // Keyboard shortcuts
     if (saveExists) {
-      this.input.keyboard!.once("keydown-SPACE", () => this.continueGame());
-      this.input.keyboard!.once("keydown-N", () => this.showCharacterCreation());
+      this.input.keyboard!.on("keydown-SPACE", () => {
+        if (!this.saveSlotManager.isOpen()) this.continueGame();
+      });
+      this.input.keyboard!.on("keydown-N", () => {
+        if (!this.saveSlotManager.isOpen()) this.requestNewGame();
+      });
     } else {
-      this.input.keyboard!.once("keydown-SPACE", () => this.showCharacterCreation());
+      this.input.keyboard!.on("keydown-SPACE", () => {
+        if (!this.saveSlotManager.isOpen()) this.requestNewGame();
+      });
     }
+    this.input.keyboard!.on("keydown-L", () => {
+      if (!this.saveSlotManager.isOpen()) this.saveSlotManager.open("load");
+    });
+  }
+
+  private updateTitleDebugState(): void {
+    debugPanelState(
+      `BOOT | Screen: title${this.saveSlotManager?.getDebugState() ?? ""}`,
+    );
+  }
+
+  private requestNewGame(): void {
+    this.saveSlotManager.confirmNewGame(() => this.showCharacterCreation());
   }
 
   private quitDesktopApp(): void {
@@ -275,9 +327,9 @@ export class BootScene extends Phaser.Scene {
     container.add(hint);
   }
 
-  private continueGame(): void {
+  private continueGame(slotId: SaveSlotId = "autosave"): void {
     if (this.sceneTransitions.isPending) return;
-    const save = loadGame();
+    const save = loadGame(slotId);
     if (!save) return;
     const defeatedBosses = new Set(save.defeatedBosses);
     const weatherState = save.weatherState ?? createWeatherState();
@@ -322,6 +374,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   private showCharacterCreation(): void {
+    this.saveSlotManager.close();
     debugPanelState("BOOT | Screen: character");
     // Clear the title screen
     this.children.removeAll(true);
@@ -1065,7 +1118,6 @@ export class BootScene extends Phaser.Scene {
 
   private startNewGame(player: PlayerState): void {
     if (this.sceneTransitions.isPending) return;
-    deleteSave();
     const defeatedBosses = new Set<string>();
     const codex = createCodex();
     const weatherState = createWeatherState();

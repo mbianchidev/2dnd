@@ -51,7 +51,7 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 - interrupted opening/ending/cutscene recovery and corrupt-save fallback
 - random and boss defeat recovery
 - tutorial, Tips, Codex, inventory, achievements, events, gathering, crafting,
-  nautical, feature discovery, and accessibility
+  nautical, feature discovery, save-slot management/recovery, and accessibility
 - keyboard, pointer, touch, gamepad, mobile text entry, and active-source prompts
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
@@ -70,7 +70,8 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v17 save persistence, relaunch, and continue
+- real character creation, schema-v18 autosave/manual-slot persistence,
+  relaunch, and continue
 - keyboard Save & Return to Title plus pointer Quit Desktop
 - lifecycle/quit log creation without campaign-content leakage
 - renderer/page error cleanliness
@@ -83,7 +84,7 @@ Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
 Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work. The command rebuilds the production `/2dnd/`
 target, launches it on an unused local port, and samples cache-disabled
-headless Chromium startup with both empty storage and a fresh schema-v17 save.
+headless Chromium startup with both empty storage and a fresh schema-v18 save.
 It reports:
 
 - deployed and JavaScript raw/gzip sizes plus source-map size

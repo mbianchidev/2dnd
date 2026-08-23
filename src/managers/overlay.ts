@@ -106,6 +106,7 @@ export interface OverlayCallbacks {
   openGathering: () => void;
   openCrafting: () => void;
   openTips: () => void;
+  openSaveSlots: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
   travelMerchantRoute: (
     routeId: MerchantRouteId,
@@ -1247,6 +1248,9 @@ export class OverlayManager {
         return;
       case "tips":
         this.callbacks.openTips();
+        return;
+      case "save":
+        this.callbacks.openSaveSlots();
         return;
       case "settings":
         this.showSettingsOverlay();

@@ -61,16 +61,29 @@ import { normalizeGatheringState } from "./gatheringState";
 import { normalizeCraftingState } from "./craftingState";
 import { reconcileCraftingRecipes } from "./crafting";
 import { normalizeNauticalState } from "./nauticalState";
-import { getBoat, getPort, getSeaZoneAt } from "../data/nautical";
+import {
+  getBoat,
+  getPort,
+  getSeaZoneAt,
+} from "../data/nautical";
 import { synchronizeNauticalQuestRewards } from "./nautical";
 import {
   normalizeFeatureDiscoveryProgress,
   reconcileFeatureDiscovery,
 } from "./featureDiscovery";
+import {
+  LEGACY_SAVE_STORAGE_KEY,
+  SAVE_SLOT_IDS,
+  SAVE_SLOT_MIGRATION_KEY,
+  SaveSlotStorageAdapter,
+  type SaveKeyValueStorage,
+  type SaveSlotId,
+  type SaveStorageErrorCode,
+} from "./saveStorage";
 
-const SAVE_KEY = "2dnd_save";
-const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 const TUTORIAL_SAVE_VERSION = 9;
+const SAVE_ALERT_ID = "save-storage-alert";
 
 export interface SaveData {
   version: number;
@@ -79,13 +92,124 @@ export interface SaveData {
   codex: CodexData;
   appearanceId: string;
   timestamp: number;
+  playtimeSeconds: number;
   /** Day/night cycle step counter (added in v1). */
   timeStep?: number;
   /** Weather state (added in v1). */
   weatherState?: WeatherState;
 }
 
-/** Save the current game state. */
+export type SaveActionErrorCode =
+  | SaveStorageErrorCode
+  | "occupied"
+  | "invalid-import"
+  | "invalid-name"
+  | "not-found"
+  | "unsupported";
+
+export type SaveActionResult =
+  | { ok: true; message: string; warning?: string }
+  | { ok: false; code: SaveActionErrorCode; message: string };
+
+interface PlaytimeSession {
+  player: PlayerState;
+  baseSeconds: number;
+  startedAt: number;
+}
+
+let playtimeSession: PlaytimeSession | null = null;
+
+function getSaveStorage(): SaveKeyValueStorage | null {
+  return typeof localStorage === "undefined" ? null : localStorage;
+}
+
+function getStorageAdapter(): SaveSlotStorageAdapter | null {
+  const storage = getSaveStorage();
+  return storage ? new SaveSlotStorageAdapter(storage) : null;
+}
+
+function currentPlaytimeSeconds(player: PlayerState): number {
+  if (playtimeSession?.player !== player) {
+    playtimeSession = {
+      player,
+      baseSeconds: 0,
+      startedAt: Date.now(),
+    };
+  }
+  const elapsed = Math.max(0, Date.now() - playtimeSession.startedAt);
+  return playtimeSession.baseSeconds + Math.floor(elapsed / 1000);
+}
+
+function beginPlaytimeSession(data: SaveData): void {
+  playtimeSession = {
+    player: data.player,
+    baseSeconds: data.playtimeSeconds,
+    startedAt: Date.now(),
+  };
+}
+
+export function createCurrentSaveData(
+  player: PlayerState,
+  defeatedBosses: Set<string>,
+  codex: CodexData,
+  appearanceId: string,
+  timeStep: number,
+  weatherState?: WeatherState,
+): SaveData {
+  return {
+    version: SAVE_VERSION,
+    player,
+    defeatedBosses: [...defeatedBosses],
+    codex,
+    appearanceId,
+    timestamp: Date.now(),
+    playtimeSeconds: currentPlaytimeSeconds(player),
+    timeStep,
+    weatherState,
+  };
+}
+
+export function reportSaveFailure(
+  code: SaveActionErrorCode,
+  message: string,
+): SaveActionResult {
+  debugLog(`[save] ${message}`);
+  if (typeof document !== "undefined") {
+    let alert = document.getElementById(SAVE_ALERT_ID);
+    if (!alert) {
+      alert = document.createElement("div");
+      alert.id = SAVE_ALERT_ID;
+      alert.setAttribute("role", "alert");
+      alert.setAttribute("aria-atomic", "true");
+      Object.assign(alert.style, {
+        position: "fixed",
+        left: "50%",
+        bottom: "16px",
+        transform: "translateX(-50%)",
+        zIndex: "10000",
+        maxWidth: "min(90vw, 640px)",
+        padding: "10px 14px",
+        border: "2px solid #ffffff",
+        background: "#7f1d1d",
+        color: "#ffffff",
+        font: "600 14px monospace",
+        textAlign: "center",
+        pointerEvents: "none",
+      });
+      document.body.append(alert);
+    }
+    alert.textContent = `Save error: ${message}`;
+  }
+  return { ok: false, code, message };
+}
+
+function clearReportedSaveFailure(): void {
+  if (typeof document !== "undefined") {
+    document.getElementById(SAVE_ALERT_ID)?.remove();
+  }
+}
+
+/** Save the current game state to the dedicated autosave slot. */
 export function saveGame(
   player: PlayerState,
   defeatedBosses: Set<string>,
@@ -93,22 +217,19 @@ export function saveGame(
   appearanceId: string,
   timeStep: number = 0,
   weatherState?: WeatherState
-): void {
-  const data: SaveData = {
-    version: SAVE_VERSION,
-    player,
-    defeatedBosses: [...defeatedBosses],
-    codex,
-    appearanceId,
-    timestamp: Date.now(),
-    timeStep,
-    weatherState,
-  };
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-  } catch (error) {
-    debugLog("[save] Failed to save", error);
-  }
+): SaveActionResult {
+  return persistSaveData(
+    "autosave",
+    createCurrentSaveData(
+      player,
+      defeatedBosses,
+      codex,
+      appearanceId,
+      timeStep,
+      weatherState,
+    ),
+    true,
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -383,14 +504,19 @@ function normalizePlayerLocation(player: PlayerState): void {
   }
 }
 
-/** Load a saved game. Returns null if no save exists or it's corrupt. */
-export function loadGame(): SaveData | null {
+/** Normalize one parsed campaign document through every schema migration. */
+export function normalizeSaveData(value: unknown): SaveData | null {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
+    const parsed = value;
     if (!isRecord(parsed) || !isRecord(parsed["player"])) return null;
-    if (typeof parsed["version"] !== "number") return null;
+    if (
+      typeof parsed["version"] !== "number"
+      || !Number.isInteger(parsed["version"])
+      || parsed["version"] < 0
+      || parsed["version"] > SAVE_VERSION
+    ) {
+      return null;
+    }
     const sourceVersion = parsed["version"];
     const data = parsed as unknown as SaveData;
 
@@ -542,6 +668,11 @@ export function loadGame(): SaveData | null {
 
     if (data.player.equippedShield === undefined) data.player.equippedShield = null;
     if (data.player.equippedOffHand === undefined) data.player.equippedOffHand = null;
+    data.timestamp = Math.max(0, readInteger(data.timestamp, Date.now()));
+    data.playtimeSeconds = Math.max(
+      0,
+      readInteger(data.playtimeSeconds, 0),
+    );
     if (data.timeStep === undefined) data.timeStep = 0;
     if (!data.weatherState) data.weatherState = createWeatherState();
     // Backward compat: last town defaults to Willowdale
@@ -613,31 +744,193 @@ export function loadGame(): SaveData | null {
     data.version = SAVE_VERSION;
     return data;
   } catch (error) {
-    debugLog("[save] Failed to load save", error);
+    debugLog("[save] Failed to normalize save", error);
     return null;
   }
 }
 
-/** Check if a save exists. */
-export function hasSave(): boolean {
-  return loadGame() !== null;
-}
-
-/** Delete the save. */
-export function deleteSave(): void {
+export function decodeStoredSave(raw: string): SaveData | null {
   try {
-    localStorage.removeItem(SAVE_KEY);
-  } catch (error) {
-    debugLog("[save] Failed to delete save", error);
+    return normalizeSaveData(JSON.parse(raw) as unknown);
+  } catch {
+    return null;
   }
 }
 
-/** Get a brief summary of the save for the title screen. */
-export function getSaveSummary(): string | null {
-  const data = loadGame();
+function markLegacyMigrationVerified(storage: SaveKeyValueStorage): string | undefined {
+  try {
+    storage.setItem(SAVE_SLOT_MIGRATION_KEY, "verified");
+    return undefined;
+  } catch (error: unknown) {
+    const warning = `Campaign saved, but legacy migration could not be marked: ${String(error)}`;
+    debugLog(`[save] ${warning}`);
+    return warning;
+  }
+}
+
+export function ensureSaveStorageMigrated(
+  storage: SaveKeyValueStorage,
+  adapter: SaveSlotStorageAdapter,
+): void {
+  try {
+    if (storage.getItem(SAVE_SLOT_MIGRATION_KEY) === "verified") return;
+    const legacy = storage.getItem(LEGACY_SAVE_STORAGE_KEY);
+    if (legacy === null || decodeStoredSave(legacy) === null) return;
+    const result = adapter.write("autosave", legacy, decodeStoredSave);
+    if (!result.ok) {
+      debugLog(`[save] Legacy autosave verification failed: ${result.error.message}`);
+      return;
+    }
+    markLegacyMigrationVerified(storage);
+  } catch (error: unknown) {
+    debugLog("[save] Legacy autosave migration failed", error);
+  }
+}
+
+export function persistSaveData(
+  slotId: SaveSlotId,
+  data: SaveData,
+  overwrite: boolean,
+): SaveActionResult {
+  const storage = getSaveStorage();
+  const adapter = getStorageAdapter();
+  if (!storage || !adapter) {
+    return reportSaveFailure(
+      "unavailable",
+      "Local campaign storage is unavailable.",
+    );
+  }
+  ensureSaveStorageMigrated(storage, adapter);
+  const existing = adapter.read(slotId, decodeStoredSave);
+  if (!overwrite && (existing.ok || existing.present)) {
+    return reportSaveFailure(
+      "occupied",
+      `${slotId} already contains a campaign.`,
+    );
+  }
+
+  let raw: string;
+  try {
+    raw = JSON.stringify(data);
+  } catch (error: unknown) {
+    return reportSaveFailure(
+      "invalid",
+      `Could not serialize ${slotId}: ${String(error)}`,
+    );
+  }
+  const write = adapter.write(slotId, raw, decodeStoredSave);
+  if (!write.ok) {
+    return reportSaveFailure(write.error.code, write.error.message);
+  }
+
+  const warning = slotId === "autosave"
+    ? markLegacyMigrationVerified(storage)
+    : undefined;
+  clearReportedSaveFailure();
+
+  return {
+    ok: true,
+    message: `Saved ${data.player.name} to ${slotId}.`,
+    ...(warning ? { warning } : {}),
+  };
+}
+
+export function readSaveSlotData(slotId: SaveSlotId): SaveData | null {
+  const storage = getSaveStorage();
+  const adapter = getStorageAdapter();
+  if (!storage || !adapter) return null;
+  ensureSaveStorageMigrated(storage, adapter);
+  const result = adapter.read(slotId, decodeStoredSave);
+  if (!result.ok) {
+    if (result.error.code !== "missing") {
+      debugLog(`[save] Failed to load ${slotId}: ${result.error.message}`);
+    }
+    return null;
+  }
+  if (result.recoveryError) {
+    debugLog(`[save] ${result.recoveryError.message}`);
+  } else if (result.recovered) {
+    debugLog(`[save] Recovered ${slotId} from ${result.source}.`);
+  }
+  return result.value;
+}
+
+/** Load one campaign slot through the shared schema normalizer. */
+export function loadGame(slotId: SaveSlotId = "autosave"): SaveData | null {
+  const data = readSaveSlotData(slotId);
+  if (data) beginPlaytimeSession(data);
+  return data;
+}
+
+/** Check whether a valid campaign exists in one slot. */
+export function hasSave(slotId: SaveSlotId = "autosave"): boolean {
+  return readSaveSlotData(slotId) !== null;
+}
+
+/** Delete one slot without touching any other campaign. */
+export function deleteSave(slotId: SaveSlotId = "autosave"): SaveActionResult {
+  const storage = getSaveStorage();
+  const adapter = getStorageAdapter();
+  if (!storage || !adapter) {
+    return reportSaveFailure(
+      "unavailable",
+      "Local campaign storage is unavailable.",
+    );
+  }
+  const deleted = adapter.delete(slotId);
+  if (!deleted.ok) {
+    return reportSaveFailure(deleted.error.code, deleted.error.message);
+  }
+  if (slotId === "autosave") {
+    playtimeSession = null;
+    markLegacyMigrationVerified(storage);
+  }
+  return {
+    ok: true,
+    message: `${slotId === "autosave" ? "Autosave" : slotId} deleted.`,
+  };
+}
+
+/** Clear all campaign slots and migration bookkeeping. */
+export function deleteAllSaveSlots(): SaveActionResult {
+  const storage = getSaveStorage();
+  const adapter = getStorageAdapter();
+  if (!storage || !adapter) {
+    return reportSaveFailure(
+      "unavailable",
+      "Local campaign storage is unavailable.",
+    );
+  }
+  for (const slotId of SAVE_SLOT_IDS) {
+    const result = adapter.delete(slotId);
+    if (!result.ok) {
+      return reportSaveFailure(result.error.code, result.error.message);
+    }
+  }
+  try {
+    storage.removeItem(SAVE_SLOT_MIGRATION_KEY);
+    playtimeSession = null;
+    return { ok: true, message: "All campaign slots deleted." };
+  } catch (error: unknown) {
+    return reportSaveFailure(
+      "unavailable",
+      `Campaign slots were cleared, but migration state could not be reset: ${String(error)}`,
+    );
+  }
+}
+
+/** Get a brief summary of one save for the title screen. */
+export function getSaveSummary(slotId: SaveSlotId = "autosave"): string | null {
+  const data = readSaveSlotData(slotId);
   if (!data) return null;
-  const p = data.player;
   const date = new Date(data.timestamp);
   const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, "0")}`;
-  return `${p.name} Lv.${p.level} | HP ${p.hp}/${p.maxHp} | Gold ${p.gold} | ${dateStr}`;
+  const player = data.player;
+  return `${player.name} Lv.${player.level} | HP ${player.hp}/${player.maxHp} | Gold ${player.gold} | ${dateStr}`;
 }
+
+export {
+  LEGACY_SAVE_STORAGE_KEY,
+  SAVE_SLOT_IDS,
+  type SaveSlotId,
+};

@@ -431,6 +431,8 @@ test("a corrupt save falls back to a usable new-game path", async ({ page }) => 
   await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
   await clickGame(page, 320, 324);
+  await waitForState(page, "[SAVE_PHASE:confirm-newGame]");
+  await clickLayoutItem(page, "save-slot-action-confirm");
   await waitForState(page, "BOOT | Screen: character");
   expect(browserErrors).toEqual([]);
 });

@@ -15,7 +15,7 @@
 | happy-dom | 20.11.1 |
 | Electron | 43.4.0 |
 | electron-builder | 26.15.7 |
-| Campaign save schema | 17 |
+| Campaign save schema | 18 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -188,3 +188,11 @@ Only authoritative, non-reconstructable state belongs in the campaign save.
 Definitions, names, thresholds, categories, totals, derived unlocks, and
 presentation preferences stay canonical or derived. See
 [Save system](save-system.md).
+
+`src/systems/saveStorage.ts` owns the typed localStorage adapter, stable
+autosave/manual IDs, verified staging, and per-slot backup recovery.
+`src/systems/save.ts` keeps campaign normalization authoritative,
+`src/systems/saveSlots.ts` owns metadata and management operations, and
+`src/managers/saveSlots.ts` provides the shared title and Overworld interface.
+Electron uses the same renderer-owned storage path and exposes no native
+filesystem API for slot import/export.

@@ -3,7 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createCodex } from "../src/systems/codex";
 import { createPlayer } from "../src/systems/player";
-import { deleteSave, loadGame, saveGame } from "../src/systems/save";
+import { SAVE_VERSION,
+deleteSave, loadGame, saveGame } from "../src/systems/save";
 import {
   acquireBoat,
   createNauticalState,
@@ -51,7 +52,7 @@ describe("schema-v16 nautical persistence", () => {
       120,
       createWeatherState(),
     );
-    expect(readRawSave()["version"]).toBe(17);
+    expect(readRawSave()["version"]).toBe(SAVE_VERSION);
 
     const loaded = loadGame()!;
     expect(loaded.player.progression.nautical).toMatchObject({
@@ -82,7 +83,7 @@ describe("schema-v16 nautical persistence", () => {
     localStorage.setItem("2dnd_save", JSON.stringify(raw));
 
     const loaded = loadGame()!;
-    expect(loaded.version).toBe(17);
+    expect(loaded.version).toBe(SAVE_VERSION);
     expect(loaded.player.progression.nautical).toEqual(createNauticalState());
   });
 

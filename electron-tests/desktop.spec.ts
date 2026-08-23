@@ -112,10 +112,10 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
     return { name: player.name, version };
   }, SAVE_KEY)).toEqual({
     name: "Desktop Hero",
-    version: 17,
+    version: 18,
   });
 
-  return { name: "Desktop Hero", version: 17 };
+  return { name: "Desktop Hero", version: 18 };
 }
 
 async function prepareSaveForOverworld(page: Page): Promise<void> {
@@ -223,14 +223,51 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await waitForState(page, "OVERWORLD");
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");
-    await holdKey(page, "ArrowUp");
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      const state = await page.locator("#debug-state").textContent() ?? "";
+      if (state.includes("[MENU_SELECTION:save]")) break;
+      await holdKey(page, "ArrowDown", 80);
+    }
+    await waitForState(page, "[MENU_SELECTION:save]");
+    await holdKey(page, "Enter");
+    await waitForState(page, "[SAVE_SLOTS:save]");
+    await holdKey(page, "Enter");
+    await expect.poll(() => page.evaluate(() => {
+      const raw = localStorage.getItem("2dnd_save_slot_manual-1");
+      if (!raw) return null;
+      const parsed: unknown = JSON.parse(raw);
+      if (
+        typeof parsed !== "object"
+        || parsed === null
+        || !("version" in parsed)
+        || !("player" in parsed)
+        || typeof parsed.player !== "object"
+        || parsed.player === null
+        || !("name" in parsed.player)
+      ) {
+        return null;
+      }
+      return {
+        version: parsed.version,
+        name: parsed.player.name,
+      };
+    })).toEqual(saved);
+    await holdKey(page, "Escape");
+    await expect(page.locator("#debug-state")).not.toContainText("[SAVE_SLOTS:");
+    await holdKey(page, "Escape");
+    await waitForState(page, "[MENU]");
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      const state = await page.locator("#debug-state").textContent() ?? "";
+      if (state.includes("[MENU_SELECTION:quit]")) break;
+      await holdKey(page, "ArrowDown", 80);
+    }
     await waitForState(page, "[MENU_SELECTION:quit]");
     await holdKey(page, "Enter");
     await waitForState(page, "BOOT | Screen: title");
     expect(relaunchedRendererErrors).toEqual([]);
 
     const closePromise = desktop.waitForEvent("close");
-    await clickGame(page, 320, 456);
+    await clickGame(page, 320, 492);
     await closePromise;
     desktop = undefined;
 

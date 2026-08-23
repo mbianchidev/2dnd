@@ -789,7 +789,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 17.
+Save schema version is 18.
+
+Schema v18 adds non-negative campaign playtime and a resilient local slot
+layout: the legacy-compatible `2dnd_save` autosave, three stable manual slots,
+verified staging and prior-primary backups, per-slot names, and a one-time
+migration marker. Migrate a valid legacy autosave atomically without deleting
+it, isolate corruption per slot, recover staging/backup copies before failure,
+and validate all deterministic JSON imports through the existing campaign
+normalizer. Loading a manual snapshot must not mutate that source slot.
 
 Schema v17 adds normalized feature-discovery IDs, pending one-time reveal IDs,
 explicit debug reveals, and debug-suppressed evidence. Schema-v16 and older
@@ -804,6 +812,8 @@ Desktop lifecycle and failures append to bounded rotating logs below Electron
 user data without recording save payloads. Save & Return to Title autosaves
 before Boot; application quit is exposed only on the desktop title screen
 through trusted zero-argument IPC.
+The renderer owns slot import/export through browser file APIs; do not expose
+broad filesystem access through preload.
 
 Schema v16 adds `player.progression.nautical`: typed boat ownership, condition,
 upgrades and cosmetics; discovered ports, routes, islands, continents, and sea
@@ -921,7 +931,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v17
+  visibility, handedness, and prompt source only; they never enter schema-v18
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

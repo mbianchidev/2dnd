@@ -101,7 +101,7 @@ test("title and in-game accessibility settings share live preferences", async ({
   await waitForState(page, "BOOT | Screen: title");
 
   await test.step("change title settings at the largest text scale", async () => {
-    await clickGame(page, 320, 364);
+    await clickGame(page, 320, 400);
     await expectCleanLayout(page);
     await clickGame(page, 194, 115);
     await clickLayoutItem(page, "settings-text-scale");

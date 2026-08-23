@@ -1,0 +1,3 @@
+<system_notification>
+Shell command "Run complete web and desktop release gate" (shellId: 33) has completed successfully. Use read_bash with shellId "33" to retrieve the output.
+</system_notification>

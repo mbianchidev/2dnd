@@ -9,6 +9,10 @@
 
 <https://mbianchidev.github.io/2dnd/>
 
+The custom-domain target is <https://2dnd.mbianchi.dev/>. Keep public links on
+the current GitHub Pages URL until the custom domain, certificate, and root-path
+deployment have been verified.
+
 The repository also builds an Electron desktop target for macOS, Windows, and
 Linux. Pull requests produce unsigned review artifacts. The current v1.0.0
 release has no signed public installer; do not describe unsigned CI artifacts
@@ -22,13 +26,36 @@ as an endorsed desktop release.
 2. Use Node.js 24.
 3. Run `npm ci`.
 4. Run full Vitest.
-5. Run `npm run build`.
-6. Upload `dist/`.
-7. Deploy with GitHub Pages.
+5. Read the active Pages URL and base path with `actions/configure-pages`.
+6. Run `npm run build` with
+   `VITE_BASE_PATH=${{ steps.pages.outputs.base_path }}/`.
+7. Upload `dist/`.
+8. Deploy with GitHub Pages.
 
-`vite.config.ts` uses `/2dnd/` under GitHub Actions and `/` for normal local
-development. Playwright defaults to `/2dnd/` so release paths are tested before
-deployment.
+The workflow does not hardcode a project or root base. GitHub Pages metadata
+supplies `/2dnd` for the project site and an empty base path for the custom
+domain, so the Vite build receives `/2dnd/` or `/` respectively.
+
+Outside Pages deployment, `vite.config.ts` keeps `/` for normal local
+development. Playwright defaults to `/2dnd/` so project-site release paths are
+tested before deployment. Electron builds use Vite's `desktop` mode and always
+keep the relative `./` base, regardless of `VITE_BASE_PATH`.
+
+### Custom-domain rollout
+
+After the workflow change is merged:
+
+1. A maintainer sets the Pages custom domain to `2dnd.mbianchi.dev`.
+2. A maintainer adds the DNS record `CNAME 2dnd -> mbianchidev.github.io`.
+3. Rerun the Pages workflow so `actions/configure-pages` reports an empty base
+   path and Vite rebuilds with `/`.
+4. Wait for GitHub Pages to issue the certificate, then enable **Enforce HTTPS**.
+5. Verify HTTPS, root-relative asset paths, gameplay startup, and save behavior.
+
+Browser `localStorage` is scoped to an origin. Moving from
+`https://mbianchidev.github.io/2dnd/` to `https://2dnd.mbianchi.dev/` changes the
+origin, so existing campaign saves and preferences do not transfer
+automatically to the custom domain.
 
 ## Desktop artifacts
 
@@ -95,7 +122,7 @@ unresolved.
 
 Before release, verify:
 
-- the Pages URL and `/2dnd/` base path
+- the active Pages URL and its matching dynamic base path
 - badge workflow names and links
 - relative Markdown links and heading anchors
 - current controls and feature-discovery behavior

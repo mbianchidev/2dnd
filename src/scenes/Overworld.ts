@@ -605,7 +605,7 @@ export class OverworldScene extends Phaser.Scene {
       this.worldEventManager.clear();
       this.gatheringManager.clear();
       this.craftingManager.clear();
-      this.saveSlotManager.destroy();
+      this.saveSlotManager?.destroy();
       this.featureRevealTimer?.remove(false);
       this.featureRevealTimer = null;
     });
@@ -864,7 +864,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const cKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     cKey.on("down", () => {
-      if (this.saveSlotManager.isOpen()) return;
+      if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "codex")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) {
@@ -880,7 +880,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const yKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Y);
     yKey.on("down", () => {
-      if (this.saveSlotManager.isOpen()) return;
+      if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "achievements")) return;
       if (this.achievementOverlayManager.isOpen()) {
         this.achievementOverlayManager.close();
@@ -901,7 +901,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     eKey.on("down", () => {
-      if (this.saveSlotManager.isOpen()) return;
+      if (this.saveSlotManager?.isOpen()) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
@@ -913,7 +913,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     pKey.on("down", () => {
-      if (this.saveSlotManager.isOpen()) return;
+      if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "party")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.partyOverlayManager.isInventorySearchActive()) return;
@@ -926,7 +926,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     mKey.on("down", () => {
-      if (this.saveSlotManager.isOpen()) return;
+      if (this.saveSlotManager?.isOpen()) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
@@ -947,7 +947,7 @@ export class OverworldScene extends Phaser.Scene {
         this.tutorialManager.close();
         return;
       }
-      if (this.saveSlotManager.isOpen()) {
+      if (this.saveSlotManager?.isOpen()) {
         this.saveSlotManager.close();
         return;
       }
@@ -987,7 +987,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const qKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     qKey.on("down", () => {
-      if (this.saveSlotManager.isOpen()) return;
+      if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "questJournal")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
@@ -1002,7 +1002,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
     tKey.on("down", () => {
-      if (this.saveSlotManager.isOpen()) return;
+      if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "mounts")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
@@ -1015,7 +1015,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const tipsKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F1);
     tipsKey.on("down", () => {
-      if (this.saveSlotManager.isOpen()) return;
+      if (this.saveSlotManager?.isOpen()) return;
       if (this.isMoving) return;
       if (this.tutorialManager.isOpen()) {
         this.tutorialManager.close();
@@ -1027,7 +1027,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const gatheringKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K);
     gatheringKey.on("down", () => {
-      if (this.saveSlotManager.isOpen()) return;
+      if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "gathering")) return;
       if (
         this.isMoving
@@ -1039,7 +1039,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const craftingKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     craftingKey.on("down", () => {
-      if (this.saveSlotManager.isOpen()) return;
+      if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "crafting")) return;
       if (
         this.isMoving
@@ -1477,7 +1477,7 @@ export class OverworldScene extends Phaser.Scene {
       ? ` [BOAT:${p.progression.nautical.activeBoatId ?? "none"}]`
       : "";
     const menuTag = this.overlayManager.getMenuDebugState(this.player);
-    const saveSlotTag = this.saveSlotManager.getDebugState();
+    const saveSlotTag = this.saveSlotManager?.getDebugState() ?? "";
     const chronicleTag = this.chronicleManager?.getDebugState() ?? "";
     const worldEventTag = this.worldEventManager?.getDebugState() ?? "";
     const gatheringTag = this.gatheringManager?.getDebugState() ?? "";
@@ -1503,7 +1503,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private isOverlayOpen(): boolean {
     return this.overlayManager.isOpen()
-      || this.saveSlotManager.isOpen()
+      || this.saveSlotManager?.isOpen()
       || this.partyOverlayManager.isOpen()
       || this.achievementOverlayManager.isOpen()
       || this.questJournal.isOpen()
@@ -2403,8 +2403,8 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handleAction(): void {
-    if (this.saveSlotManager.isOpen()) return;
-    if (this.overlayManager.menuOverlay) return;
+    if (this.saveSlotManager?.isOpen()) return;
+    if (this.overlayManager?.menuOverlay) return;
     if (this.chronicleManager?.isOpen()) {
       this.chronicleManager.replaySelected();
       return;

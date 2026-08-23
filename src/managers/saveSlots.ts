@@ -264,7 +264,7 @@ export class SaveSlotManager {
 
     const instruction = this.scene.add.text(
       px + panelW / 2,
-      py + 43,
+      py + 47,
       this.copySourceSlotId
         ? "Choose a manual destination, then Confirm."
         : "Up/Down: slot  Left/Right: action  Enter/Space: select  Esc: back",
@@ -279,7 +279,7 @@ export class SaveSlotManager {
     container.add(instruction);
 
     const rowX = px + 22;
-    const rowY = py + 65;
+    const rowY = py + 72;
     const rowWidth = panelW - 44;
     this.slots.forEach((slot, index) => {
       const selected = index === this.selectedSlotIndex;
@@ -333,7 +333,7 @@ export class SaveSlotManager {
       itemHeights: this.actions.map(() => 32),
       maxColumns: 5,
     });
-    const actionY = py + 306;
+    const actionY = py + 315;
     this.actions.forEach((action, index) => {
       const cell = actionGrid.cells[index]!;
       const selected = index === this.selectedActionIndex;
@@ -368,7 +368,7 @@ export class SaveSlotManager {
 
     const status = this.scene.add.text(
       px + panelW / 2,
-      py + panelH - 48,
+      py + panelH - 56,
       this.status || this.selectedDescription(selectedSlot),
       {
         fontSize: "9px",

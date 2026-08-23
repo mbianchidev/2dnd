@@ -19,7 +19,7 @@ the seven-chapter Twelvefold Covenant campaign.
 **[Play 2D&D now](https://mbianchidev.github.io/2dnd/game.html)** |
 **[Download desktop builds](https://github.com/mbianchidev/2dnd/releases/latest)**
 
-Current release: **v1.0.0**
+Current release: **v1.1.0**
 
 2D&D runs entirely in the browser. Its pixel-art textures are generated at
 runtime, its music and sound effects are synthesized with the Web Audio API,
@@ -64,8 +64,8 @@ are not part of the automated browser gate.
 The source also includes a secure Electron target for macOS, Windows, and Linux.
 Pull requests produce short-lived unsigned review artifacts. A version tag that
 matches `package.json` runs the full release gate, packages all three platforms,
-and attaches the unsigned builds to the matching GitHub release. The current
-v1.0.0 release predates that publishing workflow. See the
+and attaches the unsigned builds to the matching GitHub release. The v1.0.0
+release predates that publishing workflow. See the
 [desktop guide](docs/desktop.md) for security, signing, and packaging details.
 
 Each profile has a dedicated autosave, three named manual campaign slots,

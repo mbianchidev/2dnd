@@ -5,8 +5,8 @@
 
 2D&D can run in a secure Electron shell on macOS, Windows, and Linux. The Pages
 root is a public showcase, while both the browser Play action and Electron shell
-load the same `game.html` Phaser renderer. The current v1.0.0 public release
-predates tagged desktop publishing; pull requests still produce short-lived
+load the same `game.html` Phaser renderer. The v1.0.0 public release predates
+tagged desktop publishing; pull requests still produce short-lived
 unsigned artifacts for review.
 
 ## Commands

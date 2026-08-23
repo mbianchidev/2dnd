@@ -1,0 +1,42 @@
+<copilot_tauri_workspace>
+project_session_id: 44c71c8b-3d7d-4a21-a2f1-076824720c24
+project_id: c8056b64-44ef-47c3-b7bc-b0c534e34f88
+project_name: 2dnd
+project_github_repo: mbianchidev/2dnd
+project_default_branch: main
+workspace_type: worktree
+workspace_name: main
+workspace_branch: cp-desktop-legendary-tribble
+workspace_path: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-legendary-tribble
+repo_root: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-legendary-tribble
+default_branch: main
+base_branch: main
+original_generated_branch: cp-desktop-legendary-tribble
+current_branch: cp-desktop-legendary-tribble
+</copilot_tauri_workspace>
+
+<copilot_working_context>
+container_kind: repository
+current_working_directory: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-legendary-tribble
+current_working_directory_is_git_repo: true
+checkout_strategy: worktree
+member_repositories:
+- repo_name: 2dnd
+  repo_full_name: mbianchidev/2dnd
+  main_checkout_path: /Users/mbianchidev/.copilot/repos/mbianchidev/2dnd
+  main_checkout_branch: main
+  current_checkout_kind: worktree
+  current_checkout_path: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-legendary-tribble
+  current_checkout_branch: cp-desktop-legendary-tribble
+</copilot_working_context>
+
+<copilot_artifacts>
+artifacts_dir: /Users/mbianchidev/.copilot/session-state/d7b81df0-bae4-4073-a71c-b4aa24599867/files
+Write scratch artifacts (plans, task lists, notes) in this folder instead of the repo.
+</copilot_artifacts>
+
+<branch_rename_request>
+Before creating or editing any files, call the rename_branch tool with a kebab-case version of the session name you chose.
+</branch_rename_request>
+
+Continue implementing the rest of the roadmap

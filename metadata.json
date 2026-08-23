@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01M0QVPEFM4WKNHZPZV0KVY1KT",
+  "strategy": "manual-commit",
+  "branch": "cp-desktop-roadmap-completion",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/save-system/SKILL.md",
+    ".github/skills/testing/SKILL.md",
+    "AGENTS.md",
+    "README.md",
+    "docs/architecture.md",
+    "docs/companions.md",
+    "docs/desktop.md",
+    "docs/gameplay.md",
+    "docs/getting-started.md",
+    "docs/save-system.md",
+    "docs/testing.md",
+    "e2e/achievements.spec.ts",
+    "e2e/codex.spec.ts",
+    "e2e/crafting.spec.ts",
+    "e2e/gathering.spec.ts",
+    "e2e/save-slots.spec.ts",
+    "e2e/semantic-controls.spec.ts",
+    "electron-tests/desktop.spec.ts",
+    "hacks/measure-performance-baseline.mjs",
+    "src/managers/input.ts",
+    "src/managers/overlay.ts",
+    "src/managers/saveSlots.ts",
+    "src/scenes/Boot.ts",
+    "src/scenes/Overworld.ts",
+    "src/systems/featureDiscovery.ts",
+    "src/systems/save.ts",
+    "src/systems/saveSlots.ts",
+    "src/systems/saveStorage.ts",
+    "tests/featureDiscovery.test.ts",
+    "tests/nauticalSave.test.ts",
+    "tests/save.test.ts",
+    "tests/saveSlots.test.ts",
+    "tests/saveStorage.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 235940,
+    "api_call_count": 287
+  }
+}

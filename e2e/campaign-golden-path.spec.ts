@@ -147,7 +147,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   });
 
   await test.step("create a new character", async () => {
-    await page.goto("./", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
     await clickGame(page, 320, 324);
     await waitForState(page, "BOOT | Screen: character");
@@ -428,7 +428,7 @@ test("a corrupt save falls back to a usable new-game path", async ({ page }) => 
     }));
   }, { saveKey: SAVE_KEY });
 
-  await page.goto("./", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
   await clickGame(page, 320, 324);
   await waitForState(page, "BOOT | Screen: character");

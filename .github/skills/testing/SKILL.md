@@ -553,8 +553,11 @@ npx vitest run tests/dice.test.ts
 ## Browser Golden Path
 
 - `playwright.config.ts` starts Vite on an unused strict localhost port.
-- Browser tests default to `/2dnd/`; set `PLAYWRIGHT_BASE_PATH=/` to reproduce
-  the root-base development path.
+- Browser tests default to `/2dnd/`; the showcase test opens that root and
+  Phaser tests open `game.html`. Set `PLAYWRIGHT_BASE_PATH=/` to reproduce the
+  root-base development path.
+- Cover the showcase's Play/download links, game-generated screenshots,
+  responsive width, Steam banner, and page/console cleanliness.
 - Pull request CI installs Chromium and runs the browser suite as a release
   gate.
 - Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
@@ -589,7 +592,8 @@ npx vitest run tests/dice.test.ts
 
 - Build with the relative desktop Vite mode and compiled main/preload process.
 - Launch with a fresh explicit test-only Electron user-data directory.
-- Assert `location.origin === "app://2dnd"` and the fullscreen bridge shape.
+- Assert `location.origin === "app://2dnd"`, the `game.html` entry, and the
+  fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
   shell and continue the same schema-v17 campaign.
 - Return to title through the keyboard menu, quit through the visible title

@@ -5,12 +5,13 @@
 
 ## Play in a browser
 
-The current public release is hosted at:
+The current public showcase is hosted at:
 
 <https://mbianchidev.github.io/2dnd/>
 
-GitHub Pages serves the production build from the `/2dnd/` base path. No
-download or account is required.
+Its **Play in browser** action opens
+<https://mbianchidev.github.io/2dnd/game.html>. GitHub Pages serves both pages
+from the `/2dnd/` base path. No account is required.
 
 ## Local prerequisites
 
@@ -28,7 +29,8 @@ npm ci
 npm run dev
 ```
 
-Vite serves the game at <http://localhost:3000/> with the root base path.
+Vite serves the showcase at <http://localhost:3000/> and the game at
+<http://localhost:3000/game.html> with the root base path.
 
 Use `npm install` only when intentionally changing dependencies or refreshing
 the lockfile. For reproducible setup and CI parity, prefer `npm ci`.
@@ -68,7 +70,8 @@ npm run test:browser
 
 The wrapper in `hacks/run-browser-tests.mjs` allocates a fresh strict local port
 and the Playwright configuration defaults to the deployed `/2dnd/` base path.
-See [Testing](testing.md) for the complete browser-test contract.
+The landing-page flow starts at that root; game flows open `game.html`. See
+[Testing](testing.md) for the complete browser-test contract.
 
 ## Local save data
 

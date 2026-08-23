@@ -3,10 +3,11 @@
 [Documentation index](README.md) | [Getting started](getting-started.md) |
 [Release](release.md)
 
-2D&D can run in a secure Electron shell on macOS, Windows, and Linux while the
-GitHub Pages browser build remains unchanged. The current v1.0.0 public release
-does not include signed installers; pull requests produce short-lived unsigned
-artifacts for review.
+2D&D can run in a secure Electron shell on macOS, Windows, and Linux. The Pages
+root is a public showcase, while both the browser Play action and Electron shell
+load the same `game.html` Phaser renderer. The current v1.0.0 public release
+predates tagged desktop publishing; pull requests still produce short-lived
+unsigned artifacts for review.
 
 ## Commands
 
@@ -18,8 +19,8 @@ npm run package:desktop   # Unsigned artifacts for the current host
 ```
 
 Desktop development binds Vite to a dynamically allocated loopback port.
-Production packages load the relative Vite build from the stable
-`app://2dnd` origin.
+Production packages load `dist/game.html` from the relative Vite build at the
+stable `app://2dnd` origin.
 
 ## Security boundary
 
@@ -102,7 +103,10 @@ the complete platform matrix after dependency changes.
 | Linux | x64 AppImage and tarball |
 
 `.github/workflows/desktop.yml` builds and smoke-tests each platform before
-uploading versioned review artifacts. Public distribution still requires human
-code-signing credentials: Apple Developer ID plus notarization for macOS and an
-appropriate Authenticode certificate for Windows. Credentials must stay in the
-release environment, never in source or pull-request workflows.
+uploading versioned review artifacts. `.github/workflows/release.yml` repeats
+the release gate for a `v*` tag that matches `package.json`, builds every
+platform, and attaches the unsigned packages to a generated GitHub release.
+macOS and Windows builds remain unsigned until protected signing credentials
+are configured; operating systems may warn before opening them. Apple Developer
+ID/notarization and Authenticode credentials must stay in a protected release
+environment, never in source or pull-request workflows.

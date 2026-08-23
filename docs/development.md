@@ -35,6 +35,7 @@
 | Save field | owning interface/default, normalization module, `src/systems/save.ts`, migration tests |
 | Input/control | `src/systems/input.ts`, `src/managers/input.ts`; never a scene-local gamepad map |
 | UI layout | `src/systems/layout.ts`, `src/managers/layout.ts`, owning manager/renderer |
+| Public showcase | `index.html`, `src/landing.css`, generated captures in `public/screenshots/` |
 | Texture | focused renderer aggregated by `src/renderers/textures.ts` |
 | Audio | `src/systems/audio.ts` and typed domain profile helpers |
 | Desktop shell or packaging | `electron/`, `electron-tests/`, `package.json`, desktop workflow |
@@ -64,8 +65,9 @@ the exact reviewed versions, omit unused packaging peers, and do not suppress
 deprecation warnings with incompatible major-version overrides.
 
 Electron development uses `npm run dev:desktop`. Keep preload single-file for
-Chromium sandbox compatibility, expose only narrow typed IPC, and preserve the
-browser build as the authoritative renderer. Packaging commands and security
+Chromium sandbox compatibility, expose only narrow typed IPC, and load
+`game.html` directly while the browser root remains the showcase. The Phaser
+browser build stays the authoritative renderer. Packaging commands and security
 rules are documented in [Desktop application](desktop.md).
 
 ## Debug tools

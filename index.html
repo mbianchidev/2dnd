@@ -5,330 +5,254 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'"
     />
-    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
-    <title>2D&amp;D - A Browser JRPG</title>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body {
-        background: #000;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        overflow: hidden;
-      }
-      #game-wrapper {
-        display: flex;
-        flex-direction: row;
-        align-items: stretch;
-        width: 100vw;
-        height: 100vh;
-      }
-      #game-inner {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        flex: 1;
-        min-width: 0;
-      }
-      #game-container {
-        image-rendering: pixelated;
-        flex: 1;
-        width: 100%;
-        min-height: 0;
-        touch-action: none;
-      }
-      #game-header {
-        width: 100%;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 4px 8px;
-        font-family: monospace;
-        color: #666;
-        font-size: 12px;
-      }
-      #desktop-fullscreen {
-        display: none;
-        border: 1px solid #5f4d20;
-        background: #17130a;
-        color: #d5bd70;
-        font: 11px monospace;
-        padding: 3px 7px;
-        cursor: pointer;
-      }
-      #desktop-fullscreen:hover,
-      #desktop-fullscreen:focus-visible {
-        color: #fff0a8;
-        border-color: #d5bd70;
-        outline: 2px solid #fff0a8;
-        outline-offset: 2px;
-      }
-      #debug-panel {
-        display: none;
-        width: 320px;
-        min-height: 0;
-        background: #0a0a0a;
-        border: 1px solid #1a3a1a;
-        font-family: monospace;
-        font-size: 11px;
-        color: #00dd00;
-        overflow: hidden;
-        margin-left: 4px;
-        flex-shrink: 0;
-      }
-      #controls-panel {
-        width: 200px;
-        min-height: 0;
-        background: #0a0a0a;
-        border: 1px solid #1a2a3a;
-        font-family: monospace;
-        font-size: 11px;
-        color: #aabbcc;
-        overflow-y: auto;
-        margin-right: 4px;
-        flex-shrink: 0;
-      }
-      #controls-panel.collapsed {
-        width: 28px;
-        overflow: hidden;
-      }
-      #controls-toggle {
-        display: block;
-        width: 100%;
-        background: #0d1520;
-        border: none;
-        border-bottom: 1px solid #1a2a3a;
-        color: #6688aa;
-        font-family: monospace;
-        font-size: 11px;
-        padding: 6px 8px;
-        cursor: pointer;
-        text-align: left;
-        white-space: nowrap;
-      }
-      #controls-toggle:hover { color: #aaccee; }
-      #controls-body {
-        padding: 8px;
-        line-height: 1.6;
-      }
-      #controls-panel.collapsed #controls-body { display: none; }
-      #controls-panel.collapsed #controls-toggle {
-        writing-mode: vertical-rl;
-        text-orientation: mixed;
-        padding: 8px 6px;
-        text-align: center;
-        height: 100%;
-      }
-      #controls-body .key { color: #ffd700; }
-      #controls-body .desc { color: #8899aa; }
-      #debug-state {
-        padding: 4px 8px;
-        background: #0d1a0d;
-        border-bottom: 1px solid #1a3a1a;
-        white-space: pre-wrap;
-        word-break: break-all;
-        color: #33ff33;
-        font-size: 10px;
-      }
-      #layout-report {
-        display: none;
-      }
-      #debug-log {
-        padding: 4px 8px;
-        height: calc(100% - 80px);
-        overflow-y: auto;
-        line-spacing: 1.5;
-        scroll-behavior: smooth;
-      }
-      #debug-log div { border-bottom: 1px solid #0a1a0a; padding: 2px 0; }
-      #debug-log .debug-msg { color: #888800; }
-      #debug-log .roll-detail { color: #00aaaa; }
-      #debug-log .log-spacer { border: none; height: 24px; }
-      #debug-cmd {
-        display: block;
-        width: calc(100% - 16px);
-        margin: 4px 8px;
-        padding: 4px 6px;
-        background: #0a1a0a;
-        border: 1px solid #1a3a1a;
-        color: #33ff33;
-        font-family: monospace;
-        font-size: 11px;
-        outline: none;
-      }
-      #debug-cmd::placeholder { color: #225522; }
-      #debug-cmd:focus { border-color: #33ff33; }
-      #touch-controls {
-        display: none;
-        position: fixed;
-        inset: 0;
-        z-index: 40;
-        pointer-events: none;
-        padding:
-          max(10px, env(safe-area-inset-top))
-          max(10px, env(safe-area-inset-right))
-          max(10px, env(safe-area-inset-bottom))
-          max(10px, env(safe-area-inset-left));
-      }
-      #touch-controls.visible { display: block; }
-      .touch-control {
-        position: absolute;
-        min-width: 48px;
-        min-height: 48px;
-        border: 2px solid #f4f1e8;
-        border-radius: 14px;
-        background: rgba(20, 26, 45, 0.78);
-        color: #fff;
-        font: bold 15px monospace;
-        box-shadow: 0 0 0 2px #000, 0 3px 10px rgba(0, 0, 0, 0.65);
-        pointer-events: auto;
-        user-select: none;
-        touch-action: none;
-      }
-      .touch-control:active,
-      .touch-control:focus-visible {
-        background: #31548a;
-        outline: 3px solid #ffdf66;
-        outline-offset: 2px;
-      }
-      .touch-up { bottom: 126px; }
-      .touch-left { bottom: 72px; }
-      .touch-right { bottom: 72px; }
-      .touch-down { bottom: 18px; }
-      .touch-confirm { bottom: 74px; }
-      .touch-cancel { bottom: 20px; }
-      .touch-menu { top: 40px; }
-      .touch-party { top: 40px; }
-      .touch-tips { top: 40px; }
-      #touch-controls.right-handed .touch-up,
-      #touch-controls.right-handed .touch-down { left: 68px; }
-      #touch-controls.right-handed .touch-left { left: 14px; }
-      #touch-controls.right-handed .touch-right { left: 122px; }
-      #touch-controls.right-handed .touch-confirm { right: 18px; }
-      #touch-controls.right-handed .touch-cancel { right: 82px; }
-      #touch-controls.right-handed .touch-menu { right: 16px; }
-      #touch-controls.right-handed .touch-party { right: 88px; }
-      #touch-controls.right-handed .touch-tips { right: 174px; }
-      #touch-controls.left-handed .touch-up,
-      #touch-controls.left-handed .touch-down { right: 68px; }
-      #touch-controls.left-handed .touch-left { right: 122px; }
-      #touch-controls.left-handed .touch-right { right: 14px; }
-      #touch-controls.left-handed .touch-confirm { left: 18px; }
-      #touch-controls.left-handed .touch-cancel { left: 82px; }
-      #touch-controls.left-handed .touch-menu { left: 16px; }
-      #touch-controls.left-handed .touch-party { left: 88px; }
-      #touch-controls.left-handed .touch-tips { left: 174px; }
-      #gamepad-cursor {
-        display: none;
-        position: fixed;
-        left: -10px;
-        top: -10px;
-        z-index: 60;
-        width: 20px;
-        height: 20px;
-        border: 3px solid #ffdf66;
-        border-radius: 50%;
-        background: rgba(30, 90, 170, 0.55);
-        box-shadow: 0 0 0 2px #000;
-        pointer-events: none;
-      }
-      #mobile-text-input {
-        position: fixed;
-        z-index: 80;
-        left: 50%;
-        top: max(20px, env(safe-area-inset-top));
-        transform: translateX(-50%);
-        display: flex;
-        gap: 8px;
-        padding: 12px;
-        background: #151a2d;
-        border: 2px solid #ffdf66;
-        border-radius: 10px;
-        box-shadow: 0 8px 32px #000;
-      }
-      #mobile-text-input input,
-      #mobile-text-input button {
-        min-height: 44px;
-        padding: 8px 10px;
-        border: 2px solid #dce8ff;
-        background: #252b45;
-        color: #fff;
-        font: 16px monospace;
-      }
-      @media (orientation: portrait), (max-width: 760px) {
-        #game-header { padding-top: max(4px, env(safe-area-inset-top)); }
-        #controls-panel, #debug-panel { display: none !important; }
-        .touch-party, .touch-tips { top: 92px; }
-      }
-      @media (max-height: 560px) and (orientation: landscape) {
-        .touch-control { min-width: 42px; min-height: 42px; opacity: 0.86; }
-        .touch-up { bottom: 108px; }
-        .touch-left, .touch-right { bottom: 61px; }
-        .touch-down { bottom: 14px; }
-        .touch-confirm { bottom: 62px; }
-        .touch-cancel { bottom: 14px; }
-      }
-    </style>
+    <meta
+      name="description"
+      content="Explore 2D&amp;D, a browser and desktop JRPG with classic exploration, D&amp;D-inspired combat, a full campaign, and a procedural pixel world."
+    />
+    <meta name="theme-color" content="#07151d" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link
+      rel="preload"
+      as="image"
+      href="./screenshots/showcase-battle.png"
+      fetchpriority="high"
+    />
+    <link rel="stylesheet" href="./src/landing.css" />
+    <title>2D&amp;D - A tabletop adventure in a pixel world</title>
   </head>
   <body>
-    <div id="game-wrapper">
-      <div id="controls-panel" class="collapsed">
-        <button
-          id="controls-toggle"
-          type="button"
-          aria-expanded="false"
-          aria-controls="controls-body"
-          title="Show keyboard controls"
-        >?</button>
-        <div id="controls-body">
-          <span class="key">W A S D</span> <span class="desc">Move</span><br/>
-          <span class="key">SPACE</span> <span class="desc">Interact</span><br/>
-          <span class="key">C</span> <span class="desc">Codex</span><br/>
-          <span class="key">E</span> <span class="desc">Equipment</span><br/>
-          <span class="key">M</span> <span class="desc">World Map</span><br/>
-          <span class="key">Q</span> <span class="desc">Quest Journal</span><br/>
-          <span class="key">P</span> <span class="desc">Party / Gambits</span><br/>
-          <span class="key">F1</span> <span class="desc">Tips</span><br/>
-          <span class="key">ESC</span> <span class="desc">Menu / Quit</span><br/>
-          <span class="key">T</span> <span class="desc">Mount / Dismount</span>
-          <div id="debug-cheats" style="display:none; margin-top:8px; padding-top:6px; border-top:1px solid #333;">
-            <span style="color:#c0a060; font-size:11px;">Debug Cheats</span><br/>
-            <span class="key">G</span> <span class="desc">+Gold</span><br/>
-            <span class="key">H</span> <span class="desc">Heal HP</span><br/>
-            <span class="key">O</span> <span class="desc">Restore MP</span><br/>
-            <span class="key">L</span> <span class="desc">Level Up</span><br/>
-            <span class="key">K</span> <span class="desc">Kill Enemy</span><br/>
-            <span class="key">F</span> <span class="desc">Toggle Encounters</span><br/>
-            <span class="key">R</span> <span class="desc">Reveal Map</span><br/>
-            <span class="key">V</span> <span class="desc">Toggle Fog</span>
+    <a class="skip-link" href="#main-content">Skip to the adventure</a>
+
+    <header class="site-header">
+      <a class="wordmark" href="./" aria-label="2D and D home">
+        <span aria-hidden="true">2D<span>&amp;</span>D</span>
+      </a>
+      <nav class="site-nav" aria-label="Showcase">
+        <a href="#campaign">The campaign</a>
+        <a href="#field-notes">Field notes</a>
+        <a class="nav-play" href="./game.html">Play now</a>
+      </nav>
+    </header>
+
+    <main id="main-content">
+      <aside class="steam-banner" aria-label="Steam availability">
+        <span class="steam-banner__mark" aria-hidden="true">STEAM</span>
+        <strong>Coming soon on Steam</strong>
+        <span>Wishlist page in preparation</span>
+      </aside>
+
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero__copy">
+          <p class="eyebrow">Browser and desktop JRPG</p>
+          <h1 id="hero-title" aria-label="2D and D">
+            <span aria-hidden="true">
+              <span class="hero__title-part">2D</span>
+              <span class="hero__ampersand">&amp;</span>
+              <span class="hero__title-part">D</span>
+            </span>
+          </h1>
+          <p class="hero__lead">
+            Roll a hero. Recruit a party. Cross a living pixel world where
+            every road leads back to the table.
+          </p>
+          <p class="hero__summary">
+            Classic JRPG exploration meets D&amp;D-inspired tactics in the
+            seven-chapter Twelvefold Covenant campaign.
+          </p>
+
+          <div class="hero__actions" aria-label="Ways to play">
+            <a
+              id="play-browser"
+              class="button button--primary"
+              href="./game.html"
+            >
+              <span>Play in browser</span>
+              <span class="button__detail">No install</span>
+            </a>
+            <a
+              id="download-desktop"
+              class="button button--secondary"
+              href="https://github.com/mbianchidev/2dnd/releases/latest"
+            >
+              <span>Download desktop</span>
+              <span class="button__detail">macOS / Windows / Linux</span>
+            </a>
+          </div>
+
+          <ul class="campaign-facts" aria-label="Campaign scale">
+            <li>
+              <span>World map</span>
+              <strong>90 chunks</strong>
+            </li>
+            <li>
+              <span>Hero paths</span>
+              <strong>12 classes</strong>
+            </li>
+            <li>
+              <span>Active party</span>
+              <strong>4 heroes</strong>
+            </li>
+          </ul>
+        </div>
+
+        <figure class="hero-frame">
+          <div class="hero-frame__bar" aria-hidden="true">
+            <span>ENCOUNTER // FOREST</span>
+            <span>TURN 01</span>
+          </div>
+          <div class="hero-frame__viewport">
+            <img
+              src="./screenshots/showcase-battle.png"
+              width="640"
+              height="528"
+              alt="A 2D&amp;D party facing monsters in a turn-based forest battle."
+              fetchpriority="high"
+            />
+          </div>
+          <figcaption>
+            <span class="coordinate">X:04 Y:07</span>
+            <span>Formation, initiative, elements, and gambits decide the fight.</span>
+          </figcaption>
+          <span class="hero-frame__pin" aria-hidden="true">20</span>
+        </figure>
+      </section>
+
+      <section id="campaign" class="campaign-section" aria-labelledby="campaign-title">
+        <header class="section-heading">
+          <p class="eyebrow">The Twelvefold Covenant</p>
+          <h2 id="campaign-title">A full campaign, not a combat demo.</h2>
+          <p>
+            Begin in Willowdale, recover three lost keystones, and decide what
+            kind of legend returns from the edge of the map.
+          </p>
+        </header>
+
+        <div class="campaign-ledger">
+          <article>
+            <span class="ledger-glyph" aria-hidden="true">MAP</span>
+            <p class="ledger-label">Explore</p>
+            <h3>Travel changes the story</h3>
+            <p>
+              Cross 12 cities, connected districts, multi-level dungeons,
+              shifting weather, day and night, hidden paths, traps, and open sea.
+            </p>
+          </article>
+          <article>
+            <span class="ledger-glyph" aria-hidden="true">D20</span>
+            <p class="ledger-label">Fight</p>
+            <h3>Every turn has weight</h3>
+            <p>
+              Build a four-member party, manage formations and resources, and
+              combine nine elements with status effects and ranked gambits.
+            </p>
+          </article>
+          <article>
+            <span class="ledger-glyph" aria-hidden="true">REP</span>
+            <p class="ledger-label">Choose</p>
+            <h3>The world remembers</h3>
+            <p>
+              Quests, alignment, reputation, Codex discoveries, achievements,
+              and replayable scenes carry your choices into the epilogue.
+            </p>
+          </article>
+          <article>
+            <span class="ledger-glyph" aria-hidden="true">KIT</span>
+            <p class="ledger-label">Prepare</p>
+            <h3>Adventure between battles</h3>
+            <p>
+              Fish, mine, forage, craft equipment, trade between ports, tame
+              mounts, and outfit every companion independently.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="field-notes" class="field-notes" aria-labelledby="field-title">
+        <header class="section-heading section-heading--wide">
+          <p class="eyebrow">Field notes</p>
+          <h2 id="field-title">One campaign. Many ways across the map.</h2>
+          <p>
+            Every screenshot comes from the running game: procedural textures,
+            synthesized audio, and no downloaded art packs.
+          </p>
+        </header>
+
+        <div class="route-gallery">
+          <span class="route-gallery__line" aria-hidden="true"></span>
+
+          <figure class="gallery-card gallery-card--world">
+            <div class="gallery-card__image">
+              <img
+                src="./screenshots/showcase-overworld.png"
+                width="640"
+                height="528"
+                alt="A hero exploring the colorful 2D&amp;D overworld."
+              />
+            </div>
+            <figcaption>
+              <span class="gallery-card__tag">OVERWORLD // DAY 06</span>
+              <strong>Find the road before the weather finds you.</strong>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-card gallery-card--city">
+            <div class="gallery-card__image">
+              <img
+                src="./screenshots/showcase-city.png"
+                width="640"
+                height="528"
+                alt="A 2D&amp;D hero visiting a detailed city district."
+              />
+            </div>
+            <figcaption>
+              <span class="gallery-card__tag">CITY // WILLOWDALE</span>
+              <strong>Every settlement carries another piece of the covenant.</strong>
+            </figcaption>
+          </figure>
+
+          <div class="route-note">
+            <span class="route-note__marker" aria-hidden="true">?</span>
+            <p>
+              <strong>Your route is not fixed.</strong>
+              Skill checks, discoveries, faction choices, and optional danger
+              zones make room for another answer.
+            </p>
           </div>
         </div>
-      </div>
-      <div id="game-inner">
-        <div id="game-header">
-          <span style="color: #c0a060;">2D&amp;D</span>
-          <button
-            id="desktop-fullscreen"
-            type="button"
-            title="Toggle fullscreen (F11)"
-          >Fullscreen (F11)</button>
-          <label id="debug-toggle" style="cursor: pointer; user-select: none; color: #555;" title="Toggle debug mode">
-            <input type="checkbox" id="debug-checkbox" style="cursor: pointer; vertical-align: middle;" />
-            <span id="debug-label">debug mode</span>
-          </label>
+      </section>
+
+      <section class="play-callout" aria-labelledby="play-title">
+        <div>
+          <p class="eyebrow">Your character sheet is blank</p>
+          <h2 id="play-title">The first roll is yours.</h2>
         </div>
-        <div id="game-container"></div>
-      </div>
-      <div id="debug-panel">
-        <div id="debug-state"></div>
-        <output id="layout-report" aria-hidden="true"></output>
-        <input id="debug-cmd" type="text" placeholder="/gold 1000, /exp 500, /item flameBlade..." autocomplete="off" />
-        <div id="debug-log"></div>
-      </div>
-    </div>
-    <script type="module" src="/src/main.ts"></script>
+        <div class="play-callout__actions">
+          <a class="button button--primary" href="./game.html">
+            <span>Start the campaign</span>
+            <span class="button__detail">Play free in your browser</span>
+          </a>
+          <p>
+            Desktop packages are unsigned community builds and may show an
+            operating-system warning.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>
+        <strong>2D&amp;D</strong>
+        <span>A procedural browser and Electron JRPG.</span>
+      </p>
+      <nav aria-label="Project links">
+        <a href="https://github.com/mbianchidev/2dnd">Source</a>
+        <a href="https://github.com/mbianchidev/2dnd/releases/latest">Releases</a>
+        <a href="https://github.com/mbianchidev/2dnd/blob/main/docs/gameplay.md">
+          Gameplay guide
+        </a>
+      </nav>
+    </footer>
   </body>
 </html>

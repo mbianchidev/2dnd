@@ -15,7 +15,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Build/test | Vite 8.2.1, Electron 43.4.0, electron-builder 26.15.7, Vitest 4.1.10, Playwright 1.62.1 |
 | DOM tests | happy-dom 20.11.1 |
 | Save schema | 17 |
-| Deployment | GitHub Pages at `/2dnd/`; unsigned desktop CI artifacts |
+| Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
 Only current `main` is shipped behavior. Treat issues and open pull requests as

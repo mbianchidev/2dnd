@@ -1012,7 +1012,8 @@ npm run benchmark:baseline
   detection. Browser coverage should assert registered groups remain clean at
   100%/125%/150% text and representative desktop/mobile viewports.
 - The browser suites use a fresh strict port, default to the deployed `/2dnd/`
-  base path, and assert opening recovery, boss cutscenes, Chronicle replay
+  base path, test the showcase at its root, open Phaser flows through
+  `game.html`, and assert opening recovery, boss cutscenes, Chronicle replay
   immutability, tutorial completion, direct and menu Tips access, interrupted and
   legacy ending recovery, durable post-game reload, corrupt-save fallback,
   random/boss defeat recovery, recovery save/reload, and page/console errors.
@@ -1020,8 +1021,9 @@ npm run benchmark:baseline
   fainting, spell/ability particles, world/follower/mount gait, boss cutscenes,
   and reduced-motion immediate states.
 - Pull request CI installs Chromium and runs the browser suites.
-- Desktop CI audits, smoke-tests `app://2dnd`, and creates unsigned macOS,
-  Windows, and Linux artifacts. It never receives signing credentials.
+- Desktop CI audits, smoke-tests `app://2dnd/game.html`, and creates unsigned
+  macOS, Windows, and Linux artifacts. Matching version tags rerun the full gate
+  and attach those packages to a GitHub release without signing credentials.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run `npm run benchmark:baseline` on the current base commit before
@@ -1031,7 +1033,8 @@ npm run benchmark:baseline
 
 ## Prohibited
 
-- External image or audio assets
+- External image or audio assets; showcase screenshots must be generated from
+  the running game
 - Network calls
 - `any`
 - Production `console.log`

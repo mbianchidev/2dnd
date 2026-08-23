@@ -6,7 +6,7 @@ import {
 
 export const DESKTOP_APP_HOST = "2dnd";
 export const DESKTOP_APP_SCHEME = "app";
-export const DESKTOP_APP_URL = `${DESKTOP_APP_SCHEME}://${DESKTOP_APP_HOST}/index.html`;
+export const DESKTOP_APP_URL = `${DESKTOP_APP_SCHEME}://${DESKTOP_APP_HOST}/game.html`;
 
 const ALLOWED_EXTERNAL_DESTINATIONS = Object.freeze([
   {

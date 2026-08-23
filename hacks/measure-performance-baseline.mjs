@@ -664,7 +664,7 @@ async function main() {
 
   const bundle = await measureBundle();
   const port = await findAvailablePort();
-  const url = `http://127.0.0.1:${port}${BASE_PATH}`;
+  const url = `http://127.0.0.1:${port}${BASE_PATH}game.html`;
   const server = await startStaticServer(port);
 
   try {

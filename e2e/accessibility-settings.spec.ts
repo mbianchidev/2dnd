@@ -97,7 +97,7 @@ test("title and in-game accessibility settings share live preferences", async ({
       sessionStorage.setItem("accessibilitySettingsInitialized", "true");
     }
   });
-  await page.goto("./", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
 
   await test.step("change title settings at the largest text scale", async () => {

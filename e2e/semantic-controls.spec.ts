@@ -175,7 +175,7 @@ test.describe("touch controls", () => {
       };
     });
 
-    await page.goto("./", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
     await expect(page.locator("#touch-controls")).toHaveClass(/visible/);
     await page.locator('[data-action="confirm"]').tap();
@@ -342,7 +342,7 @@ test.describe("standard gamepad controls", () => {
       await page.waitForTimeout(150);
     };
 
-    await page.goto("./", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
     await moveGamepadCursor(page, 320, 324);
     await expect(page.locator("#gamepad-cursor")).toBeVisible();

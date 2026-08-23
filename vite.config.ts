@@ -16,6 +16,12 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "dist",
       sourcemap: !isDesktopBuild,
+      rollupOptions: {
+        input: {
+          landing: resolve(import.meta.dirname, "index.html"),
+          game: resolve(import.meta.dirname, "game.html"),
+        },
+      },
     },
     server: {
       port: 3000,

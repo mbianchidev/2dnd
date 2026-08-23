@@ -28,7 +28,7 @@ import {
 import { createPlayer } from "../src/systems/player";
 import { recruitCompanion } from "../src/systems/party";
 import { getMonster } from "../src/data/monsters";
-import { deleteSave, loadGame } from "../src/systems/save";
+import { SAVE_VERSION, deleteSave, loadGame } from "../src/systems/save";
 import { Terrain } from "../src/data/mapTypes";
 import { TimePeriod } from "../src/systems/daynight";
 import { WeatherType } from "../src/systems/weather";
@@ -73,6 +73,7 @@ describe("feature discovery registry", () => {
       "resume",
       "inventory",
       "tips",
+      "save",
       "settings",
       "quit",
     ]);
@@ -313,7 +314,7 @@ describe("feature discovery registry", () => {
 
     const loaded = loadGame();
 
-    expect(loaded?.version).toBe(17);
+    expect(loaded?.version).toBe(SAVE_VERSION);
     expect(loaded?.player.progression.discoveredFeatureIds).toEqual(
       expect.arrayContaining(["questJournal", "party", "partyGambits"]),
     );

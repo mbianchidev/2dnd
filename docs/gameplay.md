@@ -45,9 +45,13 @@ press the stick to click pointer-first controls.
 Mappings are stable rather than user-remappable. Settings can control touch
 visibility, handedness, and automatic or fixed prompt sources.
 
-The in-game menu includes **Save & Return to Title**. Desktop builds also show
-**Quit Desktop** on the title screen, with `Q` as a title-screen shortcut.
-Browser builds rely on the browser tab/window controls instead.
+The in-game menu includes **Save Game** for three named manual slots and
+**Save & Return to Title** for the dedicated autosave. The title screen exposes
+**Load / Manage Saves** for loading, renaming, copying, deleting, exporting, and
+importing campaigns. Overwrite and deletion require confirmation. Desktop
+builds also show **Quit Desktop** on the title screen, with `Q` as a
+title-screen shortcut. Browser builds rely on the browser tab/window controls
+instead.
 
 ## Character creation and progression
 

@@ -18,6 +18,7 @@ import { chromium } from "@playwright/test";
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const DIST = join(ROOT, "dist");
 const BASE_PATH = "/2dnd/";
+const CURRENT_SAVE_VERSION = 18;
 const SAVE_KEY = "2dnd_save";
 const BOOT_TEXTURE_MEASURE = "2dnd:boot-textures";
 const DEFAULT_SAMPLE_COUNT = 20;
@@ -597,7 +598,8 @@ function printReport(result) {
   );
   console.log(
     `- Method: ${result.startup.sampleCount} cache-disabled production `
-    + "navigations per startup case; fresh schema-v17 campaign for save metrics.",
+    + `navigations per startup case; fresh schema-v${CURRENT_SAVE_VERSION} `
+    + "campaign for save metrics.",
   );
   console.log("");
   console.log("| Metric | Empty save median | Empty save p95 | Fresh save median | Fresh save p95 |");
@@ -680,9 +682,10 @@ async function main() {
     });
     try {
       const freshSave = await createFreshSave(browser, url);
-      if (freshSave.schemaVersion !== 17) {
+      if (freshSave.schemaVersion !== CURRENT_SAVE_VERSION) {
         throw new Error(
-          `Expected fresh save schema v17, received v${freshSave.schemaVersion}`,
+          `Expected fresh save schema v${CURRENT_SAVE_VERSION}, received `
+          + `v${freshSave.schemaVersion}`,
         );
       }
 

@@ -48,6 +48,7 @@ export type EscapeMenuAction =
   | "gathering"
   | "crafting"
   | "tips"
+  | "save"
   | "settings"
   | "quit";
 
@@ -126,6 +127,12 @@ const ESCAPE_MENU_ENTRIES: readonly EscapeMenuEntry[] = [
     color: "#83d8ff",
     featureId: "tips",
     testId: "menu-tips",
+  },
+  {
+    action: "save",
+    label: "Save Game",
+    color: "#9fe8ff",
+    testId: "menu-save",
   },
   {
     action: "settings",

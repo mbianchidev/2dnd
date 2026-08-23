@@ -724,6 +724,7 @@ export class SemanticInputRuntime {
       if (
         state.includes("[PARTY:")
         || state.includes("[MENU]")
+        || state.includes("[SAVE_SLOTS:")
         || state.includes("[TIPS")
         || state.includes("[WORLD_EVENT:")
       ) {

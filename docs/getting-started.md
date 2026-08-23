@@ -79,14 +79,18 @@ The landing-page flow starts at that root; game flows open `game.html`. See
 
 | Key | Purpose |
 | --- | --- |
-| `2dnd_save` | Campaign save, currently schema v17 |
+| `2dnd_save` | Dedicated autosave campaign, currently schema v18 |
+| `2dnd_save_slot_manual-1` through `manual-3` | Named manual campaign slots |
+| slot `:backup` / `:staging` keys | Automatic recovery from interrupted or corrupt writes |
 | `2dnd_preferences` | Versioned audio, accessibility, and control presentation settings |
 | `2dnd_inventory_prefs` | Inventory sort, filter, and search preferences |
 
 `http://localhost:3000` and `https://mbianchidev.github.io` are different
 origins, and packaged desktop builds use `app://2dnd`, so none silently share
 saves. Clearing site data, using private browsing, deleting Electron user data,
-or switching profiles can remove or hide local saves. There is no cloud sync.
+or switching profiles can remove or hide local saves. Use **Load / Manage
+Saves** on the title screen to rename, copy, delete, export, or import one
+validated campaign slot. There is no cloud sync.
 
 ## Basic troubleshooting
 
@@ -105,8 +109,10 @@ or switching profiles can remove or hide local saves. There is no cloud sync.
 - **Old dependencies or inexplicable type errors:** remove only the local
   dependency installation if appropriate, then rerun `npm ci`; do not edit the
   lockfile unless dependencies are changing.
-- **A save no longer loads:** do not patch the stored JSON manually. Reproduce
-  it in `tests/save.test.ts` and fix normalization or recovery as described in
+- **A save no longer loads:** open **Load / Manage Saves** first; the game
+  automatically tries interrupted staging and the prior verified backup for
+  that slot. Export any recovered campaign. Do not patch stored JSON manually;
+  reproduce persistent failures in the save suites and follow
   [Save system](save-system.md).
 
 ## Next steps

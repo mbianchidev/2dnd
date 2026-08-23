@@ -299,6 +299,6 @@ test("plays, reloads, records, and battles through all gathering disciplines", a
   save = await readSave(page);
   expect(save.player.inventory.some((item) => item.id === "stormEel")).toBe(true);
   expect(save.player.progression.gathering.pending).toBeNull();
-  expect(save.version).toBe(17);
+  expect(save.version).toBe(18);
   expect(browserErrors).toEqual([]);
 });

@@ -383,8 +383,20 @@ test.describe("standard gamepad controls", () => {
 
     await pressGamepad(9);
     await waitForState(page, "[MENU]");
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const state = await page.locator("#debug-state").textContent() ?? "";
+      if (state.includes("[MENU_SELECTION:save]")) break;
+      await pressGamepad(13);
+    }
+    await waitForState(page, "[MENU_SELECTION:save]");
+    await pressGamepad(0);
+    await waitForState(page, "[SAVE_SLOTS:save]");
+    await pressGamepad(0);
+    await expect.poll(() => page.evaluate(
+      () => localStorage.getItem("2dnd_save_slot_manual-1"),
+    )).not.toBeNull();
     await pressGamepad(1);
-    await expect(page.locator("#debug-state")).not.toContainText("[MENU]");
+    await expect(page.locator("#debug-state")).not.toContainText("[SAVE_SLOTS:");
     await pressGamepad(8);
     await waitForState(page, "[TIPS");
     await pressGamepad(1);

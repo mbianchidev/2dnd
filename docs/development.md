@@ -32,7 +32,7 @@
 | World/city/dungeon | `src/data/map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, map helpers |
 | Sea navigation | `src/data/nautical.ts`, `src/systems/nautical*.ts`, `src/data/islands.ts` |
 | Gathering/crafting | matching `src/data/`, `src/systems/`, and `src/managers/` modules |
-| Save field | owning interface/default, normalization module, `src/systems/save.ts`, migration tests |
+| Save field or slot | owning interface/default, normalization module, `save.ts`, `saveSlots.ts`, `saveStorage.ts`, migration/recovery tests |
 | Input/control | `src/systems/input.ts`, `src/managers/input.ts`; never a scene-local gamepad map |
 | UI layout | `src/systems/layout.ts`, `src/managers/layout.ts`, owning manager/renderer |
 | Public showcase | `index.html`, `src/landing.css`, generated captures in `public/screenshots/` |

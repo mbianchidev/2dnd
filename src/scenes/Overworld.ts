@@ -72,7 +72,14 @@ import {
   type CodexData,
   type CodexUnlockResult,
 } from "../systems/codex";
-import { saveGame } from "../systems/save";
+import {
+  saveGame,
+  type SaveActionResult,
+} from "../systems/save";
+import {
+  saveGameToSlot,
+  type SaveSlotId,
+} from "../systems/saveSlots";
 import { getItem } from "../data/items";
 import {
   getAdjacentCodexReadable,
@@ -173,6 +180,7 @@ import { applySocialMutation } from "../systems/reputation";
 import { GatheringManager } from "../managers/gathering";
 import { tickGatheringCooldowns } from "../systems/gathering";
 import { CraftingManager } from "../managers/crafting";
+import { SaveSlotManager } from "../managers/saveSlots";
 import {
   discoverCraftingRecipes,
   reconcileCraftingRecipes,
@@ -330,6 +338,7 @@ export class OverworldScene extends Phaser.Scene {
   private achievementNotifications!: AchievementNotificationManager;
   private gatheringManager!: GatheringManager;
   private craftingManager!: CraftingManager;
+  private saveSlotManager!: SaveSlotManager;
   private pendingCodexDiscoveryIds: string[] = [];
   private featureRevealTimer: Phaser.Time.TimerEvent | null = null;
 
@@ -478,6 +487,7 @@ export class OverworldScene extends Phaser.Scene {
       openGathering: () => this.openGatheringStatus(),
       openCrafting: () => this.openCrafting(),
       openTips: () => this.tutorialManager.showTips(this.player),
+      openSaveSlots: () => this.openManualSaveSlots(),
       fadeOutAndIn: (atBlack, duration) =>
         this.sceneTransitions.fadeOutAndIn(atBlack, {
           duration,
@@ -485,6 +495,12 @@ export class OverworldScene extends Phaser.Scene {
         }),
       travelMerchantRoute: (routeId, currentPortId) =>
         this.travelMerchantRoute(routeId, currentPortId),
+    });
+    this.saveSlotManager = new SaveSlotManager(this, {
+      load: () => {
+        this.showMessage("Return to the title screen to load another campaign.", "#ffcc80");
+      },
+      save: (slotId, overwrite) => this.saveManualSlot(slotId, overwrite),
     });
     this.partyOverlayManager = new PartyOverlayManager(this, {
       updateHUD: () => this.updateHUD(),
@@ -589,6 +605,7 @@ export class OverworldScene extends Phaser.Scene {
       this.worldEventManager.clear();
       this.gatheringManager.clear();
       this.craftingManager.clear();
+      this.saveSlotManager.destroy();
       this.featureRevealTimer?.remove(false);
       this.featureRevealTimer = null;
     });
@@ -847,6 +864,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const cKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     cKey.on("down", () => {
+      if (this.saveSlotManager.isOpen()) return;
       if (!isFeatureAvailable(this.player, "codex")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) {
@@ -862,6 +880,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const yKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Y);
     yKey.on("down", () => {
+      if (this.saveSlotManager.isOpen()) return;
       if (!isFeatureAvailable(this.player, "achievements")) return;
       if (this.achievementOverlayManager.isOpen()) {
         this.achievementOverlayManager.close();
@@ -882,6 +901,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     eKey.on("down", () => {
+      if (this.saveSlotManager.isOpen()) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
@@ -893,6 +913,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     pKey.on("down", () => {
+      if (this.saveSlotManager.isOpen()) return;
       if (!isFeatureAvailable(this.player, "party")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.partyOverlayManager.isInventorySearchActive()) return;
@@ -905,6 +926,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     mKey.on("down", () => {
+      if (this.saveSlotManager.isOpen()) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
@@ -923,6 +945,10 @@ export class OverworldScene extends Phaser.Scene {
       if (this.isMoving) return;
       if (this.tutorialManager.isOpen()) {
         this.tutorialManager.close();
+        return;
+      }
+      if (this.saveSlotManager.isOpen()) {
+        this.saveSlotManager.close();
         return;
       }
       // ESC closes the topmost open overlay, or opens the menu
@@ -961,6 +987,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const qKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     qKey.on("down", () => {
+      if (this.saveSlotManager.isOpen()) return;
       if (!isFeatureAvailable(this.player, "questJournal")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
@@ -975,6 +1002,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
     tKey.on("down", () => {
+      if (this.saveSlotManager.isOpen()) return;
       if (!isFeatureAvailable(this.player, "mounts")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
@@ -987,6 +1015,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const tipsKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F1);
     tipsKey.on("down", () => {
+      if (this.saveSlotManager.isOpen()) return;
       if (this.isMoving) return;
       if (this.tutorialManager.isOpen()) {
         this.tutorialManager.close();
@@ -998,6 +1027,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const gatheringKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K);
     gatheringKey.on("down", () => {
+      if (this.saveSlotManager.isOpen()) return;
       if (!isFeatureAvailable(this.player, "gathering")) return;
       if (
         this.isMoving
@@ -1009,6 +1039,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const craftingKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     craftingKey.on("down", () => {
+      if (this.saveSlotManager.isOpen()) return;
       if (!isFeatureAvailable(this.player, "crafting")) return;
       if (
         this.isMoving
@@ -1446,6 +1477,7 @@ export class OverworldScene extends Phaser.Scene {
       ? ` [BOAT:${p.progression.nautical.activeBoatId ?? "none"}]`
       : "";
     const menuTag = this.overlayManager.getMenuDebugState(this.player);
+    const saveSlotTag = this.saveSlotManager.getDebugState();
     const chronicleTag = this.chronicleManager?.getDebugState() ?? "";
     const worldEventTag = this.worldEventManager?.getDebugState() ?? "";
     const gatheringTag = this.gatheringManager?.getDebugState() ?? "";
@@ -1459,7 +1491,7 @@ export class OverworldScene extends Phaser.Scene {
     const craftingTag = this.craftingManager.getDebugState();
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${boatTag}${menuTag}${chronicleTag}${worldEventTag}${gatheringTag}${tutorialTag}${partyTag}${achievementTag}${craftingTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${boatTag}${menuTag}${saveSlotTag}${chronicleTag}${worldEventTag}${gatheringTag}${tutorialTag}${partyTag}${achievementTag}${craftingTag} | ` +
       `Anim: ${this.worldPresentation.debugState} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
@@ -1471,6 +1503,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private isOverlayOpen(): boolean {
     return this.overlayManager.isOpen()
+      || this.saveSlotManager.isOpen()
       || this.partyOverlayManager.isOpen()
       || this.achievementOverlayManager.isOpen()
       || this.questJournal.isOpen()
@@ -2370,6 +2403,8 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handleAction(): void {
+    if (this.saveSlotManager.isOpen()) return;
+    if (this.overlayManager.menuOverlay) return;
     if (this.chronicleManager?.isOpen()) {
       this.chronicleManager.replaySelected();
       return;
@@ -3375,18 +3410,62 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private autoSave(): void {
+    this.preparePersistentState("overworld:autoSave");
+    const result = saveGame(
+      this.player,
+      this.defeatedBosses,
+      this.codex,
+      this.player.appearanceId,
+      this.timeStep,
+      this.weatherState,
+    );
+    if (!result.ok) this.showMessage(result.message, "#ff8a80");
+    this.scheduleFeatureRevealFeedback();
+  }
+
+  private preparePersistentState(sourceId: string): void {
     replayCodexUnlocks(this.codex, this.player);
     reconcileAchievements({
       player: this.player,
       defeatedBosses: this.defeatedBosses,
       codex: this.codex,
     }, {
-      sourceId: "overworld:autoSave",
+      sourceId,
     });
     reconcileFeatureDiscovery(this.player, this.codex);
     featureAvailability.set(getAvailableFeatureIds(this.player));
-    saveGame(this.player, this.defeatedBosses, this.codex, this.player.appearanceId, this.timeStep, this.weatherState);
+  }
+
+  private saveManualSlot(
+    slotId: SaveSlotId,
+    overwrite: boolean,
+  ): SaveActionResult {
+    if (slotId === "autosave") {
+      return {
+        ok: false,
+        code: "unsupported",
+        message: "Autosave is updated automatically.",
+      };
+    }
+    this.preparePersistentState("overworld:manualSave");
+    const result = saveGameToSlot(
+      slotId,
+      this.player,
+      this.defeatedBosses,
+      this.codex,
+      this.player.appearanceId,
+      this.timeStep,
+      this.weatherState,
+      { overwrite },
+    );
     this.scheduleFeatureRevealFeedback();
+    return result;
+  }
+
+  private openManualSaveSlots(): void {
+    if (this.sceneTransitions.isPending || this.isMoving) return;
+    this.overlayManager.destroyAll();
+    this.saveSlotManager.open("save");
   }
 
   private startGatheringNearby(): boolean {

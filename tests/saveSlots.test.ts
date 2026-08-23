@@ -134,6 +134,23 @@ describe("multiple save slots", () => {
     expect(loadGame("manual-1")?.player.gold).toBe(25);
   });
 
+  it("does not consume gameplay randomness while verifying a save", () => {
+    const player = createTestPlayer("Deterministic");
+    const random = vi.spyOn(Math, "random");
+
+    saveGame(
+      player,
+      new Set(),
+      createCodex(),
+      player.appearanceId,
+      0,
+      createWeatherState(),
+    );
+
+    expect(random).not.toHaveBeenCalled();
+    random.mockRestore();
+  });
+
   it("requires overwrite, then supports rename, copy, and isolated deletion", () => {
     const first = createTestPlayer("First");
     const second = createTestPlayer("Second");

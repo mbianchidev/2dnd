@@ -116,10 +116,18 @@ async function launchHeroCutscene(
 }
 
 async function exitHeroCutscene(page: Page, cutsceneId: string): Promise<void> {
+  await page.waitForTimeout(350);
   await holdKey(page, "Escape");
   if (cutsceneId === "campaign.twelvefoldCovenant.epilogue") {
     await waitForState(page, "ENDING | Choices");
     await holdKey(page, "Enter");
+  } else {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const state = await page.locator("#debug-state").textContent() ?? "";
+      if (state.includes("OVERWORLD")) break;
+      await page.waitForTimeout(350);
+      await holdKey(page, "Escape");
+    }
   }
   await waitForState(page, "OVERWORLD");
 }
@@ -128,7 +136,13 @@ async function updateAccessibility(
   page: Page,
   controls: readonly string[],
 ): Promise<void> {
-  await holdKey(page, "Escape");
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await holdKey(page, "Escape");
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes("[MENU]")) break;
+    await page.waitForTimeout(250);
+  }
+  await waitForState(page, "[MENU]");
   await clickLayoutItem(page, "escape-menu-settings");
   for (const control of controls) {
     await clickLayoutItem(page, control);

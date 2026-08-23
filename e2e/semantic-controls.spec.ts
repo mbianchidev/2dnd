@@ -233,6 +233,10 @@ test.describe("touch controls", () => {
         y: save.player.position.y,
       };
     });
+    await page.locator("#debug-checkbox").check();
+    await page.locator("#game-container canvas").click();
+    await holdKey(page, "f");
+    await expect(page.locator("#debug-log")).toContainText("Encounters OFF");
     await page.locator('[data-action="navigateRight"]').tap();
     await page.waitForTimeout(250);
     const after = await page.evaluate(() => {

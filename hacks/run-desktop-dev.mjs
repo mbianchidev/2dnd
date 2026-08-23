@@ -56,7 +56,7 @@ function stopChild(child) {
 }
 
 const port = await findAvailablePort();
-const rendererUrl = `http://127.0.0.1:${port}/`;
+const rendererUrl = `http://127.0.0.1:${port}/game.html`;
 const vite = spawn(
   process.execPath,
   [

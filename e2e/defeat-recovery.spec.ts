@@ -123,7 +123,7 @@ test("random and boss defeats recover cleanly through the result sequence", asyn
     }
   });
 
-  await page.goto("./", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
   await clickGame(page, 320, 324);
   await waitForState(page, "BOOT | Screen: character");

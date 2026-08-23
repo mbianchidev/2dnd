@@ -5,7 +5,7 @@
 
 ## Current distribution
 
-2D&D is released as a static browser game through GitHub Pages:
+2D&D is released as a static showcase and browser game through GitHub Pages:
 
 <https://mbianchidev.github.io/2dnd/>
 
@@ -13,10 +13,11 @@ The custom-domain target is <https://2dnd.mbianchi.dev/>. Keep public links on
 the current GitHub Pages URL until the custom domain, certificate, and root-path
 deployment have been verified.
 
-The repository also builds an Electron desktop target for macOS, Windows, and
-Linux. Pull requests produce unsigned review artifacts. The current v1.0.0
-release has no signed public installer; do not describe unsigned CI artifacts
-as an endorsed desktop release.
+The root URL presents the showcase; **Play in browser** opens `game.html`. The
+repository also builds an Electron desktop target for macOS, Windows, and Linux.
+Pull requests produce unsigned review artifacts. Matching version tags publish
+unsigned desktop packages to GitHub Releases after all release gates pass. The
+current v1.0.0 release predates that publishing workflow.
 
 ## GitHub Pages
 
@@ -29,7 +30,7 @@ as an endorsed desktop release.
 5. Read the active Pages URL and base path with `actions/configure-pages`.
 6. Run `npm run build` with
    `VITE_BASE_PATH=${{ steps.pages.outputs.base_path }}/`.
-7. Upload `dist/`.
+7. Upload the multi-page `dist/` containing the showcase and game.
 8. Deploy with GitHub Pages.
 
 The workflow does not hardcode a project or root base. GitHub Pages metadata
@@ -37,9 +38,10 @@ supplies `/2dnd` for the project site and an empty base path for the custom
 domain, so the Vite build receives `/2dnd/` or `/` respectively.
 
 Outside Pages deployment, `vite.config.ts` keeps `/` for normal local
-development. Playwright defaults to `/2dnd/` so project-site release paths are
-tested before deployment. Electron builds use Vite's `desktop` mode and always
-keep the relative `./` base, regardless of `VITE_BASE_PATH`.
+development. Playwright checks the `/2dnd/` showcase and opens
+`/2dnd/game.html` for Phaser flows. Electron builds use Vite's `desktop` mode,
+keep the relative `./` base, and open `dist/game.html` directly regardless of
+`VITE_BASE_PATH`.
 
 ### Custom-domain rollout
 
@@ -75,6 +77,26 @@ in protected release environments; never commit them or expose them to pull
 requests. Linux artifacts remain unsigned unless a future release process adds
 documented package signing.
 
+## Tagged desktop releases
+
+`.github/workflows/release.yml` runs only when a `v*` tag is pushed. It rejects
+the release unless the tag is exactly `v<package.json version>` and its commit
+is contained in `main`.
+
+1. Run `npm ci`, `npm audit`, typecheck, full Vitest, Chromium Playwright, and
+   the production web build.
+2. Generate the procedural desktop icons.
+3. Build and smoke-test the secure Electron shell on macOS, Windows, and Linux.
+4. Package the configured DMG/ZIP, NSIS/portable EXE, and AppImage/tarball
+   outputs.
+5. Download the matrix artifacts into one release job.
+6. Create the matching GitHub release with generated notes and attach every
+   desktop package. A rerun repairs an existing release with `--clobber`.
+
+The workflow publishes unsigned packages. Signing and notarization remain a
+separate protected release concern; the landing page warns players that their
+operating system may challenge these builds.
+
 ## Release checklist
 
 1. Confirm all claimed features are merged into current `main`; do not use open
@@ -96,11 +118,15 @@ documented package signing.
 13. Run `git diff --check` and verify Markdown links/anchors.
 14. Open a pull request and wait for browser, desktop, and both CodeQL analyses.
 15. Resolve every failure and review comment before merge.
-16. After merge, verify the Pages workflow and deployed URL.
-17. For a desktop release, sign/notarize in the protected release environment
-    and verify installation before publishing.
-18. Create the GitHub release/tag and verify the public README reports the same
-    version.
+16. After merge, verify the Pages workflow, showcase, Play action, and deployed
+    `game.html`.
+17. For a desktop release, create and push the version tag from the verified
+    `main` commit.
+18. Wait for the release workflow and verify every expected desktop package is
+    attached to the generated GitHub release.
+19. When signing credentials exist, sign/notarize in the protected release
+    environment and verify installation before presenting those builds as
+    trusted by the operating system.
 
 ## Release gates
 

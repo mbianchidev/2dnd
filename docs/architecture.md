@@ -17,10 +17,12 @@
 | electron-builder | 26.15.7 |
 | Campaign save schema | 17 |
 
-The game is a static browser application with an optional Electron shell. It
-loads no external image or audio assets and makes no gameplay network calls.
-Textures are generated procedurally; music and sound effects use Web Audio
-synthesis.
+The web build is a static Vite multi-page application with an optional Electron
+shell. `index.html` is the public showcase, while `game.html` starts the Phaser
+runtime. Showcase screenshots are captures from that runtime, not external art.
+The game loads no external image or audio assets and makes no gameplay network
+calls. Textures are generated procedurally; music and sound effects use Web
+Audio synthesis.
 
 ## Responsibility boundaries
 
@@ -31,6 +33,7 @@ synthesis.
 | Stateful scene helpers and overlays | `src/managers/` |
 | Procedural textures and focused presentation | `src/renderers/` |
 | Scene orchestration and lifecycle | `src/scenes/` |
+| Public showcase | `index.html`, `src/landing.css`, `public/screenshots/` |
 | Logic and contract tests | `tests/` |
 | Real-browser release flows | `e2e/` |
 | Desktop main/preload/security boundary | `electron/` |
@@ -42,7 +45,7 @@ large domains live in focused modules rather than one monolithic data file.
 
 ## Scenes and shared state
 
-`src/main.ts` registers:
+`game.html` loads `src/main.ts`, which registers:
 
 | File | Scene key |
 | --- | --- |
@@ -118,8 +121,9 @@ zero.
 
 ## Desktop shell
 
-Electron production builds load `dist/` from the standard, secure
-`app://2dnd` origin. `electron/main.ts` owns BrowserWindow lifecycle, protocol
+Electron production builds load `dist/game.html` from the standard, secure
+`app://2dnd` origin, bypassing the public showcase without creating a separate
+game renderer. `electron/main.ts` owns BrowserWindow lifecycle, protocol
 resolution, permissions, remote-request denial, navigation, crash reporting,
 and IPC validation. The sandboxed single-file `electron/preload.cts` exposes
 only typed window/log state, fullscreen control, bounded renderer-error

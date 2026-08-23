@@ -13,6 +13,10 @@ import {
 import { createDesktopWindowOptions } from "../electron/windowOptions";
 
 describe("Electron security policy", () => {
+  it("opens the Phaser entrypoint instead of the public landing page", () => {
+    expect(DESKTOP_APP_URL).toBe("app://2dnd/game.html");
+  });
+
   it("allows only repository-owned HTTPS destinations externally", () => {
     expect(isAllowedExternalUrl("https://github.com/mbianchidev/2dnd")).toBe(true);
     expect(

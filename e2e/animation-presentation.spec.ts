@@ -74,7 +74,7 @@ async function drainCutscenes(page: Page, destination = "OVERWORLD"): Promise<vo
 }
 
 async function createRangerCampaign(page: Page): Promise<void> {
-  await page.goto("./", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
   await clickGame(page, 320, 324);
   await waitForState(page, "BOOT | Screen: character");

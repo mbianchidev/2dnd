@@ -3,6 +3,7 @@
 [![Release](https://img.shields.io/github/v/release/mbianchidev/2dnd)](https://github.com/mbianchidev/2dnd/releases/latest)
 [![Pull request checks](https://github.com/mbianchidev/2dnd/actions/workflows/pr.yml/badge.svg?branch=main)](https://github.com/mbianchidev/2dnd/actions/workflows/pr.yml)
 [![GitHub Pages](https://github.com/mbianchidev/2dnd/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/mbianchidev/2dnd/actions/workflows/deploy.yml)
+[![Desktop release](https://github.com/mbianchidev/2dnd/actions/workflows/release.yml/badge.svg)](https://github.com/mbianchidev/2dnd/actions/workflows/release.yml)
 [![CodeQL](https://github.com/mbianchidev/2dnd/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/mbianchidev/2dnd/actions/workflows/codeql.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
@@ -12,9 +13,11 @@ combat.**
 Build a hero, recruit a party, cross a 90-chunk world, and complete
 the seven-chapter Twelvefold Covenant campaign.
 
-<img width="1154" height="952" alt="image" src="https://github.com/user-attachments/assets/43e6afcf-f33a-43d3-8097-e23715a1d000" />
+![A party facing a goblin raiding group in 2D&D](public/screenshots/showcase-battle.png)
 
-**[Play 2D&D now](https://mbianchidev.github.io/2dnd/)**
+**[Visit the showcase](https://mbianchidev.github.io/2dnd/)** |
+**[Play 2D&D now](https://mbianchidev.github.io/2dnd/game.html)** |
+**[Download desktop builds](https://github.com/mbianchidev/2dnd/releases/latest)**
 
 Current release: **v1.0.0**
 
@@ -59,9 +62,11 @@ the game in Chromium; other current evergreen browsers are expected to work but
 are not part of the automated browser gate.
 
 The source also includes a secure Electron target for macOS, Windows, and Linux.
-Desktop CI builds unsigned review artifacts, but the current v1.0.0 public
-release does not yet publish signed installers. See the
-[desktop guide](docs/desktop.md) for its security and packaging model.
+Pull requests produce short-lived unsigned review artifacts. A version tag that
+matches `package.json` runs the full release gate, packages all three platforms,
+and attaches the unsigned builds to the matching GitHub release. The current
+v1.0.0 release predates that publishing workflow. See the
+[desktop guide](docs/desktop.md) for security, signing, and packaging details.
 
 Campaign saves, accessibility/audio settings, and inventory-view preferences
 are stored locally in the current browser profile. Saves do not automatically
@@ -79,7 +84,8 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000` for the showcase or
+`http://localhost:3000/game.html` for the game.
 
 ```bash
 npm run typecheck      # Strict TypeScript validation

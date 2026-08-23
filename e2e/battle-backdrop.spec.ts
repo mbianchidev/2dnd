@@ -100,7 +100,7 @@ async function createCampaign(
     contrast: highContrast,
     reduceMotion: reducedMotion,
   });
-  await page.goto("./", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
   await clickGame(page, 320, 324);
   await waitForState(page, "BOOT | Screen: character");

@@ -1,0 +1,146 @@
+name: Release desktop builds
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Validate release tag
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          node -e "const manifest = require('./package.json'); const expected = 'v' + manifest.version; if (process.env.TAG_NAME !== expected) { console.error('Release tag ' + process.env.TAG_NAME + ' must match package version ' + expected); process.exit(1); }"
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "Release tags must point to a commit on main." >&2
+            exit 1
+          }
+
+      - run: npm ci
+      - run: npm audit
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: npm run build
+
+  package:
+    name: Package (${{ matrix.name }})
+    needs: verify
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            slug: linux
+            runner: ubuntu-latest
+            builderArgument: --linux
+          - name: macOS
+            slug: macos
+            runner: macos-latest
+            builderArgument: --mac
+          - name: Windows
+            slug: windows
+            runner: windows-latest
+            builderArgument: --win
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run generate:desktop-icons
+      - run: npm run build:desktop
+
+      - name: Install Linux runtime dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+
+      - name: Run Electron smoke test
+        if: runner.os != 'Linux'
+        run: npm run test:desktop:built
+
+      - name: Run Electron smoke test under Xvfb
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:desktop:built
+
+      - name: Build unsigned desktop packages
+        run: npm run package:desktop:ci -- ${{ matrix.builderArgument }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-${{ matrix.slug }}
+          retention-days: 5
+          if-no-files-found: error
+          path: |
+            release/*
+            !release/mac/
+            !release/mac-arm64/
+            !release/win-unpacked/
+            !release/linux-unpacked/
+
+  release:
+    name: Publish GitHub release
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: desktop-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create release and attach desktop packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          mapfile -d '' release_files < <(
+            find release-assets -type f \
+              \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' \
+                 -o -name '*.AppImage' -o -name '*.tar.gz' \) \
+              -print0 | sort -z
+          )
+          if (( ${#release_files[@]} == 0 )); then
+            echo "No desktop packages were downloaded." >&2
+            exit 1
+          fi
+          printf 'Desktop release assets:\n'
+          printf '  %s\n' "${release_files[@]}"
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "${release_files[@]}" --clobber
+          else
+            gh release create "$TAG_NAME" "${release_files[@]}" \
+              --verify-tag \
+              --generate-notes \
+              --title "2D&D $TAG_NAME"
+          fi

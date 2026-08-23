@@ -41,16 +41,19 @@ and changes spanning scenes, systems, data, renderers, or managers.
 - Shared audio/accessibility preferences: `src/systems/accessibility.ts`
 - Typed semantic actions and state: `src/systems/input.ts`
 - Keyboard/pointer/gamepad/touch adapter: `src/managers/input.ts`
+- Public showcase: `index.html`, `src/landing.css`, and game-generated captures
 - Secure desktop main/preload boundary: `electron/`
 - Production-like Electron flows: `electron-tests/`
 
-Packaged desktop builds load the unchanged renderer from `app://2dnd`.
-Electron must keep sandboxing and context isolation enabled, deny permissions
-and remote renderer requests, resolve only packaged `dist/` files, and expose
-only narrow typed preload APIs. Native code never mutates game state. Desktop
-diagnostics use bounded rotating files under user data; renderer error reports
-are length-limited. Save & Return to Title autosaves through the Phaser scene
-transition, while title-screen Quit Desktop uses validated zero-argument IPC.
+The web build serves the showcase from `index.html` and starts Phaser from
+`game.html`. Packaged desktop builds load that game entry directly from
+`app://2dnd/game.html`. Electron must keep sandboxing and context isolation
+enabled, deny permissions and remote renderer requests, resolve only packaged
+`dist/` files, and expose only narrow typed preload APIs. Native code never
+mutates game state. Desktop diagnostics use bounded rotating files under user
+data; renderer error reports are length-limited. Save & Return to Title
+autosaves through the Phaser scene transition, while title-screen Quit Desktop
+uses validated zero-argument IPC.
 
 The versioned `2dnd_preferences` document is separate from campaign saves and
 backs both title and in-game settings. Install the scene accessibility adapter

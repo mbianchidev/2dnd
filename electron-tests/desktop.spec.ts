@@ -165,6 +165,9 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await expect.poll(() => page.evaluate(() => location.origin)).toBe(
       "app://2dnd",
     );
+    await expect.poll(() => page.evaluate(() => location.pathname)).toBe(
+      "/game.html",
+    );
     const desktopState = await page.evaluate(() => window.desktop?.getState());
     expect(desktopState?.appVersion).toBe("1.0.0");
     expect(desktopState?.isFullscreen).toBe(false);

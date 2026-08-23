@@ -46,6 +46,7 @@ authoritative helper rather than reproducing formulas in assertions.
 
 The `e2e/*.spec.ts` suites own real browser behavior:
 
+- landing-page content, responsive layout, screenshots, and browser/download links
 - new game through campaign completion, ending, post-game, and reload
 - interrupted opening/ending/cutscene recovery and corrupt-save fallback
 - random and boss defeat recovery
@@ -58,13 +59,14 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   viewports
 
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
-a strict port. `hacks/run-browser-tests.mjs` allocates a free port and disables
-server reuse so tests cannot silently attach to stale code.
+a strict port. `e2e/landing.spec.ts` exercises the showcase root; Phaser flows
+open `game.html`. `hacks/run-browser-tests.mjs` allocates a free port and
+disables server reuse so tests cannot silently attach to stale code.
 
 ## Electron responsibilities
 
 `playwright.desktop.config.ts` launches the compiled production shell against
-the relative desktop renderer. The smoke flow verifies:
+the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
@@ -143,6 +145,9 @@ Chromium installation, full Playwright, and the production build for pull
 requests to `main`.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
-GitHub Pages deployment separately runs `npm ci`, Vitest, and the production
-build from `main`. `.github/workflows/desktop.yml` audits, builds, smoke-tests,
-and packages each desktop platform without signing or publishing.
+GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page
+production build from `main`. `.github/workflows/desktop.yml` audits, builds,
+smoke-tests, and packages each desktop platform without publishing.
+`.github/workflows/release.yml` accepts matching `v*` tags on `main`, reruns the
+full browser gate, smoke-tests and packages all desktop targets, then attaches
+the unsigned installers to the generated GitHub release.

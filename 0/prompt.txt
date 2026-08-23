@@ -1,0 +1,107 @@
+<copilot_tauri_workspace>
+project_session_id: 512c3a9a-20e0-421e-bce3-10363530ce74
+project_id: c8056b64-44ef-47c3-b7bc-b0c534e34f88
+project_name: 2dnd
+project_github_repo: mbianchidev/2dnd
+project_default_branch: main
+workspace_type: worktree
+workspace_name: main
+workspace_branch: cp-desktop-fantastic-eureka
+workspace_path: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-fantastic-eureka
+repo_root: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-fantastic-eureka
+default_branch: main
+base_branch: main
+original_generated_branch: cp-desktop-fantastic-eureka
+current_branch: cp-desktop-fantastic-eureka
+</copilot_tauri_workspace>
+
+<copilot_working_context>
+container_kind: repository
+current_working_directory: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-fantastic-eureka
+current_working_directory_is_git_repo: true
+checkout_strategy: worktree
+member_repositories:
+- repo_name: 2dnd
+  repo_full_name: mbianchidev/2dnd
+  main_checkout_path: /Users/mbianchidev/.copilot/repos/mbianchidev/2dnd
+  main_checkout_branch: main
+  current_checkout_kind: worktree
+  current_checkout_path: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-fantastic-eureka
+  current_checkout_branch: cp-desktop-fantastic-eureka
+</copilot_working_context>
+
+<copilot_artifacts>
+artifacts_dir: /Users/mbianchidev/.copilot/session-state/ad2c8210-3106-4a40-97fa-2517270bead3/files
+Write scratch artifacts (plans, task lists, notes) in this folder instead of the repo.
+</copilot_artifacts>
+
+<branch_rename_request>
+Before creating or editing any files, call the rename_branch tool with a kebab-case version of the session name you chose.
+</branch_rename_request>
+
+Work on GitHub repository mbianchidev/2dnd.
+
+Goal:
+Support both the existing GitHub Pages URL and the future custom domain
+https://2dnd.mbianchi.dev/, without affecting local development or Electron builds.
+
+Instructions:
+
+1. Read AGENTS.md and repository documentation before editing.
+2. Create a branch from main. Never push directly to main.
+3. Inspect:
+
+    - vite.config.ts
+    - .github/workflows/deploy.yml
+    - playwright.config.ts
+    - docs/release.md
+    - README.md
+
+4. Update the Pages workflow:
+
+    - Add actions/configure-pages before the build, with id: pages.
+    - Pass this build environment variable:
+
+     VITE\_BASE\_PATH: ${{ steps.pages.outputs.base\_path }}/
+
+    - Keep npm run build and dist/ as the build command and artifact.
+    - Preserve Pages permissions and the github-pages environment.
+    - Pin all actions to verified immutable commit SHAs using current stable releases.
+    - Do not hardcode either /2dnd/ or / in the workflow.
+
+5. Preserve Vite behavior:
+
+    - GitHub project Pages must build with /2dnd/.
+    - A custom domain must build with /.
+    - Local development must remain /.
+    - Electron desktop builds must remain ./.
+    - Do not change gameplay or Electron code.
+
+6. Update docs/release.md to explain the dynamic Pages base path and custom-domain deployment.
+   Document that changing origin means existing localStorage saves do not transfer automatically.
+   Update README links only if appropriate for the deployment state.
+7. Validate:
+
+    - npm ci
+    - npm audit --audit-level=high
+    - npm run typecheck
+    - npm test
+    - npm run test:browser
+    - npm run build with VITE\_BASE\_PATH=/2dnd/
+    - verify dist/index.html references /2dnd/assets/
+    - npm run build with VITE\_BASE\_PATH=/
+    - verify dist/index.html references /assets/
+    - npm run build:desktop
+    - actionlint on modified workflows, if available
+
+8. Review the complete diff for deployment, routing, security, and desktop regressions.
+9. Commit with --no-gpg-sign without assistant/tool attribution. Push the branch and open a PR.
+   Do not merge it. Watch CI and resolve every failure or review comment.
+
+Include these post-merge steps in the PR:
+
+1. Set the Pages custom domain to 2dnd.mbianchi.dev. (done by human)
+2. Add DNS: CNAME 2dnd -> mbianchidev.github.io. (done by human)
+3. Rerun the Pages workflow so it rebuilds with base /.
+4. Wait for certificate issuance and enable Enforce HTTPS.
+5. Verify HTTPS, root asset paths, gameplay startup, and save behavior.

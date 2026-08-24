@@ -125,6 +125,7 @@ export class BootScene extends Phaser.Scene {
     if (!keyboard) {
       throw new Error("[BootScene] Keyboard input is unavailable");
     }
+    const boundAt = performance.now();
     const bindings: ReadonlyArray<
       readonly [string, () => void, repeatable: boolean]
     > = [
@@ -137,7 +138,7 @@ export class BootScene extends Phaser.Scene {
     ];
     for (const [eventName, handler, repeatable] of bindings) {
       keyboard.on(eventName, (event: KeyboardEvent) => {
-        if (!repeatable && event.repeat) return;
+        if (event.timeStamp <= boundAt || (!repeatable && event.repeat)) return;
         handler();
       });
     }

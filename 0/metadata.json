@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01M0SYHW6QB2GZSJV02NREDG32",
+  "session_id": "e7b15286-387b-4026-8ad6-1510258da62a",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-24T13:15:03.357179Z",
+  "branch": "cp-desktop-fix-mobile-controls",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/scenes/Boot.ts"
+  ],
+  "agent": "Copilot CLI",
+  "model": "",
+  "turn_id": "66747ded00b5",
+  "checkpoint_transcript_start": 1083,
+  "transcript_lines_at_start": 1083,
+  "compact_transcript_start": 101,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 4068,
+    "api_call_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-24T13:15:03.178356Z",
+    "agent_lines": 2,
+    "agent_removed": 1,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2,
+    "total_lines_changed": 3,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

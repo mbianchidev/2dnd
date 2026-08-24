@@ -962,6 +962,9 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Touch controls are procedural DOM controls with safe-area/orientation CSS,
   pointer capture for held directions, pointer-release pulses with a click
   fallback for discrete actions, and simultaneous movement/action support.
+- Match D-pad navigation to visual grid rows and columns. Character creation
+  must support directional selection plus A/confirm and B/cancel. Show MENU and
+  TIPS touch actions only during safe exploration.
 - Clear held input and synthetic keys on blur, visibility loss, gamepad
   disconnect, scene changes, and runtime destruction.
 - Resolve key conflicts by semantic context/priority. Never map production

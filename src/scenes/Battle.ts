@@ -89,6 +89,10 @@ import { SceneTransitionManager } from "../managers/sceneTransition";
 import {
   installSceneAccessibility,
 } from "../systems/accessibility";
+import {
+  moveGridSelection,
+  type GridNavigationDirection,
+} from "../systems/layout";
 import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../data/cutscenes";
 import {
   applyPartyDefeat,
@@ -472,13 +476,17 @@ export class BattleScene extends Phaser.Scene {
       if (this.pendingTargetAction) this.cancelTargetSelection();
       else this.closeAllSubMenus();
     });
-    const navigateHorizontal = (direction: number): void => {
+    const navigateHorizontal = (direction: -1 | 1): void => {
       if (this.pendingTargetAction) this.cycleTarget(direction);
-      else this.battleMenuPageChange(direction);
+      else if (!this.battleMenuPageChange(direction)) {
+        this.cycleActionSelection(direction < 0 ? "left" : "right");
+      }
     };
-    const navigateVertical = (direction: number): void => {
+    const navigateVertical = (direction: -1 | 1): void => {
       if (this.pendingTargetAction) this.cycleTarget(direction);
-      else this.cycleActionSelection(direction);
+      else if (!this.hasOpenBattleSubMenu()) {
+        this.cycleActionSelection(direction < 0 ? "up" : "down");
+      }
     };
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT).on("down", () => navigateHorizontal(-1));
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT).on("down", () => navigateHorizontal(1));
@@ -778,7 +786,7 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  private cycleActionSelection(direction: number): void {
+  private cycleActionSelection(direction: GridNavigationDirection): void {
     if (
       this.phase !== "playerTurn"
       || this.pendingTargetAction
@@ -786,9 +794,12 @@ export class BattleScene extends Phaser.Scene {
     ) {
       return;
     }
-    this.selectedActionIndex = (
-      this.selectedActionIndex + direction + this.actionButtonActions.length
-    ) % this.actionButtonActions.length;
+    this.selectedActionIndex = moveGridSelection(
+      this.selectedActionIndex,
+      this.actionButtonActions.length,
+      2,
+      direction,
+    );
     this.updateButtonStates();
   }
 
@@ -1195,8 +1206,14 @@ export class BattleScene extends Phaser.Scene {
       .setVisible(true);
   }
 
+  private hasOpenBattleSubMenu(): boolean {
+    return this.spellMenu !== null
+      || this.abilityMenu !== null
+      || this.itemMenu !== null;
+  }
+
   /** Handle A/D or Left/Right paging in open battle sub-menus. */
-  private battleMenuPageChange(dir: number): void {
+  private battleMenuPageChange(dir: number): boolean {
     if (this.spellMenu) {
       this.battleSpellPage += dir;
       this.showSpellMenu(true);
@@ -1206,7 +1223,10 @@ export class BattleScene extends Phaser.Scene {
     } else if (this.itemMenu) {
       this.battleItemPage += dir;
       this.showItemMenu(true);
+    } else {
+      return false;
     }
+    return true;
   }
 
   private showSpellMenu(keepPage = false): void {
@@ -1942,6 +1962,9 @@ export class BattleScene extends Phaser.Scene {
   private updateDebugPanel(): void {
     const p = this.player;
     const defInfo = this.playerDefending ? " [DEF+2]" : "";
+    const selectedAction = this.actionButtonLabels[
+      this.selectedActionIndex
+    ]?.label ?? "-";
     const monsters = this.combatants
       .map((combatant) =>
         `${combatant.label} ${combatant.currentHp}/${combatant.monster.hp}`
@@ -1953,6 +1976,7 @@ export class BattleScene extends Phaser.Scene {
       `BATTLE | Phase: ${this.phase} | ` +
       `Anim: ${this.battlePresentation?.debugState ?? "init"} | ` +
       `Backdrop: ${this.biome}/${getTimePeriod(this.timeStep)}/${this.weatherState.current} | ` +
+      `Action: ${selectedAction} | ` +
       `Monsters: ${monsters} | ` +
       `Player: HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} AC ${getArmorClass(p)}${defInfo} | ` +
       `Lv.${p.level} XP ${p.xp}/${xpForLevel(p.level + 1)} Gold ${p.gold}\n` +

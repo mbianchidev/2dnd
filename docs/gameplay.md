@@ -143,6 +143,8 @@ from Tips.
 Menus, shortcuts, tabs, prompts, touch actions, and advanced Tips reveal from
 authoritative gameplay evidence. Safety-critical surfaces such as Inventory,
 Map, Equipment, Tips, Settings, save, and title controls remain available.
+On touch devices, the MENU and TIPS buttons appear only during exploration,
+when those overlays can safely open.
 
 Accessibility and presentation settings include:
 

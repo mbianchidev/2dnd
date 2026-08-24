@@ -104,6 +104,10 @@ screens or duplicate state changes.
 dead zones, repeats, source switching, and duplicate suppression.
 `src/managers/input.ts` is the only browser adapter for keyboard, pointer,
 gamepad, and touch.
+Spatial button grids use shared layout navigation so all four directions match
+their visual rows and columns. Character creation supports D-pad navigation plus
+confirm/cancel throughout. MENU and TIPS touch buttons appear only in the safe
+exploration context.
 
 Feature visibility and action gating live in
 `src/data/featureDiscovery.ts` and `src/systems/featureDiscovery.ts`. Hidden

@@ -5,6 +5,8 @@ import {
   SemanticInputState,
   inputPromptSource,
   inputSource,
+  isInputAction,
+  isTouchActionAvailable,
   normalizeAnalogAxis,
   resolveGamepadAction,
   type InputAction,
@@ -149,7 +151,7 @@ export class SemanticInputRuntime {
       this.applyControlPreferences();
     });
     this.unsubscribeFeatures = featureAvailability.subscribe(() => {
-      this.applyFeatureAvailability();
+      this.applyTouchActionAvailability();
     });
     this.applyControlPreferences();
     this.animationFrame = window.requestAnimationFrame(this.poll);
@@ -187,6 +189,7 @@ export class SemanticInputRuntime {
       this.activeContext = context;
       this.cursorActive = false;
       this.updateCursor();
+      this.applyTouchActionAvailability(context);
     }
     this.pollGamepads(timestamp);
     for (const event of this.state.update(timestamp)) this.dispatch(event);
@@ -626,20 +629,27 @@ export class SemanticInputRuntime {
     }
     document.getElementById("game-inner")?.append(root);
     this.touchRoot = root;
-    this.applyFeatureAvailability();
+    this.applyTouchActionAvailability();
   }
 
-  private applyFeatureAvailability(): void {
+  private applyTouchActionAvailability(context = this.getContext()): void {
     if (!this.touchRoot) return;
     for (const button of this.touchRoot.querySelectorAll<HTMLButtonElement>(
       ".touch-control",
     )) {
       const action = button.dataset.action;
-      const featureId = action
-        ? getInputActionFeature(action as InputAction)
-        : undefined;
-      button.hidden = featureId !== undefined
-        && !featureAvailability.has(featureId);
+      if (!isInputAction(action)) {
+        button.hidden = true;
+        continue;
+      }
+      const featureId = getInputActionFeature(action);
+      const featureEnabled = featureId === undefined
+        || featureAvailability.has(featureId);
+      button.hidden = !isTouchActionAvailable(
+        action,
+        context,
+        featureEnabled,
+      );
     }
   }
 

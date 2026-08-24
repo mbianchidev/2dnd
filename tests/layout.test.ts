@@ -7,6 +7,7 @@ import {
   insetRect,
   layoutResponsiveGrid,
   layoutVerticalStack,
+  moveGridSelection,
   paginateMeasuredItems,
   restoreLayoutFocus,
   wrapMeasuredText,
@@ -69,6 +70,17 @@ describe("measured UI layout", () => {
     });
     expect(wide.columns).toBe(3);
     expect(wide.height).toBe(40);
+  });
+
+  it("moves focus spatially through complete and partial grids", () => {
+    expect(moveGridSelection(0, 6, 2, "right")).toBe(1);
+    expect(moveGridSelection(1, 6, 2, "down")).toBe(3);
+    expect(moveGridSelection(3, 6, 2, "left")).toBe(2);
+    expect(moveGridSelection(2, 6, 2, "up")).toBe(0);
+    expect(moveGridSelection(4, 5, 2, "right")).toBe(4);
+    expect(moveGridSelection(3, 5, 2, "down")).toBe(1);
+    expect(moveGridSelection(99, 6, 2, "down")).toBe(1);
+    expect(moveGridSelection(0, 0, 2, "down")).toBe(-1);
   });
 
   it("paginates measured rows without splitting a wrapped row", () => {

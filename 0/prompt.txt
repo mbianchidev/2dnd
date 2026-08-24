@@ -1,0 +1,42 @@
+<copilot_tauri_workspace>
+project_session_id: 919efa1a-28b6-4353-98ea-a7e0919f1c6e
+project_id: c8056b64-44ef-47c3-b7bc-b0c534e34f88
+project_name: 2dnd
+project_github_repo: mbianchidev/2dnd
+project_default_branch: main
+workspace_type: worktree
+workspace_name: main
+workspace_branch: cp-desktop-musical-system
+workspace_path: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-musical-system
+repo_root: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-musical-system
+default_branch: main
+base_branch: main
+original_generated_branch: cp-desktop-musical-system
+current_branch: cp-desktop-musical-system
+</copilot_tauri_workspace>
+
+<copilot_working_context>
+container_kind: repository
+current_working_directory: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-musical-system
+current_working_directory_is_git_repo: true
+checkout_strategy: worktree
+member_repositories:
+- repo_name: 2dnd
+  repo_full_name: mbianchidev/2dnd
+  main_checkout_path: /Users/mbianchidev/.copilot/repos/mbianchidev/2dnd
+  main_checkout_branch: main
+  current_checkout_kind: worktree
+  current_checkout_path: /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-musical-system
+  current_checkout_branch: cp-desktop-musical-system
+</copilot_working_context>
+
+<copilot_artifacts>
+artifacts_dir: /Users/mbianchidev/.copilot/session-state/3181ac25-6ff0-4a82-8660-66ada30ffc5b/files
+Write scratch artifacts (plans, task lists, notes) in this folder instead of the repo.
+</copilot_artifacts>
+
+<branch_rename_request>
+Before creating or editing any files, call the rename_branch tool with a kebab-case version of the session name you chose.
+</branch_rename_request>
+
+On the browser via phone the buttons DO NOT work. Fix it.

@@ -169,7 +169,10 @@ test("secure desktop shell persists a campaign across launches", async () => {
       "/game.html",
     );
     const desktopState = await page.evaluate(() => window.desktop?.getState());
-    expect(desktopState?.appVersion).toBe("1.0.0");
+    const manifest = JSON.parse(
+      await readFile(join(APP_ROOT, "package.json"), "utf8"),
+    ) as { version: string };
+    expect(desktopState?.appVersion).toBe(manifest.version);
     expect(desktopState?.isFullscreen).toBe(false);
     logPath = desktopState?.logPath ?? "";
     expect(logPath).toBe(join(userDataDirectory, "logs", "2dnd.log"));

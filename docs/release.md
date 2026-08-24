@@ -17,7 +17,7 @@ The root URL presents the showcase; **Play in browser** opens `game.html`. The
 repository also builds an Electron desktop target for macOS, Windows, and Linux.
 Pull requests produce unsigned review artifacts. Matching version tags publish
 unsigned desktop packages to GitHub Releases after all release gates pass. The
-current v1.0.0 release predates that publishing workflow.
+v1.0.0 release predates that publishing workflow.
 
 ## GitHub Pages
 

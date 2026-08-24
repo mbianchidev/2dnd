@@ -2,6 +2,19 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("tagged desktop release workflow", () => {
+  it("keeps package release metadata synchronized", async () => {
+    const manifest = JSON.parse(
+      await readFile("package.json", "utf8"),
+    ) as { version: string };
+    const lockfile = JSON.parse(
+      await readFile("package-lock.json", "utf8"),
+    ) as { version: string; packages: Record<string, { version: string }> };
+
+    expect(manifest.version).toBe("1.1.0");
+    expect(lockfile.version).toBe(manifest.version);
+    expect(lockfile.packages[""].version).toBe(manifest.version);
+  });
+
   it("verifies, packages, and publishes every supported platform", async () => {
     const workflow = await readFile(".github/workflows/release.yml", "utf8");
 

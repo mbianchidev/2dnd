@@ -1,0 +1,13 @@
+In /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-sturdy-doodle, run `npm run test:browser`. Do not modify files. Report success briefly, or full relevant failure output.
+
+---
+
+In /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-sturdy-doodle, run `npm run test:desktop`. Do not modify files. Report success briefly, or full relevant failure output.
+
+---
+
+In /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-sturdy-doodle, run `npm run build`. Do not modify source files. Report success briefly, or full relevant failure output.
+
+---
+
+In /Users/mbianchidev/.copilot/copilot-worktrees/2dnd/cp-desktop-sturdy-doodle, run `npm run build:desktop`. Do not modify source files. Report success briefly, or full relevant failure output.

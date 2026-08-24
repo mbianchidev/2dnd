@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "01M0SXPNKFTQYQYBJM97555Y47",
+  "strategy": "manual-commit",
+  "branch": "cp-desktop-fix-mobile-controls",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/game-development/SKILL.md",
+    ".github/skills/phaser-scene-management/SKILL.md",
+    "docs/architecture.md",
+    "docs/gameplay.md",
+    "e2e/semantic-controls.spec.ts",
+    "src/managers/input.ts",
+    "src/scenes/Battle.ts",
+    "src/scenes/Boot.ts",
+    "src/systems/input.ts",
+    "src/systems/layout.ts",
+    "tests/input.test.ts",
+    "tests/layout.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 103369,
+    "api_call_count": 95
+  }
+}

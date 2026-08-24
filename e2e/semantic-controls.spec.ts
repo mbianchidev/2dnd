@@ -32,6 +32,24 @@ async function tapGame(
   await page.touchscreen.tap(point.x, point.y);
 }
 
+async function dispatchTouchControlPointer(
+  page: Page,
+  action: string,
+  endType: "pointerup" | "pointercancel",
+  pointerId: number,
+): Promise<void> {
+  const button = page.locator(`[data-action="${action}"]`);
+  const eventInit = {
+    pointerId,
+    pointerType: "touch",
+    isPrimary: true,
+    bubbles: true,
+    cancelable: true,
+  };
+  await button.dispatchEvent("pointerdown", eventInit);
+  await button.dispatchEvent(endType, eventInit);
+}
+
 async function clickGame(
   page: Page,
   gameX: number,
@@ -178,7 +196,14 @@ test.describe("touch controls", () => {
     await page.goto("game.html", { waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
     await expect(page.locator("#touch-controls")).toHaveClass(/visible/);
-    await page.locator('[data-action="confirm"]').tap();
+    await dispatchTouchControlPointer(
+      page,
+      "confirm",
+      "pointercancel",
+      41,
+    );
+    await waitForState(page, "BOOT | Screen: title");
+    await dispatchTouchControlPointer(page, "confirm", "pointerup", 42);
     await waitForState(page, "BOOT | Screen: character");
 
     await page.locator('[data-action="navigateUp"]').tap();

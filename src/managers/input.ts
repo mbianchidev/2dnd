@@ -103,6 +103,7 @@ const HELD_TOUCH_ACTIONS = new Set<InputAction>([
   "navigateLeft",
   "navigateRight",
 ]);
+const TOUCH_CLICK_SUPPRESSION_MS = 500;
 
 function isTouchDevice(): boolean {
   return navigator.maxTouchPoints > 0
@@ -559,9 +560,17 @@ export class SemanticInputRuntime {
       button.type = "button";
       button.className = `touch-control ${definition.className}`;
       button.dataset.action = definition.action;
-      button.dataset.action = definition.action;
       button.textContent = definition.label;
       button.setAttribute("aria-label", definition.action);
+      let lastPointerActivation = Number.NEGATIVE_INFINITY;
+      const pulse = (): void => {
+        const inputEvent = this.state.pulse(
+          this.contextualizeAction(definition.action),
+          "touch",
+          now(),
+        );
+        if (inputEvent) this.dispatch(inputEvent);
+      };
       button.addEventListener("pointerdown", (event) => {
         event.preventDefault();
         if (!HELD_TOUCH_ACTIONS.has(definition.action)) {
@@ -582,8 +591,7 @@ export class SemanticInputRuntime {
           }
         }
       });
-      const release = (event: PointerEvent): void => {
-        if (!HELD_TOUCH_ACTIONS.has(definition.action)) return;
+      const releaseHeld = (event: PointerEvent): void => {
         const token = `touch:${event.pointerId}:${definition.action}`;
         this.state.release(token);
         window.setTimeout(() => this.releaseSyntheticToken(token), 40);
@@ -591,20 +599,28 @@ export class SemanticInputRuntime {
           button.releasePointerCapture(event.pointerId);
         }
       };
-      button.addEventListener("pointerup", release);
-      button.addEventListener("pointercancel", release);
+      button.addEventListener("pointerup", (event) => {
+        event.preventDefault();
+        if (HELD_TOUCH_ACTIONS.has(definition.action)) {
+          releaseHeld(event);
+          return;
+        }
+        lastPointerActivation = now();
+        pulse();
+      });
+      button.addEventListener("pointercancel", (event) => {
+        if (HELD_TOUCH_ACTIONS.has(definition.action)) releaseHeld(event);
+      });
       button.addEventListener("lostpointercapture", (event) => {
-        this.state.release(`touch:${event.pointerId}:${definition.action}`);
+        const token = `touch:${event.pointerId}:${definition.action}`;
+        this.state.release(token);
+        window.setTimeout(() => this.releaseSyntheticToken(token), 40);
       });
       button.addEventListener("click", (event) => {
         if (HELD_TOUCH_ACTIONS.has(definition.action)) return;
         event.preventDefault();
-        const inputEvent = this.state.pulse(
-          this.contextualizeAction(definition.action),
-          "touch",
-          now(),
-        );
-        if (inputEvent) this.dispatch(inputEvent);
+        if (now() - lastPointerActivation <= TOUCH_CLICK_SUPPRESSION_MS) return;
+        pulse();
       });
       root.append(button);
     }

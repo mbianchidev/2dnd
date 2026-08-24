@@ -960,8 +960,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   stick owns a visible virtual cursor for pointer-first surfaces, and pressing
   it clicks without replacing the normal A/confirm action.
 - Touch controls are procedural DOM controls with safe-area/orientation CSS,
-  pointer capture for held directions, click pulses for discrete actions, and
-  simultaneous movement/action support.
+  pointer capture for held directions, pointer-release pulses with a click
+  fallback for discrete actions, and simultaneous movement/action support.
 - Clear held input and synthetic keys on blur, visibility loss, gamepad
   disconnect, scene changes, and runtime destruction.
 - Resolve key conflicts by semantic context/priority. Never map production

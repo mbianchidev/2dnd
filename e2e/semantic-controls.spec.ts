@@ -196,6 +196,8 @@ test.describe("touch controls", () => {
     await page.goto("game.html", { waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
     await expect(page.locator("#touch-controls")).toHaveClass(/visible/);
+    await expect(page.locator('[data-action="openMenu"]')).toBeHidden();
+    await expect(page.locator('[data-action="openTips"]')).toBeHidden();
     await dispatchTouchControlPointer(
       page,
       "confirm",
@@ -204,7 +206,17 @@ test.describe("touch controls", () => {
     );
     await waitForState(page, "BOOT | Screen: title");
     await dispatchTouchControlPointer(page, "confirm", "pointerup", 42);
-    await waitForState(page, "BOOT | Screen: character");
+    await waitForState(page, "BOOT | Screen: character [CLASS:knight]");
+    await page.locator('[data-action="navigateDown"]').tap();
+    await waitForState(page, "[CLASS:rogue]");
+    await page.locator('[data-action="navigateUp"]').tap();
+    await waitForState(page, "[CLASS:knight]");
+    await page.locator('[data-action="cancel"]').tap();
+    await waitForState(page, "BOOT | Screen: title");
+    await page.locator('[data-action="confirm"]').tap();
+    await waitForState(page, "BOOT | Screen: character [CLASS:knight]");
+    await expect(page.locator('[data-action="openMenu"]')).toBeHidden();
+    await expect(page.locator('[data-action="openTips"]')).toBeHidden();
 
     await page.locator('[data-action="navigateUp"]').tap();
     await tapGame(page, 320, 76);
@@ -221,12 +233,24 @@ test.describe("touch controls", () => {
     await waitForState(page, "BOOT | Screen: character");
     await tapGame(page, 284, 160);
     await page.locator('[data-action="confirm"]').tap();
-    await waitForState(page, "BOOT | Screen: stats");
+    await waitForState(page, "BOOT | Screen: stats [STAT:strength]");
+    await page.locator('[data-action="navigateDown"]').tap();
+    await waitForState(page, "[STAT:dexterity]");
+    await page.locator('[data-action="cancel"]').tap();
+    await waitForState(page, "BOOT | Screen: character [CLASS:ranger]");
+    await page.locator('[data-action="confirm"]').tap();
+    await waitForState(page, "BOOT | Screen: stats [STAT:strength]");
     await tapGame(page, 390, 64);
-    await tapGame(page, 400, 460);
-    await waitForState(page, "BOOT | Screen: appearance");
+    await page.locator('[data-action="confirm"]').tap();
+    await waitForState(page, "BOOT | Screen: appearance [GROUP:1/3]");
+    await page.locator('[data-action="navigateDown"]').tap();
+    await waitForState(page, "[GROUP:2/3]");
+    await page.locator('[data-action="cancel"]').tap();
+    await waitForState(page, "BOOT | Screen: stats [STAT:strength] [MODE:random]");
+    await page.locator('[data-action="confirm"]').tap();
+    await waitForState(page, "BOOT | Screen: appearance [GROUP:1/3]");
     await tapGame(page, 320, 112);
-    await tapGame(page, 420, 312);
+    await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "CUTSCENE");
     expect(await page.evaluate(() => {
       const save = JSON.parse(localStorage.getItem("2dnd_save")!);
@@ -234,10 +258,14 @@ test.describe("touch controls", () => {
     })).toBe("Touch Hero");
     await drainOpening(page, "touch");
     await completeTutorialByTouch(page);
+    await expect(page.locator('[data-action="openMenu"]')).toBeVisible();
+    await expect(page.locator('[data-action="openTips"]')).toBeVisible();
     await submitDebug(page, "/gather reset");
     await submitDebug(page, "/event trigger abandonedSupplyCart");
     await waitForState(page, "[WORLD_EVENT:abandonedSupplyCart]");
     await waitForState(page, "[WORLD_EVENT_SELECTION:1/2]");
+    await expect(page.locator('[data-action="openMenu"]')).toBeHidden();
+    await expect(page.locator('[data-action="openTips"]')).toBeHidden();
     await expectCleanLayout(page);
     await page.locator('[data-action="navigateDown"]').tap();
     await waitForState(page, "[WORLD_EVENT_SELECTION:2/2]");
@@ -279,6 +307,8 @@ test.describe("touch controls", () => {
 
     await page.locator('[data-action="openMenu"]').tap();
     await waitForState(page, "[MENU]");
+    await expect(page.locator('[data-action="openMenu"]')).toBeHidden();
+    await expect(page.locator('[data-action="openTips"]')).toBeHidden();
     await page.locator('[data-action="cancel"]').tap();
     await expect(page.locator("#debug-state")).not.toContainText("[MENU]");
     await submitDebug(page, "/feature reveal party");
@@ -295,6 +325,15 @@ test.describe("touch controls", () => {
     await expect(page.locator("#touch-controls")).toHaveClass(/visible/);
     await expect(page.locator('[data-action="confirm"]')).toBeInViewport();
     await expect(page.locator('[data-action="navigateLeft"]')).toBeInViewport();
+    await submitDebug(page, "/spawn goblin");
+    await waitForState(page, "Phase: playerTurn");
+    await waitForState(page, "Action: Attack");
+    await expect(page.locator('[data-action="openMenu"]')).toBeHidden();
+    await expect(page.locator('[data-action="openTips"]')).toBeHidden();
+    await page.locator('[data-action="navigateRight"]').tap();
+    await waitForState(page, "Action: Defend");
+    await page.locator('[data-action="navigateLeft"]').tap();
+    await waitForState(page, "Action: Attack");
     expect(browserErrors).toEqual([]);
   });
 });

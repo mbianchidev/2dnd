@@ -5,6 +5,7 @@ import {
   SemanticInputState,
   STANDARD_GAMEPAD_BINDINGS,
   isRepeatableAction,
+  isTouchActionAvailable,
   mapKeyboardCode,
   normalizeAnalogAxis,
   resolveGamepadAction,
@@ -54,6 +55,15 @@ describe("semantic input mappings", () => {
     expect(isRepeatableAction("navigateDown")).toBe(true);
     expect(isRepeatableAction("confirm")).toBe(false);
     expect(isRepeatableAction("openMenu")).toBe(false);
+  });
+
+  it("shows menu and Tips touch actions only during exploration", () => {
+    expect(isTouchActionAvailable("openMenu", "exploration")).toBe(true);
+    expect(isTouchActionAvailable("openTips", "exploration")).toBe(true);
+    expect(isTouchActionAvailable("openMenu", "battle")).toBe(false);
+    expect(isTouchActionAvailable("openTips", "characterCreation")).toBe(false);
+    expect(isTouchActionAvailable("confirm", "battle")).toBe(true);
+    expect(isTouchActionAvailable("openMenu", "exploration", false)).toBe(false);
   });
 });
 

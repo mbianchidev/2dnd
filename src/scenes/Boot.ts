@@ -43,10 +43,30 @@ import {
   createOverlayContainer,
   createPanelGraphics,
 } from "../utils/ui";
+import {
+  moveGridSelection,
+  type GridNavigationDirection,
+} from "../systems/layout";
 
 const BOOT_TEXTURE_MEASURE = "2dnd:boot-textures";
 const BOOT_TEXTURE_START_MARK = `${BOOT_TEXTURE_MEASURE}:start`;
 const BOOT_TEXTURE_END_MARK = `${BOOT_TEXTURE_MEASURE}:end`;
+
+type CharacterStatMode = "pointbuy" | "random";
+
+interface CharacterStatSelection {
+  stats: PlayerStats;
+  mode: CharacterStatMode;
+}
+
+interface CharacterCreationControlHandlers {
+  up(): void;
+  down(): void;
+  left(): void;
+  right(): void;
+  confirm(): void;
+  cancel(): void;
+}
 
 export class BootScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
@@ -98,8 +118,37 @@ export class BootScene extends Phaser.Scene {
     return `${app.playstyle} | ${boostParts} | d${app.hitDie} HP`;
   }
 
+  private bindCharacterCreationControls(
+    handlers: CharacterCreationControlHandlers,
+  ): void {
+    const keyboard = this.input.keyboard;
+    if (!keyboard) {
+      throw new Error("[BootScene] Keyboard input is unavailable");
+    }
+    const bindings: ReadonlyArray<
+      readonly [string, () => void, repeatable: boolean]
+    > = [
+      ["keydown-UP", handlers.up, true],
+      ["keydown-DOWN", handlers.down, true],
+      ["keydown-LEFT", handlers.left, true],
+      ["keydown-RIGHT", handlers.right, true],
+      ["keydown-ENTER", handlers.confirm, false],
+      ["keydown-ESC", handlers.cancel, false],
+    ];
+    for (const [eventName, handler, repeatable] of bindings) {
+      keyboard.on(eventName, (event: KeyboardEvent) => {
+        if (!repeatable && event.repeat) return;
+        handler();
+      });
+    }
+  }
+
 
   private showTitleScreen(): void {
+    this.saveSlotManager.close();
+    this.children.removeAll(true);
+    this.tweens.killAll();
+    this.input.keyboard!.removeAllListeners();
     this.updateTitleDebugState();
     const cx = this.cameras.main.centerX;
     const cy = this.cameras.main.centerY;
@@ -373,7 +422,10 @@ export class BootScene extends Phaser.Scene {
     });
   }
 
-  private showCharacterCreation(): void {
+  private showCharacterCreation(
+    initialName = "Hero",
+    initialClassId = PLAYER_CLASSES[0]?.id ?? "",
+  ): void {
     this.saveSlotManager.close();
     debugPanelState("BOOT | Screen: character");
     // Clear the title screen
@@ -400,7 +452,7 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    let playerName = "Hero";
+    let playerName = initialName;
     const nameInputReadyAt = performance.now() + 75;
     const nameText = this.add
       .text(cx, nameLabel.y + nameLabel.height + 3, playerName, {
@@ -439,7 +491,11 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    let selectedAppearance = PLAYER_CLASSES[0];
+    let selectedClassIndex = Math.max(
+      0,
+      PLAYER_CLASSES.findIndex((entry) => entry.id === initialClassId),
+    );
+    let selectedAppearance = PLAYER_CLASSES[selectedClassIndex]!;
 
     // Class option grid
     const cols = 4;
@@ -450,55 +506,6 @@ export class BootScene extends Phaser.Scene {
 
     const optionHighlights: Phaser.GameObjects.Graphics[] = [];
 
-    PLAYER_CLASSES.forEach((app, i) => {
-      const ox = startX + (i % cols) * optW;
-      const oy = startY + Math.floor(i / cols) * optH;
-
-      // Highlight box
-      const hl = this.add.graphics();
-      hl.lineStyle(2, app.id === selectedAppearance.id ? 0xffd700 : 0x444444, 1);
-      if (app.id === selectedAppearance.id) {
-        hl.fillStyle(0xffd700, 0.1);
-        hl.fillRect(ox - 28, oy - 22, 56, 62);
-      }
-      hl.strokeRect(ox - 28, oy - 22, 56, 62);
-      optionHighlights.push(hl);
-
-      // Sprite preview
-      this.add.sprite(ox, oy, `player_${app.id}`).setScale(1.8);
-
-      // Label
-      this.add
-        .text(ox, oy + 24, app.label, {
-          fontSize: "10px",
-          fontFamily: "monospace",
-          color: "#ccc",
-          stroke: "#000",
-          strokeThickness: 2,
-        })
-        .setOrigin(0.5, 0);
-
-      // Make the whole box clickable
-      const hitZone = this.add.zone(ox, oy + 10, 56, 62).setInteractive({ useHandCursor: true });
-      hitZone.on("pointerdown", () => {
-        selectedAppearance = app;
-        // Update highlights
-        optionHighlights.forEach((h, j) => {
-          h.clear();
-          const isSelected = PLAYER_CLASSES[j].id === app.id;
-          h.lineStyle(2, isSelected ? 0xffd700 : 0x444444, 1);
-          if (isSelected) {
-            h.fillStyle(0xffd700, 0.1);
-          }
-          const hx = startX + (j % cols) * optW;
-          const hy = startY + Math.floor(j / cols) * optH;
-          if (isSelected) h.fillRect(hx - 28, hy - 22, 56, 62);
-          h.strokeRect(hx - 28, hy - 22, 56, 62);
-        });
-      });
-    });
-
-    // Class info panel (description + playstyle + stat boosts)
     const infoPanelY = startY + Math.ceil(PLAYER_CLASSES.length / cols) * optH + 4;
     const classDescText = this.add
       .text(cx, infoPanelY, selectedAppearance.description, {
@@ -520,28 +527,48 @@ export class BootScene extends Phaser.Scene {
       classBoostText.setText(this.formatClassInfo(app));
     };
 
-    // Re-wire class selection to also update info panel
+    const renderClassSelection = (): void => {
+      selectedAppearance = PLAYER_CLASSES[selectedClassIndex]!;
+      optionHighlights.forEach((highlight, index) => {
+        const selected = index === selectedClassIndex;
+        const x = startX + (index % cols) * optW;
+        const y = startY + Math.floor(index / cols) * optH;
+        highlight.clear();
+        highlight.lineStyle(2, selected ? 0xffd700 : 0x444444, 1);
+        if (selected) {
+          highlight.fillStyle(0xffd700, 0.1);
+          highlight.fillRect(x - 28, y - 22, 56, 62);
+        }
+        highlight.strokeRect(x - 28, y - 22, 56, 62);
+      });
+      updateInfoPanel(selectedAppearance);
+      debugPanelState(
+        `BOOT | Screen: character [CLASS:${selectedAppearance.id}]`,
+      );
+    };
+
     PLAYER_CLASSES.forEach((app, i) => {
       const ox = startX + (i % cols) * optW;
       const oy = startY + Math.floor(i / cols) * optH;
+      const highlight = this.add.graphics();
+      optionHighlights.push(highlight);
+      this.add.sprite(ox, oy, `player_${app.id}`).setScale(1.8);
+      this.add
+        .text(ox, oy + 24, app.label, {
+          fontSize: "10px",
+          fontFamily: "monospace",
+          color: "#ccc",
+          stroke: "#000",
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5, 0);
       const hitZone = this.add.zone(ox, oy + 10, 56, 62).setInteractive({ useHandCursor: true });
       hitZone.on("pointerdown", () => {
-        selectedAppearance = app;
-        optionHighlights.forEach((h, j) => {
-          h.clear();
-          const isSelected = PLAYER_CLASSES[j].id === app.id;
-          h.lineStyle(2, isSelected ? 0xffd700 : 0x444444, 1);
-          if (isSelected) {
-            h.fillStyle(0xffd700, 0.1);
-          }
-          const hx = startX + (j % cols) * optW;
-          const hy = startY + Math.floor(j / cols) * optH;
-          if (isSelected) h.fillRect(hx - 28, hy - 22, 56, 62);
-          h.strokeRect(hx - 28, hy - 22, 56, 62);
-        });
-        updateInfoPanel(app);
+        selectedClassIndex = i;
+        renderClassSelection();
       });
     });
+    renderClassSelection();
 
     // Next button
     const btnY = infoPanelY + 46;
@@ -558,7 +585,7 @@ export class BootScene extends Phaser.Scene {
     nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
     nextBtn.on("pointerout", () => nextBtn.setColor("#88ff88"));
 
-    const goNext = () => {
+    const goNext = (): void => {
       this.showStatAllocation(playerName, selectedAppearance);
     };
 
@@ -574,10 +601,30 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
-    this.input.keyboard!.on("keydown-ENTER", goNext);
+    const moveClassSelection = (direction: GridNavigationDirection): void => {
+      selectedClassIndex = moveGridSelection(
+        selectedClassIndex,
+        PLAYER_CLASSES.length,
+        cols,
+        direction,
+      );
+      renderClassSelection();
+    };
+    this.bindCharacterCreationControls({
+      up: () => moveClassSelection("up"),
+      down: () => moveClassSelection("down"),
+      left: () => moveClassSelection("left"),
+      right: () => moveClassSelection("right"),
+      confirm: goNext,
+      cancel: () => this.showTitleScreen(),
+    });
   }
 
-  private showStatAllocation(playerName: string, selectedClass: PlayerClass): void {
+  private showStatAllocation(
+    playerName: string,
+    selectedClass: PlayerClass,
+    initialSelection?: CharacterStatSelection,
+  ): void {
     debugPanelState("BOOT | Screen: stats");
     this.children.removeAll(true);
     this.tweens.killAll();
@@ -600,8 +647,7 @@ export class BootScene extends Phaser.Scene {
     }).setOrigin(0.5, 0);
 
     // State
-    type Mode = "pointbuy" | "random";
-    let mode: Mode = "pointbuy";
+    let mode: CharacterStatMode = initialSelection?.mode ?? "pointbuy";
 
     const statKeys: (keyof PlayerStats)[] = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"];
     const statLabels: Record<keyof PlayerStats, string> = {
@@ -609,10 +655,13 @@ export class BootScene extends Phaser.Scene {
       intelligence: "INT", wisdom: "WIS", charisma: "CHA",
     };
 
-    let currentStats: PlayerStats = {
-      strength: 8, dexterity: 8, constitution: 8,
-      intelligence: 8, wisdom: 8, charisma: 8,
-    };
+    let currentStats: PlayerStats = initialSelection
+      ? { ...initialSelection.stats }
+      : {
+        strength: 8, dexterity: 8, constitution: 8,
+        intelligence: 8, wisdom: 8, charisma: 8,
+      };
+    let selectedStatIndex = 0;
 
     // UI containers — built by render()
     const uiObjects: Phaser.GameObjects.GameObject[] = [];
@@ -624,16 +673,20 @@ export class BootScene extends Phaser.Scene {
     // Mode toggle tabs
     const tabY = 56;
     const pointBuyTab = this.add.text(cx - 70, tabY, "[ Point Buy ]", {
-      fontSize: "13px", fontFamily: "monospace", color: "#ffd700",
-      backgroundColor: "#2a2a4e", padding: { x: 8, y: 4 },
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-
-    const randomTab = this.add.text(cx + 70, tabY, "[ 🎲 Random ]", {
-      fontSize: "13px", fontFamily: "monospace", color: "#888",
+      fontSize: "13px", fontFamily: "monospace",
+      color: mode === "pointbuy" ? "#ffd700" : "#888",
+      backgroundColor: mode === "pointbuy" ? "#2a2a4e" : undefined,
       padding: { x: 8, y: 4 },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
 
-    const setMode = (m: Mode) => {
+    const randomTab = this.add.text(cx + 70, tabY, "[ 🎲 Random ]", {
+      fontSize: "13px", fontFamily: "monospace",
+      color: mode === "random" ? "#ffd700" : "#888",
+      backgroundColor: mode === "random" ? "#2a2a4e" : undefined,
+      padding: { x: 8, y: 4 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+
+    const setMode = (m: CharacterStatMode): void => {
       mode = m;
       if (m === "pointbuy") {
         pointBuyTab.setColor("#ffd700").setBackgroundColor("#2a2a4e");
@@ -658,10 +711,18 @@ export class BootScene extends Phaser.Scene {
 
     nextBtn.on("pointerover", () => { if (nextBtn.alpha === 1) nextBtn.setColor("#ffd700"); });
     nextBtn.on("pointerout", () => { if (nextBtn.alpha === 1) nextBtn.setColor("#88ff88"); });
-    nextBtn.on("pointerdown", () => {
-      if (nextBtn.alpha < 1) return;
-      this.showAppearanceCustomization(playerName, selectedClass, currentStats);
-    });
+    const goNext = (): void => {
+      if (mode === "pointbuy" && calculatePointsSpent(currentStats) !== POINT_BUY_TOTAL) {
+        return;
+      }
+      this.showAppearanceCustomization(
+        playerName,
+        selectedClass,
+        currentStats,
+        mode,
+      );
+    };
+    nextBtn.on("pointerdown", goNext);
 
     // Back button
     const backBtn = this.add.text(cx - 80, 460, "[ < Back ]", {
@@ -669,7 +730,10 @@ export class BootScene extends Phaser.Scene {
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     backBtn.on("pointerover", () => backBtn.setColor("#ffd700"));
     backBtn.on("pointerout", () => backBtn.setColor("#aaa"));
-    backBtn.on("pointerdown", () => this.showCharacterCreation());
+    const goBack = (): void => {
+      this.showCharacterCreation(playerName, selectedClass.id);
+    };
+    backBtn.on("pointerdown", goBack);
 
     const renderStats = () => {
       clearUI();
@@ -715,10 +779,17 @@ export class BootScene extends Phaser.Scene {
         const isPrimary = selectedClass.primaryStat === key;
 
         // Label
-        const label = this.add.text(leftX, y, `${statLabels[key]}:`, {
-          fontSize: "14px", fontFamily: "monospace",
-          color: isPrimary ? "#ffd700" : "#c0a060",
-        });
+        const selected = i === selectedStatIndex;
+        const label = this.add.text(
+          leftX - 22,
+          y,
+          `${selected ? "▶" : " "} ${statLabels[key]}:`,
+          {
+            fontSize: "14px", fontFamily: "monospace",
+            color: selected ? "#ffffff" : isPrimary ? "#ffd700" : "#c0a060",
+            backgroundColor: selected ? "#2a2a4e" : undefined,
+          },
+        );
         uiObjects.push(label);
 
         // Base value
@@ -794,7 +865,7 @@ export class BootScene extends Phaser.Scene {
 
         // Primary stat indicator
         if (isPrimary) {
-          const starTxt = this.add.text(leftX - 14, y, "★", {
+          const starTxt = this.add.text(leftX - 38, y, "★", {
             fontSize: "12px", fontFamily: "monospace", color: "#ffd700",
           });
           uiObjects.push(starTxt);
@@ -830,12 +901,62 @@ export class BootScene extends Phaser.Scene {
       } else {
         nextBtn.setAlpha(1);
       }
+      debugPanelState(
+        `BOOT | Screen: stats [STAT:${statKeys[selectedStatIndex]}] `
+        + `[MODE:${mode}]`,
+      );
     };
 
     renderStats();
+    const moveStatSelection = (direction: "up" | "down"): void => {
+      selectedStatIndex = moveGridSelection(
+        selectedStatIndex,
+        statKeys.length,
+        1,
+        direction,
+      );
+      renderStats();
+    };
+    const adjustSelectedStat = (direction: -1 | 1): void => {
+      if (mode !== "pointbuy") return;
+      const key = statKeys[selectedStatIndex]!;
+      const value = currentStats[key];
+      if (direction < 0) {
+        if (value <= 8) return;
+        currentStats[key] -= 1;
+        renderStats();
+        return;
+      }
+      const nextCost = POINT_BUY_COSTS[value + 1];
+      const currentCost = POINT_BUY_COSTS[value] ?? 0;
+      const remaining = POINT_BUY_TOTAL - calculatePointsSpent(currentStats);
+      if (
+        value >= 15
+        || nextCost === undefined
+        || nextCost - currentCost > remaining
+      ) {
+        return;
+      }
+      currentStats[key] += 1;
+      renderStats();
+    };
+    this.bindCharacterCreationControls({
+      up: () => moveStatSelection("up"),
+      down: () => moveStatSelection("down"),
+      left: () => adjustSelectedStat(-1),
+      right: () => adjustSelectedStat(1),
+      confirm: goNext,
+      cancel: goBack,
+    });
   }
 
-  private showAppearanceCustomization(playerName: string, selectedClass: PlayerClass, baseStats: PlayerStats, preset?: { skinColor: number; hairStyle: number; hairColor: number }): void {
+  private showAppearanceCustomization(
+    playerName: string,
+    selectedClass: PlayerClass,
+    baseStats: PlayerStats,
+    statMode: CharacterStatMode,
+    preset?: { skinColor: number; hairStyle: number; hairColor: number },
+  ): void {
     debugPanelState("BOOT | Screen: appearance");
     this.children.removeAll(true);
     this.tweens.killAll();
@@ -865,6 +986,7 @@ export class BootScene extends Phaser.Scene {
     let selectedSkinColor = preset?.skinColor ?? selectedClass.skinColor;
     let selectedHairStyle = preset?.hairStyle ?? HAIR_STYLE_OPTIONS[0].id;
     let selectedHairColor = preset?.hairColor ?? HAIR_COLOR_OPTIONS[0].color;
+    let selectedAppearanceGroup = 0;
 
     // y=78: preview sprite center, scale 2 (64px tall: top=46, bottom=110)
     let previewCounter = 0;
@@ -907,8 +1029,13 @@ export class BootScene extends Phaser.Scene {
       const rndStyle = HAIR_STYLE_OPTIONS[Math.floor(Math.random() * HAIR_STYLE_OPTIONS.length)].id;
       const rndHairColor = HAIR_COLOR_OPTIONS[Math.floor(Math.random() * HAIR_COLOR_OPTIONS.length)].color;
       // Rebuild the whole screen so selection highlights update
-      this.showAppearanceCustomization(playerName, selectedClass, baseStats,
-        { skinColor: rndSkin, hairStyle: rndStyle, hairColor: rndHairColor });
+      this.showAppearanceCustomization(
+        playerName,
+        selectedClass,
+        baseStats,
+        statMode,
+        { skinColor: rndSkin, hairStyle: rndStyle, hairColor: rndHairColor },
+      );
     };
 
     const rndBtn = this.add
@@ -926,7 +1053,7 @@ export class BootScene extends Phaser.Scene {
     rndBtn.on("pointerdown", randomizeAll);
 
     // y=130: skin color label (13px) → bottom ~143
-    this.add
+    const skinLabel = this.add
       .text(cx, 130, "Skin Color:", {
         fontSize: "13px",
         fontFamily: "monospace",
@@ -939,6 +1066,27 @@ export class BootScene extends Phaser.Scene {
     const skinSwatchSpacing = 40;
     const skinStartX = cx - ((SKIN_COLOR_OPTIONS.length - 1) * skinSwatchSpacing) / 2;
     const skinHighlights: Phaser.GameObjects.Graphics[] = [];
+    const selectSkinColor = (index: number): void => {
+      const option = SKIN_COLOR_OPTIONS[index];
+      if (!option) {
+        throw new Error(`[BootScene] Missing skin color option ${index}`);
+      }
+      selectedSkinColor = option.color;
+      SKIN_COLOR_OPTIONS.forEach((entry, optionIndex) => {
+        const x = skinStartX + optionIndex * skinSwatchSpacing;
+        const highlight = skinHighlights[optionIndex]!;
+        highlight.clear();
+        highlight.fillStyle(entry.color, 1);
+        highlight.fillCircle(x, skinSwatchY, 10);
+        highlight.lineStyle(
+          2,
+          optionIndex === index ? 0xffd700 : 0x444444,
+          1,
+        );
+        highlight.strokeCircle(x, skinSwatchY, 11);
+      });
+      updatePreview();
+    };
 
     SKIN_COLOR_OPTIONS.forEach((opt, i) => {
       const sx = skinStartX + i * skinSwatchSpacing;
@@ -959,22 +1107,11 @@ export class BootScene extends Phaser.Scene {
         .setOrigin(0.5, 0);
 
       const hitZone = this.add.zone(sx, skinSwatchY, 24, 24).setInteractive({ useHandCursor: true });
-      hitZone.on("pointerdown", () => {
-        selectedSkinColor = opt.color;
-        SKIN_COLOR_OPTIONS.forEach((_, j) => {
-          const hx = skinStartX + j * skinSwatchSpacing;
-          skinHighlights[j].clear();
-          skinHighlights[j].fillStyle(SKIN_COLOR_OPTIONS[j].color, 1);
-          skinHighlights[j].fillCircle(hx, skinSwatchY, 10);
-          skinHighlights[j].lineStyle(2, j === i ? 0xffd700 : 0x444444, 1);
-          skinHighlights[j].strokeCircle(hx, skinSwatchY, 11);
-        });
-        updatePreview();
-      });
+      hitZone.on("pointerdown", () => selectSkinColor(i));
     });
 
     // y=186: hair style label (13px) → bottom ~199
-    this.add
+    const hairStyleLabel = this.add
       .text(cx, 186, "Hair Style:", {
         fontSize: "13px",
         fontFamily: "monospace",
@@ -987,6 +1124,19 @@ export class BootScene extends Phaser.Scene {
     const hairStyleSpacing = 80;
     const hairStyleStartX = cx - ((HAIR_STYLE_OPTIONS.length - 1) * hairStyleSpacing) / 2;
     const hairStyleTexts: Phaser.GameObjects.Text[] = [];
+    const selectHairStyle = (index: number): void => {
+      const option = HAIR_STYLE_OPTIONS[index];
+      if (!option) {
+        throw new Error(`[BootScene] Missing hair style option ${index}`);
+      }
+      selectedHairStyle = option.id;
+      hairStyleTexts.forEach((text, optionIndex) => {
+        const selected = optionIndex === index;
+        text.setColor(selected ? "#ffd700" : "#888");
+        text.setBackgroundColor(selected ? "#2a2a2a" : "");
+      });
+      updatePreview();
+    };
 
     HAIR_STYLE_OPTIONS.forEach((opt, i) => {
       const sx = hairStyleStartX + i * hairStyleSpacing;
@@ -1002,18 +1152,11 @@ export class BootScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       hairStyleTexts.push(txt);
 
-      txt.on("pointerdown", () => {
-        selectedHairStyle = opt.id;
-        hairStyleTexts.forEach((t, j) => {
-          t.setColor(j === i ? "#ffd700" : "#888");
-          t.setBackgroundColor(j === i ? "#2a2a2a" : "");
-        });
-        updatePreview();
-      });
+      txt.on("pointerdown", () => selectHairStyle(i));
     });
 
     // y=244: hair color label (13px) → bottom ~257
-    this.add
+    const hairColorLabel = this.add
       .text(cx, 244, "Hair Color:", {
         fontSize: "13px",
         fontFamily: "monospace",
@@ -1026,6 +1169,27 @@ export class BootScene extends Phaser.Scene {
     const hairSwatchSpacing = 40;
     const hairStartX = cx - ((HAIR_COLOR_OPTIONS.length - 1) * hairSwatchSpacing) / 2;
     const hairHighlights: Phaser.GameObjects.Graphics[] = [];
+    const selectHairColor = (index: number): void => {
+      const option = HAIR_COLOR_OPTIONS[index];
+      if (!option) {
+        throw new Error(`[BootScene] Missing hair color option ${index}`);
+      }
+      selectedHairColor = option.color;
+      HAIR_COLOR_OPTIONS.forEach((entry, optionIndex) => {
+        const x = hairStartX + optionIndex * hairSwatchSpacing;
+        const highlight = hairHighlights[optionIndex]!;
+        highlight.clear();
+        highlight.fillStyle(entry.color, 1);
+        highlight.fillCircle(x, hairSwatchY, 10);
+        highlight.lineStyle(
+          2,
+          optionIndex === index ? 0xffd700 : 0x444444,
+          1,
+        );
+        highlight.strokeCircle(x, hairSwatchY, 11);
+      });
+      updatePreview();
+    };
 
     HAIR_COLOR_OPTIONS.forEach((opt, i) => {
       const hx = hairStartX + i * hairSwatchSpacing;
@@ -1046,19 +1210,69 @@ export class BootScene extends Phaser.Scene {
         .setOrigin(0.5, 0);
 
       const hitZone = this.add.zone(hx, hairSwatchY, 24, 24).setInteractive({ useHandCursor: true });
-      hitZone.on("pointerdown", () => {
-        selectedHairColor = opt.color;
-        HAIR_COLOR_OPTIONS.forEach((_, j) => {
-          const hhx = hairStartX + j * hairSwatchSpacing;
-          hairHighlights[j].clear();
-          hairHighlights[j].fillStyle(HAIR_COLOR_OPTIONS[j].color, 1);
-          hairHighlights[j].fillCircle(hhx, hairSwatchY, 10);
-          hairHighlights[j].lineStyle(2, j === i ? 0xffd700 : 0x444444, 1);
-          hairHighlights[j].strokeCircle(hhx, hairSwatchY, 11);
-        });
-        updatePreview();
-      });
+      hitZone.on("pointerdown", () => selectHairColor(i));
     });
+
+    const appearanceLabels = [
+      { text: skinLabel, label: "Skin Color:" },
+      { text: hairStyleLabel, label: "Hair Style:" },
+      { text: hairColorLabel, label: "Hair Color:" },
+    ] as const;
+    const renderAppearanceFocus = (): void => {
+      appearanceLabels.forEach((entry, index) => {
+        const selected = index === selectedAppearanceGroup;
+        entry.text
+          .setText(`${selected ? "▶ " : ""}${entry.label}`)
+          .setColor(selected ? "#ffd700" : "#c0a060");
+      });
+      debugPanelState(
+        `BOOT | Screen: appearance [GROUP:${selectedAppearanceGroup + 1}/`
+        + `${appearanceLabels.length}]`,
+      );
+    };
+    const moveAppearanceGroup = (direction: "up" | "down"): void => {
+      selectedAppearanceGroup = moveGridSelection(
+        selectedAppearanceGroup,
+        appearanceLabels.length,
+        1,
+        direction,
+      );
+      renderAppearanceFocus();
+    };
+    const moveAppearanceOption = (direction: "left" | "right"): void => {
+      if (selectedAppearanceGroup === 0) {
+        const index = SKIN_COLOR_OPTIONS.findIndex(
+          (option) => option.color === selectedSkinColor,
+        );
+        selectSkinColor(moveGridSelection(
+          index,
+          SKIN_COLOR_OPTIONS.length,
+          SKIN_COLOR_OPTIONS.length,
+          direction,
+        ));
+      } else if (selectedAppearanceGroup === 1) {
+        const index = HAIR_STYLE_OPTIONS.findIndex(
+          (option) => option.id === selectedHairStyle,
+        );
+        selectHairStyle(moveGridSelection(
+          index,
+          HAIR_STYLE_OPTIONS.length,
+          HAIR_STYLE_OPTIONS.length,
+          direction,
+        ));
+      } else {
+        const index = HAIR_COLOR_OPTIONS.findIndex(
+          (option) => option.color === selectedHairColor,
+        );
+        selectHairColor(moveGridSelection(
+          index,
+          HAIR_COLOR_OPTIONS.length,
+          HAIR_COLOR_OPTIONS.length,
+          direction,
+        ));
+      }
+    };
+    renderAppearanceFocus();
 
     // y=312: back/start buttons
     const btnY = 312;
@@ -1074,7 +1288,13 @@ export class BootScene extends Phaser.Scene {
 
     backBtn.on("pointerover", () => backBtn.setColor("#ffd700"));
     backBtn.on("pointerout", () => backBtn.setColor("#aaa"));
-    backBtn.on("pointerdown", () => this.showStatAllocation(playerName, selectedClass));
+    const goBack = (): void => {
+      this.showStatAllocation(playerName, selectedClass, {
+        stats: baseStats,
+        mode: statMode,
+      });
+    };
+    backBtn.on("pointerdown", goBack);
 
     const startBtn = this.add
       .text(cx + 100, btnY, "[ Start Adventure ]", {
@@ -1088,7 +1308,7 @@ export class BootScene extends Phaser.Scene {
     startBtn.on("pointerover", () => startBtn.setColor("#ffd700"));
     startBtn.on("pointerout", () => startBtn.setColor("#88ff88"));
 
-    const doStart = () => {
+    const doStart = (): void => {
       if (this.sceneTransitions.isPending) return;
       const name = playerName.trim() || "Hero";
       const customAppearance: CustomAppearance = {
@@ -1113,7 +1333,14 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
-    this.input.keyboard!.on("keydown-ENTER", doStart);
+    this.bindCharacterCreationControls({
+      up: () => moveAppearanceGroup("up"),
+      down: () => moveAppearanceGroup("down"),
+      left: () => moveAppearanceOption("left"),
+      right: () => moveAppearanceOption("right"),
+      confirm: doStart,
+      cancel: goBack,
+    });
   }
 
   private startNewGame(player: PlayerState): void {

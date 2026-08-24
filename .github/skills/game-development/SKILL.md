@@ -125,6 +125,9 @@ menus, tabs, shortcuts, prompts, touch actions, and Codex/crafting/gathering
 categories through the shared registry. Preserve always-safe Inventory, Map,
 Equipment, Tips, Settings, and save/title controls, and never use discovery as
 authority for gameplay state.
+Keep touch availability contextual: MENU and TIPS appear only during safe
+exploration. Spatial Battle and character-creation grids must follow their
+visual rows and columns with all four directions, A/confirm, and B/cancel.
 
 World Event content lives in `src/data/worldEvents.ts`, its deterministic
 Phaser-free state machine in `src/systems/worldEvents.ts`, and accessible choice

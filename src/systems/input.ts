@@ -169,6 +169,11 @@ const NAVIGATION_CONTEXTS = new Set<InputContext>([
   "result",
 ]);
 
+const EXPLORATION_ONLY_TOUCH_ACTIONS = new Set<InputAction>([
+  "openMenu",
+  "openTips",
+]);
+
 function directionalAction(
   direction: "Up" | "Down" | "Left" | "Right",
   context: InputContext,
@@ -239,6 +244,18 @@ export function resolveGamepadAction(
 
 export function isRepeatableAction(action: InputAction): boolean {
   return REPEATABLE_ACTIONS.has(action);
+}
+
+export function isTouchActionAvailable(
+  action: InputAction,
+  context: InputContext,
+  featureAvailable = true,
+): boolean {
+  return featureAvailable
+    && (
+      !EXPLORATION_ONLY_TOUCH_ACTIONS.has(action)
+      || context === "exploration"
+    );
 }
 
 export class InputContextStack {

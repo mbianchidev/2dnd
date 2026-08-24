@@ -61,6 +61,9 @@ visibility loss, disconnect, and shutdown.
 Touch controls use safe-area-aware responsive DOM buttons outside the canvas.
 Held D-pad directions use pointer capture; discrete buttons pulse on pointer
 release with a click fallback so scene transitions cannot strand a press.
+Grid navigation follows visual rows and columns; character creation supports
+directional selection plus A/confirm and B/cancel. MENU and TIPS are rendered
+only in the safe exploration context.
 Standard gamepads use left-stick/D-pad navigation and a visible right-stick
 cursor, clicked by pressing the stick, for pointer-first surfaces.
 

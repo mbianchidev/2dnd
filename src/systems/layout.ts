@@ -54,6 +54,8 @@ export interface GridLayout {
   height: number;
 }
 
+export type GridNavigationDirection = "up" | "down" | "left" | "right";
+
 export interface LayoutAuditItem {
   id: string;
   bounds: LayoutRect;
@@ -246,6 +248,41 @@ export function layoutResponsiveGrid(
     width: availableWidth,
     height: rows === 0 ? 0 : cursorY - rowGap,
   };
+}
+
+export function moveGridSelection(
+  index: number,
+  itemCount: number,
+  columns: number,
+  direction: GridNavigationDirection,
+): number {
+  const count = Number.isFinite(itemCount) ? Math.max(0, Math.floor(itemCount)) : 0;
+  if (count === 0) return -1;
+  const columnCount = Number.isFinite(columns)
+    ? Math.max(1, Math.floor(columns))
+    : 1;
+  const current = Number.isFinite(index)
+    ? Math.min(Math.max(0, Math.floor(index)), count - 1)
+    : 0;
+  const row = Math.floor(current / columnCount);
+  const column = current % columnCount;
+
+  if (direction === "left" || direction === "right") {
+    const rowStart = row * columnCount;
+    const rowLength = Math.min(columnCount, count - rowStart);
+    const offset = direction === "left" ? -1 : 1;
+    const nextColumn = (column + offset + rowLength) % rowLength;
+    return rowStart + nextColumn;
+  }
+
+  const rowCount = Math.ceil(count / columnCount);
+  const offset = direction === "up" ? -1 : 1;
+  for (let distance = 1; distance <= rowCount; distance += 1) {
+    const nextRow = (row + offset * distance + rowCount) % rowCount;
+    const candidate = nextRow * columnCount + column;
+    if (candidate < count) return candidate;
+  }
+  return current;
 }
 
 export function paginateMeasuredItems(

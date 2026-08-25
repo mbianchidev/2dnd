@@ -39,7 +39,7 @@ const ACTION_LAYOUT_IDS: Readonly<Record<TitleMenuActionId, string>> = {
 
 const MENU_TOP = 250;
 const MENU_BOTTOM = 520;
-const BUTTON_WIDTH = 320;
+const BUTTON_WIDTH = 360;
 const MAX_BUTTON_HEIGHT = 64;
 const BUTTON_GAP = 4;
 

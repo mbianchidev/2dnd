@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -101,7 +102,7 @@ async function drainCutscenes(page: Page): Promise<void> {
 async function createCampaign(page: Page): Promise<void> {
   await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 284, 160);
   await holdKey(page, "Enter");
@@ -241,7 +242,7 @@ test("plays, reloads, records, and battles through all gathering disciplines", a
 
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "[GATHERING:fishing]");
   await page.locator('[data-action="confirm"]').click();
   await submitDebug(page, "/gather resolve success");
@@ -290,7 +291,7 @@ test("plays, reloads, records, and battles through all gathering disciplines", a
   }, SAVE_KEY);
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "[GATHERING:fishing]");
   await submitDebug(page, "/gather resolve success");
   await waitForState(page, "BATTLE");

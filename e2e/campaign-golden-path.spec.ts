@@ -149,7 +149,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   await test.step("create a new character", async () => {
     await page.goto("game.html", { waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
-    await clickGame(page, 320, 324);
+    await clickLayoutItem(page, "title-new-game");
     await waitForState(page, "BOOT | Screen: character");
 
     await clickGame(page, 320, 76);
@@ -176,7 +176,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await advanceGenericCutscene(page);
     await page.reload({ waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
-    await clickGame(page, 320, 324);
+    await clickLayoutItem(page, "title-continue");
     await waitForState(page, "CUTSCENE | campaign.opening | Step 1/2");
     await drainGenericCutscenesUntil(page, "OVERWORLD");
     await waitForState(page, "[TUTORIAL]");
@@ -230,7 +230,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   await test.step("reload the persisted campaign", async () => {
     await page.reload({ waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
-    await clickGame(page, 320, 324);
+    await clickLayoutItem(page, "title-continue");
     await waitForState(page, "OVERWORLD");
     await enableDebug(page);
     const save = await readSave(page);
@@ -325,7 +325,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   await test.step("resume an interrupted epilogue from its durable queue", async () => {
     await page.reload({ waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
-    await clickGame(page, 320, 324);
+    await clickLayoutItem(page, "title-continue");
     await waitForState(page, "ENDING | Step: 1/5 | Type: narration");
     const save = await readSave(page);
     expect(save.player.progression.pendingCutsceneIds).toContain(EPILOGUE_ID);
@@ -354,7 +354,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   await test.step("reload the completed campaign into durable post-game", async () => {
     await page.reload({ waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
-    await clickGame(page, 320, 324);
+    await clickLayoutItem(page, "title-continue");
     await waitForState(page, "OVERWORLD");
 
     const save = await readSave(page);
@@ -404,7 +404,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
 
     await page.reload({ waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
-    await clickGame(page, 320, 324);
+    await clickLayoutItem(page, "title-continue");
     await waitForState(page, "ENDING | Step: 1/5 | Type: narration");
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
@@ -430,7 +430,7 @@ test("a corrupt save falls back to a usable new-game path", async ({ page }) => 
 
   await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "[SAVE_PHASE:confirm-newGame]");
   await clickLayoutItem(page, "save-slot-action-confirm");
   await waitForState(page, "BOOT | Screen: character");

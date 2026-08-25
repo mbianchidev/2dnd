@@ -101,7 +101,7 @@ test("title and in-game accessibility settings share live preferences", async ({
   await waitForState(page, "BOOT | Screen: title");
 
   await test.step("change title settings at the largest text scale", async () => {
-    await clickGame(page, 320, 400);
+    await clickLayoutItem(page, "title-settings");
     await expectCleanLayout(page);
     await clickGame(page, 194, 115);
     await clickLayoutItem(page, "settings-text-scale");
@@ -129,7 +129,7 @@ test("title and in-game accessibility settings share live preferences", async ({
 
   await test.step("create and enter a campaign with large text", async () => {
     await clickGame(page, 50, 50);
-    await clickGame(page, 320, 324);
+    await clickLayoutItem(page, "title-new-game");
     await waitForState(page, "BOOT | Screen: character");
     await clickGame(page, 284, 160);
     await holdKey(page, "Enter");

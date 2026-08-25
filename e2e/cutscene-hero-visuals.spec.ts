@@ -71,7 +71,7 @@ async function drainOpening(page: Page): Promise<void> {
 async function createCampaign(page: Page): Promise<void> {
   await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 284, 160);
   await holdKey(page, "Enter");

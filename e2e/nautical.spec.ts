@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -57,7 +58,7 @@ async function drainCutscenes(page: Page): Promise<void> {
 async function createCampaign(page: Page): Promise<void> {
   await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 284, 160);
   await holdKey(page, "Enter");
@@ -128,7 +129,7 @@ test("sails, enters Tidehaven, opens the world map, and reloads at sea", async (
   await page.setViewportSize({ width: 430, height: 932 });
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await expect(page.locator("#debug-state")).toContainText(/BATTLE|OVERWORLD/);
   const resumedState = await page.locator("#debug-state").textContent() ?? "";
   if (resumedState.includes("BATTLE")) {

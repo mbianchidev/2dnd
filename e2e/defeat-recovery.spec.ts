@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const GAME_WIDTH = 640;
@@ -125,7 +126,7 @@ test("random and boss defeats recover cleanly through the result sequence", asyn
 
   await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
   for (let index = 0; index < 12; index++) {
     await page.keyboard.press("Backspace");
@@ -182,7 +183,7 @@ test("random and boss defeats recover cleanly through the result sequence", asyn
 
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "OVERWORLD");
   await enableDebug(page);
   expect((await readSave(page)).player.gold).toBe(70);

@@ -69,6 +69,9 @@ visible right-stick cursor clicked by pressing the stick. Responsive touch
 controls use safe areas, pointer capture for held directions, pointer-release
 pulses with a click fallback for discrete actions, and mobile text entry. Clear
 held state on blur, visibility loss, disconnect, scene changes, and shutdown.
+The title menu uses `src/managers/titleMenu.ts` so direct taps and semantic
+D-pad/A input share one selected action. Keep overwrite confirmation compact
+and centered within the landscape viewport.
 
 Cutscene contracts live in `src/data/cutsceneTypes.ts`, focused campaign and
 boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and

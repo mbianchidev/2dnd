@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'"
@@ -11,12 +14,18 @@
     <title>2D&amp;D - Play the browser JRPG</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+      }
       body {
         background: #000;
         display: flex;
         justify-content: center;
         align-items: center;
         min-height: 100vh;
+        min-height: 100dvh;
         overflow: hidden;
       }
       #game-wrapper {
@@ -25,6 +34,7 @@
         align-items: stretch;
         width: 100vw;
         height: 100vh;
+        height: 100dvh;
       }
       #game-inner {
         display: flex;
@@ -32,6 +42,7 @@
         align-items: center;
         flex: 1;
         min-width: 0;
+        min-height: 0;
       }
       #game-container {
         image-rendering: pixelated;
@@ -162,16 +173,15 @@
       #debug-cmd::placeholder { color: #225522; }
       #debug-cmd:focus { border-color: #33ff33; }
       #touch-controls {
+        --touch-safe-top: max(10px, env(safe-area-inset-top));
+        --touch-safe-right: max(10px, env(safe-area-inset-right));
+        --touch-safe-bottom: max(10px, env(safe-area-inset-bottom));
+        --touch-safe-left: max(10px, env(safe-area-inset-left));
         display: none;
         position: fixed;
         inset: 0;
         z-index: 40;
         pointer-events: none;
-        padding:
-          max(10px, env(safe-area-inset-top))
-          max(10px, env(safe-area-inset-right))
-          max(10px, env(safe-area-inset-bottom))
-          max(10px, env(safe-area-inset-left));
       }
       #touch-controls.visible { display: block; }
       .touch-control {
@@ -194,33 +204,65 @@
         outline: 3px solid #ffdf66;
         outline-offset: 2px;
       }
-      .touch-up { bottom: 126px; }
-      .touch-left { bottom: 72px; }
-      .touch-right { bottom: 72px; }
-      .touch-down { bottom: 18px; }
-      .touch-confirm { bottom: 74px; }
-      .touch-cancel { bottom: 20px; }
-      .touch-menu { top: 40px; }
-      .touch-party { top: 40px; }
-      .touch-tips { top: 40px; }
+      .touch-up { bottom: calc(var(--touch-safe-bottom) + 116px); }
+      .touch-left { bottom: calc(var(--touch-safe-bottom) + 62px); }
+      .touch-right { bottom: calc(var(--touch-safe-bottom) + 62px); }
+      .touch-down { bottom: calc(var(--touch-safe-bottom) + 8px); }
+      .touch-confirm { bottom: calc(var(--touch-safe-bottom) + 64px); }
+      .touch-cancel { bottom: calc(var(--touch-safe-bottom) + 10px); }
+      .touch-menu { top: calc(var(--touch-safe-top) + 30px); }
+      .touch-party { top: calc(var(--touch-safe-top) + 30px); }
+      .touch-tips { top: calc(var(--touch-safe-top) + 30px); }
       #touch-controls.right-handed .touch-up,
-      #touch-controls.right-handed .touch-down { left: 68px; }
-      #touch-controls.right-handed .touch-left { left: 14px; }
-      #touch-controls.right-handed .touch-right { left: 122px; }
-      #touch-controls.right-handed .touch-confirm { right: 18px; }
-      #touch-controls.right-handed .touch-cancel { right: 82px; }
-      #touch-controls.right-handed .touch-menu { right: 16px; }
-      #touch-controls.right-handed .touch-party { right: 88px; }
-      #touch-controls.right-handed .touch-tips { right: 174px; }
+      #touch-controls.right-handed .touch-down {
+        left: calc(var(--touch-safe-left) + 58px);
+      }
+      #touch-controls.right-handed .touch-left {
+        left: calc(var(--touch-safe-left) + 4px);
+      }
+      #touch-controls.right-handed .touch-right {
+        left: calc(var(--touch-safe-left) + 112px);
+      }
+      #touch-controls.right-handed .touch-confirm {
+        right: calc(var(--touch-safe-right) + 8px);
+      }
+      #touch-controls.right-handed .touch-cancel {
+        right: calc(var(--touch-safe-right) + 72px);
+      }
+      #touch-controls.right-handed .touch-menu {
+        right: calc(var(--touch-safe-right) + 6px);
+      }
+      #touch-controls.right-handed .touch-party {
+        right: calc(var(--touch-safe-right) + 78px);
+      }
+      #touch-controls.right-handed .touch-tips {
+        right: calc(var(--touch-safe-right) + 164px);
+      }
       #touch-controls.left-handed .touch-up,
-      #touch-controls.left-handed .touch-down { right: 68px; }
-      #touch-controls.left-handed .touch-left { right: 122px; }
-      #touch-controls.left-handed .touch-right { right: 14px; }
-      #touch-controls.left-handed .touch-confirm { left: 18px; }
-      #touch-controls.left-handed .touch-cancel { left: 82px; }
-      #touch-controls.left-handed .touch-menu { left: 16px; }
-      #touch-controls.left-handed .touch-party { left: 88px; }
-      #touch-controls.left-handed .touch-tips { left: 174px; }
+      #touch-controls.left-handed .touch-down {
+        right: calc(var(--touch-safe-right) + 58px);
+      }
+      #touch-controls.left-handed .touch-left {
+        right: calc(var(--touch-safe-right) + 112px);
+      }
+      #touch-controls.left-handed .touch-right {
+        right: calc(var(--touch-safe-right) + 4px);
+      }
+      #touch-controls.left-handed .touch-confirm {
+        left: calc(var(--touch-safe-left) + 8px);
+      }
+      #touch-controls.left-handed .touch-cancel {
+        left: calc(var(--touch-safe-left) + 72px);
+      }
+      #touch-controls.left-handed .touch-menu {
+        left: calc(var(--touch-safe-left) + 6px);
+      }
+      #touch-controls.left-handed .touch-party {
+        left: calc(var(--touch-safe-left) + 78px);
+      }
+      #touch-controls.left-handed .touch-tips {
+        left: calc(var(--touch-safe-left) + 164px);
+      }
       #gamepad-cursor {
         display: none;
         position: fixed;
@@ -261,15 +303,17 @@
       @media (orientation: portrait), (max-width: 760px) {
         #game-header { padding-top: max(4px, env(safe-area-inset-top)); }
         #controls-panel, #debug-panel { display: none !important; }
-        .touch-party, .touch-tips { top: 92px; }
+        .touch-party,
+        .touch-tips { top: calc(var(--touch-safe-top) + 82px); }
       }
       @media (max-height: 560px) and (orientation: landscape) {
-        .touch-control { min-width: 42px; min-height: 42px; opacity: 0.86; }
-        .touch-up { bottom: 108px; }
-        .touch-left, .touch-right { bottom: 61px; }
-        .touch-down { bottom: 14px; }
-        .touch-confirm { bottom: 62px; }
-        .touch-cancel { bottom: 14px; }
+        .touch-control { min-width: 48px; min-height: 48px; opacity: 0.9; }
+        .touch-up { bottom: calc(var(--touch-safe-bottom) + 102px); }
+        .touch-left,
+        .touch-right { bottom: calc(var(--touch-safe-bottom) + 52px); }
+        .touch-down { bottom: calc(var(--touch-safe-bottom) + 4px); }
+        .touch-confirm { bottom: calc(var(--touch-safe-bottom) + 54px); }
+        .touch-cancel { bottom: calc(var(--touch-safe-bottom) + 4px); }
       }
     </style>
   </head>

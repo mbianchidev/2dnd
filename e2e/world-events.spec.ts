@@ -115,7 +115,7 @@ async function drainCutscenes(page: Page): Promise<void> {
 async function createCampaign(page: Page): Promise<void> {
   await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 284, 160);
   await holdKey(page, "Enter");
@@ -246,7 +246,7 @@ test("resolves, recovers, battles, and records accessible World Events", async (
   });
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "[WORLD_EVENT:weatheredRoadbook]");
   expect((await readSave(page)).player.inventory.filter((item) =>
     item.id === "potion"
@@ -265,7 +265,7 @@ test("resolves, recovers, battles, and records accessible World Events", async (
   await waitForState(page, "BATTLE");
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "BATTLE");
   await submitDebug(page, "/kill");
   await waitForState(page, "OVERWORLD");
@@ -290,7 +290,7 @@ test("resolves, recovers, battles, and records accessible World Events", async (
   const sourceCount = save.player.progression.social.appliedSourceIds.length;
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "OVERWORLD");
   expect((await readSave(page)).player.progression.social.appliedSourceIds)
     .toHaveLength(sourceCount);

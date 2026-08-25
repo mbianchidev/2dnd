@@ -33,7 +33,7 @@
 | Sea navigation | `src/data/nautical.ts`, `src/systems/nautical*.ts`, `src/data/islands.ts` |
 | Gathering/crafting | matching `src/data/`, `src/systems/`, and `src/managers/` modules |
 | Save field or slot | owning interface/default, normalization module, `save.ts`, `saveSlots.ts`, `saveStorage.ts`, migration/recovery tests |
-| Input/control | `src/systems/input.ts`, `src/managers/input.ts`; never a scene-local gamepad map |
+| Input/control | `src/systems/input.ts`, `src/managers/input.ts`; title selection in `src/managers/titleMenu.ts`; never a scene-local gamepad map |
 | UI layout | `src/systems/layout.ts`, `src/managers/layout.ts`, owning manager/renderer |
 | Public showcase | `index.html`, `src/landing.css`, generated captures in `public/screenshots/` |
 | Texture | focused renderer aggregated by `src/renderers/textures.ts` |

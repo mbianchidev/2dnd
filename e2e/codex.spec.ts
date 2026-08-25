@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { tapLayoutItem } from "./helpers/layout";
+import { clickLayoutItem, tapLayoutItem } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -110,7 +110,7 @@ async function drainCutscenes(page: Page, destination = "OVERWORLD"): Promise<vo
 async function createCampaign(page: Page): Promise<void> {
   await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 284, 160);
   await holdKey(page, "Enter");
@@ -244,7 +244,7 @@ test("unlocks campaign knowledge and supports the full keyboard Codex flow", asy
 
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "[DUNGEON:heartlands_dungeon]");
   save = await readSave(page);
   expect(save.version).toBe(18);
@@ -405,7 +405,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   }, SAVE_KEY);
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "OVERWORLD");
   await submitDebug(page, "/feature reveal codexLocation");
 

@@ -87,7 +87,7 @@ async function waitForState(page: Page, text: string): Promise<void> {
 async function createCharacter(page: Page): Promise<void> {
   await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 284, 160);
   await holdKey(page, "Enter");
@@ -118,7 +118,7 @@ async function createCharacter(page: Page): Promise<void> {
   }, { saveKey: SAVE_KEY, openingCutsceneIds: OPENING_CUTSCENE_IDS });
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "OVERWORLD");
 }
 
@@ -198,7 +198,7 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
 
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "OVERWORLD");
   await holdKey(page, "v");
   await waitForState(page, "[CRAFTING");
@@ -232,7 +232,7 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
   }, { saveKey: SAVE_KEY, preferencesKey: PREFERENCES_KEY });
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "OVERWORLD");
   await expect(page.locator("#game-container canvas"))
     .toHaveAttribute("data-text-scale", "1.5");
@@ -279,7 +279,7 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-continue");
   await waitForState(page, "OVERWORLD");
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickLayoutItem } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_preferences";
@@ -38,7 +39,7 @@ async function waitForState(page: Page, text: string): Promise<void> {
 async function createReadyCampaign(page: Page): Promise<void> {
   await page.goto("game.html", { waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
-  await clickGame(page, 320, 324);
+  await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 284, 160);
   await holdKey(page, "Enter");

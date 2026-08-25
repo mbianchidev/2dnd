@@ -52,7 +52,8 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 - random and boss defeat recovery
 - tutorial, Tips, Codex, inventory, achievements, events, gathering, crafting,
   nautical, feature discovery, save-slot management/recovery, and accessibility
-- keyboard, pointer, touch, gamepad, mobile text entry, and active-source prompts
+- keyboard, pointer, touch, gamepad, mobile text entry, title actions, landscape
+  confirmations, and active-source prompts
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
 - layout audits at supported text scales and representative desktop/mobile

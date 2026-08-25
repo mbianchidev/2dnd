@@ -95,6 +95,8 @@ owning issue or pull request.
   tests.
 - Route all release input through semantic contexts; do not add scene-local
   gamepad/touch mappings or conflicting production/debug keys.
+- `TitleMenuManager` owns title selection, large pointer targets, and semantic
+  D-pad/confirm activation; keep overwrite confirmation usable in landscape.
 - Own and clean up listeners, timers, tweens, emitters, DOM controls, texture
   leases, and transient containers.
 - Install accessibility in every scene; support text scales, high contrast,

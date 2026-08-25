@@ -217,6 +217,10 @@ export class SaveSlotManager {
       previousAction,
       this.selectedActionIndex,
     ).index;
+    if (this.pendingConfirmation?.kind === "newGame") {
+      this.renderNewGameConfirmation();
+      return;
+    }
 
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this.scene,
@@ -397,6 +401,124 @@ export class SaveSlotManager {
     this.callbacks.onStateChange?.();
   }
 
+  private renderNewGameConfirmation(): void {
+    const { w, h, px, py, panelW, panelH } = calcPanelLayout(
+      this.scene,
+      460,
+      236,
+    );
+    const container = createOverlayContainer(
+      this.scene,
+      "save-slots",
+      96,
+      { x: px, y: py, width: panelW, height: panelH },
+    );
+    this.container = container;
+
+    const dim = createDimGraphics(this.scene, w, h, 0.82);
+    dim.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, w, h),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (
+        pointer.x < px
+        || pointer.x > px + panelW
+        || pointer.y < py
+        || pointer.y > py + panelH
+      ) {
+        this.cancelPendingAction();
+      }
+    });
+    container.add(dim);
+    container.add(createPanelGraphics(this.scene, px, py, panelW, panelH));
+
+    const title = this.scene.add.text(
+      px + panelW / 2,
+      py + 20,
+      "Start New Campaign?",
+      {
+        fontSize: "18px",
+        fontFamily: "monospace",
+        color: "#ffd700",
+      },
+    ).setOrigin(0.5, 0);
+    title.setData("layoutId", "save-slots-title");
+    container.add(title);
+
+    const message = this.scene.add.text(
+      px + panelW / 2,
+      py + 66,
+      "Starting a new campaign replaces Autosave.\n"
+        + "Your three manual save slots remain safe.",
+      {
+        fontSize: "12px",
+        fontFamily: "monospace",
+        color: "#ffcc80",
+        align: "center",
+        lineSpacing: 5,
+      },
+    ).setOrigin(0.5, 0);
+    message.setData("layoutId", "save-slots-status");
+    container.add(message);
+
+    const actionGrid = layoutResponsiveGrid({
+      availableWidth: panelW - 48,
+      minColumnWidth: 160,
+      columnGap: 12,
+      rowGap: 0,
+      itemHeights: this.actions.map(() => 60),
+      maxColumns: 2,
+    });
+    const actionY = py + 126;
+    this.actions.forEach((action, index) => {
+      const cell = actionGrid.cells[index]!;
+      const selected = index === this.selectedActionIndex;
+      const button = this.scene.add.text(
+        px + 24 + cell.x + cell.width / 2,
+        actionY,
+        `${selected ? "▶ " : ""}${ACTION_LABELS[action]}`,
+        {
+          fontSize: "14px",
+          fontFamily: "monospace",
+          color: selected ? "#ffffff" : actionColor(action),
+          backgroundColor: selected ? "#455a7a" : "#2a2a4e",
+          align: "center",
+          padding: { x: 8, y: 19 },
+          fixedWidth: cell.width,
+          fixedHeight: cell.height,
+        },
+      ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+      button.setData("layoutId", `save-slot-action-${action}`);
+      button.setData("testId", `save-slot-action-${action}`);
+      syncInteractiveHitArea(button);
+      button.on("pointerover", () => button.setColor("#ffffff"));
+      button.on("pointerout", () => button.setColor(
+        index === this.selectedActionIndex ? "#ffffff" : actionColor(action),
+      ));
+      button.on("pointerdown", () => {
+        this.selectedActionIndex = index;
+        this.activateSelectedAction();
+      });
+      container.add(button);
+    });
+
+    const hint = this.scene.add.text(
+      px + panelW / 2,
+      py + panelH - 16,
+      "A / Enter confirms  •  B / Esc cancels",
+      {
+        fontSize: "9px",
+        fontFamily: "monospace",
+        color: "#90a4ae",
+      },
+    ).setOrigin(0.5, 1);
+    hint.setData("layoutId", "save-slots-hint");
+    container.add(hint);
+    this.announceSelection();
+    this.callbacks.onStateChange?.();
+  }
+
   private getActions(slot: SaveSlotInfo): SaveSlotAction[] {
     if (this.pendingConfirmation) return ["confirm", "cancel"];
     if (this.copySourceSlotId) return ["confirm", "cancel"];
@@ -514,6 +636,10 @@ export class SaveSlotManager {
   }
 
   private moveSlot(direction: -1 | 1): void {
+    if (this.pendingConfirmation?.kind === "newGame") {
+      this.moveAction(direction);
+      return;
+    }
     const selectable = this.copySourceSlotId
       ? this.slots
         .map((slot, index) => ({ slot, index }))

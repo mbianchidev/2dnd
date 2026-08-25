@@ -104,6 +104,10 @@ screens or duplicate state changes.
 dead zones, repeats, source switching, and duplicate suppression.
 `src/managers/input.ts` is the only browser adapter for keyboard, pointer,
 gamepad, and touch.
+`src/managers/titleMenu.ts` owns title selection and large direct-pointer hit
+targets so touch D-pad/A input and visible buttons activate the same actions.
+The new-game overwrite confirmation uses a compact centered layout that remains
+fully usable in mobile landscape.
 Spatial button grids use shared layout navigation so all four directions match
 their visual rows and columns. Character creation supports D-pad navigation plus
 confirm/cancel throughout. MENU and TIPS touch buttons appear only in the safe

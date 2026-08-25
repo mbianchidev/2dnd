@@ -38,6 +38,10 @@ import {
 import { openMobileTextInput } from "../managers/input";
 import { SaveSlotManager } from "../managers/saveSlots";
 import {
+  TitleMenuManager,
+  type TitleMenuAction,
+} from "../managers/titleMenu";
+import {
   calcPanelLayout,
   createDimGraphics,
   createOverlayContainer,
@@ -71,6 +75,8 @@ interface CharacterCreationControlHandlers {
 export class BootScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
   private saveSlotManager!: SaveSlotManager;
+  private titleMenuManager: TitleMenuManager | null = null;
+  private titleSettingsContainer: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super({ key: "BootScene" });
@@ -105,7 +111,10 @@ export class BootScene extends Phaser.Scene {
       }),
       onStateChange: () => this.updateTitleDebugState(),
     });
-    this.events.once("shutdown", () => this.saveSlotManager.destroy());
+    this.events.once("shutdown", () => {
+      this.titleMenuManager?.destroy();
+      this.saveSlotManager.destroy();
+    });
     this.showTitleScreen();
   }
 
@@ -146,6 +155,8 @@ export class BootScene extends Phaser.Scene {
 
 
   private showTitleScreen(): void {
+    this.titleMenuManager?.destroy();
+    this.titleMenuManager = null;
     this.saveSlotManager.close();
     this.children.removeAll(true);
     this.tweens.killAll();
@@ -222,117 +233,68 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    // Menu options
-    let menuY = cy + 60;
-
     const saveExists = hasSave();
-
+    const actions: TitleMenuAction[] = [];
     if (saveExists) {
       const summary = getSaveSummary() ?? "Saved game";
-      const continueBtn = this.add
-        .text(cx, menuY, "▶ Continue", {
-          fontSize: "22px",
-          fontFamily: "monospace",
-          color: "#88ff88",
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true });
-      continueBtn.on("pointerover", () => continueBtn.setColor("#ffd700"));
-      continueBtn.on("pointerout", () => continueBtn.setColor("#88ff88"));
-      continueBtn.on("pointerdown", () => this.continueGame());
-
-      this.add
-        .text(cx, menuY + 24, summary, {
-          fontSize: "10px",
-          fontFamily: "monospace",
-          color: "#666",
-        })
-        .setOrigin(0.5);
-
-      menuY += 54;
+      actions.push({
+        id: "continue",
+        label: "▶ Continue",
+        detail: summary,
+        color: "#88ff88",
+        activate: () => this.continueGame(),
+      });
     }
-
-    const newBtn = this.add
-      .text(cx, menuY, "★ New Game", {
-        fontSize: "22px",
-        fontFamily: "monospace",
-        color: "#fff",
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-    newBtn.on("pointerover", () => newBtn.setColor("#ffd700"));
-    newBtn.on("pointerout", () => newBtn.setColor("#fff"));
-    newBtn.on("pointerdown", () => this.requestNewGame());
-
-    menuY += 40;
-
-    const slotsBtn = this.add
-      .text(cx, menuY, "▤ Load / Manage Saves", {
-        fontSize: "16px",
-        fontFamily: "monospace",
+    actions.push(
+      {
+        id: "newGame",
+        label: "★ New Game",
+        color: "#ffffff",
+        shortcut: "n",
+        activate: () => this.requestNewGame(),
+      },
+      {
+        id: "saveSlots",
+        label: "▤ Load / Manage Saves",
         color: "#9fe8ff",
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-    slotsBtn.setData("testId", "title-save-slots");
-    slotsBtn.setData("layoutId", "title-save-slots");
-    slotsBtn.on("pointerover", () => slotsBtn.setColor("#ffd700"));
-    slotsBtn.on("pointerout", () => slotsBtn.setColor("#9fe8ff"));
-    slotsBtn.on("pointerdown", () => this.saveSlotManager.open("load"));
-
-    menuY += 36;
-
-    // Settings button
-    const settingsBtn = this.add
-      .text(cx, menuY, "🔊 Settings", {
-        fontSize: "16px",
-        fontFamily: "monospace",
+        shortcut: "l",
+        activate: () => this.saveSlotManager.open("load"),
+      },
+      {
+        id: "settings",
+        label: "🔊 Settings",
         color: "#aabbcc",
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-    settingsBtn.on("pointerover", () => settingsBtn.setColor("#ffd700"));
-    settingsBtn.on("pointerout", () => settingsBtn.setColor("#aabbcc"));
-    settingsBtn.on("pointerdown", () => this.showTitleSettings());
+        activate: () => this.showTitleSettings(),
+      },
+    );
 
     if (window.desktop) {
-      menuY += 38;
-      const quitBtn = this.add
-        .text(cx, menuY, "[ Quit Desktop ]", {
-          fontSize: "16px",
-          fontFamily: "monospace",
-          color: "#ff7777",
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true });
-      quitBtn.setData("testId", "title-quit-desktop");
-      quitBtn.on("pointerover", () => quitBtn.setColor("#ffffff"));
-      quitBtn.on("pointerout", () => quitBtn.setColor("#ff7777"));
-      quitBtn.on("pointerdown", () => this.quitDesktopApp());
-      this.input.keyboard!.once("keydown-Q", () => this.quitDesktopApp());
+      actions.push({
+        id: "quit",
+        label: "[ Quit Desktop ]",
+        color: "#ff7777",
+        shortcut: "q",
+        activate: () => this.quitDesktopApp(),
+      });
     }
 
-    // Keyboard shortcuts
-    if (saveExists) {
-      this.input.keyboard!.on("keydown-SPACE", () => {
-        if (!this.saveSlotManager.isOpen()) this.continueGame();
-      });
-      this.input.keyboard!.on("keydown-N", () => {
-        if (!this.saveSlotManager.isOpen()) this.requestNewGame();
-      });
-    } else {
-      this.input.keyboard!.on("keydown-SPACE", () => {
-        if (!this.saveSlotManager.isOpen()) this.requestNewGame();
-      });
-    }
-    this.input.keyboard!.on("keydown-L", () => {
-      if (!this.saveSlotManager.isOpen()) this.saveSlotManager.open("load");
+    this.titleMenuManager = new TitleMenuManager(this, {
+      actions,
+      canActivate: () =>
+        !this.saveSlotManager.isOpen()
+        && !this.titleSettingsContainer
+        && !this.sceneTransitions.isPending,
+      onSelectionChange: () => this.updateTitleDebugState(),
     });
+    this.titleMenuManager.open();
   }
 
   private updateTitleDebugState(): void {
+    const selectedAction = this.titleMenuManager?.getSelectedActionId();
     debugPanelState(
-      `BOOT | Screen: title${this.saveSlotManager?.getDebugState() ?? ""}`,
+      `BOOT | Screen: title`
+      + `${selectedAction ? ` [TITLE_ACTION:${selectedAction}]` : ""}`
+      + `${this.saveSlotManager?.getDebugState() ?? ""}`,
     );
   }
 
@@ -348,6 +310,7 @@ export class BootScene extends Phaser.Scene {
 
   /** Show the shared audio and accessibility settings on the title screen. */
   private showTitleSettings(): void {
+    if (this.titleSettingsContainer) return;
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
       this,
       SETTINGS_PANEL_WIDTH,
@@ -359,11 +322,25 @@ export class BootScene extends Phaser.Scene {
       90,
       { x: px, y: py, width: panelW, height: panelH },
     );
+    this.titleSettingsContainer = container;
+    const close = (): void => container.destroy();
+    const handleCancel = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      close();
+    };
+    this.input.keyboard?.on("keydown", handleCancel);
+    container.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.input.keyboard?.off("keydown", handleCancel);
+      if (this.titleSettingsContainer === container) {
+        this.titleSettingsContainer = null;
+      }
+    });
     const dim = createDimGraphics(this, w, h, 0.7);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
     dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.x < px || pointer.x > px + panelW || pointer.y < py || pointer.y > py + panelH) {
-        container.destroy();
+        close();
       }
     });
     container.add(dim);
@@ -427,6 +404,8 @@ export class BootScene extends Phaser.Scene {
     initialName = "Hero",
     initialClassId = PLAYER_CLASSES[0]?.id ?? "",
   ): void {
+    this.titleMenuManager?.destroy();
+    this.titleMenuManager = null;
     this.saveSlotManager.close();
     debugPanelState("BOOT | Screen: character");
     // Clear the title screen

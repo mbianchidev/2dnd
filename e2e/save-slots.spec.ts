@@ -1,5 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
-import { expectCleanLayout } from "./helpers/layout";
+import {
+  expectCleanLayout,
+  tapLayoutItem,
+} from "./helpers/layout";
 
 async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
@@ -257,6 +260,57 @@ test.describe("touch save slots", () => {
     hasTouch: true,
     isMobile: true,
     viewport: { width: 430, height: 932 },
+  });
+
+  test("uses title actions and keeps new-game confirmation usable in landscape", async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+    await page.addInitScript(() => {
+      if (!sessionStorage.getItem("touchTitleInitialized")) {
+        localStorage.clear();
+        sessionStorage.setItem("touchTitleInitialized", "true");
+      }
+    });
+    await page.goto("game.html", { waitUntil: "networkidle" });
+    await seedCampaigns(page, false);
+    await page.setViewportSize({ width: 932, height: 430 });
+    await page.reload({ waitUntil: "networkidle" });
+    await waitForState(page, "BOOT | Screen: title");
+    await waitForState(page, "[TITLE_ACTION:continue]");
+    await expectCleanLayout(page);
+    for (const action of ["navigateUp", "confirm"]) {
+      const bounds = await page.locator(`[data-action="${action}"]`).boundingBox();
+      expect(bounds?.width).toBeGreaterThanOrEqual(48);
+      expect(bounds?.height).toBeGreaterThanOrEqual(48);
+    }
+
+    await tapLayoutItem(page, "title-new-game");
+    await waitForState(page, "[SAVE_PHASE:confirm-newGame]");
+    await waitForState(page, "[SAVE_SLOT:autosave]");
+    await expectCleanLayout(page);
+    await page.locator('[data-action="navigateDown"]').tap();
+    await waitForState(page, "[SAVE_SLOT:autosave] [SAVE_ACTION:cancel]");
+    await page.locator('[data-action="navigateUp"]').tap();
+    await waitForState(page, "[SAVE_SLOT:autosave] [SAVE_ACTION:confirm]");
+    await tapLayoutItem(page, "save-slot-action-cancel");
+    await expect(page.locator("#debug-state")).not.toContainText("[SAVE_SLOTS:");
+    await waitForState(page, "[TITLE_ACTION:newGame]");
+
+    await page.locator('[data-action="navigateDown"]').tap();
+    await waitForState(page, "[TITLE_ACTION:saveSlots]");
+    await page.locator('[data-action="confirm"]').tap();
+    await waitForState(page, "[SAVE_SLOTS:load]");
+    await page.locator('[data-action="cancel"]').tap();
+    await expect(page.locator("#debug-state")).not.toContainText("[SAVE_SLOTS:");
+
+    await tapLayoutItem(page, "title-continue");
+    await waitForState(page, "OVERWORLD");
+    expect(errors).toEqual([]);
   });
 
   test("creates a manual snapshot at 150 percent text scale", async ({

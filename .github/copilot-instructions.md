@@ -965,6 +965,9 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Match D-pad navigation to visual grid rows and columns. Character creation
   must support directional selection plus A/confirm and B/cancel. Show MENU and
   TIPS touch actions only during safe exploration.
+- Route title selection and direct pointer targets through
+  `src/managers/titleMenu.ts`. Keep the new-game overwrite confirmation compact,
+  centered, and directly tappable in mobile landscape.
 - Clear held input and synthetic keys on blur, visibility loss, gamepad
   disconnect, scene changes, and runtime destruction.
 - Resolve key conflicts by semantic context/priority. Never map production

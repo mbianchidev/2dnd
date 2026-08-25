@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "01M0WKB4C8P9RZ6M64EEXKMZZ2",
+  "strategy": "manual-commit",
+  "branch": "cp-desktop-fix-mobile-title-controls",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/game-development/SKILL.md",
+    "AGENTS.md",
+    "docs/architecture.md",
+    "docs/development.md",
+    "docs/testing.md",
+    "e2e/save-slots.spec.ts",
+    "game.html",
+    "src/managers/saveSlots.ts",
+    "src/managers/titleMenu.ts",
+    "src/scenes/Boot.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 88681,
+    "api_call_count": 120
+  }
+}

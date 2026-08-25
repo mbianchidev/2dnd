@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "01M0WKB4C8P9RZ6M64EEXKMZZ2",
+  "session_id": "c5779af9-801b-49f8-82e0-6d79942ca77a",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-25T13:56:54.043668Z",
+  "branch": "cp-desktop-fix-mobile-title-controls",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/copilot-instructions.md",
+    ".github/skills/game-development/SKILL.md",
+    "AGENTS.md",
+    "docs/architecture.md",
+    "docs/development.md",
+    "docs/testing.md",
+    "e2e/save-slots.spec.ts",
+    "game.html",
+    "src/managers/saveSlots.ts",
+    "src/managers/titleMenu.ts",
+    "src/scenes/Boot.ts"
+  ],
+  "agent": "Copilot CLI",
+  "model": "",
+  "turn_id": "0999e5ea13a9",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 88681,
+    "api_call_count": 120
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-25T13:56:53.785178Z",
+    "agent_lines": 589,
+    "agent_removed": 139,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 589,
+    "total_lines_changed": 728,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

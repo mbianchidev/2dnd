@@ -19,6 +19,7 @@ describe("Electron packaging configuration", () => {
     expect(manifest.devDependencies["electron-builder"]).toBe("26.15.7");
     expect(manifest.overrides).toEqual({
       "@electron/asar": "4.2.1",
+      "fast-uri": "3.1.7",
       "global-agent": "4.1.3",
     });
     expect(manifest.allowScripts).toEqual({

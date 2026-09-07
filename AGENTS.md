@@ -12,8 +12,8 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Product | Browser/Electron JRPG, release v1.1.0 |
 | Runtime | Phaser 4.2.1 |
 | Language | TypeScript 7.0.2, strict, ES2020 |
-| Build/test | Vite 8.2.1, Electron 43.4.0, electron-builder 26.15.7, Vitest 4.1.10, Playwright 1.62.1 |
-| DOM tests | happy-dom 20.11.1 |
+| Build/test | Vite 8.2.2, Electron 44.1.1, electron-builder 26.16.0, Vitest 5.0.0, Playwright 1.62.1 |
+| DOM tests | happy-dom 20.14.0 |
 | Save schema | 18 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |

@@ -75,10 +75,27 @@ async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
 }
 
+async function activateTitleAction(
+  page: Page,
+  action: "continue" | "newGame",
+): Promise<void> {
+  await waitForState(page, "BOOT | Screen: title");
+  const marker = `[TITLE_ACTION:${action}]`;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes(marker)) {
+      await page.keyboard.press("Enter");
+      return;
+    }
+    await page.keyboard.press("ArrowUp");
+    await page.waitForTimeout(50);
+  }
+  throw new Error(`Unable to select desktop title action: ${action}`);
+}
+
 async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
-  await page.waitForTimeout(800);
-  await page.keyboard.press("Space");
-  await page.waitForTimeout(300);
+  await activateTitleAction(page, "newGame");
+  await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 320, 76);
   const nameInput = page.locator("#mobile-text-input input");
   await expect(nameInput).toBeVisible();
@@ -222,7 +239,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
       };
     }, SAVE_KEY);
     expect(loaded).toEqual(saved);
-    await holdKey(page, "Space");
+    await activateTitleAction(page, "continue");
     await waitForState(page, "OVERWORLD");
     await holdKey(page, "Escape");
     await waitForState(page, "[MENU]");

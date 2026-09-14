@@ -26,12 +26,12 @@ continuation, plus deterministic fishing, mining, and foraging minigames.
 
 - Phaser 4.2.1
 - TypeScript 7.0.2 in strict mode
-- Vite 8.2.2
+- Vite 8.3.0
 - Vitest 5.0.0
-- Playwright 1.62.1
-- happy-dom 20.14.0
-- Electron 44.1.1
-- electron-builder 26.16.0
+- Playwright 1.63.0
+- happy-dom 20.14.3
+- Electron 44.3.0
+- electron-builder 26.16.1
 - Modern browsers, ES2020 target
 
 ## Structure

@@ -105,7 +105,6 @@ const HELD_TOUCH_ACTIONS = new Set<InputAction>([
   "navigateLeft",
   "navigateRight",
 ]);
-const TOUCH_CLICK_SUPPRESSION_MS = 500;
 
 function isTouchDevice(): boolean {
   return navigator.maxTouchPoints > 0
@@ -565,7 +564,6 @@ export class SemanticInputRuntime {
       button.dataset.action = definition.action;
       button.textContent = definition.label;
       button.setAttribute("aria-label", definition.action);
-      let lastPointerActivation = Number.NEGATIVE_INFINITY;
       const pulse = (): void => {
         const inputEvent = this.state.pulse(
           this.contextualizeAction(definition.action),
@@ -608,7 +606,6 @@ export class SemanticInputRuntime {
           releaseHeld(event);
           return;
         }
-        lastPointerActivation = now();
         pulse();
       });
       button.addEventListener("pointercancel", (event) => {
@@ -622,7 +619,8 @@ export class SemanticInputRuntime {
       button.addEventListener("click", (event) => {
         if (HELD_TOUCH_ACTIONS.has(definition.action)) return;
         event.preventDefault();
-        if (now() - lastPointerActivation <= TOUCH_CLICK_SUPPRESSION_MS) return;
+        // Pointer-up already emitted the action; keep click as a keyboard fallback.
+        if (event.detail > 0) return;
         pulse();
       });
       root.append(button);

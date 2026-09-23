@@ -44,14 +44,14 @@
   "homepage": "https://github.com/mbianchidev/2dnd#readme",
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "@types/node": "^26.5.1",
-    "electron": "^44.3.0",
+    "@types/node": "^26.6.1",
+    "electron": "^44.4.1",
     "electron-builder": "26.16.1",
-    "happy-dom": "^20.14.3",
+    "happy-dom": "^20.14.5",
     "phaser": "^4.2.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   },
   "build": {
     "appId": "dev.mbianchidev.2dnd",

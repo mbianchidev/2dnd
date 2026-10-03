@@ -93,10 +93,16 @@ Linux icons from procedural pixel art without external assets.
 
 Pinned `allowScripts` entries approve only Electron's requested `fsevents`
 versions and the reviewed `electron-winstaller` setup script. `.npmrc` omits
-the unused Squirrel peer from installation, while exact ASAR/proxy overrides
-remove deprecated transitives from the stable builder graph. Keep these
-policies version-pinned and rerun `npm install-scripts ls`, `npm audit`, and
-the complete platform matrix after dependency changes.
+the unused Squirrel peer from installation, while exact ASAR, URI, and
+brace-expansion overrides pin reviewed transitive releases.
+
+The `@electron/get` 5.1.0 override shares Electron's native fetch-based
+downloader with the builder on Node 24, removing the legacy `got` /
+`http-cache-semantics` chain affected by GHSA-ch52-4w7c-c8xp. Keep this override
+until the builder adopts the fetch-based downloader directly; do not
+disable the audit or downgrade the builder. Keep these policies version-pinned
+and rerun `npm install-scripts ls`, `npm audit`, and the complete platform matrix
+after dependency changes.
 
 | Platform | Unsigned outputs |
 | --- | --- |

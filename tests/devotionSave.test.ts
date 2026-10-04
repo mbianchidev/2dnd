@@ -3,7 +3,7 @@ import { createPlayer, type PlayerState } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createCurrentSaveData, loadGame, normalizeSaveData, saveGame } from "../src/systems/save";
 import { applyDevotionSource } from "../src/systems/devotion";
-import { getActiveDevotionBlessing, performTempleRite, visitDevotionTemple } from "../src/systems/devotionTemples";
+import { changeDevotionAffiliation, getActiveDevotionBlessing, performTempleRite, visitDevotionTemple } from "../src/systems/devotionTemples";
 import { createDevotionState } from "../src/systems/devotionState";
 import { processEndOfTurn } from "../src/systems/statusEffects";
 
@@ -117,6 +117,25 @@ describe("devotion persistence and migration", () => {
     player.activeEffects = [];
     const normalized = normalizeSaveData(documentFor(player))!.player;
     expect(normalized.activeEffects).toEqual([]);
+    expect(performTempleRite(normalized, "willowdaleSpanThread").changed).toBe(false);
+  });
+
+  it("round-trips a renunciation receipt without replaying old sources or blessings", () => {
+    const player = hero();
+    player.progression.devotion.deityId = "selquor";
+    applyDevotionSource(player, "covenantReturned");
+    performTempleRite(player, "willowdaleSpanThread");
+    const score = player.progression.devotion.score;
+    expect(changeDevotionAffiliation(player, "willowdaleSpan", null, {
+      expectedDeityId: "selquor", expectedScore: score,
+    }).delta).toBe(-score);
+    const normalized = normalizeSaveData(documentFor(player))!.player;
+    expect(normalized.progression.devotion).toEqual(player.progression.devotion);
+    expect(normalized.progression.devotion.history[
+      normalized.progression.devotion.history.length - 1
+    ].delta).toBe(-score);
+    expect(normalized.activeEffects).toEqual([]);
+    expect(applyDevotionSource(normalized, "covenantReturned").changed).toBe(false);
     expect(performTempleRite(normalized, "willowdaleSpanThread").changed).toBe(false);
   });
 });

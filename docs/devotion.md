@@ -58,6 +58,11 @@ Cancelling changes nothing. A change never resets visited sites, consumed
 devotion sources, completed quests, or claimed rewards, and never changes
 alignment or reputation.
 
+**Switching or renouncing resets devotion to zero and removes the prepared
+traveling thread.** Confirmation shows the exact lost score before committing.
+Former causes stay consumed even if you return to the old figure; only future
+unused causes can build devotion again. Unlocked cosmetic titles remain earned.
+
 Devotion is an integer from **0 to 100**. Named tiers are derived:
 
 | Tier ID | Display name | Minimum |

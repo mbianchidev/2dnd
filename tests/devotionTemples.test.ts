@@ -88,6 +88,43 @@ describe("temples and existing blessing lifecycle", () => {
     expect(player).toEqual(before);
   });
 
+  it.each(DEITY_IDS.flatMap((from) => [...DEITY_IDS, null].filter(
+    (target) => target !== from,
+  ).map((target) => ({ from, target }))))(
+    "confirms $from -> $target with exact loss and independent authority preserved",
+    ({ from, target }) => {
+      const player = hero(from);
+      visitDevotionTemple(player, "willowdaleSpan");
+      applyDevotionSource(player, "covenantReturned");
+      performTempleRite(player, "willowdaleSpanThread");
+      player.progression.devotion.score = 50;
+      player.activeEffects.push({ id: "poison", remainingTurns: 2, source: "Mock trap" });
+      const before = structuredClone(player);
+      expect(getDevotionAffiliationConsequences(player, target)).toContain("lose 50 devotion");
+      const result = changeDevotionAffiliation(player, "willowdaleSpan", target, {
+        expectedDeityId: from, expectedScore: 50,
+      });
+      expect(result.changed).toBe(true);
+      expect(result.delta).toBe(-50);
+      expect(player.progression.devotion.deityId).toBe(target);
+      expect(player.progression.devotion.score).toBe(0);
+      expect(player.progression.devotion.appliedSourceIds).toEqual(before.progression.devotion.appliedSourceIds);
+      expect(player.progression.devotion.visitedTempleIds).toEqual(before.progression.devotion.visitedTempleIds);
+      expect(player.progression.social).toEqual(before.progression.social);
+      expect(player.progression.quests).toEqual(before.progression.quests);
+      expect(player.inventory).toEqual(before.inventory);
+      expect(player.gold).toBe(before.gold);
+      expect(player.activeEffects).toEqual([{ id: "poison", remainingTurns: 2, source: "Mock trap" }]);
+      expect(applyDevotionSource(player, "covenantReturned").changed).toBe(false);
+      expect(performTempleRite(player, "willowdaleSpanThread").changed).toBe(false);
+      const after = structuredClone(player);
+      expect(changeDevotionAffiliation(player, "willowdaleSpan", target, {
+        expectedDeityId: from, expectedScore: 50,
+      }).changed).toBe(false);
+      expect(player).toEqual(after);
+    },
+  );
+
   it.each(TEMPLES)("has a safe live approach to $id without changing terrain authority", (temple) => {
     const city = getCity(temple.cityId)!;
     const map = getCityChunk(city, temple.cityChunkIndex)!.mapData;
@@ -231,6 +268,9 @@ describe("temples and existing blessing lifecycle", () => {
     player.progression.achievements.debugMutationActive = true;
     const snapshot = structuredClone(player);
     expect(performTempleRite(player, "willowdaleSpanThread").changed).toBe(false);
+    expect(changeDevotionAffiliation(player, "willowdaleSpan", null, {
+      expectedDeityId: "orivane", expectedScore: 0,
+    }).changed).toBe(false);
     expect(player).toEqual(snapshot);
   });
 });

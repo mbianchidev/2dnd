@@ -257,6 +257,37 @@ for (const deityId of ["orivane", "selquor", "tessune"]) {
     await expect(page.locator("#devotion-accessible-content")).toContainText("+4");
     await expectCleanLayout(page);
     await clickLayoutItem(page, "devotion-action-close");
+    await openTemple(page);
+    await clickLayoutItem(page, "devotion-action-rites");
+    await clickLayoutItem(page, "devotion-action-rite-willowdaleSpanThread");
+    const beforeSwitch = await readSave(page);
+    await clickLayoutItem(page, "devotion-action-back");
+    const figures = ["orivane", "selquor", "tessune"];
+    const nextFigure = figures[(figures.indexOf(deityId) + 1) % figures.length];
+    await selectFigure(page, nextFigure);
+    await clickLayoutItem(page, "devotion-action-follow");
+    await expect(page.locator("#devotion-accessible-content")).toContainText(
+      `lose ${beforeSwitch.player.progression.devotion.score} devotion`,
+    );
+    await expectCleanLayout(page);
+    await clickLayoutItem(page, "devotion-action-confirm-affiliation");
+    let changed = await readSave(page);
+    expect(changed.player.progression.devotion.deityId).toBe(nextFigure);
+    expect(changed.player.progression.devotion.score).toBe(0);
+    expect(changed.player.activeEffects).toEqual([]);
+    expect(changed.player.progression.devotion.appliedSourceIds)
+      .toEqual(beforeSwitch.player.progression.devotion.appliedSourceIds);
+    expect(changed.player.progression.social).toEqual(beforeSwitch.player.progression.social);
+    await clickLayoutItem(page, "devotion-action-pantheon");
+    await clickLayoutItem(page, "devotion-action-unaffiliate");
+    await clickLayoutItem(page, "devotion-action-confirm-affiliation");
+    changed = await readSave(page);
+    expect(changed.player.progression.devotion.deityId).toBeNull();
+    expect(changed.player.progression.devotion.score).toBe(0);
+    expect(changed.player.progression.devotion.affiliationChanges).toBe(3);
+    await clickLayoutItem(page, "devotion-action-close");
+    await continueCampaign(page);
+    expect((await readSave(page)).player.progression.devotion).toEqual(changed.player.progression.devotion);
     expect(errors).toEqual([]);
   });
 }

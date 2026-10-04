@@ -5,7 +5,6 @@ import {
   TEMPLES,
   getDeity,
   getTemple,
-  isDeityId,
   type DevotionBlessingDefinition,
   type TempleDefinition,
   type TempleDialogueChoiceId,
@@ -14,9 +13,14 @@ import {
   type TempleRiteId,
 } from "../data/devotion";
 import { getCity, getCityChunk, isWalkable } from "../data/map";
-import { appendDevotionCause, applyDevotionSource, type DevotionMutationResult } from "./devotion";
+import {
+  applyDevotionSource,
+  changeDevotionAffiliationState,
+  type DevotionAffiliationSnapshot,
+  type DevotionMutationResult,
+} from "./devotion";
 import { shortRest, type PlayerPosition, type PlayerState } from "./player";
-import { applyStatusEffect, removeStatusEffect, type ActiveStatusEffect } from "./statusEffects";
+import { applyStatusEffect, type ActiveStatusEffect } from "./statusEffects";
 import {
   applySocialMutation,
   getAlignmentName,
@@ -37,19 +41,12 @@ export interface TempleRiteAvailability {
   readonly reason: string;
 }
 
-export interface DevotionAffiliationSnapshot {
-  readonly expectedDeityId: PlayerState["progression"]["devotion"]["deityId"];
-  readonly expectedScore: number;
-}
-
 export function getDevotionAffiliationConsequences(
   player: PlayerState,
   target: PlayerState["progression"]["devotion"]["deityId"],
 ): string {
-  if (player.progression.devotion.deityId !== null) {
-    return "Switching and renouncing consequences are awaiting policy review. This checkpoint keeps your current affiliation and score unchanged.";
-  }
-  return `Choosing ${target ? getDeity(target).name : "no figure"} starts at 0 devotion. Any prepared traveling thread clears; all source and visit ledgers stay consumed.`;
+  const state = player.progression.devotion;
+  return `Choosing ${target ? getDeity(target).name : "no figure"} resets your score to 0 devotion: you lose ${state.score} devotion. Any traveling thread clears; all source and visit ledgers stay consumed. Only future unused causes can build devotion again.`;
 }
 
 /** Commit only after an explicit temple confirmation of the current snapshot. */
@@ -59,30 +56,10 @@ export function changeDevotionAffiliation(
   target: PlayerState["progression"]["devotion"]["deityId"],
   snapshot: DevotionAffiliationSnapshot,
 ): DevotionMutationResult {
-  if (target !== null && !isDeityId(target)) throw new Error("[devotion] Unknown affiliation");
-  const state = player.progression.devotion;
-  const unchanged = (message: string): DevotionMutationResult => ({ changed: false, delta: 0, message });
-  if (!isAtDevotionTemple(player, templeId)) return unchanged("Approach this temple first.");
-  if (state.deityId !== snapshot.expectedDeityId || state.score !== snapshot.expectedScore) {
-    return unchanged("Your devotion changed. Review the choice again before confirming.");
+  if (!isAtDevotionTemple(player, templeId)) {
+    return { changed: false, delta: 0, message: "Approach this temple first." };
   }
-  if (state.deityId === target) return unchanged("Your affiliation is already unchanged.");
-  if (state.deityId !== null) {
-    return unchanged("Switching policy is awaiting review; no affiliation, score, blessing or ledger changed.");
-  }
-  if (state.affiliationChanges >= 1_000_000) return unchanged("Affiliation history is at its safe limit.");
-  state.affiliationChanges++;
-  state.deityId = target;
-  state.score = 0;
-  removeStatusEffect(player.activeEffects, "templeWard");
-  appendDevotionCause(state, {
-    sourceId: `affiliation:${state.affiliationChanges}:${target ?? "none"}`,
-    deityId: target, delta: 0, score: 0, debug: false,
-  });
-  return {
-    changed: true, delta: 0,
-    message: `Chose ${target ? getDeity(target).name : "no affiliation"} at 0 devotion. Traveling thread cleared; sources and visits preserved.`,
-  };
+  return changeDevotionAffiliationState(player, target, snapshot);
 }
 
 export function getAdjacentDevotionTemple(position: PlayerPosition): TempleDefinition | undefined {

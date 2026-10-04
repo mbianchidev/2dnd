@@ -7,6 +7,7 @@ import {
   getDeity,
   getDevotionSource,
   isDevotionSourceId,
+  isDeityId,
   type DeityId,
   type DevotionDomainId,
   type DevotionSourceId,
@@ -15,6 +16,7 @@ import {
 import type { PlayerState } from "./player";
 import type { DevotionCause, DevotionState } from "./devotionState";
 import type { QuestLogState } from "../data/quests";
+import { removeStatusEffect } from "./statusEffects";
 
 const debugMutations = new WeakSet<PlayerState>();
 
@@ -22,6 +24,44 @@ export interface DevotionMutationResult {
   readonly changed: boolean;
   readonly delta: number;
   readonly message: string;
+}
+
+export interface DevotionAffiliationSnapshot {
+  readonly expectedDeityId: DeityId | null;
+  readonly expectedScore: number;
+}
+
+/** Temple adapters validate location before committing an explicitly confirmed snapshot. */
+export function changeDevotionAffiliationState(
+  player: PlayerState,
+  target: DeityId | null,
+  snapshot: DevotionAffiliationSnapshot,
+): DevotionMutationResult {
+  if (target !== null && !isDeityId(target)) throw new Error("[devotion] Unknown affiliation");
+  const state = player.progression.devotion;
+  const unchanged = (message: string): DevotionMutationResult => ({ changed: false, delta: 0, message });
+  if (state.deityId !== snapshot.expectedDeityId || state.score !== snapshot.expectedScore) {
+    return unchanged("Your devotion changed. Review the choice again before confirming.");
+  }
+  if (state.deityId === target) return unchanged("Your affiliation is already unchanged.");
+  if (player.progression.achievements.debugMutationActive || debugMutations.has(player)) {
+    return unchanged("Affiliation cannot change during a debug mutation.");
+  }
+  if (state.affiliationChanges >= 1_000_000) return unchanged("Affiliation history is at its safe limit.");
+  const loss = state.score;
+  const delta = loss > 0 ? -loss : 0;
+  state.affiliationChanges++;
+  state.deityId = target;
+  state.score = 0;
+  removeStatusEffect(player.activeEffects, "templeWard");
+  appendDevotionCause(state, {
+    sourceId: `affiliation:${state.affiliationChanges}:${target ?? "none"}`,
+    deityId: target, delta, score: 0, debug: false,
+  });
+  return {
+    changed: true, delta,
+    message: `Chose ${target ? getDeity(target).name : "no affiliation"}; devotion reset to 0 (-${loss}). Traveling thread cleared; sources and visits preserved.`,
+  };
 }
 
 export interface DevotionRequirement {
@@ -205,7 +245,7 @@ export function describeDevotionCause(cause: DevotionCause): string {
       : "unaffiliated; no points";
     return `${definition.cause} (${result})`;
   }
-  return `Chose ${cause.deityId ? getDeity(cause.deityId).name : "no affiliation"}.`;
+  return `Chose ${cause.deityId ? getDeity(cause.deityId).name : "no affiliation"} (${cause.delta} devotion; ${cause.score}/100).`;
 }
 
 export function getDevotionEndingText(player: PlayerState): string {

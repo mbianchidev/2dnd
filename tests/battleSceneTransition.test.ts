@@ -20,7 +20,7 @@ import {
   type PartyCombatant,
   type BattleOutcome,
 } from "../src/systems/groupCombat";
-import { xpFloorForLevel, type PartyDefeatResult } from "../src/systems/party";
+import { createActivePartyCombatants, recruitCompanion, xpFloorForLevel, type PartyDefeatResult } from "../src/systems/party";
 import { deleteSave, loadGame, saveGame } from "../src/systems/save";
 import {
   createWeatherState,
@@ -93,12 +93,19 @@ describe("BattleScene Overworld transition", () => {
         inCity: true, cityId: "willowdale_city", cityChunkIndex: 1, x: 10, y: 8,
       });
       performTempleRite(player, "willowdaleSpanThread");
+      const companion = recruitCompanion(player, "guardian").companion!;
+      companion.activeEffects.push(poisonEffect());
       const encounter = createSoloEncounter(getMonster("slime")!);
       const combatants = createGroupCombatants(encounter);
       combatants[0].effects.push(poisonEffect());
-      const resolved = vi.fn();
+      const resolved = vi.fn(() => {
+        expect(player.activeEffects.some((effect) => effect.id === "templeWard")).toBe(true);
+        expect(companion.activeEffects).toHaveLength(1);
+      });
       Object.assign(harness, {
-        player, encounter, combatants, partyCombatants: [createHeroCombatant(player)],
+        player, encounter, combatants, partyCombatants: [
+          createHeroCombatant(player), ...createActivePartyCombatants(player.party),
+        ],
         battleResultReported: false, battleHooks: { onBattleResolved: resolved },
         achievementBattleSourceId: `fixture:resolved:${outcome}`,
       });
@@ -106,9 +113,11 @@ describe("BattleScene Overworld transition", () => {
       harness.reportBattleResult(outcome);
       expect(resolved).toHaveBeenCalledTimes(1);
       expect(player.activeEffects).toEqual([]);
+      expect(companion.activeEffects).toEqual([]);
       expect(combatants[0].effects).toEqual([]);
       saveGame(player, new Set(), createCodex(), player.appearanceId);
       expect(loadGame()!.player.activeEffects).toEqual([]);
+      expect(loadGame()!.player.party.companions[0].activeEffects).toEqual([]);
     },
   );
 

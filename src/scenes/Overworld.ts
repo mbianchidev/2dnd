@@ -2455,6 +2455,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handleAction(): void {
+    if (this.sceneTransitions.isPending) return;
     if (this.devotionManager.isOpen()) return;
     if (this.saveSlotManager?.isOpen()) return;
     if (this.overlayManager?.menuOverlay) return;
@@ -2475,8 +2476,6 @@ export class OverworldScene extends Phaser.Scene {
       this.questJournal.close();
       return;
     }
-    if (this.sceneTransitions.isPending) return;
-
     if (!this.player.position.inDungeon && !this.player.position.inCity) {
       if (this.handleNauticalAction()) return;
     }

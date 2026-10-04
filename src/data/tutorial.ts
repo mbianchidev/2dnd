@@ -271,7 +271,7 @@ export const TIPS: readonly TipDefinition[] = [
   {
     id: "advanced.devotion", category: "advanced",
     title: "A freely chosen thread",
-    body: "Approach a marked Unfinished Constellation site to browse three original fictional figures, remain unaffiliated, speak with its keeper, or take an optional rite. Devotion has its own once-only causes, separate from alignment and reputation. Every visitor gets the same small blessing through normal combat turns. The Esc menu opens Devotion after the first visit.",
+    body: "Approach a marked Unfinished Constellation site to browse three original fictional figures, remain unaffiliated, or take an optional rite. Confirming a switch or renunciation resets devotion to 0 and clears the temple blessing. Completed sources stay consumed and never award devotion again. Alignment, reputation and the campaign are unchanged. Every visitor gets the same small blessing through normal combat turns. The Esc menu opens Devotion after the first visit.",
     controls: ["interact", "menu"],
     unlock: { type: "feature", featureId: "devotionProfile" },
   },

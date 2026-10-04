@@ -796,7 +796,9 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 - `devotionState.ts` normalizes independent authoritative state;
   `devotion.ts` owns canonical source idempotency, tiers, affiliation and
   read-only qualification APIs. Consume sources even while unaffiliated.
-  Keep source/visit ledgers through changes; do not infer historical scores.
+  Confirmed switches/renunciation reset score to 0 and clear only temple
+  blessings. Show the exact loss first and retain every source/visit ledger;
+  completed causes cannot award again. Do not infer historical scores.
 - Temple transactions validate live city/district/adjacency before mutation
   through `devotionTemples.ts`. Every visitor can receive the same optional
   +1 AC/three-hero-turn `templeWard` through the existing status lifecycle or use

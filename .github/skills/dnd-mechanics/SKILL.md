@@ -231,6 +231,16 @@ matching effects. Combat effects are cleared when leaving Battle.
 - Flee DC is 10 for one monster and increases by 2 for each additional living
   monster. Boss encounters cannot be fled.
 
+## Timed decisions
+
+Optional timed mode changes decision pressure, not dice, initiative, statuses,
+resources, or rewards. Standard is unlimited. Give conscious hero/manual
+companion turns one active decision budget; bonus actions and targets never
+reset it. Claim a stable turn once, validate a fresh self-Defend through
+`battleActions.ts`, and spend only an available main action. If already spent,
+only end the turn; never select an unconfirmed action or spend MP/items.
+Monsters, gambits, skips, and KO actors are untimed.
+
 ## Leveling
 
 - Proficiency increases at levels 5, 9, 13, and 17.

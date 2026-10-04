@@ -447,6 +447,69 @@ class InputSourceStore {
 export const inputSource = new InputSourceStore();
 export const inputPromptSource = new InputSourceStore();
 
+export interface InputAvailability {
+  readonly pageVisible: boolean;
+  readonly windowFocused: boolean;
+  readonly textEntryActive: boolean;
+  readonly controllerRecovery: boolean;
+}
+
+export function hasLostActiveGamepad(
+  source: InputSource,
+  activeIndex: number | null,
+  connectedIndices: readonly number[],
+): boolean {
+  return source === "gamepad" && activeIndex !== null
+    && !connectedIndices.includes(activeIndex);
+}
+
+/** Browser adapter signals only; consumers decide whether they block a decision. */
+export class InputAvailabilityStore {
+  private availability: Readonly<InputAvailability> = Object.freeze({
+    pageVisible: true,
+    windowFocused: true,
+    textEntryActive: false,
+    controllerRecovery: false,
+  });
+  private readonly listeners = new Set<(state: Readonly<InputAvailability>) => void>();
+
+  get(): Readonly<InputAvailability> {
+    return this.availability;
+  }
+
+  update(changes: Partial<InputAvailability>): void {
+    const next = { ...this.availability, ...changes };
+    if (
+      next.pageVisible === this.availability.pageVisible
+      && next.windowFocused === this.availability.windowFocused
+      && next.textEntryActive === this.availability.textEntryActive
+      && next.controllerRecovery === this.availability.controllerRecovery
+    ) {
+      return;
+    }
+    this.availability = Object.freeze(next);
+    for (const listener of this.listeners) listener(this.availability);
+  }
+
+  acknowledgeControllerRecovery(): void {
+    this.update({ controllerRecovery: false });
+  }
+
+  reset(): void {
+    this.update({
+      pageVisible: true, windowFocused: true,
+      textEntryActive: false, controllerRecovery: false,
+    });
+  }
+
+  subscribe(listener: (state: Readonly<InputAvailability>) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+}
+
+export const inputAvailability = new InputAvailabilityStore();
+
 export function getInputPromptSource(): InputSource {
   return inputPromptSource.get();
 }

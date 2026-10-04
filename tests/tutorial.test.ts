@@ -72,6 +72,7 @@ describe("tutorial and tips", () => {
         "controls.shortcuts",
         "combat.turns",
         "combat.resources",
+        "combat.timing",
         "exploration.fog",
       ]);
 

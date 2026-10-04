@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v18, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v19, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -37,7 +37,7 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 18.
+`SAVE_VERSION` is 19.
 
 ```typescript
 interface SaveData {
@@ -59,6 +59,15 @@ loading path.
 Schema v18 normalizes malformed or missing playtime to zero. Storage metadata
 does not enter the campaign payload. Autosave and manual slot IDs are stable;
 manual saves are independent snapshots.
+
+Schema v19 stores only `player.battleTiming` configuration: Standard/Timed,
+15/30/45/60/90-second durations, and fixed validated Defend. Pre-v19 campaigns
+always start Standard; malformed modes never opt in. Normalize from `unknown`
+with `normalizeBattleTimingSettings()`, default unsupported durations to 30,
+and repair unsupported policies to Defend. Manual snapshots keep their own
+configuration. Never serialize a countdown deadline or partial Battle economy;
+loading uses existing checkpoint/pending-encounter recovery without executing
+a timeout, action, or reward. See [Timed battle decisions](../../../docs/battle-timing.md).
 
 ```typescript
 interface CodexData {
@@ -312,7 +321,7 @@ recoverable valid campaign.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v18 playtime, position, objective/reward/warning quest state,
+- Current schema-v19 battle timing configuration, playtime, position, objective/reward/warning quest state,
   skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
@@ -336,7 +345,7 @@ recoverable valid campaign.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v18 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v19 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

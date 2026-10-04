@@ -63,6 +63,15 @@ symbolic cue. Control presentation preferences cover touch visibility,
 handedness, and prompt source without changing campaign saves. Stable mappings
 are intentionally not remappable.
 
+Per-campaign `player.battleTiming` is separate from presentation preferences.
+Standard creates no timer. Timed hero/manual decisions use one bounded active
+budget through menus, targeting, and bonus actions; `battleActions.ts` validates
+one safe self-Defend at timeout. Pause real action/input/log-overlay/transition/
+visibility/focus/controller-recovery blockers, not ordinary logs or independent
+non-blocking notices. Only configuration is persisted; reload uses the existing
+checkpoint or selected pending encounter and never executes a deadline.
+See [Timed battle decisions](../../../docs/battle-timing.md).
+
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a
 visible right-stick cursor clicked by pressing the stick. Responsive touch

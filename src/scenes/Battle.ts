@@ -41,10 +41,23 @@ import type { HealingTarget } from "../systems/combat";
 import {
   createBattleActionEconomy,
   createPlayerBattleActionSource,
+  consumeBattleActionEconomy,
+  executeValidatedBattleAction,
   type BattleActionSource,
   type BattleActionEconomyState,
+  type BattleActionExecutionContext,
+  type BattleActionPlan,
   type ResolvedBattleAction,
 } from "../systems/battleActions";
+import {
+  executeTimedBattleTimeout,
+  type BattleTimedDecision,
+} from "../systems/battleTiming";
+import {
+  createBattleTimingSettings,
+  resolveBattleTimingSettings,
+} from "../systems/battleTimingSettings";
+import type { BattleTimingAdjustment, BattleTimingSettings } from "../data/battleTiming";
 import { abilityModifier } from "../systems/dice";
 import {
   isDebug,
@@ -81,11 +94,14 @@ import {
 import { BattlePartyRenderer } from "../renderers/battleParty";
 import { BattlePartyManager } from "../managers/battleParty";
 import { BattlePresentationDirector } from "../managers/battlePresentation";
+import { BattleTimingManager } from "../managers/battleTiming";
+import { BattleHeroDecisionManager } from "../managers/battleHeroDecision";
 import {
   createActorTextureFamily,
   resolveMonsterTextureFamily,
 } from "../renderers/actorTextures";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { registerLayoutGroup } from "../managers/layout";
 import {
   installSceneAccessibility,
 } from "../systems/accessibility";
@@ -187,6 +203,7 @@ export interface BattleSceneData {
   partyCombatants?: PartyCombatant[];
   /** Runtime-only extension hooks; never persisted in save data. */
   battleHooks?: BattleResolutionHooks;
+  battleTimingAdjustment?: BattleTimingAdjustment;
   codexDiscoveryIds?: string[];
 }
 
@@ -201,6 +218,9 @@ export class BattleScene extends Phaser.Scene {
   private battlePartyManager!: BattlePartyManager;
   private battlePartyRenderer!: BattlePartyRenderer;
   private battlePresentation!: BattlePresentationDirector;
+  private battleTiming: BattleTimingManager | null = null;
+  private heroDecisions: BattleHeroDecisionManager | null = null;
+  private timingSettings: BattleTimingSettings = createBattleTimingSettings();
   private battleHooks: BattleResolutionHooks | undefined;
   private battleResultReported = false;
   private defeatResult: PartyDefeatResult | null = null;
@@ -343,6 +363,13 @@ export class BattleScene extends Phaser.Scene {
 
   init(data: BattleSceneData): void {
     this.player = data.player;
+    this.battleTiming?.destroy();
+    this.battleTiming = null;
+    this.heroDecisions = null;
+    this.timingSettings = resolveBattleTimingSettings(
+      this.player.battleTiming,
+      data.battleTimingAdjustment,
+    );
     if (!data.encounter && !data.monster) {
       throw new Error("[BattleScene] Missing encounter data");
     }
@@ -387,6 +414,13 @@ export class BattleScene extends Phaser.Scene {
         present: (result) => this.presentResolvedBattleAction(result),
         afterAction: (previouslyAliveEnemyIds) =>
           this.afterPartyAction(previouslyAliveEnemyIds),
+        ...(this.timingSettings.mode === "timed" ? {
+          timing: {
+            acceptsInput: () => this.acceptsBattleDecisionInput(),
+            beginTurn: (combatant: PartyCombatant) =>
+              this.battleTiming?.beginTurn(combatant.id, combatant.label),
+          },
+        } : {}),
       },
     );
     this.battlePartyRenderer = new BattlePartyRenderer(this);
@@ -468,21 +502,57 @@ export class BattleScene extends Phaser.Scene {
     }
     this.registerBattlePresentationActors();
     this.battlePresentation.syncCombatants(this.allCombatants);
+    if (this.timingSettings.mode === "timed") {
+      this.battleTiming = new BattleTimingManager(this, this.timingSettings, {
+        controlledActorId: () => this.controlledTimingActorId,
+        acceptsInput: () => this.controlledTimingActorId !== null
+          && this.input.enabled && this.input.keyboard?.enabled !== false,
+        animationActive: () => this.battlePresentation.isBusy,
+        transitionActive: () => this.sceneTransitions.isPending
+          || this.cameras.main.fadeEffect.isRunning,
+        timeout: (decision) => this.handleTimedBattleTimeout(decision),
+      });
+      this.heroDecisions = new BattleHeroDecisionManager(
+        this,
+        this.partyActionSources[0]!,
+        {
+          acceptsInput: () => this.acceptsBattleDecisionInput(),
+          economy: () => this.playerEconomy,
+          context: () => this.heroExecutionContext,
+          chooseEnemy: (label, range, confirm) => this.beginTargetSelection(
+            label, range, (index) => confirm(this.combatants[index]!.id),
+          ),
+          execute: (plan) => this.executeTimedHeroPlan(plan),
+          swapWeapon: (item) => this.doBattleWeaponSwap(item),
+          addLog: (message) => this.addLog(message),
+        },
+      );
+    }
     this.setupDebug();
     this.applyDayNightTint();
 
     // ESC cancels targeting first, then closes any open sub-menu.
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on("down", () => {
+      if (this.battleTiming?.resumeIfPaused()) return;
+      if (!this.acceptsBattleDecisionInput()) return;
+      if (this.battlePartyManager.cancel() || this.heroDecisions?.cancel()) return;
       if (this.pendingTargetAction) this.cancelTargetSelection();
+      else if (this.battleTiming && !this.hasOpenBattleSubMenu()) this.battleTiming.toggleLogPause();
       else this.closeAllSubMenus();
     });
     const navigateHorizontal = (direction: -1 | 1): void => {
+      if (!this.acceptsBattleDecisionInput()) return;
+      const navigation = direction < 0 ? "left" : "right";
+      if (this.battlePartyManager.navigate(navigation) || this.heroDecisions?.navigate(navigation)) return;
       if (this.pendingTargetAction) this.cycleTarget(direction);
       else if (!this.battleMenuPageChange(direction)) {
         this.cycleActionSelection(direction < 0 ? "left" : "right");
       }
     };
     const navigateVertical = (direction: -1 | 1): void => {
+      if (!this.acceptsBattleDecisionInput()) return;
+      const navigation = direction < 0 ? "up" : "down";
+      if (this.battlePartyManager.navigate(navigation) || this.heroDecisions?.navigate(navigation)) return;
       if (this.pendingTargetAction) this.cycleTarget(direction);
       else if (!this.hasOpenBattleSubMenu()) {
         this.cycleActionSelection(direction < 0 ? "up" : "down");
@@ -499,6 +569,9 @@ export class BattleScene extends Phaser.Scene {
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER).on("down", () => this.confirmBattleSelection());
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).on("down", () => this.confirmBattleSelection());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.battleTiming?.destroy();
+      this.heroDecisions?.clear();
+      this.battlePartyManager.clear();
       this.battlePresentation?.cleanup();
       this.battleBackdrop?.destroy();
       this.codexDiscovery.clear();
@@ -520,7 +593,8 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  update(): void {
+  update(_time = 0, delta = 0): void {
+    this.battleTiming?.update(delta);
     this.updateDebugPanel();
     this.updateButtonStates();
   }
@@ -680,6 +754,7 @@ export class BattleScene extends Phaser.Scene {
       );
       if (nextOffset === this.logScrollOffset) return;
       this.logScrollOffset = nextOffset;
+      this.battleTiming?.pauseForLogReading();
       this.renderBattleLog();
     });
 
@@ -744,6 +819,7 @@ export class BattleScene extends Phaser.Scene {
           color: "#ddd",
         })
         .setOrigin(0.5)
+        .setData("layoutId", `battle-action-${act.label.toLowerCase()}`)
         .setData("accessibilityMaxWidth", btnW - 12);
 
       bg.on("pointerover", () => {
@@ -757,12 +833,18 @@ export class BattleScene extends Phaser.Scene {
         label.setColor("#ddd");
       });
       bg.on("pointerdown", () => {
-        if (this.phase === "playerTurn" && !this.pendingTargetAction) {
+        if (
+          this.phase === "playerTurn" && !this.pendingTargetAction
+          && !this.heroDecisions?.isOpen && this.acceptsBattleDecisionInput()
+        ) {
           act.action();
         }
       });
 
       container.add([bg, label]);
+      registerLayoutGroup(this, `battle-action-${act.label.toLowerCase()}`, container, {
+        x: container.x, y: container.y, width: btnW, height: btnH,
+      });
       this.actionButtons.push(container);
       this.actionButtonLabels.push({ text: label, label: act.label });
       this.actionButtonActions.push(act.action);
@@ -774,7 +856,8 @@ export class BattleScene extends Phaser.Scene {
 
   /** Dim or enable action buttons based on current phase. */
   private updateButtonStates(): void {
-    const enabled = this.phase === "playerTurn" && !this.pendingTargetAction;
+    const enabled = this.phase === "playerTurn" && !this.pendingTargetAction
+      && !this.heroDecisions?.isOpen && this.acceptsBattleDecisionInput();
     for (const btn of this.actionButtons) {
       btn.setAlpha(enabled ? 1 : 0.4);
     }
@@ -789,6 +872,7 @@ export class BattleScene extends Phaser.Scene {
   private cycleActionSelection(direction: GridNavigationDirection): void {
     if (
       this.phase !== "playerTurn"
+      || !this.acceptsBattleDecisionInput()
       || this.pendingTargetAction
       || this.actionButtonActions.length === 0
     ) {
@@ -804,6 +888,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private confirmBattleSelection(): void {
+    if (this.battleTiming?.resumeIfPaused()) return;
+    if (!this.acceptsBattleDecisionInput()) return;
+    if (this.battlePartyManager.confirm() || this.heroDecisions?.confirm()) return;
     if (this.pendingTargetAction) {
       this.confirmTargetSelection();
       return;
@@ -821,6 +908,7 @@ export class BattleScene extends Phaser.Scene {
     ) {
       return;
     }
+    this.battleTiming?.endTurn();
     this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
     this.playerDefending = false;
     this.activeMonsterIndex = null;
@@ -852,10 +940,13 @@ export class BattleScene extends Phaser.Scene {
       this.addLog(`${this.player.name} cannot act this turn!`);
       this.closeAllSubMenus();
       this.finishPlayerTurn();
+      return;
     }
+    this.battleTiming?.beginTurn(this.heroCombatant.id, this.heroCombatant.label);
   }
 
   private finishPlayerTurn(delay = 800): void {
+    this.battleTiming?.endTurn();
     const statusResult = processStatusEndOfTurn(this.player.activeEffects);
     for (const message of statusResult.messages) {
       this.addLog(`${this.player.name}: ${message}`);
@@ -867,6 +958,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private startCompanionTurn(combatant: PartyCombatant): void {
+    this.battleTiming?.endTurn();
+    this.heroDecisions?.clear();
     this.phase = "monsterTurn";
     combatant.isDefending = false;
     this.updateButtonStates();
@@ -944,6 +1037,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private finishCompanionTurn(combatant: PartyCombatant): void {
+    this.battleTiming?.endTurn();
+    this.battlePartyManager.clear();
     const statusResult = processStatusEndOfTurn(combatant.effects);
     for (const message of statusResult.messages) {
       this.addLog(`${combatant.label}: ${message}`);
@@ -1014,6 +1109,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private advanceTurn(delay = 550): void {
+    this.battleTiming?.endTurn();
     this.time.delayedCall(delay, () => {
       if (
         this.phase === "victory"
@@ -1087,12 +1183,14 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private closeAllSubMenus(): void {
+    this.heroDecisions?.clear();
     if (this.spellMenu) { this.spellMenu.destroy(); this.spellMenu = null; }
     if (this.itemMenu) { this.itemMenu.destroy(); this.itemMenu = null; }
     if (this.abilityMenu) { this.abilityMenu.destroy(); this.abilityMenu = null; }
   }
 
   private handleMonsterPointer(targetIndex: number): void {
+    if (this.battleTiming && !this.acceptsBattleDecisionInput()) return;
     const combatant = this.combatants[targetIndex];
     if (!combatant?.isAlive) return;
     if (this.pendingTargetAction) {
@@ -1113,6 +1211,7 @@ export class BattleScene extends Phaser.Scene {
     range: AttackRange,
     execute: (targetIndex: number) => void,
   ): void {
+    if (!this.acceptsBattleDecisionInput()) return;
     const validIndices = getSelectableTargetIndices(this.combatants, range);
     if (validIndices.length === 0) {
       this.addLog("No valid targets!");
@@ -1143,6 +1242,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private confirmTargetSelection(): void {
+    if (!this.acceptsBattleDecisionInput()) return;
     const pending = this.pendingTargetAction;
     if (!pending || !pending.validIndices.includes(this.selectedTargetIndex)) {
       return;
@@ -1201,13 +1301,18 @@ export class BattleScene extends Phaser.Scene {
       .setText(
         `${pending.label}: ${combatant.label}`
         + (penalty > 0 ? ` (-${penalty} melee penalty)` : "")
-        + " — arrows/WASD, Enter/Space",
+        + (this.battleTiming ? " | Enter/A" : " — arrows/WASD, Enter/Space"),
       )
       .setVisible(true);
+    if (this.battleTiming) {
+      this.targetHint.setWordWrapWidth(this.cameras.main.width * 0.47);
+      this.targetHint.setY(this.logAreaY - this.targetHint.displayHeight - 8);
+    }
   }
 
   private hasOpenBattleSubMenu(): boolean {
-    return this.spellMenu !== null
+    return this.heroDecisions?.isOpen === true
+      || this.spellMenu !== null
       || this.abilityMenu !== null
       || this.itemMenu !== null;
   }
@@ -1230,6 +1335,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private showSpellMenu(keepPage = false): void {
+    if (this.heroDecisions) {
+      this.heroDecisions.show("spells");
+      return;
+    }
     if (this.spellMenu && !keepPage) {
       this.spellMenu.destroy();
       this.spellMenu = null;
@@ -1313,6 +1422,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private showAbilityMenu(keepPage = false): void {
+    if (this.heroDecisions) {
+      this.heroDecisions.show("abilities");
+      return;
+    }
     if (this.abilityMenu && !keepPage) {
       this.abilityMenu.destroy();
       this.abilityMenu = null;
@@ -1456,6 +1569,7 @@ export class BattleScene extends Phaser.Scene {
     targetIndex: number,
     healingTargets?: PartyCombatant[],
   ): void {
+    if (!this.acceptsBattleDecisionInput()) return;
     if (this.phase !== "playerTurn") return;
     this.selectedTargetIndex = targetIndex;
     const ability = getAbility(abilityId);
@@ -1565,6 +1679,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private showItemMenu(keepPage = false): void {
+    if (this.heroDecisions) {
+      this.heroDecisions.show("items");
+      return;
+    }
     if (this.itemMenu && !keepPage) {
       this.itemMenu.destroy();
       this.itemMenu = null;
@@ -1716,6 +1834,7 @@ export class BattleScene extends Phaser.Scene {
 
   /** Swap main-hand weapon during battle (bonus action). */
   private doBattleWeaponSwap(newWeapon: Item): void {
+    if (!this.acceptsBattleDecisionInput()) return;
     if (this.phase !== "playerTurn") return;
     if (this.bonusActionUsed) {
       this.addLog("Bonus action already used this turn!");
@@ -1977,6 +2096,11 @@ export class BattleScene extends Phaser.Scene {
       `Anim: ${this.battlePresentation?.debugState ?? "init"} | ` +
       `Backdrop: ${this.biome}/${getTimePeriod(this.timeStep)}/${this.weatherState.current} | ` +
       `Action: ${selectedAction} | ` +
+      `[TARGET:${this.pendingTargetAction?.label ?? "-"}]`
+      + ` [ECONOMY:${this.turnActionUsed ? "main-used" : "main-ready"}:`
+      + `${this.bonusActionUsed ? "bonus-used" : "bonus-ready"}:items-${this.itemsUsedThisTurn}] | ` +
+      `${this.battleTiming?.debugState ?? ""}${this.heroDecisions?.debugState ?? ""}`
+      + `${this.battlePartyManager.debugState} | ` +
       `Monsters: ${monsters} | ` +
       `Player: HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} AC ${getArmorClass(p)}${defInfo} | ` +
       `Lv.${p.level} XP ${p.xp}/${xpForLevel(p.level + 1)} Gold ${p.gold}\n` +
@@ -2138,6 +2262,13 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private doPlayerAttack(): void {
+    if (this.heroDecisions) {
+      this.heroDecisions.prepareRequest({
+        actorId: this.heroCombatant.id, kind: "attack",
+        attackRange: getAttackRangeForWeapon(this.player.equippedWeapon),
+      }, "Attack");
+      return;
+    }
     if (this.phase !== "playerTurn") return;
     if (this.turnActionUsed) {
       this.addLog("Turn action already used!");
@@ -2155,6 +2286,7 @@ export class BattleScene extends Phaser.Scene {
     targetIndex: number,
     range: AttackRange,
   ): void {
+    if (!this.acceptsBattleDecisionInput()) return;
     if (this.phase !== "playerTurn" || this.turnActionUsed) return;
     this.selectedTargetIndex = targetIndex;
     this.closeAllSubMenus();
@@ -2276,6 +2408,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private doDefend(): void {
+    if (!this.acceptsBattleDecisionInput()) return;
     if (this.phase !== "playerTurn") return;
     if (this.turnActionUsed) {
       this.addLog("Turn action already used!");
@@ -2347,6 +2480,7 @@ export class BattleScene extends Phaser.Scene {
     spellId: string,
     targetIds: string[],
   ): void {
+    if (!this.acceptsBattleDecisionInput()) return;
     if (this.phase !== "playerTurn" || this.turnActionUsed) return;
     const spell = getSpell(spellId);
     if (!spell) {
@@ -2538,6 +2672,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private doFlee(): void {
+    if (!this.acceptsBattleDecisionInput()) return;
     if (this.phase !== "playerTurn") return;
     if (this.turnActionUsed) {
       this.addLog("Turn action already used!");
@@ -2571,6 +2706,7 @@ export class BattleScene extends Phaser.Scene {
 
       if (result.success) {
         this.phase = "fled";
+        this.battleTiming?.endTurn();
         this.reportBattleResult("fled");
         saveGame(
           this.player,
@@ -3003,6 +3139,7 @@ export class BattleScene extends Phaser.Scene {
       this.defeatedBosses,
     );
     this.phase = "victory";
+    this.battleTiming?.endTurn();
     this.pendingTargetAction = null;
     this.updateButtonStates();
     this.updateMonsterDisplay();
@@ -3303,6 +3440,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private cleanupBattleTransientState(): void {
+    this.battleTiming?.destroy();
     this.closeAllSubMenus();
     this.pendingTargetAction = null;
     this.battlePartyManager.clear();
@@ -3316,6 +3454,94 @@ export class BattleScene extends Phaser.Scene {
     }
     for (const combatant of this.combatants) {
       clearAllEffects(combatant.effects);
+    }
+  }
+
+  private get controlledTimingActorId(): string | null {
+    if (this.isReturningToOverworld || this.battleResultReported) return null;
+    if (this.phase === "playerTurn" && isCombatantActive(this.heroCombatant)) {
+      return this.heroCombatant.id;
+    }
+    return this.phase === "monsterTurn" ? this.battlePartyManager.manualActorId : null;
+  }
+
+  private acceptsBattleDecisionInput(): boolean {
+    return this.battleTiming?.acceptsInput() ?? true;
+  }
+
+  private get heroExecutionContext(): BattleActionExecutionContext {
+    return {
+      combatants: this.allCombatants, enemies: this.combatants, sources: this.partyActionSources,
+      weatherPenalty: getWeatherAccuracyPenalty(this.weatherState.current),
+      getEnemyDefenseBonus: (target) => getSynergyACBonus(
+        this.encounter.synergy, this.combatants,
+        this.combatants.findIndex((enemy) => enemy.id === target.id),
+      ),
+      onElementalInteraction: (targetId, interaction, element) => {
+        const index = this.combatants.findIndex((enemy) => enemy.id === targetId);
+        if (index >= 0) this.recordElementalDiscovery(interaction, element, index);
+      },
+    };
+  }
+
+  private handleTimedBattleTimeout(decision: Readonly<BattleTimedDecision>): boolean {
+    const timing = this.battleTiming;
+    if (!timing || this.controlledTimingActorId !== decision.actorId) return false;
+    if (decision.actorId !== this.heroCombatant.id) {
+      return this.battlePartyManager.timeout(timing.clock, decision.id);
+    }
+    const result = executeTimedBattleTimeout(
+      timing.clock, decision.id, this.partyActionSources[0]!,
+      this.playerEconomy, this.heroExecutionContext,
+    );
+    if (!result.claimed) return false;
+    this.playerEconomy = result.economy;
+    this.pendingTargetAction = null;
+    this.closeAllSubMenus();
+    this.addLog(result.executed
+      ? `Time expired: ${result.message}`
+      : `Time expired: ${result.message} Ending turn.`);
+    if (result.action?.executed) this.presentResolvedBattleAction(result.action);
+    this.updateMonsterDisplay();
+    this.updatePlayerStats();
+    this.finishPlayerTurn();
+    return true;
+  }
+
+  private executeTimedHeroPlan(plan: BattleActionPlan): void {
+    if (!this.acceptsBattleDecisionInput() || this.phase !== "playerTurn") return;
+    const enemyIndex = this.combatants.findIndex((enemy) => plan.targetIds.includes(enemy.id));
+    if (plan.kind === "attack") {
+      if (enemyIndex >= 0) this.performPlayerAttack(enemyIndex, plan.descriptor.range);
+    } else if (plan.kind === "spell" && plan.actionId) {
+      this.performPlayerSpell(plan.actionId, [...plan.targetIds]);
+    } else if (plan.kind === "ability" && plan.actionId) {
+      const fallback = this.combatants.findIndex(isCombatantActive);
+      const allies = this.partyCombatants.filter((actor) => plan.targetIds.includes(actor.id));
+      if (fallback >= 0) {
+        this.performPlayerAbility(plan.actionId, enemyIndex >= 0 ? enemyIndex : fallback, allies);
+      }
+    } else if (plan.kind === "defend") {
+      this.doDefend();
+    } else if (plan.kind === "item") {
+      const transition = consumeBattleActionEconomy(this.playerEconomy, plan);
+      if (!transition.valid) {
+        this.addLog(transition.message);
+        return;
+      }
+      const result = executeValidatedBattleAction(
+        this.partyActionSources[0]!, plan, this.heroExecutionContext,
+      );
+      this.addLog(result.message);
+      if (!result.executed) return;
+      this.playerEconomy = transition.state;
+      this.presentResolvedBattleAction(result);
+      this.updatePlayerStats();
+      this.battlePartyRenderer.update(this.partyCombatants, this.partyActionSources);
+      if (plan.descriptor.cost === "action") this.finishPlayerTurn();
+      else this.addLog("(Bonus action - you can still act this turn)");
+    } else {
+      this.handleError("executeTimedHeroPlan", new Error("Validated hero action is unavailable."));
     }
   }
 

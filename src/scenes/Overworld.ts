@@ -963,7 +963,7 @@ export class OverworldScene extends Phaser.Scene {
       } else if (this.questJournal.isOpen()) {
         this.questJournal.close();
       } else if (this.overlayManager.settingsOverlay) {
-        this.overlayManager.toggleSettingsOverlay();
+        this.overlayManager.toggleSettingsOverlay(this.player);
       } else if (this.overlayManager.cityMapOverlay) {
         this.overlayManager.dismissCityMap();
       } else if (this.overlayManager.worldMapOverlay) {

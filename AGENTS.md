@@ -14,7 +14,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.0, Electron 44.3.0, electron-builder 26.16.1, Vitest 5.0.0, Playwright 1.63.0 |
 | DOM tests | happy-dom 20.14.3 |
-| Save schema | 18 |
+| Save schema | 19 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -26,6 +26,7 @@ future work until merged.
 | Domain | Data/contracts | Mechanics/state | Phaser/presentation | Tests |
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
+| Timed decisions | `src/data/battleTiming.ts` | `battleTiming.ts`, `battleTimingSettings.ts` | Battle/timing/decision-menu managers | timing/scene/save/input tests + timed-battle E2E |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
 | Quests/cutscenes | `quests.ts`, focused `cutscene*.ts` | `quests.ts`, `questState.ts`, `cutscenes.ts` | quest/cutscene managers, `Cutscene.ts`, `Ending.ts` | quest/cutscene/campaign E2E |
 | World/map/traps | `map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, `traps.ts` | `movement.ts`, `traps.ts` | map/city/trap/fog managers/renderers | map, city, trap, fog, movement |
@@ -88,6 +89,10 @@ owning issue or pull request.
   one-action/one-bonus-action economy.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
+- Standard is unlimited. Timed mode persists only bounded per-campaign settings,
+  counts accepted hero/manual decision time, and validates Defend once at timeout.
+  Pause real input/presentation blockers, not normal logs or non-blocking notices.
+  Never serialize a deadline or let runtime duration suggestions enable timing.
 - Use stable IDs for combatants, quests/stages/objectives/rewards, cutscenes,
   shops, traps, events, recipes, transactions, features, and layout items.
 - Persist authority, not derived presentation. Every schema change requires
@@ -179,3 +184,4 @@ owning issue or pull request.
 - [Save system](docs/save-system.md)
 - [Companions and gambits](docs/companions.md)
 - [Inventory presentation](docs/inventory.md)
+- [Timed battle decisions](docs/battle-timing.md)

@@ -197,6 +197,36 @@ export function layoutVerticalStack(
   };
 }
 
+export function layoutHorizontalStack(
+  items: readonly StackItem[],
+  options: {
+    x?: number;
+    y?: number;
+    gap?: number;
+    width?: number;
+    justify?: "start" | "center" | "end";
+  } = {},
+): StackLayout {
+  const gap = finiteNonNegative(options.gap ?? 0);
+  const naturalWidth = items.reduce((sum, item) => sum + finiteNonNegative(item.width), 0)
+    + Math.max(0, items.length - 1) * gap;
+  const width = Math.max(naturalWidth, finiteNonNegative(options.width ?? 0));
+  let cursorX = (options.x ?? 0) + (options.justify === "end"
+    ? width - naturalWidth
+    : options.justify === "center" ? (width - naturalWidth) / 2 : 0);
+  const positioned = items.map((item) => {
+    const size = { width: finiteNonNegative(item.width), height: finiteNonNegative(item.height) };
+    const result = { ...item, ...size, x: cursorX, y: options.y ?? 0 };
+    cursorX += size.width + gap;
+    return result;
+  });
+  return {
+    items: positioned,
+    width,
+    height: positioned.reduce((max, item) => Math.max(max, item.height), 0),
+  };
+}
+
 export function layoutResponsiveGrid(
   options: GridLayoutOptions,
 ): GridLayout {

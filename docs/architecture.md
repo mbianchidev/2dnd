@@ -15,7 +15,7 @@
 | happy-dom | 20.14.3 |
 | Electron | 44.3.0 |
 | electron-builder | 26.16.1 |
-| Campaign save schema | 18 |
+| Campaign save schema | 19 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -159,6 +159,15 @@ target, formation, status, element, or economy rules.
 Mechanics resolve before presentation. Actor animation receives stable IDs and
 immutable outcomes; tweens never apply damage, spend resources, or control
 authoritative turn/result transitions.
+
+Optional timing uses `systems/battleTiming.ts` for active decision time and
+once-only validated Defend, `battleTimingSettings.ts` for configuration repair,
+and `managers/battleTiming.ts` for accessible scene-owned cues and cleanup.
+Shared input availability reports focus, visibility, text entry, and controller
+recovery. Standard creates no timer; timed menus retain existing hero mechanics
+and manual companion action validation. Configuration alone is persisted;
+runtime duration suggestions cannot enable timing. See
+[Timed battle decisions](battle-timing.md).
 
 ## Content and campaign flow
 

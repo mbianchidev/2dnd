@@ -77,6 +77,12 @@ export class BattlePresentationDirector {
     return this.lastEvent === "idle" ? this.actors.state : this.lastEvent;
   }
 
+  public get isBusy(): boolean {
+    return this.actors.isBusy
+      || (!isReducedMotionEnabled()
+        && (this.transientTweens.size > 0 || this.transientTimers.size > 0));
+  }
+
   public presentAction(presentation: BattleActionPresentation): void {
     const role = this.roles.get(presentation.actorId);
     const direction: -1 | 1 = role === "monster" || role === "boss" ? -1 : 1;

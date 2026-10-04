@@ -12,6 +12,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { SAVE_VERSION } from "../src/systems/save";
 
 const APP_ROOT = resolve(import.meta.dirname, "..");
 const SAVE_KEY = "2dnd_save";
@@ -129,10 +130,10 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
     return { name: player.name, version };
   }, SAVE_KEY)).toEqual({
     name: "Desktop Hero",
-    version: 18,
+    version: SAVE_VERSION,
   });
 
-  return { name: "Desktop Hero", version: 18 };
+  return { name: "Desktop Hero", version: SAVE_VERSION };
 }
 
 async function prepareSaveForOverworld(page: Page): Promise<void> {

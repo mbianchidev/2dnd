@@ -12,6 +12,7 @@ import {
   type BattleActionEconomyState,
   type BattleActionExecutionContext,
   type BattleActionRequest,
+  type BattleActionResources,
   type BattleActionSource,
   type ResolvedBattleAction,
 } from "../systems/battleActions";
@@ -31,14 +32,25 @@ import {
   selectGambitAction,
 } from "../systems/gambits";
 import { BATTLE_DEPTH } from "../renderers/battleDepth";
+import { BattleDecisionMenu } from "./battleDecisionMenu";
+import {
+  executeTimedBattleTimeout,
+  type BattleDecisionClock,
+} from "../systems/battleTiming";
+import type { GridNavigationDirection } from "../systems/layout";
 
 interface BattlePartyCallbacks {
   present(result: ResolvedBattleAction): void;
   refresh(): void;
   afterAction(previouslyAliveEnemyIds: ReadonlySet<string>): boolean;
+  timing?: {
+    acceptsInput(): boolean;
+    beginTurn(combatant: PartyCombatant): void;
+  };
 }
 
 interface MenuRow {
+  id: string;
   label: string;
   enabled: boolean;
   action(): void;
@@ -57,6 +69,7 @@ export class BattlePartyManager {
   private currentContext: CompanionTurnContext | null = null;
   private economy: BattleActionEconomyState | null = null;
   private page = 0;
+  private readonly decisionMenu: BattleDecisionMenu | null;
 
   constructor(
     scene: Phaser.Scene,
@@ -68,6 +81,53 @@ export class BattlePartyManager {
     this.party = party;
     this.sources = sources;
     this.callbacks = callbacks;
+    this.decisionMenu = callbacks.timing
+      ? new BattleDecisionMenu(scene, "battle-companion-menu", callbacks.timing.acceptsInput)
+      : null;
+  }
+
+  get manualActorId(): string | null {
+    return this.currentCompanion?.controlMode === "manual"
+      && this.currentCombatant && isCombatantActive(this.currentCombatant)
+      ? this.currentCombatant.id
+      : null;
+  }
+
+  get debugState(): string {
+    return this.decisionMenu?.debugState ?? "";
+  }
+
+  navigate(direction: GridNavigationDirection): boolean {
+    return this.decisionMenu?.navigate(direction) ?? false;
+  }
+
+  confirm(): boolean {
+    return this.decisionMenu?.confirm() ?? false;
+  }
+
+  cancel(): boolean {
+    return this.decisionMenu?.cancel() ?? false;
+  }
+
+  timeout(clock: BattleDecisionClock, decisionId: string): boolean {
+    const context = this.currentContext;
+    if (!context || !this.economy || !this.manualActorId) return false;
+    const result = executeTimedBattleTimeout(
+      clock, decisionId, this.source, this.economy, this.executionContext,
+    );
+    if (!result.claimed) return false;
+    this.economy = result.economy;
+    this.clearMenu();
+    context.addLog(result.executed
+      ? `Time expired: ${result.message}`
+      : `Time expired: ${result.message} Ending turn.`);
+    if (result.action?.executed) this.callbacks.present(result.action);
+    this.callbacks.refresh();
+    const battleEnded = this.callbacks.afterAction(
+      new Set(context.enemies.filter(isCombatantActive).map((enemy) => enemy.id)),
+    );
+    if (!battleEnded) context.completeTurn();
+    return true;
   }
 
   startTurn(
@@ -90,11 +150,13 @@ export class BattlePartyManager {
     if (companion.controlMode === "gambit") {
       this.runGambits();
     } else {
+      this.callbacks.timing?.beginTurn(combatant);
       this.showMainMenu();
     }
   }
 
   clear(): void {
+    this.decisionMenu?.clear();
     this.menu?.destroy();
     this.menu = null;
     this.currentCombatant = null;
@@ -128,11 +190,12 @@ export class BattlePartyManager {
     };
   }
 
-  private get resources() {
+  private get resources(): BattleActionResources {
+    if (!this.economy) throw new Error("Companion action economy is unavailable.");
     return {
       mp: this.source.state.mp,
       inventory: this.source.state.inventory,
-      economy: this.economy!,
+      economy: this.economy,
       knownSpellIds: this.source.state.knownSpells,
       knownAbilityIds: this.source.state.knownAbilities,
     };
@@ -182,6 +245,7 @@ export class BattlePartyManager {
     if (!companion || !context || !this.economy) return;
     const rows: MenuRow[] = [
       {
+        id: "attack",
         label: "Attack",
         enabled: !this.economy.actionUsed,
         action: () => this.prepareRequest({
@@ -193,6 +257,7 @@ export class BattlePartyManager {
         }),
       },
       {
+        id: "defend",
         label: "Defend",
         enabled: !this.economy.actionUsed,
         action: () => this.prepareRequest({
@@ -201,21 +266,25 @@ export class BattlePartyManager {
         }),
       },
       {
+        id: "spells",
         label: "Spells",
         enabled: companion.knownSpells.length > 0,
         action: () => this.showSpellMenu(),
       },
       {
+        id: "abilities",
         label: "Abilities",
         enabled: companion.knownAbilities.length > 0,
         action: () => this.showAbilityMenu(),
       },
       {
+        id: "items",
         label: "Items",
         enabled: companion.inventory.some((item) => item.type !== "key"),
         action: () => this.showItemMenu(),
       },
       {
+        id: "end-turn",
         label: "End Turn",
         enabled: true,
         action: () => {
@@ -237,6 +306,7 @@ export class BattlePartyManager {
       const spell = getSpell(spellId);
       if (!spell || spell.type === "utility") return [];
       return [{
+        id: `spell-${spell.id}`,
         label: `${spell.name} (${spell.mpCost} MP)`,
         enabled: this.source.state.mp >= spell.mpCost,
         action: () => this.prepareRequest({
@@ -257,6 +327,7 @@ export class BattlePartyManager {
         const ability = getAbility(abilityId);
         if (!ability || ability.type === "utility") return [];
         return [{
+          id: `ability-${ability.id}`,
           label: `${ability.name}${ability.bonusAction ? " [BA]" : ""} (${ability.mpCost} MP)`,
           enabled: this.source.state.mp >= ability.mpCost,
           action: () => this.prepareRequest({
@@ -277,6 +348,7 @@ export class BattlePartyManager {
       item.type === "key" || item.type === "mount"
         ? []
         : [{
+            id: `item-${itemIndex}`,
             label: item.name,
             enabled: true,
             action: () => this.prepareRequest({
@@ -320,9 +392,10 @@ export class BattlePartyManager {
       );
       return validation.plan
         ? [{
+            id: `target-${actor.id}`,
             label: `${actor.label}  HP ${actor.currentHp}/${actor.maxHp}`,
             enabled: true,
-            action: () => this.executePlan(validation.plan!),
+            action: () => this.validateAndExecute({ ...request, preferredTargetId: actor.id }),
           }]
         : [];
     });
@@ -348,6 +421,11 @@ export class BattlePartyManager {
   private executePlan(plan: NonNullable<ReturnType<typeof validateBattleAction>["plan"]>): boolean {
     const context = this.currentContext;
     if (!context || !this.economy) return false;
+    if (
+      this.currentCompanion?.controlMode === "manual"
+      && this.callbacks.timing
+      && !this.callbacks.timing.acceptsInput()
+    ) return false;
     const previouslyAliveEnemyIds = new Set(
       context.enemies.filter(isCombatantActive).map((enemy) => enemy.id),
     );
@@ -375,6 +453,10 @@ export class BattlePartyManager {
   }
 
   private renderPagedMenu(title: string, rows: MenuRow[]): void {
+    if (this.decisionMenu) {
+      this.decisionMenu.show(title, rows, () => this.showMainMenu());
+      return;
+    }
     const totalPages = Math.max(1, Math.ceil(rows.length / MENU_PAGE_SIZE));
     this.page = Phaser.Math.Clamp(this.page, 0, totalPages - 1);
     const visible = rows.slice(
@@ -383,6 +465,7 @@ export class BattlePartyManager {
     );
     if (totalPages > 1) {
       visible.push({
+        id: "page-next",
         label: `Page ${this.page + 1}/${totalPages} — Next`,
         enabled: true,
         action: () => {
@@ -392,6 +475,7 @@ export class BattlePartyManager {
       });
     }
     visible.push({
+      id: "back",
       label: "Back",
       enabled: true,
       action: () => {
@@ -403,6 +487,10 @@ export class BattlePartyManager {
   }
 
   private renderMenu(title: string, rows: MenuRow[]): void {
+    if (this.decisionMenu) {
+      this.decisionMenu.show(title, rows);
+      return;
+    }
     this.clearMenu();
     const width = 300;
     const rowHeight = 25;
@@ -442,6 +530,7 @@ export class BattlePartyManager {
   }
 
   private clearMenu(): void {
+    this.decisionMenu?.clear();
     this.menu?.destroy();
     this.menu = null;
   }

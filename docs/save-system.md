@@ -23,6 +23,12 @@ Packaged Electron builds use the stable secure `app://2dnd` origin and the same
 schema and normalization code. Browser and desktop stores are intentionally
 isolated and never silently merged.
 
+Steam preparation does not change these documents or introduce native storage.
+Steam Cloud/Auto-Cloud is disabled: never configure it to sync Chromium's
+profile databases. Future document syncing needs a separate validated adapter
+and explicit conflict/quota/corruption/offline/cross-device policy; see
+[Steam preparation](steam.md).
+
 Campaign normalization and autosave compatibility live in `src/systems/save.ts`;
 manual-slot metadata and management live in `src/systems/saveSlots.ts`, the
 typed atomic adapter lives in `src/systems/saveStorage.ts`, and the shared
@@ -32,6 +38,11 @@ normalization remains beside its domain where appropriate, including
 `nauticalState.ts`.
 
 ## Current schema
+
+The adapter exposes a bounded `2dnd:save-slot-write` Performance measure for
+the actual validation/staging/backup/write path. Only the latest duration and
+slot/result metadata remain in memory; no campaign contents or persisted
+fields are added.
 
 `SAVE_VERSION` is **18**. Schema v18 adds normalized non-negative
 `playtimeSeconds` to each campaign document. Slot names, backup state, and

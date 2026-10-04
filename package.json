@@ -12,8 +12,10 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:desktop": "npm run typecheck && npm run build:electron && vite build --mode desktop",
     "generate:desktop-icons": "node hacks/generate-desktop-icons.mjs",
-    "package:desktop": "npm run generate:desktop-icons && npm run build:desktop && electron-builder --publish never",
-    "package:desktop:ci": "electron-builder --publish never",
+    "package:desktop": "npm run generate:desktop-icons && npm run build:desktop && npm run package:desktop:ci",
+    "package:desktop:ci": "node hacks/generate-desktop-notice.mjs && electron-builder --publish never",
+    "package:steam:ci": "node hacks/generate-desktop-notice.mjs && electron-builder --dir --publish never -c.directories.output=release/steam-build",
+    "steam:prepare": "node hacks/prepare-steam.mjs",
     "benchmark:baseline": "node hacks/measure-performance-baseline.mjs",
     "preview": "vite preview",
     "test": "vitest run",
@@ -67,7 +69,16 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "package.json"
+      "package.json",
+      "!dist/screenshots{,/**/*}",
+      "!dist/**/*.map",
+      "!dist-electron/**/*.map"
+    ],
+    "extraFiles": [
+      { "from": "LICENSE", "to": "LICENSE.2dnd.txt" },
+      { "from": "node_modules/phaser/LICENSE.md", "to": "LICENSE.phaser.txt" },
+      { "from": "node_modules/eventemitter3/LICENSE", "to": "LICENSE.eventemitter3.txt" },
+      { "from": "build/SOURCE.2dnd.txt", "to": "SOURCE.2dnd.txt" }
     ],
     "mac": {
       "category": "public.app-category.role-playing-games",

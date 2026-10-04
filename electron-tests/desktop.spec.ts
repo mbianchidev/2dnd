@@ -1,5 +1,4 @@
 import {
-  _electron as electron,
   expect,
   test,
   type ElectronApplication,
@@ -11,9 +10,11 @@ import {
   rm,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import {
+  APP_ROOT, launchDesktop, monitorRendererErrors, waitForState,
+} from "./helpers/desktop";
 
-const APP_ROOT = resolve(import.meta.dirname, "..");
 const SAVE_KEY = "2dnd_save";
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -21,28 +22,6 @@ const GAME_HEIGHT = 528;
 interface DesktopSaveSummary {
   readonly name: string;
   readonly version: number;
-}
-
-function createLaunchEnvironment(userDataDirectory: string): Record<string, string> {
-  const environment: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined && key !== "ELECTRON_RUN_AS_NODE") {
-      environment[key] = value;
-    }
-  }
-  environment["ELECTRON_TEST_MODE"] = "1";
-  environment["ELECTRON_USER_DATA_DIR"] = userDataDirectory;
-  return environment;
-}
-
-async function launchDesktop(
-  userDataDirectory: string,
-): Promise<ElectronApplication> {
-  return electron.launch({
-    args: [APP_ROOT],
-    cwd: APP_ROOT,
-    env: createLaunchEnvironment(userDataDirectory),
-  });
 }
 
 async function clickGame(
@@ -69,10 +48,6 @@ async function holdKey(
   await page.waitForTimeout(duration);
   await page.keyboard.up(key);
   await page.waitForTimeout(120);
-}
-
-async function waitForState(page: Page, text: string): Promise<void> {
-  await expect(page.locator("#debug-state")).toContainText(text);
 }
 
 async function activateTitleAction(
@@ -157,15 +132,6 @@ async function prepareSaveForOverworld(page: Page): Promise<void> {
     progression.tutorial = { completed: true };
     localStorage.setItem(key, JSON.stringify(parsed));
   }, SAVE_KEY);
-}
-
-function monitorRendererErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  return errors;
 }
 
 test("secure desktop shell persists a campaign across launches", async () => {

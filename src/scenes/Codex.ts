@@ -16,7 +16,7 @@ import {
 import { ALL_MONSTERS, type Monster } from "../data/monsters";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { debugPanelState } from "../config";
-import { openMobileTextInput } from "../managers/input";
+import { closeTextEntry, openMobileTextInput } from "../managers/input";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { installSceneAccessibility } from "../systems/accessibility";
 import {
@@ -178,7 +178,7 @@ export class CodexScene extends Phaser.Scene {
     this.sceneTransitions.prepare(300);
     installSceneAccessibility(this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      document.getElementById("mobile-text-input")?.remove();
+      closeTextEntry();
     });
 
     this.add.text(width / 2, 6, "CODEX", {
@@ -763,7 +763,7 @@ export class CodexScene extends Phaser.Scene {
 
   private goBack(): void {
     if (this.sceneTransitions.isPending) return;
-    document.getElementById("mobile-text-input")?.remove();
+    closeTextEntry();
     this.sceneTransitions.startWithFade(() => {
       this.scene.start("OverworldScene", {
         player: this.player,

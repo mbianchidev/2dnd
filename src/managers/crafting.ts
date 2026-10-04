@@ -27,7 +27,7 @@ import {
   createOverlayContainer,
   createPanelGraphics,
 } from "../utils/ui";
-import { openMobileTextInput } from "./input";
+import { closeTextEntry, openMobileTextInput } from "./input";
 import { getCraftingDiscoveryCategories } from "../systems/featureDiscovery";
 
 export interface CraftingManagerCallbacks {
@@ -91,7 +91,7 @@ export class CraftingManager {
     this.player = null;
     this.codex = null;
     this.crafting = false;
-    document.getElementById("mobile-text-input")?.remove();
+    closeTextEntry();
   }
 
   clear(): void {

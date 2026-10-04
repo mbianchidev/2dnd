@@ -1,0 +1,158 @@
+name: Steam depot preparation
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Prepare previews, or upload after explicit human approval
+        type: choice
+        options: [preview, upload]
+        default: preview
+      confirm_upload:
+        description: Authorize a private depot upload (does not set any branch live)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: steam-depots
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm audit
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: npm run build
+
+  prepare:
+    needs: gate
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+            arguments: --linux --x64
+            directory: linux-unpacked
+            binary: 2D-and-D
+          - platform: windows-x64
+            runner: windows-latest
+            arguments: --win --x64
+            directory: win-unpacked
+            binary: 2D-and-D.exe
+          - platform: macos-universal
+            runner: macos-latest
+            arguments: --mac --universal
+            directory: mac-universal
+            binary: 2D&D.app/Contents/MacOS/2D-and-D
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm audit
+      - run: npm run generate:desktop-icons
+      - run: npm run build:desktop
+      - if: runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:desktop:built
+      - if: runner.os != 'Linux'
+        run: npm run test:desktop:built
+      - run: npm run package:steam:ci -- ${{ matrix.arguments }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - run: >-
+          npm run steam:prepare -- prepare
+          --platform ${{ matrix.platform }}
+          --input release/steam-build/${{ matrix.directory }}
+          --output release/steam-preview/${{ matrix.platform }}
+      - name: Run packaged Electron controller and persistence suites
+        if: runner.os != 'Linux'
+        run: npm run test:desktop:built
+        env:
+          ELECTRON_TEST_EXECUTABLE: ${{ github.workspace }}/release/steam-build/${{ matrix.directory }}/${{ matrix.binary }}
+      - name: Run packaged Electron controller and persistence suites under Xvfb
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:desktop:built
+        env:
+          ELECTRON_TEST_EXECUTABLE: ${{ github.workspace }}/release/steam-build/${{ matrix.directory }}/${{ matrix.binary }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: steam-preview-${{ matrix.platform }}-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            release/steam-preview/${{ matrix.platform }}/*.tar.gz
+            release/steam-preview/${{ matrix.platform }}/*.json
+            release/steam-preview/${{ matrix.platform }}/scripts/*.vdf.in
+
+  upload:
+    needs: [gate, prepare]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.operation == 'upload' &&
+      inputs.confirm_upload == true
+    environment: steam-upload
+    runs-on: [self-hosted, linux, x64, steam-upload]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm audit
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: steam-preview-*-${{ github.sha }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/steam-previews
+      - name: Assemble and verify reviewed depot previews
+        shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/steam-assembled"
+          for platform in linux-x64 windows-x64 macos-universal; do
+            tar -xzf "$RUNNER_TEMP/steam-previews/$platform.tar.gz" -C "$RUNNER_TEMP/steam-assembled"
+          done
+          npm run steam:prepare -- verify --input "$RUNNER_TEMP/steam-assembled"
+      - name: Render private config and upload without setting a branch live
+        shell: bash
+        env:
+          STEAM_APP_ID: ${{ secrets.STEAM_APP_ID }}
+          STEAM_DEPOT_WINDOWS_ID: ${{ secrets.STEAM_DEPOT_WINDOWS_ID }}
+          STEAM_DEPOT_MACOS_ID: ${{ secrets.STEAM_DEPOT_MACOS_ID }}
+          STEAM_DEPOT_LINUX_ID: ${{ secrets.STEAM_DEPOT_LINUX_ID }}
+          STEAM_BUILD_ACCOUNT: ${{ secrets.STEAM_BUILD_ACCOUNT }}
+          STEAMCMD_PATH: ${{ vars.STEAMCMD_PATH }}
+          STEAM_UPLOAD_AUTHORIZED: "1"
+          STEAM_PRIVATE_BUILD_DIR: ${{ runner.temp }}/2dnd-steam-private
+        run: |
+          npm run steam:prepare -- render --upload \
+            --input "$RUNNER_TEMP/steam-assembled" \
+            --output "$STEAM_PRIVATE_BUILD_DIR"
+          node hacks/upload-steam.mjs

@@ -200,6 +200,7 @@ export function mapKeyboardCode(
   code: string,
   context: InputContext,
 ): InputAction | undefined {
+  if (code === "Tab" && context === "characterCreation") return "interact";
   if (code === "Enter" || code === "Space") {
     return context === "exploration" ? "interact" : "confirm";
   }

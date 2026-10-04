@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-electron/
 release/
+build/SOURCE.2dnd.txt
 playwright-report/
 test-results/
 electron-test-results/

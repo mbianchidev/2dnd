@@ -19,6 +19,18 @@ must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
 schema-v18 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
 
+`electron-tests/deck.spec.ts` adds a 1280x800 standard-gamepad equivalent with
+name/rename/search text entry, normal exploration/Battle, save/reload/recovery,
+cursor fullscreen, reconnect/focus/resize, accessibility and controller-only
+exit. It records actual atomic slot-write timing, frame/JS/native-memory data
+and bounded cleanup samples. Physical Deck, Steam client/Input/overlay,
+suspend/dock, long-session endurance and partner/signing approval are not
+claimed. `ELECTRON_TEST_EXECUTABLE` selects an explicit packaged test binary.
+
+Steam contract/CLI tests use mock IDs and synthetic architecture/ASAR fixtures;
+actual depot payload inspection belongs to the native packaging matrix.
+Keep preview generation separate from protected upload and public release.
+
 ## Testing Philosophy
 
 ### What TO Test

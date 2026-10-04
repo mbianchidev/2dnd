@@ -26,11 +26,11 @@ continuation, plus deterministic fishing, mining, and foraging minigames.
 
 - Phaser 4.2.1
 - TypeScript 7.0.2 in strict mode
-- Vite 8.3.0
-- Vitest 5.0.0
+- Vite 8.3.1
+- Vitest 5.0.1
 - Playwright 1.63.0
-- happy-dom 20.14.3
-- Electron 44.3.0
+- happy-dom 20.14.5
+- Electron 44.4.5
 - electron-builder 26.16.1
 - Modern browsers, ES2020 target
 
@@ -956,9 +956,16 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - `src/managers/input.ts` is the only browser adapter for keyboard, pointer,
   standard gamepads, and touch. Do not add parallel scene-specific gamepad or
   mobile mappings.
+- Shared key rows/edit rules in `src/systems/textEntry.ts` and the dialog in
+  `src/managers/textEntry.ts` own controller name/slot/search entry. Reuse
+  `openMobileTextInput()`, clear held game keys, isolate the modal, and preserve
+  cancel/focus restoration; do not add a second gamepad map.
 - Standard gamepads use digital fallback plus analog dead zones. The right
   stick owns a visible virtual cursor for pointer-first surfaces, and pressing
   it clicks without replacing the normal A/confirm action.
+- Positional south/east/west/north prompts avoid guessing hardware glyphs.
+  The right-stick cursor may activate existing desktop DOM controls, including
+  fullscreen; unmodified Tab/west edits the hero name.
 - Touch controls are procedural DOM controls with safe-area/orientation CSS,
   pointer capture for held directions, pointer-release pulses with a click
   fallback for discrete actions, and simultaneous movement/action support.
@@ -1015,6 +1022,8 @@ npm run test:watch
 npm run build
 npm run build:desktop
 npm run package:desktop
+npm run package:steam:ci -- --mac --universal
+npm run steam:prepare
 npm run benchmark:baseline
 ```
 
@@ -1040,6 +1049,13 @@ npm run benchmark:baseline
 - Desktop CI audits, smoke-tests `app://2dnd/game.html`, and creates unsigned
   macOS, Windows, and Linux artifacts. Matching version tags rerun the full gate
   and attach those packages to a GitHub release without signing credentials.
+- Steam preparation stages native Linux x64, Windows x64 and inspected macOS
+  universal runtimes with source/license/hash receipts. SDK, native Steam Input
+  API, Steam achievements and Cloud remain disabled. Never sync Chromium
+  profiles, expose partner IDs/credentials to PRs, or infer Proton/Deck/client/
+  signing/store approval from equivalent tests. Protected upload requires
+  explicit human authorization and never sets a branch live. See
+  `docs/steam.md`; keep #183 incomplete until external evidence exists.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run `npm run benchmark:baseline` on the current base commit before

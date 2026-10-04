@@ -1,5 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
@@ -14,6 +13,7 @@ import { dirname, extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { chromium } from "@playwright/test";
+import { getGitProvenance } from "./lib/git-provenance.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const DIST = join(ROOT, "dist");
@@ -66,58 +66,6 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 ** 2) return `${round(bytes / 1024)} KiB`;
   return `${round(bytes / 1024 ** 2)} MiB`;
-}
-
-function runGit(args) {
-  const result = spawnSync("git", args, {
-    cwd: ROOT,
-    maxBuffer: 50 * 1024 * 1024,
-  });
-  if (result.status !== 0) {
-    throw new Error(
-      `Git command failed: git ${args.join(" ")}\n`
-      + `${result.stderr.toString().trim() || "git failed"}`,
-    );
-  }
-  return result.stdout;
-}
-
-async function getGitProvenance() {
-  const commit = runGit(["rev-parse", "HEAD"]).toString().trim();
-  const status = runGit([
-    "status",
-    "--porcelain=v1",
-    "-z",
-    "--untracked-files=all",
-  ]);
-  if (status.length === 0) {
-    return {
-      commit,
-      dirty: false,
-      diffHash: null,
-    };
-  }
-
-  const trackedDiff = runGit(["diff", "--binary", "HEAD", "--no-ext-diff"]);
-  const hash = createHash("sha256");
-  hash.update(status);
-  hash.update(trackedDiff);
-
-  const statusEntries = status.toString().split("\0").filter(Boolean);
-  const untrackedPaths = statusEntries
-    .filter((entry) => entry.startsWith("?? "))
-    .map((entry) => entry.slice(3))
-    .sort();
-  for (const path of untrackedPaths) {
-    hash.update(path);
-    hash.update(await readFile(join(ROOT, path)));
-  }
-
-  return {
-    commit,
-    dirty: true,
-    diffHash: hash.digest("hex"),
-  };
 }
 
 function assertMatchingProvenance(before, after) {
@@ -656,7 +604,7 @@ async function main() {
       + "`npm run benchmark:baseline`.",
     );
   }
-  const initialProvenance = await getGitProvenance();
+  const initialProvenance = await getGitProvenance(ROOT);
   await runCommand(process.execPath, [npmCli, "run", "build"], {
     env: {
       ...process.env,
@@ -745,7 +693,7 @@ async function main() {
           combinedWriteMs: summarize(saveWrites.combinedWriteMs, 3),
         },
       };
-      const finalProvenance = await getGitProvenance();
+      const finalProvenance = await getGitProvenance(ROOT);
       assertMatchingProvenance(initialProvenance, finalProvenance);
       printReport(result);
     } finally {

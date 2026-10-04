@@ -28,6 +28,7 @@ async function sizeDesktop(
     window.webContents.enableDeviceEmulation({
       screenPosition: "desktop",
       screenSize: { width: 1280, height: 800 },
+      viewPosition: { x: 0, y: 0 },
       viewSize: { width: 1280, height: 800 },
       deviceScaleFactor: 1,
       scale: 1,
@@ -242,6 +243,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
       window.webContents.enableDeviceEmulation({
         screenPosition: "desktop",
         screenSize: { width: 1920, height: 1080 },
+        viewPosition: { x: 0, y: 0 },
         viewSize: { width: 1920, height: 1080 },
         deviceScaleFactor: 1,
         scale: 1,

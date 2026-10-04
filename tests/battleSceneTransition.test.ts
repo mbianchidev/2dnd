@@ -18,9 +18,10 @@ import {
   createHeroCombatant,
   type GroupCombatant,
   type PartyCombatant,
+  type BattleOutcome,
 } from "../src/systems/groupCombat";
 import { xpFloorForLevel, type PartyDefeatResult } from "../src/systems/party";
-import { deleteSave, loadGame } from "../src/systems/save";
+import { deleteSave, loadGame, saveGame } from "../src/systems/save";
 import {
   createWeatherState,
   type WeatherState,
@@ -28,6 +29,7 @@ import {
 import type { SavedSpecialNpc } from "../src/data/npcs";
 import type { QuestUpdate } from "../src/systems/quests";
 import type { ActiveStatusEffect } from "../src/systems/statusEffects";
+import { getActiveDevotionBlessing, performTempleRite } from "../src/systems/devotionTemples";
 
 interface TransitionManagerHarness {
   startWithFade(
@@ -40,6 +42,8 @@ interface BattleTransitionHarness {
   returnToOverworld(): void;
   defeatEncounterForDebug(): void;
   handleDefeat(): void;
+  handleVictory(): void;
+  reportBattleResult(outcome: BattleOutcome): unknown;
   isReturningToOverworld: boolean;
   phase: string;
   battleResultReported: boolean;
@@ -75,6 +79,85 @@ function poisonEffect(): ActiveStatusEffect {
 }
 
 describe("BattleScene Overworld transition", () => {
+  it.each(["victory", "fled", "defeat"] as const)(
+    "clears effects at the once-only %s resolution boundary before callers autosave",
+    (outcome) => {
+      deleteSave();
+      const battle = new BattleScene();
+      const harness = battle as unknown as BattleTransitionHarness;
+      const player = createPlayer("Resolution fixture", {
+        strength: 10, dexterity: 10, constitution: 10,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      });
+      Object.assign(player.position, {
+        inCity: true, cityId: "willowdale_city", cityChunkIndex: 1, x: 10, y: 8,
+      });
+      performTempleRite(player, "willowdaleSpanThread");
+      const encounter = createSoloEncounter(getMonster("slime")!);
+      const combatants = createGroupCombatants(encounter);
+      combatants[0].effects.push(poisonEffect());
+      const resolved = vi.fn();
+      Object.assign(harness, {
+        player, encounter, combatants, partyCombatants: [createHeroCombatant(player)],
+        battleResultReported: false, battleHooks: { onBattleResolved: resolved },
+        achievementBattleSourceId: `fixture:resolved:${outcome}`,
+      });
+      harness.reportBattleResult(outcome);
+      harness.reportBattleResult(outcome);
+      expect(resolved).toHaveBeenCalledTimes(1);
+      expect(player.activeEffects).toEqual([]);
+      expect(combatants[0].effects).toEqual([]);
+      saveGame(player, new Set(), createCodex(), player.appearanceId);
+      expect(loadGame()!.player.activeEffects).toEqual([]);
+    },
+  );
+
+  it("saves victory after clearing a prepared blessing, even before the presentation handoff", () => {
+    deleteSave();
+    const battle = new BattleScene();
+    const harness = battle as unknown as BattleTransitionHarness;
+    const player = createPlayer("Blessing fixture", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    Object.assign(player.position, {
+      inCity: true, cityId: "willowdale_city", cityChunkIndex: 1, x: 10, y: 8,
+    });
+    expect(performTempleRite(player, "willowdaleSpanThread").changed).toBe(true);
+    const encounter = createSoloEncounter(getMonster("slime")!);
+    const partyCombatants = [createHeroCombatant(player)];
+    const combatants = createGroupCombatants(encounter);
+    for (const combatant of combatants) {
+      combatant.currentHp = 0;
+      combatant.isAlive = false;
+      combatant.isKnockedOut = true;
+      combatant.effects.push(poisonEffect());
+    }
+    const delayedCall = vi.fn();
+    Object.assign(harness, {
+      player, encounter, partyCombatants, combatants,
+      phase: "playerTurn", battleResultReported: false,
+      defeatedBosses: new Set(), codex: createCodex(),
+      timeStep: 0, weatherState: createWeatherState(),
+      achievementBattleSourceId: "fixture:blessingVictory",
+      achievementBattleDebug: false,
+      updateButtonStates: vi.fn(), updateMonsterDisplay: vi.fn(), addLog: vi.fn(),
+      codexDiscovery: { show: vi.fn() },
+      battlePresentation: { presentVictory: vi.fn() },
+      updatePlayerStats: vi.fn(), time: { delayedCall },
+    });
+    harness.handleVictory();
+    const loaded = loadGame()!.player;
+    expect(loaded.activeEffects).toEqual([]);
+    expect(getActiveDevotionBlessing(loaded)).toBeNull();
+    expect(loaded.progression.devotion.appliedSourceIds).toContain("willowdaleSpanThread");
+    expect(performTempleRite(loaded, "willowdaleSpanThread").changed).toBe(false);
+    expect(delayedCall).toHaveBeenCalledTimes(1);
+    const goldAfter = player.gold;
+    harness.handleVictory();
+    expect(player.gold).toBe(goldAfter);
+  });
+
   it("waits for fade completion, clears transient state, and starts once with the full payload", () => {
     const battle = new BattleScene();
     const harness = battle as unknown as BattleTransitionHarness;

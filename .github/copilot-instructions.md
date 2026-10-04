@@ -288,6 +288,7 @@ interface PlayerProgression {
   tutorial: TutorialProgress;
   worldEvents: WorldEventState;
   social: SocialState;
+  devotion: DevotionState;
   achievements: AchievementState;
   gathering: GatheringState;
   crafting: CraftingState;
@@ -787,9 +788,36 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
   suppress newly satisfied natural criteria, and debug-spawned battles/events
   must not advance event counters.
 
+## Fictional devotion
+
+- Original pantheon/temple/rite/blessing/dialogue/source definitions live in
+  `src/data/devotion.ts`; focused quest, event and Codex content stays beside it.
+  Never represent real-world religion, scripture, rituals or living beliefs.
+- `devotionState.ts` normalizes independent authoritative state;
+  `devotion.ts` owns canonical source idempotency, tiers, affiliation and
+  read-only qualification APIs. Consume sources even while unaffiliated.
+  Keep source/visit ledgers through changes; do not infer historical scores.
+- Temple transactions validate live city/district/adjacency before mutation
+  through `devotionTemples.ts`. Every visitor can receive the same optional
+  +1 AC/three-hero-turn `templeWard` through the existing status lifecycle or use
+  one normal short rest. Never add a second blessing clock or farmable rite.
+- Profile presentation is derived. The devotion manager owns measured pages,
+  semantic controls, native accessible counterparts, explicit confirmation and
+  cleanup. Codex, achievements, discovery and ending text only consume evidence.
+- Every affiliation and none can complete the campaign. Pure optional
+  prerequisite queries are the only prestige extension; no prestige classes
+  are implemented here. See `docs/devotion.md`.
+
 ## Save system
 
-Save schema version is 18.
+Save schema version is 19.
+
+Schema v19 adds independent optional devotion with unaffiliated/zero legacy
+defaults, stable source/visit ledgers, debug-consumed sources, an affiliation
+sequence and bounded causes. Exact historical completion/outcome sources may
+only be marked consumed, never replayed for points or blessings. Normalize
+unknown/duplicate IDs, bounds, history links and status source/affiliation/turn
+cross-fields while preserving every other domain.
 
 Schema v18 adds non-negative campaign playtime and a resilient local slot
 layout: the legacy-compatible `2dnd_save` autosave, three stable manual slots,
@@ -931,7 +959,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v18
+  visibility, handedness, and prompt source only; they never enter schema-v19
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

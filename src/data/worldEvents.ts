@@ -1,4 +1,5 @@
 import { Terrain } from "./mapTypes";
+import { DEVOTION_WORLD_EVENTS } from "./devotionEvents";
 import {
   IRON_DISPATCH_QUEST_ID,
   MAIN_QUEST_ID,
@@ -150,6 +151,7 @@ export const WORLD_EVENT_TRIGGER_RULES = {
 } as const;
 
 export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
+  ...DEVOTION_WORLD_EVENTS,
   {
     id: "adriftChartCase",
     family: "discovery",

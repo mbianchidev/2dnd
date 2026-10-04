@@ -22,6 +22,7 @@ export const STATUS_EFFECT_IDS = [
   "inspired",
   "rage",
   "sneakStance",
+  "templeWard",
 ] as const;
 
 export type StatusEffectId = (typeof STATUS_EFFECT_IDS)[number];
@@ -199,6 +200,15 @@ export const STATUS_EFFECT_DEFS: StatusEffectDef[] = [
     accuracyModifier: 0, attackDisadvantage: false,
     acModifier: 2, damageModifier: 0, skipsTurn: false,
     saveStat: "dexterity", saveDC: 0,
+    removalMethods: ["duration", "manual"],
+  },
+  {
+    id: "templeWard", name: "Traveling Thread",
+    description: "An optional temple thread grants 1 AC for three hero turns",
+    category: "buff", defaultDuration: 3, tickDamage: 0, tickDie: 0,
+    accuracyModifier: 0, attackDisadvantage: false,
+    acModifier: 1, damageModifier: 0, skipsTurn: false,
+    saveStat: "wisdom", saveDC: 0,
     removalMethods: ["duration", "manual"],
   },
 ];

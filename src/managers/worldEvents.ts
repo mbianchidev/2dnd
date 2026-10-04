@@ -263,7 +263,11 @@ export class WorldEventManager {
       this.callbacks.showCodexUnlocks(resolution.codexUnlocks);
       this.callbacks.handleSocialEffects(resolution.socialEffects);
       this.callbacks.updateHUD();
-      this.callbacks.showMessage(resolution.summary, "#f7c948");
+      this.callbacks.showMessage([
+        resolution.summary,
+        ...resolution.devotionEffects.filter((effect) => effect.delta !== 0)
+          .map((effect) => effect.message),
+      ].join(" "), "#f7c948");
       this.callbacks.autoSave();
     }
   }
@@ -294,9 +298,13 @@ export class WorldEventManager {
             true,
           );
           return {
-            messages: resolution.socialEffects
-              .filter((effect) => effect.changed)
-              .map((effect) => `Social: ${effect.summary}`),
+            messages: [
+              ...resolution.socialEffects
+                .filter((effect) => effect.changed)
+                .map((effect) => `Social: ${effect.summary}`),
+              ...resolution.devotionEffects.filter((effect) => effect.delta !== 0)
+                .map((effect) => effect.message),
+            ],
             codexEntries: resolution.codexUnlocks.entries,
           };
         },

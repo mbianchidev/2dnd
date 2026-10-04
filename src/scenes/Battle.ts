@@ -3124,6 +3124,7 @@ export class BattleScene extends Phaser.Scene {
         this.addLog(message);
       }
       this.battleHookCodexEntries.push(...(feedback?.codexEntries ?? []));
+      this.clearBattleEffects();
     }
     return result;
   }
@@ -3311,6 +3312,10 @@ export class BattleScene extends Phaser.Scene {
     this.battleBackdrop?.stopDynamicEffects();
     this.input?.keyboard?.removeAllKeys(true, false);
     setDebugCommandHandler(null);
+    this.clearBattleEffects();
+  }
+
+  private clearBattleEffects(): void {
     for (const combatant of this.partyCombatants) {
       clearAllEffects(combatant.effects);
     }

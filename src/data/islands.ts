@@ -16,6 +16,7 @@ function createTidehavenMap(): Terrain[][] {
       if (x === 10 && y === 1) return G;
       if (x === 0 || x === 19 || y === 0 || y === 14) return W;
       if (x === 10 && y === 2) return D;
+      if (x === 9 && y === 6) return Terrain.Temple;
       if (x === 10 || y === 7) return P;
       if (
         (x >= 2 && x <= 5 && y >= 3 && y <= 5)

@@ -45,6 +45,9 @@ and campaign saves stay in your browser's local storage.
 - **Discover more than monsters:** expand the Codex with lore, make alignment
   and reputation choices, earn achievements and cosmetic titles, and replay
   unlocked story scenes in the Chronicle.
+- **Choose an optional fictional thread:** remain unaffiliated or explore the
+  original Unfinished Constellation, its temples, independent devotion,
+  optional stories, and small temporary blessings available to every visitor.
 - **Gather, craft, and sail:** fish, mine, forage, craft deterministic recipes
   and equipment upgrades, use merchant routes, earn a boat, explore Tidehaven,
   and challenge the Deepwake Kraken.
@@ -113,7 +116,8 @@ Use `npm run dev:desktop` for Electron development and
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v17, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v19, migration, recovery, persistence rules |
+| [Fictional devotion](docs/devotion.md) | Original pantheon, temples, rites, independent scores, optional stories |
 | [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
 | [Release](docs/release.md) | GitHub Pages and release checklist |
 | [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |

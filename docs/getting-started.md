@@ -79,7 +79,7 @@ The landing-page flow starts at that root; game flows open `game.html`. See
 
 | Key | Purpose |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, currently schema v18 |
+| `2dnd_save` | Dedicated autosave campaign, currently schema v19 |
 | `2dnd_save_slot_manual-1` through `manual-3` | Named manual campaign slots |
 | slot `:backup` / `:staging` keys | Automatic recovery from interrupted or corrupt writes |
 | `2dnd_preferences` | Versioned audio, accessibility, and control presentation settings |

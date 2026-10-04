@@ -2,6 +2,7 @@ import type { AlignmentAxis, ReputationTargetKind, ReputationTierId } from "./re
 import type { QuestId } from "./quests";
 import type { SkillCheckAbility } from "./skillChecks";
 import type { TrapState } from "./traps";
+import { WORLD_EVENT_DEFINITIONS } from "./worldEvents";
 
 export const ACHIEVEMENT_CATEGORIES = [
   "campaign",
@@ -59,6 +60,8 @@ export const ACHIEVEMENT_IDS = [
   "firstCraft",
   "versatileCrafter",
   "masterSmith",
+  "constellationVisitor",
+  "steadfastDevotion",
 ] as const;
 
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
@@ -79,6 +82,7 @@ export const TITLE_IDS = [
   "relicKeeper",
   "realmGatherer",
   "artisan",
+  "threadkeeper",
 ] as const;
 
 export type TitleId = (typeof TITLE_IDS)[number];
@@ -193,6 +197,10 @@ export type AchievementCriteria =
   | {
     readonly type: "craftEquipmentUpgrades";
     readonly threshold: number;
+  }
+  | {
+    readonly type: "templesVisited" | "devotionScore";
+    readonly threshold: number;
   };
 
 export interface AchievementSourceMetadata {
@@ -213,7 +221,8 @@ export interface AchievementSourceMetadata {
     | "reputation"
     | "inventory"
     | "gathering"
-    | "crafting";
+    | "crafting"
+    | "devotion";
   readonly authoritativeState: string;
   readonly targetIds?: readonly string[];
 }
@@ -240,6 +249,20 @@ export interface TitleDefinition {
 const MAIN_QUEST = "twelvefoldCovenant" as const;
 
 export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
+  {
+    id: "constellationVisitor", name: "Room for Another Road",
+    description: "Visit three Unfinished Constellation sites; no affiliation is required.",
+    category: "social", points: 10,
+    criteria: { type: "templesVisited", threshold: 3 },
+    source: { kind: "devotion", authoritativeState: "player.progression.devotion.visitedTempleIds" },
+  },
+  {
+    id: "steadfastDevotion", name: "A Thread Kept Freely",
+    description: "Reach 50 devotion through distinct, freely chosen causes.",
+    category: "social", points: 10,
+    criteria: { type: "devotionScore", threshold: 50 }, rewardTitleId: "threadkeeper",
+    source: { kind: "devotion", authoritativeState: "player.progression.devotion.score" },
+  },
   {
     id: "firstSealComplete",
     name: "The First Seal",
@@ -528,7 +551,7 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     description: "Resolve every kind of World Event.",
     category: "world",
     points: 35,
-    criteria: { type: "worldEventsResolved", threshold: 8, unique: true },
+    criteria: { type: "worldEventsResolved", threshold: WORLD_EVENT_DEFINITIONS.length, unique: true },
     rewardTitleId: "eventWitness",
     source: { kind: "worldEvent", authoritativeState: "World Event repeat counters" },
   },
@@ -651,6 +674,11 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
 ] as const;
 
 export const TITLES: readonly TitleDefinition[] = [
+  {
+    id: "threadkeeper", name: "Threadkeeper",
+    description: "A cosmetic title for a freely kept thread.",
+    achievementId: "steadfastDevotion",
+  },
   { id: "covenantRoadwarden", name: "Covenant Roadwarden", description: "Bearer of the restored Twelvefold Covenant.", achievementId: "twelvefoldCovenantComplete" },
   { id: "unbroken", name: "The Unbroken", description: "Completed the covenant road without defeat.", achievementId: "unbrokenCovenant" },
   { id: "deepdelver", name: "Deepdelver", description: "Conqueror of the realm's three deepest dungeons.", achievementId: "threeDungeonsCleared" },

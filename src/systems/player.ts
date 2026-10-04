@@ -36,6 +36,7 @@ import {
   createSocialState,
   type SocialState,
 } from "./reputation";
+import { createDevotionState, type DevotionState } from "./devotionState";
 import {
   createAchievementState,
   type AchievementState,
@@ -96,6 +97,7 @@ export interface PlayerProgression {
   tutorial: TutorialProgress; // new-player tutorial completion
   worldEvents: WorldEventState; // deterministic overworld event state and record
   social: SocialState; // alignment, town/faction reputation, idempotency, and recent causes
+  devotion: DevotionState;
   achievements: AchievementState; // derived milestones, event counters, cosmetic titles, and notices
   gathering: GatheringState; // deterministic gathering nodes, minigames, rewards, and records
   crafting: CraftingState; // known recipes, atomic transactions, statistics, and history
@@ -296,6 +298,7 @@ export function createPlayer(
       tutorial: createTutorialProgress(),
       worldEvents: createWorldEventState(),
       social: createSocialState(),
+      devotion: createDevotionState(),
       achievements: createAchievementState(),
       gathering: createGatheringState(),
       crafting: createCraftingState(),

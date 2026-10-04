@@ -4,7 +4,7 @@ import type { CutsceneStep } from "../data/cutscenes";
 import type { CampaignEndingSummary } from "../systems/cutscenes";
 import type { PartyDefeatResult } from "../systems/party";
 import { isReducedMotionEnabled } from "../systems/accessibility";
-import { registerLayoutGroup } from "../managers/layout";
+import { layoutTextStack, registerLayoutGroup } from "../managers/layout";
 import type { PlayerState } from "../systems/player";
 import {
   describeHeroVisual,
@@ -80,7 +80,8 @@ export class ResultRenderer {
     } else if (step.type === "dialogue") {
       this.renderDialogue(step.speaker, step.text);
     } else if (step.type === "summary") {
-      this.renderSummary(step.heading, summary);
+      if (step.section === "devotion") this.renderDevotionSummary(step.heading, summary.devotion);
+      else this.renderSummary(step.heading, summary);
     } else {
       this.renderCredits(step.lines);
     }
@@ -460,6 +461,18 @@ export class ResultRenderer {
       },
     ).setOrigin(0.5);
     this.content!.add(body);
+  }
+
+  private renderDevotionSummary(heading: string, text: string): void {
+    this.renderNarration(heading, text);
+    const paragraphs = this.content!.list.filter(
+      (object): object is Phaser.GameObjects.Text => object instanceof Phaser.GameObjects.Text,
+    );
+    paragraphs.forEach((paragraph, index) =>
+      paragraph.setData("layoutId", index === 0 ? "ending-devotion-title" : "ending-devotion-body"));
+    layoutTextStack(paragraphs, {
+      x: 60, y: 80, width: GAME_WIDTH - 120, gap: 24, align: "center",
+    });
   }
 
   private renderDialogue(speaker: string, text: string): void {

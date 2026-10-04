@@ -96,6 +96,16 @@ timers, pointer controls, status record, and cleanup. Overworld resumes pending
 gathering before World Events, blocks movement and other interactions while it
 is open, and routes guarded rare finds through Battle with resolution hooks.
 
+## Devotion presentation
+
+`DevotionManager` owns the optional temple/profile surface. Register measured
+paginated content with the layout audit, use the shared overlay semantic
+context and defer activation to keyup. Its native accessibility bridge mirrors
+named controls and canvas focus. Clean up containers, key/resize listeners,
+preference/prompt subscriptions, pending confirmation and DOM controls on
+close/shutdown. Persist only `player.progression.devotion`; blessings remain
+normal actor effects and clear before a resolved Battle snapshot is saved.
+
 ## Shared state flow
 
 State-bearing transitions use `createSharedSceneState()` and preserve:

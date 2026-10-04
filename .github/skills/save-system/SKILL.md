@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v18, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v19, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -37,7 +37,7 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 18.
+`SAVE_VERSION` is 19.
 
 ```typescript
 interface SaveData {
@@ -104,6 +104,7 @@ interface PlayerProgression {
   tutorial: TutorialProgress;
   worldEvents: WorldEventState;
   social: SocialState;
+  devotion: DevotionState;
   achievements: AchievementState;
   gathering: GatheringState;
   crafting: CraftingState;
@@ -148,6 +149,12 @@ counters, and the bounded chronological World Events record.
 scores, stable applied source IDs, and at most 40 recent cause entries. Names,
 tiers, thresholds, shop modifiers, Codex milestones, and achievement hooks are
 derived.
+`devotion` persists one optional fictional affiliation, a bounded independent
+score, canonical source/visit ledgers, debug-consumed sources, an affiliation
+sequence and bounded causes. Tiers/domains/tenets are derived; blessings remain
+normal `activeEffects` with no parallel clock. Schema-v18 and older heroes are
+unaffiliated/zero. Exact historical sources are consumed without reconstructing
+scores or rewards. See `docs/devotion.md`.
 `achievements` persists earned records, once-only event counters/IDs, explicit
 defeat-history validity, unlocked/equipped cosmetic titles, debug suppression,
 and pending notice IDs. Definitions, categories, points, totals, and
@@ -222,6 +229,9 @@ helpers; do not cast unvalidated nested values directly.
   `normalizeFeatureDiscoveryProgress()`; schema-v16 and older saves discard
   pending/debug metadata and silently reconcile mature authoritative evidence
 - Missing time and weather data
+- Missing/legacy/corrupt devotion through `normalizeDevotionState()`; validate
+  canonical IDs, duplicate/source/history cross-fields and temple blessing
+  source/affiliation/turns without refreshing or reconstructing an effect
 - Invalid string arrays and explored-tile records
 
 ## Location recovery
@@ -312,7 +322,7 @@ recoverable valid campaign.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v18 playtime, position, objective/reward/warning quest state,
+- Current schema-v19 devotion plus playtime, position, objective/reward/warning quest state,
   skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
@@ -336,7 +346,7 @@ recoverable valid campaign.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v18 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v19 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

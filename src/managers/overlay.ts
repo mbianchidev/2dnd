@@ -105,6 +105,7 @@ export interface OverlayCallbacks {
   openAchievements: () => void;
   openGathering: () => void;
   openCrafting: () => void;
+  openDevotion: () => void;
   openTips: () => void;
   openSaveSlots: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
@@ -1245,6 +1246,9 @@ export class OverlayManager {
         return;
       case "crafting":
         this.callbacks.openCrafting();
+        return;
+      case "devotion":
+        this.callbacks.openDevotion();
         return;
       case "tips":
         this.callbacks.openTips();

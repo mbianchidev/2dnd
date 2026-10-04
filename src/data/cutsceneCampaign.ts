@@ -670,6 +670,11 @@ CutsceneDefinition<CampaignCutsceneId> = {
       heading: "Your Chronicle",
     },
     {
+      type: "summary",
+      heading: "The Road You Chose",
+      section: "devotion",
+    },
+    {
       type: "credits",
       lines: [
         "2D&D",

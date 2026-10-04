@@ -47,6 +47,7 @@ import {
   recordAchievementEvent,
 } from "./achievements";
 import { discoverCraftingRecipes } from "./crafting";
+import { recordDevotionWorldEventOutcome, type DevotionMutationResult } from "./devotion";
 
 export const WORLD_EVENT_LOG_LIMIT = 40;
 export const LEGACY_WORLD_EVENT_SEED = 0x2d0d0069;
@@ -123,6 +124,7 @@ export interface WorldEventResolution {
   questUpdates: readonly QuestUpdate[];
   codexUnlocks: CodexUnlockResult;
   socialEffects: readonly SocialMutationResult[];
+  devotionEffects: readonly DevotionMutationResult[];
 }
 
 export type OverworldStepTrigger =
@@ -517,6 +519,7 @@ function completeOutcome(
       questUpdates: [],
       codexUnlocks: { unlockedIds: [], entries: [] },
       socialEffects: [],
+      devotionEffects: [],
     };
   }
 
@@ -570,6 +573,9 @@ function completeOutcome(
   appendLog(state, event, pending, choiceId, outcome);
   state.pending = null;
   const debug = consumeWorldEventDebugFlag(player, pending.instanceId);
+  const devotionEffects = recordDevotionWorldEventOutcome(
+    player, event.id, outcome.id, debug,
+  );
   recordAchievementEvent(player, {
     type: "worldEventResolved",
     sourceId: `worldEvent:${resolutionId}`,
@@ -599,6 +605,7 @@ function completeOutcome(
       ].map((entry) => [entry.id, entry])).values()],
     },
     socialEffects,
+    devotionEffects,
   };
 }
 

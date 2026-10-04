@@ -3,6 +3,8 @@
  */
 
 import type { SocialOutcomeDefinition } from "./reputation";
+import { DEVOTION_QUEST_IDS } from "./devotion";
+import { DEVOTION_QUESTS } from "./devotionQuests";
 
 export const MAIN_QUEST_ID = "twelvefoldCovenant" as const;
 export const IRON_DISPATCH_QUEST_ID = "ironboundDispatch" as const;
@@ -21,6 +23,7 @@ export const QUEST_IDS = [
   RECRUIT_GUARDIAN_QUEST_ID,
   RECRUIT_SCOUT_QUEST_ID,
   RECRUIT_MYSTIC_QUEST_ID,
+  ...DEVOTION_QUEST_IDS,
 ] as const;
 
 export type QuestId = (typeof QUEST_IDS)[number];
@@ -52,6 +55,7 @@ export const QUEST_NPC_IDS = {
   guardian: "guardian",
   scout: "scout",
   mystic: "mystic",
+  tidehaven: "tidehavenGlasskeeper",
 } as const;
 
 export type QuestNpcId = (typeof QUEST_NPC_IDS)[keyof typeof QUEST_NPC_IDS];
@@ -153,6 +157,12 @@ export const QUEST_NPCS: Record<QuestNpcId, QuestNpcDefinition> = {
     cityId: "ashfall_city",
     name: "Selene Vey",
     idleDialogue: "Flame reveals as much as it consumes, if you know where to look.",
+  },
+  tidehavenGlasskeeper: {
+    id: QUEST_NPC_IDS.tidehaven,
+    cityId: "tidehaven_city",
+    name: "Glasskeeper Ossa",
+    idleDialogue: "A safe crossing should leave room to choose a different shore.",
   },
 };
 
@@ -1022,6 +1032,7 @@ export const QUESTS: Record<QuestId, QuestDefinition> = {
   [RECRUIT_GUARDIAN_QUEST_ID]: RECRUIT_GUARDIAN_QUEST,
   [RECRUIT_SCOUT_QUEST_ID]: RECRUIT_SCOUT_QUEST,
   [RECRUIT_MYSTIC_QUEST_ID]: RECRUIT_MYSTIC_QUEST,
+  ...DEVOTION_QUESTS,
 };
 
 export interface QuestEntranceLocation {

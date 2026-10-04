@@ -33,6 +33,7 @@ export const FEATURE_IDS = [
   "gatheringForaging",
   "worldEvents",
   "socialProfile",
+  "devotionProfile",
   "mounts",
   "nauticalHarbors",
   "nauticalRoutes",
@@ -247,6 +248,14 @@ export const FEATURE_DEFINITIONS: readonly FeatureDefinition[] = [
     prerequisite: "Cause a non-default alignment or reputation change.",
     owners: ["partyTab", "tutorial"],
     testId: "feature-social-profile",
+  },
+  {
+    id: "devotionProfile",
+    label: "Devotion",
+    description: "Optional fictional affiliations, causes, temples, and rites.",
+    prerequisite: "Visit an Unfinished Constellation site.",
+    owners: ["escapeMenu", "contextPrompt", "tutorial"],
+    testId: "feature-devotion-profile",
   },
   {
     id: "mounts",

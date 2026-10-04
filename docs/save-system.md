@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v18; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v19; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -33,7 +33,14 @@ normalization remains beside its domain where appropriate, including
 
 ## Current schema
 
-`SAVE_VERSION` is **18**. Schema v18 adds normalized non-negative
+`SAVE_VERSION` is **19**. Schema v19 adds independent optional fictional
+`player.progression.devotion` with unaffiliated/zero legacy defaults, canonical
+source/visit ledgers, debug-consumed sources, affiliation-change sequence, and a
+bounded cause history. Tiers, domains and active-blessing presentation are
+derived. Blessings remain ordinary `activeEffects`, validated against consumed
+rites and the current affiliation; no separate duration is saved.
+
+Schema v18 adds normalized non-negative
 `playtimeSeconds` to each campaign document. Slot names, backup state, and
 migration bookkeeping remain storage metadata rather than campaign authority.
 
@@ -41,6 +48,8 @@ The campaign save contains the authoritative player, location, progression,
 party, quest, cutscene queue, trap, Codex, skill-check, event, social,
 achievement, gathering, crafting, nautical, feature-discovery, time, weather,
 boss, and playtime state needed to resume play.
+Devotion remains distinct from social scores and never controls canonical
+campaign access. See [Fictional devotion](devotion.md).
 
 Important composed fields live under:
 
@@ -130,10 +139,15 @@ Current loading preserves and repairs earlier releases, including:
 - World Event, social, achievement, gathering, crafting, nautical, and feature
   discovery defaults and corruption repair
 - schema-v17 and older playtime defaulting to zero
+- schema-v18 and older devotion defaulting to unaffiliated/zero; exact known
+  historical sources are consumed without awarding points or blessings
 
 Migrations must not replay completed rewards, reroll pending outcomes, infer
 unknown defeat history, create duplicate companions, or emit mature-save
 notification storms.
+Devotion normalization removes unknown IDs, deduplicates ledgers, bounds scores
+and histories, validates history/source links, and repairs blessing
+source/affiliation/duration cross-fields without refreshing expired effects.
 
 ## Persistence-change checklist
 

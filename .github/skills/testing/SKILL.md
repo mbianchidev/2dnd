@@ -583,8 +583,9 @@ npx vitest run tests/dice.test.ts
   `data-layout-clipping-count`; use stable `layoutId` values instead of brittle
   coordinate-only clicks.
 - Hold frame-polled keys with `keyboard.down()`, wait across frames, then
-  `keyboard.up()`. Do not use instantaneous presses for Overworld or Ending
-  actions.
+  `keyboard.up()`. Keep pointer down/up separated by browser animation frames
+  through the shared measured-layout or desktop helper. Do not use instantaneous
+  presses for Overworld or Ending actions.
 - Seed randomness before the game loads and assert both `pageerror` and
   `console.error` remain empty.
 - Run `npm run benchmark:baseline` before performance-affecting work and attach

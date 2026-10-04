@@ -109,8 +109,9 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 ## Stable browser synchronization
 
 - Prefer stable debug-state transitions, layout IDs, and semantic actions.
-- Hold frame-polled Phaser keys across animation frames; instantaneous presses
-  can be missed.
+- Hold frame-polled Phaser keys and pointer activation across animation frames;
+  instantaneous presses can be missed. The measured-layout browser helper and
+  desktop pointer helper keep down/up separated by browser frames.
 - Release controller test presses inside browser animation frames; host sleeps
   can exceed semantic repeat thresholds under load.
 - Do not target fixed canvas coordinates when a registered layout ID exists.

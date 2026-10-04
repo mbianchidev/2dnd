@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import type { DifficultyProfileId } from "../src/data/difficulty";
 import { getDifficultyEffectPreview } from "../src/systems/difficulty";
 import { normalizeSaveData, SAVE_VERSION, type SaveData } from "../src/systems/save";
-import { clickLayoutItem, expectCleanLayout, tapLayoutItem } from "./helpers/layout";
+import { clickGamePoint as clickGame, clickLayoutItem, expectCleanLayout, tapLayoutItem } from "./helpers/layout";
 
 async function key(page: Page, name: string): Promise<void> {
   await page.keyboard.down(name);
@@ -15,12 +15,6 @@ async function gamePoint(page: Page, x: number, y: number): Promise<{ x: number;
   const bounds = await page.locator("#game-container canvas").boundingBox();
   if (!bounds) throw new Error("Missing game canvas bounds");
   return { x: bounds.x + x / 640 * bounds.width, y: bounds.y + y / 528 * bounds.height };
-}
-
-async function clickGame(page: Page, x: number, y: number): Promise<void> {
-  const point = await gamePoint(page, x, y);
-  await page.mouse.click(point.x, point.y);
-  await page.waitForTimeout(120);
 }
 
 async function state(page: Page, value: string): Promise<void> {
@@ -80,6 +74,7 @@ async function appearance(page: Page): Promise<void> {
   await key(page, "Enter");
   await state(page, "Screen: stats");
   await clickGame(page, 390, 64);
+  await state(page, "[MODE:random]");
   await clickGame(page, 400, 460);
   await state(page, "Screen: appearance");
 }
@@ -235,6 +230,7 @@ test("safe mid-run changes require confirmation, persist causes and never replay
   const openRules = async (): Promise<void> => {
     await key(page, "Escape");
     await clickLayoutItem(page, "escape-menu-settings");
+    await state(page, "[SETTINGS]");
     await rulesAccessibility(page, 1.5);
     await clickLayoutItem(page, "settings-difficulty");
     await state(page, "[DIFFICULTY]");
@@ -303,6 +299,7 @@ test("Custom mid-run edits preview exact values and failed autosaves roll back t
   await opening(page);
   await key(page, "Escape");
   await clickLayoutItem(page, "escape-menu-settings");
+  await state(page, "[SETTINGS]");
   await rulesAccessibility(page, 1.5);
   await clickLayoutItem(page, "settings-difficulty");
   await key(page, "ArrowDown");

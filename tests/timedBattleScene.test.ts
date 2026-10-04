@@ -8,6 +8,7 @@ import { BattleScene } from "../src/scenes/Battle";
 import { createSoloEncounter } from "../src/data/monsterGroups";
 import { getMonster } from "../src/data/monsters";
 import { getItem } from "../src/data/items";
+import type { BattleTimingSettings } from "../src/data/battleTiming";
 import { createPlayer, type PlayerState } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import {
@@ -151,6 +152,26 @@ afterEach(() => {
 });
 
 describe("timed Battle authority contracts", () => {
+  it("applies a runtime duration suggestion without changing configuration or enabling Standard", () => {
+    for (const timed of [false, true]) {
+      const fixture = scene(timed);
+      fixture.battle.init({
+        player: fixture.player,
+        encounter: createSoloEncounter(getMonster("orc")!),
+        defeatedBosses: new Set(), codex: createCodex(),
+        battleTimingAdjustment: { durationSeconds: 90 },
+      });
+      const resolved = fixture.battle as unknown as { timingSettings: BattleTimingSettings };
+      expect(resolved.timingSettings).toEqual({
+        mode: timed ? "timed" : "standard",
+        durationSeconds: timed ? 90 : 30,
+        timeoutAction: "defend",
+      });
+      expect(fixture.player.battleTiming.durationSeconds).toBe(timed ? 15 : 30);
+      expect(fixture.player.battleTiming.mode).toBe(timed ? "timed" : "standard");
+    }
+  });
+
   it("keeps Standard without a timer and matches its Defend economy, status, and resources", () => {
     const standard = scene(false);
     const timed = scene(true);

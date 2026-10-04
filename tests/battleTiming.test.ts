@@ -104,6 +104,19 @@ describe("per-campaign battle timing settings", () => {
 });
 
 describe("deterministic decision clock", () => {
+  it.each(TIMED_ROUND_DURATIONS)("uses the exact %ss active decision boundary", (durationSeconds) => {
+    const clock = new BattleDecisionClock({
+      mode: "timed", durationSeconds, timeoutAction: "defend",
+    });
+    clock.beginTurn(`duration:${durationSeconds}`, "party:hero");
+    clock.advance(0);
+    clock.advance(durationSeconds * 1_000 - 1);
+    expect(clock.snapshot.decision?.remainingMs).toBe(1);
+    expect(clock.claimTimeout(`duration:${durationSeconds}`)).toBe(false);
+    clock.advance(1);
+    expect(clock.claimTimeout(`duration:${durationSeconds}`)).toBe(true);
+  });
+
   it("is inert in Standard, including large elapsed intervals", () => {
     const clock = new BattleDecisionClock(createBattleTimingSettings());
     clock.beginTurn("turn:1", "party:hero");

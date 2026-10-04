@@ -367,7 +367,14 @@ test.describe("touch and gamepad timed decisions", () => {
         axes: [0, 0, 0, 0],
         buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
       };
-      Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => pad.connected ? [pad] : [] });
+      const sparePad = {
+        ...pad, id: "Mock Spare Timed Battle Pad", index: 1,
+        axes: [0, 0, 0, 0],
+        buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
+      };
+      Object.defineProperty(navigator, "getGamepads", {
+        configurable: true, value: () => pad.connected ? [pad, sparePad] : [sparePad],
+      });
       Object.defineProperty(window, "__timedPadButton", {
         value: (index: number, pressed: boolean) => {
           pad.buttons[index] = { pressed, touched: pressed, value: pressed ? 1 : 0 };

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getSteamDepot,
   isAllowedSteamAppEntry,
+  isAllowedSteamRuntimeEntry,
   isForbiddenSteamPath,
   isSteamId,
   parseSteamBuildIds,
@@ -129,5 +130,18 @@ describe("Steam distribution contract", () => {
       "/dist/index.html", "/dist/screenshots/mock.png", "/dist/assets/landing-mock.css",
       "/dist/assets/game.js.map", "/node_modules/native/index.js", "/.env",
     ]) expect(isAllowedSteamAppEntry(path)).toBe(false);
+  });
+
+  it("retains Electron Windows shader libraries without allowing arbitrary DLLs", () => {
+    const windows = getSteamDepot("windows-x64");
+    const linux = getSteamDepot("linux-x64");
+    for (const path of ["dxcompiler.dll", "dxil.dll"]) {
+      expect(isAllowedSteamRuntimeEntry(path, windows)).toBe(true);
+      expect(isAllowedSteamRuntimeEntry(path, linux)).toBe(false);
+      expect(isAllowedSteamRuntimeEntry(`resources/${path}`, windows)).toBe(false);
+    }
+    for (const path of ["unknown.dll", "steam_api64.dll", "sdk/dxcompiler.dll"]) {
+      expect(isAllowedSteamRuntimeEntry(path, windows)).toBe(false);
+    }
   });
 });

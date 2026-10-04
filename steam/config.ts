@@ -198,7 +198,7 @@ export function isAllowedSteamRuntimeEntry(path: string, depot: SteamDepot): boo
   const platformFiles = depot.os === "linux"
     ? ["chrome-sandbox", "chrome_crashpad_handler", "libEGL.so", "libGLESv2.so",
       "libffmpeg.so", "libvk_swiftshader.so", "libvulkan.so.1"]
-    : ["d3dcompiler_47.dll", "ffmpeg.dll", "libEGL.dll", "libGLESv2.dll",
+    : ["d3dcompiler_47.dll", "dxcompiler.dll", "dxil.dll", "ffmpeg.dll", "libEGL.dll", "libGLESv2.dll",
       "vk_swiftshader.dll", "vulkan-1.dll"];
   return [...rootFiles, ...platformFiles].includes(normalized)
     || normalized === "resources/app.asar"

@@ -41,6 +41,8 @@ Players do not install Node, npm, a browser, an SDK, a mod loader or a separate
 game launcher. Electron and Chromium are included. Native OS/runtime libraries
 remain prerequisites; do not work around unsupported configurations by
 disabling Electron's sandbox or adding privileged installation scripts.
+The Windows payload retains Electron's bundled `dxcompiler.dll`/`dxil.dll`
+shader libraries; this is not a separate Steam SDK or DirectX installer.
 
 ## Local, credential-free preparation
 

@@ -42,6 +42,7 @@ async function seedCampaign(
   page: Page,
   starting: BaseClassId,
   stats: PlayerStats,
+  errors: string[],
   totalEarned = 2,
   prepared = false,
   largeText = false,
@@ -96,7 +97,13 @@ async function seedCampaign(
     if (!result.ok) throw new Error(result.message);
   }, { starting, stats, totalEarned, prepared, largeText });
   await page.reload({ waitUntil: "networkidle" });
-  await expect(page.locator("#debug-state")).toContainText("BOOT | Screen: title [TITLE_ACTION:continue]");
+  await expect.poll(async () => ({
+    errors: [...errors],
+    state: await page.locator("#debug-state").textContent(),
+  })).toEqual({
+    errors: [],
+    state: expect.stringContaining("BOOT | Screen: title [TITLE_ACTION:continue]"),
+  });
   await clickLayoutItem(page, "title-continue");
   await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
 }
@@ -138,7 +145,7 @@ const combinations: Array<{ starting: BaseClassId; next: BaseClassId; stats: Pla
 for (const combination of combinations) {
   test(`${combination.starting}/${combination.next} previews, commits and reloads without bonus replay`, async ({ page }) => {
     const errors = watchErrors(page);
-    await seedCampaign(page, combination.starting, combination.stats);
+    await seedCampaign(page, combination.starting, combination.stats, errors);
     const before = await readSave(page);
     await beginShortRest(page);
     await selectClass(page, combination.next);
@@ -178,7 +185,7 @@ for (const combination of combinations) {
 
 test("rested queues, frozen previews, ASIs and qualification survive interrupted choices", async ({ page }) => {
   const errors = watchErrors(page);
-  await seedCampaign(page, "knight", hybridStats, 4);
+  await seedCampaign(page, "knight", hybridStats, errors, 4);
   await beginShortRest(page);
   await selectClass(page, "wizard");
   await clickLayoutItem(page, "progression-primary");
@@ -229,7 +236,7 @@ test.describe("mobile class selection", () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
   test("touch paging, 150% text and high contrast retain exact prepared gains", async ({ page }) => {
     const errors = watchErrors(page);
-    await seedCampaign(page, "knight", hybridStats, 2, true, true);
+    await seedCampaign(page, "knight", hybridStats, errors, 2, true, true);
     await expect(page.locator("#debug-state")).toContainText("[PROGRESSION:level");
     await expectCleanLayout(page);
     for (let index = 0; index < 12; index++) {
@@ -282,7 +289,7 @@ test("gamepad D-pad/A/B navigate and confirm one class level without exploration
     }, index);
     await page.waitForTimeout(120);
   };
-  await seedCampaign(page, "knight", hybridStats, 2, true);
+  await seedCampaign(page, "knight", hybridStats, errors, 2, true);
   await expect(page.locator("#debug-state")).toContainText("[PROGRESSION:level");
   const position = (await readSave(page)).player.position;
   await press(13);
@@ -300,7 +307,7 @@ test("gamepad D-pad/A/B navigate and confirm one class level without exploration
 
 test("multiclass hero preserves campaign authority through the real final turn-in", async ({ page }) => {
   const errors = watchErrors(page);
-  await seedCampaign(page, "knight", hybridStats);
+  await seedCampaign(page, "knight", hybridStats, errors);
   await beginShortRest(page);
   await selectClass(page, "wizard");
   await clickLayoutItem(page, "progression-primary");

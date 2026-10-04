@@ -352,6 +352,7 @@ export interface OverworldDebugCallbacks {
   resolveGathering(success: boolean): string;
   resetGathering(): string;
   gatheringStatus(): readonly string[];
+  minigameCommand(args: string): readonly string[];
   startCutsceneView(
     cutsceneId: CutsceneId,
     heroVisual: HeroVisualDescriptor,
@@ -794,6 +795,12 @@ export class DebugCommandSystem {
         "Usage: /gather <list|status|near|trigger fishing|mining|foraging|resolve success|failure|reset>",
         true,
       );
+    });
+
+    cmds.set("minigame", (args) => {
+      for (const message of this.callbacks.minigameCommand(args)) {
+        debugPanelLog(`[MINIGAME] ${message}`, true);
+      }
     });
 
     cmds.set("craft", (args) => {
@@ -1332,6 +1339,7 @@ export class DebugCommandSystem {
       { usage: "/event <cmd>", desc: "World events: list | trigger <id> | reset" },
       { usage: "/gather <cmd>", desc: "Gathering: list|status|trigger|resolve|reset" },
       { usage: "/craft <cmd>", desc: "Crafting: list|unlock|lock|craft|material|status|reset" },
+      { usage: "/minigame <cmd>", desc: "Activities: list|status|near|play; debug play grants no rewards" },
       { usage: "/alignment <cmd>", desc: "Alignment: list|explain|set|adjust" },
       { usage: "/reputation <cmd>", desc: "Reputation: list|explain|set|adjust (alias: /rep)" },
       { usage: "/spawn <name>", desc: "Spawn monster or NPC (traveler/adventurer/merchant/hermit)" },

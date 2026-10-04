@@ -52,6 +52,8 @@ import {
   createNauticalState,
   type NauticalState,
 } from "./nauticalState";
+import { createMinigameState } from "./minigameState";
+import type { MinigameState } from "./minigameTypes";
 import {
   createFeatureDiscoveryProgress,
   type FeatureDiscoveryProgress,
@@ -100,6 +102,7 @@ export interface PlayerProgression {
   gathering: GatheringState; // deterministic gathering nodes, minigames, rewards, and records
   crafting: CraftingState; // known recipes, atomic transactions, statistics, and history
   nautical: NauticalState; // boats, ports, routes, sea discovery, and pending travel
+  minigames: MinigameState; // exact social challenge sessions, economy ledger, and personal records
   discoveredFeatureIds: FeatureDiscoveryProgress["discoveredFeatureIds"];
   pendingFeatureRevealIds: FeatureDiscoveryProgress["pendingFeatureRevealIds"];
   debugDiscoveredFeatureIds: FeatureDiscoveryProgress["debugDiscoveredFeatureIds"];
@@ -248,6 +251,7 @@ export function createPlayer(
   const startingGold = rollDice(playerClass.startingGoldDice, 4) * 10;
 
   const featureDiscovery = createFeatureDiscoveryProgress();
+  const trapSeed = createTrapSeed();
   return {
     name,
     level: 1,
@@ -290,7 +294,7 @@ export function createPlayer(
       seenCutsceneIds: [],
       pendingCutsceneIds: [],
       skillChecks: {},
-      trapSeed: createTrapSeed(),
+      trapSeed,
       trapStates: {},
       trapGuidance: false,
       tutorial: createTutorialProgress(),
@@ -300,6 +304,7 @@ export function createPlayer(
       gathering: createGatheringState(),
       crafting: createCraftingState(),
       nautical: createNauticalState(),
+      minigames: createMinigameState(trapSeed),
       ...featureDiscovery,
     },
     lastTownX: 2,       // Willowdale default

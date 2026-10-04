@@ -450,6 +450,15 @@ export function getAchievementProgress(
       target = criteria.threshold;
       current = player.progression.crafting.statistics.equipmentUpgrades;
       break;
+    case "minigameMedals":
+      target = criteria.threshold;
+      current = player.progression.minigames.statistics[criteria.activityId].medals;
+      break;
+    case "minigameActivitiesWon":
+      target = 3;
+      current = Object.values(player.progression.minigames.statistics)
+        .filter((statistics) => statistics.medals > 0).length;
+      break;
   }
 
   return {

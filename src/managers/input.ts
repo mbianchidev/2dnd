@@ -6,6 +6,7 @@ import {
   inputPromptSource,
   inputSource,
   isInputAction,
+  isInputContext,
   isTouchActionAvailable,
   normalizeAnalogAxis,
   resolveGamepadAction,
@@ -736,6 +737,9 @@ export class SemanticInputRuntime {
 
   private getContext(): InputContext {
     const key = this.getActiveSceneKey();
+    const activeScene = this.game.scene.getScenes(true).find((scene) => scene.scene.key === key);
+    const explicitContext: unknown = activeScene?.data.get("semanticInputContext");
+    if (isInputContext(explicitContext)) return explicitContext;
     if (key === "BootScene") {
       const state = document.getElementById("debug-state")?.textContent ?? "";
       return state.includes("Screen: title") ? "title" : "characterCreation";

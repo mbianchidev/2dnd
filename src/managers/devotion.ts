@@ -27,6 +27,7 @@ import {
 import {
   getInputPromptSource,
   inputPromptSource,
+  type InputSource,
 } from "../systems/input";
 import {
   layoutResponsiveGrid,
@@ -75,6 +76,13 @@ const VIEW_LABELS: Readonly<Record<DevotionView, string>> = {
   keeper: "The keeper's choice", history: "Recent causes", confirmation: "Confirm affiliation",
 };
 
+const DEVOTION_PROMPTS: Readonly<Record<InputSource, string>> = {
+  keyboard: "Arrows/WASD: select | Enter/Space: confirm | Esc: cancel | Tab: focus",
+  pointer: "Select a button | Click outside to cancel",
+  gamepad: "D-pad: select | A: confirm | B: cancel | Right stick: cursor",
+  touch: "Tap a button or use D-pad | A: confirm | B: cancel",
+};
+
 export class DevotionManager {
   private container: Phaser.GameObjects.Container | null = null;
   private player: PlayerState | null = null;
@@ -94,6 +102,7 @@ export class DevotionManager {
   private unsubscribePrompts: (() => void) | null = null;
   private readonly accessibility: DevotionAccessibility;
   private readonly visitPrompt: DevotionPromptRenderer;
+  private promptText: Phaser.GameObjects.Text | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -155,7 +164,7 @@ export class DevotionManager {
     this.scene.input.keyboard?.on("keyup", this.handleKeyUp, this);
     this.scene.scale.on("resize", this.render, this);
     this.unsubscribePreferences = gamePreferences.subscribe(() => this.render());
-    this.unsubscribePrompts = inputPromptSource.subscribe(() => this.render());
+    this.unsubscribePrompts = inputPromptSource.subscribe(() => this.refreshPrompt());
     this.render();
   }
 
@@ -170,6 +179,7 @@ export class DevotionManager {
     this.unsubscribePrompts = null;
     this.container?.destroy(true);
     this.container = null;
+    this.promptText = null;
     this.player = null;
     this.pending = null;
     this.pendingActivation = null;
@@ -344,6 +354,18 @@ export class DevotionManager {
     this.accessibility.announce(result.message);
   }
 
+  private getPrompt(): string {
+    return DEVOTION_PROMPTS[getInputPromptSource()];
+  }
+
+  private refreshPrompt(): void {
+    const footer = this.promptText;
+    if (!footer?.active || !this.player) return;
+    footer.setText(this.getPrompt());
+    const bottom = footer.getData("promptBottom");
+    if (typeof bottom === "number") footer.setY(bottom - footer.displayHeight);
+  }
+
   private render(): void {
     const player = this.player;
     if (!player) return;
@@ -375,14 +397,18 @@ export class DevotionManager {
     const headerHeight = layoutTextStack([title, subtitle], {
       x: px + 16, y: py + 12, gap: 6, width: panelW - 32,
     });
-    const prompt = {
-      keyboard: "Arrows/WASD: select | Enter/Space: confirm | Esc: cancel | Tab: focus",
-      pointer: "Select a button | Click outside to cancel",
-      gamepad: "D-pad: select | A: confirm | B: cancel | Right stick: cursor",
-      touch: "Tap a button or use D-pad | A: confirm | B: cancel",
-    }[getInputPromptSource()];
-    const footer = this.text(prompt, 9, panelW - 32, "#d0d9e8", "devotion-hint");
-    footer.setPosition(px + 16, py + panelH - footer.displayHeight - 10);
+    const footer = this.text(this.getPrompt(), 9, panelW - 32, "#d0d9e8", "devotion-hint");
+    const measuredPrompts = Object.values(DEVOTION_PROMPTS).map((prompt) =>
+      this.text(prompt, 9, panelW - 32, "#d0d9e8", "prompt-measure"));
+    const reservedPromptHeight = Math.max(footer.displayHeight, ...measuredPrompts.map(
+      (text) => text.displayHeight,
+    ));
+    measuredPrompts.forEach((text) => text.destroy());
+    const promptBottom = py + panelH - 10;
+    const promptTop = promptBottom - reservedPromptHeight;
+    footer.setData("promptBottom", promptBottom);
+    footer.setPosition(px + 16, promptBottom - footer.displayHeight);
+    this.promptText = footer;
     container.add(footer);
     const contentY = py + 12 + headerHeight + 12;
     const contentLines = this.getLines();
@@ -415,7 +441,7 @@ export class DevotionManager {
     });
     let grid = makeGrid();
     const availableHeight = (): number =>
-      Math.max(1, footer.y - 12 - grid.height - 12 - contentY);
+      Math.max(1, promptTop - 12 - grid.height - 12 - contentY);
     let pages = paginateMeasuredItems(paragraphs.map((text) => text.displayHeight), availableHeight(), 8);
     if (pages.length > 1) {
       const pageActions: DevotionAction[] = [
@@ -437,7 +463,7 @@ export class DevotionManager {
     paragraphs.filter((_text, index) => !visible.has(index)).forEach((text) => text.destroy());
     container.add(visibleParagraphs);
     layoutTextStack(visibleParagraphs, { x: px + 16, y: contentY, gap: 8, width: panelW - 32 });
-    const actionY = footer.y - 12 - grid.height;
+    const actionY = promptTop - 12 - grid.height;
     actionButtons.forEach((button, index) => {
       const cell = grid.cells[index];
       button.setPosition(px + 16 + cell.x, actionY + cell.y);

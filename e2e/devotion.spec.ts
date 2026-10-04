@@ -399,6 +399,7 @@ test.describe("devotion touch and native focus", () => {
       await page.keyboard.press("Tab");
       await expect(page.locator("#devotion-accessibility button:focus")).toHaveCount(1);
       await tapLayoutItem(page, "devotion-action-pantheon");
+      await state(page, "View:pantheon");
       await expectCleanLayout(page);
       await tapLayoutItem(page, "devotion-action-follow");
       await state(page, "View:confirmation");

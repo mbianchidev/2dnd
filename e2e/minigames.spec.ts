@@ -191,7 +191,14 @@ test("dice input replay, loss, abandonment, and personal-board exit cannot leak 
   expect(save.player.progression.minigames.claimedMilestoneIds).toEqual([]);
   await minigameKey(page, "Escape");
   const position = save.player.position;
-  await minigameKey(page, "w", 160);
+  await page.keyboard.down("w");
+  try {
+    await page.waitForFunction((expected) =>
+      document.getElementById("debug-state")?.textContent?.includes(expected),
+    `Pos: (${position.x},${position.y - 1})`, { polling: "raf" });
+  } finally {
+    await page.keyboard.up("w");
+  }
   await expect(page.locator("#debug-state")).toContainText(`Pos: (${position.x},${position.y - 1})`);
   expect(errors).toEqual([]);
 });
@@ -297,3 +304,61 @@ test("free practice and persisted debug archery cannot create paid medals or fir
   expect(debug.player.progression.minigames.claimedMilestoneIds).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+for (const venueId of ["willowInnTable", "willowdaleRange", "sandportRegatta"] as const) {
+  test(`${venueId} keeps every activity view usable at mobile orientations and text scales`, async ({ page }) => {
+    const errors = minigameBrowserErrors(page);
+    await page.goto("game.html", { waitUntil: "networkidle" });
+    for (const viewport of [{ width: 390, height: 844 }, { width: 932, height: 430 }]) {
+      await page.setViewportSize(viewport);
+      for (const textScale of [1, 1.25, 1.5] as const) {
+        await seedMinigamePage(page, minigameFixture(venueId, crownFixtureSeed()), "touch", { textScale });
+        await minigameConfirm(page, "touch");
+        await waitMinigameState(page, "[MINIGAME_VIEW:lobby]");
+        await expectCleanLayout(page);
+        await tapLayoutItem(page, "minigame-rules");
+        await waitMinigameState(page, "[MINIGAME_VIEW:rules]");
+        await expectCleanLayout(page);
+        await tapLayoutItem(page, "minigame-next-page");
+        await expectCleanLayout(page);
+        await tapLayoutItem(page, "minigame-board");
+        await waitMinigameState(page, "[MINIGAME_VIEW:records]");
+        await expectCleanLayout(page);
+        await minigameCancel(page, "touch");
+        await expect(page.locator("#debug-state")).not.toContainText("[MINIGAME:");
+        await minigameConfirm(page, "touch");
+        await waitMinigameState(page, "[MINIGAME_VIEW:lobby]");
+        await tapLayoutItem(page, "minigame-setup");
+        await waitMinigameState(page, "[MINIGAME_VIEW:setup]");
+        await expectCleanLayout(page);
+        await tapLayoutItem(page, "minigame-back");
+        await tapLayoutItem(page, "minigame-play");
+        await waitMinigameState(page, "[MINIGAME_VIEW:game]");
+        await expectCleanLayout(page);
+        await minigameCancel(page, "touch");
+        await waitMinigameState(page, "[MINIGAME_VIEW:pause]");
+        await expectCleanLayout(page);
+        await tapLayoutItem(page, "minigame-rules");
+        await waitMinigameState(page, "[MINIGAME_VIEW:rules]");
+        await expectCleanLayout(page);
+        await minigameCancel(page, "touch");
+        await waitMinigameState(page, "[MINIGAME_VIEW:pause]");
+        await tapLayoutItem(page, "minigame-abandon");
+        await waitMinigameState(page, "[MINIGAME_VIEW:result]");
+        await expectCleanLayout(page);
+        await tapLayoutItem(page, "minigame-board");
+        await waitMinigameState(page, "[MINIGAME_VIEW:records]");
+        await expectCleanLayout(page);
+        await minigameCancel(page, "touch");
+        await waitMinigameState(page, "[MINIGAME_VIEW:result]");
+        await tapLayoutItem(page, "minigame-close");
+        await expect(page.locator("#debug-state")).not.toContainText("[MINIGAME:");
+        const closed = await readMinigameSave(page);
+        expect(closed.player.progression.minigames.pending).toBeNull();
+        expect(closed.player.gold).toBe(995);
+        await expect(page.locator("#minigame-live-region")).toHaveCount(0);
+      }
+    }
+    expect(errors).toEqual([]);
+  });
+}

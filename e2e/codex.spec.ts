@@ -276,10 +276,6 @@ test.describe("touch Codex controls", () => {
 
     await page.waitForTimeout(350);
     await page.locator('[data-action="openMenu"]').tap();
-    if (!(await page.locator("#debug-state").textContent())?.includes("[MENU]")) {
-      await page.waitForTimeout(250);
-      await page.locator('[data-action="openMenu"]').tap();
-    }
     await waitForState(page, "[MENU]");
     await tapLayoutItem(page, "escape-menu-codex");
     await waitForState(page, "CODEX | Category: Locations");

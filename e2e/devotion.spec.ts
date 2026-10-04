@@ -132,8 +132,19 @@ async function createCampaign(page: Page): Promise<void> {
 async function debug(page: Page, command: string): Promise<void> {
   if (!await page.locator("#debug-checkbox").isChecked()) await page.locator("#debug-checkbox").check();
   const input = page.locator("#debug-cmd");
-  await input.fill(command);
-  await input.press("Enter");
+  if (await input.isVisible()) {
+    await input.fill(command);
+    await input.press("Enter");
+  } else {
+    await input.evaluate((element, value) => {
+      const commandInput = element as HTMLInputElement;
+      commandInput.value = value;
+      commandInput.dispatchEvent(new Event("input", { bubbles: true }));
+      commandInput.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", code: "Enter", bubbles: true,
+      }));
+    }, command);
+  }
   await input.blur();
 }
 
@@ -184,6 +195,34 @@ async function continueCampaign(page: Page): Promise<void> {
   await state(page, "BOOT | Screen: title");
   await clickLayoutItem(page, "title-continue");
   await state(page, "OVERWORLD");
+}
+
+async function enterPrimaryCity(page: Page, name: string, id: string): Promise<void> {
+  await debug(page, `/tp ${name}`);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await holdKey(page, "Space", 300);
+    if ((await page.locator("#debug-state").textContent())?.includes(`[CITY:${id}:0]`)) return;
+  }
+  throw new Error(`Could not enter ${name}'s primary district`);
+}
+
+async function completeMakerDialogue(
+  page: Page,
+  npcId: string,
+  finished: (save: BrowserSave) => boolean,
+): Promise<void> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    await drainCutscenes(page);
+    if (finished(await readSave(page))) return;
+    await debug(page, `/near ${npcId}`);
+    await expect(page.locator("#debug-log")).toContainText(`Positioned beside ${npcId}`);
+    for (let step = 0; step < 3; step++) {
+      const current = await page.locator("#debug-state").textContent() ?? "";
+      if (current.includes("CUTSCENE")) break;
+      await holdKey(page, "Space");
+    }
+  }
+  throw new Error(`Real maker dialogue at ${npcId} did not complete its canonical objective`);
 }
 
 test("keeps unaffiliated rites once-only through pre-Battle and post-victory reload", async ({ page }) => {
@@ -303,22 +342,13 @@ test("resumes a natural event fixture and completes the real optional maker dial
   await clickLayoutItem(page, "devotion-action-offer-quest");
   await expect(page.locator("#debug-state")).not.toContainText("[DEVOTION:");
   expect((await readSave(page)).player.progression.quests.quests.mendTheSpan.status).toBe("active");
-  await debug(page, "/near willowdaleArchivist");
-  for (let index = 0; index < 6; index++) await holdKey(page, "Space");
-  await drainCutscenes(page);
-  if ((await readSave(page)).player.progression.quests.quests.mendTheSpan.stage === 0) {
-    await debug(page, "/near willowdaleArchivist");
-    for (let index = 0; index < 3; index++) await holdKey(page, "Space");
-  }
+  await enterPrimaryCity(page, "Willowdale", "willowdale_city");
+  await completeMakerDialogue(page, "willowdaleArchivist", (save) =>
+    save.player.progression.quests.quests.mendTheSpan.stage === 1);
   expect((await readSave(page)).player.progression.quests.quests.mendTheSpan.stage).toBe(1);
-  await nearTemple(page, "ironholdSpan");
-  await debug(page, "/near ironholdWarden");
-  for (let index = 0; index < 6; index++) await holdKey(page, "Space");
-  await drainCutscenes(page);
-  if ((await readSave(page)).player.progression.quests.quests.mendTheSpan.status !== "completed") {
-    await debug(page, "/near ironholdWarden");
-    for (let index = 0; index < 3; index++) await holdKey(page, "Space");
-  }
+  await enterPrimaryCity(page, "Ironhold", "ironhold_city");
+  await completeMakerDialogue(page, "ironholdWarden", (save) =>
+    save.player.progression.quests.quests.mendTheSpan.status === "completed");
   let saved = await readSave(page);
   expect(saved.player.progression.quests.quests.mendTheSpan.status).toBe("completed");
   expect(saved.player.progression.devotion.appliedSourceIds).toContain("spanMended");

@@ -100,7 +100,7 @@ npm run build          # Type-check and build dist/
 npm run build:desktop  # Type-check and build the desktop renderer and shell
 ```
 
-Install Chromium once before the browser suite with
+Install Chromium once before the browser or desktop suites with
 `npm run test:browser:install`.
 
 Use `npm run dev:desktop` for Electron development and

@@ -200,8 +200,8 @@ presentation preferences stay canonical or derived. See
 `src/systems/saveStorage.ts` owns the typed localStorage adapter, stable
 autosave/manual IDs, verified staging, and per-slot backup recovery.
 `src/systems/save.ts` keeps campaign normalization authoritative,
-`src/systems/saveActor.ts` validates required hero authority and shares
-canonical inventory/equipment repair with companion normalization,
+`src/systems/saveActor.ts` validates required hero authority, preserves usable
+serialized hero items, and shares equipment repair with companion normalization,
 `src/systems/saveSlots.ts` owns metadata and management operations, and
 `src/managers/saveSlots.ts` provides the shared title and Overworld interface.
 Electron uses the same renderer-owned storage path and exposes no native

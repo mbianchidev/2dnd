@@ -16,8 +16,8 @@ Campaign normalization and autosave compatibility live in
 `src/systems/saveStorage.ts`; and shared Phaser presentation lives in
 `src/managers/saveSlots.ts`. Shared audio, accessibility, and inventory
 presentation preferences stay separate.
-`src/systems/saveActor.ts` validates required hero authority and shares
-canonical inventory/equipment repair with companion normalization.
+`src/systems/saveActor.ts` validates required hero authority, preserves usable
+serialized hero items, and shares equipment repair with companion normalization.
 
 Browser builds use their HTTP/HTTPS origin. Packaged Electron builds use the
 stable secure `app://2dnd` origin and the same save implementation. The stores
@@ -174,10 +174,12 @@ from authoritative gameplay state and never controls that state.
 Treat parsed JSON as `unknown`. Use typed record guards and normalization
 helpers; do not cast unvalidated nested values directly.
 Reject unusable hero identity, level, stats, economy, resources, spell lists,
-or item-ID arrays before repairing optional campaign state. Normalize hero and
-companion inventory metadata from canonical definitions and relink equipment
-only to owned items. Invalid primaries must fall through to staging/backup;
-invalid imports must not change any slot bytes.
+or item-ID arrays before repairing optional campaign state. Preserve well-formed
+hero item records, legacy/custom IDs, metadata, and order. Repair malformed known
+hero items from canonical definitions; reject unusable unknown records without
+deleting ownership. Companion inventories retain canonical normalization.
+Relink equipment only to owned items. Invalid primaries must fall through to
+staging/backup; invalid imports must not change any slot bytes.
 Use `getSaveStorage()` for campaign access: browser privacy settings can throw
 on the `localStorage` getter itself. Denied storage must leave title diagnostics
 and in-memory preferences usable while reporting campaign write failures.

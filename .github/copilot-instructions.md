@@ -800,8 +800,10 @@ and validate all deterministic JSON imports through the existing campaign
 normalizer. Loading a manual snapshot must not mutate that source slot.
 Validate required hero identity, stats, level, economy, resources, spell-list,
 and item-ID records before optional repair; an unusable core must fall through
-to recovery or reject an import before writing. Share canonical item and
-owned-equipment repair through `src/systems/saveActor.ts`.
+to recovery or reject an import before writing. Preserve well-formed serialized
+hero items, including legacy/custom IDs and order; only malformed known records
+may recover canonical metadata. Never silently delete unknown hero ownership.
+Share actor item validation and owned-equipment repair through `saveActor.ts`.
 Catch denial of the `localStorage` getter as well as its methods. Keep title
 diagnostics and in-memory preferences usable, and surface campaign write errors.
 

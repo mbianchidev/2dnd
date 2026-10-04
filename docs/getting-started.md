@@ -46,6 +46,7 @@ unused loopback port, and closes both processes together. For a production-like
 desktop build and smoke test:
 
 ```bash
+npm run test:browser:install
 npm run build:desktop
 npm run test:desktop:built
 ```
@@ -96,7 +97,7 @@ validated campaign slot. There is no cloud sync.
 
 - **Blank or stale local page:** stop any old Vite process and rerun
   `npm run dev`; browser tests never reuse an existing server.
-- **Browser tests cannot launch Chromium:** run
+- **Browser or desktop parity tests cannot launch Chromium:** run
   `npm run test:browser:install`.
 - **Desktop shell does not start:** rerun `npm run build:electron`, confirm the
   Vite loopback port is not blocked, inspect main-process stderr, then check

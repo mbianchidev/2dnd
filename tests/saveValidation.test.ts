@@ -104,6 +104,7 @@ describe("campaign core validation", () => {
     ["knownSpells", null],
     ["knownSpells", [42]],
     ["inventory", null],
+    ["inventory", [{ id: "unknownItem" }]],
   ])("rejects an unusable %s value (%j)", (field, value) => {
     const data = createCampaign();
     const malformed = {
@@ -171,7 +172,6 @@ describe("campaign core validation", () => {
         inventory: [
           { ...weapon, effect: 999, name: 42 },
           { ...potion, name: null, tags: [42], material: "invalid" },
-          { id: "unknownItem" },
         ],
         equippedWeapon: { id: weapon.id, effect: 999 },
         equippedShield: { id: "unownedShield" },
@@ -183,6 +183,29 @@ describe("campaign core validation", () => {
     expect(normalized?.player.equippedShield).toBeNull();
     expect(weapon).toEqual(canonicalWeapon);
     expect(potion).toEqual(canonicalPotion);
+  });
+
+  it("preserves well-formed custom hero items, original order, and exact owned equipment links", () => {
+    const data = createCampaign();
+    const weapon = getItem("startSword");
+    const potion = getItem("potion");
+    if (!weapon || !potion) throw new Error("Missing fixture items");
+    const customWeapon = { ...weapon, id: "legacyBlade", name: "Legacy Blade", effect: 7 };
+    const customPotion = { ...potion, id: "legacyPotion", name: "Legacy Potion", effect: 45 };
+    const expected = [weapon, customWeapon, customPotion];
+    const normalized = decodeStoredSave(JSON.stringify({
+      ...data,
+      player: {
+        ...data.player,
+        inventory: expected,
+        equippedWeapon: customWeapon,
+      },
+    }));
+
+    expect(normalized?.player.inventory).toEqual(expected);
+    expect(normalized?.player.equippedWeapon).toBe(normalized?.player.inventory[1]);
+    expect(normalized?.player.inventory[1]).not.toBe(customWeapon);
+    expect(normalized?.player.inventory[2]).not.toBe(customPotion);
   });
 
   it.each(["legacy document", "slot export"])(

@@ -34,7 +34,7 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - quests, cutscene triggers/queues, Codex, events, social state, achievements
 - gathering, crafting, nautical state, world/map/trap/fog helpers
 - save round trips, migrations, corruption repair, and cross-field validation
-- unusable hero-core/import rejection, canonical hero/companion item repair,
+- unusable hero-core/import rejection, legacy hero-item preservation and actor item repair,
   exact-byte slot isolation, and denied `localStorage` getter recovery
 - semantic input mappings, context priority, repeats, cleanup, and suppression
 - pure layout, wrapping, pagination, safe-area, and focus math
@@ -159,3 +159,5 @@ smoke-tests, and packages each desktop platform without publishing.
 `.github/workflows/release.yml` accepts matching `v*` tags on `main`, reruns the
 full browser gate, smoke-tests and packages all desktop targets, then attaches
 the unsigned installers to the generated GitHub release.
+Desktop artifact CI also installs Chromium so its browser-to-Electron save
+parity test does not depend on a pre-populated browser cache.

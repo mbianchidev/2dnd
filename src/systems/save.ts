@@ -73,7 +73,7 @@ import {
 } from "./featureDiscovery";
 import {
   hasUsableSavePlayerCore,
-  normalizeSavedInventory,
+  normalizeSavedHeroInventory,
   relinkSavedEquipment,
 } from "./saveActor";
 import {
@@ -621,7 +621,9 @@ export function normalizeSaveData(value: unknown): SaveData | null {
       data.player.progression.exploredTiles,
     );
     migrateInterimTrapProgression(data.player);
-    data.player.inventory = normalizeSavedInventory(data.player.inventory, []);
+    const inventory = normalizeSavedHeroInventory(data.player.inventory);
+    if (!inventory) return null;
+    data.player.inventory = inventory;
     data.player.progression.quests = normalizeQuestLog(
       data.player.progression.quests,
     );

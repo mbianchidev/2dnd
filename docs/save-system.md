@@ -30,8 +30,9 @@ title/Overworld interface lives in `src/managers/saveSlots.ts`. Focused
 normalization remains beside its domain where appropriate, including
 `questState.ts`, `gatheringState.ts`, `craftingState.ts`, and
 `nauticalState.ts`.
-Required hero-core validation and shared canonical inventory/equipment repair
-live in `saveActor.ts`; companion loading reuses the same item helpers.
+Required hero-core/item validation and shared equipment repair live in
+`saveActor.ts`. Companion loading retains canonical inventory repair; hero
+loading preserves well-formed serialized item ownership.
 
 ## Current schema
 
@@ -120,11 +121,14 @@ guards, normalize known values, discard malformed optional records, and return
 `null` when the top-level payload is unusable.
 The hero must have a non-empty name, a level from 1 to 20, six positive integer
 stats, non-negative integer XP/gold/resources, resources within their saved
-capacity, a string spell list, and an inventory of item-ID records. Missing
-hero authority is not reconstructed by inventing a new character. Inventory
-metadata comes from canonical item definitions, and equipment links resolve
-only to owned inventory objects. An unusable primary falls through to its
-staging/backup candidates; unusable imports are rejected before writing.
+capacity, a string spell list, and usable inventory records. Missing hero
+authority is not reconstructed by inventing a new character. Well-formed hero
+item records (including legacy/custom IDs) retain their metadata and order;
+malformed known items may recover from canonical definitions, but an unusable
+unknown item rejects the campaign rather than silently deleting ownership.
+Equipment links resolve only to owned inventory objects. An unusable primary
+falls through to its staging/backup candidates; unusable imports are rejected
+before writing.
 
 Access to the `localStorage` property itself may throw under browser privacy
 policies. Campaign access handles this through the shared safe getter in

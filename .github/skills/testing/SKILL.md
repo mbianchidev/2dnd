@@ -59,8 +59,8 @@ debug exclusion, category-specific discovery, and schema-v17 migration
 ✅ Save-slot migration, staging/backup atomicity, corruption isolation, metadata,
 independent overwrite/rename/copy/delete, deterministic import/export, and
 keyboard/touch/gamepad management
-✅ Unusable hero-core rejection before import writes, canonical actor inventory
-and equipment repair, exact persisted-byte isolation, and denied storage getters
+✅ Unusable hero-core rejection before import writes, serialized hero-item
+compatibility, actor equipment repair, exact byte isolation, and denied storage getters
 ✅ Defeat penalty receipts, once-only Battle resolution, recovered save
 round-trips, result-scene continuation, and random/boss parity
 ✅ Animation state selection, reduced-motion timing, stable actor/target mapping,

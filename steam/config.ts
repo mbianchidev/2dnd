@@ -184,7 +184,7 @@ export function isAllowedSteamRuntimeEntry(path: string, depot: SteamDepot): boo
       ["Info.plist", "PkgInfo", "SOURCE.2dnd.txt", "LICENSE.electron.txt",
         "LICENSES.chromium.html", ...STEAM_LICENSE_FILES].includes(local)
       || local === "MacOS/2D-and-D"
-      || /^Resources\/(?:app\.asar|icon\.icns)$/.test(local)
+      || /^Resources\/(?:app\.asar|icon\.icns|LICENSE\.electron\.txt|LICENSES\.chromium\.html)$/.test(local)
       || local === "_CodeSignature/CodeResources"
     ) return true;
     return /^Frameworks\/(?:Electron Framework\.framework|Mantle\.framework|ReactiveObjC\.framework|Squirrel\.framework|2D&D Helper(?: \((?:GPU|Plugin|Renderer)\))?\.app)\//.test(local);

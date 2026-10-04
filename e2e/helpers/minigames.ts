@@ -65,10 +65,20 @@ export async function waitMinigameState(page: Page, text: string): Promise<void>
   await expect(page.locator("#debug-state")).toContainText(text);
 }
 
+async function holdMinigameInputFrame(page: Page, duration: number): Promise<void> {
+  await Promise.all([
+    page.waitForTimeout(duration),
+    page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))),
+  ]);
+}
+
 export async function minigameKey(page: Page, key: string, duration = 100): Promise<void> {
   await page.keyboard.down(key);
-  await page.waitForTimeout(duration);
-  await page.keyboard.up(key);
+  try {
+    await holdMinigameInputFrame(page, duration);
+  } finally {
+    await page.keyboard.up(key);
+  }
   await page.waitForTimeout(130);
 }
 
@@ -78,12 +88,15 @@ export async function minigamePad(page: Page, index: number): Promise<void> {
       __setMinigamePadButton(index: number, pressed: boolean): void;
     }).__setMinigamePadButton(button, true);
   }, index);
-  await page.waitForTimeout(100);
-  await page.evaluate((button) => {
-    (window as typeof window & {
-      __setMinigamePadButton(index: number, pressed: boolean): void;
-    }).__setMinigamePadButton(button, false);
-  }, index);
+  try {
+    await holdMinigameInputFrame(page, 100);
+  } finally {
+    await page.evaluate((button) => {
+      (window as typeof window & {
+        __setMinigamePadButton(index: number, pressed: boolean): void;
+      }).__setMinigamePadButton(button, false);
+    }, index);
+  }
   await page.waitForTimeout(140);
 }
 
@@ -219,8 +232,14 @@ export async function finishArcheryFixture(
     if (pending?.activityId !== "archery") throw new Error("Missing live archery fixture");
     const target = pending.challenge.targets[index]!;
     const coarse = Math.floor(target / 5);
-    for (let step = 0; step < coarse; step += 1) await minigameDirection(page, "up", source);
-    for (let step = coarse * 5; step < target; step += 1) await minigameDirection(page, "right", source);
+    for (let step = 0; step < coarse; step += 1) {
+      await minigameDirection(page, "up", source);
+      await expect(page.locator("#game-container canvas")).toHaveAttribute("data-minigame-visible-aim", String((step + 1) * 5));
+    }
+    for (let step = coarse * 5; step < target; step += 1) {
+      await minigameDirection(page, "right", source);
+      await expect(page.locator("#game-container canvas")).toHaveAttribute("data-minigame-visible-aim", String(step + 1));
+    }
     await expect(page.locator("#game-container canvas")).toHaveAttribute("data-minigame-visible-aim", String(target));
     await minigameConfirm(page, source);
     await expect.poll(async () => {

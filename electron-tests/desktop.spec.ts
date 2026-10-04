@@ -102,12 +102,14 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await expect(nameInput).toBeVisible();
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
+  await expect(nameInput).not.toBeVisible();
+  await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 284, 160);
   await page.keyboard.press("Enter");
-  await page.waitForTimeout(250);
+  await waitForState(page, "BOOT | Screen: stats");
   await clickGame(page, 390, 64);
   await clickGame(page, 400, 460);
-  await page.waitForTimeout(250);
+  await waitForState(page, "BOOT | Screen: appearance");
   await clickGame(page, 320, 112);
   await clickGame(page, 420, 312);
 

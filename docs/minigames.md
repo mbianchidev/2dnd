@@ -149,6 +149,9 @@ refunds the entry. Its first activity/difficulty medal adds a finite
 Cancel first opens a pause/abandon confirmation rather than spending or
 refunding resources. Confirm is handled on release; held or delayed input
 cannot act twice or leak into world interactions after close.
+Input coalescing uses a monotonic input clock, not the render-frame clock, so
+frame stalls do not discard legitimately spaced controls. The visual aim
+preview remains scene-timed and never becomes scoring authority.
 
 Panels use measured wrapping, pagination, filtered grids, stable focus IDs,
 scaled hit areas, and safe-area-aware shared touch controls. They support all

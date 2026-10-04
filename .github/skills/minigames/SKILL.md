@@ -86,6 +86,8 @@ natural bests/counters, milestone claims, social credit, or lore.
 - Lease and restore the scene-owned `semanticInputContext` override.
 - Use shared semantic keyboard/pointer/touch/gamepad routing, not new adapters.
 - Confirm on release; preserve stable intent across held/delayed input.
+- Debounce with monotonic input time, never a stalled render-frame clock.
+  Keep animation time separate from accepted controls and authoritative score.
 - Block movement, traps, events, encounters, and other mutations while open.
 - Use actual scaled text bounds, stable IDs, filtered grids, paging, safe areas,
   synchronized hit areas, non-color state, and all three text scales.

@@ -334,7 +334,7 @@ export class MinigameManager {
     const codex = this.codex;
     if (!player || !codex) return;
     const actionId = "action" in request ? request.action.type : "start";
-    if (!this.gate.accept(actionId, this.scene.time.now)) return;
+    if (!this.gate.accept(actionId, performance.now())) return;
     const previousIds = new Set(codex.unlockedEntryIds);
     const operation = (): MinigameMutationResult => {
       const result = "action" in request
@@ -710,7 +710,7 @@ export class MinigameManager {
       navigateUp: "up", navigateDown: "down", navigateLeft: "left", navigateRight: "right",
     };
     const direction = action ? directions[action] : undefined;
-    if (!direction || !this.gate.accept(direction, this.scene.time.now, 35)) return;
+    if (!direction || !this.gate.accept(direction, performance.now(), 35)) return;
     event.preventDefault();
     const pending = this.player?.progression.minigames.pending;
     if (this.mode === "game" && pending?.activityId === "archery") {

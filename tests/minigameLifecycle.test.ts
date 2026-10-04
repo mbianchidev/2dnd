@@ -60,6 +60,7 @@ function lifecycleScene(): {
   data: Map<string, unknown>;
   canvas: HTMLCanvasElement;
   time: { now: number };
+  inputClock: { now: number };
 } {
   const keyboard = Object.assign(new EventEmitter(), { resetKeys: vi.fn() });
   const events = new EventEmitter();
@@ -69,6 +70,8 @@ function lifecycleScene(): {
   const canvas = document.createElement("canvas");
   document.body.append(canvas);
   const time = { now: 0 };
+  const inputClock = { now: 0 };
+  vi.spyOn(performance, "now").mockImplementation(() => inputClock.now);
   const scene = {
     input: { keyboard }, events, scale, time,
     game: { canvas, events: gameEvents },
@@ -78,7 +81,7 @@ function lifecycleScene(): {
       remove: (key: string): void => { data.delete(key); },
     },
   } as unknown as Phaser.Scene;
-  return { scene, keyboard, events, scale, gameEvents, data, canvas, time };
+  return { scene, keyboard, events, scale, gameEvents, data, canvas, time, inputClock };
 }
 
 function callbacks(): MinigameManagerCallbacks {
@@ -154,16 +157,16 @@ describe("scene-owned minigame lifecycle contracts", () => {
     manager.resumePending(player, createCodex(), 45, WeatherType.Clear);
 
     releaseKey(fixture.keyboard, "Escape");
-    fixture.time.now = 100;
+    fixture.inputClock.now = 100;
     releaseKey(fixture.keyboard, "ArrowRight");
-    fixture.time.now = 200;
+    fixture.inputClock.now = 200;
     releaseKey(fixture.keyboard, "ArrowRight");
-    fixture.time.now = 300;
+    fixture.inputClock.now = 300;
     releaseKey(fixture.keyboard, "Enter");
     expect(player.progression.minigames.pending?.receipt?.outcome).toBe("abandoned");
     expect(player.progression.minigames.pending?.receipt?.goldPaid).toBe(0);
     expect(player.gold).toBe(995);
-    fixture.time.now = 500;
+    fixture.inputClock.now = 500;
     releaseKey(fixture.keyboard, "Escape");
     releaseKey(fixture.keyboard, "Enter");
 
@@ -193,5 +196,27 @@ describe("scene-owned minigame lifecycle contracts", () => {
     }
     expect(player.gold).toBe(995);
     expect(player.progression.minigames.pending?.phase).toBe("playing");
+  });
+
+  it("accepts spaced physical aim inputs while the render clock stalls, but rejects duplicate pulses", () => {
+    const fixture = lifecycleScene();
+    const player = playerAt("willowdaleRange");
+    startMinigame(player, startRequest(player, "willowdaleRange"));
+    const cb = callbacks();
+    const manager = new MinigameManager(fixture.scene, cb);
+    manager.resumePending(player, createCodex(), 45, WeatherType.Clear);
+    for (const time of [100, 300, 310]) {
+      fixture.inputClock.now = time;
+      releaseKey(fixture.keyboard, "ArrowUp");
+    }
+    const pending = player.progression.minigames.pending;
+    if (pending?.activityId !== "archery") throw new Error("Missing archery clock fixture");
+    expect(fixture.time.now).toBe(0);
+    expect(pending.game.aim).toBe(10);
+    expect(pending.revision).toBe(2);
+    expect(player.gold).toBe(995);
+    expect(player.progression.minigames.history).toEqual([]);
+    expect(cb.autoSave).toHaveBeenCalledTimes(2);
+    manager.clear();
   });
 });

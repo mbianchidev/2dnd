@@ -1,12 +1,14 @@
 import {
   _electron as electron,
   expect,
+  type CDPSession,
   type ElectronApplication,
   type Page,
 } from "@playwright/test";
 import { resolve } from "node:path";
 
 export const APP_ROOT = resolve(import.meta.dirname, "../..");
+const viewportSessions = new WeakMap<Page, CDPSession>();
 
 export async function launchDesktop(
   userDataDirectory: string,
@@ -40,4 +42,36 @@ export function monitorRendererErrors(page: Page): string[] {
 
 export async function waitForState(page: Page, text: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(text);
+}
+
+export async function resizeDesktop(
+  desktop: ElectronApplication,
+  width = 1280,
+  height = 800,
+): Promise<void> {
+  const page = await desktop.firstWindow();
+  await desktop.evaluate(({ BrowserWindow }, viewport) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    if (!window) throw new Error("Missing equivalent desktop window");
+    window.setContentSize(viewport.width, viewport.height);
+  }, { width, height });
+  let session = viewportSessions.get(page);
+  if (!session) {
+    session = await page.context().newCDPSession(page);
+    viewportSessions.set(page, session);
+  }
+  await session.send("Emulation.setDeviceMetricsOverride", {
+    width,
+    height,
+    screenWidth: width,
+    screenHeight: height,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await expect.poll(() => page.evaluate(() => ({
+    width: innerWidth, height: innerHeight,
+  }))).toEqual({ width, height });
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  ));
 }

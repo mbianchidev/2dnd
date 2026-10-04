@@ -177,7 +177,11 @@ function publishLayoutReport(scene: Phaser.Scene): void {
   scene.game.canvas.dataset.layoutClippingCount = String(report.clippingCount);
   scene.game.canvas.dataset.layoutScene = report.scene;
   const element = getReportElement();
-  if (element) element.textContent = JSON.stringify(report);
+  if (element) {
+    const content = JSON.stringify(report);
+    if (element.firstChild instanceof Text) element.firstChild.data = content;
+    else element.textContent = content;
+  }
 }
 
 export function installSceneLayoutAudit(scene: Phaser.Scene): void {

@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  APP_ROOT, launchDesktop, monitorRendererErrors, waitForState,
+  APP_ROOT, launchDesktop, monitorRendererErrors, resizeDesktop, waitForState,
 } from "./helpers/desktop";
 
 const SAVE_KEY = "2dnd_save";
@@ -33,10 +33,16 @@ async function clickGame(
   await expect(canvas).toBeVisible();
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await page.mouse.click(
+  await page.mouse.move(
     bounds.x + (gameX / GAME_WIDTH) * bounds.width,
     bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
+  await page.mouse.down();
+  await page.waitForTimeout(120);
+  await page.mouse.up();
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  ));
 }
 
 async function holdKey(
@@ -172,6 +178,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await expect.poll(() => page.evaluate(
       () => window.desktop?.getState().then((state) => state.isFullscreen),
     )).toBe(false);
+    await resizeDesktop(desktop);
 
     const saved = await createDesktopSave(page);
     await prepareSaveForOverworld(page);

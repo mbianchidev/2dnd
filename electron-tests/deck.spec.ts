@@ -4,7 +4,9 @@ import { arch, cpus, platform, release, tmpdir } from "node:os";
 import { join } from "node:path";
 import { expectCleanLayout } from "../e2e/helpers/layout";
 import { SAVE_WRITE_MEASURE } from "../src/systems/saveStorage";
-import { launchDesktop, monitorRendererErrors, waitForState } from "./helpers/desktop";
+import {
+  launchDesktop, monitorRendererErrors, resizeDesktop, waitForState,
+} from "./helpers/desktop";
 import {
   clickControllerLayoutItem,
   holdControllerUntil,
@@ -14,27 +16,6 @@ import {
   selectControllerAction,
   typeWithController,
 } from "./helpers/controller";
-
-async function sizeDesktop(
-  desktop: ElectronApplication,
-  requireTitle = false,
-): Promise<void> {
-  const page = await desktop.firstWindow();
-  if (requireTitle) await waitForState(page, "BOOT | Screen: title");
-  await desktop.evaluate(({ BrowserWindow }) => {
-    const window = BrowserWindow.getAllWindows()[0];
-    if (!window) throw new Error("Missing equivalent desktop window");
-    window.setContentSize(1280, 800);
-    window.webContents.enableDeviceEmulation({
-      screenPosition: "desktop",
-      screenSize: { width: 1280, height: 800 },
-      viewPosition: { x: 0, y: 0 },
-      viewSize: { width: 1280, height: 800 },
-      deviceScaleFactor: 1,
-      scale: 1,
-    });
-  });
-}
 
 async function drainOpening(page: Page): Promise<void> {
   for (let step = 0; step < 70; step += 1) {
@@ -103,10 +84,10 @@ for (const textScale of [1, 1.25]) {
     let desktop: ElectronApplication | undefined;
     try {
       desktop = await launchDesktop(userData);
-      await sizeDesktop(desktop, true);
       const page = await desktop.firstWindow();
       const errors = monitorRendererErrors(page);
       await installController(page, textScale);
+      await resizeDesktop(desktop);
       await selectControllerAction(page, "[TITLE_ACTION:newGame]");
       await waitForState(page, "BOOT | Screen: character");
       await pressController(page, 2);
@@ -139,7 +120,6 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
   try {
     const launchStarted = performance.now();
     desktop = await launchDesktop(userData);
-    await sizeDesktop(desktop, true);
     let page = await desktop.firstWindow();
     const errors = monitorRendererErrors(page);
     await waitForState(page, "BOOT | Screen: title");
@@ -147,6 +127,8 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     await installController(page);
     await page.context().setOffline(true);
     await page.reload({ waitUntil: "domcontentloaded" });
+    await waitForState(page, "BOOT | Screen: title");
+    await resizeDesktop(desktop);
     await expect.poll(() => page.evaluate(() => ({
       width: innerWidth, height: innerHeight, origin: location.origin,
     }))).toEqual({ width: 1280, height: 800, origin: "app://2dnd" });
@@ -217,11 +199,11 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     desktop = undefined;
 
     desktop = await launchDesktop(userData);
-    await sizeDesktop(desktop, true);
     page = await desktop.firstWindow();
     const reloadErrors = monitorRendererErrors(page);
     await installController(page, 1.5, false);
     await page.context().setOffline(true);
+    await resizeDesktop(desktop);
     await selectControllerAction(page, "[TITLE_ACTION:continue]");
     await waitForState(page, "OVERWORLD");
     const reloaded = await page.evaluate(() => {
@@ -237,20 +219,9 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     });
     expect(reloaded).toEqual({ campaign: "deck", label: "camp" });
 
-    await desktop.evaluate(({ BrowserWindow }) => {
-      const window = BrowserWindow.getAllWindows()[0]!;
-      window.setContentSize(1920, 1080);
-      window.webContents.enableDeviceEmulation({
-        screenPosition: "desktop",
-        screenSize: { width: 1920, height: 1080 },
-        viewPosition: { x: 0, y: 0 },
-        viewSize: { width: 1920, height: 1080 },
-        deviceScaleFactor: 1,
-        scale: 1,
-      });
-    });
+    await resizeDesktop(desktop, 1920, 1080);
     await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1920);
-    await sizeDesktop(desktop);
+    await resizeDesktop(desktop);
     await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1280);
     const fullscreen = await page.locator("#desktop-fullscreen").boundingBox();
     if (!fullscreen) throw new Error("Missing native fullscreen control");
@@ -271,7 +242,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     await expect.poll(() => page.evaluate(
       () => window.desktop?.getState().then((state) => state.isFullscreen),
     )).toBe(false);
-    await sizeDesktop(desktop);
+    await resizeDesktop(desktop);
 
     for (let warmup = 0; warmup < 5; warmup += 1) {
       await pressController(page, 9);
@@ -284,13 +255,8 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     const collectDomCounters = async (): Promise<{
       documents: number; nodes: number; jsEventListeners: number;
     }> => {
-      await cdp.send("Emulation.setScriptExecutionDisabled", { value: true });
-      try {
-        await cdp.send("HeapProfiler.collectGarbage");
-        return await cdp.send("Memory.getDOMCounters");
-      } finally {
-        await cdp.send("Emulation.setScriptExecutionDisabled", { value: false });
-      }
+      await cdp.send("HeapProfiler.collectGarbage");
+      return await cdp.send("Memory.getDOMCounters");
     };
     const before = await collectDomCounters();
     for (let cycle = 0; cycle < 30; cycle += 1) {

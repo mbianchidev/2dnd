@@ -478,7 +478,7 @@ export class TutorialManager {
         fontFamily: "monospace",
         color: "#77839c",
       },
-    ).setOrigin(0.5, 0);
+    ).setOrigin(0.5, 1);
     container.add(hint);
   }
 

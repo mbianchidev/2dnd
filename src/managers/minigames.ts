@@ -266,6 +266,7 @@ export class MinigameManager {
     this.debug = false;
     this.scoreSession = null;
     delete this.scene.game.canvas.dataset["minigameInputOwned"];
+    delete this.scene.game.canvas.dataset["minigameAcceptedAim"];
     if (this.previousFocus?.isConnected) this.previousFocus.focus({ preventScroll: true });
     this.previousFocus = null;
   }
@@ -328,7 +329,7 @@ export class MinigameManager {
   }
 
   private perform(request: MinigameActionRequest | MinigameStartRequest, afterAcknowledgement: "close" | "lobby" = "close"): void {
-    if (!this.isOpen()) return;
+    if (!this.isOpen() || this.focusPaused) return;
     const player = this.player;
     const codex = this.codex;
     if (!player || !codex) return;
@@ -360,6 +361,9 @@ export class MinigameManager {
       return;
     }
     if (!result.changed) return;
+    if ("action" in request && request.action.type === "fire" && request.action.aim !== undefined) {
+      this.scene.game.canvas.dataset["minigameAcceptedAim"] = String(request.action.aim);
+    }
     const entries = codex.unlockedEntryIds.filter((id) => !previousIds.has(id))
       .flatMap((id) => {
         const entry = getCodexKnowledgeEntry(id);
@@ -679,7 +683,7 @@ export class MinigameManager {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (!this.isOpen()) return;
+    if (!this.isOpen() || this.focusPaused) return;
     const action = mapKeyboardCode(event.code, "minigame");
     if (action === "confirm" || action === "cancel") {
       if (event.repeat || this.heldConfirmations.has(event.code)) return;
@@ -710,8 +714,8 @@ export class MinigameManager {
     event.preventDefault();
     const pending = this.player?.progression.minigames.pending;
     if (this.mode === "game" && pending?.activityId === "archery") {
-      if (direction !== "left" && direction !== "right") return;
-      this.perform(this.gameRequest({ type: "aimTo", aim: Math.max(0, Math.min(100, this.previewAim + (direction === "left" ? -1 : 1))) }));
+      const delta = { left: -1, right: 1, up: 5, down: -5 }[direction];
+      this.perform(this.gameRequest({ type: "aimTo", aim: Math.max(0, Math.min(100, this.previewAim + delta)) }));
     } else if (this.mode === "game" && pending?.activityId === "regatta") {
       const heading = { up: "north", down: "south", left: "west", right: "east" } as const;
       this.perform(this.gameRequest({ type: "sail", heading: heading[direction] }));

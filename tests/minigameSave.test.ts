@@ -91,6 +91,36 @@ describe("schema-v19 exact activity recovery", () => {
 });
 
 describe("corrupt pending data cannot refund, pay, or reroll", () => {
+  it("rejects invalid creation seeds and never uses bounded history to authorize a session or payment", () => {
+    for (const seed of [0, -1, 1.5, NaN, Infinity, 0x1_0000_0000]) {
+      expect(() => createMinigameState(seed)).toThrow(/32-bit seed/);
+    }
+    const player = playerAt("willowInnTable");
+    startMinigame(player, startRequest(player, "willowInnTable"));
+    applyMinigameAction(player, requestFor(player, { type: "bank" }));
+    const history = structuredClone(player.progression.minigames.history);
+    const forged = { ...createMinigameState(167), history };
+    const normalized = normalizeMinigameState(forged, SAVE_VERSION);
+    expect(normalized.sequence).toBe(0);
+    expect(normalized.settledSequence).toBe(0);
+    expect(normalized.history).toEqual([]);
+  });
+
+  it("repairs impossible cross-activity totals without inventing paid medals", () => {
+    const player = playerAt("willowdaleRange");
+    startMinigame(player, startRequest(player, "willowdaleRange"));
+    const raw = serializedState(player.progression.minigames) as Record<string, unknown>;
+    raw["statistics"] = {
+      crownAndBones: { attempts: 1, completions: 1, medals: 1 },
+      archery: { attempts: 1, completions: 1, medals: 1 },
+      regatta: { attempts: 1, completions: 1, medals: 1 },
+    };
+    const repaired = normalizeMinigameState(raw, SAVE_VERSION);
+    expect(repaired.statistics.crownAndBones).toEqual({ attempts: 0, completions: 0, medals: 0 });
+    expect(repaired.statistics.archery).toEqual({ attempts: 1, completions: 0, medals: 0 });
+    expect(repaired.statistics.regatta).toEqual({ attempts: 0, completions: 0, medals: 0 });
+  });
+
   it.each([
     ["wrong seed", (raw: Record<string, unknown>): void => { raw["seed"] = "bad"; }],
     ["unknown venue", (raw: Record<string, unknown>): void => {

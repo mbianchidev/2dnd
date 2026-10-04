@@ -15,7 +15,7 @@
 | happy-dom | 20.14.3 |
 | Electron | 44.3.0 |
 | electron-builder | 26.16.1 |
-| Campaign save schema | 18 |
+| Campaign save schema | 19 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -204,3 +204,20 @@ autosave/manual IDs, verified staging, and per-slot backup recovery.
 `src/managers/saveSlots.ts` provides the shared title and Overworld interface.
 Electron uses the same renderer-owned storage path and exposes no native
 filesystem API for slot import/export.
+
+## Optional city activities
+
+`src/data/minigames.ts` owns stable activities, venues, rulesets, difficulties,
+scores, rewards, and records. Focused `src/systems/minigame*.ts` modules own
+seeded dice/precision/course mechanics, compact once-only ledgers, transactional
+save rollback, unknown normalization, and pure presentation/layout models.
+`MinigameManager` owns in-place Overworld input, accessible rules/boards, preview
+updates, and cleanup; focused renderers own procedural panels and venue signs.
+
+Archery's moving meter is a runtime input preview, not a save clock. Accepted
+positions and exact challenges save before results. Regatta reuses
+`nauticalNavigation.ts`, canonical boat upgrade multipliers, and seeded
+`rollWeather()` selection without moving the campaign or changing global
+weather. The manager restores its scene-owned semantic context on close.
+Minigame histories and consumer achievements/lore never authorize payments or
+quests. See [Tavern and festival activities](minigames.md).

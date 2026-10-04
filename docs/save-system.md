@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v18; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v19; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -33,13 +33,21 @@ normalization remains beside its domain where appropriate, including
 
 ## Current schema
 
-`SAVE_VERSION` is **18**. Schema v18 adds normalized non-negative
+`SAVE_VERSION` is **19**. Schema v19 adds normalized deterministic
+`player.progression.minigames` for optional dice, archery, and regatta sessions.
+It preserves exact pending challenges/accepted inputs, compact session and
+settlement watermarks, finite milestone claims, separate paid/practice bests,
+natural statistics, and a 40-entry history. History never authorizes payments.
+Invalid pending state retires conservatively without refunds, rerolls, payout
+replay, or boat restoration. See [Tavern and festival activities](minigames.md).
+
+Schema v18 added normalized non-negative
 `playtimeSeconds` to each campaign document. Slot names, backup state, and
 migration bookkeeping remain storage metadata rather than campaign authority.
 
 The campaign save contains the authoritative player, location, progression,
 party, quest, cutscene queue, trap, Codex, skill-check, event, social,
-achievement, gathering, crafting, nautical, feature-discovery, time, weather,
+achievement, gathering, crafting, nautical, minigame, feature-discovery, time, weather,
 boss, and playtime state needed to resume play.
 
 Important composed fields live under:
@@ -130,6 +138,9 @@ Current loading preserves and repairs earlier releases, including:
 - World Event, social, achievement, gathering, crafting, nautical, and feature
   discovery defaults and corruption repair
 - schema-v17 and older playtime defaulting to zero
+- schema-v18 and older deterministic empty minigame defaults without historical
+  payouts or medals; schema-v19 ID/cap/phase/revision/challenge/receipt repair,
+  paid/practice/debug isolation, and venue/boat cross-field validation
 
 Migrations must not replay completed rewards, reroll pending outcomes, infer
 unknown defeat history, create duplicate companions, or emit mature-save

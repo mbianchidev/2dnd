@@ -66,7 +66,7 @@ export const MINIGAME_ACTIVITIES: Readonly<Record<
     rewardId: "archeryLaurel",
     summary: "Five seeded targets, one borrowed bow, and identical scoring for every class.",
     instructions: [
-      "Fire five arrows. Confirm releases the arrow at the visible meter position; left/right adjusts aim.",
+      "Fire five arrows. Confirm releases at the visible meter position; left/right adjusts aim by 1, up/down by 5.",
       "Match the numbered target. Precision is 100 minus distance times the difficulty penalty, never below 0.",
       "The final score is the average of all five arrows. Class, stats, equipment, and input source grant no bonus.",
       "Reduced motion stops the meter; use left/right or the visible aim buttons before firing. Scores and targets stay identical.",

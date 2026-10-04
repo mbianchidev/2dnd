@@ -41,7 +41,9 @@ export function classifyCrownDice(rolls: CrownNaturalDice): CrownDiceResult {
   }
   const total = rolls[0] + rolls[1];
   return {
+    sides: 6,
     naturalRolls: [rolls[0], rolls[1]],
+    modifier: 0,
     total,
     outcome: total === 7 ? "bones" : rolls[0] === rolls[1] ? "crown" : "safe",
   };

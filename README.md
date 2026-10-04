@@ -48,12 +48,18 @@ and campaign saves stay in your browser's local storage.
 - **Gather, craft, and sail:** fish, mine, forage, craft deterministic recipes
   and equipment upgrades, use merchant routes, earn a boat, explore Tidehaven,
   and challenge the Deepwake Kraken.
+- **Try optional city games:** bank capped in-game stakes in Crown & Bones,
+  practice class-neutral archery, and steer Harbor Regatta buoy courses.
+  Seeded recovery, personal boards, free skill practice, and finite medal
+  rewards keep those activities independent from campaign completion.
 - **Play your way:** use keyboard, pointer, touch, or a standard gamepad.
   Accessibility settings include 100%/125%/150% text, high contrast, reduced
   motion, adjustable audio, cutscene advance options, and adaptive prompts.
 
 See the [gameplay guide](docs/gameplay.md) for controls, progression, and player
 guidance.
+See [Tavern and festival activities](docs/minigames.md) for venues, transparent
+odds, scoring, capped rewards, recovery, and reduced-motion controls.
 
 ## Browser, desktop, and save support
 
@@ -113,11 +119,12 @@ Use `npm run dev:desktop` for Electron development and
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v17, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v19, slots, migration, recovery, persistence rules |
 | [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
 | [Release](docs/release.md) | GitHub Pages and release checklist |
 | [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |
 | [Inventory presentation](docs/inventory.md) | Ownership-safe sorting, filtering, controls, transfers |
+| [Tavern and festival activities](docs/minigames.md) | Dice, archery, regatta, personal boards, local economy |
 
 ## Contributing
 

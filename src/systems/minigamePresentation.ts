@@ -43,8 +43,8 @@ export function getMinigameControlPrompt(
   source: InputSource,
 ): string {
   if (activity === "archery") {
-    if (source === "keyboard") return "Left/right aim; release Enter/Space to fire; Esc pauses.";
-    if (source === "gamepad") return "D-pad aims; release A to fire; B pauses.";
+    if (source === "keyboard") return "Left/right: 1; up/down: 5; release Enter/Space fires; Esc pauses.";
+    if (source === "gamepad") return "D-pad: left/right 1, up/down 5; release A fires; B pauses.";
     if (source === "touch") return "D-pad or meter aims; tap Fire; B pauses.";
     return "Aim with buttons or the meter; Fire on release; outside pauses.";
   }

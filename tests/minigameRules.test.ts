@@ -17,7 +17,10 @@ import {
   getArcheryScore,
   getCrownPayout,
   getCrownScore,
+  getMinigameForecast,
 } from "../src/systems/minigameRules";
+import { WeatherType, rollWeather } from "../src/systems/weather";
+import { vi } from "vitest";
 
 describe("immutable activity and venue contracts", () => {
   it("ships all three activities with distinct stable rules, scores, and rewards", () => {
@@ -89,17 +92,38 @@ describe("Crown & Bones truthful odds and capped economy", () => {
   });
 
   it("has no profitable guaranteed or optimal stopping strategy at any allowed stake", () => {
-    const survival = 30 / 36;
-    const optimalReturn = (stake: number, safeRolls: number): number => {
-      const bank = getCrownPayout(stake, safeRolls, false);
-      return safeRolls === 4
-        ? bank
-        : Math.max(bank, survival * optimalReturn(stake, safeRolls + 1));
-    };
-    for (let stake = 1; stake <= 20; stake += 1) {
-      expect(optimalReturn(stake, 0)).toBeLessThan(stake);
-      expect(getCrownPayout(stake, 4, false) * survival ** 4)
-        .toBeLessThan(stake);
+    const orderedRolls = Array.from({ length: 36 }, (_, index): readonly [number, number] => [
+      Math.floor(index / 6) + 1, index % 6 + 1,
+    ]);
+    for (const difficulty of MINIGAME_DIFFICULTY_IDS) {
+      const firstMedalBonus = getMinigameActivity("crownAndBones").milestoneGold[
+        MINIGAME_DIFFICULTY_IDS.indexOf(difficulty)
+      ];
+      for (let stake = 1; stake <= MINIGAME_DIFFICULTIES[difficulty].crownStakeCap; stake += 1) {
+        for (const alreadyClaimed of [false, true]) {
+          const memo = new Map<string, number>();
+          const optimalReturn = (safeRolls: number, crowns: number): number => {
+            const key = `${safeRolls}:${crowns}`;
+            const known = memo.get(key);
+            if (known !== undefined) return known;
+            const past = Array.from({ length: safeRolls }, (_, index): readonly [number, number] =>
+              index < crowns ? [2, 2] : [2, 3]);
+            const score = getCrownScore(past, safeRolls);
+            const bank = getCrownPayout(stake, safeRolls, false)
+              + (!alreadyClaimed && score >= 80 ? firstMedalBonus : 0);
+            const expectedRoll = safeRolls === 4 ? bank : orderedRolls.reduce((total, dice) => {
+              const result = classifyCrownDice(dice);
+              return total + (result.outcome === "bones" ? 0
+                : optimalReturn(safeRolls + 1, crowns + Number(result.outcome === "crown")));
+            }, 0) / orderedRolls.length;
+            const result = Math.max(bank, expectedRoll);
+            memo.set(key, result);
+            return result;
+          };
+          expect(optimalReturn(0, 0)).toBeLessThan(stake);
+          expect(optimalReturn(0, 0)).toBeLessThanOrEqual(stake * 2 * (30 / 36) ** 4 + 1e-10);
+        }
+      }
     }
   });
 
@@ -111,6 +135,22 @@ describe("Crown & Bones truthful odds and capped economy", () => {
 });
 
 describe("seeded class-neutral challenges", () => {
+  it("keeps default weather RNG behavior and plans harbor forecasts without consuming it", () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.01);
+    try {
+      expect(rollWeather("Heartlands", 45)).toBe(WeatherType.Rain);
+      expect(random).toHaveBeenCalledTimes(1);
+      expect(rollWeather("Heartlands", 45, () => 0.01)).toBe(WeatherType.Rain);
+      const forecast = getMinigameForecast("sandportRegatta", 167, 1, 45, WeatherType.Clear);
+      expect(getMinigameForecast("sandportRegatta", 167, 1, 45, WeatherType.Clear)).toBe(forecast);
+      expect(getMinigameForecast("sandportRegatta", 167, 1, 45, WeatherType.Storm)).toBe(WeatherType.Storm);
+      expect(random).toHaveBeenCalledTimes(1);
+      expect(() => rollWeather("Heartlands", 45, () => 1)).toThrow(/selection roll/);
+    } finally {
+      random.mockRestore();
+    }
+  });
+
   it("recreates every exact challenge from its stable seed and session identity", () => {
     for (const activity of MINIGAME_ACTIVITY_IDS) {
       for (const difficulty of MINIGAME_DIFFICULTY_IDS) {

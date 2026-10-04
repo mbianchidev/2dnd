@@ -14,7 +14,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.0, Electron 44.3.0, electron-builder 26.16.1, Vitest 5.0.0, Playwright 1.63.0 |
 | DOM tests | happy-dom 20.14.3 |
-| Save schema | 18 |
+| Save schema | 19 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -32,6 +32,7 @@ future work until merged.
 | Sea navigation | `nautical.ts`, `islands.ts`, `seaMonsters.ts` | `nautical*.ts` | Overworld/map/audio | nautical unit and E2E |
 | Events/social/achievements | matching `src/data/` modules | matching `src/systems/` modules | managers/overlays/social renderer | matching unit and E2E |
 | Gathering/crafting | matching `src/data/` modules | matching systems + state normalizers | matching managers | matching unit and E2E |
+| Tavern/festival games | `minigames.ts`, focused lore/event data | `minigame*.ts`, nautical/weather helpers | minigame manager/renderers | rules/economy/recovery/layout + web/Electron multi-input |
 | Saves | owning interfaces/defaults | `save.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/domain migration suites |
 | Accessibility/input | tutorial/feature definitions | `accessibility.ts`, `input.ts`, `featureDiscovery.ts` | input/tutorial/layout managers | accessibility/input/layout/feature E2E |
 | Audio | typed data cues | `audio.ts`, `trapAudio.ts` | callers only | audio + representative browser flows |
@@ -93,6 +94,9 @@ owning issue or pull request.
 - Persist authority, not derived presentation. Every schema change requires
   defaults, normalization, cross-field validation, migration, and corruption
   tests.
+- Minigame histories never authorize payment. Use exact pending IDs/revisions,
+  permanent settlement watermarks, finite milestone claims, and save-before-reveal
+  rollback; archery preview motion never writes saves.
 - Route all release input through semantic contexts; do not add scene-local
   gamepad/touch mappings or conflicting production/debug keys.
 - `TitleMenuManager` owns title selection, large pointer targets, and semantic
@@ -179,3 +183,4 @@ owning issue or pull request.
 - [Save system](docs/save-system.md)
 - [Companions and gambits](docs/companions.md)
 - [Inventory presentation](docs/inventory.md)
+- [Tavern and festival activities](docs/minigames.md)

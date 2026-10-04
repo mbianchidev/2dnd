@@ -16,7 +16,9 @@ export type CrownNaturalDice = readonly [number, number];
 export type CrownDiceOutcome = "bones" | "crown" | "safe";
 
 export interface CrownDiceResult {
+  readonly sides: 6;
   readonly naturalRolls: CrownNaturalDice;
+  readonly modifier: 0;
   readonly total: number;
   readonly outcome: CrownDiceOutcome;
 }

@@ -174,8 +174,10 @@ export class MinigamePanelRenderer {
     });
     this.columns = layout.grid.columns;
     setOverlayViewport(this.scene, "minigames", layout.panel);
-    container.addAt(createPanelGraphics(this.scene, layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height, 1,
-      getAccessibilityPreferences().highContrast ? 0xffffff : 0xffd700), 1);
+    const background = createPanelGraphics(this.scene, layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height, 1,
+      getAccessibilityPreferences().highContrast ? 0xffffff : 0xffd700);
+    background.setInteractive(new Phaser.Geom.Rectangle(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height), Phaser.Geom.Rectangle.Contains);
+    container.addAt(background, 1);
     for (const [object, bounds] of [[title, layout.title], [status, layout.status], [prompt, layout.prompt]] as const) {
       object.setPosition(bounds.x, bounds.y);
       container.add(object);
@@ -187,6 +189,7 @@ export class MinigamePanelRenderer {
       container.add(graphics);
       this.boardGraphics = graphics;
       drawBoard(graphics, content.board, layout.body);
+      this.publishBoard(content.board, layout.body);
       if (content.board.kind === "archery" && content.onAim) {
         graphics.setInteractive(new Phaser.Geom.Rectangle(layout.body.x, layout.body.y, layout.body.width, layout.body.height), Phaser.Geom.Rectangle.Contains);
         graphics.on("pointerup", (pointer: Phaser.Input.Pointer) => {
@@ -247,7 +250,22 @@ export class MinigamePanelRenderer {
 
   refreshGame(status: string, board: MinigameBoard): void {
     this.status?.setText(status);
-    if (this.boardGraphics && this.boardBounds) drawBoard(this.boardGraphics, board, this.boardBounds);
+    if (this.boardGraphics && this.boardBounds) {
+      drawBoard(this.boardGraphics, board, this.boardBounds);
+      this.publishBoard(board, this.boardBounds);
+    }
+  }
+
+  private publishBoard(board: MinigameBoard, bounds: LayoutRect): void {
+    const canvas = this.scene.game.canvas;
+    if (board.kind === "archery") {
+      canvas.dataset["minigameVisibleAim"] = String(board.aim);
+      canvas.dataset["minigameTarget"] = String(board.target);
+      canvas.dataset["minigameMeter"] = JSON.stringify({
+        x: bounds.x + 14, y: bounds.y + bounds.height / 2,
+        width: bounds.width - 28, height: 36,
+      });
+    }
   }
 
   clear(): void {
@@ -259,5 +277,8 @@ export class MinigamePanelRenderer {
     this.buttons = [];
     this.visibleActions = [];
     delete this.scene.game.canvas.dataset["minigameBodyPages"];
+    delete this.scene.game.canvas.dataset["minigameVisibleAim"];
+    delete this.scene.game.canvas.dataset["minigameTarget"];
+    delete this.scene.game.canvas.dataset["minigameMeter"];
   }
 }

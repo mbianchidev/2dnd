@@ -134,6 +134,22 @@ Merchant routes work before boat ownership. Later, the Tideglass Charter grants
 a Reed Skiff for free sailing, hazards, sea encounters, open-water fishing,
 boat upgrades, island discovery, Tideglass Grotto, and the optional Kraken.
 
+## Optional tavern and festival games
+
+Marked city venues offer **Crown & Bones**, a capped in-game-only push-your-luck
+dice game; **Archery Challenge**, five class-neutral precision targets; and
+**Harbor Regatta**, an owned-boat buoy course with a fixed forecast and bounded
+hull wear. None is required for a quest, route, campaign ending, or post-game.
+
+Stand on a D/A/R venue marker and interact. After discovery, the Esc menu opens
+instructions and personal boards. Setup selects difficulty, capped stakes, or
+free archery/regatta practice. Reduced-motion archery uses explicit aiming with
+the same targets and scores. Leaving first opens a pause/abandon confirmation;
+abandoning forfeits the entry but never repeats charges or undoes committed wear.
+
+See [Tavern and festival activities](minigames.md) for all venues, controls,
+transparent dice odds, capped payouts, records, and reload recovery.
+
 ## Tutorial, discovery, and accessibility
 
 New campaigns open a five-step tutorial after the opening cutscene queue.

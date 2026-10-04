@@ -46,7 +46,7 @@ generic IPC APIs through preload.
 
 ## Persistence
 
-The desktop shell uses the same schema-v18 autosave, manual-slot, staging, and
+The desktop shell uses the same schema-v19 autosave, manual-slot, staging, and
 backup `localStorage` documents as the web game. The stable `app://2dnd` origin
 keeps them available across launches and upgrades:
 
@@ -60,6 +60,11 @@ Chromium stores the documents beneath that root. Browser and desktop origins
 remain isolated; they do not silently copy or merge saves.
 Slot import/export uses validated JSON through renderer browser APIs; preload
 does not expose filesystem access.
+
+Optional tavern/festival sessions use those same renderer-owned documents and
+recovery rules. Electron activity tests exercise keyboard, emulated touch, and
+standard-gamepad play, pending/result reload, and once-only rewards without
+adding IPC or relaxing the production sandbox.
 
 ## Diagnostic logs
 

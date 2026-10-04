@@ -19,6 +19,8 @@ import { classifyCrownDice, createMinigameChallenge } from "../src/systems/minig
 import { getRegattaProgress } from "../src/systems/minigameRegatta";
 import { commitMinigameMutation } from "../src/systems/minigameTransactions";
 import { WeatherType } from "../src/systems/weather";
+import { PLAYER_CLASSES } from "../src/systems/classes";
+import { acquireBoat, installBoatUpgrade } from "../src/systems/nauticalOwnership";
 import { playerAt, requestFor, startRequest } from "./helpers/minigames";
 import type { CardinalHeading } from "../src/data/nautical";
 import type { CodexData } from "../src/systems/codex";
@@ -185,6 +187,23 @@ describe("atomic entries and once-only revisions", () => {
 });
 
 describe("archery precision, finite laurels, and natural evidence", () => {
+  it.each(PLAYER_CLASSES.map((playerClass) => playerClass.id))(
+    "uses the identical accepted-position score and economy for class %s",
+    (classId) => {
+      const player = playerAt("willowdaleRange", 167, classId);
+      const resources = { hp: player.hp, mp: player.mp, xp: player.xp };
+      startMinigame(player, startRequest(player, "willowdaleRange"));
+      const challenge = archery(player).challenge;
+      for (const target of challenge.targets) {
+        act(player, { type: "fire", aim: target - 1 });
+      }
+      expect(player.progression.minigames.pending?.receipt?.score).toBe(96);
+      expect(player.progression.minigames.pending?.receipt?.goldPaid).toBe(13);
+      expect(player.gold).toBe(1_008);
+      expect({ hp: player.hp, mp: player.mp, xp: player.xp }).toEqual(resources);
+    },
+  );
+
   it("records a perfect paid score, first-only bonus, Codex and bounded reputation without touching quests", () => {
     const player = playerAt("willowdaleRange");
     const codex = createCodex();
@@ -257,6 +276,54 @@ describe("archery precision, finite laurels, and natural evidence", () => {
 });
 
 describe("regatta movement, boat wear, weather, and safe return", () => {
+  it("rejects an active-boat switch before any additional input, wear, or settlement", () => {
+    const player = playerAt("sandportRegatta");
+    startMinigame(player, startRequest(player, "sandportRegatta"));
+    acquireBoat(player.progression.nautical, "reedSkiff");
+    player.progression.nautical.activeBoatId = "reedSkiff";
+    const before = structuredClone(player);
+    const result = applyMinigameAction(player, requestFor(player, { type: "sail", heading: "east" }));
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("changed outside");
+    expect(player).toEqual(before);
+  });
+
+  it("applies canonical reinforced-hull multipliers to forecast and collision wear", () => {
+    let seed = 1;
+    while (true) {
+      const challenge = createMinigameChallenge("regatta", "friendly", seed, getMinigameSessionId(seed, 1));
+      if (challenge.kind === "regatta" && !challenge.obstacles.some((point) => point.x === 0 && point.y === 2)) break;
+      seed += 1;
+    }
+    const losses = [false, true].map((upgraded) => {
+      const player = playerAt("sandportRegatta", seed);
+      if (upgraded) expect(installBoatUpgrade(player.progression.nautical, "reinforcedHull")).toBe(true);
+      startMinigame(player, startRequest(player, "sandportRegatta", { weather: WeatherType.Storm }));
+      for (const heading of ["east", "west", "north", "west"] as const) {
+        act(player, { type: "sail", heading });
+      }
+      return 90 - player.progression.nautical.ownedBoats[0]!.condition;
+    });
+    expect(losses).toEqual([4, 3]);
+  });
+
+  it("settles a move-limit timeout once without stranding the boat or moving the campaign", () => {
+    const player = playerAt("sandportRegatta");
+    const position = structuredClone(player.position);
+    startMinigame(player, startRequest(player, "sandportRegatta"));
+    for (let index = 0; index < MINIGAME_DIFFICULTIES.friendly.regattaMoveLimit; index += 1) {
+      act(player, { type: "sail", heading: "west" });
+    }
+    const receipt = player.progression.minigames.pending?.receipt;
+    expect(receipt?.outcome).toBe("timeout");
+    expect(receipt?.goldPaid).toBe(0);
+    expect(receipt?.score).toBe(0);
+    expect(player.gold).toBe(995);
+    expect(player.position).toEqual(position);
+    expect(player.progression.nautical.ownedBoats[0]!.condition).toBe(86);
+    expect(player.progression.minigames.statistics.regatta.medals).toBe(0);
+  });
+
   it("reuses a serviceable active boat and finishes a route without changing campaign travel state", () => {
     const player = playerAt("sandportRegatta");
     const codex = createCodex();

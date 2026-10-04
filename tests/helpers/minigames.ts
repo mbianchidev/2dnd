@@ -8,11 +8,11 @@ import type { MinigameVenueId } from "../../src/data/minigames";
 import type { MinigameAction, MinigameActionRequest, MinigameStartRequest } from "../../src/systems/minigameTypes";
 import type { PlayerState } from "../../src/systems/player";
 
-export function playerAt(venueId: MinigameVenueId, seed = 167): PlayerState {
+export function playerAt(venueId: MinigameVenueId, seed = 167, appearanceId = "knight"): PlayerState {
   const player = createPlayer("Challenge Fixture", {
     strength: 10, dexterity: 10, constitution: 10,
     intelligence: 10, wisdom: 10, charisma: 10,
-  });
+  }, appearanceId);
   player.gold = 1_000;
   player.progression.minigames = createMinigameState(seed);
   const venue = getMinigameVenue(venueId);

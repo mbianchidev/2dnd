@@ -6,8 +6,14 @@ import { clickGamePoint as clickGame, clickLayoutItem, expectCleanLayout, tapLay
 
 async function key(page: Page, name: string): Promise<void> {
   await page.keyboard.down(name);
-  await page.waitForTimeout(90);
-  await page.keyboard.up(name);
+  try {
+    await page.waitForTimeout(90);
+    await page.evaluate(() => new Promise<void>((resolveFrame) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()));
+    }));
+  } finally {
+    await page.keyboard.up(name);
+  }
   await page.waitForTimeout(120);
 }
 
@@ -229,6 +235,7 @@ test("safe mid-run changes require confirmation, persist causes and never replay
   const manualBytes = await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"));
   const openRules = async (): Promise<void> => {
     await key(page, "Escape");
+    await state(page, "[MENU]");
     await clickLayoutItem(page, "escape-menu-settings");
     await state(page, "[SETTINGS]");
     await rulesAccessibility(page, 1.5);

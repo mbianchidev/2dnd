@@ -346,6 +346,7 @@ export function getAchievementProgress(
       break;
     case "difficultyCampaign":
       current = isDifficultyChallengeEligible(player.difficulty, criteria.minimum)
+          && !player.progression.achievements.debugSuppressedIds.includes(definition.id)
           && isQuestCompleted(player.progression.quests, "twelvefoldCovenant")
         ? 1 : 0;
       break;

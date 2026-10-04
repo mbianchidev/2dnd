@@ -223,3 +223,20 @@ it("retains every named quest NPC ID used by the difficulty campaign trace", () 
   const ids: readonly QuestNpcId[] = Object.values(QUEST_NPCS).map((npc) => npc.id);
   expect(new Set(ids).size).toBe(ids.length);
 });
+
+it("does not report Legendary credit after debug exclusion when Veteran was previously earned", () => {
+  const player = createDifficultyPlayer({ profileId: "legendary" });
+  player.progression.achievements.earned.push({
+    id: "veteranCovenant", unlockedAt: 1, order: 1, sourceId: "natural:completion", debug: false,
+  });
+  beginAchievementDebugMutation(player);
+  endAchievementDebugMutation(player);
+  player.progression.quests.quests[MAIN_QUEST_ID].status = "completed";
+  const context = { player, defeatedBosses: new Set<string>(), codex: createCodex() };
+  expect(player.progression.achievements.debugSuppressedIds).not.toContain("veteranCovenant");
+  expect(player.progression.achievements.debugSuppressedIds).toContain("legendaryCovenant");
+  expect(getCampaignDifficultyEligibility(player).challengeProfile).toBeNull();
+  expect(getAchievementProgress(getAchievement("legendaryCovenant"), context).complete).toBe(false);
+  expect(reconcileAchievements(context).newlyUnlocked).not.toContain("legendaryCovenant");
+  expect(player.progression.achievements.earned[0]!.id).toBe("veteranCovenant");
+});

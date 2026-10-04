@@ -256,7 +256,8 @@ export function getCampaignDifficultyEligibility(
 ): DifficultyAchievementEligibility {
   const eligibility = getDifficultyAchievementEligibility(campaign.difficulty);
   if (eligibility.challengeProfile === null) return eligibility;
-  if (campaign.progression.achievements.debugSuppressedIds.includes("veteranCovenant")) {
+  if (["veteranCovenant", "legendaryCovenant"].some((id) =>
+    campaign.progression.achievements.debugSuppressedIds.includes(id))) {
     return {
       generalAchievements: true,
       challengeProfile: null,

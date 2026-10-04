@@ -187,7 +187,7 @@ export function isAllowedSteamRuntimeEntry(path: string, depot: SteamDepot): boo
       || /^Resources\/(?:app\.asar|icon\.icns)$/.test(local)
       || local === "_CodeSignature/CodeResources"
     ) return true;
-    return /^Frameworks\/(?:Electron Framework\.framework|Mantle\.framework|ReactiveObjC\.framework|Squirrel\.framework|2D-and-D Helper(?: \((?:GPU|Plugin|Renderer)\))?\.app)\//.test(local);
+    return /^Frameworks\/(?:Electron Framework\.framework|Mantle\.framework|ReactiveObjC\.framework|Squirrel\.framework|2D&D Helper(?: \((?:GPU|Plugin|Renderer)\))?\.app)\//.test(local);
   }
   const rootFiles = [
     depot.binary, ...STEAM_LICENSE_FILES, "SOURCE.2dnd.txt", "LICENSE", "LICENSE.electron.txt",

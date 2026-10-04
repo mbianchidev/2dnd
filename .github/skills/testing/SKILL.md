@@ -568,6 +568,9 @@ npx vitest run tests/dice.test.ts
   responsive width, Steam banner, and page/console cleanliness.
 - Pull request CI installs Chromium and runs the browser suite as a release
   gate.
+- PR/desktop CI groups are scoped to `github.ref`, with
+  `cancel-in-progress: false`. Preserve all gate steps, permissions, and
+  triggers; independent PRs must not cancel or globally serialize one another.
 - Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
   disable trace screenshots and video. Phaser repaints every frame, so the
   filmstrip creates thousands of canvas captures that stall context teardown.

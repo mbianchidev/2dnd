@@ -54,6 +54,11 @@ future work until merged.
    resolve every failure and review comment. Do not merge without explicit
    instruction.
 
+PR/desktop CI concurrency is ref-scoped (`pr-${{ github.ref }}` and
+`desktop-${{ github.ref }}`), with `cancel-in-progress: false`. Preserve the
+complete gate, existing permissions, and triggers; never weaken checks to
+accelerate an independent feature branch.
+
 ```bash
 npm ci
 npm audit

@@ -154,6 +154,12 @@ for them before release.
 Chromium installation, full Playwright, and the production build for pull
 requests to `main`.
 
+PR and desktop concurrency is scoped to the full `github.ref`
+(`pr-${{ github.ref }}` / `desktop-${{ github.ref }}`). Independent pull
+requests can validate concurrently; repeated runs for one ref stay serialized.
+Both retain `cancel-in-progress: false`, all release-gate steps, existing
+permissions, and unchanged triggers.
+
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page
 production build from `main`. `.github/workflows/desktop.yml` audits, builds,

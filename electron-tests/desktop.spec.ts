@@ -28,6 +28,7 @@ async function clickGame(
   page: Page,
   gameX: number,
   gameY: number,
+  expectClose = false,
 ): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
@@ -38,6 +39,7 @@ async function clickGame(
     bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
   await page.mouse.down();
+  if (expectClose) return;
   await page.waitForTimeout(120);
   await page.mouse.up();
   await page.evaluate(() => new Promise<void>((resolve) =>
@@ -261,7 +263,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(relaunchedRendererErrors).toEqual([]);
 
     const closePromise = desktop.waitForEvent("close");
-    await clickGame(page, 320, 492);
+    await clickGame(page, 320, 492, true);
     await closePromise;
     desktop = undefined;
 

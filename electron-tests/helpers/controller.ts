@@ -83,10 +83,21 @@ export async function installController(
 }
 
 export async function pressController(page: Page, button: number): Promise<void> {
-  await page.evaluate((index) => window.__mockController.button(index, true), button);
-  await page.waitForTimeout(120);
-  await page.evaluate((index) => window.__mockController.button(index, false), button);
-  await page.waitForTimeout(120);
+  for (const pressed of [true, false]) {
+    await page.evaluate(({ index, down }) => {
+      window.__mockController.button(index, down);
+      return new Promise<void>((resolve) => {
+        const started = performance.now();
+        let frames = 0;
+        const frame = (timestamp: number): void => {
+          frames += 1;
+          if (frames >= 2 && timestamp - started >= 120) resolve();
+          else requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      });
+    }, { index: button, down: pressed });
+  }
 }
 
 export async function holdControllerUntil(
@@ -131,6 +142,7 @@ export async function selectControllerAction(
 export async function typeWithController(page: Page, text: string): Promise<void> {
   await expect(page.locator("#controller-keyboard")).toBeVisible();
   await pressController(page, 2);
+  let entered = "";
   for (const value of text) {
     let row = -1;
     let column = -1;
@@ -157,6 +169,8 @@ export async function typeWithController(page: Page, text: string): Promise<void
       if (attempt === 15) throw new Error("Controller keyboard selection did not converge");
     }
     await pressController(page, 0);
+    entered += value;
+    await expect(page.locator("#mobile-text-input input")).toHaveValue(entered);
   }
   await expect(page.locator("#mobile-text-input input")).toHaveValue(text);
   await pressController(page, 9);

@@ -245,10 +245,12 @@ The Electron suite uses a fixed emulated renderer viewport as well as native
 window sizing, so a hosted runner's smaller display work area cannot silently
 turn 1280x800 into 1280x645. It applies the viewport after controller-fixture
 reloads and checks the exact dimensions. DOM/GC snapshots leave scripts and
-Phaser's frame loop running; the read-only layout report reuses its text node
-instead of allocating transient replacements. Assertions still require exact
-node/listener equality. No production security settings or campaign state are
-changed by these test-only sampling controls.
+Phaser's frame loop running; the read-only layout report and state bar reuse
+their text nodes instead of allocating transient replacements. Controller
+presses and releases span actual animation frames, not wall-clock sleeps
+alone. Assertions still require exact node/listener equality. No production
+security settings or campaign state are changed by these test-only sampling
+controls.
 
 ## Store metadata draft
 

@@ -130,6 +130,20 @@ async function debugCommand(page: Page, command: string): Promise<void> {
   const checkbox = page.locator("#debug-checkbox");
   if (!await checkbox.isChecked()) await checkbox.check();
   const input = page.locator("#debug-cmd");
+  if (!await input.isVisible()) {
+    await page.evaluate((value) => {
+      const field = document.getElementById("debug-cmd");
+      if (!(field instanceof HTMLInputElement)) {
+        throw new Error("Missing local debug setup input");
+      }
+      field.value = value;
+      field.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", code: "Enter", bubbles: true,
+      }));
+      field.blur();
+    }, command);
+    return;
+  }
   await input.fill(command);
   await input.press("Enter");
   await input.blur();

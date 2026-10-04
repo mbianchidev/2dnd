@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { layoutItemCenter } from "../../e2e/helpers/layout";
 import { TEXT_KEY_ROWS } from "../../src/systems/textEntry";
+import { waitForState } from "./desktop";
 
 declare global {
   interface Window {
@@ -8,7 +9,6 @@ declare global {
       button(index: number, pressed: boolean): void;
       axes(values: number[]): void;
       connected(value: boolean): void;
-      random(value: number | null): void;
     };
   }
 }
@@ -16,10 +16,11 @@ declare global {
 export async function installController(
   page: Page,
   textScale = 1.5,
+  initializePreferences = true,
 ): Promise<void> {
-  await page.addInitScript((scale) => {
+  await waitForState(page, "BOOT | Screen: title");
+  await page.addInitScript((options) => {
     let connected = true;
-    let randomOverride: number | null = null;
     let seed = 0x91;
     const pad = {
       id: "Mock standard controller",
@@ -55,24 +56,30 @@ export async function installController(
         pad.axes.fill(0);
         window.dispatchEvent(new Event(value ? "gamepadconnected" : "gamepaddisconnected"));
       },
-      random(value): void { randomOverride = value; },
     };
     Math.random = () => {
-      if (randomOverride !== null) return randomOverride;
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
       return seed / 0x1_0000_0000;
     };
-    if (!localStorage.getItem("2dnd_preferences")) {
+    if (
+      options.initializePreferences
+      && !sessionStorage.getItem("deck-equivalent-preferences-initialized")
+    ) {
       localStorage.setItem("2dnd_preferences", JSON.stringify({
         version: 2,
         accessibility: {
-          textScale: scale, highContrast: true, reducedMotion: true, advanceMode: "manual",
+          textScale: options.textScale, highContrast: true, reducedMotion: true, advanceMode: "manual",
         },
         controls: { touchControls: "off", handedness: "right", promptSource: "auto" },
       }));
+      sessionStorage.setItem("deck-equivalent-preferences-initialized", "1");
     }
-  }, textScale);
+  }, { textScale, initializePreferences });
   await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForState(page, "BOOT | Screen: title");
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  }));
 }
 
 export async function pressController(page: Page, button: number): Promise<void> {
@@ -80,6 +87,22 @@ export async function pressController(page: Page, button: number): Promise<void>
   await page.waitForTimeout(120);
   await page.evaluate((index) => window.__mockController.button(index, false), button);
   await page.waitForTimeout(120);
+}
+
+export async function holdControllerUntil(
+  page: Page,
+  button: number,
+  state: string,
+): Promise<void> {
+  await page.evaluate((index) => window.__mockController.button(index, true), button);
+  try {
+    await waitForState(page, state);
+  } finally {
+    await page.evaluate((index) => window.__mockController.button(index, false), button);
+  }
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  ));
 }
 
 export async function selectControllerAction(
@@ -91,6 +114,13 @@ export async function selectControllerAction(
     const state = await page.locator("#debug-state").textContent() ?? "";
     if (state.includes(marker)) {
       if (activate) await pressController(page, 0);
+      if (activate && marker.startsWith("[TITLE_ACTION:")) {
+        for (let retry = 0; retry < 3; retry += 1) {
+          const selected = await page.locator("#debug-state").textContent() ?? "";
+          if (!selected.includes(marker)) break;
+          await pressController(page, 0);
+        }
+      }
       return;
     }
     await pressController(page, 13);

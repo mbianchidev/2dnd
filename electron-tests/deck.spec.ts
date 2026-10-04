@@ -1,5 +1,5 @@
 import { expect, test, type ElectronApplication, type Page } from "@playwright/test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { arch, cpus, platform, release, tmpdir } from "node:os";
 import { join } from "node:path";
 import { expectCleanLayout } from "../e2e/helpers/layout";
@@ -7,6 +7,7 @@ import { SAVE_WRITE_MEASURE } from "../src/systems/saveStorage";
 import { launchDesktop, monitorRendererErrors, waitForState } from "./helpers/desktop";
 import {
   clickControllerLayoutItem,
+  holdControllerUntil,
   installController,
   moveControllerCursor,
   pressController,
@@ -14,7 +15,12 @@ import {
   typeWithController,
 } from "./helpers/controller";
 
-async function sizeDesktop(desktop: ElectronApplication): Promise<void> {
+async function sizeDesktop(
+  desktop: ElectronApplication,
+  requireTitle = false,
+): Promise<void> {
+  const page = await desktop.firstWindow();
+  if (requireTitle) await waitForState(page, "BOOT | Screen: title");
   await desktop.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0];
     if (!window) throw new Error("Missing equivalent desktop window");
@@ -42,10 +48,12 @@ async function createControllerCampaign(page: Page, name: string): Promise<void>
   await pressController(page, 14);
   await pressController(page, 0);
   await waitForState(page, "BOOT | Screen: stats");
-  for (let stat = 0; stat < 3; stat += 1) {
-    for (let point = 0; point < 7; point += 1) await pressController(page, 15);
-    if (stat < 2) await pressController(page, 13);
+  for (const stat of ["strength", "dexterity", "constitution"]) {
+    await waitForState(page, `[STAT:${stat}]`);
+    await holdControllerUntil(page, 15, "[STAT_VALUE:15]");
+    if (stat !== "constitution") await pressController(page, 13);
   }
+  await waitForState(page, "[POINTS_REMAINING:0]");
   await pressController(page, 0);
   await waitForState(page, "BOOT | Screen: appearance");
   await pressController(page, 15);
@@ -61,9 +69,8 @@ async function visitMenu(page: Page, action: string): Promise<void> {
   await selectControllerAction(page, `[MENU_SELECTION:${action}]`);
 }
 
-async function representativeBattle(page: Page): Promise<void> {
-  await page.evaluate(() => window.__mockController.random(0.01));
-  for (let step = 0; step < 30; step += 1) {
+async function representativeBattle(page: Page, errors: string[]): Promise<void> {
+  for (let step = 0; step < 180; step += 1) {
     const state = await page.locator("#debug-state").textContent() ?? "";
     if (state.includes("BATTLE")) break;
     if (state.includes("[WORLD_EVENT:") || state.includes("[TUTORIAL")) {
@@ -71,9 +78,9 @@ async function representativeBattle(page: Page): Promise<void> {
     } else {
       await pressController(page, step % 2 === 0 ? 15 : 14);
     }
+    expect(errors).toEqual([]);
   }
   await waitForState(page, "BATTLE");
-  await page.evaluate(() => window.__mockController.random(null));
   for (let action = 0; action < 60; action += 1) {
     const state = await page.locator("#debug-state").textContent() ?? "";
     if (state.includes("OVERWORLD")) return;
@@ -88,7 +95,7 @@ for (const textScale of [1, 1.25]) {
     let desktop: ElectronApplication | undefined;
     try {
       desktop = await launchDesktop(userData);
-      await sizeDesktop(desktop);
+      await sizeDesktop(desktop, true);
       const page = await desktop.firstWindow();
       const errors = monitorRendererErrors(page);
       await installController(page, textScale);
@@ -124,7 +131,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
   try {
     const launchStarted = performance.now();
     desktop = await launchDesktop(userData);
-    await sizeDesktop(desktop);
+    await sizeDesktop(desktop, true);
     let page = await desktop.firstWindow();
     const errors = monitorRendererErrors(page);
     await waitForState(page, "BOOT | Screen: title");
@@ -167,7 +174,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     await waitForState(page, "[MENU]");
     await expectCleanLayout(page);
     await pressController(page, 1);
-    await representativeBattle(page);
+    await representativeBattle(page, errors);
     await visitMenu(page, "codex");
     await waitForState(page, "CODEX");
     await pressController(page, 2);
@@ -202,10 +209,10 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     desktop = undefined;
 
     desktop = await launchDesktop(userData);
-    await sizeDesktop(desktop);
+    await sizeDesktop(desktop, true);
     page = await desktop.firstWindow();
     const reloadErrors = monitorRendererErrors(page);
-    await installController(page);
+    await installController(page, 1.5, false);
     await page.context().setOffline(true);
     await selectControllerAction(page, "[TITLE_ACTION:continue]");
     await waitForState(page, "OVERWORLD");
@@ -285,9 +292,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
       (metric) => ({ type: metric.type, memory: metric.memory }),
     ));
     const sortedFrames = [...frameIntervals].sort((left, right) => left - right);
-    await test.info().attach("desktop-equivalent-metrics.json", {
-      contentType: "application/json",
-      body: JSON.stringify({
+    const metrics = JSON.stringify({
         environment: { platform: `${platform()} ${release()}`, arch: arch(), cpu: cpus()[0]?.model },
         resolution: "1280x800",
         physicalDeck: false,
@@ -300,7 +305,12 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
         cleanupCycles: 30,
         domBefore: before,
         domAfter: after,
-      }, null, 2),
+      }, null, 2);
+    const metricsPath = test.info().outputPath("desktop-equivalent-metrics.json");
+    await writeFile(metricsPath, metrics);
+    await test.info().attach("desktop-equivalent-metrics.json", {
+      contentType: "application/json",
+      path: metricsPath,
     });
     expect(after.jsEventListeners).toBe(before.jsEventListeners);
     expect(after.nodes).toBe(before.nodes);

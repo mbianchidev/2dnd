@@ -131,7 +131,9 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 
 The local `#layout-report` and canvas
 `data-layout-overlap-count`/`data-layout-clipping-count` attributes are
-debug/test surfaces. Registered groups should report zero unintended
+read-only debug/test surfaces on loopback and the local `app://2dnd` desktop
+origin. This does not enable desktop cheats or change production security.
+Registered groups should report zero unintended
 intersections and zero visible-content clipping.
 
 ## Targeted validation
@@ -157,6 +159,9 @@ for them before release.
 `.github/workflows/pr.yml` runs Node 24, `npm ci`, typecheck, full Vitest,
 Chromium installation, full Playwright, and the production build for pull
 requests to `main`.
+Its `pr-${{ github.ref }}` concurrency group queues work per branch/PR rather
+than serializing every unrelated pull request behind one global `pr` group;
+`cancel-in-progress` remains false.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page

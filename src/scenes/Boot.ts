@@ -889,7 +889,8 @@ export class BootScene extends Phaser.Scene {
       }
       debugPanelState(
         `BOOT | Screen: stats [STAT:${statKeys[selectedStatIndex]}] `
-        + `[MODE:${mode}]`,
+        + `[MODE:${mode}] [STAT_VALUE:${currentStats[statKeys[selectedStatIndex]!]}] `
+        + `[POINTS_REMAINING:${remaining}]`,
       );
     };
 

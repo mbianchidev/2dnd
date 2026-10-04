@@ -13,6 +13,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "line",
   outputDir: "electron-test-results",
+  preserveOutput: "always",
   use: {
     trace: "retain-on-failure",
     screenshot: "only-on-failure",

@@ -181,7 +181,8 @@ function publishLayoutReport(scene: Phaser.Scene): void {
 }
 
 export function installSceneLayoutAudit(scene: Phaser.Scene): void {
-  if (!isLocalDev() || installedScenes.has(scene)) return;
+  const localDesktop = globalThis.location?.origin === "app://2dnd";
+  if ((!isLocalDev() && !localDesktop) || installedScenes.has(scene)) return;
   installedScenes.add(scene);
   let lastAudit = 0;
   const audit = (time: number): void => {

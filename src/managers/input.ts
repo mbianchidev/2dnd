@@ -673,7 +673,7 @@ export class SemanticInputRuntime {
       });
       root.append(button);
     }
-    document.getElementById("game-inner")?.append(root);
+    document.body.append(root);
     this.touchRoot = root;
     this.applyTouchActionAvailability();
   }

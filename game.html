@@ -184,6 +184,10 @@
         pointer-events: none;
       }
       #touch-controls.visible { display: block; }
+      body:has(#mobile-text-input) #touch-controls { z-index: 81; }
+      body:has(#mobile-text-input) #touch-controls .touch-control:not(.touch-confirm):not(.touch-cancel) {
+        display: none;
+      }
       .touch-control {
         position: absolute;
         min-width: 48px;

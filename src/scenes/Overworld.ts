@@ -1493,6 +1493,8 @@ export class OverworldScene extends Phaser.Scene {
     debugPanelState(
       `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${boatTag}${menuTag}${saveSlotTag}${chronicleTag}${worldEventTag}${gatheringTag}${tutorialTag}${partyTag}${achievementTag}${craftingTag} | ` +
       `Anim: ${this.worldPresentation.debugState} | ` +
+      `Move: ${this.isMoving ? "locked" : "ready"} `
+      + `Handoff: ${this.sceneTransitions.isPending ? "pending" : "ready"} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
       `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length} | Checks: ${Object.keys(p.progression.skillChecks).length}`,

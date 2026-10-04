@@ -423,7 +423,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   await pressGamepad(2);
   await expect(page.locator("#mobile-text-input")).toBeVisible();
   await page.locator("#mobile-text-input input").fill("willow");
-  await pressGamepad(0);
+  await pressGamepad(9);
   await waitForState(page, "Search: willow");
   await pressGamepad(1);
   await waitForState(page, "OVERWORLD");

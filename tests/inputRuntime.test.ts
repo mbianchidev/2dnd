@@ -105,4 +105,15 @@ describe("semantic runtime focus and modal ownership", () => {
     advance(900);
     expect(emitted).toEqual(["keydown", "keyup"]);
   });
+
+  it("keeps shared touch confirm/cancel outside the inert game wrapper", () => {
+    const game = document.getElementById("game-inner");
+    if (!game) throw new Error("Missing mock game wrapper");
+    game.id = "game-wrapper";
+    openMobileTextInput("Mock touch name", "", 20, vi.fn());
+    const controls = document.getElementById("touch-controls");
+    expect(controls?.parentElement).toBe(document.body);
+    expect(game.inert).toBe(true);
+    expect(controls?.closest("[inert]")).toBeNull();
+  });
 });

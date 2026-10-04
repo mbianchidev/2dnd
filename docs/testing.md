@@ -36,6 +36,8 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - save round trips, migrations, corruption repair, and cross-field validation
 - semantic input mappings, context priority, repeats, cleanup, and suppression
 - pure layout, wrapping, pagination, safe-area, and focus math
+- original Standard golden mechanics, every Custom bound, once-only scale
+  composition, and per-mode campaign/boss/economy/sea/defeat/save/eligibility
 - transition contracts with mocked camera/time adapters
 - Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
 
@@ -71,7 +73,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v18 autosave/manual-slot persistence,
+- real character creation, schema-v19 autosave/manual-slot persistence,
   relaunch, and continue
 - keyboard Save & Return to Title plus pointer Quit Desktop
 - lifecycle/quit log creation without campaign-content leakage
@@ -85,7 +87,7 @@ Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
 Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work. The command rebuilds the production `/2dnd/`
 target, launches it on an unused local port, and samples cache-disabled
-headless Chromium startup with both empty storage and a fresh schema-v18 save.
+headless Chromium startup with both empty storage and a fresh current-schema save.
 It reports:
 
 - deployed and JavaScript raw/gzip sizes plus source-map size
@@ -109,6 +111,8 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Prefer stable debug-state transitions, layout IDs, and semantic actions.
 - Hold frame-polled Phaser keys across animation frames; instantaneous presses
   can be missed.
+- Release controller test presses inside browser animation frames; host sleeps
+  can exceed semantic repeat thresholds under load.
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.

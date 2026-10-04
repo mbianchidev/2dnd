@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clickLayoutItem } from "./helpers/layout";
+import { SAVE_VERSION } from "../src/systems/save";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_preferences";
@@ -186,7 +187,7 @@ test("crafts batches and upgrades across reloads and responsive locations", asyn
     };
   }, SAVE_KEY);
   expect(crafted).toMatchObject({
-    version: 18,
+    version: SAVE_VERSION,
     potionCount: 2,
     totalCrafts: 2,
   });

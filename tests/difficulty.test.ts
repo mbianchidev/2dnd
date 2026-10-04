@@ -244,6 +244,28 @@ describe("once-only rule composition and bounded outcomes", () => {
     expect(() => scaleCost(100, STANDARD_DIFFICULTY_RULES, NaN)).toThrow("social");
   });
 
+  it("preserves every odd-value historical floor for neutral future scales and social adjustments", () => {
+    const neutralLayers = [
+      resolveDifficultyRules({ profileId: "standard" }, { priceMultiplier: 1 }),
+      resolveDifficultyRules({ profileId: "custom", overrides: {} }, { priceMultiplier: 1 }),
+      resolveDifficultyRules(
+        { profileId: "custom", overrides: { pricePercent: 125 } },
+        { priceMultiplier: 0.8 },
+      ),
+    ];
+    for (const rules of neutralLayers) {
+      expect(rules.priceMultiplier).toBe(1);
+      for (let amount = 0; amount <= 1000; amount += 1) {
+        for (const discount of [-0.25, -0.1, 0, 0.05, 0.1, 0.25, 0.35]) {
+          for (const minimum of [0, 1] as const) {
+            expect(scaleCost(amount, rules, discount, minimum))
+              .toBe(Math.max(minimum, Math.floor(amount * (1 - discount))));
+          }
+        }
+      }
+    }
+  });
+
   it.each(DIFFICULTY_PROFILES)("cannot create $name buy/sell reward arbitrage", (profile) => {
     const rules = resolveDifficultyRules(normalizeDifficultySelection({ profileId: profile.id }));
     for (let cost = 1; cost < 500; cost += 1) {

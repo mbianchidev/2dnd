@@ -33,6 +33,9 @@ and changes spanning scenes, systems, data, renderers, or managers.
 - Overworld orchestration: `src/scenes/Overworld.ts`
 - Battle orchestration: `src/scenes/Battle.ts`
 - Core mechanics: `src/systems/`
+- Canonical difficulty: `src/data/difficulty.ts`, `systems/difficulty.ts`,
+  `difficultyState.ts`, and `enemyTactics.ts`; focused rules UI in
+  `src/managers/difficulty.ts`
 - Immutable definitions: `src/data/`
 - Extracted presentation: `src/renderers/`
 - Battle environment composition: `src/renderers/battleBackdrop.ts`
@@ -62,6 +65,15 @@ in every scene, use its shared reduced-motion accessors, preserve
 symbolic cue. Control presentation preferences cover touch visibility,
 handedness, and prompt source without changing campaign saves. Stable mappings
 are intentionally not remappable.
+
+Campaign rules are independent of preferences. Standard is exact baseline;
+bounded profiles and optional future scale layers compose once through
+`src/systems/difficulty.ts`. Keep runtime enemy HP copies separate from the
+base definitions retained for Codex. Clamp encounter rates after composition,
+preserve neutral currency floors with social modifiers/minimums, and never
+replay claimed outcomes when changing or loading selection metadata.
+`getDifficultyTimingAdjustment()` is only an opt-in consumer suggestion.
+See [Difficulty and Custom rules](../../../docs/difficulty.md).
 
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a

@@ -242,13 +242,13 @@ test.describe("touch controls", () => {
     await waitForState(page, "BOOT | Screen: stats [STAT:strength]");
     await tapGame(page, 390, 64);
     await page.locator('[data-action="confirm"]').tap();
-    await waitForState(page, "BOOT | Screen: appearance [GROUP:1/3]");
+    await waitForState(page, "BOOT | Screen: appearance [GROUP:1/4]");
     await page.locator('[data-action="navigateDown"]').tap();
-    await waitForState(page, "[GROUP:2/3]");
+    await waitForState(page, "[GROUP:2/4]");
     await page.locator('[data-action="cancel"]').tap();
     await waitForState(page, "BOOT | Screen: stats [STAT:strength] [MODE:random]");
     await page.locator('[data-action="confirm"]').tap();
-    await waitForState(page, "BOOT | Screen: appearance [GROUP:1/3]");
+    await waitForState(page, "BOOT | Screen: appearance [GROUP:1/4]");
     await tapGame(page, 320, 112);
     await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "CUTSCENE");

@@ -238,16 +238,19 @@ test("standard gamepad navigates the profile, measured controls and confirmation
     });
   });
   const press = async (button: number): Promise<void> => {
-    await page.evaluate((index) => {
-      (window as typeof window & { __difficultyGamepad(index: number, pressed: boolean): void })
-        .__difficultyGamepad(index, true);
+    await page.evaluate(async (index) => {
+      const controls = window as typeof window & {
+        __difficultyGamepad(index: number, pressed: boolean): void;
+      };
+      controls.__difficultyGamepad(index, true);
+      try {
+        await new Promise<void>((resolve) => requestAnimationFrame(() =>
+          requestAnimationFrame(() => resolve())));
+      } finally {
+        controls.__difficultyGamepad(index, false);
+      }
     }, button);
-    await page.waitForTimeout(150);
-    await page.evaluate((index) => {
-      (window as typeof window & { __difficultyGamepad(index: number, pressed: boolean): void })
-        .__difficultyGamepad(index, false);
-    }, button);
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(120);
   };
   const errors = await setup(page);
   await appearance(page);

@@ -16,10 +16,17 @@ through pure logic tests.
 
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
-schema-v18 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
+schema-v19 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
 
 ## Testing Philosophy
+
+Difficulty coverage must retain the pre-change Standard golden matrix, validate
+every bounded Custom field, prove neutral/future-scale odd-value rounding with
+social adjustments/minimums, and exercise campaign, bosses, groups, companions,
+gambits, sea/hazards, economy, recovery, save repair, and challenge continuity
+per profile. Never regenerate the baseline or weaken a strict crafting-margin
+assertion to accommodate altered mechanics. Keep all preferences independent.
 
 ### What TO Test
 ✅ Dice probability distributions
@@ -580,7 +587,7 @@ npx vitest run tests/dice.test.ts
 - Run `npm run benchmark:baseline` before performance-affecting work and attach
   its commit, environment, and output to the owning issue or pull request. The
   harness uses the named `2dnd:boot-textures` browser performance measure and a
-  fresh schema-v18 save.
+  fresh current-schema save.
 - Cover random and boss defeat results, exact displayed penalties, clean
   continuation, and recovered save/reload state through the production
   `/defeat` debug path.
@@ -598,7 +605,7 @@ npx vitest run tests/dice.test.ts
 - Assert `location.origin === "app://2dnd"`, the `game.html` entry, and the
   fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
-  shell, create a manual snapshot, and continue the same schema-v18 campaign.
+  shell, create a manual snapshot, and continue the same schema-v19 campaign.
 - Return to title through the keyboard menu, quit through the visible title
   action, and verify lifecycle/quit logs without save-content leakage.
 - Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.

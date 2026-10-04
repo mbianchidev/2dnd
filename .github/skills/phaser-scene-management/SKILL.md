@@ -51,6 +51,17 @@ updates or cleanup as class properties.
 
 ## Semantic input
 
+`DifficultyOverlayManager` owns profile/Custom previews, measured bounds,
+spatial focus, the native screen-reader mirror, and cleanup. Enter/Space
+activation is deferred to release and held keys are cleared on close. Pass
+the live player explicitly to `showSettingsOverlay(player)` and
+`toggleSettingsOverlay(player)`; never read the menu's cleared player cache.
+`SettingsControlsOptions` uses optional player/launcher callbacks rather than
+competing positional arguments. Timer suggestions do not enable timing.
+
+Bound controller test presses inside browser animation frames: a host sleep
+can exceed the shared repeat delay on a loaded machine.
+
 `src/systems/input.ts` owns stable action/context contracts and pure state.
 `src/managers/input.ts` is the single browser adapter for keyboard, pointer,
 standard gamepads, and touch. Scenes must use the shared actions or existing

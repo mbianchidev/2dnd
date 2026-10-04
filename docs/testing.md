@@ -34,6 +34,8 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - quests, cutscene triggers/queues, Codex, events, social state, achievements
 - gathering, crafting, nautical state, world/map/trap/fog helpers
 - save round trips, migrations, corruption repair, and cross-field validation
+- unusable hero-core/import rejection, canonical hero/companion item repair,
+  exact-byte slot isolation, and denied `localStorage` getter recovery
 - semantic input mappings, context priority, repeats, cleanup, and suppression
 - pure layout, wrapping, pagination, safe-area, and focus math
 - transition contracts with mocked camera/time adapters
@@ -73,6 +75,8 @@ the relative `game.html` renderer. The smoke flow verifies:
 - fullscreen button and F11 behavior
 - real character creation, schema-v18 autosave/manual-slot persistence,
   relaunch, and continue
+- independent desktop copy/import, exact source-slot bytes, interrupted
+  staging/core-corruption recovery, and loading a second campaign after relaunch
 - keyboard Save & Return to Title plus pointer Quit Desktop
 - lifecycle/quit log creation without campaign-content leakage
 - renderer/page error cleanliness

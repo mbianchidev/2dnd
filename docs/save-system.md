@@ -30,6 +30,8 @@ title/Overworld interface lives in `src/managers/saveSlots.ts`. Focused
 normalization remains beside its domain where appropriate, including
 `questState.ts`, `gatheringState.ts`, `craftingState.ts`, and
 `nauticalState.ts`.
+Required hero-core validation and shared canonical inventory/equipment repair
+live in `saveActor.ts`; companion loading reuses the same item helpers.
 
 ## Current schema
 
@@ -59,8 +61,9 @@ runtime scene state.
 - `autosave`, `manual-1`, `manual-2`, and `manual-3` are the only stable slot
   IDs.
 - Gameplay autosaves only to `autosave`; manual saves are independent snapshots.
-- Loading a manual slot makes that campaign the next autosave without rewriting
-  the source manual slot.
+- Loading a healthy manual slot makes that campaign the next autosave without
+  rewriting the source manual slot. Recovery intentionally repairs a damaged
+  source primary; existing load/copy/export reads are not read-only inspectors.
 - The first valid legacy `2dnd_save` is staged, verified, and backed up in place
   before the migration marker is written. The original document is never
   deleted during migration.
@@ -73,6 +76,14 @@ runtime scene state.
   import/export never uses network or cloud services.
 - Storage, quota, verification, and import failures remain recoverable, are
   logged, and publish a visible `role="alert"` message.
+
+`copySaveSlot(source, target, overwrite)` preserves normalized gameplay and
+playtime, assigns the destination a new timestamp and a bounded `Copy of ...`
+name, and requires explicit overwrite for an occupied target. It does not start
+a playtime session. `loadGame()` does; `readSaveSlotData()` does not. Both read
+paths may perform legacy migration or recovery, while `decodeStoredSave(raw)`
+and `normalizeSaveData(value)` normalize a fresh parsed object without writing
+storage.
 
 ## Authoritative versus derived data
 
@@ -104,6 +115,19 @@ must never become authority for quests, access, rewards, combat, or endings.
 Treat parsed JSON as `unknown`. Validate top-level and nested records with typed
 guards, normalize known values, discard malformed optional records, and return
 `null` when the top-level payload is unusable.
+The hero must have a non-empty name, a level from 1 to 20, six positive integer
+stats, non-negative integer XP/gold/resources, resources within their saved
+capacity, a string spell list, and an inventory of item-ID records. Missing
+hero authority is not reconstructed by inventing a new character. Inventory
+metadata comes from canonical item definitions, and equipment links resolve
+only to owned inventory objects. An unusable primary falls through to its
+staging/backup candidates; unusable imports are rejected before writing.
+
+Access to the `localStorage` property itself may throw under browser privacy
+policies. Campaign access handles this through the shared safe getter in
+`save.ts`, reports writes as unavailable, and keeps title/slot diagnostics
+usable. Audio/accessibility and inventory preference stores retain their
+in-memory defaults and log denied reads/writes without touching campaigns.
 
 Location recovery:
 
@@ -153,5 +177,6 @@ When a persistent shape changes:
     `.github/copilot-instructions.md`, and the save skill.
 
 Run `tests/save.test.ts`, `tests/saveSlots.test.ts`,
-`tests/saveStorage.test.ts`, and every domain-specific migration test before the
-full release gate.
+`tests/saveStorage.test.ts`, `tests/saveValidation.test.ts`,
+`tests/saveAvailability.test.ts`, and every domain-specific migration test
+before the full release gate.

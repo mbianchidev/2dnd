@@ -798,6 +798,12 @@ migration marker. Migrate a valid legacy autosave atomically without deleting
 it, isolate corruption per slot, recover staging/backup copies before failure,
 and validate all deterministic JSON imports through the existing campaign
 normalizer. Loading a manual snapshot must not mutate that source slot.
+Validate required hero identity, stats, level, economy, resources, spell-list,
+and item-ID records before optional repair; an unusable core must fall through
+to recovery or reject an import before writing. Share canonical item and
+owned-equipment repair through `src/systems/saveActor.ts`.
+Catch denial of the `localStorage` getter as well as its methods. Keep title
+diagnostics and in-memory preferences usable, and surface campaign write errors.
 
 Schema v17 adds normalized feature-discovery IDs, pending one-time reveal IDs,
 explicit debug reveals, and debug-suppressed evidence. Schema-v16 and older

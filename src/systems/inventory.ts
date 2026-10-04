@@ -130,10 +130,10 @@ export function normalizeInventoryPreferences(
 }
 
 function loadInventoryPreferences(): InventoryPreferences {
-  if (typeof localStorage === "undefined") {
-    return normalizeInventoryPreferences(undefined);
-  }
   try {
+    if (typeof localStorage === "undefined") {
+      return normalizeInventoryPreferences(undefined);
+    }
     const saved = localStorage.getItem(INVENTORY_PREFERENCES_STORAGE_KEY);
     return normalizeInventoryPreferences(
       saved === null ? undefined : JSON.parse(saved) as unknown,
@@ -177,8 +177,8 @@ export class InventoryPreferenceStore {
 
   private update(changes: Partial<InventoryPreferences>): void {
     this.preferences = { ...this.preferences, ...changes };
-    if (typeof localStorage === "undefined") return;
     try {
+      if (typeof localStorage === "undefined") return;
       localStorage.setItem(
         INVENTORY_PREFERENCES_STORAGE_KEY,
         JSON.stringify(this.preferences),

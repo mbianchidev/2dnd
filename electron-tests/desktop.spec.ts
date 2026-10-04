@@ -12,6 +12,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { clickLayoutItem } from "../e2e/helpers/layout";
 
 const APP_ROOT = resolve(import.meta.dirname, "..");
 const SAVE_KEY = "2dnd_save";
@@ -91,6 +92,19 @@ async function activateTitleAction(
     await page.waitForTimeout(50);
   }
   throw new Error(`Unable to select desktop title action: ${action}`);
+}
+
+async function returnToTitle(page: Page): Promise<void> {
+  await holdKey(page, "Escape");
+  await waitForState(page, "[MENU]");
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes("[MENU_SELECTION:quit]")) break;
+    await holdKey(page, "ArrowDown", 80);
+  }
+  await waitForState(page, "[MENU_SELECTION:quit]");
+  await holdKey(page, "Enter");
+  await waitForState(page, "BOOT | Screen: title");
 }
 
 async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
@@ -272,19 +286,114 @@ test("secure desktop shell persists a campaign across launches", async () => {
         name: parsed.player.name,
       };
     })).toEqual(saved);
+    const manualSnapshot = await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-1")
+    );
+    if (!manualSnapshot) throw new Error("Missing desktop manual snapshot");
     await holdKey(page, "Escape");
     await expect(page.locator("#debug-state")).not.toContainText("[SAVE_SLOTS:");
-    await holdKey(page, "Escape");
-    await waitForState(page, "[MENU]");
-    for (let attempt = 0; attempt < 16; attempt += 1) {
-      const state = await page.locator("#debug-state").textContent() ?? "";
-      if (state.includes("[MENU_SELECTION:quit]")) break;
-      await holdKey(page, "ArrowDown", 80);
-    }
-    await waitForState(page, "[MENU_SELECTION:quit]");
-    await holdKey(page, "Enter");
-    await waitForState(page, "BOOT | Screen: title");
+    await returnToTitle(page);
     expect(relaunchedRendererErrors).toEqual([]);
+
+    await clickLayoutItem(page, "title-save-slots");
+    await clickLayoutItem(page, "save-slot-row-manual-1");
+    await expect(page.locator("#save-slot-live-region")).toContainText(
+      "Desktop Hero Lv.1 Knight",
+    );
+    await clickLayoutItem(page, "save-slot-action-copy");
+    await waitForState(page, "[SAVE_PHASE:copy-target]");
+    await clickLayoutItem(page, "save-slot-action-confirm");
+    await expect.poll(() => page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-2")
+    )).not.toBeNull();
+
+    const secondCampaign = await page.evaluate((raw) => {
+      const parsed: unknown = JSON.parse(raw);
+      if (
+        typeof parsed !== "object"
+        || parsed === null
+        || !("player" in parsed)
+        || typeof parsed.player !== "object"
+        || parsed.player === null
+      ) {
+        throw new Error("Invalid desktop manual fixture");
+      }
+      return JSON.stringify({
+        ...parsed,
+        player: { ...parsed.player, name: "Desktop Second Hero" },
+      });
+    }, manualSnapshot);
+    await clickLayoutItem(page, "save-slot-action-import");
+    await waitForState(page, "[SAVE_PHASE:confirm-import]");
+    const picker = page.waitForEvent("filechooser");
+    await clickLayoutItem(page, "save-slot-action-confirm");
+    await (await picker).setFiles({
+      name: "mock-second-desktop-campaign.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(secondCampaign),
+    });
+    await expect(page.locator("#save-slot-live-region")).toContainText(
+      "Desktop Second Hero",
+    );
+    const secondSnapshot = await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-2")
+    );
+    if (!secondSnapshot) throw new Error("Missing imported desktop snapshot");
+    expect(await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-1")
+    )).toBe(manualSnapshot);
+
+    await page.evaluate((raw) => {
+      localStorage.setItem("2dnd_save_slot_manual-2:staging", raw);
+      localStorage.setItem("2dnd_save_slot_manual-2", JSON.stringify({
+        version: 18,
+        player: { inventory: [] },
+      }));
+    }, secondSnapshot);
+    expect(relaunchedRendererErrors).toEqual([]);
+    await desktop.close();
+    desktop = undefined;
+
+    desktop = await launchDesktop(userDataDirectory);
+    page = await desktop.firstWindow();
+    const recoveredRendererErrors = monitorRendererErrors(page);
+    await waitForState(page, "BOOT | Screen: title");
+    await clickLayoutItem(page, "title-save-slots");
+    await clickLayoutItem(page, "save-slot-row-manual-2");
+    await expect(page.locator("#save-slot-live-region")).toContainText(
+      "Desktop Second Hero Lv.1 Knight",
+    );
+    expect(await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-2")
+    )).toBe(secondSnapshot);
+    expect(await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-2:staging")
+    )).toBeNull();
+    expect(await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-1")
+    )).toBe(manualSnapshot);
+    await clickLayoutItem(page, "save-slot-action-load");
+    await waitForState(page, "OVERWORLD");
+    expect(await page.evaluate(() => {
+      const raw = localStorage.getItem("2dnd_save");
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      if (
+        typeof parsed !== "object"
+        || parsed === null
+        || !("player" in parsed)
+        || typeof parsed.player !== "object"
+        || parsed.player === null
+        || !("name" in parsed.player)
+      ) {
+        throw new Error("Missing continued desktop campaign");
+      }
+      return parsed.player.name;
+    })).toBe("Desktop Second Hero");
+    expect(await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-2")
+    )).toBe(secondSnapshot);
+    await returnToTitle(page);
+    expect(recoveredRendererErrors).toEqual([]);
 
     const closePromise = desktop.waitForEvent("close");
     await clickGame(page, 320, 492);

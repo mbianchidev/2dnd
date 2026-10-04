@@ -220,9 +220,12 @@ import {
   suppressCurrentlyAvailableFeatures,
 } from "../systems/featureDiscovery";
 import {
+  changeCampaignDifficulty,
   getCampaignDifficultyRules,
   getDifficultyEncounterRate,
+  type DifficultySelection,
 } from "../systems/difficulty";
+import type { DifficultyOverlayFeedback } from "../managers/difficulty";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -491,6 +494,7 @@ export class OverworldScene extends Phaser.Scene {
       openTips: () => this.tutorialManager.showTips(this.player),
       openSaveSlots: () => this.openManualSaveSlots(),
       onStateChange: () => this.updateDebugPanel(),
+      changeCampaignRules: (selection) => this.changeCampaignRules(selection),
       fadeOutAndIn: (atBlack, duration) =>
         this.sceneTransitions.fadeOutAndIn(atBlack, {
           duration,
@@ -3473,6 +3477,27 @@ export class OverworldScene extends Phaser.Scene {
     if (this.sceneTransitions.isPending || this.isMoving) return;
     this.overlayManager.destroyAll();
     this.saveSlotManager.open("save");
+  }
+
+  private changeCampaignRules(selection: DifficultySelection): DifficultyOverlayFeedback {
+    const result = changeCampaignDifficulty(this.player, selection, {
+      phase: this.sceneTransitions.isPending ? "transition" : "exploration",
+      inputAccepted: !this.isMoving && !this.dialogueSystem.isDialogueOpen(),
+      confirmed: true,
+      timeStep: this.timeStep,
+    }, () => saveGame(
+      this.player,
+      this.defeatedBosses,
+      this.codex,
+      this.player.appearanceId,
+      this.timeStep,
+      this.weatherState,
+    ));
+    if (result.ok) {
+      this.updateHUD();
+      this.updateDebugPanel();
+    }
+    return result;
   }
 
   private startGatheringNearby(): boolean {

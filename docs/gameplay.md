@@ -63,6 +63,10 @@ Character creation follows:
   or constrained Custom. Standard is the original mechanics. Settings and the
   character sheet show all effects and eligibility; see
   [Difficulty and Custom rules](difficulty.md).
+- Campaign rules can change later only through a preview and explicit
+  confirmation during safe exploration. Pending outcomes and battles block
+  changes; actual edits permanently remove future preset-challenge continuity,
+  while general and already earned achievements remain.
 - Choose Knight, Ranger, Wizard, Sorcerer, Rogue, Paladin, Warlock, Cleric,
   Druid, Barbarian, Monk, or Bard.
 - Spend 27 points on base scores from 8 to 15, or use 4d6-drop-lowest random

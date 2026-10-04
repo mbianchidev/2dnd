@@ -81,8 +81,9 @@ import {
   type EscapeMenuAction,
   type EscapeMenuEntry,
 } from "../systems/featureDiscovery";
-import { getCampaignDifficultyRules, scaleCost } from "../systems/difficulty";
+import { getCampaignDifficultyRules, scaleCost, type DifficultySelection } from "../systems/difficulty";
 import { DifficultyOverlayManager } from "./difficulty";
+import type { DifficultyOverlayFeedback } from "./difficulty";
 
 /** Callbacks the OverlayManager uses to interact with the parent scene. */
 export interface OverlayCallbacks {
@@ -115,6 +116,7 @@ export interface OverlayCallbacks {
     currentPortId: PortId,
   ) => void;
   onStateChange?(): void;
+  changeCampaignRules?(selection: DifficultySelection): DifficultyOverlayFeedback;
 }
 
 export class OverlayManager {
@@ -1333,9 +1335,13 @@ export class OverlayManager {
   showDifficultyOverlay(player: PlayerState, returnToSettings = false): void {
     if (this.difficultyManager.isOpen()) return;
     this.closeOverlays("menuOverlay", "equipOverlay", "statOverlay", "settingsOverlay");
+    const changeRules = this.callbacks.changeCampaignRules;
     this.difficultyManager.open({
       selection: player.difficulty.selection,
       campaign: player,
+      apply: changeRules
+        ? (selection) => changeRules(selection)
+        : undefined,
       onClose: () => {
         if (returnToSettings) this.showSettingsOverlay(player);
       },

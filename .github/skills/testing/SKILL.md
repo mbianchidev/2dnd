@@ -27,6 +27,9 @@ social adjustments/minimums, and exercise campaign, bosses, groups, companions,
 gambits, sea/hazards, economy, recovery, save repair, and challenge continuity
 per profile. Never regenerate the baseline or weaken a strict crafting-margin
 assertion to accommodate altered mechanics. Keep all preferences independent.
+Exercise mid-run confirmation/cancel, unsafe phases and every pending domain,
+no-op application, one saved cause, storage failure rollback, manual-source
+immutability, Custom/preset round trips, and bounded-history continuity.
 
 ### What TO Test
 ✅ Dice probability distributions

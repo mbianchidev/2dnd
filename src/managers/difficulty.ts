@@ -9,8 +9,10 @@ import {
   createCampaignDifficulty,
   getCampaignDifficultyEligibility,
   getDifficultyAchievementEligibility,
+  getDifficultyEffectChanges,
   getDifficultyEffectPreview,
 } from "../systems/difficulty";
+import type { DifficultyEffectPreview } from "../systems/difficulty";
 import {
   adjustCustomDifficultyRule,
   cycleDifficultyProfile,
@@ -176,7 +178,7 @@ export class DifficultyOverlayManager {
     const headerHeight = layoutTextStack([title, description, profileText], {
       x, y: py + 12, width, gap: 12, hitAreaPadding: 8,
     });
-    const preview = getDifficultyEffectPreview(this.selection);
+    const preview = this.getPreview();
     this.page = Math.min(this.page, Math.ceil(preview.length / PAGE_SIZE) - 1);
     const rows: Phaser.GameObjects.Text[] = [];
     if (!this.confirming) {
@@ -184,7 +186,8 @@ export class DifficultyOverlayManager {
         const bounds = CUSTOM_NUMERIC_DIFFICULTY_RULES.find((rule) => rule.id === effect.id);
         const label = `${effect.label}: ${effect.value}`
           + (bounds ? ` [${bounds.minimum}..${bounds.maximum}${bounds.unit}]` : "");
-        const editable = this.selection.profileId === "custom";
+        const editable = this.selection.profileId === "custom"
+          && !effect.id.startsWith("history");
         if (editable) {
           const id = this.editorRuleId(effect.id);
           rows.push(this.addControl(
@@ -198,12 +201,16 @@ export class DifficultyOverlayManager {
         }
       }
     } else {
+      const changes = getDifficultyEffectChanges(options.selection, this.selection);
+      const changedLines = changes.slice(0, 3).map((change) =>
+        `${change.label}: ${change.from} -> ${change.to}`);
       rows.push(this.addText(
         "difficulty-confirm-summary", x, 0,
         `Current: ${getDifficultyProfile(options.selection.profileId).name}\n`
           + `Selected: ${profile.name}\n`
-          + "General and previously earned achievements remain available.\n"
-          + "No existing outcome, reward, check, or recovery is replayed.",
+          + (changedLines.length > 0 ? `${changedLines.join("\n")}\n` : "")
+          + (changes.length > 3 ? `Plus ${changes.length - 3} effects shown in the preview.\n` : "")
+          + "No existing outcomes or rewards are replayed.",
         width, 11,
       ));
     }
@@ -263,6 +270,25 @@ export class DifficultyOverlayManager {
     if (numeric) return numeric.id;
     if (id === "enemyAiPolicy" || id === "defeatXpPenalty" || id === "timedRoundDurationSeconds") return id;
     throw new Error(`[difficulty] Unknown editor row: ${id}`);
+  }
+
+  private getPreview(): readonly DifficultyEffectPreview[] {
+    const effects = getDifficultyEffectPreview(this.selection);
+    const state = this.options?.campaign?.difficulty;
+    if (!state) return effects;
+    return [
+      ...effects,
+      {
+        id: "historySummary", label: "Recorded rule changes",
+        value: `${state.changeCount}; initial ${getDifficultyProfile(state.initialProfileId).name}`,
+      },
+      ...state.history.map((cause) => ({
+        id: `history-${cause.sequence}`,
+        label: `Change ${cause.sequence}, step ${cause.timeStep}`,
+        value: `${getDifficultyProfile(cause.from.profileId).name} -> `
+          + `${getDifficultyProfile(cause.to.profileId).name}, explicitly confirmed`,
+      })),
+    ];
   }
 
   private addText(
@@ -351,7 +377,7 @@ export class DifficultyOverlayManager {
   }
 
   private changePage(direction: -1 | 1): void {
-    const count = Math.ceil(getDifficultyEffectPreview(this.selection).length / PAGE_SIZE);
+    const count = Math.ceil(this.getPreview().length / PAGE_SIZE);
     this.page = (this.page + direction + count) % count;
     this.render();
   }

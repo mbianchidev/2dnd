@@ -195,6 +195,132 @@ test("settings inspect live campaign rules without rewriting a manual source or 
   expect(errors).toEqual([]);
 });
 
+test("safe mid-run changes require confirmation, persist causes and never replay outcomes or restore challenge credit", async ({ page }) => {
+  const errors = await setup(page);
+  await appearance(page);
+  await clickLayoutItem(page, "character-difficulty");
+  await chooseProfile(page, "veteran");
+  await clickLayoutItem(page, "difficulty-apply");
+  await clickGame(page, 420, 312);
+  await opening(page);
+  const before = await readCampaign(page);
+  await page.evaluate(async () => {
+    const path = new URL("src/systems/saveSlots.ts", location.href).pathname;
+    const module: typeof import("../src/systems/saveSlots") = await import(path);
+    const savePath = new URL("src/systems/save.ts", location.href).pathname;
+    const saves: typeof import("../src/systems/save") = await import(savePath);
+    const save = saves.loadGame();
+    if (!save) throw new Error("Missing snapshot source");
+    const result = module.saveGameToSlot("manual-1", save.player,
+      new Set(save.defeatedBosses), save.codex, save.appearanceId,
+      save.timeStep, save.weatherState);
+    if (!result.ok) throw new Error(result.message);
+  });
+  const manualBytes = await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"));
+  const openRules = async (): Promise<void> => {
+    await key(page, "Escape");
+    await clickLayoutItem(page, "escape-menu-settings");
+    await clickLayoutItem(page, "settings-difficulty");
+    await state(page, "[DIFFICULTY]");
+  };
+  await openRules();
+  await key(page, "ArrowLeft");
+  await key(page, "ArrowLeft");
+  await state(page, "[RULE_PROFILE:story]");
+  await clickLayoutItem(page, "difficulty-apply");
+  await state(page, "[RULE_PHASE:confirm]");
+  expect((await readCampaign(page)).player.difficulty).toEqual(before.player.difficulty);
+  await expectCleanLayout(page);
+  await clickLayoutItem(page, "difficulty-close");
+  await state(page, "[RULE_PHASE:edit]");
+  expect((await readCampaign(page)).player.difficulty.changeCount).toBe(0);
+  await clickLayoutItem(page, "difficulty-apply");
+  await state(page, "[RULE_PHASE:confirm]");
+  await clickLayoutItem(page, "difficulty-apply");
+  await state(page, "[SETTINGS]");
+  const changed = await readCampaign(page);
+  expect(changed.player.difficulty).toMatchObject({
+    selection: { profileId: "story" }, initialProfileId: "veteran", changeCount: 1,
+    history: [{ sequence: 1, cause: "playerConfirmed", from: { profileId: "veteran" }, to: { profileId: "story" } }],
+  });
+  expect({
+    gold: changed.player.gold, xp: changed.player.xp, hp: changed.player.hp, mp: changed.player.mp,
+    quests: changed.player.progression.quests, inventory: changed.player.inventory,
+    party: changed.player.party, social: changed.player.progression.social,
+  }).toEqual({
+    gold: before.player.gold, xp: before.player.xp, hp: before.player.hp, mp: before.player.mp,
+    quests: before.player.progression.quests, inventory: before.player.inventory,
+    party: before.player.party, social: before.player.progression.social,
+  });
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(manualBytes);
+  await clickLayoutItem(page, "settings-difficulty");
+  await clickLayoutItem(page, "difficulty-apply");
+  await state(page, "[SETTINGS]");
+  expect((await readCampaign(page)).player.difficulty.changeCount).toBe(1);
+  await clickLayoutItem(page, "settings-difficulty");
+  await key(page, "ArrowRight");
+  await key(page, "ArrowRight");
+  await state(page, "[RULE_PROFILE:veteran]");
+  await clickLayoutItem(page, "difficulty-apply");
+  await clickLayoutItem(page, "difficulty-apply");
+  expect((await readCampaign(page)).player.difficulty.changeCount).toBe(2);
+  await page.reload({ waitUntil: "networkidle" });
+  await clickLayoutItem(page, "title-save-slots");
+  await expect(page.locator("#save-slot-live-region")).toContainText("changed");
+  await key(page, "Escape");
+  await clickLayoutItem(page, "title-continue");
+  await state(page, "OVERWORLD");
+  expect((await readCampaign(page)).player.difficulty).toMatchObject({
+    selection: { profileId: "veteran" }, changeCount: 2,
+  });
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(manualBytes);
+  expect(errors).toEqual([]);
+});
+
+test("Custom mid-run edits preview exact values and failed autosaves roll back the campaign", async ({ page }) => {
+  const errors = await setup(page);
+  await appearance(page);
+  await clickLayoutItem(page, "character-difficulty");
+  await chooseProfile(page, "custom");
+  await clickLayoutItem(page, "difficulty-apply");
+  await clickGame(page, 420, 312);
+  await opening(page);
+  await key(page, "Escape");
+  await clickLayoutItem(page, "escape-menu-settings");
+  await clickLayoutItem(page, "settings-difficulty");
+  await key(page, "ArrowDown");
+  await key(page, "ArrowRight");
+  await clickLayoutItem(page, "difficulty-apply");
+  await state(page, "[RULE_PHASE:confirm]");
+  const summary = await page.locator("#layout-report").textContent();
+  expect(summary).toContain("difficulty-confirm-summary");
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    Object.defineProperty(window, "__restoreDifficultyStorage", {
+      configurable: true, value: () => { Storage.prototype.setItem = original; },
+    });
+    Storage.prototype.setItem = function(name: string, value: string): void {
+      if (name.startsWith("2dnd_save")) throw new DOMException("Test quota exhausted", "QuotaExceededError");
+      original.call(this, name, value);
+    };
+  });
+  await clickLayoutItem(page, "difficulty-apply");
+  await state(page, "[RULE_PHASE:confirm]");
+  await expect(page.locator("#save-storage-alert")).toContainText("Save error");
+  expect((await readCampaign(page)).player.difficulty).toMatchObject({
+    selection: { profileId: "custom", overrides: {} }, changeCount: 0,
+  });
+  await page.evaluate(() => {
+    (window as typeof window & { __restoreDifficultyStorage(): void }).__restoreDifficultyStorage();
+  });
+  await clickLayoutItem(page, "difficulty-apply");
+  await state(page, "[SETTINGS]");
+  expect((await readCampaign(page)).player.difficulty).toMatchObject({
+    selection: { profileId: "custom", overrides: { enemyHpPercent: 105 } }, changeCount: 1,
+  });
+  expect(errors).toEqual([]);
+});
+
 test.describe("touch difficulty selection", () => {
   test.use({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
   test("selects a bounded Custom profile through direct touch and semantic actions", async ({ page }) => {
@@ -217,6 +343,19 @@ test.describe("touch difficulty selection", () => {
     await state(page, "CUTSCENE");
     expect((await readCampaign(page)).player.difficulty.selection).toEqual({
       profileId: "custom", overrides: { enemyHpPercent: 105 },
+    });
+    await opening(page);
+    await page.locator('[data-action="openMenu"]').tap();
+    await tapLayoutItem(page, "escape-menu-settings");
+    await tapLayoutItem(page, "settings-difficulty");
+    await page.locator('[data-action="navigateDown"]').tap();
+    await page.locator('[data-action="navigateRight"]').tap();
+    await tapLayoutItem(page, "difficulty-apply");
+    await state(page, "[RULE_PHASE:confirm]");
+    await tapLayoutItem(page, "difficulty-apply");
+    await state(page, "[SETTINGS]");
+    expect((await readCampaign(page)).player.difficulty).toMatchObject({
+      selection: { profileId: "custom", overrides: { enemyHpPercent: 110 } }, changeCount: 1,
     });
     expect(errors).toEqual([]);
   });

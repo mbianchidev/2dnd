@@ -4,7 +4,7 @@ import {
   adjustCustomDifficultyRule,
   cycleDifficultyProfile,
 } from "../src/systems/difficultyEditor";
-import { resolveDifficultyModifiers } from "../src/systems/difficulty";
+import { getDifficultyEffectChanges, resolveDifficultyModifiers } from "../src/systems/difficulty";
 import { moveSpatialLayoutFocus, type SpatialFocusableLayoutItem } from "../src/systems/layout";
 
 describe("pure difficulty editor", () => {
@@ -38,6 +38,17 @@ describe("pure difficulty editor", () => {
     expect(timed).not.toHaveProperty("enabled");
     expect(() => adjustCustomDifficultyRule({ profileId: "standard" }, "enemyHpPercent", 1))
       .toThrow("Select Custom");
+  });
+
+  it("previews exact changed Custom fields, not only an unchanged Custom label", () => {
+    expect(getDifficultyEffectChanges(
+      { profileId: "custom", overrides: { enemyHpPercent: 105 } },
+      { profileId: "custom", overrides: { enemyHpPercent: 110, pricePercent: 85 } },
+    )).toEqual([
+      { id: "enemyHpPercent", label: "Enemy HP", from: "105%", to: "110%" },
+      { id: "pricePercent", label: "Prices and fees", from: "100%", to: "85%" },
+    ]);
+    expect(getDifficultyEffectChanges({ profileId: "standard" }, { profileId: "custom" })).toEqual([]);
   });
 });
 

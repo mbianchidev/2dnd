@@ -60,6 +60,13 @@ export interface DifficultyEffectPreview {
   readonly value: string;
 }
 
+export interface DifficultyEffectChange {
+  readonly id: string;
+  readonly label: string;
+  readonly from: string;
+  readonly to: string;
+}
+
 export interface DifficultyAchievementEligibility {
   readonly generalAchievements: true;
   readonly challengeProfile: "veteran" | "legendary" | null;
@@ -291,4 +298,17 @@ export function getDifficultyEffectPreview(
         : `${modifiers.timedRoundDurationSeconds}s, only if timing is already enabled`,
     },
   ];
+}
+
+export function getDifficultyEffectChanges(
+  from: DifficultySelection,
+  to: DifficultySelection,
+): readonly DifficultyEffectChange[] {
+  const original = new Map(getDifficultyEffectPreview(from).map((effect) => [effect.id, effect]));
+  return getDifficultyEffectPreview(to).flatMap((effect) => {
+    const previous = original.get(effect.id);
+    return previous && previous.value !== effect.value
+      ? [{ id: effect.id, label: effect.label, from: previous.value, to: effect.value }]
+      : [];
+  });
 }

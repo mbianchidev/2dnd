@@ -13,6 +13,7 @@ import type {
   DifficultyProfileId,
   DifficultySelection,
 } from "../data/difficulty";
+import type { PlayerState } from "./player";
 
 export const DIFFICULTY_SAVE_VERSION = 19;
 export const DIFFICULTY_HISTORY_LIMIT = 20;
@@ -30,6 +31,19 @@ export interface CampaignDifficultyState {
   initialProfileId: DifficultyProfileId;
   changeCount: number;
   history: DifficultyChangeCause[];
+}
+
+export interface DifficultyChangeContext {
+  phase: "exploration" | "battle" | "cutscene" | "transition" | "interaction";
+  inputAccepted: boolean;
+  confirmed: boolean;
+  timeStep: number;
+}
+
+export interface DifficultyChangeResult {
+  ok: boolean;
+  changed: boolean;
+  message: string;
 }
 
 interface SelectionNormalization {
@@ -204,4 +218,81 @@ export function normalizeCampaignDifficulty(
     changeCount,
     history,
   };
+}
+
+function rejectDifficultyChange(message: string): DifficultyChangeResult {
+  debugLog(`[difficulty] ${message}`);
+  return { ok: false, changed: false, message };
+}
+
+/** Confirmed safe-state transaction: autosave failure restores the exact prior metadata. */
+export function changeCampaignDifficulty(
+  player: Pick<PlayerState, "difficulty" | "progression">,
+  selection: unknown,
+  context: DifficultyChangeContext,
+  persist: () => { ok: boolean; message: string },
+): DifficultyChangeResult {
+  if (!isDifficultySelection(selection)) {
+    return rejectDifficultyChange("Choose a known profile and values within every Custom bound.");
+  }
+  if (!isNonnegativeInteger(context.timeStep)) {
+    return rejectDifficultyChange("Campaign rule changes require a valid movement-step counter.");
+  }
+  if (!context.confirmed) {
+    return rejectDifficultyChange("Review and explicitly confirm the rule change first.");
+  }
+  if (context.phase !== "exploration" || !context.inputAccepted) {
+    return rejectDifficultyChange("Rules can change only during safe exploration, never during a battle or blocked input.");
+  }
+  const progression = player.progression;
+  if (progression.pendingCutsceneIds.length > 0) {
+    return rejectDifficultyChange("Finish the queued story presentation before changing campaign rules.");
+  }
+  if (progression.worldEvents.pending) {
+    return rejectDifficultyChange("Resolve the pending World Event before changing campaign rules.");
+  }
+  if (progression.gathering.pending) {
+    return rejectDifficultyChange("Finish the pending gathering outcome before changing campaign rules.");
+  }
+  if (progression.nautical.pendingMerchantRoute
+      || progression.nautical.pendingHazard
+      || progression.nautical.pendingEncounter) {
+    return rejectDifficultyChange("Resolve pending sea travel, hazards, and encounters before changing campaign rules.");
+  }
+  const normalized = normalizeDifficultySelection(selection);
+  const previous = player.difficulty;
+  if (areDifficultySelectionsEqual(previous.selection, normalized)) {
+    return { ok: true, changed: false, message: "Rules are unchanged; history and eligibility are preserved." };
+  }
+  if (!isNonnegativeInteger(previous.changeCount) || previous.changeCount >= Number.MAX_SAFE_INTEGER) {
+    return rejectDifficultyChange("Rule history cannot safely record another change.");
+  }
+  const sequence = previous.changeCount + 1;
+  const cause: DifficultyChangeCause = {
+    sequence,
+    timeStep: context.timeStep,
+    cause: "playerConfirmed",
+    from: previous.selection,
+    to: normalized,
+  };
+  player.difficulty = {
+    selection: normalized,
+    initialProfileId: previous.initialProfileId,
+    changeCount: sequence,
+    history: [...previous.history, cause].slice(-DIFFICULTY_HISTORY_LIMIT),
+  };
+  let committed = false;
+  try {
+    const saved = persist();
+    if (!saved.ok) {
+      return rejectDifficultyChange(`Rules were not changed because autosave failed: ${saved.message}`);
+    }
+    committed = true;
+    return {
+      ok: true, changed: true,
+      message: "Campaign rules saved. General and earned achievements remain; preset challenge continuity is now unavailable.",
+    };
+  } finally {
+    if (!committed) player.difficulty = previous;
+  }
 }

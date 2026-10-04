@@ -73,6 +73,9 @@ base definitions retained for Codex. Clamp encounter rates after composition,
 preserve neutral currency floors with social modifiers/minimums, and never
 replay claimed outcomes when changing or loading selection metadata.
 `getDifficultyTimingAdjustment()` is only an opt-in consumer suggestion.
+Mid-run edits use the confirmed safe-exploration transaction with atomic
+autosave/rollback; pending outcomes remain unchanged and challenge continuity
+cannot be restored through equivalent Custom/preset round trips.
 See [Difficulty and Custom rules](../../../docs/difficulty.md).
 
 All release input routes through the semantic action layer. Standard gamepads

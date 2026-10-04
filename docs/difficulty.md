@@ -75,6 +75,28 @@ Fixed skill-check results remain fixed even when later rules differ. Assistance
 is included in the stored modifier rather than rerolling or recomputing a saved
 outcome. Non-combat hazards remain nonlethal.
 
+## Mid-campaign policy
+
+Every preset and bounded Custom setting may change during **safe exploration
+only**. The effect preview is a draft: choosing or editing values does not alter
+the campaign. Review Change shows the exact changes and the permanent
+preset-challenge consequence, then Confirm Change performs one autosave
+transaction.
+
+Battle, queued cutscenes, scene handoffs, movement, active dialogue, and pending
+World Event, gathering, merchant-route, sea-hazard, or sea-encounter outcomes
+block the transaction. Finish the authoritative outcome first. Existing checks,
+resources, rewards, recruitment, quests, social state, and recovery receipts are
+not replayed or rerated.
+
+A failed autosave restores the exact prior live selection/history and reports
+the storage error. Applying an unchanged canonical selection is a no-op: it
+does not increment history or change eligibility. Actual profile or Custom edits
+append one canonical from/to/movement-step cause, preserve the initial profile,
+and irreversibly remove future preset-challenge continuity. General and prior
+earned achievements remain available. The preview includes the bounded history;
+manual snapshots retain their original bytes and rules.
+
 ## Economy and recovery
 
 Exactly neutral prices keep the original floor rounding, including social

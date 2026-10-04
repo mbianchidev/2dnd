@@ -810,6 +810,13 @@ challenges require unchanged natural non-debug progression. Accessibility/input
 and dice presentation never enter difficulty classification. Optional timer
 suggestions never enable timed rounds or duplicate countdown logic.
 
+Mid-campaign preset/Custom changes require safe accepted exploration input,
+no queued/pending authoritative outcome, a complete effect preview, explicit
+confirmation, and an atomic autosave. Roll back the exact selection/history on
+save failure. No-op selections do not record causes or lose eligibility; actual
+changes append one canonical movement-step cause and irreversibly remove future
+preset challenge continuity without replaying gameplay.
+
 Schema v18 adds non-negative campaign playtime and a resilient local slot
 layout: the legacy-compatible `2dnd_save` autosave, three stable manual slots,
 verified staging and prior-primary backups, per-slot names, and a one-time

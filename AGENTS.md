@@ -98,6 +98,10 @@ owning issue or pull request.
   scale once; keep base monster stats for Codex, clamp encounter pressure last,
   preserve neutral currency rounding, and keep accessibility/dice preferences
   outside profile classification. See [Difficulty](docs/difficulty.md).
+- Mid-campaign edits require explicit confirmation and safe exploration with
+  no pending authoritative outcome. Use `changeCampaignDifficulty()` for
+  no-op detection, bounded causes, atomic save rollback and irreversible preset
+  challenge loss; never replay old rewards or recovery.
 - Route all release input through semantic contexts; do not add scene-local
   gamepad/touch mappings or conflicting production/debug keys.
 - `TitleMenuManager` owns title selection, large pointer targets, and semantic

@@ -48,6 +48,12 @@ Persist no derived modifiers or future scale layers. Actual merchant-route
 `feePaid` is a bounded transaction receipt, not a rate to recompute at reload.
 See [Difficulty and Custom rules](../../../docs/difficulty.md).
 
+`changeCampaignDifficulty()` is the confirmed safe-exploration transaction:
+block pending outcomes and input handoffs, append one canonical cause, autosave
+once, and restore the exact prior metadata on save failure. A no-op selection
+does not write another cause or remove challenge continuity. Never replay or
+rerate existing resources, checks, rewards, or recovery receipts.
+
 ```typescript
 interface SaveData {
   version: number;

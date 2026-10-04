@@ -168,6 +168,10 @@ authoritative turn/result transitions.
 `enemyTactics.ts` owns bounded enemy targeting and chance policy. The focused
 `src/managers/difficulty.ts` owns measured, accessible creation/settings
 presentation without spending resources or replaying outcomes.
+Confirmed mid-campaign changes use the Phaser-free safe-state transaction,
+which owns cause append, no-op detection, pending-domain validation and exact
+metadata rollback when autosave fails. Scene callbacks provide accepted-input
+and transition state, never their own rule composition.
 
 Standard is exact baseline. Enemy HP uses an isolated runtime copy, while base
 definitions remain authoritative for Codex persistence. Accuracy does not leak

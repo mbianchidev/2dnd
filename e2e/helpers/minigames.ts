@@ -98,7 +98,7 @@ export async function minigamePad(page: Page, index: number): Promise<void> {
       }).__setMinigamePadButton(button, false);
     }, index);
   }
-  await page.waitForTimeout(140);
+  await holdMinigameInputFrame(page, 140);
 }
 
 export async function minigameTouchControl(page: Page, action: string): Promise<void> {

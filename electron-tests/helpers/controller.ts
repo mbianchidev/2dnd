@@ -86,10 +86,18 @@ export async function pressController(page: Page, button: number): Promise<void>
   await page.evaluate((index) => {
     window.__mockController.button(index, true);
     return new Promise<void>((resolve) => {
-      requestAnimationFrame(() => {
+      // Keep D-pad taps short; frame-polled buttons need a full held update.
+      let heldFrames = index >= 12 && index <= 15 ? 1 : 2;
+      const frame = (): void => {
+        heldFrames -= 1;
+        if (heldFrames > 0) {
+          requestAnimationFrame(frame);
+          return;
+        }
         window.__mockController.button(index, false);
         requestAnimationFrame(() => resolve());
-      });
+      };
+      requestAnimationFrame(frame);
     });
   }, button);
   await page.waitForTimeout(120);

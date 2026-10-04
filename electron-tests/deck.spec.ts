@@ -155,6 +155,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     await page.evaluate(() => window.__mockController.connected(true));
     await expect(page.locator("#game-container canvas")).toHaveAttribute("data-gamepad-connected", "true");
     await pressController(page, 1);
+    await expect(page.locator("#debug-state")).not.toContainText("[MENU]");
 
     await page.evaluate(() => window.dispatchEvent(new Event("blur")));
     await pressController(page, 9);

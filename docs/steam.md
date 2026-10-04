@@ -241,6 +241,14 @@ Deck LCD/OLED performance and long-session thermal behavior remain manual
 device gates. Use a physical Deck at 1280x800 and record device, OS/Steam
 versions, power/refresh settings, runtime selection and build receipt.
 
+The Electron suite uses a fixed emulated renderer viewport as well as native
+window sizing, so a hosted runner's smaller display work area cannot silently
+turn 1280x800 into 1280x645. Its DOM/GC snapshots temporarily freeze script
+execution during collection; otherwise the read-only audit timer can allocate
+a transient text node between GC and the counter read. Assertions still
+require exact node/listener equality. No production security settings or
+campaign state are changed by these test-only sampling controls.
+
 ## Store metadata draft
 
 Do not publish until the human publisher approves every field.

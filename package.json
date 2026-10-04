@@ -59,6 +59,7 @@
     "appId": "dev.mbianchidev.2dnd",
     "productName": "2D&D",
     "executableName": "2D-and-D",
+    "publish": null,
     "asar": true,
     "npmRebuild": false,
     "artifactName": "2D-and-D-${version}-${os}-${arch}.${ext}",

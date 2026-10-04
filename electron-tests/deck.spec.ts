@@ -25,6 +25,13 @@ async function sizeDesktop(
     const window = BrowserWindow.getAllWindows()[0];
     if (!window) throw new Error("Missing equivalent desktop window");
     window.setContentSize(1280, 800);
+    window.webContents.enableDeviceEmulation({
+      screenPosition: "desktop",
+      screenSize: { width: 1280, height: 800 },
+      viewSize: { width: 1280, height: 800 },
+      deviceScaleFactor: 1,
+      scale: 1,
+    });
   });
 }
 
@@ -230,7 +237,15 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     expect(reloaded).toEqual({ campaign: "deck", label: "camp" });
 
     await desktop.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0]!.setContentSize(1920, 1080);
+      const window = BrowserWindow.getAllWindows()[0]!;
+      window.setContentSize(1920, 1080);
+      window.webContents.enableDeviceEmulation({
+        screenPosition: "desktop",
+        screenSize: { width: 1920, height: 1080 },
+        viewSize: { width: 1920, height: 1080 },
+        deviceScaleFactor: 1,
+        scale: 1,
+      });
     });
     await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1920);
     await sizeDesktop(desktop);
@@ -264,8 +279,18 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     }
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Performance.enable");
-    await cdp.send("HeapProfiler.collectGarbage");
-    const before = await cdp.send("Memory.getDOMCounters");
+    const collectDomCounters = async (): Promise<{
+      documents: number; nodes: number; jsEventListeners: number;
+    }> => {
+      await cdp.send("Emulation.setScriptExecutionDisabled", { value: true });
+      try {
+        await cdp.send("HeapProfiler.collectGarbage");
+        return await cdp.send("Memory.getDOMCounters");
+      } finally {
+        await cdp.send("Emulation.setScriptExecutionDisabled", { value: false });
+      }
+    };
+    const before = await collectDomCounters();
     for (let cycle = 0; cycle < 30; cycle += 1) {
       await pressController(page, 9);
       await waitForState(page, "[MENU]");
@@ -274,8 +299,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
       await waitForState(page, "[TIPS");
       await pressController(page, 1);
     }
-    await cdp.send("HeapProfiler.collectGarbage");
-    const after = await cdp.send("Memory.getDOMCounters");
+    const after = await collectDomCounters();
     const memory = await cdp.send("Performance.getMetrics");
     const frameIntervals = await page.evaluate(() => new Promise<number[]>((resolve) => {
       const samples: number[] = [];

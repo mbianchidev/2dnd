@@ -80,6 +80,7 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await page.keyboard.press("Enter");
   await waitForState(page, "BOOT | Screen: stats");
   await clickGame(page, 390, 64);
+  await waitForState(page, "[MODE:random]");
   await clickGame(page, 400, 460);
   await waitForState(page, "BOOT | Screen: appearance");
   await clickGame(page, 320, 112);

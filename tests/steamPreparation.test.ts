@@ -1,7 +1,7 @@
 import { createPackage } from "@electron/asar";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
-  cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile,
+  cp, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -195,4 +195,71 @@ describe("Steam payload preparation without Steamworks", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).not.toContain("mock_build");
   });
+
+  it.skipIf(process.platform === "win32")(
+    "confines mock SDK output to private logs and distinguishes success from failure",
+    async () => {
+      const root = await temporaryDirectory();
+      const environment = {
+        ...process.env,
+        GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
+        STEAM_UPLOAD_AUTHORIZED: "1",
+        STEAM_APP_ID: "123450", STEAM_DEPOT_WINDOWS_ID: "123451",
+        STEAM_DEPOT_MACOS_ID: "123452", STEAM_DEPOT_LINUX_ID: "123453",
+        STEAM_BUILD_ACCOUNT: "mock_build",
+      };
+      for (const successful of [false, true]) {
+        const privateRoot = join(root, successful ? "success" : "failure");
+        await mkdir(join(privateRoot, "scripts"), { recursive: true });
+        await mkdir(join(privateRoot, "output"));
+        await writeFile(join(privateRoot, "scripts/app_build.vdf"),
+          '"AppBuild" { "AppID" "123450" "Preview" "0" "SetLive" "" }\n');
+        const executable = join(privateRoot, "mock-steamcmd");
+        await writeFile(executable,
+          `#!${process.execPath}\n`
+          + 'process.stdout.write("mock_build MOCK_PRIVATE_TOKEN_NOT_REAL\\n");\n'
+          + (successful
+            ? 'process.stdout.write("Success! App \'123450\' fully built.\\n");\n'
+            : 'process.stdout.write("Mock SDK failure\\n");\nprocess.exitCode = 1;\n'),
+          { mode: 0o700 });
+        const result = spawnSync(process.execPath, ["hacks/upload-steam.mjs"], {
+          cwd: ROOT, encoding: "utf8", env: {
+            ...environment, STEAMCMD_PATH: executable, STEAM_PRIVATE_BUILD_DIR: privateRoot,
+          },
+        });
+        expect(result.status).toBe(successful ? 0 : 1);
+        expect(`${result.stdout}${result.stderr}`).not.toMatch(/123450|mock_build|MOCK_PRIVATE_TOKEN/);
+        const log = join(privateRoot, "output/steamcmd-private.log");
+        expect((await stat(log)).mode & 0o777).toBe(0o600);
+        expect(await readFile(log, "utf8")).toContain("MOCK_PRIVATE_TOKEN_NOT_REAL");
+      }
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "rejects duplicate/case-varied live settings before invoking even a mock SDK",
+    async () => {
+      const root = await temporaryDirectory();
+      await mkdir(join(root, "scripts"));
+      await mkdir(join(root, "output"));
+      const executable = join(root, "mock-steamcmd");
+      await writeFile(executable, `#!${process.execPath}\nprocess.exitCode = 99;\n`, { mode: 0o700 });
+      await writeFile(join(root, "scripts/app_build.vdf"),
+        '"AppBuild" { "AppID" "123450" "Preview" "0" "SetLive" "" "setlive" "mock-beta" }\n');
+      const result = spawnSync(process.execPath, ["hacks/upload-steam.mjs"], {
+        cwd: ROOT, encoding: "utf8", env: {
+          ...process.env, GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
+          STEAM_UPLOAD_AUTHORIZED: "1", STEAM_APP_ID: "123450",
+          STEAM_DEPOT_WINDOWS_ID: "123451", STEAM_DEPOT_MACOS_ID: "123452",
+          STEAM_DEPOT_LINUX_ID: "123453", STEAM_BUILD_ACCOUNT: "mock_build",
+          STEAMCMD_PATH: executable, STEAM_PRIVATE_BUILD_DIR: root,
+        },
+      });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("auto-publishing");
+      expect(result.stderr).not.toContain("mock-beta");
+      expect(await readFile(join(root, "scripts/app_build.vdf"), "utf8")).toContain("mock-beta");
+      expect(result.stdout).toBe("");
+    },
+  );
 });

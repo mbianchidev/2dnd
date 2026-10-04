@@ -134,6 +134,7 @@ export class SemanticInputRuntime {
   private cursorActive = false;
   private gamepadConnected = false;
   private previousFrameAt = 0;
+  private acceptsInput = true;
   private unsubscribePreferences: (() => void) | null = null;
   private unsubscribeFeatures: (() => void) | null = null;
 
@@ -145,6 +146,7 @@ export class SemanticInputRuntime {
     window.addEventListener("gamepadconnected", this.handleGamepadConnection);
     window.addEventListener("gamepaddisconnected", this.handleGamepadConnection);
     window.addEventListener("blur", this.handleBlur);
+    window.addEventListener("focus", this.handleFocus);
     window.addEventListener("resize", this.handleResize);
     document.addEventListener("visibilitychange", this.handleVisibility);
     this.game.canvas.addEventListener("pointerdown", this.handlePointerSource, true);
@@ -168,6 +170,7 @@ export class SemanticInputRuntime {
     window.removeEventListener("gamepadconnected", this.handleGamepadConnection);
     window.removeEventListener("gamepaddisconnected", this.handleGamepadConnection);
     window.removeEventListener("blur", this.handleBlur);
+    window.removeEventListener("focus", this.handleFocus);
     window.removeEventListener("resize", this.handleResize);
     document.removeEventListener("visibilitychange", this.handleVisibility);
     this.game.canvas.removeEventListener("pointerdown", this.handlePointerSource, true);
@@ -184,6 +187,11 @@ export class SemanticInputRuntime {
   }
 
   private readonly poll = (timestamp: number): void => {
+    if (!this.acceptsInput || document.visibilityState !== "visible") {
+      this.previousFrameAt = timestamp;
+      this.animationFrame = window.requestAnimationFrame(this.poll);
+      return;
+    }
     const sceneKey = this.getActiveSceneKey();
     const context = this.getContext();
     if (sceneKey !== this.activeSceneKey || context !== this.activeContext) {
@@ -240,7 +248,12 @@ export class SemanticInputRuntime {
   };
 
   private readonly handleBlur = (): void => {
+    this.acceptsInput = false;
     this.clearAll();
+  };
+
+  private readonly handleFocus = (): void => {
+    this.acceptsInput = true;
   };
 
   private readonly handleVisibility = (): void => {

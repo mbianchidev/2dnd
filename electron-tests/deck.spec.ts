@@ -161,6 +161,9 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
 
     await page.evaluate(() => window.dispatchEvent(new Event("blur")));
     await pressController(page, 9);
+    await expect(page.locator("#debug-state")).not.toContainText("[MENU]");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await pressController(page, 9);
     await waitForState(page, "[MENU]");
     await expectCleanLayout(page);
     await pressController(page, 1);

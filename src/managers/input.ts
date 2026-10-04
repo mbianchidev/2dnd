@@ -1,4 +1,3 @@
-import type * as Phaser from "phaser";
 import {
   STANDARD_GAMEPAD_BINDINGS,
   InputKeyOwnership,
@@ -30,6 +29,13 @@ export { closeTextEntry, openMobileTextInput } from "./textEntry";
 interface GamepadSnapshot {
   buttons: boolean[];
   axes: number[];
+}
+
+interface InputRuntimeGame {
+  readonly canvas: HTMLCanvasElement;
+  readonly scene: {
+    getScenes(active: boolean): readonly { readonly scene: { readonly key: string } }[];
+  };
 }
 
 interface KeyDescriptor {
@@ -138,7 +144,7 @@ export class SemanticInputRuntime {
   private unsubscribePreferences: (() => void) | null = null;
   private unsubscribeFeatures: (() => void) | null = null;
 
-  constructor(private readonly game: Phaser.Game) {}
+  constructor(private readonly game: InputRuntimeGame) {}
 
   start(): void {
     window.addEventListener("keydown", this.handleKeyDown, true);

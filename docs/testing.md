@@ -148,6 +148,9 @@ for them before release.
 `.github/workflows/pr.yml` runs Node 24, `npm ci`, typecheck, full Vitest,
 Chromium installation, full Playwright, and the production build for pull
 requests to `main`.
+Its concurrency group is scoped to `github.ref`, with
+`cancel-in-progress: false`, so a different review branch cannot replace a
+pending web gate.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page

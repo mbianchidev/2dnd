@@ -122,6 +122,7 @@ owning issue or pull request.
 | Docs copied from an issue or branch | Verify current `main`, source constants, package manifest, and merged PR |
 | Parallel features merged in arbitrary order | Identify shared files, choose dependency order, rebase after prerequisite, preserve both contracts |
 | Targeted tests only | Full typecheck, Vitest, Playwright, build, audit, CI, and CodeQL before completion |
+| Other branches replacing queued CI | Scope the PR web concurrency group to `github.ref`; retain `cancel-in-progress: false` |
 | Growing scenes/overlays | Extract focused system, manager, renderer, or data module |
 
 ## Change checklists

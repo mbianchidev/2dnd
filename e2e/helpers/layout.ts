@@ -18,10 +18,14 @@ export async function waitForGameInputFrame(page: Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
 
-export async function clickPointerAt(page: Page, x: number, y: number): Promise<void> {
+export async function pressPointerAt(page: Page, x: number, y: number): Promise<void> {
   await page.mouse.move(x, y);
   await waitForGameInputFrame(page);
   await page.mouse.down();
+}
+
+export async function clickPointerAt(page: Page, x: number, y: number): Promise<void> {
+  await pressPointerAt(page, x, y);
   try {
     await waitForGameInputFrame(page);
   } finally {

@@ -13,7 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { SAVE_VERSION } from "../src/systems/save";
-import { clickPointerAt, waitForGameInputFrame } from "../e2e/helpers/layout";
+import { clickPointerAt, pressPointerAt, waitForGameInputFrame } from "../e2e/helpers/layout";
 
 const APP_ROOT = resolve(import.meta.dirname, "..");
 const SAVE_KEY = "2dnd_save";
@@ -47,20 +47,25 @@ async function launchDesktop(
   });
 }
 
-async function clickGame(
+async function gamePoint(
   page: Page,
   gameX: number,
   gameY: number,
-): Promise<void> {
+): Promise<{ x: number; y: number }> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
   await waitForGameInputFrame(page);
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await clickPointerAt(page,
-    bounds.x + (gameX / GAME_WIDTH) * bounds.width,
-    bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
-  );
+  return {
+    x: bounds.x + (gameX / GAME_WIDTH) * bounds.width,
+    y: bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
+  };
+}
+
+async function clickGame(page: Page, gameX: number, gameY: number): Promise<void> {
+  const point = await gamePoint(page, gameX, gameY);
+  await clickPointerAt(page, point.x, point.y);
 }
 
 async function holdKey(
@@ -299,8 +304,9 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await waitForState(page, "BOOT | Screen: title");
     expect(relaunchedRendererErrors).toEqual([]);
 
+    const quitPoint = await gamePoint(page, 320, 492);
     const closePromise = desktop.waitForEvent("close");
-    await clickGame(page, 320, 492);
+    await pressPointerAt(page, quitPoint.x, quitPoint.y);
     await closePromise;
     desktop = undefined;
 

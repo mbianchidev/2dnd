@@ -41,5 +41,5 @@ export function startRequest(
 export function requestFor(player: PlayerState, action: MinigameAction): MinigameActionRequest {
   const pending = player.progression.minigames.pending;
   if (!pending) throw new Error("Missing fixture session");
-  return { sessionId: pending.sessionId, expectedRevision: pending.revision, action };
+  return { runId: pending.runId, expectedRevision: pending.revision, action };
 }

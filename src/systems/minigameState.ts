@@ -63,17 +63,25 @@ export function createMinigameState(
   };
 }
 
-export function getMinigameSessionId(seed: number, sequence: number): string {
+/** Deterministic campaign ledger reference, never an authentication token. */
+export function getMinigameRunId(seed: number, sequence: number): string {
   return `mg:${seed.toString(16)}:${sequence}`;
 }
 
-export function getMinigameSessionSequence(sessionId: string, seed: number): number | undefined {
+export function getMinigameRunSequence(runId: string, seed: number): number | undefined {
   const prefix = `mg:${seed.toString(16)}:`;
-  if (!sessionId.startsWith(prefix)) return undefined;
-  const sequence = Number(sessionId.slice(prefix.length));
+  if (!runId.startsWith(prefix)) return undefined;
+  const sequence = Number(runId.slice(prefix.length));
   return Number.isSafeInteger(sequence) && sequence > 0
-    && getMinigameSessionId(seed, sequence) === sessionId
+    && getMinigameRunId(seed, sequence) === runId
     ? sequence : undefined;
+}
+
+function matchesRunReference(value: Record<string, unknown>, expected: string): boolean {
+  const current = value["runId"];
+  const legacy = value["sessionId"];
+  return (current === expected || (current === undefined && legacy === expected))
+    && (legacy === undefined || legacy === expected);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -146,7 +154,7 @@ function normalizeReceipt(
     !isRecord(value) || !isMinigameVenueId(value["venueId"])
     || !isMinigameDifficultyId(value["difficultyId"])
     || !integerIn(value["sequence"], 1, MINIGAME_COUNTER_LIMIT)
-    || value["sessionId"] !== getMinigameSessionId(seed, value["sequence"])
+    || !matchesRunReference(value, getMinigameRunId(seed, value["sequence"]))
     || !integerIn(value["score"], 0, 100) || !isOutcome(value["outcome"])
     || typeof value["practice"] !== "boolean" || typeof value["debug"] !== "boolean"
     || !integerIn(value["feePaid"], 0, 20) || !integerIn(value["goldPaid"], 0, 70)
@@ -193,7 +201,7 @@ function normalizeReceipt(
   const bonusGold = hasMilestone
     ? activity.milestoneGold[MINIGAME_DIFFICULTY_IDS.indexOf(value["difficultyId"])] : 0;
   const receipt: MinigameReceipt = {
-    sessionId: getMinigameSessionId(seed, value["sequence"]), sequence: value["sequence"],
+    runId: getMinigameRunId(seed, value["sequence"]), sequence: value["sequence"],
     venueId: value["venueId"], activityId: activity.id, rulesetId: activity.rulesetId,
     difficultyId: value["difficultyId"], scoreId: activity.scoreId, rewardId: activity.rewardId,
     score: value["score"], outcome: value["outcome"], feePaid: value["feePaid"],
@@ -211,7 +219,7 @@ function normalizePending(value: unknown, state: MinigameState): MinigameSession
     !isRecord(value) || !isMinigameVenueId(value["venueId"])
     || !isMinigameDifficultyId(value["difficultyId"]) || !isWeather(value["weather"])
     || !integerIn(value["sequence"], 1, MINIGAME_COUNTER_LIMIT)
-    || value["sessionId"] !== getMinigameSessionId(state.seed, value["sequence"])
+    || !matchesRunReference(value, getMinigameRunId(state.seed, value["sequence"]))
     || value["sequence"] !== state.sequence
     || !integerIn(value["revision"], 0, MINIGAME_COUNTER_LIMIT)
     || !integerIn(value["feePaid"], 0, 20)
@@ -237,11 +245,11 @@ function normalizePending(value: unknown, state: MinigameState): MinigameSession
     ))
   ) return null;
   const challenge = createMinigameChallenge(
-    activity.id, value["difficultyId"], state.seed, getMinigameSessionId(state.seed, value["sequence"]),
+    activity.id, value["difficultyId"], state.seed, getMinigameRunId(state.seed, value["sequence"]),
   );
   if (!matchesExpected(value["challenge"], challenge)) return null;
   const base: MinigameSessionBase = {
-    sessionId: getMinigameSessionId(state.seed, value["sequence"]), sequence: value["sequence"],
+    runId: getMinigameRunId(state.seed, value["sequence"]), sequence: value["sequence"],
     venueId: value["venueId"], rulesetId: activity.rulesetId, difficultyId: value["difficultyId"],
     feePaid: value["feePaid"], practice: value["practice"], debug: value["debug"],
     weather: value["weather"], revision: value["revision"], phase: value["phase"], receipt: null,
@@ -307,7 +315,7 @@ function normalizePending(value: unknown, state: MinigameState): MinigameSession
   }
   const receipt = normalizeReceipt(value["receipt"], state.seed, new Set(state.claimedMilestoneIds));
   if (
-    !receipt || outcome === undefined || receipt.sessionId !== pending.sessionId
+    !receipt || outcome === undefined || receipt.runId !== pending.runId
     || state.settledSequence !== pending.sequence
     || receipt.score !== getMinigameScore(pending) || receipt.outcome !== outcome
     || receipt.venueId !== pending.venueId || receipt.difficultyId !== pending.difficultyId
@@ -365,8 +373,8 @@ export function normalizeMinigameState(value: unknown, sourceVersion: number): M
     const seen = new Set<string>();
     for (const entry of value["history"].slice(-MINIGAME_HISTORY_LIMIT)) {
       const receipt = normalizeReceipt(entry, state.seed, claimed);
-      if (!receipt || seen.has(receipt.sessionId)) continue;
-      seen.add(receipt.sessionId);
+      if (!receipt || seen.has(receipt.runId)) continue;
+      seen.add(receipt.runId);
       state.history.push(receipt);
     }
     state.history.sort((left, right) => left.sequence - right.sequence);

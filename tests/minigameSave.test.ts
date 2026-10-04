@@ -63,6 +63,31 @@ describe("schema-v19 exact activity recovery", () => {
     expect(loaded.player.progression.minigames.history).toHaveLength(1);
   });
 
+  it.each(["playing", "result"] as const)(
+    "keeps exact pre-review v19 run references during %s recovery",
+    (phase) => {
+      const player = playerAt("willowInnTable");
+      startMinigame(player, startRequest(player, "willowInnTable"));
+      if (phase === "result") applyMinigameAction(player, requestFor(player, { type: "bank" }));
+      const snapshot = structuredClone(player.progression.minigames);
+      const raw = serializedState(snapshot) as Record<string, unknown>;
+      const pending = raw["pending"] as Record<string, unknown>;
+      const legacyReferences = [
+        pending,
+        ...(phase === "result" ? [pending["receipt"] as Record<string, unknown>] : []),
+        ...(raw["history"] as Record<string, unknown>[]),
+      ];
+      for (const reference of legacyReferences) {
+        reference["sessionId"] = "mg:a7:1";
+        delete reference["runId"];
+      }
+      const normalized = normalizeMinigameState(raw, SAVE_VERSION);
+      expect(normalized).toEqual(snapshot);
+      expect(JSON.stringify(normalized)).not.toContain('"sessionId"');
+      expect(player.gold).toBe(995);
+    },
+  );
+
   it("gives schema-v18 and missing state deterministic empty defaults without replaying historical payouts", () => {
     const player = playerAt("willowdaleRange");
     const data = createCurrentSaveData(player, new Set(), createCodex(), player.appearanceId, 45);
@@ -215,6 +240,24 @@ describe("corrupt pending data cannot refund, pay, or reroll", () => {
     expect(repaired.history).toHaveLength(1);
     expect(player.gold).toBe(995);
   });
+
+  it.each(["pending", "receipt"] as const)(
+    "retires conflicting run-reference aliases in %s without replaying settlement",
+    (target) => {
+      const player = playerAt("willowInnTable");
+      startMinigame(player, startRequest(player, "willowInnTable"));
+      applyMinigameAction(player, requestFor(player, { type: "bank" }));
+      const raw = serializedState(player.progression.minigames) as Record<string, unknown>;
+      const pending = raw["pending"] as Record<string, unknown>;
+      const reference = target === "pending" ? pending : (pending["receipt"] as Record<string, unknown>);
+      reference["sessionId"] = "mg:a7:2";
+      const normalized = normalizeMinigameState(raw, SAVE_VERSION);
+      expect(normalized.pending).toBeNull();
+      expect(normalized.settledSequence).toBe(1);
+      expect(normalized.history).toHaveLength(1);
+      expect(player.gold).toBe(995);
+    },
+  );
 
   it("retires mismatched location and boat state without moving the party or restoring spent hull condition", () => {
     for (const venueId of ["willowdaleRange", "sandportRegatta"] as const satisfies readonly MinigameVenueId[]) {

@@ -394,7 +394,7 @@ export class MinigameManager {
   private gameRequest(action: MinigameActionRequest["action"]): MinigameActionRequest {
     const pending = this.player?.progression.minigames.pending;
     if (!pending) throw new Error("[minigames] No activity is pending.");
-    return { sessionId: pending.sessionId, expectedRevision: pending.revision, action };
+    return { runId: pending.runId, expectedRevision: pending.revision, action };
   }
 
   private begin(): void {
@@ -501,7 +501,7 @@ export class MinigameManager {
       const pending = player.progression.minigames.pending;
       if (!pending) throw new Error("[minigames] The playing session disappeared.");
       const view = getMinigameGamePresentation(pending, getInputPromptSource(), isReducedMotionEnabled(), this.previewAim);
-      const requestBase = { sessionId: pending.sessionId, expectedRevision: pending.revision };
+      const requestBase = { runId: pending.runId, expectedRevision: pending.revision };
       if (pending.activityId === "crownAndBones") {
         return {
           ...base, ...view,
@@ -689,15 +689,15 @@ export class MinigameManager {
       if (event.repeat || this.heldConfirmations.has(event.code)) return;
       const mode = this.mode;
       const pending = this.player?.progression.minigames.pending;
-      const archerySessionId = pending?.activityId === "archery" ? pending.sessionId : undefined;
+      const archeryRunId = pending?.activityId === "archery" ? pending.runId : undefined;
       const arrowIndex = pending?.activityId === "archery" ? pending.game.shots.length : -1;
       const execute = action === "cancel" ? () => this.back()
         : mode === "game" && this.player?.progression.minigames.pending?.activityId === "regatta"
           ? () => this.back()
-          : mode === "game" && archerySessionId
+          : mode === "game" && archeryRunId
             ? () => {
               const current = this.player?.progression.minigames.pending;
-              if (current?.activityId === "archery" && current.sessionId === archerySessionId
+              if (current?.activityId === "archery" && current.runId === archeryRunId
                 && current.game.shots.length === arrowIndex && current.phase === "playing"
               ) this.perform(this.gameRequest({ type: "fire", aim: this.previewAim }));
             }
@@ -753,7 +753,7 @@ export class MinigameManager {
     if (command === "status") {
       const state = player.progression.minigames;
       return { relocated: false, messages: [
-        `Sessions ${state.sequence}; settled ${state.settledSequence}; pending ${state.pending?.sessionId ?? "none"}.`,
+        `Runs ${state.sequence}; settled ${state.settledSequence}; pending ${state.pending?.runId ?? "none"}.`,
         ...MINIGAME_ACTIVITY_IDS.map((id) => `${id}: ${state.statistics[id].completions} paid completions, ${state.statistics[id].medals} medals.`),
       ] };
     }

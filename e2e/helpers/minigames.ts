@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { createCurrentSaveData } from "../../src/systems/save";
 import { createCodex } from "../../src/systems/codex";
 import { createMinigameChallenge } from "../../src/systems/minigameRules";
-import { getMinigameSessionId } from "../../src/systems/minigameState";
+import { getMinigameRunId } from "../../src/systems/minigameState";
 import { createWeatherState, WeatherType } from "../../src/systems/weather";
 import { playerAt } from "../../tests/helpers/minigames";
 import type { MinigameVenueId } from "../../src/data/minigames";
@@ -27,7 +27,7 @@ export function minigameFixture(venueId: MinigameVenueId, seed = 167): SaveData 
 
 export function crownFixtureSeed(firstBones = false): number {
   for (let seed = 1; seed < 500; seed += 1) {
-    const challenge = createMinigameChallenge("crownAndBones", "friendly", seed, getMinigameSessionId(seed, 1));
+    const challenge = createMinigameChallenge("crownAndBones", "friendly", seed, getMinigameRunId(seed, 1));
     if (challenge.kind !== "crownAndBones") throw new Error("Missing dice fixture");
     const totals = challenge.rolls.map(([first, second]) => first + second);
     if (firstBones ? totals[0] === 7 : totals.every((total) => total !== 7)) return seed;

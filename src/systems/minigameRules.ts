@@ -148,9 +148,9 @@ export function createMinigameChallenge(
   activity: MinigameActivityId,
   difficulty: MinigameDifficultyId,
   seed: number,
-  sessionId: string,
+  runId: string,
 ): MinigameChallenge {
-  const random = createSeededRandom(seed, `${sessionId}:${activity}:${difficulty}`);
+  const random = createSeededRandom(seed, `${runId}:${activity}:${difficulty}`);
   if (activity === "crownAndBones") {
     return {
       kind: activity,

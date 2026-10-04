@@ -79,7 +79,7 @@ export interface RegattaGame {
 export type MinigameOutcome = "banked" | "completed" | "bones" | "abandoned" | "timeout";
 
 export interface MinigameReceipt {
-  readonly sessionId: string;
+  readonly runId: string;
   readonly sequence: number;
   readonly venueId: MinigameVenueId;
   readonly activityId: MinigameActivityId;
@@ -99,7 +99,7 @@ export interface MinigameReceipt {
 }
 
 export interface MinigameSessionBase {
-  sessionId: string;
+  runId: string;
   sequence: number;
   venueId: MinigameVenueId;
   rulesetId: MinigameRulesetId;
@@ -169,7 +169,7 @@ export type MinigameAction =
   | { readonly type: "acknowledge" };
 
 export interface MinigameActionRequest {
-  readonly sessionId: string;
+  readonly runId: string;
   readonly expectedRevision: number;
   readonly action: MinigameAction;
 }

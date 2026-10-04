@@ -171,11 +171,16 @@ statistics, finite claimed milestone IDs, a 40-entry history, and one exact
 pending session/receipt. Definitions, named tiers, UI state, animation time,
 DOM/Phaser objects, and preview clocks are not persisted.
 
-The history is **not a payment ledger**. Exact session IDs and expected action
+The history is **not a payment ledger**. Exact gameplay `runId` references and expected action
 revisions gate input; permanent watermarks and finite known milestone claims
 gate settlement. Buy-in, accepted input, wear, payout, and abandonment save
 before results are exposed. A rejected write restores wallet, progression,
 Codex, discovery availability, and all reconciled consumers.
+
+Run IDs retain the deterministic `mg:<seed>:<sequence>` format and are never
+authentication tokens or secrets. Pre-review schema-v19 snapshots using the old
+`sessionId` key normalize to `runId`; conflicting aliases are rejected without
+changing the wallet, challenge, settlement watermark, or applied hull wear.
 
 Unknown normalization validates IDs, rulesets, fixed challenge components,
 scores, caps, phases, revisions, boat snapshots, and cross-domain location/boat

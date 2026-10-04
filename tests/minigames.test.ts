@@ -8,7 +8,7 @@ import {
   getMinigameRecordId,
 } from "../src/data/minigames";
 import { createCodex } from "../src/systems/codex";
-import { getMinigameSessionId } from "../src/systems/minigameState";
+import { getMinigameRunId } from "../src/systems/minigameState";
 import {
   applyMinigameAction,
   getMinigameDifficultyReason,
@@ -66,7 +66,7 @@ function finishArchery(player: PlayerState, codex?: CodexData): MinigameMutation
 
 function crownSeed(bones: boolean): number {
   for (let seed = 1; seed < 200; seed += 1) {
-    const challenge = createMinigameChallenge("crownAndBones", "friendly", seed, getMinigameSessionId(seed, 1));
+    const challenge = createMinigameChallenge("crownAndBones", "friendly", seed, getMinigameRunId(seed, 1));
     if (challenge.kind !== "crownAndBones") throw new Error("Missing dice fixture");
     const hasBones = challenge.rolls.some((roll) => classifyCrownDice(roll).outcome === "bones");
     if (hasBones === bones) return seed;
@@ -126,7 +126,7 @@ describe("atomic entries and once-only revisions", () => {
     if (pending?.activityId !== "crownAndBones") throw new Error("Missing dice fixture");
     expect(result.roll?.naturalRolls).toEqual(pending.challenge.rolls[0]);
     expect(result.roll?.total).toBe(result.roll!.naturalRolls[0] + result.roll!.naturalRolls[1]);
-    expect(result.roll?.rollId).toBe(`${pending.sessionId}:roll:1`);
+    expect(result.roll?.rollId).toBe(`${pending.runId}:roll:1`);
     expect(applyMinigameAction(player, request).idempotent).toBe(true);
     expect(player.progression.minigames.pending?.revision).toBe(1);
     expect(getMinigameScore(player.progression.minigames.pending!)).toBeGreaterThanOrEqual(20);
@@ -291,7 +291,7 @@ describe("regatta movement, boat wear, weather, and safe return", () => {
   it("applies canonical reinforced-hull multipliers to forecast and collision wear", () => {
     let seed = 1;
     while (true) {
-      const challenge = createMinigameChallenge("regatta", "friendly", seed, getMinigameSessionId(seed, 1));
+      const challenge = createMinigameChallenge("regatta", "friendly", seed, getMinigameRunId(seed, 1));
       if (challenge.kind === "regatta" && !challenge.obstacles.some((point) => point.x === 0 && point.y === 2)) break;
       seed += 1;
     }

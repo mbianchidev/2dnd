@@ -19,7 +19,7 @@ import {
 import { getMinigameBasePayout, getMinigameOutcome, getMinigameScore } from "./minigameResults";
 import { discoverMinigameVenue, isAtMinigameVenue } from "./minigameVenues";
 import { getRegattaProgress } from "./minigameRegatta";
-import { getMinigameSessionId, getMinigameSessionSequence } from "./minigameState";
+import { getMinigameRunId, getMinigameRunSequence } from "./minigameState";
 import { findBoat } from "./nauticalState";
 import { applySocialMutation } from "./reputation";
 import { consumeSocialAchievementHooks } from "./achievements";
@@ -126,9 +126,9 @@ export function startMinigame(
   request: MinigameStartRequest,
 ): MinigameMutationResult {
   const state = player.progression.minigames;
-  const sessionId = getMinigameSessionId(state.seed, request.sequence);
+  const runId = getMinigameRunId(state.seed, request.sequence);
   if (request.sequence <= state.settledSequence) return unchanged("That session is already settled.");
-  if (state.pending?.sessionId === sessionId) return unchanged("That activity is already pending.");
+  if (state.pending?.runId === runId) return unchanged("That activity is already pending.");
   if (state.pending) return failure("Finish or abandon the current activity first.");
   if (
     !Number.isSafeInteger(request.sequence) || request.sequence !== state.sequence + 1
@@ -137,14 +137,14 @@ export function startMinigame(
   const reason = getMinigameEntryReason(player, request);
   if (reason) return failure(reason);
   const venue = getMinigameVenue(request.venueId);
-  const challenge = createMinigameChallenge(venue.activityId, request.difficultyId, state.seed, sessionId);
+  const challenge = createMinigameChallenge(venue.activityId, request.difficultyId, state.seed, runId);
   const practice = request.practice === true;
   const debug = request.debug === true;
   const feePaid = practice || debug ? 0 : venue.activityId === "crownAndBones"
     ? request.stake ?? MINIGAME_DIFFICULTIES[request.difficultyId].crownStakeCap
     : MINIGAME_DIFFICULTIES[request.difficultyId].entryFee;
   const base = {
-    sessionId, sequence: request.sequence, venueId: request.venueId,
+    runId, sequence: request.sequence, venueId: request.venueId,
     rulesetId: getMinigameActivity(venue.activityId).rulesetId,
     difficultyId: request.difficultyId, feePaid, practice, debug,
     weather: request.weather, revision: 0, phase: "playing" as const, receipt: null,
@@ -221,7 +221,7 @@ function settleMinigame(
   const { score, bonusGold, milestoneId } = reward;
   const conditionLost = session.activityId === "regatta" ? getRegattaProgress(session).conditionLost : 0;
   const receipt: MinigameReceipt = {
-    sessionId: session.sessionId, sequence: session.sequence,
+    runId: session.runId, sequence: session.sequence,
     venueId: session.venueId, activityId: session.activityId,
     rulesetId: activity.rulesetId, difficultyId: session.difficultyId,
     scoreId: activity.scoreId, rewardId: activity.rewardId,
@@ -274,8 +274,8 @@ export function applyMinigameAction(
 ): MinigameMutationResult {
   const state = player.progression.minigames;
   const pending = state.pending;
-  if (!pending || pending.sessionId !== request.sessionId) {
-    const sequence = getMinigameSessionSequence(request.sessionId, state.seed);
+  if (!pending || pending.runId !== request.runId) {
+    const sequence = getMinigameRunSequence(request.runId, state.seed);
     return sequence !== undefined && sequence <= state.settledSequence
       ? unchanged("That session is already settled.")
       : failure("No matching activity is pending.");
@@ -305,7 +305,7 @@ export function applyMinigameAction(
     const naturalRolls = next.challenge.rolls[next.game.rollCount];
     if (!naturalRolls) return failure("No further dice remain.");
     next.game.rollCount += 1;
-    roll = { ...classifyCrownDice(naturalRolls), rollId: `${next.sessionId}:roll:${next.game.rollCount}` };
+    roll = { ...classifyCrownDice(naturalRolls), rollId: `${next.runId}:roll:${next.game.rollCount}` };
     if (next.game.rollCount === 4) next.game.banked = true;
   } else if (next.activityId === "crownAndBones" && action.type === "bank") {
     next.game.banked = true;

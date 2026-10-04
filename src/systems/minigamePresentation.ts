@@ -75,7 +75,7 @@ export function getMinigameGamePresentation(
   if (session.activityId === "crownAndBones") {
     const dice = session.challenge.rolls[session.game.rollCount - 1];
     const roll = dice
-      ? { ...classifyCrownDice(dice), rollId: `${session.sessionId}:roll:${session.game.rollCount}` }
+      ? { ...classifyCrownDice(dice), rollId: `${session.runId}:roll:${session.game.rollCount}` }
       : undefined;
     const bank = getCrownPayout(session.feePaid, session.game.rollCount, roll?.outcome === "bones");
     return {

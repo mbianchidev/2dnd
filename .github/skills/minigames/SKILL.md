@@ -65,9 +65,12 @@ session/settlement watermarks, one exact pending session or settled receipt,
 finite known milestone claims, discovered venues, paid/practice bests, natural
 statistics, and at most 40 recent receipts.
 
-History is never a payment ledger. Use stable session ID plus expected revision
+History is never a payment ledger. Use stable gameplay `runId` plus expected revision
 for every accepted action. Commit entry, wear, input, settlement, and abandonment
 before presenting success. A failed write restores all touched domains.
+Run references use `mg:<seed>:<sequence>`, never security/authentication tokens.
+Normalize pre-review v19 `sessionId` aliases without changing IDs or challenges;
+reject conflicting aliases conservatively.
 Invalid pending repair cannot refund, recharge, reroll, replay a reward, or
 restore wear. Old campaigns gain deterministic empty defaults without historic
 rewards; manual snapshots remain isolated from later autosaves.

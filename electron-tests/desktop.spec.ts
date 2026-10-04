@@ -24,6 +24,10 @@ interface DesktopSaveSummary {
   readonly version: number;
 }
 
+interface GameClickOptions {
+  readonly closesApplication?: boolean;
+}
+
 function createLaunchEnvironment(userDataDirectory: string): Record<string, string> {
   const environment: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
@@ -50,6 +54,7 @@ async function clickGame(
   page: Page,
   gameX: number,
   gameY: number,
+  options: GameClickOptions = {},
 ): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
@@ -60,6 +65,7 @@ async function clickGame(
     bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
   await page.mouse.down();
+  if (options.closesApplication) return;
   try {
     await page.evaluate(() => new Promise<void>((resolveFrame) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()));
@@ -299,7 +305,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(relaunchedRendererErrors).toEqual([]);
 
     const closePromise = desktop.waitForEvent("close");
-    await clickGame(page, 320, 492);
+    await clickGame(page, 320, 492, { closesApplication: true });
     await closePromise;
     desktop = undefined;
 

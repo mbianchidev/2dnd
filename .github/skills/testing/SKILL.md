@@ -584,8 +584,10 @@ npx vitest run tests/dice.test.ts
   coordinate-only clicks.
 - Hold frame-polled keys with `keyboard.down()`, wait across frames, then
   `keyboard.up()`. Keep pointer down/up separated by browser animation frames
-  through the shared measured-layout or desktop helper. Do not use instantaneous
-  presses for Overworld or Ending actions.
+  through the shared measured-layout or desktop helper. For terminal native Quit,
+  hold the pointer until the application-close event instead of awaiting renderer
+  cleanup after the page is destroyed. Do not use instantaneous presses for
+  Overworld or Ending actions.
 - Seed randomness before the game loads and assert both `pageerror` and
   `console.error` remain empty.
 - Run `npm run benchmark:baseline` before performance-affecting work and attach

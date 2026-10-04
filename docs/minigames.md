@@ -213,3 +213,5 @@ debug isolation, legacy/corrupt snapshots, and measured layout.
 keyboard, emulated touch, and standard-gamepad controls, paid/practice/debug
 flows, reduced motion, text scaling, high contrast, saved pending/result
 recovery, and input cleanup. Tests use synthetic campaign fixtures only.
+Every activity's lobby, setup, rules, records, playing, pause, and result views
+are audited in mobile portrait and landscape at 100%, 125%, and 150% text.

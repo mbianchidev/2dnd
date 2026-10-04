@@ -117,6 +117,10 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Prefer stable debug-state transitions, layout IDs, and semantic actions.
 - Hold frame-polled Phaser keys across animation frames; instantaneous presses
   can be missed.
+- Release single-step movement after the expected position appears, rather
+  than holding through the next movement-repeat interval.
+- In Electron, wait for the Boot title before fixture writes or reloads;
+  the correct origin alone does not mean initial navigation has finished.
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.

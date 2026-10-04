@@ -54,6 +54,7 @@ for (const [venueId, expectedPayout] of [
         const page = await application.firstWindow();
         const errors = minigameBrowserErrors(page);
         await expect.poll(() => page.evaluate(() => location.origin)).toBe("app://2dnd");
+        await waitMinigameState(page, "BOOT | Screen: title");
         await installMinigameGamepad(page);
         const fixture = minigameFixture(venueId, venueId === "willowInnTable" ? crownFixtureSeed() : 167);
         if (venueId === "sandportRegatta") {

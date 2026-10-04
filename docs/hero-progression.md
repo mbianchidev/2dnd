@@ -72,6 +72,9 @@ scores.
 - Unrestricted talents use total level. Class-restricted talents, spells and
   abilities use their owning class rank and canonical grant levels. A
   Knight 6/Wizard 1 does not learn Wizard-rank-six Fireball.
+  Only talents explicitly marked `progressionScope: "totalLevel"` participate
+  in the common scan; all other talents require an owning profile. Future
+  track-only HP/MP grants cannot leak to unrelated heroes or companions.
 - Shared spell/ability/talent IDs are deduplicated within their respective
   namespaces. Shared talent HP/MP bonuses apply once, not once per class.
   Hunter's Mark's spell and ability remain distinct actions.

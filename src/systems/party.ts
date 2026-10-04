@@ -10,7 +10,7 @@ import { getAbility } from "../data/abilities";
 import { getAllTowns } from "../data/chunks";
 import { getItem, type Item } from "../data/items";
 import { getSpell } from "../data/spells";
-import { TALENTS } from "../data/talents";
+import { TALENTS, isTotalLevelTalent } from "../data/talents";
 import { abilityModifier } from "./dice";
 import {
   createBattleActionSource,
@@ -179,7 +179,7 @@ function getEquippedItem(
 function getKnownTalents(classId: string, level: number): string[] {
   return TALENTS.filter((talent) =>
     talent.levelRequired <= level
-    && (!talent.classRestriction || talent.classRestriction.includes(classId))
+    && (isTotalLevelTalent(talent) || talent.classRestriction?.includes(classId))
   ).map((talent) => talent.id);
 }
 

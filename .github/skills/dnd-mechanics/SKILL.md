@@ -61,6 +61,9 @@ Use frozen rest receipts, read-only previews and expected-level commits;
 preserve rest-ready queues across reload without authorizing later XP.
 Shared feature IDs and resource bonuses apply once. See
 [`docs/hero-progression.md`](../../../docs/hero-progression.md).
+Only explicit `progressionScope: "totalLevel"` talents enter generic scans.
+Track-only/unscoped talents require owning-profile grants, including HP/MP
+bonuses; companion creation must use the same common-talent predicate.
 
 ## Non-combat ability checks
 

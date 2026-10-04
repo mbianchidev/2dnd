@@ -19,7 +19,7 @@ import {
 } from "../data/classProgression";
 import { ABILITIES, getAbility, type Ability } from "../data/abilities";
 import { SPELLS, getSpell, type Spell } from "../data/spells";
-import { TALENTS, getTalent, type Talent } from "../data/talents";
+import { TALENTS, getTalent, isTotalLevelTalent, type Talent } from "../data/talents";
 import { abilityModifier } from "./dice";
 import { getPlayerClass } from "./classes";
 import type { Item } from "../data/items";
@@ -228,7 +228,7 @@ export function getFeatureSources(
     }
   }
   const talent = kind === "talent" ? getTalent(id) : undefined;
-  if (talent && !talent.classRestriction && talent.levelRequired <= getTotalLevel(actor)) {
+  if (talent && isTotalLevelTalent(talent) && talent.levelRequired <= getTotalLevel(actor)) {
     sources.push({
       kind: "totalLevel", trackId: getActorStartingClass(actor), rank: talent.levelRequired,
     });
@@ -478,7 +478,7 @@ function getNewGrants(
     if (grant.rank <= nextRank) appendGrant(grant.kind, grant.id);
   }
   for (const talent of TALENTS) {
-    if (!talent.classRestriction && talent.levelRequired <= nextTotal) appendGrant("talent", talent.id);
+    if (isTotalLevelTalent(talent) && talent.levelRequired <= nextTotal) appendGrant("talent", talent.id);
   }
   const deferred = actor.classProgression?.deferredLegacyGrants;
   if (deferred) {
@@ -676,7 +676,7 @@ export function getAvailableProgressionGrants(
     }
   }
   for (const talent of TALENTS) {
-    if (!talent.classRestriction && talent.levelRequired <= getTotalLevel(actor)
+    if (isTotalLevelTalent(talent) && talent.levelRequired <= getTotalLevel(actor)
       && !grants.talents.includes(talent.id)) grants.talents.push(talent.id);
   }
   return grants;

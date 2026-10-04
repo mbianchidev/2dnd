@@ -9,6 +9,8 @@ export interface Talent {
   name: string;
   description: string;
   levelRequired: number;
+  /** Only explicitly total-level talents participate in the common hero/companion scan. */
+  progressionScope?: "totalLevel" | "track";
   /** One-time max HP bonus applied on unlock. */
   maxHpBonus?: number;
   /** One-time max MP bonus applied on unlock. */
@@ -34,30 +36,35 @@ export const TALENTS: Talent[] = [
     id: "toughness", name: "Toughness",
     description: "+5 max HP",
     levelRequired: 3,
+    progressionScope: "totalLevel",
     maxHpBonus: 5,
   },
   {
     id: "combatTraining", name: "Combat Training",
     description: "+1 to attack rolls",
     levelRequired: 6,
+    progressionScope: "totalLevel",
     attackBonus: 1,
   },
   {
     id: "resilience", name: "Resilience",
     description: "+10 max HP, +3 max MP",
     levelRequired: 10,
+    progressionScope: "totalLevel",
     maxHpBonus: 10, maxMpBonus: 3,
   },
   {
     id: "deadlyPrecision", name: "Deadly Precision",
     description: "+2 damage on attacks",
     levelRequired: 14,
+    progressionScope: "totalLevel",
     damageBonus: 2,
   },
   {
     id: "legendary", name: "Legendary",
     description: "+1 AC, +2 to attack rolls",
     levelRequired: 18,
+    progressionScope: "totalLevel",
     acBonus: 1, attackBonus: 2,
   },
   {
@@ -304,6 +311,11 @@ export const TALENTS: Talent[] = [
 /** Look up a talent by ID. */
 export function getTalent(id: string): Talent | undefined {
   return TALENTS.find((t) => t.id === id);
+}
+
+/** Unscoped and track-scoped additions must be granted by an owning profile. */
+export function isTotalLevelTalent(talent: Talent): boolean {
+  return talent.progressionScope === "totalLevel" && !talent.classRestriction;
 }
 
 /** Sum all attack bonuses from known talents. */

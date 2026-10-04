@@ -2413,7 +2413,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handleAction(): void {
-    if (this.overlayManager.isProgressionOpen()) return;
+    if (this.overlayManager?.isProgressionOpen()) return;
     if (this.saveSlotManager?.isOpen()) return;
     if (this.overlayManager?.menuOverlay) return;
     if (this.chronicleManager?.isOpen()) {

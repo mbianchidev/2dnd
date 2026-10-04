@@ -32,18 +32,20 @@ export interface ProgressionKnownGrants {
 }
 
 export interface PendingHeroLevelUp {
-  expectedTotalLevel: number;
-  resourceRoll: number;
-  constitution: number;
-  intelligence: number;
+  readonly expectedTotalLevel: number;
+  readonly resourceRoll: number;
+  readonly constitution: number;
+  readonly intelligence: number;
 }
 
 export interface HeroClassProgression {
-  startingClassId: BaseClassId;
+  readonly startingClassId: BaseClassId;
   classLevels: Partial<Record<BaseClassId, number>>;
   trackLevels: Partial<Record<ExternalProgressionTrackId, number>>;
+  readyLevelUps: number;
   pendingLevel: PendingHeroLevelUp | null;
   legacyGrants: ProgressionKnownGrants;
+  deferredLegacyGrants?: ProgressionKnownGrants;
 }
 
 export type HeroProgressingActorState = ProgressingActorState & {
@@ -110,6 +112,7 @@ export function createHeroClassProgression(
     startingClassId,
     classLevels: { [startingClassId]: level },
     trackLevels: {},
+    readyLevelUps: 0,
     pendingLevel: null,
     legacyGrants: { spells: [], abilities: [], talents: [] },
   };
@@ -185,6 +188,15 @@ export function getEarnedPendingLevels(actor: ProgressingActorState): number {
   return level - total;
 }
 
+/** KO XP penalties revoke uncommitted/rest-ready levels, never earned class ownership. */
+export function discardPendingLevelUps(actor: ProgressingActorState): void {
+  actor.pendingLevelUps = 0;
+  if (actor.classProgression) {
+    actor.classProgression.readyLevelUps = 0;
+    actor.classProgression.pendingLevel = null;
+  }
+}
+
 function knownGrants(actor: CombatActorState, kind: ProgressionFeatureKind): readonly string[] {
   return kind === "spell" ? actor.knownSpells
     : kind === "ability" ? actor.knownAbilities : actor.knownTalents;
@@ -202,6 +214,7 @@ export function getFeatureSources(
   id: string,
   context: HeroProgressionContext = DEFAULT_PROGRESSION_CONTEXT,
 ): ProgressionGrantSource[] {
+  if (!knownGrants(actor, kind).includes(id)) return [];
   const sources: ProgressionGrantSource[] = [];
   for (const track of getProgressionTracks(actor, context)) {
     const profile = getProgressionProfile(track.id, context);
@@ -294,6 +307,8 @@ export function qualifyNextClass(
 ): ClassQualification {
   const profile = getProgressionProfile(id, context);
   if (!profile) return { qualified: false, message: `Unknown progression track: ${id}`, unmetRequirements: [] };
+  const error = validateActorProgression(actor);
+  if (error) return { qualified: false, message: error, unmetRequirements: [] };
   if (getTotalLevel(actor) >= NORMAL_LEVEL_CAP) {
     return { qualified: false, message: "Normal progression ends at total level 20.", unmetRequirements: [] };
   }
@@ -342,9 +357,9 @@ function validatePendingReceipt(pending: PendingHeroLevelUp, total: number): boo
     && pending.intelligence <= MAX_ABILITY_SCORE;
 }
 
-function validatePreparedLevel(player: HeroProgressingActorState): string | undefined {
-  const progression = player.classProgression;
-  if (!progression || !isBaseClassId(progression.startingClassId)
+function validateActorProgression(actor: CombatActorState): string | undefined {
+  const progression = actor.classProgression;
+  if (progression && (!isBaseClassId(progression.startingClassId)
     || !progression.classLevels || !progression.trackLevels
     || !Number.isInteger(progression.classLevels[progression.startingClassId])
     || (progression.classLevels[progression.startingClassId] ?? 0) < 1
@@ -355,20 +370,33 @@ function validatePreparedLevel(player: HeroProgressingActorState): string | unde
     || Object.entries(progression.trackLevels).some(([id, rank]) =>
       !isExternalProgressionTrackId(id) || typeof rank !== "number"
       || !Number.isInteger(rank) || rank < 1 || rank > NORMAL_LEVEL_CAP
-    )) return "Invalid class-level ownership; reload a normalized campaign.";
-  const total = getTotalLevel(player);
-  if (!Number.isInteger(total) || total < 1 || total > NORMAL_LEVEL_CAP || total !== player.level) {
+    ))) return "Invalid class-level ownership; reload a normalized campaign.";
+  const total = getTotalLevel(actor);
+  if (!Number.isInteger(total) || total < 1 || total > NORMAL_LEVEL_CAP || total !== actor.level) {
     return "Invalid class-level ownership; reload a normalized campaign.";
   }
-  if (total >= NORMAL_LEVEL_CAP) return "Normal progression ends at total level 20.";
-  if (!Number.isFinite(player.xp) || player.xp < 0
-    || STAT_KEYS.some((stat) => !Number.isInteger(player.stats[stat])
-      || player.stats[stat] < 1 || player.stats[stat] > MAX_ABILITY_SCORE)) {
-    return "Invalid progression scores or XP; reload a normalized campaign.";
+  if (STAT_KEYS.some((stat) => !Number.isInteger(actor.stats[stat])
+    || actor.stats[stat] < 1 || actor.stats[stat] > MAX_ABILITY_SCORE)) {
+    return "Invalid progression scores; reload a normalized campaign.";
   }
+  return undefined;
+}
+
+function validatePreparedLevel(player: HeroProgressingActorState): string | undefined {
+  const error = validateActorProgression(player);
+  if (error) return error;
+  const progression = player.classProgression;
+  const total = getTotalLevel(player);
+  if (total >= NORMAL_LEVEL_CAP) return "Normal progression ends at total level 20.";
+  if (!Number.isFinite(player.xp) || player.xp < 0) return "Invalid XP; reload a normalized campaign.";
   if (!Number.isInteger(player.pendingLevelUps) || player.pendingLevelUps <= 0
     || player.pendingLevelUps > NORMAL_LEVEL_CAP - total
-    || getEarnedPendingLevels(player) <= 0) return "No valid earned level is waiting for rest.";
+    || getEarnedPendingLevels(player) <= 0
+    || player.pendingLevelUps > getEarnedPendingLevels(player)) return "No valid earned level is waiting for rest.";
+  if (!Number.isInteger(progression.readyLevelUps) || progression.readyLevelUps < 0
+    || progression.readyLevelUps > player.pendingLevelUps) {
+    return "Invalid rested level queue; reload a normalized campaign.";
+  }
   if (progression.pendingLevel && !validatePendingReceipt(progression.pendingLevel, total)) {
     return "The prepared resource receipt is invalid or stale; reload a normalized campaign.";
   }
@@ -380,10 +408,30 @@ export function prepareHeroLevelUp(
   player: HeroProgressingActorState,
   random: () => number = Math.random,
 ): { ok: true; pending: PendingHeroLevelUp } | { ok: false; message: string } {
+  return freezeHeroLevel(player, random, true);
+}
+
+/** Resume an already rested queue without granting rest credit to newly earned XP. */
+export function prepareNextHeroLevelUp(
+  player: HeroProgressingActorState,
+  random: () => number = Math.random,
+): { ok: true; pending: PendingHeroLevelUp } | { ok: false; message: string } {
+  return freezeHeroLevel(player, random, false);
+}
+
+function freezeHeroLevel(
+  player: HeroProgressingActorState,
+  random: () => number,
+  rested: boolean,
+): { ok: true; pending: PendingHeroLevelUp } | { ok: false; message: string } {
   const error = validatePreparedLevel(player);
   if (error) return { ok: false, message: error };
+  if (!rested && player.classProgression.readyLevelUps <= 0) {
+    return { ok: false, message: "Rest before advancing newly earned levels." };
+  }
   const existing = player.classProgression.pendingLevel;
   if (existing) {
+    if (rested) player.classProgression.readyLevelUps = player.pendingLevelUps;
     return existing.expectedTotalLevel === player.level
       ? { ok: true, pending: existing }
       : { ok: false, message: "The prepared level is stale; reload a normalized campaign." };
@@ -392,12 +440,13 @@ export function prepareHeroLevelUp(
   if (!Number.isFinite(resourceRoll) || resourceRoll < 0 || resourceRoll >= 1) {
     return { ok: false, message: "Cannot prepare level: invalid resource roll." };
   }
-  const pending: PendingHeroLevelUp = {
+  const pending: PendingHeroLevelUp = Object.freeze({
     expectedTotalLevel: player.level,
     resourceRoll,
     constitution: player.stats.constitution,
     intelligence: player.stats.intelligence,
-  };
+  });
+  if (rested) player.classProgression.readyLevelUps = player.pendingLevelUps;
   player.classProgression.pendingLevel = pending;
   return { ok: true, pending };
 }
@@ -407,27 +456,36 @@ function getNewGrants(
   profile: ProgressionTrackProfile,
   nextRank: number,
   nextTotal: number,
+  context: HeroProgressionContext,
 ): Pick<HeroLevelUpPreview, "newSpells" | "newAbilities" | "newTalents"> {
   const newSpells: Spell[] = [];
   const newAbilities: Ability[] = [];
   const newTalents: Talent[] = [];
-  for (const grant of profile.grants) {
-    if (grant.rank > nextRank || knownGrants(actor, grant.kind).includes(grant.id)) continue;
-    if (grant.kind === "spell") {
-      const spell = getSpell(grant.id);
+  const appendGrant = (kind: ProgressionFeatureKind, id: string): void => {
+    if (knownGrants(actor, kind).includes(id)) return;
+    if (kind === "spell") {
+      const spell = getSpell(id);
       if (spell && !newSpells.some((entry) => entry.id === spell.id)) newSpells.push(spell);
-    } else if (grant.kind === "ability") {
-      const ability = getAbility(grant.id);
+    } else if (kind === "ability") {
+      const ability = getAbility(id);
       if (ability && !newAbilities.some((entry) => entry.id === ability.id)) newAbilities.push(ability);
     } else {
-      const talent = getTalent(grant.id);
+      const talent = getTalent(id);
       if (talent && !newTalents.some((entry) => entry.id === talent.id)) newTalents.push(talent);
     }
+  };
+  for (const grant of profile.grants) {
+    if (grant.rank <= nextRank) appendGrant(grant.kind, grant.id);
   }
   for (const talent of TALENTS) {
-    if (!talent.classRestriction && talent.levelRequired <= nextTotal
-      && !actor.knownTalents.includes(talent.id)
-      && !newTalents.some((entry) => entry.id === talent.id)) newTalents.push(talent);
+    if (!talent.classRestriction && talent.levelRequired <= nextTotal) appendGrant("talent", talent.id);
+  }
+  const deferred = actor.classProgression?.deferredLegacyGrants;
+  if (deferred) {
+    const available = getAvailableProgressionGrants(actor, context);
+    for (const id of deferred.spells) if (available.spells.includes(id)) appendGrant("spell", id);
+    for (const id of deferred.abilities) if (available.abilities.includes(id)) appendGrant("ability", id);
+    for (const id of deferred.talents) if (available.talents.includes(id)) appendGrant("talent", id);
   }
   return {
     newSpells: SPELLS.filter((spell) => newSpells.some((entry) => entry.id === spell.id)),
@@ -440,10 +498,11 @@ function buildLevelPreview(
   actor: CombatActorState,
   profile: ProgressionTrackProfile,
   pending: PendingHeroLevelUp,
+  context: HeroProgressionContext = DEFAULT_PROGRESSION_CONTEXT,
 ): HeroLevelUpPreview {
   const total = getTotalLevel(actor) + 1;
   const rank = getTrackLevel(actor, profile.id) + 1;
-  const grants = getNewGrants(actor, profile, rank, total);
+  const grants = getNewGrants(actor, profile, rank, total, context);
   const resources = getLevelResourceGrowth(profile, pending);
   return {
     trackId: profile.id,
@@ -470,10 +529,11 @@ export function previewHeroLevelUp(
   if (!qualification.qualified) return { ok: false, message: qualification.message };
   const profile = getProgressionProfile(id, context);
   const pending = player.classProgression.pendingLevel;
-  if (!profile || !pending || pending.expectedTotalLevel !== player.level) {
+  if (!profile || !pending || pending.expectedTotalLevel !== player.level
+    || player.classProgression.readyLevelUps <= 0) {
     return { ok: false, message: "Rest to prepare this level before selecting a class." };
   }
-  return { ok: true, preview: buildLevelPreview(player, profile, pending) };
+  return { ok: true, preview: buildLevelPreview(player, profile, pending, context) };
 }
 
 function applyLevelPreview(actor: ProgressingActorState, receipt: HeroLevelUpPreview): void {
@@ -486,6 +546,17 @@ function applyLevelPreview(actor: ProgressingActorState, receipt: HeroLevelUpPre
   actor.knownSpells.push(...receipt.newSpells.map((spell) => spell.id));
   actor.knownAbilities.push(...receipt.newAbilities.map((ability) => ability.id));
   actor.knownTalents.push(...receipt.newTalents.map((talent) => talent.id));
+  const progression = actor.classProgression;
+  if (progression?.deferredLegacyGrants) {
+    const remaining: ProgressionKnownGrants = {
+      spells: progression.deferredLegacyGrants.spells.filter((id) => !actor.knownSpells.includes(id)),
+      abilities: progression.deferredLegacyGrants.abilities.filter((id) => !actor.knownAbilities.includes(id)),
+      talents: progression.deferredLegacyGrants.talents.filter((id) => !actor.knownTalents.includes(id)),
+    };
+    if (remaining.spells.length + remaining.abilities.length + remaining.talents.length > 0) {
+      progression.deferredLegacyGrants = remaining;
+    } else delete progression.deferredLegacyGrants;
+  }
   actor.pendingLevelUps = Math.max(0, actor.pendingLevelUps - 1);
 }
 
@@ -516,6 +587,7 @@ export function commitHeroLevelUp(
     return { ok: false, message: "Invalid progression track identity." };
   }
   applyLevelPreview(player, receipt);
+  progression.readyLevelUps--;
   progression.pendingLevel = null;
   return {
     ok: true, receipt,

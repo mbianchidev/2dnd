@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v18, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v19, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -37,7 +37,16 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 18.
+`SAVE_VERSION` is 19.
+
+Schema v19 adds `player.classProgression`: stable starting identity, base
+ranks, reserved empty external ranks, rest-ready credits, one frozen resource
+receipt, retained canonical legacy exceptions, and optional undelivered legacy
+grants. The flat `level` mirrors total ownership.
+Use `classProgressionState.ts` to normalize unknown counts, IDs, knowledge,
+resources, receipts and exact equipped inventory links. Do not recheck mutable
+entry requirements or reroll/reapply historical gains. Undelivered legacy
+unlocks wait for the next applied level, including across intermediate saves.
 
 ```typescript
 interface SaveData {
@@ -312,7 +321,7 @@ recoverable valid campaign.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v18 playtime, position, objective/reward/warning quest state,
+- Current schema-v19 hero progression, playtime, position, objective/reward/warning quest state,
   skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
@@ -336,7 +345,7 @@ recoverable valid campaign.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v18 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v19 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

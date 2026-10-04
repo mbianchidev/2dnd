@@ -30,6 +30,9 @@ and campaign saves stay in your browser's local storage.
 - **Create your hero:** choose from 12 classes, use 27-point buy or
   4d6-drop-lowest stats, customize appearance, level to 20, and collect
   equipment, talents, spells, abilities, and mounts.
+- **Multiclass the hero:** choose qualified class levels at rest, preview frozen
+  HP/MP and feature gains, and combine the existing classes within a total-level
+  cap of 20. Starting identity stays fixed; companions remain single-class.
 - **Complete a full campaign:** follow the Twelvefold Covenant through 12
   mainland cities, three keystone dungeons, data-driven cutscenes, boss
   encounters, an epilogue, and post-game continuation.
@@ -110,10 +113,11 @@ Use `npm run dev:desktop` for Electron development and
 | [Documentation index](docs/README.md) | Complete documentation map |
 | [Getting started](docs/getting-started.md) | Installation, local hosting, saves, troubleshooting |
 | [Gameplay](docs/gameplay.md) | Controls, campaign, combat, exploration, accessibility |
+| [Hero progression](docs/hero-progression.md) | Multiclass prerequisites, rest choices, resource rules, compatibility |
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v17, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v19, migration, recovery, persistence rules |
 | [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
 | [Release](docs/release.md) | GitHub Pages and release checklist |
 | [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |

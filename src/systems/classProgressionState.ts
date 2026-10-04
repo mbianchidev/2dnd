@@ -75,7 +75,7 @@ function normalizePendingLevel(value: unknown, total: number): PendingHeroLevelU
     || constitution < 1 || constitution > MAX_ABILITY_SCORE
     || typeof intelligence !== "number" || !Number.isInteger(intelligence)
     || intelligence < 1 || intelligence > MAX_ABILITY_SCORE) return null;
-  return { expectedTotalLevel: total, resourceRoll, constitution, intelligence };
+  return Object.freeze({ expectedTotalLevel: total, resourceRoll, constitution, intelligence });
 }
 
 /** Recover ownership from unknown data; earned ranks never recheck mutable entry scores. */
@@ -115,8 +115,14 @@ export function normalizeHeroClassProgression(
     remaining -= rank;
   }
   progression.legacyGrants = normalizeGrants(record["legacyGrants"]);
+  const deferred = normalizeGrants(record["deferredLegacyGrants"]);
+  if (deferred.spells.length + deferred.abilities.length + deferred.talents.length > 0) {
+    progression.deferredLegacyGrants = deferred;
+  }
   const total = NORMAL_LEVEL_CAP - remaining;
   progression.pendingLevel = normalizePendingLevel(record["pendingLevel"], total);
+  progression.readyLevelUps = integer(record["readyLevelUps"],
+    progression.pendingLevel ? 1 : 0, 0, NORMAL_LEVEL_CAP - total);
   return progression;
 }
 
@@ -152,7 +158,13 @@ function relinkEquipment(
   const id = typeof value === "string" ? value
     : isRecord(value) && typeof value["id"] === "string" ? value["id"] : undefined;
   if (!id) return null;
-  const match = inventory.find((item) => item.id === id && item.type === type);
+  const savedEffect = isRecord(value) ? value["effect"] : undefined;
+  const savedCost = isRecord(value) ? value["cost"] : undefined;
+  const candidates = inventory.filter((item) => item.id === id && item.type === type);
+  const match = candidates.find((item) =>
+    (typeof savedEffect !== "number" || item.effect === savedEffect)
+    && (typeof savedCost !== "number" || item.cost === savedCost)
+  ) ?? candidates[0];
   if (match) return match;
   const canonical = getItem(id);
   if (!preserveLegacy || canonical?.type !== type) return null;
@@ -237,10 +249,30 @@ export function normalizeHeroProgressionState(
       abilities: fields.knownAbilities.filter((id) => !earned.abilities.includes(id)),
       talents: fields.knownTalents.filter((id) => !earned.talents.includes(id)),
     };
+    const deferred: ProgressionKnownGrants = {
+      spells: earned.spells.filter((id) => !fields.knownSpells.includes(id)),
+      abilities: earned.abilities.filter((id) => !fields.knownAbilities.includes(id)),
+      talents: earned.talents.filter((id) => !fields.knownTalents.includes(id)),
+    };
+    if (deferred.spells.length + deferred.abilities.length + deferred.talents.length > 0) {
+      classProgression.deferredLegacyGrants = deferred;
+    }
   }
-  fields.knownSpells = mergeKnownIds(fields.knownSpells, earned.spells, classProgression.legacyGrants.spells);
-  fields.knownAbilities = mergeKnownIds(fields.knownAbilities, earned.abilities, classProgression.legacyGrants.abilities);
-  fields.knownTalents = mergeKnownIds(fields.knownTalents, earned.talents, classProgression.legacyGrants.talents);
+  const deferred = classProgression.deferredLegacyGrants;
+  if (deferred) {
+    deferred.spells = deferred.spells.filter((id) => earned.spells.includes(id) && !fields.knownSpells.includes(id));
+    deferred.abilities = deferred.abilities.filter((id) => earned.abilities.includes(id) && !fields.knownAbilities.includes(id));
+    deferred.talents = deferred.talents.filter((id) => earned.talents.includes(id) && !fields.knownTalents.includes(id));
+    if (deferred.spells.length + deferred.abilities.length + deferred.talents.length === 0) {
+      delete classProgression.deferredLegacyGrants;
+    }
+  }
+  fields.knownSpells = mergeKnownIds(fields.knownSpells,
+    earned.spells.filter((id) => !deferred?.spells.includes(id)), classProgression.legacyGrants.spells);
+  fields.knownAbilities = mergeKnownIds(fields.knownAbilities,
+    earned.abilities.filter((id) => !deferred?.abilities.includes(id)), classProgression.legacyGrants.abilities);
+  fields.knownTalents = mergeKnownIds(fields.knownTalents,
+    earned.talents.filter((id) => !deferred?.talents.includes(id)), classProgression.legacyGrants.talents);
   const fallback = resourceFallback(actor, context);
   fields.maxHp = integer(value["maxHp"], fallback.maxHp, 1);
   fields.maxMp = integer(value["maxMp"], fallback.maxMp);
@@ -250,7 +282,8 @@ export function normalizeHeroProgressionState(
     0, getEarnedPendingLevels(actor));
   fields.pendingStatPoints = integer(value["pendingStatPoints"], 0, 0,
     ASI_LEVELS.filter((level) => level <= fields.level).length * ASI_POINTS);
-  if (fields.pendingLevelUps === 0) classProgression.pendingLevel = null;
+  classProgression.readyLevelUps = Math.min(classProgression.readyLevelUps, fields.pendingLevelUps);
+  if (classProgression.readyLevelUps === 0) classProgression.pendingLevel = null;
   if (fields.equippedWeapon?.twoHanded) {
     fields.equippedShield = null;
     fields.equippedOffHand = null;

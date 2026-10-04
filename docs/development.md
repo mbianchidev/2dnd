@@ -26,6 +26,7 @@
 | --- | --- |
 | Combat formula or status | `src/systems/combat.ts`, `statusEffects.ts`, `groupCombat.ts` |
 | Player/companion action | `src/systems/battleActions.ts`, data action definition, focused tests |
+| Hero multiclass progression | `data/classProgression.ts`, `systems/classProgression*.ts`, `managers/heroProgression.ts`; see [Hero progression](hero-progression.md) |
 | Monster or encounter | `src/data/monsters.ts`, `monsterVariants.ts`, `nightMonsters.ts`, `seaMonsters.ts`, `monsterGroups.ts` |
 | Quest | `src/data/quests.ts`, `src/systems/quests.ts`, quest tests |
 | Cutscene | focused `src/data/cutscene*.ts`, `src/systems/cutscenes.ts`, cutscene tests |
@@ -86,6 +87,7 @@ Useful command families include:
 /near
 /cutsceneview
 /companion
+/class
 /event
 /alignment
 /reputation

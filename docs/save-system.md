@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v18; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v19; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -33,7 +33,13 @@ normalization remains beside its domain where appropriate, including
 
 ## Current schema
 
-`SAVE_VERSION` is **18**. Schema v18 adds normalized non-negative
+`SAVE_VERSION` is **19**. Schema v19 adds authoritative hero class ownership,
+fixed starting identity, a rest-ready queue and one frozen level receipt.
+Legacy HP/MP/stats/actions/equipment are preserved without rolling historical
+growth or applying bonuses on load. Exceptional canonical legacy grants and
+optional undelivered legacy unlocks are retained explicitly.
+
+Schema v18 adds normalized non-negative
 `playtimeSeconds` to each campaign document. Slot names, backup state, and
 migration bookkeeping remain storage metadata rather than campaign authority.
 
@@ -49,6 +55,7 @@ player.position
 player.progression
 player.party
 player.activeEffects
+player.classProgression
 ```
 
 `defeatedBosses` is serialized as an array and restored to a `Set<string>` for

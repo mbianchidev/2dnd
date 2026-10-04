@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { BASE_CLASS_IDS, BASE_CLASS_PROFILES } from "../src/data/classProgression";
 import {
   commitHeroLevelUp, getTotalLevel, prepareHeroLevelUp, previewHeroLevelUp,
+  prepareNextHeroLevelUp,
 } from "../src/systems/classProgression";
 import { normalizeHeroClassProgression } from "../src/systems/classProgressionState";
 import {
@@ -12,6 +13,7 @@ import {
 import { loadGame, normalizeSaveData, saveGame, SAVE_VERSION } from "../src/systems/save";
 import { createCodex } from "../src/systems/codex";
 import { getItem } from "../src/data/items";
+import { applyKnockoutXpPenalty } from "../src/systems/party";
 
 const stats = {
   strength: 15, dexterity: 15, constitution: 14,
@@ -87,6 +89,29 @@ describe("multiclass persistence", () => {
     expect(loaded.player).toEqual(committed);
   });
 
+  it("resumes all paid-rest levels after reload but excludes XP earned after rest", () => {
+    const player = createPlayer("Rest queue fixture", stats);
+    awardXP(player, xpForLevel(4));
+    prepareHeroLevelUp(player, () => 0.4);
+    commitHeroLevelUp(player, { trackId: "wizard", expectedTotalLevel: 1 });
+    expect(player.classProgression.readyLevelUps).toBe(2);
+    saveGame(player, new Set(), createCodex(), player.appearanceId);
+    const loaded = loadGame();
+    if (!loaded) throw new Error("Cannot recover rested queue");
+    const random = vi.fn(() => 0.6);
+    expect(prepareNextHeroLevelUp(loaded.player, random).ok).toBe(true);
+    expect(prepareNextHeroLevelUp(loaded.player, random).ok).toBe(true);
+    expect(random).toHaveBeenCalledTimes(1);
+    awardXP(loaded.player, xpForLevel(5) - loaded.player.xp);
+    commitHeroLevelUp(loaded.player, { trackId: "wizard", expectedTotalLevel: 2 });
+    prepareNextHeroLevelUp(loaded.player, () => 0.5);
+    commitHeroLevelUp(loaded.player, { trackId: "wizard", expectedTotalLevel: 3 });
+    expect(loaded.player.level).toBe(4);
+    expect(loaded.player.pendingLevelUps).toBe(1);
+    expect(loaded.player.classProgression.readyLevelUps).toBe(0);
+    expect(prepareNextHeroLevelUp(loaded.player).ok).toBe(false);
+  });
+
   it("retains canonical legacy exceptions without applying resource bonuses again", () => {
     const player = createPlayer("Legacy grants fixture", stats);
     player.knownSpells.push("meteorSwarm");
@@ -106,6 +131,73 @@ describe("multiclass persistence", () => {
     const again = normalizeSaveData(structuredClone(normalized));
     expect(again?.player.knownSpells).toEqual(player.knownSpells);
     expect(again?.player.maxMp).toBe(player.maxMp);
+  });
+
+  describe("save recovery edge cases", () => {
+    it("preserves undelivered legacy unlocks until the next applied level", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0.5);
+      const player = createPlayer("Legacy unlock fixture", stats, "wizard");
+      awardXP(player, xpForLevel(4));
+      processPendingLevelUps(player);
+      player.knownSpells = ["fireBolt", "rayOfFrost"];
+      player.knownAbilities = [];
+      player.knownTalents = [];
+      player.maxHp -= 5;
+      player.hp = player.maxHp;
+      player.maxMp -= 5;
+      player.mp = player.maxMp;
+      const raw = JSON.parse(JSON.stringify(player)) as Record<string, unknown>;
+      delete raw["classProgression"];
+      const loaded = normalizeSaveData({
+        version: 18, player: raw, codex: createCodex(),
+        defeatedBosses: [], appearanceId: "wizard", timestamp: 100,
+      });
+      if (!loaded) throw new Error("Cannot migrate old unlock state");
+      expect(loaded.player.knownSpells).toEqual(player.knownSpells);
+      expect(loaded.player.knownAbilities).toEqual([]);
+      expect(loaded.player.knownTalents).toEqual([]);
+      expect(loaded.player.maxHp).toBe(player.maxHp);
+      expect(loaded.player.maxMp).toBe(player.maxMp);
+      saveGame(loaded.player, new Set(), createCodex(), "wizard");
+      const again = loadGame();
+      if (!again) throw new Error("Cannot reload deferred legacy grants");
+      expect(again.player.knownTalents).toEqual([]);
+      awardXP(again.player, xpForLevel(5) - again.player.xp);
+      const result = processPendingLevelUps(again.player);
+      expect(result.newTalents.map((talent) => talent.id)).toEqual(["toughness", "arcaneWard"]);
+      expect(again.player.maxHp).toBe(player.maxHp + 6 + 5);
+      expect(again.player.maxMp).toBe(player.maxMp + 5 + 5);
+      const before = structuredClone(again.player);
+      processPendingLevelUps(again.player);
+      expect(again.player).toEqual(before);
+    });
+
+    it("retains the exact equipped variant when duplicate item IDs have distinct effects", () => {
+      const player = createPlayer("Equipment fixture", stats);
+      const stronger = { ...getItem("startSword")!, effect: 7 };
+      player.inventory.push(stronger);
+      player.equippedWeapon = stronger;
+      saveGame(player, new Set(), createCodex(), player.appearanceId);
+      const loaded = loadGame();
+      expect(loaded?.player.equippedWeapon).toBe(loaded?.player.inventory[1]);
+      expect(loaded?.player.equippedWeapon?.effect).toBe(7);
+    });
+
+    it("clears uncommitted/rest-ready levels on KO without changing learned ownership", () => {
+      const player = createPlayer("KO fixture", stats);
+      awardXP(player, xpForLevel(4));
+      prepareHeroLevelUp(player, () => 0.5);
+      commitHeroLevelUp(player, { trackId: "wizard", expectedTotalLevel: 1 });
+      prepareNextHeroLevelUp(player, () => 0.2);
+      const classes = { ...player.classProgression.classLevels };
+      applyKnockoutXpPenalty(player);
+      expect(player.pendingLevelUps).toBe(0);
+      expect(player.classProgression.readyLevelUps).toBe(0);
+      expect(player.classProgression.pendingLevel).toBeNull();
+      expect(player.classProgression.classLevels).toEqual(classes);
+      expect(player.knownSpells).toContain("fireBolt");
+      expect(player.xp).toBe(xpForLevel(2));
+    });
   });
 
   it("normalizes canonical known actions without reapplying talents", () => {

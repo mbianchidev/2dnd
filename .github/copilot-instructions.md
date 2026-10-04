@@ -301,6 +301,11 @@ interface PlayerProgression {
 
 Access fields through `player.position` and `player.progression`.
 `player.activeEffects` stores normalized combat effects.
+`player.classProgression` owns the fixed starting class, base-class ranks,
+reserved empty external ranks, rest-ready levels, one frozen HP/MP receipt, and
+canonical legacy grant metadata. The flat `level` mirrors the owned-rank sum.
+Normalize through `classProgressionState.ts`; qualify/preview/commit through
+`classProgression.ts`. Never infer class identity from later appearance changes.
 `player.party` stores unique recruited companion states and up to three active
 companion IDs. Companion state composes `CombatActorState` plus independent XP,
 level-up/stat state, control mode, dialogue cursor, and normalized gambits.
@@ -460,6 +465,34 @@ Flow:
 | Barbarian | STR +2, CON +1 | STR |
 | Monk | DEX +2, WIS +1 | DEX |
 | Bard | CHA +2, DEX +1 | CHA |
+
+### Hero multiclass progression
+
+- Keep creation single-class and companions single-class. Starting boosts,
+  gold and equipment apply only at creation; there is no respec API.
+- Immutable twelve-class profiles/entry requirements live in
+  `src/data/classProgression.ts`; mechanics in `systems/classProgression.ts`,
+  unknown normalization in `classProgressionState.ts`, and measured accessible
+  presentation in `managers/heroProgression.ts`.
+- Entry checks apply to new tracks, including starting-class requirements;
+  continuing or normalizing recognized earned ranks never rechecks mutable
+  prerequisites. Normal total level is capped at 20.
+- Proficiency, ASIs and common talents use total level once. Restricted
+  features/spells/abilities use owned rank. Deduplicate stable action/feature
+  IDs and apply shared one-time HP/MP bonuses once.
+- Freeze one resource roll and CON/INT scores at rest. Preserve rest-ready
+  credits across save/reload; new XP cannot reuse older rest authorization.
+  A commit binds the expected total level and consumes one pending/rest-ready
+  level. Invalid/stale/repeated input consumes nothing.
+- Keep all current classes' shared INT-grown MP and selected hit-die/CON HP.
+  Spells resolve eligible source stats independently from appearance;
+  abilities keep explicit stat keys. Preserve permissive equipment and the
+  existing one-action/one-bonus-action economy.
+- `E` then `Tab` and the visible equipment/hero-party links open progression.
+  Support semantic multi-input, measured pagination, 150% text, high contrast,
+  reduced motion, cleanup, and keyup confirmation before exploration resumes.
+- Static external-profile hooks are not shipped prestige, epic or NG+ content.
+  Future domains must use the merged engine, not copy XP/rest/grant logic.
 
 ## Combat
 
@@ -789,7 +822,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 18.
+Save schema version is 19.
+
+Schema v19 adds normalized hero class ownership and fixed starting identity,
+total-level mirroring, rest-ready credits and one frozen level receipt. Migrate
+legacy single-class HP/MP/stats/actions/equipment without rerolling or replaying
+bonuses. Retain canonical legacy exceptions and optional undelivered legacy
+grants until the next applied level, preserving the old processor's behavior.
+Normalize IDs, ranks, totals, action overlap, resources, equipment links,
+rest/XP cross-fields and malformed receipts without touching campaign authority.
 
 Schema v18 adds non-negative campaign playtime and a resilient local slot
 layout: the legacy-compatible `2dnd_save` autosave, three stable manual slots,
@@ -931,7 +972,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v18
+  visibility, handedness, and prompt source only; they never enter schema-v19
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the
@@ -994,6 +1035,9 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   current city's primary district; it never completes the interaction.
 - `/companion` lists, recruits, changes control mode, heals, or explains stored
   gambits. Recruitment mutations refresh follower presentation immediately.
+- `/class list|status|qualify <id>|level <id>|sheet` inspects bounded hero
+  progression. Advancement uses the canonical transaction only in safe
+  exploration and suppresses newly met natural achievement criteria.
 - `/achievement` lists, debug-unlocks, resets, reports progress, or explains
   authoritative criteria. Debug unlocks never grant natural points or titles.
 - `/feature` lists, explicitly debug-reveals, hides, resets, or explains stable

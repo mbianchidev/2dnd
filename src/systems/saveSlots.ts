@@ -10,7 +10,7 @@ import {
   getSeaZone,
   getSeaZoneAt,
 } from "../data/nautical";
-import { getPlayerClass } from "./classes";
+import { getActorStartingClass, getProgressionDisplayName, getProgressionTracks } from "./classProgression";
 import type { CodexData } from "./codex";
 import type { PlayerState } from "./player";
 import { isQuestCompleted } from "./quests";
@@ -48,6 +48,7 @@ export interface SaveSlotMetadata {
   characterName: string;
   classId: string;
   className: string;
+  classCount: number;
   level: number;
   location: string;
   campaignStatus: SaveCampaignStatus;
@@ -133,13 +134,13 @@ function deriveSlotMetadata(
   slotName: string,
   data: SaveData,
 ): SaveSlotMetadata {
-  const playerClass = getPlayerClass(data.player.appearanceId);
   return {
     slotId,
     slotName,
     characterName: data.player.name,
-    classId: playerClass.id,
-    className: playerClass.label,
+    classId: getActorStartingClass(data.player),
+    className: getProgressionDisplayName(data.player),
+    classCount: getProgressionTracks(data.player).length,
     level: data.player.level,
     location: deriveSaveLocation(data.player),
     campaignStatus: deriveCampaignStatus(data),

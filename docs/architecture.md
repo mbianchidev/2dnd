@@ -15,7 +15,7 @@
 | happy-dom | 20.14.3 |
 | Electron | 44.3.0 |
 | electron-builder | 26.16.1 |
-| Campaign save schema | 18 |
+| Campaign save schema | 19 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -159,6 +159,24 @@ target, formation, status, element, or economy rules.
 Mechanics resolve before presentation. Actor animation receives stable IDs and
 immutable outcomes; tweens never apply damage, spend resources, or control
 authoritative turn/result transitions.
+
+## Hero progression authority
+
+`data/classProgression.ts` owns immutable twelve-class profiles and bounded
+extension contracts. `systems/classProgression.ts` owns qualification, rank/
+total queries, grant provenance, frozen previews, rest-ready queues and atomic
+one-level commits. `classProgressionState.ts` normalizes unknown ownership,
+knowledge, resources, pending receipts and equipment links.
+
+Hero ownership lives in `player.classProgression`, independently of visual
+appearance; the existing `level` mirrors total owned ranks. Companions do not
+own hero progression. Proficiency/ASIs/common talents use total level,
+restricted grants use source rank, and shared IDs/bonuses apply once.
+`managers/heroProgression.ts` owns measured, accessible presentation rather
+than another leveling or action engine. Normal total level remains 20; the
+static external-profile seam ships no prestige or epic content.
+
+See [Hero progression](hero-progression.md).
 
 ## Content and campaign flow
 

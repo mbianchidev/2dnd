@@ -297,7 +297,7 @@ describe("once-only prepared level application", () => {
     awardXP(player, xpForLevel(2));
     prepareHeroLevelUp(player, () => 0.5);
     if (!player.classProgression.pendingLevel) throw new Error("Missing receipt");
-    player.classProgression.pendingLevel.resourceRoll = NaN;
+    player.classProgression.pendingLevel = { ...player.classProgression.pendingLevel, resourceRoll: NaN };
     const corrupt = structuredClone(player);
     expect(commitHeroLevelUp(player, {
       trackId: "wizard", expectedTotalLevel: 1,

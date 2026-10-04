@@ -695,24 +695,6 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     if (data.player.pendingLevelUps === undefined) data.player.pendingLevelUps = 0;
     data.player.activeEffects = normalizeActiveEffects(data.player.activeEffects);
 
-    const p = data.player;
-    if (p.equippedWeapon) {
-      const match = p.inventory.find(i => i.id === p.equippedWeapon!.id && i.type === "weapon");
-      if (match) p.equippedWeapon = match;
-    }
-    if (p.equippedOffHand) {
-      const match = p.inventory.find(i => i.id === p.equippedOffHand!.id && i.type === "weapon");
-      if (match) p.equippedOffHand = match;
-    }
-    if (p.equippedArmor) {
-      const match = p.inventory.find(i => i.id === p.equippedArmor!.id && i.type === "armor");
-      if (match) p.equippedArmor = match;
-    }
-    if (p.equippedShield) {
-      const match = p.inventory.find(i => i.id === p.equippedShield!.id && i.type === "shield");
-      if (match) p.equippedShield = match;
-    }
-
     const validCityIds = new Set(CITIES.map((city) => city.id));
     if (!Array.isArray(data.player.progression.discoveredCities)) {
       const ids = new Set<string>();

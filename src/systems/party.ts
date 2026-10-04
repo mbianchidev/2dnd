@@ -17,6 +17,7 @@ import {
   type BattleActionSource,
 } from "./battleActions";
 import { getClassAbilities, getClassSpells, getPlayerClass } from "./classes";
+import { discardPendingLevelUps } from "./classProgression";
 import {
   createPartyCombatant,
   HERO_COMBATANT_ID,
@@ -46,6 +47,7 @@ import { replayQuestCompletionActions } from "./quests";
 export const MAX_ACTIVE_COMPANIONS = 3;
 
 export interface CompanionState extends CombatActorState {
+  classProgression?: never;
   id: CompanionId;
   xp: number;
   pendingStatPoints: number;
@@ -435,7 +437,7 @@ export function applyKnockoutXpPenalty(
   actor: ProgressingActorState,
 ): void {
   actor.xp = xpFloorForLevel(actor.level);
-  actor.pendingLevelUps = 0;
+  discardPendingLevelUps(actor);
 }
 
 export function isPartyMemberId(value: unknown): value is PartyMemberId {
@@ -584,7 +586,7 @@ export function applyPartyDefeat(
   };
 }
 
-export function restPartyAtInn(player: PlayerState): PartyRestResult {
+export function restPartyAtInn(player: PlayerState, deferHeroLevelUps = false): PartyRestResult {
   const leveledActorIds: PartyMemberId[] = [];
   const actors: Array<{
     id: PartyMemberId;
@@ -601,7 +603,9 @@ export function restPartyAtInn(player: PlayerState): PartyRestResult {
     actor.state.hp = actor.state.maxHp;
     actor.state.mp = actor.state.maxMp;
     clearAllEffects(actor.state.activeEffects);
-    const result = processPendingLevelUps(actor.state);
+    const result = actor.id === "hero" && deferHeroLevelUps
+      ? { leveledUp: false, newLevel: player.level, newSpells: [], newAbilities: [], newTalents: [], asiGained: 0 }
+      : processPendingLevelUps(actor.state);
     actor.state.hp = actor.state.maxHp;
     actor.state.mp = actor.state.maxMp;
     actorResults.push({

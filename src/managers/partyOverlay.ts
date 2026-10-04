@@ -303,6 +303,10 @@ export class PartyOverlayManager {
         this.cycleTarget();
         this.render();
       },
+      openProgression: member.companion ? undefined : () => {
+        this.close();
+        this.callbacks.openProgression();
+      },
     });
   }
 

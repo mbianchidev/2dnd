@@ -560,6 +560,8 @@ export class OverworldScene extends Phaser.Scene {
       () => this.autoSave(),
     );
     this.devotionManager = new DevotionManager(this, {
+      canVisitTemple: () => !this.isMoving && !this.sceneTransitions.isPending
+        && !this.isOverlayOpen() && !this.dialogueSystem.isDialogueOpen(),
       onMutation: (result) => {
         if (result.socialEffect) {
           consumeSocialAchievementHooks(this.player, result.socialEffect.achievementHooks);
@@ -639,7 +641,7 @@ export class OverworldScene extends Phaser.Scene {
       this.gatheringManager.clear();
       this.craftingManager.clear();
       this.saveSlotManager?.destroy();
-      this.devotionManager.close();
+      this.devotionManager.destroy();
       this.featureRevealTimer?.remove(false);
       this.featureRevealTimer = null;
     });
@@ -1198,6 +1200,7 @@ export class OverworldScene extends Phaser.Scene {
    * (e.g. [SPACE] prompts, entering a new zone). Plain terrain is suppressed.
    */
   private showLocationInfo(): void {
+    if (getAdjacentDevotionTemple(this.player.position)) return;
     const text = this.getLocationString();
     if (!text) return;
 
@@ -2042,6 +2045,11 @@ export class OverworldScene extends Phaser.Scene {
 
   update(time: number): void {
     this.updateDebugPanel();
+    this.devotionManager.updateVisitPrompt(
+      this.player,
+      this.sceneTransitions.isPending || this.isMoving || this.isOverlayOpen()
+        || this.dialogueSystem.isDialogueOpen(),
+    );
     this.achievementNotifications.update(
       !this.sceneTransitions.isPending
       && !this.isMoving

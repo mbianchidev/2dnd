@@ -5,6 +5,7 @@ import {
   isDeityId,
   isDevotionSourceId,
   isTempleId,
+  getDevotionSource,
   type DeityId,
   type DevotionSourceId,
   type TempleId,
@@ -103,16 +104,24 @@ export function normalizeDevotionState(
       ) {
         continue;
       }
-      seen.add(sourceId);
       const debug = isDevotionSourceId(sourceId)
         && state.debugSourceIds.includes(sourceId);
+      const score = causeDeity ? integer(candidate["score"], 0, DEVOTION_SCORE_MAX) : 0;
+      const delta = debug ? 0
+        : isDevotionSourceId(sourceId) && !causeDeity ? 0
+        : candidate["delta"];
+      if (typeof delta !== "number" || !Number.isInteger(delta)
+        || score - delta < 0 || score - delta > DEVOTION_SCORE_MAX) continue;
+      if (isDevotionSourceId(sourceId) && causeDeity && !debug) {
+        const requested = getDevotionSource(sourceId).deltas[causeDeity];
+        if (requested >= 0 ? delta < 0 || delta > requested : delta > 0 || delta < requested) continue;
+      }
+      seen.add(sourceId);
       state.history.push({
         sourceId,
         deityId: causeDeity,
-        delta: causeDeity && !debug
-          ? integer(candidate["delta"], -DEVOTION_SCORE_MAX, DEVOTION_SCORE_MAX)
-          : 0,
-        score: causeDeity ? integer(candidate["score"], 0, DEVOTION_SCORE_MAX) : 0,
+        delta,
+        score,
         debug,
       });
     }

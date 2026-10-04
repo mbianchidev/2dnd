@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { clickLayoutItem } from "./helpers/layout";
+import { clickLayoutItem, expectCleanLayout } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const MAIN_QUEST_ID = "twelvefoldCovenant";
@@ -24,6 +24,7 @@ interface BrowserSave {
       tutorial: {
         completed: boolean;
       };
+      devotion: { deityId: string | null; score: number };
       quests: {
         quests: Record<string, BrowserQuestProgress>;
       };
@@ -302,9 +303,9 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "CUTSCENE | campaign.finalReturn");
     await drainGenericCutscenesUntil(
       page,
-      "ENDING | Step: 1/5 | Type: narration",
+      "ENDING | Step: 1/6 | Type: narration",
     );
-    await waitForState(page, "ENDING | Step: 1/5 | Type: narration");
+    await waitForState(page, "ENDING | Step: 1/6 | Type: narration");
 
     const save = await readSave(page);
     const progress = save.player.progression.quests.quests[MAIN_QUEST_ID];
@@ -326,7 +327,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await page.reload({ waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
     await clickLayoutItem(page, "title-continue");
-    await waitForState(page, "ENDING | Step: 1/5 | Type: narration");
+    await waitForState(page, "ENDING | Step: 1/6 | Type: narration");
     const save = await readSave(page);
     expect(save.player.progression.pendingCutsceneIds).toContain(EPILOGUE_ID);
     expect(browserErrors).toEqual([]);
@@ -335,13 +336,19 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   await test.step("view credits and continue post-game", async () => {
     await page.waitForTimeout(400);
     await holdKey(page, "Enter");
-    await waitForState(page, "ENDING | Step: 2/5 | Type: dialogue");
+    await waitForState(page, "ENDING | Step: 2/6 | Type: dialogue");
     await holdKey(page, "Enter");
-    await waitForState(page, "ENDING | Step: 3/5 | Type: narration");
+    await waitForState(page, "ENDING | Step: 3/6 | Type: narration");
     await holdKey(page, "Enter");
-    await waitForState(page, "ENDING | Step: 4/5 | Type: summary");
+    await waitForState(page, "ENDING | Step: 4/6 | Type: summary");
     await holdKey(page, "Enter");
-    await waitForState(page, "ENDING | Step: 5/5 | Type: credits");
+    await waitForState(page, "ENDING | Step: 5/6 | Type: summary");
+    await expect(page.locator("#layout-report")).toContainText("ending-devotion-body");
+    await expectCleanLayout(page);
+    expect((await readSave(page)).player.progression.devotion.deityId).toBeNull();
+    expect((await readSave(page)).player.progression.devotion.score).toBe(0);
+    await holdKey(page, "Enter");
+    await waitForState(page, "ENDING | Step: 6/6 | Type: credits");
     await holdKey(page, "Enter");
     await waitForState(page, "ENDING | Choices");
     await holdKey(page, "Enter");
@@ -405,7 +412,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await page.reload({ waitUntil: "networkidle" });
     await waitForState(page, "BOOT | Screen: title");
     await clickLayoutItem(page, "title-continue");
-    await waitForState(page, "ENDING | Step: 1/5 | Type: narration");
+    await waitForState(page, "ENDING | Step: 1/6 | Type: narration");
     await page.waitForTimeout(420);
     await holdKey(page, "Escape");
     await waitForState(page, "ENDING | Choices");

@@ -22,7 +22,8 @@ quests, gates, rewards, companions, and ending.
 ## Finding a temple
 
 Approach an adjacent walkable tile and interact with the marked temple or model
-site. Sites reuse existing statues or temples, except for Tidehaven's new
+site, or select the contextual **Visit** button with pointer, touch, or the
+gamepad cursor. Sites reuse existing statues or temples, except for Tidehaven's new
 blueglass model. They do not replace the Founding Volume, First Choice
 inscription, or Marsh Ledger.
 
@@ -131,7 +132,7 @@ ending text can grant devotion, blessings, quest progress, rewards, or access.
 | Canonical source mutations, tiers, qualification and ending queries | `src/systems/devotion.ts` |
 | Temple location validation, atomic rites, conversation and status cross-fields | `src/systems/devotionTemples.ts` |
 | Derived profile, tenet, cause and rite presentation | `src/systems/devotionProfile.ts` |
-| Measured Phaser overlay and native accessibility semantics | `src/managers/devotion.ts`, `devotionAccessibility.ts` |
+| Measured Phaser overlay, contextual visit control and native accessibility semantics | `src/managers/devotion.ts`, `devotionAccessibility.ts`, `src/renderers/devotionPrompt.ts` |
 | Debug-only inspection, relocation and source consumption | `src/systems/devotionDebug.ts` |
 
 `player.progression.devotion` owns affiliation, score, source and visit ledgers,

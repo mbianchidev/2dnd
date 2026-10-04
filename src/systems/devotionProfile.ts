@@ -14,6 +14,16 @@ import {
   type TempleRiteAvailability,
 } from "./devotionTemples";
 import type { PlayerState } from "./player";
+import type { InputSource } from "./input";
+
+export function getDevotionVisitPrompt(source: InputSource): string {
+  return {
+    keyboard: "Temple [SPACE] Visit",
+    pointer: "Temple [click] Visit",
+    gamepad: "Temple [A/X] Visit",
+    touch: "Temple [A/tap] Visit",
+  }[source];
+}
 
 export function getDevotionProfileLines(player: PlayerState): readonly string[] {
   const state = player.progression.devotion;

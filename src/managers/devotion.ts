@@ -39,6 +39,7 @@ import type { PlayerState } from "../systems/player";
 import type { SocialMutationResult } from "../systems/reputation";
 import { layoutTextStack, syncInteractiveHitArea } from "./layout";
 import { DevotionAccessibility } from "./devotionAccessibility";
+import { DevotionPromptRenderer } from "../renderers/devotionPrompt";
 import {
   calcPanelLayout,
   createDimGraphics,
@@ -56,6 +57,7 @@ interface DevotionAction {
 }
 
 export interface DevotionManagerCallbacks {
+  canVisitTemple(): boolean;
   onMutation(result: DevotionMutationResult & { socialEffect?: SocialMutationResult }): void;
   offerQuest(templeId: TempleId): void;
   affiliationConsequences(target: DeityId | null): string;
@@ -91,6 +93,7 @@ export class DevotionManager {
   private unsubscribePreferences: (() => void) | null = null;
   private unsubscribePrompts: (() => void) | null = null;
   private readonly accessibility: DevotionAccessibility;
+  private readonly visitPrompt: DevotionPromptRenderer;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -100,6 +103,20 @@ export class DevotionManager {
       (id) => this.selectAction(id),
       (id) => this.activateAction(id),
     );
+    this.visitPrompt = new DevotionPromptRenderer(scene, () => {
+      const player = this.promptPlayer;
+      const temple = player ? getAdjacentDevotionTemple(player.position) : undefined;
+      if (player && temple && !this.isOpen() && this.callbacks.canVisitTemple()) {
+        this.openTemple(player, temple.id);
+      }
+    });
+  }
+
+  private promptPlayer: PlayerState | null = null;
+
+  updateVisitPrompt(player: PlayerState, blocked: boolean): void {
+    this.promptPlayer = blocked ? null : player;
+    this.visitPrompt.update(player, blocked);
   }
 
   isOpen(): boolean { return this.player !== null; }
@@ -124,6 +141,7 @@ export class DevotionManager {
 
   private open(player: PlayerState, templeId: TempleId | null): void {
     this.close();
+    this.visitPrompt.clear();
     this.player = player;
     this.templeId = templeId;
     this.view = "profile";
@@ -169,6 +187,12 @@ export class DevotionManager {
     } else {
       this.close();
     }
+  }
+
+  destroy(): void {
+    this.close();
+    this.visitPrompt.clear();
+    this.promptPlayer = null;
   }
 
   getDebugState(): string {

@@ -158,6 +158,21 @@ describe("fictional devotion authority", () => {
     expect(normalizeDevotionState(state, 18)).toEqual(createDevotionState());
     expect(normalizeDevotionState(null, 19)).toEqual(createDevotionState());
   });
+
+  it("rejects impossible history deltas without removing source idempotency", () => {
+    const normalized = normalizeDevotionState({
+      deityId: "orivane", score: 8,
+      appliedSourceIds: ["covenantReturned"],
+      history: [
+        { sourceId: "covenantReturned", deityId: "orivane", delta: 100, score: 100 },
+        { sourceId: "covenantReturned", deityId: "orivane", delta: 8, score: 8 },
+      ],
+    });
+    expect(normalized.history).toHaveLength(1);
+    expect(normalized.history[0].delta).toBe(8);
+    expect(normalized.appliedSourceIds).toEqual(["covenantReturned"]);
+    expect(normalized.score).toBe(8);
+  });
 });
 
 describe("original pantheon contracts", () => {

@@ -1,4 +1,5 @@
 import type * as Phaser from "phaser";
+import { debugLog } from "../config";
 import {
   createAggregateDicePresentation,
   createCombatDicePresentation,
@@ -29,6 +30,9 @@ export class BattleDicePresenter {
     result: CombatDiceReceipt,
     label = "attack",
   ): void {
+    debugLog("[dice] receipt", {
+      kind: "attack", actorId: actor.id, targetId: target.id, attack: result,
+    });
     const view = createCombatDicePresentation(result, {
       actorId: actor.id,
       targetId: target.id,
@@ -47,6 +51,9 @@ export class BattleDicePresenter {
     for (const actor of actors) {
       const roll = result.rollResults[actor.id];
       if (!roll) continue;
+      debugLog("[dice] receipt", {
+        kind: "initiative", actorId: actor.id, rollResult: roll,
+      });
       presentDiceResult(this.scene, createD20Presentation(roll, {
         category: "initiative",
         label: `${actor.label} initiative`,
@@ -62,6 +69,7 @@ export class BattleDicePresenter {
     savingThrows: readonly StatusSavingThrowResult[],
   ): void {
     for (const save of savingThrows) {
+      debugLog("[dice] receipt", { kind: "save", actorId: actor.id, save });
       presentDiceResult(this.scene, createD20Presentation(save.rollResult, {
         category: "save",
         label: `${actor.label} save vs ${save.label}`,
@@ -78,6 +86,7 @@ export class BattleDicePresenter {
     actor: BattleCombatantState,
     result: { rollResult: ResolvedD20Roll; dc: number; success: boolean },
   ): void {
+    debugLog("[dice] receipt", { kind: "flee", actorId: actor.id, flee: result });
     presentDiceResult(this.scene, createD20Presentation(result.rollResult, {
       category: "flee",
       label: `${actor.label} flee`,

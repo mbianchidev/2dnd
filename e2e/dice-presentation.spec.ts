@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
-import { createCurrentSaveData, type SaveData } from "../src/systems/save";
+import { createCurrentSaveData, normalizeSaveData, type SaveData } from "../src/systems/save";
 import { createWeatherState } from "../src/systems/weather";
 import {
   normalizeGamePreferences,
@@ -9,8 +9,13 @@ import {
 } from "../src/systems/accessibility";
 import {
   createTrapDicePresentation,
+  createD20Presentation,
   formatDicePresentation,
+  type CombatDiceReceipt,
 } from "../src/systems/dicePresentation";
+import type { ResolvedD20Roll } from "../src/systems/rollResults";
+import type { StatusSavingThrowResult } from "../src/systems/statusEffects";
+import type { TrapCheckResult } from "../src/systems/traps";
 import {
   attemptTrapDetection,
   attemptTrapDisarm,
@@ -36,6 +41,47 @@ interface SeedOptions {
   reducedMotion?: boolean;
   disabled?: boolean;
   dungeon?: boolean;
+  flee?: boolean;
+}
+
+interface DiceDebugPacket {
+  kind: string;
+  actorId?: string;
+  targetId?: string;
+  trapId?: string;
+  rollResult?: ResolvedD20Roll;
+  attack?: CombatDiceReceipt;
+  save?: StatusSavingThrowResult;
+  flee?: { rollResult: ResolvedD20Roll; dc: number; success: boolean };
+  trap?: TrapCheckResult;
+}
+
+function captureDice(page: Page): {
+  packets: DiceDebugPacket[];
+  find(kind: string, actorId?: string): Promise<DiceDebugPacket>;
+} {
+  const packets: DiceDebugPacket[] = [];
+  page.on("console", (message) => {
+    if (!message.text().startsWith("[DEBUG] [dice] receipt")) return;
+    void message.args()[2]?.jsonValue().then((value: unknown) => {
+      if (typeof value !== "object" || value === null || !("kind" in value)
+        || typeof value.kind !== "string") {
+        throw new Error("Invalid canonical dice diagnostic");
+      }
+      packets.push(value as DiceDebugPacket);
+    });
+  });
+  return {
+    packets,
+    find: async (kind, actorId) => {
+      await expect.poll(() => packets.some((packet) =>
+        packet.kind === kind && (actorId === undefined || packet.actorId === actorId)
+      )).toBe(true);
+      return packets.find((packet) =>
+        packet.kind === kind && (actorId === undefined || packet.actorId === actorId)
+      )!;
+    },
+  };
 }
 
 type DiceGamepadWindow = Window & {
@@ -91,8 +137,8 @@ async function debugCommand(page: Page, command: string): Promise<void> {
 
 async function seedCampaign(page: Page, options: SeedOptions = {}) {
   const player = createPlayer("Dice Tester", {
-    strength: 14, dexterity: 18, constitution: 8,
-    intelligence: 18, wisdom: 14, charisma: 12,
+    strength: 14, dexterity: options.dungeon || options.flee ? 40 : 18, constitution: 8,
+    intelligence: options.dungeon ? 40 : 18, wisdom: 14, charisma: 12,
   }, "wizard");
   player.level = 5;
   player.hp = player.maxHp = 500;
@@ -103,13 +149,13 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
   player.progression.gathering.seed = 24680;
   player.progression.trapSeed = 24680;
   player.progression.trapGuidance = true;
-  player.activeEffects = options.dungeon ? [] : [{
-    id: "poison", remainingTurns: 4, source: "Test effect",
-  }];
+  player.activeEffects = options.dungeon ? [] : [
+    { id: "poison", remainingTurns: 4, source: "Test effect" },
+    { id: "prone", remainingTurns: 10, source: "Test effect" },
+  ];
   let trapEvidence: {
     id: string;
-    detection: string;
-    disarm: string;
+    name: string;
   } | undefined;
   if (options.dungeon) {
     const dungeon = DUNGEONS[0]!;
@@ -131,8 +177,7 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
       const name = getTrapDefinition(trap.type).name;
       trapEvidence = {
         id: trap.id,
-        detection: formatDicePresentation(createTrapDicePresentation(detection, name, true)!),
-        disarm: formatDicePresentation(createTrapDicePresentation(disarm, name, false)!),
+        name,
       };
       Object.assign(player.position, {
         inDungeon: true, dungeonId: dungeon.id, dungeonLevel: 0,
@@ -145,6 +190,7 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
   const save = createCurrentSaveData(
     player, new Set(), createCodex(), player.appearanceId, 90, createWeatherState(),
   );
+  expect(normalizeSaveData(structuredClone(save))).not.toBeNull();
   const preferences = normalizeGamePreferences({
     audio: { muted: true },
     accessibility: {
@@ -162,7 +208,11 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
       localStorage.setItem("2dnd_save", campaign);
       localStorage.setItem("2dnd_preferences", JSON.stringify(preferences));
     }
-    Math.random = () => 0.5;
+    let seed = 0x165_2026;
+    Math.random = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 0x1_0000_0000;
+    };
     const buttons = Array.from({ length: 17 }, () => ({
       pressed: false, touched: false, value: 0,
     }));
@@ -182,6 +232,7 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
   }, { campaign: JSON.stringify(save), preferences });
   await page.goto("game.html", { waitUntil: "networkidle" });
   await expect(page.locator("#debug-state")).toContainText("BOOT | Screen: title");
+  await page.locator("#debug-checkbox").check();
   return trapEvidence;
 }
 
@@ -202,17 +253,33 @@ function collectErrors(page: Page): string[] {
 for (const textScale of [1, 1.25, 1.5] as const) {
   test(`battle receipts and skip controls remain truthful at ${textScale * 100}% text`, async ({ page }) => {
     const errors = collectErrors(page);
+    const evidence = captureDice(page);
     await seedCampaign(page, { textScale });
     await continueCampaign(page);
     await debugCommand(page, "/spawn orc");
     await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
     const log = page.locator("#dice-log");
     await expect(log.locator('[data-category="initiative"]')).toHaveCount(2);
+    await expect.poll(() => evidence.packets.some((packet) =>
+      packet.kind === "initiative" && packet.actorId?.includes(":enemy:")
+    )).toBe(true);
+    const enemy = evidence.packets.find((packet) =>
+      packet.kind === "initiative" && packet.actorId?.includes(":enemy:")
+    );
+    if (!enemy?.rollResult) throw new Error("Missing canonical initiative");
     const enemyInitiative = await log.locator('[data-category="initiative"]')
       .filter({ hasText: "Orc" }).textContent();
-    expect(enemyInitiative).toContain("d20 11");
+    expect(enemyInitiative).toContain(`d20 ${enemy.rollResult.naturalRoll}`);
     expect(enemyInitiative).not.toMatch(/=[ ]?\d|\+\d/);
-    await expect(log.locator('[data-category="save"]')).toContainText("d20 11");
+    const savePacket = await evidence.find("save", "party:hero");
+    if (!savePacket.save) throw new Error("Missing canonical saving throw");
+    await expect(log.locator('[data-category="save"]').first()).toContainText(
+      formatDicePresentation(createD20Presentation(savePacket.save.rollResult, {
+        category: "save", label: `Dice Tester save vs ${savePacket.save.label}`,
+        outcome: savePacket.save.success ? "success" : "failure",
+        threshold: { kind: "DC", value: savePacket.save.dc },
+      })),
+    );
 
     if (textScale === 1) {
       await holdKey(page, "Enter");
@@ -225,11 +292,17 @@ for (const textScale of [1, 1.25, 1.5] as const) {
       await page.locator('#touch-controls [data-action="confirm"]').tap();
     }
     const attack = log.locator('[data-category="attack"]').filter({ hasText: "Dice Tester attack" });
-    await expect(attack).toContainText("Disadvantage: d20 [11 selected, 11] -> 11");
+    const attackPacket = await evidence.find("attack", "party:hero");
+    const roll = attackPacket.attack?.rollResult;
+    if (!roll) throw new Error("Missing canonical attack dice");
+    expect(roll.selection).toBe("disadvantage");
+    await expect(attack).toContainText("Disadvantage");
+    await expect(attack).toContainText(`-> ${roll.naturalRoll}`);
+    await expect(attack).toContainText(`${roll.modifier >= 0 ? "+" : ""}${roll.modifier} = ${roll.total}`);
     expect(await attack.textContent()).not.toContain("vs AC");
     expect(await page.locator("#dice-presentation .resolved-die").evaluateAll(
       (dice) => dice.map((die) => (die as HTMLElement).dataset.natural),
-    )).toEqual(["11", "11"]);
+    )).toEqual(roll.naturalRolls.map(String));
     if (textScale === 1) await holdKey(page, "z", 30);
     else if (textScale === 1.25) await pressGamepad(page, 10);
     else await page.locator("#dice-fast-forward").tap();
@@ -301,12 +374,21 @@ test("preferences, disabled results and non-combat checks survive reload without
 
 test("real trap detection and disarm use the exact canonical checks and never reroll on load", async ({ page }) => {
   const errors = collectErrors(page);
+  const packets = captureDice(page);
   const evidence = await seedCampaign(page, { dungeon: true, textScale: 1.25 });
   if (!evidence) throw new Error("Missing trap fixture evidence");
   await continueCampaign(page);
-  await expect(page.locator("#dice-log")).toContainText(evidence.detection);
+  const detection = await packets.find("trapDetection");
+  if (!detection.trap || detection.trapId !== evidence.id) throw new Error("Wrong canonical detection target");
+  await expect(page.locator("#dice-log")).toContainText(
+    formatDicePresentation(createTrapDicePresentation(detection.trap, evidence.name, true)!),
+  );
   await holdKey(page, "Space");
-  await expect(page.locator("#dice-log")).toContainText(evidence.disarm);
+  const disarm = await packets.find("trapDisarm");
+  if (!disarm.trap || disarm.trapId !== evidence.id) throw new Error("Wrong canonical disarm target");
+  await expect(page.locator("#dice-log")).toContainText(
+    formatDicePresentation(createTrapDicePresentation(disarm.trap, evidence.name, false)!),
+  );
   await page.locator("#dice-fast-forward").click();
   await expect(page.locator("#dice-presentation")).toHaveAttribute("data-skipped", "true");
   const saved = await readSave(page);
@@ -322,14 +404,24 @@ test("real trap detection and disarm use the exact canonical checks and never re
 
 test("a real flee check hands off once with readable immediate results and unchanged resources", async ({ page }) => {
   const errors = collectErrors(page);
-  await seedCampaign(page, { reducedMotion: true });
+  const evidence = captureDice(page);
+  await seedCampaign(page, { reducedMotion: true, flee: true });
   await continueCampaign(page);
   const before = await readSave(page);
   await debugCommand(page, "/spawn orc");
   await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
   const hasAbilities = (before.player.knownAbilities?.length ?? 0) > 0;
   await clickGame(page, hasAbilities ? 510 : 360, 501);
-  await expect(page.locator("#dice-log [data-category='flee']")).toContainText("d20 11 +4 = 15 vs DC 10");
+  const packet = await evidence.find("flee");
+  if (!packet.flee) throw new Error("Missing canonical flee receipt");
+  expect(packet.flee.success).toBe(true);
+  await expect(page.locator("#dice-log [data-category='flee']")).toContainText(
+    formatDicePresentation(createD20Presentation(packet.flee.rollResult, {
+      category: "flee", label: "Dice Tester flee",
+      outcome: packet.flee.success ? "success" : "failure",
+      threshold: { kind: "DC", value: packet.flee.dc },
+    })),
+  );
   await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
   await expect(page.locator("#dice-log [data-category='flee']")).toHaveCount(1);
   await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");

@@ -2,7 +2,9 @@ import { getAbility } from "./abilities";
 import { getSpell } from "./spells";
 import { TALENTS } from "./talents";
 import { getPlayerClass } from "../systems/classes";
-import type { PlayerStats } from "../systems/player";
+import type { CombatActorState, PlayerStats } from "../systems/player";
+import type { QuestId } from "./quests";
+import type { AlignmentAxis, AlignmentName, FactionId, TownId } from "./reputation";
 
 export const BASE_CLASS_IDS = [
   "knight", "ranger", "wizard", "sorcerer", "rogue", "paladin",
@@ -23,12 +25,23 @@ export const STAT_KEYS: readonly (keyof PlayerStats)[] = [
 ];
 export const MAX_ABILITY_SCORE = 30;
 
+export type ProgressionWorldRequirement =
+  | { readonly type: "questCompleted"; readonly questId: QuestId }
+  | { readonly type: "city"; readonly cityId: string }
+  | { readonly type: "dungeon"; readonly dungeonId: string; readonly minimumLevel?: number }
+  | { readonly type: "overworld" }
+  | { readonly type: "alignment"; readonly alignment: AlignmentName }
+  | { readonly type: "alignmentAxis"; readonly axis: AlignmentAxis; readonly minimum: number }
+  | { readonly type: "reputation"; readonly kind: "town"; readonly targetId: TownId; readonly minimum: number }
+  | { readonly type: "reputation"; readonly kind: "faction"; readonly targetId: FactionId; readonly minimum: number };
+
 export type ProgressionRequirement =
   | { readonly type: "abilityScore"; readonly stat: keyof PlayerStats; readonly minimum: number }
   | { readonly type: "totalLevel"; readonly minimum: number }
   | { readonly type: "classLevel"; readonly classId: BaseClassId; readonly minimum: number }
   | { readonly type: "feature"; readonly kind: ProgressionFeatureKind; readonly id: string }
-  | { readonly type: "anyOf"; readonly requirements: readonly ProgressionRequirement[] };
+  | { readonly type: "anyOf"; readonly requirements: readonly ProgressionRequirement[] }
+  | ProgressionWorldRequirement;
 
 export interface ProgressionFeatureGrant {
   readonly kind: ProgressionFeatureKind;
@@ -61,6 +74,9 @@ export interface ProgressionTrackProfile {
 
 export interface HeroProgressionContext {
   readonly profiles: readonly ProgressionTrackProfile[];
+  readonly world?: {
+    matches(actor: CombatActorState, requirement: ProgressionWorldRequirement): boolean;
+  };
 }
 
 export const STARTING_RESOURCE_RULES = Object.freeze({

@@ -281,6 +281,13 @@ function describeRequirement(requirement: ProgressionRequirement): string {
     case "classLevel": return `${getPlayerClass(requirement.classId).label} ${requirement.minimum}`;
     case "feature": return `${requirement.kind} ${requirement.id}`;
     case "anyOf": return requirement.requirements.map(describeRequirement).join(" or ");
+    case "questCompleted": return `completed quest ${requirement.questId}`;
+    case "city": return `city ${requirement.cityId}`;
+    case "dungeon": return `dungeon ${requirement.dungeonId}, floor ${requirement.minimumLevel ?? 0}+`;
+    case "overworld": return "overworld";
+    case "alignment": return requirement.alignment;
+    case "alignmentAxis": return `${requirement.axis} ${requirement.minimum}+`;
+    case "reputation": return `${requirement.kind} ${requirement.targetId} reputation ${requirement.minimum}+`;
   }
 }
 
@@ -296,6 +303,14 @@ function meetsRequirement(
     case "feature": return knownGrants(actor, requirement.kind).includes(requirement.id)
       && getFeatureSources(actor, requirement.kind, requirement.id, context).length > 0;
     case "anyOf": return requirement.requirements.some((entry) => meetsRequirement(actor, entry, context));
+    case "questCompleted":
+    case "city":
+    case "dungeon":
+    case "overworld":
+    case "alignment":
+    case "alignmentAxis":
+    case "reputation":
+      return context.world?.matches(actor, requirement) ?? false;
   }
 }
 

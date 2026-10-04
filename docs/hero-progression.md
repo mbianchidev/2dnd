@@ -115,6 +115,19 @@ Public APIs include `getTotalLevel`, `getClassLevel`, `getTrackLevel`,
 Commit binds the expected current total level and consumes exactly one earned,
 rest-ready level; stale or repeated input does nothing.
 
+`createHeroProgressionContext(getPlayer: () => PlayerState, profiles?)` binds
+typed quest, location, alignment and reputation requirements to the live
+authoritative owner. Preview and commit both evaluate it; a changed world can
+reject entry atomically at commit. Missing/mismatched owner contexts fail
+closed. Earned ranks never recheck entry evidence during load.
+
+Detached character cloning can preserve cumulative XP, pending/rest-ready
+counts and the exact frozen receipt through equipment relink, full HP/MP
+restoration and world/cycle reset. Rebind the context to the new owner; an old
+owner's context cannot authorize the clone. Resetting character XP/totals is a
+different progression mutation and normalization revokes incompatible credits
+rather than granting new rest authority. No separate NG+ XP/rest engine is added.
+
 Quests, access, dialogue, shops, Codex, achievements and endings keep their
 existing authoritative state. Class choices update combat/progression and
 derived character/slot/Ending labels; they do not complete quests, recruit

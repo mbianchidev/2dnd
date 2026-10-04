@@ -174,6 +174,12 @@ test("Standard stays unlimited; keyboard settings, timeout targeting, and reload
   await holdKey(page, "Enter");
   await expect(page.locator("#layout-report")).toContainText("battle-timing-settings");
   await expectCleanLayout(page);
+  await clickLayoutItem(page, "battle-timing-help");
+  await expectCleanLayout(page);
+  await clickLayoutItem(page, "battle-timing-help");
+  await expectCleanLayout(page);
+  await holdKey(page, "ArrowUp");
+  await holdKey(page, "ArrowUp");
   await holdKey(page, "Enter");
   await holdKey(page, "ArrowDown");
   for (let index = 0; index < 4; index++) await holdKey(page, "Enter");
@@ -426,6 +432,9 @@ test.describe("touch and gamepad timed decisions", () => {
     await tapLayoutItem(page, "escape-menu-settings");
     await tapLayoutItem(page, "settings-battle-timing");
     await expectCleanLayout(page);
+    await tapLayoutItem(page, "battle-timing-help");
+    await expectCleanLayout(page);
+    await tapLayoutItem(page, "battle-timing-help");
     await tapLayoutItem(page, "battle-timing-mode");
     await page.locator('[data-action="cancel"]').tap();
     expect((await readSave(page)).player.battleTiming.mode).toBe("timed");

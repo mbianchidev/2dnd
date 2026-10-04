@@ -68,6 +68,7 @@ export async function tapLayoutItem(page: Page, id: string): Promise<void> {
 
 export async function expectCleanLayout(page: Page): Promise<void> {
   const canvas = page.locator("#game-container canvas");
-  await expect(canvas).toHaveAttribute("data-layout-overlap-count", "0");
-  await expect(canvas).toHaveAttribute("data-layout-clipping-count", "0");
+  const report = JSON.stringify(await readLayoutReport(page));
+  await expect(canvas, report).toHaveAttribute("data-layout-overlap-count", "0");
+  await expect(canvas, report).toHaveAttribute("data-layout-clipping-count", "0");
 }

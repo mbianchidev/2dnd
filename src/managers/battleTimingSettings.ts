@@ -46,8 +46,16 @@ export function createBattleTimingSettingsOverlay(
     fontSize: "9px", fontFamily: "monospace", color: "#e1e6f0",
     wordWrap: { width: 480 },
   });
+  const compactGuidance = scene.add.text(0, 0, [
+    "Help / pauses explains recovery and checkpoint reload.",
+    "WASD/arrows: choose. Enter/Space/A: change. Esc/B: close.",
+  ].join("\n"), {
+    fontSize: "9px", fontFamily: "monospace", color: "#e1e6f0",
+    wordWrap: { width: 480 },
+  });
   const controls: TimingSettingControl[] = [];
   let selected = 0;
+  let showHelp = false;
   let pending: string | null = null;
   const readyAt = scene.time.now + 150;
   const announcement = document.createElement("span");
@@ -58,10 +66,16 @@ export function createBattleTimingSettingsOverlay(
 
   const update = (): void => {
     controls.forEach((control, index) => {
+      const visible = !showHelp || index >= 2;
+      control.text.setVisible(visible);
+      if (control.text.input) control.text.input.enabled = visible;
       control.text.setText(`${selected === index ? "> " : "  "}${control.label()}`);
       control.text.setBackgroundColor(selected === index ? "#34416b" : "#121a2e");
       syncInteractiveHitArea(control.text, 2);
     });
+    title.setText(showHelp ? "Timing Help" : "Battle Timing");
+    guidance.setVisible(showHelp);
+    compactGuidance.setVisible(!showHelp);
     announcement.textContent = `Battle mode ${player.battleTiming.mode}. `
       + `Decision duration ${player.battleTiming.durationSeconds} seconds. Timeout Defend.`;
   };
@@ -98,18 +112,27 @@ export function createBattleTimingSettingsOverlay(
     };
     changed();
   });
+  addControl("battle-timing-help", () => showHelp ? "Back to timing controls" : "Help / pauses", () => {
+    showHelp = !showHelp;
+    selected = 2;
+  });
   addControl("battle-timing-back", () => "Back to Settings", back);
   container.add([
     dim, background, title, lead, controls[0]!.text, controls[1]!.text,
-    timeout, guidance, controls[2]!.text,
+    timeout, guidance, compactGuidance, controls[2]!.text, controls[3]!.text,
   ]);
   update();
 
   let measurements = "";
   const reflow = (): void => {
     if (!container.active) return;
-    const texts = [title, lead, controls[0]!.text, controls[1]!.text, timeout, guidance, controls[2]!.text];
-    const next = texts.map((text) => `${text.displayWidth}:${text.displayHeight}`).join(",");
+    const texts = showHelp
+      ? [title, lead, timeout, guidance, controls[2]!.text, controls[3]!.text]
+      : [
+          title, lead, controls[0]!.text, controls[1]!.text, timeout,
+          compactGuidance, controls[2]!.text, controls[3]!.text,
+        ];
+    const next = `${showHelp}:` + texts.map((text) => `${text.displayWidth}:${text.displayHeight}`).join(",");
     if (next === measurements) return;
     measurements = next;
     const height = layoutTextStack(texts, { x: 0, y: 0, width: 488, gap: 8 }) + 24;
@@ -136,7 +159,9 @@ export function createBattleTimingSettingsOverlay(
     const direction = /^(ArrowUp|ArrowLeft|w|W|a|A)$/.test(event.key) ? -1
       : /^(ArrowDown|ArrowRight|s|S|d|D)$/.test(event.key) ? 1 : 0;
     if (direction !== 0) {
-      selected = (selected + direction + controls.length) % controls.length;
+      const visible = showHelp ? [2, 3] : [0, 1, 2, 3];
+      const index = Math.max(0, visible.indexOf(selected));
+      selected = visible[(index + direction + visible.length) % visible.length]!;
       update();
     } else if ((event.key === "Enter" || event.key === " ") && !event.repeat) {
       pending = controls[selected]!.id;

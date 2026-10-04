@@ -11,6 +11,9 @@ open **Esc menu > Settings > Battle Timing**. Keyboard, touch, and gamepad
 confirm can open the focused Battle Timing entry; its controls use
 WASD/arrows/D-pad to choose and Enter/Space/A to change. Pointer users can select
 the same controls directly.
+The focused **Help / pauses** page keeps the full recovery guidance readable
+without clipping at 150% text; hidden configuration controls have no hit areas
+or keyboard focus while that page is open.
 
 Each campaign stores `player.battleTiming`:
 

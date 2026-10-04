@@ -152,6 +152,9 @@ cannot act twice or leak into world interactions after close.
 Input coalescing uses a monotonic input clock, not the render-frame clock, so
 frame stalls do not discard legitimately spaced controls. The visual aim
 preview remains scene-timed and never becomes scoring authority.
+Source and viewport relayout coalesce until the post-input frame so prompt
+changes cannot destroy the target of an in-flight pointer gesture. Held
+pointers defer that relayout until release; closing cancels queued reflow.
 
 Panels use measured wrapping, pagination, filtered grids, stable focus IDs,
 scaled hit areas, and safe-area-aware shared touch controls. They support all

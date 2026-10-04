@@ -246,6 +246,8 @@ export class MinigameManager {
     this.scene.input.keyboard?.off("keydown", this.handleKeyDown);
     this.scene.input.keyboard?.off("keyup", this.handleKeyUp);
     this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.onFrame);
+    this.scene.events.off(Phaser.Scenes.Events.POST_UPDATE, this.flushPresentationChange);
+    this.presentationChangeQueued = false;
     this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.onPresentationChange);
     this.scene.game.events.off(Phaser.Core.Events.BLUR, this.pauseForFocus);
     this.scene.game.events.off(Phaser.Core.Events.FOCUS, this.resumeForFocus);
@@ -291,7 +293,20 @@ export class MinigameManager {
   };
 
   private readonly onPresentationChange = (): void => {
+    if (!this.isOpen() || this.presentationChangeQueued) return;
+    this.presentationChangeQueued = true;
+    this.scene.events.once(Phaser.Scenes.Events.POST_UPDATE, this.flushPresentationChange);
+  };
+
+  private presentationChangeQueued = false;
+
+  private readonly flushPresentationChange = (): void => {
     if (!this.isOpen()) return;
+    if (this.scene.input.activePointer?.isDown) {
+      this.scene.events.once(Phaser.Scenes.Events.POST_UPDATE, this.flushPresentationChange);
+      return;
+    }
+    this.presentationChangeQueued = false;
     this.meterBase = this.previewAim;
     this.meterEpoch = this.scene.time.now;
     this.render();
@@ -668,6 +683,8 @@ export class MinigameManager {
 
   private render(): void {
     if (!this.isOpen()) return;
+    this.scene.events.off(Phaser.Scenes.Events.POST_UPDATE, this.flushPresentationChange);
+    this.presentationChangeQueued = false;
     const content = this.content();
     const actions = content.actions.filter((action) => !action.disabled);
     const focus = restoreLayoutFocus(actions.map((action) => ({

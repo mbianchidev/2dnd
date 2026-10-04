@@ -13,6 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { SAVE_VERSION } from "../src/systems/save";
+import { clickPointerAt, waitForGameInputFrame } from "../e2e/helpers/layout";
 
 const APP_ROOT = resolve(import.meta.dirname, "..");
 const SAVE_KEY = "2dnd_save";
@@ -53,9 +54,10 @@ async function clickGame(
 ): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
+  await waitForGameInputFrame(page);
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await page.mouse.click(
+  await clickPointerAt(page,
     bounds.x + (gameX / GAME_WIDTH) * bounds.width,
     bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
@@ -108,6 +110,7 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await page.keyboard.press("Enter");
   await waitForState(page, "BOOT | Screen: stats");
   await clickGame(page, 390, 64);
+  await waitForState(page, "[MODE:random]");
   await clickGame(page, 400, 460);
   await waitForState(page, "BOOT | Screen: appearance");
   await clickGame(page, 320, 112);
@@ -196,6 +199,10 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(desktopState?.isFullscreen).toBe(false);
     logPath = desktopState?.logPath ?? "";
     expect(logPath).toBe(join(userDataDirectory, "logs", "2dnd.log"));
+    await waitForState(page, "BOOT | Screen: title");
+    const originalViewport = await page.evaluate(() => ({
+      width: innerWidth, height: innerHeight,
+    }));
 
     await page.locator("#desktop-fullscreen").click();
     await expect.poll(() => page.evaluate(
@@ -208,6 +215,9 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await expect.poll(() => page.evaluate(
       () => window.desktop?.getState().then((state) => state.isFullscreen),
     )).toBe(false);
+    await expect.poll(() => page.evaluate(() => ({
+      width: innerWidth, height: innerHeight,
+    }))).toEqual(originalViewport);
 
     const saved = await createDesktopSave(page);
     await prepareSaveForOverworld(page);

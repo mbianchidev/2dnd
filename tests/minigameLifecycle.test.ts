@@ -12,7 +12,7 @@ const presentation = vi.hoisted(() => ({
 }));
 
 vi.mock("phaser", () => ({
-  Scenes: { Events: { UPDATE: "update" } },
+  Scenes: { Events: { UPDATE: "update", POST_UPDATE: "postupdate" } },
   Scale: { Events: { RESIZE: "resize" } },
   Core: { Events: { BLUR: "blur", FOCUS: "focus" } },
 }));
@@ -61,6 +61,7 @@ function lifecycleScene(): {
   canvas: HTMLCanvasElement;
   time: { now: number };
   inputClock: { now: number };
+  pointer: { isDown: boolean };
 } {
   const keyboard = Object.assign(new EventEmitter(), { resetKeys: vi.fn() });
   const events = new EventEmitter();
@@ -71,9 +72,10 @@ function lifecycleScene(): {
   document.body.append(canvas);
   const time = { now: 0 };
   const inputClock = { now: 0 };
+  const pointer = { isDown: false };
   vi.spyOn(performance, "now").mockImplementation(() => inputClock.now);
   const scene = {
-    input: { keyboard }, events, scale, time,
+    input: { keyboard, activePointer: pointer }, events, scale, time,
     game: { canvas, events: gameEvents },
     data: {
       get: (key: string): unknown => data.get(key),
@@ -81,7 +83,7 @@ function lifecycleScene(): {
       remove: (key: string): void => { data.delete(key); },
     },
   } as unknown as Phaser.Scene;
-  return { scene, keyboard, events, scale, gameEvents, data, canvas, time, inputClock };
+  return { scene, keyboard, events, scale, gameEvents, data, canvas, time, inputClock, pointer };
 }
 
 function callbacks(): MinigameManagerCallbacks {
@@ -137,6 +139,7 @@ describe("scene-owned minigame lifecycle contracts", () => {
     expect(fixture.keyboard.listenerCount("keydown")).toBe(0);
     expect(fixture.keyboard.listenerCount("keyup")).toBe(0);
     expect(fixture.events.listenerCount("update")).toBe(0);
+    expect(fixture.events.listenerCount("postupdate")).toBe(0);
     expect(fixture.scale.listenerCount("resize")).toBe(0);
     expect(fixture.gameEvents.listenerCount("blur")).toBe(0);
     expect(fixture.gameEvents.listenerCount("focus")).toBe(0);
@@ -217,6 +220,41 @@ describe("scene-owned minigame lifecycle contracts", () => {
     expect(player.gold).toBe(995);
     expect(player.progression.minigames.history).toEqual([]);
     expect(cb.autoSave).toHaveBeenCalledTimes(2);
+    manager.clear();
+  });
+
+  it("keeps source-change targets alive through the input frame and cancels redundant queued relayout", () => {
+    const fixture = lifecycleScene();
+    const player = playerAt("willowdaleRange");
+    startMinigame(player, startRequest(player, "willowdaleRange"));
+    let sourceChanged: (() => void) | undefined;
+    vi.spyOn(inputPromptSource, "subscribe").mockImplementation((listener) => {
+      sourceChanged = () => listener("pointer");
+      return vi.fn();
+    });
+    const manager = new MinigameManager(fixture.scene, callbacks());
+    manager.resumePending(player, createCodex(), 45, WeatherType.Clear);
+    const content = presentation.render.mock.lastCall?.[0] as MinigamePanelContent;
+    const target = content.actions.find((action) => action.id === "fire");
+    if (!target) throw new Error("Missing source-change pointer target");
+    const before = presentation.render.mock.calls.length;
+    fixture.pointer.isDown = true;
+    sourceChanged?.();
+    expect(presentation.render).toHaveBeenCalledTimes(before);
+    expect(fixture.events.listenerCount("postupdate")).toBe(1);
+    fixture.events.emit("postupdate");
+    expect(presentation.render).toHaveBeenCalledTimes(before);
+    expect(fixture.events.listenerCount("postupdate")).toBe(1);
+    fixture.pointer.isDown = false;
+    fixture.inputClock.now = 100;
+    target.execute();
+    const pending = player.progression.minigames.pending;
+    if (pending?.activityId !== "archery") throw new Error("Missing source-change archery fixture");
+    expect(pending.game.shots).toHaveLength(1);
+    expect(presentation.render).toHaveBeenCalledTimes(before + 1);
+    expect(fixture.events.listenerCount("postupdate")).toBe(0);
+    fixture.events.emit("postupdate");
+    expect(presentation.render).toHaveBeenCalledTimes(before + 1);
     manager.clear();
   });
 });

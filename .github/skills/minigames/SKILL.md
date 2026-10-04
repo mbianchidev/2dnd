@@ -88,6 +88,9 @@ natural bests/counters, milestone claims, social credit, or lore.
 - Confirm on release; preserve stable intent across held/delayed input.
 - Debounce with monotonic input time, never a stalled render-frame clock.
   Keep animation time separate from accepted controls and authoritative score.
+- Defer source/viewport relayout until post-input; never destroy pressed targets
+  while their gesture is still being dispatched or held. Cancel queued reflow
+  on close.
 - Block movement, traps, events, encounters, and other mutations while open.
 - Use actual scaled text bounds, stable IDs, filtered grids, paging, safe areas,
   synchronized hit areas, non-color state, and all three text scales.

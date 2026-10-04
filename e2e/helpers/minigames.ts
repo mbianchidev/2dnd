@@ -5,6 +5,7 @@ import { createMinigameChallenge } from "../../src/systems/minigameRules";
 import { getMinigameRunId } from "../../src/systems/minigameState";
 import { createWeatherState, WeatherType } from "../../src/systems/weather";
 import { playerAt } from "../../tests/helpers/minigames";
+import { clickPointerAt, tapPointerAt, waitForGameInputFrame } from "./layout";
 import type { MinigameVenueId } from "../../src/data/minigames";
 import type { SaveData } from "../../src/systems/save";
 import type { MinigameSession } from "../../src/systems/minigameTypes";
@@ -68,7 +69,7 @@ export async function waitMinigameState(page: Page, text: string): Promise<void>
 async function holdMinigameInputFrame(page: Page, duration: number): Promise<void> {
   await Promise.all([
     page.waitForTimeout(duration),
-    page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))),
+    waitForGameInputFrame(page),
   ]);
 }
 
@@ -105,17 +106,7 @@ export async function minigameTouchControl(page: Page, action: string): Promise<
   await expect(control).toBeVisible();
   const bounds = await control.boundingBox();
   if (!bounds) throw new Error(`Touch control ${action} has no rendered bounds`);
-  const protocol = await page.context().newCDPSession(page);
-  try {
-    await protocol.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
-    await protocol.send("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [{ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, id: 1 }],
-    });
-    await protocol.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  } finally {
-    await protocol.detach();
-  }
+  await tapPointerAt(page, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
 }
 
 export async function minigameConfirm(page: Page, source: MinigameTestSource): Promise<void> {
@@ -191,8 +182,8 @@ export async function aimMinigamePointer(page: Page, aim: number, touch = false)
   if (!bounds) throw new Error("The archery canvas has no rendered bounds");
   const x = bounds.x + (meter.x + meter.width * aim / 100) / GAME_WIDTH * bounds.width;
   const y = bounds.y + meter.y / GAME_HEIGHT * bounds.height;
-  if (touch) await page.touchscreen.tap(x, y);
-  else await page.mouse.click(x, y);
+  if (touch) await tapPointerAt(page, x, y);
+  else await clickPointerAt(page, x, y);
   await page.waitForTimeout(140);
 }
 

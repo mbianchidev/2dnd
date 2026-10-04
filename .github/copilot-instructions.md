@@ -472,6 +472,9 @@ Flow:
   never confirms a queued action, duplicates consumption/results, or times gambits.
 - Persist configuration only and keep existing checkpoint/pending-encounter
   reload recovery. Runtime duration suggestions cannot opt in or change policy.
+- Timing settings are editable only in Overworld. Battle Pause/Resume never
+  saves partial resources, initiative, or action economy. Clear hero/companion
+  effects after result/reward hooks and before outgoing Battle autosave.
 
 - Attack rolls, saves, and checks use d20.
 - Natural 20 on an attack is a critical hit; natural 1 automatically misses.

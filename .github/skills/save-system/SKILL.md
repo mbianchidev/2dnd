@@ -68,6 +68,9 @@ and repair unsupported policies to Defend. Manual snapshots keep their own
 configuration. Never serialize a countdown deadline or partial Battle economy;
 loading uses existing checkpoint/pending-encounter recovery without executing
 a timeout, action, or reward. See [Timed battle decisions](../../../docs/battle-timing.md).
+Configuration is editable only in Overworld; Battle log Pause/Resume does not
+save live combat resources. Result/reward hooks must finish before actor and
+companion effects are cleared and before outgoing Battle autosave.
 
 ```typescript
 interface CodexData {

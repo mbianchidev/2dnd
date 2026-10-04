@@ -240,6 +240,9 @@ reset it. Claim a stable turn once, validate a fresh self-Defend through
 `battleActions.ts`, and spend only an available main action. If already spent,
 only end the turn; never select an unconfirmed action or spend MP/items.
 Monsters, gambits, skips, and KO actors are untimed.
+Timing configuration is Overworld-only; Battle log controls never save a partial
+turn. Clear hero/companion effects after result/reward hooks and before outgoing
+victory/flee/defeat autosave, so result-delay reload cannot resurrect statuses.
 
 ## Leveling
 

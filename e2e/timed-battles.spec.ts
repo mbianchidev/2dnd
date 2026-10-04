@@ -233,6 +233,7 @@ test("items, bonus abilities, spells, Defend, Flee, and real action pauses share
     timing: { mode: "timed", durationSeconds: 60, timeoutAction: "defend" },
   });
   await encounter(page);
+  const checkpointRaw = await page.evaluate(() => localStorage.getItem("2dnd_save"));
   await page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>("#game-container canvas");
     if (!canvas) throw new Error("Missing Battle canvas");
@@ -255,6 +256,7 @@ test("items, bonus abilities, spells, Defend, Flee, and real action pauses share
   await state(page, "[DECISION_MENU:Choose ally:");
   await holdKey(page, "Enter");
   await state(page, "[ECONOMY:main-ready:bonus-used:items-1]");
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save"))).toBe(checkpointRaw);
   expect(await page.locator(canvasSelector).getAttribute("data-battle-timing-turn")).toBe(turn);
   expect(await remaining(page)).toBeLessThanOrEqual(budget);
   await expect.poll(() => page.evaluate(() =>
@@ -277,11 +279,20 @@ test("items, bonus abilities, spells, Defend, Flee, and real action pauses share
   await state(page, "[ECONOMY:main-ready:bonus-used:items-0]");
   await state(page, "MP 15/40");
   await expect(page.locator(canvasSelector)).toHaveAttribute("data-battle-timing-state", "active");
+  await expect(page.locator('[data-action="openMenu"]')).toBeHidden();
+  await holdKey(page, "Escape");
+  await expect(page.locator(canvasSelector)).toHaveAttribute("data-battle-timing-reasons", /log/);
+  await expect(page.locator("#layout-report")).not.toContainText("battle-timing-settings");
+  await expect(page.locator("#layout-report")).not.toContainText("settings-battle-timing");
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save"))).toBe(checkpointRaw);
+  await holdKey(page, "Enter");
+  await expect(page.locator(canvasSelector)).toHaveAttribute("data-battle-timing-state", "active");
   await clickLayoutItem(page, "battle-action-spells");
   await clickLayoutItem(page, "battle-hero-menu-spell-magicMissile");
   await holdKey(page, "Enter");
   await state(page, "party:hero:cast:spell");
   await state(page, "MP 12/40");
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save"))).toBe(checkpointRaw);
   await expect(page.locator(canvasSelector)).toHaveAttribute("data-battle-timing-actor", "party:hero");
   await expect(page.locator(canvasSelector)).toHaveAttribute("data-battle-timing-state", "active");
   await clickLayoutItem(page, "battle-action-flee");
@@ -291,6 +302,7 @@ test("items, bonus abilities, spells, Defend, Flee, and real action pauses share
   expect(saved.player.inventory.filter((item) => item.id === "potion")).toHaveLength(1);
   expect(saved.player.inventory.filter((item) => item.id === "ether")).toHaveLength(2);
   expect(saved.player.gold).toBe(100);
+  expect(saved.player.activeEffects).toEqual([]);
   await expect(page.locator("#battle-countdown-status")).toHaveCount(0);
   expect(errors).toEqual([]);
 });

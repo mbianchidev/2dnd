@@ -42,6 +42,10 @@ to 30 seconds, and unsupported timeout actions recover to Defend.
 Only configuration is persisted. Battle reload retains existing checkpoint or
 pending-encounter recovery; no deadline, partial initiative/economy, or timeout
 callback is saved or executed on load. See [Timed battle decisions](battle-timing.md).
+Timing configuration is editable only in Overworld Settings; Battle log
+Pause/Resume cannot overwrite a checkpoint with unsaved combat resources.
+Result/reward hooks run before hero/companion combat effects are cleared and
+before the victory, flee, or defeat autosave.
 
 Schema v18 added normalized non-negative
 `playtimeSeconds` to each campaign document. Slot names, backup state, and

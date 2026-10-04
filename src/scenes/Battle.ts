@@ -2708,6 +2708,7 @@ export class BattleScene extends Phaser.Scene {
         this.phase = "fled";
         this.battleTiming?.endTurn();
         this.reportBattleResult("fled");
+        this.clearBattleActorEffects();
         saveGame(
           this.player,
           this.defeatedBosses,
@@ -3208,6 +3209,7 @@ export class BattleScene extends Phaser.Scene {
         captureCutsceneTriggerSnapshot(this.player, this.defeatedBosses),
       ),
     );
+    this.clearBattleActorEffects();
     saveGame(
       this.player,
       this.defeatedBosses,
@@ -3279,6 +3281,7 @@ export class BattleScene extends Phaser.Scene {
     }, {
       sourceId: this.achievementBattleSourceId,
     });
+    this.clearBattleActorEffects();
     saveGame(
       this.player,
       this.defeatedBosses,
@@ -3449,8 +3452,15 @@ export class BattleScene extends Phaser.Scene {
     this.battleBackdrop?.stopDynamicEffects();
     this.input?.keyboard?.removeAllKeys(true, false);
     setDebugCommandHandler(null);
+    this.clearBattleActorEffects();
+  }
+
+  private clearBattleActorEffects(): void {
     for (const combatant of this.partyCombatants) {
       clearAllEffects(combatant.effects);
+    }
+    for (const companion of this.player.party.companions) {
+      clearAllEffects(companion.activeEffects);
     }
     for (const combatant of this.combatants) {
       clearAllEffects(combatant.effects);

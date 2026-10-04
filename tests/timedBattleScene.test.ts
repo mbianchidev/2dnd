@@ -11,6 +11,7 @@ import { getItem } from "../src/data/items";
 import type { BattleTimingSettings } from "../src/data/battleTiming";
 import { createPlayer, type PlayerState } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
+import { loadGame } from "../src/systems/save";
 import {
   createActivePartyCombatants,
   recruitCompanion,
@@ -56,6 +57,7 @@ interface SceneHarness {
   pendingTargetAction: { validIndices: number[]; execute(index: number): void } | null;
   doDefend(): void;
   doFlee(): void;
+  handleVictory(): void;
   startPlayerTurn(): void;
   startCompanionTurn(actor: PartyCombatant): void;
   finishCompanionTurn(actor: PartyCombatant): void;
@@ -107,8 +109,10 @@ function scene(timed = true, companionId?: "guardian" | "scout" | "mystic") {
     updateMonsterDisplay: vi.fn(),
     advanceTurn: advance,
     battlePresentation: {
-      presentAction: present, presentFaint: vi.fn(), syncCombatants: vi.fn(), cleanup: vi.fn(),
+      presentAction: present, presentFaint: vi.fn(), presentVictory: vi.fn(),
+      syncCombatants: vi.fn(), cleanup: vi.fn(),
     },
+    codexDiscovery: { show: vi.fn() },
     battlePartyRenderer: { update: vi.fn(), clear: vi.fn() },
     time: { delayedCall: scheduled },
   });
@@ -321,8 +325,13 @@ describe("timed Battle authority contracts", () => {
   });
 
   it("keeps successful Flee hooks/save/scheduling once even if a timeout was ready", () => {
-    const { harness, battle, player, clock, scheduled } = scene();
-    const resolved = vi.fn();
+    const { harness, battle, player, clock, scheduled } = scene(true, "guardian");
+    const resolved = vi.fn(() => {
+      player.activeEffects.push({ id: "rage", remainingTurns: 3, source: "Result hook" });
+      player.party.companions[0]!.activeEffects.push({
+        id: "poison", remainingTurns: 2, source: "Result hook",
+      });
+    });
     Object.assign(battle, { battleHooks: { onBattleResolved: resolved } });
     vi.spyOn(Math, "random").mockReturnValue(0.99);
     const expired = clock.snapshot.decision!;
@@ -333,6 +342,29 @@ describe("timed Battle authority contracts", () => {
     expect(resolved).toHaveBeenCalledOnce();
     expect(scheduled).toHaveBeenCalledOnce();
     expect(player.inventory).toHaveLength(1);
+    expect(player.activeEffects).toEqual([]);
+    expect(player.party.companions[0]!.activeEffects).toEqual([]);
+    expect(loadGame()!.player.activeEffects).toEqual([]);
+    expect(loadGame()!.player.party.companions[0]!.activeEffects).toEqual([]);
+  });
+
+  it("clears result-hook effects before the victory autosave, not only at handoff", () => {
+    const { harness, battle, player, scheduled } = scene(true, "guardian");
+    Object.assign(battle, { battleHooks: {
+      onBattleResolved: () => {
+        player.activeEffects.push({ id: "rage", remainingTurns: 3, source: "Result hook" });
+        player.party.companions[0]!.activeEffects.push({
+          id: "poison", remainingTurns: 2, source: "Result hook",
+        });
+      },
+    } });
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    harness.combatants[0]!.currentHp = 0;
+    harness.handleVictory();
+    const saved = loadGame()!;
+    expect(saved.player.activeEffects).toEqual([]);
+    expect(saved.player.party.companions[0]!.activeEffects).toEqual([]);
+    expect(scheduled).toHaveBeenCalledOnce();
   });
 
   it("cleans timing permanently before a battle handoff and rejects old callbacks", () => {

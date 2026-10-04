@@ -93,6 +93,8 @@ owning issue or pull request.
   counts accepted hero/manual decision time, and validates Defend once at timeout.
   Pause real input/presentation blockers, not normal logs or non-blocking notices.
   Never serialize a deadline or let runtime duration suggestions enable timing.
+- Timing settings are Overworld-only. Clear actor/companion combat effects after
+  result/reward hooks and before outgoing Battle autosave, not only at handoff.
 - Use stable IDs for combatants, quests/stages/objectives/rewards, cutscenes,
   shops, traps, events, recipes, transactions, features, and layout items.
 - Persist authority, not derived presentation. Every schema change requires

@@ -22,6 +22,9 @@ Each campaign stores `player.battleTiming`:
 
 Changes autosave that campaign. They do not change other manual snapshots or
 the separate audio, accessibility, and control preferences.
+Configuration is editable only in Overworld Settings, never during Battle.
+Battle's Pause/Resume controls only read the log and cannot autosave live HP,
+MP, inventory, effects, or a partial turn into the pre-Battle checkpoint.
 
 ## Decision budget and timeout
 
@@ -69,6 +72,9 @@ Unsaved Battle damage/resources are not a partial-turn checkpoint. Loading
 does not execute a timeout or replay a result, reward, or selected action.
 A restarted encounter receives a fresh budget after its normal status/input
 setup. No deadline, initiative adapter, or timer callback is serialized.
+Victory, flee, and defeat clear actor/companion combat effects after result and
+reward hooks and before the outgoing autosave, so a reload during the result
+delay cannot resurrect turn-based effects outside Battle.
 
 Immutable contracts live in `src/data/battleTiming.ts`; configuration
 normalization is in `systems/battleTimingSettings.ts`; active-time accounting

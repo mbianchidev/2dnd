@@ -96,6 +96,7 @@ async function seedCampaign(
     if (!result.ok) throw new Error(result.message);
   }, { starting, stats, totalEarned, prepared, largeText });
   await page.reload({ waitUntil: "networkidle" });
+  await expect(page.locator("#debug-state")).toContainText("BOOT | Screen: title [TITLE_ACTION:continue]");
   await clickLayoutItem(page, "title-continue");
   await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
 }

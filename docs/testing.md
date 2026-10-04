@@ -118,6 +118,8 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.
+- Await tutorial presentation and persisted completion before testing pending
+  mechanic reloads; the first Overworld frame can precede the tutorial handoff.
 - Keep screenshot tolerance focused on genuine cross-platform raster variance;
   functional assertions remain primary.
 - Treat page errors, unexpected console errors, overlaps, and clipping as test

@@ -74,6 +74,9 @@ runtime scene state.
 - Title and Esc-menu surfaces require confirmation before overwrite or delete.
   Manual slots can be renamed or copied. Validated deterministic JSON
   import/export never uses network or cloud services.
+- Esc, gamepad B, and touch Cancel first cancel the active confirmation or copy
+  destination; a subsequent cancel closes the slot manager. The outer scene
+  yields cancellation input while the manager is open.
 - Storage, quota, verification, and import failures remain recoverable, are
   logged, and publish a visible `role="alert"` message.
 

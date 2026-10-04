@@ -645,6 +645,17 @@ test.describe("touch save slots", () => {
       "Saved Autosave Hero",
     );
     await expectCleanLayout(page);
+    const snapshot = await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-1")
+    );
+    await page.locator('[data-action="confirm"]').tap();
+    await waitForState(page, "[SAVE_PHASE:confirm-save]");
+    await page.locator('[data-action="cancel"]').tap();
+    await waitForState(page, "[SAVE_PHASE:browse]");
+    expect(await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-1")
+    )).toBe(snapshot);
+    await expectCleanLayout(page);
     await page.locator('[data-action="cancel"]').tap();
     await expect(page.locator("#debug-state")).not.toContainText("[SAVE_SLOTS:");
     expect(errors).toEqual([]);

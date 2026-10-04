@@ -974,6 +974,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Route title selection and direct pointer targets through
   `src/managers/titleMenu.ts`. Keep the new-game overwrite confirmation compact,
   centered, and directly tappable in mobile landscape.
+- Let `SaveSlotManager` own Esc/B/Cancel while open so confirmations and copy
+  destinations cancel before the outer slot manager closes.
 - Clear held input and synthetic keys on blur, visibility loss, gamepad
   disconnect, scene changes, and runtime destruction.
 - Resolve key conflicts by semantic context/priority. Never map production

@@ -316,6 +316,9 @@ Healthy manual reads/copies preserve source bytes, but recovery reads may repair
 the source primary and legacy migration may write bookkeeping. They are not
 read-only inspection APIs. Copy preserves gameplay/playtime, updates only the
 destination timestamp/name, and does not start a playtime session.
+The slot manager owns nested Esc/B/touch Cancel behavior. Scene-level Escape
+listeners must yield while it is open so cancellation returns from confirmation
+to browsing before closing the manager.
 
 ## Tests
 

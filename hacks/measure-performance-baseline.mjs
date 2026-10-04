@@ -18,7 +18,7 @@ import { chromium } from "@playwright/test";
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const DIST = join(ROOT, "dist");
 const BASE_PATH = "/2dnd/";
-const CURRENT_SAVE_VERSION = 18;
+const CURRENT_SAVE_VERSION = 19;
 const SAVE_KEY = "2dnd_save";
 const BOOT_TEXTURE_MEASURE = "2dnd:boot-textures";
 const DEFAULT_SAMPLE_COUNT = 20;

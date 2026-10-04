@@ -61,7 +61,7 @@ jobs:
             runner: macos-latest
             arguments: --mac --universal
             directory: mac-universal
-            binary: 2D&D.app/Contents/MacOS/2D-and-D
+            binary: 2D-and-D.app/Contents/MacOS/2D-and-D
     steps:
       - uses: actions/checkout@v5
         with:

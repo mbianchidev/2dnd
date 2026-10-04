@@ -72,7 +72,7 @@ async function mockPayload(root: string, platform: SteamPlatform): Promise<strin
   ], { cwd: ROOT, encoding: "utf8" });
   if (notice.status !== 0) throw new Error(notice.stderr);
   const electronLicenses = platform === "macos-universal"
-    ? join(payload, "2D&D.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources")
+    ? join(payload, "2D-and-D.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources")
     : payload;
   await mkdir(electronLicenses, { recursive: true });
   await writeFile(join(electronLicenses, "LICENSE"), "Mock Electron license fixture");

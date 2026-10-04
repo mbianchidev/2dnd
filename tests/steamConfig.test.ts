@@ -12,6 +12,7 @@ import {
 } from "../steam/config";
 import { INPUT_ACTIONS, STANDARD_GAMEPAD_BINDINGS } from "../src/systems/input";
 import controllerLayout from "../steam/controller-layout.json";
+import manifest from "../package.json";
 
 const MOCK_IDS = {
   STEAM_APP_ID: "123450",
@@ -42,8 +43,14 @@ describe("Steam distribution contract", () => {
     ]);
     expect(getSteamDepot("linux-x64").executable).toBe("2D-and-D");
     expect(getSteamDepot("windows-x64").executable).toBe("2D-and-D.exe");
-    expect(getSteamDepot("macos-universal").executable).toBe("2D&D.app");
+    expect(getSteamDepot("macos-universal").executable).toBe("2D-and-D.app");
     expect(getSteamDepot("macos-universal").architectures).toEqual(["x64", "arm64"]);
+    const executableName = manifest.build.executableName;
+    expect(getSteamDepot("macos-universal").binary).toBe(
+      `${executableName}.app/Contents/MacOS/${executableName}`,
+    );
+    expect(getSteamDepot("windows-x64").binary).toBe(`${executableName}.exe`);
+    expect(getSteamDepot("linux-x64").binary).toBe(executableName);
     expect(() => getSteamDepot("proton")).toThrow(/platform/i);
     expect(STEAM_INTEGRATIONS).toEqual({
       sdk: false, achievements: false, cloud: false, nativeInput: false,

@@ -19,7 +19,9 @@
   symlinks outside the worktree.
 - `generate-desktop-notice.mjs` generates the exact source notice into the
   ignored `build/SOURCE.2dnd.txt` before packaging/signing. Both package commands
-  call it; staging never edits a signed bundle.
+  call it and restore the pinned Electron binary if required for its bundled
+  Chromium notices; staging never edits a signed bundle. Explicit `--output`
+  writes only a notice, so synthetic unit fixtures need no binary or network.
 - `prepare-steam.mjs` inspects unpacked platform architecture, game ASAR,
   licenses/source notice, exclusions, symlinks, hashes and permissions. It
   creates credential-free previews by default, verifies complete preview sets

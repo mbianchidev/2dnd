@@ -20,7 +20,7 @@ package IDs.
 | Depot | Architecture | Steam executable, relative to install root | Builder directory |
 | --- | --- | --- | --- |
 | Windows | x64 | `2D-and-D.exe` | `win-unpacked` |
-| macOS | universal x64 + arm64 | `2D&D.app` | `mac-universal` |
+| macOS | universal x64 + arm64 | `2D-and-D.app` | `mac-universal` |
 | Linux | native x64 | `2D-and-D` | `linux-unpacked` |
 
 Launch the macOS **app bundle**, not a hardcoded inner binary: Steam's own

@@ -33,7 +33,7 @@ jobs:
             steamArguments: --mac --universal
             steamPlatform: macos-universal
             steamDirectory: mac-universal
-            steamBinary: 2D&D.app/Contents/MacOS/2D-and-D
+            steamBinary: 2D-and-D.app/Contents/MacOS/2D-and-D
           - name: Windows
             runner: windows-latest
             builderArgument: --win

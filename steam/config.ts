@@ -54,11 +54,11 @@ export const STEAM_DEPOTS: readonly SteamDepot[] = [
     platform: "macos-universal",
     os: "macos",
     architectures: ["x64", "arm64"],
-    executable: "2D&D.app",
-    binary: "2D&D.app/Contents/MacOS/2D-and-D",
+    executable: "2D-and-D.app",
+    binary: "2D-and-D.app/Contents/MacOS/2D-and-D",
     packagedDirectory: "mac-universal",
-    appArchive: "2D&D.app/Contents/Resources/app.asar",
-    licenseDirectory: "2D&D.app/Contents",
+    appArchive: "2D-and-D.app/Contents/Resources/app.asar",
+    licenseDirectory: "2D-and-D.app/Contents",
     idEnvironment: "STEAM_DEPOT_MACOS_ID",
   },
   {
@@ -178,15 +178,16 @@ export function isAllowedSteamRuntimeEntry(path: string, depot: SteamDepot): boo
   const normalized = path.replace(/\\/g, "/");
   if (isForbiddenSteamPath(normalized) || /steam[_-]?api/i.test(normalized)) return false;
   if (depot.os === "macos") {
-    if (!normalized.startsWith("2D&D.app/Contents/")) return false;
-    const local = normalized.slice("2D&D.app/Contents/".length);
+    if (!normalized.startsWith("2D-and-D.app/Contents/")) return false;
+    const local = normalized.slice("2D-and-D.app/Contents/".length);
     if (
-      ["Info.plist", "PkgInfo", "SOURCE.2dnd.txt", ...STEAM_LICENSE_FILES].includes(local)
+      ["Info.plist", "PkgInfo", "SOURCE.2dnd.txt", "LICENSE.electron.txt",
+        "LICENSES.chromium.html", ...STEAM_LICENSE_FILES].includes(local)
       || local === "MacOS/2D-and-D"
       || /^Resources\/(?:app\.asar|icon\.icns)$/.test(local)
       || local === "_CodeSignature/CodeResources"
     ) return true;
-    return /^Frameworks\/(?:Electron Framework\.framework|Mantle\.framework|ReactiveObjC\.framework|Squirrel\.framework|2D&D Helper(?: \((?:GPU|Plugin|Renderer)\))?\.app)\//.test(local);
+    return /^Frameworks\/(?:Electron Framework\.framework|Mantle\.framework|ReactiveObjC\.framework|Squirrel\.framework|2D-and-D Helper(?: \((?:GPU|Plugin|Renderer)\))?\.app)\//.test(local);
   }
   const rootFiles = [
     depot.binary, ...STEAM_LICENSE_FILES, "SOURCE.2dnd.txt", "LICENSE", "LICENSE.electron.txt",

@@ -2,9 +2,11 @@ import {
   CUSTOM_NUMERIC_DIFFICULTY_RULES,
   STANDARD_DIFFICULTY_SELECTION,
   getDifficultyProfile,
+  getNumericDifficultyRule,
 } from "../data/difficulty";
 import type {
   DefeatXpPenalty,
+  DifficultyModifiers,
   DifficultySelection,
   DifficultyTimedRoundDurationSeconds,
   EnemyAiPolicy,
@@ -64,12 +66,29 @@ export interface DifficultyAchievementEligibility {
   readonly reason: string;
 }
 
+export const DIFFICULTY_SCALE_MINIMUM = 0.25;
+export const DIFFICULTY_SCALE_MAXIMUM = 4;
+export const MAX_COMPOSED_DIFFICULTY_PRICE_MULTIPLIER =
+  getNumericDifficultyRule("pricePercent").maximum / 100 * DIFFICULTY_SCALE_MAXIMUM;
+
 function composeMultiplier(base: number, scale: number | undefined): number {
   const layer = scale ?? 1;
-  if (!Number.isFinite(layer) || layer < 0.25 || layer > 4) {
+  if (!Number.isFinite(layer) || layer < DIFFICULTY_SCALE_MINIMUM || layer > DIFFICULTY_SCALE_MAXIMUM) {
     throw new Error(`[difficulty] Scale multiplier must be between 0.25 and 4: ${layer}`);
   }
   return base * layer;
+}
+
+export function resolveDifficultyModifiers(
+  selection: DifficultySelection,
+): Readonly<DifficultyModifiers> {
+  if (!isDifficultySelection(selection)) {
+    throw new Error("[difficulty] Invalid profile or Custom modifier.");
+  }
+  return Object.freeze({
+    ...getDifficultyProfile(selection.profileId).modifiers,
+    ...(selection.profileId === "custom" ? selection.overrides : {}),
+  });
 }
 
 /** Derive immutable mechanics. No preference, scene, or mutable definition is read. */
@@ -77,13 +96,7 @@ export function resolveDifficultyRules(
   selection: DifficultySelection = STANDARD_DIFFICULTY_SELECTION,
   scale: DifficultyScaleLayer = {},
 ): Readonly<DifficultyRules> {
-  if (!isDifficultySelection(selection)) {
-    throw new Error("[difficulty] Invalid profile or Custom modifier.");
-  }
-  const modifiers = {
-    ...getDifficultyProfile(selection.profileId).modifiers,
-    ...(selection.profileId === "custom" ? selection.overrides : {}),
-  };
+  const modifiers = resolveDifficultyModifiers(selection);
   return Object.freeze({
     enemyHpMultiplier: composeMultiplier(modifiers.enemyHpPercent / 100, scale.enemyHpMultiplier),
     enemyDamageMultiplier: composeMultiplier(modifiers.enemyDamagePercent / 100, scale.enemyDamageMultiplier),
@@ -114,11 +127,17 @@ export function getCampaignDifficultyRules(
   );
 }
 
-function scaleQuantity(amount: number, multiplier: number, minimum = 0): number {
+function scaleQuantity(
+  amount: number,
+  multiplier: number,
+  minimum = 0,
+  rounding: "floor" | "ceil" = "floor",
+): number {
   if (!Number.isFinite(amount) || amount < 0 || amount > Number.MAX_SAFE_INTEGER) {
     throw new Error(`[difficulty] Invalid base quantity: ${amount}`);
   }
-  return Math.max(minimum, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(amount * multiplier)));
+  const scaled = rounding === "ceil" ? Math.ceil(amount * multiplier) : Math.floor(amount * multiplier);
+  return Math.max(minimum, Math.min(Number.MAX_SAFE_INTEGER, scaled));
 }
 
 /** Clone runtime enemy HP only; accuracy never leaks into initiative or saves. */
@@ -139,7 +158,17 @@ export function scaleReward(
   return scaleQuantity(amount, kind === "xp" ? rules.xpRewardMultiplier : rules.goldRewardMultiplier);
 }
 
-/** Compose prices with the existing final social discount/surcharge bounds. */
+export function describeRewardAdjustment(
+  message: string,
+  baseAmount: number,
+  receivedAmount: number,
+  kind: "xp" | "gold",
+): string {
+  return baseAmount === receivedAmount ? message
+    : `${message} (Actual reward: ${receivedAmount} ${kind === "xp" ? "XP" : "gold"}.)`.trim();
+}
+
+/** Neutral prices retain baseline floors; other costs round up to preserve crafting margins. */
 export function scaleCost(
   amount: number,
   rules: DifficultyRules,
@@ -150,7 +179,12 @@ export function scaleCost(
     throw new Error("[difficulty] Invalid social price adjustment.");
   }
   const adjustment = Math.min(0.35, Math.max(-0.25, socialDiscount));
-  return scaleQuantity(amount, rules.priceMultiplier * (1 - adjustment), minimum);
+  return scaleQuantity(
+    amount,
+    rules.priceMultiplier * (1 - adjustment),
+    minimum,
+    rules.priceMultiplier === 1 ? "floor" : "ceil",
+  );
 }
 
 /** Selling follows prices, not gold-reward bonuses, to avoid buy/sell arbitrage. */
@@ -174,10 +208,7 @@ export function getDifficultyEncounterRate(
 export function getDifficultyTimingAdjustment(
   selection: DifficultySelection,
 ): DifficultyTimingAdjustment {
-  if (!isDifficultySelection(selection)) throw new Error("[difficulty] Invalid timing selection.");
-  const durationSeconds = selection.profileId === "custom"
-    ? selection.overrides?.timedRoundDurationSeconds
-    : getDifficultyProfile(selection.profileId).modifiers.timedRoundDurationSeconds;
+  const durationSeconds = resolveDifficultyModifiers(selection).timedRoundDurationSeconds;
   return durationSeconds === undefined ? {} : { durationSeconds };
 }
 
@@ -196,7 +227,7 @@ export function getDifficultyAchievementEligibility(
     return {
       generalAchievements: true,
       challengeProfile: profileId,
-      reason: `Unchanged ${getDifficultyProfile(profileId).name} campaign; preset challenge credit available.`,
+      reason: `Unchanged ${getDifficultyProfile(profileId).name} preset; challenge credit requires natural, non-debug progress.`,
     };
   }
   return {
@@ -206,6 +237,26 @@ export function getDifficultyAchievementEligibility(
       ? "Custom rules do not claim preset challenge credit. General achievements remain available."
       : "General achievements remain available on this profile.",
   };
+}
+
+export function getCampaignDifficultyEligibility(
+  campaign: {
+    readonly difficulty: CampaignDifficultyState;
+    readonly progression: {
+      readonly achievements: { readonly debugSuppressedIds: readonly string[] };
+    };
+  },
+): DifficultyAchievementEligibility {
+  const eligibility = getDifficultyAchievementEligibility(campaign.difficulty);
+  if (eligibility.challengeProfile === null) return eligibility;
+  if (campaign.progression.achievements.debugSuppressedIds.includes("veteranCovenant")) {
+    return {
+      generalAchievements: true,
+      challengeProfile: null,
+      reason: "Debug mutations exclude preset campaign challenges. General and earned achievements remain available.",
+    };
+  }
+  return eligibility;
 }
 
 export function isDifficultyChallengeEligible(
@@ -219,12 +270,7 @@ export function isDifficultyChallengeEligible(
 export function getDifficultyEffectPreview(
   selection: DifficultySelection,
 ): readonly DifficultyEffectPreview[] {
-  if (!isDifficultySelection(selection)) throw new Error("[difficulty] Invalid preview selection.");
-  const profile = getDifficultyProfile(selection.profileId);
-  const modifiers = {
-    ...profile.modifiers,
-    ...(selection.profileId === "custom" ? selection.overrides : {}),
-  };
+  const modifiers = resolveDifficultyModifiers(selection);
   return [
     ...CUSTOM_NUMERIC_DIFFICULTY_RULES.map((rule) => ({
       id: rule.id,

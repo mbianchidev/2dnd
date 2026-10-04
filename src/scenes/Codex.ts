@@ -581,7 +581,7 @@ export class CodexScene extends Phaser.Scene {
         monster.affinity ? elementDisplayName(monster.affinity) : "None"
       }`,
       "",
-      `HP: ${entry.hp}`,
+      `Base HP: ${entry.hp}`,
       entry.acDiscovered ? `AC: ${entry.ac}` : "AC: ???",
       `XP: ${entry.xpReward}`,
       `Gold: ${entry.goldReward}`,

@@ -86,6 +86,10 @@ export interface FocusableLayoutItem {
   enabled: boolean;
 }
 
+export interface SpatialFocusableLayoutItem extends FocusableLayoutItem {
+  bounds: LayoutRect;
+}
+
 export const ZERO_INSETS: LayoutInsets = {
   top: 0,
   right: 0,
@@ -337,6 +341,39 @@ export function restoreLayoutFocus<T extends FocusableLayoutItem>(
   };
 }
 
+/** Navigate irregular measured rows without treating hidden controls as grid cells. */
+export function moveSpatialLayoutFocus(
+  items: readonly SpatialFocusableLayoutItem[],
+  currentId: string | undefined,
+  direction: GridNavigationDirection,
+): string | undefined {
+  const available = getFocusableLayoutItems(items);
+  const current = available.find((item) => item.id === currentId);
+  if (!current) return available[0]?.id;
+  const center = (item: SpatialFocusableLayoutItem): LayoutPoint => ({
+    x: item.bounds.x + item.bounds.width / 2,
+    y: item.bounds.y + item.bounds.height / 2,
+  });
+  const origin = center(current);
+  let selected = current.id;
+  let bestScore = Infinity;
+  for (const item of available) {
+    if (item.id === current.id) continue;
+    const point = center(item);
+    const dx = point.x - origin.x;
+    const dy = point.y - origin.y;
+    const forward = direction === "left" ? -dx : direction === "right" ? dx
+      : direction === "up" ? -dy : dy;
+    if (forward <= 0.5) continue;
+    const lateral = direction === "left" || direction === "right" ? Math.abs(dy) : Math.abs(dx);
+    const score = forward + lateral * 2;
+    if (score < bestScore) {
+      selected = item.id;
+      bestScore = score;
+    }
+  }
+  return selected;
+}
 export function getVisibleMeasuredRange(
   itemHeights: readonly number[],
   scrollOffset: number,

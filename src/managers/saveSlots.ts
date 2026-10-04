@@ -74,7 +74,8 @@ function formatSavedAt(timestamp: number): string {
 function slotStatusText(slot: SaveSlotInfo): string {
   const metadata = slot.metadata;
   if (metadata) {
-    return `${metadata.characterName} Lv.${metadata.level} ${metadata.className}\n`
+    return `${metadata.characterName} Lv.${metadata.level} ${metadata.className}`
+      + ` | ${metadata.difficultyName}${metadata.difficultyChangeCount > 0 ? " (changed)" : ""}\n`
       + `${metadata.location} | ${metadata.campaignStatus} | `
       + `${formatSavePlaytime(metadata.playtimeSeconds)} | `
       + `${formatSavedAt(metadata.savedAt)}`;
@@ -295,7 +296,7 @@ export class SaveSlotManager {
       const copySource = slot.slotId === this.copySourceSlotId ? " [SOURCE]" : "";
       const row = this.scene.add.text(
         rowX,
-        rowY + index * 59,
+        rowY + index * 70,
         `${selected ? "▶" : " "} ${stateSymbol} ${slot.displayName}${copySource}\n`
           + `  ${slotStatusText(slot)}`,
         {
@@ -307,7 +308,7 @@ export class SaveSlotManager {
           backgroundColor: selected ? "#38435f" : "#20273a",
           padding: { x: 8, y: 4 },
           fixedWidth: rowWidth,
-          fixedHeight: 54,
+          fixedHeight: 66,
           lineSpacing: 2,
           wordWrap: { width: rowWidth - 16 },
         },
@@ -337,7 +338,7 @@ export class SaveSlotManager {
       itemHeights: this.actions.map(() => 32),
       maxColumns: 5,
     });
-    const actionY = py + 315;
+    const actionY = py + 356;
     this.actions.forEach((action, index) => {
       const cell = actionGrid.cells[index]!;
       const selected = index === this.selectedActionIndex;
@@ -372,7 +373,7 @@ export class SaveSlotManager {
 
     const status = this.scene.add.text(
       px + panelW / 2,
-      py + panelH - 56,
+      py + panelH - 60,
       this.status || this.selectedDescription(selectedSlot),
       {
         fontSize: "9px",
@@ -551,7 +552,13 @@ export class SaveSlotManager {
         ? "Choose a different manual slot."
         : `Copy into ${slot.displayName}. Existing data requires confirmation.`;
     }
-    return slot.diagnostic ?? `${slot.displayName}: ${slot.state}.`;
+    if (slot.diagnostic) return slot.diagnostic;
+    const metadata = slot.metadata;
+    return metadata
+      ? `${metadata.difficultyName}: ${metadata.difficultyChallengeProfile
+        ? "natural preset challenge eligible" : "general achievements available"}. `
+        + `${metadata.difficultyChangeCount} rule changes. Schema ${metadata.schemaVersion}.`
+      : `${slot.displayName}: ${slot.state}.`;
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {

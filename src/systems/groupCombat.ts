@@ -24,6 +24,13 @@ import {
   type PlayerStats,
 } from "./player";
 import type { ActiveStatusEffect } from "./statusEffects";
+import {
+  STANDARD_DIFFICULTY_RULES,
+  scaleEnemy,
+  scaleReward,
+  type DifficultyRules,
+} from "./difficulty";
+import { adjustEnemyDefendChance, selectEnemyTarget } from "./enemyTactics";
 
 export type AttackRange = "melee" | "ranged";
 
@@ -70,6 +77,7 @@ export interface GroupCombatant extends BattleCombatantState {
   readonly side: "enemy";
   readonly actorKind: "monster";
   monster: Monster;
+  readonly baseMonster: Monster;
   acHighestMiss: number;
   acLowestHit: number;
   acDiscovered: boolean;
@@ -247,6 +255,7 @@ export function createHeroCombatant(player: PlayerState): PartyCombatant {
 /** Build isolated runtime combatants and disambiguate duplicate names. */
 export function createGroupCombatants(
   encounter: MonsterEncounter,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): GroupCombatant[] {
   const nameCounts = new Map<string, number>();
   for (const member of encounter.members) {
@@ -258,6 +267,7 @@ export function createGroupCombatants(
   const nameOccurrences = new Map<string, number>();
 
   return encounter.members.map((member, index) => {
+    const monster = scaleEnemy(member.monster, rules);
     const occurrence = (nameOccurrences.get(member.monster.name) ?? 0) + 1;
     nameOccurrences.set(member.monster.name, occurrence);
     const duplicate = (nameCounts.get(member.monster.name) ?? 0) > 1;
@@ -270,9 +280,10 @@ export function createGroupCombatants(
       side: "enemy",
       actorKind: "monster",
       label: `${member.monster.name}${suffix}`,
-      monster: member.monster,
-      currentHp: member.monster.hp,
-      maxHp: member.monster.hp,
+      monster,
+      baseMonster: member.monster,
+      currentHp: monster.hp,
+      maxHp: monster.hp,
       position: member.position,
       isAlive: true,
       isKnockedOut: false,
@@ -509,13 +520,10 @@ export function getTargetIndices(
 export function selectMonsterTarget(
   partyCombatants: PartyCombatant[],
   random: () => number = Math.random,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): PartyCombatant | undefined {
   const candidates = partyCombatants.filter(isCombatantActive);
-  if (candidates.length === 0) return undefined;
-  const index = Math.floor(
-    Math.max(0, Math.min(0.999999, random())) * candidates.length,
-  );
-  return candidates[index];
+  return selectEnemyTarget(candidates, rules, random);
 }
 
 export function isPartyDefeated(
@@ -577,6 +585,7 @@ export function getMonsterDefendChance(
   synergy: GroupSynergy | undefined,
   combatants: GroupCombatant[],
   combatantIndex: number,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): number {
   if (
     synergy?.type === "shield_wall"
@@ -584,17 +593,21 @@ export function getMonsterDefendChance(
     && combatants[combatantIndex]?.position === "front"
     && combatants.some((member) => member.isAlive && member.position === "back")
   ) {
-    return 0.3;
+    return adjustEnemyDefendChance(0.3, rules);
   }
-  return 0.08;
+  return adjustEnemyDefendChance(0.08, rules);
 }
 
-export function getFleeDC(aliveCount: number): number {
-  return 10 + Math.max(0, aliveCount - 1) * 2;
+export function getFleeDC(
+  aliveCount: number,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
+): number {
+  return 10 + Math.max(0, aliveCount - 1) * 2 + rules.fleeDcAdjustment;
 }
 
 export function calculateEncounterRewards(
   encounter: MonsterEncounter,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): BattleReward {
   const totals = encounter.members.reduce(
     (reward, member) => ({
@@ -603,19 +616,24 @@ export function calculateEncounterRewards(
     }),
     { xp: 0, gold: 0 },
   );
-  if (!encounter.isGroup) return totals;
+  const groupMultiplier = encounter.isGroup ? 0.85 : 1;
   return {
-    xp: Math.floor(totals.xp * 0.85),
-    gold: Math.floor(totals.gold * 0.85),
+    xp: scaleReward(Math.floor(totals.xp * groupMultiplier), "xp", rules),
+    gold: scaleReward(Math.floor(totals.gold * groupMultiplier), "gold", rules),
   };
 }
 
 export function resolveBattleRewards(
   encounter: MonsterEncounter,
   hooks?: BattleResolutionHooks,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): BattleReward {
-  const baseRewards = calculateEncounterRewards(encounter);
-  return hooks?.adjustRewards?.({ ...baseRewards }, encounter) ?? baseRewards;
+  const baseRewards = calculateEncounterRewards(encounter, rules);
+  const reward = hooks?.adjustRewards?.({ ...baseRewards }, encounter) ?? baseRewards;
+  if (![reward.xp, reward.gold].every((value) => Number.isFinite(value) && value >= 0)) {
+    throw new Error("[groupCombat] Reward hooks must return finite non-negative rewards.");
+  }
+  return reward;
 }
 
 export function createBattleResult(
@@ -649,7 +667,7 @@ export function recordGroupDefeats(
   for (const combatant of combatants) {
     recordDefeat(
       codex,
-      combatant.monster,
+      combatant.baseMonster,
       combatant.acDiscovered,
       combatant.droppedItemIds,
     );

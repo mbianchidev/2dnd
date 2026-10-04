@@ -81,6 +81,8 @@ import {
   type EscapeMenuAction,
   type EscapeMenuEntry,
 } from "../systems/featureDiscovery";
+import { getCampaignDifficultyRules, scaleCost } from "../systems/difficulty";
+import { DifficultyOverlayManager } from "./difficulty";
 
 /** Callbacks the OverlayManager uses to interact with the parent scene. */
 export interface OverlayCallbacks {
@@ -112,11 +114,13 @@ export interface OverlayCallbacks {
     routeId: MerchantRouteId,
     currentPortId: PortId,
   ) => void;
+  onStateChange?(): void;
 }
 
 export class OverlayManager {
   private scene: Phaser.Scene;
   private callbacks: OverlayCallbacks;
+  private readonly difficultyManager: DifficultyOverlayManager;
 
   // Overlay containers
   equipOverlay: Phaser.GameObjects.Container | null = null;
@@ -150,6 +154,7 @@ export class OverlayManager {
   constructor(scene: Phaser.Scene, callbacks: OverlayCallbacks) {
     this.scene = scene;
     this.callbacks = callbacks;
+    this.difficultyManager = new DifficultyOverlayManager(scene);
   }
 
   // ── Query ──────────────────────────────────────────────────────────
@@ -158,6 +163,7 @@ export class OverlayManager {
   isOpen(): boolean {
     return !!(
       this.equipOverlay ||
+      this.difficultyManager.isOpen() ||
       this.statOverlay ||
       this.menuOverlay ||
       this.worldMapOverlay ||
@@ -170,6 +176,8 @@ export class OverlayManager {
   }
 
   getMenuDebugState(player: PlayerState): string {
+    if (this.difficultyManager.isOpen()) return this.difficultyManager.getDebugState();
+    if (this.settingsOverlay) return " [SETTINGS]";
     if (!this.menuOverlay) return "";
     const entries = getEscapeMenuEntries(player);
     const selected = entries[this.menuSelectedIndex]?.action ?? "-";
@@ -195,6 +203,7 @@ export class OverlayManager {
 
   /** Destroy all overlays. */
   destroyAll(): void {
+    this.difficultyManager.close(false);
     this.closeOverlays(
       "equipOverlay", "statOverlay", "menuOverlay", "worldMapOverlay",
       "settingsOverlay", "innConfirmOverlay", "bankOverlay", "townPickerOverlay",
@@ -1253,7 +1262,7 @@ export class OverlayManager {
         this.callbacks.openSaveSlots();
         return;
       case "settings":
-        this.showSettingsOverlay();
+        this.showSettingsOverlay(player);
         return;
     }
   }
@@ -1261,17 +1270,17 @@ export class OverlayManager {
   // ── Settings Overlay ───────────────────────────────────────────────
 
   /** Toggle the settings overlay. */
-  toggleSettingsOverlay(): void {
+  toggleSettingsOverlay(player: PlayerState): void {
     if (this.settingsOverlay) {
       this.settingsOverlay.destroy();
       this.settingsOverlay = null;
       return;
     }
-    this.showSettingsOverlay();
+    this.showSettingsOverlay(player);
   }
 
   /** Show the shared audio and accessibility settings. */
-  showSettingsOverlay(): void {
+  showSettingsOverlay(player: PlayerState): void {
     this.closeOverlays("menuOverlay", "equipOverlay", "statOverlay", "settingsOverlay");
 
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
@@ -1291,7 +1300,7 @@ export class OverlayManager {
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
     dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.x < px || pointer.x > px + panelW || pointer.y < py || pointer.y > py + panelH) {
-        this.toggleSettingsOverlay();
+        this.toggleSettingsOverlay(player);
       }
     });
     this.settingsOverlay.add(dim);
@@ -1307,12 +1316,31 @@ export class OverlayManager {
       py,
       panelW,
       panelH,
+      { player, openCampaignRules: () => this.showDifficultyOverlay(player, true) },
     );
 
     const hint = this.scene.add.text(px + panelW / 2, py + panelH - 10, "Click outside or press ESC to close", {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
     this.settingsOverlay.add(hint);
+    this.callbacks.onStateChange?.();
+  }
+
+  isDifficultyOpen(): boolean { return this.difficultyManager.isOpen(); }
+
+  closeDifficultyOverlay(): void { this.difficultyManager.close(); }
+
+  showDifficultyOverlay(player: PlayerState, returnToSettings = false): void {
+    if (this.difficultyManager.isOpen()) return;
+    this.closeOverlays("menuOverlay", "equipOverlay", "statOverlay", "settingsOverlay");
+    this.difficultyManager.open({
+      selection: player.difficulty.selection,
+      campaign: player,
+      onClose: () => {
+        if (returnToSettings) this.showSettingsOverlay(player);
+      },
+      onStateChange: () => this.callbacks.onStateChange?.(),
+    });
   }
 
   // ── ASI Stat Allocation Overlay ────────────────────────────────────
@@ -1411,7 +1439,7 @@ export class OverlayManager {
   /** Show the inn rest confirmation with Sleep/Wait/Cancel options. */
   showInnConfirmation(player: PlayerState): void {
     if (this.innConfirmOverlay) return;
-    const innCost = getInnCost(player.position.cityId);
+    const innCost = scaleCost(getInnCost(player.position.cityId), getCampaignDifficultyRules(player));
     const container = this.scene.add.container(0, 0).setDepth(55);
     const boxW = 280;
     const boxH = 120;
@@ -1479,7 +1507,7 @@ export class OverlayManager {
   /** Execute inn rest: deduct gold, heal, advance time, process level-ups. */
   private executeInnRest(player: PlayerState, targetTimeStep: number, message: string): void {
     this.dismissInnConfirmation();
-    const innCost = getInnCost(player.position.cityId);
+    const innCost = scaleCost(getInnCost(player.position.cityId), getCampaignDifficultyRules(player));
     if (player.gold < innCost) {
       this.callbacks.showMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
       return;
@@ -2041,7 +2069,7 @@ export class OverlayManager {
         player.progression.nautical.discoveredRouteIds.includes(route.id)
       )
       .map((route) =>
-        `${route.name}: ${route.fee}g`
+        `${route.name}: ${scaleCost(route.fee, getCampaignDifficultyRules(player))}g`
         + ("questGate" in route ? " · quest required" : "")
       );
     const nauticalParts: string[] = [];

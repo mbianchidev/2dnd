@@ -36,6 +36,7 @@ import type {
   QuestStatus,
 } from "../data/quests";
 import type { PlayerState } from "./player";
+import { describeRewardAdjustment, getCampaignDifficultyRules, scaleReward } from "./difficulty";
 
 export { createQuestLog, normalizeQuestLog, objectiveRequired };
 
@@ -198,16 +199,22 @@ function applyRewards(
   updates: QuestUpdate[],
 ): boolean {
   let changed = false;
+  const rules = getCampaignDifficultyRules(player);
   for (const reward of rewards) {
     if (progress.claimedRewards.includes(reward.id)) continue;
     if (!optionalObjectiveComplete(progress, reward.optionalObjectiveId)) {
       continue;
     }
 
+    let message = reward.message;
     if (reward.type === "gold") {
-      player.gold += reward.amount;
+      const amount = scaleReward(reward.amount, "gold", rules);
+      player.gold += amount;
+      message = describeRewardAdjustment(message, reward.amount, amount, "gold");
     } else if (reward.type === "xp") {
-      awardXP(player, reward.amount);
+      const amount = scaleReward(reward.amount, "xp", rules);
+      awardXP(player, amount);
+      message = describeRewardAdjustment(message, reward.amount, amount, "xp");
     } else if (reward.type === "item") {
       addItem(
         player,
@@ -230,7 +237,7 @@ function applyRewards(
     updates.push({
       type: reward.type === "item" ? "item" : "reward",
       questId: quest.id,
-      message: reward.message,
+      message,
     });
     changed = true;
   }

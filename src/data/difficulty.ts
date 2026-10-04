@@ -177,6 +177,41 @@ export const DIFFICULTY_TIMED_ROUND_DURATIONS:
 readonly DifficultyTimedRoundDurationSeconds[] =
   Object.freeze([15, 30, 45, 60, 90]);
 
+export interface EnemyAiBehavior {
+  readonly target: "random" | "highestHpRatio" | "lowestHpRatio" | "lowestHp";
+  readonly abilityChanceMultiplier: number;
+  readonly defendChanceMultiplier: number;
+  readonly avoidFullHealthHealing: boolean;
+}
+
+export const ENEMY_AI_BEHAVIORS: Readonly<Record<EnemyAiPolicy, EnemyAiBehavior>> =
+  Object.freeze({
+    gentle: Object.freeze({
+      target: "highestHpRatio",
+      abilityChanceMultiplier: 0.75,
+      defendChanceMultiplier: 1.25,
+      avoidFullHealthHealing: true,
+    }),
+    standard: Object.freeze({
+      target: "random",
+      abilityChanceMultiplier: 1,
+      defendChanceMultiplier: 1,
+      avoidFullHealthHealing: false,
+    }),
+    tactical: Object.freeze({
+      target: "lowestHpRatio",
+      abilityChanceMultiplier: 1.15,
+      defendChanceMultiplier: 0.8,
+      avoidFullHealthHealing: true,
+    }),
+    relentless: Object.freeze({
+      target: "lowestHp",
+      abilityChanceMultiplier: 1.35,
+      defendChanceMultiplier: 0.5,
+      avoidFullHealthHealing: true,
+    }),
+  });
+
 export function isDifficultyProfileId(value: unknown): value is DifficultyProfileId {
   return DIFFICULTY_PROFILE_IDS.some((id) => id === value);
 }
@@ -187,4 +222,12 @@ export function getDifficultyProfile(
   const profile = DIFFICULTY_PROFILES.find((entry) => entry.id === profileId);
   if (!profile) throw new Error(`[difficulty] Unknown profile: ${profileId}`);
   return profile;
+}
+
+export function getNumericDifficultyRule(
+  id: NumericDifficultyRuleId,
+): NumericDifficultyRuleDefinition {
+  const rule = CUSTOM_NUMERIC_DIFFICULTY_RULES.find((entry) => entry.id === id);
+  if (!rule) throw new Error(`[difficulty] Unknown numeric rule: ${id}`);
+  return rule;
 }

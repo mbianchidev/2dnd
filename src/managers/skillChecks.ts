@@ -21,6 +21,7 @@ import type { NpcSkillChallenge } from "../data/skillChecks";
 import type { MapRenderer } from "../renderers/map";
 import type { PlayerState } from "../systems/player";
 import type { DialogueSystem } from "./dialogue";
+import { getCampaignDifficultyRules, scaleReward } from "../systems/difficulty";
 
 export interface SkillCheckManagerCallbacks {
   showMessage: (text: string, color?: string) => void;
@@ -43,10 +44,11 @@ export class SkillCheckManager {
     const key = `${chunkX},${chunkY},${x},${y}`;
     if (player.progression.collectedTreasures.includes(key)) return false;
 
-    const result = rollSkillCheck(player.stats, "wisdom", 11);
+    const rules = getCampaignDifficultyRules(player);
+    const result = rollSkillCheck(player.stats, "wisdom", 11, { rules });
     player.progression.skillChecks[`treasure:${key}`] = result;
     player.progression.collectedTreasures.push(key);
-    const goldAmount = getMinorTreasureGold(result.success);
+    const goldAmount = scaleReward(getMinorTreasureGold(result.success), "gold", rules);
     player.gold += goldAmount;
     const materialId = getMinorTreasureMaterialId(key, result.success);
     const material = materialId ? getItem(materialId) : undefined;
@@ -77,15 +79,17 @@ export class SkillCheckManager {
     const event = selectExplorationEvent(terrain, environment);
     if (!event) return false;
 
-    const result = rollSkillCheck(player.stats, event.ability, event.dc);
+    const rules = getCampaignDifficultyRules(player);
+    const result = rollSkillCheck(player.stats, event.ability, event.dc, { rules });
     const abilityLabel = event.ability.charAt(0).toUpperCase()
       + event.ability.slice(1);
     let consequence = result.success ? event.successText : event.failureText;
 
     if (result.success) {
       if (event.successGold) {
-        player.gold += event.successGold;
-        consequence += ` Gained ${event.successGold} gold.`;
+        const gold = scaleReward(event.successGold, "gold", rules);
+        player.gold += gold;
+        consequence += ` Gained ${gold} gold.`;
       }
       if (event.revealRadius) {
         this.callbacks.revealAround(event.revealRadius);
@@ -116,18 +120,24 @@ export class SkillCheckManager {
     npc: NpcInstance,
     dialogueSystem: DialogueSystem,
   ): void {
+    if (player.progression.skillChecks[challenge.id]) {
+      this.callbacks.showMessage("This challenge has already been resolved.", "#ffcc80");
+      return;
+    }
+    const rules = getCampaignDifficultyRules(player);
     const result = rollSkillCheck(
       player.stats,
       challenge.ability,
       challenge.dc,
-      { optionId: challenge.approach },
+      { optionId: challenge.approach, rules },
     );
     player.progression.skillChecks[challenge.id] = result;
 
     let consequence: string;
     if (result.success) {
-      player.gold += challenge.successGold;
-      consequence = `${challenge.successText} Gained ${challenge.successGold} gold.`;
+      const gold = scaleReward(challenge.successGold, "gold", rules);
+      player.gold += gold;
+      consequence = `${challenge.successText} Gained ${gold} gold.`;
     } else {
       const lostGold = Math.min(player.gold, challenge.failureGoldLoss ?? 0);
       player.gold -= lostGold;
@@ -152,6 +162,7 @@ export class SkillCheckManager {
   }
 
   resolveChestChecks(player: PlayerState, chest: ChestData): string[] {
+    const rules = getCampaignDifficultyRules(player);
     const feedback: string[] = [];
     if (chest.lockDc !== undefined) {
       const checkId = `chest:${chest.id}:lock`;
@@ -160,6 +171,7 @@ export class SkillCheckManager {
         player.stats,
         "dexterity",
         chest.lockDc,
+        { rules },
       );
       if (!existing) {
         player.progression.skillChecks[checkId] = result;
@@ -184,12 +196,14 @@ export class SkillCheckManager {
           player.stats,
           "wisdom",
           chest.secretDc,
+          { rules },
         );
         player.progression.skillChecks[checkId] = result;
         if (result.success && chest.secretGold) {
-          player.gold += chest.secretGold;
+          const gold = scaleReward(chest.secretGold, "gold", rules);
+          player.gold += gold;
           feedback.push(
-            `Wisdom check (${formatSkillCheckResult(result)}): found ${chest.secretGold} hidden gold.`,
+            `Wisdom check (${formatSkillCheckResult(result)}): found ${gold} hidden gold.`,
           );
         } else {
           feedback.push(

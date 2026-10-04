@@ -29,6 +29,7 @@ import {
 } from "../utils/ui";
 import { openMobileTextInput } from "./input";
 import { getCraftingDiscoveryCategories } from "../systems/featureDiscovery";
+import { getCampaignDifficultyRules, scaleCost } from "../systems/difficulty";
 
 export interface CraftingManagerCallbacks {
   autoSave(): void;
@@ -396,7 +397,7 @@ export class CraftingManager {
         `Benefit: ${recipe.preview.benefit}`,
         "",
         ...ingredientLines,
-        `Gold: ${player.gold}/${(recipe.goldCost ?? 0) * this.batch}`,
+        `Gold: ${player.gold}/${scaleCost((recipe.goldCost ?? 0) * this.batch, getCampaignDifficultyRules(player))}`,
         recipe.station
           ? `Station: ${this.getStation() === recipe.station ? "[OK]" : "[--]"} ${recipe.station}`
           : "Station: [OK] Field",

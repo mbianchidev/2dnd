@@ -80,8 +80,9 @@ import {
   type SaveSlotId,
   type SaveStorageErrorCode,
 } from "./saveStorage";
+import { normalizeCampaignDifficulty } from "./difficulty";
 
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -533,6 +534,10 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     data.player.knownTalents = normalizeStringArray(data.player.knownTalents);
 
     const playerRecord = data.player as unknown as Record<string, unknown>;
+    data.player.difficulty = normalizeCampaignDifficulty(
+      playerRecord["difficulty"],
+      sourceVersion,
+    );
     if (!isRecord(playerRecord["position"])) {
       data.player.position = {
         x: readInteger(playerRecord["x"], 3),

@@ -1,3 +1,5 @@
+import type { DifficultyProfileId } from "./difficulty";
+
 export type TutorialStepId =
   | "welcome"
   | "interface"
@@ -56,7 +58,8 @@ export type TipUnlock =
   | { type: "dungeon" }
   | { type: "skillCheck" }
   | { type: "trap" }
-  | { type: "feature"; featureId: FeatureId };
+  | { type: "feature"; featureId: FeatureId }
+  | { type: "difficulty"; profileIds: readonly DifficultyProfileId[] };
 
 export interface TipDefinition {
   id: string;
@@ -283,6 +286,42 @@ export const TIPS: readonly TipDefinition[] = [
     body: "The map, equipment, menu, and Tips are always available. New shortcuts and menu entries appear only after their systems are discovered.",
     controls: ["map", "equipment", "journal", "codex", "achievements", "gathering", "crafting", "party", "mount", "menu", "tips"],
     unlock: { type: "always" },
+  },
+  {
+    id: "controls.difficulty",
+    category: "controls",
+    title: "Campaign rules",
+    body: "Choose Story, Standard, Veteran, Legendary, or bounded Custom rules during appearance creation. Settings and the character sheet show all effects and achievement eligibility. Standard keeps the original mechanics; accessibility and dice presentation are independent.",
+    controls: ["menu", "equipment"],
+    unlock: { type: "always" },
+  },
+  {
+    id: "combat.storyRules",
+    category: "combat",
+    title: "Story assistance",
+    body: "Gentler enemies target healthier party members, exploration checks gain assistance, and defeat keeps gold and XP with full recovery. Fixed check outcomes still cannot be rerolled, and normal action economy still applies.",
+    unlock: { type: "difficulty", profileIds: ["story"] },
+  },
+  {
+    id: "combat.veteranRules",
+    category: "combat",
+    title: "Tactical preparation",
+    body: "Stronger enemies focus vulnerable party members and use abilities more often. Protect injured allies, clear formations, manage MP, and plan recovery. Campaign entrances and required objectives never become difficulty gates.",
+    unlock: { type: "difficulty", profileIds: ["veteran", "legendary"] },
+  },
+  {
+    id: "combat.legendaryRules",
+    category: "combat",
+    title: "Legendary stakes",
+    body: "Relentless enemies prioritize the party member with the lowest HP. Keep healing and defensive gambits ready, use elemental knowledge, and preserve recovery funds. Preset campaign challenges require unchanged, natural non-debug progress.",
+    unlock: { type: "difficulty", profileIds: ["legendary"] },
+  },
+  {
+    id: "combat.customRules",
+    category: "combat",
+    title: "Bounded Custom effects",
+    body: "Custom begins from Standard and exposes bounded HP, damage, tactics, pressure, checks, defeat, recovery, economy, and optional timer suggestions. Read every effect before applying. General achievements remain available; Custom never claims preset challenge credit.",
+    unlock: { type: "difficulty", profileIds: ["custom"] },
   },
   {
     id: "progression.achievements",

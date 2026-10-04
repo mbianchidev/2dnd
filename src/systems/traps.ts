@@ -19,6 +19,7 @@ import { resolveSkillCheck, rollSkillCheck } from "./skillChecks";
 import { applyStatusEffect } from "./statusEffects";
 import { applySocialMutation } from "./reputation";
 import { consumeSocialAchievementHooks } from "./achievements";
+import { getCampaignDifficultyRules, scaleReward } from "./difficulty";
 
 interface TrapCandidate {
   x: number;
@@ -327,10 +328,11 @@ export function attemptTrapDetection(
 
   const definition = getTrapDefinition(trap.type);
   const modifiers = getTrapCheckModifiers(player);
+  const rules = getCampaignDifficultyRules(player);
   if (modifiers.autoDetect) {
     const modifier = abilityModifier(
       player.stats[definition.detectionAbility],
-    ) + modifiers.detectionBonus;
+    ) + modifiers.detectionBonus + rules.skillCheckAssistance;
     player.progression.trapStates[trap.id] = "detected";
     return {
       attempted: true,
@@ -347,13 +349,14 @@ export function attemptTrapDetection(
   const record = naturalRoll === undefined
     ? rollSkillCheck(player.stats, definition.detectionAbility, trap.detectionDC, {
       situationalModifier: modifiers.detectionBonus,
+      rules,
     })
     : resolveSkillCheck(
       player.stats,
       definition.detectionAbility,
       trap.detectionDC,
       naturalRoll,
-      { situationalModifier: modifiers.detectionBonus },
+      { situationalModifier: modifiers.detectionBonus, rules },
     );
   player.progression.trapStates[trap.id] = record.success
     ? "detected"
@@ -381,20 +384,23 @@ export function attemptTrapDisarm(
 
   const definition = getTrapDefinition(trap.type);
   const modifiers = getTrapCheckModifiers(player);
+  const rules = getCampaignDifficultyRules(player);
   const record = naturalRoll === undefined
     ? rollSkillCheck(player.stats, definition.disarmAbility, trap.disarmDC, {
       situationalModifier: modifiers.disarmBonus,
+      rules,
     })
     : resolveSkillCheck(
       player.stats,
       definition.disarmAbility,
       trap.disarmDC,
       naturalRoll,
-      { situationalModifier: modifiers.disarmBonus },
+      { situationalModifier: modifiers.disarmBonus, rules },
     );
   if (record.success) {
     player.progression.trapStates[trap.id] = "disarmed";
-    awardXP(player, trap.rewardXp);
+    const rewardXp = scaleReward(trap.rewardXp, "xp", rules);
+    awardXP(player, rewardXp);
     const social = applySocialMutation(player, {
       sourceId: `trap:${trap.id}:disarm`,
       cause: `Disarmed ${definition.name}`,
@@ -402,7 +408,7 @@ export function attemptTrapDisarm(
     });
     consumeSocialAchievementHooks(player, social.achievementHooks);
     return {
-      ...mapTrapCheckResult(record, trap.rewardXp),
+      ...mapTrapCheckResult(record, rewardXp),
       ...(social.changed ? { socialSummary: social.summary } : {}),
     };
   }

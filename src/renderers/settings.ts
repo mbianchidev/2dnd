@@ -5,6 +5,8 @@ import {
   type AudioPreferences,
 } from "../systems/accessibility";
 import { layoutTextStack, syncInteractiveHitArea } from "../managers/layout";
+import type { PlayerState } from "../systems/player";
+import { getDifficultyProfile } from "../data/difficulty";
 
 export const SETTINGS_PANEL_WIDTH = 520;
 export const SETTINGS_PANEL_HEIGHT = 480;
@@ -25,6 +27,12 @@ interface AudioChannel {
 
 export interface SettingsControls {
   controls: Phaser.GameObjects.GameObject[];
+}
+
+export interface SettingsControlsOptions {
+  player?: PlayerState;
+  openBattleTiming?: () => void;
+  openCampaignRules?: () => void;
 }
 
 function createControl(
@@ -119,6 +127,7 @@ export function addSettingsControls(
   py: number,
   panelWidth: number,
   panelHeight: number,
+  options: SettingsControlsOptions = {},
 ): SettingsControls {
   const centerX = px + panelWidth / 2;
   const contentX = px + 18;
@@ -132,7 +141,8 @@ export function addSettingsControls(
     fontFamily: "monospace",
     color: "#ffdf66",
     fontStyle: "bold",
-  }).setOrigin(0.5, 0);
+  }).setOrigin(options.openCampaignRules ? 0 : 0.5, 0);
+  if (options.openCampaignRules) title.setX(contentX);
   const audioTitle = scene.add.text(contentX, py + 48, "Audio", {
     fontSize: "12px",
     fontFamily: "monospace",
@@ -141,6 +151,36 @@ export function addSettingsControls(
   });
   container.add([title, audioTitle]);
   controls.push(title, audioTitle);
+  if (options.player && options.openCampaignRules) {
+    const activate = options.openCampaignRules;
+    const label = `> Rules: ${getDifficultyProfile(options.player.difficulty.selection.profileId).name}`;
+    const rules = scene.add.text(px + panelWidth - 18, py + 10, label, {
+      fontSize: "9px", fontFamily: "monospace", color: "#ffffff",
+      backgroundColor: "#273650", padding: { x: 8, y: 6 },
+    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+    rules.setData("layoutId", "settings-difficulty");
+    syncInteractiveHitArea(rules, 8);
+    rules.on("pointerup", activate);
+    container.add(rules);
+    controls.push(rules);
+    let pending: { name: string; handler: () => void } | null = null;
+    const handleConfirm = (event: KeyboardEvent): void => {
+      if (event.repeat || pending || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
+      const name = event.key === " " ? "keyup-SPACE" : "keyup-ENTER";
+      const handler = (): void => {
+        pending = null;
+        activate();
+      };
+      pending = { name, handler };
+      scene.input.keyboard?.once(name, handler);
+    };
+    scene.input.keyboard?.on("keydown", handleConfirm);
+    container.once(Phaser.GameObjects.Events.DESTROY, () => {
+      scene.input.keyboard?.off("keydown", handleConfirm);
+      if (pending) scene.input.keyboard?.off(pending.name, pending.handler);
+    });
+  }
 
   const channels: AudioChannel[] = [
     {
@@ -308,7 +348,9 @@ export function addSettingsControls(
   const mappingNote = scene.add.text(
     centerX,
     py + panelHeight - 48,
-    "Stable mappings; custom remapping is unsupported.",
+    options.openCampaignRules
+      ? "Confirm opens campaign rules. Stable mappings; no remapping."
+      : "Stable mappings; custom remapping is unsupported.",
     {
       fontSize: "8px",
       fontFamily: "monospace",

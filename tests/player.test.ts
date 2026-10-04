@@ -22,6 +22,8 @@ import {
 } from "../src/systems/player";
 import { ITEMS, getItem } from "../src/data/items";
 import { getAbility } from "../src/data/abilities";
+import { createHeroClassProgression } from "../src/systems/classProgression";
+import { getPlayerClass } from "../src/systems/classes";
 
 const defaultStats: PlayerStats = {
   strength: 10, dexterity: 10, constitution: 10,
@@ -33,7 +35,7 @@ function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
   const player = createPlayer("Test", {
     strength: 10, dexterity: 8, constitution: 12,
     intelligence: 8, wisdom: 8, charisma: 8,
-  });
+  }, overrides?.appearanceId);
   // Pin stats for predictable tests
   player.stats = {
     strength: 12,
@@ -49,6 +51,8 @@ function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
   player.mp = 10;
   player.gold = 50; // Pin gold for deterministic tests
   if (overrides) Object.assign(player, overrides);
+  player.classProgression = overrides?.classProgression
+    ?? createHeroClassProgression(getPlayerClass(player.appearanceId).id, player.level);
   return player;
 }
 
@@ -587,6 +591,7 @@ describe("player system", () => {
     it("refuses heal when HP is full", () => {
       const player = createPlayer("Test", defaultStats, "knight");
       player.mp = 10;
+      player.knownSpells.push("cureWounds");
 
       const result = castSpellOutsideCombat(player, "cureWounds");
       expect(result.success).toBe(false);

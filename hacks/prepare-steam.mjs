@@ -4,7 +4,7 @@ import { createReadStream } from "node:fs";
 import {
   cp, mkdir, open, readdir, readFile, readlink, realpath, stat, writeFile,
 } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractFile, listPackage, statFile } from "@electron/asar";
 import { getGitProvenance } from "./lib/git-provenance.mjs";
@@ -74,10 +74,10 @@ function inspectAppArchive(path) {
     entry.split("\\").join("/")
   );
   const files = entries.filter((entry) =>
-    !("files" in statFile(path, entry.replace(/^\/+/, "")))
+    !("files" in statFile(path, normalize(entry.replace(/^\/+/, "")), false))
   );
   for (const file of files) {
-    const info = statFile(path, file.replace(/^\/+/, ""));
+    const info = statFile(path, normalize(file.replace(/^\/+/, "")), false);
     if ("link" in info || !isAllowedSteamAppEntry(file)) {
       throw new Error(`Unexpected packaged application entry: ${file}`);
     }

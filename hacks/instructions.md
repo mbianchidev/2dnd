@@ -24,6 +24,8 @@
   writes only a notice, so synthetic unit fixtures need no binary or network.
 - `prepare-steam.mjs` inspects unpacked platform architecture, game ASAR,
   licenses/source notice, exclusions, symlinks, hashes and permissions. It
+  normalizes archive API paths for the host OS and rejects ASAR links without
+  following them; manifest paths remain portable forward-slash paths. It
   creates credential-free previews by default, verifies complete preview sets
   and renders private VDFs only from validated environment IDs. Run
   `npm run steam:prepare` for syntax and read `docs/steam.md`.

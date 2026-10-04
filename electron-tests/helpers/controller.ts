@@ -83,21 +83,16 @@ export async function installController(
 }
 
 export async function pressController(page: Page, button: number): Promise<void> {
-  for (const pressed of [true, false]) {
-    await page.evaluate(({ index, down }) => {
-      window.__mockController.button(index, down);
-      return new Promise<void>((resolve) => {
-        const started = performance.now();
-        let frames = 0;
-        const frame = (timestamp: number): void => {
-          frames += 1;
-          if (frames >= 2 && timestamp - started >= 120) resolve();
-          else requestAnimationFrame(frame);
-        };
-        requestAnimationFrame(frame);
+  await page.evaluate((index) => {
+    window.__mockController.button(index, true);
+    return new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        window.__mockController.button(index, false);
+        requestAnimationFrame(() => resolve());
       });
-    }, { index: button, down: pressed });
-  }
+    });
+  }, button);
+  await page.waitForTimeout(120);
 }
 
 export async function holdControllerUntil(

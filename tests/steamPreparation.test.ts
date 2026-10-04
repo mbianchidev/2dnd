@@ -164,6 +164,19 @@ describe("Steam payload preparation without Steamworks", () => {
     expect(result.stderr).toContain("Unexpected native runtime content");
   });
 
+  it.skipIf(process.platform === "win32")("rejects linked game entries inside app.asar", async () => {
+    const root = await temporaryDirectory();
+    const payload = await mockPayload(root, "linux-x64");
+    const application = join(root, "app-linux-x64");
+    await symlink("game-mock.js", join(application, "dist", "assets", "game-linked.js"));
+    await createPackage(application, join(payload, getSteamDepot("linux-x64").appArchive));
+    const result = prepare([
+      "prepare", "--platform", "linux-x64", "--input", payload, "--output", join(root, "preview"),
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Unexpected packaged application entry");
+  });
+
   it("rejects escaping symlinks, overlapping output and unauthorized upload configs", async () => {
     const root = await temporaryDirectory();
     const payload = await mockPayload(root, "linux-x64");

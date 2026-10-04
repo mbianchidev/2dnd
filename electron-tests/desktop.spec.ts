@@ -1,5 +1,4 @@
 import {
-  _electron as electron,
   expect,
   test,
   type ElectronApplication,
@@ -11,10 +10,14 @@ import {
   rm,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { clickLayoutItem } from "../e2e/helpers/layout";
-
-const APP_ROOT = resolve(import.meta.dirname, "..");
+import { join } from "node:path";
+import {
+  APP_ROOT,
+  closeDesktop,
+  holdKey,
+  launchDesktop,
+  waitForState,
+} from "./helpers/desktop";
 const SAVE_KEY = "2dnd_save";
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -22,28 +25,7 @@ const GAME_HEIGHT = 528;
 interface DesktopSaveSummary {
   readonly name: string;
   readonly version: number;
-}
-
-function createLaunchEnvironment(userDataDirectory: string): Record<string, string> {
-  const environment: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined && key !== "ELECTRON_RUN_AS_NODE") {
-      environment[key] = value;
-    }
-  }
-  environment["ELECTRON_TEST_MODE"] = "1";
-  environment["ELECTRON_USER_DATA_DIR"] = userDataDirectory;
-  return environment;
-}
-
-async function launchDesktop(
-  userDataDirectory: string,
-): Promise<ElectronApplication> {
-  return electron.launch({
-    args: [APP_ROOT],
-    cwd: APP_ROOT,
-    env: createLaunchEnvironment(userDataDirectory),
-  });
+  readonly appearanceId: string;
 }
 
 async function clickGame(
@@ -61,24 +43,9 @@ async function clickGame(
   );
 }
 
-async function holdKey(
-  page: Page,
-  key: string,
-  duration = 180,
-): Promise<void> {
-  await page.keyboard.down(key);
-  await page.waitForTimeout(duration);
-  await page.keyboard.up(key);
-  await page.waitForTimeout(120);
-}
-
-async function waitForState(page: Page, text: string): Promise<void> {
-  await expect(page.locator("#debug-state")).toContainText(text);
-}
-
 async function activateTitleAction(
   page: Page,
-  action: "continue" | "newGame",
+  action: "continue" | "newGame" | "saveSlots",
 ): Promise<void> {
   await waitForState(page, "BOOT | Screen: title");
   const marker = `[TITLE_ACTION:${action}]`;
@@ -92,6 +59,22 @@ async function activateTitleAction(
     await page.waitForTimeout(50);
   }
   throw new Error(`Unable to select desktop title action: ${action}`);
+}
+
+async function activateSlotAction(
+  page: Page,
+  action: "copy" | "confirm" | "import" | "load",
+): Promise<void> {
+  const marker = `[SAVE_ACTION:${action}]`;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes(marker)) {
+      await holdKey(page, "Enter");
+      return;
+    }
+    await holdKey(page, "ArrowRight", 80);
+  }
+  throw new Error(`Unable to select desktop save action: ${action}`);
 }
 
 async function returnToTitle(page: Page): Promise<void> {
@@ -116,6 +99,7 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
   await clickGame(page, 284, 160);
+  await waitForState(page, "[CLASS:ranger]");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(250);
   await clickGame(page, 390, 64);
@@ -137,16 +121,19 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
       || player === null
       || !("name" in player)
       || typeof player.name !== "string"
+      || !("appearanceId" in player)
+      || typeof player.appearanceId !== "string"
     ) {
       return null;
     }
-    return { name: player.name, version };
+    return { name: player.name, version, appearanceId: player.appearanceId };
   }, SAVE_KEY)).toEqual({
     name: "Desktop Hero",
     version: 18,
+    appearanceId: "ranger",
   });
 
-  return { name: "Desktop Hero", version: 18 };
+  return { name: "Desktop Hero", version: 18, appearanceId: "ranger" };
 }
 
 async function prepareSaveForOverworld(page: Page): Promise<void> {
@@ -244,12 +231,15 @@ test("secure desktop shell persists a campaign across launches", async () => {
         || parsed.player === null
         || !("name" in parsed.player)
         || typeof parsed.player.name !== "string"
+        || !("appearanceId" in parsed.player)
+        || typeof parsed.player.appearanceId !== "string"
       ) {
         throw new Error("Desktop campaign save has an invalid shape");
       }
       return {
         name: parsed.player.name,
         version: parsed.version,
+        appearanceId: parsed.player.appearanceId,
       };
     }, SAVE_KEY);
     expect(loaded).toEqual(saved);
@@ -278,12 +268,14 @@ test("secure desktop shell persists a campaign across launches", async () => {
         || typeof parsed.player !== "object"
         || parsed.player === null
         || !("name" in parsed.player)
+        || !("appearanceId" in parsed.player)
       ) {
         return null;
       }
       return {
         version: parsed.version,
         name: parsed.player.name,
+        appearanceId: parsed.player.appearanceId,
       };
     })).toEqual(saved);
     const manualSnapshot = await page.evaluate(() =>
@@ -295,14 +287,16 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await returnToTitle(page);
     expect(relaunchedRendererErrors).toEqual([]);
 
-    await clickLayoutItem(page, "title-save-slots");
-    await clickLayoutItem(page, "save-slot-row-manual-1");
+    await activateTitleAction(page, "saveSlots");
+    await waitForState(page, "[SAVE_SLOTS:load]");
+    await holdKey(page, "ArrowDown", 80);
+    await waitForState(page, "[SAVE_SLOT:manual-1]");
     await expect(page.locator("#save-slot-live-region")).toContainText(
-      "Desktop Hero Lv.1 Knight",
+      "Desktop Hero Lv.1 Ranger",
     );
-    await clickLayoutItem(page, "save-slot-action-copy");
+    await activateSlotAction(page, "copy");
     await waitForState(page, "[SAVE_PHASE:copy-target]");
-    await clickLayoutItem(page, "save-slot-action-confirm");
+    await activateSlotAction(page, "confirm");
     await expect.poll(() => page.evaluate(() =>
       localStorage.getItem("2dnd_save_slot_manual-2")
     )).not.toBeNull();
@@ -323,10 +317,10 @@ test("secure desktop shell persists a campaign across launches", async () => {
         player: { ...parsed.player, name: "Desktop Second Hero" },
       });
     }, manualSnapshot);
-    await clickLayoutItem(page, "save-slot-action-import");
+    await activateSlotAction(page, "import");
     await waitForState(page, "[SAVE_PHASE:confirm-import]");
     const picker = page.waitForEvent("filechooser");
-    await clickLayoutItem(page, "save-slot-action-confirm");
+    await activateSlotAction(page, "confirm");
     await (await picker).setFiles({
       name: "mock-second-desktop-campaign.json",
       mimeType: "application/json",
@@ -358,10 +352,13 @@ test("secure desktop shell persists a campaign across launches", async () => {
     page = await desktop.firstWindow();
     const recoveredRendererErrors = monitorRendererErrors(page);
     await waitForState(page, "BOOT | Screen: title");
-    await clickLayoutItem(page, "title-save-slots");
-    await clickLayoutItem(page, "save-slot-row-manual-2");
+    await activateTitleAction(page, "saveSlots");
+    await waitForState(page, "[SAVE_SLOTS:load]");
+    await holdKey(page, "ArrowDown", 80);
+    await holdKey(page, "ArrowDown", 80);
+    await waitForState(page, "[SAVE_SLOT:manual-2]");
     await expect(page.locator("#save-slot-live-region")).toContainText(
-      "Desktop Second Hero Lv.1 Knight",
+      "Desktop Second Hero Lv.1 Ranger",
     );
     expect(await page.evaluate(() =>
       localStorage.getItem("2dnd_save_slot_manual-2")
@@ -372,7 +369,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(await page.evaluate(() =>
       localStorage.getItem("2dnd_save_slot_manual-1")
     )).toBe(manualSnapshot);
-    await clickLayoutItem(page, "save-slot-action-load");
+    await activateSlotAction(page, "load");
     await waitForState(page, "OVERWORLD");
     expect(await page.evaluate(() => {
       const raw = localStorage.getItem("2dnd_save");
@@ -407,7 +404,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(log).toContain("[INFO] Application will quit");
     expect(log).not.toContain("Desktop Hero");
   } finally {
-    await desktop?.close();
+    if (desktop) await closeDesktop(desktop);
     await rm(userDataDirectory, { recursive: true, force: true });
   }
 });

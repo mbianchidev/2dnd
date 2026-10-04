@@ -18,6 +18,11 @@ Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
 schema-v18 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
+`electron-tests/saveParity.spec.ts` additionally downloads a real browser slot
+export and imports it through the native renderer's file picker. Assert the same
+normalized campaign/metadata while browser and desktop preferences stay isolated.
+Use production keyboard controls in Electron; local-only layout audit selectors
+are intentionally unavailable at `app://2dnd`.
 
 ## Testing Philosophy
 

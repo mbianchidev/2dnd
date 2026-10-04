@@ -77,6 +77,8 @@ the relative `game.html` renderer. The smoke flow verifies:
   relaunch, and continue
 - independent desktop copy/import, exact source-slot bytes, interrupted
   staging/core-corruption recovery, and loading a second campaign after relaunch
+- a real browser JSON download imported through Electron's file picker, with
+  equivalent normalized campaign/metadata and no cross-origin preference merge
 - keyboard Save & Return to Title plus pointer Quit Desktop
 - lifecycle/quit log creation without campaign-content leakage
 - renderer/page error cleanliness

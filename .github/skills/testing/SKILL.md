@@ -344,44 +344,35 @@ hybrid flows, interrupted queues, ASIs, mobile/gamepad, clean measured layout
 and the production campaign turn-in.
 
 ```typescript
-import { gainXP, levelUp, calculateMaxHP } from "../src/systems/player";
+import { awardXP, createPlayer, processPendingLevelUps, xpForLevel } from "../src/systems/player";
+import { commitHeroLevelUp, prepareHeroLevelUp, previewHeroLevelUp } from "../src/systems/classProgression";
 
 describe("player leveling", () => {
-  it("levels up when reaching XP threshold", () => {
-    const player = createTestPlayer({ level: 1, xp: 0 });
-    const xpNeeded = getXPForLevel(2);
-    
-    gainXP(player, xpNeeded);
-    
+  it("queues XP levels until rest and preserves cumulative XP", () => {
+    const player = createTestPlayer();
+    awardXP(player, xpForLevel(2));
+    expect(player.level).toBe(1);
+    expect(player.pendingLevelUps).toBe(1);
+    processPendingLevelUps(player);
     expect(player.level).toBe(2);
-    expect(player.xp).toBe(0);  // XP resets after level
+    expect(player.xp).toBe(xpForLevel(2));
   });
 
-  it("increases max HP on level up", () => {
-    const player = createTestPlayer({ 
-      level: 1, 
-      maxHp: 10,
-      stats: { constitution: 14 }  // +2 modifier
-    });
-    
-    const oldMaxHP = player.maxHp;
-    levelUp(player);
-    
-    expect(player.maxHp).toBeGreaterThan(oldMaxHP);
-    // Should increase by at least 1 (minimum HP gain)
-    expect(player.maxHp - oldMaxHP).toBeGreaterThanOrEqual(1);
-  });
-
-  it("unlocks spells at correct levels", () => {
-    const player = createTestPlayer({ level: 1, class: "wizard" });
-    
+  it("previews a frozen qualified class and commits exactly once", () => {
+    const player = createPlayer("Fixture", {
+      strength: 15, dexterity: 8, constitution: 13,
+      intelligence: 15, wisdom: 10, charisma: 10,
+    }, "knight");
+    awardXP(player, xpForLevel(2));
+    prepareHeroLevelUp(player, () => 0.5);
+    const preview = previewHeroLevelUp(player, "wizard");
+    expect(preview.ok).toBe(true);
+    const selection = { trackId: "wizard", expectedTotalLevel: 1 };
+    expect(commitHeroLevelUp(player, selection).ok).toBe(true);
+    expect(player.classProgression.classLevels).toEqual({ knight: 1, wizard: 1 });
+    expect(player.knownSpells).toContain("fireBolt");
     expect(player.knownSpells).not.toContain("fireball");
-    
-    // Level up to spell unlock level
-    player.level = 5;
-    updateKnownSpells(player);
-    
-    expect(player.knownSpells).toContain("fireball");
+    expect(commitHeroLevelUp(player, selection).ok).toBe(false);
   });
 });
 ```
@@ -483,7 +474,10 @@ describe("spell data integrity", () => {
 
 ### Helper Functions
 ```typescript
-// createPlayer now requires baseStats — never called without them
+import { createPlayer, type PlayerState, type PlayerStats } from "../src/systems/player";
+import { createHeroClassProgression } from "../src/systems/classProgression";
+import { getPlayerClass } from "../src/systems/classes";
+
 const defaultStats: PlayerStats = {
   strength: 10, dexterity: 10, constitution: 10,
   intelligence: 10, wisdom: 10, charisma: 10,
@@ -493,7 +487,7 @@ function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
   const player = createPlayer("Test", {
     strength: 10, dexterity: 8, constitution: 12,
     intelligence: 8, wisdom: 8, charisma: 8,
-  });
+  }, overrides?.appearanceId);
   // Pin stats for deterministic tests
   player.stats = {
     strength: 12, dexterity: 10, constitution: 14,
@@ -502,6 +496,11 @@ function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
   player.maxHp = 30; player.hp = 30;
   player.maxMp = 10; player.mp = 10;
   if (overrides) Object.assign(player, overrides);
+  if (!overrides?.classProgression) {
+    player.classProgression = createHeroClassProgression(
+      getPlayerClass(player.appearanceId).id, player.level,
+    );
+  }
   return player;
 }
 ```

@@ -12,6 +12,7 @@ interface GatheringSave {
   player: {
     inventory: Array<{ id: string }>;
     progression: {
+      tutorial: { completed: boolean };
       gathering: {
         pending: {
           discipline: "fishing" | "mining" | "foraging";
@@ -115,11 +116,12 @@ async function createCampaign(page: Page): Promise<void> {
   await clickGame(page, 420, 312);
   await waitForState(page, "CUTSCENE");
   await drainCutscenes(page);
-  if ((await page.locator("#debug-state").textContent())?.includes("[TUTORIAL")) {
-    for (let step = 0; step < 5; step += 1) {
-      await holdKey(page, "Space");
-    }
+  await waitForState(page, "[TUTORIAL]");
+  for (let step = 0; step < 5; step += 1) {
+    await holdKey(page, "Space");
   }
+  await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL]");
+  await expect.poll(async () => (await readSave(page)).player.progression.tutorial.completed).toBe(true);
   await waitForState(page, "OVERWORLD");
 }
 
@@ -240,6 +242,12 @@ test("plays, reloads, records, and battles through all gathering disciplines", a
   await waitForState(page, "[GATHERING:fishing]");
   const fishingBeforeReload = (await readSave(page)).player.progression.gathering.pending;
   expect(fishingBeforeReload?.discipline).toBe("fishing");
+  const normalizedPending = await page.evaluate(async () => {
+    const modulePath = "/2dnd/src/systems/save.ts";
+    const saveModule = await import(modulePath);
+    return saveModule.loadGame()?.player.progression.gathering.pending;
+  });
+  expect(normalizedPending).toEqual(fishingBeforeReload);
 
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");

@@ -12,7 +12,7 @@ import {
 } from "../src/systems/player";
 import { loadGame, normalizeSaveData, saveGame, SAVE_VERSION } from "../src/systems/save";
 import { createCodex } from "../src/systems/codex";
-import { getItem } from "../src/data/items";
+import { getItem, type Item } from "../src/data/items";
 import { applyKnockoutXpPenalty } from "../src/systems/party";
 
 const stats = {
@@ -56,6 +56,78 @@ describe("multiclass persistence", () => {
       expect(normalized.player.equippedWeapon).toBe(normalized.player.inventory[0]);
       expect(random).not.toHaveBeenCalled();
     }
+  });
+
+  it.each([18, SAVE_VERSION])("preserves 53 serialized hero items, metadata and linked ownership in schema %s", (version) => {
+    const player = createPlayer("Custom inventory fixture", stats);
+    const fixtureItems = [
+      player.equippedWeapon, getItem("potion"), getItem("dungeonKey"), getItem("ironOre"),
+    ];
+    for (let index = 0; index < 52; index++) {
+      const base = fixtureItems[index % fixtureItems.length];
+      if (!base) throw new Error("Missing fixture item");
+      const item: Item & { fixtureMetadata: { sequence: number; source: string } } = {
+        ...base,
+        id: `customFixture${index}`,
+        name: `Mock item ${index}`,
+        description: `Serialized fixture ${index}`,
+        cost: 100 + index,
+        effect: base.effect,
+        tags: ["mock", `sequence${index}`],
+        fixtureMetadata: { sequence: index, source: "mock" },
+      };
+      player.inventory.push(item);
+    }
+    player.equippedWeapon = player.inventory[41]!;
+    const before = structuredClone(player.inventory);
+    const random = vi.spyOn(Math, "random");
+    random.mockClear();
+    const normalized = normalizeSaveData(JSON.parse(JSON.stringify({
+      version, player, codex: createCodex(), defeatedBosses: [],
+      appearanceId: player.appearanceId, timestamp: 100,
+    })) as unknown);
+    if (!normalized) throw new Error("Custom inventory rejected");
+    expect(normalized.player.inventory).toEqual(before);
+    expect(normalized.player.inventory).toHaveLength(53);
+    expect(normalized.player.equippedWeapon).toBe(normalized.player.inventory[41]);
+    expect(normalized.player.equippedWeapon).toEqual(player.equippedWeapon);
+    expect(random).not.toHaveBeenCalled();
+    expect(saveGame(normalized.player, new Set(), normalized.codex, player.appearanceId).ok).toBe(true);
+    const loaded = loadGame();
+    expect(loaded?.player.inventory).toEqual(before);
+    expect(loaded?.player.equippedWeapon).toBe(loaded?.player.inventory[41]);
+  });
+
+  it("relinks equal-cost/effect duplicates by their complete serialized metadata", () => {
+    const player = createPlayer("Duplicate metadata fixture", stats);
+    const base = player.equippedWeapon;
+    if (!base) throw new Error("Missing fixture weapon");
+    const first = { ...base, name: "Mock first blade", tags: ["first"] };
+    const second = { ...base, name: "Mock second blade", tags: ["second"] };
+    player.inventory = [first, second];
+    player.equippedWeapon = second;
+    expect(saveGame(player, new Set(), createCodex(), player.appearanceId).ok).toBe(true);
+    const loaded = loadGame();
+    expect(loaded?.player.inventory).toEqual([first, second]);
+    expect(loaded?.player.equippedWeapon).toBe(loaded?.player.inventory[1]);
+    expect(loaded?.player.equippedWeapon?.name).toBe("Mock second blade");
+  });
+
+  it("recovers well-formed custom legacy orphan gear without replacing its metadata", () => {
+    const player = createPlayer("Legacy orphan fixture", stats);
+    const weapon: Item = {
+      id: "customLegacyBow", name: "Mock legacy bow", description: "Mock orphan gear",
+      type: "weapon", cost: 125, effect: 4, twoHanded: true, weaponSprite: "bow",
+      tags: ["legacy", "mock"],
+    };
+    player.inventory = [];
+    player.equippedWeapon = weapon;
+    const normalized = normalizeSaveData(JSON.parse(JSON.stringify({
+      version: 18, player, codex: createCodex(), defeatedBosses: [],
+      appearanceId: player.appearanceId, timestamp: 100,
+    })) as unknown);
+    expect(normalized?.player.inventory).toEqual([weapon]);
+    expect(normalized?.player.equippedWeapon).toBe(normalized?.player.inventory[0]);
   });
 
   it("preserves frozen previews and linked equipment across save/reload", () => {

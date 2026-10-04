@@ -48,6 +48,11 @@ resources, receipts and exact equipped inventory links. Do not recheck mutable
 entry requirements or reroll/reapply historical gains. Undelivered legacy
 unlocks wait for the next applied level, including across intermediate saves.
 
+`heroItemState.ts` validates serialized hero items without dropping well-formed
+custom IDs, metadata or append order. Equipment matches complete serialized
+content so same-ID duplicates retain exact ownership; valid legacy orphan gear
+is recovered. Companion inventory restrictions remain canonical and separate.
+
 ```typescript
 interface SaveData {
   version: number;

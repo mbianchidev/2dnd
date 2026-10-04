@@ -832,6 +832,11 @@ grants until the next applied level, preserving the old processor's behavior.
 Normalize IDs, ranks, totals, action overlap, resources, equipment links,
 rest/XP cross-fields and malformed receipts without touching campaign authority.
 
+Hero inventory validation lives in `heroItemState.ts`. Preserve well-formed
+serialized custom IDs, metadata and append order; relink equipment by complete
+content and recover valid legacy orphan gear. Companion-only canonical-item
+restrictions must never drop valid hero items.
+
 Schema v18 adds non-negative campaign playtime and a resilient local slot
 layout: the legacy-compatible `2dnd_save` autosave, three stable manual slots,
 verified staging and prior-primary backups, per-slot names, and a one-time

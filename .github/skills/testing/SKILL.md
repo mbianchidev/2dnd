@@ -339,6 +339,11 @@ features, immutable prepared resources, rest-credit recovery, stale/repeated
 input, and concrete battle execution. `classProgressionState.test.ts` covers
 all twelve legacy classes at levels 1-20, corrupt ownership/knowledge/resources,
 deferred old unlocks, equipped duplicates, KO credit clearing and reload.
+`heroItemState.test.ts` and persistence regressions preserve the original
+53-item custom hero fixture, serialized metadata/order, exact duplicate
+equipment links and valid legacy orphan gear. Do not replace those IDs with
+canonical definitions to hide data loss. Browser fixtures need a varying seeded
+RNG so Phaser Text UUID textures remain unique; assert true frozen receipts.
 `e2e/multiclass.spec.ts` owns natural rest choices, previews, martial/caster/
 hybrid flows, interrupted queues, ASIs, mobile/gamepad, clean measured layout
 and the production campaign turn-in.

@@ -98,7 +98,8 @@ one bonus action.
 
 Immutable profiles live in `src/data/classProgression.ts`. The authoritative
 engine is `src/systems/classProgression.ts`; unknown/save normalization lives
-in `classProgressionState.ts`. Presentation is owned by
+in `classProgressionState.ts`, with serialized hero item validation and exact
+duplicate equipment matching in `heroItemState.ts`. Presentation is owned by
 `src/managers/heroProgression.ts`, with pure measured pagination in
 `src/systems/progressionPresentation.ts`.
 
@@ -142,6 +143,11 @@ override. Those future domains must consume the same engine after its merge.
 Schema v19 migrates legacy single-class ownership from the old identity/level,
 preserving stats, rolled HP/MP, canonical known actions/talents and equipment
 links without rerolling or applying bonuses on load.
+
+Well-formed serialized custom hero items retain their IDs, names, metadata and
+inventory order. Equipment relinks to the complete matching item, not the first
+same-ID duplicate. Valid legacy orphan gear is recovered without replacing its
+metadata. Companion loadouts retain their separate canonical-item restrictions.
 
 Old saves can legitimately lack historical unlocks. Optional
 `deferredLegacyGrants` preserves those gaps across later saves until the next

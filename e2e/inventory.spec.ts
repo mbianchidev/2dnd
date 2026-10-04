@@ -114,45 +114,59 @@ test("large inventories keep stable keyboard and pointer selection", async ({
   });
 
   await createCharacter(page);
-  const original = await page.evaluate(async ({
+  const original = await page.evaluate(({
     saveKey,
     preferencesKey,
     openingCutsceneIds,
   }) => {
-    const prefix = location.pathname.slice(0, location.pathname.lastIndexOf("/") + 1);
-    const itemPath = `${prefix}src/data/items.ts`;
-    const items: typeof import("../src/data/items") = await import(itemPath);
-    const copyItem = (id: string): BrowserItem => {
-      const item = items.getItem(id);
-      if (!item) throw new Error(`Missing canonical inventory fixture: ${id}`);
-      return { ...item };
-    };
     const raw = localStorage.getItem(saveKey);
     if (!raw) throw new Error("Missing new-character save");
     const save = JSON.parse(raw) as BrowserSave;
     const weapon = save.player.inventory.find((item) => item.type === "weapon");
     if (!weapon) throw new Error("Missing starter weapon");
-    const potion = copyItem("potion");
+    const potion: BrowserItem = {
+      id: "potion",
+      name: "Healing Potion",
+      description: "Restores 20 HP",
+      type: "consumable",
+      cost: 15,
+      effect: 20,
+    };
 
     const additions: BrowserItem[] = [];
     for (let index = 0; index < 52; index += 1) {
       if (index % 4 === 0) {
         additions.push({
           ...weapon,
+          id: `lateBlade${index}`,
+          name: `Late Blade ${index}`,
           cost: 100 + index,
           effect: 4 + index % 5,
         });
       } else if (index % 4 === 1) {
         additions.push({
           ...potion,
+          id: `latePotion${index}`,
+          name: `Late Potion ${index}`,
           cost: 20 + index,
         });
       } else if (index % 4 === 2) {
-        additions.push(copyItem(index === 42 ? "frostSilkBundle" : "dungeonKey"));
+        additions.push({
+          id: `relic${index}`,
+          name: `Relic${index}`,
+          description: "Late-campaign quest relic",
+          type: "key",
+          cost: 0,
+          effect: 0,
+        });
       } else {
         additions.push({
-          ...copyItem("ironOre"),
+          id: `ore${index}`,
+          name: `Future Ore ${index}`,
+          description: "Future crafting material",
+          type: "crafting",
           cost: index,
+          effect: 0,
         });
       }
     }
@@ -208,12 +222,12 @@ test("large inventories keep stable keyboard and pointer selection", async ({
 
   await page.keyboard.press("/");
   await waitForState(page, "Focus:search");
-  for (const key of "Frost") {
+  for (const key of ["R", "e", "l", "i", "c", "4", "2"]) {
     await page.keyboard.press(key);
     await page.waitForTimeout(60);
   }
   await waitForState(page, "Inventory 1/1");
-  await waitForState(page, "Search:Frost");
+  await waitForState(page, "Search:Relic42");
   await page.keyboard.press("Enter");
 
   await clickLayoutItem(page, "party-inventory-clear-search");

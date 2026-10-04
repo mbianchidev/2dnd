@@ -12,12 +12,17 @@ import {
   type HeroProgressionContext,
 } from "../data/classProgression";
 import { getAbility } from "../data/abilities";
-import { getItem, type Item } from "../data/items";
+import type { Item } from "../data/items";
 import { getSpell } from "../data/spells";
 import { getTalent } from "../data/talents";
 import { debugLog } from "../config";
 import { getPlayerClass } from "./classes";
 import { abilityModifier } from "./dice";
+import {
+  heroItemsMatch,
+  isSerializedHeroItem,
+  normalizeSerializedHeroItem,
+} from "./heroItemState";
 import {
   createHeroClassProgression,
   getAvailableProgressionGrants,
@@ -139,13 +144,8 @@ function normalizeStats(value: Record<string, unknown>): PlayerStats {
 
 function normalizeInventory(value: readonly unknown[]): Item[] {
   return value.flatMap((entry) => {
-    if (!isRecord(entry) || typeof entry["id"] !== "string") return [];
-    const item = getItem(entry["id"]);
-    return item ? [{
-      ...item,
-      cost: integer(entry["cost"], item.cost),
-      effect: integer(entry["effect"], item.effect, Number.MIN_SAFE_INTEGER),
-    }] : [];
+    const item = normalizeSerializedHeroItem(entry);
+    return item ? [item] : [];
   });
 }
 
@@ -161,14 +161,25 @@ function relinkEquipment(
   const savedEffect = isRecord(value) ? value["effect"] : undefined;
   const savedCost = isRecord(value) ? value["cost"] : undefined;
   const candidates = inventory.filter((item) => item.id === id && item.type === type);
+  if (isSerializedHeroItem(value)) {
+    const exact = candidates.find((item) => heroItemsMatch(item, value));
+    if (exact) return exact;
+    if (!preserveLegacy || value.type !== type) {
+      debugLog(`[save] Removed unlinked ${type} equipment ${id}.`);
+      return null;
+    }
+    const recovered = { ...value };
+    inventory.push(recovered);
+    return recovered;
+  }
   const match = candidates.find((item) =>
     (typeof savedEffect !== "number" || item.effect === savedEffect)
     && (typeof savedCost !== "number" || item.cost === savedCost)
   ) ?? candidates[0];
   if (match) return match;
-  const canonical = getItem(id);
-  if (!preserveLegacy || canonical?.type !== type) return null;
-  const recovered = { ...canonical };
+  if (!preserveLegacy) return null;
+  const recovered = normalizeSerializedHeroItem(typeof value === "string" ? { id } : value);
+  if (recovered?.type !== type) return null;
   inventory.push(recovered);
   return recovered;
 }

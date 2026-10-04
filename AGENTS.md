@@ -26,7 +26,7 @@ future work until merged.
 | Domain | Data/contracts | Mechanics/state | Phaser/presentation | Tests |
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
-| Hero progression | `src/data/classProgression.ts`, canonical class/action/talent definitions | `classProgression.ts`, `classProgressionState.ts`, `classProgressionDebug.ts` | `heroProgression.ts`, rest/equipment adapters | progression/state/debug/battle/layout suites, multiclass E2E |
+| Hero progression | `src/data/classProgression.ts`, canonical class/action/talent definitions | `classProgression.ts`, `classProgressionState.ts`, `heroItemState.ts`, `classProgressionDebug.ts` | `heroProgression.ts`, rest/equipment adapters | progression/state/item/debug/battle/layout suites, multiclass E2E |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
 | Quests/cutscenes | `quests.ts`, focused `cutscene*.ts` | `quests.ts`, `questState.ts`, `cutscenes.ts` | quest/cutscene managers, `Cutscene.ts`, `Ending.ts` | quest/cutscene/campaign E2E |
 | World/map/traps | `map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, `traps.ts` | `movement.ts`, `traps.ts` | map/city/trap/fog managers/renderers | map, city, trap, fog, movement |

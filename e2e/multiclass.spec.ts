@@ -48,7 +48,11 @@ async function seedCampaign(
   largeText = false,
 ): Promise<void> {
   await page.addInitScript(() => {
-    Math.random = () => Number(sessionStorage.getItem("multiclass-roll") ?? "0.5");
+    let seed = Number(sessionStorage.getItem("multiclass-seed") ?? "6248") >>> 0;
+    Math.random = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 0x1_0000_0000;
+    };
     if (!sessionStorage.getItem("multiclass-initialized")) {
       localStorage.clear();
       sessionStorage.setItem("multiclass-initialized", "true");
@@ -132,12 +136,14 @@ async function submitDebug(page: Page, command: string): Promise<void> {
   await input.blur();
 }
 
-const combinations: Array<{ starting: BaseClassId; next: BaseClassId; stats: PlayerStats }> = [
-  { starting: "knight", next: "wizard", stats: hybridStats },
-  { starting: "knight", next: "rogue", stats: {
+const combinations: Array<{
+  starting: BaseClassId; next: BaseClassId; hitDie: number; stats: PlayerStats;
+}> = [
+  { starting: "knight", next: "wizard", hitDie: 6, stats: hybridStats },
+  { starting: "knight", next: "rogue", hitDie: 8, stats: {
     strength: 15, dexterity: 14, constitution: 13, intelligence: 12, wisdom: 10, charisma: 8,
   } },
-  { starting: "wizard", next: "sorcerer", stats: {
+  { starting: "wizard", next: "sorcerer", hitDie: 6, stats: {
     strength: 8, dexterity: 10, constitution: 12, intelligence: 15, wisdom: 13, charisma: 14,
   } },
 ];
@@ -151,10 +157,21 @@ for (const combination of combinations) {
     await selectClass(page, combination.next);
     await expectCleanLayout(page);
     const prepared = await readSave(page);
-    expect(prepared.player.classProgression.pendingLevel?.resourceRoll).toBe(0.5);
+    const receipt = prepared.player.classProgression.pendingLevel;
+    if (!receipt) throw new Error("Missing prepared receipt");
+    expect(receipt.expectedTotalLevel).toBe(before.player.level);
+    expect(receipt.constitution).toBe(before.player.stats.constitution);
+    expect(receipt.intelligence).toBe(before.player.stats.intelligence);
+    expect(receipt.resourceRoll).toBeGreaterThanOrEqual(0);
+    expect(receipt.resourceRoll).toBeLessThan(1);
     const state = await page.locator("#debug-state").textContent() ?? "";
     const growth = / HP:(\d+) MP:(\d+)/.exec(state);
     if (!growth) throw new Error(`Missing exact growth preview: ${state}`);
+    expect(Number(growth[1])).toBe(Math.max(1,
+      Math.floor(receipt.resourceRoll * combination.hitDie) + 1
+      + Math.floor((receipt.constitution - 10) / 2),
+    ));
+    expect(Number(growth[2])).toBe(Math.max(1, 2 + Math.floor((receipt.intelligence - 10) / 2)));
     await holdKey(page, "Space");
     await expect(page.locator("#debug-state")).toContainText("[PROGRESSION:result");
     const committed = await readSave(page);
@@ -198,7 +215,7 @@ test("rested queues, frozen previews, ASIs and qualification survive interrupted
   const prepared = (await readSave(page)).player.classProgression.pendingLevel;
   const forecast = await page.locator("#debug-state").textContent() ?? "";
   expect(prepared?.expectedTotalLevel).toBe(2);
-  await page.evaluate(() => sessionStorage.setItem("multiclass-roll", "0.05"));
+  await page.evaluate(() => sessionStorage.setItem("multiclass-seed", "1729"));
   await page.reload({ waitUntil: "networkidle" });
   await clickLayoutItem(page, "title-continue");
   await expect(page.locator("#debug-state")).toContainText("[PROGRESSION:level");

@@ -39,6 +39,11 @@ Legacy HP/MP/stats/actions/equipment are preserved without rolling historical
 growth or applying bonuses on load. Exceptional canonical legacy grants and
 optional undelivered legacy unlocks are retained explicitly.
 
+`heroItemState.ts` preserves well-formed serialized custom hero item IDs,
+metadata and append order, and equipment links match the complete serialized
+content. Legacy orphan gear is recovered without substituting a definition.
+Do not apply companion-only canonical-item restrictions to hero saves.
+
 Schema v18 adds normalized non-negative
 `playtimeSeconds` to each campaign document. Slot names, backup state, and
 migration bookkeeping remain storage metadata rather than campaign authority.

@@ -127,9 +127,13 @@ intersections and zero visible-content clipping.
 Hero progression coverage includes all base-class pairings and prerequisite
 boundaries, frozen resources, once-only overlaps, total-level ASIs, legacy
 levels 1-20 for every class, corrupt records, deferred historical unlocks,
-equipment links, independent companion actions and shared economy. The
+lossless 53-item custom hero fixtures, complete duplicate-equipment metadata,
+legacy orphan gear, independent companion actions and shared economy. The
 `multiclass.spec.ts` flow covers rest/choice/reload, exact previews, ASIs,
 mobile/gamepad, measured layouts and campaign completion.
+Seed browser randomness with a varying generator: constant global rolls collide
+with Phaser Text UUID textures. Compare exact prepared resolver receipts rather
+than assuming a global constant roll.
 
 During implementation, run the smallest related Vitest files first. Run focused
 Playwright specs for changed UI/scene flows. Before a pull request, run:

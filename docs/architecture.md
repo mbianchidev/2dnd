@@ -176,6 +176,10 @@ restricted grants use source rank, and shared IDs/bonuses apply once.
 than another leveling or action engine. Normal total level remains 20; the
 static external-profile seam ships no prestige or epic content.
 
+`systems/heroItemState.ts` owns typed serialized hero-item validation and
+complete duplicate-equipment matching. Well-formed custom hero ownership stays
+intact; companion-only canonical loadout restrictions do not cross this boundary.
+
 See [Hero progression](hero-progression.md).
 
 ## Content and campaign flow

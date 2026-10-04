@@ -113,7 +113,7 @@ Use `npm run dev:desktop` for Electron development and
 | [Documentation index](docs/README.md) | Complete documentation map |
 | [Getting started](docs/getting-started.md) | Installation, local hosting, saves, troubleshooting |
 | [Gameplay](docs/gameplay.md) | Controls, campaign, combat, exploration, accessibility |
-| [Hero progression](docs/hero-progression.md) | Multiclass prerequisites, rest choices, resource rules, compatibility |
+| [Hero progression](docs/hero-progression.md) | Multiclass prerequisites, rest choices, resource rules, lossless hero saves |
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |

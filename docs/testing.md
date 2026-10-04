@@ -144,7 +144,10 @@ for them before release.
 
 `.github/workflows/pr.yml` runs Node 24, `npm ci`, typecheck, full Vitest,
 Chromium installation, full Playwright, and the production build for pull
-requests to `main`.
+requests to `main`. Its concurrency group is scoped to the Git ref, matching
+the desktop workflow: independent pull requests and manually dispatched
+branches cannot replace one another's pending checks. Runs for the same ref
+remain serialized without cancelling an active run.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page

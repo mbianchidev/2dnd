@@ -562,7 +562,9 @@ npx vitest run tests/dice.test.ts
 - Cover the showcase's Play/download links, game-generated screenshots,
   responsive width, Steam banner, and page/console cleanliness.
 - Pull request CI installs Chromium and runs the browser suite as a release
-  gate.
+  gate. Its concurrency group is ref-scoped so independent review branches do
+  not replace one another's pending checks; same-ref runs remain serialized
+  without cancelling an active run.
 - Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
   disable trace screenshots and video. Phaser repaints every frame, so the
   filmstrip creates thousands of canvas captures that stall context teardown.

@@ -170,6 +170,11 @@ canvas for browser assertions, and suppresses residual tweens in reduced-motion
 mode. New scene animations must also branch through
 `isReducedMotionEnabled()` or `getMotionDuration()`.
 
+Install `installDicePresentation(this)` in every scene too. It owns
+non-blocking exact-result visuals, cues, and skip listeners; its redacted
+runtime-only roll log survives handoffs and resets at Boot/reload. Never await
+dice animation or add it to movement/turn/transition input-block reasons.
+
 Use `ActorAnimationDirector` for reusable actor poses and cleanup. Specialized
 battle/world directors register sprites by stable actor ID, use explicit
 `ActorTextureFamily` frame keys with fallback textures, and expose deterministic

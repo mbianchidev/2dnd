@@ -18,6 +18,7 @@ import { debugPanelLog } from "../config";
 import type { ChestData } from "../data/map";
 import type { NpcInstance } from "../data/npcs";
 import type { NpcSkillChallenge } from "../data/skillChecks";
+import type { SkillCheckRecord } from "../data/skillChecks";
 import type { MapRenderer } from "../renderers/map";
 import type { PlayerState } from "../systems/player";
 import type { DialogueSystem } from "./dialogue";
@@ -28,6 +29,7 @@ export interface SkillCheckManagerCallbacks {
   autoSave: () => void;
   revealAround: (radius?: number) => void;
   revealTileSprites: () => void;
+  presentRoll?: (result: SkillCheckRecord, label: string) => void;
 }
 export class SkillCheckManager {
   constructor(private readonly callbacks: SkillCheckManagerCallbacks) {}
@@ -63,6 +65,7 @@ export class SkillCheckManager {
     const outcome = result.success
       ? `You uncover the hidden cache: ${goldAmount} gold${material ? ` and ${material.name}` : ""}.`
       : `You miss the cache but recover ${goldAmount} loose gold.`;
+    this.callbacks.presentRoll?.(result, "Hidden cache Wisdom check");
     this.callbacks.showMessage(
       `Wisdom check (${formatSkillCheckResult(result)}): ${outcome}`,
       result.success ? "#4fc3f7" : "#ffcc80",
@@ -101,6 +104,7 @@ export class SkillCheckManager {
       `${abilityLabel} check (${formatSkillCheckResult(result)}): ${consequence}`,
       result.success ? "#88ff88" : "#ff8888",
     );
+    this.callbacks.presentRoll?.(result, `${abilityLabel} exploration check`);
     debugPanelLog(
       `[CHECK] ${event.id}: ${result.success ? "success" : "failure"} (${result.total}/${result.dc})`,
       true,
@@ -139,6 +143,7 @@ export class SkillCheckManager {
       ? "Persuasion"
       : "Bluff";
     const speaker = getNpcTemplate(npc.templateId)?.label ?? "Citizen";
+    this.callbacks.presentRoll?.(result, `${speaker}: ${approach}`);
     dialogueSystem.showSpecialDialogue(
       speaker,
       `${approach} (${formatSkillCheckResult(result)}): ${consequence}`,
@@ -174,6 +179,7 @@ export class SkillCheckManager {
             `Dexterity check (${formatSkillCheckResult(result)}): lock and trap defeated.`,
           );
         }
+        this.callbacks.presentRoll?.(result, "Chest Dexterity check");
       }
     }
     if (chest.secretDc !== undefined) {
@@ -196,6 +202,7 @@ export class SkillCheckManager {
             `Wisdom check (${formatSkillCheckResult(result)}): no hidden compartment found.`,
           );
         }
+        this.callbacks.presentRoll?.(result, "Chest Wisdom check");
       }
     }
     return feedback;

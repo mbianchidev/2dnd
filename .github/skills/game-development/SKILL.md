@@ -63,6 +63,13 @@ symbolic cue. Control presentation preferences cover touch visibility,
 handedness, and prompt source without changing campaign saves. Stable mappings
 are intentionally not remappable.
 
+Preference v3 includes dice animation frequency/speed; campaign schema remains
+18. Exact d20/component receipts live in `systems/rollResults.ts`, safe mapping
+and runtime history in `systems/dicePresentation.ts`, scene-owned orchestration
+in `managers/dicePresentation.ts`/`battleDice.ts`, and procedural SVG rendering
+in `renderers/dice.ts`. Never add RNG, mechanics callbacks, resource mutation,
+hidden-stat leakage, or an input-block reason to this pipeline.
+
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a
 visible right-stick cursor clicked by pressing the stick. Responsive touch

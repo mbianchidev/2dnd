@@ -22,6 +22,14 @@ export type PromptSourcePreference =
   | "gamepad"
   | "touch";
 
+export type DicePresentationFrequency = "all" | "important" | "off";
+export type DicePresentationSpeed = "normal" | "fast" | "instant";
+
+export interface DicePreferences {
+  frequency: DicePresentationFrequency;
+  speed: DicePresentationSpeed;
+}
+
 export interface AudioPreferences {
   masterVolume: number;
   musicVolume: number;
@@ -46,10 +54,11 @@ export interface ControlPreferences {
 export type CutsceneAccessibilityPreferences = AccessibilityPreferences;
 
 export interface GamePreferences {
-  version: 2;
+  version: 3;
   audio: AudioPreferences;
   accessibility: AccessibilityPreferences;
   controls: ControlPreferences;
+  dice: DicePreferences;
 }
 
 type GamePreferencesListener = (preferences: Readonly<GamePreferences>) => void;
@@ -176,10 +185,21 @@ export function normalizeControlPreferences(
 export function normalizeGamePreferences(value: unknown): GamePreferences {
   const source = isRecord(value) ? value : {};
   return {
-    version: 2,
+    version: 3,
     audio: normalizeAudioPreferences(source.audio),
     accessibility: normalizeAccessibilityPreferences(source.accessibility),
     controls: normalizeControlPreferences(source.controls),
+    dice: normalizeDicePreferences(source.dice),
+  };
+}
+
+export function normalizeDicePreferences(value: unknown): DicePreferences {
+  const source = isRecord(value) ? value : {};
+  return {
+    frequency: source.frequency === "important" || source.frequency === "off"
+      ? source.frequency : "all",
+    speed: source.speed === "fast" || source.speed === "instant"
+      ? source.speed : "normal",
   };
 }
 
@@ -233,6 +253,28 @@ export class GamePreferencesStore {
 
   getControls(): Readonly<ControlPreferences> {
     return this.preferences.controls;
+  }
+
+  getDice(): Readonly<DicePreferences> {
+    return this.preferences.dice;
+  }
+
+  setDice(changes: Partial<DicePreferences>): void {
+    this.update({
+      dice: normalizeDicePreferences({ ...this.preferences.dice, ...changes }),
+    });
+  }
+
+  cycleDiceFrequency(): void {
+    const order: readonly DicePresentationFrequency[] = ["all", "important", "off"];
+    const current = order.indexOf(this.preferences.dice.frequency);
+    this.setDice({ frequency: order[(current + 1) % order.length] });
+  }
+
+  cycleDiceSpeed(): void {
+    const order: readonly DicePresentationSpeed[] = ["normal", "fast", "instant"];
+    const current = order.indexOf(this.preferences.dice.speed);
+    this.setDice({ speed: order[(current + 1) % order.length] });
   }
 
   setAudio(changes: Partial<AudioPreferences>): void {
@@ -487,6 +529,8 @@ function applyCanvasPresentation(
   canvas.dataset.touchControlsPreference = preferences.controls.touchControls;
   canvas.dataset.controlHandedness = preferences.controls.handedness;
   canvas.dataset.promptPreference = preferences.controls.promptSource;
+  canvas.dataset.diceFrequency = preferences.dice.frequency;
+  canvas.dataset.diceSpeed = preferences.dice.speed;
 }
 
 function isInfiniteTween(tween: Phaser.Tweens.Tween): boolean {

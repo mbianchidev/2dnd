@@ -37,7 +37,7 @@ describe("shared game preferences", () => {
         advanceMode: "instant",
       },
     })).toEqual({
-      version: 2,
+      version: 3,
       audio: {
         masterVolume: 1,
         musicVolume: 0,
@@ -56,6 +56,7 @@ describe("shared game preferences", () => {
         handedness: "right",
         promptSource: "auto",
       },
+      dice: { frequency: "all", speed: "normal" },
     });
   });
 
@@ -75,7 +76,7 @@ describe("shared game preferences", () => {
       localStorage.getItem(GAME_PREFERENCES_STORAGE_KEY)!,
     );
     expect(saved).toEqual({
-      version: 2,
+      version: 3,
       audio: {
         masterVolume: 0.75,
         musicVolume: 0.6,
@@ -94,6 +95,7 @@ describe("shared game preferences", () => {
         handedness: "left",
         promptSource: "keyboard",
       },
+      dice: { frequency: "all", speed: "normal" },
     });
     expect(new GamePreferencesStore().get()).toEqual(saved);
   });
@@ -161,5 +163,57 @@ describe("shared game preferences", () => {
 
     gamePreferences.setReducedMotion(true);
     expect(getMotionDuration(300)).toBe(0);
+  });
+
+  it.each([undefined, null, [], "dice", {
+    frequency: "always",
+    speed: -1,
+  }])("normalizes corrupt dice preferences %j", (dice) => {
+    expect(normalizeGamePreferences({ dice }).dice).toEqual({
+      frequency: "all", speed: "normal",
+    });
+  });
+
+  it.each([1, 2])("migrates preference v%i without touching campaign documents", (version) => {
+    const save = '{"version":18,"marker":"unchanged"}';
+    localStorage.setItem("2dnd_save", save);
+    localStorage.setItem(GAME_PREFERENCES_STORAGE_KEY, JSON.stringify({
+      version,
+      audio: { masterVolume: 0.25, muted: true },
+      accessibility: { textScale: 1.5, reducedMotion: true },
+      controls: { handedness: "left" },
+    }));
+    const store = new GamePreferencesStore();
+    expect(store.get().version).toBe(3);
+    expect(store.getAudio().masterVolume).toBe(0.25);
+    expect(store.getAccessibility().textScale).toBe(1.5);
+    expect(store.getControls().handedness).toBe("left");
+    expect(store.getDice()).toEqual({ frequency: "all", speed: "normal" });
+    expect(localStorage.getItem("2dnd_save")).toBe(save);
+  });
+
+  it("persists every dice frequency and speed and notifies live consumers", () => {
+    const store = new GamePreferencesStore();
+    const listener = vi.fn();
+    store.subscribe(listener);
+    store.cycleDiceFrequency();
+    store.cycleDiceSpeed();
+    expect(store.getDice()).toEqual({ frequency: "important", speed: "fast" });
+    store.cycleDiceFrequency();
+    store.cycleDiceSpeed();
+    expect(new GamePreferencesStore().getDice()).toEqual({
+      frequency: "off", speed: "instant",
+    });
+    store.cycleDiceFrequency();
+    store.cycleDiceSpeed();
+    expect(store.getDice()).toEqual({ frequency: "all", speed: "normal" });
+    expect(listener).toHaveBeenCalledTimes(6);
+  });
+
+  it("recovers malformed preference JSON with valid dice defaults", () => {
+    localStorage.setItem(GAME_PREFERENCES_STORAGE_KEY, "{bad json");
+    const store = new GamePreferencesStore();
+    expect(store.getDice()).toEqual({ frequency: "all", speed: "normal" });
+    expect(JSON.parse(localStorage.getItem(GAME_PREFERENCES_STORAGE_KEY)!).version).toBe(3);
   });
 });

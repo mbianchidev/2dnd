@@ -1,0 +1,65 @@
+.dice-presentation {
+  --dice-text-scale: 1;
+  flex: 0 0 auto;
+  align-self: stretch;
+  height: min(calc(120px * var(--dice-text-scale)), 30dvh, 210px);
+  margin: 0 max(4px, env(safe-area-inset-right)) 4px max(4px, env(safe-area-inset-left));
+  padding: 6px 8px;
+  overflow: auto;
+  border: 1px solid #a9bedb;
+  border-radius: 5px;
+  background: #111827;
+  color: #f4f1e8;
+  font: calc(12px * var(--dice-text-scale)) / 1.4 monospace;
+}
+
+.dice-presentation[hidden] { display: none; }
+.dice-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.dice-result-row { display: flex; align-items: center; gap: 10px; }
+.dice-result-row p { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.resolved-dice { display: flex; flex: 0 0 auto; gap: 4px; }
+.resolved-die { width: calc(42px * var(--dice-text-scale)); text-align: center; }
+.resolved-die svg { display: block; width: 100%; }
+.resolved-die span { display: block; font-size: 0.75em; }
+.resolved-die.selected { border-bottom: 2px solid #fff; }
+
+.dice-presentation button,
+.dice-presentation summary {
+  min-height: 44px;
+  padding: 5px 8px;
+  color: #f4f1e8;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dice-presentation button {
+  flex: 0 0 auto;
+  max-width: 150px;
+  border: 2px solid #a9bedb;
+  border-radius: 4px;
+  background: #182842;
+}
+
+.dice-presentation button:disabled { cursor: default; opacity: 0.65; }
+.dice-presentation :focus-visible { outline: 3px solid #ffe18a; outline-offset: 1px; }
+.dice-presentation summary { width: fit-content; }
+.dice-presentation ol { padding-left: 2em; }
+.dice-presentation li { margin: 5px 0; overflow-wrap: anywhere; }
+.dice-presentation.high-contrast { color: #fff; background: #000; border: 2px solid #fff; }
+.dice-presentation.high-contrast button { color: #fff; background: #000; border-color: #fff; }
+.dice-presentation.high-contrast polygon { fill: #000; }
+
+@media (max-width: 600px) {
+  .dice-result-row { flex-wrap: wrap; gap: 4px 8px; }
+  .dice-result-row p { flex-basis: calc(100% - 150px); }
+  .dice-presentation button { max-width: none; }
+  .dice-presentation details { display: inline-block; margin-left: 8px; vertical-align: top; }
+  .dice-presentation details[open] { display: block; margin-left: 0; }
+}

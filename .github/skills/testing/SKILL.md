@@ -224,6 +224,14 @@ completion, `F1`, and Esc-menu access.
 
 ## Dice Testing Patterns
 
+`dicePresentation.test.ts`, `rollReceipts.test.ts`, and `diceRenderer.test.ts`
+cover exact natural/component receipts, hidden-stat redaction, selected
+advantage/disadvantage dice, critical/fumble/auto-hit, unchanged RNG/resources,
+native control propagation, runtime logs, and cancellation. Preference v3
+migration/corruption belongs in `accessibility.test.ts`. Real battle,
+event/trap/gathering/flee, skip, reload, and transition controls belong in
+`e2e/dice-presentation.spec.ts`; do not replace them with synthetic result hooks.
+
 ### Statistical Distribution Testing
 ```typescript
 import { describe, it, expect } from "vitest";

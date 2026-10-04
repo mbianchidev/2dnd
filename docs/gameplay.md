@@ -34,6 +34,7 @@ system has been discovered. The Escape menu remains the reliable entry point.
 | `K` | Open Gathering after discovering a discipline |
 | `V` | Open Crafting after learning a non-starting recipe |
 | `T` | Mount or dismount after acquiring a mount |
+| `Z` | Skip resolved-dice animation without changing the result |
 
 Pointer and touch users can select visible buttons directly. Touch layouts use
 safe-area-aware movement and action controls. Standard gamepads use the left
@@ -97,6 +98,13 @@ Frightened, Slowed, Prone, Asleep, Confused, Enraged, Hasted, Inspired, Raging,
 and Sneak Stance. Effects resolve on actor turn boundaries and are cleared when
 Battle ends.
 
+Resolved rolls appear in a procedural dice dock, with both advantage/disadvantage
+faces and the selected die identified. Enemy bonuses and undiscovered AC/DC
+remain hidden. Magic Missile shows auto-hit, while damage/healing stay honest
+aggregates unless exact component dice are available. Use Z, L3, or the visible
+skip button; the last 40 results remain consultable across scene handoffs.
+See [Dice presentation](dice-presentation.md).
+
 A full party wipe applies one recovery result, autosaves it, reports exact gold
 and XP losses, clears Battle effects, and returns the party to the last town at
 half HP/MP.
@@ -154,6 +162,10 @@ Accessibility and presentation settings include:
 - master, music, SFX, dialog, and mute controls
 - manual or automatic cutscene advance
 - touch visibility, handedness, and prompt-source controls
+- All/Important/Off dice animation frequency and Normal/Fast/Instant speed
+
+Within Settings, `[` cycles dice frequency and `]` cycles speed. Reduced motion
+and disabled dice animation keep immediate result text and logs.
 
 Settings are stored separately from campaign progress. See
 [Getting started](getting-started.md#local-save-data) for storage details.

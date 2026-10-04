@@ -81,6 +81,9 @@ import {
 import { BattlePartyRenderer } from "../renderers/battleParty";
 import { BattlePartyManager } from "../managers/battleParty";
 import { BattlePresentationDirector } from "../managers/battlePresentation";
+import { BattleDicePresenter } from "../managers/battleDice";
+import { clearDicePresentation } from "../managers/dicePresentation";
+import { redactSavingThrowMessage } from "../systems/dicePresentation";
 import {
   createActorTextureFamily,
   resolveMonsterTextureFamily,
@@ -201,6 +204,7 @@ export class BattleScene extends Phaser.Scene {
   private battlePartyManager!: BattlePartyManager;
   private battlePartyRenderer!: BattlePartyRenderer;
   private battlePresentation!: BattlePresentationDirector;
+  private battleDice!: BattleDicePresenter;
   private battleHooks: BattleResolutionHooks | undefined;
   private battleResultReported = false;
   private defeatResult: PartyDefeatResult | null = null;
@@ -449,6 +453,7 @@ export class BattleScene extends Phaser.Scene {
     });
 
     this.drawBattleUI();
+    this.battleDice = new BattleDicePresenter(this, (message) => this.addLog(message));
     this.battlePartyRenderer.render(
       this.partyCombatants,
       this.partyActionSources,
@@ -841,6 +846,7 @@ export class BattleScene extends Phaser.Scene {
       this.player.hp = Math.max(0, this.player.hp - statusResult.tickDamage);
       this.updatePlayerStats();
     }
+    this.battleDice.presentSaves(this.heroCombatant, statusResult.savingThrows);
     if (this.player.hp <= 0) {
       this.battlePresentation.presentFaint(this.heroCombatant.id, 0);
       if (this.handlePartyDefeatIfNeeded()) return;
@@ -880,6 +886,7 @@ export class BattleScene extends Phaser.Scene {
     if (statusResult.tickDamage > 0) {
       combatant.currentHp -= statusResult.tickDamage;
     }
+    this.battleDice.presentSaves(combatant, statusResult.savingThrows);
     if (!isCombatantActive(combatant)) {
       this.addLog(`${combatant.label} is knocked out!`);
       this.battlePresentation.presentFaint(combatant.id, 0);
@@ -1528,6 +1535,13 @@ export class BattleScene extends Phaser.Scene {
       );
       this.applyPartyDamageToEnemy(targetIndex, result.damage);
       this.updateMonsterDisplay();
+      this.battleDice.presentAttack(
+        this.heroCombatant, this.targetCombatant, result, ability.name,
+      );
+      for (const healingResult of result.healingResults ?? []) {
+        const target = getCombatantById(this.partyCombatants, healingResult.targetId);
+        if (target) this.battleDice.presentHealing(this.heroCombatant, target, healingResult);
+      }
       this.battlePresentation.presentAction({
         actorId: this.heroCombatant.id,
         kind: "ability",
@@ -2100,6 +2114,7 @@ export class BattleScene extends Phaser.Scene {
       this.addLog(
         `⚔ ${this.encounter.name} appears (${this.combatants.length} foe${this.combatants.length === 1 ? "" : "s"})!`
       );
+      this.battleDice.presentInitiative(this.allCombatants, result);
 
       // Announce weather effects and monster boost
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
@@ -2191,6 +2206,7 @@ export class BattleScene extends Phaser.Scene {
       );
       this.applyPartyDamageToEnemy(targetIndex, result.damage);
       this.updateMonsterDisplay();
+      this.battleDice.presentAttack(this.heroCombatant, this.targetCombatant, result);
       this.battlePresentation.presentAction({
         actorId: this.heroCombatant.id,
         kind: "attack",
@@ -2255,6 +2271,9 @@ export class BattleScene extends Phaser.Scene {
         );
         this.applyPartyDamageToEnemy(offHandTarget, offResult.damage);
         this.updateMonsterDisplay();
+        this.battleDice.presentAttack(
+          this.heroCombatant, this.targetCombatant, offResult, "off-hand attack",
+        );
         this.battlePresentation.presentAction({
           actorId: this.heroCombatant.id,
           kind: "attack",
@@ -2441,6 +2460,9 @@ export class BattleScene extends Phaser.Scene {
           combatantIndex,
         );
         this.applyPartyDamageToEnemy(combatantIndex, targetResult.damage);
+        this.battleDice.presentAttack(
+          this.heroCombatant, combatant, targetResult, spell.name,
+        );
       }
       for (const healingResult of result.healingResults) {
         const target = getCombatantById(
@@ -2449,6 +2471,7 @@ export class BattleScene extends Phaser.Scene {
         );
         if (!target) continue;
         this.addLog(`${target.label} recovers ${healingResult.healing} HP!`);
+        this.battleDice.presentHealing(this.heroCombatant, target, healingResult);
       }
 
       this.updateMonsterDisplay();
@@ -2568,6 +2591,7 @@ export class BattleScene extends Phaser.Scene {
         successful: result.success,
         targets: [],
       });
+      this.battleDice.presentFlee(this.heroCombatant, result);
 
       if (result.success) {
         this.phase = "fled";
@@ -2610,7 +2634,9 @@ export class BattleScene extends Phaser.Scene {
         deriveMonsterStats(combatant.monster.attackBonus),
       );
       for (const message of statusResult.messages) {
-        this.addLog(`${combatant.label}: ${message}`);
+        this.addLog(`${combatant.label}: ${
+          redactSavingThrowMessage(message, statusResult.savingThrows, false)
+        }`);
       }
       this.updateMonsterDisplay();
       if (statusResult.tickDamage > 0) {
@@ -2620,6 +2646,7 @@ export class BattleScene extends Phaser.Scene {
         );
         this.updateMonsterDisplay();
       }
+      this.battleDice.presentSaves(combatant, statusResult.savingThrows);
       if (!combatant.isAlive) {
         this.checkBattleEnd(false);
         if (countAliveCombatants(this.combatants) > 0) {
@@ -2744,6 +2771,7 @@ export class BattleScene extends Phaser.Scene {
       if (shieldDefendReduction > 0 && result.hit && result.damage > 0) {
         const reduced = Math.min(shieldDefendReduction, result.damage);
         result.damage -= reduced;
+        result.message += ` Shield reduces damage to ${result.damage}.`;
         partyTarget.currentHp = Math.min(
           partyTarget.maxHp,
           partyTarget.currentHp + reduced,
@@ -2768,10 +2796,11 @@ export class BattleScene extends Phaser.Scene {
         `  ↳ [Monster Attack ${combatant.label} → ${partyTarget.label}] d20=${result.roll} +=${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}${partyTarget.isDefending ? " (DEF+2)" : ""}${shieldDefendReduction ? " (shield -1)" : ""} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → HP ${partyTarget.currentHp}`,
         false, "roll-detail"
       );
-      // Only show the outcome message, never the enemy's roll details
+      // Enemy modifiers and totals stay hidden in the dice projection.
       this.addLog(
         result.message.replace(combatant.monster.name, combatant.label),
       );
+      this.battleDice.presentAttack(combatant, partyTarget, result);
 
       this.battlePresentation.presentAction({
         actorId: combatant.id,
@@ -3308,6 +3337,7 @@ export class BattleScene extends Phaser.Scene {
     this.battlePartyManager.clear();
     this.battlePartyRenderer.clear();
     this.battlePresentation?.cleanup();
+    clearDicePresentation(this);
     this.battleBackdrop?.stopDynamicEffects();
     this.input?.keyboard?.removeAllKeys(true, false);
     setDebugCommandHandler(null);
@@ -3369,6 +3399,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private presentResolvedBattleAction(result: ResolvedBattleAction): void {
+    this.battleDice.presentResolvedAction(result, this.allCombatants);
     for (const targetResult of result.targets) {
       if (targetResult.hpBefore === undefined) {
         continue;

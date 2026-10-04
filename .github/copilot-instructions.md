@@ -521,6 +521,11 @@ Flow:
   combatant ID. Resolve mechanics first, then animate the immutable result;
   never consume resources twice or make turn/result transitions depend on a
   tween callback.
+- Dice presentation consumes immutable `rollResults.ts` receipts through the
+  redacting `systems/dicePresentation.ts` mapper and scene-owned dice manager.
+  Show exact naturals/selection only, hide enemy bonuses/totals and unknown AC/DC,
+  preserve Magic Missile auto-hit, and never reroll or delay mechanics.
+  The bounded roll log survives handoffs only at runtime; Boot/reload clears it.
 - Idle, attack, cast, ability, item, defend, damage, victory, faint, and flee
   states must have once-only completion, a duration-plus-grace visual recovery
   path, and explicit cleanup on battle handoff or scene shutdown.
@@ -877,6 +882,9 @@ Audio and accessibility preferences are not campaign save fields. The versioned
 `2dnd_preferences` document is normalized by `src/systems/accessibility.ts`,
 migrates the legacy audio and cutscene-accessibility keys, and notifies live
 title/in-game settings consumers immediately.
+Preference v3 adds `dice.frequency` (all/important/off) and `dice.speed`
+(normal/fast/instant), with All/Normal legacy/corruption defaults. Campaign
+schema stays 18. Dice receipts and presentation logs never enter a save.
 
 When persistent data changes:
 
@@ -912,6 +920,8 @@ Data-driven campaign scenes route short typed cues through
 `audioEngine.playCutsceneCue()`. Disconnect ended cue oscillators and gain nodes.
 Battle presentation routes spell, ability, defend, flee, and faint cues through
 the synthesized SFX graph; do not duplicate cues in scene-local action code.
+`audioEngine.playDiceCue()` uses deterministic oscillators, returns a cancel
+function, and must not consume shared RNG. The dice manager owns cancellation.
 Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 `audioEngine.playTrapSFX()`. Do not add external audio.
 

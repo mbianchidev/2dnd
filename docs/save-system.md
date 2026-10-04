@@ -11,12 +11,17 @@
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
-| `2dnd_preferences` | Versioned audio, accessibility, cutscene, touch, and prompt settings |
+| `2dnd_preferences` | Version-3 audio, accessibility, cutscene, touch, prompt, and dice settings |
 | `2dnd_inventory_prefs` | Inventory sort, filter, and search presentation |
 
 Legacy `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values migrate into
 `2dnd_preferences`. Presentation preferences do not increment the campaign
 schema.
+
+Preference v3 adds normalized dice animation frequency/speed, defaulting missing
+or corrupt v1/v2 values to All/Normal. Exact roll receipts and the bounded
+cross-scene roll log are runtime-only. Dice preferences never alter schema-v18
+campaign or slot documents.
 
 Browser deployments store these documents under their HTTP/HTTPS origin.
 Packaged Electron builds use the stable secure `app://2dnd` origin and the same

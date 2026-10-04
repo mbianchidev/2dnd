@@ -56,6 +56,9 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   confirmations, and active-source prompts
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
+- exact resolved dice, hidden-information redaction, disadvantage/auto-hit,
+  keyboard/touch/gamepad skip/log controls, event/trap/gathering/flee results,
+  preference reload, and runtime-log scene handoffs
 - layout audits at supported text scales and representative desktop/mobile
   viewports
 

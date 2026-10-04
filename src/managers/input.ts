@@ -63,6 +63,9 @@ const ACTION_KEYS: Partial<Record<InputAction, KeyDescriptor>> = {
   battleTargetNext: { code: "KeyD", key: "d" },
   battleLogUp: { code: "PageUp", key: "PageUp" },
   battleLogDown: { code: "PageDown", key: "PageDown" },
+  fastForwardDice: { code: "KeyZ", key: "z" },
+  settingsDiceFrequency: { code: "BracketLeft", key: "[" },
+  settingsDiceSpeed: { code: "BracketRight", key: "]" },
   cutsceneAdvance: { code: "Space", key: " " },
   cutsceneSkip: { code: "Escape", key: "Escape" },
   inventoryPrevious: { code: "ArrowUp", key: "ArrowUp" },
@@ -132,6 +135,11 @@ export class SemanticInputRuntime {
   private gamepadConnected = false;
   private unsubscribePreferences: (() => void) | null = null;
   private unsubscribeFeatures: (() => void) | null = null;
+  private readonly resizeObserver = new ResizeObserver(() => {
+    this.updateDiceInset();
+    this.game.scale.refresh();
+  });
+  private pointerRoot: HTMLElement | null = null;
 
   constructor(private readonly game: Phaser.Game) {}
 
@@ -142,9 +150,12 @@ export class SemanticInputRuntime {
     window.addEventListener("gamepaddisconnected", this.handleGamepadConnection);
     window.addEventListener("blur", this.handleBlur);
     document.addEventListener("visibilitychange", this.handleVisibility);
-    this.game.canvas.addEventListener("pointerdown", this.handlePointerSource, true);
+    this.pointerRoot = document.getElementById("game-inner") ?? this.game.canvas;
+    this.pointerRoot.addEventListener("pointerdown", this.handlePointerSource, true);
     this.game.canvas.addEventListener("pointermove", this.handlePointerSource, true);
     this.createTouchControls();
+    const gameContainer = document.getElementById("game-container");
+    if (gameContainer) this.resizeObserver.observe(gameContainer);
     this.createCursor();
     this.unsubscribePreferences = gamePreferences.subscribe(() => {
       this.applyControlPreferences();
@@ -164,12 +175,14 @@ export class SemanticInputRuntime {
     window.removeEventListener("gamepaddisconnected", this.handleGamepadConnection);
     window.removeEventListener("blur", this.handleBlur);
     document.removeEventListener("visibilitychange", this.handleVisibility);
-    this.game.canvas.removeEventListener("pointerdown", this.handlePointerSource, true);
+    this.pointerRoot?.removeEventListener("pointerdown", this.handlePointerSource, true);
+    this.pointerRoot = null;
     this.game.canvas.removeEventListener("pointermove", this.handlePointerSource, true);
     this.unsubscribePreferences?.();
     this.unsubscribePreferences = null;
     this.unsubscribeFeatures?.();
     this.unsubscribeFeatures = null;
+    this.resizeObserver.disconnect();
     this.touchRoot?.remove();
     this.cursor?.remove();
     this.touchRoot = null;
@@ -337,17 +350,22 @@ export class SemanticInputRuntime {
     const y = normalizeAnalogAxis(gamepad.axes[3] ?? 0);
     if (x === 0 && y === 0) return;
     const bounds = this.game.canvas.getBoundingClientRect();
+    const dice = document.getElementById("dice-presentation");
+    const diceBounds = dice && !dice.hidden ? dice.getBoundingClientRect() : undefined;
+    const cursorTop = Math.min(bounds.top, diceBounds?.top ?? bounds.top);
+    const cursorLeft = Math.min(bounds.left, diceBounds?.left ?? bounds.left);
+    const cursorRight = Math.max(bounds.right, diceBounds?.right ?? bounds.right);
     if (!this.cursorActive) {
       this.cursorX = bounds.left + bounds.width / 2;
       this.cursorY = bounds.top + bounds.height / 2;
     }
     const speed = 12;
     this.cursorX = Math.max(
-      bounds.left,
-      Math.min(bounds.right, this.cursorX + x * speed),
+      cursorLeft,
+      Math.min(cursorRight, this.cursorX + x * speed),
     );
     this.cursorY = Math.max(
-      bounds.top,
+      cursorTop,
       Math.min(bounds.bottom, this.cursorY + y * speed),
     );
     this.cursorActive = true;
@@ -367,6 +385,7 @@ export class SemanticInputRuntime {
     inputSource.set(event.source);
     this.updatePresentation(event.source);
     const action = this.contextualizeAction(event.action);
+    if (this.handleDiceControls(action)) return;
     if (this.handleMobileTextInput(action)) return;
     if (action === "battleLogUp" || action === "battleLogDown") {
       this.dispatchWheel(action === "battleLogUp" ? -120 : 120);
@@ -506,6 +525,8 @@ export class SemanticInputRuntime {
       ArrowDown: 40,
       F1: 112,
       Slash: 191,
+      BracketLeft: 219,
+      BracketRight: 221,
     };
     if (fixed[code] !== undefined) return fixed[code];
     if (code.startsWith("Key") && code.length === 4) {
@@ -535,6 +556,13 @@ export class SemanticInputRuntime {
   }
 
   private clickCursor(): void {
+    const target = document.elementFromPoint(this.cursorX, this.cursorY);
+    if (target instanceof HTMLElement && target.closest("#dice-presentation")) {
+      const control = target.closest<HTMLElement>("button, summary");
+      control?.focus();
+      control?.click();
+      return;
+    }
     const init: MouseEventInit = {
       bubbles: true,
       cancelable: true,
@@ -651,6 +679,12 @@ export class SemanticInputRuntime {
     }
   }
 
+  private updateDiceInset(): void {
+    const dice = document.getElementById("dice-presentation");
+    const height = dice && !dice.hidden ? dice.getBoundingClientRect().height : 0;
+    this.touchRoot?.style.setProperty("--touch-dice-inset", `${height}px`);
+  }
+
   private createCursor(): void {
     const cursor = document.createElement("div");
     cursor.id = "gamepad-cursor";
@@ -726,6 +760,31 @@ export class SemanticInputRuntime {
         'button[type="button"]',
       );
       cancel?.click();
+    }
+    return true;
+  }
+
+  private handleDiceControls(action: InputAction): boolean {
+    const focused = document.activeElement;
+    const dice = document.getElementById("dice-presentation");
+    if (!dice || !(focused instanceof HTMLElement) || !dice.contains(focused)
+      || action === "fastForwardDice") return false;
+    if (action === "confirm" || action === "interact") {
+      focused.click();
+    } else if (action === "cancel" || action === "openMenu") {
+      const history = dice.querySelector("details");
+      if (history) history.open = false;
+      this.game.canvas.tabIndex = -1;
+      this.game.canvas.focus({ preventScroll: true });
+      this.cursorActive = false;
+      this.updateCursor();
+    } else if (action.endsWith("Up") || action.endsWith("Down")) {
+      dice.scrollBy(0, action.endsWith("Up") ? -60 : 60);
+    } else if (action.endsWith("Left") || action.endsWith("Right")) {
+      const controls = [...dice.querySelectorAll<HTMLElement>("button:not(:disabled), summary")];
+      const index = controls.indexOf(focused);
+      const direction = action.endsWith("Left") ? -1 : 1;
+      controls[(index + direction + controls.length) % controls.length]?.focus();
     }
     return true;
   }

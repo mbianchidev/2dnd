@@ -39,6 +39,7 @@ import {
 } from "./statusEffects";
 import type { ActiveStatusEffect } from "./statusEffects";
 import { getFleeDC } from "./groupCombat";
+import type { ResolvedD20Roll } from "./rollResults";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -56,6 +57,8 @@ export interface CombatResult {
   elementalLabel?: ElementalInteraction;
   /** Whether the attack roll used disadvantage. */
   disadvantage?: boolean;
+  readonly rollResult?: ResolvedD20Roll;
+  fumble?: boolean;
 }
 
 export interface SpellTarget {
@@ -128,6 +131,7 @@ interface CombatD20Roll {
   roll: number;
   total: number;
   disadvantage: boolean;
+  readonly rollResult: ResolvedD20Roll;
 }
 
 function rollCombatD20(
@@ -140,6 +144,7 @@ function rollCombatD20(
       roll: result.chosen,
       total: result.total,
       disadvantage: true,
+      rollResult: result.rollResult,
     };
   }
   const result = rollD20(modifier);
@@ -147,6 +152,7 @@ function rollCombatD20(
     roll: result.roll,
     total: result.total,
     disadvantage: false,
+    rollResult: result.rollResult,
   };
 }
 
@@ -198,7 +204,13 @@ function buildElementalMessage(
 export function rollInitiative(
   playerDexMod: number,
   monsterBonus: number
-): { playerFirst: boolean; playerRoll: number; monsterRoll: number } {
+): {
+  playerFirst: boolean;
+  playerRoll: number;
+  monsterRoll: number;
+  readonly playerRollResult: ResolvedD20Roll;
+  readonly monsterRollResult: ResolvedD20Roll;
+} {
   if (typeof playerDexMod !== "number" || typeof monsterBonus !== "number") {
     throw new Error(`[combat] rollInitiative: invalid modifiers playerDex=${playerDexMod} monster=${monsterBonus}`);
   }
@@ -208,6 +220,8 @@ export function rollInitiative(
     playerFirst: playerInit.total >= monsterInit.total,
     playerRoll: playerInit.total,
     monsterRoll: monsterInit.total,
+    playerRollResult: playerInit.rollResult,
+    monsterRollResult: monsterInit.rollResult,
   };
 }
 
@@ -237,6 +251,8 @@ export function playerAttack(
     totalRoll: roll.total,
     targetAC: effectiveAC,
     disadvantage: roll.disadvantage,
+    rollResult: roll.rollResult,
+    fumble: outcome.fumble,
   };
 
   if (outcome.fumble) {
@@ -325,6 +341,8 @@ export function playerOffHandAttack(
     totalRoll: roll.total,
     targetAC: effectiveAC,
     disadvantage: roll.disadvantage,
+    rollResult: roll.rollResult,
+    fumble: outcome.fumble,
   };
 
   if (outcome.fumble) {
@@ -570,7 +588,7 @@ export function playerCastSpellAtTargets(
   const statusDamage = getEffectDamageModifier(playerEffects);
   const autoHit = spell.id === "magicMissile";
   const roll = autoHit
-    ? { roll: 0, total: 0, disadvantage: false }
+    ? { roll: 0, total: 0, disadvantage: false, rollResult: undefined }
     : rollCombatD20(spellMod, playerEffects);
   player.mp -= spell.mpCost;
   const talentDmg = getTalentDamageBonus(player.knownTalents);
@@ -601,6 +619,9 @@ export function playerCastSpellAtTargets(
       targetAC: effectiveAC,
       autoHit,
       disadvantage: roll.disadvantage,
+      rollResult: roll.rollResult,
+      critical: outcome.critical,
+      fumble: outcome.fumble,
     };
 
     if (!outcome.hit) {
@@ -701,6 +722,8 @@ export function monsterAttackTarget(
     totalRoll: roll.total,
     targetAC: playerAC,
     disadvantage: roll.disadvantage,
+    rollResult: roll.rollResult,
+    fumble: outcome.fumble,
   };
 
   if (outcome.fumble) {
@@ -778,6 +801,8 @@ export function monsterAttack(
 export function attemptFlee(dexModifier: number, aliveCount: number = 1): {
   success: boolean;
   message: string;
+  readonly rollResult: ResolvedD20Roll;
+  dc: number;
 } {
   if (typeof dexModifier !== "number") {
     throw new Error(`[combat] attemptFlee: invalid dexModifier ${dexModifier}`);
@@ -785,11 +810,16 @@ export function attemptFlee(dexModifier: number, aliveCount: number = 1): {
   const roll = rollD20(dexModifier);
   const dc = getFleeDC(aliveCount);
   if (roll.total >= dc) {
-    return { success: true, message: `Escaped! (rolled ${roll.total})` };
+    return {
+      success: true, message: `Escaped! (rolled ${roll.total})`,
+      rollResult: roll.rollResult, dc,
+    };
   }
   return {
     success: false,
     message: `Failed to escape! (rolled ${roll.total}, needed ${dc})`,
+    rollResult: roll.rollResult,
+    dc,
   };
 }
 
@@ -928,6 +958,8 @@ export function playerUseAbility(
     totalRoll: roll.total,
     targetAC: effectiveAC,
     disadvantage: roll.disadvantage,
+    rollResult: roll.rollResult,
+    fumble: outcome.fumble,
   };
 
   player.mp -= ability.mpCost;

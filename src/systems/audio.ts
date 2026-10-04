@@ -11,6 +11,8 @@ import { WeatherType } from "./weather";
 import { TimePeriod } from "./daynight";
 import { TRAP_TYPES, type TrapType } from "../data/traps";
 import { playTrapSound } from "./trapAudio";
+import { playDiceSound } from "./diceAudio";
+import type { DiceOutcome } from "./dicePresentation";
 import type { CutsceneAudioCue } from "../data/cutscenes";
 import type {
   GatheringDiscipline,
@@ -1624,6 +1626,12 @@ class AudioEngine {
     }
   }
 
+  playDiceCue(outcome: DiceOutcome): () => void {
+    return this.ctx && this.sfxGain
+      ? playDiceSound(this.ctx, this.sfxGain, outcome)
+      : (): void => {};
+  }
+
   /** Play a short procedural cue used by data-driven campaign cutscenes. */
   playCutsceneCue(cue: CutsceneAudioCue): void {
     const ctx = this.ctx;
@@ -1699,6 +1707,8 @@ class AudioEngine {
       { label: "SFX: Fishing",   fn: () => this.playGatheringStartSFX("fishing") },
       { label: "SFX: Mining",    fn: () => this.playGatheringActionSFX("mining", "confirm") },
       { label: "SFX: Rare find", fn: () => this.playGatheringResultSFX(true, "rare") },
+      { label: "SFX: Resolved dice", fn: () => { this.playDiceCue("rolled"); } },
+      { label: "SFX: Critical dice", fn: () => { this.playDiceCue("critical"); } },
       { label: "SFX: Dungeon",   fn: () => this.playDungeonEnterSFX() },
       { label: "SFX: Potion",    fn: () => this.playPotionSFX() },
       { label: "SFX: Spell",     fn: () => this.playSpellSFX() },

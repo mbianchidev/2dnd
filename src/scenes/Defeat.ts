@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { installDicePresentation } from "../managers/dicePresentation";
 import { debugPanelState, setDebugCommandHandler } from "../config";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import {
@@ -65,6 +66,7 @@ export class DefeatScene extends Phaser.Scene {
   create(): void {
     this.sceneTransitions.prepare(500, 24, 0, 8);
     installSceneAccessibility(this);
+    installDicePresentation(this);
     setDebugCommandHandler(null);
     this.resultRenderer = new ResultRenderer(this, "defeat");
     const keyboard = this.input.keyboard;

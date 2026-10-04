@@ -28,6 +28,10 @@ import {
 import { saveGame } from "../systems/save";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { installSceneAccessibility } from "../systems/accessibility";
+import {
+  installDicePresentation,
+  presentSkillDiceResult,
+} from "../managers/dicePresentation";
 import { CodexDiscoveryManager } from "../managers/codexDiscovery";
 import {
   combineShopAdjustments,
@@ -125,6 +129,7 @@ export class ShopScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x1a1a2e);
     this.sceneTransitions.prepare(300);
     installSceneAccessibility(this);
+    installDicePresentation(this);
     this.codexDiscovery = new CodexDiscoveryManager(this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.codexDiscovery.clear();
@@ -490,6 +495,7 @@ export class ShopScene extends Phaser.Scene {
       `Charisma check (${formatSkillCheckResult(result)}): ${outcome}`,
       result.success ? "#88ff88" : "#ff8888",
     );
+    presentSkillDiceResult(this, result, `Charisma negotiation: ${option.label}`);
     saveGame(
       this.player,
       this.defeatedBosses,

@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { installDicePresentation } from "../managers/dicePresentation";
 import {
   CODEX_KNOWLEDGE_CATEGORIES,
   type CodexKnowledgeCategory,
@@ -177,6 +178,7 @@ export class CodexScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x0e0e1e);
     this.sceneTransitions.prepare(300);
     installSceneAccessibility(this);
+    installDicePresentation(this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       document.getElementById("mobile-text-input")?.remove();
     });

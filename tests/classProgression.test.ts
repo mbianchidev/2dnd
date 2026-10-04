@@ -307,6 +307,25 @@ describe("once-only prepared level application", () => {
     player.classProgression.classLevels = { wizard: 1 };
     expect(prepareHeroLevelUp(player).ok).toBe(false);
   });
+
+  it("rejects corrupt/overflowing current resources without spending a level or ASI", () => {
+    const player = hero();
+    awardXP(player, xpForLevel(2));
+    prepareHeroLevelUp(player, () => 0.5);
+    player.maxMp = -1;
+    const corrupt = structuredClone(player);
+    expect(commitHeroLevelUp(player, { trackId: "wizard", expectedTotalLevel: 1 }).ok).toBe(false);
+    expect(player).toEqual(corrupt);
+    player.maxMp = 12;
+    player.mp = 12;
+    player.maxHp = Number.MAX_SAFE_INTEGER;
+    player.hp = player.maxHp;
+    player.pendingStatPoints = 1;
+    const overflowing = structuredClone(player);
+    expect(commitHeroLevelUp(player, { trackId: "wizard", expectedTotalLevel: 1 }).ok).toBe(false);
+    expect(allocateStatPoint(player, "constitution")).toBe(false);
+    expect(player).toEqual(overflowing);
+  });
 });
 
 describe("source-aware progression", () => {

@@ -379,6 +379,12 @@ function validateActorProgression(actor: CombatActorState): string | undefined {
     || actor.stats[stat] < 1 || actor.stats[stat] > MAX_ABILITY_SCORE)) {
     return "Invalid progression scores; reload a normalized campaign.";
   }
+  if (!Number.isSafeInteger(actor.maxHp) || actor.maxHp < 1
+    || !Number.isSafeInteger(actor.maxMp) || actor.maxMp < 0
+    || !Number.isSafeInteger(actor.hp) || actor.hp < 0 || actor.hp > actor.maxHp
+    || !Number.isSafeInteger(actor.mp) || actor.mp < 0 || actor.mp > actor.maxMp) {
+    return "Invalid progression resources; reload a normalized campaign.";
+  }
   return undefined;
 }
 
@@ -533,7 +539,12 @@ export function previewHeroLevelUp(
     || player.classProgression.readyLevelUps <= 0) {
     return { ok: false, message: "Rest to prepare this level before selecting a class." };
   }
-  return { ok: true, preview: buildLevelPreview(player, profile, pending, context) };
+  const preview = buildLevelPreview(player, profile, pending, context);
+  if (!Number.isSafeInteger(player.maxHp + preview.hpGain)
+    || !Number.isSafeInteger(player.maxMp + preview.mpGain)) {
+    return { ok: false, message: "Resource growth exceeds the supported integer range." };
+  }
+  return { ok: true, preview };
 }
 
 function applyLevelPreview(actor: ProgressingActorState, receipt: HeroLevelUpPreview): void {
@@ -644,12 +655,15 @@ export function allocateProgressionStatPoint(
   actor: ProgressingActorState,
   stat: keyof PlayerStats,
 ): boolean {
+  if (validateActorProgression(actor)) return false;
   if (!STAT_KEYS.includes(stat) || !Number.isInteger(actor.pendingStatPoints)
     || actor.pendingStatPoints <= 0 || !Number.isInteger(actor.stats[stat])
     || actor.stats[stat] >= MAX_ABILITY_SCORE) return false;
+  const bonus = getTotalLevel(actor);
+  if ((stat === "constitution" && !Number.isSafeInteger(actor.maxHp + bonus))
+    || (stat === "intelligence" && !Number.isSafeInteger(actor.maxMp + bonus))) return false;
   actor.stats[stat]++;
   actor.pendingStatPoints--;
-  const bonus = getTotalLevel(actor);
   if (stat === "constitution") {
     actor.maxHp += bonus;
     actor.hp = Math.min(actor.hp + bonus, actor.maxHp);

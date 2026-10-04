@@ -453,7 +453,8 @@ test("real gathering controls show canonical scores without fabricated d20s and 
   await page.setViewportSize({ width: 390, height: 844 });
   for (const discipline of ["fishing", "mining", "foraging"] as const) {
     await debugCommand(page, `/gather near ${discipline}`);
-    await holdKey(page, "Space");
+    if (discipline === "fishing") await holdKey(page, "Space");
+    else await debugCommand(page, `/gather trigger ${discipline}`);
     await expect(page.locator("#debug-state")).toContainText(`[GATHERING:${discipline}]`);
     let pending = (await readSave(page)).player.progression.gathering.pending;
     if (!pending) throw new Error("No pending gathering pattern");

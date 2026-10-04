@@ -102,14 +102,17 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await expect(nameInput).toBeVisible();
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
+  await expect(nameInput).not.toBeVisible();
   await clickGame(page, 284, 160);
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(250);
+  await holdKey(page, "Enter");
+  await waitForState(page, "BOOT | Screen: stats");
   await clickGame(page, 390, 64);
+  await waitForState(page, "[MODE:random]");
   await clickGame(page, 400, 460);
-  await page.waitForTimeout(250);
+  await waitForState(page, "BOOT | Screen: appearance");
   await clickGame(page, 320, 112);
   await clickGame(page, 420, 312);
+  await waitForState(page, "CUTSCENE");
 
   await expect.poll(async () => page.evaluate((key) => {
     const raw = localStorage.getItem(key);

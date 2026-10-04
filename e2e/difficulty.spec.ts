@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { DifficultyProfileId } from "../src/data/difficulty";
+import { getDifficultyEffectPreview } from "../src/systems/difficulty";
 import { normalizeSaveData, SAVE_VERSION, type SaveData } from "../src/systems/save";
 import { clickLayoutItem, expectCleanLayout, tapLayoutItem } from "./helpers/layout";
 
@@ -24,6 +25,19 @@ async function clickGame(page: Page, x: number, y: number): Promise<void> {
 
 async function state(page: Page, value: string): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText(value);
+}
+
+async function rulesAccessibility(page: Page, scale: 1 | 1.25 | 1.5): Promise<void> {
+  await page.evaluate(async (value) => {
+    const path = new URL("src/systems/accessibility.ts", location.href).pathname;
+    const module: typeof import("../src/systems/accessibility") = await import(path);
+    while (module.gamePreferences.getAccessibility().textScale !== value) {
+      module.gamePreferences.cycleTextScale();
+    }
+    module.gamePreferences.setHighContrast(true);
+    module.gamePreferences.setReducedMotion(true);
+  }, scale);
+  await expect(page.locator("#game-container canvas")).toHaveAttribute("data-text-scale", String(scale));
 }
 
 async function readCampaign(page: Page): Promise<SaveData> {
@@ -146,21 +160,22 @@ test("Custom previews remain clean at every text scale, contrast and reduced-mot
   await appearance(page);
   await clickLayoutItem(page, "character-difficulty");
   await chooseProfile(page, "custom");
-  for (const scale of [1, 1.25, 1.5]) {
-    await page.evaluate(async (value) => {
-      const path = new URL("src/systems/accessibility.ts", location.href).pathname;
-      const module: typeof import("../src/systems/accessibility") = await import(path);
-      while (module.gamePreferences.getAccessibility().textScale !== value) {
-        module.gamePreferences.cycleTextScale();
-      }
-      module.gamePreferences.setHighContrast(true);
-      module.gamePreferences.setReducedMotion(true);
-    }, scale);
-    await expect(page.locator("#game-container canvas")).toHaveAttribute("data-text-scale", String(scale));
-    for (let index = 0; index < 5; index += 1) {
+  for (const scale of [1, 1.25, 1.5] as const) {
+    await rulesAccessibility(page, scale);
+    const counter = await page.getByRole("button", { name: /^Effects \d+\/\d+ >$/ }).textContent();
+    const pageCount = Number(counter?.match(/\/(\d+)/)?.[1]);
+    expect(pageCount).toBeGreaterThan(0);
+    const visibleRules = new Set<string>();
+    for (let index = 0; index < pageCount; index += 1) {
       await expectCleanLayout(page);
+      const ids = await page.locator("[data-rule-control^='difficulty-rule-']").evaluateAll(
+        (controls) => controls.map((control) => control.getAttribute("data-rule-control") ?? ""),
+      );
+      ids.forEach((id) => visibleRules.add(id));
       await clickLayoutItem(page, "difficulty-page-next");
     }
+    expect([...visibleRules].sort()).toEqual(getDifficultyEffectPreview({ profileId: "custom" })
+      .map((effect) => `difficulty-rule-${effect.id}`).sort());
     await expect(page.getByRole("dialog", { name: "Campaign rules" })).toBeAttached();
   }
   await clickLayoutItem(page, "difficulty-close");
@@ -220,6 +235,7 @@ test("safe mid-run changes require confirmation, persist causes and never replay
   const openRules = async (): Promise<void> => {
     await key(page, "Escape");
     await clickLayoutItem(page, "escape-menu-settings");
+    await rulesAccessibility(page, 1.5);
     await clickLayoutItem(page, "settings-difficulty");
     await state(page, "[DIFFICULTY]");
   };
@@ -287,6 +303,7 @@ test("Custom mid-run edits preview exact values and failed autosaves roll back t
   await opening(page);
   await key(page, "Escape");
   await clickLayoutItem(page, "escape-menu-settings");
+  await rulesAccessibility(page, 1.5);
   await clickLayoutItem(page, "settings-difficulty");
   await key(page, "ArrowDown");
   await key(page, "ArrowRight");
@@ -294,6 +311,8 @@ test("Custom mid-run edits preview exact values and failed autosaves roll back t
   await state(page, "[RULE_PHASE:confirm]");
   const summary = await page.locator("#layout-report").textContent();
   expect(summary).toContain("difficulty-confirm-summary");
+  await expectCleanLayout(page);
+  await expect(page.getByRole("dialog", { name: "Campaign rules" })).toContainText("Enemy HP: 100% -> 105%");
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     Object.defineProperty(window, "__restoreDifficultyStorage", {
@@ -306,6 +325,7 @@ test("Custom mid-run edits preview exact values and failed autosaves roll back t
   });
   await clickLayoutItem(page, "difficulty-apply");
   await state(page, "[RULE_PHASE:confirm]");
+  await expectCleanLayout(page);
   await expect(page.locator("#save-storage-alert")).toContainText("Save error");
   expect((await readCampaign(page)).player.difficulty).toMatchObject({
     selection: { profileId: "custom", overrides: {} }, changeCount: 0,

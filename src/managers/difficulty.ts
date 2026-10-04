@@ -21,6 +21,7 @@ import {
 import { gamePreferences } from "../systems/accessibility";
 import {
   moveSpatialLayoutFocus,
+  paginateMeasuredItems,
   restoreLayoutFocus,
   type GridNavigationDirection,
 } from "../systems/layout";
@@ -54,14 +55,13 @@ interface DifficultyControl {
   adjust?(direction: -1 | 1): void;
 }
 
-const PAGE_SIZE = 3;
-
 export class DifficultyOverlayManager {
   private container: Phaser.GameObjects.Container | null = null;
   private options: DifficultyOverlayOptions | null = null;
   private selection: DifficultySelection = { profileId: "standard" };
   private custom: CustomDifficultyOverrides = {};
   private page = 0;
+  private pageCount = 1;
   private focusedId: string | undefined = "difficulty-profile";
   private controls: DifficultyControl[] = [];
   private confirming = false;
@@ -92,6 +92,7 @@ export class DifficultyOverlayManager {
     this.selection = options.selection;
     this.custom = options.selection.profileId === "custom" ? options.selection.overrides ?? {} : {};
     this.page = 0;
+    this.pageCount = 1;
     this.focusedId = "difficulty-profile";
     this.confirming = false;
     this.status = "";
@@ -129,6 +130,7 @@ export class DifficultyOverlayManager {
     if (!this.options) return "";
     return ` [DIFFICULTY] [RULE_PROFILE:${this.selection.profileId}]`
       + ` [RULE_PAGE:${this.page + 1}] [RULE_FOCUS:${this.focusedId ?? "-"}]`
+      + ` [RULE_PAGES:${this.pageCount}]`
       + ` [RULE_PHASE:${this.confirming ? "confirm" : this.options.apply ? "edit" : "inspect"}]`;
   }
 
@@ -179,10 +181,9 @@ export class DifficultyOverlayManager {
       x, y: py + 12, width, gap: 12, hitAreaPadding: 8,
     });
     const preview = this.getPreview();
-    this.page = Math.min(this.page, Math.ceil(preview.length / PAGE_SIZE) - 1);
     const rows: Phaser.GameObjects.Text[] = [];
     if (!this.confirming) {
-      for (const effect of preview.slice(this.page * PAGE_SIZE, (this.page + 1) * PAGE_SIZE)) {
+      for (const effect of preview) {
         const bounds = CUSTOM_NUMERIC_DIFFICULTY_RULES.find((rule) => rule.id === effect.id);
         const label = `${effect.label}: ${effect.value}`
           + (bounds ? ` [${bounds.minimum}..${bounds.maximum}${bounds.unit}]` : "");
@@ -206,8 +207,7 @@ export class DifficultyOverlayManager {
         `${change.label}: ${change.from} -> ${change.to}`);
       rows.push(this.addText(
         "difficulty-confirm-summary", x, 0,
-        `Current: ${getDifficultyProfile(options.selection.profileId).name}\n`
-          + `Selected: ${profile.name}\n`
+        `Current: ${getDifficultyProfile(options.selection.profileId).name} -> Selected: ${profile.name}\n`
           + (changedLines.length > 0 ? `${changedLines.join("\n")}\n` : "")
           + (changes.length > 3 ? `Plus ${changes.length - 3} effects shown in the preview.\n` : "")
           + "No existing outcomes or rewards are replayed.",
@@ -215,42 +215,77 @@ export class DifficultyOverlayManager {
       ));
     }
     const rowY = py + 12 + headerHeight + 14;
-    const rowHeight = layoutTextStack(rows, { x, y: rowY, width, gap: 18, hitAreaPadding: 8 });
-    let nextY = rowY + rowHeight + 20;
     const halfWidth = (width - 24) / 2;
+    const pageControls: DifficultyControl[] = [];
     if (!this.confirming) {
-      const previous = this.addControl("difficulty-page-previous", x, nextY, halfWidth,
-        "< Effects", () => this.changePage(-1));
-      const next = this.addControl("difficulty-page-next", x + halfWidth + 24, nextY, halfWidth,
-        `Effects ${this.page + 1}/${Math.ceil(preview.length / PAGE_SIZE)} >`, () => this.changePage(1));
-      nextY += Math.max(previous.text.displayHeight, next.text.displayHeight) + 18;
+      pageControls.push(
+        this.addControl("difficulty-page-previous", x, 0, halfWidth,
+          "< Effects", () => this.changePage(-1)),
+        this.addControl("difficulty-page-next", x + halfWidth + 24, 0, halfWidth,
+          `Effects ${preview.length}/${preview.length} >`, () => this.changePage(1)),
+      );
     }
+    const actionControls: DifficultyControl[] = [];
     if (options.apply) {
-      const apply = this.addControl("difficulty-apply", x, nextY, halfWidth,
-        this.confirming ? "Confirm change" : options.campaign ? "Review change" : "Use these rules",
-        () => this.apply());
-      const cancel = this.addControl("difficulty-close", x + halfWidth + 24, nextY, halfWidth,
-        this.confirming ? "Back" : "Cancel", () => this.cancel());
-      nextY += Math.max(apply.text.displayHeight, cancel.text.displayHeight) + 14;
+      actionControls.push(
+        this.addControl("difficulty-apply", x, 0, halfWidth,
+          this.confirming ? "Confirm change" : options.campaign ? "Review change" : "Use these rules",
+          () => this.apply()),
+        this.addControl("difficulty-close", x + halfWidth + 24, 0, halfWidth,
+          this.confirming ? "Back" : "Cancel", () => this.cancel()),
+      );
     } else {
-      const close = this.addControl("difficulty-close", x, nextY, width, "Close preview", () => this.close());
-      nextY += close.text.displayHeight + 14;
+      actionControls.push(this.addControl(
+        "difficulty-close", x, 0, width, "Close preview", () => this.close(),
+      ));
     }
     const eligibility = options.campaign
       ? getCampaignDifficultyEligibility(options.campaign)
       : getDifficultyAchievementEligibility(createCampaignDifficulty(this.selection));
     const note = this.addText(
-      "difficulty-eligibility", x, nextY,
+      "difficulty-eligibility", x, 0,
       this.status || eligibility.reason,
       width, 9, "#e5eef6",
     );
-    nextY += note.displayHeight + 8;
     const limits = this.addText(
-      "difficulty-limits", x, nextY,
+      "difficulty-limits", x, 0,
       "Land/sea encounters <=15%; World Events <=8%. Gates and gathering inputs unchanged.\n"
         + "Adjusted costs round up; rewards/resale down. Timing stays opt-in.",
       width, 8, "#c5d5ee",
     );
+    const pageControlsHeight = pageControls.length === 0 ? 0
+      : Math.max(...pageControls.map((control) => control.text.displayHeight)) + 18;
+    const actionControlsHeight = Math.max(...actionControls.map((control) => control.text.displayHeight)) + 14;
+    const footerHeight = pageControlsHeight + actionControlsHeight
+      + note.displayHeight + 8 + limits.displayHeight;
+    const availableHeight = py + panelH - 4 - rowY - 20 - footerHeight;
+    const pages = paginateMeasuredItems(rows.map((row) => row.displayHeight), availableHeight, 18);
+    this.pageCount = Math.max(1, pages.length);
+    this.page = Math.min(this.page, this.pageCount - 1);
+    const focusedRow = this.controls.find((control) => control.id === this.focusedId)?.text;
+    const focusedIndex = focusedRow ? rows.indexOf(focusedRow) : -1;
+    if (focusedIndex >= 0) {
+      const focusedPage = pages.findIndex((indices) => indices.includes(focusedIndex));
+      if (focusedPage >= 0) this.page = focusedPage;
+    }
+    const visibleIndexes = new Set(pages[this.page] ?? []);
+    const visibleRows = rows.filter((_, index) => visibleIndexes.has(index));
+    const hiddenRows = new Set(rows.filter((_, index) => !visibleIndexes.has(index)));
+    this.controls = this.controls.filter((control) => !hiddenRows.has(control.text));
+    hiddenRows.forEach((row) => row.destroy());
+    const rowHeight = layoutTextStack(visibleRows, {
+      x, y: rowY, width, gap: 18, hitAreaPadding: 8,
+    });
+    let nextY = rowY + rowHeight + 20;
+    const nextPage = pageControls[1];
+    if (nextPage) nextPage.label = `Effects ${this.page + 1}/${this.pageCount} >`;
+    pageControls.forEach((control) => control.text.setY(nextY));
+    nextY += pageControlsHeight;
+    actionControls.forEach((control) => control.text.setY(nextY));
+    nextY += actionControlsHeight;
+    note.setY(nextY);
+    nextY += note.displayHeight + 8;
+    limits.setY(nextY);
     this.focusBorder = this.scene.add.graphics();
     container.add(this.focusBorder);
     const focus = restoreLayoutFocus(this.controls.map((control) => ({
@@ -258,7 +293,17 @@ export class DifficultyOverlayManager {
     })), this.focusedId, 0);
     this.focusedId = focus.items[focus.index]?.id;
     this.updateFocus();
-    this.renderAccessibleDialog(eligibility.reason);
+    this.renderAccessibleDialog(eligibility.reason, [
+      description.text,
+      profileLabel,
+      ...(this.confirming
+        ? getDifficultyEffectChanges(options.selection, this.selection).map((change) =>
+          `${change.label}: ${change.from} -> ${change.to}`)
+        : visibleRows.filter((row) => !this.controls.some((control) => control.text === row))
+          .map((row) => row.text)),
+      this.confirming ? "No existing outcomes or rewards are replayed." : "",
+      limits.text,
+    ].filter((label) => label.length > 0));
     if (nextY + limits.displayHeight > py + panelH - 4) {
       throw new Error("[difficulty] Rules content exceeds its measured viewport.");
     }
@@ -377,7 +422,7 @@ export class DifficultyOverlayManager {
   }
 
   private changePage(direction: -1 | 1): void {
-    const count = Math.ceil(this.getPreview().length / PAGE_SIZE);
+    const count = this.pageCount;
     this.page = (this.page + direction + count) % count;
     this.render();
   }
@@ -454,7 +499,7 @@ export class DifficultyOverlayManager {
     this.pendingActivation = null;
   }
 
-  private renderAccessibleDialog(eligibility: string): void {
+  private renderAccessibleDialog(eligibility: string, content: readonly string[]): void {
     const hadFocus = this.accessibleDialog?.contains(document.activeElement) ?? false;
     this.accessibleDialog?.remove();
     const dialog = document.createElement("div");
@@ -462,6 +507,7 @@ export class DifficultyOverlayManager {
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
     dialog.setAttribute("aria-labelledby", "difficulty-accessible-title");
+    dialog.setAttribute("aria-describedby", "difficulty-accessible-description");
     Object.assign(dialog.style, {
       position: "fixed", width: "1px", height: "1px", overflow: "hidden",
       clipPath: "inset(50%)", whiteSpace: "nowrap",
@@ -469,11 +515,18 @@ export class DifficultyOverlayManager {
     const title = document.createElement("h2");
     title.id = "difficulty-accessible-title";
     title.textContent = "Campaign rules";
+    const description = document.createElement("div");
+    description.id = "difficulty-accessible-description";
+    for (const label of content) {
+      const paragraph = document.createElement("p");
+      paragraph.textContent = label;
+      description.append(paragraph);
+    }
     const status = document.createElement("p");
     status.setAttribute("role", "status");
     status.setAttribute("aria-atomic", "true");
     status.textContent = this.status || eligibility;
-    dialog.append(title, status);
+    dialog.append(title, description, status);
     for (const control of this.controls) {
       const button = document.createElement("button");
       button.type = "button";

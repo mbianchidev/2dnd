@@ -11,8 +11,12 @@ reward, recovery, and campaign systems.
 Settings and the character sheet open a complete effect preview. Keyboard,
 pointer, touch, and standard gamepad controls share that interface. Up/Down moves
 focus; Left/Right changes the focused profile or Custom value. Pointer/touch users
-can use the left and right halves of a value. Effects are paged so all supported
-text scales, high contrast, and reduced motion remain usable.
+can use the left and right halves of a value. Effect pages use actual scaled
+text heights and reserve measured footer space, rather than assuming a fixed
+row count. Focus follows its stable rule ID when wrapping changes. Supported
+text scales, high contrast, and reduced motion remain usable; the native
+screen-reader dialog includes non-interactive previews and exact confirmed
+value changes.
 
 ## Preset effects
 

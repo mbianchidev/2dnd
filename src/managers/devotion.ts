@@ -38,7 +38,7 @@ import {
 } from "../systems/layout";
 import type { PlayerState } from "../systems/player";
 import type { SocialMutationResult } from "../systems/reputation";
-import { layoutTextStack, syncInteractiveHitArea } from "./layout";
+import { layoutTextStack, publishSceneLayoutReport, syncInteractiveHitArea } from "./layout";
 import { DevotionAccessibility } from "./devotionAccessibility";
 import { DevotionPromptRenderer } from "../renderers/devotionPrompt";
 import {
@@ -478,6 +478,7 @@ export class DevotionManager {
     this.selectedAction = focus.items[focus.index]?.id ?? "";
     this.updateSelection();
     this.accessibility.update(`${titleLabel}: ${VIEW_LABELS[this.view]}`, contentLines, actions, this.selectedAction);
+    publishSceneLayoutReport(this.scene);
   }
 
   private text(

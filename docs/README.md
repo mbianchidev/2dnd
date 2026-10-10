@@ -16,12 +16,14 @@ on discovering and playing the game.
 | Persistent-state changes | [Save system](save-system.md) |
 | Maintainers preparing a release | [Release](release.md) |
 | Desktop developers and packagers | [Desktop application](desktop.md) |
+| Steam distribution and controller preparation | [Steam preparation](steam.md) |
 | Coding agents | [AGENTS.md](../AGENTS.md) |
 
 ## Focused references
 
 - [Companions and gambits](companions.md)
 - [Desktop application](desktop.md)
+- [Steam preparation](steam.md)
 - [Inventory presentation](inventory.md)
 
 Repository-wide constraints remain authoritative in

@@ -77,6 +77,12 @@ Unusable campaign imports cannot replace valid saves. If browser privacy
 settings block local storage, the game remains usable but clearly reports that
 campaigns cannot be saved.
 
+Maintainers can prepare credential-free Steam depot previews and exercise a
+1280x800 controller equivalent. Steam SDK, Steam achievements and Steam Cloud
+remain disabled; no Steam release, Proton support or Deck Verified status is
+claimed. See [Steam preparation](docs/steam.md) for the protected delivery
+template and outstanding client/hardware/human release gates.
+
 ## Run locally
 
 The CI baseline is Node.js 24 with npm.
@@ -116,8 +122,9 @@ Use `npm run dev:desktop` for Electron development and
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v18, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v18, slots, migration, recovery, persistence rules |
 | [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
+| [Steam preparation](docs/steam.md) | Depot previews, controller equivalent, disabled services, store/human release gates |
 | [Release](docs/release.md) | GitHub Pages and release checklist |
 | [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |
 | [Inventory presentation](docs/inventory.md) | Ownership-safe sorting, filtering, controls, transfers |

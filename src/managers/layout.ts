@@ -177,11 +177,16 @@ function publishLayoutReport(scene: Phaser.Scene): void {
   scene.game.canvas.dataset.layoutClippingCount = String(report.clippingCount);
   scene.game.canvas.dataset.layoutScene = report.scene;
   const element = getReportElement();
-  if (element) element.textContent = JSON.stringify(report);
+  if (element) {
+    const content = JSON.stringify(report);
+    if (element.firstChild instanceof Text) element.firstChild.data = content;
+    else element.textContent = content;
+  }
 }
 
 export function installSceneLayoutAudit(scene: Phaser.Scene): void {
-  if (!isLocalDev() || installedScenes.has(scene)) return;
+  const localDesktop = globalThis.location?.origin === "app://2dnd";
+  if ((!isLocalDev() && !localDesktop) || installedScenes.has(scene)) return;
   installedScenes.add(scene);
   let lastAudit = 0;
   const audit = (time: number): void => {

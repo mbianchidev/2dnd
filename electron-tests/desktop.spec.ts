@@ -16,8 +16,11 @@ import {
   closeDesktop,
   holdKey,
   launchDesktop,
+  monitorRendererErrors,
+  resizeDesktop,
   waitForState,
 } from "./helpers/desktop";
+
 const SAVE_KEY = "2dnd_save";
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -49,8 +52,11 @@ async function clickGame(
   }
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.waitForTimeout(80);
+  await page.waitForTimeout(120);
   await page.mouse.up();
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  ));
 }
 
 async function activateTitleAction(
@@ -175,15 +181,6 @@ async function prepareSaveForOverworld(page: Page): Promise<void> {
   }, SAVE_KEY);
 }
 
-function monitorRendererErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  return errors;
-}
-
 test("secure desktop shell persists a campaign across launches", async () => {
   const userDataDirectory = await mkdtemp(join(tmpdir(), "2dnd-electron-"));
   let desktop: ElectronApplication | undefined;
@@ -221,6 +218,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await expect.poll(() => page.evaluate(
       () => window.desktop?.getState().then((state) => state.isFullscreen),
     )).toBe(false);
+    await resizeDesktop(desktop);
 
     const saved = await createDesktopSave(page);
     await prepareSaveForOverworld(page);

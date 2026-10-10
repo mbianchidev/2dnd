@@ -23,6 +23,7 @@ import {
   isLocalDev,
 } from "./config";
 import { SemanticInputRuntime } from "./managers/input";
+import { getInputPromptSource, inputPromptSource } from "./systems/input";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -95,10 +96,14 @@ const desktopFullscreen = document.getElementById(
 ) as HTMLButtonElement | null;
 if (window.desktop && desktopFullscreen) {
   desktopFullscreen.style.display = "block";
+  let currentFullscreen = false;
   const updateFullscreenLabel = (isFullscreen: boolean): void => {
+    currentFullscreen = isFullscreen;
+    const suffix = getInputPromptSource() === "gamepad" ? " (cursor)" : " (F11)";
     desktopFullscreen.textContent = isFullscreen
-      ? "Windowed (F11)"
-      : "Fullscreen (F11)";
+      ? `Windowed${suffix}`
+      : `Fullscreen${suffix}`;
+    desktopFullscreen.title = `Toggle fullscreen${suffix}`;
     desktopFullscreen.setAttribute("aria-pressed", String(isFullscreen));
   };
   window.desktop.getState()
@@ -125,8 +130,12 @@ if (window.desktop && desktopFullscreen) {
   const disposeFullscreenChange = window.desktop.onFullscreenChanged(
     updateFullscreenLabel,
   );
+  const disposePromptChange = inputPromptSource.subscribe(() => {
+    updateFullscreenLabel(currentFullscreen);
+  });
   disposeDesktopListener = () => {
     disposeFullscreenChange();
+    disposePromptChange();
     desktopFullscreen.removeEventListener("click", toggleFullscreen);
     document.removeEventListener("keydown", handleFullscreenShortcut);
   };

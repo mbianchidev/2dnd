@@ -113,6 +113,13 @@ their visual rows and columns. Character creation supports D-pad navigation plus
 confirm/cancel throughout. MENU and TIPS touch buttons appear only in the safe
 exploration context.
 
+`src/systems/textEntry.ts` owns the controller keyboard's immutable key rows
+and selection/edit rules. `src/managers/textEntry.ts` owns the shared HTML
+dialog, modal isolation, live accessibility, once-only commit/cancel and focus
+restoration. The input adapter re-exports `openMobileTextInput()` and routes
+semantic actions to this dialog before emitting game keys. The right-stick
+cursor also reaches existing desktop DOM controls.
+
 Feature visibility and action gating live in
 `src/data/featureDiscovery.ts` and `src/systems/featureDiscovery.ts`. Hidden
 entries must be filtered before layout so they leave no blank row, stale index,
@@ -143,6 +150,14 @@ mutate game state, read arbitrary files, execute commands, or create a second
 persistence implementation. The main process owns bounded rotating diagnostic
 logs and trusted quit/fullscreen IPC; the in-game return-to-title path remains a
 save-first Phaser transition. See [Desktop application](desktop.md).
+
+Steam delivery is tooling, not a gameplay dependency. `steam/config.ts`,
+placeholder VDFs and the emulation recipe define native Linux x64, Windows x64
+and macOS universal depots. `hacks/prepare-steam.mjs` inspects source/ASAR/
+architecture/licenses and emits hash receipts without account credentials.
+SDK, native Steam Input API, Steam achievements and Cloud are disabled.
+Protected manual upload never sets a branch live; Steam client, physical Deck,
+signing and store operations remain human gates in [Steam preparation](steam.md).
 
 ## Combat authority
 

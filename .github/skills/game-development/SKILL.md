@@ -73,6 +73,19 @@ The title menu uses `src/managers/titleMenu.ts` so direct taps and semantic
 D-pad/A input share one selected action. Keep overwrite confirmation compact
 and centered within the landscape viewport.
 
+Shared controller text entry lives in `systems/textEntry.ts` (keys/edits) and
+`managers/textEntry.ts` (HTML modal, live preferences, once-only commit/cancel,
+focus restoration). The adapter re-exports `openMobileTextInput()`, consumes
+text actions before game keys and allows its cursor to reach desktop DOM
+controls. Use positional prompts rather than guessed device glyphs.
+
+Steam tooling is separate from game authority: `steam/config.ts` and
+`hacks/prepare-steam.mjs` own inspected native Linux x64, Windows x64 and macOS
+universal depot previews. SDK, Steam achievements/Cloud and native Steam Input
+API remain disabled. Protected upload never sets a branch live. Read
+[`docs/steam.md`](../../../docs/steam.md); equivalent tests are not Steam/Deck,
+signing or store approval.
+
 Cutscene contracts live in `src/data/cutsceneTypes.ts`, focused campaign and
 boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and
 `src/data/cutscenes.ts` is the stable-ID hub. Pure trigger snapshots, priority

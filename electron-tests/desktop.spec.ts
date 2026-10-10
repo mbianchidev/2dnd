@@ -52,20 +52,30 @@ async function waitForInputFrames(page: Page): Promise<void> {
   }));
 }
 
-async function clickGame(
+async function gamePoint(
   page: Page,
   gameX: number,
   gameY: number,
-): Promise<void> {
+): Promise<{ x: number; y: number }> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
-  await waitForInputFrames(page);
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await page.mouse.move(
-    bounds.x + (gameX / GAME_WIDTH) * bounds.width,
-    bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
-  );
+  return {
+    x: bounds.x + (gameX / GAME_WIDTH) * bounds.width,
+    y: bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
+  };
+}
+
+async function clickGame(page: Page, gameX: number, gameY: number): Promise<void> {
+  const point = await gamePoint(page, gameX, gameY);
+  await page.mouse.click(point.x, point.y);
+}
+
+async function holdBootPointer(page: Page, gameX: number, gameY: number): Promise<void> {
+  await waitForInputFrames(page);
+  const point = await gamePoint(page, gameX, gameY);
+  await page.mouse.move(point.x, point.y);
   await waitForInputFrames(page);
   await page.mouse.down();
   await waitForInputFrames(page);
@@ -116,21 +126,21 @@ async function activateTitleAction(
 async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await activateTitleAction(page, "newGame");
   await waitForState(page, "BOOT | Screen: character");
-  await clickGame(page, 320, 76);
+  await holdBootPointer(page, 320, 76);
   const nameInput = page.locator("#mobile-text-input input");
   await expect(nameInput).toBeVisible();
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
   await expect(nameInput).toBeHidden();
-  await clickGame(page, 284, 160);
+  await holdBootPointer(page, 284, 160);
   await waitForState(page, "BOOT | Screen: character [CLASS:ranger]");
   await pressBootKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: stats [STAT:strength] [MODE:pointbuy]");
-  await clickGame(page, 390, 64);
+  await holdBootPointer(page, 390, 64);
   await waitForState(page, "BOOT | Screen: stats [STAT:strength] [MODE:random]");
   await pressBootKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: appearance [GROUP:1/3]");
-  await clickGame(page, 320, 112);
+  await holdBootPointer(page, 320, 112);
   await waitForState(page, "BOOT | Screen: appearance [GROUP:1/3]");
   await pressBootKey(page, "Enter");
   await waitForState(page, "CUTSCENE");

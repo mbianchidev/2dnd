@@ -305,6 +305,14 @@ for (const textScale of [1, 1.25, 1.5] as const) {
       await page.locator('#touch-controls [data-action="confirm"]').tap();
       await page.locator('#touch-controls [data-action="confirm"]').tap();
     }
+    const dock = page.locator('#dice-presentation[data-category="attack"]');
+    await expect(dock).toHaveAttribute("data-phase", "animating");
+    if (textScale === 1) await holdKey(page, "z", 30);
+    else if (textScale === 1.25) await pressGamepad(page, 10);
+    else await page.locator("#dice-fast-forward").tap();
+    await expect(dock).toHaveAttribute("data-skipped", "true");
+    await expect(dock).toHaveAttribute("data-phase", "ready");
+
     const attack = log.locator('[data-category="attack"]').filter({ hasText: "Dice Tester attack" });
     const attackPacket = await evidence.find("attack", "party:hero");
     const roll = attackPacket.attack?.rollResult;
@@ -317,11 +325,6 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     expect(await page.locator("#dice-presentation .resolved-die").evaluateAll(
       (dice) => dice.map((die) => (die as HTMLElement).dataset.natural),
     )).toEqual(roll.naturalRolls.map(String));
-    if (textScale === 1) await holdKey(page, "z", 30);
-    else if (textScale === 1.25) await pressGamepad(page, 10);
-    else await page.locator("#dice-fast-forward").tap();
-    await expect(page.locator("#dice-presentation")).toHaveAttribute("data-skipped", "true");
-    await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
     await expect(attack).toHaveCount(1);
 
     await page.locator("#dice-history summary").click();

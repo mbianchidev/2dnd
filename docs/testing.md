@@ -122,6 +122,8 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
   functional assertions remain primary.
 - Treat page errors, unexpected console errors, overlaps, and clipping as test
   failures.
+- Send visual skip controls while the result is still animating, before slower
+  receipt/text assertions; exact-result evidence remains available afterward.
 
 The local `#layout-report` and canvas
 `data-layout-overlap-count`/`data-layout-clipping-count` attributes are

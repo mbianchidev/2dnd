@@ -37,6 +37,7 @@ future work until merged.
 | Audio | typed data cues | `audio.ts`, `trapAudio.ts` | callers only | audio + representative browser flows |
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
 | Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
+| Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | `hacks/prepare-steam.mjs`, protected upload utility | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck-equivalent Electron |
 
 ## Required workflow
 
@@ -95,6 +96,14 @@ owning issue or pull request.
   tests.
 - Route all release input through semantic contexts; do not add scene-local
   gamepad/touch mappings or conflicting production/debug keys.
+- Shared `systems/textEntry.ts` / `managers/textEntry.ts` own the controller
+  keyboard for names/slot labels/search, modal isolation, cancellation and
+  focus restoration; the input adapter re-exports the existing text-entry API.
+- Steam SDK, Steam achievements, Cloud and native Steam Input API are disabled.
+  Stage native Linux x64, Windows x64 and inspected macOS universal payloads;
+  never sync Chromium profiles or claim Proton/Deck/partner validation from
+  equivalent tests. Upload requires explicit protected human authorization;
+  `SetLive` stays empty.
 - `TitleMenuManager` owns title selection, large pointer targets, and semantic
   D-pad/confirm activation; keep overwrite confirmation usable in landscape.
 - Own and clean up listeners, timers, tweens, emitters, DOM controls, texture
@@ -179,3 +188,4 @@ owning issue or pull request.
 - [Save system](docs/save-system.md)
 - [Companions and gambits](docs/companions.md)
 - [Inventory presentation](docs/inventory.md)
+- [Steam preparation](docs/steam.md)

@@ -8,6 +8,14 @@ describe("Electron packaging configuration", () => {
     expect(manifest.desktopName).toBe("2D-and-D.desktop");
     expect(manifest.build.appId).toBe("dev.mbianchidev.2dnd");
     expect(manifest.build.executableName).toBe("2D-and-D");
+    expect(manifest.build.extraFiles).toEqual(expect.arrayContaining([
+      { from: "LICENSE", to: "LICENSE.2dnd.txt" },
+      { from: "node_modules/phaser/LICENSE.md", to: "LICENSE.phaser.txt" },
+      { from: "node_modules/eventemitter3/LICENSE", to: "LICENSE.eventemitter3.txt" },
+      { from: "node_modules/electron/dist/LICENSE", to: "LICENSE.electron.txt" },
+      { from: "node_modules/electron/dist/LICENSES.chromium.html", to: "LICENSES.chromium.html" },
+      { from: "build/SOURCE.2dnd.txt", to: "SOURCE.2dnd.txt" },
+    ]));
     expect(manifest.build.linux.syncDesktopName).toBe(true);
     expect(manifest.build.nsis.artifactName).toContain("-setup.");
     expect(manifest.build.portable.artifactName).toContain("-portable.");

@@ -77,6 +77,18 @@ the relative `game.html` renderer. The smoke flow verifies:
 - lifecycle/quit log creation without campaign-content leakage
 - renderer/page error cleanliness
 
+`electron-tests/deck.spec.ts` adds a production-like 1280x800 controller
+equivalent: hero naming/creation, exploration/Battle, Codex search, manual
+save/rename/relaunch/recovery, title exit, right-stick fullscreen, reconnect,
+focus loss, resizing, 100/125/150% text, high contrast and reduced motion.
+It attaches startup/frame/JS/native-memory/actual-atomic-slot-write samples and
+post-GC DOM/listener counts after repeated menu/Tips cycles. These are synthetic
+gamepad and short cleanup checks, not Steam Input, real Deck suspend/dock,
+hours-long endurance or portable performance-budget evidence.
+
+`ELECTRON_TEST_EXECUTABLE` optionally selects an explicitly supplied packaged
+binary for the same suite. It does not alter production preload/security.
+
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
 Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
 
@@ -119,7 +131,9 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 
 The local `#layout-report` and canvas
 `data-layout-overlap-count`/`data-layout-clipping-count` attributes are
-debug/test surfaces. Registered groups should report zero unintended
+read-only debug/test surfaces on loopback and the local `app://2dnd` desktop
+origin. This does not enable desktop cheats or change production security.
+Registered groups should report zero unintended
 intersections and zero visible-content clipping.
 
 ## Targeted validation
@@ -145,6 +159,9 @@ for them before release.
 `.github/workflows/pr.yml` runs Node 24, `npm ci`, typecheck, full Vitest,
 Chromium installation, full Playwright, and the production build for pull
 requests to `main`.
+Its `pr-${{ github.ref }}` concurrency group queues work per branch/PR rather
+than serializing every unrelated pull request behind one global `pr` group;
+`cancel-in-progress` remains false.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page
@@ -153,3 +170,11 @@ smoke-tests, and packages each desktop platform without publishing.
 `.github/workflows/release.yml` accepts matching `v*` tags on `main`, reruns the
 full browser gate, smoke-tests and packages all desktop targets, then attaches
 the unsigned installers to the generated GitHub release.
+
+`tests/steamConfig.test.ts` and `tests/steamPreparation.test.ts` check approved
+placeholders, IDs, architecture headers, emulation/catalog completeness,
+runtime exclusions, symlinks, ASAR contents, source/hash receipts and private
+preview rendering with mock IDs. PR desktop CI stages and inspects actual
+platform payloads; no partner SDK/account is involved. Protected upload,
+real-client install/update/offline behavior and physical Deck tests remain
+separate human gates in [Steam preparation](steam.md).

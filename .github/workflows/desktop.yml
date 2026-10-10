@@ -23,12 +23,24 @@ jobs:
           - name: Linux
             runner: ubuntu-latest
             builderArgument: --linux
+            steamArguments: --linux --x64
+            steamPlatform: linux-x64
+            steamDirectory: linux-unpacked
+            steamBinary: 2D-and-D
           - name: macOS
             runner: macos-latest
             builderArgument: --mac
+            steamArguments: --mac --universal
+            steamPlatform: macos-universal
+            steamDirectory: mac-universal
+            steamBinary: 2D-and-D.app/Contents/MacOS/2D-and-D
           - name: Windows
             runner: windows-latest
             builderArgument: --win
+            steamArguments: --win --x64
+            steamPlatform: windows-x64
+            steamDirectory: win-unpacked
+            steamBinary: 2D-and-D.exe
 
     steps:
       - uses: actions/checkout@v5
@@ -60,14 +72,56 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
+      - name: Build unpacked Steam runtime
+        run: npm run package:steam:ci -- ${{ matrix.steamArguments }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Inspect and stage credential-free Steam depot preview
+        run: >-
+          npm run steam:prepare -- prepare
+          --platform ${{ matrix.steamPlatform }}
+          --input release/steam-build/${{ matrix.steamDirectory }}
+          --output release/steam-preview/${{ matrix.steamPlatform }}
+
+      - name: Smoke-test the actual packaged Steam runtime
+        if: runner.os != 'Linux'
+        run: npm run test:desktop:built
+        env:
+          ELECTRON_TEST_EXECUTABLE: ${{ github.workspace }}/release/steam-build/${{ matrix.steamDirectory }}/${{ matrix.steamBinary }}
+
+      - name: Smoke-test the actual packaged Steam runtime under Xvfb
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:desktop:built
+        env:
+          ELECTRON_TEST_EXECUTABLE: ${{ github.workspace }}/release/steam-build/${{ matrix.steamDirectory }}/${{ matrix.steamBinary }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: electron-results-${{ matrix.name }}-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: electron-test-results/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: steam-preview-${{ matrix.steamPlatform }}-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            release/steam-preview/${{ matrix.steamPlatform }}/*.tar.gz
+            release/steam-preview/${{ matrix.steamPlatform }}/*.json
+            release/steam-preview/${{ matrix.steamPlatform }}/scripts/*.vdf.in
+
       - uses: actions/upload-artifact@v4
         with:
           name: 2dnd-${{ matrix.name }}-${{ github.sha }}
           retention-days: 14
           if-no-files-found: error
           path: |
-            release/*
-            !release/mac/
-            !release/mac-arm64/
-            !release/win-unpacked/
-            !release/linux-unpacked/
+            release/*.dmg
+            release/*.zip
+            release/*.exe
+            release/*.AppImage
+            release/*.tar.gz

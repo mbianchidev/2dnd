@@ -1,0 +1,15 @@
+"AppBuild"
+{
+  "AppID" "{{STEAM_APP_ID}}"
+  "Desc" "{{BUILD_DESCRIPTION}}"
+  "Preview" "{{STEAM_PREVIEW}}"
+  "SetLive" ""
+  "ContentRoot" "../content"
+  "BuildOutput" "../output"
+  "Depots"
+  {
+    "{{STEAM_DEPOT_WINDOWS_ID}}" "depot_windows.vdf"
+    "{{STEAM_DEPOT_MACOS_ID}}" "depot_macos.vdf"
+    "{{STEAM_DEPOT_LINUX_ID}}" "depot_linux.vdf"
+  }
+}

@@ -21,6 +21,16 @@ Browser builds use their HTTP/HTTPS origin. Packaged Electron builds use the
 stable secure `app://2dnd` origin and the same save implementation. The stores
 remain isolated and are never copied or merged implicitly.
 
+Steam Cloud/Auto-Cloud remains disabled. Preparation never copies or syncs
+Chromium profile databases and introduces no native storage bridge. A future
+Cloud adapter must export validated slot/preference documents through these
+owners and explicitly handle conflicts, quota, corruption, backups, offline
+replay and cross-device/account policy; see `docs/steam.md`.
+
+The bounded `2dnd:save-slot-write` Performance measure times the actual atomic
+adapter path and retains only its latest duration/outcome, never campaign
+content. It is instrumentation, not persistent state or a schema change.
+
 ## Storage keys
 
 - `2dnd_save`: dedicated autosave and legacy-compatible default slot

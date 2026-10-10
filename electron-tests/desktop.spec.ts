@@ -1,5 +1,4 @@
 import {
-  _electron as electron,
   expect,
   test,
   type ElectronApplication,
@@ -11,9 +10,11 @@ import {
   rm,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import {
+  APP_ROOT, launchDesktop, monitorRendererErrors, resizeDesktop, waitForState,
+} from "./helpers/desktop";
 
-const APP_ROOT = resolve(import.meta.dirname, "..");
 const SAVE_KEY = "2dnd_save";
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -23,41 +24,27 @@ interface DesktopSaveSummary {
   readonly version: number;
 }
 
-function createLaunchEnvironment(userDataDirectory: string): Record<string, string> {
-  const environment: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined && key !== "ELECTRON_RUN_AS_NODE") {
-      environment[key] = value;
-    }
-  }
-  environment["ELECTRON_TEST_MODE"] = "1";
-  environment["ELECTRON_USER_DATA_DIR"] = userDataDirectory;
-  return environment;
-}
-
-async function launchDesktop(
-  userDataDirectory: string,
-): Promise<ElectronApplication> {
-  return electron.launch({
-    args: [APP_ROOT],
-    cwd: APP_ROOT,
-    env: createLaunchEnvironment(userDataDirectory),
-  });
-}
-
 async function clickGame(
   page: Page,
   gameX: number,
   gameY: number,
+  expectClose = false,
 ): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await page.mouse.click(
+  await page.mouse.move(
     bounds.x + (gameX / GAME_WIDTH) * bounds.width,
     bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
+  await page.mouse.down();
+  if (expectClose) return;
+  await page.waitForTimeout(120);
+  await page.mouse.up();
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  ));
 }
 
 async function holdKey(
@@ -69,10 +56,6 @@ async function holdKey(
   await page.waitForTimeout(duration);
   await page.keyboard.up(key);
   await page.waitForTimeout(120);
-}
-
-async function waitForState(page: Page, text: string): Promise<void> {
-  await expect(page.locator("#debug-state")).toContainText(text);
 }
 
 async function activateTitleAction(
@@ -103,10 +86,11 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await nameInput.press("Enter");
   await clickGame(page, 284, 160);
   await page.keyboard.press("Enter");
-  await page.waitForTimeout(250);
+  await waitForState(page, "BOOT | Screen: stats");
   await clickGame(page, 390, 64);
+  await waitForState(page, "[MODE:random]");
   await clickGame(page, 400, 460);
-  await page.waitForTimeout(250);
+  await waitForState(page, "BOOT | Screen: appearance");
   await clickGame(page, 320, 112);
   await clickGame(page, 420, 312);
 
@@ -159,15 +143,6 @@ async function prepareSaveForOverworld(page: Page): Promise<void> {
   }, SAVE_KEY);
 }
 
-function monitorRendererErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  return errors;
-}
-
 test("secure desktop shell persists a campaign across launches", async () => {
   const userDataDirectory = await mkdtemp(join(tmpdir(), "2dnd-electron-"));
   let desktop: ElectronApplication | undefined;
@@ -205,6 +180,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await expect.poll(() => page.evaluate(
       () => window.desktop?.getState().then((state) => state.isFullscreen),
     )).toBe(false);
+    await resizeDesktop(desktop);
 
     const saved = await createDesktopSave(page);
     await prepareSaveForOverworld(page);
@@ -287,7 +263,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(relaunchedRendererErrors).toEqual([]);
 
     const closePromise = desktop.waitForEvent("close");
-    await clickGame(page, 320, 492);
+    await clickGame(page, 320, 492, true);
     await closePromise;
     desktop = undefined;
 

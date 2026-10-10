@@ -37,10 +37,17 @@ system has been discovered. The Escape menu remains the reliable entry point.
 
 Pointer and touch users can select visible buttons directly. Touch layouts use
 safe-area-aware movement and action controls. Standard gamepads use the left
-stick or D-pad for movement/navigation, `A` to confirm, `B` to cancel, `X` to
-interact, Menu/`Y` for the menu, View for Tips, bumpers for targets/pages, and
+stick or D-pad for movement/navigation, the south button to confirm, east to
+cancel, west to interact, Menu/north for the menu, View for Tips, bumpers for targets/pages, and
 triggers for Battle-log scrolling. The right stick moves a visible cursor;
-press the stick to click pointer-first controls.
+press the stick to click pointer-first controls and the desktop fullscreen
+button. Xbox positions are A/B/X/Y; prompts use positions so they do not guess
+PlayStation or Nintendo labels.
+
+During hero creation, west or unmodified `Tab` edits the name. Names, manual
+slot labels and searches share a controller keyboard: D-pad selects, south
+types, west deletes, Menu submits and east cancels. `Aa` switches letter case.
+Keyboard/touch text input remains available; cancel never commits a draft.
 
 Mappings are stable rather than user-remappable. Settings can control touch
 visibility, handedness, and automatic or fixed prompt sources.

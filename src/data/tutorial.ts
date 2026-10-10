@@ -97,7 +97,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Interact / confirm",
     keyboard: "Space",
     pointer: "Select the highlighted action",
-    gamepad: "A / X",
+    gamepad: "South / West",
     touch: "A or tap the prompt",
   },
   menu: {
@@ -105,7 +105,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Open / close menu",
     keyboard: "Esc",
     pointer: "Use menu buttons",
-    gamepad: "Menu / Y",
+    gamepad: "Menu / North",
     touch: "MENU",
   },
   tips: {
@@ -177,7 +177,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Party management",
     keyboard: "P",
     pointer: "Party controls",
-    gamepad: "PARTY / menu",
+    gamepad: "Menu, then Party",
     touch: "PARTY",
   },
   mount: {
@@ -201,7 +201,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Confirm target",
     keyboard: "Enter / Space",
     pointer: "Select the target",
-    gamepad: "A",
+    gamepad: "South",
     touch: "A or tap",
   },
   battleCancel: {
@@ -209,7 +209,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Cancel targeting",
     keyboard: "Esc",
     pointer: "Choose another action",
-    gamepad: "B",
+    gamepad: "East",
     touch: "B",
   },
 };

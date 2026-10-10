@@ -118,3 +118,20 @@ macOS and Windows builds remain unsigned until protected signing credentials
 are configured; operating systems may warn before opening them. Apple Developer
 ID/notarization and Authenticode credentials must stay in a protected release
 environment, never in source or pull-request workflows.
+
+Desktop packages now contain only the game entry, compiled shell and runtime:
+the showcase/screenshots and source maps are excluded. AGPL,
+Phaser/EventEmitter3 and Electron/Chromium notices accompany the package.
+
+Steam review CI also creates inspected unpacked Windows x64, macOS universal
+and native Linux x64 depot previews. These are not installers, signed releases
+or a Steam/Deck certification. See [Steam preparation](steam.md) for launch
+paths, licenses/source receipts, protected upload prerequisites and manual
+client/hardware gates. Steam SDK, achievements and Cloud remain disabled;
+preload, `app://2dnd` and renderer-owned local storage are unchanged.
+
+The shared renderer text-entry dialog includes a controller keyboard for names,
+slot labels and search. West edits the hero name; D-pad selects keys, south
+types, west deletes, Menu submits and east cancels. The right-stick cursor can
+also activate the native fullscreen button. No native Steam keyboard or
+filesystem API is exposed.

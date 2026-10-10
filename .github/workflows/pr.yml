@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pr
+  group: pr-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:

@@ -32,6 +32,7 @@ async function clickGame(
   page: Page,
   gameX: number,
   gameY: number,
+  activation: "held" | "terminal" = "held",
 ): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
@@ -40,10 +41,13 @@ async function clickGame(
   }));
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await page.mouse.move(
-    bounds.x + (gameX / GAME_WIDTH) * bounds.width,
-    bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
-  );
+  const x = bounds.x + (gameX / GAME_WIDTH) * bounds.width;
+  const y = bounds.y + (gameY / GAME_HEIGHT) * bounds.height;
+  if (activation === "terminal") {
+    await page.mouse.click(x, y);
+    return;
+  }
+  await page.mouse.move(x, y);
   await page.mouse.down();
   await page.waitForTimeout(80);
   await page.mouse.up();
@@ -404,7 +408,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(recoveredRendererErrors).toEqual([]);
 
     const closePromise = desktop.waitForEvent("close");
-    await clickGame(page, 320, 492);
+    await clickGame(page, 320, 492, "terminal");
     await closePromise;
     desktop = undefined;
 

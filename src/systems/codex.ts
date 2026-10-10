@@ -28,6 +28,7 @@ import {
   REPUTATION_MILESTONE_IDS,
   REPUTATION_TIERS,
 } from "../data/reputation";
+import type { MinigameActivityId } from "../data/minigames";
 
 export interface CodexEntry {
   monsterId: string;
@@ -88,6 +89,10 @@ export type CodexUnlockSignal =
   };
 
 export type CodexFutureUnlockSignal =
+  | {
+    readonly type: "minigame";
+    readonly activityId: MinigameActivityId;
+  }
   | {
     readonly type: "worldEvent";
     readonly eventId: string;
@@ -217,6 +222,8 @@ function sourceMatchesSignal(
       return signal.type === "reputationMilestone"
         && source.factionId === signal.factionId
         && source.milestoneId === signal.milestoneId;
+    case "minigame":
+      return signal.type === "minigame" && source.activityId === signal.activityId;
   }
 }
 
@@ -255,8 +262,7 @@ export function unlockCodexFromSignal(
 }
 
 /**
- * Reserved dispatch boundary for #69 world events and #70 reputation.
- * Active scenes must not call this until those systems own the signal.
+ * Source-owned dispatch for events, reputation milestones, and completed activities.
  */
 export function unlockCodexFromFutureSignal(
   codex: CodexData,
@@ -356,6 +362,11 @@ export function replayCodexUnlocks(
   }
   for (const record of player.progression.worldEvents.log) {
     applyFuture({ type: "worldEvent", eventId: record.eventId });
+  }
+  for (const activityId of ["crownAndBones", "archery", "regatta"] as const) {
+    if (player.progression.minigames.statistics[activityId].completions > 0) {
+      applyFuture({ type: "minigame", activityId });
+    }
   }
   for (const cutsceneId of player.progression.seenCutsceneIds) {
     apply({ type: "cutscene", cutsceneId });

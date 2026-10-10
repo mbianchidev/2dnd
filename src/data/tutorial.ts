@@ -269,6 +269,13 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
 
 export const TIPS: readonly TipDefinition[] = [
   {
+    id: "exploration.minigames", category: "exploration",
+    title: "Tavern and festival games",
+    body: "Use marked city venues for Crown & Bones, class-neutral archery, and Harbor Regatta. The Esc menu keeps instructions and personal records. Stakes are capped in-game gold only; abandoning forfeits the entry, and reloading resumes the same challenge. Archery and regatta offer free practice with no rewards.",
+    controls: ["interact", "move", "menu"],
+    unlock: { type: "feature", featureId: "minigames" },
+  },
+  {
     id: "controls.context",
     category: "controls",
     title: "Context actions",

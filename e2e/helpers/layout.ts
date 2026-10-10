@@ -14,6 +14,43 @@ interface LayoutReport {
   groups: Record<string, { items: LayoutReportItem[] }>;
 }
 
+export async function waitForGameInputFrame(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+}
+
+export async function pressPointerAt(page: Page, x: number, y: number): Promise<void> {
+  await page.mouse.move(x, y);
+  await waitForGameInputFrame(page);
+  await page.mouse.down();
+}
+
+export async function clickPointerAt(page: Page, x: number, y: number): Promise<void> {
+  await pressPointerAt(page, x, y);
+  try {
+    await waitForGameInputFrame(page);
+  } finally {
+    await page.mouse.up();
+  }
+}
+
+export async function tapPointerAt(page: Page, x: number, y: number): Promise<void> {
+  const protocol = await page.context().newCDPSession(page);
+  try {
+    await protocol.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await protocol.send("Input.dispatchTouchEvent", {
+      type: "touchStart", touchPoints: [{ x, y, id: 1 }],
+    });
+    try {
+      await waitForGameInputFrame(page);
+    } finally {
+      await protocol.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    }
+  } finally {
+    await protocol.detach();
+  }
+}
+
 async function readLayoutReport(page: Page): Promise<LayoutReport> {
   await expect(page.locator("#layout-report")).not.toHaveText("");
   return page.locator("#layout-report").evaluate((element) =>
@@ -43,11 +80,19 @@ export async function layoutItemCenter(
 }
 
 export async function clickLayoutItem(page: Page, id: string): Promise<void> {
-  const point = await layoutItemCenter(page, id);
   const canvas = page.locator("#game-container canvas");
+  const initial = await layoutItemCenter(page, id);
+  const initialBounds = await canvas.boundingBox();
+  if (!initialBounds) throw new Error("Game canvas has no rendered bounds");
+  await page.mouse.move(
+    initialBounds.x + (initial.x / GAME_WIDTH) * initialBounds.width,
+    initialBounds.y + (initial.y / GAME_HEIGHT) * initialBounds.height,
+  );
+  await waitForGameInputFrame(page);
+  const point = await layoutItemCenter(page, id);
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Game canvas has no rendered bounds");
-  await page.mouse.click(
+  await clickPointerAt(page,
     bounds.x + (point.x / GAME_WIDTH) * bounds.width,
     bounds.y + (point.y / GAME_HEIGHT) * bounds.height,
   );
@@ -59,7 +104,7 @@ export async function tapLayoutItem(page: Page, id: string): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Game canvas has no rendered bounds");
-  await page.touchscreen.tap(
+  await tapPointerAt(page,
     bounds.x + (point.x / GAME_WIDTH) * bounds.width,
     bounds.y + (point.y / GAME_HEIGHT) * bounds.height,
   );

@@ -12,6 +12,8 @@ import type {
   AlignmentName,
   ReputationTargetKind,
 } from "./reputation";
+import type { MinigameVenueId } from "./minigames";
+import { MINIGAME_WORLD_EVENTS } from "./minigameEvents";
 
 export const WORLD_EVENT_FAMILIES = [
   "shrine",
@@ -52,6 +54,7 @@ export interface WorldEventOutcomeDefinition {
   readonly rewards?: readonly WorldEventRewardDefinition[];
   readonly nonlethalDamage?: number;
   readonly startQuestId?: QuestId;
+  readonly discoverMinigameVenueIds?: readonly MinigameVenueId[];
   readonly futureHooks?: readonly WorldEventFutureHook[];
 }
 
@@ -620,6 +623,7 @@ export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
       },
     ],
   },
+  ...MINIGAME_WORLD_EVENTS,
 ];
 
 export const WORLD_EVENT_IDS = WORLD_EVENT_DEFINITIONS.map(

@@ -12,6 +12,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { SAVE_VERSION } from "../src/systems/save";
+import { clickPointerAt, pressPointerAt, waitForGameInputFrame } from "../e2e/helpers/layout";
 
 const APP_ROOT = resolve(import.meta.dirname, "..");
 const SAVE_KEY = "2dnd_save";
@@ -45,19 +47,28 @@ async function launchDesktop(
   });
 }
 
-async function clickGame(
+async function gamePoint(
   page: Page,
   gameX: number,
   gameY: number,
-): Promise<void> {
+): Promise<{ x: number; y: number }> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
+  await waitForGameInputFrame(page);
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await page.mouse.click(
-    bounds.x + (gameX / GAME_WIDTH) * bounds.width,
-    bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
-  );
+  return {
+    x: bounds.x + (gameX / GAME_WIDTH) * bounds.width,
+    y: bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
+  };
+}
+
+async function clickGame(page: Page, gameX: number, gameY: number): Promise<void> {
+  const initial = await gamePoint(page, gameX, gameY);
+  await page.mouse.move(initial.x, initial.y);
+  await waitForGameInputFrame(page);
+  const point = await gamePoint(page, gameX, gameY);
+  await clickPointerAt(page, point.x, point.y);
 }
 
 async function holdKey(
@@ -101,12 +112,15 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await expect(nameInput).toBeVisible();
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
+  await expect(nameInput).not.toBeVisible();
+  await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 284, 160);
   await page.keyboard.press("Enter");
-  await page.waitForTimeout(250);
+  await waitForState(page, "BOOT | Screen: stats");
   await clickGame(page, 390, 64);
+  await waitForState(page, "[MODE:random]");
   await clickGame(page, 400, 460);
-  await page.waitForTimeout(250);
+  await waitForState(page, "BOOT | Screen: appearance");
   await clickGame(page, 320, 112);
   await clickGame(page, 420, 312);
 
@@ -129,10 +143,10 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
     return { name: player.name, version };
   }, SAVE_KEY)).toEqual({
     name: "Desktop Hero",
-    version: 18,
+    version: SAVE_VERSION,
   });
 
-  return { name: "Desktop Hero", version: 18 };
+  return { name: "Desktop Hero", version: SAVE_VERSION };
 }
 
 async function prepareSaveForOverworld(page: Page): Promise<void> {
@@ -193,6 +207,10 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(desktopState?.isFullscreen).toBe(false);
     logPath = desktopState?.logPath ?? "";
     expect(logPath).toBe(join(userDataDirectory, "logs", "2dnd.log"));
+    await waitForState(page, "BOOT | Screen: title");
+    const originalViewport = await page.evaluate(() => ({
+      width: innerWidth, height: innerHeight,
+    }));
 
     await page.locator("#desktop-fullscreen").click();
     await expect.poll(() => page.evaluate(
@@ -205,6 +223,11 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await expect.poll(() => page.evaluate(
       () => window.desktop?.getState().then((state) => state.isFullscreen),
     )).toBe(false);
+    await expect.poll(() => page.evaluate(() => ({
+      width: innerWidth, height: innerHeight,
+    }))).toEqual(originalViewport);
+    await page.bringToFront();
+    await waitForGameInputFrame(page);
 
     const saved = await createDesktopSave(page);
     await prepareSaveForOverworld(page);
@@ -286,8 +309,9 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await waitForState(page, "BOOT | Screen: title");
     expect(relaunchedRendererErrors).toEqual([]);
 
+    const quitPoint = await gamePoint(page, 320, 492);
     const closePromise = desktop.waitForEvent("close");
-    await clickGame(page, 320, 492);
+    await pressPointerAt(page, quitPoint.x, quitPoint.y);
     await closePromise;
     desktop = undefined;
 

@@ -113,6 +113,13 @@ favor special fishing outcomes, Fog/Rain favor damp forage, and day/night/
 biome weighting remains deterministic. Reduced motion never changes the selected
 outcome or reward.
 
+Harbor Regatta uses `rollWeather(biomeName, timeStep, seededRandom)` for a fixed
+course forecast in the existing port chunk when city weather is Clear. The
+optional RNG defaults to `Math.random`; omitted-RNG callers retain the same
+draw count and behavior. A course stores the chosen forecast and never changes
+campaign weather or rerolls it during recovery. Reduced motion changes no
+forecast, effort, wear, score, or reward.
+
 ### Adding a New Weather Type
 1. Add to `WeatherType` enum
 2. Add probability weights in `BIOME_WEATHER` records

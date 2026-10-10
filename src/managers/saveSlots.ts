@@ -18,6 +18,7 @@ import {
   createDimGraphics,
   createOverlayContainer,
   createPanelGraphics,
+  createStatusAnnouncer,
 } from "../utils/ui";
 import {
   layoutResponsiveGrid,
@@ -876,17 +877,7 @@ export class SaveSlotManager {
   }
 
   private createLiveRegion(): void {
-    const region = document.createElement("div");
-    region.id = "save-slot-live-region";
-    region.setAttribute("role", "status");
-    region.setAttribute("aria-live", "polite");
-    region.style.position = "fixed";
-    region.style.width = "1px";
-    region.style.height = "1px";
-    region.style.overflow = "hidden";
-    region.style.clipPath = "inset(50%)";
-    document.body.append(region);
-    this.liveRegion = region;
+    this.liveRegion = createStatusAnnouncer("save-slot-live-region");
   }
 
   private announceSelection(): void {

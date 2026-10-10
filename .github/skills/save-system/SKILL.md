@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v18, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v19, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -37,7 +37,14 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 18.
+`SAVE_VERSION` is 19.
+
+Schema v19 adds exact pending tavern/festival sessions, permanent session and
+settlement watermarks, finite milestone claims, paid/practice personal bests,
+natural statistics, discovered venues, and bounded history through
+`src/systems/minigameState.ts`. History is never a payment ledger. Replacing a
+bad seed or retiring an invalid pending state cannot refund, reroll, recharge,
+replay a reward, or restore boat condition.
 
 ```typescript
 interface SaveData {
@@ -108,6 +115,7 @@ interface PlayerProgression {
   gathering: GatheringState;
   crafting: CraftingState;
   nautical: NauticalState;
+  minigames: MinigameState;
   discoveredFeatureIds: FeatureId[];
   pendingFeatureRevealIds: FeatureId[];
   debugDiscoveredFeatureIds: FeatureId[];
@@ -167,6 +175,11 @@ Feature discovery persists only stable revealed IDs, pending one-time feedback,
 marked debug reveals, and debug-suppressed evidence. Availability is reconciled
 from authoritative gameplay state and never controls that state.
 
+`minigames` persists only exact activity authority and durable personal evidence.
+The moving archery meter, input contexts, Phaser/DOM objects, and presentation
+clocks are runtime-only. Accepted inputs, payments, hull wear, settlement, and
+abandonment use save-before-reveal rollback across all touched consumers.
+
 ## Loading and migration
 
 Treat parsed JSON as `unknown`. Use typed record guards and normalization
@@ -221,6 +234,10 @@ helpers; do not cast unvalidated nested values directly.
 - Missing, malformed, duplicate, or unknown feature IDs through
   `normalizeFeatureDiscoveryProgress()`; schema-v16 and older saves discard
   pending/debug metadata and silently reconcile mature authoritative evidence
+- Schema-v18 and older deterministic empty minigame defaults; current unknown
+  normalization validates venue/ruleset/difficulty IDs, fixed challenge
+  components, score/payout caps, revisions/phases, permanent watermarks, finite
+  claims, debug/practice isolation, and recovered location/boat state
 - Missing time and weather data
 - Invalid string arrays and explored-tile records
 
@@ -312,7 +329,7 @@ recoverable valid campaign.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v18 playtime, position, objective/reward/warning quest state,
+- Current schema-v19 playtime, minigame authority, position, objective/reward/warning quest state,
   skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
@@ -336,9 +353,14 @@ recoverable valid campaign.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v18 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v19 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
+
+`tests/minigameSave.test.ts` covers exact pending/result round trips, conservative
+corrupt repair, legacy defaults, and manual-source isolation.
+`electron-tests/minigames.spec.ts` covers actual multi-input activity recovery
+and once-only settlement on the secure packaged origin.
 
 ## Common pitfalls
 

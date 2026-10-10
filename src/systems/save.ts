@@ -61,6 +61,7 @@ import { normalizeGatheringState } from "./gatheringState";
 import { normalizeCraftingState } from "./craftingState";
 import { reconcileCraftingRecipes } from "./crafting";
 import { normalizeNauticalState } from "./nauticalState";
+import { normalizeMinigameState, validateMinigameRecovery } from "./minigameState";
 import {
   getBoat,
   getPort,
@@ -81,7 +82,7 @@ import {
   type SaveStorageErrorCode,
 } from "./saveStorage";
 
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -584,6 +585,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
         gathering: normalizeGatheringState(undefined, sourceVersion),
         crafting: normalizeCraftingState(undefined, sourceVersion),
         nautical: normalizeNauticalState(undefined, sourceVersion),
+        minigames: normalizeMinigameState(undefined, sourceVersion),
         discoveredFeatureIds: [],
         pendingFeatureRevealIds: [],
         debugDiscoveredFeatureIds: [],
@@ -657,6 +659,10 @@ export function normalizeSaveData(value: unknown): SaveData | null {
       data.player.progression.nautical,
       sourceVersion,
     );
+    data.player.progression.minigames = normalizeMinigameState(
+      data.player.progression.minigames,
+      sourceVersion,
+    );
     const featureDiscovery = sourceVersion < 17
       ? normalizeFeatureDiscoveryProgress({})
       : normalizeFeatureDiscoveryProgress(data.player.progression);
@@ -727,6 +733,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     }
 
     normalizePlayerLocation(data.player);
+    validateMinigameRecovery(data.player);
     replayCodexUnlocks(data.codex, data.player);
     reconcileCraftingRecipes(data.player, data.codex);
     reconcileAchievements({

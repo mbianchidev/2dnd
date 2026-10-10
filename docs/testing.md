@@ -33,6 +33,9 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - player and companion progression, gambits, inventories, transfers
 - quests, cutscene triggers/queues, Codex, events, social state, achievements
 - gathering, crafting, nautical state, world/map/trap/fog helpers
+- all three tavern/festival activities, every ordered 2d6 outcome and optimal
+  stopping state, neutral precision scoring, reachable courses, atomic economy,
+  finite claims, rollback, debug exclusion, and exact/corrupt pending recovery
 - save round trips, migrations, corruption repair, and cross-field validation
 - semantic input mappings, context priority, repeats, cleanup, and suppression
 - pure layout, wrapping, pagination, safe-area, and focus math
@@ -52,6 +55,9 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 - random and boss defeat recovery
 - tutorial, Tips, Codex, inventory, achievements, events, gathering, crafting,
   nautical, feature discovery, save-slot management/recovery, and accessibility
+- tavern dice, archery, and regatta through real keyboard, touch, and gamepad
+  controls, fixed challenges/forecasts, reduced motion, paid/practice/debug
+  records, quota rejection, input cleanup, and pending/result reload
 - keyboard, pointer, touch, gamepad, mobile text entry, title actions, landscape
   confirmations, and active-source prompts
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
@@ -71,11 +77,13 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v18 autosave/manual-slot persistence,
+- real character creation, schema-v19 autosave/manual-slot persistence,
   relaunch, and continue
 - keyboard Save & Return to Title plus pointer Quit Desktop
 - lifecycle/quit log creation without campaign-content leakage
 - renderer/page error cleanliness
+- all three optional activities with keyboard, emulated touch, and gamepad,
+  including exact pending/result recovery and once-only payouts
 
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
 Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
@@ -85,7 +93,7 @@ Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
 Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work. The command rebuilds the production `/2dnd/`
 target, launches it on an unused local port, and samples cache-disabled
-headless Chromium startup with both empty storage and a fresh schema-v18 save.
+headless Chromium startup with both empty storage and a fresh current-schema save.
 It reports:
 
 - deployed and JavaScript raw/gzip sizes plus source-map size
@@ -109,6 +117,12 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Prefer stable debug-state transitions, layout IDs, and semantic actions.
 - Hold frame-polled Phaser keys across animation frames; instantaneous presses
   can be missed.
+- Release single-step movement after the expected position appears, rather
+  than holding through the next movement-repeat interval.
+- In Electron, wait for the Boot title before fixture writes or reloads;
+  the correct origin alone does not mean initial navigation has finished.
+- After native fullscreen restoration, settle a complete input/layout frame and
+  remeasure canvas pointer targets after hover before pressing them.
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.
@@ -145,6 +159,12 @@ for them before release.
 `.github/workflows/pr.yml` runs Node 24, `npm ci`, typecheck, full Vitest,
 Chromium installation, full Playwright, and the production build for pull
 requests to `main`.
+
+PR and desktop concurrency is scoped to the full `github.ref`
+(`pr-${{ github.ref }}` / `desktop-${{ github.ref }}`). Independent pull
+requests can validate concurrently; repeated runs for one ref stay serialized.
+Both retain `cancel-in-progress: false`, all release-gate steps, existing
+permissions, and unchanged triggers.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page

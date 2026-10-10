@@ -446,6 +446,17 @@ minigame logic in `src/systems/gathering.ts`, schema normalization in
 location-derived nodes, route guarded finds through normal Battle hooks, and
 keep material identity limited to stable `Item.material` recipe-input metadata.
 
+## Tavern and festival games
+
+Use the [minigames skill](../minigames/SKILL.md) and
+[`docs/minigames.md`](../../../docs/minigames.md) for all three original
+activities. Definitions and focused pure mechanics own exact seeded challenges,
+fixed forecasts, capped local economy, permanent watermarks, finite claims, and
+unknown recovery. The Overworld manager owns accessible controls/records,
+runtime-only archery previews, semantic-context restoration, and cleanup.
+Practice/debug never grant paid milestones or natural achievement credit;
+history never authorizes payment and no consumer controls campaign quests.
+
 ## Crafting
 
 Crafting recipes live in `src/data/crafting.ts`, atomic mechanics and discovery

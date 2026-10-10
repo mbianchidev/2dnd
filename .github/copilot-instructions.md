@@ -20,7 +20,8 @@ procedural graphics/audio, weather, day/night, a 90-chunk world, connected city
 districts, multi-level dungeons, procedural traps, non-combat skill checks,
 quest-recruited companions, ranked gambits, elemental interactions, status
 effects, boss fights, and a replayable campaign epilogue with post-game
-continuation, plus deterministic fishing, mining, and foraging minigames.
+continuation, deterministic fishing/mining/foraging, and optional Crown & Bones,
+class-neutral archery, and Harbor Regatta minigames.
 
 ## Stack
 
@@ -292,6 +293,7 @@ interface PlayerProgression {
   gathering: GatheringState;
   crafting: CraftingState;
   nautical: NauticalState;
+  minigames: MinigameState;
   discoveredFeatureIds: FeatureId[];
   pendingFeatureRevealIds: FeatureId[];
   debugDiscoveredFeatureIds: FeatureId[];
@@ -738,6 +740,39 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 - `/craft list|unlock|lock|craft|material|status|reset` is debug-only. Debug
   crafting and discovery do not advance natural crafting achievements.
 
+## Tavern and festival activities
+
+- Stable activities, venues, rulesets, difficulties, scores, rewards, and records
+  live in `src/data/minigames.ts`; focused `minigame*.ts` systems own deterministic
+  mechanics, transactions, unknown normalization, and pure layout/presentation.
+  Scene-owned controls, instructions, personal boards, and cleanup live in
+  `src/managers/minigames.ts` and procedural renderers.
+- Crown & Bones resolves exact 2d6 before presentation, exposes all 36 ordered
+  odds, caps stakes at 5/10/20g and total payout at twice the stake, and has no
+  positive optimal pre-entry expected return. Crowns affect score, not payout.
+- Archery borrows one bow for all classes and scores only accepted precision.
+  Its normal meter is runtime-only; reduced motion uses explicit aiming.
+  Never autosave frames, infer a shot from animation, or reroll saved targets.
+- Regatta uses canonical nautical cardinal movement, Water/boat/depth checks,
+  condition-loss multipliers, and seeded canonical weather. Persist forecast
+  and course; never move campaign position/sailing/fog or alter global weather.
+- Buy-ins, accepted inputs, wear, payouts, and abandonment persist atomically
+  before results. Failed writes restore all touched domains and consumers.
+  Use permanent session/settlement watermarks and finite milestone claims,
+  never the bounded 40-entry history, to authorize payment.
+- Paid 80+ skill runs refund at most their entry plus a first-only 8/16/24g
+  archery or 10/20/30g regatta bonus. Venue switching cannot repeat claims.
+  Free practice and persistently marked debug sessions grant no currency,
+  reputation, natural records/achievements, or wear.
+- Only first paid medals emit bounded town/faction reputation; normal wins and
+  losses never shift alignment. Lore and cosmetic achievements consume
+  authoritative evidence and never control quests, access, combat, or endings.
+- Reveal activity menus from venue evidence, keep rules/records paginated,
+  restore stable focus and semantic input, support all controls/text scales/
+  contrast/reduced motion, and clean up every owned callback/container.
+- `/minigame list|status|near|play` is local debug only. See `docs/minigames.md`
+  and the minigames skill.
+
 ## Alignment and reputation
 
 - Canonical definitions and thresholds live in `src/data/reputation.ts`; pure
@@ -789,7 +824,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 18.
+Save schema version is 19.
+
+Schema v19 adds `player.progression.minigames`: deterministic exact pending
+sessions/receipts, permanent sequence/settlement watermarks, finite milestone
+claims, discovered venues, paid/practice bests, natural statistics, and bounded
+history. Schema-v18 and older campaigns gain deterministic empty defaults.
+Validate known IDs, rulesets, fixed challenges, caps, phases/revisions, natural/
+debug/practice distinctions, and venue/owned-boat state. Corrupt pending repair
+never refunds, rerolls, recharges, replays a reward, or restores spent hull wear.
 
 Schema v18 adds non-negative campaign playtime and a resilient local slot
 layout: the legacy-compatible `2dnd_save` autosave, three stable manual slots,
@@ -931,7 +974,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v18
+  visibility, handedness, and prompt source only; they never enter schema-v19
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

@@ -96,6 +96,16 @@ timers, pointer controls, status record, and cleanup. Overworld resumes pending
 gathering before World Events, blocks movement and other interactions while it
 is open, and routes guarded rare finds through Battle with resolution hooks.
 
+`MinigameManager` owns in-place dice/archery/regatta panels, rules/personal
+boards, accepted input, live announcements, and cleanup. It leases
+`scene.data.semanticInputContext = "minigame"` and restores the previous value
+on close/shutdown. Hold confirms until keyup, capture stable session/revision
+intent, coalesce duplicates, and never leave held input for Overworld.
+Archery preview updates are runtime-only; accepted shots save before results.
+Resume exact pending/result state before exploration and block other
+state-changing inputs while the activity is open. Fog-hidden venue flags must
+have no hit target and become visible as exploration advances.
+
 ## Shared state flow
 
 State-bearing transitions use `createSharedSceneState()` and preserve:

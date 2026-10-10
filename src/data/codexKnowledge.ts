@@ -6,6 +6,8 @@ import {
 } from "./quests";
 import type { CutsceneId } from "./cutscenes";
 import { Terrain } from "./mapTypes";
+import { MINIGAME_CODEX_ENTRIES } from "./codexMinigames";
+import type { MinigameActivityId } from "./minigames";
 
 export const CODEX_KNOWLEDGE_CATEGORIES = [
   "location",
@@ -71,6 +73,11 @@ export interface CodexReputationSource extends CodexSourceBase {
   readonly milestoneId: string;
 }
 
+export interface CodexMinigameSource extends CodexSourceBase {
+  readonly type: "minigame";
+  readonly activityId: MinigameActivityId;
+}
+
 export type CodexUnlockSource =
   | CodexLocationSource
   | CodexQuestStageSource
@@ -80,7 +87,8 @@ export type CodexUnlockSource =
   | CodexNpcSource
   | CodexReadableSource
   | CodexWorldEventSource
-  | CodexReputationSource;
+  | CodexReputationSource
+  | CodexMinigameSource;
 
 export interface CodexKnowledgeEntry {
   readonly id: string;
@@ -877,6 +885,7 @@ export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
   ...FACTION_ENTRIES,
   ...HISTORY_ENTRIES,
   ...WORLD_EVENT_ENTRIES,
+  ...MINIGAME_CODEX_ENTRIES,
   {
     id: "locationTidehaven",
     category: "location",

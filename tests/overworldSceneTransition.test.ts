@@ -43,6 +43,8 @@ interface OverworldTransitionHarness {
   questJournal: { close(): void };
   chronicleManager: { close(): void };
   tutorialManager: { close(): void };
+  minigameManager: { isOpen(): boolean };
+  showMessage(message: string, color?: string): void;
   sceneTransitions: TransitionManagerHarness;
   autoSave(): void;
   handleAction(): void;
@@ -167,6 +169,7 @@ describe("OverworldScene transition contracts", () => {
       questJournal: { close: closeJournal },
       chronicleManager: { close: closeChronicle },
       tutorialManager: { close: closeTutorial },
+      minigameManager: { isOpen: () => false },
       sceneTransitions: transitionManager,
       autoSave,
     });
@@ -213,6 +216,7 @@ describe("OverworldScene transition contracts", () => {
     const handleDungeonAction = vi.fn(() => true);
     Object.assign(harness, {
       player,
+      minigameManager: { isOpen: () => false },
       sceneTransitions: {
         isPending: true,
         startWithFade: vi.fn(),
@@ -238,5 +242,25 @@ describe("OverworldScene transition contracts", () => {
     harness.handleAction();
 
     expect(handleDungeonAction).not.toHaveBeenCalled();
+  });
+
+  it("blocks world interaction and scene handoffs while a minigame owns input", () => {
+    const overworld = new OverworldScene();
+    const harness = overworld as unknown as OverworldTransitionHarness;
+    const startWithFade = vi.fn();
+    const showMessage = vi.fn();
+    Object.assign(harness, {
+      minigameManager: { isOpen: () => true },
+      sceneTransitions: { isPending: false, startWithFade },
+      showMessage,
+    });
+
+    harness.handleAction();
+    expect(harness.startCutscene(CAMPAIGN_EPILOGUE_CUTSCENE_ID)).toBe(false);
+    expect(startWithFade).not.toHaveBeenCalled();
+    expect(showMessage).toHaveBeenCalledWith(
+      "Finish or abandon the activity before starting a cutscene.",
+      "#ffe38a",
+    );
   });
 });

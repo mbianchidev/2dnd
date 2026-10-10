@@ -35,12 +35,18 @@ async function clickGame(
 ): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await page.mouse.click(
+  await page.mouse.move(
     bounds.x + (gameX / GAME_WIDTH) * bounds.width,
     bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
+  await page.mouse.down();
+  await page.waitForTimeout(80);
+  await page.mouse.up();
 }
 
 async function activateTitleAction(

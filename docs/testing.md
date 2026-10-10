@@ -82,6 +82,9 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
 Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
+Native onboarding holds semantic confirmation across frames and observes each
+screen/mode through debug state before the next action; fixed sleeps and rapid
+pointer/keyboard source switches are not transition evidence.
 
 ## Performance baseline
 

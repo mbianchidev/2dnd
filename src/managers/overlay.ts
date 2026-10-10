@@ -65,6 +65,7 @@ import {
   createPanelGraphics,
 } from "../utils/ui";
 import { syncInteractiveHitArea } from "./layout";
+import { createBattleTimingSettingsOverlay } from "./battleTimingSettings";
 import {
   layoutResponsiveGrid,
   restoreLayoutFocus,
@@ -1253,7 +1254,7 @@ export class OverlayManager {
         this.callbacks.openSaveSlots();
         return;
       case "settings":
-        this.showSettingsOverlay();
+        this.showSettingsOverlay(player);
         return;
     }
   }
@@ -1261,17 +1262,17 @@ export class OverlayManager {
   // ── Settings Overlay ───────────────────────────────────────────────
 
   /** Toggle the settings overlay. */
-  toggleSettingsOverlay(): void {
+  toggleSettingsOverlay(player: PlayerState): void {
     if (this.settingsOverlay) {
       this.settingsOverlay.destroy();
       this.settingsOverlay = null;
       return;
     }
-    this.showSettingsOverlay();
+    this.showSettingsOverlay(player);
   }
 
   /** Show the shared audio and accessibility settings. */
-  showSettingsOverlay(): void {
+  showSettingsOverlay(player: PlayerState): void {
     this.closeOverlays("menuOverlay", "equipOverlay", "statOverlay", "settingsOverlay");
 
     const { w, h, px, py, panelW, panelH } = calcPanelLayout(
@@ -1291,7 +1292,7 @@ export class OverlayManager {
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
     dim.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.x < px || pointer.x > px + panelW || pointer.y < py || pointer.y > py + panelH) {
-        this.toggleSettingsOverlay();
+        this.toggleSettingsOverlay(player);
       }
     });
     this.settingsOverlay.add(dim);
@@ -1307,6 +1308,16 @@ export class OverlayManager {
       py,
       panelW,
       panelH,
+      {
+        player,
+        openBattleTiming: () => {
+          this.settingsOverlay?.destroy();
+          this.settingsOverlay = createBattleTimingSettingsOverlay(
+            this.scene, player, () => this.callbacks.autoSave(),
+            () => this.showSettingsOverlay(player),
+          );
+        },
+      },
     );
 
     const hint = this.scene.add.text(px + panelW / 2, py + panelH - 10, "Click outside or press ESC to close", {

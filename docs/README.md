@@ -21,6 +21,7 @@ on discovering and playing the game.
 ## Focused references
 
 - [Companions and gambits](companions.md)
+- [Timed battle decisions](battle-timing.md)
 - [Desktop application](desktop.md)
 - [Inventory presentation](inventory.md)
 

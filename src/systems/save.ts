@@ -48,6 +48,10 @@ import {
   normalizeSeenCutsceneIds,
 } from "./cutscenes";
 import { normalizeTutorialProgress } from "./tutorial";
+import {
+  createBattleTimingSettings,
+  normalizeBattleTimingSettings,
+} from "./battleTimingSettings";
 import { normalizeWorldEventState } from "./worldEvents";
 import {
   createSocialState,
@@ -81,7 +85,7 @@ import {
   type SaveStorageErrorCode,
 } from "./saveStorage";
 
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -533,6 +537,9 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     data.player.knownTalents = normalizeStringArray(data.player.knownTalents);
 
     const playerRecord = data.player as unknown as Record<string, unknown>;
+    data.player.battleTiming = sourceVersion < 19
+      ? createBattleTimingSettings()
+      : normalizeBattleTimingSettings(playerRecord["battleTiming"]);
     if (!isRecord(playerRecord["position"])) {
       data.player.position = {
         x: readInteger(playerRecord["x"], 3),

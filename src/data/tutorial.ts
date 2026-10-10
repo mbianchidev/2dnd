@@ -248,10 +248,11 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     id: "combat",
     title: "Combat Basics",
-    summary: "Initiative decides turn order. Choose an action, then confirm a valid target.",
+    summary: "Choose an action and target in initiative order.",
     details: [
-      "Attacks roll a d20 against Armor Class. A natural 20 is a critical hit; a natural 1 misses.",
-      "Defend reduces incoming danger. Spells use MP, items are limited, and formation can protect back-row enemies.",
+      "d20 vs Armor Class: natural 20 is critical; natural 1 misses.",
+      "Defend protects. Spells use MP; items are limited.",
+      "Standard is unlimited. Settings > Battle Timing is optional.",
     ],
     controls: ["battleNavigate", "battleConfirm", "battleCancel"],
   },
@@ -305,6 +306,13 @@ export const TIPS: readonly TipDefinition[] = [
     category: "combat",
     title: "Protect your resources",
     body: "Spells spend MP and consumables leave inventory only after a valid action is confirmed. Bonus actions can be followed by one main action.",
+    unlock: { type: "always" },
+  },
+  {
+    id: "combat.timing",
+    category: "combat",
+    title: "Timed decisions",
+    body: "Standard is unlimited. Settings > Battle Timing sets 15-90s turns. Timeout: Defend. Bonus actions keep time. Esc/B pauses the log; Enter/A resumes.",
     unlock: { type: "always" },
   },
   {

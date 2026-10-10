@@ -5,6 +5,7 @@ import {
   type AudioPreferences,
 } from "../systems/accessibility";
 import { layoutTextStack, syncInteractiveHitArea } from "../managers/layout";
+import type { PlayerState } from "../systems/player";
 
 export const SETTINGS_PANEL_WIDTH = 520;
 export const SETTINGS_PANEL_HEIGHT = 480;
@@ -25,6 +26,12 @@ interface AudioChannel {
 
 export interface SettingsControls {
   controls: Phaser.GameObjects.GameObject[];
+}
+
+export interface SettingsControlsOptions {
+  player?: PlayerState;
+  openBattleTiming?: () => void;
+  openCampaignRules?: () => void;
 }
 
 function createControl(
@@ -55,7 +62,7 @@ function createControl(
   text.on("pointerout", () => text.setStroke("", 0));
   text.on("pointerdown", () => {
     onActivate();
-    updateLabel();
+    if (text.active) updateLabel();
   });
   return { text, updateLabel };
 }
@@ -119,6 +126,7 @@ export function addSettingsControls(
   py: number,
   panelWidth: number,
   panelHeight: number,
+  campaign?: SettingsControlsOptions,
 ): SettingsControls {
   const centerX = px + panelWidth / 2;
   const contentX = px + 18;
@@ -127,12 +135,12 @@ export function addSettingsControls(
   const columnWidth = Math.floor((contentWidth - columnGap) / 2);
   const rightX = contentX + columnWidth + columnGap;
   const controls: Phaser.GameObjects.GameObject[] = [];
-  const title = scene.add.text(centerX, py + 10, "Settings", {
+  const title = scene.add.text(campaign ? contentX : centerX, py + 10, "Settings", {
     fontSize: "15px",
     fontFamily: "monospace",
     color: "#ffdf66",
     fontStyle: "bold",
-  }).setOrigin(0.5, 0);
+  }).setOrigin(campaign ? 0 : 0.5, 0);
   const audioTitle = scene.add.text(contentX, py + 48, "Audio", {
     fontSize: "12px",
     fontFamily: "monospace",
@@ -141,6 +149,39 @@ export function addSettingsControls(
   });
   container.add([title, audioTitle]);
   controls.push(title, audioTitle);
+  const openBattleTiming = campaign?.openBattleTiming;
+  if (openBattleTiming) {
+    const battle = createControl(
+      scene, "settings-battle-timing", rightX + columnWidth / 2, py + 8, columnWidth,
+      () => "> Battle Timing", openBattleTiming,
+    );
+    container.add(battle.text);
+    controls.push(battle.text);
+    const readyAt = scene.time.now + 150;
+    let pending = false;
+    const keyDown = (event: KeyboardEvent): void => {
+      if (
+        container.active && scene.time.now >= readyAt && !event.repeat
+        && (event.key === "Enter" || event.key === " ")
+      ) {
+        pending = true;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    };
+    const keyUp = (event: KeyboardEvent): void => {
+      if (pending && (event.key === "Enter" || event.key === " ")) {
+        pending = false;
+        if (container.active) openBattleTiming();
+      }
+    };
+    scene.input.keyboard?.on("keydown", keyDown);
+    scene.input.keyboard?.on("keyup", keyUp);
+    container.once(Phaser.GameObjects.Events.DESTROY, () => {
+      scene.input.keyboard?.off("keydown", keyDown);
+      scene.input.keyboard?.off("keyup", keyUp);
+    });
+  }
 
   const channels: AudioChannel[] = [
     {

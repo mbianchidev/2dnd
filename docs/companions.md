@@ -6,7 +6,7 @@
 ## Party model
 
 The persistent party was introduced in schema v6 and lives at `player.party` in
-the current schema v18:
+the current schema v19:
 
 - `companions`: unique recruited `CompanionState` records
 - `activeCompanionIds`: up to three recruited IDs in battle/follower order
@@ -15,6 +15,11 @@ The hero remains the owner of gold, bank balance, world position, mounts, and
 world progression. Each companion owns independent XP, level, HP/MP, stats,
 spells, abilities, talents, inventory, equipment, active effects, dialogue
 cursor, control mode, and gambits.
+
+Optional [timed decisions](battle-timing.md) apply only to manual companion
+turns, including target and bonus-action choices. Gambits keep their existing
+untimed execution. A timeout validates one Defend if the main action remains,
+otherwise only ends the turn.
 
 The three stable companion IDs are:
 

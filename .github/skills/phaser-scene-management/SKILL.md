@@ -254,6 +254,17 @@ on mouse-wheel input.
 
 ## Battle lifecycle
 
+- Standard creates no countdown or timed menu manager. Timed mode uses the
+  scene-owned `BattleTimingManager`, `BattleHeroDecisionManager`, and
+  `BattleDecisionMenu`; clear their UI, listeners, ARIA regions, and clock on
+  every handoff/shutdown. Begin only after controlled actor statuses resolve.
+- Pause through shared input availability and real action presentation; source
+  loss, blocking log reading, text entry, fades, and scene pause cannot expire a
+  budget. Recovery confirmation must not also confirm the selected action.
+- `battleTimingAdjustment` is runtime-only and may suggest a supported duration,
+  never opt in. Preserve configuration through the shared `player` contract;
+  do not persist a deadline or partial initiative/economy.
+
 - Reinitialize phase, menus, turn flags, discoveries, and monster effects in
   `init()`.
 - Build fresh per-monster combatants, sprites, text, status arrays, defend

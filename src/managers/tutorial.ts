@@ -19,6 +19,7 @@ import {
   type InputSource,
 } from "../systems/input";
 import type { PlayerState } from "../systems/player";
+import { layoutHorizontalStack } from "../systems/layout";
 import {
   calcPanelLayout,
   createDimGraphics,
@@ -376,13 +377,28 @@ export class TutorialManager {
       () => this.close(),
     );
     container.add([title, replay, close]);
+    const actions = layoutHorizontalStack([
+      { id: "replay", width: replay.displayWidth, height: replay.displayHeight },
+      { id: "close", width: close.displayWidth, height: close.displayHeight },
+    ], {
+      x: title.x + title.displayWidth + 8,
+      y: py + 26,
+      width: px + panelW - 16 - (title.x + title.displayWidth + 8),
+      gap: 8,
+      justify: "end",
+    });
+    [replay, close].forEach((button, index) => {
+      const item = actions.items[index]!;
+      button.setPosition(item.x + button.displayWidth / 2, item.y);
+    });
+    const tabsY = Math.max(py + 58, py + 26 + actions.height + 8);
 
     const tabWidth = (panelW - 36) / TIP_CATEGORIES.length;
     TIP_CATEGORIES.forEach((tipCategory, index) => {
       const active = index === this.categoryIndex;
       const tab = this.scene.add.text(
         px + 18 + tabWidth * index + tabWidth / 2,
-        py + 58,
+        tabsY,
         TIP_CATEGORY_LABELS[tipCategory],
         {
           fontSize: "11px",
@@ -404,7 +420,7 @@ export class TutorialManager {
     });
 
     const listX = px + 22;
-    const listY = py + 104;
+    const listY = tabsY + 46;
     const listWidth = 172;
     if (tips.length === 0) {
       const locked = this.scene.add.text(
@@ -462,7 +478,7 @@ export class TutorialManager {
         fontFamily: "monospace",
         color: "#77839c",
       },
-    ).setOrigin(0.5, 0);
+    ).setOrigin(0.5, 1);
     container.add(hint);
   }
 

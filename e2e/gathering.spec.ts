@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { SAVE_VERSION } from "../src/systems/save";
 import { clickLayoutItem } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
@@ -300,6 +301,6 @@ test("plays, reloads, records, and battles through all gathering disciplines", a
   save = await readSave(page);
   expect(save.player.inventory.some((item) => item.id === "stormEel")).toBe(true);
   expect(save.player.progression.gathering.pending).toBeNull();
-  expect(save.version).toBe(18);
+  expect(save.version).toBe(SAVE_VERSION);
   expect(browserErrors).toEqual([]);
 });

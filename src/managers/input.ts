@@ -5,6 +5,8 @@ import {
   SemanticInputState,
   inputPromptSource,
   inputSource,
+  inputAvailability,
+  hasLostActiveGamepad,
   isInputAction,
   isTouchActionAvailable,
   normalizeAnalogAxis,
@@ -130,6 +132,7 @@ export class SemanticInputRuntime {
   private cursorY = 0;
   private cursorActive = false;
   private gamepadConnected = false;
+  private activeGamepadIndex: number | null = null;
   private unsubscribePreferences: (() => void) | null = null;
   private unsubscribeFeatures: (() => void) | null = null;
 
@@ -141,13 +144,21 @@ export class SemanticInputRuntime {
     window.addEventListener("gamepadconnected", this.handleGamepadConnection);
     window.addEventListener("gamepaddisconnected", this.handleGamepadConnection);
     window.addEventListener("blur", this.handleBlur);
+    window.addEventListener("focus", this.handleFocus);
     document.addEventListener("visibilitychange", this.handleVisibility);
+    document.addEventListener("focusin", this.handleTextFocus);
+    document.addEventListener("focusout", this.handleTextFocus);
     this.game.canvas.addEventListener("pointerdown", this.handlePointerSource, true);
     this.game.canvas.addEventListener("pointermove", this.handlePointerSource, true);
     this.createTouchControls();
     this.createCursor();
     this.unsubscribePreferences = gamePreferences.subscribe(() => {
       this.applyControlPreferences();
+      inputAvailability.update({
+        pageVisible: document.visibilityState === "visible",
+        windowFocused: document.hasFocus(),
+        textEntryActive: this.isTextEntryActive(),
+      });
     });
     this.unsubscribeFeatures = featureAvailability.subscribe(() => {
       this.applyTouchActionAvailability();
@@ -163,7 +174,10 @@ export class SemanticInputRuntime {
     window.removeEventListener("gamepadconnected", this.handleGamepadConnection);
     window.removeEventListener("gamepaddisconnected", this.handleGamepadConnection);
     window.removeEventListener("blur", this.handleBlur);
+    window.removeEventListener("focus", this.handleFocus);
     document.removeEventListener("visibilitychange", this.handleVisibility);
+    document.removeEventListener("focusin", this.handleTextFocus);
+    document.removeEventListener("focusout", this.handleTextFocus);
     this.game.canvas.removeEventListener("pointerdown", this.handlePointerSource, true);
     this.game.canvas.removeEventListener("pointermove", this.handlePointerSource, true);
     this.unsubscribePreferences?.();
@@ -175,12 +189,18 @@ export class SemanticInputRuntime {
     this.touchRoot = null;
     this.cursor = null;
     this.clearAll();
+    this.activeGamepadIndex = null;
+    this.gamepadConnected = false;
+    inputAvailability.reset();
   }
 
   private readonly poll = (timestamp: number): void => {
     const sceneKey = this.getActiveSceneKey();
     const context = this.getContext();
     if (sceneKey !== this.activeSceneKey || context !== this.activeContext) {
+      if (sceneKey !== this.activeSceneKey) {
+        inputAvailability.acknowledgeControllerRecovery();
+      }
       this.closeMobileTextInput();
       this.releaseAllSyntheticKeys();
       this.state.clear();
@@ -191,6 +211,7 @@ export class SemanticInputRuntime {
       this.applyTouchActionAvailability(context);
     }
     this.pollGamepads(timestamp);
+    inputAvailability.update({ textEntryActive: this.isTextEntryActive() });
     for (const event of this.state.update(timestamp)) this.dispatch(event);
     this.animationFrame = window.requestAnimationFrame(this.poll);
   };
@@ -215,7 +236,13 @@ export class SemanticInputRuntime {
   };
 
   private readonly handleGamepadConnection = (): void => {
-    this.gamepadConnected = navigator.getGamepads().some(Boolean);
+    const previouslyConnected = this.gamepadConnected;
+    const pads = navigator.getGamepads();
+    this.gamepadConnected = pads.some(Boolean);
+    this.updateControllerRecovery(previouslyConnected, pads);
+    this.releaseDisconnectedGamepads(new Set(
+      pads.flatMap((pad) => pad?.mapping === "standard" ? [pad.index] : []),
+    ));
     if (!this.gamepadConnected) {
       const released = this.state.releaseMatching("gamepad:");
       for (const entry of released) this.releaseSyntheticToken(entry.token);
@@ -225,12 +252,51 @@ export class SemanticInputRuntime {
   };
 
   private readonly handleBlur = (): void => {
+    inputAvailability.update({ windowFocused: false });
     this.clearAll();
   };
 
+  private readonly handleFocus = (): void => {
+    inputAvailability.update({ windowFocused: true });
+  };
+
   private readonly handleVisibility = (): void => {
+    inputAvailability.update({ pageVisible: document.visibilityState === "visible" });
     if (document.visibilityState !== "visible") this.clearAll();
   };
+
+  private readonly handleTextFocus = (): void => {
+    inputAvailability.update({ textEntryActive: this.isTextEntryActive() });
+  };
+
+  private isTextEntryActive(): boolean {
+    const element = document.activeElement;
+    return element instanceof HTMLElement
+      && (element.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(element.tagName));
+  }
+
+  private updateControllerRecovery(
+    previouslyConnected: boolean,
+    pads: readonly (Gamepad | null)[],
+  ): void {
+    const source = inputSource.get();
+    const indices = pads.flatMap((pad) => pad?.mapping === "standard" ? [pad.index] : []);
+    if (
+      hasLostActiveGamepad(source, this.activeGamepadIndex, indices)
+      || (previouslyConnected && !this.gamepadConnected && source === "gamepad")
+    ) {
+      inputAvailability.update({ controllerRecovery: true });
+    }
+  }
+
+  private releaseDisconnectedGamepads(connectedIndices: ReadonlySet<number>): void {
+    for (const index of this.gamepadSnapshots.keys()) {
+      if (connectedIndices.has(index)) continue;
+      this.gamepadSnapshots.delete(index);
+      const released = this.state.releaseMatching(`gamepad:${index}:`);
+      for (const entry of released) this.releaseSyntheticToken(entry.token);
+    }
+  }
 
   private clearAll(): void {
     this.state.clear();
@@ -243,8 +309,13 @@ export class SemanticInputRuntime {
 
   private pollGamepads(timestamp: number): void {
     const pads = navigator.getGamepads();
+    const previouslyConnected = this.gamepadConnected;
     this.gamepadConnected = pads.some(Boolean);
-    const connectedIndices = new Set<number>();
+    this.updateControllerRecovery(previouslyConnected, pads);
+    const connectedIndices = new Set(pads.flatMap(
+      (pad) => pad?.mapping === "standard" ? [pad.index] : [],
+    ));
+    this.releaseDisconnectedGamepads(connectedIndices);
     for (const pad of pads) {
       if (!pad || pad.mapping !== "standard") continue;
       connectedIndices.add(pad.index);
@@ -265,17 +336,12 @@ export class SemanticInputRuntime {
         && next.buttons[11] === true
         && previous.buttons[11] !== true
       ) {
+        this.activeGamepadIndex = pad.index;
         this.clickCursor();
         inputSource.set("gamepad");
         this.updatePresentation("gamepad");
       }
       this.gamepadSnapshots.set(pad.index, next);
-    }
-    for (const index of this.gamepadSnapshots.keys()) {
-      if (connectedIndices.has(index)) continue;
-      this.gamepadSnapshots.delete(index);
-      const released = this.state.releaseMatching(`gamepad:${index}:`);
-      for (const entry of released) this.releaseSyntheticToken(entry.token);
     }
   }
 
@@ -302,6 +368,7 @@ export class SemanticInputRuntime {
         binding.direction ?? 1,
       );
     if (pressed && !wasPressed) {
+      this.activeGamepadIndex = index;
       const action = resolveGamepadAction(binding, this.getContext());
       if (
         this.cursorActive
@@ -336,6 +403,7 @@ export class SemanticInputRuntime {
     const x = normalizeAnalogAxis(gamepad.axes[2] ?? 0);
     const y = normalizeAnalogAxis(gamepad.axes[3] ?? 0);
     if (x === 0 && y === 0) return;
+    this.activeGamepadIndex = gamepad.index;
     const bounds = this.game.canvas.getBoundingClientRect();
     if (!this.cursorActive) {
       this.cursorX = bounds.left + bounds.width / 2;

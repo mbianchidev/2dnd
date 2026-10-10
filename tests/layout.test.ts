@@ -6,6 +6,7 @@ import {
   getVisibleMeasuredRange,
   insetRect,
   layoutResponsiveGrid,
+  layoutHorizontalStack,
   layoutVerticalStack,
   moveGridSelection,
   paginateMeasuredItems,
@@ -14,6 +15,31 @@ import {
 } from "../src/systems/layout";
 
 describe("measured UI layout", () => {
+  it.each([
+    { title: 176, replay: 131, close: 61 },
+    { title: 220, replay: 158, close: 70 },
+    { title: 264, replay: 187, close: 79 },
+  ])("keeps measured Tips header controls disjoint at every text scale: %j", (sizes) => {
+    const x = 49 + sizes.title + 8;
+    const row = layoutHorizontalStack([
+      { id: "replay", width: sizes.replay, height: 35 },
+      { id: "close", width: sizes.close, height: 35 },
+    ], { x, y: 55, width: 599 - x, gap: 8, justify: "end" });
+    const report = auditLayout([
+      { id: "title", bounds: { x: 49, y: 45, width: sizes.title, height: 32 } },
+      ...row.items.map((item) => ({ id: item.id, bounds: item })),
+    ], { x: 25, y: 29, width: 590, height: 470 });
+    expect(report.overlaps).toEqual([]);
+    expect(report.clipping).toEqual([]);
+    expect(row.items[1]!.x + row.items[1]!.width).toBe(599);
+  });
+
+  it("lays out an empty horizontal stack without a phantom gap", () => {
+    expect(layoutHorizontalStack([], { x: 12, gap: 8 })).toEqual({
+      items: [], width: 0, height: 0,
+    });
+  });
+
   it("centers and clamps panels inside safe-area insets", () => {
     expect(centeredRect(
       { x: 0, y: 0, width: 320, height: 240 },

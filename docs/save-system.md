@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v18; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v19; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -33,7 +33,21 @@ normalization remains beside its domain where appropriate, including
 
 ## Current schema
 
-`SAVE_VERSION` is **18**. Schema v18 adds normalized non-negative
+`SAVE_VERSION` is **19**. Schema v19 adds normalized `player.battleTiming`
+configuration: Standard/Timed mode, a supported 15/30/45/60/90-second duration,
+and fixed validated Defend. Schema-v18 and older campaigns always migrate to
+Standard. Missing/malformed modes never opt in, unsupported durations recover
+to 30 seconds, and unsupported timeout actions recover to Defend.
+
+Only configuration is persisted. Battle reload retains existing checkpoint or
+pending-encounter recovery; no deadline, partial initiative/economy, or timeout
+callback is saved or executed on load. See [Timed battle decisions](battle-timing.md).
+Timing configuration is editable only in Overworld Settings; Battle log
+Pause/Resume cannot overwrite a checkpoint with unsaved combat resources.
+Result/reward hooks run before hero/companion combat effects are cleared and
+before the victory, flee, or defeat autosave.
+
+Schema v18 added normalized non-negative
 `playtimeSeconds` to each campaign document. Slot names, backup state, and
 migration bookkeeping remain storage metadata rather than campaign authority.
 
@@ -49,6 +63,7 @@ player.position
 player.progression
 player.party
 player.activeEffects
+player.battleTiming
 ```
 
 `defeatedBosses` is serialized as an array and restored to a `Set<string>` for
@@ -130,6 +145,7 @@ Current loading preserves and repairs earlier releases, including:
 - World Event, social, achievement, gathering, crafting, nautical, and feature
   discovery defaults and corruption repair
 - schema-v17 and older playtime defaulting to zero
+- schema-v18 and older defaulting to unlimited Standard battle timing
 
 Migrations must not replay completed rewards, reroll pending outcomes, infer
 unknown defeat history, create duplicate companions, or emit mature-save

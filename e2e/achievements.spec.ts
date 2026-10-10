@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { SAVE_VERSION } from "../src/systems/save";
 import { clickLayoutItem, layoutItemCenter } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
@@ -216,7 +217,7 @@ async function continueToOverworld(page: Page): Promise<void> {
     const saveModule = await import(modulePath);
     return saveModule.loadGame()?.version ?? null;
   });
-  expect(validSaveVersion).toBe(18);
+  expect(validSaveVersion).toBe(SAVE_VERSION);
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
   await holdKey(page, "Space");

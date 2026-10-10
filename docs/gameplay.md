@@ -101,6 +101,14 @@ A full party wipe applies one recovery result, autosaves it, reports exact gold
 and XP losses, clears Battle effects, and returns the party to the last town at
 half HP/MP.
 
+Standard battles remain unlimited. **Esc menu > Settings > Battle Timing**
+opts only the current campaign into 15/30/45/60/90-second hero and manual
+companion decisions. Bonus actions keep the remaining budget; timeout validates
+Defend or ends an already-spent main-action turn. Action presentation, blocking
+overlays/log reading, transitions, backgrounding, and controller recovery pause
+time. Esc/B or Pause reads the log; Enter/A or Resume continues without acting.
+See [Timed battle decisions](battle-timing.md) for reload and control details.
+
 ## Exploration
 
 The world contains 90 legacy-compatible chunks, 13 cities including optional
@@ -155,5 +163,6 @@ Accessibility and presentation settings include:
 - manual or automatic cutscene advance
 - touch visibility, handedness, and prompt-source controls
 
-Settings are stored separately from campaign progress. See
+Audio, accessibility, and control preferences are stored separately from campaign
+progress; Battle Timing is per-campaign configuration. See
 [Getting started](getting-started.md#local-save-data) for storage details.

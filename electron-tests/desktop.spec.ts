@@ -12,6 +12,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { SAVE_VERSION } from "../src/systems/save";
 
 const APP_ROOT = resolve(import.meta.dirname, "..");
 const SAVE_KEY = "2dnd_save";
@@ -45,19 +46,49 @@ async function launchDesktop(
   });
 }
 
-async function clickGame(
+async function waitForInputFrames(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
+}
+
+async function gamePoint(
   page: Page,
   gameX: number,
   gameY: number,
-): Promise<void> {
+): Promise<{ x: number; y: number }> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await page.mouse.click(
-    bounds.x + (gameX / GAME_WIDTH) * bounds.width,
-    bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
-  );
+  return {
+    x: bounds.x + (gameX / GAME_WIDTH) * bounds.width,
+    y: bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
+  };
+}
+
+async function clickGame(page: Page, gameX: number, gameY: number): Promise<void> {
+  const point = await gamePoint(page, gameX, gameY);
+  await page.mouse.click(point.x, point.y);
+}
+
+async function holdBootPointer(page: Page, gameX: number, gameY: number): Promise<void> {
+  await waitForInputFrames(page);
+  const point = await gamePoint(page, gameX, gameY);
+  await page.mouse.move(point.x, point.y);
+  await waitForInputFrames(page);
+  await page.mouse.down();
+  await waitForInputFrames(page);
+  await page.mouse.up();
+  await waitForInputFrames(page);
+}
+
+async function pressBootKey(page: Page, key: string): Promise<void> {
+  await waitForInputFrames(page);
+  await page.keyboard.down(key);
+  await waitForInputFrames(page);
+  await page.keyboard.up(key);
+  await waitForInputFrames(page);
 }
 
 async function holdKey(
@@ -84,11 +115,10 @@ async function activateTitleAction(
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const state = await page.locator("#debug-state").textContent() ?? "";
     if (state.includes(marker)) {
-      await page.keyboard.press("Enter");
+      await pressBootKey(page, "Enter");
       return;
     }
-    await page.keyboard.press("ArrowUp");
-    await page.waitForTimeout(50);
+    await pressBootKey(page, "ArrowUp");
   }
   throw new Error(`Unable to select desktop title action: ${action}`);
 }
@@ -96,19 +126,24 @@ async function activateTitleAction(
 async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await activateTitleAction(page, "newGame");
   await waitForState(page, "BOOT | Screen: character");
-  await clickGame(page, 320, 76);
+  await holdBootPointer(page, 320, 76);
   const nameInput = page.locator("#mobile-text-input input");
   await expect(nameInput).toBeVisible();
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
-  await clickGame(page, 284, 160);
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(250);
-  await clickGame(page, 390, 64);
-  await clickGame(page, 400, 460);
-  await page.waitForTimeout(250);
-  await clickGame(page, 320, 112);
-  await clickGame(page, 420, 312);
+  await expect(nameInput).toBeHidden();
+  await holdBootPointer(page, 284, 160);
+  await waitForState(page, "BOOT | Screen: character [CLASS:ranger]");
+  await pressBootKey(page, "Enter");
+  await waitForState(page, "BOOT | Screen: stats [STAT:strength] [MODE:pointbuy]");
+  await holdBootPointer(page, 390, 64);
+  await waitForState(page, "BOOT | Screen: stats [STAT:strength] [MODE:random]");
+  await pressBootKey(page, "Enter");
+  await waitForState(page, "BOOT | Screen: appearance [GROUP:1/3]");
+  await holdBootPointer(page, 320, 112);
+  await waitForState(page, "BOOT | Screen: appearance [GROUP:1/3]");
+  await pressBootKey(page, "Enter");
+  await waitForState(page, "CUTSCENE");
 
   await expect.poll(async () => page.evaluate((key) => {
     const raw = localStorage.getItem(key);
@@ -129,10 +164,10 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
     return { name: player.name, version };
   }, SAVE_KEY)).toEqual({
     name: "Desktop Hero",
-    version: 18,
+    version: SAVE_VERSION,
   });
 
-  return { name: "Desktop Hero", version: 18 };
+  return { name: "Desktop Hero", version: SAVE_VERSION };
 }
 
 async function prepareSaveForOverworld(page: Page): Promise<void> {

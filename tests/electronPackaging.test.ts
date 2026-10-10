@@ -16,7 +16,7 @@ describe("Electron packaging configuration", () => {
     );
     expect("dependencies" in manifest).toBe(false);
     expect(manifest.devDependencies.phaser).toBe("^4.2.1");
-    expect(manifest.devDependencies["electron-builder"]).toBe("26.16.1");
+    expect(manifest.devDependencies["electron-builder"]).toBe("26.17.0");
     expect(manifest.overrides).toEqual({
       "@electron/asar": "4.2.1",
       "@electron/get": "5.1.0",

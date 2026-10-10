@@ -18,6 +18,10 @@ npm run test:desktop      # Production-like Electron Playwright smoke test
 npm run package:desktop   # Unsigned artifacts for the current host
 ```
 
+Run `npm run test:browser:install` once before desktop tests. The parity flow
+uses Playwright Chromium to export a browser campaign and verifies the same
+state/metadata through production Electron import controls.
+
 Desktop development binds Vite to a dynamically allocated loopback port.
 Production packages load `dist/game.html` from the relative Vite build at the
 stable `app://2dnd` origin.

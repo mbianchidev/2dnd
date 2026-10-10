@@ -73,6 +73,9 @@ per-slot backup recovery, and validated JSON import/export. Accessibility/audio
 settings and inventory-view preferences remain separate. Saves do not
 automatically sync between browsers, devices, private windows, or cleared site
 data. The game has no account system, analytics, or server-side save service.
+Unusable campaign imports cannot replace valid saves. If browser privacy
+settings block local storage, the game remains usable but clearly reports that
+campaigns cannot be saved.
 
 Maintainers can prepare credential-free Steam depot previews and exercise a
 1280x800 controller equivalent. Steam SDK, Steam achievements and Steam Cloud
@@ -103,7 +106,7 @@ npm run build          # Type-check and build dist/
 npm run build:desktop  # Type-check and build the desktop renderer and shell
 ```
 
-Install Chromium once before the browser suite with
+Install Chromium once before the browser or desktop suites with
 `npm run test:browser:install`.
 
 Use `npm run dev:desktop` for Electron development and

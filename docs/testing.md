@@ -34,6 +34,8 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - quests, cutscene triggers/queues, Codex, events, social state, achievements
 - gathering, crafting, nautical state, world/map/trap/fog helpers
 - save round trips, migrations, corruption repair, and cross-field validation
+- unusable hero-core/import rejection, legacy hero-item preservation and actor item repair,
+  exact-byte slot isolation, and denied `localStorage` getter recovery
 - semantic input mappings, context priority, repeats, cleanup, and suppression
 - pure layout, wrapping, pagination, safe-area, and focus math
 - transition contracts with mocked camera/time adapters
@@ -73,6 +75,10 @@ the relative `game.html` renderer. The smoke flow verifies:
 - fullscreen button and F11 behavior
 - real character creation, schema-v18 autosave/manual-slot persistence,
   relaunch, and continue
+- independent desktop copy/import, exact source-slot bytes, interrupted
+  staging/core-corruption recovery, and loading a second campaign after relaunch
+- a real browser JSON download imported through Electron's file picker, with
+  equivalent normalized campaign/metadata and no cross-origin preference merge
 - keyboard Save & Return to Title plus pointer Quit Desktop
 - lifecycle/quit log creation without campaign-content leakage
 - renderer/page error cleanliness
@@ -124,6 +130,8 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.
+- Await tutorial presentation and persisted completion before testing pending
+  mechanic reloads; the first Overworld frame can precede the tutorial handoff.
 - Keep screenshot tolerance focused on genuine cross-platform raster variance;
   functional assertions remain primary.
 - Treat page errors, unexpected console errors, overlaps, and clipping as test
@@ -158,10 +166,10 @@ for them before release.
 
 `.github/workflows/pr.yml` runs Node 24, `npm ci`, typecheck, full Vitest,
 Chromium installation, full Playwright, and the production build for pull
-requests to `main`.
-Its `pr-${{ github.ref }}` concurrency group queues work per branch/PR rather
-than serializing every unrelated pull request behind one global `pr` group;
-`cancel-in-progress` remains false.
+requests to `main`. Its `pr-${{ github.ref }}` concurrency group is scoped to
+the Git ref, matching the desktop workflow: independent pull requests and
+manually dispatched branches cannot replace one another's pending checks.
+Runs for the same ref remain serialized; `cancel-in-progress` remains false.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page
@@ -170,6 +178,8 @@ smoke-tests, and packages each desktop platform without publishing.
 `.github/workflows/release.yml` accepts matching `v*` tags on `main`, reruns the
 full browser gate, smoke-tests and packages all desktop targets, then attaches
 the unsigned installers to the generated GitHub release.
+Desktop artifact CI also installs Chromium so its browser-to-Electron save
+parity test does not depend on a pre-populated browser cache.
 
 `tests/steamConfig.test.ts` and `tests/steamPreparation.test.ts` check approved
 placeholders, IDs, architecture headers, emulation/catalog completeness,

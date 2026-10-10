@@ -124,6 +124,9 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
   failures.
 - Send visual skip controls while the result is still animating, before slower
   receipt/text assertions; exact-result evidence remains available afterward.
+- Install legacy-save fixtures at the next document's initialization, not into
+  a live scene whose pending autosaves can replace them. Assert migrated
+  evidence before exercising the UI that depends on it.
 
 The local `#layout-report` and canvas
 `data-layout-overlap-count`/`data-layout-clipping-count` attributes are

@@ -28,6 +28,11 @@ and changes spanning scenes, systems, data, renderers, or managers.
 
 ## Current architecture
 
+- Hero progression: immutable `data/classProgression.ts`, authoritative
+  `systems/classProgression.ts`, focused `classProgressionState.ts` and
+  `managers/heroProgression.ts`. Preserve normal cap 20, stable starting class,
+  single-class companions, frozen rest-ready choices and once-only grants.
+  Read [`docs/hero-progression.md`](../../../docs/hero-progression.md).
 - Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, `Cutscene`,
   `Ending`, and `Defeat`
 - Overworld orchestration: `src/scenes/Overworld.ts`
@@ -411,6 +416,9 @@ starting `DefeatScene`, which continues only to Overworld.
 
 ## Companions and gambits
 
+- Hero multiclass actions share the existing validated planner and executor.
+  Companion state must not own hero class progression. Treat external profiles
+  as future hooks; do not ship prestige/epic behavior implicitly.
 - Persistent party state lives at `player.party`; do not add a parallel scene
   payload or companion combat model.
 - Stable companion IDs are `guardian`, `scout`, and `mystic`.

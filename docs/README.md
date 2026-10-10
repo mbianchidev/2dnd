@@ -21,6 +21,7 @@ on discovering and playing the game.
 ## Focused references
 
 - [Companions and gambits](companions.md)
+- [Hero multiclass progression](hero-progression.md)
 - [Desktop application](desktop.md)
 - [Inventory presentation](inventory.md)
 

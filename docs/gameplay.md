@@ -66,6 +66,14 @@ Character creation follows:
 - Class boosts apply after base stats.
 - Level progression reaches 20 with class actions, spells, talents, equipment,
   hit-point growth, proficiency increases, and ability-score improvements.
+- At rest, keep advancing the starting class or select a qualified additional
+  class. Preview exact frozen gains before each one-level commit. The total
+  remains capped at 20, companions remain single-class, and there is no respec.
+- `E`, then `Tab`, opens the progression sheet, including pending stat
+  allocation and recovery of interrupted rest choices.
+
+See [Hero progression](hero-progression.md) for prerequisites and source-aware
+spell, feature, resource and save rules.
 
 ## Party, inventory, and gambits
 

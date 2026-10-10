@@ -4,17 +4,31 @@
 
 import { abilityModifier, rollDice } from "../systems/dice";
 import type { DieType } from "../systems/dice";
-import type { Spell } from "../data/spells";
-import { SPELLS, getSpell } from "../data/spells";
-import type { Ability } from "../data/abilities";
-import { ABILITIES, getAbility } from "../data/abilities";
-import { TALENTS, type Talent, getTalentAttackBonus, getTalentACBonus } from "../data/talents";
+import { getSpell } from "../data/spells";
+import { getAbility } from "../data/abilities";
+import { getTalentAttackBonus, getTalentACBonus } from "../data/talents";
 import type { Item } from "../data/items";
 import { getItem } from "../data/items";
 import { getMount } from "../data/mounts";
 import type { SkillCheckRecord } from "../data/skillChecks";
 import { createTrapSeed, type TrapState } from "../data/traps";
-import { getPlayerClass, getClassSpells, getClassAbilities } from "./classes";
+import { getPlayerClass } from "./classes";
+import { STARTING_RESOURCE_RULES } from "../data/classProgression";
+import {
+  allocateProgressionStatPoint,
+  canActorEquip,
+  canActorUseAbility,
+  canActorUseSpell,
+  createHeroClassProgression,
+  getActorPrimaryStat,
+  getEarnedPendingLevels,
+  getProficiencyBonus,
+  getSpellCastingStat,
+  processActorPendingLevelUps,
+  xpForLevel,
+  type HeroClassProgression,
+  type PendingLevelUpResult,
+} from "./classProgression";
 import { createQuestLog } from "./quests";
 import {
   cureWithItem,
@@ -133,6 +147,7 @@ export function isValidPointBuy(stats: PlayerStats): boolean {
 export interface PlayerState {
   name: string;
   level: number;
+  classProgression: HeroClassProgression;
   xp: number;
   hp: number;
   maxHp: number;
@@ -186,20 +201,15 @@ export type CombatActorState = Pick<
   | "equippedShield"
   | "appearanceId"
   | "activeEffects"
->;
+> & { classProgression?: HeroClassProgression };
 
 export type ProgressingActorState = CombatActorState & Pick<
   PlayerState,
   "xp" | "pendingStatPoints" | "pendingLevelUps"
 >;
 
-/** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
-export const ASI_LEVELS = [4, 8, 12, 16, 19];
-
-/** XP required to reach a given level. */
-export function xpForLevel(level: number): number {
-  return level * level * 100;
-}
+export { ASI_LEVELS } from "../data/classProgression";
+export { xpForLevel };
 
 /** Create a fresh level-1 player with provided base stats + class boosts. */
 export function createPlayer(
@@ -220,8 +230,10 @@ export function createPlayer(
 
   const conMod = abilityModifier(stats.constitution);
   const intMod = abilityModifier(stats.intelligence);
-  const startHp = Math.max(10, 25 + conMod * 3);
-  const startMp = Math.max(4, 8 + intMod * 2);
+  const startHp = Math.max(STARTING_RESOURCE_RULES.hp.minimum,
+    STARTING_RESOURCE_RULES.hp.base + conMod * STARTING_RESOURCE_RULES.hp.multiplier);
+  const startMp = Math.max(STARTING_RESOURCE_RULES.mp.minimum,
+    STARTING_RESOURCE_RULES.mp.base + intMod * STARTING_RESOURCE_RULES.mp.multiplier);
 
   // Starting spells — all class spells available at level 1
   const classSpellIds = playerClass.spells;
@@ -251,6 +263,7 @@ export function createPlayer(
   return {
     name,
     level: 1,
+    classProgression: createHeroClassProgression(playerClass.id),
     xp: 0,
     hp: startHp,
     maxHp: startHp,
@@ -337,7 +350,7 @@ export function applyBankInterest(player: PlayerState, currentDay: number): numb
 /** Get the attack modifier for the player (uses class primary stat for melee). */
 /** Get the melee attack modifier. Uses STR, or max(STR, DEX) for finesse weapons. */
 export function getAttackModifier(player: CombatActorState): number {
-  const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
+  const proficiencyBonus = getProficiencyBonus(player);
   const strMod = abilityModifier(player.stats.strength);
   const dexMod = abilityModifier(player.stats.dexterity);
   const isFinesse = player.equippedWeapon?.finesse === true;
@@ -346,10 +359,10 @@ export function getAttackModifier(player: CombatActorState): number {
 }
 
 /** Get the spell attack modifier (uses class primary stat for casters). */
-export function getSpellModifier(player: CombatActorState): number {
-  const playerClass = getPlayerClass(player.appearanceId);
-  const primaryStatValue = player.stats[playerClass.primaryStat];
-  const proficiencyBonus = Math.floor((player.level - 1) / 4) + 2;
+export function getSpellModifier(player: CombatActorState, spellId?: string): number {
+  const primaryStat = spellId ? getSpellCastingStat(player, spellId) : getActorPrimaryStat(player);
+  const primaryStatValue = player.stats[primaryStat];
+  const proficiencyBonus = getProficiencyBonus(player);
   return abilityModifier(primaryStatValue) + proficiencyBonus + getTalentAttackBonus(player.knownTalents);
 }
 
@@ -391,6 +404,9 @@ export function equipOffHand(
   if (item.type !== "weapon") {
     return { success: false, message: "Only weapons can be equipped in the off-hand!" };
   }
+  if (!canActorEquip(player, item)) {
+    return { success: false, message: `${item.name} is not permitted by your class progression.` };
+  }
   if (!item.light || item.twoHanded) {
     return { success: false, message: `${item.name} is not a light weapon! Only light one-handed weapons can be dual wielded.` };
   }
@@ -416,18 +432,11 @@ export function awardXP(
   if (!player) {
     throw new Error(`[player] awardXP: missing player`);
   }
-  if (typeof amount !== "number" || amount < 0) {
+  if (!Number.isFinite(amount) || amount < 0) {
     throw new Error(`[player] awardXP: invalid XP amount ${amount}`);
   }
-  player.xp += amount;
-
-  // Count how many levels the player has earned but not yet applied
-  let pendingLevels = player.pendingLevelUps ?? 0;
-  let virtualLevel = player.level + pendingLevels;
-  while (virtualLevel < 20 && player.xp >= xpForLevel(virtualLevel + 1)) {
-    virtualLevel++;
-    pendingLevels++;
-  }
+  player.xp = Math.min(Number.MAX_SAFE_INTEGER, player.xp + amount);
+  const pendingLevels = getEarnedPendingLevels(player);
   player.pendingLevelUps = pendingLevels;
 
   return { pendingLevels };
@@ -440,95 +449,8 @@ export function awardXP(
  */
 export function processPendingLevelUps(
   player: ProgressingActorState
-): { leveledUp: boolean; newLevel: number; newSpells: Spell[]; newAbilities: Ability[]; newTalents: Talent[]; asiGained: number } {
-  const pending = player.pendingLevelUps ?? 0;
-  if (pending <= 0) {
-    return { leveledUp: false, newLevel: player.level, newSpells: [], newAbilities: [], newTalents: [], asiGained: 0 };
-  }
-
-  let leveledUp = false;
-  const newSpells: Spell[] = [];
-  const newAbilities: Ability[] = [];
-  const newTalents: Talent[] = [];
-  let asiGained = 0;
-
-  for (let i = 0; i < pending; i++) {
-    if (player.level >= 20) break;
-    player.level++;
-    leveledUp = true;
-
-    // Increase HP/MP on level up
-    const conMod = abilityModifier(player.stats.constitution);
-    const hpGain = Math.max(1, rollHitDie(player.appearanceId) + conMod);
-    player.maxHp += hpGain;
-    player.hp = player.maxHp;
-
-    const mpGain = Math.max(1, 2 + abilityModifier(player.stats.intelligence));
-    player.maxMp += mpGain;
-    player.mp = player.maxMp;
-
-    // Grant ASI points at D&D 5e levels (4, 8, 12, 16, 19)
-    if (ASI_LEVELS.includes(player.level)) {
-      player.pendingStatPoints += 2;
-      asiGained += 2;
-    }
-
-    // Check for new spell unlocks (class-filtered)
-    const classSpells = getClassSpells(player.appearanceId);
-    for (const spell of SPELLS) {
-      if (
-        spell.levelRequired <= player.level &&
-        !player.knownSpells.includes(spell.id) &&
-        classSpells.includes(spell.id)
-      ) {
-        player.knownSpells.push(spell.id);
-        newSpells.push(spell);
-      }
-    }
-
-    // Check for new ability unlocks (class-filtered)
-    const classAbilityIds = getClassAbilities(player.appearanceId);
-    for (const ability of ABILITIES) {
-      if (
-        ability.levelRequired <= player.level &&
-        !(player.knownAbilities ?? []).includes(ability.id) &&
-        classAbilityIds.includes(ability.id)
-      ) {
-        if (!player.knownAbilities) player.knownAbilities = [];
-        player.knownAbilities.push(ability.id);
-        newAbilities.push(ability);
-      }
-    }
-
-    // Check for new talent unlocks (class-restricted or everyone)
-    for (const talent of TALENTS) {
-      if (
-        talent.levelRequired <= player.level &&
-        !player.knownTalents.includes(talent.id) &&
-        (!talent.classRestriction || talent.classRestriction.includes(player.appearanceId))
-      ) {
-        player.knownTalents.push(talent.id);
-        newTalents.push(talent);
-        // Apply one-time stat bonuses
-        if (talent.maxHpBonus) {
-          player.maxHp += talent.maxHpBonus;
-          player.hp += talent.maxHpBonus;
-        }
-        if (talent.maxMpBonus) {
-          player.maxMp += talent.maxMpBonus;
-          player.mp += talent.maxMpBonus;
-        }
-      }
-    }
-  }
-
-  player.pendingLevelUps = 0;
-  return { leveledUp, newLevel: player.level, newSpells, newAbilities, newTalents, asiGained };
-}
-
-function rollHitDie(appearanceId: string = "knight"): number {
-  const playerClass = getPlayerClass(appearanceId);
-  return Math.floor(Math.random() * playerClass.hitDie) + 1;
+): PendingLevelUpResult {
+  return processActorPendingLevelUps(player);
 }
 
 /** Check if the player can afford an item. */
@@ -659,6 +581,10 @@ function useStandardItem(
   item: Item,
   target: CombatItemTarget = actor,
 ): UseItemResult {
+  if ((item.type === "weapon" || item.type === "armor" || item.type === "shield")
+    && !canActorEquip(actor, item)) {
+    return { used: false, message: `${item.name} is not permitted by your class progression.` };
+  }
   if (item.type === "consumable") {
     if (item.id === "ether" || item.restoresMp) {
       if (target.mp >= target.maxMp) {
@@ -780,23 +706,7 @@ export function allocateStatPoint(
   player: ProgressingActorState,
   stat: keyof PlayerStats
 ): boolean {
-  if (player.pendingStatPoints <= 0) return false;
-  player.stats[stat] += 1;
-  player.pendingStatPoints -= 1;
-
-  // Recalculate HP/MP if CON or INT changed
-  if (stat === "constitution") {
-    const bonus = player.level; // retroactive: +1 HP per level per CON bump
-    player.maxHp += bonus;
-    player.hp = Math.min(player.hp + bonus, player.maxHp);
-  }
-  if (stat === "intelligence") {
-    const bonus = Math.max(1, player.level); // +1 MP per level
-    player.maxMp += bonus;
-    player.mp = Math.min(player.mp + bonus, player.maxMp);
-  }
-
-  return true;
+  return allocateProgressionStatPoint(player, stat);
 }
 
 /**
@@ -822,6 +732,9 @@ export function castSpellOutsideCombat(
 ): { success: boolean; message: string; teleport?: boolean } {
   const spell = getSpell(spellId);
   if (!spell) return { success: false, message: "Unknown spell!" };
+  if (!canActorUseSpell(player, spellId)) {
+    return { success: false, message: "This spell has not been learned!" };
+  }
 
   if (spell.type === "damage") {
     return { success: false, message: "Cannot use damage spells outside battle!" };
@@ -861,10 +774,14 @@ export function castSpellOutsideCombat(
 /** Use a heal or utility ability outside of combat. Returns result. */
 export function useAbilityOutsideCombat(
   player: PlayerState,
-  abilityId: string
+  abilityId: string,
+  deferHeroLevelUps = false,
 ): { success: boolean; message: string; teleport?: boolean; evac?: boolean } {
   const ability = getAbility(abilityId);
   if (!ability) return { success: false, message: "Unknown ability!" };
+  if (!canActorUseAbility(player, abilityId)) {
+    return { success: false, message: "This ability has not been learned!" };
+  }
 
   if (ability.type === "damage") {
     return { success: false, message: "Cannot use damage abilities outside battle!" };
@@ -903,9 +820,9 @@ export function useAbilityOutsideCombat(
       return { success: false, message: "HP and MP are already full!" };
     }
     const { hpRestored, mpRestored } = shortRest(player);
-    const levelResult = processPendingLevelUps(player);
+    const levelResult = deferHeroLevelUps ? null : processPendingLevelUps(player);
     let msg = `Short Rest! Recovered ${hpRestored} HP and ${mpRestored} MP. (${player.shortRestsRemaining} rests left)`;
-    if (levelResult.leveledUp) {
+    if (levelResult?.leveledUp) {
       msg += ` 🎉 LEVEL UP to ${levelResult.newLevel}!`;
       for (const sp of levelResult.newSpells) { msg += ` ✦ ${sp.name}!`; }
       for (const ab of levelResult.newAbilities) { msg += ` ⚡ ${ab.name}!`; }

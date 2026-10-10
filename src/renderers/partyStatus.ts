@@ -5,6 +5,8 @@ import {
   type PlayerStats,
   type ProgressingActorState,
 } from "../systems/player";
+import { getActorStartingClass, getProgressionDisplayName, getProgressionTracks } from "../systems/classProgression";
+import { getPlayerClass } from "../systems/classes";
 
 const STAT_LABELS: Array<{ key: keyof PlayerStats; label: string }> = [
   { key: "strength", label: "STR" },
@@ -40,6 +42,7 @@ export interface PartyStatusRenderOptions {
   ): void;
   changed(message: string): void;
   nextTarget(): void;
+  openProgression?(): void;
 }
 
 export function renderPartyStatus(options: PartyStatusRenderOptions): void {
@@ -58,6 +61,15 @@ export function renderPartyStatus(options: PartyStatusRenderOptions): void {
   let currentY = y;
   addText(x, currentY, `${memberName} Lv.${state.level}`, "#ffd700", 14);
   currentY += 24;
+  const tracks = getProgressionTracks(state);
+  const classLabel = tracks.length <= 2 ? getProgressionDisplayName(state)
+    : `${getPlayerClass(getActorStartingClass(state)).label}; ${tracks.length} classes`;
+  addText(x, currentY, classLabel, "#b8ddff", 11, 310);
+  currentY += 26;
+  if (!companion && options.openProgression) {
+    addButton(x, currentY, "Class progression", options.openProgression, "#aaffcc", 180);
+    currentY += 34;
+  }
   addText(
     x,
     currentY,

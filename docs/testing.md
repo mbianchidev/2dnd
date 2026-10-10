@@ -71,7 +71,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v18 autosave/manual-slot persistence,
+- real character creation, schema-v19 autosave/manual-slot persistence,
   relaunch, and continue
 - keyboard Save & Return to Title plus pointer Quit Desktop
 - lifecycle/quit log creation without campaign-content leakage
@@ -85,7 +85,7 @@ Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
 Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work. The command rebuilds the production `/2dnd/`
 target, launches it on an unused local port, and samples cache-disabled
-headless Chromium startup with both empty storage and a fresh schema-v18 save.
+headless Chromium startup with both empty storage and a fresh current-schema save.
 It reports:
 
 - deployed and JavaScript raw/gzip sizes plus source-map size
@@ -123,6 +123,17 @@ debug/test surfaces. Registered groups should report zero unintended
 intersections and zero visible-content clipping.
 
 ## Targeted validation
+
+Hero progression coverage includes all base-class pairings and prerequisite
+boundaries, frozen resources, once-only overlaps, total-level ASIs, legacy
+levels 1-20 for every class, corrupt records, deferred historical unlocks,
+lossless 53-item custom hero fixtures, complete duplicate-equipment metadata,
+legacy orphan gear, independent companion actions and shared economy. The
+`multiclass.spec.ts` flow covers rest/choice/reload, exact previews, ASIs,
+mobile/gamepad, measured layouts and campaign completion.
+Seed browser randomness with a varying generator: constant global rolls collide
+with Phaser Text UUID textures. Compare exact prepared resolver receipts rather
+than assuming a global constant roll.
 
 During implementation, run the smallest related Vitest files first. Run focused
 Playwright specs for changed UI/scene flows. Before a pull request, run:

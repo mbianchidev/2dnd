@@ -152,6 +152,7 @@ export interface GatheringResolution {
   resolved: boolean;
   success: boolean;
   score: number;
+  readonly requiredScore?: number;
   itemId?: string;
   resourceId?: string;
   quantity: number;
@@ -643,6 +644,8 @@ function applyNodeCooldown(state: GatheringState, pending: PendingGathering): vo
   state.nodeStates[pending.nodeId] = current;
 }
 
+export const GATHERING_SUCCESS_SCORE = 50;
+
 export function resolveGatheringGame(player: PlayerState): GatheringResolution {
   const state = player.progression.gathering;
   const pending = state.pending;
@@ -656,7 +659,7 @@ export function resolveGatheringGame(player: PlayerState): GatheringResolution {
     };
   }
   const score = getGatheringScore(pending.game);
-  const success = score >= 50
+  const success = score >= GATHERING_SUCCESS_SCORE
     && !(pending.game.kind === "fishing" && pending.game.failed);
   const stats = state.stats[pending.discipline];
   stats.bestScore = Math.max(stats.bestScore, score);
@@ -669,6 +672,7 @@ export function resolveGatheringGame(player: PlayerState): GatheringResolution {
       resolved: true,
       success: false,
       score,
+      requiredScore: GATHERING_SUCCESS_SCORE,
       quantity: 0,
       message: `${GATHERING_DEFINITIONS[pending.discipline].name} attempt failed.`,
     };
@@ -683,6 +687,7 @@ export function resolveGatheringGame(player: PlayerState): GatheringResolution {
       resolved: true,
       success: true,
       score,
+      requiredScore: GATHERING_SUCCESS_SCORE,
       quantity: 0,
       rarity: pending.rarity,
       battle: {
@@ -744,6 +749,7 @@ export function claimGatheringReward(
     resolved: true,
     success: true,
     score: getGatheringScore(pending.game),
+    requiredScore: GATHERING_SUCCESS_SCORE,
     itemId: item.id,
     resourceId: resource.id,
     quantity: pending.quantity,

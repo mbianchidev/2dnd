@@ -26,6 +26,7 @@ future work until merged.
 | Domain | Data/contracts | Mechanics/state | Phaser/presentation | Tests |
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
+| Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, redacted `dicePresentation.ts` | dice/battleDice managers, procedural SVG renderer | dicePresentation/rollReceipts/diceRenderer and dice E2E |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
 | Quests/cutscenes | `quests.ts`, focused `cutscene*.ts` | `quests.ts`, `questState.ts`, `cutscenes.ts` | quest/cutscene managers, `Cutscene.ts`, `Ending.ts` | quest/cutscene/campaign E2E |
 | World/map/traps | `map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, `traps.ts` | `movement.ts`, `traps.ts` | map/city/trap/fog managers/renderers | map, city, trap, fog, movement |
@@ -88,6 +89,9 @@ owning issue or pull request.
   one-action/one-bonus-action economy.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
+- Dice views consume exact immutable receipts, redact hidden AC/DC and enemy
+  modifiers/totals, never use shared RNG, and never create an input-block reason.
+  Scene cleanup stops motion/cues; the last 40 redacted results remain runtime-only.
 - Use stable IDs for combatants, quests/stages/objectives/rewards, cutscenes,
   shops, traps, events, recipes, transactions, features, and layout items.
 - Persist authority, not derived presentation. Every schema change requires
@@ -118,6 +122,7 @@ owning issue or pull request.
 | Docs copied from an issue or branch | Verify current `main`, source constants, package manifest, and merged PR |
 | Parallel features merged in arbitrary order | Identify shared files, choose dependency order, rebase after prerequisite, preserve both contracts |
 | Targeted tests only | Full typecheck, Vitest, Playwright, build, audit, CI, and CodeQL before completion |
+| Other branches replacing queued CI | Scope the PR web concurrency group to `github.ref`; retain `cancel-in-progress: false` |
 | Growing scenes/overlays | Extract focused system, manager, renderer, or data module |
 
 ## Change checklists

@@ -150,6 +150,10 @@ import {
 import type { QuestUpdate } from "../systems/quests";
 import { SkillCheckManager } from "../managers/skillChecks";
 import {
+  installDicePresentation,
+  presentSkillDiceResult,
+} from "../managers/dicePresentation";
+import {
   CAMPAIGN_EPILOGUE_CUTSCENE_ID,
   type CutsceneId,
 } from "../data/cutscenes";
@@ -394,6 +398,7 @@ export class OverworldScene extends Phaser.Scene {
       autoSave: () => this.autoSave(),
       revealAround: (radius) => this.revealAround(radius),
       revealTileSprites: () => this.revealTileSprites(),
+      presentRoll: (result, label) => presentSkillDiceResult(this, result, label),
     });
     this.worldEventManager = new WorldEventManager(this, {
       autoSave: () => this.autoSave(),
@@ -580,6 +585,7 @@ export class OverworldScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x111111);
     this.sceneTransitions.prepare(500);
     installSceneAccessibility(this);
+    installDicePresentation(this);
 
     // Dungeons are enclosed — always force clear weather
     if (this.player.position.inDungeon) {
@@ -1820,6 +1826,7 @@ export class OverworldScene extends Phaser.Scene {
         this.player,
         pending.instanceId,
       );
+      if (result.check) presentSkillDiceResult(this, result.check, "Sea navigation");
       this.showMessage(
         `${pending.hazardId}: ${result.hpLost} HP, `
         + `${result.conditionLost} hull damage.`,
@@ -1920,6 +1927,9 @@ export class OverworldScene extends Phaser.Scene {
         this.player,
         hazard.instanceId,
       );
+      if (resolution.check) {
+        presentSkillDiceResult(this, resolution.check, "Sea navigation");
+      }
       const outcome = resolution.check?.success ? "avoided" : "struck";
       this.showMessage(
         `${hazard.hazardId}: ${outcome}; `

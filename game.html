@@ -11,6 +11,7 @@
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'"
     />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="stylesheet" href="./src/dice.css" />
     <title>2D&amp;D - Play the browser JRPG</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -210,9 +211,9 @@
       .touch-down { bottom: calc(var(--touch-safe-bottom) + 8px); }
       .touch-confirm { bottom: calc(var(--touch-safe-bottom) + 64px); }
       .touch-cancel { bottom: calc(var(--touch-safe-bottom) + 10px); }
-      .touch-menu { top: calc(var(--touch-safe-top) + 30px); }
-      .touch-party { top: calc(var(--touch-safe-top) + 30px); }
-      .touch-tips { top: calc(var(--touch-safe-top) + 30px); }
+      .touch-menu { top: calc(var(--touch-safe-top) + var(--touch-dice-inset, 0px) + 30px); }
+      .touch-party { top: calc(var(--touch-safe-top) + var(--touch-dice-inset, 0px) + 30px); }
+      .touch-tips { top: calc(var(--touch-safe-top) + var(--touch-dice-inset, 0px) + 30px); }
       #touch-controls.right-handed .touch-up,
       #touch-controls.right-handed .touch-down {
         left: calc(var(--touch-safe-left) + 58px);
@@ -304,7 +305,7 @@
         #game-header { padding-top: max(4px, env(safe-area-inset-top)); }
         #controls-panel, #debug-panel { display: none !important; }
         .touch-party,
-        .touch-tips { top: calc(var(--touch-safe-top) + 82px); }
+        .touch-tips { top: calc(var(--touch-safe-top) + var(--touch-dice-inset, 0px) + 82px); }
       }
       @media (max-height: 560px) and (orientation: landscape) {
         .touch-control { min-width: 48px; min-height: 48px; opacity: 0.9; }

@@ -23,6 +23,7 @@ on discovering and playing the game.
 - [Companions and gambits](companions.md)
 - [Desktop application](desktop.md)
 - [Inventory presentation](inventory.md)
+- [Resolved dice presentation](dice-presentation.md)
 
 Repository-wide constraints remain authoritative in
 [`.github/copilot-instructions.md`](../.github/copilot-instructions.md).

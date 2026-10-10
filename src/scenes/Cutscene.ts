@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { installDicePresentation } from "../managers/dicePresentation";
 import { debugPanelState, GAME_HEIGHT, GAME_WIDTH } from "../config";
 import {
   CAMPAIGN_EPILOGUE_CUTSCENE_ID,
@@ -84,6 +85,7 @@ export class CutsceneScene extends Phaser.Scene {
   create(): void {
     this.sceneTransitions.prepare(350);
     installSceneAccessibility(this);
+    installDicePresentation(this);
     this.cutsceneRenderer = new CutsceneRenderer(
       this,
       this.sceneData.player,

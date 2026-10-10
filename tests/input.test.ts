@@ -29,6 +29,17 @@ describe("semantic input mappings", () => {
     expect(mapKeyboardCode("KeyO", "inventory")).toBeUndefined();
   });
 
+  it("maps non-conflicting dice skip and settings controls without taking input context", () => {
+    expect(mapKeyboardCode("KeyZ", "battle")).toBe("fastForwardDice");
+    expect(mapKeyboardCode("KeyZ", "exploration")).toBe("fastForwardDice");
+    expect(mapKeyboardCode("BracketLeft", "overlay")).toBe("settingsDiceFrequency");
+    expect(mapKeyboardCode("BracketRight", "title")).toBe("settingsDiceSpeed");
+    expect(STANDARD_GAMEPAD_BINDINGS.find((binding) => binding.button === 10)?.action)
+      .toBe("fastForwardDice");
+    expect(isRepeatableAction("fastForwardDice")).toBe(false);
+    expect(mapKeyboardCode("Space", "exploration")).toBe("interact");
+  });
+
   it("normalizes analog axes around a configurable dead zone", () => {
     expect(normalizeAnalogAxis(0.2)).toBe(0);
     expect(normalizeAnalogAxis(-0.24)).toBe(0);

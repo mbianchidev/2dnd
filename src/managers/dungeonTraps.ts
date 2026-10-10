@@ -20,6 +20,8 @@ import {
   triggerDungeonTrap,
 } from "../systems/traps";
 import { TrapRenderer } from "../renderers/traps";
+import { createTrapDicePresentation } from "../systems/dicePresentation";
+import { presentDiceResult } from "./dicePresentation";
 
 export interface DungeonTrapCallbacks {
   showMessage: (text: string, color?: string) => void;
@@ -77,6 +79,11 @@ export class DungeonTrapManager {
       if (player.progression.trapStates[trap.id] !== undefined) continue;
       const result = attemptTrapDetection(player, trap);
       if (!result.attempted) continue;
+      debugLog("[dice] receipt", {
+        kind: "trapDetection", trapId: trap.id, trap: result,
+      });
+      const dice = createTrapDicePresentation(result, getTrapDefinition(trap.type).name, true);
+      if (dice) presentDiceResult(this.scene, dice, result);
       stateChanged = true;
       debugLog("[traps] Detection check", {
         trap: trap.id,
@@ -114,6 +121,11 @@ export class DungeonTrapManager {
     let state = player.progression.trapStates[trap.id];
     if (state === undefined) {
       const result = attemptTrapDetection(player, trap);
+      debugLog("[dice] receipt", {
+        kind: "trapDetection", trapId: trap.id, trap: result,
+      });
+      const dice = createTrapDicePresentation(result, getTrapDefinition(trap.type).name, true);
+      if (dice) presentDiceResult(this.scene, dice, result);
       state = player.progression.trapStates[trap.id];
       this.renderCurrent(player);
       this.callbacks.autoSave();
@@ -171,6 +183,11 @@ export class DungeonTrapManager {
     this.callbacks.setMovementLocked(true);
     const result = attemptTrapDisarm(player, trap);
     const definition = getTrapDefinition(trap.type);
+    debugLog("[dice] receipt", {
+      kind: "trapDisarm", trapId: trap.id, trap: result,
+    });
+    const dice = createTrapDicePresentation(result, definition.name, false);
+    if (dice) presentDiceResult(this.scene, dice, result);
     if (result.success) {
       this.focusedTrapId = null;
       this.renderCurrent(player);

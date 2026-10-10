@@ -160,6 +160,13 @@ Mechanics resolve before presentation. Actor animation receives stable IDs and
 immutable outcomes; tweens never apply damage, spend resources, or control
 authoritative turn/result transitions.
 
+`rollResults.ts` captures exact immutable natural-die receipts; `dicePresentation.ts`
+projects only permitted information and owns a bounded runtime log. The
+scene-owned dice manager and procedural SVG dock consume those results without
+RNG, resource mutations, input-block reasons, or gameplay completion callbacks.
+They cancel visual/audio work on shutdown while retaining redacted log evidence
+across handoffs. See [Dice presentation](dice-presentation.md).
+
 ## Content and campaign flow
 
 - Quest definitions: `src/data/quests.ts`

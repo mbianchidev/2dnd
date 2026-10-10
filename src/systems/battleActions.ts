@@ -37,6 +37,7 @@ import {
   type GroupCombatant,
   type PartyCombatant,
 } from "./groupCombat";
+import type { CombatDiceReceipt } from "./dicePresentation";
 
 export type BattleActionKind =
   | "attack"
@@ -153,6 +154,10 @@ export interface ResolvedBattleAction {
   targets: ResolvedBattleActionTarget[];
   mpUsed: number;
   itemUsed: boolean;
+  readonly diceResults?: readonly {
+    readonly targetId: BattleCombatantId;
+    readonly result: CombatDiceReceipt;
+  }[];
 }
 
 export function createBattleActionSource(
@@ -668,6 +673,7 @@ export function executeValidatedBattleAction(
       executed: true,
       message: result.message,
       plan,
+      diceResults: [{ targetId: target.id, result }],
       targets: [{
         targetId: target.id,
         hit: result.hit,
@@ -752,6 +758,10 @@ export function executeValidatedBattleAction(
         || (result.effectResults?.length ?? 0) > 0,
       message: result.message,
       plan,
+      diceResults: result.results.map((targetResult) => ({
+        targetId: enemies[targetResult.targetIndex]!.id,
+        result: targetResult,
+      })),
       targets,
       mpUsed: result.mpUsed,
       itemUsed: false,
@@ -831,6 +841,9 @@ export function executeValidatedBattleAction(
       || (ability?.mpCost === 0 && result.hit),
     message: result.message,
     plan,
+    diceResults: result.rollResult
+      ? [{ targetId: target.id, result }]
+      : [],
     targets,
     mpUsed: result.mpUsed,
     itemUsed: false,

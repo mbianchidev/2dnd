@@ -104,6 +104,12 @@ resistance, weakness, and immunity resolve independently per target.
 Healing target scopes are explicit: self, one ally, all allies, or the whole
 party. A single-ally action falls back to self when no ally is present.
 
+Capture exact immutable `ResolvedD20Roll` evidence at canonical resolution.
+Presentation shows both naturals and the selected die without rerolling,
+recalculating outcomes, or changing RNG order. Enemy bonuses/totals and unknown
+AC/DC remain redacted; natural 1/20 checks/saves retain canonical outcomes.
+Damage/healing stay aggregate when exact component rolls are unavailable.
+
 ## Elements
 
 `src/data/elements.ts` defines:

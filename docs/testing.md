@@ -56,6 +56,9 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   confirmations, and active-source prompts
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
+- exact resolved dice, hidden-information redaction, disadvantage/auto-hit,
+  keyboard/touch/gamepad skip/log controls, event/trap/gathering/flee results,
+  preference reload, and runtime-log scene handoffs
 - layout audits at supported text scales and representative desktop/mobile
   viewports
 
@@ -79,6 +82,11 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
 Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
+Native onboarding holds pointer/semantic confirmation across frames and observes each
+screen/mode through debug state before the next action; fixed sleeps and rapid
+pointer/keyboard source switches are not transition evidence.
+Quit is a pointer-down action: observe application closure without sending a
+release to a destroyed page.
 
 ## Performance baseline
 
@@ -116,6 +124,11 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
   functional assertions remain primary.
 - Treat page errors, unexpected console errors, overlaps, and clipping as test
   failures.
+- Send visual skip controls while the result is still animating, before slower
+  receipt/text assertions; exact-result evidence remains available afterward.
+- Install legacy-save fixtures at the next document's initialization, not into
+  a live scene whose pending autosaves can replace them. Assert migrated
+  evidence before exercising the UI that depends on it.
 
 The local `#layout-report` and canvas
 `data-layout-overlap-count`/`data-layout-clipping-count` attributes are
@@ -145,6 +158,9 @@ for them before release.
 `.github/workflows/pr.yml` runs Node 24, `npm ci`, typecheck, full Vitest,
 Chromium installation, full Playwright, and the production build for pull
 requests to `main`.
+Its concurrency group is scoped to `github.ref`, with
+`cancel-in-progress: false`, so a different review branch cannot replace a
+pending web gate.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page

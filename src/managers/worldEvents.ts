@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { presentSkillDiceResult } from "./dicePresentation";
 import { GAME_HEIGHT, GAME_WIDTH, debugPanelLog } from "../config";
 import {
   getWorldEventDefinition,
@@ -255,6 +256,9 @@ export class WorldEventManager {
     );
     this.close();
     if (resolution.resolved) {
+      if (resolution.skillCheck) {
+        presentSkillDiceResult(this.scene, resolution.skillCheck, choice.label);
+      }
       debugPanelLog(
         `[EVENT] ${choice.id}: ${resolution.summary}`,
         true,

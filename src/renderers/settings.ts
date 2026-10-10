@@ -35,9 +35,10 @@ function createControl(
   width: number,
   label: () => string,
   onActivate: () => void,
+  fontSize = 12,
 ): SettingsControl {
   const text = scene.add.text(x, y, label(), {
-    fontSize: "12px",
+    fontSize: `${fontSize}px`,
     fontFamily: "monospace",
     color: "#f4f1e8",
     backgroundColor: "#252b45",
@@ -259,6 +260,27 @@ export function addSettingsControls(
     });
   };
   layoutAccessibility();
+  const diceWidth = Math.floor((columnWidth - 8) / 2);
+  const diceFrequency = createControl(
+    scene,
+    "settings-dice-frequency",
+    rightX + diceWidth / 2,
+    py + 276,
+    diceWidth,
+    () => `Dice [\n${gamePreferences.getDice().frequency}`,
+    () => gamePreferences.cycleDiceFrequency(),
+    10,
+  );
+  const diceSpeed = createControl(
+    scene,
+    "settings-dice-speed",
+    rightX + diceWidth + 8 + diceWidth / 2,
+    py + 276,
+    diceWidth,
+    () => `Speed ]\n${gamePreferences.getDice().speed}`,
+    () => gamePreferences.cycleDiceSpeed(),
+    10,
+  );
   const controlsTitle = scene.add.text(contentX, py + 330, "Controls", {
     fontSize: "12px",
     fontFamily: "monospace",
@@ -304,11 +326,13 @@ export function addSettingsControls(
     touch,
     handedness,
     prompts,
+    diceFrequency,
+    diceSpeed,
   ];
   const mappingNote = scene.add.text(
     centerX,
     py + panelHeight - 48,
-    "Stable mappings; custom remapping is unsupported.",
+    "Stable mappings (no remap). [ dice frequency / ] dice speed.",
     {
       fontSize: "8px",
       fontFamily: "monospace",
@@ -329,6 +353,8 @@ export function addSettingsControls(
     handedness.text,
     prompts.text,
     mappingNote,
+    diceFrequency.text,
+    diceSpeed.text,
   ]);
   controls.push(
     mute.text,
@@ -342,12 +368,22 @@ export function addSettingsControls(
     handedness.text,
     prompts.text,
     mappingNote,
+    diceFrequency.text,
+    diceSpeed.text,
   );
 
   const unsubscribe = gamePreferences.subscribe(() => {
     redrawAudio.forEach((redraw) => redraw());
     controlsToUpdate.forEach((control) => control.updateLabel());
     layoutAccessibility();
+  });
+  const handleDiceSettings = (event: KeyboardEvent): void => {
+    if (event.code === "BracketLeft") gamePreferences.cycleDiceFrequency();
+    if (event.code === "BracketRight") gamePreferences.cycleDiceSpeed();
+  };
+  scene.input.keyboard?.on("keyup", handleDiceSettings);
+  container.once(Phaser.GameObjects.Events.DESTROY, () => {
+    scene.input.keyboard?.off("keyup", handleDiceSettings);
   });
   container.once(Phaser.GameObjects.Events.DESTROY, unsubscribe);
   return { controls };

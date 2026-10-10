@@ -309,6 +309,7 @@ import { executeSocialDebugCommand } from "./reputation";
 import { executeCraftingDebugCommand } from "./crafting";
 import { registerNauticalDebugCommands } from "./nauticalDebug";
 import { executeFeatureDiscoveryDebugCommand } from "./featureDiscovery";
+import { executeDevotionDebugCommand } from "./devotionDebug";
 import {
   getHeroCutsceneIds,
   isCutsceneId,
@@ -1318,6 +1319,16 @@ export class DebugCommandSystem {
       if (result.changed) this.callbacks.autoSave();
     });
     cmds.set("features", cmds.get("feature")!);
+    cmds.set("devotion", (args) => {
+      if (this.callbacks.isInputBlocked()) {
+        debugPanelLog("[CMD] Close the current overlay before devotion debug commands.", true);
+        return;
+      }
+      const result = executeDevotionDebugCommand(this.player, args);
+      result.lines.forEach((line) => debugPanelLog(`[CMD] ${line}`, true));
+      if (result.relocated) this.callbacks.restartScene();
+      if (result.changed) this.callbacks.autoSave();
+    });
 
     const helpEntries: HelpEntry[] = [
       ...SHARED_HELP,
@@ -1351,6 +1362,7 @@ export class DebugCommandSystem {
       { usage: "/codex all", desc: "Discover all codex entries" },
       { usage: "/achievement <cmd>", desc: "Achievements: list|unlock|reset|progress|explain" },
       { usage: "/feature <cmd>", desc: "Features: list|reveal|hide|reset|explain" },
+      { usage: "/devotion <cmd>", desc: "Devotion: list|status|near <temple>|source <source> (no natural points)" },
       { usage: "/companion <cmd>", desc: "Companions: list|recruit|mode|heal|gambits" },
       { usage: "/boat <cmd>", desc: "Boats: list|status|<id>" },
       { usage: "/port <cmd>", desc: "Ports: list|<id>" },

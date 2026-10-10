@@ -15,7 +15,7 @@
 | happy-dom | 20.14.5 |
 | Electron | 44.5.1 |
 | electron-builder | 26.17.0 |
-| Campaign save schema | 18 |
+| Campaign save schema | 19 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -189,6 +189,22 @@ that pipeline.
 
 All audio synthesis lives in `src/systems/audio.ts`. Do not add external media
 or scene-local parallel audio engines.
+
+## Optional devotion
+
+Original definitions live in `src/data/devotion.ts` and focused
+`devotionQuests.ts`, `devotionEvents.ts`, and `devotionCodex.ts` content modules.
+`src/systems/devotion.ts` owns canonical source idempotency, tiers, affiliation
+and pure prerequisite queries; `devotionState.ts` owns normalization.
+`devotionTemples.ts` validates live approaches and reuses status and short-rest
+authority. `devotionProfile.ts` derives presentation, and the devotion manager
+owns measured paginated UI, semantic input and its native accessibility bridge.
+
+Devotion is independent of social scores. Legacy heroes remain unaffiliated;
+historical sources cannot award guessed points. Blessings use only normal
+`activeEffects` turn durations. Codex, achievements, discovery and ending text
+are consumers, never authority for this or the campaign. See
+[Fictional devotion](devotion.md).
 
 ## Persistence boundaries
 

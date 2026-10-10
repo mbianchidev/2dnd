@@ -269,6 +269,13 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
 
 export const TIPS: readonly TipDefinition[] = [
   {
+    id: "advanced.devotion", category: "advanced",
+    title: "A freely chosen thread",
+    body: "Approach a marked Unfinished Constellation site to browse three original fictional figures, remain unaffiliated, or take an optional rite. Confirming a switch or renunciation resets devotion to 0 and clears the temple blessing. Completed sources stay consumed and never award devotion again. Alignment, reputation and the campaign are unchanged. Every visitor gets the same small blessing through normal combat turns. The Esc menu opens Devotion after the first visit.",
+    controls: ["interact", "menu"],
+    unlock: { type: "feature", featureId: "devotionProfile" },
+  },
+  {
     id: "controls.context",
     category: "controls",
     title: "Context actions",

@@ -123,6 +123,15 @@ reuse stable non-walkable temple/statue coordinates defined in
 `src/data/codexKnowledge.ts`; interaction is adjacent and presentation-only.
 Do not add lore flags to map terrain or use Codex state for access decisions.
 
+## Fictional temples
+
+Fictional devotion sites are canonical metadata in `src/data/devotion.ts`.
+Reuse existing blocked statues/temples without replacing Codex readables.
+Tidehaven's model has a safe adjacent approach. Validate the live city,
+logical district and walkable adjacency before rites or affiliation choices.
+Merchant routes keep the island quest accessible without a boat or affiliation.
+Temple visits and devotion never become world/quest access authority.
+
 ## Multi-chunk cities
 
 `CityData.mapData`, `spawnX`, `spawnY`, and `shops` represent chunk 0. The

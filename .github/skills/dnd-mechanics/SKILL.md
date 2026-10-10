@@ -157,6 +157,8 @@ Buffs:
 - Inspired: increased accuracy and damage
 - Raging: increased damage
 - Sneak Stance: increased AC
+- Traveling Thread: the same optional +1 AC for three hero turns for every
+  fictional affiliation and unaffiliated temple visitor
 
 Lifecycle for each actor:
 
@@ -259,6 +261,15 @@ matching effects. Combat effects are cleared when leaving Battle.
   history. Older saves have unknown history and cannot receive it by inference.
 - Achievements and equipped cosmetic titles never modify ability scores, AC,
   attacks, damage, rewards, or action economy.
+
+## Fictional devotion
+
+Use original fictional content only. Devotion is a separate 0-100 score,
+derived tiers and canonical once-only sources, never an alignment lock or
+campaign requirement. Temple rites reuse status and short-rest authority and
+cannot stack, refresh, or replay a consumed blessing. Qualification APIs are
+pure optional extension points; no prestige implementation belongs here.
+See `docs/devotion.md` and `src/systems/devotion*.ts`.
 
 ## Testing
 

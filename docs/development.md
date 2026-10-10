@@ -31,6 +31,7 @@
 | Cutscene | focused `src/data/cutscene*.ts`, `src/systems/cutscenes.ts`, cutscene tests |
 | World/city/dungeon | `src/data/map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, map helpers |
 | Sea navigation | `src/data/nautical.ts`, `src/systems/nautical*.ts`, `src/data/islands.ts` |
+| Fictional devotion | `src/data/devotion*.ts`, `src/systems/devotion*.ts`, `src/managers/devotion*.ts` |
 | Gathering/crafting | matching `src/data/`, `src/systems/`, and `src/managers/` modules |
 | Save field or slot | owning interface/default, normalization module, `save.ts`, `saveSlots.ts`, `saveStorage.ts`, migration/recovery tests |
 | Input/control | `src/systems/input.ts`, `src/managers/input.ts`; title selection in `src/managers/titleMenu.ts`; never a scene-local gamepad map |
@@ -93,6 +94,7 @@ Useful command families include:
 /feature
 /gather
 /craft
+/devotion
 ```
 
 Use `?forceGroup=<templateId>` on a local game URL to force the next random

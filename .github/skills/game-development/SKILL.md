@@ -282,6 +282,20 @@ is owned by the schema-v12 reputation system and must remain idempotent.
 - Achievement state never controls gameplay authority. Titles are
   presentation-only and notices are queued for safe Overworld presentation.
 
+## Fictional devotion
+
+Optional devotion definitions live in `src/data/devotion.ts` and focused
+content modules. `devotionState.ts` owns schema-v19 normalization;
+`devotion.ts` owns independent bounded scores, canonical source idempotency,
+affiliation and pure prerequisite queries. `devotionTemples.ts` validates live
+approaches and reuses normal status/short-rest APIs; the devotion manager owns
+measured pages, native accessible controls, semantic input and cleanup.
+Confirmed changes reset score to 0 and remove only the temple blessing; exact
+loss and permanently consumed sources must be explained before confirmation.
+Legacy heroes stay unaffiliated, sources are consumed without historical point
+guesses, and every choice can complete the campaign. Use original fictional
+content only. See `docs/devotion.md`; do not implement prestige classes here.
+
 ## Adding spells, abilities, and equipment
 
 - Damage sources may declare an `Element` from `src/data/elements.ts`.

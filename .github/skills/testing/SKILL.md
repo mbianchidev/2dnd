@@ -16,7 +16,7 @@ through pure logic tests.
 
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
-schema-v18 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
+schema-v19 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
 
 ## Testing Philosophy
@@ -67,6 +67,10 @@ hit-area alignment, and debug/test overlap detection
 ✅ Alignment boundaries, reputation tiers, clamping, stable-source
 idempotency, quest/dialogue/event/trap/combat hooks, shop composition, Codex
 milestones, schema-v12 migration, bounded history, and debug commands
+✅ Original fictional devotion references, independent authority, optional
+qualification, source/debug idempotency, affiliation and temple transactions,
+normal status expiration and pre-Battle/post-result reload, schema-v19
+migration/corruption, and native accessible profile/temple controls
 ✅ Achievement definition integrity, deterministic progress, hidden entries,
 idempotent battle/event/social hooks, reconciliation, schema-v13 migration,
 one-hit/no-defeat rules, cosmetic titles, debug exclusion, notices, and
@@ -580,7 +584,7 @@ npx vitest run tests/dice.test.ts
 - Run `npm run benchmark:baseline` before performance-affecting work and attach
   its commit, environment, and output to the owning issue or pull request. The
   harness uses the named `2dnd:boot-textures` browser performance measure and a
-  fresh schema-v18 save.
+  fresh current-schema save.
 - Cover random and boss defeat results, exact displayed penalties, clean
   continuation, and recovered save/reload state through the production
   `/defeat` debug path.
@@ -598,7 +602,7 @@ npx vitest run tests/dice.test.ts
 - Assert `location.origin === "app://2dnd"`, the `game.html` entry, and the
   fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
-  shell, create a manual snapshot, and continue the same schema-v18 campaign.
+  shell, create a manual snapshot, and continue the same schema-v19 campaign.
 - Return to title through the keyboard menu, quit through the visible title
   action, and verify lifecycle/quit logs without save-content leakage.
 - Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.

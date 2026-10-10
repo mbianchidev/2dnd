@@ -6,6 +6,8 @@ import {
 } from "./quests";
 import type { CutsceneId } from "./cutscenes";
 import { Terrain } from "./mapTypes";
+import { DEVOTION_CODEX_ENTRIES } from "./devotionCodex";
+import type { DeityId, TempleId } from "./devotion";
 
 export const CODEX_KNOWLEDGE_CATEGORIES = [
   "location",
@@ -71,6 +73,16 @@ export interface CodexReputationSource extends CodexSourceBase {
   readonly milestoneId: string;
 }
 
+export interface CodexDevotionTempleSource extends CodexSourceBase {
+  readonly type: "devotionTemple";
+  readonly templeId: TempleId;
+}
+
+export interface CodexDevotionAffiliationSource extends CodexSourceBase {
+  readonly type: "devotionAffiliation";
+  readonly deityId: DeityId;
+}
+
 export type CodexUnlockSource =
   | CodexLocationSource
   | CodexQuestStageSource
@@ -80,7 +92,9 @@ export type CodexUnlockSource =
   | CodexNpcSource
   | CodexReadableSource
   | CodexWorldEventSource
-  | CodexReputationSource;
+  | CodexReputationSource
+  | CodexDevotionTempleSource
+  | CodexDevotionAffiliationSource;
 
 export interface CodexKnowledgeEntry {
   readonly id: string;
@@ -341,6 +355,10 @@ const CHARACTER_DETAILS: Readonly<Record<QuestNpcId, readonly string[]>> = {
   mystic: [
     "Selene Vey studies what flame reveals before it consumes.",
     "She carries a ward shaped from the quieted Volcanic Wyrm's magic.",
+  ],
+  tidehavenGlasskeeper: [
+    "Ossa keeps Tidehaven's model channels and the open island crossing account.",
+    "The Turning Room welcomes visitors without requiring Tessune's affiliation.",
   ],
 };
 
@@ -877,6 +895,7 @@ export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
   ...FACTION_ENTRIES,
   ...HISTORY_ENTRIES,
   ...WORLD_EVENT_ENTRIES,
+  ...DEVOTION_CODEX_ENTRIES,
   {
     id: "locationTidehaven",
     category: "location",

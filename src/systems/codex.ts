@@ -28,6 +28,7 @@ import {
   REPUTATION_MILESTONE_IDS,
   REPUTATION_TIERS,
 } from "../data/reputation";
+import type { DeityId, TempleId } from "../data/devotion";
 
 export interface CodexEntry {
   monsterId: string;
@@ -85,6 +86,14 @@ export type CodexUnlockSignal =
   | {
     readonly type: "readable";
     readonly readableId: string;
+  }
+  | {
+    readonly type: "devotionTemple";
+    readonly templeId: TempleId;
+  }
+  | {
+    readonly type: "devotionAffiliation";
+    readonly deityId: DeityId;
   };
 
 export type CodexFutureUnlockSignal =
@@ -217,6 +226,10 @@ function sourceMatchesSignal(
       return signal.type === "reputationMilestone"
         && source.factionId === signal.factionId
         && source.milestoneId === signal.milestoneId;
+    case "devotionTemple":
+      return signal.type === "devotionTemple" && source.templeId === signal.templeId;
+    case "devotionAffiliation":
+      return signal.type === "devotionAffiliation" && source.deityId === signal.deityId;
   }
 }
 
@@ -300,6 +313,12 @@ export function replayCodexUnlocks(
   const applyFuture = (signal: CodexFutureUnlockSignal): void => {
     unlockedIds.push(...unlockCodexFromFutureSignal(codex, signal).unlockedIds);
   };
+  for (const templeId of player.progression.devotion.visitedTempleIds) {
+    apply({ type: "devotionTemple", templeId });
+  }
+  if (player.progression.devotion.deityId) {
+    apply({ type: "devotionAffiliation", deityId: player.progression.devotion.deityId });
+  }
 
   for (const [factionId, score] of Object.entries(
     player.progression.social.factionReputation,

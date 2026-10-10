@@ -33,6 +33,8 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - player and companion progression, gambits, inventories, transfers
 - quests, cutscene triggers/queues, Codex, events, social state, achievements
 - gathering, crafting, nautical state, world/map/trap/fog helpers
+- original devotion content, source idempotency, qualification isolation,
+  temple transactions, affiliation choices and canonical blessing lifecycle
 - save round trips, migrations, corruption repair, and cross-field validation
 - semantic input mappings, context priority, repeats, cleanup, and suppression
 - pure layout, wrapping, pagination, safe-area, and focus math
@@ -58,6 +60,8 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   screenshots, and page/console errors
 - layout audits at supported text scales and representative desktop/mobile
   viewports
+- devotion temple/profile, unaffiliated and affiliated routes, keeper/event/
+  optional-quest consequences, blessing reload/cleanup and ending presentation
 
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
 a strict port. `e2e/landing.spec.ts` exercises the showcase root; Phaser flows
@@ -71,7 +75,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v18 autosave/manual-slot persistence,
+- real character creation, schema-v19 autosave/manual-slot persistence,
   relaunch, and continue
 - keyboard Save & Return to Title plus pointer Quit Desktop
 - lifecycle/quit log creation without campaign-content leakage
@@ -85,7 +89,7 @@ Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
 Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work. The command rebuilds the production `/2dnd/`
 target, launches it on an unused local port, and samples cache-disabled
-headless Chromium startup with both empty storage and a fresh schema-v18 save.
+headless Chromium startup with both empty storage and a fresh current-schema save.
 It reports:
 
 - deployed and JavaScript raw/gzip sizes plus source-map size

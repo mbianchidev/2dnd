@@ -47,6 +47,7 @@ export type EscapeMenuAction =
   | "achievements"
   | "gathering"
   | "crafting"
+  | "devotion"
   | "tips"
   | "save"
   | "settings"
@@ -120,6 +121,13 @@ const ESCAPE_MENU_ENTRIES: readonly EscapeMenuEntry[] = [
     color: "#f7c948",
     featureId: "crafting",
     testId: "menu-crafting",
+  },
+  {
+    action: "devotion",
+    label: "Devotion Profile",
+    color: "#b8ddff",
+    featureId: "devotionProfile",
+    testId: "menu-devotion",
   },
   {
     action: "tips",
@@ -316,6 +324,7 @@ export function deriveAvailableFeatureIds(
     ids.add("chronicle");
   }
   if (hasNaturalSocialEvidence(player)) ids.add("socialProfile");
+  if (player.progression.devotion.visitedTempleIds.length > 0) ids.add("devotionProfile");
   if (
     player.mountId.length > 0
     || player.inventory.some((item) => item.type === "mount" && item.mountId)

@@ -114,11 +114,11 @@ async function createCampaign(page: Page): Promise<void> {
   await clickGame(page, 420, 312);
   await waitForState(page, "CUTSCENE");
   await drainCutscenes(page);
-  if ((await page.locator("#debug-state").textContent())?.includes("[TUTORIAL")) {
-    for (let step = 0; step < 5; step += 1) {
-      await holdKey(page, "Space");
-    }
+  await waitForState(page, "[TUTORIAL");
+  for (let step = 0; step < 5; step += 1) {
+    await holdKey(page, "Space");
   }
+  await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL");
   await waitForState(page, "OVERWORLD");
 }
 
@@ -300,6 +300,6 @@ test("plays, reloads, records, and battles through all gathering disciplines", a
   save = await readSave(page);
   expect(save.player.inventory.some((item) => item.id === "stormEel")).toBe(true);
   expect(save.player.progression.gathering.pending).toBeNull();
-  expect(save.version).toBe(18);
+  expect(save.version).toBe(19);
   expect(browserErrors).toEqual([]);
 });

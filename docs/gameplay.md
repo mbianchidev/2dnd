@@ -134,6 +134,22 @@ Merchant routes work before boat ownership. Later, the Tideglass Charter grants
 a Reed Skiff for free sailing, hazards, sea encounters, open-water fishing,
 boat upgrades, island discovery, Tideglass Grotto, and the optional Kraken.
 
+## Optional fictional devotion
+
+The original **Unfinished Constellation** consists of Orivane (Making and
+Shelter), Selquor (Testimony and Memory), and Tessune (Passage and Possibility).
+New and legacy heroes remain unaffiliated unless they explicitly choose a
+figure at a temple. All affiliations and an unaffiliated hero can complete the
+same canonical campaign.
+
+Start at the model statue in Willowdale's Riverside district. The first visit
+reveals **Devotion Profile** in the Escape menu. Temples show domains, tenets,
+independent devotion and cause history, optional keeper quests, and available
+rites. A traveling thread grants the same +1 AC for three hero turns to every
+visitor; a resting-place rite uses one normal short rest. Each rite and cause
+is once per site/source, never a farming loop. See [Fictional devotion](devotion.md)
+for sites, explicit-choice consequences, and lifecycle details.
+
 ## Tutorial, discovery, and accessibility
 
 New campaigns open a five-step tutorial after the opening cutscene queue.

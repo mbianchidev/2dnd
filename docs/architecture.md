@@ -9,12 +9,12 @@
 | --- | --- |
 | Phaser | 4.2.1 |
 | TypeScript | 7.0.2, strict, ES2020 target |
-| Vite | 8.3.0 |
-| Vitest | 5.0.0 |
+| Vite | 8.3.2 |
+| Vitest | 5.0.3 |
 | Playwright | 1.63.0 |
-| happy-dom | 20.14.3 |
-| Electron | 44.3.0 |
-| electron-builder | 26.16.1 |
+| happy-dom | 20.14.5 |
+| Electron | 44.5.1 |
+| electron-builder | 26.17.0 |
 | Campaign save schema | 18 |
 
 The web build is a static Vite multi-page application with an optional Electron

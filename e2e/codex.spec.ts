@@ -122,10 +122,11 @@ async function createCampaign(page: Page): Promise<void> {
   await clickGame(page, 420, 312);
   await waitForState(page, "CUTSCENE");
   await drainCutscenes(page);
-  if ((await page.locator("#debug-state").textContent())?.includes("[TUTORIAL")) {
-    await holdKey(page, "Escape");
-  }
+  await waitForState(page, "[TUTORIAL");
+  await holdKey(page, "Escape");
+  await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL");
   await waitForState(page, "OVERWORLD");
+  expect((await readSave(page)).player.progression.tutorial.completed).toBe(true);
 }
 
 async function readSave(page: Page): Promise<BrowserSave> {
@@ -274,7 +275,6 @@ test.describe("touch Codex controls", () => {
     await createCampaign(page);
     await submitDebug(page, "/feature reveal codexLocation");
 
-    await page.waitForTimeout(350);
     await page.locator('[data-action="openMenu"]').tap();
     await waitForState(page, "[MENU]");
     await tapLayoutItem(page, "escape-menu-codex");

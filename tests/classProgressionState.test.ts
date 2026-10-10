@@ -6,7 +6,10 @@ import {
   commitHeroLevelUp, getTotalLevel, prepareHeroLevelUp, previewHeroLevelUp,
   prepareNextHeroLevelUp,
 } from "../src/systems/classProgression";
-import { normalizeHeroClassProgression } from "../src/systems/classProgressionState";
+import {
+  normalizeHeroClassProgression,
+  normalizeHeroProgressionState,
+} from "../src/systems/classProgressionState";
 import {
   awardXP, createPlayer, processPendingLevelUps, xpForLevel,
 } from "../src/systems/player";
@@ -309,7 +312,7 @@ describe("multiclass persistence", () => {
     expect(normalized?.player.maxHp).toBe(player.maxHp);
   });
 
-  it("repairs inconsistent totals and bounded pending/ASI resources", () => {
+  it("repairs progression fields without admitting an unusable campaign core", () => {
     const player = createPlayer("Bounds fixture", stats);
     player.level = 999;
     player.classProgression.classLevels = { knight: 3, wizard: 2 };
@@ -318,16 +321,38 @@ describe("multiclass persistence", () => {
     player.xp = xpForLevel(30);
     player.hp = 999;
     player.mp = -1;
+    expect(normalizeSaveData({
+      version: SAVE_VERSION, player, codex: createCodex(),
+      defeatedBosses: [], appearanceId: player.appearanceId, timestamp: 100,
+    })).toBeNull();
+    const normalized = normalizeHeroProgressionState(player, SAVE_VERSION);
+    if (!normalized) throw new Error("Progression fields rejected");
+    expect(normalized.level).toBe(5);
+    expect(getTotalLevel({ ...player, ...normalized })).toBe(5);
+    expect(normalized.pendingLevelUps).toBe(15);
+    expect(normalized.pendingStatPoints).toBe(2);
+    expect(normalized.hp).toBe(player.maxHp);
+    expect(normalized.mp).toBe(0);
+  });
+
+  it("repairs owned totals and pending credits after validating a usable campaign core", () => {
+    const player = createPlayer("Usable bounds fixture", stats);
+    player.level = 6;
+    player.classProgression.classLevels = { knight: 3, wizard: 2 };
+    player.pendingLevelUps = 999;
+    player.pendingStatPoints = 999;
+    player.xp = xpForLevel(30);
+    const resources = { hp: player.hp, mp: player.mp, maxHp: player.maxHp, maxMp: player.maxMp };
     const normalized = normalizeSaveData({
       version: SAVE_VERSION, player, codex: createCodex(),
       defeatedBosses: [], appearanceId: player.appearanceId, timestamp: 100,
     });
-    expect(normalized?.player.level).toBe(5);
-    expect(normalized && getTotalLevel(normalized.player)).toBe(5);
-    expect(normalized?.player.pendingLevelUps).toBe(15);
-    expect(normalized?.player.pendingStatPoints).toBe(2);
-    expect(normalized?.player.hp).toBe(player.maxHp);
-    expect(normalized?.player.mp).toBe(0);
+    if (!normalized) throw new Error("Usable campaign rejected");
+    expect(normalized.player.level).toBe(5);
+    expect(getTotalLevel(normalized.player)).toBe(5);
+    expect(normalized.player.pendingLevelUps).toBe(15);
+    expect(normalized.player.pendingStatPoints).toBe(2);
+    expect(normalized.player).toMatchObject(resources);
   });
 });
 

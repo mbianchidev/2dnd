@@ -18,6 +18,7 @@ import { getTalent } from "../data/talents";
 import { debugLog } from "../config";
 import { getPlayerClass } from "./classes";
 import { abilityModifier } from "./dice";
+import { normalizeSavedHeroInventory } from "./saveActor";
 import {
   heroItemsMatch,
   isSerializedHeroItem,
@@ -142,13 +143,6 @@ function normalizeStats(value: Record<string, unknown>): PlayerStats {
   };
 }
 
-function normalizeInventory(value: readonly unknown[]): Item[] {
-  return value.flatMap((entry) => {
-    const item = normalizeSerializedHeroItem(entry);
-    return item ? [item] : [];
-  });
-}
-
 function relinkEquipment(
   inventory: Item[],
   value: unknown,
@@ -230,7 +224,8 @@ export function normalizeHeroProgressionState(
     { appearanceId, level: value["level"] }, context,
   );
   const stats = normalizeStats(value["stats"]);
-  const inventory = normalizeInventory(value["inventory"]);
+  const inventory = normalizeSavedHeroInventory(value["inventory"]);
+  if (!inventory) return null;
   const fields: NormalizedHeroProgressionFields = {
     name: value["name"],
     appearanceId,

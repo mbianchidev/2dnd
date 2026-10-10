@@ -46,6 +46,8 @@ describe("serialized hero ownership", () => {
     { ...fixture, element: "water" },
     { ...fixture, targetType: "enemy" },
     { ...fixture, levelReq: Infinity },
+    { ...fixture, levelReq: -1 },
+    { ...fixture, levelReq: 1.5 },
     { ...fixture, trapDetectionBonus: "three" },
     { ...fixture, restoresMp: 1 },
     { ...fixture, tags: ["mock", 7] },

@@ -33,11 +33,12 @@ future work until merged.
 | Sea navigation | `nautical.ts`, `islands.ts`, `seaMonsters.ts` | `nautical*.ts` | Overworld/map/audio | nautical unit and E2E |
 | Events/social/achievements | matching `src/data/` modules | matching `src/systems/` modules | managers/overlays/social renderer | matching unit and E2E |
 | Gathering/crafting | matching `src/data/` modules | matching systems + state normalizers | matching managers | matching unit and E2E |
-| Saves | owning interfaces/defaults | `save.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/domain migration suites |
+| Saves | owning interfaces/defaults | `save.ts`, `saveActor.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/validation/availability/domain migration suites |
 | Accessibility/input | tutorial/feature definitions | `accessibility.ts`, `input.ts`, `featureDiscovery.ts` | input/tutorial/layout managers | accessibility/input/layout/feature E2E |
 | Audio | typed data cues | `audio.ts`, `trapAudio.ts` | callers only | audio + representative browser flows |
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
 | Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
+| Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | `hacks/prepare-steam.mjs`, protected upload utility | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck-equivalent Electron |
 
 ## Required workflow
 
@@ -53,6 +54,9 @@ future work until merged.
 5. **PR/CI:** push a review branch, open a PR, wait for PR CI and CodeQL, and
    resolve every failure and review comment. Do not merge without explicit
    instruction.
+
+Browser and desktop CI concurrency is scoped to the Git ref so unrelated
+review branches do not replace one another's pending checks.
 
 ```bash
 npm ci
@@ -102,6 +106,14 @@ owning issue or pull request.
   tests.
 - Route all release input through semantic contexts; do not add scene-local
   gamepad/touch mappings or conflicting production/debug keys.
+- Shared `systems/textEntry.ts` / `managers/textEntry.ts` own the controller
+  keyboard for names/slot labels/search, modal isolation, cancellation and
+  focus restoration; the input adapter re-exports the existing text-entry API.
+- Steam SDK, Steam achievements, Cloud and native Steam Input API are disabled.
+  Stage native Linux x64, Windows x64 and inspected macOS universal payloads;
+  never sync Chromium profiles or claim Proton/Deck/partner validation from
+  equivalent tests. Upload requires explicit protected human authorization;
+  `SetLive` stays empty.
 - `TitleMenuManager` owns title selection, large pointer targets, and semantic
   D-pad/confirm activation; keep overwrite confirmation usable in landscape.
 - Own and clean up listeners, timers, tweens, emitters, DOM controls, texture
@@ -187,3 +199,4 @@ owning issue or pull request.
 - [Hero progression](docs/hero-progression.md)
 - [Companions and gambits](docs/companions.md)
 - [Inventory presentation](docs/inventory.md)
+- [Steam preparation](docs/steam.md)

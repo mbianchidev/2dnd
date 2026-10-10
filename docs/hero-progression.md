@@ -144,6 +144,10 @@ Schema v19 migrates legacy single-class ownership from the old identity/level,
 preserving stats, rolled HP/MP, canonical known actions/talents and equipment
 links without rerolling or applying bonuses on load.
 
+Campaign loads first validate the required hero core through `saveActor.ts`.
+Usable cores then normalize ownership, rest credits and grant metadata; broken
+cores fall through to slot recovery rather than inventing character resources.
+
 Well-formed serialized custom hero items retain their IDs, names, metadata and
 inventory order. Equipment relinks to the complete matching item, not the first
 same-ID duplicate. Valid legacy orphan gear is recovered without replacing its

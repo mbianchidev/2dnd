@@ -10,6 +10,7 @@ import {
 class MemoryStorage implements SaveKeyValueStorage {
   readonly values = new Map<string, string>();
   failOnSetKey: string | null = null;
+  corruptNextSetKey: string | null = null;
 
   getItem(key: string): string | null {
     return this.values.get(key) ?? null;
@@ -20,6 +21,11 @@ class MemoryStorage implements SaveKeyValueStorage {
       const error = new Error("Storage quota reached");
       error.name = "QuotaExceededError";
       throw error;
+    }
+    if (key === this.corruptNextSetKey) {
+      this.corruptNextSetKey = null;
+      this.values.set(key, "{unverified");
+      return;
     }
     this.values.set(key, value);
   }
@@ -55,11 +61,16 @@ describe("SaveSlotStorageAdapter", () => {
     expect(storage.getItem(getSaveSlotStagingKey("autosave"))).toBeNull();
   });
 
-  it("leaves the previous primary untouched when staging fails", () => {
+  it.each([
+    ["staging", getSaveSlotStagingKey("manual-1")],
+    ["backup", getSaveSlotBackupKey("manual-1")],
+    ["primary", getSaveSlotStorageKey("manual-1")],
+  ])("preserves prior campaign bytes when the %s write hits quota", (_phase, key) => {
     const storage = new MemoryStorage();
     const adapter = new SaveSlotStorageAdapter(storage);
     expect(adapter.write("manual-1", '{"value":1}', decode)).toEqual({ ok: true });
-    storage.failOnSetKey = getSaveSlotStagingKey("manual-1");
+    expect(adapter.write("manual-2", '{"value":9}', decode)).toEqual({ ok: true });
+    storage.failOnSetKey = key;
 
     const result = adapter.write("manual-1", '{"value":2}', decode);
 
@@ -69,6 +80,84 @@ describe("SaveSlotStorageAdapter", () => {
       previousValuePreserved: true,
     });
     expect(storage.getItem(getSaveSlotStorageKey("manual-1"))).toBe('{"value":1}');
+    expect(storage.getItem(getSaveSlotStorageKey("manual-2"))).toBe('{"value":9}');
+    expect(storage.getItem(getSaveSlotStagingKey("manual-1"))).toBeNull();
+  });
+
+  it.each([
+    ["staging", getSaveSlotStagingKey("manual-1")],
+    ["primary", getSaveSlotStorageKey("manual-1")],
+  ])("rolls back mismatched %s bytes before reporting success", (_phase, key) => {
+    const storage = new MemoryStorage();
+    const adapter = new SaveSlotStorageAdapter(storage);
+    expect(adapter.write("manual-1", '{"value":1}', decode)).toEqual({ ok: true });
+    storage.corruptNextSetKey = key;
+
+    expect(adapter.write("manual-1", '{"value":2}', decode)).toMatchObject({
+      ok: false,
+      error: { code: "verification" },
+      previousValuePreserved: true,
+    });
+    expect(storage.getItem(getSaveSlotStorageKey("manual-1"))).toBe('{"value":1}');
+    expect(storage.getItem(getSaveSlotStagingKey("manual-1"))).toBeNull();
+  });
+
+  it("prefers a valid primary without modifying interrupted staging or backup", () => {
+    const storage = new MemoryStorage();
+    const adapter = new SaveSlotStorageAdapter(storage);
+    storage.setItem(getSaveSlotStorageKey("manual-1"), '{"value":1}');
+    storage.setItem(getSaveSlotStagingKey("manual-1"), '{"value":2}');
+    storage.setItem(getSaveSlotBackupKey("manual-1"), '{"value":0}');
+    const before = [...storage.values];
+
+    expect(adapter.read("manual-1", decode)).toMatchObject({
+      ok: true,
+      value: { value: 1 },
+      source: "primary",
+      recovered: false,
+    });
+    expect([...storage.values]).toEqual(before);
+  });
+
+  it("recovers interrupted staging before an older backup and changes only that slot", () => {
+    const storage = new MemoryStorage();
+    const adapter = new SaveSlotStorageAdapter(storage);
+    storage.setItem(getSaveSlotStorageKey("manual-1"), "{broken");
+    storage.setItem(getSaveSlotStagingKey("manual-1"), '{"value":2}');
+    storage.setItem(getSaveSlotBackupKey("manual-1"), '{"value":1}');
+    storage.setItem(getSaveSlotStorageKey("manual-2"), '{"value":9}');
+    storage.setItem("2dnd_preferences", "mock preference bytes");
+
+    expect(adapter.read("manual-1", decode)).toMatchObject({
+      ok: true,
+      value: { value: 2 },
+      source: "staging",
+      recovered: true,
+    });
+    expect(storage.getItem(getSaveSlotStorageKey("manual-1"))).toBe('{"value":2}');
+    expect(storage.getItem(getSaveSlotStagingKey("manual-1"))).toBeNull();
+    expect(storage.getItem(getSaveSlotBackupKey("manual-1"))).toBe('{"value":1}');
+    expect(storage.getItem(getSaveSlotStorageKey("manual-2"))).toBe('{"value":9}');
+    expect(storage.getItem("2dnd_preferences")).toBe("mock preference bytes");
+  });
+
+  it("loads a valid recovery copy even when restoring the primary hits quota", () => {
+    const storage = new MemoryStorage();
+    const adapter = new SaveSlotStorageAdapter(storage);
+    storage.setItem(getSaveSlotStorageKey("manual-1"), "{broken");
+    storage.setItem(getSaveSlotStagingKey("manual-1"), '{"value":2}');
+    storage.setItem(getSaveSlotBackupKey("manual-1"), '{"value":1}');
+    storage.failOnSetKey = getSaveSlotStorageKey("manual-1");
+    const before = [...storage.values];
+
+    expect(adapter.read("manual-1", decode)).toMatchObject({
+      ok: true,
+      value: { value: 2 },
+      source: "staging",
+      recovered: true,
+      recoveryError: { code: "quota" },
+    });
+    expect([...storage.values]).toEqual(before);
   });
 
   it("recovers one corrupt primary from its valid backup", () => {

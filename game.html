@@ -184,6 +184,10 @@
         pointer-events: none;
       }
       #touch-controls.visible { display: block; }
+      body:has(#mobile-text-input) #touch-controls { z-index: 81; }
+      body:has(#mobile-text-input) #touch-controls .touch-control:not(.touch-confirm):not(.touch-cancel) {
+        display: none;
+      }
       .touch-control {
         position: absolute;
         min-width: 48px;
@@ -268,7 +272,7 @@
         position: fixed;
         left: -10px;
         top: -10px;
-        z-index: 60;
+        z-index: 90;
         width: 20px;
         height: 20px;
         border: 3px solid #ffdf66;
@@ -277,6 +281,12 @@
         box-shadow: 0 0 0 2px #000;
         pointer-events: none;
       }
+      #text-entry-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 79;
+        background: rgba(0, 0, 0, 0.5);
+      }
       #mobile-text-input {
         position: fixed;
         z-index: 80;
@@ -284,12 +294,30 @@
         top: max(20px, env(safe-area-inset-top));
         transform: translateX(-50%);
         display: flex;
+        flex-direction: column;
         gap: 8px;
+        width: min(720px, calc(100vw - 24px));
+        max-height: calc(100dvh - 40px);
+        overflow: auto;
         padding: 12px;
         background: #151a2d;
         border: 2px solid #ffdf66;
         border-radius: 10px;
         box-shadow: 0 8px 32px #000;
+      }
+      #mobile-text-input label,
+      #mobile-text-input p {
+        color: #fff;
+        font: calc(13px * var(--text-entry-scale, 1)) monospace;
+      }
+      .text-entry-field {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .text-entry-field input {
+        flex: 1 1 140px;
+        min-width: 0;
       }
       #mobile-text-input input,
       #mobile-text-input button {
@@ -298,7 +326,37 @@
         border: 2px solid #dce8ff;
         background: #252b45;
         color: #fff;
-        font: 16px monospace;
+        font: calc(16px * var(--text-entry-scale, 1)) monospace;
+      }
+      #controller-keyboard[hidden] { display: none; }
+      .text-entry-keys { overflow: auto; padding: 3px; }
+      .text-entry-key-row {
+        display: flex;
+        min-width: 600px;
+        gap: 4px;
+        margin-top: 4px;
+      }
+      .text-entry-key-row button {
+        flex: 1;
+        min-width: 0;
+        padding: 5px 2px !important;
+      }
+      #mobile-text-input .text-entry-command {
+        font-size: calc(12px * var(--text-entry-scale, 1));
+      }
+      #mobile-text-input button[data-selected="true"],
+      #mobile-text-input :focus-visible {
+        outline: 3px solid #ffdf66;
+        outline-offset: -3px;
+      }
+      #mobile-text-input[data-high-contrast="true"] {
+        background: #000;
+        border-color: #fff;
+      }
+      #mobile-text-input[data-high-contrast="true"] button,
+      #mobile-text-input[data-high-contrast="true"] input {
+        background: #000;
+        border-color: #fff;
       }
       @media (orientation: portrait), (max-width: 760px) {
         #game-header { padding-top: max(4px, env(safe-area-inset-top)); }

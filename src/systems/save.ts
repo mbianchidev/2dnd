@@ -72,6 +72,7 @@ import {
   reconcileFeatureDiscovery,
 } from "./featureDiscovery";
 import { normalizeHeroProgressionState } from "./classProgressionState";
+import { hasUsableSavePlayerCore } from "./saveActor";
 import {
   LEGACY_SAVE_STORAGE_KEY,
   SAVE_SLOT_IDS,
@@ -120,8 +121,14 @@ interface PlaytimeSession {
 
 let playtimeSession: PlaytimeSession | null = null;
 
-function getSaveStorage(): SaveKeyValueStorage | null {
-  return typeof localStorage === "undefined" ? null : localStorage;
+/** Acquire renderer storage even when browser privacy settings deny access. */
+export function getSaveStorage(): SaveKeyValueStorage | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch (error: unknown) {
+    debugLog("[save] Local campaign storage is unavailable", error);
+    return null;
+  }
 }
 
 function getStorageAdapter(): SaveSlotStorageAdapter | null {
@@ -511,7 +518,13 @@ function normalizePlayerLocation(player: PlayerState): void {
 export function normalizeSaveData(value: unknown): SaveData | null {
   try {
     const parsed = value;
-    if (!isRecord(parsed) || !isRecord(parsed["player"])) return null;
+    if (
+      !isRecord(parsed)
+      || !isRecord(parsed["player"])
+      || !hasUsableSavePlayerCore(parsed["player"])
+    ) {
+      return null;
+    }
     if (
       typeof parsed["version"] !== "number"
       || !Number.isInteger(parsed["version"])
@@ -522,7 +535,12 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     }
     const sourceVersion = parsed["version"];
     const rawInventory = parsed["player"]["inventory"];
-    const heroFields = normalizeHeroProgressionState(parsed["player"], sourceVersion);
+    const heroFields = normalizeHeroProgressionState({
+      ...parsed["player"],
+      inventory: Array.isArray(rawInventory)
+        ? rawInventory.filter((item: unknown) => !isRecord(item) || item["id"] !== "adventurerTrapNotes")
+        : rawInventory,
+    }, sourceVersion);
     if (!heroFields) return null;
     const data = parsed as unknown as SaveData;
     Object.assign(data.player, heroFields);

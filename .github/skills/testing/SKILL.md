@@ -18,6 +18,23 @@ Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
 schema-v19 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
+`electron-tests/saveParity.spec.ts` additionally downloads a real browser slot
+export and imports it through the native renderer's file picker. Assert the same
+normalized campaign/metadata while browser and desktop preferences stay isolated.
+Use production keyboard controls in Electron; local-only layout audit selectors
+are intentionally unavailable at `app://2dnd`.
+
+`electron-tests/deck.spec.ts` adds a 1280x800 standard-gamepad equivalent with
+name/rename/search text entry, normal exploration/Battle, save/reload/recovery,
+cursor fullscreen, reconnect/focus/resize, accessibility and controller-only
+exit. It records actual atomic slot-write timing, frame/JS/native-memory data
+and bounded cleanup samples. Physical Deck, Steam client/Input/overlay,
+suspend/dock, long-session endurance and partner/signing approval are not
+claimed. `ELECTRON_TEST_EXECUTABLE` selects an explicit packaged test binary.
+
+Steam contract/CLI tests use mock IDs and synthetic architecture/ASAR fixtures;
+actual depot payload inspection belongs to the native packaging matrix.
+Keep preview generation separate from protected upload and public release.
 
 ## Testing Philosophy
 
@@ -54,6 +71,8 @@ debug exclusion, category-specific discovery, and schema-v17 migration
 ✅ Save-slot migration, staging/backup atomicity, corruption isolation, metadata,
 independent overwrite/rename/copy/delete, deterministic import/export, and
 keyboard/touch/gamepad management
+✅ Unusable hero-core rejection before import writes, serialized hero-item
+compatibility, actor equipment repair, exact byte isolation, and denied storage getters
 ✅ Defeat penalty receipts, once-only Battle resolution, recovered save
 round-trips, result-scene continuation, and random/boss parity
 ✅ Animation state selection, reduced-motion timing, stable actor/target mapping,
@@ -578,7 +597,9 @@ npx vitest run tests/dice.test.ts
 - Cover the showcase's Play/download links, game-generated screenshots,
   responsive width, Steam banner, and page/console cleanliness.
 - Pull request CI installs Chromium and runs the browser suite as a release
-  gate.
+  gate. Its concurrency group is ref-scoped so independent review branches do
+  not replace one another's pending checks; same-ref runs remain serialized
+  without cancelling an active run.
 - Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
   disable trace screenshots and video. Phaser repaints every frame, so the
   filmstrip creates thousands of canvas captures that stall context teardown.

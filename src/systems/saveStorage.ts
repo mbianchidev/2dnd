@@ -15,6 +15,7 @@ export const MANUAL_SAVE_SLOT_IDS = [
 
 export const LEGACY_SAVE_STORAGE_KEY = "2dnd_save";
 export const SAVE_SLOT_MIGRATION_KEY = "2dnd_save_slots_migrated_v1";
+export const SAVE_WRITE_MEASURE = "2dnd:save-slot-write";
 
 export interface SaveKeyValueStorage {
   getItem(key: string): string | null;
@@ -171,6 +172,22 @@ export class SaveSlotStorageAdapter {
   }
 
   write<T>(
+    slotId: SaveSlotId,
+    raw: string,
+    decode: (candidate: string) => T | null,
+  ): SaveStorageWriteResult {
+    const startedAt = performance.now();
+    const result = this.writeValidated(slotId, raw, decode);
+    performance.clearMeasures(SAVE_WRITE_MEASURE);
+    performance.measure(SAVE_WRITE_MEASURE, {
+      start: startedAt,
+      end: performance.now(),
+      detail: { slotId, ok: result.ok },
+    });
+    return result;
+  }
+
+  private writeValidated<T>(
     slotId: SaveSlotId,
     raw: string,
     decode: (candidate: string) => T | null,

@@ -56,10 +56,13 @@ export function isSerializedHeroItem(value: unknown): value is Item {
   if (!["twoHanded", "light", "finesse", "cureEffects", "restoresMp"].every((key) =>
     value[key] === undefined || typeof value[key] === "boolean"
   )) return false;
-  if (!["levelReq", "trapDetectionBonus", "trapDisarmBonus"].every((key) =>
+  if (!["trapDetectionBonus", "trapDisarmBonus"].every((key) =>
     value[key] === undefined || isFiniteNumber(value[key])
   )) return false;
-  return (value["weaponSprite"] === undefined || isMember(value["weaponSprite"], WEAPON_SPRITES))
+  return (value["levelReq"] === undefined
+      || (typeof value["levelReq"] === "number" && Number.isSafeInteger(value["levelReq"])
+        && value["levelReq"] >= 0))
+    && (value["weaponSprite"] === undefined || isMember(value["weaponSprite"], WEAPON_SPRITES))
     && (value["mountId"] === undefined || typeof value["mountId"] === "string")
     && (value["element"] === undefined || isElement(value["element"]))
     && (value["targetType"] === undefined

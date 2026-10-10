@@ -16,10 +16,22 @@ Campaign normalization and autosave compatibility live in
 `src/systems/saveStorage.ts`; and shared Phaser presentation lives in
 `src/managers/saveSlots.ts`. Shared audio, accessibility, and inventory
 presentation preferences stay separate.
+`src/systems/saveActor.ts` validates required hero authority, preserves usable
+serialized hero items, and shares equipment repair with companion normalization.
 
 Browser builds use their HTTP/HTTPS origin. Packaged Electron builds use the
 stable secure `app://2dnd` origin and the same save implementation. The stores
 remain isolated and are never copied or merged implicitly.
+
+Steam Cloud/Auto-Cloud remains disabled. Preparation never copies or syncs
+Chromium profile databases and introduces no native storage bridge. A future
+Cloud adapter must export validated slot/preference documents through these
+owners and explicitly handle conflicts, quota, corruption, backups, offline
+replay and cross-device/account policy; see `docs/steam.md`.
+
+The bounded `2dnd:save-slot-write` Performance measure times the actual atomic
+adapter path and retains only its latest duration/outcome, never campaign
+content. It is instrumentation, not persistent state or a schema change.
 
 ## Storage keys
 
@@ -52,6 +64,12 @@ unlocks wait for the next applied level, including across intermediate saves.
 custom IDs, metadata or append order. Equipment matches complete serialized
 content so same-ID duplicates retain exact ownership; valid legacy orphan gear
 is recovered. Companion inventory restrictions remain canonical and separate.
+
+Campaign loads validate required core fields with `hasUsableSavePlayerCore()`
+before progression repair. `normalizeSavedHeroInventory()` reuses the shared
+item guard, rejects unusable unknown ownership and repairs malformed known
+records. Progression normalization relinks hero equipment exactly once; do not
+run the companion first-ID relinker over those links afterward.
 
 ```typescript
 interface SaveData {
@@ -185,6 +203,16 @@ from authoritative gameplay state and never controls that state.
 
 Treat parsed JSON as `unknown`. Use typed record guards and normalization
 helpers; do not cast unvalidated nested values directly.
+Reject unusable hero identity, level, stats, economy, resources, spell lists,
+or item-ID arrays before repairing optional campaign state. Preserve well-formed
+hero item records, legacy/custom IDs, metadata, and order. Repair malformed known
+hero items from canonical definitions; reject unusable unknown records without
+deleting ownership. Companion inventories retain canonical normalization.
+Relink equipment only to owned items. Invalid primaries must fall through to
+staging/backup; invalid imports must not change any slot bytes.
+Use `getSaveStorage()` for campaign access: browser privacy settings can throw
+on the `localStorage` getter itself. Denied storage must leave title diagnostics
+and in-memory preferences usable while reporting campaign write failures.
 
 `loadGame()` currently handles:
 
@@ -316,11 +344,19 @@ as backup, and roll back failures. Reads recover primary, interrupted staging,
 or backup in that order. Save failures use `debugLog()` and a visible
 screen-reader alert. Loading returns `null` only when the selected slot has no
 recoverable valid campaign.
+Healthy manual reads/copies preserve source bytes, but recovery reads may repair
+the source primary and legacy migration may write bookkeeping. They are not
+read-only inspection APIs. Copy preserves gameplay/playtime, updates only the
+destination timestamp/name, and does not start a playtime session.
+The slot manager owns nested Esc/B/touch Cancel behavior. Scene-level Escape
+listeners must yield while it is open so cancellation returns from confirmation
+to browsing before closing the manager.
 
 ## Tests
 
 `tests/save.test.ts`, `tests/saveSlots.test.ts`, and
-`tests/saveStorage.test.ts` cover:
+`tests/saveStorage.test.ts`, `tests/saveValidation.test.ts`, and
+`tests/saveAvailability.test.ts` cover:
 
 - Save/load round trips
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
@@ -347,6 +383,9 @@ recoverable valid campaign.
 - one-time schema-v17 autosave migration, atomic writes, quota failures,
   corruption isolation, backup/staging recovery, metadata, independent slots,
   overwrite, rename, copy, delete, and validated deterministic import/export
+- unusable required hero cores, canonical item/equipment repair, exact-byte
+  preservation on rejected imports and healthy copy/load/autosave paths, and
+  denied storage-property access without breaking title/preferences
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.

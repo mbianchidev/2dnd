@@ -53,6 +53,9 @@ future work until merged.
    resolve every failure and review comment. Do not merge without explicit
    instruction.
 
+Browser and desktop CI concurrency is scoped to the Git ref so unrelated
+review branches do not replace one another's pending checks.
+
 ```bash
 npm ci
 npm audit

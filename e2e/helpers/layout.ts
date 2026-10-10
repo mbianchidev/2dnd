@@ -15,7 +15,8 @@ interface LayoutReport {
 }
 
 export async function waitForGameInputFrame(page: Page): Promise<void> {
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
 }
 
 export async function pressPointerAt(page: Page, x: number, y: number): Promise<void> {

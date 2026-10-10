@@ -121,6 +121,8 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
   than holding through the next movement-repeat interval.
 - In Electron, wait for the Boot title before fixture writes or reloads;
   the correct origin alone does not mean initial navigation has finished.
+- After native fullscreen restoration, settle a complete input/layout frame and
+  remeasure canvas pointer targets after hover before pressing them.
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.

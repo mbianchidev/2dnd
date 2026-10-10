@@ -64,6 +64,9 @@ async function gamePoint(
 }
 
 async function clickGame(page: Page, gameX: number, gameY: number): Promise<void> {
+  const initial = await gamePoint(page, gameX, gameY);
+  await page.mouse.move(initial.x, initial.y);
+  await waitForGameInputFrame(page);
   const point = await gamePoint(page, gameX, gameY);
   await clickPointerAt(page, point.x, point.y);
 }
@@ -223,6 +226,8 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await expect.poll(() => page.evaluate(() => ({
       width: innerWidth, height: innerHeight,
     }))).toEqual(originalViewport);
+    await page.bringToFront();
+    await waitForGameInputFrame(page);
 
     const saved = await createDesktopSave(page);
     await prepareSaveForOverworld(page);

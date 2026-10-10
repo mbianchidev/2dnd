@@ -45,19 +45,43 @@ async function launchDesktop(
   });
 }
 
+async function gamePoint(
+  page: Page,
+  gameX: number,
+  gameY: number,
+): Promise<{ x: number; y: number }> {
+  const canvas = page.locator("#game-container canvas");
+  await expect(canvas).toBeVisible();
+  const bounds = await canvas.boundingBox();
+  if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
+  return {
+    x: bounds.x + (gameX / GAME_WIDTH) * bounds.width,
+    y: bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
+  };
+}
+
 async function clickGame(
   page: Page,
   gameX: number,
   gameY: number,
 ): Promise<void> {
-  const canvas = page.locator("#game-container canvas");
-  await expect(canvas).toBeVisible();
-  const bounds = await canvas.boundingBox();
-  if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await page.mouse.click(
-    bounds.x + (gameX / GAME_WIDTH) * bounds.width,
-    bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
-  );
+  const point = await gamePoint(page, gameX, gameY);
+  await page.mouse.click(point.x, point.y);
+}
+
+async function holdBootControl(
+  page: Page,
+  gameX: number,
+  gameY: number,
+): Promise<void> {
+  await waitForState(page, "BOOT");
+  const point = await gamePoint(page, gameX, gameY);
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.down();
+  await page.evaluate(() => new Promise<void>((resolveFrame) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()));
+  }));
+  await page.mouse.up();
 }
 
 async function holdKey(
@@ -96,19 +120,23 @@ async function activateTitleAction(
 async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await activateTitleAction(page, "newGame");
   await waitForState(page, "BOOT | Screen: character");
-  await clickGame(page, 320, 76);
+  await holdBootControl(page, 320, 76);
   const nameInput = page.locator("#mobile-text-input input");
   await expect(nameInput).toBeVisible();
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
-  await clickGame(page, 284, 160);
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(250);
-  await clickGame(page, 390, 64);
-  await clickGame(page, 400, 460);
-  await page.waitForTimeout(250);
-  await clickGame(page, 320, 112);
-  await clickGame(page, 420, 312);
+  await expect(nameInput).not.toBeVisible();
+  await holdBootControl(page, 284, 160);
+  await holdKey(page, "Enter");
+  await waitForState(page, "BOOT | Screen: stats");
+  await waitForState(page, "[MODE:pointbuy]");
+  await holdBootControl(page, 390, 64);
+  await waitForState(page, "[MODE:random]");
+  await holdBootControl(page, 400, 460);
+  await waitForState(page, "BOOT | Screen: appearance");
+  await holdBootControl(page, 320, 112);
+  await holdBootControl(page, 420, 312);
+  await waitForState(page, "CUTSCENE");
 
   await expect.poll(async () => page.evaluate((key) => {
     const raw = localStorage.getItem(key);

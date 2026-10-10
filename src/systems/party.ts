@@ -42,6 +42,7 @@ import {
 import { normalizeGambitRules, type GambitRule } from "./gambits";
 import { getItemTransferRestriction } from "./inventory";
 import { replayQuestCompletionActions } from "./quests";
+import { normalizeSavedInventory, relinkSavedEquipment } from "./saveActor";
 
 export const MAX_ACTIVE_COMPANIONS = 3;
 
@@ -665,36 +666,6 @@ function normalizeKnownIds(
   ];
 }
 
-function normalizeInventory(
-  value: unknown,
-  fallback: Item[],
-): Item[] {
-  if (!Array.isArray(value)) return fallback.map((item) => ({ ...item }));
-  return value.flatMap((candidate) => {
-    if (!isRecord(candidate) || typeof candidate["id"] !== "string") return [];
-    const item = getItem(candidate["id"]);
-    return item ? [{ ...item }] : [];
-  });
-}
-
-function readEquippedItemId(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  return isRecord(value) && typeof value["id"] === "string"
-    ? value["id"]
-    : undefined;
-}
-
-function relinkEquipment(
-  inventory: Item[],
-  value: unknown,
-  type: "weapon" | "armor" | "shield",
-): Item | null {
-  const itemId = readEquippedItemId(value);
-  return itemId
-    ? inventory.find((item) => item.id === itemId && item.type === type) ?? null
-    : null;
-}
-
 function normalizeCustomAppearance(
   value: unknown,
   fallback: CompanionState["customAppearance"],
@@ -715,7 +686,7 @@ function normalizeCompanionState(
   const fallback = createCompanionState(value["id"], level);
   const maxHp = readInteger(value["maxHp"], fallback.maxHp, 1);
   const maxMp = readInteger(value["maxMp"], fallback.maxMp, 1);
-  const inventory = normalizeInventory(value["inventory"], fallback.inventory);
+  const inventory = normalizeSavedInventory(value["inventory"], fallback.inventory);
   const talentIds = new Set(TALENTS.map((talent) => talent.id));
   const companion: CompanionState = {
     ...fallback,
@@ -754,22 +725,22 @@ function normalizeCompanionState(
       (id) => talentIds.has(id),
       fallback.knownTalents,
     ),
-    equippedWeapon: relinkEquipment(
+    equippedWeapon: relinkSavedEquipment(
       inventory,
       value["equippedWeapon"],
       "weapon",
     ),
-    equippedOffHand: relinkEquipment(
+    equippedOffHand: relinkSavedEquipment(
       inventory,
       value["equippedOffHand"],
       "weapon",
     ),
-    equippedArmor: relinkEquipment(
+    equippedArmor: relinkSavedEquipment(
       inventory,
       value["equippedArmor"],
       "armor",
     ),
-    equippedShield: relinkEquipment(
+    equippedShield: relinkSavedEquipment(
       inventory,
       value["equippedShield"],
       "shield",

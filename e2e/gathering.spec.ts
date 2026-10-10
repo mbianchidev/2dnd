@@ -11,6 +11,7 @@ interface GatheringSave {
   player: {
     inventory: Array<{ id: string }>;
     progression: {
+      tutorial: { completed: boolean };
       gathering: {
         pending: {
           discipline: "fishing" | "mining" | "foraging";
@@ -114,11 +115,14 @@ async function createCampaign(page: Page): Promise<void> {
   await clickGame(page, 420, 312);
   await waitForState(page, "CUTSCENE");
   await drainCutscenes(page);
-  if ((await page.locator("#debug-state").textContent())?.includes("[TUTORIAL")) {
-    for (let step = 0; step < 5; step += 1) {
-      await holdKey(page, "Space");
-    }
+  await waitForState(page, "[TUTORIAL]");
+  for (let step = 0; step < 5; step += 1) {
+    await holdKey(page, "Space");
   }
+  await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL]");
+  await expect.poll(async () =>
+    (await readSave(page)).player.progression.tutorial.completed
+  ).toBe(true);
   await waitForState(page, "OVERWORLD");
 }
 

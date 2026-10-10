@@ -947,10 +947,7 @@ export class OverworldScene extends Phaser.Scene {
         this.tutorialManager.close();
         return;
       }
-      if (this.saveSlotManager?.isOpen()) {
-        this.saveSlotManager.close();
-        return;
-      }
+      if (this.saveSlotManager?.isOpen()) return;
       // ESC closes the topmost open overlay, or opens the menu
       if (this.chronicleManager?.isOpen()) {
         this.chronicleManager.close();

@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v18; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v19; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -33,7 +33,13 @@ normalization remains beside its domain where appropriate, including
 
 ## Current schema
 
-`SAVE_VERSION` is **18**. Schema v18 adds normalized non-negative
+`SAVE_VERSION` is **19**. Schema v19 adds canonical `player.difficulty`: selected
+profile, bounded Custom overrides, initial profile, lifetime change count, and
+at most 20 canonical causes. It stores no derived modifiers. Legacy v18 and
+older campaigns retain Standard; modern corrupt continuity cannot restore preset
+challenge credit. Accessibility, input, and dice presentation remain independent.
+
+Schema v18 adds normalized non-negative
 `playtimeSeconds` to each campaign document. Slot names, backup state, and
 migration bookkeeping remain storage metadata rather than campaign authority.
 
@@ -49,6 +55,7 @@ player.position
 player.progression
 player.party
 player.activeEffects
+player.difficulty
 ```
 
 `defeatedBosses` is serialized as an array and restored to a `Set<string>` for
@@ -130,6 +137,8 @@ Current loading preserves and repairs earlier releases, including:
 - World Event, social, achievement, gathering, crafting, nautical, and feature
   discovery defaults and corruption repair
 - schema-v17 and older playtime defaulting to zero
+- schema-v18 and older difficulty defaulting to exact Standard, bounded Custom
+  repair and conservative continuity validation without replaying rewards
 
 Migrations must not replay completed rewards, reroll pending outcomes, infer
 unknown defeat history, create duplicate companions, or emit mature-save

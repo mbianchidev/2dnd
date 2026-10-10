@@ -36,6 +36,7 @@ import { getSocialSummaryPageCount, renderSocialSummary } from "../renderers/soc
 import { renderPartyStatus } from "../renderers/partyStatus";
 import { getPartyDiscoveryPages, isFeatureAvailable } from "../systems/featureDiscovery";
 import type { PartyMemberView, PartyOverlayCallbacks, PartyOverlayPage } from "./partyOverlayTypes";
+import { getDifficultyProfile } from "../data/difficulty";
 
 export class PartyOverlayManager {
   private static readonly INVENTORY_PAGE_SIZE = 6;
@@ -294,6 +295,12 @@ export class PartyOverlayManager {
       state: member.state,
       companion: member.companion,
       targetName: this.getMember(this.targetId)?.name ?? "Hero",
+      campaignRulesLabel: getDifficultyProfile(this.player!.difficulty.selection.profileId).name,
+      openCampaignRules: this.callbacks.openCampaignRules
+        ? () => {
+          this.close();
+          this.callbacks.openCampaignRules?.();
+        } : undefined,
       x,
       y,
       addText: (...args) => this.addText(...args),

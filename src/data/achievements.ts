@@ -29,6 +29,8 @@ export const ACHIEVEMENT_IDS = [
   "tideglassCharterComplete",
   "deepwakeKrakenDefeated",
   "twelvefoldCovenantComplete",
+  "veteranCovenant",
+  "legendaryCovenant",
   "unbrokenCovenant",
   "threeDungeonsCleared",
   "seasonedVictor",
@@ -111,6 +113,10 @@ export type AchievementCriteria =
   }
   | {
     readonly type: "noDefeatCampaign";
+  }
+  | {
+    readonly type: "difficultyCampaign";
+    readonly minimum: "veteran" | "legendary";
   }
   | {
     readonly type: "successfulSkillChecks";
@@ -213,7 +219,8 @@ export interface AchievementSourceMetadata {
     | "reputation"
     | "inventory"
     | "gathering"
-    | "crafting";
+    | "crafting"
+    | "difficulty";
   readonly authoritativeState: string;
   readonly targetIds?: readonly string[];
 }
@@ -367,6 +374,32 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     criteria: { type: "noDefeatCampaign" },
     rewardTitleId: "unbroken",
     source: { kind: "defeatHistory", authoritativeState: "Schema-v13 defeat history", targetIds: [MAIN_QUEST] },
+  },
+  {
+    id: "veteranCovenant",
+    name: "Veteran Covenant",
+    description: "Complete the campaign on an unchanged Veteran or Legendary preset.",
+    category: "campaign",
+    points: 50,
+    criteria: { type: "difficultyCampaign", minimum: "veteran" },
+    source: {
+      kind: "difficulty",
+      authoritativeState: "Canonical campaign completion and unchanged preset history",
+      targetIds: [MAIN_QUEST, "veteran", "legendary"],
+    },
+  },
+  {
+    id: "legendaryCovenant",
+    name: "Legendary Covenant",
+    description: "Complete the campaign on an unchanged Legendary preset.",
+    category: "campaign",
+    points: 75,
+    criteria: { type: "difficultyCampaign", minimum: "legendary" },
+    source: {
+      kind: "difficulty",
+      authoritativeState: "Canonical campaign completion and unchanged preset history",
+      targetIds: [MAIN_QUEST, "legendary"],
+    },
   },
   {
     id: "threeDungeonsCleared",

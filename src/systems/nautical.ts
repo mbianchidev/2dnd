@@ -32,7 +32,14 @@ import type {
 } from "../data/nautical";
 import type { SkillCheckRecord } from "../data/skillChecks";
 import type { QuestId } from "../data/quests";
-import { getEffectiveEncounterRate } from "../managers/encounter";
+import {
+  getCampaignDifficultyRules,
+  getDifficultyEncounterRate,
+  resolveDifficultyRules,
+  scaleCost,
+  type CampaignDifficultyState,
+  type DifficultySelection,
+} from "./difficulty";
 import { getEncounterMultiplier, getTimePeriod, isNightTime } from "./daynight";
 import { applyNonlethalDamage, resolveSkillCheck } from "./skillChecks";
 import { WeatherType, getWeatherEncounterMultiplier } from "./weather";
@@ -102,6 +109,7 @@ export interface NavigationResult extends NavigationCheck {
 
 export interface MerchantRouteWallet {
   gold: number;
+  difficulty?: CampaignDifficultyState;
 }
 
 export interface MerchantRouteExecutionResult {
@@ -131,6 +139,7 @@ export interface SeaEncounterContext {
   weather: WeatherType;
   boat: BoatState;
   routeSafety?: RouteSafety;
+  difficulty?: DifficultySelection;
 }
 
 export interface PrepareSeaEncounterInput extends SeaEncounterContext {
@@ -156,6 +165,7 @@ export interface SeaHazardTraveler {
   hp: number;
   maxHp: number;
   stats: PlayerStats;
+  difficulty?: CampaignDifficultyState;
 }
 
 export interface SeaHazardResolution {
@@ -473,6 +483,7 @@ export function executeMerchantRoute(
     };
   }
   const route = getMerchantRoute(routeId);
+  const routeFee = scaleCost(route.fee, getCampaignDifficultyRules(wallet));
   const destinationPortId = route.portIds.find(
     (portId) => portId !== currentPortId,
   );
@@ -518,7 +529,7 @@ export function executeMerchantRoute(
       pending: state.pendingMerchantRoute,
     };
   }
-  if (!Number.isFinite(wallet.gold) || wallet.gold < route.fee) {
+  if (!Number.isFinite(wallet.gold) || wallet.gold < routeFee) {
     return {
       ok: false,
       idempotent: false,
@@ -533,12 +544,12 @@ export function executeMerchantRoute(
     fromPortId: currentPortId,
     toPortId: destinationPortId,
     boatId: routeBoat?.id ?? null,
-    feePaid: route.fee,
+    feePaid: routeFee,
     safety: route.safety,
     distance: route.distance,
   };
-  wallet.gold -= route.fee;
-  state.stats.routeFeesPaid += route.fee;
+  wallet.gold -= routeFee;
+  state.stats.routeFeesPaid += routeFee;
   state.pendingMerchantRoute = pending;
   state.sailing = true;
   return { ok: true, idempotent: false, pending };
@@ -635,8 +646,9 @@ export function getSeaEncounterRate(context: SeaEncounterContext): number {
   const routeMultiplier = context.routeSafety
     ? ROUTE_SAFETY_MULTIPLIER[context.routeSafety]
     : 1;
-  return getEffectiveEncounterRate(
+  return getDifficultyEncounterRate(
     baseRate,
+    resolveDifficultyRules(context.difficulty),
     getEncounterMultiplier(context.timeStep),
     getWeatherEncounterMultiplier(context.weather),
     getSeaZone(context.zoneId).encounterMultiplier,
@@ -927,6 +939,7 @@ export function resolvePendingSeaHazard(
     hazard.ability,
     pending.dc,
     pending.naturalRoll,
+    { rules: getCampaignDifficultyRules(traveler) },
   );
   const previousHp = traveler.hp;
   const hpLost = check.success

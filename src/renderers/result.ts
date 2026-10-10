@@ -226,7 +226,7 @@ export class ResultRenderer {
       `Chunk ${result.recoveryLocation.chunkX},${result.recoveryLocation.chunkY}`
         + `  Tile ${result.recoveryLocation.x},${result.recoveryLocation.y}`,
       "",
-      "The defeated party awakens at half HP and MP.",
+      "Party recovery HP and MP restored.",
       "Battle effects have been cleared.",
     ];
     const penaltyDetails = this.scene.add.text(56, 108, penaltyLines.join("\n"), {

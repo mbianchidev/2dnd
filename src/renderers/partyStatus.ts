@@ -20,6 +20,8 @@ export interface PartyStatusRenderOptions {
   state: ProgressingActorState;
   companion?: CompanionState;
   targetName: string;
+  campaignRulesLabel?: string;
+  openCampaignRules?(): void;
   x: number;
   y: number;
   addText(
@@ -66,6 +68,15 @@ export function renderPartyStatus(options: PartyStatusRenderOptions): void {
   currentY += 22;
   addText(x, currentY, `XP ${state.xp}  Pending levels ${state.pendingLevelUps}`);
   currentY += 24;
+  if (options.campaignRulesLabel) {
+    if (options.openCampaignRules) {
+      addButton(x, currentY, `Rules: ${options.campaignRulesLabel} (view)`,
+        options.openCampaignRules, "#e5eef6", 250);
+    } else {
+      addText(x, currentY, `Rules: ${options.campaignRulesLabel}`, "#e5eef6");
+    }
+    currentY += 30;
+  }
   if (companion) {
     addButton(x, currentY, `Control: ${companion.controlMode}`, () => {
       companion.controlMode = companion.controlMode === "manual"

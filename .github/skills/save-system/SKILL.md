@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v18, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v19, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -37,7 +37,22 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 18.
+`SAVE_VERSION` is 19.
+
+Schema v19 owns `player.difficulty`: canonical selection, bounded Custom
+overrides, initial profile, lifetime change count, and at most 20 validated
+causes. Normalize from unknown through `normalizeCampaignDifficulty()` before
+achievement reconciliation. Legacy v18 and older retain Standard; repaired
+modern continuity is never inferred as an unchanged high-difficulty campaign.
+Persist no derived modifiers or future scale layers. Actual merchant-route
+`feePaid` is a bounded transaction receipt, not a rate to recompute at reload.
+See [Difficulty and Custom rules](../../../docs/difficulty.md).
+
+`changeCampaignDifficulty()` is the confirmed safe-exploration transaction:
+block pending outcomes and input handoffs, append one canonical cause, autosave
+once, and restore the exact prior metadata on save failure. A no-op selection
+does not write another cause or remove challenge continuity. Never replay or
+rerate existing resources, checks, rewards, or recovery receipts.
 
 ```typescript
 interface SaveData {
@@ -128,6 +143,10 @@ interface QuestLogState {
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
+`PlayerState.difficulty` persists canonical profile/Custom selection and
+bounded continuity metadata. Derived rules, price factors, timer execution,
+and future scale layers are never stored there. Slots derive difficulty labels
+and current challenge eligibility; loading a snapshot never changes its source.
 Codex entries persist `discoveredElements`. `PlayerState.party` persists unique
 companion states, active order, independent progression/inventories/equipment,
 control modes, dialogue state, and gambits. Quest progress stores status, stage,
@@ -312,7 +331,7 @@ recoverable valid campaign.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v18 playtime, position, objective/reward/warning quest state,
+- Current schema-v19 difficulty, playtime, position, objective/reward/warning quest state,
   skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
@@ -336,7 +355,7 @@ recoverable valid campaign.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v18 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v19 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

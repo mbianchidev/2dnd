@@ -56,6 +56,14 @@ import {
   createFeatureDiscoveryProgress,
   type FeatureDiscoveryProgress,
 } from "./featureDiscovery";
+import {
+  createCampaignDifficulty,
+  getCampaignDifficultyRules,
+  scaleCost,
+  type CampaignDifficultyState,
+  type DifficultySelection,
+} from "./difficulty";
+import { STANDARD_DIFFICULTY_SELECTION } from "../data/difficulty";
 
 export interface PlayerStats {
   strength: number;
@@ -153,6 +161,7 @@ export interface PlayerState {
   customAppearance?: { skinColor: number; hairStyle: number; hairColor: number };
   position: PlayerPosition; // player location tracking
   progression: PlayerProgression; // progression tracking (chests, treasures, fog of war)
+  difficulty: CampaignDifficultyState;
   lastTownX: number;      // last town tile x (respawn point on death)
   lastTownY: number;      // last town tile y
   lastTownChunkX: number; // last town chunk x
@@ -193,6 +202,10 @@ export type ProgressingActorState = CombatActorState & Pick<
   "xp" | "pendingStatPoints" | "pendingLevelUps"
 >;
 
+export interface PlayerCreationOptions {
+  difficulty?: DifficultySelection;
+}
+
 /** D&D 5e ASI levels — the player gains 2 stat points at each of these. */
 export const ASI_LEVELS = [4, 8, 12, 16, 19];
 
@@ -206,7 +219,8 @@ export function createPlayer(
   name: string,
   baseStats: PlayerStats,
   appearanceId: string = "knight",
-  customAppearance?: { skinColor: number; hairStyle: number; hairColor: number }
+  customAppearance?: { skinColor: number; hairStyle: number; hairColor: number },
+  options: PlayerCreationOptions = {},
 ): PlayerState {
   const playerClass = getPlayerClass(appearanceId);
 
@@ -269,6 +283,7 @@ export function createPlayer(
     equippedShield: null,
     appearanceId,
     customAppearance,
+    difficulty: createCampaignDifficulty(options.difficulty ?? STANDARD_DIFFICULTY_SELECTION),
     position: {
       x: 3,
       y: 3,
@@ -596,8 +611,9 @@ export function isLastEquipment(player: PlayerState, item: Item): boolean {
 
 /** Buy an item: deduct gold, add to inventory. Returns success. */
 export function buyItem(player: PlayerState, item: Item): boolean {
-  if (!canAfford(player, item.cost)) return false;
-  player.gold -= item.cost;
+  const cost = scaleCost(item.cost, getCampaignDifficultyRules(player));
+  if (!canAfford(player, cost)) return false;
+  player.gold -= cost;
   player.inventory.push({ ...item });
   return true;
 }

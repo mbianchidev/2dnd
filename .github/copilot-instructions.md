@@ -441,8 +441,9 @@ Flow:
 - Costs: 8/0, 9/1, 10/2, 11/3, 12/4, 13/5, 14/7, 15/9
 - Random mode: 4d6 drop lowest with rerolls
 - Class boosts apply after base stats
-- `createPlayer(name, baseStats, appearanceId, customAppearance)` does not roll
-  stats internally
+- `createPlayer(name, baseStats, appearanceId, customAppearance, options?)` does
+  not roll stats internally. Optional `PlayerCreationOptions.difficulty`
+  selects canonical campaign rules.
 
 ### Classes
 
@@ -789,7 +790,32 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 18.
+Save schema version is 19.
+
+Schema v19 adds `player.difficulty`: canonical selected profile, bounded Custom
+overrides, initial profile ID, lifetime change count, and up to 20 canonical
+from/to/step/cause records. Derive modifiers from `src/data/difficulty.ts` through
+`src/systems/difficulty.ts`; never serialize derived rules or future scale layers.
+Older saves retain exact Standard. Corrupt modern continuity cannot restore
+preset challenge credit.
+
+Difficulty composition is authoritative in shared helpers, not scene profile
+conditionals. Scale runtime enemy HP without mutating definitions; keep base
+monster stats in Codex. Accuracy never changes initiative/saves. Clamp final
+land/sea encounters at 15%, preserve independent event/social caps, and scale
+group/quest/event/trap rewards once. Neutral prices retain original floors even
+with social adjustments; non-neutral costs round up, rewards/resale down.
+General and prior achievements remain available; new Veteran/Legendary campaign
+challenges require unchanged natural non-debug progression. Accessibility/input
+and dice presentation never enter difficulty classification. Optional timer
+suggestions never enable timed rounds or duplicate countdown logic.
+
+Mid-campaign preset/Custom changes require safe accepted exploration input,
+no queued/pending authoritative outcome, a complete effect preview, explicit
+confirmation, and an atomic autosave. Roll back the exact selection/history on
+save failure. No-op selections do not record causes or lose eligibility; actual
+changes append one canonical movement-step cause and irreversibly remove future
+preset challenge continuity without replaying gameplay.
 
 Schema v18 adds non-negative campaign playtime and a resilient local slot
 layout: the legacy-compatible `2dnd_save` autosave, three stable manual slots,
@@ -931,7 +957,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v18
+  visibility, handedness, and prompt source only; they never enter schema-v19
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

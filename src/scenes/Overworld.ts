@@ -112,10 +112,7 @@ import { audioEngine } from "../systems/audio";
 import { getMount } from "../data/mounts";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { FogOfWar } from "../managers/fogOfWar";
-import {
-  EncounterSystem,
-  getEffectiveEncounterRate,
-} from "../managers/encounter";
+import { EncounterSystem } from "../managers/encounter";
 import { HUDRenderer } from "../renderers/hud";
 import {
   tryGridMove,
@@ -210,7 +207,8 @@ import {
   resolvePendingMerchantRoute,
   installBoatUpgrade,
   purchaseBoat,
-  repairActiveBoat,
+  getBoatPurchaseCost,
+  repairBoatWithGold,
 } from "../systems/nautical";
 import {
   acknowledgeFeatureReveal,
@@ -221,6 +219,13 @@ import {
   reconcileFeatureDiscovery,
   suppressCurrentlyAvailableFeatures,
 } from "../systems/featureDiscovery";
+import {
+  changeCampaignDifficulty,
+  getCampaignDifficultyRules,
+  getDifficultyEncounterRate,
+  type DifficultySelection,
+} from "../systems/difficulty";
+import type { DifficultyOverlayFeedback } from "../managers/difficulty";
 
 /** Terrain enum → human-readable display name for the location HUD. */
 const TERRAIN_DISPLAY_NAMES: Record<number, string> = {
@@ -488,6 +493,8 @@ export class OverworldScene extends Phaser.Scene {
       openCrafting: () => this.openCrafting(),
       openTips: () => this.tutorialManager.showTips(this.player),
       openSaveSlots: () => this.openManualSaveSlots(),
+      onStateChange: () => this.updateDebugPanel(),
+      changeCampaignRules: (selection) => this.changeCampaignRules(selection),
       fadeOutAndIn: (atBlack, duration) =>
         this.sceneTransitions.fadeOutAndIn(atBlack, {
           duration,
@@ -510,6 +517,7 @@ export class OverworldScene extends Phaser.Scene {
         this.refreshPartyActors();
       },
       openCrafting: () => this.openCrafting(),
+      openCampaignRules: () => this.overlayManager.showDifficultyOverlay(this.player),
     });
 
     // Load scene data
@@ -864,7 +872,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const cKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     cKey.on("down", () => {
-      if (this.saveSlotManager?.isOpen()) return;
+      if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
       if (!isFeatureAvailable(this.player, "codex")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) {
@@ -880,7 +888,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const yKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Y);
     yKey.on("down", () => {
-      if (this.saveSlotManager?.isOpen()) return;
+      if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
       if (!isFeatureAvailable(this.player, "achievements")) return;
       if (this.achievementOverlayManager.isOpen()) {
         this.achievementOverlayManager.close();
@@ -901,7 +909,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     eKey.on("down", () => {
-      if (this.saveSlotManager?.isOpen()) return;
+      if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
@@ -913,7 +921,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     pKey.on("down", () => {
-      if (this.saveSlotManager?.isOpen()) return;
+      if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
       if (!isFeatureAvailable(this.player, "party")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.partyOverlayManager.isInventorySearchActive()) return;
@@ -926,7 +934,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     mKey.on("down", () => {
-      if (this.saveSlotManager?.isOpen()) return;
+      if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
       if (this.isMoving) return;
@@ -962,8 +970,10 @@ export class OverworldScene extends Phaser.Scene {
         this.partyOverlayManager.close();
       } else if (this.questJournal.isOpen()) {
         this.questJournal.close();
+      } else if (this.overlayManager.isDifficultyOpen()) {
+        this.overlayManager.closeDifficultyOverlay();
       } else if (this.overlayManager.settingsOverlay) {
-        this.overlayManager.toggleSettingsOverlay();
+        this.overlayManager.toggleSettingsOverlay(this.player);
       } else if (this.overlayManager.cityMapOverlay) {
         this.overlayManager.dismissCityMap();
       } else if (this.overlayManager.worldMapOverlay) {
@@ -987,7 +997,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const qKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     qKey.on("down", () => {
-      if (this.saveSlotManager?.isOpen()) return;
+      if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
       if (!isFeatureAvailable(this.player, "questJournal")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
@@ -1002,7 +1012,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
     tKey.on("down", () => {
-      if (this.saveSlotManager?.isOpen()) return;
+      if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
       if (!isFeatureAvailable(this.player, "mounts")) return;
       if (this.tutorialManager.isOpen()) return;
       if (this.chronicleManager?.isOpen()) return;
@@ -1015,7 +1025,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const tipsKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F1);
     tipsKey.on("down", () => {
-      if (this.saveSlotManager?.isOpen()) return;
+      if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
       if (this.isMoving) return;
       if (this.tutorialManager.isOpen()) {
         this.tutorialManager.close();
@@ -1027,7 +1037,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const gatheringKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.K);
     gatheringKey.on("down", () => {
-      if (this.saveSlotManager?.isOpen()) return;
+      if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
       if (!isFeatureAvailable(this.player, "gathering")) return;
       if (
         this.isMoving
@@ -1039,7 +1049,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const craftingKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     craftingKey.on("down", () => {
-      if (this.saveSlotManager?.isOpen()) return;
+      if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
       if (!isFeatureAvailable(this.player, "crafting")) return;
       if (
         this.isMoving
@@ -1461,8 +1471,9 @@ export class OverworldScene extends Phaser.Scene {
     const mountEncMult = (!p.position.inDungeon && p.mountId) ? (getMount(p.mountId)?.encounterMultiplier ?? 1) : 1;
     const dangerEncMult = this.questFlow.getCurrentDangerState()
       ?.encounterRateMultiplier ?? 1;
-    const effectiveRate = getEffectiveEncounterRate(
+    const effectiveRate = getDifficultyEncounterRate(
       rate,
+      getCampaignDifficultyRules(p),
       encMult,
       weatherEncMult,
       mountEncMult,
@@ -1962,6 +1973,7 @@ export class OverworldScene extends Phaser.Scene {
         timeStep: this.timeStep,
         weather: this.weatherState.current,
         boat,
+        difficulty: this.player.difficulty.selection,
         position,
       });
     const monster = krakenEligible
@@ -2292,8 +2304,9 @@ export class OverworldScene extends Phaser.Scene {
     const danger = this.questFlow.getCurrentDangerState();
     const effectiveLevel = this.player.level
       + (danger?.effectiveLevelOffset ?? 0);
-    const rate = getEffectiveEncounterRate(
+    const rate = getDifficultyEncounterRate(
       ENCOUNTER_RATES[terrain],
+      getCampaignDifficultyRules(this.player),
       getEncounterMultiplier(this.timeStep),
       getWeatherEncounterMultiplier(this.weatherState.current),
       mountEncMult,
@@ -2403,7 +2416,8 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handleAction(): void {
-    if (this.saveSlotManager?.isOpen()) return;
+    if (this.sceneTransitions.isPending) return;
+    if (this.saveSlotManager?.isOpen() || this.overlayManager.isDifficultyOpen()) return;
     if (this.overlayManager?.menuOverlay) return;
     if (this.chronicleManager?.isOpen()) {
       this.chronicleManager.replaySelected();
@@ -3249,16 +3263,13 @@ export class OverworldScene extends Phaser.Scene {
       return true;
     }
     if (boat && boat.condition < 100) {
-      const missing = 100 - boat.condition;
-      const repairable = Math.min(missing, Math.floor(this.player.gold / 2));
-      if (repairable <= 0) {
-        this.showMessage("Hull repairs cost 2 gold per condition.", "#ffab91");
+      const result = repairBoatWithGold(state, this.player);
+      if (result.repaired <= 0) {
+        this.showMessage(result.reason ?? "Hull repairs are unavailable.", "#ffab91");
         return true;
       }
-      this.player.gold -= repairable * 2;
-      repairActiveBoat(state, repairable);
       this.showMessage(
-        `Repaired ${repairable} hull condition for ${repairable * 2} gold.`,
+        `Repaired ${result.repaired} hull condition for ${result.cost} gold.`,
         "#80cbc4",
       );
       this.autoSave();
@@ -3271,7 +3282,7 @@ export class OverworldScene extends Phaser.Scene {
     if (
       charterComplete
       && !state.ownedBoats.some((owned) => owned.id === "merchantSloop")
-      && this.player.gold >= 900
+      && this.player.gold >= getBoatPurchaseCost(this.player, "merchantSloop")
     ) {
       const result = purchaseBoat(
         state,
@@ -3280,7 +3291,7 @@ export class OverworldScene extends Phaser.Scene {
         true,
       );
       if (result.purchased) {
-        this.showMessage("Purchased Merchant Sloop for 900 gold.", "#80cbc4");
+        this.showMessage(`Purchased Merchant Sloop for ${result.cost} gold.`, "#80cbc4");
         this.autoSave();
         return true;
       }
@@ -3466,6 +3477,27 @@ export class OverworldScene extends Phaser.Scene {
     if (this.sceneTransitions.isPending || this.isMoving) return;
     this.overlayManager.destroyAll();
     this.saveSlotManager.open("save");
+  }
+
+  private changeCampaignRules(selection: DifficultySelection): DifficultyOverlayFeedback {
+    const result = changeCampaignDifficulty(this.player, selection, {
+      phase: this.sceneTransitions.isPending ? "transition" : "exploration",
+      inputAccepted: !this.isMoving && !this.dialogueSystem.isDialogueOpen(),
+      confirmed: true,
+      timeStep: this.timeStep,
+    }, () => saveGame(
+      this.player,
+      this.defeatedBosses,
+      this.codex,
+      this.player.appearanceId,
+      this.timeStep,
+      this.weatherState,
+    ));
+    if (result.ok) {
+      this.updateHUD();
+      this.updateDebugPanel();
+    }
+    return result;
   }
 
   private startGatheringNearby(): boolean {

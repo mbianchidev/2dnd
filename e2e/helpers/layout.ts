@@ -42,16 +42,28 @@ export async function layoutItemCenter(
   };
 }
 
-export async function clickLayoutItem(page: Page, id: string): Promise<void> {
-  const point = await layoutItemCenter(page, id);
+export async function clickGamePoint(page: Page, gameX: number, gameY: number): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Game canvas has no rendered bounds");
-  await page.mouse.click(
-    bounds.x + (point.x / GAME_WIDTH) * bounds.width,
-    bounds.y + (point.y / GAME_HEIGHT) * bounds.height,
+  await page.mouse.move(
+    bounds.x + (gameX / GAME_WIDTH) * bounds.width,
+    bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
+  await page.mouse.down();
+  try {
+    await page.evaluate(() => new Promise<void>((resolveFrame) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()));
+    }));
+  } finally {
+    await page.mouse.up();
+  }
   await page.waitForTimeout(120);
+}
+
+export async function clickLayoutItem(page: Page, id: string): Promise<void> {
+  const point = await layoutItemCenter(page, id);
+  await clickGamePoint(page, point.x, point.y);
 }
 
 export async function tapLayoutItem(page: Page, id: string): Promise<void> {

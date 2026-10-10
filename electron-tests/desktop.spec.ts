@@ -12,6 +12,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { SAVE_VERSION } from "../src/systems/save";
 
 const APP_ROOT = resolve(import.meta.dirname, "..");
 const SAVE_KEY = "2dnd_save";
@@ -21,6 +22,10 @@ const GAME_HEIGHT = 528;
 interface DesktopSaveSummary {
   readonly name: string;
   readonly version: number;
+}
+
+interface GameClickOptions {
+  readonly closesApplication?: boolean;
 }
 
 function createLaunchEnvironment(userDataDirectory: string): Record<string, string> {
@@ -49,15 +54,25 @@ async function clickGame(
   page: Page,
   gameX: number,
   gameY: number,
+  options: GameClickOptions = {},
 ): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  await page.mouse.click(
+  await page.mouse.move(
     bounds.x + (gameX / GAME_WIDTH) * bounds.width,
     bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
+  await page.mouse.down();
+  if (options.closesApplication) return;
+  try {
+    await page.evaluate(() => new Promise<void>((resolveFrame) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()));
+    }));
+  } finally {
+    await page.mouse.up();
+  }
 }
 
 async function holdKey(
@@ -101,14 +116,17 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await expect(nameInput).toBeVisible();
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
+  await expect(nameInput).not.toBeVisible();
   await clickGame(page, 284, 160);
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(250);
+  await holdKey(page, "Enter");
+  await waitForState(page, "BOOT | Screen: stats");
   await clickGame(page, 390, 64);
+  await waitForState(page, "[MODE:random]");
   await clickGame(page, 400, 460);
-  await page.waitForTimeout(250);
+  await waitForState(page, "BOOT | Screen: appearance");
   await clickGame(page, 320, 112);
   await clickGame(page, 420, 312);
+  await waitForState(page, "CUTSCENE");
 
   await expect.poll(async () => page.evaluate((key) => {
     const raw = localStorage.getItem(key);
@@ -129,10 +147,10 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
     return { name: player.name, version };
   }, SAVE_KEY)).toEqual({
     name: "Desktop Hero",
-    version: 18,
+    version: SAVE_VERSION,
   });
 
-  return { name: "Desktop Hero", version: 18 };
+  return { name: "Desktop Hero", version: SAVE_VERSION };
 }
 
 async function prepareSaveForOverworld(page: Page): Promise<void> {
@@ -287,7 +305,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(relaunchedRendererErrors).toEqual([]);
 
     const closePromise = desktop.waitForEvent("close");
-    await clickGame(page, 320, 492);
+    await clickGame(page, 320, 492, { closesApplication: true });
     await closePromise;
     desktop = undefined;
 

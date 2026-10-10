@@ -51,6 +51,11 @@ import {
   moveGridSelection,
   type GridNavigationDirection,
 } from "../systems/layout";
+import { DifficultyOverlayManager } from "../managers/difficulty";
+import { getDifficultyProfile, STANDARD_DIFFICULTY_SELECTION } from "../data/difficulty";
+import type { DifficultySelection } from "../systems/difficulty";
+import { cycleDifficultyProfile } from "../systems/difficultyEditor";
+import { syncInteractiveHitArea } from "../managers/layout";
 
 const BOOT_TEXTURE_MEASURE = "2dnd:boot-textures";
 const BOOT_TEXTURE_START_MARK = `${BOOT_TEXTURE_MEASURE}:start`;
@@ -77,6 +82,8 @@ export class BootScene extends Phaser.Scene {
   private saveSlotManager!: SaveSlotManager;
   private titleMenuManager: TitleMenuManager | null = null;
   private titleSettingsContainer: Phaser.GameObjects.Container | null = null;
+  private difficultyManager!: DifficultyOverlayManager;
+  private newGameDifficulty: DifficultySelection = STANDARD_DIFFICULTY_SELECTION;
 
   constructor() {
     super({ key: "BootScene" });
@@ -89,6 +96,7 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.sceneTransitions.prepare();
     installSceneAccessibility(this);
+    this.difficultyManager = new DifficultyOverlayManager(this);
     performance.clearMeasures(BOOT_TEXTURE_MEASURE);
     performance.clearMarks(BOOT_TEXTURE_START_MARK);
     performance.clearMarks(BOOT_TEXTURE_END_MARK);
@@ -147,6 +155,7 @@ export class BootScene extends Phaser.Scene {
     ];
     for (const [eventName, handler, repeatable] of bindings) {
       keyboard.on(eventName, (event: KeyboardEvent) => {
+        if (this.difficultyManager?.isOpen()) return;
         if (event.timeStamp <= boundAt || (!repeatable && event.repeat)) return;
         handler();
       });
@@ -299,7 +308,10 @@ export class BootScene extends Phaser.Scene {
   }
 
   private requestNewGame(): void {
-    this.saveSlotManager.confirmNewGame(() => this.showCharacterCreation());
+    this.saveSlotManager.confirmNewGame(() => {
+      this.newGameDifficulty = STANDARD_DIFFICULTY_SELECTION;
+      this.showCharacterCreation();
+    });
   }
 
   private quitDesktopApp(): void {
@@ -1193,23 +1205,52 @@ export class BootScene extends Phaser.Scene {
       hitZone.on("pointerdown", () => selectHairColor(i));
     });
 
+    const rulesEntry = createOverlayContainer(this, "character-difficulty-entry", 0, {
+      x: 10, y: 346, width: this.cameras.main.width - 20, height: 74,
+    });
+    const rulesButton = this.add.text(cx, 362, "", {
+      fontSize: "13px", fontFamily: "monospace", color: "#e5eef6",
+      backgroundColor: "#273650", padding: { x: 10, y: 8 },
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    rulesButton.setData("layoutId", "character-difficulty");
+    rulesEntry.add(rulesButton);
     const appearanceLabels = [
       { text: skinLabel, label: "Skin Color:" },
       { text: hairStyleLabel, label: "Hair Style:" },
       { text: hairColorLabel, label: "Hair Color:" },
+      { text: rulesButton, label: "Campaign Rules:" },
     ] as const;
     const renderAppearanceFocus = (): void => {
       appearanceLabels.forEach((entry, index) => {
         const selected = index === selectedAppearanceGroup;
         entry.text
-          .setText(`${selected ? "▶ " : ""}${entry.label}`)
+          .setText(`${selected ? "▶ " : ""}${entry.label}`
+            + (index === 3 ? ` ${getDifficultyProfile(this.newGameDifficulty.profileId).name}` : ""))
           .setColor(selected ? "#ffd700" : "#c0a060");
       });
       debugPanelState(
         `BOOT | Screen: appearance [GROUP:${selectedAppearanceGroup + 1}/`
-        + `${appearanceLabels.length}]`,
+        + `${appearanceLabels.length}] [DIFFICULTY_PROFILE:${this.newGameDifficulty.profileId}]`,
       );
+      syncInteractiveHitArea(rulesButton, 8);
     };
+    const openRules = (): void => {
+      if (this.difficultyManager.isOpen()) return;
+      this.difficultyManager.open({
+        selection: this.newGameDifficulty,
+        apply: (selection) => {
+          this.newGameDifficulty = selection;
+          return { ok: true, message: "New campaign rules selected." };
+        },
+        onClose: renderAppearanceFocus,
+        onStateChange: () => {
+          if (this.difficultyManager.isOpen()) {
+            debugPanelState(`BOOT | Screen: difficulty${this.difficultyManager.getDebugState()}`);
+          }
+        },
+      });
+    };
+    rulesButton.on("pointerup", openRules);
     const moveAppearanceGroup = (direction: "up" | "down"): void => {
       selectedAppearanceGroup = moveGridSelection(
         selectedAppearanceGroup,
@@ -1240,7 +1281,7 @@ export class BootScene extends Phaser.Scene {
           HAIR_STYLE_OPTIONS.length,
           direction,
         ));
-      } else {
+      } else if (selectedAppearanceGroup === 2) {
         const index = HAIR_COLOR_OPTIONS.findIndex(
           (option) => option.color === selectedHairColor,
         );
@@ -1250,6 +1291,11 @@ export class BootScene extends Phaser.Scene {
           HAIR_COLOR_OPTIONS.length,
           direction,
         ));
+      } else {
+        this.newGameDifficulty = cycleDifficultyProfile(this.newGameDifficulty,
+          direction === "left" ? -1 : 1,
+          this.newGameDifficulty.profileId === "custom" ? this.newGameDifficulty.overrides : {});
+        renderAppearanceFocus();
       }
     };
     renderAppearanceFocus();
@@ -1296,7 +1342,9 @@ export class BootScene extends Phaser.Scene {
         hairStyle: selectedHairStyle,
         hairColor: selectedHairColor,
       };
-      const player = createPlayer(name, baseStats, selectedClass.id, customAppearance);
+      const player = createPlayer(name, baseStats, selectedClass.id, customAppearance, {
+        difficulty: this.newGameDifficulty,
+      });
 
       this.startNewGame(player);
     };
@@ -1318,7 +1366,7 @@ export class BootScene extends Phaser.Scene {
       down: () => moveAppearanceGroup("down"),
       left: () => moveAppearanceOption("left"),
       right: () => moveAppearanceOption("right"),
-      confirm: doStart,
+      confirm: () => selectedAppearanceGroup === 3 ? openRules() : doStart(),
       cancel: goBack,
     });
   }

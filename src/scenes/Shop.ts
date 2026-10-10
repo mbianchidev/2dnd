@@ -33,6 +33,7 @@ import {
   combineShopAdjustments,
   getTownShopAdjustment,
 } from "../systems/reputation";
+import { getCampaignDifficultyRules, scaleCost, scaleSaleValue } from "../systems/difficulty";
 
 export class ShopScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
@@ -274,7 +275,7 @@ export class ShopScene extends Phaser.Scene {
 
     // Rest at Inn button (only in standalone shop mode, not from city)
     if (!this.fromCity) {
-      const innCost = getInnCost(this.cityId);
+      const innCost = this.getInnPrice();
       const restBtn = this.add
         .text(20, bottomBarY + 28, `🏨 Rest at Inn (${innCost}g)`, {
           fontSize: "13px",
@@ -466,7 +467,7 @@ export class ShopScene extends Phaser.Scene {
       this.player.stats,
       "charisma",
       option.dc,
-      { optionId: option.id },
+      { optionId: option.id, rules: getCampaignDifficultyRules(this.player) },
     );
     this.player.progression.skillChecks[this.shopSkillCheckId] = result;
     this.negotiationDiscount = Math.max(
@@ -532,7 +533,7 @@ export class ShopScene extends Phaser.Scene {
       const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield" || item.type === "mount";
       const alreadyOwned = isEquipment && ownsEquipment(this.player, item.id);
       const levelLocked = (item.levelReq ?? 0) > this.player.level;
-      const discountedCost = Math.max(1, Math.floor(item.cost * (1 - this.discount)));
+      const discountedCost = scaleCost(item.cost, getCampaignDifficultyRules(this.player), this.discount, 1);
       const canBuy = !alreadyOwned && !levelLocked && this.player.gold >= discountedCost;
       const color = alreadyOwned ? "#555555" : levelLocked ? "#884444" : canBuy ? "#cccccc" : "#666666";
 
@@ -548,7 +549,7 @@ export class ShopScene extends Phaser.Scene {
 
       const priceLabel = this.discount !== 0
         ? `${discountedCost}g (${this.discount > 0 ? "discount" : "surcharge"})`
-        : `${item.cost}g`;
+        : `${discountedCost}g`;
 
       const text = this.add
         .text(
@@ -627,7 +628,7 @@ export class ShopScene extends Phaser.Scene {
     groups.forEach((group) => {
       const { item, indices, sellableIndices, equippedCount } = group;
       const totalCount = indices.length;
-      const sellValue = getSellValue(item);
+      const sellValue = scaleSaleValue(getSellValue(item), getCampaignDifficultyRules(this.player));
       const canSell = canSellItem(item);
       const isLast = isLastEquipment(this.player, item);
 
@@ -799,7 +800,7 @@ export class ShopScene extends Phaser.Scene {
       return;
     }
 
-    const discountedCost = Math.max(1, Math.floor(item.cost * (1 - this.discount)));
+    const discountedCost = scaleCost(item.cost, getCampaignDifficultyRules(this.player), this.discount, 1);
     if (this.player.gold < discountedCost) {
       this.setMessage(`Not enough gold!`, "#ff6666");
       return;
@@ -846,8 +847,12 @@ export class ShopScene extends Phaser.Scene {
     this.renderItems();
   }
 
+  private getInnPrice(): number {
+    return scaleCost(getInnCost(this.cityId), getCampaignDifficultyRules(this.player));
+  }
+
   private restAtInn(): void {
-    const innCost = getInnCost(this.cityId);
+    const innCost = this.getInnPrice();
     if (this.player.gold < innCost) {
       this.setMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
       return;
@@ -873,7 +878,7 @@ export class ShopScene extends Phaser.Scene {
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
     container.add(bg);
 
-    const prompt = this.add.text(boxX + boxW / 2, boxY + 10, `Rest at the inn for ${getInnCost(this.cityId)}g?`, {
+    const prompt = this.add.text(boxX + boxW / 2, boxY + 10, `Rest at the inn for ${this.getInnPrice()}g?`, {
       fontSize: "12px",
       fontFamily: "monospace",
       color: "#ffd700",
@@ -940,7 +945,7 @@ export class ShopScene extends Phaser.Scene {
 
   /** Execute the inn rest: heal the player and advance time to the target step. */
   private confirmInnRest(targetTimeStep: number, message: string): void {
-    const innCost = getInnCost(this.cityId);
+    const innCost = this.getInnPrice();
     this.player.gold -= innCost;
     this.player.hp = this.player.maxHp;
     this.player.mp = this.player.maxMp;

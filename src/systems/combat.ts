@@ -39,6 +39,12 @@ import {
 } from "./statusEffects";
 import type { ActiveStatusEffect } from "./statusEffects";
 import { getFleeDC } from "./groupCombat";
+import {
+  STANDARD_DIFFICULTY_RULES,
+  getCampaignDifficultyRules,
+  scaleEnemyDamage,
+  type DifficultyRules,
+} from "./difficulty";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -685,6 +691,7 @@ export function monsterAttackTarget(
   monsterEffects: ActiveStatusEffect[] = [],
   synergyAttackBonus: number = 0,
   synergyDamageBonus: number = 0,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
   if (!monster || !target) {
     throw new Error("[combat] monsterAttackTarget: missing monster or target");
@@ -693,6 +700,7 @@ export function monsterAttackTarget(
   const effectiveAtkBonus = monster.attackBonus
     + monsterAtkBoost
     + synergyAttackBonus
+    + rules.enemyAccuracyBonus
     + getEffectAccuracyModifier(monsterEffects);
   const roll = rollCombatD20(effectiveAtkBonus, monsterEffects);
   const outcome = resolveAttackRoll(roll, playerAC);
@@ -711,12 +719,12 @@ export function monsterAttackTarget(
   }
 
   if (outcome.hit) {
-    const damage = rollAttackDamage(
+    const damage = scaleEnemyDamage(rollAttackDamage(
       monster.damageCount,
       monster.damageDie,
       outcome.critical,
       getEffectDamageModifier(monsterEffects) + synergyDamageBonus,
-    );
+    ), rules);
     target.currentHp = Math.max(0, target.currentHp - damage);
     const prefix = outcome.critical ? "CRITICAL! " : "";
     const verb = outcome.critical ? "savages" : "hits";
@@ -771,11 +779,16 @@ export function monsterAttack(
     monsterEffects,
     synergyAttackBonus,
     synergyDamageBonus,
+    getCampaignDifficultyRules(player),
   );
 }
 
 /** Attempt to flee from combat. Larger living groups raise the DEX-check DC. */
-export function attemptFlee(dexModifier: number, aliveCount: number = 1): {
+export function attemptFlee(
+  dexModifier: number,
+  aliveCount: number = 1,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
+): {
   success: boolean;
   message: string;
 } {
@@ -783,7 +796,7 @@ export function attemptFlee(dexModifier: number, aliveCount: number = 1): {
     throw new Error(`[combat] attemptFlee: invalid dexModifier ${dexModifier}`);
   }
   const roll = rollD20(dexModifier);
-  const dc = getFleeDC(aliveCount);
+  const dc = getFleeDC(aliveCount, rules);
   if (roll.total >= dc) {
     return { success: true, message: `Escaped! (rolled ${roll.total})` };
   }
@@ -1000,6 +1013,7 @@ export function monsterUseAbilityTarget(
   target: MonsterAttackTarget,
   monsterEffects: ActiveStatusEffect[] = [],
   synergyDamageBonus: number = 0,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): MonsterAbilityResult {
   if (ability.type === "heal") {
     const healing = rollDice(ability.damageCount, ability.damageDie);
@@ -1013,12 +1027,12 @@ export function monsterUseAbilityTarget(
   }
 
   // Damage ability (bypasses AC — like breath weapons)
-  const damage = Math.max(
+  const damage = scaleEnemyDamage(Math.max(
     0,
     rollDice(ability.damageCount, ability.damageDie)
       + getEffectDamageModifier(monsterEffects)
       + synergyDamageBonus,
-  );
+  ), rules);
   target.currentHp = Math.max(0, target.currentHp - damage);
 
   const selfHealMsg = ability.selfHeal
@@ -1079,5 +1093,6 @@ export function monsterUseAbility(
     },
     monsterEffects,
     synergyDamageBonus,
+    getCampaignDifficultyRules(player),
   );
 }

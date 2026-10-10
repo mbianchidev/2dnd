@@ -42,6 +42,11 @@ import {
 import { normalizeGambitRules, type GambitRule } from "./gambits";
 import { getItemTransferRestriction } from "./inventory";
 import { replayQuestCompletionActions } from "./quests";
+import {
+  STANDARD_DIFFICULTY_RULES,
+  getCampaignDifficultyRules,
+  type DifficultyRules,
+} from "./difficulty";
 
 export const MAX_ACTIVE_COMPANIONS = 3;
 
@@ -433,7 +438,9 @@ export function createPartyActionSources(
 
 export function applyKnockoutXpPenalty(
   actor: ProgressingActorState,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): void {
+  if (rules.defeatXpPenalty === "none") return;
   actor.xp = xpFloorForLevel(actor.level);
   actor.pendingLevelUps = 0;
 }
@@ -495,17 +502,19 @@ export function distributePartyVictory(
   player: PlayerState,
   result: BattleResult,
 ): PartyVictoryDistribution {
+  const rules = getCampaignDifficultyRules(player);
   player.gold += result.rewards.gold;
-  const penalizedIds = [...new Set(result.knockedOutPartyIds)];
+  const knockedOutIds = [...new Set(result.knockedOutPartyIds)];
+  const penalizedIds = rules.defeatXpPenalty === "none" ? [] : knockedOutIds;
   for (const combatantId of penalizedIds) {
     const actor = getProgressingActorByCombatantId(player, combatantId);
-    if (actor) applyKnockoutXpPenalty(actor);
+    if (actor) applyKnockoutXpPenalty(actor, rules);
   }
 
   const xpRecipientIds = [
     ...new Set(
       result.survivingPartyIds.filter(
-        (combatantId) => !penalizedIds.includes(combatantId),
+        (combatantId) => !knockedOutIds.includes(combatantId),
       ),
     ),
   ];
@@ -520,6 +529,7 @@ export function applyPartyDefeat(
   player: PlayerState,
   knockedOutPartyIds: BattleCombatantId[],
 ): PartyDefeatResult {
+  const rules = getCampaignDifficultyRules(player);
   const actorIds = [...new Set(knockedOutPartyIds)];
   const actors: PartyDefeatActorResult[] = [];
   for (const combatantId of actorIds) {
@@ -530,9 +540,9 @@ export function applyPartyDefeat(
       );
     }
     const xpBefore = actor.xp;
-    applyKnockoutXpPenalty(actor);
-    actor.hp = Math.max(1, Math.floor(actor.maxHp / 2));
-    actor.mp = Math.floor(actor.maxMp / 2);
+    applyKnockoutXpPenalty(actor, rules);
+    actor.hp = Math.max(1, Math.floor(actor.maxHp * rules.defeatRecoveryMultiplier));
+    actor.mp = Math.floor(actor.maxMp * rules.defeatRecoveryMultiplier);
     clearAllEffects(actor.activeEffects);
     actors.push({
       combatantId,
@@ -546,7 +556,7 @@ export function applyPartyDefeat(
     });
   }
   const goldBefore = player.gold;
-  player.gold = Math.floor(player.gold * 0.7);
+  player.gold = Math.floor(player.gold * rules.defeatGoldRetention);
   const recoveryLocation: PartyDefeatRecoveryLocation = {
     name: "Willowdale",
     x: player.lastTownX ?? 2,

@@ -47,6 +47,7 @@ import {
   recordAchievementEvent,
 } from "./achievements";
 import { discoverCraftingRecipes } from "./crafting";
+import { describeRewardAdjustment, getCampaignDifficultyRules, scaleReward } from "./difficulty";
 
 export const WORLD_EVENT_LOG_LIMIT = 40;
 export const LEGACY_WORLD_EVENT_SEED = 0x2d0d0069;
@@ -443,19 +444,25 @@ function applyReward(
   state: WorldEventState,
   instanceId: string,
   reward: NonNullable<WorldEventOutcomeDefinition["rewards"]>[number],
-): void {
+): string {
   const claimId = `${instanceId}:${reward.id}`;
-  if (state.claimedRewardIds.includes(claimId)) return;
+  if (state.claimedRewardIds.includes(claimId)) return "";
+  const rules = getCampaignDifficultyRules(player);
+  let adjustment = "";
   if (reward.type === "gold") {
     if (!Number.isInteger(reward.amount) || (reward.amount ?? 0) < 0) {
       throw new Error(`[worldEvents] Invalid gold reward ${reward.id}`);
     }
-    player.gold += reward.amount ?? 0;
+    const amount = scaleReward(reward.amount ?? 0, "gold", rules);
+    player.gold += amount;
+    adjustment = describeRewardAdjustment("", reward.amount ?? 0, amount, "gold");
   } else if (reward.type === "xp") {
     if (!Number.isInteger(reward.amount) || (reward.amount ?? 0) < 0) {
       throw new Error(`[worldEvents] Invalid XP reward ${reward.id}`);
     }
-    awardXP(player, reward.amount ?? 0);
+    const amount = scaleReward(reward.amount ?? 0, "xp", rules);
+    awardXP(player, amount);
+    adjustment = describeRewardAdjustment("", reward.amount ?? 0, amount, "xp");
   } else {
     const item = reward.itemId ? getItem(reward.itemId) : undefined;
     if (!item) {
@@ -471,6 +478,7 @@ function applyReward(
     });
   }
   state.claimedRewardIds.push(claimId);
+  return adjustment;
 }
 
 function appendLog(
@@ -479,6 +487,7 @@ function appendLog(
   pending: PendingWorldEvent,
   choiceId: string,
   outcome: WorldEventOutcomeDefinition,
+  summary: string = outcome.summary,
 ): void {
   state.log.push({
     instanceId: pending.instanceId,
@@ -492,7 +501,7 @@ function appendLog(
     weather: pending.weather,
     choiceId,
     outcomeId: outcome.id,
-    outcome: outcome.summary,
+    outcome: summary,
   });
   if (state.log.length > WORLD_EVENT_LOG_LIMIT) {
     state.log.splice(0, state.log.length - WORLD_EVENT_LOG_LIMIT);
@@ -520,9 +529,10 @@ function completeOutcome(
     };
   }
 
-  for (const reward of outcome.rewards ?? []) {
-    applyReward(player, state, pending.instanceId, reward);
-  }
+  const rewardAdjustments = (outcome.rewards ?? []).map((reward) =>
+    applyReward(player, state, pending.instanceId, reward),
+  ).filter((message) => message.length > 0);
+  const summary = [outcome.summary, ...rewardAdjustments].join(" ");
   if (outcome.nonlethalDamage) {
     player.hp = applyNonlethalDamage(player.hp, outcome.nonlethalDamage);
   }
@@ -567,7 +577,7 @@ function completeOutcome(
   );
   state.resolvedOutcomeIds.push(resolutionId);
   state.repeatCounters[event.id] = (state.repeatCounters[event.id] ?? 0) + 1;
-  appendLog(state, event, pending, choiceId, outcome);
+  appendLog(state, event, pending, choiceId, outcome, summary);
   state.pending = null;
   const debug = consumeWorldEventDebugFlag(player, pending.instanceId);
   recordAchievementEvent(player, {
@@ -586,7 +596,7 @@ function completeOutcome(
   }
   return {
     resolved: true,
-    summary: outcome.summary,
+    summary,
     questUpdates,
     codexUnlocks: {
       unlockedIds: [...new Set([
@@ -640,6 +650,7 @@ export function resolveWorldEventChoice(
       choice.dc,
       {
         optionId: choice.id,
+        rules: getCampaignDifficultyRules(player),
         ...(roller ? { roller } : {}),
       },
     );

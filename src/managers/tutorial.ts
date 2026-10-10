@@ -11,6 +11,7 @@ import {
   completeTutorial,
   createTutorialTipContext,
   getUnlockedTips,
+  getTutorialStepSummary,
 } from "../systems/tutorial";
 import { isControlGuidanceAvailable } from "../systems/featureDiscovery";
 import {
@@ -237,7 +238,7 @@ export class TutorialManager {
     const summary = this.scene.add.text(
       px + 28,
       contentTop,
-      step.summary,
+      this.player ? getTutorialStepSummary(step, this.player) : step.summary,
       {
         fontSize: "14px",
         fontFamily: "monospace",

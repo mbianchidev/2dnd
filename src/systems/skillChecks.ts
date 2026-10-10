@@ -12,16 +12,19 @@ import type {
 } from "../data/skillChecks";
 import type { PlayerStats } from "./player";
 import type { Terrain } from "../data/map";
+import { STANDARD_DIFFICULTY_RULES, type DifficultyRules } from "./difficulty";
 
 export interface RollSkillCheckOptions {
   optionId?: string;
   situationalModifier?: number;
   roller?: () => number;
+  rules?: DifficultyRules;
 }
 
 export interface ResolveSkillCheckOptions {
   optionId?: string;
   situationalModifier?: number;
+  rules?: DifficultyRules;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -60,7 +63,8 @@ export function resolveSkillCheck(
       `[skillChecks] Invalid situational modifier: ${situationalModifier}`,
     );
   }
-  const modifier = abilityModifier(stats[ability]) + situationalModifier;
+  const modifier = abilityModifier(stats[ability]) + situationalModifier
+    + (options.rules ?? STANDARD_DIFFICULTY_RULES).skillCheckAssistance;
   const total = naturalRoll + modifier;
   const result: SkillCheckRecord = {
     ability,

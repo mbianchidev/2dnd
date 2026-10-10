@@ -14,7 +14,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.2, Electron 44.5.1, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.63.0 |
 | DOM tests | happy-dom 20.14.5 |
-| Save schema | 18 |
+| Save schema | 19 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -26,6 +26,7 @@ future work until merged.
 | Domain | Data/contracts | Mechanics/state | Phaser/presentation | Tests |
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
+| Difficulty/rules | `src/data/difficulty.ts` | `difficulty.ts`, `difficultyState.ts`, `difficultyEditor.ts`, `enemyTactics.ts` | focused difficulty manager, creation/settings/slots | frozen baseline, per-mode domain suites, difficulty E2E |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
 | Quests/cutscenes | `quests.ts`, focused `cutscene*.ts` | `quests.ts`, `questState.ts`, `cutscenes.ts` | quest/cutscene managers, `Cutscene.ts`, `Ending.ts` | quest/cutscene/campaign E2E |
 | World/map/traps | `map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, `traps.ts` | `movement.ts`, `traps.ts` | map/city/trap/fog managers/renderers | map, city, trap, fog, movement |
@@ -93,6 +94,14 @@ owning issue or pull request.
 - Persist authority, not derived presentation. Every schema change requires
   defaults, normalization, cross-field validation, migration, and corruption
   tests.
+- Standard difficulty is exact baseline. Compose canonical profile and future
+  scale once; keep base monster stats for Codex, clamp encounter pressure last,
+  preserve neutral currency rounding, and keep accessibility/dice preferences
+  outside profile classification. See [Difficulty](docs/difficulty.md).
+- Mid-campaign edits require explicit confirmation and safe exploration with
+  no pending authoritative outcome. Use `changeCampaignDifficulty()` for
+  no-op detection, bounded causes, atomic save rollback and irreversible preset
+  challenge loss; never replay old rewards or recovery.
 - Route all release input through semantic contexts; do not add scene-local
   gamepad/touch mappings or conflicting production/debug keys.
 - `TitleMenuManager` owns title selection, large pointer targets, and semantic
@@ -177,5 +186,6 @@ owning issue or pull request.
 - [Development](docs/development.md)
 - [Testing](docs/testing.md)
 - [Save system](docs/save-system.md)
+- [Difficulty and Custom rules](docs/difficulty.md)
 - [Companions and gambits](docs/companions.md)
 - [Inventory presentation](docs/inventory.md)

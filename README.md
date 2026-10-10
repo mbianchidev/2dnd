@@ -49,6 +49,8 @@ and campaign saves stay in your browser's local storage.
   and equipment upgrades, use merchant routes, earn a boat, explore Tidehaven,
   and challenge the Deepwake Kraken.
 - **Play your way:** use keyboard, pointer, touch, or a standard gamepad.
+  Choose Story, exact-baseline Standard, Veteran, Legendary, or bounded Custom
+  campaign rules with explicit effect and achievement previews.
   Accessibility settings include 100%/125%/150% text, high contrast, reduced
   motion, adjustable audio, cutscene advance options, and adaptive prompts.
 
@@ -113,7 +115,8 @@ Use `npm run dev:desktop` for Electron development and
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v17, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v19, migration, recovery, persistence rules |
+| [Difficulty and Custom rules](docs/difficulty.md) | Profiles, bounds, economy, recovery, eligibility, extension APIs |
 | [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
 | [Release](docs/release.md) | GitHub Pages and release checklist |
 | [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |

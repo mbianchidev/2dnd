@@ -74,6 +74,11 @@ thresholds and rewards.
 
 ## Core combat
 
+- Compose campaign profiles through `systems/difficulty.ts`, never scene
+  profile switches. Standard retains all original math and RNG ordering.
+  Enemy accuracy does not affect initiative or saving-throw stats. Incoming
+  party combat status ticks use the same enemy-damage factor; enemy ticks and
+  hero/companion outgoing actions remain unchanged.
 - Attack rolls use d20 + ability modifier + proficiency/bonuses.
 - Natural 20 automatically hits and is critical.
 - Natural 1 automatically misses.
@@ -203,9 +208,10 @@ matching effects. Combat effects are cleared when leaving Battle.
   independently.
 - Living party members receive battle XP. A KO member receives no victory XP
   and resets to the current-level XP floor (`0` at level 1).
-- Full defeat occurs only when every active party actor is KO. Apply the
-  current-level XP floors and 30% carried-gold loss once, restore defeated
-  actors to half HP/MP, clear battle effects, and recover at the last town.
+- Full defeat occurs only when every active party actor is KO. Standard applies
+  current-level XP floors and 30% carried-gold loss once and restores half HP/MP;
+  other profiles use the shared bounded penalty/recovery rules. Clear battle
+  effects and recover at the last town.
   Return the exact before/after receipt for `DefeatScene`; boss and random
   encounters use identical mechanics. Inn rest still fully restores and
   processes pending levels for all recruited companions.
@@ -229,7 +235,13 @@ matching effects. Combat effects are cleared when leaving Battle.
   intentionally replace exact equipped links while unrelated equipped, key,
   mount, and quest items remain protected.
 - Flee DC is 10 for one monster and increases by 2 for each additional living
-  monster. Boss encounters cannot be fled.
+  monster, plus the shared profile adjustment. Boss encounters cannot be fled.
+
+Profile rewards scale after canonical group aggregation and before distribution;
+do not scale living companion XP a second time. A no-knockout-XP-loss profile
+still grants no victory XP to KO actors. Neutral economy factors retain original
+floor rounding, even with Charisma/reputation adjustments and minimums; adjusted
+costs round up and resale/rewards down to preserve strict crafting margins.
 
 ## Leveling
 

@@ -6,7 +6,7 @@
 ## Party model
 
 The persistent party was introduced in schema v6 and lives at `player.party` in
-the current schema v18:
+the current schema v19:
 
 - `companions`: unique recruited `CompanionState` records
 - `activeCompanionIds`: up to three recruited IDs in battle/follower order
@@ -115,7 +115,8 @@ receives no victory XP and loses progress earned toward the next level, down to
 the current-level XP floor. A partially victorious KO member remains at 0 HP
 until an inn.
 
-On a full wipe:
+On a full wipe, the hero's campaign rules apply uniformly to all active actors.
+Standard retains the original behavior:
 
 - every active member receives the KO XP penalty
 - the existing 30% hero-gold penalty applies once
@@ -128,6 +129,11 @@ On a full wipe:
 
 Inn rest revives and fully restores every recruited companion and processes
 their pending level-ups.
+
+Story keeps knockout XP and restores full HP/MP on defeat. A no-XP-loss rule
+never makes a KO actor eligible for victory XP. Enemy attacks, abilities, and
+incoming combat-turn status damage use one shared rule composition; manual
+controls and gambits keep their original action/bonus economy and item ownership.
 
 ## Followers and world integration
 

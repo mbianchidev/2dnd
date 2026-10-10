@@ -331,10 +331,15 @@ export function mustSkipTurn(effects: ActiveStatusEffect[]): boolean {
   );
 }
 
+export interface StatusTurnStartOptions {
+  adjustDamage?(damage: number): number;
+}
+
 /** Apply tick damage and saving throws before an actor takes a turn. */
 export function processStartOfTurn(
   effects: ActiveStatusEffect[],
   stats: PlayerStats,
+  options: StatusTurnStartOptions = {},
 ): StatusTurnStartResult {
   const messages: string[] = [];
   let tickDamage = 0;
@@ -345,8 +350,12 @@ export function processStartOfTurn(
     if (!definition) continue;
 
     if (definition.tickDamage > 0 || definition.tickDie > 0) {
-      const damage = definition.tickDamage
+      const baseDamage = definition.tickDamage
         + (definition.tickDie > 0 ? rollDie(definition.tickDie) : 0);
+      const damage = options.adjustDamage ? options.adjustDamage(baseDamage) : baseDamage;
+      if (!Number.isSafeInteger(damage) || damage < 0) {
+        throw new Error("[statusEffects] Tick damage adjustments must be non-negative integers.");
+      }
       tickDamage += damage;
       messages.push(`${definition.name} deals ${damage} damage!`);
     }

@@ -1,7 +1,8 @@
 import type { PlayerState } from "./player";
-import type { TipCategory, TipDefinition, TipUnlock } from "../data/tutorial";
+import type { TipCategory, TipDefinition, TipUnlock, TutorialStep } from "../data/tutorial";
 import { TIPS } from "../data/tutorial";
 import type { FeatureId } from "../data/featureDiscovery";
+import { getDifficultyProfile, type DifficultyProfileId } from "../data/difficulty";
 
 export interface TutorialProgress {
   completed: boolean;
@@ -16,6 +17,7 @@ export interface TutorialTipContext {
   hasSkillCheck: boolean;
   hasTrapExperience: boolean;
   discoveredFeatureIds?: ReadonlySet<FeatureId>;
+  difficultyProfileId?: DifficultyProfileId;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -60,6 +62,7 @@ export function createTutorialTipContext(
     hasTrapExperience: player.progression.trapGuidance
       || Object.keys(player.progression.trapStates).length > 0,
     discoveredFeatureIds: new Set(player.progression.discoveredFeatureIds),
+    difficultyProfileId: player.difficulty.selection.profileId,
   };
 }
 
@@ -86,7 +89,16 @@ export function isTipUnlocked(
       return context.hasTrapExperience;
     case "feature":
       return context.discoveredFeatureIds?.has(unlock.featureId) === true;
+    case "difficulty":
+      return context.difficultyProfileId !== undefined
+        && unlock.profileIds.includes(context.difficultyProfileId);
   }
+}
+
+export function getTutorialStepSummary(step: TutorialStep, player: PlayerState): string {
+  return step.id === "combat"
+    ? `Initiative decides turn order. Rules: ${getDifficultyProfile(player.difficulty.selection.profileId).name}. See Settings for effects.`
+    : step.summary;
 }
 
 export function getUnlockedTips(

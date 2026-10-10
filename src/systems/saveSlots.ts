@@ -18,6 +18,7 @@ import {
   createCurrentSaveData,
   decodeStoredSave,
   ensureSaveStorageMigrated,
+  getSaveStorage,
   normalizeSaveData,
   persistSaveData,
   readSaveSlotData,
@@ -76,9 +77,8 @@ export type SaveExportResult =
   | { ok: false; code: SaveActionErrorCode; message: string };
 
 function getStorageAdapter(): SaveSlotStorageAdapter | null {
-  return typeof localStorage === "undefined"
-    ? null
-    : new SaveSlotStorageAdapter(localStorage);
+  const storage = getSaveStorage();
+  return storage ? new SaveSlotStorageAdapter(storage) : null;
 }
 
 function slotDisplayName(
@@ -247,8 +247,8 @@ export function saveGameToSlot(
 
 /** List autosave and every manual slot without changing the active campaign. */
 export function listSaveSlots(): SaveSlotInfo[] {
-  const adapter = getStorageAdapter();
-  if (!adapter || typeof localStorage === "undefined") {
+  const storage = getSaveStorage();
+  if (!storage) {
     return SAVE_SLOT_IDS.map((slotId) => ({
       slotId,
       kind: slotId === "autosave" ? "autosave" : "manual",
@@ -257,7 +257,8 @@ export function listSaveSlots(): SaveSlotInfo[] {
       diagnostic: "Local campaign storage is unavailable.",
     }));
   }
-  ensureSaveStorageMigrated(localStorage, adapter);
+  const adapter = new SaveSlotStorageAdapter(storage);
+  ensureSaveStorageMigrated(storage, adapter);
   return SAVE_SLOT_IDS.map((slotId) => getSlotInfo(slotId, adapter));
 }
 

@@ -798,6 +798,14 @@ migration marker. Migrate a valid legacy autosave atomically without deleting
 it, isolate corruption per slot, recover staging/backup copies before failure,
 and validate all deterministic JSON imports through the existing campaign
 normalizer. Loading a manual snapshot must not mutate that source slot.
+Validate required hero identity, stats, level, economy, resources, spell-list,
+and item-ID records before optional repair; an unusable core must fall through
+to recovery or reject an import before writing. Preserve well-formed serialized
+hero items, including legacy/custom IDs and order; only malformed known records
+may recover canonical metadata. Never silently delete unknown hero ownership.
+Share actor item validation and owned-equipment repair through `saveActor.ts`.
+Catch denial of the `localStorage` getter as well as its methods. Keep title
+diagnostics and in-memory preferences usable, and surface campaign write errors.
 
 Schema v17 adds normalized feature-discovery IDs, pending one-time reveal IDs,
 explicit debug reveals, and debug-suppressed evidence. Schema-v16 and older
@@ -968,6 +976,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Route title selection and direct pointer targets through
   `src/managers/titleMenu.ts`. Keep the new-game overwrite confirmation compact,
   centered, and directly tappable in mobile landscape.
+- Let `SaveSlotManager` own Esc/B/Cancel while open so confirmations and copy
+  destinations cancel before the outer slot manager closes.
 - Clear held input and synthetic keys on blur, visibility loss, gamepad
   disconnect, scene changes, and runtime destruction.
 - Resolve key conflicts by semantic context/priority. Never map production

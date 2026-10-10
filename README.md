@@ -73,6 +73,9 @@ per-slot backup recovery, and validated JSON import/export. Accessibility/audio
 settings and inventory-view preferences remain separate. Saves do not
 automatically sync between browsers, devices, private windows, or cleared site
 data. The game has no account system, analytics, or server-side save service.
+Unusable campaign imports cannot replace valid saves. If browser privacy
+settings block local storage, the game remains usable but clearly reports that
+campaigns cannot be saved.
 
 ## Run locally
 
@@ -97,7 +100,7 @@ npm run build          # Type-check and build dist/
 npm run build:desktop  # Type-check and build the desktop renderer and shell
 ```
 
-Install Chromium once before the browser suite with
+Install Chromium once before the browser or desktop suites with
 `npm run test:browser:install`.
 
 Use `npm run dev:desktop` for Electron development and
@@ -113,7 +116,7 @@ Use `npm run dev:desktop` for Electron development and
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v17, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v18, migration, recovery, persistence rules |
 | [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
 | [Release](docs/release.md) | GitHub Pages and release checklist |
 | [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |

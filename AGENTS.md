@@ -32,7 +32,7 @@ future work until merged.
 | Sea navigation | `nautical.ts`, `islands.ts`, `seaMonsters.ts` | `nautical*.ts` | Overworld/map/audio | nautical unit and E2E |
 | Events/social/achievements | matching `src/data/` modules | matching `src/systems/` modules | managers/overlays/social renderer | matching unit and E2E |
 | Gathering/crafting | matching `src/data/` modules | matching systems + state normalizers | matching managers | matching unit and E2E |
-| Saves | owning interfaces/defaults | `save.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/domain migration suites |
+| Saves | owning interfaces/defaults | `save.ts`, `saveActor.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/validation/availability/domain migration suites |
 | Accessibility/input | tutorial/feature definitions | `accessibility.ts`, `input.ts`, `featureDiscovery.ts` | input/tutorial/layout managers | accessibility/input/layout/feature E2E |
 | Audio | typed data cues | `audio.ts`, `trapAudio.ts` | callers only | audio + representative browser flows |
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |

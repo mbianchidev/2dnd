@@ -72,6 +72,11 @@ import {
   reconcileFeatureDiscovery,
 } from "./featureDiscovery";
 import {
+  hasUsableSavePlayerCore,
+  normalizeSavedHeroInventory,
+  relinkSavedEquipment,
+} from "./saveActor";
+import {
   LEGACY_SAVE_STORAGE_KEY,
   SAVE_SLOT_IDS,
   SAVE_SLOT_MIGRATION_KEY,
@@ -119,8 +124,14 @@ interface PlaytimeSession {
 
 let playtimeSession: PlaytimeSession | null = null;
 
-function getSaveStorage(): SaveKeyValueStorage | null {
-  return typeof localStorage === "undefined" ? null : localStorage;
+/** Acquire renderer storage even when browser privacy settings deny access. */
+export function getSaveStorage(): SaveKeyValueStorage | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch (error: unknown) {
+    debugLog("[save] Local campaign storage is unavailable", error);
+    return null;
+  }
 }
 
 function getStorageAdapter(): SaveSlotStorageAdapter | null {
@@ -508,7 +519,13 @@ function normalizePlayerLocation(player: PlayerState): void {
 export function normalizeSaveData(value: unknown): SaveData | null {
   try {
     const parsed = value;
-    if (!isRecord(parsed) || !isRecord(parsed["player"])) return null;
+    if (
+      !isRecord(parsed)
+      || !isRecord(parsed["player"])
+      || !hasUsableSavePlayerCore(parsed["player"])
+    ) {
+      return null;
+    }
     if (
       typeof parsed["version"] !== "number"
       || !Number.isInteger(parsed["version"])
@@ -604,6 +621,9 @@ export function normalizeSaveData(value: unknown): SaveData | null {
       data.player.progression.exploredTiles,
     );
     migrateInterimTrapProgression(data.player);
+    const inventory = normalizeSavedHeroInventory(data.player.inventory);
+    if (!inventory) return null;
+    data.player.inventory = inventory;
     data.player.progression.quests = normalizeQuestLog(
       data.player.progression.quests,
     );
@@ -689,22 +709,10 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     data.player.activeEffects = normalizeActiveEffects(data.player.activeEffects);
 
     const p = data.player;
-    if (p.equippedWeapon) {
-      const match = p.inventory.find(i => i.id === p.equippedWeapon!.id && i.type === "weapon");
-      if (match) p.equippedWeapon = match;
-    }
-    if (p.equippedOffHand) {
-      const match = p.inventory.find(i => i.id === p.equippedOffHand!.id && i.type === "weapon");
-      if (match) p.equippedOffHand = match;
-    }
-    if (p.equippedArmor) {
-      const match = p.inventory.find(i => i.id === p.equippedArmor!.id && i.type === "armor");
-      if (match) p.equippedArmor = match;
-    }
-    if (p.equippedShield) {
-      const match = p.inventory.find(i => i.id === p.equippedShield!.id && i.type === "shield");
-      if (match) p.equippedShield = match;
-    }
+    p.equippedWeapon = relinkSavedEquipment(p.inventory, p.equippedWeapon, "weapon");
+    p.equippedOffHand = relinkSavedEquipment(p.inventory, p.equippedOffHand, "weapon");
+    p.equippedArmor = relinkSavedEquipment(p.inventory, p.equippedArmor, "armor");
+    p.equippedShield = relinkSavedEquipment(p.inventory, p.equippedShield, "shield");
 
     const validCityIds = new Set(CITIES.map((city) => city.id));
     if (!Array.isArray(data.player.progression.discoveredCities)) {

@@ -10,13 +10,14 @@ import { getAbility } from "../data/abilities";
 import { getAllTowns } from "../data/chunks";
 import { getItem, type Item } from "../data/items";
 import { getSpell } from "../data/spells";
-import { TALENTS } from "../data/talents";
+import { TALENTS, isTotalLevelTalent } from "../data/talents";
 import { abilityModifier } from "./dice";
 import {
   createBattleActionSource,
   type BattleActionSource,
 } from "./battleActions";
 import { getClassAbilities, getClassSpells, getPlayerClass } from "./classes";
+import { discardPendingLevelUps } from "./classProgression";
 import {
   createPartyCombatant,
   HERO_COMBATANT_ID,
@@ -47,6 +48,7 @@ import { normalizeSavedInventory, relinkSavedEquipment } from "./saveActor";
 export const MAX_ACTIVE_COMPANIONS = 3;
 
 export interface CompanionState extends CombatActorState {
+  classProgression?: never;
   id: CompanionId;
   xp: number;
   pendingStatPoints: number;
@@ -178,7 +180,7 @@ function getEquippedItem(
 function getKnownTalents(classId: string, level: number): string[] {
   return TALENTS.filter((talent) =>
     talent.levelRequired <= level
-    && (!talent.classRestriction || talent.classRestriction.includes(classId))
+    && (isTotalLevelTalent(talent) || talent.classRestriction?.includes(classId))
   ).map((talent) => talent.id);
 }
 
@@ -436,7 +438,7 @@ export function applyKnockoutXpPenalty(
   actor: ProgressingActorState,
 ): void {
   actor.xp = xpFloorForLevel(actor.level);
-  actor.pendingLevelUps = 0;
+  discardPendingLevelUps(actor);
 }
 
 export function isPartyMemberId(value: unknown): value is PartyMemberId {
@@ -585,7 +587,7 @@ export function applyPartyDefeat(
   };
 }
 
-export function restPartyAtInn(player: PlayerState): PartyRestResult {
+export function restPartyAtInn(player: PlayerState, deferHeroLevelUps = false): PartyRestResult {
   const leveledActorIds: PartyMemberId[] = [];
   const actors: Array<{
     id: PartyMemberId;
@@ -602,7 +604,9 @@ export function restPartyAtInn(player: PlayerState): PartyRestResult {
     actor.state.hp = actor.state.maxHp;
     actor.state.mp = actor.state.maxMp;
     clearAllEffects(actor.state.activeEffects);
-    const result = processPendingLevelUps(actor.state);
+    const result = actor.id === "hero" && deferHeroLevelUps
+      ? { leveledUp: false, newLevel: player.level, newSpells: [], newAbilities: [], newTalents: [], asiGained: 0 }
+      : processPendingLevelUps(actor.state);
     actor.state.hp = actor.state.maxHp;
     actor.state.mp = actor.state.maxMp;
     actorResults.push({

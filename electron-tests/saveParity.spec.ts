@@ -5,7 +5,7 @@ import {
   type Browser,
   type ElectronApplication,
 } from "@playwright/test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, type ViteDevServer } from "vite";
@@ -23,7 +23,15 @@ test("browser JSON exports load equivalent state and metadata in isolated Electr
   let browser: Browser | undefined;
   let desktop: ElectronApplication | undefined;
   const errors: string[] = [];
+  const startedAt = performance.now();
+  const phases: Array<{ name: string; elapsedMs: number }> = [];
+  const recordPhase = (name: string): void => {
+    const elapsedMs = performance.now() - startedAt;
+    phases.push({ name, elapsedMs });
+    process.stdout.write(`[save-parity] ${name}: ${Math.round(elapsedMs)}ms\n`);
+  };
   try {
+    recordPhase("launch native");
     desktop = await launchDesktop(userDataDirectory);
     const native = await desktop.firstWindow();
     native.on("pageerror", (error) => errors.push(error.message));
@@ -39,6 +47,7 @@ test("browser JSON exports load equivalent state and metadata in isolated Electr
       localStorage.getItem("2dnd_preferences")
     );
 
+    recordPhase("create browser server");
     server = await createServer({
       root: APP_ROOT,
       base: "/2dnd/",
@@ -56,16 +65,19 @@ test("browser JSON exports load equivalent state and metadata in isolated Electr
     if (!address || typeof address === "string") {
       throw new Error("Parity server has no TCP address");
     }
+    recordPhase("launch browser");
     browser = await chromium.launch();
     const web = await browser.newPage();
     web.on("pageerror", (error) => errors.push(error.message));
     web.on("console", (message) => {
       if (message.type() === "error") errors.push(message.text());
     });
+    recordPhase("load browser game");
     await web.goto(`http://127.0.0.1:${address.port}/2dnd/game.html`, {
       waitUntil: "networkidle",
     });
     await waitForState(web, "BOOT | Screen: title");
+    recordPhase("seed browser campaign");
     await web.evaluate(async () => {
       const playerPath = "/2dnd/src/systems/player.ts";
       const codexPath = "/2dnd/src/systems/codex.ts";
@@ -93,6 +105,7 @@ test("browser JSON exports load equivalent state and metadata in isolated Electr
         sortMode: "name", filter: "all", search: "mock-web-only",
       }));
     });
+    recordPhase("select browser export");
     await holdKey(web, "l");
     await waitForState(web, "[SAVE_SLOT:manual-1]");
     for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -104,6 +117,7 @@ test("browser JSON exports load equivalent state and metadata in isolated Electr
     const description = await web.locator("#save-slot-live-region").textContent();
     if (!description) throw new Error("Browser slot metadata was not announced");
     const expectedDescription = description.split(". Export")[0]!;
+    recordPhase("download browser export");
     const downloading = web.waitForEvent("download");
     await holdKey(web, "Enter");
     const download = await downloading;
@@ -121,16 +135,20 @@ test("browser JSON exports load equivalent state and metadata in isolated Electr
       throw new Error("Browser export has no campaign document");
     }
     expect(await web.evaluate(() => location.origin)).toMatch(/^http:\/\/127\.0\.0\.1:/);
+    recordPhase("close browser");
     await browser.close();
     browser = undefined;
+    recordPhase("close browser server");
     await server.close();
     server = undefined;
 
+    recordPhase("select native import");
     await holdKey(native, "l");
     await waitForState(native, "[SAVE_SLOTS:load]");
     await holdKey(native, "ArrowDown", 80);
     await waitForState(native, "[SAVE_SLOT:manual-1]");
     await waitForState(native, "[SAVE_ACTION:import]");
+    recordPhase("open native file chooser");
     const choosing = native.waitForEvent("filechooser");
     await holdKey(native, "Enter");
     await (await choosing).setFiles({
@@ -138,6 +156,7 @@ test("browser JSON exports load equivalent state and metadata in isolated Electr
       mimeType: "application/json",
       buffer: Buffer.from(json),
     });
+    recordPhase("verify imported campaign");
     await expect(native.locator("#save-slot-live-region")).toContainText(
       expectedDescription,
     );
@@ -153,15 +172,26 @@ test("browser JSON exports load equivalent state and metadata in isolated Electr
       localStorage.getItem("2dnd_inventory_prefs")
     )).toBeNull();
     expect(errors).toEqual([]);
+    recordPhase("parity assertions complete");
   } finally {
     try {
+      recordPhase("close native");
       if (desktop) await closeDesktop(desktop);
     } finally {
       try {
+        recordPhase("cleanup browser");
         await browser?.close();
       } finally {
+        recordPhase("cleanup browser server");
         await server?.close();
         await rm(userDataDirectory, { recursive: true, force: true });
+        recordPhase("cleanup complete");
+        const phasesPath = test.info().outputPath("parity-phases.json");
+        await writeFile(phasesPath, JSON.stringify(phases, null, 2));
+        await test.info().attach("parity-phases", {
+          path: phasesPath,
+          contentType: "application/json",
+        });
       }
     }
   }

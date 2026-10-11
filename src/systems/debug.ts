@@ -44,6 +44,7 @@ import {
   isCompanionId,
 } from "../data/companions";
 import { formatGambitRule } from "./gambits";
+import { executeProgressionDebugCommand } from "./classProgressionDebug";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -53,6 +54,9 @@ export interface DebugCallbacks {
   updateUI: () => void;
   /** Called when a level-up grants stat points (optional). */
   onLevelUp?: (asiGained: number) => void;
+  allowProgressionChanges?: () => boolean;
+  onProgressionChanged?: () => void;
+  openProgression?: () => void;
 }
 
 /** A single scene-specific slash command handler. */
@@ -140,6 +144,19 @@ export function buildSharedCommands(
   cb: DebugCallbacks,
 ): Map<string, CommandHandler> {
   const cmds = new Map<string, CommandHandler>();
+  cmds.set("class", (args) => {
+    const result = executeProgressionDebugCommand(player, args, cb.allowProgressionChanges?.() ?? false);
+    for (const message of result.messages) debugPanelLog(`[CLASS] ${message}`, true);
+    if (result.openSheet) {
+      if (cb.openProgression) cb.openProgression();
+      else debugPanelLog("[CLASS] The character sheet is only available during exploration.", true);
+    }
+    if (result.changed) {
+      cb.onProgressionChanged?.();
+      cb.updateUI();
+      if (result.asiGained > 0) cb.onLevelUp?.(result.asiGained);
+    }
+  });
 
   cmds.set("gold", (args) => {
     const val = parseInt(args, 10);
@@ -229,6 +246,7 @@ export function buildSharedCommands(
 // ── Help entries shared across scenes ──────────────────────────
 
 export const SHARED_HELP: HelpEntry[] = [
+  { usage: "/class list|status|qualify|level|sheet", desc: "Inspect or advance hero class progression" },
   { usage: "/gold <n>", desc: "Set gold amount" },
   { usage: "/exp <n>", desc: "Award XP (alias: /xp)" },
   { usage: "/hp <n>", desc: "Set current HP" },
@@ -327,6 +345,7 @@ import {
 export interface OverworldDebugCallbacks {
   updateHUD(): void;
   showStatOverlay(): void;
+  showProgressionOverlay(): void;
   renderMap(): void;
   applyDayNightTint(): void;
   createPlayer(): void;
@@ -425,6 +444,18 @@ export class DebugCommandSystem {
 
     const cb = {
       updateUI: () => this.callbacks.updateHUD(),
+      allowProgressionChanges: () => !this.callbacks.isInputBlocked(),
+      onProgressionChanged: () => {
+        this.suppressDebugAchievements();
+        this.callbacks.autoSave();
+      },
+      openProgression: () => {
+        if (this.callbacks.isInputBlocked()) {
+          debugPanelLog("[CLASS] Close other overlays before opening the character sheet.", true);
+          return;
+        }
+        this.callbacks.showProgressionOverlay();
+      },
       onLevelUp: (_asiGained: number) => {
         this.scene.time.delayedCall(200, () => {
           if (this.player.pendingStatPoints > 0) this.callbacks.showStatOverlay();

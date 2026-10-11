@@ -20,7 +20,20 @@ import {
 async function drainOpening(page: Page): Promise<void> {
   for (let step = 0; step < 70; step += 1) {
     const state = await page.locator("#debug-state").textContent() ?? "";
-    if (state.includes("OVERWORLD") && !state.includes("[TUTORIAL")) return;
+    if (state.includes("OVERWORLD") && !state.includes("[TUTORIAL")) {
+      const tutorialCompleted = await page.evaluate(() => {
+        const isRecord = (value: unknown): value is Record<string, unknown> =>
+          typeof value === "object" && value !== null && !Array.isArray(value);
+        const raw = localStorage.getItem("2dnd_save");
+        if (!raw) return false;
+        const save: unknown = JSON.parse(raw);
+        if (!isRecord(save) || !isRecord(save["player"])) return false;
+        const progression = save["player"]["progression"];
+        return isRecord(progression) && isRecord(progression["tutorial"])
+          && progression["tutorial"]["completed"] === true;
+      });
+      if (tutorialCompleted) return;
+    }
     await pressController(page, 0);
   }
   throw new Error("Controller could not complete opening/tutorial presentation");

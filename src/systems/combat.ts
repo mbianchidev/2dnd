@@ -21,7 +21,7 @@ import {
   type PlayerState,
 } from "./player";
 import { abilityModifier } from "../systems/dice";
-import { getPlayerClass } from "./classes";
+import { getActorPrimaryStat, getProficiencyBonus } from "./classProgression";
 import {
   applyElementalModifier,
   elementDisplayName,
@@ -340,8 +340,7 @@ export function playerOffHandAttack(
     // D&D 5e: off-hand does NOT add ability modifier to damage
     // unless player has Two-Weapon Fighting style OR modifier is negative
     const primaryStatMod = (() => {
-      const playerClass = getPlayerClass(player.appearanceId);
-      return abilityModifier(player.stats[playerClass.primaryStat]);
+      return abilityModifier(player.stats[getActorPrimaryStat(player)]);
     })();
     const addAbilityMod = hasTwoWeaponFighting(player) || primaryStatMod < 0;
     const abilityDmgBonus = addAbilityMod ? primaryStatMod : 0;
@@ -565,7 +564,7 @@ export function playerCastSpellAtTargets(
 
   // Damage spell - roll once, then resolve independently against each target.
   const playerEffects = player.activeEffects;
-  const spellMod = getSpellModifier(player)
+  const spellMod = getSpellModifier(player, spellId)
     + getEffectAccuracyModifier(playerEffects);
   const statusDamage = getEffectDamageModifier(playerEffects);
   const autoHit = spell.id === "magicMissile";
@@ -910,7 +909,7 @@ export function playerUseAbility(
   // Damage ability — uses STR, DEX, or WIS
   const playerEffects = player.activeEffects;
   const stat = player.stats[ability.statKey];
-  const profBonus = Math.floor((player.level - 1) / 4) + 2;
+  const profBonus = getProficiencyBonus(player);
   const talentAtk = getTalentAttackBonus(player.knownTalents);
   const talentDmg = getTalentDamageBonus(player.knownTalents);
   const attackMod = abilityModifier(stat)

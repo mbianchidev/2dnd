@@ -47,8 +47,23 @@ Character creation supports:
 | Monk | DEX +2, WIS +1 | DEX |
 | Bard | CHA +2, DEX +1 | CHA |
 
-The class `primaryStat` is used for attack/to-hit calculations where the
-specific action does not override the stat.
+Spells resolve the highest eligible source ability score, with stable
+starting-class/registry-order ties; appearance is not progression authority.
+Abilities use their explicit stat key. Main weapon attacks retain STR/finesse
+rules; the compatible off-hand fallback uses the fixed starting primary stat.
+
+Hero multiclass rules live in `src/data/classProgression.ts` and
+`src/systems/classProgression.ts`; normalization is in `classProgressionState.ts`.
+Keep normal total level at 20, creation one-class and companions single-class.
+Check starting/new-class prerequisites only on entry, never when preserving
+earned ranks. Starting boosts/equipment/gold are not multiclass grants.
+Use frozen rest receipts, read-only previews and expected-level commits;
+preserve rest-ready queues across reload without authorizing later XP.
+Shared feature IDs and resource bonuses apply once. See
+[`docs/hero-progression.md`](../../../docs/hero-progression.md).
+Only explicit `progressionScope: "totalLevel"` talents enter generic scans.
+Track-only/unscoped talents require owning-profile grants, including HP/MP
+bonuses; companion creation must use the same common-talent predicate.
 
 ## Non-combat ability checks
 
@@ -234,9 +249,14 @@ matching effects. Combat effects are cleared when leaving Battle.
 ## Leveling
 
 - Proficiency increases at levels 5, 9, 13, and 17.
-- Ability score improvements occur at levels 4, 8, 12, 16, and 19.
-- Pending level gains are applied by the existing rest/level processing logic.
-- Class hit dice and unlock tables are defined in `src/systems/classes.ts`.
+- Ability score improvements occur once at total levels 4, 8, 12, 16, and 19.
+- Common talents/proficiency use total level; restricted actions/talents use
+  their source class rank. Existing shared INT-grown MP is preserved.
+- Prepare at rest and commit one frozen, qualified choice at a time through
+  the authoritative engine; default single-class/companion processing uses the
+  same grant/resource implementation.
+- Profiles reuse canonical class hit dice and spell/ability/talent grant data.
+  Future external profiles are hooks only, not prestige/epic gameplay.
 
 ## Alignment and reputation
 

@@ -71,11 +71,8 @@ import {
   normalizeFeatureDiscoveryProgress,
   reconcileFeatureDiscovery,
 } from "./featureDiscovery";
-import {
-  hasUsableSavePlayerCore,
-  normalizeSavedHeroInventory,
-  relinkSavedEquipment,
-} from "./saveActor";
+import { normalizeHeroProgressionState } from "./classProgressionState";
+import { hasUsableSavePlayerCore } from "./saveActor";
 import {
   LEGACY_SAVE_STORAGE_KEY,
   SAVE_SLOT_IDS,
@@ -86,7 +83,7 @@ import {
   type SaveStorageErrorCode,
 } from "./saveStorage";
 
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -330,7 +327,7 @@ function getInterimTrapState(record: unknown): TrapState | undefined {
   return undefined;
 }
 
-function migrateInterimTrapProgression(player: PlayerState): void {
+function migrateInterimTrapProgression(player: PlayerState, rawInventory: unknown): void {
   const progression = player.progression as unknown as Record<string, unknown>;
   const rawChecks = isRecord(progression["skillChecks"])
     ? progression["skillChecks"]
@@ -362,7 +359,9 @@ function migrateInterimTrapProgression(player: PlayerState): void {
 
   const hadGuidanceItem = player.inventory.some(
     (item) => item.id === "adventurerTrapNotes",
-  );
+  ) || (Array.isArray(rawInventory) && rawInventory.some((item) =>
+    isRecord(item) && item["id"] === "adventurerTrapNotes"
+  ));
   if (hadGuidanceItem) {
     progression["trapGuidance"] = true;
     player.inventory = player.inventory.filter(
@@ -535,7 +534,16 @@ export function normalizeSaveData(value: unknown): SaveData | null {
       return null;
     }
     const sourceVersion = parsed["version"];
+    const rawInventory = parsed["player"]["inventory"];
+    const heroFields = normalizeHeroProgressionState({
+      ...parsed["player"],
+      inventory: Array.isArray(rawInventory)
+        ? rawInventory.filter((item: unknown) => !isRecord(item) || item["id"] !== "adventurerTrapNotes")
+        : rawInventory,
+    }, sourceVersion);
+    if (!heroFields) return null;
     const data = parsed as unknown as SaveData;
+    Object.assign(data.player, heroFields);
 
     // Migration: old saves stored this field as "bestiary" — map to "codex"
     if (!data.codex && parsed["bestiary"]) {
@@ -620,10 +628,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     data.player.progression.exploredTiles = normalizeExploredTiles(
       data.player.progression.exploredTiles,
     );
-    migrateInterimTrapProgression(data.player);
-    const inventory = normalizeSavedHeroInventory(data.player.inventory);
-    if (!inventory) return null;
-    data.player.inventory = inventory;
+    migrateInterimTrapProgression(data.player, rawInventory);
     data.player.progression.quests = normalizeQuestLog(
       data.player.progression.quests,
     );
@@ -707,12 +712,6 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     if (data.player.shortRestsRemaining === undefined) data.player.shortRestsRemaining = 2;
     if (data.player.pendingLevelUps === undefined) data.player.pendingLevelUps = 0;
     data.player.activeEffects = normalizeActiveEffects(data.player.activeEffects);
-
-    const p = data.player;
-    p.equippedWeapon = relinkSavedEquipment(p.inventory, p.equippedWeapon, "weapon");
-    p.equippedOffHand = relinkSavedEquipment(p.inventory, p.equippedOffHand, "weapon");
-    p.equippedArmor = relinkSavedEquipment(p.inventory, p.equippedArmor, "armor");
-    p.equippedShield = relinkSavedEquipment(p.inventory, p.equippedShield, "shield");
 
     const validCityIds = new Set(CITIES.map((city) => city.id));
     if (!Array.isArray(data.player.progression.discoveredCities)) {

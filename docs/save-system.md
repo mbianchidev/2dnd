@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v18; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v19; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -36,18 +36,30 @@ title/Overworld interface lives in `src/managers/saveSlots.ts`. Focused
 normalization remains beside its domain where appropriate, including
 `questState.ts`, `gatheringState.ts`, `craftingState.ts`, and
 `nauticalState.ts`.
-Required hero-core/item validation and shared equipment repair live in
-`saveActor.ts`. Companion loading retains canonical inventory repair; hero
-loading preserves well-formed serialized item ownership.
+Required hero-core and inventory validation live in `saveActor.ts`, using the
+shared serialized-item guard in `heroItemState.ts`. Companion loading retains
+canonical inventory repair; hero progression normalization owns exact equipment
+relinking and preserves well-formed serialized item ownership.
 
 ## Current schema
+
+`SAVE_VERSION` is **19**. Schema v19 adds authoritative hero class ownership,
+fixed starting identity, a rest-ready queue and one frozen level receipt.
+Legacy HP/MP/stats/actions/equipment are preserved without rolling historical
+growth or applying bonuses on load. Exceptional canonical legacy grants and
+optional undelivered legacy unlocks are retained explicitly.
+
+`heroItemState.ts` preserves well-formed serialized custom hero item IDs,
+metadata and append order, and equipment links match the complete serialized
+content. Legacy orphan gear is recovered without substituting a definition.
+Do not apply companion-only canonical-item restrictions to hero saves.
 
 The adapter exposes a bounded `2dnd:save-slot-write` Performance measure for
 the actual validation/staging/backup/write path. Only the latest duration and
 slot/result metadata remain in memory; no campaign contents or persisted
 fields are added.
 
-`SAVE_VERSION` is **18**. Schema v18 adds normalized non-negative
+Schema v18 adds normalized non-negative
 `playtimeSeconds` to each campaign document. Slot names, backup state, and
 migration bookkeeping remain storage metadata rather than campaign authority.
 
@@ -63,6 +75,7 @@ player.position
 player.progression
 player.party
 player.activeEffects
+player.classProgression
 ```
 
 `defeatedBosses` is serialized as an array and restored to a `Set<string>` for
@@ -140,6 +153,11 @@ unknown item rejects the campaign rather than silently deleting ownership.
 Equipment links resolve only to owned inventory objects. An unusable primary
 falls through to its staging/backup candidates; unusable imports are rejected
 before writing.
+
+Required campaign-core checks precede progression repair. Within a usable core,
+owned ranks repair the flat level mirror and bound pending/rest-ready/ASI fields
+without rerolling or replaying grants. Field normalization cannot make an
+unusable campaign import pass validation.
 
 Access to the `localStorage` property itself may throw under browser privacy
 policies. Campaign access handles this through the shared safe getter in

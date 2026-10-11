@@ -89,13 +89,13 @@ jobs:
 
       - name: Smoke-test the actual packaged Steam runtime
         if: runner.os != 'Linux'
-        run: npm run test:desktop:built
+        run: npm run test:desktop:built -- --output electron-test-results/packaged
         env:
           ELECTRON_TEST_EXECUTABLE: ${{ github.workspace }}/release/steam-build/${{ matrix.steamDirectory }}/${{ matrix.steamBinary }}
 
       - name: Smoke-test the actual packaged Steam runtime under Xvfb
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:desktop:built
+        run: xvfb-run -a npm run test:desktop:built -- --output electron-test-results/packaged
         env:
           ELECTRON_TEST_EXECUTABLE: ${{ github.workspace }}/release/steam-build/${{ matrix.steamDirectory }}/${{ matrix.steamBinary }}
 

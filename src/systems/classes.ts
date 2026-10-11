@@ -5,9 +5,10 @@
  */
 
 import type { PlayerStats } from "./player";
+import type { BaseClassId } from "../data/classProgression";
 
 export interface PlayerClass {
-  id: string;
+  id: BaseClassId;
   label: string;
   /** Short class description shown during character creation. */
   description: string;
@@ -24,7 +25,7 @@ export interface PlayerClass {
   /** The primary ability stat used for to-hit calculations. */
   primaryStat: keyof PlayerStats;
   /** Hit die size (e.g. 12 = d12 for Barbarian, 6 = d6 for Mage). */
-  hitDie: number;
+  hitDie: 6 | 8 | 10 | 12;
   /** Spell IDs this class can learn (order doesn't matter — unlocked by level). */
   spells: string[];
   /** Martial ability IDs for non-caster classes (empty for casters). */

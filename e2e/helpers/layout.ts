@@ -29,8 +29,8 @@ export async function layoutItemCenter(
     const report = await readLayoutReport(page);
     return Object.values(report.groups)
       .flatMap((group) => group.items)
-      .some((item) => item.id === id);
-  }).toBe(true);
+      .map((item) => item.id);
+  }).toContain(id);
   const report = await readLayoutReport(page);
   const item = Object.values(report.groups)
     .flatMap((group) => group.items)

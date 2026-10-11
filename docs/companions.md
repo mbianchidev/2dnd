@@ -6,7 +6,7 @@
 ## Party model
 
 The persistent party was introduced in schema v6 and lives at `player.party` in
-the current schema v18:
+the current schema v19:
 
 - `companions`: unique recruited `CompanionState` records
 - `activeCompanionIds`: up to three recruited IDs in battle/follower order
@@ -15,6 +15,11 @@ The hero remains the owner of gold, bank balance, world position, mounts, and
 world progression. Each companion owns independent XP, level, HP/MP, stats,
 spells, abilities, talents, inventory, equipment, active effects, dialogue
 cursor, control mode, and gambits.
+
+The hero can multiclass, but companions remain single-class and have no hero
+`classProgression` field. Recruitment matches the hero's total level. Inn
+companion levels still process automatically; the hero chooses one qualified
+class at a time through the shared progression engine.
 
 The three stable companion IDs are:
 

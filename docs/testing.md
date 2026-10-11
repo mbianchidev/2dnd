@@ -73,7 +73,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v18 autosave/manual-slot persistence,
+- real character creation, schema-v19 autosave/manual-slot persistence,
   relaunch, and continue
 - independent desktop copy/import, exact source-slot bytes, interrupted
   staging/core-corruption recovery, and loading a second campaign after relaunch
@@ -94,6 +94,9 @@ hours-long endurance or portable performance-budget evidence.
 
 `ELECTRON_TEST_EXECUTABLE` optionally selects an explicitly supplied packaged
 binary for the same suite. It does not alter production preload/security.
+Packaged smoke runs use `electron-test-results/packaged` so a later invocation
+cannot erase native first-attempt traces. Save-parity artifacts include ordered
+phase timings to distinguish gameplay/import waits from browser/server cleanup.
 
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
 Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
@@ -103,7 +106,7 @@ Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
 Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work. The command rebuilds the production `/2dnd/`
 target, launches it on an unused local port, and samples cache-disabled
-headless Chromium startup with both empty storage and a fresh schema-v18 save.
+headless Chromium startup with both empty storage and a fresh current-schema save.
 It reports:
 
 - deployed and JavaScript raw/gzip sizes plus source-map size
@@ -130,8 +133,9 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.
-- Await tutorial presentation and persisted completion before testing pending
-  mechanic reloads; the first Overworld frame can precede the tutorial handoff.
+- Await persisted tutorial completion before leaving opening/controller drains
+  or testing pending-mechanic reloads; the first Overworld frame can precede the
+  deferred tutorial handoff.
 - Keep screenshot tolerance focused on genuine cross-platform raster variance;
   functional assertions remain primary.
 - Treat page errors, unexpected console errors, overlaps, and clipping as test
@@ -145,6 +149,17 @@ Registered groups should report zero unintended
 intersections and zero visible-content clipping.
 
 ## Targeted validation
+
+Hero progression coverage includes all base-class pairings and prerequisite
+boundaries, frozen resources, once-only overlaps, total-level ASIs, legacy
+levels 1-20 for every class, corrupt records, deferred historical unlocks,
+lossless 53-item custom hero fixtures, complete duplicate-equipment metadata,
+legacy orphan gear, independent companion actions and shared economy. The
+`multiclass.spec.ts` flow covers rest/choice/reload, exact previews, ASIs,
+mobile/gamepad, measured layouts and campaign completion.
+Seed browser randomness with a varying generator: constant global rolls collide
+with Phaser Text UUID textures. Compare exact prepared resolver receipts rather
+than assuming a global constant roll.
 
 During implementation, run the smallest related Vitest files first. Run focused
 Playwright specs for changed UI/scene flows. Before a pull request, run:

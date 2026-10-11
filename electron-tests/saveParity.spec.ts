@@ -5,7 +5,7 @@ import {
   type Browser,
   type ElectronApplication,
 } from "@playwright/test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, type ViteDevServer } from "vite";
@@ -186,8 +186,10 @@ test("browser JSON exports load equivalent state and metadata in isolated Electr
         await server?.close();
         await rm(userDataDirectory, { recursive: true, force: true });
         recordPhase("cleanup complete");
+        const phasesPath = test.info().outputPath("parity-phases.json");
+        await writeFile(phasesPath, JSON.stringify(phases, null, 2));
         await test.info().attach("parity-phases", {
-          body: JSON.stringify(phases, null, 2),
+          path: phasesPath,
           contentType: "application/json",
         });
       }

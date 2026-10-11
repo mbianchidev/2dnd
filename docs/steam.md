@@ -91,6 +91,8 @@ staged hashes. The runtime excludes source maps, screenshots/showcase assets,
 tests, source trees, development dependencies, credentials, SDK files, logs,
 saves and Chromium profile databases. Unknown native runtime files fail the
 gate rather than being silently copied or silently removed.
+The application archive permits only game-prefixed Vite JavaScript/CSS assets;
+showcase styles and asset source maps remain excluded.
 
 The package includes AGPL, Phaser/EventEmitter3 MIT and Electron/Chromium
 notices. `SOURCE.2dnd.txt` identifies its source commit and is generated

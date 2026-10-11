@@ -124,10 +124,12 @@ describe("Steam distribution contract", () => {
     ]) expect(isForbiddenSteamPath(path)).toBe(false);
     for (const path of [
       "/package.json", "/dist/game.html", "/dist/assets/game-mock.js",
+      "/dist/assets/game-mock.css",
       "/dist/favicon.svg", "/dist-electron/main.js", "/dist-electron/preload.cjs",
     ]) expect(isAllowedSteamAppEntry(path)).toBe(true);
     for (const path of [
       "/dist/index.html", "/dist/screenshots/mock.png", "/dist/assets/landing-mock.css",
+      "/dist/assets/unknown-mock.css", "/dist/assets/game-mock.css.map",
       "/dist/assets/game.js.map", "/node_modules/native/index.js", "/.env",
     ]) expect(isAllowedSteamAppEntry(path)).toBe(false);
   });

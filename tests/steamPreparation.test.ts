@@ -53,6 +53,7 @@ async function mockPayload(root: string, platform: SteamPlatform): Promise<strin
   }));
   await writeFile(join(application, "dist", "game.html"), "<!doctype html><title>Mock game</title>");
   await writeFile(join(application, "dist", "assets", "game-mock.js"), "export {};");
+  await writeFile(join(application, "dist", "assets", "game-mock.css"), ".mock-dice { display: block; }");
   await writeFile(join(application, "dist-electron", "main.js"), "export {};");
   await writeFile(join(application, "dist-electron", "preload.cjs"), '"use strict";');
   await mkdir(dirname(join(payload, depot.binary)), { recursive: true });

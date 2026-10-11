@@ -170,7 +170,7 @@ export function isAllowedSteamAppEntry(path: string): boolean {
   return normalized === "package.json"
     || normalized === "dist/game.html"
     || normalized === "dist/favicon.svg"
-    || /^dist\/assets\/game-[\w-]+\.js$/.test(normalized)
+    || /^dist\/assets\/game-[\w-]+\.(?:js|css)$/.test(normalized)
     || /^dist-electron\/[\w-]+\.(?:js|cjs)$/.test(normalized);
 }
 

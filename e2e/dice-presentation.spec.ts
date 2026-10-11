@@ -297,7 +297,7 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
     controls: { touchControls: "on" },
     dice: { frequency: options.disabled ? "off" : "all", speed: options.instant ? "instant" : "normal" },
   });
-  await page.addInitScript(({ campaign, preferences, attackNaturals }) => {
+  await page.addInitScript(({ campaign, preferences, attackNaturals, area }) => {
     if (!sessionStorage.getItem("diceInitialized")) {
       sessionStorage.setItem("diceInitialized", "true");
       localStorage.clear();
@@ -307,7 +307,11 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
     let seed = 0x165_2026;
     const forced = [...attackNaturals];
     Math.random = () => {
-      const stack = forced.length > 0 ? new Error().stack ?? "" : "";
+      const stack = forced.length > 0 || area ? new Error().stack ?? "" : "";
+      // This damage fixture must hit independently of Phaser's texture UUID RNG calls.
+      if (area && stack.includes("playerCastSpellAtTargets") && stack.includes("rollCombatD20")) {
+        return 0.925;
+      }
       if (forced.length > 0 && stack.includes("playerAttack") && stack.includes("rollCombatD20")) {
         const natural = forced.shift()!;
         if (!Number.isInteger(natural) || natural < 1 || natural > 20) {
@@ -334,7 +338,10 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
         pad.timestamp += 1;
       },
     });
-  }, { campaign: JSON.stringify(save), preferences, attackNaturals: options.attackNaturals ?? [] });
+  }, {
+    campaign: JSON.stringify(save), preferences, attackNaturals: options.attackNaturals ?? [],
+    area: options.area === true,
+  });
   await page.goto("game.html", { waitUntil: "networkidle" });
   await expect(page.locator("#debug-state")).toContainText("BOOT | Screen: title");
   await page.locator("#debug-checkbox").check();

@@ -18,7 +18,6 @@ import { getGitProvenance } from "./lib/git-provenance.mjs";
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const DIST = join(ROOT, "dist");
 const BASE_PATH = "/2dnd/";
-const CURRENT_SAVE_VERSION = 18;
 const SAVE_KEY = "2dnd_save";
 const BOOT_TEXTURE_MEASURE = "2dnd:boot-textures";
 const DEFAULT_SAMPLE_COUNT = 20;
@@ -546,7 +545,7 @@ function printReport(result) {
   );
   console.log(
     `- Method: ${result.startup.sampleCount} cache-disabled production `
-    + `navigations per startup case; fresh schema-v${CURRENT_SAVE_VERSION} `
+    + `navigations per startup case; fresh schema-v${result.save.schemaVersion} `
     + "campaign for save metrics.",
   );
   console.log("");
@@ -605,6 +604,17 @@ async function main() {
     );
   }
   const initialProvenance = await getGitProvenance(ROOT);
+  const saveSource = await readFile(join(ROOT, "src/systems/save.ts"), "utf8");
+  const saveVersionMatch = saveSource.match(
+    /^export\s+const\s+SAVE_VERSION\s*=\s*(\d+)\s*;/m,
+  );
+  if (!saveVersionMatch) {
+    throw new Error("Missing canonical SAVE_VERSION in src/systems/save.ts");
+  }
+  const currentSaveVersion = Number(saveVersionMatch[1]);
+  if (!Number.isSafeInteger(currentSaveVersion) || currentSaveVersion < 1) {
+    throw new Error("Canonical SAVE_VERSION must be a positive safe integer");
+  }
   await runCommand(process.execPath, [npmCli, "run", "build"], {
     env: {
       ...process.env,
@@ -630,9 +640,9 @@ async function main() {
     });
     try {
       const freshSave = await createFreshSave(browser, url);
-      if (freshSave.schemaVersion !== CURRENT_SAVE_VERSION) {
+      if (freshSave.schemaVersion !== currentSaveVersion) {
         throw new Error(
-          `Expected fresh save schema v${CURRENT_SAVE_VERSION}, received `
+          `Expected fresh save schema v${currentSaveVersion}, received `
           + `v${freshSave.schemaVersion}`,
         );
       }

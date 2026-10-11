@@ -13,7 +13,9 @@
   launches it on an unused local port, and prints reproducible bundle, startup,
   Boot texture, memory, DOM/listener, and fresh-save metrics. Run
   `npm run test:browser:install` once, then invoke it through
-  `npm run benchmark:baseline`.
+  `npm run benchmark:baseline`. The fresh-save guard reads the canonical
+  `SAVE_VERSION` from `src/systems/save.ts`; it never downgrades a save or
+  maintains a separate schema version.
 - `lib/git-provenance.mjs` shares commit/clean-tree/diff-hash collection between
   the performance harness and Steam receipts without following untracked
   symlinks outside the worktree.

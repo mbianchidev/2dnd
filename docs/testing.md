@@ -107,6 +107,8 @@ Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work. The command rebuilds the production `/2dnd/`
 target, launches it on an unused local port, and samples cache-disabled
 headless Chromium startup with both empty storage and a fresh current-schema save.
+The harness validates that save against the canonical `SAVE_VERSION` declaration
+in `src/systems/save.ts`, rather than a separate hardcoded benchmark version.
 It reports:
 
 - deployed and JavaScript raw/gzip sizes plus source-map size

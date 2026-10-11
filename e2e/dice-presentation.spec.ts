@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createCurrentSaveData, normalizeSaveData, SAVE_VERSION, type SaveData } from "../src/systems/save";
@@ -496,9 +496,10 @@ test.describe("physical dice game-viewport demo", () => {
     expect(saved.player.hp).toBe(450 + hpRestored);
     expect(saved.player.mp).toBe(100 - 4 * getSpell("cureWounds")!.mpCost);
     const evidencePath = test.info().outputPath("physical-roll-frame-evidence.json");
-    await writeFile(evidencePath,
-      JSON.stringify({ recordingAt, startedAt, motion, receipts: heals.map((packet) => packet.healing) }, null, 2),
-      "utf8");
+    const frameEvidence = { recordingAt, startedAt, motion, receipts: heals.map((packet) => packet.healing) };
+    await writeFile(evidencePath, JSON.stringify(frameEvidence, null, 2), "utf8");
+    const storedEvidence: unknown = JSON.parse(await readFile(evidencePath, "utf8"));
+    expect(storedEvidence).toEqual(frameEvidence);
     await test.info().attach("physical-roll-frame-evidence", { path: evidencePath, contentType: "application/json" });
     expect(errors).toEqual([]);
     const video = page.video();

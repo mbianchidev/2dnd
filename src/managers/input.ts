@@ -47,7 +47,7 @@ interface InputRuntimeGame {
     once(event: "poststep", listener: () => void): void;
     off(event: "poststep", listener: () => void): void;
   };
-  readonly scale: { refresh(): void };
+  readonly scale: { getParentBounds(): boolean; refresh(): void };
   readonly scene: {
     getScenes(active: boolean): readonly InputRuntimeScene[];
   };
@@ -166,6 +166,7 @@ export class SemanticInputRuntime {
   private unsubscribeFeatures: (() => void) | null = null;
   private readonly resizeObserver = new ResizeObserver(() => {
     this.updateDiceInset();
+    this.game.scale.getParentBounds();
     this.game.scale.refresh();
   });
   private pointerRoot: HTMLElement | null = null;
@@ -506,6 +507,9 @@ export class SemanticInputRuntime {
       if (action === "cancel") return "cutsceneSkip";
     }
     if (context === "inventory") {
+      if (action === "interact" && document.getElementById("debug-state")?.textContent?.includes("[ACHIEVEMENTS")) {
+        return "inventorySearch";
+      }
       const inventoryActions: Partial<Record<InputAction, InputAction>> = {
         navigateUp: "inventoryPrevious",
         navigateDown: "inventoryNext",
@@ -893,7 +897,7 @@ export class SemanticInputRuntime {
     }
     if (key === "OverworldScene") {
       const state = document.getElementById("debug-state")?.textContent ?? "";
-      if (state.includes("[PARTY:items")) return "inventory";
+      if (state.includes("[PARTY:items") || state.includes("[ACHIEVEMENTS")) return "inventory";
       if (state.includes("[GATHERING")) return "gathering";
       if (state.includes("[CHRONICLE]")) return "chronicle";
       if (

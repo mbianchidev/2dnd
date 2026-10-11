@@ -59,6 +59,7 @@ export type GridNavigationDirection = "up" | "down" | "left" | "right";
 export interface LayoutAuditItem {
   id: string;
   bounds: LayoutRect;
+  contentBounds?: LayoutRect;
   allowOverlapWith?: readonly string[];
   containedBy?: string;
 }
@@ -73,6 +74,7 @@ export interface LayoutClipping {
   id: string;
   bounds: LayoutRect;
   viewport: LayoutRect;
+  reason?: "content";
 }
 
 export interface LayoutAuditResult {
@@ -433,6 +435,11 @@ export function auditLayout(
   items.forEach((item, index) => {
     if (viewport && !containsRect(viewport, item.bounds)) {
       clipping.push({ id: item.id, bounds: item.bounds, viewport });
+    }
+    if (item.contentBounds && !containsRect(item.bounds, item.contentBounds)) {
+      clipping.push({
+        id: item.id, bounds: item.contentBounds, viewport: item.bounds, reason: "content",
+      });
     }
     for (let otherIndex = index + 1; otherIndex < items.length; otherIndex += 1) {
       const other = items[otherIndex];

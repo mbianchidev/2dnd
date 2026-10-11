@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SAVE_SLOT_KEY_DEBOUNCE_MS } from "../src/systems/saveSlots";
 import { SAVE_VERSION } from "../src/systems/save";
-import { pressPointerAt, waitForGameInputFrame } from "../e2e/helpers/layout";
+import { clickLayoutItem, pressPointerAt, waitForGameInputFrame } from "../e2e/helpers/layout";
 import {
   APP_ROOT,
   closeDesktop,
@@ -152,19 +152,19 @@ async function returnToTitle(page: Page): Promise<void> {
 async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await activateTitleAction(page, "newGame");
   await waitForState(page, "BOOT | Screen: character");
-  await clickGame(page, 320, 76);
+  await clickLayoutItem(page, "creation-name");
   const nameInput = page.locator("#mobile-text-input input");
   await expect(nameInput).toBeVisible();
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
   await expect(nameInput).not.toBeVisible();
   await waitForState(page, "BOOT | Screen: character");
-  await clickGame(page, 284, 160);
+  await clickLayoutItem(page, "creation-class-ranger");
   await waitForState(page, "[CLASS:ranger]");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: stats");
   await waitForState(page, "[MODE:pointbuy]");
-  await clickGame(page, 390, 64);
+  await clickLayoutItem(page, "creation-stat-mode-random");
   await waitForState(page, "[MODE:random]");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: appearance");

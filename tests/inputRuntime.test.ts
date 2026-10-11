@@ -12,6 +12,7 @@ describe("semantic runtime focus and modal ownership", () => {
   let frame: FrameRequestCallback | null;
   let rightPressed: boolean;
   let game: ConstructorParameters<typeof SemanticInputRuntime>[0];
+  let resize: (() => void) | undefined;
   const postStepListeners = new Set<() => void>();
   const sceneListeners = new Map<"shutdown" | "destroy", Set<() => void>>();
   const pressedButtons = new Set<number>();
@@ -41,6 +42,15 @@ describe("semantic runtime focus and modal ownership", () => {
     postStepListeners.clear();
     sceneListeners.clear();
     frame = null;
+    resize = undefined;
+    vi.stubGlobal("ResizeObserver", class implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resize = () => callback([], this);
+      }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    });
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       frame = callback;
       return 1;
@@ -76,7 +86,7 @@ describe("semantic runtime focus and modal ownership", () => {
         once: (_event, listener) => { postStepListeners.add(listener); },
         off: (_event, listener) => { postStepListeners.delete(listener); },
       },
-      scale: { refresh: vi.fn() },
+      scale: { getParentBounds: vi.fn(() => true), refresh: vi.fn() },
       scene: { getScenes: () => [{
         scene: { key: "OverworldScene" },
         events: sceneEvents,
@@ -93,9 +103,20 @@ describe("semantic runtime focus and modal ownership", () => {
     window.removeEventListener("keydown", recordKey);
     window.removeEventListener("keyup", recordKey);
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     if (originalGamepads) Object.defineProperty(navigator, "getGamepads", originalGamepads);
     else Reflect.deleteProperty(navigator, "getGamepads");
     document.body.replaceChildren();
+  });
+
+  it("reads the resized canvas host before refreshing FIT geometry", () => {
+    expect(resize).toBeDefined();
+    resize?.();
+    const parentBounds = vi.mocked(game.scale.getParentBounds);
+    const refresh = vi.mocked(game.scale.refresh);
+    expect(parentBounds).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(parentBounds.mock.invocationCallOrder[0]).toBeLessThan(refresh.mock.invocationCallOrder[0]!);
   });
 
   it("releases held game keys and does not reacquire controller input while blurred", () => {
@@ -147,6 +168,26 @@ describe("semantic runtime focus and modal ownership", () => {
     rightPressed = true;
     advance(400);
     expect(keys()).toContain("KeyD");
+  });
+
+  it("routes achievement selection, paging, title confirmation and search through shared list controls", () => {
+    document.getElementById("debug-state")!.textContent = "OVERWORLD [ACHIEVEMENTS 1/50]";
+    const dispatch = vi.spyOn(window, "dispatchEvent");
+    const press = (button: number, timestamp: number): void => {
+      pressedButtons.add(button);
+      advance(timestamp);
+      pressedButtons.delete(button);
+      advance(timestamp + 50);
+    };
+    press(13, 100);
+    press(15, 200);
+    press(0, 300);
+    press(2, 400);
+    const keys = dispatch.mock.calls.flatMap(([event]) =>
+      event instanceof KeyboardEvent && event.type === "keydown" ? [event.code] : []
+    );
+    expect(keys).toEqual(["ArrowDown", "PageDown", "Enter", "Slash"]);
+    expect(emitted).toEqual([]);
   });
 
   it("releases an already-held game key before routing repeats into text entry", () => {

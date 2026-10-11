@@ -65,6 +65,7 @@ import {
   SETTINGS_PANEL_HEIGHT,
   SETTINGS_PANEL_WIDTH,
 } from "../renderers/settings";
+import { layoutEquipmentColumn } from "../renderers/equipmentLayout";
 import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
 import {
@@ -73,7 +74,7 @@ import {
   createOverlayContainer,
   createPanelGraphics,
 } from "../utils/ui";
-import { syncInteractiveHitArea } from "./layout";
+import { subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
 import {
   layoutResponsiveGrid,
   restoreLayoutFocus,
@@ -242,6 +243,8 @@ export class OverlayManager {
       return;
     }
     this.equipPage = "gear";
+    this.equipInfoPage = 0;
+    this.equipBodyPage = 0;
     this.gearWeaponPage = 0;
     this.gearOffHandPage = 0;
     this.gearArmorPage = 0;
@@ -254,9 +257,22 @@ export class OverlayManager {
   }
 
   private equipPlayer: PlayerState | null = null;
+  private equipInfoPage = 0;
+  private equipBodyPage = 0;
+  private equipInfoPageCount = 1;
+  private equipBodyPageCount = 1;
   private pendingEquipProgression = false;
   private readonly handleEquipKeyDown = (event: KeyboardEvent): void => {
-    if (!this.equipOverlay || !this.equipPlayer || event.key !== "Tab" || event.repeat) return;
+    if (!this.equipOverlay || !this.equipPlayer) return;
+    if (event.key === "PageUp" || event.key === "PageDown") {
+      const direction = event.key === "PageUp" ? -1 : 1;
+      this.equipInfoPage = Math.max(0, Math.min(this.equipInfoPage + direction, this.equipInfoPageCount - 1));
+      this.equipBodyPage = Math.max(0, Math.min(this.equipBodyPage + direction, this.equipBodyPageCount - 1));
+      event.preventDefault();
+      this.buildEquipOverlay(this.equipPlayer);
+      return;
+    }
+    if (event.key !== "Tab" || event.repeat) return;
     event.preventDefault();
     this.pendingEquipProgression = true;
   };
@@ -289,7 +305,11 @@ export class OverlayManager {
     const px = startX + infoPanelW + 6; // right panel (gear/skills/items)
     const py = Math.floor((h - panelH) / 2) - 20;
 
-    this.equipOverlay = this.scene.add.container(0, 0).setDepth(50);
+    this.equipOverlay = createOverlayContainer(this.scene, "equipment", 50, {
+      x: startX, y: py, width: totalW, height: panelH,
+    });
+    const unsubscribeReflow = subscribeOverlayReflow(this.scene, () => this.buildEquipOverlay(player));
+    this.equipOverlay.once(Phaser.GameObjects.Events.DESTROY, unsubscribeReflow);
 
     // Dim background
     const dim = createDimGraphics(this.scene, w, h, 0.5);
@@ -302,7 +322,17 @@ export class OverlayManager {
     const infoBg = createPanelGraphics(this.scene, ipx, py, infoPanelW, panelH, 0.95, 0xc0a060);
     this.equipOverlay.add(infoBg);
 
+    const beforeInfo = new Set(this.equipOverlay.list);
     this.buildInfoPanel(player, ipx + 8, py + 8, infoPanelW - 16);
+    const infoObjects = this.equipOverlay.list.filter((object) => !beforeInfo.has(object));
+    const info = layoutEquipmentColumn(this.scene, this.equipOverlay, infoObjects, "equipment-info", {
+      x: ipx + 8, y: py + 8, width: infoPanelW - 16, height: panelH - 16,
+    }, this.equipInfoPage, (page) => {
+      this.equipInfoPage = page;
+      this.buildEquipOverlay(player);
+    });
+    this.equipInfoPage = info.page;
+    this.equipInfoPageCount = info.count;
 
     // --- Right panel background ---
     const bg = createPanelGraphics(this.scene, px, py, panelW, panelH, 0.95, 0xc0a060);
@@ -318,6 +348,7 @@ export class OverlayManager {
     ];
     const ulGfx = this.scene.add.graphics();
     ulGfx.lineStyle(2, 0xffd700, 1);
+    let tabHeight = 0;
     for (let t = 0; t < 3; t++) {
       const tx = px + panelW * tabPositions[t];
       const tab = this.scene.add.text(tx, tabY, tabs[t].label, {
@@ -325,28 +356,45 @@ export class OverlayManager {
         color: this.equipPage === tabs[t].page ? "#ffd700" : "#888",
       }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
       const pg = tabs[t].page;
-      tab.on("pointerdown", () => { this.equipPage = pg; this.buildEquipOverlay(player); });
+      tab.on("pointerdown", () => {
+        this.equipPage = pg;
+        this.equipBodyPage = 0;
+        this.buildEquipOverlay(player);
+      });
       if (tabs[t].page === "skills") this.addMeasuredAction(tab, "equip-skills-tab");
       else this.equipOverlay.add(tab);
       if (this.equipPage === tabs[t].page) {
-        ulGfx.lineBetween(tx - 28, tabY + 16, tx + 28, tabY + 16);
+        ulGfx.lineBetween(tx - 28, tabY + tab.displayHeight + 3, tx + 28, tabY + tab.displayHeight + 3);
       }
+      tabHeight = Math.max(tabHeight, tab.displayHeight);
     }
     this.equipOverlay.add(ulGfx);
 
-    if (this.equipPage === "gear") {
-      this.buildEquipGearPage(player, px, py + 28, panelW, panelH - 28);
-    } else if (this.equipPage === "skills") {
-      this.buildEquipSkillsPage(player, px, py + 28, panelW, panelH - 28);
-    } else {
-      this.buildEquipItemsPage(player, px, py + 28, panelW, panelH - 28);
-    }
-
-    // Close hint
-    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 14, "Tab: progression; E: close", {
-      fontSize: "10px", fontFamily: "monospace", color: "#666",
-    }).setOrigin(0.5, 1);
+    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 8,
+      "PageUp/Down: pages; Tab: progression; E: close", {
+        fontSize: "10px", fontFamily: "monospace", color: "#90a4ae",
+        align: "center", wordWrap: { width: panelW - 24, useAdvancedWrap: true },
+      }).setOrigin(0.5, 1).setData("layoutId", "equipment-hint");
     this.equipOverlay.add(hint);
+    const beforeBody = new Set(this.equipOverlay.list);
+    const bodyY = tabY + tabHeight + 10;
+    const bodyHeight = hint.getBounds().y - 10 - bodyY;
+    if (this.equipPage === "gear") {
+      this.buildEquipGearPage(player, px, bodyY, panelW, bodyHeight);
+    } else if (this.equipPage === "skills") {
+      this.buildEquipSkillsPage(player, px, bodyY, panelW, bodyHeight);
+    } else {
+      this.buildEquipItemsPage(player, px, bodyY, panelW, bodyHeight);
+    }
+    const bodyObjects = this.equipOverlay.list.filter((object) => !beforeBody.has(object));
+    const body = layoutEquipmentColumn(this.scene, this.equipOverlay, bodyObjects, "equipment-body", {
+      x: px + 12, y: bodyY, width: panelW - 24, height: bodyHeight,
+    }, this.equipBodyPage, (page) => {
+      this.equipBodyPage = page;
+      this.buildEquipOverlay(player);
+    });
+    this.equipBodyPage = body.page;
+    this.equipBodyPageCount = body.count;
   }
 
   private addMeasuredAction(text: Phaser.GameObjects.Text, id: string): void {

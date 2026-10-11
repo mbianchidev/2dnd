@@ -152,4 +152,14 @@ describe("measured UI layout", () => {
     ])).toEqual([["title", "button"]]);
     expect(result.clipping.map((entry) => entry.id)).toEqual(["tooltip"]);
   });
+
+  it("detects glyphs clipped inside an otherwise in-bounds fixed text surface", () => {
+    const bounds = { x: 10, y: 10, width: 120, height: 40 };
+    const result = auditLayout([{
+      id: "slot-row", bounds, contentBounds: { ...bounds, height: 65 },
+    }], { x: 0, y: 0, width: 200, height: 200 });
+    expect(result.clipping).toEqual([{
+      id: "slot-row", bounds: { ...bounds, height: 65 }, viewport: bounds, reason: "content",
+    }]);
+  });
 });

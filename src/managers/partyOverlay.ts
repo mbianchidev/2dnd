@@ -103,7 +103,7 @@ export class PartyOverlayManager {
     const page = Math.max(0, this.inventoryPages.findIndex((indices) => indices.includes(selectedPosition))) + 1;
     const totalPages = Math.max(1, this.inventoryPages.length);
     const preferences = inventoryPreferences.get();
-    return ` [PARTY:items Inventory ${Math.max(selectedPosition + 1, 0)}/${entries.length} Page ${page}/${totalPages} Sort:${preferences.sortMode} Filter:${preferences.filter} Search:${preferences.search || "-"}${this.inventorySearchActive ? " Focus:search" : ""}]`;
+    return ` [PARTY:items Inventory ${Math.max(selectedPosition + 1, 0)}/${entries.length} Page ${page}/${totalPages} SelectedIndex:${this.inventorySelectedIndex ?? "-"} Sort:${preferences.sortMode} Filter:${preferences.filter} Search:${preferences.search || "-"}${this.inventorySearchActive ? " Focus:search" : ""}]`;
   }
 
   private resolveSelectedId(player: PlayerState): PartyMemberId {

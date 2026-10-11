@@ -214,8 +214,8 @@ export class MinigamePanelRenderer {
         fontFamily: "monospace", fontSize: "12px", color: "#ffffff",
         backgroundColor: "#293958", align: "center",
         fixedWidth: cell.width, fixedHeight: cell.height,
-        padding: { x: 6, y: Math.max(8, Math.floor((cell.height - 36) / 2)) },
-        wordWrap: { width: cell.width - 12 },
+        padding: { x: 6, y: 6 },
+        wordWrap: { width: Math.floor(cell.width) - 16, useAdvancedWrap: true },
       }).setInteractive({ useHandCursor: true });
       button.setData("layoutId", `minigame-${action.id}`);
       button.setData("testId", `minigame-${action.id}`);

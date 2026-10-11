@@ -187,10 +187,17 @@ It preserves existing RNG order, shared area pools, finite fractional custom
 item effects, resource use and result-hook timing; scene adapters only capture
 their existing shield/healing writes. `dicePresentation.ts`
 projects only permitted information and owns a bounded runtime log. The
-scene-owned dice manager and procedural SVG dock consume those results without
+scene-owned dice manager, procedural SVG dock and pointer-transparent game
+throw layer consume those results without
 RNG, resource mutations, input-block reasons, or gameplay completion callbacks.
 They cancel visual/audio work on shutdown while retaining redacted log evidence
 across handoffs. See [Dice presentation](dice-presentation.md).
+`diceMotion.ts` owns measured deterministic travel, multi-axis tumble, bounce
+and settled layout, not physics that determines faces. Normal/Fast take
+900/300 ms; Off/Instant/reduced motion stay static. Skip, replacement, window
+visibility/resize and scene cleanup cancel owned visual work without delaying
+mechanics or stealing focus. Motion evidence files/video are test artifacts,
+not gameplay/save data or a portable performance budget.
 
 ## Hero progression authority
 

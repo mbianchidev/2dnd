@@ -9,6 +9,10 @@ The resolved-dice dock shows the actual natural faces, the selected
 advantage/disadvantage die, permitted modifiers/totals, known AC/DC, and the
 canonical outcome. Results are readable from the first frame; the short settling
 motion never delays an action, resource update, turn, or scene transition.
+Dice are visibly thrown across the game viewport, tumble on multiple axes,
+bounce with floor shadows, and settle on their exact resolved faces. The
+pointer-transparent animation layer never covers input with a hit area; the
+static dock and log retain readable results throughout.
 
 Attack and damage evidence appear together: the natural d20 plus its permitted
 signed modifier/total, then the real damage pool and named additive modifiers.
@@ -31,7 +35,7 @@ is open, **[** cycles frequency and **]** cycles speed:
 | Setting | Values |
 | --- | --- |
 | Dice animation frequency | All, Important, Off |
-| Dice animation speed | Normal (450 ms), Fast (150 ms), Instant |
+| Dice animation speed | Normal (900 ms), Fast (300 ms), Instant |
 
 Important animates checks, saves, flee, and critical/fumble feedback rather than
 routine attacks or initiative. Off keeps immediate text and logs without die
@@ -95,6 +99,9 @@ to d20 receipts or derive outcomes inside presentation.
 `src/systems/rollResults.ts` owns immutable receipt contracts.
 `src/systems/effectRolls.ts` captures the same damage/healing dice calls,
 recorded adjustments and mechanics-owned HP deltas.
+`src/systems/diceMotion.ts` builds deterministic throw/rotation/bounce geometry
+from only the visible die count and measured viewport. It receives no rolls,
+actors, resources or outcome callbacks and consumes no RNG.
 `src/systems/dicePresentation.ts` owns redacted snapshots, exact text formatting,
 visual timing, presentation deduplication, bounded runtime history, and the
 Phaser-free lifecycle controller.
@@ -117,6 +124,8 @@ context. All Phaser scenes install the manager so the log survives immediate
 battle, trap, gathering, cutscene, result, and exploration handoffs.
 The dock keeps the same bounded height across animation modes and refreshes
 Phaser's scale/pointer geometry when its host changes size.
+New results reveal the top of a closed dock rather than retaining an old
+log/focus scroll offset. An open log retains its scroll position and focus.
 
 Shutdown/explicit Battle cleanup cancels timers, Web Animations, synthesized
 cues, subscriptions, and keyboard listeners exactly once. Stale completion

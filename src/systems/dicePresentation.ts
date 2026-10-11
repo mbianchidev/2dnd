@@ -393,7 +393,7 @@ export function getDicePresentationDuration(
     && !presentation.additionalResults?.some((result) =>
       result.roll || result.components || result.effect?.roll
     )) return 0;
-  return preferences.speed === "fast" ? 150 : 450;
+  return preferences.speed === "fast" ? 300 : 900;
 }
 
 export interface DicePresentationEvent {

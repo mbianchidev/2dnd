@@ -587,6 +587,11 @@ Flow:
   legacy item effects unchanged. Fixed/derived amounts never gain invented dice.
   Snapshots retain only scalars/stable actor/action IDs; redact before notices
   and normal/runtime log storage.
+  `diceMotion.ts` owns deterministic measured travel, multi-axis tumble and
+  bouncing shadows over the game viewport, never outcome-deciding physics.
+  Keep the visual layer pointer-transparent, inside safe game bounds and
+  cleanup-owned. Off/Instant/reduced motion, skip, visibility loss, replacement
+  and scene shutdown remove motion immediately without focus/input blocking.
   The bounded roll log survives handoffs only at runtime; Boot/reload clears it.
 - Idle, attack, cast, ability, item, defend, damage, victory, faint, and flee
   states must have once-only completion, a duration-plus-grace visual recovery

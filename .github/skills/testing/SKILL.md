@@ -266,6 +266,13 @@ resolved/applied amounts. Filter enemy arithmetic before notices/history.
 press/keyup, held-owner survival and blur/visibility/disconnect/context/scene/
 destroy cleanup without a later frame. Fishing checks the real persisted
 waitTicks/bite/tension sequence; do not substitute debug resolution or retries.
+`diceMotion.test.ts` owns viewport/count/trajectory/rest and no-RNG checks.
+Real motion coverage samples successive transforms and exact faces, verifies
+pointer transparency/cleanup and writes measured JSON to test.info().outputPath
+before attaching its path. Preserve failed evidence before any recheck; don't
+claim inline/lost attachments or passed thresholds are numeric FPS samples.
+Optional motion-only video uses `DICE_CAPTURE_MOTION=1`; default CI video stays
+off and viewport screenshots must not resize away the animation.
 
 ### Statistical Distribution Testing
 ```typescript

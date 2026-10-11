@@ -63,6 +63,9 @@ export class DicePresentationManager {
     });
     this.unsubscribePrompts = inputPromptSource.subscribe(() => this.renderer.updatePrompt());
     this.scene.input.keyboard?.on("keydown-Z", this.handleFastForward);
+    document.addEventListener("visibilitychange", this.handleVisibility);
+    window.addEventListener("blur", this.handleWindowChange);
+    window.addEventListener("resize", this.handleWindowChange);
     this.scene.events.once("shutdown", this.cleanup, this);
     this.scene.events.once("destroy", this.cleanup, this);
   }
@@ -76,6 +79,7 @@ export class DicePresentationManager {
   fastForward(): void {
     if (this.controller.phase === "animating") {
       this.renderer.root.dataset.skipped = "true";
+      this.renderer.root.dataset.lastSkippedSequence = this.renderer.root.dataset.sequence;
     }
     this.controller.fastForward();
   }
@@ -83,6 +87,14 @@ export class DicePresentationManager {
   private readonly handleFastForward = (): void => {
     const focused = document.activeElement;
     if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) return;
+    this.fastForward();
+  };
+
+  private readonly handleVisibility = (): void => {
+    if (document.visibilityState !== "visible") this.fastForward();
+  };
+
+  private readonly handleWindowChange = (): void => {
     this.fastForward();
   };
 
@@ -99,6 +111,9 @@ export class DicePresentationManager {
     this.unsubscribePreferences();
     this.unsubscribePrompts();
     this.scene.input.keyboard?.off("keydown-Z", this.handleFastForward);
+    document.removeEventListener("visibilitychange", this.handleVisibility);
+    window.removeEventListener("blur", this.handleWindowChange);
+    window.removeEventListener("resize", this.handleWindowChange);
     this.scene.events.off("shutdown", this.cleanup, this);
     this.scene.events.off("destroy", this.cleanup, this);
     scenePresentations.delete(this.scene);

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
 import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createCurrentSaveData, normalizeSaveData, SAVE_VERSION, type SaveData } from "../src/systems/save";
@@ -33,7 +34,12 @@ import { getItem } from "../src/data/items";
 import { formatSkillCheckResult } from "../src/systems/skillChecks";
 import { clickLayoutItem, expectCleanLayout } from "./helpers/layout";
 
-test.use({ hasTouch: true });
+test.use({
+  hasTouch: true,
+  video: process.env.DICE_CAPTURE_MOTION === "1"
+    ? { mode: "on", size: { width: 1440, height: 900 } }
+    : "off",
+});
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_preferences";
@@ -52,6 +58,7 @@ interface SeedOptions {
   area?: boolean;
   trapTrigger?: boolean;
   instant?: boolean;
+  hp?: number;
 }
 
 interface DiceDebugPacket {
@@ -68,6 +75,11 @@ interface DiceDebugPacket {
   damage?: StatusDamageRollResult | TrapTriggerResult;
   appliedDamage?: number;
   healing?: { healing?: number; healingRoll?: ResolvedEffectRoll };
+}
+
+interface DisplayedDiceSnapshot {
+  text: string;
+  faces: { sides: string | undefined; natural: string | undefined }[];
 }
 
 function captureDice(page: Page): {
@@ -174,7 +186,7 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
   player.level = options.area ? 6 : 5;
   player.classProgression = createHeroClassProgression(options.healing ? "cleric" : "wizard", player.level);
   player.maxHp = 500;
-  player.hp = options.healing ? 499 : options.trapTrigger ? 2 : 500;
+  player.hp = options.hp ?? (options.healing ? 499 : options.trapTrigger ? 2 : 500);
   player.mp = player.maxMp = 100;
   player.knownSpells = options.healing ? ["cureWounds"]
     : options.area ? ["fireball"] : ["magicMissile", "fireBolt"];
@@ -325,6 +337,180 @@ async function expectDiceBounds(page: Page, textScale: TextScale): Promise<void>
   expect(bounds.resultScrollWidth).toBeLessThanOrEqual(bounds.resultWidth);
 }
 
+async function captureDiceScreenshot(page: Page, name: string): Promise<void> {
+  const path = test.info().outputPath(`${name}.png`);
+  // Full-page capture resizes the viewport and correctly cancels a live throw.
+  await page.screenshot({ path });
+  await test.info().attach(name, { path, contentType: "image/png" });
+}
+
+async function skipDiceWithKeyboard(page: Page): Promise<void> {
+  const dock = page.locator("#dice-presentation");
+  const previous = await dock.getAttribute("data-last-skipped-sequence");
+  await page.keyboard.down("z");
+  try {
+    await expect.poll(() => dock.getAttribute("data-last-skipped-sequence")).not.toBe(previous);
+  } finally {
+    await page.keyboard.up("z");
+  }
+}
+
+async function captureDisplayedDice(page: Page, label: string): Promise<DisplayedDiceSnapshot> {
+  return page.evaluate((expected) => new Promise<DisplayedDiceSnapshot>((resolve, reject) => {
+    const root = document.getElementById("dice-presentation");
+    if (!root) throw new Error("Missing live dice view");
+    const read = (): boolean => {
+      const text = root.querySelector("#dice-result")?.textContent ?? "";
+      if (!text.startsWith(expected)) return false;
+      observer.disconnect();
+      window.clearTimeout(timeout);
+      resolve({
+        text,
+        faces: [...root.querySelectorAll<HTMLElement>(".resolved-die")].map((die) => ({
+          sides: die.dataset.sides, natural: die.dataset.natural,
+        })),
+      });
+      return true;
+    };
+    const observer = new MutationObserver(read);
+    const timeout = window.setTimeout(() => {
+      observer.disconnect();
+      reject(new Error(`No live presentation for ${expected}`));
+    }, 5000);
+    observer.observe(root, { childList: true, subtree: true, attributes: true });
+    read();
+  }), label);
+}
+
+test.describe("physical dice game-viewport demo", () => {
+  test("real dice travel, tumble, bounce and settle without hiding controls or changing results", async ({ page }) => {
+    const recordingAt = Date.now();
+    const errors = collectErrors(page);
+    const evidence = captureDice(page);
+    await seedCampaign(page, { textScale: 1.5, healing: true, hp: 450 });
+    await continueCampaign(page);
+    await page.setViewportSize({ width: 932, height: 620 });
+    await holdKey(page, "e");
+    await clickLayoutItem(page, "equip-skills-tab");
+    const startedAt = Date.now();
+    const motionPromise = page.evaluate(async () => {
+      const stage = document.getElementById("dice-roll-stage")!;
+      const startDeadline = performance.now() + 5000;
+      while (stage.hidden && performance.now() < startDeadline) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      const die = stage.querySelector<HTMLElement>(".rolling-die")!;
+      if (!die) throw new Error("No actual rolling die was rendered");
+      const sequence = stage.dataset.sequence;
+      const canvas = document.querySelector<HTMLCanvasElement>("#game-container canvas")!;
+      const bounds = canvas.getBoundingClientRect();
+      const stageBounds = stage.getBoundingClientRect();
+      const samples: {
+        at: number; x: number; y: number; tilt: number; yaw: number; natural: string | undefined;
+      }[] = [];
+      const deadline = performance.now() + 1400;
+      while (!stage.hidden && performance.now() < deadline) {
+        if (stage.dataset.sequence !== sequence) throw new Error("The sampled roll was replaced");
+        const matrix = new DOMMatrix(getComputedStyle(die).transform);
+        samples.push({
+          at: performance.now(), x: matrix.m41, y: matrix.m42,
+          tilt: matrix.m23, yaw: matrix.m13, natural: die.dataset.natural,
+        });
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      return {
+        samples,
+        size: Number.parseFloat(die.style.width),
+        hidden: stage.hidden,
+        childCount: stage.childElementCount,
+        skipped: document.getElementById("dice-presentation")?.dataset.skipped,
+        pointerEvents: getComputedStyle(stage).pointerEvents,
+        stage: { left: stageBounds.left, right: stageBounds.right, top: stageBounds.top, bottom: stageBounds.bottom },
+        canvas: { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom },
+      };
+    });
+    await clickLayoutItem(page, "equip-spell-cureWounds");
+    const receipt = await evidence.find("healing", "party:hero");
+    const healing = receipt.healing?.healingRoll;
+    if (!healing?.roll) throw new Error("No canonical die for the physical-roll demonstration");
+    await expect(page.locator("#dice-roll-stage")).toBeVisible();
+    await captureDiceScreenshot(page, "physical-die-desktop-in-flight");
+    const motion = await motionPromise;
+    expect(motion.samples.length).toBeGreaterThan(5);
+    const spread = (values: readonly number[]): number => Math.max(...values) - Math.min(...values);
+    expect(spread(motion.samples.map((sample) => sample.x))).toBeGreaterThan(motion.size);
+    expect(spread(motion.samples.map((sample) => sample.tilt))).toBeGreaterThan(0.1);
+    expect(spread(motion.samples.map((sample) => sample.yaw))).toBeGreaterThan(0.1);
+    const y = motion.samples.map((sample) => sample.y);
+    expect(y.some((height, index) => index > 0 && height < y[index - 1]! - 0.5)).toBe(true);
+    expect(motion.samples.every((sample) => sample.natural === String(healing.roll!.naturalRolls[0]))).toBe(true);
+    expect(motion.hidden).toBe(true);
+    expect(motion.childCount).toBe(0);
+    expect(motion.skipped).toBe("false");
+    expect(motion.pointerEvents).toBe("none");
+    expect(motion.stage.left).toBeGreaterThanOrEqual(motion.canvas.left);
+    expect(motion.stage.right).toBeLessThanOrEqual(motion.canvas.right);
+    expect(motion.stage.top).toBeGreaterThanOrEqual(motion.canvas.top);
+    expect(motion.stage.bottom).toBeLessThanOrEqual(motion.canvas.bottom);
+    await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
+    await expect(page.locator("#dice-result")).toContainText(formatDicePresentation(createEffectDicePresentation(
+      healing, { category: "healing", label: "Dice Tester Cure Wounds", outcome: "success" },
+    )));
+    await expectDiceBounds(page, 1.5);
+    await captureDiceScreenshot(page, "physical-die-desktop-final");
+    await page.setViewportSize({ width: 390, height: 844 });
+    const from = evidence.packets.length;
+    await clickLayoutItem(page, "equip-spell-cureWounds");
+    await evidence.find("healing", "party:hero", from);
+    await expect(page.locator("#dice-roll-stage")).toBeVisible();
+    await captureDiceScreenshot(page, "physical-die-mobile-in-flight");
+    await expect(page.locator("#dice-roll-stage")).toBeHidden();
+    await expect(page.locator("#dice-roll-stage .rolling-die")).toHaveCount(0);
+    await expectDiceBounds(page, 1.5);
+    await captureDiceScreenshot(page, "physical-die-mobile-final");
+    await clickLayoutItem(page, "equip-spell-cureWounds");
+    await expect(page.locator("#dice-roll-stage")).toBeVisible();
+    await skipDiceWithKeyboard(page);
+    await expect(page.locator("#dice-roll-stage")).toBeHidden();
+    await expect(page.locator("#dice-roll-stage .rolling-die")).toHaveCount(0);
+    await clickLayoutItem(page, "equip-spell-cureWounds");
+    await expect(page.locator("#dice-roll-stage")).toBeVisible();
+    await page.evaluate(() => {
+      // Headless Chromium keeps every tab visible; drive the same visibility boundary explicitly.
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect(page.locator("#dice-roll-stage")).toBeHidden();
+    await expect(page.locator("#dice-roll-stage .rolling-die")).toHaveCount(0);
+    await page.evaluate(() => {
+      Reflect.deleteProperty(document, "visibilityState");
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe("visible");
+    await holdKey(page, "e");
+    await expectCleanLayout(page);
+    const saved = await readSave(page);
+    const heals = evidence.packets.filter((packet) => packet.kind === "healing" && packet.actionId === "cureWounds");
+    expect(heals).toHaveLength(4);
+    const hpRestored = heals.reduce((total, packet) => total + (packet.healing?.healingRoll?.application?.amount ?? 0), 0);
+    expect(saved.player.hp).toBe(450 + hpRestored);
+    expect(saved.player.mp).toBe(100 - 4 * getSpell("cureWounds")!.mpCost);
+    const evidencePath = test.info().outputPath("physical-roll-frame-evidence.json");
+    await writeFile(evidencePath,
+      JSON.stringify({ recordingAt, startedAt, motion, receipts: heals.map((packet) => packet.healing) }, null, 2),
+      "utf8");
+    await test.info().attach("physical-roll-frame-evidence", { path: evidencePath, contentType: "application/json" });
+    expect(errors).toEqual([]);
+    const video = page.video();
+    if (video) {
+      await page.close();
+      const path = test.info().outputPath("physical-dice.webm");
+      await video.saveAs(path);
+      await test.info().attach("physical-dice-recording", { path, contentType: "video/webm" });
+    }
+  });
+});
+
 for (const textScale of [1, 1.25, 1.5] as const) {
   test(`battle receipts and skip controls remain truthful at ${textScale * 100}% text`, async ({ page }) => {
     const errors = collectErrors(page);
@@ -365,6 +551,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     )));
     await expect(log).toContainText(`HP lost ${status.appliedDamage}`);
 
+    const displayedAttack = captureDisplayedDice(page, "Dice Tester attack");
     if (textScale === 1) {
       await holdKey(page, "Enter");
       await holdKey(page, "Enter");
@@ -375,13 +562,17 @@ for (const textScale of [1, 1.25, 1.5] as const) {
       await page.locator('#touch-controls [data-action="confirm"]').tap();
       await page.locator('#touch-controls [data-action="confirm"]').tap();
     }
-    const dock = page.locator('#dice-presentation[data-category="attack"]');
+    const visibleAttack = await displayedAttack;
+    const dock = page.locator("#dice-presentation");
     await expect(dock).toHaveAttribute("data-phase", "animating");
-    if (textScale === 1) await holdKey(page, "z", 30);
+    const beforeSkip = await dock.getAttribute("data-last-skipped-sequence");
+    if (textScale === 1) await skipDiceWithKeyboard(page);
     else if (textScale === 1.25) await pressGamepad(page, 10);
     else await page.locator("#dice-fast-forward").tap();
-    await expect(dock).toHaveAttribute("data-skipped", "true");
+    await expect.poll(() => dock.getAttribute("data-last-skipped-sequence")).not.toBe(beforeSkip);
     await expect(dock).toHaveAttribute("data-phase", "ready");
+    await expect(page.locator("#dice-roll-stage")).toBeHidden();
+    await expect(page.locator("#dice-roll-stage .rolling-die")).toHaveCount(0);
 
     const attack = log.locator('[data-category="attack"]').filter({ hasText: "Dice Tester attack" });
     const attackPacket = await evidence.find("attack", "party:hero");
@@ -392,15 +583,17 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await expect(attack).toContainText(`-> ${roll.naturalRoll}`);
     await expect(attack).toContainText(`${roll.modifier >= 0 ? "+" : ""}${roll.modifier} = ${roll.total}`);
     expect(await attack.textContent()).not.toContain("vs AC");
-    expect(await page.locator("#dice-presentation .resolved-die").evaluateAll(
-      (dice) => dice.map((die) => (die as HTMLElement).dataset.natural),
-    )).toEqual([
+    expect(visibleAttack.faces.map((die) => die.natural)).toEqual([
       ...roll.naturalRolls,
       ...(attackPacket.attack?.damageRoll?.roll?.naturalRolls ?? []),
     ].map(String));
     await expect(attack).toContainText(formatDicePresentation(createCombatDicePresentation(
       attackPacket.attack!, { label: `Dice Tester attack -> ${getMonster("orc")!.name}` },
     )!));
+    expect(visibleAttack.text).toBe(formatDicePresentation(createCombatDicePresentation(
+      attackPacket.attack!, { label: `Dice Tester attack -> ${getMonster("orc")!.name}` },
+    )!));
+    if (textScale === 1) await captureDiceScreenshot(page, "disadvantage-desktop");
     await page.setViewportSize({ width: 390, height: 844 });
     await expectDiceBounds(page, textScale);
     await expect(attack).toHaveCount(1);
@@ -409,6 +602,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await expect(attack).toBeVisible();
     await page.locator("#dice-history summary").press("Escape");
     await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+    const displayedMissile = captureDisplayedDice(page, "Dice Tester Magic Missile");
     await clickLayoutItem(page, "battle-action-spells");
     await clickLayoutItem(page, "battle-spell-magicMissile");
     await holdKey(page, "Enter");
@@ -423,11 +617,18 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await expect(missile).toContainText(formatDicePresentation(createCombatDicePresentation(
       missilePacket.attack, { label: `Dice Tester Magic Missile -> ${getMonster("orc")!.name}` },
     )!));
-    expect(await page.locator("#dice-presentation .resolved-die").evaluateAll(
-      (dice) => dice.map((die) => [(die as HTMLElement).dataset.sides, (die as HTMLElement).dataset.natural]),
-    )).toEqual(missilePacket.attack.damageRoll.roll.naturalRolls.map((natural) => ["4", String(natural)]));
+    const visibleMissile = await displayedMissile;
+    expect(visibleMissile.faces.map((die) => [die.sides, die.natural]))
+      .toEqual(missilePacket.attack.damageRoll.roll.naturalRolls.map((natural) => ["4", String(natural)]));
+    expect(visibleMissile.text).toBe(formatDicePresentation(createCombatDicePresentation(
+      missilePacket.attack, { label: `Dice Tester Magic Missile -> ${getMonster("orc")!.name}` },
+    )!));
     await expectDiceBounds(page, textScale);
-    await page.screenshot({ path: test.info().outputPath(`dice-battle-${textScale}.png`) });
+    await captureDiceScreenshot(page, `magic-missile-mobile-${textScale}`);
+    if (textScale === 1) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await captureDiceScreenshot(page, "magic-missile-desktop");
+    }
     await debugCommand(page, "/kill");
     await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
     await expect(log).toContainText("Magic Missile");
@@ -474,6 +675,21 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await holdKey(page, "e");
     await debugCommand(page, "/spawn orc");
     await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+    if (textScale === 1) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await holdKey(page, "Enter");
+      await holdKey(page, "Enter");
+      await expect(page.locator("#dice-result")).toContainText("Dice Tester attack");
+      const attack = await evidence.find("attack", "party:hero");
+      if (!attack.attack?.rollResult || !attack.attack.damageRoll?.roll) {
+        throw new Error("Screenshot attack did not expose canonical hit/damage dice");
+      }
+      expect(attack.attack.hit).toBe(true);
+      await captureDiceScreenshot(page, "attack-d20-damage-desktop");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await captureDiceScreenshot(page, "attack-d20-damage-mobile");
+      await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+    }
     const from = evidence.packets.length;
     await clickLayoutItem(page, "battle-action-spells");
     await clickLayoutItem(page, "battle-spell-cureWounds");
@@ -490,6 +706,11 @@ for (const textScale of [1, 1.25, 1.5] as const) {
       }),
     ));
     await expectDiceBounds(page, textScale);
+    if (textScale === 1) {
+      await captureDiceScreenshot(page, "healing-d8-mobile");
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await captureDiceScreenshot(page, "healing-d8-desktop");
+    }
     await debugCommand(page, "/kill");
     await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
     expect((await readSave(page)).player.mp).toBe(100 - 2 * getSpell("cureWounds")!.mpCost);

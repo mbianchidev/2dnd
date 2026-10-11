@@ -309,7 +309,7 @@ describe("resolved dice mapping", () => {
     expect(formatDicePresentation(view)).toContain("Auto-hit (no attack roll)");
     expect(formatDicePresentation(view)).toContain("3d4 [1, 2, 4] +0 = 7");
     expect(formatDicePresentation(view)).not.toMatch(/d20|\bAC\b/);
-    expect(getDicePresentationDuration(view, { frequency: "all", speed: "normal" }, false)).toBe(450);
+    expect(getDicePresentationDuration(view, { frequency: "all", speed: "normal" }, false)).toBe(900);
     for (const [preferences, reducedMotion] of [
       [{ frequency: "off", speed: "normal" }, false],
       [{ frequency: "all", speed: "instant" }, false],
@@ -450,10 +450,10 @@ describe("non-blocking dice presentation lifecycle", () => {
     )).toBe(0);
     expect(getDicePresentationDuration(
       presentation(), { frequency: "important", speed: "normal" }, false,
-    )).toBe(450);
+    )).toBe(900);
     expect(getDicePresentationDuration(
       presentation(), { frequency: "all", speed: "fast" }, false,
-    )).toBe(150);
+    )).toBe(300);
   });
 
   it("keeps bounded resolved history across visual cleanup and explicitly resets at title", () => {

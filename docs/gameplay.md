@@ -130,6 +130,9 @@ results. Magic Missile shows damage dice but no attack die; fixed items and
 derived life-drain healing remain aggregate text without invented faces.
 Use Z, L3, or the visible skip button; the last 40 results remain consultable
 across scene handoffs.
+With animation enabled, dice travel and tumble across the game with bouncing
+shadows, then settle on those exact faces. They never intercept controls or
+hold a turn; skip, Off/Instant and reduced motion retain static readable results.
 See [Dice presentation](dice-presentation.md).
 
 A full party wipe applies one recovery result, autosaves it, reports exact gold

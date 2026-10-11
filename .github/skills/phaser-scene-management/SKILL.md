@@ -188,6 +188,10 @@ Capture existing scene-owned shield/healing HP deltas without recomputing
 damage; shared area pools and mechanics/hook timing stay independent of visuals.
 The shared input adapter releases discrete touch pulses at poststep and owns
 shutdown/destroy cleanup, so stale pulses cannot enter a replacement scene.
+Physical dice throws are a pointer-transparent procedural layer over the game.
+Own Web Animations, stage objects, resize/visibility listeners and synthesized
+cues; stop them on skip, preference changes, replacement and handoff. Keep exact
+faces visible and never block input/turns or wait for a tumble to finish.
 
 Use `ActorAnimationDirector` for reusable actor poses and cleanup. Specialized
 battle/world directors register sprites by stable actor ID, use explicit

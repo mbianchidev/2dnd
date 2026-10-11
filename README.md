@@ -47,7 +47,8 @@ and campaign saves stay in your browser's local storage.
   items, bosses, and full-party defeat recovery.
 - **See the real rolls:** procedural dice display natural attack/save rolls,
   modifiers, totals, exact damage/healing pools, and actual HP changes.
-  Advantage/disadvantage selection and shared area rolls stay truthful without
+  Dice travel, tumble and bounce over the game before settling on those exact
+  faces. Advantage/disadvantage selection and shared area rolls stay truthful without
   delaying mechanics or revealing hidden enemy stats. Skip motion or consult
   the bounded runtime roll log.
 - **Explore a changing world:** travel through connected city districts,

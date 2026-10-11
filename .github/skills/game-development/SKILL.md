@@ -84,6 +84,10 @@ modifiers, recorded adjustments and actual HP delta at the existing write.
 Separate rolled, resolved and applied values, preserve finite fractional legacy
 item effects and shared area pools, and never infer fixed/derived component dice.
 Scene-owned shield/healing writes remain capture-only adapters.
+`systems/diceMotion.ts` produces only measured deterministic throw geometry:
+visible travel, multi-axis tumble, bounce and settling. Procedural SVG motion
+over the game is pointer-transparent, displays the exact resolved faces and
+owns cleanup. Never pass actors/outcomes/RNG/completion callbacks to its geometry.
 
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a

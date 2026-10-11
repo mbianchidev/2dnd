@@ -23,6 +23,8 @@ function event(sequence = 1): DicePresentationEvent {
 describe("procedural resolved-dice renderer", () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="game-inner"><div id="game-container"><canvas></canvas></div></div>';
+    const canvas = document.querySelector("canvas")!;
+    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(new DOMRect(80, 100, 640, 528));
   });
 
   afterEach(() => {
@@ -166,5 +168,75 @@ describe("procedural resolved-dice renderer", () => {
     renderer.destroy();
     expect(document.getElementById("dice-presentation")).toBeNull();
     expect(document.getElementById("dice-announcement")).toBeNull();
+  });
+
+  it("reveals the latest dice after closed-log scrolling without moving an open log or focus", () => {
+    const renderer = new DiceRollRenderer(vi.fn());
+    const preferences = normalizeGamePreferences(undefined);
+    renderer.show(event(), preferences);
+    const details = renderer.root.querySelector("details")!;
+    const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
+    canvas.tabIndex = -1;
+    canvas.focus();
+    renderer.root.scrollTop = 120;
+    renderer.show(event(2), preferences);
+    expect(renderer.root.scrollTop).toBe(0);
+    expect(document.activeElement).toBe(canvas);
+    details.open = true;
+    renderer.root.scrollTop = 120;
+    renderer.root.querySelector("summary")!.focus();
+    renderer.show(event(3), preferences);
+    expect(renderer.root.scrollTop).toBe(120);
+    expect(document.activeElement).toBe(renderer.root.querySelector("summary"));
+    renderer.destroy();
+  });
+
+  it("throws exact dice over the game in owned multi-axis animations and clears every visual on skip/replacement", async () => {
+    const originalAnimate = Object.getOwnPropertyDescriptor(Element.prototype, "animate");
+    const calls: {
+      target: Element;
+      frames: readonly Keyframe[];
+      cancel: ReturnType<typeof vi.fn>;
+    }[] = [];
+    Object.defineProperty(Element.prototype, "animate", {
+      configurable: true,
+      value: function(this: Element, frames: readonly Keyframe[]) {
+        let rejectFinished: (error: DOMException) => void = () => {};
+        const finished = new Promise<void>((_resolve, reject) => { rejectFinished = reject; });
+        const cancel = vi.fn(() => rejectFinished(new DOMException("Canceled", "AbortError")));
+        calls.push({ target: this, frames, cancel });
+        return { cancel, finished };
+      },
+    });
+    const renderer = new DiceRollRenderer(vi.fn());
+    try {
+      renderer.show(event(), normalizeGamePreferences(undefined));
+      const stage = document.getElementById("dice-roll-stage")!;
+      expect(stage.hidden).toBe(false);
+      expect(stage.getAttribute("aria-hidden")).toBe("true");
+      expect(stage.style.left).toBe("80px");
+      expect(stage.querySelectorAll(".rolling-die")).toHaveLength(2);
+      expect(stage.querySelectorAll(".rolling-die-shadow")).toHaveLength(2);
+      expect([...stage.querySelectorAll<HTMLElement>(".rolling-die")].map((die) =>
+        die.dataset.natural)).toEqual(["20", "1"]);
+      expect(calls).toHaveLength(4);
+      expect(calls[0]!.frames[0]!.transform).toMatch(/translate3d.*rotateZ.*rotateX.*rotateY/);
+      renderer.show(event(2), normalizeGamePreferences(undefined));
+      for (const call of calls.slice(0, 4)) expect(call.cancel).toHaveBeenCalledTimes(1);
+      expect(stage.querySelectorAll(".rolling-die")).toHaveLength(2);
+      renderer.settle();
+      renderer.settle();
+      for (const call of calls) expect(call.cancel).toHaveBeenCalledTimes(1);
+      expect(stage.hidden).toBe(true);
+      expect(stage.childElementCount).toBe(0);
+      expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(2);
+      await Promise.resolve();
+      renderer.destroy();
+      expect(document.getElementById("dice-roll-stage")).toBeNull();
+    } finally {
+      renderer.destroy();
+      if (originalAnimate) Object.defineProperty(Element.prototype, "animate", originalAnimate);
+      else Reflect.deleteProperty(Element.prototype, "animate");
+    }
   });
 });

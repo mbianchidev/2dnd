@@ -2,6 +2,7 @@ import type { DicePresentation, DicePresentationEvent } from "../systems/dicePre
 import type { GamePreferences } from "../systems/accessibility";
 import { getInputPromptSource } from "../systems/input";
 import { debugLog } from "../config";
+import { createDiceThrowMotion } from "../systems/diceMotion";
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
@@ -63,6 +64,11 @@ export class DiceRollRenderer {
   private readonly history: HTMLOListElement;
   private readonly summary: HTMLElement;
   private readonly animations = new Set<Animation>();
+  private readonly stage: HTMLDivElement;
+  private readonly canvas: HTMLCanvasElement;
+  private readonly resizeObserver: ResizeObserver;
+  private stageWidth = 0;
+  private stageHeight = 0;
 
   constructor(onFastForward: () => void) {
     const host = document.getElementById("game-inner");
@@ -70,6 +76,16 @@ export class DiceRollRenderer {
     if (!host || !canvasHost) {
       throw new Error("[dice] Game container is unavailable.");
     }
+    const canvas = canvasHost.querySelector("canvas");
+    if (!canvas) throw new Error("[dice] Game canvas is unavailable.");
+    this.canvas = canvas;
+    this.stage = document.createElement("div");
+    this.stage.id = "dice-roll-stage";
+    this.stage.className = "dice-roll-stage";
+    this.stage.hidden = true;
+    this.stage.setAttribute("aria-hidden", "true");
+    this.resizeObserver = new ResizeObserver(() => this.fitStageToCanvas());
+    this.resizeObserver.observe(canvas);
     this.root = document.createElement("section");
     this.root.id = "dice-presentation";
     this.root.className = "dice-presentation";
@@ -119,6 +135,7 @@ export class DiceRollRenderer {
     this.root.addEventListener("keyup", stopGameKeys);
     host.insertBefore(this.root, canvasHost);
     host.append(this.announcement);
+    host.append(this.stage);
   }
 
   record(event: DicePresentationEvent): void {
@@ -150,26 +167,11 @@ export class DiceRollRenderer {
       this.appendResultDice(event.presentation);
     }
     if (event.duration > 0) {
-      for (const svg of this.glyphs.querySelectorAll("svg")) {
-        if (typeof svg.animate !== "function") continue;
-        const animation = svg.animate([
-          { transform: "rotate(-12deg) scale(0.9)" },
-          { transform: "rotate(7deg) scale(1.04)", offset: 0.6 },
-          { transform: "rotate(0deg) scale(1)" },
-        ], { duration: event.duration, easing: "ease-out" });
-        this.animations.add(animation);
-        void animation.finished.then(() => {
-          this.animations.delete(animation);
-        }, (error: unknown) => {
-          this.animations.delete(animation);
-          if (!(error instanceof DOMException && error.name === "AbortError")) {
-            debugLog("[dice] Visual animation failed", error);
-          }
-        });
-      }
+      this.throwDice(event, preferences);
     }
     this.fastForwardButton.disabled = event.duration === 0;
     this.updatePrompt();
+    if (!this.root.querySelector("details")?.open) this.root.scrollTop = 0;
   }
 
   applyPreferences(preferences: Readonly<GamePreferences>): void {
@@ -177,6 +179,8 @@ export class DiceRollRenderer {
       "--dice-text-scale", String(preferences.accessibility.textScale),
     );
     this.root.classList.toggle("high-contrast", preferences.accessibility.highContrast);
+    this.stage.classList.toggle("high-contrast", preferences.accessibility.highContrast);
+    this.stage.style.setProperty("--dice-text-scale", String(preferences.accessibility.textScale));
     this.root.dataset.frequency = preferences.dice.frequency;
     this.root.dataset.speed = preferences.dice.speed;
     if (preferences.dice.frequency === "off") this.glyphs.replaceChildren();
@@ -218,6 +222,70 @@ export class DiceRollRenderer {
     this.glyphs.append(group);
   }
 
+  private throwDice(event: DicePresentationEvent, preferences: Readonly<GamePreferences>): void {
+    const bounds = this.canvas.getBoundingClientRect();
+    const height = bounds.height * 0.65;
+    const dice = [...this.glyphs.querySelectorAll<HTMLElement>(".resolved-die")];
+    const motion = createDiceThrowMotion(dice.length, bounds.width, height, preferences.accessibility.textScale);
+    this.stageWidth = bounds.width;
+    this.stageHeight = height;
+    this.stage.style.width = `${bounds.width}px`;
+    this.stage.style.height = `${height}px`;
+    this.stage.dataset.sequence = String(event.sequence);
+    this.stage.hidden = false;
+    this.fitStageToCanvas();
+    for (const [index, original] of dice.entries()) {
+      const path = motion[index]!;
+      const die = original.cloneNode(true);
+      if (!(die instanceof HTMLElement)) throw new Error("[dice] Invalid procedural die clone.");
+      die.classList.add("rolling-die");
+      die.style.left = `${path.x}px`;
+      die.style.top = `${path.y}px`;
+      die.style.width = `${path.size}px`;
+      die.style.setProperty("--rolling-die-size", `${path.size}px`);
+      const caption = die.querySelector("span");
+      if (caption) caption.textContent = `d${original.dataset.sides}${original.dataset.selected === "true" ? "*" : ""}`;
+      const shadow = document.createElement("div");
+      shadow.className = "rolling-die-shadow";
+      shadow.style.left = `${path.x}px`;
+      shadow.style.top = `${path.y + path.size * 0.9}px`;
+      shadow.style.width = `${path.size}px`;
+      shadow.style.height = `${path.size * 0.15}px`;
+      this.stage.append(shadow, die);
+      if (typeof die.animate !== "function") continue;
+      this.ownAnimation(die.animate(path.frames.map((frame) => ({
+        offset: frame.offset,
+        transform: `translate3d(${frame.x}px,${frame.y}px,0) rotateZ(${frame.rotation}deg)`
+          + ` rotateX(${frame.tilt}deg) rotateY(${frame.yaw}deg) scale(${frame.scaleX},${frame.scaleY})`,
+      })), { duration: event.duration, easing: "linear", fill: "forwards" }));
+      this.ownAnimation(shadow.animate(path.frames.map((frame) => ({
+        offset: frame.offset,
+        transform: `translateX(${frame.x}px) scale(${frame.shadowScale},${frame.shadowScale})`,
+        opacity: frame.shadowOpacity,
+      })), { duration: event.duration, easing: "linear", fill: "forwards" }));
+    }
+  }
+
+  private fitStageToCanvas(): void {
+    if (this.stage.hidden || this.stageWidth === 0 || this.stageHeight === 0) return;
+    const bounds = this.canvas.getBoundingClientRect();
+    this.stage.style.left = `${bounds.left}px`;
+    this.stage.style.top = `${bounds.top + bounds.height * 0.07}px`;
+    this.stage.style.transform = `scale(${bounds.width / this.stageWidth},${bounds.height * 0.65 / this.stageHeight})`;
+  }
+
+  private ownAnimation(animation: Animation): void {
+    this.animations.add(animation);
+    void animation.finished.then(() => {
+      this.animations.delete(animation);
+    }, (error: unknown) => {
+      this.animations.delete(animation);
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        debugLog("[dice] Visual animation failed", error);
+      }
+    });
+  }
+
   updatePrompt(): void {
     const source = getInputPromptSource();
     const shortcut = source === "gamepad" ? "L3" : source === "keyboard" ? "Z" : "tap";
@@ -228,6 +296,10 @@ export class DiceRollRenderer {
   settle(): void {
     for (const animation of this.animations) animation.cancel();
     this.animations.clear();
+    this.stage.hidden = true;
+    this.stage.replaceChildren();
+    this.stageWidth = 0;
+    this.stageHeight = 0;
     this.root.dataset.phase = "ready";
     if (document.activeElement === this.fastForwardButton) {
       this.summary.focus({ preventScroll: true });
@@ -246,5 +318,7 @@ export class DiceRollRenderer {
     }
     this.root.remove();
     this.announcement.remove();
+    this.stage.remove();
+    this.resizeObserver.disconnect();
   }
 }

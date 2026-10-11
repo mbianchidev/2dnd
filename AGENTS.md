@@ -26,7 +26,7 @@ future work until merged.
 | Domain | Data/contracts | Mechanics/state | Phaser/presentation | Tests |
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
-| Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, `effectRolls.ts`, redacted `dicePresentation.ts` | dice/battleDice managers, procedural SVG renderer | dicePresentation/effectRollReceipts/rollReceipts/diceRenderer and dice E2E |
+| Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, `effectRolls.ts`, redacted `dicePresentation.ts`, visual `diceMotion.ts` | dice/battleDice managers, procedural SVG dock/throw layer | dicePresentation/effectRollReceipts/rollReceipts/diceMotion/diceRenderer and dice E2E |
 | Hero progression | `src/data/classProgression.ts`, canonical class/action/talent definitions | `classProgression.ts`, `classProgressionState.ts`, `heroItemState.ts`, `classProgressionDebug.ts` | `heroProgression.ts`, rest/equipment adapters | progression/state/item/debug/battle/layout suites, multiclass E2E |
 | Prestige paths | `prestige.ts`, `prestigeActions.ts`, `prestigeLore.ts` | same progression engine/context/normalizer; `systems/prestige.ts` for inspection | existing hero progression manager | prestige/entry/save/battle suites, prestige browser/Electron flows |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
@@ -109,6 +109,10 @@ owning issue or pull request.
   adjustments, resolved amounts and actual HP deltas. Capture at the existing
   roll/write owner, preserve RNG/hook timing and finite fractional legacy
   effects, render shared area pools once, and never fabricate fixed/derived dice.
+- Physical dice motion uses deterministic measured travel/tumble/bounce over
+  the game, not outcome-deciding physics/RNG. Keep its layer pointer-transparent,
+  its faces exact and its objects/listeners cleanup-owned. Off/Instant/reduced
+  motion and skip stay immediate; never wait on a throw to advance mechanics.
 - Use stable IDs for combatants, quests/stages/objectives/rewards, cutscenes,
   shops, traps, events, recipes, transactions, features, and layout items.
 - Persist authority, not derived presentation. Every schema change requires

@@ -163,11 +163,22 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
   captured applied HP. Fixed/derived amounts cannot gain fabricated faces.
   Browser checks compare canonical diagnostics with the visible text/pools and
   assert mobile dock, text and glyph widths at 100%/125%/150%.
+- `diceMotion.test.ts` checks deterministic measured travel, multi-axis tumble,
+  bounce-to-rest, finite viewport/count validation and no RNG/outcome callbacks.
+  The real physical-roll flow samples successive browser-frame transforms,
+  validates exact faces and pointer transparency, then checks natural finish,
+  skip and visibility cleanup. It writes `physical-roll-frame-evidence.json`
+  under the test output path and attaches that file; PR CI retains the result
+  tree on success or failure. Passed thresholds are not inferred FPS/budgets.
 - Discrete touch pulses remain pressed through Phaser poststep. Deterministic
   input tests cover once-only press/keyup delivery, successive pulses,
   held-source survival and pending-release cleanup before the next frame.
   Fishing asserts persisted wait ticks and bite/tension transitions rather
   than hiding a lost confirm behind timing retries.
+- Optional real-game motion recording uses
+  `DICE_CAPTURE_MOTION=1 npm run test:browser -- e2e/dice-presentation.spec.ts --grep "physical dice game-viewport demo"`.
+  Default CI video remains off. Capture viewport screenshots rather than
+  full-page snapshots: full-page resizing must still cancel a live throw.
 - Select Battle spells by registered stable action/spell layout IDs after
   normalization; earned-spell additions must not shift fixture hit targets.
 - Native slot navigation observes both pressed and released frames and the

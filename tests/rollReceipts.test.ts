@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPlayer } from "../src/systems/player";
+import { awardXP, createPlayer, xpForLevel } from "../src/systems/player";
+import { commitHeroLevelUp, prepareHeroLevelUp } from "../src/systems/classProgression";
+import {
+  createBattleActionEconomy,
+  createPlayerBattleActionSource,
+  executeValidatedBattleAction,
+  validateBattleAction,
+} from "../src/systems/battleActions";
 import { getItem } from "../src/data/items";
 import { getMonster } from "../src/data/monsters";
 import { createSoloEncounter } from "../src/data/monsterGroups";
@@ -120,6 +127,43 @@ describe("canonical roll receipts", () => {
     const view = createCombatDicePresentation(target, { label: "Magic Missile" })!;
     expect(formatDicePresentation(view)).toContain("Auto-hit");
     expect(random).toHaveBeenCalledTimes(calls);
+  });
+
+  it("retains the source-aware multiclass spell modifier through validated execution and presentation", () => {
+    const actor = createPlayer("Hybrid Receipt Tester", STATS, "knight");
+    awardXP(actor, xpForLevel(2));
+    const prepared = prepareHeroLevelUp(actor, () => 0.5);
+    if (!prepared.ok) throw new Error(prepared.message);
+    const committed = commitHeroLevelUp(actor, { trackId: "wizard", expectedTotalLevel: 1 });
+    if (!committed.ok) throw new Error(committed.message);
+    const source = createPlayerBattleActionSource(actor);
+    const enemies = createGroupCombatants(createSoloEncounter(getMonster("orc")!));
+    const context = { combatants: [source.combatant, ...enemies], enemies, sources: [source] };
+    const validation = validateBattleAction(context.combatants, {
+      actorId: source.combatant.id, kind: "spell", actionId: "fireBolt",
+    }, {
+      economy: createBattleActionEconomy(source.combatant.id),
+      mp: actor.mp,
+      inventory: actor.inventory,
+      knownSpellIds: actor.knownSpells,
+      knownAbilityIds: actor.knownAbilities,
+    });
+    if (!validation.plan) throw new Error(validation.message);
+    const mp = actor.mp;
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const executed = executeValidatedBattleAction(source, validation.plan, context);
+    const receipt = executed.diceResults?.[0]?.result;
+    if (!receipt) throw new Error("Missing resolved multiclass spell receipt");
+    expect(actor.appearanceId).toBe("knight");
+    expect(executed.executed).toBe(true);
+    expect(receipt.rollResult).toMatchObject({ naturalRoll: 11, modifier: 4, total: 15 });
+    expect(actor.mp).toBe(mp - validation.plan.descriptor.mpCost);
+    expect(random).toHaveBeenCalledTimes(2);
+    const view = createCombatDicePresentation(receipt, { label: "Hybrid spell" });
+    if (!view) throw new Error("Missing multiclass dice presentation");
+    expect(formatDicePresentation(view)).toContain("d20 11 +4 = 15");
+    expect(random).toHaveBeenCalledTimes(2);
+    expect(actor.mp).toBe(mp - validation.plan.descriptor.mpCost);
   });
 
   it("captures failed and successful status saves, including their exact modifiers", () => {

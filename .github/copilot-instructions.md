@@ -301,6 +301,11 @@ interface PlayerProgression {
 
 Access fields through `player.position` and `player.progression`.
 `player.activeEffects` stores normalized combat effects.
+`player.classProgression` owns the fixed starting class, base-class ranks,
+reserved empty external ranks, rest-ready levels, one frozen HP/MP receipt, and
+canonical legacy grant metadata. The flat `level` mirrors the owned-rank sum.
+Normalize through `classProgressionState.ts`; qualify/preview/commit through
+`classProgression.ts`. Never infer class identity from later appearance changes.
 `player.party` stores unique recruited companion states and up to three active
 companion IDs. Companion state composes `CombatActorState` plus independent XP,
 level-up/stat state, control mode, dialogue cursor, and normalized gambits.
@@ -460,6 +465,34 @@ Flow:
 | Barbarian | STR +2, CON +1 | STR |
 | Monk | DEX +2, WIS +1 | DEX |
 | Bard | CHA +2, DEX +1 | CHA |
+
+### Hero multiclass progression
+
+- Keep creation single-class and companions single-class. Starting boosts,
+  gold and equipment apply only at creation; there is no respec API.
+- Immutable twelve-class profiles/entry requirements live in
+  `src/data/classProgression.ts`; mechanics in `systems/classProgression.ts`,
+  unknown normalization in `classProgressionState.ts`, and measured accessible
+  presentation in `managers/heroProgression.ts`.
+- Entry checks apply to new tracks, including starting-class requirements;
+  continuing or normalizing recognized earned ranks never rechecks mutable
+  prerequisites. Normal total level is capped at 20.
+- Proficiency, ASIs and common talents use total level once. Restricted
+  features/spells/abilities use owned rank. Deduplicate stable action/feature
+  IDs and apply shared one-time HP/MP bonuses once.
+- Freeze one resource roll and CON/INT scores at rest. Preserve rest-ready
+  credits across save/reload; new XP cannot reuse older rest authorization.
+  A commit binds the expected total level and consumes one pending/rest-ready
+  level. Invalid/stale/repeated input consumes nothing.
+- Keep all current classes' shared INT-grown MP and selected hit-die/CON HP.
+  Spells resolve eligible source stats independently from appearance;
+  abilities keep explicit stat keys. Preserve permissive equipment and the
+  existing one-action/one-bonus-action economy.
+- `E` then `Tab` and the visible equipment/hero-party links open progression.
+  Support semantic multi-input, measured pagination, 150% text, high contrast,
+  reduced motion, cleanup, and keyup confirmation before exploration resumes.
+- Static external-profile hooks are not shipped prestige, epic or NG+ content.
+  Future domains must use the merged engine, not copy XP/rest/grant logic.
 
 ## Combat
 
@@ -794,7 +827,20 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 18.
+Save schema version is 19.
+
+Schema v19 adds normalized hero class ownership and fixed starting identity,
+total-level mirroring, rest-ready credits and one frozen level receipt. Migrate
+legacy single-class HP/MP/stats/actions/equipment without rerolling or replaying
+bonuses. Retain canonical legacy exceptions and optional undelivered legacy
+grants until the next applied level, preserving the old processor's behavior.
+Normalize IDs, ranks, totals, action overlap, resources, equipment links,
+rest/XP cross-fields and malformed receipts without touching campaign authority.
+
+Hero inventory validation lives in `heroItemState.ts`. Preserve well-formed
+serialized custom IDs, metadata and append order; relink equipment by complete
+content and recover valid legacy orphan gear. Companion-only canonical-item
+restrictions must never drop valid hero items.
 
 Schema v18 adds non-negative campaign playtime and a resilient local slot
 layout: the legacy-compatible `2dnd_save` autosave, three stable manual slots,
@@ -803,6 +849,14 @@ migration marker. Migrate a valid legacy autosave atomically without deleting
 it, isolate corruption per slot, recover staging/backup copies before failure,
 and validate all deterministic JSON imports through the existing campaign
 normalizer. Loading a manual snapshot must not mutate that source slot.
+Validate required hero identity, stats, level, economy, resources, spell-list,
+and item-ID records before optional repair; an unusable core must fall through
+to recovery or reject an import before writing. Preserve well-formed serialized
+hero items, including legacy/custom IDs and order; only malformed known records
+may recover canonical metadata. Never silently delete unknown hero ownership.
+Share actor item validation and owned-equipment repair through `saveActor.ts`.
+Catch denial of the `localStorage` getter as well as its methods. Keep title
+diagnostics and in-memory preferences usable, and surface campaign write errors.
 
 Schema v17 adds normalized feature-discovery IDs, pending one-time reveal IDs,
 explicit debug reveals, and debug-suppressed evidence. Schema-v16 and older
@@ -884,7 +938,7 @@ migrates the legacy audio and cutscene-accessibility keys, and notifies live
 title/in-game settings consumers immediately.
 Preference v3 adds `dice.frequency` (all/important/off) and `dice.speed`
 (normal/fast/instant), with All/Normal legacy/corruption defaults. Campaign
-schema stays 18. Dice receipts and presentation logs never enter a save.
+schema is independent. Dice receipts and presentation logs never enter a save.
 
 When persistent data changes:
 
@@ -941,7 +995,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v18
+  visibility, handedness, and prompt source only; they never enter schema-v19
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the
@@ -966,9 +1020,16 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - `src/managers/input.ts` is the only browser adapter for keyboard, pointer,
   standard gamepads, and touch. Do not add parallel scene-specific gamepad or
   mobile mappings.
+- Shared key rows/edit rules in `src/systems/textEntry.ts` and the dialog in
+  `src/managers/textEntry.ts` own controller name/slot/search entry. Reuse
+  `openMobileTextInput()`, clear held game keys, isolate the modal, and preserve
+  cancel/focus restoration; do not add a second gamepad map.
 - Standard gamepads use digital fallback plus analog dead zones. The right
   stick owns a visible virtual cursor for pointer-first surfaces, and pressing
   it clicks without replacing the normal A/confirm action.
+- Positional south/east/west/north prompts avoid guessing hardware glyphs.
+  The right-stick cursor may activate existing desktop DOM controls, including
+  fullscreen; unmodified Tab/west edits the hero name.
 - Touch controls are procedural DOM controls with safe-area/orientation CSS,
   pointer capture for held directions, pointer-release pulses with a click
   fallback for discrete actions, and simultaneous movement/action support.
@@ -978,6 +1039,8 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Route title selection and direct pointer targets through
   `src/managers/titleMenu.ts`. Keep the new-game overwrite confirmation compact,
   centered, and directly tappable in mobile landscape.
+- Let `SaveSlotManager` own Esc/B/Cancel while open so confirmations and copy
+  destinations cancel before the outer slot manager closes.
 - Clear held input and synthetic keys on blur, visibility loss, gamepad
   disconnect, scene changes, and runtime destruction.
 - Resolve key conflicts by semantic context/priority. Never map production
@@ -1004,6 +1067,9 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   current city's primary district; it never completes the interaction.
 - `/companion` lists, recruits, changes control mode, heals, or explains stored
   gambits. Recruitment mutations refresh follower presentation immediately.
+- `/class list|status|qualify <id>|level <id>|sheet` inspects bounded hero
+  progression. Advancement uses the canonical transaction only in safe
+  exploration and suppresses newly met natural achievement criteria.
 - `/achievement` lists, debug-unlocks, resets, reports progress, or explains
   authoritative criteria. Debug unlocks never grant natural points or titles.
 - `/feature` lists, explicitly debug-reveals, hides, resets, or explains stable
@@ -1025,6 +1091,8 @@ npm run test:watch
 npm run build
 npm run build:desktop
 npm run package:desktop
+npm run package:steam:ci -- --mac --universal
+npm run steam:prepare
 npm run benchmark:baseline
 ```
 
@@ -1050,6 +1118,13 @@ npm run benchmark:baseline
 - Desktop CI audits, smoke-tests `app://2dnd/game.html`, and creates unsigned
   macOS, Windows, and Linux artifacts. Matching version tags rerun the full gate
   and attach those packages to a GitHub release without signing credentials.
+- Steam preparation stages native Linux x64, Windows x64 and inspected macOS
+  universal runtimes with source/license/hash receipts. SDK, native Steam Input
+  API, Steam achievements and Cloud remain disabled. Never sync Chromium
+  profiles, expose partner IDs/credentials to PRs, or infer Proton/Deck/client/
+  signing/store approval from equivalent tests. Protected upload requires
+  explicit human authorization and never sets a branch live. See
+  `docs/steam.md`; keep #183 incomplete until external evidence exists.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run `npm run benchmark:baseline` on the current base commit before

@@ -14,7 +14,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.2, Electron 44.5.1, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.63.0 |
 | DOM tests | happy-dom 20.14.5 |
-| Save schema | 18 |
+| Save schema | 19 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -27,17 +27,19 @@ future work until merged.
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
 | Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, redacted `dicePresentation.ts` | dice/battleDice managers, procedural SVG renderer | dicePresentation/rollReceipts/diceRenderer and dice E2E |
+| Hero progression | `src/data/classProgression.ts`, canonical class/action/talent definitions | `classProgression.ts`, `classProgressionState.ts`, `heroItemState.ts`, `classProgressionDebug.ts` | `heroProgression.ts`, rest/equipment adapters | progression/state/item/debug/battle/layout suites, multiclass E2E |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
 | Quests/cutscenes | `quests.ts`, focused `cutscene*.ts` | `quests.ts`, `questState.ts`, `cutscenes.ts` | quest/cutscene managers, `Cutscene.ts`, `Ending.ts` | quest/cutscene/campaign E2E |
 | World/map/traps | `map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, `traps.ts` | `movement.ts`, `traps.ts` | map/city/trap/fog managers/renderers | map, city, trap, fog, movement |
 | Sea navigation | `nautical.ts`, `islands.ts`, `seaMonsters.ts` | `nautical*.ts` | Overworld/map/audio | nautical unit and E2E |
 | Events/social/achievements | matching `src/data/` modules | matching `src/systems/` modules | managers/overlays/social renderer | matching unit and E2E |
 | Gathering/crafting | matching `src/data/` modules | matching systems + state normalizers | matching managers | matching unit and E2E |
-| Saves | owning interfaces/defaults | `save.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/domain migration suites |
+| Saves | owning interfaces/defaults | `save.ts`, `saveActor.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/validation/availability/domain migration suites |
 | Accessibility/input | tutorial/feature definitions | `accessibility.ts`, `input.ts`, `featureDiscovery.ts` | input/tutorial/layout managers | accessibility/input/layout/feature E2E |
 | Audio | typed data cues | `audio.ts`, `trapAudio.ts` | callers only | audio + representative browser flows |
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
 | Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
+| Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | `hacks/prepare-steam.mjs`, protected upload utility | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck-equivalent Electron |
 
 ## Required workflow
 
@@ -53,6 +55,9 @@ future work until merged.
 5. **PR/CI:** push a review branch, open a PR, wait for PR CI and CodeQL, and
    resolve every failure and review comment. Do not merge without explicit
    instruction.
+
+Browser and desktop CI concurrency is scoped to the Git ref so unrelated
+review branches do not replace one another's pending checks.
 
 ```bash
 npm ci
@@ -87,6 +92,12 @@ owning issue or pull request.
   duration-plus-grace timer is recovery only.
 - `battleActions.ts` owns party action validation, targets, resources, and
   one-action/one-bonus-action economy.
+- Hero class ownership lives in `player.classProgression`; `level` mirrors its
+  total. Starting identity never changes with appearance or multiclass entry.
+  Prepare one frozen receipt at rest, preserve rest credits across reload, and
+  commit one expected-level choice atomically. Normal progression stops at 20;
+  companions stay single-class. Future profile hooks are not shipped prestige
+  or epic features.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
 - Dice views consume exact immutable receipts, redact hidden AC/DC and enemy
@@ -99,6 +110,14 @@ owning issue or pull request.
   tests.
 - Route all release input through semantic contexts; do not add scene-local
   gamepad/touch mappings or conflicting production/debug keys.
+- Shared `systems/textEntry.ts` / `managers/textEntry.ts` own the controller
+  keyboard for names/slot labels/search, modal isolation, cancellation and
+  focus restoration; the input adapter re-exports the existing text-entry API.
+- Steam SDK, Steam achievements, Cloud and native Steam Input API are disabled.
+  Stage native Linux x64, Windows x64 and inspected macOS universal payloads;
+  never sync Chromium profiles or claim Proton/Deck/partner validation from
+  equivalent tests. Upload requires explicit protected human authorization;
+  `SetLive` stays empty.
 - `TitleMenuManager` owns title selection, large pointer targets, and semantic
   D-pad/confirm activation; keep overwrite confirmation usable in landscape.
 - Own and clean up listeners, timers, tweens, emitters, DOM controls, texture
@@ -182,5 +201,7 @@ owning issue or pull request.
 - [Development](docs/development.md)
 - [Testing](docs/testing.md)
 - [Save system](docs/save-system.md)
+- [Hero progression](docs/hero-progression.md)
 - [Companions and gambits](docs/companions.md)
 - [Inventory presentation](docs/inventory.md)
+- [Steam preparation](docs/steam.md)

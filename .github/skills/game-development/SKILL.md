@@ -28,6 +28,11 @@ and changes spanning scenes, systems, data, renderers, or managers.
 
 ## Current architecture
 
+- Hero progression: immutable `data/classProgression.ts`, authoritative
+  `systems/classProgression.ts`, focused `classProgressionState.ts` and
+  `managers/heroProgression.ts`. Preserve normal cap 20, stable starting class,
+  single-class companions, frozen rest-ready choices and once-only grants.
+  Read [`docs/hero-progression.md`](../../../docs/hero-progression.md).
 - Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, `Cutscene`,
   `Ending`, and `Defeat`
 - Overworld orchestration: `src/scenes/Overworld.ts`
@@ -63,8 +68,8 @@ symbolic cue. Control presentation preferences cover touch visibility,
 handedness, and prompt source without changing campaign saves. Stable mappings
 are intentionally not remappable.
 
-Preference v3 includes dice animation frequency/speed; campaign schema remains
-18. Exact d20/component receipts live in `systems/rollResults.ts`, safe mapping
+Preference v3 includes dice animation frequency/speed independently of the
+campaign schema. Exact d20/component receipts live in `systems/rollResults.ts`, safe mapping
 and runtime history in `systems/dicePresentation.ts`, scene-owned orchestration
 in `managers/dicePresentation.ts`/`battleDice.ts`, and procedural SVG rendering
 in `renderers/dice.ts`. Never add RNG, mechanics callbacks, resource mutation,
@@ -79,6 +84,19 @@ held state on blur, visibility loss, disconnect, scene changes, and shutdown.
 The title menu uses `src/managers/titleMenu.ts` so direct taps and semantic
 D-pad/A input share one selected action. Keep overwrite confirmation compact
 and centered within the landscape viewport.
+
+Shared controller text entry lives in `systems/textEntry.ts` (keys/edits) and
+`managers/textEntry.ts` (HTML modal, live preferences, once-only commit/cancel,
+focus restoration). The adapter re-exports `openMobileTextInput()`, consumes
+text actions before game keys and allows its cursor to reach desktop DOM
+controls. Use positional prompts rather than guessed device glyphs.
+
+Steam tooling is separate from game authority: `steam/config.ts` and
+`hacks/prepare-steam.mjs` own inspected native Linux x64, Windows x64 and macOS
+universal depot previews. SDK, Steam achievements/Cloud and native Steam Input
+API remain disabled. Protected upload never sets a branch live. Read
+[`docs/steam.md`](../../../docs/steam.md); equivalent tests are not Steam/Deck,
+signing or store approval.
 
 Cutscene contracts live in `src/data/cutsceneTypes.ts`, focused campaign and
 boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and
@@ -418,6 +436,9 @@ starting `DefeatScene`, which continues only to Overworld.
 
 ## Companions and gambits
 
+- Hero multiclass actions share the existing validated planner and executor.
+  Companion state must not own hero class progression. Treat external profiles
+  as future hooks; do not ship prestige/epic behavior implicitly.
 - Persistent party state lives at `player.party`; do not add a parallel scene
   payload or companion combat model.
 - Stable companion IDs are `guardian`, `scout`, and `mystic`.

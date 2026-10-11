@@ -7,6 +7,7 @@ export interface PartyOverlayCallbacks {
   showMessage(text: string, color?: string): void;
   refreshActors(): void;
   openCrafting(): void;
+  openProgression(): void;
 }
 
 export type PartyOverlayPage = "status" | "social" | "items" | "gambits";

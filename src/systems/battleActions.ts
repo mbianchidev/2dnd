@@ -37,6 +37,7 @@ import {
   type GroupCombatant,
   type PartyCombatant,
 } from "./groupCombat";
+import { canActorUseAbility, canActorUseSpell } from "./classProgression";
 import type { CombatDiceReceipt } from "./dicePresentation";
 
 export type BattleActionKind =
@@ -561,6 +562,17 @@ export function executeValidatedBattleAction(
     return {
       executed: false,
       message: "Actor is no longer able to act.",
+      plan,
+      targets: [],
+      mpUsed: 0,
+      itemUsed: false,
+    };
+  }
+  if ((plan.kind === "spell" && !canActorUseSpell(source.state, plan.actionId ?? ""))
+    || (plan.kind === "ability" && !canActorUseAbility(source.state, plan.actionId ?? ""))) {
+    return {
+      executed: false,
+      message: "The acting character has not learned this action.",
       plan,
       targets: [],
       mpUsed: 0,

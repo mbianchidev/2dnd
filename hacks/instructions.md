@@ -14,3 +14,22 @@
   Boot texture, memory, DOM/listener, and fresh-save metrics. Run
   `npm run test:browser:install` once, then invoke it through
   `npm run benchmark:baseline`.
+- `lib/git-provenance.mjs` shares commit/clean-tree/diff-hash collection between
+  the performance harness and Steam receipts without following untracked
+  symlinks outside the worktree.
+- `generate-desktop-notice.mjs` generates the exact source notice into the
+  ignored `build/SOURCE.2dnd.txt` before packaging/signing. Both package commands
+  call it and restore the pinned Electron binary if required for its bundled
+  Chromium notices; staging never edits a signed bundle. Explicit `--output`
+  writes only a notice, so synthetic unit fixtures need no binary or network.
+- `prepare-steam.mjs` inspects unpacked platform architecture, game ASAR,
+  licenses/source notice, exclusions, symlinks, hashes and permissions. It
+  normalizes archive API paths for the host OS and rejects ASAR links without
+  following them; manifest paths remain portable forward-slash paths. It
+  creates credential-free previews by default, verifies complete preview sets
+  and renders private VDFs only from validated environment IDs. Run
+  `npm run steam:prepare` for syntax and read `docs/steam.md`.
+- `upload-steam.mjs` is only for an explicitly authorized main-branch dispatch
+  on a protected, preauthenticated ephemeral upload runner. It emits no
+  account/partner details or raw SteamCMD output, fails closed and never sets
+  a branch live. Do not run it for PR or local preview validation.

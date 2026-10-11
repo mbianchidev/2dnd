@@ -97,6 +97,20 @@ The workflow publishes unsigned packages. Signing and notarization remain a
 separate protected release concern; the landing page warns players that their
 operating system may challenge these builds.
 
+## Steam preparation
+
+PR desktop CI produces public placeholder depot previews without credentials
+or partner IDs. `Steam depot preparation` is a main-only manual workflow;
+`preview` is the default. Actual upload needs an explicit confirmation, a
+protected environment and a dedicated preauthenticated runner provisioned by
+a human. It never sets a branch live or publicly releases a game.
+
+Follow [Steam preparation](steam.md) for the canonical unpacked platform
+layout, corresponding-source notices, default controller emulation recipe,
+disabled Cloud/SDK/achievement declarations, store metadata draft and distinct
+upload/store/signing/device/public-release approvals. Mock configuration and
+desktop-equivalent tests do not close the real Steam-client or hardware gates.
+
 ## Release checklist
 
 1. Confirm all claimed features are merged into current `main`; do not use open

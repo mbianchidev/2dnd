@@ -16,8 +16,25 @@ through pure logic tests.
 
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
-schema-v18 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
+schema-v19 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
+`electron-tests/saveParity.spec.ts` additionally downloads a real browser slot
+export and imports it through the native renderer's file picker. Assert the same
+normalized campaign/metadata while browser and desktop preferences stay isolated.
+Use production keyboard controls in Electron; local-only layout audit selectors
+are intentionally unavailable at `app://2dnd`.
+
+`electron-tests/deck.spec.ts` adds a 1280x800 standard-gamepad equivalent with
+name/rename/search text entry, normal exploration/Battle, save/reload/recovery,
+cursor fullscreen, reconnect/focus/resize, accessibility and controller-only
+exit. It records actual atomic slot-write timing, frame/JS/native-memory data
+and bounded cleanup samples. Physical Deck, Steam client/Input/overlay,
+suspend/dock, long-session endurance and partner/signing approval are not
+claimed. `ELECTRON_TEST_EXECUTABLE` selects an explicit packaged test binary.
+
+Steam contract/CLI tests use mock IDs and synthetic architecture/ASAR fixtures;
+actual depot payload inspection belongs to the native packaging matrix.
+Keep preview generation separate from protected upload and public release.
 
 ## Testing Philosophy
 
@@ -54,6 +71,8 @@ debug exclusion, category-specific discovery, and schema-v17 migration
 ✅ Save-slot migration, staging/backup atomicity, corruption isolation, metadata,
 independent overwrite/rename/copy/delete, deterministic import/export, and
 keyboard/touch/gamepad management
+✅ Unusable hero-core rejection before import writes, serialized hero-item
+compatibility, actor equipment repair, exact byte isolation, and denied storage getters
 ✅ Defeat penalty receipts, once-only Battle resolution, recovered save
 round-trips, result-scene continuation, and random/boss parity
 ✅ Animation state selection, reduced-motion timing, stable actor/target mapping,
@@ -339,45 +358,53 @@ describe("damage calculation", () => {
 ## Player System Testing
 
 ### Leveling Logic
+
+The current hero engine is `classProgression.ts`. Cover all 144 base entry
+combinations, every prerequisite boundary and per-class grant level, exact
+historical single-class growth, total-level ASIs/proficiency, overlapping
+features, immutable prepared resources, rest-credit recovery, stale/repeated
+input, and concrete battle execution. `classProgressionState.test.ts` covers
+all twelve legacy classes at levels 1-20, corrupt ownership/knowledge/resources,
+deferred old unlocks, equipped duplicates, KO credit clearing and reload.
+`heroItemState.test.ts` and persistence regressions preserve the original
+53-item custom hero fixture, serialized metadata/order, exact duplicate
+equipment links and valid legacy orphan gear. Do not replace those IDs with
+canonical definitions to hide data loss. Browser fixtures need a varying seeded
+RNG so Phaser Text UUID textures remain unique; assert true frozen receipts.
+`e2e/multiclass.spec.ts` owns natural rest choices, previews, martial/caster/
+hybrid flows, interrupted queues, ASIs, mobile/gamepad, clean measured layout
+and the production campaign turn-in.
+
 ```typescript
-import { gainXP, levelUp, calculateMaxHP } from "../src/systems/player";
+import { awardXP, createPlayer, processPendingLevelUps, xpForLevel } from "../src/systems/player";
+import { commitHeroLevelUp, prepareHeroLevelUp, previewHeroLevelUp } from "../src/systems/classProgression";
 
 describe("player leveling", () => {
-  it("levels up when reaching XP threshold", () => {
-    const player = createTestPlayer({ level: 1, xp: 0 });
-    const xpNeeded = getXPForLevel(2);
-    
-    gainXP(player, xpNeeded);
-    
+  it("queues XP levels until rest and preserves cumulative XP", () => {
+    const player = createTestPlayer();
+    awardXP(player, xpForLevel(2));
+    expect(player.level).toBe(1);
+    expect(player.pendingLevelUps).toBe(1);
+    processPendingLevelUps(player);
     expect(player.level).toBe(2);
-    expect(player.xp).toBe(0);  // XP resets after level
+    expect(player.xp).toBe(xpForLevel(2));
   });
 
-  it("increases max HP on level up", () => {
-    const player = createTestPlayer({ 
-      level: 1, 
-      maxHp: 10,
-      stats: { constitution: 14 }  // +2 modifier
-    });
-    
-    const oldMaxHP = player.maxHp;
-    levelUp(player);
-    
-    expect(player.maxHp).toBeGreaterThan(oldMaxHP);
-    // Should increase by at least 1 (minimum HP gain)
-    expect(player.maxHp - oldMaxHP).toBeGreaterThanOrEqual(1);
-  });
-
-  it("unlocks spells at correct levels", () => {
-    const player = createTestPlayer({ level: 1, class: "wizard" });
-    
+  it("previews a frozen qualified class and commits exactly once", () => {
+    const player = createPlayer("Fixture", {
+      strength: 15, dexterity: 8, constitution: 13,
+      intelligence: 15, wisdom: 10, charisma: 10,
+    }, "knight");
+    awardXP(player, xpForLevel(2));
+    prepareHeroLevelUp(player, () => 0.5);
+    const preview = previewHeroLevelUp(player, "wizard");
+    expect(preview.ok).toBe(true);
+    const selection = { trackId: "wizard", expectedTotalLevel: 1 };
+    expect(commitHeroLevelUp(player, selection).ok).toBe(true);
+    expect(player.classProgression.classLevels).toEqual({ knight: 1, wizard: 1 });
+    expect(player.knownSpells).toContain("fireBolt");
     expect(player.knownSpells).not.toContain("fireball");
-    
-    // Level up to spell unlock level
-    player.level = 5;
-    updateKnownSpells(player);
-    
-    expect(player.knownSpells).toContain("fireball");
+    expect(commitHeroLevelUp(player, selection).ok).toBe(false);
   });
 });
 ```
@@ -479,7 +506,10 @@ describe("spell data integrity", () => {
 
 ### Helper Functions
 ```typescript
-// createPlayer now requires baseStats — never called without them
+import { createPlayer, type PlayerState, type PlayerStats } from "../src/systems/player";
+import { createHeroClassProgression } from "../src/systems/classProgression";
+import { getPlayerClass } from "../src/systems/classes";
+
 const defaultStats: PlayerStats = {
   strength: 10, dexterity: 10, constitution: 10,
   intelligence: 10, wisdom: 10, charisma: 10,
@@ -489,7 +519,7 @@ function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
   const player = createPlayer("Test", {
     strength: 10, dexterity: 8, constitution: 12,
     intelligence: 8, wisdom: 8, charisma: 8,
-  });
+  }, overrides?.appearanceId);
   // Pin stats for deterministic tests
   player.stats = {
     strength: 12, dexterity: 10, constitution: 14,
@@ -498,6 +528,11 @@ function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
   player.maxHp = 30; player.hp = 30;
   player.maxMp = 10; player.mp = 10;
   if (overrides) Object.assign(player, overrides);
+  if (!overrides?.classProgression) {
+    player.classProgression = createHeroClassProgression(
+      getPlayerClass(player.appearanceId).id, player.level,
+    );
+  }
   return player;
 }
 ```
@@ -570,10 +605,9 @@ npx vitest run tests/dice.test.ts
 - Cover the showcase's Play/download links, game-generated screenshots,
   responsive width, Steam banner, and page/console cleanliness.
 - Pull request CI installs Chromium and runs the browser suite as a release
-  gate.
-- PR web CI uses a ref-scoped concurrency group and keeps
-  `cancel-in-progress: false`; independent branches must not replace one
-  another's pending validation.
+  gate. Its concurrency group is ref-scoped so independent review branches do
+  not replace one another's pending checks; same-ref runs remain serialized
+  with `cancel-in-progress: false`.
 - Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
   disable trace screenshots and video. Phaser repaints every frame, so the
   filmstrip creates thousands of canvas captures that stall context teardown.
@@ -591,7 +625,7 @@ npx vitest run tests/dice.test.ts
 - Run `npm run benchmark:baseline` before performance-affecting work and attach
   its commit, environment, and output to the owning issue or pull request. The
   harness uses the named `2dnd:boot-textures` browser performance measure and a
-  fresh schema-v18 save.
+  fresh current-schema save.
 - Cover random and boss defeat results, exact displayed penalties, clean
   continuation, and recovered save/reload state through the production
   `/defeat` debug path.
@@ -609,7 +643,7 @@ npx vitest run tests/dice.test.ts
 - Assert `location.origin === "app://2dnd"`, the `game.html` entry, and the
   fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
-  shell, create a manual snapshot, and continue the same schema-v18 campaign.
+  shell, create a manual snapshot, and continue the same schema-v19 campaign.
 - Return to title through the keyboard menu, quit through the visible title
   action, and verify lifecycle/quit logs without save-content leakage.
 - Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.

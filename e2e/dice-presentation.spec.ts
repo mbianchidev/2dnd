@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
-import { createCurrentSaveData, normalizeSaveData, type SaveData } from "../src/systems/save";
+import { createCurrentSaveData, normalizeSaveData, SAVE_VERSION, type SaveData } from "../src/systems/save";
+import { createHeroClassProgression } from "../src/systems/classProgression";
 import { createWeatherState } from "../src/systems/weather";
 import {
   normalizeGamePreferences,
@@ -24,6 +25,7 @@ import {
 import { DUNGEONS, getDungeonLevelMap, Terrain } from "../src/data/map";
 import { getTrapDefinition } from "../src/data/traps";
 import { getSpell } from "../src/data/spells";
+import { getItem } from "../src/data/items";
 import { formatSkillCheckResult } from "../src/systems/skillChecks";
 import { clickLayoutItem, expectCleanLayout } from "./helpers/layout";
 
@@ -151,10 +153,11 @@ async function debugCommand(page: Page, command: string): Promise<void> {
 
 async function seedCampaign(page: Page, options: SeedOptions = {}) {
   const player = createPlayer("Dice Tester", {
-    strength: 14, dexterity: options.dungeon || options.flee ? 40 : 18, constitution: 8,
-    intelligence: options.dungeon ? 40 : 18, wisdom: 14, charisma: 12,
+    strength: 14, dexterity: options.dungeon || options.flee ? 30 : 18, constitution: 8,
+    intelligence: options.dungeon ? 28 : 18, wisdom: 14, charisma: 12,
   }, "wizard");
   player.level = 5;
+  player.classProgression = createHeroClassProgression("wizard", player.level);
   player.hp = player.maxHp = 500;
   player.mp = player.maxMp = 100;
   player.knownSpells = ["magicMissile", "fireBolt"];
@@ -172,6 +175,9 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
     name: string;
   } | undefined;
   if (options.dungeon) {
+    const trapKit = getItem("trapKit");
+    if (!trapKit) throw new Error("Missing canonical trap-kit fixture");
+    player.inventory.push({ ...trapKit });
     const dungeon = DUNGEONS[0]!;
     const map = getDungeonLevelMap(dungeon, 0);
     const traps = generateDungeonTraps(dungeon, 0, player.progression.trapSeed);
@@ -185,8 +191,8 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
         ).length === 1);
       if (!approach) continue;
       const resolvedPlayer = structuredClone(player);
-      const detection = attemptTrapDetection(resolvedPlayer, trap, 11);
-      const disarm = attemptTrapDisarm(resolvedPlayer, trap, 11);
+      const detection = attemptTrapDetection(resolvedPlayer, trap, 1);
+      const disarm = attemptTrapDisarm(resolvedPlayer, trap, 1);
       if (!detection.success || !disarm.success) continue;
       const name = getTrapDefinition(trap.type).name;
       trapEvidence = {
@@ -204,7 +210,10 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
   const save = createCurrentSaveData(
     player, new Set(), createCodex(), player.appearanceId, 90, createWeatherState(),
   );
-  expect(normalizeSaveData(structuredClone(save))).not.toBeNull();
+  const normalized = normalizeSaveData(structuredClone(save));
+  if (!normalized) throw new Error("Invalid canonical dice-test campaign");
+  expect(normalized.player.level).toBe(player.level);
+  expect(normalized.player.stats).toEqual(player.stats);
   const preferences = normalizeGamePreferences({
     audio: { muted: true },
     accessibility: {
@@ -345,7 +354,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await expect(log).toContainText("Magic Missile");
     await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
     const save = await readSave(page);
-    expect(save.version).toBe(18);
+    expect(save.version).toBe(SAVE_VERSION);
     expect(save.player.mp).toBe(100 - getSpell("magicMissile")!.mpCost);
     await page.reload({ waitUntil: "networkidle" });
     await expect(page.locator("#debug-state")).toContainText("BOOT | Screen: title");

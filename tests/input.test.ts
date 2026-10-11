@@ -21,6 +21,8 @@ describe("semantic input mappings", () => {
     expect(mapKeyboardCode("Slash", "inventory")).toBe("inventorySearch");
     expect(mapKeyboardCode("Slash", "codex")).toBe("codexSearch");
     expect(mapKeyboardCode("KeyK", "exploration")).toBe("openGathering");
+    expect(mapKeyboardCode("Tab", "characterCreation")).toBe("interact");
+    expect(mapKeyboardCode("Tab", "inventory")).toBe("inventoryNextTarget");
   });
 
   it("keeps debug keys outside production semantic mappings", () => {

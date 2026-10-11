@@ -26,6 +26,7 @@
 | --- | --- |
 | Combat formula or status | `src/systems/combat.ts`, `statusEffects.ts`, `groupCombat.ts` |
 | Player/companion action | `src/systems/battleActions.ts`, data action definition, focused tests |
+| Hero multiclass progression | `data/classProgression.ts`, `systems/classProgression*.ts`, `managers/heroProgression.ts`; see [Hero progression](hero-progression.md) |
 | Monster or encounter | `src/data/monsters.ts`, `monsterVariants.ts`, `nightMonsters.ts`, `seaMonsters.ts`, `monsterGroups.ts` |
 | Quest | `src/data/quests.ts`, `src/systems/quests.ts`, quest tests |
 | Cutscene | focused `src/data/cutscene*.ts`, `src/systems/cutscenes.ts`, cutscene tests |
@@ -39,6 +40,8 @@
 | Texture | focused renderer aggregated by `src/renderers/textures.ts` |
 | Audio | `src/systems/audio.ts` and typed domain profile helpers |
 | Desktop shell or packaging | `electron/`, `electron-tests/`, `package.json`, desktop workflow |
+| Steam depot preparation | `steam/`, `hacks/prepare-steam.mjs`, protected workflow, `docs/steam.md` |
+| Shared controller text entry | `systems/textEntry.ts`, `managers/textEntry.ts`, semantic input adapter |
 
 Read the matching `.github/skills/*/SKILL.md` before implementing domain work.
 
@@ -70,6 +73,12 @@ Chromium sandbox compatibility, expose only narrow typed IPC, and load
 browser build stays the authoritative renderer. Packaging commands and security
 rules are documented in [Desktop application](desktop.md).
 
+Steam review payloads use `npm run package:steam:ci` and
+`npm run steam:prepare`. Public previews need no SDK, account or IDs. Keep
+services disabled and follow the protected human gates in
+[Steam preparation](steam.md). Source notices are generated before signing,
+and byte-preserving staging rejects development/profile/secret content.
+
 ## Debug tools
 
 Debug mode is available only on local hosts through the checkbox above the
@@ -86,6 +95,7 @@ Useful command families include:
 /near
 /cutsceneview
 /companion
+/class
 /event
 /alignment
 /reputation

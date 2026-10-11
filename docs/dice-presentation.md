@@ -100,8 +100,9 @@ dice: {
 
 Missing, legacy v1/v2, and malformed fields normalize to All/Normal while
 preserving audio, accessibility, and control preferences. This is stored only
-under `2dnd_preferences`; campaign schema remains **18**, and neither receipts
-nor runtime log entries enter saves.
+under `2dnd_preferences`, independently of the current schema-19 campaign.
+Neither receipts nor runtime log entries enter saves, and dice preferences do
+not increment the campaign schema.
 
 `dicePresentation`, `rollReceipts`, `diceRenderer`, `accessibility`, and `input`
 Vitest suites cover redaction, both dice, critical/fumble/auto-hit semantics,

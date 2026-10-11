@@ -210,10 +210,10 @@ function readStoredValue(key: string): unknown {
 }
 
 function loadPreferences(): GamePreferences {
-  if (typeof localStorage === "undefined") {
-    return normalizeGamePreferences(undefined);
-  }
   try {
+    if (typeof localStorage === "undefined") {
+      return normalizeGamePreferences(undefined);
+    }
     const current = readStoredValue(GAME_PREFERENCES_STORAGE_KEY);
     if (current !== undefined) return normalizeGamePreferences(current);
 
@@ -371,8 +371,8 @@ export class GamePreferencesStore {
   }
 
   private persist(): void {
-    if (typeof localStorage === "undefined") return;
     try {
+      if (typeof localStorage === "undefined") return;
       localStorage.setItem(
         GAME_PREFERENCES_STORAGE_KEY,
         JSON.stringify(this.preferences),

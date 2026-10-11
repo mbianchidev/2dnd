@@ -10,7 +10,7 @@ import {
   getSeaZone,
   getSeaZoneAt,
 } from "../data/nautical";
-import { getPlayerClass } from "./classes";
+import { getActorStartingClass, getProgressionDisplayName, getProgressionTracks } from "./classProgression";
 import type { CodexData } from "./codex";
 import type { PlayerState } from "./player";
 import { isQuestCompleted } from "./quests";
@@ -18,6 +18,7 @@ import {
   createCurrentSaveData,
   decodeStoredSave,
   ensureSaveStorageMigrated,
+  getSaveStorage,
   normalizeSaveData,
   persistSaveData,
   readSaveSlotData,
@@ -48,6 +49,7 @@ export interface SaveSlotMetadata {
   characterName: string;
   classId: string;
   className: string;
+  classCount: number;
   level: number;
   location: string;
   campaignStatus: SaveCampaignStatus;
@@ -76,9 +78,8 @@ export type SaveExportResult =
   | { ok: false; code: SaveActionErrorCode; message: string };
 
 function getStorageAdapter(): SaveSlotStorageAdapter | null {
-  return typeof localStorage === "undefined"
-    ? null
-    : new SaveSlotStorageAdapter(localStorage);
+  const storage = getSaveStorage();
+  return storage ? new SaveSlotStorageAdapter(storage) : null;
 }
 
 function slotDisplayName(
@@ -133,13 +134,13 @@ function deriveSlotMetadata(
   slotName: string,
   data: SaveData,
 ): SaveSlotMetadata {
-  const playerClass = getPlayerClass(data.player.appearanceId);
   return {
     slotId,
     slotName,
     characterName: data.player.name,
-    classId: playerClass.id,
-    className: playerClass.label,
+    classId: getActorStartingClass(data.player),
+    className: getProgressionDisplayName(data.player),
+    classCount: getProgressionTracks(data.player).length,
     level: data.player.level,
     location: deriveSaveLocation(data.player),
     campaignStatus: deriveCampaignStatus(data),
@@ -247,8 +248,8 @@ export function saveGameToSlot(
 
 /** List autosave and every manual slot without changing the active campaign. */
 export function listSaveSlots(): SaveSlotInfo[] {
-  const adapter = getStorageAdapter();
-  if (!adapter || typeof localStorage === "undefined") {
+  const storage = getSaveStorage();
+  if (!storage) {
     return SAVE_SLOT_IDS.map((slotId) => ({
       slotId,
       kind: slotId === "autosave" ? "autosave" : "manual",
@@ -257,7 +258,8 @@ export function listSaveSlots(): SaveSlotInfo[] {
       diagnostic: "Local campaign storage is unavailable.",
     }));
   }
-  ensureSaveStorageMigrated(localStorage, adapter);
+  const adapter = new SaveSlotStorageAdapter(storage);
+  ensureSaveStorageMigrated(storage, adapter);
   return SAVE_SLOT_IDS.map((slotId) => getSlotInfo(slotId, adapter));
 }
 

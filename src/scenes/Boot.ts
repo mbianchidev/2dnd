@@ -431,7 +431,7 @@ export class BootScene extends Phaser.Scene {
 
     // Name entry
     const nameLabel = this.add
-      .text(cx, title.y + title.height + 4, "Name:", {
+      .text(cx, title.y + title.height + 4, "Name (West / select to edit):", {
         fontSize: "14px",
         fontFamily: "monospace",
         color: "#c0a060",
@@ -450,11 +450,17 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0)
       .setInteractive({ useHandCursor: true });
-    nameText.on("pointerdown", () => {
+    const editName = (): void => {
       openMobileTextInput("Hero name", playerName, 12, (value) => {
         playerName = value.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 12);
         nameText.setText(playerName || "_");
       });
+    };
+    nameText.on("pointerdown", editName);
+    this.input.keyboard!.on("keydown-TAB", (event: KeyboardEvent) => {
+      if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+      event.preventDefault();
+      editName();
     });
 
     // Handle typing for name
@@ -889,7 +895,8 @@ export class BootScene extends Phaser.Scene {
       }
       debugPanelState(
         `BOOT | Screen: stats [STAT:${statKeys[selectedStatIndex]}] `
-        + `[MODE:${mode}]`,
+        + `[MODE:${mode}] [STAT_VALUE:${currentStats[statKeys[selectedStatIndex]!]}] `
+        + `[POINTS_REMAINING:${remaining}]`,
       );
     };
 

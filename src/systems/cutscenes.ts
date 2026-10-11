@@ -19,7 +19,8 @@ import {
   type QuestId,
   type QuestProgress,
 } from "../data/quests";
-import { getPlayerClass } from "./classes";
+import { getProgressionDisplayName } from "./classProgression";
+import type { CombatActorState } from "./player";
 import { isQuestCompleted } from "./quests";
 import type { CodexData } from "./codex";
 import type {
@@ -364,9 +365,9 @@ export function getChronicleCutscenes(
 }
 
 function formatPartyMember(
-  member: Pick<PlayerState, "appearanceId" | "level" | "name">,
+  member: CombatActorState,
 ): string {
-  return `${member.name} - Lv.${member.level} ${getPlayerClass(member.appearanceId).label}`;
+  return `${member.name} - Lv.${member.level} ${getProgressionDisplayName(member)}`;
 }
 
 export function buildCampaignEndingSummary(

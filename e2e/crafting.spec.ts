@@ -97,12 +97,7 @@ async function createCharacter(page: Page): Promise<void> {
   await clickLayoutItem(page, "creation-stats-next");
   await waitForState(page, "BOOT | Screen: appearance");
   await clickLayoutItem(page, "appearance-randomize");
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await clickLayoutItem(page, "appearance-start");
-    await page.waitForTimeout(300);
-    const state = await page.locator("#debug-state").textContent() ?? "";
-    if (state.includes("CUTSCENE")) break;
-  }
+  await clickLayoutItem(page, "appearance-start");
   await waitForState(page, "CUTSCENE");
   await page.evaluate(({ saveKey, openingCutsceneIds }) => {
     const raw = localStorage.getItem(saveKey);

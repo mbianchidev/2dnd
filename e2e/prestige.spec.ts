@@ -3,7 +3,7 @@ import { clickLayoutItem, expectCleanLayout, tapLayoutItem } from "./helpers/lay
 import type { PrestigePathId } from "../src/data/prestige";
 import type { BaseClassId } from "../src/data/classProgression";
 import type { PlayerState, PlayerStats } from "../src/systems/player";
-import type { SaveData } from "../src/systems/save";
+import { SAVE_VERSION, type SaveData } from "../src/systems/save";
 
 const cases: Array<{ id: PrestigePathId; starting: BaseClassId; stats: PlayerStats }> = [
   { id: "roadglassBulwark", starting: "knight", stats: {
@@ -170,7 +170,7 @@ for (const fixture of cases) {
     await page.keyboard.up("Enter");
     await expect(page.locator("#debug-state")).toContainText("[PROGRESSION:result");
     const committed = await readSave(page);
-    expect(committed.version).toBe(20);
+    expect(committed.version).toBe(SAVE_VERSION);
     expect(committed.player.level).toBe(7);
     expect(committed.player.classProgression.classLevels).toEqual(before.player.classProgression.classLevels);
     expect(committed.player.classProgression.trackLevels).toEqual({ [`prestige:${fixture.id}`]: 1 });

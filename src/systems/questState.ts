@@ -91,6 +91,9 @@ export function createQuestLog(): QuestLogState {
       [RECRUIT_MYSTIC_QUEST_ID]: createDefaultProgress(
         RECRUIT_MYSTIC_QUEST_ID,
       ),
+      mendTheSpan: createDefaultProgress("mendTheSpan"),
+      keepTheEcho: createDefaultProgress("keepTheEcho"),
+      shareTheShoal: createDefaultProgress("shareTheShoal"),
     },
     seenWarnings: [],
   };

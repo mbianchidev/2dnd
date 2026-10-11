@@ -6,7 +6,7 @@
 ## Party model
 
 The persistent party was introduced in schema v6 and lives at `player.party` in
-the current schema v20:
+the current schema v21:
 
 - `companions`: unique recruited `CompanionState` records
 - `activeCompanionIds`: up to three recruited IDs in battle/follower order

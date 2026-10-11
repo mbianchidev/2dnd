@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { clickLayoutItem, expectCleanLayout, layoutItemCenter, tapLayoutItem } from "./helpers/layout";
 import type { BaseClassId } from "../src/data/classProgression";
 import type { PlayerState, PlayerStats } from "../src/systems/player";
+import { SAVE_VERSION } from "../src/systems/save";
 
 interface Campaign {
   version: number;
@@ -175,7 +176,7 @@ for (const combination of combinations) {
     await holdKey(page, "Space");
     await expect(page.locator("#debug-state")).toContainText("[PROGRESSION:result");
     const committed = await readSave(page);
-    expect(committed.version).toBe(20);
+    expect(committed.version).toBe(SAVE_VERSION);
     expect(committed.player.level).toBe(2);
     expect(committed.player.classProgression.classLevels).toEqual({
       [combination.starting]: 1, [combination.next]: 1,

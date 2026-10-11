@@ -441,10 +441,11 @@ function generateTileTextures(scene: Phaser.Scene): void {
         // Door
         gfx.fillStyle(0x5d4037, 1);
         gfx.fillRect(13, 18, 6, 10);
-        // Cross / holy symbol
+        // Three unjoined fragments of the fictional constellation.
         gfx.fillStyle(0xfff9c4, 0.9);
-        gfx.fillRect(15, 6, 2, 6);
-        gfx.fillRect(13, 8, 6, 2);
+        gfx.fillTriangle(12, 8, 14, 5, 16, 8);
+        gfx.fillTriangle(17, 6, 19, 9, 17, 11);
+        gfx.fillTriangle(11, 10, 14, 10, 13, 12);
         break;
       case Terrain.Statue:
         // Stone statue on cobblestone

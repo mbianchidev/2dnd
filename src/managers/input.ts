@@ -896,6 +896,7 @@ export class SemanticInputRuntime {
         || state.includes("[SAVE_SLOTS:")
         || state.includes("[TIPS")
         || state.includes("[WORLD_EVENT:")
+        || state.includes("[DEVOTION:")
         || state.includes("[PROGRESSION:")
       ) {
         return "overlay";

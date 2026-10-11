@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v20, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v21, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -49,7 +49,12 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 20.
+`SAVE_VERSION` is 21.
+
+Schema v21 adds independent optional devotion. Older campaigns without that
+record stay unaffiliated/zero and consume historical sources without rewards.
+Validate existing schema-v19/v20 feature-preview devotion instead of resetting
+its owned affiliation, source/visit ledgers or remaining blessing turns.
 
 Schema v20 recognizes the six registered five-rank prestige profiles through
 the same `player.classProgression` owner. Optional `debugTrackIds` defaults to
@@ -145,6 +150,7 @@ interface PlayerProgression {
   tutorial: TutorialProgress;
   worldEvents: WorldEventState;
   social: SocialState;
+  devotion: DevotionState;
   achievements: AchievementState;
   gathering: GatheringState;
   crafting: CraftingState;
@@ -189,6 +195,13 @@ counters, and the bounded chronological World Events record.
 scores, stable applied source IDs, and at most 40 recent cause entries. Names,
 tiers, thresholds, shop modifiers, Codex milestones, and achievement hooks are
 derived.
+`devotion` persists one optional fictional affiliation, a bounded independent
+score, canonical source/visit ledgers, debug-consumed sources, an affiliation
+sequence and bounded causes. Tiers/domains/tenets are derived; blessings remain
+normal `activeEffects` with no parallel clock. Older campaigns missing devotion
+remain unaffiliated/zero; existing schema-v19/v20 feature-preview records are
+normalized without losing owned state. Exact historical sources are consumed
+without reconstructing scores or rewards. See `docs/devotion.md`.
 `achievements` persists earned records, once-only event counters/IDs, explicit
 defeat-history validity, unlocked/equipped cosmetic titles, debug suppression,
 and pending notice IDs. Definitions, categories, points, totals, and
@@ -273,6 +286,9 @@ and in-memory preferences usable while reporting campaign write failures.
   `normalizeFeatureDiscoveryProgress()`; schema-v16 and older saves discard
   pending/debug metadata and silently reconcile mature authoritative evidence
 - Missing time and weather data
+- Missing/legacy/corrupt devotion through `normalizeDevotionState()`; validate
+  canonical IDs, duplicate/source/history cross-fields and temple blessing
+  source/affiliation/turns without refreshing or reconstructing an effect
 - Invalid string arrays and explored-tile records
 
 ## Location recovery
@@ -371,7 +387,8 @@ to browsing before closing the manager.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v20 hero/base/prestige progression, playtime, position, objective/reward/warning quest state,
+- Current schema-v21 devotion, hero/base/prestige progression, playtime,
+  position, objective/reward/warning quest state,
   skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
@@ -398,7 +415,7 @@ to browsing before closing the manager.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v20 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v21 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

@@ -53,6 +53,10 @@ import {
   createSocialState,
   normalizeSocialState,
 } from "./reputation";
+import { createDevotionState, normalizeDevotionState } from "./devotionState";
+import { consumeHistoricalDevotionSources } from "./devotion";
+import { normalizeDevotionBlessing } from "./devotionTemples";
+import { DEVOTION_PREVIEW_SAVE_VERSION } from "../data/devotion";
 import {
   normalizeAchievementState,
   reconcileAchievements,
@@ -83,7 +87,7 @@ import {
   type SaveStorageErrorCode,
 } from "./saveStorage";
 
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -558,6 +562,9 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     data.player.knownTalents = normalizeStringArray(data.player.knownTalents);
 
     const playerRecord = data.player as unknown as Record<string, unknown>;
+    const rawDevotion = isRecord(playerRecord["progression"])
+      ? playerRecord["progression"]["devotion"]
+      : undefined;
     if (!isRecord(playerRecord["position"])) {
       data.player.position = {
         x: readInteger(playerRecord["x"], 3),
@@ -605,6 +612,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
         tutorial: normalizeTutorialProgress(undefined),
         worldEvents: normalizeWorldEventState(undefined),
         social: createSocialState(),
+        devotion: createDevotionState(),
         achievements: normalizeAchievementState(undefined, sourceVersion),
         gathering: normalizeGatheringState(undefined, sourceVersion),
         crafting: normalizeCraftingState(undefined, sourceVersion),
@@ -666,6 +674,14 @@ export function normalizeSaveData(value: unknown): SaveData | null {
         ...getHistoricalQuestSocialSourceIds(data.player.progression.quests),
       );
     }
+    data.player.progression.devotion = normalizeDevotionState(rawDevotion, sourceVersion);
+    if (sourceVersion < DEVOTION_PREVIEW_SAVE_VERSION || !isRecord(rawDevotion)) {
+      consumeHistoricalDevotionSources(
+        data.player.progression.devotion,
+        data.player.progression.quests,
+        data.player.progression.worldEvents.log,
+      );
+    }
     data.player.progression.achievements = normalizeAchievementState(
       data.player.progression.achievements,
       sourceVersion,
@@ -711,7 +727,9 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     if (data.player.mountId === undefined) data.player.mountId = "";
     if (data.player.shortRestsRemaining === undefined) data.player.shortRestsRemaining = 2;
     if (data.player.pendingLevelUps === undefined) data.player.pendingLevelUps = 0;
-    data.player.activeEffects = normalizeActiveEffects(data.player.activeEffects);
+    const savedEffects: unknown = data.player.activeEffects;
+    data.player.activeEffects = normalizeActiveEffects(savedEffects);
+    normalizeDevotionBlessing(data.player, savedEffects);
 
     const validCityIds = new Set(CITIES.map((city) => city.id));
     if (!Array.isArray(data.player.progression.discoveredCities)) {

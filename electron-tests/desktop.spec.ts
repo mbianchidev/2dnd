@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SAVE_SLOT_KEY_DEBOUNCE_MS } from "../src/systems/saveSlots";
+import { SAVE_VERSION } from "../src/systems/save";
 import {
   APP_ROOT,
   closeDesktop,
@@ -158,6 +159,7 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await waitForState(page, "[CLASS:ranger]");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: stats");
+  await waitForState(page, "[MODE:pointbuy]");
   await clickGame(page, 390, 64);
   await waitForState(page, "[MODE:random]");
   await holdKey(page, "Enter");
@@ -187,11 +189,11 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
     return { name: player.name, version, appearanceId: player.appearanceId };
   }, SAVE_KEY)).toEqual({
     name: "Desktop Hero",
-    version: 20,
+    version: SAVE_VERSION,
     appearanceId: "ranger",
   });
 
-  return { name: "Desktop Hero", version: 20, appearanceId: "ranger" };
+  return { name: "Desktop Hero", version: SAVE_VERSION, appearanceId: "ranger" };
 }
 
 async function prepareSaveForOverworld(page: Page): Promise<void> {

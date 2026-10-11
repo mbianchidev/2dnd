@@ -32,6 +32,7 @@ import {
   getReputationScore,
   getReputationTier,
 } from "./reputation";
+import { getDevotionEndingText } from "./devotion";
 
 export interface CampaignEndingSummary {
   hero: string;
@@ -48,6 +49,7 @@ export interface CampaignEndingSummary {
   alignment: string;
   epilogueVariant: string;
   roadwardenStanding: string;
+  devotion: string;
 }
 
 export interface CutsceneTriggerSnapshot {
@@ -438,5 +440,6 @@ export function buildCampaignEndingSummary(
     epilogueVariant: epilogueVariants[alignment],
     roadwardenStanding:
       `${getReputationTier(roadwardenScore).name} (${roadwardenScore})`,
+    devotion: getDevotionEndingText(player),
   };
 }

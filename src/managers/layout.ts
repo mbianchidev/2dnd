@@ -171,7 +171,8 @@ export function auditSceneLayout(scene: Phaser.Scene): {
   };
 }
 
-function publishLayoutReport(scene: Phaser.Scene): void {
+export function publishSceneLayoutReport(scene: Phaser.Scene): void {
+  if (!isLocalDev() && globalThis.location?.origin !== "app://2dnd") return;
   const report = auditSceneLayout(scene);
   scene.game.canvas.dataset.layoutOverlapCount = String(report.overlapCount);
   scene.game.canvas.dataset.layoutClippingCount = String(report.clippingCount);
@@ -192,7 +193,7 @@ export function installSceneLayoutAudit(scene: Phaser.Scene): void {
   const audit = (time: number): void => {
     if (time - lastAudit < 200) return;
     lastAudit = time;
-    publishLayoutReport(scene);
+    publishSceneLayoutReport(scene);
   };
   scene.events.on("postupdate", audit);
   scene.events.once("shutdown", () => {
@@ -200,5 +201,5 @@ export function installSceneLayoutAudit(scene: Phaser.Scene): void {
     sceneGroups.delete(scene);
     installedScenes.delete(scene);
   });
-  publishLayoutReport(scene);
+  publishSceneLayoutReport(scene);
 }

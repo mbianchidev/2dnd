@@ -33,6 +33,8 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - player and companion progression, gambits, inventories, transfers
 - quests, cutscene triggers/queues, Codex, events, social state, achievements
 - gathering, crafting, nautical state, world/map/trap/fog helpers
+- original devotion content, source idempotency, qualification isolation,
+  temple transactions, affiliation choices and canonical blessing lifecycle
 - save round trips, migrations, corruption repair, and cross-field validation
 - unusable hero-core/import rejection, legacy hero-item preservation and actor item repair,
   exact-byte slot isolation, and denied `localStorage` getter recovery
@@ -65,6 +67,8 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   preference reload, and runtime-log scene handoffs
 - layout audits at supported text scales and representative desktop/mobile
   viewports
+- devotion temple/profile, unaffiliated and affiliated routes, keeper/event/
+  optional-quest consequences, blessing reload/cleanup and ending presentation
 
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
 a strict port. `e2e/landing.spec.ts` exercises the showcase root; Phaser flows
@@ -78,7 +82,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v20 autosave/manual-slot persistence,
+- real character creation, schema-v21 autosave/manual-slot persistence,
   relaunch, and continue
 - independent desktop copy/import, exact source-slot bytes, interrupted
   staging/core-corruption recovery, and loading a second campaign after relaunch

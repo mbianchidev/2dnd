@@ -458,6 +458,14 @@ export function getAchievementProgress(
       target = criteria.threshold;
       current = player.progression.crafting.statistics.equipmentUpgrades;
       break;
+    case "templesVisited":
+      target = criteria.threshold;
+      current = player.progression.devotion.visitedTempleIds.length;
+      break;
+    case "devotionScore":
+      target = criteria.threshold;
+      current = player.progression.devotion.deityId ? player.progression.devotion.score : 0;
+      break;
   }
 
   return {

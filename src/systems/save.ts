@@ -87,7 +87,7 @@ import {
   type SaveStorageErrorCode,
 } from "./saveStorage";
 
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 22;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -555,7 +555,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
       delete parsed["bestiary"];
     }
 
-    data.codex = normalizeCodexData(data.codex);
+    data.codex = normalizeCodexData(data.codex, sourceVersion >= 22);
     data.appearanceId = readString(data.appearanceId, "knight");
     data.defeatedBosses = normalizeStringArray(data.defeatedBosses);
     data.player.knownAbilities = normalizeStringArray(data.player.knownAbilities);

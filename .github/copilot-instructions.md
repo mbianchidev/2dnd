@@ -519,6 +519,22 @@ Flow:
 
 ## Combat
 
+- Physical Bludgeoning/Slashing/Piercing types and common affinity precedence
+  live in `data/damageTypes.ts`; explicit monster size/anatomy/part anchors in
+  `data/anatomy.ts`; old/custom weapon typing in `data/itemCombat.ts`.
+- `systems/physicalCombat.ts` integrates through the existing combat/action
+  owners. Apply status damage, physical whole/local profile, then elements.
+  Local affinities override rather than double-stack whole physical affinity;
+  whole-body immunity always wins. Magic stays outside physical profiles.
+- Humanoid anatomy is aimable at any size; other stable anatomies require
+  Large+. Parts share monster HP and the normal status clock. Optional aim
+  trades accuracy for local defenses and at most two target-turn effects,
+  never limb HP, severing or another action. Whole-target Confirm stays unchanged.
+- `managers/battleBodyTarget.ts` shares measured, native-accessible aiming for
+  the hero and manual companions. Keep keyboard/pointer/touch/gamepad parity,
+  cancellation, 150% text and cleanup. Gambits retain whole-target defaults.
+  See `docs/physical-combat.md`.
+
 - Attack rolls, saves, and checks use d20.
 - Natural 20 on an attack is a critical hit; natural 1 automatically misses.
 - Initiative is d20 + Dexterity modifier.
@@ -887,7 +903,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 21.
+Save schema version is 22.
+
+Schema v22 adds `CodexEntry.discoveredPhysical` with stable type and optional
+part IDs, plus optional `Item.physicalDamageType`. Normalize unknown/duplicate/
+neutral/impossible observations and weapon-only metadata. Pre-v22 records gain
+empty observations without invented history. Preserve every existing campaign
+domain, custom item metadata/order and exact equipment links; legacy weapons
+resolve canonical or shape-derived types without rewriting serialized ownership.
+Monster part selection/effects remain runtime-only.
 
 Schema v21 adds independent optional devotion with unaffiliated/zero legacy
 defaults, stable source/visit ledgers, debug-consumed sources, an affiliation
@@ -1072,7 +1096,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v21
+  visibility, handedness, and prompt source only; they never enter schema-v22
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

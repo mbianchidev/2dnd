@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v21; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v22; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -48,7 +48,17 @@ relinking and preserves well-formed serialized item ownership.
 
 ## Current schema
 
-`SAVE_VERSION` is **21**. Schema v21 adds independent optional fictional
+`SAVE_VERSION` is **22**. Schema v22 adds observed whole/part physical defenses
+in `CodexEntry.discoveredPhysical` and optional typed weapon metadata.
+Pre-v22 saves gain empty observations without inventing history. Normalize
+canonical type/part combinations, duplicates, neutral observations and invalid
+weapon-only fields. Keep valid custom/legacy item content, inventory order,
+exact equipment links, every other campaign domain and frozen rest receipts.
+Old canonical weapons resolve their new type at use time without rewriting
+serialized ownership. Part selection and monster limb effects are runtime-only.
+See [Physical combat](physical-combat.md).
+
+Schema v21 adds independent optional fictional
 `player.progression.devotion` with unaffiliated/zero legacy defaults, canonical
 source/visit ledgers, debug-consumed sources, affiliation-change sequence, and a
 bounded cause history. Tiers, domains and active-blessing presentation are

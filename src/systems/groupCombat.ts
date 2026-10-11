@@ -11,9 +11,13 @@ import type {
 import type { FormationPosition } from "../data/monsterGroups";
 import type { Item } from "../data/items";
 import type { Monster } from "../data/monsters";
+import type { PhysicalDiscovery } from "../data/anatomy";
+import type { BodyPartId } from "../data/anatomy";
+import type { DamageInteraction, PhysicalDamageType } from "../data/damageTypes";
 import type { TargetType } from "../data/spells";
 import {
   discoverElement,
+  discoverPhysical,
   recordDefeat,
   type CodexData,
 } from "./codex";
@@ -77,6 +81,7 @@ export interface GroupCombatant extends BattleCombatantState {
   hpRevealed: boolean;
   droppedItemIds: string[];
   elementalDiscoveries: Set<Element>;
+  physicalDiscoveries: PhysicalDiscovery[];
 }
 
 export interface BattleTurn {
@@ -130,6 +135,12 @@ export interface CompanionTurnContext {
     targetId: BattleCombatantId,
     interaction: ElementalInteraction,
     element: Element,
+  ): void;
+  recordPhysicalInteraction?(
+    targetId: BattleCombatantId,
+    interaction: DamageInteraction,
+    damageType: PhysicalDamageType,
+    bodyPartId?: BodyPartId,
   ): void;
   addLog(message: string): void;
   completeTurn(): void;
@@ -285,6 +296,7 @@ export function createGroupCombatants(
       acDiscovered: false,
       hpRevealed: false,
       droppedItemIds: [],
+      physicalDiscoveries: [],
       elementalDiscoveries: new Set<Element>(),
     };
   });
@@ -676,6 +688,9 @@ export function recordGroupDefeats(
     );
     for (const element of combatant.elementalDiscoveries) {
       discoverElement(codex, combatant.monster.id, element);
+    }
+    for (const discovery of combatant.physicalDiscoveries) {
+      discoverPhysical(codex, combatant.monster, discovery);
     }
   }
 }

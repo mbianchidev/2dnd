@@ -3,6 +3,8 @@
  */
 
 import { Element } from "./elements";
+import { PhysicalDamageType } from "./damageTypes";
+export { getItemDescription, getWeaponPhysicalDamageType } from "./itemCombat";
 import type {
   GatheringDiscipline,
   GatheringRarity,
@@ -31,6 +33,8 @@ export interface Item {
   finesse?: boolean; // weapons only — can use DEX instead of STR for attack and damage
   /** Visual weapon type for sprite rendering (weapons only). */
   weaponSprite?: WeaponSpriteType;
+  /** Physical weapon damage, independent of any elemental enchantment. */
+  physicalDamageType?: PhysicalDamageType;
   levelReq?: number; // minimum player level to purchase
   mountId?: string; // for type "mount" — references a MountData id
   /** Elemental damage type for weapons. */
@@ -159,6 +163,7 @@ export const ITEMS: Item[] = [
   // --- Class starting weapons (cost 0, given at character creation) ---
   {
     id: "startSword",
+    physicalDamageType: PhysicalDamageType.Slashing,
     name: "Longsword",
     description: "+1 attack, standard issue",
     type: "weapon",
@@ -168,6 +173,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "startBow",
+    physicalDamageType: PhysicalDamageType.Piercing,
     name: "Shortbow",
     description: "+1 attack, simple ranged",
     type: "weapon",
@@ -178,6 +184,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "startStaff",
+    physicalDamageType: PhysicalDamageType.Bludgeoning,
     name: "Quarterstaff",
     description: "+1 attack, arcane focus",
     type: "weapon",
@@ -187,6 +194,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "startDagger",
+    physicalDamageType: PhysicalDamageType.Piercing,
     name: "Dagger",
     description: "+1 attack, light and concealable",
     type: "weapon",
@@ -198,6 +206,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "startMace",
+    physicalDamageType: PhysicalDamageType.Bludgeoning,
     name: "Mace",
     description: "+1 attack, blessed weapon",
     type: "weapon",
@@ -207,6 +216,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "startAxe",
+    physicalDamageType: PhysicalDamageType.Slashing,
     name: "Handaxe",
     description: "+1 attack, brutal and simple",
     type: "weapon",
@@ -217,6 +227,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "startRapier",
+    physicalDamageType: PhysicalDamageType.Piercing,
     name: "Rapier",
     description: "+1 attack, elegant and swift",
     type: "weapon",
@@ -236,6 +247,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "shortSword",
+    physicalDamageType: PhysicalDamageType.Piercing,
     name: "Short Sword",
     description: "+2 attack damage",
     type: "weapon",
@@ -247,6 +259,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "longSword",
+    physicalDamageType: PhysicalDamageType.Slashing,
     name: "Long Sword",
     description: "+4 attack damage",
     type: "weapon",
@@ -257,6 +270,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "greatSword",
+    physicalDamageType: PhysicalDamageType.Slashing,
     name: "Great Sword",
     description: "+7 attack damage (two-handed)",
     type: "weapon",
@@ -265,6 +279,27 @@ export const ITEMS: Item[] = [
     twoHanded: true,
     weaponSprite: "sword",
     levelReq: 5,
+  },
+  {
+    id: "warhammer",
+    name: "Warhammer",
+    description: "+2 attack damage, crushing blows",
+    type: "weapon",
+    cost: 30,
+    effect: 2,
+    weaponSprite: "mace",
+    physicalDamageType: PhysicalDamageType.Bludgeoning,
+  },
+  {
+    id: "huntingBow",
+    name: "Hunting Bow",
+    description: "+2 attack damage, ranged arrows",
+    type: "weapon",
+    cost: 30,
+    effect: 2,
+    twoHanded: true,
+    weaponSprite: "bow",
+    physicalDamageType: PhysicalDamageType.Piercing,
   },
   {
     id: "leatherArmor",
@@ -643,6 +678,7 @@ export const ITEMS: Item[] = [
   },
   {
       id: "stormforgedBlade",
+      physicalDamageType: PhysicalDamageType.Slashing,
       name: "Stormforged Blade",
       description: "+6 attack, lightning held in tempered steel",
       type: "weapon",
@@ -663,6 +699,7 @@ export const ITEMS: Item[] = [
   },
   {
       id: "elderwoodFocus",
+      physicalDamageType: PhysicalDamageType.Bludgeoning,
       name: "Elderwood Focus",
       description: "+6 attack, living wood channels pure force",
       type: "weapon",
@@ -703,6 +740,7 @@ export const ITEMS: Item[] = [
   // --- Treasure chest unique items (not sold in shops) ---
   {
     id: "flameBlade",
+    physicalDamageType: PhysicalDamageType.Slashing,
     name: "Flame Blade",
     description: "+6 attack, blazing edge",
     type: "weapon",
@@ -729,6 +767,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "frostfang",
+    physicalDamageType: PhysicalDamageType.Piercing,
     name: "Frostfang Dagger",
     description: "+5 attack, icy bite",
     type: "weapon",
@@ -742,6 +781,7 @@ export const ITEMS: Item[] = [
   // --- Treasure items from expanded biome dungeons and overworld ---
   {
     id: "frostBrand",
+    physicalDamageType: PhysicalDamageType.Slashing,
     name: "Frost Brand",
     description: "+7 attack, ice-forged blade",
     type: "weapon",
@@ -768,6 +808,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "magmaCore",
+    physicalDamageType: PhysicalDamageType.Bludgeoning,
     name: "Magma Core Mace",
     description: "+8 attack, molten heart",
     type: "weapon",
@@ -786,6 +827,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "emberBlade",
+    physicalDamageType: PhysicalDamageType.Slashing,
     name: "Ember Blade",
     description: "+6 attack, smoldering edge",
     type: "weapon",
@@ -804,6 +846,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "canyonBow",
+    physicalDamageType: PhysicalDamageType.Piercing,
     name: "Canyon Bow",
     description: "+5 attack, carved stone limbs (two-handed)",
     type: "weapon",
@@ -814,6 +857,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "dawnforgedBlade",
+    physicalDamageType: PhysicalDamageType.Slashing,
     name: "Dawnforged Blade",
     description: "+9 attack, radiant edge restored beneath Ashfall",
     type: "weapon",

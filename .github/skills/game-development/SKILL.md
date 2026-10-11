@@ -239,6 +239,12 @@ Non-combat checks are split across:
 
 ## Adding monsters
 
+Declare a canonical D&D `size` and optional stable `anatomy` from
+`data/anatomy.ts`, plus data-owned `physicalProfile` where meaningful.
+Humanoid forms and Large+ anatomical creatures use the shared HP/aiming
+pipeline; oozes and incorporeal forms need no invented parts. Read
+[`docs/physical-combat.md`](../../../docs/physical-combat.md).
+
 1. Define the monster in the appropriate focused pool (`monsters.ts`,
    `nightMonsters.ts`, or `monsterVariants.ts`).
 2. Use a camelCase ID and set a valid typed `family`, stats, rewards, drops,
@@ -344,6 +350,14 @@ content only. See `docs/devotion.md`; do not implement prestige classes here.
 
 ## Adding spells, abilities, and equipment
 
+- Weapons declare `physicalDamageType`; resolve old/custom copies with
+  `getWeaponPhysicalDamageType()` without changing their ownership metadata.
+  Damaging physical abilities declare an explicit type or `"weapon"`.
+  Pure elemental magic is not inferred to be weapon damage.
+- Optional parts validate before rolls/resources and share existing monster HP
+  and target-owned statuses. Reuse `BattleBodyTargetManager` for hero/manual
+  companion presentation; whole-target/gambit defaults remain unchanged.
+
 - Damage sources may declare an `Element` from `src/data/elements.ts`.
 - Player abilities may apply `selfEffect` or `targetEffect` IDs defined by
   `src/systems/statusEffects.ts`.
@@ -359,7 +373,9 @@ Combat calculation order is:
 
 1. Roll and resolve the attack or save.
 2. Apply active-status accuracy, disadvantage, AC, and damage modifiers.
-3. Apply elemental immunity, weakness, or resistance to the modified damage.
+3. Apply physical whole/part affinity for physical sources, then elemental
+   immunity, weakness, or resistance to the modified damage. Local physical
+   affinity replaces rather than stacks the whole affinity; immunity wins.
 4. Apply damage and status effects.
 5. Report discoveries and combat feedback.
 

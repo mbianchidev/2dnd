@@ -116,9 +116,17 @@ Thunder, Force, and Psychic. Immunities prevent damage, weaknesses double it,
 and resistances halve it. Observed interactions become Codex knowledge.
 
 Combat statuses include Poisoned, Burning, Frozen, Paralyzed, Stunned,
-Frightened, Slowed, Prone, Asleep, Confused, Enraged, Hasted, Inspired, Raging,
+Frightened, Slowed, Prone, Asleep, Confused, Weakened, Enraged, Hasted, Inspired, Raging,
 and Sneak Stance. Effects resolve on actor turn boundaries and are cleared when
 Battle ends.
+
+Weapons also deal Bludgeoning, Slashing or Piercing damage. Match observed
+monster defenses, or choose **Aim parts** (Up/Down while selecting a physical
+target) for harder-to-hit local weaknesses and temporary effects. Eligible
+humanoids and Large+ anatomical monsters share one HP pool across all parts.
+Normal Confirm still attacks the whole target. Canceling aim spends nothing.
+See [Physical combat](physical-combat.md) for controls, weapon access, anatomy
+and defense rules. Long Codex records use the Info buttons or Page Up/Down.
 
 Resolved rolls appear in a procedural dice dock, with both advantage/disadvantage
 faces and the selected die identified. Enemy bonuses and undiscovered AC/DC

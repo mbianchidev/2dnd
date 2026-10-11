@@ -45,6 +45,9 @@ and campaign saves stay in your browser's local storage.
 - **Fight tactical battles:** face groups of up to four enemies with initiative,
   formations, ally and enemy targeting, nine elements, status effects, healing,
   items, bosses, and full-party defeat recovery.
+- **Aim and match weapons:** exploit bludgeoning, slashing and piercing defenses,
+  or target eligible humanoid and Large+ monster parts with accuracy tradeoffs,
+  shared HP and temporary limb effects.
 - **See the real rolls:** procedural dice display natural attack/save rolls,
   modifiers, totals, exact damage/healing pools, and actual HP changes.
   Dice travel, tumble and bounce over the game before settling on those exact
@@ -141,7 +144,8 @@ Use `npm run dev:desktop` for Electron development and
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v21, slots, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v22, slots, migration, recovery, persistence rules |
+| [Physical combat](docs/physical-combat.md) | Weapon types, monster sizes, aimed parts, local defenses and discovery |
 | [Fictional devotion](docs/devotion.md) | Original pantheon, temples, rites, independent scores, optional stories |
 | [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
 | [Steam preparation](docs/steam.md) | Depot previews, controller equivalent, disabled services, store/human release gates |

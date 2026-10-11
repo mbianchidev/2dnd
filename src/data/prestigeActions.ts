@@ -14,6 +14,7 @@ export const PRESTIGE_ABILITIES: readonly Ability[] = [
   },
   {
     id: "waylineStrike", name: "Wayline Strike",
+    physicalDamageType: "weapon",
     description: "A measured physical strike. Melee weapon required.",
     progressionScope: "track", equipmentRequirement: "meleeWeapon",
     mpCost: 6, levelRequired: 3, damageCount: 2, damageDie: 8,
@@ -53,6 +54,7 @@ export const PRESTIGE_ABILITIES: readonly Ability[] = [
   },
   {
     id: "threadcut", name: "Threadcut",
+    physicalDamageType: "piercing",
     description: "A precise physical strike. Light weapon or bow required.",
     progressionScope: "track", equipmentRequirement: "lightWeaponOrBow",
     mpCost: 9, levelRequired: 5, damageCount: 4, damageDie: 6,
@@ -60,6 +62,7 @@ export const PRESTIGE_ABILITIES: readonly Ability[] = [
   },
   {
     id: "steelCadence", name: "Steel Cadence",
+    physicalDamageType: "weapon",
     description: "Rhythm infuses a physical strike using CHA. Melee weapon required.",
     progressionScope: "track", equipmentRequirement: "meleeWeapon",
     mpCost: 9, levelRequired: 5, damageCount: 3, damageDie: 8,

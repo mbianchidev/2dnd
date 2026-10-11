@@ -287,6 +287,13 @@ on mouse-wheel input.
 
 ## Battle lifecycle
 
+- Optional physical aiming uses `BattleBodyTargetManager` for both the hero and
+  manual companions. Preserve whole-target confirmation, stable enemy/part IDs,
+  native accessible controls, keyboard/pointer/touch/gamepad navigation,
+  keyup activation, measured pagination and cleanup. Reticles use canonical
+  normalized anchors; presentation never owns limb HP or damage. See
+  `docs/physical-combat.md`.
+
 - Reinitialize phase, menus, turn flags, discoveries, and monster effects in
   `init()`.
 - Build fresh per-monster combatants, sprites, text, status arrays, defend

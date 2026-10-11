@@ -15,7 +15,7 @@
 | happy-dom | 20.14.5 |
 | Electron | 44.7.0 |
 | electron-builder | 26.17.0 |
-| Campaign save schema | 21 |
+| Campaign save schema | 22 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -165,6 +165,14 @@ Protected manual upload never sets a branch live; Steam client, physical Deck,
 signing and store operations remain human gates in [Steam preparation](steam.md).
 
 ## Combat authority
+
+Physical types and common affinity precedence live in `data/damageTypes.ts`;
+size, anatomy and part anchors in `data/anatomy.ts`; legacy weapon resolution in
+`data/itemCombat.ts`. `systems/physicalCombat.ts` owns aim validation, physical
+adjustments and status application at the existing combat resolver.
+`managers/battleBodyTarget.ts` shares measured, accessible hero/companion aiming.
+Parts use one monster HP pool and the existing status clock, never a parallel
+action/limb engine. See [Physical combat](physical-combat.md).
 
 Combat formulas live in `src/systems/combat.ts`,
 `src/systems/groupCombat.ts`, `src/systems/statusEffects.ts`, and

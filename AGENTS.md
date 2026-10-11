@@ -14,7 +14,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.2, Electron 44.7.0, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.63.0 |
 | DOM tests | happy-dom 20.14.5 |
-| Save schema | 21 |
+| Save schema | 22 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -26,6 +26,7 @@ future work until merged.
 | Domain | Data/contracts | Mechanics/state | Phaser/presentation | Tests |
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
+| Physical/anatomy combat | `damageTypes.ts`, `anatomy.ts`, `itemCombat.ts`, monster metadata | `physicalCombat.ts`, existing combat/action owners and Codex normalization | shared `battleBodyTarget.ts`, hero/manual companion adapters | physicalCombat/physicalCombatSave and physical-combat E2E |
 | Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, `effectRolls.ts`, redacted `dicePresentation.ts`, visual `diceMotion.ts` | dice/battleDice managers, procedural SVG dock/throw layer | dicePresentation/effectRollReceipts/rollReceipts/diceMotion/diceRenderer and dice E2E |
 | Hero progression | `src/data/classProgression.ts`, canonical class/action/talent definitions | `classProgression.ts`, `classProgressionState.ts`, `heroItemState.ts`, `classProgressionDebug.ts` | `heroProgression.ts`, rest/equipment adapters | progression/state/item/debug/battle/layout suites, multiclass E2E |
 | Prestige paths | `prestige.ts`, `prestigeActions.ts`, `prestigeLore.ts` | same progression engine/context/normalizer; `systems/prestige.ts` for inspection | existing hero progression manager | prestige/entry/save/battle suites, prestige browser/Electron flows |
@@ -94,6 +95,11 @@ owning issue or pull request.
   duration-plus-grace timer is recovery only.
 - `battleActions.ts` owns party action validation, targets, resources, and
   one-action/one-bonus-action economy.
+- Aimable parts share monster HP and the normal status clock. Keep whole-target
+  confirmation unchanged; validate optional parts before RNG/resources. Apply
+  statuses, physical profile/local override, then elements; never stack whole
+  and part weakness or bypass whole-body immunity. Persist only observed Codex
+  scope/type IDs in schema v22; retain exact old/custom weapon ownership.
 - Hero class ownership lives in `player.classProgression`; `level` mirrors its
   total. Starting identity never changes with appearance or multiclass entry.
   Prepare one frozen receipt at rest, preserve rest credits across reload, and
@@ -219,6 +225,7 @@ owning issue or pull request.
 ## Detailed references
 
 - [Architecture](docs/architecture.md)
+- [Physical combat](docs/physical-combat.md)
 - [Development](docs/development.md)
 - [Testing](docs/testing.md)
 - [Save system](docs/save-system.md)

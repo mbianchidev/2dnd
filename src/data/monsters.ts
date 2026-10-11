@@ -2,11 +2,11 @@
  * Monster definitions: random encounters and fixed bosses.
  */
 
-import type { DieType } from "../systems/dice";
 import { Element } from "./elements";
-import type { ElementalProfile } from "./elements";
-import type { StatusEffectId } from "../systems/statusEffects";
-import type { MonsterFamilyId } from "./monsterFamilies";
+import { MONSTER_PHYSICAL_PROFILES } from "./anatomy";
+import type { Monster } from "./monsterTypes";
+
+export type { Monster, MonsterAbility, MonsterDrop } from "./monsterTypes";
 import {
   FROST_SLIME,
   GOBLIN_SHAMAN,
@@ -42,58 +42,14 @@ export {
   SEA_NIGHT_MONSTER_DEFINITIONS,
 } from "./seaMonsters";
 
-export interface MonsterDrop {
-  itemId: string;
-  chance: number; // 0–1 probability
-}
-
-export interface MonsterAbility {
-  name: string;
-  chance: number;       // 0–1 probability of using instead of basic attack
-  damageCount: number;
-  damageDie: DieType;
-  type: "damage" | "heal";
-  /** If true AND type is "damage", the monster also heals for the damage dealt. */
-  selfHeal?: boolean;
-  /** Elemental type of this ability's damage. */
-  element?: Element;
-  /** Status effect applied when this ability deals damage. */
-  statusEffect?: StatusEffectId;
-}
-
-export interface Monster {
-  id: string;
-  name: string;
-  family: MonsterFamilyId;
-  /** Base roster member used to validate deliberate palette/stat variants. */
-  variantOf?: string;
-  /** Dominant elemental identity shown by the Codex. */
-  affinity?: Element;
-  hp: number;
-  ac: number; // armor class
-  attackBonus: number;
-  damageCount: number;
-  damageDie: DieType;
-  xpReward: number;
-  goldReward: number;
-  isBoss: boolean;
-  color: number; // display color in battle
-  /** Earliest player level at which this monster can enter a random pool. */
-  minPlayerLevel?: number;
-  /** Relative selection weight after level eligibility has been applied. */
-  encounterWeight?: number;
-  drops?: MonsterDrop[];
-  abilities?: MonsterAbility[];
-  /** Elemental resistances, weaknesses, and immunities. */
-  elementalProfile?: ElementalProfile;
-}
-
 export const MONSTERS: Monster[] = [
   // --- Random encounter monsters (ordered by difficulty) ---
   {
     id: "slime",
     name: "Slime",
     family: "slime",
+    size: "small",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.soft,
     hp: 8,
     ac: 8,
     attackBonus: 1,
@@ -113,6 +69,8 @@ export const MONSTERS: Monster[] = [
     id: "goblin",
     name: "Goblin",
     family: "raider",
+    size: "small",
+    anatomy: "humanoid",
     hp: 15,
     ac: 12,
     attackBonus: 3,
@@ -129,6 +87,9 @@ export const MONSTERS: Monster[] = [
     id: "skeleton",
     name: "Skeleton",
     family: "skeletal",
+    size: "medium",
+    anatomy: "humanoid",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.skeletal,
     hp: 22,
     ac: 13,
     attackBonus: 4,
@@ -151,6 +112,8 @@ export const MONSTERS: Monster[] = [
     id: "wolf",
     name: "Dire Wolf",
     family: "lupine",
+    size: "large",
+    anatomy: "quadruped",
     hp: 30,
     ac: 13,
     attackBonus: 5,
@@ -169,6 +132,8 @@ export const MONSTERS: Monster[] = [
     id: "orc",
     name: "Orc Warrior",
     family: "raider",
+    size: "medium",
+    anatomy: "humanoid",
     hp: 42,
     ac: 14,
     attackBonus: 6,
@@ -188,6 +153,8 @@ export const MONSTERS: Monster[] = [
     id: "wraith",
     name: "Wraith",
     family: "spectral",
+    size: "medium",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.spectral,
     affinity: Element.Necrotic,
     hp: 55,
     ac: 15,
@@ -214,6 +181,8 @@ export const MONSTERS: Monster[] = [
     id: "troll",
     name: "Cave Troll",
     family: "colossus",
+    size: "large",
+    anatomy: "humanoid",
     hp: 84,
     ac: 15,
     attackBonus: 7,
@@ -236,6 +205,9 @@ export const MONSTERS: Monster[] = [
     id: "dragon",
     name: "Young Red Dragon",
     family: "drake",
+    size: "large",
+    anatomy: "winged",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.scales,
     affinity: Element.Fire,
     hp: 178,
     ac: 18,
@@ -261,6 +233,8 @@ export const MONSTERS: Monster[] = [
     id: "frostGiant",
     name: "Frost Giant",
     family: "colossus",
+    size: "huge",
+    anatomy: "humanoid",
     variantOf: "troll",
     affinity: Element.Ice,
     hp: 120,
@@ -286,6 +260,8 @@ export const MONSTERS: Monster[] = [
     id: "swampHydra",
     name: "Swamp Hydra",
     family: "chimaera",
+    size: "huge",
+    anatomy: "hydra",
     variantOf: "greatChimaera",
     affinity: Element.Poison,
     hp: 140,
@@ -311,6 +287,9 @@ export const MONSTERS: Monster[] = [
     id: "volcanicWyrm",
     name: "Volcanic Wyrm",
     family: "drake",
+    size: "huge",
+    anatomy: "serpent",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.scales,
     variantOf: "dragon",
     affinity: Element.Fire,
     hp: 160,
@@ -336,6 +315,9 @@ export const MONSTERS: Monster[] = [
     id: "canyonDrake",
     name: "Canyon Drake",
     family: "drake",
+    size: "large",
+    anatomy: "winged",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.scales,
     variantOf: "dragon",
     hp: 130,
     ac: 16,
@@ -357,6 +339,8 @@ export const MONSTERS: Monster[] = [
     id: "chimaera",
     name: "Chimaera",
     family: "chimaera",
+    size: "large",
+    anatomy: "winged",
     affinity: Element.Fire,
     hp: 48,
     ac: 14,
@@ -376,6 +360,8 @@ export const MONSTERS: Monster[] = [
     id: "greatChimaera",
     name: "Great Chimaera",
     family: "chimaera",
+    size: "huge",
+    anatomy: "winged",
     variantOf: "chimaera",
     hp: 72,
     ac: 16,
@@ -400,6 +386,8 @@ export const DUNGEON_MONSTERS: Monster[] = [
     id: "giantRat",
     name: "Giant Rat",
     family: "stalker",
+    size: "small",
+    anatomy: "quadruped",
     hp: 14,
     ac: 11,
     attackBonus: 3,
@@ -418,6 +406,8 @@ export const DUNGEON_MONSTERS: Monster[] = [
     id: "shadow",
     name: "Shadow",
     family: "spectral",
+    size: "medium",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.spectral,
     variantOf: "wraith",
     affinity: Element.Necrotic,
     hp: 26,
@@ -442,6 +432,7 @@ export const DUNGEON_MONSTERS: Monster[] = [
     id: "mimic",
     name: "Mimic",
     family: "mimic",
+    size: "medium",
     hp: 40,
     ac: 14,
     attackBonus: 6,
@@ -464,6 +455,9 @@ export const DUNGEON_MONSTERS: Monster[] = [
     id: "stoneGolem",
     name: "Stone Golem",
     family: "construct",
+    size: "large",
+    anatomy: "humanoid",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.stone,
     hp: 60,
     ac: 16,
     attackBonus: 7,
@@ -494,6 +488,9 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
     id: "cryptSkeleton",
     name: "Crypt Skeleton",
     family: "skeletal",
+    size: "medium",
+    anatomy: "humanoid",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.skeletal,
     variantOf: "skeleton",
     affinity: Element.Necrotic,
     hp: 30,
@@ -519,6 +516,8 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
     id: "tombWraith",
     name: "Tomb Wraith",
     family: "spectral",
+    size: "medium",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.spectral,
     variantOf: "wraith",
     affinity: Element.Necrotic,
     hp: 45,
@@ -544,6 +543,8 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
     id: "bonePile",
     name: "Animated Bone Pile",
     family: "skeletal",
+    size: "medium",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.skeletal,
     variantOf: "skeleton",
     hp: 55,
     ac: 12,
@@ -569,6 +570,9 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
     id: "iceElemental",
     name: "Ice Elemental",
     family: "elemental",
+    size: "large",
+    anatomy: "elemental",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.stone,
     affinity: Element.Ice,
     hp: 35,
     ac: 14,
@@ -593,6 +597,8 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
     id: "frostSpider",
     name: "Frost Spider",
     family: "stalker",
+    size: "medium",
+    anatomy: "arthropod",
     variantOf: "giantRat",
     affinity: Element.Ice,
     hp: 28,
@@ -618,6 +624,8 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
     id: "glacialBear",
     name: "Glacial Bear",
     family: "colossus",
+    size: "large",
+    anatomy: "quadruped",
     affinity: Element.Ice,
     hp: 65,
     ac: 15,
@@ -646,6 +654,8 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
     id: "magmaSlime",
     name: "Magma Slime",
     family: "slime",
+    size: "medium",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.soft,
     variantOf: "slime",
     affinity: Element.Fire,
     hp: 32,
@@ -670,6 +680,8 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
     id: "cinderWraith",
     name: "Cinder Wraith",
     family: "spectral",
+    size: "medium",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.spectral,
     variantOf: "wraith",
     affinity: Element.Fire,
     hp: 42,
@@ -695,6 +707,9 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
     id: "obsidianGolem",
     name: "Obsidian Golem",
     family: "construct",
+    size: "large",
+    anatomy: "humanoid",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.stone,
     variantOf: "stoneGolem",
     affinity: Element.Fire,
     hp: 70,
@@ -741,6 +756,9 @@ export const DUNGEON_BOSSES: Monster[] = [
     id: "cryptLich",
     name: "Crypt Lich",
     family: "skeletal",
+    size: "medium",
+    anatomy: "humanoid",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.skeletal,
     variantOf: "skeleton",
     affinity: Element.Necrotic,
     hp: 110,
@@ -767,6 +785,9 @@ export const DUNGEON_BOSSES: Monster[] = [
     id: "frostWarden",
     name: "Frost Warden",
     family: "spectral",
+    size: "large",
+    anatomy: "elemental",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.stone,
     variantOf: "frostWraith",
     affinity: Element.Ice,
     hp: 130,
@@ -793,6 +814,9 @@ export const DUNGEON_BOSSES: Monster[] = [
     id: "infernoForgemaster",
     name: "Inferno Forgemaster",
     family: "construct",
+    size: "huge",
+    anatomy: "humanoid",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.stone,
     variantOf: "obsidianGolem",
     affinity: Element.Fire,
     hp: 150,

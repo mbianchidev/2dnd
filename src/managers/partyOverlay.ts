@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { getAbility } from "../data/abilities";
 import { COMPANION_IDS, isCompanionId, type CompanionId } from "../data/companions";
-import type { Item } from "../data/items";
+import { getItemDescription, type Item } from "../data/items";
 import { getSpell } from "../data/spells";
 import { createItemVisual } from "../renderers/itemVisuals";
 import { useCombatItem, useCombatItemOnTarget, type CombatActorState, type PlayerState } from "../systems/player";
@@ -432,7 +432,7 @@ export class PartyOverlayManager {
       this.addText(
         x,
         y + 266,
-        `${selectedEntry.item.description} | ${selectedEntry.item.cost}g | ${selectedEntry.item.type}${restriction ? ` | ${restriction}` : ""}`,
+        `${getItemDescription(selectedEntry.item)} | ${selectedEntry.item.cost}g | ${selectedEntry.item.type}${restriction ? ` | ${restriction}` : ""}`,
         restriction ? "#ffcc88" : "#bbbbbb",
         9,
         width,

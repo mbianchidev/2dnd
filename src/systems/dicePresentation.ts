@@ -88,6 +88,7 @@ export interface CombatDiceReceipt {
   readonly targetAC?: number;
   readonly damage: number;
   readonly damageRoll?: ResolvedEffectRoll;
+  readonly bodyPartLabel?: string;
 }
 
 export type CombatDiceOptions = Omit<

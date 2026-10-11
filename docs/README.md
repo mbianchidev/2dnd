@@ -21,6 +21,7 @@ on discovering and playing the game.
 
 ## Focused references
 
+- [Physical damage and aimed strikes](physical-combat.md)
 - [Companions and gambits](companions.md)
 - [Hero multiclass progression](hero-progression.md)
 - [Optional prestige paths](prestige.md)

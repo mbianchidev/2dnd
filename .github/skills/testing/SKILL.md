@@ -16,7 +16,7 @@ through pure logic tests.
 
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
-schema-v21 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
+schema-v22 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
 `electron-tests/saveParity.spec.ts` additionally downloads a real browser slot
 export and imports it through the native renderer's file picker. Assert the same
@@ -144,6 +144,14 @@ migration, keyboard/touch/gamepad search and filters, 150% text, reduced motion,
 and page/console cleanliness.
 
 ## Test File Organization
+
+`physicalCombat.test.ts` and `physicalCombatSave.test.ts` own physical affinity
+precedence, explicit size/anatomy, aimed accuracy/effects, selected naturals,
+off-hand/ability typing, shared HP, duplicate/stale target isolation, exact RNG/
+receipts, scoped observations and schema-v21/custom-item compatibility.
+`e2e/physical-combat.spec.ts` owns optional aim, unchanged whole-target Confirm,
+cancel/reload, boss parts, manual companions, input parity and clean
+100%/125%/150% measured layouts.
 
 `tests/prestige*.test.ts` covers all six profiles/ranks, grouped/class/stat/world
 boundaries, live/stale/detached owner contexts, frozen rest credits, scoped and
@@ -670,7 +678,7 @@ npx vitest run tests/dice.test.ts
 - Assert `location.origin === "app://2dnd"`, the `game.html` entry, and the
   fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
-  shell, create a manual snapshot, and continue the same schema-v21 campaign.
+  shell, create a manual snapshot, and continue the same schema-v22 campaign.
 - Return to title through the keyboard menu, quit through the visible title
   action, and verify lifecycle/quit logs without save-content leakage.
 - Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.

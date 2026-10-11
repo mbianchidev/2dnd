@@ -7,7 +7,8 @@ import {
   type CodexUnlockSource,
 } from "../data/codexKnowledge";
 import { elementDisplayName } from "../data/elements";
-import { getItem } from "../data/items";
+import { getTargetableBodyParts } from "../data/anatomy";
+import { getItem, getItemDescription } from "../data/items";
 import {
   getMonsterFamily,
   getMonsterTextureKey,
@@ -19,11 +20,14 @@ import type { SavedSpecialNpc } from "../data/npcs";
 import { debugPanelState } from "../config";
 import { closeTextEntry, openMobileTextInput } from "../managers/input";
 import { SceneTransitionManager } from "../managers/sceneTransition";
-import { installSceneAccessibility } from "../systems/accessibility";
+import { gamePreferences, installSceneAccessibility } from "../systems/accessibility";
+import { paginateMeasuredItems } from "../systems/layout";
+import { createOverlayContainer } from "../utils/ui";
 import {
   getCodexFamilyProgress,
   getCodexKnowledgeList,
   getCodexMonsterList,
+  getObservedPhysicalLines,
   isCodexKnowledgeUnlocked,
   type CodexData,
   type CodexEntry,
@@ -98,6 +102,12 @@ export class CodexScene extends Phaser.Scene {
   private listContainer!: Phaser.GameObjects.Container;
   private entryTexts: Phaser.GameObjects.Text[] = [];
   private detailText!: Phaser.GameObjects.Text;
+  private detailLines: string[] = [];
+  private detailPages: string[][] = [];
+  private detailPage = 0;
+  private detailPrevious!: Phaser.GameObjects.Text;
+  private detailNext!: Phaser.GameObjects.Text;
+  private detailPageLabel!: Phaser.GameObjects.Text;
   private pageText!: Phaser.GameObjects.Text;
   private prevBtn!: Phaser.GameObjects.Text;
   private nextBtn!: Phaser.GameObjects.Text;
@@ -138,6 +148,8 @@ export class CodexScene extends Phaser.Scene {
     this.selectedOnPage = 0;
     this.entryTexts = [];
     this.tabTexts = [];
+    this.detailLines = [];
+    this.detailPage = 0;
   }
 
   private get masterList(): CodexListEntry[] {
@@ -181,6 +193,7 @@ export class CodexScene extends Phaser.Scene {
     installDicePresentation(this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       closeTextEntry();
+      delete this.game.canvas.dataset.codexDetail;
     });
 
     this.add.text(width / 2, 6, "CODEX", {
@@ -198,6 +211,8 @@ export class CodexScene extends Phaser.Scene {
     this.addBackButton(width, height);
     this.renderPage();
     this.setupInput();
+    const unsubscribe = gamePreferences.subscribe(() => this.paginateDetail());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, unsubscribe);
   }
 
   private createCategoryTabs(width: number): void {
@@ -297,6 +312,24 @@ export class CodexScene extends Phaser.Scene {
       wordWrap: { width: detailWidth - 118 },
     });
     this.detailText.setData("accessibilityMaxWidth", detailWidth - 118);
+    this.detailText.setData("layoutId", "codex-detail-content");
+    const viewport = {
+      x: detailX + 108, y: panelY + 72, width: detailWidth - 118,
+      height: panelHeight - 72,
+    };
+    const details = createOverlayContainer(this, "codex-detail", 0, viewport);
+    this.detailPrevious = this.add.text(viewport.x, height - 64, "< Info", {
+      fontSize: "9px", fontFamily: "monospace", color: "#ffd166",
+    }).setInteractive({ useHandCursor: true }).setData("layoutId", "codex-detail-previous");
+    this.detailNext = this.add.text(viewport.x + viewport.width, height - 64, "Info >", {
+      fontSize: "9px", fontFamily: "monospace", color: "#ffd166",
+    }).setOrigin(1, 0).setInteractive({ useHandCursor: true }).setData("layoutId", "codex-detail-next");
+    this.detailPageLabel = this.add.text(viewport.x + viewport.width / 2, height - 64, "", {
+      fontSize: "9px", fontFamily: "monospace", color: "#dde7f4",
+    }).setOrigin(0.5, 0).setData("layoutId", "codex-detail-page");
+    this.detailPrevious.on("pointerdown", () => this.changeDetailPage(-1));
+    this.detailNext.on("pointerdown", () => this.changeDetailPage(1));
+    details.add([this.detailText, this.detailPrevious, this.detailNext, this.detailPageLabel]);
   }
 
   private createPageNavigation(width: number, height: number): void {
@@ -529,7 +562,7 @@ export class CodexScene extends Phaser.Scene {
     const selected = entries[this.selectedOnPage];
     if (!selected) {
       this.headerText.setText("No entries match this search.");
-      this.detailText.setText("Clear or change the search query.");
+      this.setDetailLines(["Clear or change the search query."]);
       this.monsterPreview.setVisible(false);
       this.updateDebugState();
       return;
@@ -561,9 +594,7 @@ export class CodexScene extends Phaser.Scene {
 
     if (!discovered) {
       this.monsterPreview.setTint(0x111111);
-      this.detailText.setText(
-        "UNDISCOVERED MONSTER\n\nDefeat this creature to reveal its record.",
-      );
+      this.setDetailLines(["UNDISCOVERED MONSTER", "", "Defeat this creature to reveal its record."]);
       this.updateDebugState(
         monster.id,
         false,
@@ -579,6 +610,7 @@ export class CodexScene extends Phaser.Scene {
       entry.isBoss ? `${entry.name} [BOSS]` : entry.name,
       `Defeated: ${entry.timesDefeated}`,
       `Family: ${family.name}`,
+      `Size: ${monster.size ?? "medium"}`,
       `Affinity: ${
         monster.affinity ? elementDisplayName(monster.affinity) : "None"
       }`,
@@ -605,7 +637,12 @@ export class CodexScene extends Phaser.Scene {
         else if (profile.resistances?.includes(element)) lines.push(`- Resists: ${name}`);
       }
     }
-    this.detailText.setText(lines.join("\n"));
+    const parts = getTargetableBodyParts(monster);
+    if (parts.length > 0) lines.push("", `Aimable: ${parts.map((part) => part.label).join(", ")}`, "All parts share HP.");
+    if (entry.discoveredPhysical.length > 0) {
+      lines.push("", "Observed physical defenses:", ...getObservedPhysicalLines(monster, entry.discoveredPhysical));
+    }
+    this.setDetailLines(lines);
     this.updateDebugState(
       monster.id,
       true,
@@ -624,11 +661,11 @@ export class CodexScene extends Phaser.Scene {
         : `[${CATEGORY_LABELS[entry.category].toUpperCase()}] UNDISCOVERED`,
     );
     if (!discovered) {
-      this.detailText.setText([
+      this.setDetailLines([
         "This record has not been discovered.",
         "",
         ...knowledgeSourceLines(source),
-      ].join("\n"));
+      ]);
       this.updateDebugState(entry.id, false);
       return;
     }
@@ -644,11 +681,12 @@ export class CodexScene extends Phaser.Scene {
       const item = getItem(entry.id);
       if (item) {
         lines.push("", `Item type: ${item.type}`);
+        if (item.type === "weapon") lines.push(getItemDescription(item));
         if (item.effect > 0) lines.push(`Effect value: +${item.effect}`);
         if (item.cost > 0) lines.push(`Shop price: ${item.cost} gold`);
       }
     }
-    this.detailText.setText(lines.join("\n"));
+    this.setDetailLines(lines);
     this.updateDebugState(entry.id, true);
   }
 
@@ -705,6 +743,41 @@ export class CodexScene extends Phaser.Scene {
     this.renderPage();
   }
 
+  private setDetailLines(lines: string[]): void {
+    this.detailLines = lines;
+    this.detailPage = 0;
+    this.paginateDetail();
+  }
+
+  private paginateDetail(): void {
+    this.detailPageLabel.setText("Info 1/1");
+    const navigationHeight = Math.max(
+      this.detailPrevious.displayHeight, this.detailNext.displayHeight, this.detailPageLabel.displayHeight,
+    );
+    const navigationY = this.cameras.main.height - 50 - navigationHeight - 8;
+    this.detailPrevious.setY(navigationY);
+    this.detailNext.setY(navigationY);
+    this.detailPageLabel.setY(navigationY);
+    const wrapped = this.detailText.getWrappedText(this.detailLines.join("\n"));
+    const lineHeight = this.detailText.setText("M").displayHeight + 2;
+    const available = this.detailPrevious.y - this.detailText.y - 12;
+    const pages = paginateMeasuredItems(wrapped.map(() => lineHeight), Math.max(1, available), 0);
+    this.detailPages = pages.map((indices) => indices.map((index) => wrapped[index]!));
+    this.changeDetailPage(0);
+  }
+
+  private changeDetailPage(direction: number): void {
+    this.detailPage = Math.max(0, Math.min(this.detailPages.length - 1, this.detailPage + direction));
+    this.detailText.setText((this.detailPages[this.detailPage] ?? []).join("\n"));
+    this.detailPrevious.setVisible(this.detailPage > 0);
+    this.detailNext.setVisible(this.detailPage < this.detailPages.length - 1);
+    this.detailPageLabel.setText(`Info ${this.detailPage + 1}/${this.detailPages.length}`)
+      .setVisible(this.detailPages.length > 1);
+    this.game.canvas.dataset.codexDetail = JSON.stringify({
+      page: this.detailPage, total: this.detailPages.length, text: this.detailText.text,
+    });
+  }
+
   private setupInput(): void {
     const keyboard = this.input.keyboard!;
     const bind = (
@@ -740,6 +813,8 @@ export class CodexScene extends Phaser.Scene {
     bind([Phaser.Input.Keyboard.KeyCodes.E], () => this.cycleCategory(1));
     bind([Phaser.Input.Keyboard.KeyCodes.FORWARD_SLASH], () => this.openSearch());
     bind([Phaser.Input.Keyboard.KeyCodes.BACKSPACE], () => this.clearSearch());
+    bind([Phaser.Input.Keyboard.KeyCodes.PAGE_UP], () => this.changeDetailPage(-1));
+    bind([Phaser.Input.Keyboard.KeyCodes.PAGE_DOWN], () => this.changeDetailPage(1));
 
     const tabs = this.getAvailableCategoryTabs();
     for (let key = 1; key <= tabs.length; key++) {

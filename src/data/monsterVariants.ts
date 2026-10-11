@@ -1,8 +1,11 @@
 import { Element } from "./elements";
+import { MONSTER_PHYSICAL_PROFILES } from "./anatomy";
 import type { Monster } from "./monsters";
 
 export const TOXIC_SLIME: Monster = {
   id: "toxicSlime",
+  size: "small",
+  physicalProfile: MONSTER_PHYSICAL_PROFILES.soft,
   name: "Toxic Slime",
   family: "slime",
   variantOf: "slime",
@@ -41,6 +44,8 @@ export const TOXIC_SLIME: Monster = {
 
 export const GOBLIN_SHAMAN: Monster = {
   id: "goblinShaman",
+  size: "small",
+  anatomy: "humanoid",
   name: "Goblin Shaman",
   family: "raider",
   variantOf: "goblin",
@@ -76,6 +81,8 @@ export const GOBLIN_SHAMAN: Monster = {
 
 export const ORC_BERSERKER: Monster = {
   id: "orcBerserker",
+  size: "medium",
+  anatomy: "humanoid",
   name: "Orc Berserker",
   family: "raider",
   variantOf: "orc",
@@ -111,6 +118,7 @@ export const ORC_BERSERKER: Monster = {
 
 export const RUNIC_MIMIC: Monster = {
   id: "runicMimic",
+  size: "medium",
   name: "Runic Mimic",
   family: "mimic",
   variantOf: "mimic",
@@ -149,6 +157,8 @@ export const RUNIC_MIMIC: Monster = {
 
 export const FROST_SLIME: Monster = {
   id: "frostSlime",
+  size: "small",
+  physicalProfile: MONSTER_PHYSICAL_PROFILES.soft,
   name: "Frost Slime",
   family: "slime",
   variantOf: "slime",
@@ -184,6 +194,9 @@ export const FROST_SLIME: Monster = {
 
 export const ICE_GOLEM: Monster = {
   id: "iceGolem",
+  size: "large",
+  anatomy: "humanoid",
+  physicalProfile: MONSTER_PHYSICAL_PROFILES.stone,
   name: "Ice Golem",
   family: "construct",
   variantOf: "stoneGolem",
@@ -222,6 +235,8 @@ export const ICE_GOLEM: Monster = {
 
 export const EMBER_WOLF: Monster = {
   id: "emberWolf",
+  size: "large",
+  anatomy: "quadruped",
   name: "Ember Wolf",
   family: "lupine",
   variantOf: "wolf",
@@ -257,6 +272,9 @@ export const EMBER_WOLF: Monster = {
 
 export const STORM_DRAKE: Monster = {
   id: "stormDrake",
+  size: "large",
+  anatomy: "winged",
+  physicalProfile: MONSTER_PHYSICAL_PROFILES.scales,
   name: "Storm Drake",
   family: "drake",
   variantOf: "canyonDrake",

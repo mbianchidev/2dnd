@@ -66,7 +66,8 @@ export class BattleDicePresenter {
         targetId: target.id,
         actionId,
         sharedRoll: targets.length > 1,
-        label: `${actor.label} ${label} -> ${target.label}`,
+        label: `${actor.label} ${label} -> ${target.label}`
+          + (result.bodyPartLabel ? ` [${result.bodyPartLabel}]` : ""),
         revealModifier: actor.side === "party",
         revealThreshold: target.side === "party"
           || ("acDiscovered" in target && target.acDiscovered === true),

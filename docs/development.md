@@ -26,6 +26,7 @@
 | --- | --- |
 | Combat formula or status | `src/systems/combat.ts`, `statusEffects.ts`, `groupCombat.ts` |
 | Player/companion action | `src/systems/battleActions.ts`, data action definition, focused tests |
+| Prestige path | `data/prestige.ts`, `prestigeActions.ts`, `prestigeLore.ts`; shared class progression/context/normalizer and `systems/prestige.ts` |
 | Hero multiclass progression | `data/classProgression.ts`, `systems/classProgression*.ts`, `managers/heroProgression.ts`; see [Hero progression](hero-progression.md) |
 | Monster or encounter | `src/data/monsters.ts`, `monsterVariants.ts`, `nightMonsters.ts`, `seaMonsters.ts`, `monsterGroups.ts` |
 | Quest | `src/data/quests.ts`, `src/systems/quests.ts`, quest tests |
@@ -103,6 +104,7 @@ Useful command families include:
 /feature
 /gather
 /craft
+/prestige
 ```
 
 Use `?forceGroup=<templateId>` on a local game URL to force the next random

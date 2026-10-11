@@ -269,6 +269,18 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
 
 export const TIPS: readonly TipDefinition[] = [
   {
+    id: "advanced.prestige",
+    category: "advanced",
+    title: "Optional prestige paths",
+    body: "At applied total level 6, the character sheet lists six optional five-rank paths."
+      + " Meet class, score and world entry conditions, then spend one rested level per rank."
+      + " Preview the full table and the base features you delay. All ranks share total cap 20,"
+      + " MP, proficiency, ASIs and action economy. Later social changes never remove earned ranks."
+      + " No affiliation or prestige path is required to finish the campaign.",
+    controls: ["equipment"],
+    unlock: { type: "feature", featureId: "prestige" },
+  },
+  {
     id: "controls.context",
     category: "controls",
     title: "Context actions",

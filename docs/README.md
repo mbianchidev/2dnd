@@ -23,6 +23,7 @@ on discovering and playing the game.
 
 - [Companions and gambits](companions.md)
 - [Hero multiclass progression](hero-progression.md)
+- [Optional prestige paths](prestige.md)
 - [Desktop application](desktop.md)
 - [Steam preparation](steam.md)
 - [Inventory presentation](inventory.md)

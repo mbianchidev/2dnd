@@ -17,9 +17,11 @@ import {
   type ProgressionTrackId,
   type ProgressionTrackProfile,
 } from "../data/classProgression";
-import { ABILITIES, getAbility, type Ability } from "../data/abilities";
+import { ABILITIES, getAbility, getAbilityEquipmentRejection, type Ability } from "../data/abilities";
 import { SPELLS, getSpell, type Spell } from "../data/spells";
 import { TALENTS, getTalent, isTotalLevelTalent, type Talent } from "../data/talents";
+import { QUEST_IDS, QUESTS } from "../data/quests";
+import { ALIGNMENT_AXES, ALIGNMENT_NAMES, isFactionId, isTownId } from "../data/reputation";
 import { abilityModifier } from "./dice";
 import { getPlayerClass } from "./classes";
 import type { Item } from "../data/items";
@@ -46,6 +48,7 @@ export interface HeroClassProgression {
   pendingLevel: PendingHeroLevelUp | null;
   legacyGrants: ProgressionKnownGrants;
   deferredLegacyGrants?: ProgressionKnownGrants;
+  debugTrackIds?: ExternalProgressionTrackId[];
 }
 
 export type HeroProgressingActorState = ProgressingActorState & {
@@ -115,6 +118,7 @@ export function createHeroClassProgression(
     readyLevelUps: 0,
     pendingLevel: null,
     legacyGrants: { spells: [], abilities: [], talents: [] },
+    debugTrackIds: [],
   };
 }
 
@@ -255,11 +259,24 @@ export function getSpellCastingStat(
 }
 
 export function canActorUseSpell(actor: CombatActorState, id: string): boolean {
-  return getSpell(id) !== undefined && actor.knownSpells.includes(id);
+  const spell = getSpell(id);
+  return spell !== undefined && actor.knownSpells.includes(id)
+    && (spell.progressionScope !== "track"
+      || getFeatureSources(actor, "spell", id).some((source) => source.kind === "track"));
 }
 
 export function canActorUseAbility(actor: CombatActorState, id: string): boolean {
-  return getAbility(id) !== undefined && actor.knownAbilities.includes(id);
+  return getActorAbilityRejection(actor, id) === undefined;
+}
+
+export function getActorAbilityRejection(actor: CombatActorState, id: string): string | undefined {
+  const ability = getAbility(id);
+  if (!ability || !actor.knownAbilities.includes(id)
+    || (ability.progressionScope === "track"
+      && !getFeatureSources(actor, "ability", id).some((source) => source.kind === "track"))) {
+    return "The acting character has not learned this ability.";
+  }
+  return getAbilityEquipmentRejection(ability, actor);
 }
 
 export function canActorEquip(
@@ -274,20 +291,81 @@ export function canActorEquip(
   );
 }
 
-function describeRequirement(requirement: ProgressionRequirement): string {
+export function describeProgressionRequirement(requirement: ProgressionRequirement): string {
   switch (requirement.type) {
     case "abilityScore": return `${requirement.stat.toUpperCase()} ${requirement.minimum}`;
     case "totalLevel": return `total level ${requirement.minimum}`;
     case "classLevel": return `${getPlayerClass(requirement.classId).label} ${requirement.minimum}`;
     case "feature": return `${requirement.kind} ${requirement.id}`;
-    case "anyOf": return requirement.requirements.map(describeRequirement).join(" or ");
+    case "anyOf": return `(${requirement.requirements.map(describeProgressionRequirement).join(" or ")})`;
+    case "allOf": return `(${requirement.requirements.map(describeProgressionRequirement).join(" and ")})`;
     case "questCompleted": return `completed quest ${requirement.questId}`;
+    case "questStageCompleted": return `completed ${requirement.questId} stage ${requirement.stageId}`;
     case "city": return `city ${requirement.cityId}`;
+    case "cityDiscovered": return `discovered city ${requirement.cityId}`;
     case "dungeon": return `dungeon ${requirement.dungeonId}, floor ${requirement.minimumLevel ?? 0}+`;
     case "overworld": return "overworld";
     case "alignment": return requirement.alignment;
-    case "alignmentAxis": return `${requirement.axis} ${requirement.minimum}+`;
+    case "alignmentAxis": return `${requirement.axis} ${requirement.minimum}`
+      + (requirement.maximum === undefined ? "+" : ` to ${requirement.maximum} inclusive`);
     case "reputation": return `${requirement.kind} ${requirement.targetId} reputation ${requirement.minimum}+`;
+  }
+}
+
+/** Validate data contracts before a grouped alternative can authorize entry. */
+export function isValidProgressionRequirement(value: unknown): value is ProgressionRequirement {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record: Record<string, unknown> = Object.fromEntries(Object.entries(value));
+  const minimum = record["minimum"];
+  const positive = typeof minimum === "number" && Number.isInteger(minimum) && minimum > 0;
+  switch (record["type"]) {
+    case "abilityScore":
+      return STAT_KEYS.some((stat) => stat === record["stat"]) && positive && minimum <= MAX_ABILITY_SCORE;
+    case "totalLevel":
+    case "classLevel":
+      return positive && minimum <= NORMAL_LEVEL_CAP
+        && (record["type"] === "totalLevel" || isBaseClassId(record["classId"]));
+    case "feature": {
+      const id = record["id"];
+      return typeof id === "string" && (record["kind"] === "spell" ? getSpell(id) !== undefined
+        : record["kind"] === "ability" ? getAbility(id) !== undefined
+          : record["kind"] === "talent" && getTalent(id) !== undefined);
+    }
+    case "allOf":
+    case "anyOf":
+      return Array.isArray(record["requirements"]) && record["requirements"].length > 0
+        && record["requirements"].every(isValidProgressionRequirement);
+    case "questCompleted":
+    case "questStageCompleted": {
+      const questId = QUEST_IDS.find((id) => id === record["questId"]);
+      return questId !== undefined && (record["type"] === "questCompleted"
+        || QUESTS[questId].stages.some((stage) => stage.id === record["stageId"]));
+    }
+    case "city":
+    case "cityDiscovered":
+      return isTownId(record["cityId"]);
+    case "dungeon":
+      return typeof record["dungeonId"] === "string" && record["dungeonId"].length > 0
+        && (minimum === undefined || positive)
+        && (record["minimumLevel"] === undefined || (typeof record["minimumLevel"] === "number"
+          && Number.isInteger(record["minimumLevel"]) && record["minimumLevel"] >= 0));
+    case "overworld":
+      return true;
+    case "alignment":
+      return ALIGNMENT_NAMES.some((alignment) => alignment === record["alignment"]);
+    case "alignmentAxis": {
+      const maximum = record["maximum"];
+      return ALIGNMENT_AXES.some((axis) => axis === record["axis"])
+        && typeof minimum === "number" && Number.isInteger(minimum) && minimum >= -100 && minimum <= 100
+        && (maximum === undefined || (typeof maximum === "number" && Number.isInteger(maximum)
+          && maximum >= minimum && maximum <= 100));
+    }
+    case "reputation":
+      return typeof minimum === "number" && Number.isInteger(minimum) && minimum >= -100 && minimum <= 100
+        && (record["kind"] === "town" ? isTownId(record["targetId"])
+          : record["kind"] === "faction" && isFactionId(record["targetId"]));
+    default:
+      return false;
   }
 }
 
@@ -303,8 +381,11 @@ function meetsRequirement(
     case "feature": return knownGrants(actor, requirement.kind).includes(requirement.id)
       && getFeatureSources(actor, requirement.kind, requirement.id, context).length > 0;
     case "anyOf": return requirement.requirements.some((entry) => meetsRequirement(actor, entry, context));
+    case "allOf": return requirement.requirements.every((entry) => meetsRequirement(actor, entry, context));
     case "questCompleted":
+    case "questStageCompleted":
     case "city":
+    case "cityDiscovered":
     case "dungeon":
     case "overworld":
     case "alignment":
@@ -312,6 +393,40 @@ function meetsRequirement(
     case "reputation":
       return context.world?.matches(actor, requirement) ?? false;
   }
+}
+
+export interface ProgressionRequirementStatus {
+  met: boolean;
+  description: string;
+  current: string;
+  children: ProgressionRequirementStatus[];
+}
+
+/** Qualification and its readable current values use the same canonical predicates. */
+export function getProgressionRequirementStatus(
+  actor: CombatActorState,
+  requirement: ProgressionRequirement,
+  context: HeroProgressionContext = DEFAULT_PROGRESSION_CONTEXT,
+): ProgressionRequirementStatus {
+  if (!isValidProgressionRequirement(requirement)) {
+    return { met: false, description: "Invalid entry requirement", current: "unavailable", children: [] };
+  }
+  const met = meetsRequirement(actor, requirement, context);
+  let current: string;
+  switch (requirement.type) {
+    case "abilityScore": current = String(actor.stats[requirement.stat]); break;
+    case "totalLevel": current = String(getTotalLevel(actor)); break;
+    case "classLevel": current = String(getClassLevel(actor, requirement.classId)); break;
+    case "feature": current = met ? "learned" : "not learned"; break;
+    case "anyOf":
+    case "allOf": current = met ? "met" : "not met"; break;
+    default: current = context.world?.describeCurrent?.(actor, requirement) ?? (met ? "met" : "not met");
+  }
+  return {
+    met, description: describeProgressionRequirement(requirement), current,
+    children: requirement.type === "anyOf" || requirement.type === "allOf"
+      ? requirement.requirements.map((entry) => getProgressionRequirementStatus(actor, entry, context)) : [],
+  };
 }
 
 /** Entry checks apply to new tracks only, never to already earned ranks. */
@@ -324,6 +439,10 @@ export function qualifyNextClass(
   if (!profile) return { qualified: false, message: `Unknown progression track: ${id}`, unmetRequirements: [] };
   const error = validateActorProgression(actor);
   if (error) return { qualified: false, message: error, unmetRequirements: [] };
+  if (actor.classProgression && Object.entries(actor.classProgression.trackLevels).some(([trackId, level]) => {
+    const track = getProgressionProfile(trackId, context);
+    return !track || track.kind !== "prestige" || (level ?? 0) > track.maxRank;
+  })) return { qualified: false, message: "Unknown or invalid owned prestige rank; reload a normalized campaign.", unmetRequirements: [] };
   if (getTotalLevel(actor) >= NORMAL_LEVEL_CAP) {
     return { qualified: false, message: "Normal progression ends at total level 20.", unmetRequirements: [] };
   }
@@ -333,12 +452,16 @@ export function qualifyNextClass(
   }
   if (rank > 0) return { qualified: true, message: `Continue ${profile.label}.`, unmetRequirements: [] };
   const startingProfile = getProgressionProfile(getActorStartingClass(actor), context);
+  if (!Array.isArray(profile.entryRequirements) || !profile.entryRequirements.every(isValidProgressionRequirement)
+    || !startingProfile || !startingProfile.entryRequirements.every(isValidProgressionRequirement)) {
+    return { qualified: false, message: "Invalid entry requirements; advancement is unavailable.", unmetRequirements: [] };
+  }
   const unmetRequirements = [
     ...(startingProfile?.entryRequirements ?? [])
       .filter((entry) => !meetsRequirement(actor, entry, context))
-      .map((entry) => `Starting ${startingProfile?.label}: ${describeRequirement(entry)}`),
+      .map((entry) => `Starting ${startingProfile?.label}: ${describeProgressionRequirement(entry)}`),
     ...profile.entryRequirements.filter((entry) => !meetsRequirement(actor, entry, context))
-      .map((entry) => `${profile.label}: ${describeRequirement(entry)}`),
+      .map((entry) => `${profile.label}: ${describeProgressionRequirement(entry)}`),
   ];
   return {
     qualified: unmetRequirements.length === 0,

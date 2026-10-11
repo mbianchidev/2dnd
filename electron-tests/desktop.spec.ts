@@ -150,11 +150,11 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
     return { name: player.name, version, appearanceId: player.appearanceId };
   }, SAVE_KEY)).toEqual({
     name: "Desktop Hero",
-    version: 19,
+    version: 20,
     appearanceId: "ranger",
   });
 
-  return { name: "Desktop Hero", version: 19, appearanceId: "ranger" };
+  return { name: "Desktop Hero", version: 20, appearanceId: "ranger" };
 }
 
 async function prepareSaveForOverworld(page: Page): Promise<void> {

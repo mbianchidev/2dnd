@@ -73,7 +73,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v19 autosave/manual-slot persistence,
+- real character creation, schema-v20 autosave/manual-slot persistence,
   relaunch, and continue
 - independent desktop copy/import, exact source-slot bytes, interrupted
   staging/core-corruption recovery, and loading a second campaign after relaunch
@@ -149,6 +149,13 @@ Registered groups should report zero unintended
 intersections and zero visible-content clipping.
 
 ## Targeted validation
+
+Prestige coverage belongs to `tests/prestige*.test.ts`, `e2e/prestige.spec.ts`
+and the focused Electron prestige flow. It covers every path/rank, grouped
+entry boundaries, fresh owner/clone contexts, frozen rest credits, gear and
+action rejection, scoped/legacy/deferred grants, debug exclusion, schema-v19
+migration and schema-v20 corruption, measured input/layout, battle, reload and
+campaign authority. Preserve the separate twelve-class compatibility tests.
 
 Hero progression coverage includes all base-class pairings and prerequisite
 boundaries, frozen resources, once-only overlaps, total-level ASIs, legacy

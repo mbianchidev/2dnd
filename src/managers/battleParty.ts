@@ -135,6 +135,7 @@ export class BattlePartyManager {
       economy: this.economy!,
       knownSpellIds: this.source.state.knownSpells,
       knownAbilityIds: this.source.state.knownAbilities,
+      actorState: this.source.state,
     };
   }
 

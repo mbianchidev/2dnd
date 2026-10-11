@@ -256,7 +256,13 @@ matching effects. Combat effects are cleared when leaving Battle.
   the authoritative engine; default single-class/companion processing uses the
   same grant/resource implementation.
 - Profiles reuse canonical class hit dice and spell/ability/talent grant data.
-  Future external profiles are hooks only, not prestige/epic gameplay.
+  Six original five-rank prestige profiles now use the same engine. First entry
+  is applied total 6; normal cap remains 20. Base ranks do not advance alongside
+  a path rank. Fixed casting stats and scoped grants never use appearance.
+- Prestige joining checks are entry-only and share the live owner context.
+  Later social changes retain earned ranks; normal and unaffiliated campaigns
+  stay complete. Canonical action gear checks reject before MP/economy use.
+  Reuse statuses without stacking duplicate effects; Haste grants no extra action.
 
 ## Alignment and reputation
 

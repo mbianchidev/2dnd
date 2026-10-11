@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v19, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v20, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -49,7 +49,16 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 19.
+`SAVE_VERSION` is 20.
+
+Schema v20 recognizes the six registered five-rank prestige profiles through
+the same `player.classProgression` owner. Optional `debugTrackIds` defaults to
+empty and retains only owned canonical IDs; debug paths grant no natural
+prestige cosmetics. Unknown, malformed or overcap path authority rejects the
+candidate for slot recovery. Schema-v19 and earlier saves gain no prestige
+ranks/knowledge and preserve frozen/rest-ready/legacy/deferred resources,
+stats and custom equipment. Path-only features cannot enter legacy exception
+lists; never requalify earned ranks or replay bonuses on load.
 
 Schema v19 adds `player.classProgression`: stable starting identity, base
 ranks, reserved empty external ranks, rest-ready credits, one frozen resource
@@ -362,7 +371,7 @@ to browsing before closing the manager.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v19 hero progression, playtime, position, objective/reward/warning quest state,
+- Current schema-v20 hero/base/prestige progression, playtime, position, objective/reward/warning quest state,
   skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
@@ -389,7 +398,7 @@ to browsing before closing the manager.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v19 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v20 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

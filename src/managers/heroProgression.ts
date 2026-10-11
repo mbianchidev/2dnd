@@ -5,6 +5,8 @@ import {
   PROGRESSION_PROFILES,
   STAT_KEYS,
   getProgressionProfile,
+  type HeroProgressionContext,
+  type ProgressionTrackProfile,
   type ProgressionTrackId,
 } from "../data/classProgression";
 import { getAbility } from "../data/abilities";
@@ -23,6 +25,10 @@ import {
   type HeroLevelUpPreview,
 } from "../systems/classProgression";
 import { abilityModifier } from "../systems/dice";
+import { createHeroProgressionContext } from "../systems/classProgressionContext";
+import { isFeatureAvailable } from "../systems/featureDiscovery";
+import { getPrestigePath } from "../data/prestige";
+import { buildPrestigeDetails } from "../systems/prestige";
 import { paginateMeasuredItems, wrapMeasuredText, type LayoutRect } from "../systems/layout";
 import { allocateStatPoint, getArmorClass, getAttackModifier, type PlayerState, type PlayerStats } from "../systems/player";
 import { layoutProgressionPanel, type ProgressionPanelLayout } from "../systems/progressionPresentation";
@@ -61,6 +67,12 @@ export class HeroProgressionManager {
   private cancelling = false;
   private unsubscribe: (() => void) | null = null;
   private liveRegion: HTMLDivElement | null = null;
+  private context: HeroProgressionContext | null = null;
+
+  private get profiles(): readonly ProgressionTrackProfile[] {
+    return PROGRESSION_PROFILES.filter((profile) => profile.kind === "base"
+      || (this.player && (isFeatureAvailable(this.player, "prestige") || getTrackLevel(this.player, profile.id) > 0)));
+  }
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -73,8 +85,8 @@ export class HeroProgressionManager {
 
   getDebugState(): string {
     const player = this.player;
-    if (!player || !this.container) return "";
-    const preview = this.mode === "level" ? previewHeroLevelUp(player, this.selectedTrackId) : null;
+    if (!player || !this.container || !this.context) return "";
+    const preview = this.mode === "level" ? previewHeroLevelUp(player, this.selectedTrackId, this.context) : null;
     const growth = preview?.ok ? ` HP:${preview.preview.hpGain} MP:${preview.preview.mpGain}` : "";
     return ` [PROGRESSION:${this.mode} Track:${this.selectedTrackId} Total:${player.level}`
       + ` Ready:${player.classProgression.readyLevelUps} Pending:${player.pendingLevelUps}`
@@ -84,6 +96,7 @@ export class HeroProgressionManager {
   open(player: PlayerState, mode: "sheet" | "level" | "stats" = "sheet"): void {
     this.close();
     this.player = player;
+    this.context = createHeroProgressionContext(() => player);
     this.selectedTrackId = getActorStartingClass(player);
     this.selectedStatIndex = 0;
     this.mode = mode;
@@ -121,6 +134,7 @@ export class HeroProgressionManager {
     this.container?.destroy();
     this.container = null;
     this.player = null;
+    this.context = null;
     this.receipt = null;
     this.confirmation = null;
     this.cancelling = false;
@@ -132,12 +146,17 @@ export class HeroProgressionManager {
 
   private selectedIndex(): number {
     return this.mode === "stats" ? this.selectedStatIndex
-      : Math.max(0, PROGRESSION_PROFILES.findIndex((profile) => profile.id === this.selectedTrackId));
+      : Math.max(0, this.profiles.findIndex((profile) => profile.id === this.selectedTrackId));
   }
 
   private render(): void {
     const player = this.player;
     if (!player) return;
+    if (!this.profiles.some((profile) => profile.id === this.selectedTrackId)) {
+      this.selectedTrackId = getActorStartingClass(player);
+      this.confirmation = null;
+      this.detailPage = 0;
+    }
     this.container?.destroy();
     const viewport = { x: 16, y: 12, width: GAME_WIDTH - 32, height: GAME_HEIGHT - 24 };
     const container = createOverlayContainer(this.scene, "hero-progression", 70, viewport);
@@ -170,7 +189,7 @@ export class HeroProgressionManager {
     this.layout = layoutProgressionPanel({
       viewport, headerBottom: y, desiredButtonHeight: measuredButtonHeight,
       hintHeight: hint.displayHeight,
-      itemCount: this.mode === "stats" ? STAT_KEYS.length : PROGRESSION_PROFILES.length,
+      itemCount: this.mode === "stats" ? STAT_KEYS.length : this.profiles.length,
       selectedIndex: this.selectedIndex(),
     });
     hint.setPosition(this.layout.hint.x, this.layout.hint.y);
@@ -198,8 +217,8 @@ export class HeroProgressionManager {
             this.allocate(stat, points);
           }, index === this.selectedStatIndex, true);
       } else {
-        const profile = PROGRESSION_PROFILES[index]!;
-        const qualification = qualifyNextClass(player, profile.id);
+        const profile = this.profiles[index]!;
+        const qualification = qualifyNextClass(player, profile.id, this.context!);
         this.addButton(`progression-track-${profile.id}`, bounds,
           `${profile.id === this.selectedTrackId ? "> " : ""}${profile.label}`
             + ` ${getTrackLevel(player, profile.id)}${qualification.qualified ? "" : " [X]"}`,
@@ -228,9 +247,11 @@ export class HeroProgressionManager {
     const profile = getProgressionProfile(this.selectedTrackId);
     if (!profile) return "Unknown progression track.";
     if (this.mode === "level") {
-      const result = previewHeroLevelUp(player, profile.id);
-      return result.ok ? this.formatPreview(result.preview) : result.message;
+      const result = previewHeroLevelUp(player, profile.id, this.context!);
+      const preview = result.ok ? this.formatPreview(result.preview) : result.message;
+      return getPrestigePath(profile.id) ? `${preview}\n${buildPrestigeDetails(player, profile.id)}` : preview;
     }
+    if (getPrestigePath(profile.id)) return buildPrestigeDetails(player, profile.id);
     const features = profile.grants.filter((grant) =>
       getFeatureSources(player, grant.kind, grant.id).some((source) => source.trackId === profile.id)
     ).map((grant) => {
@@ -246,7 +267,7 @@ export class HeroProgressionManager {
       + `${profile.label}: owned rank ${getTrackLevel(player, profile.id)}/${profile.maxRank}\n`
       + `HP die: d${profile.hpGrowth.hitDie}; shared MP: INT.\n`
       + `Casting stat: ${profile.primaryStat.toUpperCase()}.\n`
-      + `${qualifyNextClass(player, profile.id).message}\n`
+      + `${qualifyNextClass(player, profile.id, this.context!).message}\n`
       + "ASIs and common talents use total level; class features use owned rank.\n"
       + "Equipment: weapons, armor and shields.\n"
       + `${features.length > 0 ? features.join("\n") : "No features earned in this class."}\n`
@@ -301,7 +322,7 @@ export class HeroProgressionManager {
       { ...layout.controls, x: layout.controls.x + index * (width + gap), width },
       control.label, control.activate, false, true,
     ));
-    const preview = this.mode === "level" ? previewHeroLevelUp(player, this.selectedTrackId) : null;
+    const preview = this.mode === "level" ? previewHeroLevelUp(player, this.selectedTrackId, this.context!) : null;
     const label = this.mode === "level" ? preview?.ok ? "Advance selected class" : "Requirements not met"
       : this.mode === "stats" ? player.pendingStatPoints > 0 ? "Allocate selected score" : "Continue"
         : this.mode === "result" ? player.pendingStatPoints > 0 ? "Allocate stats"
@@ -362,9 +383,10 @@ export class HeroProgressionManager {
     if (this.mode === "level") {
       const result = commitHeroLevelUp(player, {
         trackId: snapshot.trackId, expectedTotalLevel: snapshot.level,
-      });
+      }, this.context!);
       if (!result.ok) {
         this.callbacks.showMessage(result.message, "#ffaaaa");
+        this.render();
         return;
       }
       this.receipt = result.receipt;
@@ -415,10 +437,10 @@ export class HeroProgressionManager {
   }
 
   private moveSelection(offset: number): void {
-    const count = this.mode === "stats" ? STAT_KEYS.length : PROGRESSION_PROFILES.length;
+    const count = this.mode === "stats" ? STAT_KEYS.length : this.profiles.length;
     const next = (this.selectedIndex() + offset + count) % count;
     if (this.mode === "stats") this.selectedStatIndex = next;
-    else this.selectedTrackId = PROGRESSION_PROFILES[next]!.id;
+    else this.selectedTrackId = this.profiles[next]!.id;
     this.detailPage = 0;
     this.render();
   }
@@ -430,7 +452,7 @@ export class HeroProgressionManager {
     const next = layout.pages[page]?.[0];
     if (next === undefined) return;
     if (this.mode === "stats") this.selectedStatIndex = next;
-    else this.selectedTrackId = PROGRESSION_PROFILES[next]!.id;
+    else this.selectedTrackId = this.profiles[next]!.id;
     this.detailPage = 0;
     this.render();
   }

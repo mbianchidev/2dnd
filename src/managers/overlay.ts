@@ -217,6 +217,8 @@ export class OverlayManager {
   destroyAll(): void {
     this.progression.close();
     this.scene.input.keyboard?.off("keydown", this.handleEquipKeyDown, this);
+    this.scene.input.keyboard?.off("keyup", this.handleEquipKeyUp, this);
+    this.pendingEquipProgression = false;
     this.closeOverlays(
       "equipOverlay", "statOverlay", "menuOverlay", "worldMapOverlay",
       "settingsOverlay", "innConfirmOverlay", "bankOverlay", "townPickerOverlay",
@@ -230,6 +232,8 @@ export class OverlayManager {
   toggleEquipOverlay(player: PlayerState): void {
     if (this.equipOverlay) {
       this.scene.input.keyboard?.off("keydown", this.handleEquipKeyDown, this);
+      this.scene.input.keyboard?.off("keyup", this.handleEquipKeyUp, this);
+      this.pendingEquipProgression = false;
       this.equipOverlay.destroy();
       this.equipOverlay = null;
       return;
@@ -247,10 +251,17 @@ export class OverlayManager {
   }
 
   private equipPlayer: PlayerState | null = null;
+  private pendingEquipProgression = false;
   private readonly handleEquipKeyDown = (event: KeyboardEvent): void => {
     if (!this.equipOverlay || !this.equipPlayer || event.key !== "Tab" || event.repeat) return;
     event.preventDefault();
-    this.showProgressionOverlay(this.equipPlayer);
+    this.pendingEquipProgression = true;
+  };
+  private readonly handleEquipKeyUp = (event: KeyboardEvent): void => {
+    if (event.key !== "Tab") return;
+    const pending = this.pendingEquipProgression;
+    this.pendingEquipProgression = false;
+    if (pending && this.equipOverlay && this.equipPlayer) this.showProgressionOverlay(this.equipPlayer);
   };
 
   /** Build (or rebuild) the equip overlay panel. */
@@ -258,6 +269,8 @@ export class OverlayManager {
     this.equipPlayer = player;
     this.scene.input.keyboard?.off("keydown", this.handleEquipKeyDown, this);
     this.scene.input.keyboard?.on("keydown", this.handleEquipKeyDown, this);
+    this.scene.input.keyboard?.off("keyup", this.handleEquipKeyUp, this);
+    this.scene.input.keyboard?.on("keyup", this.handleEquipKeyUp, this);
     if (this.equipOverlay) {
       this.equipOverlay.destroy();
       this.equipOverlay = null;

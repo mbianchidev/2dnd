@@ -488,6 +488,28 @@ Flow:
   Spells resolve eligible source stats independently from appearance;
   abilities keep explicit stat keys. Preserve permissive equipment and the
   existing one-action/one-bonus-action economy.
+
+### Prestige paths
+
+- Six original five-rank paths live in `data/prestige.ts`; actions/talents in
+  `prestigeActions.ts`, lore in `prestigeLore.ts`, and inspection in
+  `systems/prestige.ts`. They register static profiles with the existing engine.
+- First entry requires applied total 6, owned class ranks, permanent scores and
+  explicit quest/location/social evidence. All paths have unaffiliated routes.
+  New ranks spend the same rested credits within total cap 20; base ranks do
+  not advance simultaneously. Never add an extra proficiency, ASI or action.
+- Use typed `allOf`/`anyOf`, stable completed-stage IDs, discovered-city evidence
+  and inclusive alignment ranges through the canonical qualifier and live
+  `createHeroProgressionContext()`. Preview and fresh commit share validation.
+  Bind detached/loaded actors to a new owner context; malformed/stale evidence
+  fails closed. Recognized earned ranks never requalify after social changes.
+- Path-only features require owning-profile grants, not generic talent/spell
+  scans or legacy exceptions. Preserve frozen/rest/deferred legacy authority.
+  Gear requirements use canonical action helpers through `battleActions.ts`
+  and its executor before resources are spent; no parallel action engine.
+- Paths grant no equipment permissions or campaign access. Profile/Tips/Codex,
+  cosmetic achievements and Ending derive from engine state. Owned canonical
+  `debugTrackIds` exclude natural prestige points/titles, not gameplay.
 - `E` then `Tab` and the visible equipment/hero-party links open progression.
   Support semantic multi-input, measured pagination, 150% text, high contrast,
   reduced motion, cleanup, and keyup confirmation before exploration resumes.
@@ -822,7 +844,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 19.
+Save schema version is 20.
+
+Schema v20 recognizes only the six registered `prestige:<pathId>` rank maps
+and optional owned `debugTrackIds`. Ranks are integers 1-5 and aggregate base/
+path ownership stays at most 20. Irreparable path records fall through isolated
+slot recovery. Schema-v19 and older saves gain no path ranks or path-only
+knowledge; preserve their stats, resources, custom item links, frozen/rest
+credits and canonical legacy/deferred exceptions. Never replay bonuses during
+load or recheck mutable joining conditions for earned ranks.
 
 Schema v19 adds normalized hero class ownership and fixed starting identity,
 total-level mirroring, rest-ready credits and one frozen level receipt. Migrate
@@ -985,7 +1015,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v19
+  visibility, handedness, and prompt source only; they never enter schema-v20
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

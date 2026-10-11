@@ -5,6 +5,7 @@ import { getPlayerClass } from "../systems/classes";
 import type { CombatActorState, PlayerStats } from "../systems/player";
 import type { QuestId } from "./quests";
 import type { AlignmentAxis, AlignmentName, FactionId, TownId } from "./reputation";
+import { PRESTIGE_PATHS } from "./prestige";
 
 export const BASE_CLASS_IDS = [
   "knight", "ranger", "wizard", "sorcerer", "rogue", "paladin",
@@ -27,11 +28,13 @@ export const MAX_ABILITY_SCORE = 30;
 
 export type ProgressionWorldRequirement =
   | { readonly type: "questCompleted"; readonly questId: QuestId }
+  | { readonly type: "questStageCompleted"; readonly questId: QuestId; readonly stageId: string }
   | { readonly type: "city"; readonly cityId: string }
+  | { readonly type: "cityDiscovered"; readonly cityId: string }
   | { readonly type: "dungeon"; readonly dungeonId: string; readonly minimumLevel?: number }
   | { readonly type: "overworld" }
   | { readonly type: "alignment"; readonly alignment: AlignmentName }
-  | { readonly type: "alignmentAxis"; readonly axis: AlignmentAxis; readonly minimum: number }
+  | { readonly type: "alignmentAxis"; readonly axis: AlignmentAxis; readonly minimum: number; readonly maximum?: number }
   | { readonly type: "reputation"; readonly kind: "town"; readonly targetId: TownId; readonly minimum: number }
   | { readonly type: "reputation"; readonly kind: "faction"; readonly targetId: FactionId; readonly minimum: number };
 
@@ -41,6 +44,7 @@ export type ProgressionRequirement =
   | { readonly type: "classLevel"; readonly classId: BaseClassId; readonly minimum: number }
   | { readonly type: "feature"; readonly kind: ProgressionFeatureKind; readonly id: string }
   | { readonly type: "anyOf"; readonly requirements: readonly ProgressionRequirement[] }
+  | { readonly type: "allOf"; readonly requirements: readonly ProgressionRequirement[] }
   | ProgressionWorldRequirement;
 
 export interface ProgressionFeatureGrant {
@@ -76,6 +80,7 @@ export interface HeroProgressionContext {
   readonly profiles: readonly ProgressionTrackProfile[];
   readonly world?: {
     matches(actor: CombatActorState, requirement: ProgressionWorldRequirement): boolean;
+    describeCurrent?(actor: CombatActorState, requirement: ProgressionWorldRequirement): string;
   };
 }
 
@@ -143,8 +148,10 @@ export const BASE_CLASS_PROFILES: readonly ProgressionTrackProfile[] = Object.fr
   BASE_CLASS_IDS.map(createBaseProfile),
 );
 
-/** Static registry seam: only the twelve base classes are shipped here. */
-export const PROGRESSION_PROFILES = BASE_CLASS_PROFILES;
+/** Canonical static profiles share one level, grant and resource engine. */
+export const PROGRESSION_PROFILES: readonly ProgressionTrackProfile[] = Object.freeze([
+  ...BASE_CLASS_PROFILES, ...PRESTIGE_PATHS,
+]);
 export const DEFAULT_PROGRESSION_CONTEXT: HeroProgressionContext = {
   profiles: PROGRESSION_PROFILES,
 };

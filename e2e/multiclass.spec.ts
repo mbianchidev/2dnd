@@ -175,7 +175,7 @@ for (const combination of combinations) {
     await holdKey(page, "Space");
     await expect(page.locator("#debug-state")).toContainText("[PROGRESSION:result");
     const committed = await readSave(page);
-    expect(committed.version).toBe(19);
+    expect(committed.version).toBe(20);
     expect(committed.player.level).toBe(2);
     expect(committed.player.classProgression.classLevels).toEqual({
       [combination.starting]: 1, [combination.next]: 1,

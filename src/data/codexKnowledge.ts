@@ -6,6 +6,8 @@ import {
 } from "./quests";
 import type { CutsceneId } from "./cutscenes";
 import { Terrain } from "./mapTypes";
+import type { PrestigeTrackId } from "./prestige";
+import { PRESTIGE_LORE } from "./prestigeLore";
 
 export const CODEX_KNOWLEDGE_CATEGORIES = [
   "location",
@@ -71,6 +73,12 @@ export interface CodexReputationSource extends CodexSourceBase {
   readonly milestoneId: string;
 }
 
+export interface CodexPrestigeSource extends CodexSourceBase {
+  readonly type: "prestigeRank";
+  readonly trackId: PrestigeTrackId;
+  readonly minimumRank: number;
+}
+
 export type CodexUnlockSource =
   | CodexLocationSource
   | CodexQuestStageSource
@@ -80,7 +88,8 @@ export type CodexUnlockSource =
   | CodexNpcSource
   | CodexReadableSource
   | CodexWorldEventSource
-  | CodexReputationSource;
+  | CodexReputationSource
+  | CodexPrestigeSource;
 
 export interface CodexKnowledgeEntry {
   readonly id: string;
@@ -871,6 +880,7 @@ export const CODEX_READABLES: readonly CodexReadableDefinition[] = [
 ];
 
 export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
+  ...PRESTIGE_LORE,
   ...LOCATION_ENTRIES,
   ...ITEM_ENTRIES,
   ...CHARACTER_ENTRIES,

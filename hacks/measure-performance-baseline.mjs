@@ -18,12 +18,20 @@ import { getGitProvenance } from "./lib/git-provenance.mjs";
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const DIST = join(ROOT, "dist");
 const BASE_PATH = "/2dnd/";
-const CURRENT_SAVE_VERSION = 18;
 const SAVE_KEY = "2dnd_save";
 const BOOT_TEXTURE_MEASURE = "2dnd:boot-textures";
 const DEFAULT_SAMPLE_COUNT = 20;
 const SAVE_WRITE_BATCHES = 50;
 const SAVE_WRITES_PER_BATCH = 100;
+
+async function readCanonicalSaveVersion() {
+  const source = await readFile(join(ROOT, "src", "systems", "save.ts"), "utf8");
+  const matches = [...source.matchAll(/^export const SAVE_VERSION = (\d+);$/gm)];
+  if (matches.length !== 1) throw new Error("Cannot resolve the canonical SAVE_VERSION for the benchmark.");
+  const version = Number(matches[0][1]);
+  if (!Number.isSafeInteger(version) || version < 1) throw new Error("Canonical SAVE_VERSION is invalid.");
+  return version;
+}
 
 function readSampleCount(value) {
   if (value === undefined) return DEFAULT_SAMPLE_COUNT;
@@ -546,7 +554,7 @@ function printReport(result) {
   );
   console.log(
     `- Method: ${result.startup.sampleCount} cache-disabled production `
-    + `navigations per startup case; fresh schema-v${CURRENT_SAVE_VERSION} `
+    + `navigations per startup case; fresh schema-v${result.save.schemaVersion} `
     + "campaign for save metrics.",
   );
   console.log("");
@@ -597,6 +605,7 @@ function printReport(result) {
 
 async function main() {
   const sampleCount = readSampleCount(process.env.PERFORMANCE_SAMPLES);
+  const currentSaveVersion = await readCanonicalSaveVersion();
   const npmCli = process.env.npm_execpath;
   if (!npmCli) {
     throw new Error(
@@ -630,9 +639,9 @@ async function main() {
     });
     try {
       const freshSave = await createFreshSave(browser, url);
-      if (freshSave.schemaVersion !== CURRENT_SAVE_VERSION) {
+      if (freshSave.schemaVersion !== currentSaveVersion) {
         throw new Error(
-          `Expected fresh save schema v${CURRENT_SAVE_VERSION}, received `
+          `Expected fresh save schema v${currentSaveVersion}, received `
           + `v${freshSave.schemaVersion}`,
         );
       }

@@ -84,6 +84,15 @@ touch and the gamepad cursor share the keyboard surface. Search uses
 scene-local notices and must be cleared on shutdown; it never changes input
 context or delays scene transitions.
 
+Hero progression uses the existing measured `HeroProgressionManager` for base
+and six optional prestige paths. Bind its live owner context on open, show
+entry-only qualification and complete rank tables, preserve frozen/rest-ready
+credits on close, and activate Enter/Space and the Equipment Tab handoff on
+release. Filter hidden paths before pagination; never replay resource grants.
+`BattleActionMenu` owns shared measured spell/ability rows and registered
+`battle-<spell|ability>-<id>` layout items. Gear/ownership rejection still goes
+through canonical action validation/execution, not presentation.
+
 `AchievementOverlayManager` owns the accessible Achievements/profile surface and
 presentation-only title selection. `AchievementNotificationManager` reads
 persisted pending IDs but displays them only in safe Overworld states; scene

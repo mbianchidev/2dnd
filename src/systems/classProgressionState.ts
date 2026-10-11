@@ -16,6 +16,7 @@ import type { Item } from "../data/items";
 import { getSpell } from "../data/spells";
 import { getTalent } from "../data/talents";
 import { debugLog } from "../config";
+import { PRESTIGE_PATHS, PRESTIGE_SAVE_VERSION } from "../data/prestige";
 import { getPlayerClass } from "./classes";
 import { abilityModifier } from "./dice";
 import { normalizeSavedHeroInventory } from "./saveActor";
@@ -121,6 +122,9 @@ export function normalizeHeroClassProgression(
     remaining -= rank;
   }
   progression.legacyGrants = normalizeGrants(record["legacyGrants"]);
+  progression.debugTrackIds = knownIds(record["debugTrackIds"], (id) =>
+    isExternalProgressionTrackId(id) && (progression.trackLevels[id] ?? 0) > 0,
+  ).filter(isExternalProgressionTrackId);
   const deferred = normalizeGrants(record["deferredLegacyGrants"]);
   if (deferred.spells.length + deferred.abilities.length + deferred.talents.length > 0) {
     progression.deferredLegacyGrants = deferred;
@@ -219,8 +223,40 @@ export function normalizeHeroProgressionState(
     || !isRecord(value["stats"]) || !Array.isArray(value["inventory"])) return null;
   const legacy = sourceVersion < CLASS_PROGRESSION_SAVE_VERSION;
   const appearanceId = typeof value["appearanceId"] === "string" ? value["appearanceId"] : "knight";
+  const rawProgression = isRecord(value["classProgression"]) ? value["classProgression"] : {};
+  if (sourceVersion >= PRESTIGE_SAVE_VERSION && rawProgression["trackLevels"] !== undefined
+    && !isRecord(rawProgression["trackLevels"])) {
+    debugLog("[prestige] Rejected an unusable rank map; slot recovery is required.");
+    return null;
+  }
+  const rawTracks = isRecord(rawProgression["trackLevels"]) ? rawProgression["trackLevels"] : {};
+  if (sourceVersion >= PRESTIGE_SAVE_VERSION && Object.keys(rawTracks).length > 0) {
+    const invalid = Object.entries(rawTracks).some(([id, rank]) => {
+      const profile = getProgressionProfile(id, context);
+      return !profile || profile.kind !== "prestige" || typeof rank !== "number"
+        || !Number.isSafeInteger(rank) || rank < 1 || rank > profile.maxRank;
+    });
+    const rawClasses = isRecord(rawProgression["classLevels"]) ? rawProgression["classLevels"] : {};
+    const starting = rawProgression["startingClassId"];
+    const ranks = [...Object.values(rawClasses), ...Object.values(rawTracks)];
+    if (invalid || !isBaseClassId(starting) || !(typeof rawClasses[starting] === "number" && rawClasses[starting] >= 1)
+      || Object.keys(rawClasses).some((id) => !isBaseClassId(id))
+      || ranks.some((rank) => typeof rank !== "number" || !Number.isSafeInteger(rank) || rank < 1)
+      || ranks.reduce<number>((sum, rank) => sum + (typeof rank === "number" ? rank : 0), 0) > NORMAL_LEVEL_CAP) {
+      debugLog("[prestige] Rejected invalid registered rank ownership; slot recovery is required.");
+      return null;
+    }
+  }
+  const progressionInput = sourceVersion < PRESTIGE_SAVE_VERSION
+    ? {
+      ...rawProgression,
+      trackLevels: Object.fromEntries(Object.entries(rawTracks).filter(([id]) =>
+        !PRESTIGE_PATHS.some((path) => path.id === id))),
+      debugTrackIds: [],
+    }
+    : rawProgression;
   const classProgression = normalizeHeroClassProgression(
-    legacy ? undefined : value["classProgression"],
+    legacy ? undefined : progressionInput,
     { appearanceId, level: value["level"] }, context,
   );
   const stats = normalizeStats(value["stats"]);
@@ -264,6 +300,21 @@ export function normalizeHeroProgressionState(
       classProgression.deferredLegacyGrants = deferred;
     }
   }
+  const ownedOnly = context.profiles.filter((profile) => profile.kind === "prestige")
+    .flatMap((profile) => profile.grants).filter((grant) =>
+      (grant.kind === "spell" ? getSpell(grant.id)?.progressionScope
+        : grant.kind === "ability" ? getAbility(grant.id)?.progressionScope
+          : getTalent(grant.id)?.progressionScope) === "track");
+  const removePathExceptions = (grants: ProgressionKnownGrants): void => {
+    grants.spells = grants.spells.filter((id) =>
+      !ownedOnly.some((grant) => grant.kind === "spell" && grant.id === id));
+    grants.abilities = grants.abilities.filter((id) =>
+      !ownedOnly.some((grant) => grant.kind === "ability" && grant.id === id));
+    grants.talents = grants.talents.filter((id) =>
+      !ownedOnly.some((grant) => grant.kind === "talent" && grant.id === id));
+  };
+  removePathExceptions(classProgression.legacyGrants);
+  if (classProgression.deferredLegacyGrants) removePathExceptions(classProgression.deferredLegacyGrants);
   const deferred = classProgression.deferredLegacyGrants;
   if (deferred) {
     deferred.spells = deferred.spells.filter((id) => earned.spells.includes(id) && !fields.knownSpells.includes(id));

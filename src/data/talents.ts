@@ -4,6 +4,8 @@
  * Combat bonuses (attack, damage, AC) are calculated dynamically.
  */
 
+import { PRESTIGE_TALENTS } from "./prestigeActions";
+
 export interface Talent {
   id: string;
   name: string;
@@ -32,6 +34,7 @@ export interface Talent {
 }
 
 export const TALENTS: Talent[] = [
+  ...PRESTIGE_TALENTS,
   {
     id: "toughness", name: "Toughness",
     description: "+5 max HP",

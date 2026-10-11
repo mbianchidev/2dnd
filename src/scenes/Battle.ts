@@ -655,7 +655,7 @@ export class BattleScene extends Phaser.Scene {
       .setData("layoutId", "battle-target-hint")
       .setDepth(BATTLE_DEPTH.uiOverlay)
       .setVisible(false);
-    this.bodyAimButton = this.add.text(w * 0.80, h * 0.72, "Aim parts [Up/Down]", {
+    this.bodyAimButton = this.add.text(w * 0.80, h * 0.72, "Aim parts", {
       fontSize: "9px", fontFamily: "monospace", color: "#ffd700",
       backgroundColor: "#25304a", padding: { x: 3, y: 3 },
       wordWrap: { width: w * 0.18 },

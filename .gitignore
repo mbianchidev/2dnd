@@ -11,3 +11,4 @@ electron-test-results/
 .env
 .env.local
 .vscode/
+.impeccable/

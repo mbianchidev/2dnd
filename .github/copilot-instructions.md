@@ -1133,6 +1133,13 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - `#layout-report` and `data-layout-overlap-count` /
   `data-layout-clipping-count` are local debug/test selectors. Registered groups
   must report zero unintended intersections and zero visible-content clipping.
+- Measure natural glyph/padding bounds before fixing text height. Audit nested
+  content and explicit progress-bar/swatch/preview bounds; wrap and page rather
+  than shrinking supported text or masking overflow.
+- Use `subscribeOverlayReflow()` for preference/source/resize changes and keep
+  state in its existing owner. Reflow never rerolls creation stats/cosmetics or
+  changes source-owned transactions. Read Phaser parent bounds before FIT
+  refresh when the DOM canvas host changes.
 
 ## Semantic controls
 

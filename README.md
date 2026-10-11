@@ -72,6 +72,8 @@ and campaign saves stay in your browser's local storage.
 - **Play your way:** use keyboard, pointer, touch, or a standard gamepad.
   Accessibility settings include 100%/125%/150% text, high contrast, reduced
   motion, adjustable audio, cutscene advance options, and adaptive prompts.
+  Character creation, stats, equipment, achievements, and campaign slots use
+  measured spacing, wrapping, and paging rather than cropping enlarged text.
 
 See the [gameplay guide](docs/gameplay.md) for controls, progression, and player
 guidance.

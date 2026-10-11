@@ -76,6 +76,15 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 - devotion temple/profile, unaffiliated and affiliated routes, keeper/event/
   optional-quest consequences, blessing reload/cleanup and ending presentation
 
+`e2e/ui-boundaries.spec.ts` captures real character/class/stat/appearance,
+equipment, save/rename, achievement/title, city-entry and party-status flows.
+It checks glyph content as well as outer bounds at 100%/125%/150%, 1280x800,
+932x430 and 390x844, including live resize/preferences, nested controller text
+entry, all achievement pages, all five tutorial steps, core Tips/settings/
+inventory, and unchanged manual snapshots. Keep existing
+creation fixtures on stable layout IDs; never restore fixed click coordinates
+when a measured layout moves.
+
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
 a strict port. `e2e/landing.spec.ts` exercises the showcase root; Phaser flows
 open `game.html`. `hacks/run-browser-tests.mjs` allocates a free port and

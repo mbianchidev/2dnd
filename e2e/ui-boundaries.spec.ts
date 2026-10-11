@@ -1,15 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createPlayer } from "../src/systems/player";
+import { awardXP, createPlayer, processPendingLevelUps, xpForLevel } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createCurrentSaveData } from "../src/systems/save";
 import { createWeatherState } from "../src/systems/weather";
+import { recruitCompanion } from "../src/systems/party";
 import { reconcileAchievements } from "../src/systems/achievements";
 import { reconcileFeatureDiscovery } from "../src/systems/featureDiscovery";
 import { CUTSCENE_IDS } from "../src/data/cutscenes";
 import { CITIES } from "../src/data/cities";
 import { ACHIEVEMENTS } from "../src/data/achievements";
 import { clickLayoutItem, expectCleanLayout, tapLayoutItem } from "./helpers/layout";
-import { minigameKey, seedMinigamePage, waitMinigameState } from "./helpers/minigames";
+import { installMinigameGamepad, minigameKey, minigamePad, seedMinigamePage, waitMinigameState } from "./helpers/minigames";
 import type { SaveData } from "../src/systems/save";
 import type { LayoutAuditItem, LayoutAuditResult } from "../src/systems/layout";
 
@@ -39,6 +40,80 @@ function boundaryCampaign(): SaveData {
   reconcileFeatureDiscovery(player, codex, { silent: true });
   return createCurrentSaveData(player, new Set(), codex, player.appearanceId, 45, createWeatherState());
 }
+
+test("city entry, location prompts and party characteristics remain bounded", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  const campaign = boundaryCampaign();
+  const city = CITIES.find((entry) => entry.id === "willowdale_city");
+  if (!city) throw new Error("Missing canonical city fixture");
+  Object.assign(campaign.player.position, {
+    inCity: false, cityId: "", chunkX: city.chunkX, chunkY: city.chunkY,
+    x: city.tileX, y: city.tileY,
+  });
+  awardXP(campaign.player, xpForLevel(4));
+  processPendingLevelUps(campaign.player);
+  for (const companion of ["guardian", "scout", "mystic"]) recruitCompanion(campaign.player, companion);
+  expect(campaign.player.pendingStatPoints).toBe(2);
+  reconcileFeatureDiscovery(campaign.player, campaign.codex, { silent: true });
+  await page.goto("game.html", { waitUntil: "networkidle" });
+  await seedMinigamePage(page, campaign, "keyboard", { textScale: 1.5, touchControls: "on" });
+  await minigameKey(page, "Space");
+  await waitMinigameState(page, `[CITY:${city.id}:0]`);
+  await expectGroupClean(page, "map-labels");
+  await expectGroupClean(page, "world-hud");
+  await capture(page, "city-entry");
+  await minigameKey(page, "p");
+  await waitMinigameState(page, "[PARTY:status]");
+  await capture(page, "party-characteristics");
+  await expectGroupClean(page, "party-status");
+  await clickLayoutItem(page, "party-stat-strength-increase");
+  await expectGroupClean(page, "party-status");
+  await expect.poll(async () => {
+    const raw = await page.evaluate(() => localStorage.getItem("2dnd_save"));
+    const saved = raw ? JSON.parse(raw) as SaveData : undefined;
+    return { strength: saved?.player.stats.strength, points: saved?.player.pendingStatPoints };
+  }).toEqual({ strength: campaign.player.stats.strength + 1, points: 1 });
+  await clickLayoutItem(page, "party-status-page-next");
+  await expectGroupClean(page, "party-status");
+  await capture(page, "party-attributes");
+  await clickLayoutItem(page, "party-close");
+  await expect(page.locator("#debug-state")).not.toContainText("[PARTY:");
+  await expectVisibleCanvas(page);
+  expect(errors).toEqual([]);
+});
+
+test("gamepad achievement paging and search retain visible focus through resize", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await installMinigameGamepad(page);
+  await page.goto("game.html", { waitUntil: "networkidle" });
+  await seedMinigamePage(page, boundaryCampaign(), "gamepad", { textScale: 1.5 });
+  await minigameKey(page, "Escape");
+  await clickLayoutItem(page, "escape-menu-achievements");
+  await waitMinigameState(page, "[ACHIEVEMENTS");
+  const before = await page.locator("#debug-state").textContent() ?? "";
+  await minigamePad(page, 13);
+  expect(await page.locator("#debug-state").textContent()).not.toBe(before);
+  await minigamePad(page, 15);
+  await expectGroupClean(page, "achievements");
+  const selection = (await page.locator("#debug-state").textContent() ?? "").match(/Selected:[a-zA-Z0-9]+/)?.[0];
+  expect(selection).toBeDefined();
+  await page.setViewportSize({ width: 932, height: 430 });
+  await expectVisibleCanvas(page);
+  await expectGroupClean(page, "achievements");
+  await expect(page.locator("#debug-state")).toContainText(selection!);
+  await minigamePad(page, 2);
+  await expect(page.locator("#controller-keyboard")).toBeVisible();
+  await expectTextDialogFits(page);
+  await minigamePad(page, 1);
+  await expect(page.locator("#mobile-text-input")).toHaveCount(0);
+  await expectGroupClean(page, "achievements");
+  await minigamePad(page, 1);
+  await expect(page.locator("#debug-state")).not.toContainText("[ACHIEVEMENTS");
+  expect(errors).toEqual([]);
+});
 
 async function capture(page: Page, name: string): Promise<void> {
   const path = test.info().outputPath(`${name}.png`);
@@ -219,11 +294,15 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     if (textScale === 1.5) {
       const seen = new Set<string>();
       for (let index = 0; index < ACHIEVEMENTS.length; index += 1) {
+        const state = await page.locator("#debug-state").textContent() ?? "";
+        const selectedId = state.match(/Selected:([a-zA-Z0-9]+)/)?.[1];
+        expect(selectedId).toBeDefined();
+        await expect.poll(async () => (await readGroupLayout(page, "achievements"))?.items.map((item) => item.id))
+          .toContain(`achievement-row-${selectedId}`);
         await expectGroupClean(page, "achievements");
         const group = await readGroupLayout(page, "achievements");
         group?.items.filter((item) => item.id.startsWith("achievement-row-"))
           .forEach((item) => seen.add(item.id.slice("achievement-row-".length)));
-        const state = await page.locator("#debug-state").textContent() ?? "";
         const pageNumber = state.match(/Page:(\d+)\/(\d+)/);
         expect(pageNumber).not.toBeNull();
         if (pageNumber?.[1] === pageNumber?.[2]) break;
@@ -247,6 +326,29 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await expectGroupClean(page, "achievements");
     await expect(page.locator("#achievement-live-region")).toContainText("Twelve Roads");
     await expectCleanLayout(page);
+    await clickLayoutItem(page, "achievement-close");
+    await page.setViewportSize({ width: 1280, height: 800 });
+    for (const { action, group } of [
+      { action: "inventory", group: "party-items" },
+      { action: "tips", group: "tips" },
+      { action: "settings", group: "settings" },
+    ]) {
+      await minigameKey(page, "Escape");
+      await clickLayoutItem(page, `escape-menu-${action}`);
+      await expectGroupClean(page, group);
+      await expectVisibleCanvas(page);
+      await capture(page, `core-${action}`);
+      if (action === "tips" && textScale === 1.5) {
+        await clickLayoutItem(page, "tips-replay");
+        for (let step = 0; step < 5; step += 1) {
+          await expectGroupClean(page, "tutorial");
+          await capture(page, `tutorial-${step}`);
+          await clickLayoutItem(page, "tutorial-next");
+        }
+        await expectGroupClean(page, "tips");
+      }
+      await minigameKey(page, "Escape");
+    }
     expect(errors).toEqual([]);
   });
 }

@@ -41,6 +41,10 @@ title/Overworld interface lives in `src/managers/saveSlots.ts`. Focused
 normalization remains beside its domain where appropriate, including
 `questState.ts`, `gatheringState.ts`, `craftingState.ts`, and
 `nauticalState.ts`.
+`src/renderers/saveSlotPanel.ts` measures wrapped metadata, actions and footers
+before placing rows. Larger text uses slot paging; selected slot/action IDs
+survive reflow. Those presentation changes do not alter slot documents, the
+schema, key-release confirmation, or overwrite/copy/import/delete ownership.
 Required hero-core and inventory validation live in `saveActor.ts`, using the
 shared serialized-item guard in `heroItemState.ts`. Companion loading retains
 canonical inventory repair; hero progression normalization owns exact equipment

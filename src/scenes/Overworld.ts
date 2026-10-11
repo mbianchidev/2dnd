@@ -130,6 +130,9 @@ import { SpecialNpcManager, type SpecialNpcCallbacks } from "../managers/special
 import { OverlayManager } from "../managers/overlay";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { WorldPresentationDirector } from "../managers/worldPresentation";
+import { layoutHudMessages } from "../renderers/hud";
+import { subscribeOverlayReflow } from "../managers/layout";
+import { createOverlayContainer } from "../utils/ui";
 import {
   getMotionDuration,
   installSceneAccessibility,
@@ -1208,6 +1211,15 @@ export class OverworldScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setDepth(21)
       .setAlpha(0);
+    this.hudText.setData("layoutId", "world-hud-message");
+    this.locationText.setData("layoutId", "world-hud-location");
+    const group = createOverlayContainer(this, "world-hud", 20, {
+      x: 0, y: 0, width: this.cameras.main.width, height: this.cameras.main.height,
+    });
+    group.add([hudBg, this.hudText, this.locationText]);
+    const unsubscribeReflow = subscribeOverlayReflow(this, () =>
+      layoutHudMessages(this, this.hudBg, this.hudText, this.locationText));
+    group.once(Phaser.GameObjects.Events.DESTROY, unsubscribeReflow);
     const pending = this.pendingHudMessage;
     this.pendingHudMessage = null;
     if (pending) {
@@ -1228,6 +1240,7 @@ export class OverworldScene extends Phaser.Scene {
     this.hudText.setColor(color);
     this.hudBg.setAlpha(1);
     this.hudText.setAlpha(1);
+    layoutHudMessages(this, this.hudBg, this.hudText, this.locationText);
 
     // Cancel previous fade
     if (this.hudFadeTimer) this.hudFadeTimer.remove();
@@ -1268,6 +1281,7 @@ export class OverworldScene extends Phaser.Scene {
     this.locationText.setText(text);
     this.locationText.setAlpha(1);
     this.hudBg.setAlpha(1);
+    layoutHudMessages(this, this.hudBg, this.hudText, this.locationText);
 
     // Cancel previous fade
     if (this.hudFadeTimer) this.hudFadeTimer.remove();
@@ -1301,7 +1315,8 @@ export class OverworldScene extends Phaser.Scene {
     } else if (p.position.inCity) {
       const city = getCity(p.position.cityId);
       const chunk = city ? getCityChunk(city, p.position.cityChunkIndex) : undefined;
-      regionName = city && chunk ? `🏘 ${city.name}: ${chunk.name}` : "City";
+      regionName = city && chunk
+        ? `🏘 ${city.name}${city.name === chunk.name ? "" : `: ${chunk.name}`}` : "City";
     } else {
       const chunk = getChunk(p.position.chunkX, p.position.chunkY);
       const sea = p.progression.nautical.sailing

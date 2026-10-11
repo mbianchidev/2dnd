@@ -236,7 +236,15 @@ test("large inventories keep stable keyboard and pointer selection", async ({
   await waitForState(page, "Sort:name");
   await page.keyboard.press("f");
   await waitForState(page, "Filter:equipment");
-  await clickGame(page, 350, 200);
+  const firstItemId = await page.locator("#layout-report").evaluate((element) => {
+    const report = JSON.parse(element.textContent ?? "{}") as {
+      groups: Record<string, { items: Array<{ id: string }> }>;
+    };
+    return Object.values(report.groups).flatMap((group) => group.items)
+      .find((item) => item.id.startsWith("party-inventory-item-"))?.id;
+  });
+  expect(firstItemId).toBeDefined();
+  await clickLayoutItem(page, firstItemId!);
   await waitForState(page, "[PARTY:items");
   await page.keyboard.press("PageDown");
   await expect(page.locator("#debug-state")).toContainText("Page 2/");

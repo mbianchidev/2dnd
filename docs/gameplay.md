@@ -236,3 +236,9 @@ feedback and the consultable redacted log.
 
 Settings are stored separately from campaign progress. See
 [Getting started](getting-started.md#local-save-data) for storage details.
+
+Larger text and longer labels wrap or page in character creation, equipment,
+stat profiles, achievements and save slots. Use the visible page buttons;
+equipment also supports Page Up/Down and achievement lists support Left/Right.
+Changing window size or text preferences preserves current cosmetic choices,
+rolled/allocated scores and selected records rather than rerolling them.

@@ -16,6 +16,9 @@ Campaign normalization and autosave compatibility live in
 `src/systems/saveStorage.ts`; and shared Phaser presentation lives in
 `src/managers/saveSlots.ts`. Shared audio, accessibility, and inventory
 presentation preferences stay separate.
+`src/renderers/saveSlotPanel.ts` measures wrapped rows/actions/footers and pages
+slot lists as needed. Reflow preserves selected IDs and release-based activation;
+it never changes source-slot bytes, transactions or the save schema.
 `src/systems/saveActor.ts` validates required hero authority, preserves usable
 serialized hero items, and shares equipment repair with companion normalization.
 

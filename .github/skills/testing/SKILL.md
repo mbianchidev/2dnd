@@ -650,6 +650,12 @@ npx vitest run tests/dice.test.ts
   `#layout-report`, `data-layout-overlap-count`, and
   `data-layout-clipping-count`; use stable `layoutId` values instead of brittle
   coordinate-only clicks.
+- The audit checks glyph/padding content in fixed surfaces, nested groups and
+  explicit graphic bounds. UI boundary flows cover character creation,
+  equipment, save/rename, achievements, city entry and party attributes across
+  text scales and desktop/mobile sizes. Wait for the selected row in the fresh
+  report before collecting page coverage; an older clean report is not proof
+  that a newly selected page has rendered.
 - Hold frame-polled keys with `keyboard.down()`, wait across frames, then
   `keyboard.up()`. Do not use instantaneous presses for Overworld or Ending
   actions.

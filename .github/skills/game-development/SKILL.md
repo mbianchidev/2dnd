@@ -548,6 +548,10 @@ frame-polled Phaser keys across frames rather than using instantaneous presses.
 Build responsive UI from `src/systems/layout.ts`, register modal groups through
 `createOverlayContainer()`, and assert the local `#layout-report` reports zero
 unintended overlap or clipping at supported text scales.
+Measure natural glyph/padding extents inside fixed text surfaces and nested
+content too. Use `subscribeOverlayReflow()` for owned frame-boundary reflow,
+preserve choices and scores, and prefer wrapping/paging to masking overflow.
+The canvas-host ResizeObserver must read current Phaser parent bounds before FIT refresh.
 
 ## Common pitfalls
 

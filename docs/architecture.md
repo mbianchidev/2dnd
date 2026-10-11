@@ -134,6 +134,26 @@ Pure layout math lives in `src/systems/layout.ts`. Phaser scaled bounds, reflow,
 hit-area synchronization, group registration, and audit reporting live in
 `src/managers/layout.ts`. Modal content uses `createOverlayContainer()` and
 stable layout IDs. Tests should select those IDs rather than canvas coordinates.
+The audit includes natural glyph/padding bounds inside fixed text surfaces,
+nested containers, and explicitly registered graphic bounds such as progress
+bars, swatches, and hero previews. A clean outer rectangle alone does not prove
+that its text is readable.
+
+`subscribeOverlayReflow()` coalesces preference/source/resize changes at a frame
+boundary and defers replacement while a pointer is held. Character creation
+keeps cosmetic choices and rolled/allocated scores in the owner while the
+appearance manager and stat renderer rebuild only presentation. Save and
+achievement renderers measure wrapped sections and paginate available space;
+equipment/status/inventory pages retain their existing source-owned actions and
+values. Inventory page navigation uses measured pages and original inventory
+indexes, never reorders ownership. Tips/tutorial controls wrap and separate
+their measured headers, body, cards and footer; longer Tips content is paged.
+Map labels are bounded near their anchors, and simultaneous bottom messages
+and location prompts occupy separate measured rows.
+
+The input adapter reads Phaser's current parent bounds before refreshing FIT
+scaling when the canvas host changes. `refresh()` alone uses cached parent
+dimensions and can let the canvas extend behind the dice dock or past the window.
 
 Every scene installs shared accessibility. New motion must use the reduced-motion
 accessors and complete callbacks exactly once even when animation duration is

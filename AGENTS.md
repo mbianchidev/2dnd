@@ -202,6 +202,8 @@ owning issue or pull request.
 - [ ] Focus restored by ID and clamped
 - [ ] Keyboard, pointer, touch, gamepad, 150% text, high contrast, and reduced motion checked
 - [ ] Layout audit reports no unintended overlap or clipping
+- [ ] Fixed text surfaces fit their natural glyph/padding bounds, not just their outer boxes
+- [ ] Resize/preference reflow preserves choices, scores, action IDs and held-input ownership
 
 ### Combat
 

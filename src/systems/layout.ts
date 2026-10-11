@@ -154,6 +154,32 @@ export function centeredRect(
   };
 }
 
+/** Keep map labels near their anchor while avoiding already placed labels and map edges. */
+export function layoutAnchoredLabels(
+  items: readonly { id: string; bounds: LayoutRect }[],
+  viewport: LayoutRect,
+  gap = 4,
+): Array<{ id: string; bounds: LayoutRect }> {
+  const placed: Array<{ id: string; bounds: LayoutRect }> = [];
+  for (const item of items) {
+    const preferred = clampRectToViewport(item.bounds, viewport);
+    const step = Math.max(1, preferred.height + gap);
+    const candidates = [preferred];
+    for (let distance = 1; distance <= Math.ceil(viewport.height / step); distance += 1) {
+      candidates.push({ ...preferred, y: preferred.y - distance * step });
+      candidates.push({ ...preferred, y: preferred.y + distance * step });
+    }
+    const bounds = candidates.find((candidate) => containsRect(viewport, candidate)
+      && placed.every((other) => !intersectRects(candidate, {
+        x: other.bounds.x - gap, y: other.bounds.y - gap,
+        width: other.bounds.width + gap * 2, height: other.bounds.height + gap * 2,
+      })));
+    if (!bounds) throw new RangeError(`Map label ${item.id} cannot fit its viewport without overlap`);
+    placed.push({ id: item.id, bounds });
+  }
+  return placed;
+}
+
 export function layoutVerticalStack(
   items: readonly StackItem[],
   options: {

@@ -283,6 +283,10 @@ state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.
   pagination, safe-area clamping, and focus restoration.
 - Use `src/managers/layout.ts` for actual scaled Phaser bounds, text-stack
   reflow, hit-area synchronization, and debug/test overlap audits.
+- Measure natural glyph/padding bounds as well as outer text boxes; audit
+  nested content and explicit bars/swatches/previews. Coalesce preference and
+  resize changes through `subscribeOverlayReflow()` without rerolling choices
+  or replacing held-pointer controls.
 - Register modal containers with `createOverlayContainer()` and their final
   content viewport. Give interactive rows stable `layoutId` values.
 - Filter hidden or disabled entries before layout; variable-length menus must

@@ -115,19 +115,19 @@ async function selectSlot(page: Page, slotIndex: 1 | 2): Promise<void> {
     const pressedAt = await page.evaluate(() => performance.now());
     try {
       await waitForState(page, marker);
-      await page.evaluate(({ pressedAt, debounce }) => new Promise<void>((resolve) => {
-        const releasedFrame = (timestamp: number): void => {
-          if (timestamp - pressedAt < debounce) requestAnimationFrame(releasedFrame);
-          else requestAnimationFrame(() => resolve());
-        };
-        requestAnimationFrame(releasedFrame);
-      }), { pressedAt, debounce: SAVE_SLOT_KEY_DEBOUNCE_MS });
+      await page.evaluate(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }));
     } finally {
       await page.keyboard.up(index === 0 ? "Home" : "ArrowDown");
     }
-    await page.evaluate(() => new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    }));
+    await page.evaluate(({ pressedAt, debounce }) => new Promise<void>((resolve) => {
+      const releasedFrame = (timestamp: number): void => {
+        if (timestamp - pressedAt < debounce) requestAnimationFrame(releasedFrame);
+        else requestAnimationFrame(() => resolve());
+      };
+      requestAnimationFrame(releasedFrame);
+    }), { pressedAt, debounce: SAVE_SLOT_KEY_DEBOUNCE_MS });
     await waitForState(page, marker);
   }
 }

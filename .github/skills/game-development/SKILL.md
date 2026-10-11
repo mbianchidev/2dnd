@@ -88,6 +88,9 @@ Scene-owned shield/healing writes remain capture-only adapters.
 visible travel, multi-axis tumble, bounce and settling. Procedural SVG motion
 over the game is pointer-transparent, displays the exact resolved faces and
 owns cleanup. Never pass actors/outcomes/RNG/completion callbacks to its geometry.
+Roll displays default enabled and ordinary notices may be Off; canonical
+attack crit/fumble feedback always remains visible, without overriding
+Instant/reduced motion or reclassifying non-attack outcomes.
 
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a

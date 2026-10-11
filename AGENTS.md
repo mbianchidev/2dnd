@@ -111,8 +111,11 @@ owning issue or pull request.
   effects, render shared area pools once, and never fabricate fixed/derived dice.
 - Physical dice motion uses deterministic measured travel/tumble/bounce over
   the game, not outcome-deciding physics/RNG. Keep its layer pointer-transparent,
-  its faces exact and its objects/listeners cleanup-owned. Off/Instant/reduced
+  its faces exact and its objects/listeners cleanup-owned. Instant/reduced
   motion and skip stay immediate; never wait on a throw to advance mechanics.
+- Ordinary roll displays default to All and may be turned Off. Canonical attack
+  critical/fumble feedback always remains visible, including with Off, while
+  Instant/reduced motion stays static. Never reclassify checks/saves/initiative.
 - Use stable IDs for combatants, quests/stages/objectives/rewards, cutscenes,
   shops, traps, events, recipes, transactions, features, and layout items.
 - Persist authority, not derived presentation. Every schema change requires

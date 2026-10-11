@@ -34,12 +34,17 @@ is open, **[** cycles frequency and **]** cycles speed:
 
 | Setting | Values |
 | --- | --- |
-| Dice animation frequency | All, Important, Off |
+| Dice visibility/frequency | All (default), Important, Off (crits still show) |
 | Dice animation speed | Normal (900 ms), Fast (300 ms), Instant |
 
 Important animates checks, saves, flee, and critical/fumble feedback rather than
-routine attacks or initiative. Off keeps immediate text and logs without die
-graphics or cues. Reduced motion and Instant show exact static results without
+routine attacks or initiative. Off hides ordinary roll notices, announcements
+and animations, retaining the redacted consultable history. **Canonical attack
+critical hits (selected natural20) and fumbles (selected natural1) always show,
+even with Off.** Instant and reduced motion still make those results static;
+they never force motion or a gameplay wait. Checks, saves and initiative keep
+their actual outcomes and are not reclassified as attack crits.
+Reduced motion and Instant show exact static results without
 animation timers. Text scale and high contrast update live.
 
 The runtime log resets on returning to title or reloading. It is consultable

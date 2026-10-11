@@ -10,6 +10,8 @@ import {
   DiceRollHistory,
   formatDicePresentation,
   getDicePresentationDuration,
+  isCriticalDicePresentation,
+  isDicePresentationVisible,
 } from "../src/systems/dicePresentation";
 import { snapshotD20Roll, snapshotEffectRoll } from "../src/systems/rollResults";
 import type {
@@ -469,5 +471,54 @@ describe("non-blocking dice presentation lifecycle", () => {
     expect(Object.isFrozen(history.entries)).toBe(true);
     history.clear();
     expect(history.entries).toEqual([]);
+  });
+
+  it.each([
+    ["critical", 20],
+    ["fumble", 1],
+  ] as const)("always shows an actual attack %s even when ordinary rolls are off", (outcome, naturalRoll) => {
+    const view = createD20Presentation(receipt({
+      naturalRolls: [naturalRoll], naturalRoll, total: naturalRoll + 3,
+    }), { category: "attack", label: "Attack", outcome });
+    expect(isCriticalDicePresentation(view)).toBe(true);
+    expect(isDicePresentationVisible(view, { frequency: "off", speed: "normal" })).toBe(true);
+    expect(getDicePresentationDuration(view, { frequency: "off", speed: "normal" }, false)).toBe(900);
+    expect(getDicePresentationDuration(view, { frequency: "off", speed: "fast" }, false)).toBe(300);
+    expect(getDicePresentationDuration(view, { frequency: "off", speed: "instant" }, false)).toBe(0);
+    expect(getDicePresentationDuration(view, { frequency: "off", speed: "normal" }, true)).toBe(0);
+  });
+
+  it("hides ordinary Off notices without reclassifying checks/saves or discarded natural extremes", () => {
+    const ordinary = createD20Presentation(receipt(), {
+      category: "attack", label: "Attack", outcome: "hit",
+    });
+    expect(isDicePresentationVisible(ordinary, { frequency: "off", speed: "normal" })).toBe(false);
+    expect(isDicePresentationVisible(ordinary, { frequency: "all", speed: "normal" })).toBe(true);
+    const discarded = createD20Presentation(receipt({
+      naturalRolls: [20, 5], selectedIndex: 1, selection: "disadvantage",
+      naturalRoll: 5, total: 8,
+    }), { category: "attack", label: "Attack", outcome: "miss" });
+    expect(isCriticalDicePresentation(discarded)).toBe(false);
+    for (const category of ["skill", "save", "initiative"] as const) {
+      const view = createD20Presentation(receipt({
+        naturalRolls: [20], naturalRoll: 20, total: 23,
+      }), { category, label: category, outcome: "failure" });
+      expect(isCriticalDicePresentation(view)).toBe(false);
+      expect(isDicePresentationVisible(view, { frequency: "off", speed: "normal" })).toBe(false);
+      expect(view.outcome).toBe("failure");
+    }
+  });
+
+  it("keeps a critical target visible in a combined presentation without exposing hidden values", () => {
+    const ordinary = presentation();
+    const critical = createD20Presentation(receipt({
+      naturalRolls: [20], naturalRoll: 20, modifier: 137, total: 157,
+    }), {
+      category: "attack", label: "Enemy critical", outcome: "critical",
+      revealModifier: false, revealThreshold: false,
+    });
+    const view = combineDicePresentations(ordinary, [critical]);
+    expect(isDicePresentationVisible(view, { frequency: "off", speed: "normal" })).toBe(true);
+    expect(JSON.stringify(view)).not.toMatch(/137|157/);
   });
 });

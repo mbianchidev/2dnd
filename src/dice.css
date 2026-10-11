@@ -39,7 +39,7 @@
 .dice-faces { display: flex; flex-wrap: wrap; gap: 4px; }
 .resolved-die { width: calc(42px * var(--dice-text-scale)); text-align: center; }
 .resolved-die svg { display: block; width: 100%; }
-.resolved-die span { display: block; font-size: 0.75em; }
+.resolved-die span { display: block; font-size: 0.75em; overflow-wrap: anywhere; }
 .resolved-die.selected { border-bottom: 2px solid #fff; }
 
 .dice-presentation button,

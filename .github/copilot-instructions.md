@@ -590,9 +590,12 @@ Flow:
   `diceMotion.ts` owns deterministic measured travel, multi-axis tumble and
   bouncing shadows over the game viewport, never outcome-deciding physics.
   Keep the visual layer pointer-transparent, inside safe game bounds and
-  cleanup-owned. Off/Instant/reduced motion, skip, visibility loss, replacement
+  cleanup-owned. Instant/reduced motion, skip, visibility loss, replacement
   and scene shutdown remove motion immediately without focus/input blocking.
   The bounded roll log survives handoffs only at runtime; Boot/reload clears it.
+  Ordinary displays default enabled and can be turned Off; canonical attack
+  selected-natural20 criticals and selected-natural1 fumbles always show even
+  with Off. Honor Instant/reduced motion and preserve real check/save outcomes.
 - Idle, attack, cast, ability, item, defend, damage, victory, faint, and flee
   states must have once-only completion, a duration-plus-grace visual recovery
   path, and explicit cleanup on battle handoff or scene shutdown.

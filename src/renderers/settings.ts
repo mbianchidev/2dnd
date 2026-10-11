@@ -267,7 +267,10 @@ export function addSettingsControls(
     rightX + diceWidth / 2,
     py + 276,
     diceWidth,
-    () => `Dice [\n${gamePreferences.getDice().frequency}`,
+    () => {
+      const frequency = gamePreferences.getDice().frequency;
+      return `Dice [\n${frequency === "off" ? "off (crits)" : frequency}`;
+    },
     () => gamePreferences.cycleDiceFrequency(),
     10,
   );
@@ -332,7 +335,7 @@ export function addSettingsControls(
   const mappingNote = scene.add.text(
     centerX,
     py + panelHeight - 48,
-    "Stable mappings (no remap). [ dice frequency / ] dice speed.",
+    "Rolls default on. Off still shows attack crits/fumbles. [ dice / ] speed.",
     {
       fontSize: "8px",
       fontFamily: "monospace",

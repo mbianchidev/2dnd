@@ -132,6 +132,9 @@ damage doubles only its existing pool; spell natural-20 flags do not imply new
 damage dice. Area/healing pools remain shared with independent target limits.
 Status ticks show their pools plus the one applied aggregate HP write.
 No fabricated on-hit save, breath-attack d20, fixed-item or life-drain heal die.
+Ordinary roll displays may be Off, but canonical attack critical/fumble outcomes
+always show. Respect the selected natural, never a discarded20/1; keep checks,
+saves and initiative unreclassified. Instant/reduced motion stays static.
 
 ## Elements
 

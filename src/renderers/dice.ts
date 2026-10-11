@@ -1,4 +1,4 @@
-import type { DicePresentation, DicePresentationEvent } from "../systems/dicePresentation";
+import { isDicePresentationVisible, type DicePresentation, type DicePresentationEvent } from "../systems/dicePresentation";
 import type { GamePreferences } from "../systems/accessibility";
 import { getInputPromptSource } from "../systems/input";
 import { debugLog } from "../config";
@@ -69,6 +69,7 @@ export class DiceRollRenderer {
   private readonly resizeObserver: ResizeObserver;
   private stageWidth = 0;
   private stageHeight = 0;
+  private currentEvent: DicePresentationEvent | null = null;
 
   constructor(onFastForward: () => void) {
     const host = document.getElementById("game-inner");
@@ -154,22 +155,19 @@ export class DiceRollRenderer {
     announce = true,
   ): void {
     this.settle();
-    this.applyPreferences(preferences);
-    this.root.hidden = false;
+    this.currentEvent = event;
     this.root.dataset.phase = event.duration > 0 ? "animating" : "ready";
     this.root.dataset.sequence = String(event.sequence);
     this.root.dataset.category = event.presentation.category;
     this.root.dataset.skipped = "false";
     this.result.textContent = event.text;
-    if (announce) this.announcement.textContent = event.text;
-    this.glyphs.replaceChildren();
-    if (preferences.dice.frequency !== "off") {
-      this.appendResultDice(event.presentation);
-    }
-    if (event.duration > 0) {
+    this.applyPreferences(preferences);
+    const visible = isDicePresentationVisible(event.presentation, preferences.dice);
+    if (announce && visible) this.announcement.textContent = event.text;
+    if (visible && event.duration > 0) {
       this.throwDice(event, preferences);
     }
-    this.fastForwardButton.disabled = event.duration === 0;
+    this.fastForwardButton.disabled = !visible || event.duration === 0;
     this.updatePrompt();
     if (!this.root.querySelector("details")?.open) this.root.scrollTop = 0;
   }
@@ -183,7 +181,21 @@ export class DiceRollRenderer {
     this.stage.style.setProperty("--dice-text-scale", String(preferences.accessibility.textScale));
     this.root.dataset.frequency = preferences.dice.frequency;
     this.root.dataset.speed = preferences.dice.speed;
-    if (preferences.dice.frequency === "off") this.glyphs.replaceChildren();
+    const event = this.currentEvent;
+    if (!event) return;
+    const visible = isDicePresentationVisible(event.presentation, preferences.dice);
+    const readerOpen = this.root.querySelector("details")?.open === true;
+    this.root.hidden = !visible && !readerOpen;
+    if (!visible || preferences.accessibility.reducedMotion || preferences.dice.speed === "instant") {
+      this.settle();
+    }
+    this.glyphs.replaceChildren();
+    if (visible) this.appendResultDice(event.presentation);
+    else this.announcement.textContent = "";
+    if (this.root.hidden && this.root.contains(document.activeElement)) {
+      this.canvas.tabIndex = -1;
+      this.canvas.focus({ preventScroll: true });
+    }
   }
 
   private appendResultDice(view: DicePresentation, sharedGroups = new Set<string>()): void {
@@ -309,6 +321,7 @@ export class DiceRollRenderer {
 
   destroy(): void {
     this.settle();
+    this.currentEvent = null;
     if (this.root.contains(document.activeElement)) {
       const canvas = document.querySelector<HTMLCanvasElement>("#game-container canvas");
       if (canvas) {

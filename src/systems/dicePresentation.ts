@@ -377,17 +377,30 @@ export function formatDicePresentation(view: DicePresentation): string {
   ].join("\n");
 }
 
+/** Canonical attack outcomes only; checks/saves are never reclassified. */
+export function isCriticalDicePresentation(presentation: DicePresentation): boolean {
+  return (presentation.category === "attack"
+    && (presentation.outcome === "critical" || presentation.outcome === "fumble"))
+    || (presentation.additionalResults?.some(isCriticalDicePresentation) ?? false);
+}
+
+export function isDicePresentationVisible(
+  presentation: DicePresentation,
+  preferences: Readonly<DicePreferences>,
+): boolean {
+  return preferences.frequency !== "off" || isCriticalDicePresentation(presentation);
+}
+
 export function getDicePresentationDuration(
   presentation: DicePresentation,
   preferences: Readonly<DicePreferences>,
   reducedMotion: boolean,
 ): number {
-  if (reducedMotion || preferences.frequency === "off"
+  if (reducedMotion || !isDicePresentationVisible(presentation, preferences)
     || preferences.speed === "instant") return 0;
   const important = presentation.category !== "attack"
     && presentation.category !== "initiative"
-    || presentation.outcome === "critical"
-    || presentation.outcome === "fumble";
+    || isCriticalDicePresentation(presentation);
   if (preferences.frequency === "important" && !important) return 0;
   if (!presentation.roll && !presentation.components && !presentation.effect?.roll
     && !presentation.additionalResults?.some((result) =>

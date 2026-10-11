@@ -52,20 +52,74 @@ describe("procedural resolved-dice renderer", () => {
     expect(document.getElementById("dice-announcement")).toBeNull();
   });
 
-  it("keeps disabled information, text scale and high contrast without dice animation", () => {
+  it("keeps ordinary disabled information in history without showing or announcing a roll", () => {
     const renderer = new DiceRollRenderer(vi.fn());
-    const result = { ...event(), duration: 0 };
+    const presentation = createD20Presentation({
+      naturalRolls: [12], selectedIndex: 0, selection: "normal",
+      naturalRoll: 12, modifier: 3, total: 15,
+    }, { category: "attack", label: "Ordinary attack", outcome: "hit" });
+    const result = { presentation, text: formatDicePresentation(presentation), duration: 0, sequence: 1 };
     renderer.record(result);
     renderer.show(result, normalizeGamePreferences({
       accessibility: { textScale: 1.5, highContrast: true, reducedMotion: true },
       dice: { frequency: "off", speed: "instant" },
     }));
     expect(renderer.root.querySelectorAll("svg")).toHaveLength(0);
+    expect(renderer.root.hidden).toBe(true);
     expect(renderer.root.dataset.phase).toBe("ready");
     expect(renderer.root.style.getPropertyValue("--dice-text-scale")).toBe("1.5");
     expect(renderer.root.classList.contains("high-contrast")).toBe(true);
     expect(renderer.root.querySelector("p")?.textContent).toBe(result.text);
+    expect(renderer.root.querySelector("li")?.textContent).toBe(result.text);
+    expect(document.getElementById("dice-announcement")?.textContent).toBe("");
     expect(renderer.root.querySelector("button")?.disabled).toBe(true);
+    renderer.destroy();
+  });
+
+  it.each(["critical", "fumble"] as const)("keeps %s faces visible with Off and instant/reduced motion", (outcome) => {
+    const renderer = new DiceRollRenderer(vi.fn());
+    const natural = outcome === "critical" ? 20 : 1;
+    const presentation = createD20Presentation({
+      naturalRolls: [natural], selectedIndex: 0, selection: "normal",
+      naturalRoll: natural, modifier: 3, total: natural + 3,
+    }, { category: "attack", label: "Mandatory result", outcome });
+    const result = { presentation, text: formatDicePresentation(presentation), duration: 0, sequence: 1 };
+    renderer.show(result, normalizeGamePreferences({
+      dice: { frequency: "off", speed: "instant" },
+      accessibility: { reducedMotion: true },
+    }));
+    expect(renderer.root.hidden).toBe(false);
+    expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(1);
+    expect(renderer.root.querySelector<HTMLElement>(".resolved-die")?.dataset.natural).toBe(String(natural));
+    expect(document.getElementById("dice-announcement")?.textContent).toBe(result.text);
+    expect(document.getElementById("dice-roll-stage")?.hidden).toBe(true);
+    renderer.applyPreferences(normalizeGamePreferences({ dice: { frequency: "off", speed: "normal" } }));
+    expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(1);
+    renderer.destroy();
+  });
+
+  it("applies ordinary visibility changes live while leaving an explicit open log reader focused", () => {
+    const renderer = new DiceRollRenderer(vi.fn());
+    const presentation = createD20Presentation({
+      naturalRolls: [12], selectedIndex: 0, selection: "normal",
+      naturalRoll: 12, modifier: 3, total: 15,
+    }, { category: "attack", label: "Ordinary attack", outcome: "hit" });
+    renderer.show({
+      presentation, text: formatDicePresentation(presentation), duration: 0, sequence: 1,
+    }, normalizeGamePreferences(undefined));
+    renderer.applyPreferences(normalizeGamePreferences({ dice: { frequency: "off" } }));
+    expect(renderer.root.hidden).toBe(true);
+    renderer.applyPreferences(normalizeGamePreferences(undefined));
+    expect(renderer.root.hidden).toBe(false);
+    const details = renderer.root.querySelector("details")!;
+    details.open = true;
+    const summary = renderer.root.querySelector("summary")!;
+    summary.focus();
+    renderer.root.scrollTop = 120;
+    renderer.applyPreferences(normalizeGamePreferences({ dice: { frequency: "off" } }));
+    expect(renderer.root.hidden).toBe(false);
+    expect(document.activeElement).toBe(summary);
+    expect(renderer.root.scrollTop).toBe(120);
     renderer.destroy();
   });
 

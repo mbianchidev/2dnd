@@ -51,6 +51,8 @@ and campaign saves stay in your browser's local storage.
   faces. Advantage/disadvantage selection and shared area rolls stay truthful without
   delaying mechanics or revealing hidden enemy stats. Skip motion or consult
   the bounded runtime roll log.
+  Rolls start enabled and ordinary displays are easy to disable; attack
+  natural20 crits and natural1 fumbles always show (static with reduced motion).
 - **Explore a changing world:** travel through connected city districts,
   multi-level dungeons, seeded traps, fog of war, weather, day and night,
   non-combat skill checks, World Events, and optional danger zones.

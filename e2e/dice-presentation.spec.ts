@@ -33,6 +33,7 @@ import { getSpell } from "../src/data/spells";
 import { getItem } from "../src/data/items";
 import { formatSkillCheckResult } from "../src/systems/skillChecks";
 import { clickLayoutItem, expectCleanLayout } from "./helpers/layout";
+import type { ConsoleMessage } from "@playwright/test";
 
 test.use({
   hasTouch: true,
@@ -47,6 +48,16 @@ const DIRECTIONS = {
   up: "ArrowUp", right: "ArrowRight", down: "ArrowDown", left: "ArrowLeft",
 } as const;
 const GAMEPAD_DIRECTIONS = { up: 12, right: 15, down: 13, left: 14 } as const;
+const diceCaptureCleanups = new WeakMap<Page, () => Promise<void>>();
+
+async function closeDiceCapture(page: Page): Promise<void> {
+  const cleanup = diceCaptureCleanups.get(page);
+  if (!cleanup) return;
+  diceCaptureCleanups.delete(page);
+  await cleanup();
+}
+
+test.afterEach(async ({ page }) => closeDiceCapture(page));
 
 interface SeedOptions {
   textScale?: TextScale;
@@ -59,6 +70,7 @@ interface SeedOptions {
   trapTrigger?: boolean;
   instant?: boolean;
   hp?: number;
+  attackNaturals?: readonly number[];
 }
 
 interface DiceDebugPacket {
@@ -80,6 +92,8 @@ interface DiceDebugPacket {
 interface DisplayedDiceSnapshot {
   text: string;
   faces: { sides: string | undefined; natural: string | undefined }[];
+  hidden: boolean;
+  rollingFaces: { sides: string | undefined; natural: string | undefined }[];
 }
 
 function captureDice(page: Page): {
@@ -87,15 +101,31 @@ function captureDice(page: Page): {
   find(kind: string, actorId?: string, from?: number): Promise<DiceDebugPacket>;
 } {
   const packets: DiceDebugPacket[] = [];
-  page.on("console", (message) => {
+  const pending: Promise<void>[] = [];
+  const failures: unknown[] = [];
+  const capture = (message: ConsoleMessage): void => {
     if (!message.text().startsWith("[DEBUG] [dice] receipt")) return;
-    void message.args()[2]?.jsonValue().then((value: unknown) => {
+    const argument = message.args()[2];
+    if (!argument) {
+      failures.push(new Error("Missing canonical dice diagnostic"));
+      return;
+    }
+    const task = argument.jsonValue().then((value: unknown) => {
       if (typeof value !== "object" || value === null || !("kind" in value)
         || typeof value.kind !== "string") {
         throw new Error("Invalid canonical dice diagnostic");
       }
       packets.push(value as DiceDebugPacket);
+    }).catch((error: unknown) => {
+      failures.push(error);
     });
+    pending.push(task);
+  };
+  page.on("console", capture);
+  diceCaptureCleanups.set(page, async () => {
+    page.off("console", capture);
+    await Promise.all(pending);
+    if (failures.length > 0) throw failures[0];
   });
   return {
     packets,
@@ -267,7 +297,7 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
     controls: { touchControls: "on" },
     dice: { frequency: options.disabled ? "off" : "all", speed: options.instant ? "instant" : "normal" },
   });
-  await page.addInitScript(({ campaign, preferences }) => {
+  await page.addInitScript(({ campaign, preferences, attackNaturals }) => {
     if (!sessionStorage.getItem("diceInitialized")) {
       sessionStorage.setItem("diceInitialized", "true");
       localStorage.clear();
@@ -275,7 +305,16 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
       localStorage.setItem("2dnd_preferences", JSON.stringify(preferences));
     }
     let seed = 0x165_2026;
+    const forced = [...attackNaturals];
     Math.random = () => {
+      const stack = forced.length > 0 ? new Error().stack ?? "" : "";
+      if (forced.length > 0 && stack.includes("playerAttack") && stack.includes("rollCombatD20")) {
+        const natural = forced.shift()!;
+        if (!Number.isInteger(natural) || natural < 1 || natural > 20) {
+          throw new Error("Invalid canonical attack RNG fixture");
+        }
+        return (natural - 0.5) / 20;
+      }
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
       return seed / 0x1_0000_0000;
     };
@@ -295,7 +334,7 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
         pad.timestamp += 1;
       },
     });
-  }, { campaign: JSON.stringify(save), preferences });
+  }, { campaign: JSON.stringify(save), preferences, attackNaturals: options.attackNaturals ?? [] });
   await page.goto("game.html", { waitUntil: "networkidle" });
   await expect(page.locator("#debug-state")).toContainText("BOOT | Screen: title");
   await page.locator("#debug-checkbox").check();
@@ -359,14 +398,20 @@ async function captureDisplayedDice(page: Page, label: string): Promise<Displaye
   return page.evaluate((expected) => new Promise<DisplayedDiceSnapshot>((resolve, reject) => {
     const root = document.getElementById("dice-presentation");
     if (!root) throw new Error("Missing live dice view");
+    const previousSequence = root.dataset.sequence;
     const read = (): boolean => {
+      if (root.dataset.sequence === previousSequence) return false;
       const text = root.querySelector("#dice-result")?.textContent ?? "";
       if (!text.startsWith(expected)) return false;
       observer.disconnect();
       window.clearTimeout(timeout);
       resolve({
         text,
+        hidden: root.hidden === true,
         faces: [...root.querySelectorAll<HTMLElement>(".resolved-die")].map((die) => ({
+          sides: die.dataset.sides, natural: die.dataset.natural,
+        })),
+        rollingFaces: [...document.querySelectorAll<HTMLElement>("#dice-roll-stage .rolling-die")].map((die) => ({
           sides: die.dataset.sides, natural: die.dataset.natural,
         })),
       });
@@ -489,21 +534,25 @@ test.describe("physical dice game-viewport demo", () => {
     await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe("visible");
     await holdKey(page, "e");
     await expectCleanLayout(page);
-    const saved = await readSave(page);
     const heals = evidence.packets.filter((packet) => packet.kind === "healing" && packet.actionId === "cureWounds");
     expect(heals).toHaveLength(4);
-    const hpRestored = heals.reduce((total, packet) => total + (packet.healing?.healingRoll?.application?.amount ?? 0), 0);
-    expect(saved.player.hp).toBe(450 + hpRestored);
-    expect(saved.player.mp).toBe(100 - 4 * getSpell("cureWounds")!.mpCost);
     const evidencePath = test.info().outputPath("physical-roll-frame-evidence.json");
     const frameEvidence = { recordingAt, startedAt, motion, receipts: heals.map((packet) => packet.healing) };
     await writeFile(evidencePath, JSON.stringify(frameEvidence, null, 2), "utf8");
     const storedEvidence: unknown = JSON.parse(await readFile(evidencePath, "utf8"));
     expect(storedEvidence).toEqual(frameEvidence);
     await test.info().attach("physical-roll-frame-evidence", { path: evidencePath, contentType: "application/json" });
+    await holdKey(page, "Escape");
+    await clickLayoutItem(page, "escape-menu-quit");
+    await expect(page.locator("#debug-state")).toContainText("BOOT | Screen: title");
+    const saved = await readSave(page);
+    const hpRestored = heals.reduce((total, packet) => total + (packet.healing?.healingRoll?.application?.amount ?? 0), 0);
+    expect(saved.player.hp).toBe(450 + hpRestored);
+    expect(saved.player.mp).toBe(100 - 4 * getSpell("cureWounds")!.mpCost);
     expect(errors).toEqual([]);
     const video = page.video();
     if (video) {
+      await closeDiceCapture(page);
       await page.close();
       const path = test.info().outputPath("physical-dice.webm");
       await video.saveAs(path);
@@ -648,7 +697,10 @@ for (const textScale of [1, 1.25, 1.5] as const) {
   test(`real exploration and battle healing keep exact pools and HP caps at ${textScale * 100}% mobile text`, async ({ page }) => {
     const errors = collectErrors(page);
     const evidence = captureDice(page);
-    await seedCampaign(page, { textScale, healing: true, reducedMotion: true });
+    await seedCampaign(page, {
+      textScale, healing: true, reducedMotion: true,
+      attackNaturals: textScale === 1 ? [12] : undefined,
+    });
     await continueCampaign(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await holdKey(page, "e");
@@ -787,12 +839,68 @@ test("preferences, disabled results and non-combat checks survive reload without
   if (!check) throw new Error("No authoritative World Event check was persisted");
   await expect(page.locator("#dice-log")).toContainText(formatSkillCheckResult(check));
   await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
+  await expect(page.locator("#dice-presentation")).toBeHidden();
   await expect(page.locator("#dice-presentation svg")).toHaveCount(0);
   await page.reload({ waitUntil: "networkidle" });
   await continueCampaign(page);
   expect((await readSave(page)).player.progression.skillChecks).toEqual(save.player.progression.skillChecks);
   await expect(page.locator("#game-container canvas")).toHaveAttribute("data-dice-frequency", "off");
   await expect(page.locator("#dice-presentation")).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test("rolls default on, disable easily, and actual positive/negative crits remain visible with Off", async ({ page }) => {
+  const errors = collectErrors(page);
+  const evidence = captureDice(page);
+  await seedCampaign(page, {
+    healing: true, textScale: 1.5, attackNaturals: [12, 20, 1],
+  });
+  expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).dice.frequency, PREFERENCES_KEY))
+    .toBe("all");
+  const campaign = await page.evaluate((key) => localStorage.getItem(key), SAVE_KEY);
+  await clickLayoutItem(page, "title-settings");
+  await clickLayoutItem(page, "settings-dice-frequency");
+  await clickLayoutItem(page, "settings-dice-frequency");
+  await expectCleanLayout(page);
+  expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).dice.frequency, PREFERENCES_KEY))
+    .toBe("off");
+  expect(await page.evaluate((key) => localStorage.getItem(key), SAVE_KEY)).toBe(campaign);
+  await holdKey(page, "Escape");
+  await continueCampaign(page);
+  await debugCommand(page, "/spawn orc");
+  await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+  for (const natural of [12, 20, 1]) {
+    const from = evidence.packets.length;
+    const displayed = captureDisplayedDice(page, "Dice Tester attack");
+    await holdKey(page, "Enter");
+    await holdKey(page, "Enter");
+    const packet = await evidence.find("attack", "party:hero", from);
+    const result = packet.attack;
+    if (!result?.rollResult) throw new Error("No canonical resolved attack");
+    expect(result.rollResult.naturalRoll).toBe(natural);
+    const visible = await displayed;
+    expect(visible.text).toContain(`d20 ${natural}`);
+    if (natural === 12) {
+      expect(result.critical ?? false).toBe(false);
+      expect(result.fumble ?? false).toBe(false);
+      expect(visible.hidden).toBe(true);
+      expect(visible.faces).toEqual([]);
+      expect(visible.rollingFaces).toEqual([]);
+    } else {
+      expect(natural === 20 ? result.critical : result.fumble).toBe(true);
+      expect(visible.hidden).toBe(false);
+      expect(visible.faces[0]).toEqual({ sides: "20", natural: String(natural) });
+      expect(visible.rollingFaces[0]).toEqual({ sides: "20", natural: String(natural) });
+      expect(visible.text).toContain(natural === 20 ? "Critical hit" : "Fumble / critical miss");
+    }
+    await expect(page.locator("#dice-log")).toContainText(visible.text);
+    await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+  }
+  await debugCommand(page, "/kill");
+  await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+  expect((await readSave(page)).player.mp).toBe(100);
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(page.locator("#game-container canvas")).toHaveAttribute("data-dice-frequency", "off");
   expect(errors).toEqual([]);
 });
 

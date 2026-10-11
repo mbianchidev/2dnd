@@ -132,7 +132,10 @@ Use Z, L3, or the visible skip button; the last 40 results remain consultable
 across scene handoffs.
 With animation enabled, dice travel and tumble across the game with bouncing
 shadows, then settle on those exact faces. They never intercept controls or
-hold a turn; skip, Off/Instant and reduced motion retain static readable results.
+hold a turn; skip, Instant and reduced motion retain static readable results.
+Roll displays start enabled. Settings can turn ordinary displays Off; natural20
+attack crits and natural1 fumbles always appear. Instant/reduced motion still
+keep mandatory critical feedback static, and Off retains the consultable log.
 See [Dice presentation](dice-presentation.md).
 
 A full party wipe applies one recovery result, autosaves it, reports exact gold
@@ -192,10 +195,12 @@ Accessibility and presentation settings include:
 - master, music, SFX, dialog, and mute controls
 - manual or automatic cutscene advance
 - touch visibility, handedness, and prompt-source controls
-- All/Important/Off dice animation frequency and Normal/Fast/Instant speed
+- All/Important/Off dice visibility/frequency and Normal/Fast/Instant speed;
+  canonical attack crits/fumbles always show, even with Off
 
 Within Settings, `[` cycles dice frequency and `]` cycles speed. Reduced motion
-and disabled dice animation keep immediate result text and logs.
+keeps immediate static feedback; Off hides ordinary notices but retains critical
+feedback and the consultable redacted log.
 
 Settings are stored separately from campaign progress. See
 [Getting started](getting-started.md#local-save-data) for storage details.

@@ -210,6 +210,17 @@ describe("shared game preferences", () => {
     expect(listener).toHaveBeenCalledTimes(6);
   });
 
+  it("keeps ordinary rolls enabled by default and preserves an explicit Off choice separately from saves", () => {
+    const campaign = '{"mockCampaign":"unchanged"}';
+    localStorage.setItem("2dnd_save", campaign);
+    const store = new GamePreferencesStore();
+    expect(store.getDice()).toEqual({ frequency: "all", speed: "normal" });
+    store.setDice({ frequency: "off" });
+    expect(new GamePreferencesStore().getDice()).toEqual({ frequency: "off", speed: "normal" });
+    expect(store.get().version).toBe(3);
+    expect(localStorage.getItem("2dnd_save")).toBe(campaign);
+  });
+
   it("recovers malformed preference JSON with valid dice defaults", () => {
     localStorage.setItem(GAME_PREFERENCES_STORAGE_KEY, "{bad json");
     const store = new GamePreferencesStore();

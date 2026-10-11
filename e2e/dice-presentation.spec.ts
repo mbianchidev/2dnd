@@ -144,11 +144,14 @@ async function debugCommand(page: Page, command: string): Promise<void> {
       }));
       field.blur();
     }, command);
-    return;
+  } else {
+    await input.fill(command);
+    await input.press("Enter");
+    await input.blur();
   }
-  await input.fill(command);
-  await input.press("Enter");
-  await input.blur();
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
 }
 
 async function seedCampaign(page: Page, options: SeedOptions = {}) {
@@ -464,6 +467,12 @@ test("real gathering controls show canonical scores without fabricated d20s and 
   await page.setViewportSize({ width: 390, height: 844 });
   for (const discipline of ["fishing", "mining", "foraging"] as const) {
     await debugCommand(page, `/gather near ${discipline}`);
+    await expect(page.locator("#debug-log")).toContainText(`Moved near ${discipline} node`);
+    const position = (await readSave(page)).player.position;
+    await expect(page.locator("#debug-state")).toContainText(
+      `Chunk: (${position.chunkX},${position.chunkY}) Pos: (${position.x},${position.y})`,
+    );
+    await expect(page.locator("#debug-state")).toContainText("Move: ready Handoff: ready");
     if (discipline === "fishing") await holdKey(page, "Space");
     else await debugCommand(page, `/gather trigger ${discipline}`);
     await expect(page.locator("#debug-state")).toContainText(`[GATHERING:${discipline}]`);

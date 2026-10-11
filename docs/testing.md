@@ -141,6 +141,9 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.
+- Setup commands that queue a scene restart must let the new input handlers
+  mount across rendered frames and confirm the saved location/handoff state
+  before sending the gameplay action.
 - Await persisted tutorial completion before leaving opening/controller drains
   or testing pending-mechanic reloads; the first Overworld frame can precede the
   deferred tutorial handoff.

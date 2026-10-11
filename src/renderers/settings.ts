@@ -335,7 +335,7 @@ export function addSettingsControls(
   const mappingNote = scene.add.text(
     centerX,
     py + panelHeight - 48,
-    "Rolls default on. Off still shows attack crits/fumbles. [ dice / ] speed.",
+    "Off: crits still show. [ dice / ] speed.",
     {
       fontSize: "8px",
       fontFamily: "monospace",

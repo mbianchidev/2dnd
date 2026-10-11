@@ -65,6 +65,10 @@ export const ACHIEVEMENT_IDS = [
   "steadyHand",
   "harborChampion",
   "festivalTriathlete",
+  "constellationVisitor",
+  "steadfastDevotion",
+  "prestigeInitiate",
+  "prestigeMaster",
 ] as const;
 
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
@@ -89,6 +93,8 @@ export const TITLE_IDS = [
   "steadyHand",
   "harborChampion",
   "festivalLaureate",
+  "threadkeeper",
+  "pathkeeper",
 ] as const;
 
 export type TitleId = (typeof TITLE_IDS)[number];
@@ -98,6 +104,7 @@ export type AchievementCounterKey =
   | "oneHitDefeats";
 
 export type AchievementCriteria =
+  | { readonly type: "prestigeRank"; readonly minimum: number }
   | {
     readonly type: "questStageCompleted";
     readonly questId: QuestId;
@@ -211,6 +218,10 @@ export type AchievementCriteria =
   }
   | {
     readonly type: "minigameActivitiesWon";
+  }
+  | {
+    readonly type: "templesVisited" | "devotionScore";
+    readonly threshold: number;
   };
 
 export interface AchievementSourceMetadata {
@@ -232,7 +243,9 @@ export interface AchievementSourceMetadata {
     | "inventory"
     | "gathering"
     | "crafting"
-    | "minigame";
+    | "minigame"
+    | "devotion"
+    | "progression";
   readonly authoritativeState: string;
   readonly targetIds?: readonly string[];
 }
@@ -259,6 +272,39 @@ export interface TitleDefinition {
 const MAIN_QUEST = "twelvefoldCovenant" as const;
 
 export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
+  {
+    id: "constellationVisitor", name: "Room for Another Road",
+    description: "Visit three Unfinished Constellation sites; no affiliation is required.",
+    category: "social", points: 10,
+    criteria: { type: "templesVisited", threshold: 3 },
+    source: { kind: "devotion", authoritativeState: "player.progression.devotion.visitedTempleIds" },
+  },
+  {
+    id: "steadfastDevotion", name: "A Thread Kept Freely",
+    description: "Reach 50 devotion through distinct, freely chosen causes.",
+    category: "social", points: 10,
+    criteria: { type: "devotionScore", threshold: 50 }, rewardTitleId: "threadkeeper",
+    source: { kind: "devotion", authoritativeState: "player.progression.devotion.score" },
+  },
+  {
+    id: "prestigeInitiate",
+    name: "A Road of Your Own",
+    description: "Earn the first rank of an optional prestige path.",
+    category: "collection",
+    points: 10,
+    criteria: { type: "prestigeRank", minimum: 1 },
+    source: { kind: "progression", authoritativeState: "Natural registered prestige ranks" },
+  },
+  {
+    id: "prestigeMaster",
+    name: "Fivefold Practice",
+    description: "Earn all five ranks of any prestige path.",
+    category: "collection",
+    points: 25,
+    criteria: { type: "prestigeRank", minimum: 5 },
+    rewardTitleId: "pathkeeper",
+    source: { kind: "progression", authoritativeState: "Natural registered prestige ranks" },
+  },
   {
     id: "firstSealComplete",
     name: "The First Seal",
@@ -698,6 +744,15 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
 ] as const;
 
 export const TITLES: readonly TitleDefinition[] = [
+  {
+    id: "threadkeeper", name: "Threadkeeper",
+    description: "A cosmetic title for a freely kept thread.",
+    achievementId: "steadfastDevotion",
+  },
+  {
+    id: "pathkeeper", name: "Pathkeeper",
+    description: "Mastered an optional five-rank tradition.", achievementId: "prestigeMaster",
+  },
   { id: "covenantRoadwarden", name: "Covenant Roadwarden", description: "Bearer of the restored Twelvefold Covenant.", achievementId: "twelvefoldCovenantComplete" },
   { id: "unbroken", name: "The Unbroken", description: "Completed the covenant road without defeat.", achievementId: "unbrokenCovenant" },
   { id: "deepdelver", name: "Deepdelver", description: "Conqueror of the realm's three deepest dungeons.", achievementId: "threeDungeonsCleared" },

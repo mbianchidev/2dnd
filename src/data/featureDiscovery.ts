@@ -6,6 +6,7 @@ import type { MinigameActivityId } from "./minigames";
 export const FEATURE_IDS = [
   "map",
   "equipment",
+  "prestige",
   "inventory",
   "tips",
   "settings",
@@ -34,6 +35,7 @@ export const FEATURE_IDS = [
   "gatheringForaging",
   "worldEvents",
   "socialProfile",
+  "devotionProfile",
   "mounts",
   "nauticalHarbors",
   "nauticalRoutes",
@@ -100,6 +102,14 @@ export const FEATURE_DEFINITIONS: readonly FeatureDefinition[] = [
     owners: ["shortcut", "escapeMenu", "tutorial"],
     testId: "feature-equipment",
     alwaysAvailable: true,
+  },
+  {
+    id: "prestige",
+    label: "Prestige paths",
+    description: "Optional advanced hero ranks within the normal total-level cap.",
+    prerequisite: "Reach applied total level 6.",
+    owners: ["tutorial", "contextPrompt"],
+    testId: "feature-prestige",
   },
   {
     id: "inventory",
@@ -253,6 +263,14 @@ export const FEATURE_DEFINITIONS: readonly FeatureDefinition[] = [
     prerequisite: "Cause a non-default alignment or reputation change.",
     owners: ["partyTab", "tutorial"],
     testId: "feature-social-profile",
+  },
+  {
+    id: "devotionProfile",
+    label: "Devotion",
+    description: "Optional fictional affiliations, causes, temples, and rites.",
+    prerequisite: "Visit an Unfinished Constellation site.",
+    owners: ["escapeMenu", "contextPrompt", "tutorial"],
+    testId: "feature-devotion-profile",
   },
   {
     id: "mounts",

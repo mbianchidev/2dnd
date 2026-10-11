@@ -17,7 +17,8 @@ import {
   recordDefeat,
   type CodexData,
 } from "./codex";
-import { rollD20 } from "./dice";
+import { rollD20, type D20Roll } from "./dice";
+import type { ResolvedD20Roll } from "./rollResults";
 import {
   getArmorClass,
   type PlayerState,
@@ -86,6 +87,7 @@ export interface BattleTurn {
 export interface BattleInitiativeResult {
   order: BattleTurn[];
   rolls: Record<BattleCombatantId, number>;
+  readonly rollResults: Readonly<Record<BattleCombatantId, ResolvedD20Roll | undefined>>;
 }
 
 export interface GroupInitiativeResult extends BattleInitiativeResult {
@@ -292,15 +294,18 @@ export function createGroupCombatants(
 export function rollBattleInitiative(
   combatants: BattleCombatantState[],
   getModifier: (combatant: BattleCombatantState) => number,
-  roller: (modifier: number) => number = (modifier) => rollD20(modifier).total,
+  roller: (modifier: number) => number | D20Roll = rollD20,
 ): BattleInitiativeResult {
   const activeCombatants = combatants.filter(isCombatantActive);
   const originalOrder = new Map(
     activeCombatants.map((combatant, index) => [combatant.id, index]),
   );
   const rolls: Record<BattleCombatantId, number> = {};
+  const rollResults: Record<BattleCombatantId, ResolvedD20Roll> = {};
   const order = activeCombatants.map((combatant): BattleTurn => {
-    const initiative = roller(getModifier(combatant));
+    const result = roller(getModifier(combatant));
+    const initiative = typeof result === "number" ? result : result.total;
+    if (typeof result !== "number") rollResults[combatant.id] = result.rollResult;
     rolls[combatant.id] = initiative;
     return { combatantId: combatant.id, initiative };
   });
@@ -309,7 +314,7 @@ export function rollBattleInitiative(
     return (originalOrder.get(a.combatantId) ?? 0)
       - (originalOrder.get(b.combatantId) ?? 0);
   });
-  return { order, rolls };
+  return { order, rolls, rollResults: Object.freeze(rollResults) };
 }
 
 /** Backward-compatible player-plus-monsters initiative adapter. */
@@ -317,12 +322,25 @@ export function rollGroupInitiative(
   playerDexMod: number,
   combatants: GroupCombatant[],
   getMonsterBonus: (monster: Monster, index: number) => number = () => 0,
-  roller: (modifier: number) => number = (modifier) => rollD20(modifier).total,
+  roller: (modifier: number) => number | D20Roll = rollD20,
 ): GroupInitiativeResult {
-  const playerRoll = roller(playerDexMod);
-  const monsterRolls = combatants.map((combatant, index) =>
+  const playerResult = roller(playerDexMod);
+  const monsterResults = combatants.map((combatant, index) =>
     roller(combatant.monster.attackBonus + getMonsterBonus(combatant.monster, index))
   );
+  const playerRoll = typeof playerResult === "number" ? playerResult : playerResult.total;
+  const monsterRolls = monsterResults.map((result) =>
+    typeof result === "number" ? result : result.total
+  );
+  const rollResults: Record<BattleCombatantId, ResolvedD20Roll> = {};
+  if (typeof playerResult !== "number") {
+    rollResults[HERO_COMBATANT_ID] = playerResult.rollResult;
+  }
+  for (const [index, result] of monsterResults.entries()) {
+    if (typeof result !== "number") {
+      rollResults[combatants[index]!.id] = result.rollResult;
+    }
+  }
   const rolls: Record<BattleCombatantId, number> = {
     [HERO_COMBATANT_ID]: playerRoll,
   };
@@ -351,7 +369,10 @@ export function rollGroupInitiative(
       - (originalOrder.get(b.combatantId) ?? 0);
   });
 
-  return { order, rolls, playerRoll, monsterRolls };
+  return {
+    order, rolls, playerRoll, monsterRolls,
+    rollResults: Object.freeze(rollResults),
+  };
 }
 
 export function getCombatantById<T extends BattleCombatantState>(

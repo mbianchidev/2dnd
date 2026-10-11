@@ -42,7 +42,8 @@ import type {
 import type { PlayerState } from "./player";
 
 export const LEGACY_MINIGAME_SEED = 0x2d0d0167;
-export const MINIGAME_SAVE_VERSION = 19;
+export const MINIGAME_SAVE_VERSION = 22;
+const MINIGAME_PREVIEW_SAVE_VERSION = 19;
 const recoveryNotices = new WeakMap<MinigameState, string>();
 
 export function createMinigameState(
@@ -351,7 +352,7 @@ function retirePending(state: MinigameState, reason: string): void {
 
 /** Normalize known authority only; corrupt pending repair never refunds, pays, or rerolls. */
 export function normalizeMinigameState(value: unknown, sourceVersion: number): MinigameState {
-  if (sourceVersion < MINIGAME_SAVE_VERSION || !isRecord(value)) {
+  if (sourceVersion < MINIGAME_PREVIEW_SAVE_VERSION || !isRecord(value)) {
     return createMinigameState(LEGACY_MINIGAME_SEED);
   }
   const seedValid = integerIn(value["seed"], 1, 0xffff_ffff);

@@ -20,6 +20,7 @@ import { TimePeriod } from "./daynight";
 import { WeatherType } from "./weather";
 import { awardXP, type PlayerState } from "./player";
 import { applyNonlethalDamage, rollSkillCheck } from "./skillChecks";
+import type { SkillCheckRecord } from "../data/skillChecks";
 import {
   getQuestProgress,
   startQuestById,
@@ -49,6 +50,7 @@ import {
 } from "./achievements";
 import { discoverCraftingRecipes } from "./crafting";
 import { discoverMinigameVenue } from "./minigameVenues";
+import { recordDevotionWorldEventOutcome, type DevotionMutationResult } from "./devotion";
 
 export const WORLD_EVENT_LOG_LIMIT = 40;
 export const LEGACY_WORLD_EVENT_SEED = 0x2d0d0069;
@@ -125,6 +127,8 @@ export interface WorldEventResolution {
   questUpdates: readonly QuestUpdate[];
   codexUnlocks: CodexUnlockResult;
   socialEffects: readonly SocialMutationResult[];
+  devotionEffects: readonly DevotionMutationResult[];
+  readonly skillCheck?: SkillCheckRecord;
 }
 
 export type OverworldStepTrigger =
@@ -519,6 +523,7 @@ function completeOutcome(
       questUpdates: [],
       codexUnlocks: { unlockedIds: [], entries: [] },
       socialEffects: [],
+      devotionEffects: [],
     };
   }
 
@@ -577,6 +582,9 @@ function completeOutcome(
   appendLog(state, event, pending, choiceId, outcome);
   state.pending = null;
   const debug = consumeWorldEventDebugFlag(player, pending.instanceId);
+  const devotionEffects = recordDevotionWorldEventOutcome(
+    player, event.id, outcome.id, debug,
+  );
   recordAchievementEvent(player, {
     type: "worldEventResolved",
     sourceId: `worldEvent:${resolutionId}`,
@@ -606,6 +614,7 @@ function completeOutcome(
       ].map((entry) => [entry.id, entry])).values()],
     },
     socialEffects,
+    devotionEffects,
   };
 }
 
@@ -651,7 +660,7 @@ export function resolveWorldEventChoice(
       },
     );
   player.progression.skillChecks[checkId] = result;
-  return completeOutcome(
+  const resolution = completeOutcome(
     player,
     codex,
     defeatedBosses,
@@ -661,6 +670,7 @@ export function resolveWorldEventChoice(
     choice.id,
     result.success ? choice.success : choice.failure,
   );
+  return { ...resolution, skillCheck: Object.freeze({ ...result }) };
 }
 
 export function prepareWorldEventBattle(

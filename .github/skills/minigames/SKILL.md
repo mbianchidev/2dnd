@@ -60,7 +60,7 @@ difficulty, but grants no currency, reputation, paid statistics, or achievements
 
 ## Recovery and authority
 
-Schema v19 `player.progression.minigames` stores seed, permanent
+Schema v22 `player.progression.minigames` stores seed, permanent
 session/settlement watermarks, one exact pending session or settled receipt,
 finite known milestone claims, discovered venues, paid/practice bests, natural
 statistics, and at most 40 recent receipts.
@@ -69,7 +69,8 @@ History is never a payment ledger. Use stable gameplay `runId` plus expected rev
 for every accepted action. Commit entry, wear, input, settlement, and abandonment
 before presenting success. A failed write restores all touched domains.
 Run references use `mg:<seed>:<sequence>`, never security/authentication tokens.
-Normalize pre-review v19 `sessionId` aliases without changing IDs or challenges;
+Normalize schema-v19/v20/v21 activity previews and old `sessionId` aliases
+without changing IDs or challenges;
 reject conflicting aliases conservatively.
 Invalid pending repair cannot refund, recharge, reroll, replay a reward, or
 restore wear. Old campaigns gain deterministic empty defaults without historic

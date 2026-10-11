@@ -18,6 +18,10 @@ npm run test:desktop      # Production-like Electron Playwright smoke test
 npm run package:desktop   # Unsigned artifacts for the current host
 ```
 
+Run `npm run test:browser:install` once before desktop tests. The parity flow
+uses Playwright Chromium to export a browser campaign and verifies the same
+state/metadata through production Electron import controls.
+
 Desktop development binds Vite to a dynamically allocated loopback port.
 Production packages load `dist/game.html` from the relative Vite build at the
 stable `app://2dnd` origin.
@@ -46,7 +50,7 @@ generic IPC APIs through preload.
 
 ## Persistence
 
-The desktop shell uses the same schema-v19 autosave, manual-slot, staging, and
+The desktop shell uses the same schema-v22 autosave, manual-slot, staging, and
 backup `localStorage` documents as the web game. The stable `app://2dnd` origin
 keeps them available across launches and upgrades:
 
@@ -123,3 +127,20 @@ macOS and Windows builds remain unsigned until protected signing credentials
 are configured; operating systems may warn before opening them. Apple Developer
 ID/notarization and Authenticode credentials must stay in a protected release
 environment, never in source or pull-request workflows.
+
+Desktop packages now contain only the game entry, compiled shell and runtime:
+the showcase/screenshots and source maps are excluded. AGPL,
+Phaser/EventEmitter3 and Electron/Chromium notices accompany the package.
+
+Steam review CI also creates inspected unpacked Windows x64, macOS universal
+and native Linux x64 depot previews. These are not installers, signed releases
+or a Steam/Deck certification. See [Steam preparation](steam.md) for launch
+paths, licenses/source receipts, protected upload prerequisites and manual
+client/hardware gates. Steam SDK, achievements and Cloud remain disabled;
+preload, `app://2dnd` and renderer-owned local storage are unchanged.
+
+The shared renderer text-entry dialog includes a controller keyboard for names,
+slot labels and search. West edits the hero name; D-pad selects keys, south
+types, west deletes, Menu submits and east cancels. The right-stick cursor can
+also activate the native fullscreen button. No native Steam keyboard or
+filesystem API is exposed.

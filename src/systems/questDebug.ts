@@ -11,6 +11,7 @@ import type {
 } from "../data/quests";
 import type { PlayerState } from "./player";
 import type { QuestUpdate } from "./quests";
+import { consumeHistoricalDevotionSources, withDevotionDebugMutation } from "./devotion";
 
 export interface QuestActionResult {
   changed: boolean;
@@ -42,6 +43,15 @@ function createResult(
 
 /** Complete every required objective in the current stage. */
 export function advanceQuest(
+  player: PlayerState,
+  questId: QuestId,
+  defeatedBosses: ReadonlySet<string> = new Set<string>(),
+): QuestActionResult {
+  return withDevotionDebugMutation(player, () =>
+    advanceQuestForDebug(player, questId, defeatedBosses));
+}
+
+function advanceQuestForDebug(
   player: PlayerState,
   questId: QuestId,
   defeatedBosses: ReadonlySet<string> = new Set<string>(),
@@ -91,6 +101,21 @@ export function advanceQuest(
 
 /** Set an exact quest stage or status for deterministic debug scenarios. */
 export function setQuestState(
+  player: PlayerState,
+  questId: QuestId,
+  target: number | QuestStatus,
+  defeatedBosses: ReadonlySet<string> = new Set<string>(),
+): QuestActionResult {
+  return withDevotionDebugMutation(player, () => {
+    const result = setQuestStateForDebug(player, questId, target, defeatedBosses);
+    consumeHistoricalDevotionSources(
+      player.progression.devotion, player.progression.quests, player.progression.worldEvents.log,
+    );
+    return result;
+  });
+}
+
+function setQuestStateForDebug(
   player: PlayerState,
   questId: QuestId,
   target: number | QuestStatus,

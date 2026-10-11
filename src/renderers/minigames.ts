@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../config";
 import { getAccessibilityPreferences } from "../systems/accessibility";
-import { isInputAction, isTouchActionAvailable } from "../systems/input";
+import { inputSource, isInputAction, isTouchActionAvailable } from "../systems/input";
 import { layoutMinigamePanel, paginateMinigameLines } from "../systems/minigameLayout";
 import { wrapMeasuredText } from "../systems/layout";
 import { syncInteractiveHitArea } from "../managers/layout";
@@ -219,7 +219,10 @@ export class MinigamePanelRenderer {
       }).setInteractive({ useHandCursor: true });
       button.setData("layoutId", `minigame-${action.id}`);
       button.setData("testId", `minigame-${action.id}`);
-      button.on("pointerover", () => content.onSelect(action.id));
+      button.on("pointerover", () => {
+        const source = inputSource.get();
+        if (source === "pointer" || source === "touch") content.onSelect(action.id);
+      });
       button.on("pointerdown", () => content.onSelect(action.id));
       button.on("pointerup", action.execute);
       syncInteractiveHitArea(button);
@@ -240,6 +243,7 @@ export class MinigamePanelRenderer {
   }
 
   setSelected(id: string): void {
+    this.scene.game.canvas.dataset["minigameSelectedAction"] = id;
     this.buttons.forEach((button, index) => {
       const action = this.visibleActions[index]!;
       button.setText(`${action.id === id ? "> " : "  "}${action.label}`);
@@ -280,5 +284,6 @@ export class MinigamePanelRenderer {
     delete this.scene.game.canvas.dataset["minigameVisibleAim"];
     delete this.scene.game.canvas.dataset["minigameTarget"];
     delete this.scene.game.canvas.dataset["minigameMeter"];
+    delete this.scene.game.canvas.dataset["minigameSelectedAction"];
   }
 }

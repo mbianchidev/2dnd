@@ -1,0 +1,16 @@
+"DepotBuild"
+{
+  "DepotID" "{{STEAM_DEPOT_LINUX_ID}}"
+  "ContentRoot" "../content/linux-x64"
+  "FileMapping"
+  {
+    "LocalPath" "*"
+    "DepotPath" "."
+    "Recursive" "1"
+  }
+  "FileExclusion" "*.map"
+  "FileExclusion" "*.pdb"
+  "FileExclusion" "*.log"
+  "FileExclusion" ".env*"
+  "FileExclusion" "steam_appid.txt"
+}

@@ -37,6 +37,10 @@ import {
   type GroupCombatant,
   type PartyCombatant,
 } from "./groupCombat";
+import { canActorUseSpell, getActorAbilityRejection } from "./classProgression";
+import type { CombatDiceReceipt } from "./dicePresentation";
+import { captureDamageApplication } from "./effectRolls";
+import type { ResolvedEffectRoll } from "./rollResults";
 
 export type BattleActionKind =
   | "attack"
@@ -61,6 +65,7 @@ export interface BattleActionResources {
   economy: BattleActionEconomyState;
   knownSpellIds?: readonly string[];
   knownAbilityIds?: readonly string[];
+  actorState?: CombatActorState;
 }
 
 export interface BattleActionEconomyState {
@@ -144,6 +149,7 @@ export interface ResolvedBattleActionTarget {
   healing: number;
   hpBefore?: number;
   elementalLabel?: ElementalInteraction;
+  readonly healingRoll?: ResolvedEffectRoll;
 }
 
 export interface ResolvedBattleAction {
@@ -153,6 +159,10 @@ export interface ResolvedBattleAction {
   targets: ResolvedBattleActionTarget[];
   mpUsed: number;
   itemUsed: boolean;
+  readonly diceResults?: readonly {
+    readonly targetId: BattleCombatantId;
+    readonly result: CombatDiceReceipt;
+  }[];
 }
 
 export function createBattleActionSource(
@@ -390,6 +400,19 @@ export function validateBattleAction(
   ) {
     return { valid: false, message: "Actor does not know that ability." };
   }
+  if (descriptor.kind === "ability") {
+    const ability = getAbility(descriptor.actionId ?? "");
+    if (ability?.equipmentRequirement || ability?.progressionScope === "track") {
+      if (!resources.actorState) return { valid: false, message: "Action equipment context is unavailable." };
+      const rejection = getActorAbilityRejection(resources.actorState, ability.id);
+      if (rejection) return { valid: false, message: rejection };
+    }
+  }
+  if (descriptor.kind === "spell" && getSpell(descriptor.actionId ?? "")?.progressionScope === "track") {
+    if (!resources.actorState || !canActorUseSpell(resources.actorState, descriptor.actionId ?? "")) {
+      return { valid: false, message: "The acting character has not learned this spell." };
+    }
+  }
   if (resources.mp < descriptor.mpCost) {
     return { valid: false, message: "Not enough MP." };
   }
@@ -562,6 +585,19 @@ export function executeValidatedBattleAction(
       itemUsed: false,
     };
   }
+  const actionRejection = plan.kind === "spell" && !canActorUseSpell(source.state, plan.actionId ?? "")
+    ? "The acting character has not learned this spell."
+    : plan.kind === "ability" ? getActorAbilityRejection(source.state, plan.actionId ?? "") : undefined;
+  if (actionRejection) {
+    return {
+      executed: false,
+      message: actionRejection,
+      plan,
+      targets: [],
+      mpUsed: 0,
+      itemUsed: false,
+    };
+  }
 
   if (plan.kind === "defend") {
     source.combatant.isDefending = true;
@@ -654,6 +690,7 @@ export function executeValidatedBattleAction(
       target.effects,
     );
     target.currentHp = Math.max(0, target.currentHp - result.damage);
+    const appliedResult = captureDamageApplication(result, hpBefore - target.currentHp);
     if (target.currentHp === 0) {
       target.isAlive = false;
       target.isKnockedOut = true;
@@ -668,6 +705,7 @@ export function executeValidatedBattleAction(
       executed: true,
       message: result.message,
       plan,
+      diceResults: [{ targetId: target.id, result: appliedResult }],
       targets: [{
         targetId: target.id,
         hit: result.hit,
@@ -705,6 +743,7 @@ export function executeValidatedBattleAction(
       healingTargets,
     );
     const targets: ResolvedBattleActionTarget[] = [];
+    const diceResults: { targetId: BattleCombatantId; result: CombatDiceReceipt }[] = [];
     for (const targetResult of result.results) {
       const target = enemies[targetResult.targetIndex];
       if (!target) continue;
@@ -714,6 +753,10 @@ export function executeValidatedBattleAction(
         target.isAlive = false;
         target.isKnockedOut = true;
       }
+      diceResults.push({
+        targetId: target.id,
+        result: captureDamageApplication(targetResult, hpBefore - target.currentHp),
+      });
       recordElementalInteraction(
         context,
         target.id,
@@ -735,6 +778,7 @@ export function executeValidatedBattleAction(
         hit: true,
         damage: 0,
         healing: healingResult.healing,
+        healingRoll: healingResult.healingRoll,
       });
     }
     for (const effectResult of result.effectResults ?? []) {
@@ -752,6 +796,7 @@ export function executeValidatedBattleAction(
         || (result.effectResults?.length ?? 0) > 0,
       message: result.message,
       plan,
+      diceResults,
       targets,
       mpUsed: result.mpUsed,
       itemUsed: false,
@@ -798,6 +843,7 @@ export function executeValidatedBattleAction(
     healingTargets,
   );
   target.currentHp = Math.max(0, target.currentHp - result.damage);
+  const appliedResult = captureDamageApplication(result, hpBefore - target.currentHp);
   if (target.currentHp === 0) {
     target.isAlive = false;
     target.isKnockedOut = true;
@@ -824,6 +870,7 @@ export function executeValidatedBattleAction(
       hit: true,
       damage: 0,
       healing: healingResult.healing,
+      healingRoll: healingResult.healingRoll,
     });
   }
   return {
@@ -831,6 +878,9 @@ export function executeValidatedBattleAction(
       || (ability?.mpCost === 0 && result.hit),
     message: result.message,
     plan,
+    diceResults: result.rollResult
+      ? [{ targetId: target.id, result: appliedResult }]
+      : [],
     targets,
     mpUsed: result.mpUsed,
     itemUsed: false,

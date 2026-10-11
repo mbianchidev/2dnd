@@ -34,13 +34,21 @@ system has been discovered. The Escape menu remains the reliable entry point.
 | `K` | Open Gathering after discovering a discipline |
 | `V` | Open Crafting after learning a non-starting recipe |
 | `T` | Mount or dismount after acquiring a mount |
+| `Z` | Skip resolved-dice animation without changing the result |
 
 Pointer and touch users can select visible buttons directly. Touch layouts use
 safe-area-aware movement and action controls. Standard gamepads use the left
-stick or D-pad for movement/navigation, `A` to confirm, `B` to cancel, `X` to
-interact, Menu/`Y` for the menu, View for Tips, bumpers for targets/pages, and
+stick or D-pad for movement/navigation, the south button to confirm, east to
+cancel, west to interact, Menu/north for the menu, View for Tips, bumpers for targets/pages, and
 triggers for Battle-log scrolling. The right stick moves a visible cursor;
-press the stick to click pointer-first controls.
+press the stick to click pointer-first controls and the desktop fullscreen
+button. Xbox positions are A/B/X/Y; prompts use positions so they do not guess
+PlayStation or Nintendo labels.
+
+During hero creation, west or unmodified `Tab` edits the name. Names, manual
+slot labels and searches share a controller keyboard: D-pad selects, south
+types, west deletes, Menu submits and east cancels. `Aa` switches letter case.
+Keyboard/touch text input remains available; cancel never commits a draft.
 
 Mappings are stable rather than user-remappable. Settings can control touch
 visibility, handedness, and automatic or fixed prompt sources.
@@ -66,6 +74,21 @@ Character creation follows:
 - Class boosts apply after base stats.
 - Level progression reaches 20 with class actions, spells, talents, equipment,
   hit-point growth, proficiency increases, and ability-score improvements.
+
+At applied level 6, the character sheet also previews six optional
+[prestige paths](prestige.md). Each has five ranks with explicit class, score
+and world joining conditions. A rank spends one rested level within the same
+total cap of 20. Preview the table and the normal-class features you delay;
+later social changes never remove earned ranks. No affiliation or prestige
+path is required to finish the campaign.
+- At rest, keep advancing the starting class or select a qualified additional
+  class. Preview exact frozen gains before each one-level commit. The total
+  remains capped at 20, companions remain single-class, and there is no respec.
+- `E`, then `Tab`, opens the progression sheet, including pending stat
+  allocation and recovery of interrupted rest choices.
+
+See [Hero progression](hero-progression.md) for prerequisites and source-aware
+spell, feature, resource and save rules.
 
 ## Party, inventory, and gambits
 
@@ -96,6 +119,24 @@ Combat statuses include Poisoned, Burning, Frozen, Paralyzed, Stunned,
 Frightened, Slowed, Prone, Asleep, Confused, Enraged, Hasted, Inspired, Raging,
 and Sneak Stance. Effects resolve on actor turn boundaries and are cleared when
 Battle ends.
+
+Resolved rolls appear in a procedural dice dock, with both advantage/disadvantage
+faces and the selected die identified. Enemy bonuses and undiscovered AC/DC
+remain hidden. Damage and healing show their actual die types/faces, signed
+modifiers, resolved amounts, and effective HP changes. Resistance, immunity,
+defending, overkill, nonlethal limits, and maximum-HP caps stay distinct from
+the original roll. Area effects show one shared pool with separate target
+results. Magic Missile shows damage dice but no attack die; fixed items and
+derived life-drain healing remain aggregate text without invented faces.
+Use Z, L3, or the visible skip button; the last 40 results remain consultable
+across scene handoffs.
+With animation enabled, dice travel and tumble across the game with bouncing
+shadows, then settle on those exact faces. They never intercept controls or
+hold a turn; skip, Instant and reduced motion retain static readable results.
+Roll displays start enabled. Settings can turn ordinary displays Off; natural20
+attack crits and natural1 fumbles always appear. Instant/reduced motion still
+keep mandatory critical feedback static, and Off retains the consultable log.
+See [Dice presentation](dice-presentation.md).
 
 A full party wipe applies one recovery result, autosaves it, reports exact gold
 and XP losses, clears Battle effects, and returns the party to the last town at
@@ -150,6 +191,22 @@ abandoning forfeits the entry but never repeats charges or undoes committed wear
 See [Tavern and festival activities](minigames.md) for all venues, controls,
 transparent dice odds, capped payouts, records, and reload recovery.
 
+## Optional fictional devotion
+
+The original **Unfinished Constellation** consists of Orivane (Making and
+Shelter), Selquor (Testimony and Memory), and Tessune (Passage and Possibility).
+New and legacy heroes remain unaffiliated unless they explicitly choose a
+figure at a temple. All affiliations and an unaffiliated hero can complete the
+same canonical campaign.
+
+Start at the model statue in Willowdale's Riverside district. The first visit
+reveals **Devotion Profile** in the Escape menu. Temples show domains, tenets,
+independent devotion and cause history, optional keeper quests, and available
+rites. A traveling thread grants the same +1 AC for three hero turns to every
+visitor; a resting-place rite uses one normal short rest. Each rite and cause
+is once per site/source, never a farming loop. See [Fictional devotion](devotion.md)
+for sites, explicit-choice consequences, and lifecycle details.
+
 ## Tutorial, discovery, and accessibility
 
 New campaigns open a five-step tutorial after the opening cutscene queue.
@@ -170,6 +227,12 @@ Accessibility and presentation settings include:
 - master, music, SFX, dialog, and mute controls
 - manual or automatic cutscene advance
 - touch visibility, handedness, and prompt-source controls
+- All/Important/Off dice visibility/frequency and Normal/Fast/Instant speed;
+  canonical attack crits/fumbles always show, even with Off
+
+Within Settings, `[` cycles dice frequency and `]` cycles speed. Reduced motion
+keeps immediate static feedback; Off hides ordinary notices but retains critical
+feedback and the consultable redacted log.
 
 Settings are stored separately from campaign progress. See
 [Getting started](getting-started.md#local-save-data) for storage details.

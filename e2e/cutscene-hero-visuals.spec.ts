@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { getHeroCutsceneIds } from "../src/data/cutscenes";
-import { clickLayoutItem } from "./helpers/layout";
+import { clickLayoutItem, clickPointerAt, waitForGameInputFrame } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -14,9 +14,16 @@ async function clickGame(
 ): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
+  const initial = await canvas.boundingBox();
+  if (!initial) throw new Error("Game canvas has no rendered bounds");
+  await page.mouse.move(
+    initial.x + (gameX / GAME_WIDTH) * initial.width,
+    initial.y + (gameY / GAME_HEIGHT) * initial.height,
+  );
+  await waitForGameInputFrame(page);
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Game canvas has no rendered bounds");
-  await page.mouse.click(
+  await clickPointerAt(page,
     bounds.x + (gameX / GAME_WIDTH) * bounds.width,
     bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
   );
@@ -74,9 +81,11 @@ async function createCampaign(page: Page): Promise<void> {
   await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
   await clickGame(page, 284, 160);
+  await waitForState(page, "[CLASS:ranger]");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: stats");
   await clickGame(page, 390, 64);
+  await waitForState(page, "[MODE:random]");
   await clickGame(page, 400, 460);
   await waitForState(page, "BOOT | Screen: appearance");
   await clickGame(page, 320, 112);

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MINIGAME_HISTORY_LIMIT, getMinigameRecordId } from "../src/data/minigames";
 import {
   LEGACY_MINIGAME_SEED,
@@ -14,7 +14,12 @@ import { createCodex } from "../src/systems/codex";
 import { SAVE_VERSION, createCurrentSaveData, loadGame, normalizeSaveData, saveGame } from "../src/systems/save";
 import { saveGameToSlot } from "../src/systems/saveSlots";
 import { WeatherType } from "../src/systems/weather";
+import { awardXP, xpForLevel } from "../src/systems/player";
+import { prepareHeroLevelUp } from "../src/systems/classProgression";
+import { performTempleRite, visitDevotionTemple } from "../src/systems/devotionTemples";
+import { processEndOfTurn } from "../src/systems/statusEffects";
 import { playerAt, requestFor, startRequest } from "./helpers/minigames";
+import { advancePrestige, prestigeFixture } from "./helpers/prestige";
 import type { MinigameVenueId } from "../src/data/minigames";
 import type { MinigameState } from "../src/systems/minigameTypes";
 
@@ -23,8 +28,9 @@ function serializedState(state: MinigameState): unknown {
 }
 
 beforeEach(() => localStorage.clear());
+afterEach(() => vi.restoreAllMocks());
 
-describe("schema-v19 exact activity recovery", () => {
+describe("schema-v22 exact activity recovery", () => {
   it.each(["willowInnTable", "willowdaleRange", "sandportRegatta"] as const)(
     "keeps the exact paid pending session for %s without rerolling or charging again",
     (venueId) => {
@@ -98,6 +104,121 @@ describe("schema-v19 exact activity recovery", () => {
     expect(loaded.codex.unlockedEntryIds).not.toContain("historyArrowFair");
     expect(normalizeMinigameState(undefined, SAVE_VERSION))
       .toEqual(createMinigameState(LEGACY_MINIGAME_SEED));
+  });
+
+  it.each([19, 20, 21])(
+    "preserves exact pending and settled activity previews from schema %s",
+    (version) => {
+      for (const venueId of ["willowInnTable", "willowdaleRange", "sandportRegatta"] as const) {
+        const player = playerAt(venueId);
+        startMinigame(player, startRequest(player, venueId, { weather: WeatherType.Storm }));
+        if (venueId === "willowInnTable") {
+          applyMinigameAction(player, requestFor(player, { type: "roll" }));
+        } else if (venueId === "willowdaleRange") {
+          applyMinigameAction(player, requestFor(player, { type: "aimTo", aim: 40 }));
+          applyMinigameAction(player, requestFor(player, { type: "fire" }));
+        } else {
+          applyMinigameAction(player, requestFor(player, { type: "sail", heading: "east" }));
+        }
+        const before = structuredClone(player);
+        const raw = structuredClone(createCurrentSaveData(player, new Set(), createCodex(), player.appearanceId, 45));
+        raw.version = version;
+        const random = vi.spyOn(Math, "random");
+        random.mockClear();
+        const loaded = normalizeSaveData(raw);
+        expect(loaded?.version).toBe(SAVE_VERSION);
+        expect(loaded?.player.progression.minigames).toEqual(before.progression.minigames);
+        expect(loaded?.player.gold).toBe(before.gold);
+        expect(loaded?.player.progression.nautical).toEqual(before.progression.nautical);
+        expect(random).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it.each([19, 20, 21])("adds empty activity defaults to schema %s without changing other campaign authority", (version) => {
+    const player = playerAt("willowdaleRange");
+    const before = structuredClone(player);
+    const raw = structuredClone(createCurrentSaveData(player, new Set(), createCodex(), player.appearanceId, 45));
+    raw.version = version;
+    Reflect.deleteProperty(raw.player.progression, "minigames");
+    const loaded = normalizeSaveData(raw);
+    expect(loaded?.player.progression.minigames).toEqual(createMinigameState(LEGACY_MINIGAME_SEED));
+    expect(loaded?.player.gold).toBe(before.gold);
+    expect(loaded?.player.classProgression).toEqual(before.classProgression);
+    expect(loaded?.player.progression.devotion).toEqual(before.progression.devotion);
+    expect(loaded?.player.progression.quests).toEqual(before.progression.quests);
+  });
+
+  it("migrates an original v19 activity preview without class ownership as a legacy hero, not modern missing grants", () => {
+    const player = playerAt("willowdaleRange", 167, "ranger");
+    player.level = 6;
+    player.xp = xpForLevel(6);
+    player.maxHp = 71;
+    player.hp = 48;
+    player.maxMp = 29;
+    player.mp = 13;
+    player.knownSpells = ["magicMissile"];
+    player.knownAbilities = [];
+    player.knownTalents = [];
+    startMinigame(player, startRequest(player, "willowdaleRange"));
+    const before = structuredClone(player);
+    const raw = structuredClone(createCurrentSaveData(player, new Set(), createCodex(), player.appearanceId, 45));
+    raw.version = 19;
+    Reflect.deleteProperty(raw.player, "classProgression");
+    const random = vi.spyOn(Math, "random");
+    random.mockClear();
+    const loaded = normalizeSaveData(raw);
+    if (!loaded) throw new Error("Valid original activity preview was rejected");
+    for (const key of ["level", "xp", "hp", "maxHp", "mp", "maxMp", "stats",
+      "knownSpells", "knownAbilities", "knownTalents", "inventory"] as const) {
+      expect(loaded.player[key]).toEqual(before[key]);
+    }
+    expect(loaded.player.classProgression.classLevels).toEqual({ ranger: 6 });
+    expect(loaded.player.classProgression.legacyGrants.spells).toContain("magicMissile");
+    expect(loaded.player.classProgression.deferredLegacyGrants).toBeDefined();
+    expect(loaded.player.progression.minigames).toEqual(before.progression.minigames);
+    expect(loaded.player.gold).toBe(995);
+    expect(random).not.toHaveBeenCalled();
+  });
+
+  it("keeps prestige ownership, frozen credits, custom gear and a partially spent temple blessing alongside a paid run", () => {
+    const player = prestigeFixture("prismScribe");
+    advancePrestige(player, "prismScribe");
+    awardXP(player, xpForLevel(player.level + 1) - player.xp);
+    expect(prepareHeroLevelUp(player, () => 0.35).ok).toBe(true);
+    if (!player.equippedWeapon) throw new Error("Missing integrated fixture weapon");
+    const original = { ...player.equippedWeapon, id: "mockRunStaff", name: "Mock Run Staff" };
+    const equipped = { ...original, name: "Mock Mended Run Staff", cost: original.cost + 3 };
+    player.inventory.push(original, equipped);
+    player.equippedWeapon = equipped;
+    Object.assign(player.position, {
+      inCity: true, cityId: "willowdale_city", cityChunkIndex: 1, x: 10, y: 8,
+    });
+    player.progression.devotion.deityId = "orivane";
+    visitDevotionTemple(player, "willowdaleSpan");
+    performTempleRite(player, "willowdaleSpanThread");
+    processEndOfTurn(player.activeEffects);
+    const venue = playerAt("willowdaleRange");
+    player.position = venue.position;
+    player.gold = 1_000;
+    player.progression.minigames = createMinigameState(167);
+    startMinigame(player, startRequest(player, "willowdaleRange"));
+    applyMinigameAction(player, requestFor(player, { type: "aimTo", aim: 40 }));
+    const before = structuredClone(player);
+    const random = vi.spyOn(Math, "random");
+    random.mockClear();
+    expect(saveGame(player, new Set(), createCodex(), player.appearanceId).ok).toBe(true);
+    const loaded = loadGame();
+    if (!loaded) throw new Error("Valid integrated campaign was rejected");
+    for (const key of ["classProgression", "level", "xp", "hp", "maxHp", "mp", "maxMp", "stats",
+      "pendingLevelUps", "pendingStatPoints", "inventory", "activeEffects"] as const) {
+      expect(loaded.player[key]).toEqual(before[key]);
+    }
+    expect(loaded.player.progression.devotion).toEqual(before.progression.devotion);
+    expect(loaded.player.progression.minigames).toEqual(before.progression.minigames);
+    expect(loaded.player.equippedWeapon).toBe(loaded.player.inventory[loaded.player.inventory.length - 1]);
+    expect(loaded.player.gold).toBe(995);
+    expect(random).not.toHaveBeenCalled();
   });
 
   it("isolates a manual pending snapshot from progress made after loading it", () => {

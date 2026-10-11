@@ -1,12 +1,12 @@
 import {
-  _electron as electron,
   expect,
   test,
   type ElectronApplication,
 } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import { closeDesktop, launchDesktop, resizeDesktop } from "./helpers/desktop";
 import {
   MINIGAME_TEST_WEATHER,
   continueMinigameFixture,
@@ -26,18 +26,6 @@ import {
 import type { MinigameVenueId } from "../src/data/minigames";
 import type { MinigameTestSource } from "../e2e/helpers/minigames";
 
-const APP_ROOT = resolve(import.meta.dirname, "..");
-
-function launchEnvironment(userDataDirectory: string): Record<string, string> {
-  const environment: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined && key !== "ELECTRON_RUN_AS_NODE") environment[key] = value;
-  }
-  environment["ELECTRON_TEST_MODE"] = "1";
-  environment["ELECTRON_USER_DATA_DIR"] = userDataDirectory;
-  return environment;
-}
-
 for (const [venueId, expectedPayout] of [
   ["willowInnTable", 10],
   ["willowdaleRange", 13],
@@ -48,10 +36,9 @@ for (const [venueId, expectedPayout] of [
       const directory = await mkdtemp(join(tmpdir(), "2dnd-minigame-electron-"));
       let application: ElectronApplication | undefined;
       try {
-        application = await electron.launch({
-          args: [APP_ROOT], cwd: APP_ROOT, env: launchEnvironment(directory),
-        });
+        application = await launchDesktop(directory);
         const page = await application.firstWindow();
+        await resizeDesktop(application);
         const errors = minigameBrowserErrors(page);
         await expect.poll(() => page.evaluate(() => location.origin)).toBe("app://2dnd");
         await waitMinigameState(page, "BOOT | Screen: title");
@@ -93,7 +80,7 @@ for (const [venueId, expectedPayout] of [
         expect((await readMinigameSave(page)).player.progression.minigames.pending).toBeNull();
         expect(errors).toEqual([]);
       } finally {
-        await application?.close();
+        if (application) await closeDesktop(application);
         await rm(directory, { recursive: true, force: true });
       }
     });

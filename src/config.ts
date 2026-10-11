@@ -101,7 +101,8 @@ export function debugPanelLog(msg: string, isDebugMsg = false, cssClass?: string
 export function debugPanelState(info: string): void {
   const el = getDebugStateEl();
   if (!el) return;
-  el.textContent = info;
+  if (el.firstChild instanceof Text) el.firstChild.data = info;
+  else el.textContent = info;
 }
 
 /** Clear the HTML debug log panel (e.g. when entering a new scene). */

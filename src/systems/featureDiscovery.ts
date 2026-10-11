@@ -50,6 +50,7 @@ export type EscapeMenuAction =
   | "gathering"
   | "crafting"
   | "minigames"
+  | "devotion"
   | "tips"
   | "save"
   | "settings"
@@ -130,6 +131,13 @@ const ESCAPE_MENU_ENTRIES: readonly EscapeMenuEntry[] = [
     color: "#ffe38a",
     featureId: "minigames",
     testId: "menu-minigames",
+  },
+  {
+    action: "devotion",
+    label: "Devotion Profile",
+    color: "#b8ddff",
+    featureId: "devotionProfile",
+    testId: "menu-devotion",
   },
   {
     action: "tips",
@@ -270,6 +278,7 @@ export function deriveAvailableFeatureIds(
   codex: CodexData,
 ): FeatureId[] {
   const ids = new Set<FeatureId>(ALWAYS_AVAILABLE_FEATURES);
+  if (player.level >= 6 || Object.keys(player.classProgression.trackLevels).length > 0) ids.add("prestige");
   if (hasStartedQuest(player)) ids.add("questJournal");
   if (
     player.progression.seenCutsceneIds.length > 0
@@ -326,6 +335,7 @@ export function deriveAvailableFeatureIds(
     ids.add("chronicle");
   }
   if (hasNaturalSocialEvidence(player)) ids.add("socialProfile");
+  if (player.progression.devotion.visitedTempleIds.length > 0) ids.add("devotionProfile");
   if (
     player.mountId.length > 0
     || player.inventory.some((item) => item.type === "mount" && item.mountId)

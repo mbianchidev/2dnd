@@ -8,6 +8,10 @@ import type { CutsceneId } from "./cutscenes";
 import { Terrain } from "./mapTypes";
 import { MINIGAME_CODEX_ENTRIES } from "./codexMinigames";
 import type { MinigameActivityId } from "./minigames";
+import { DEVOTION_CODEX_ENTRIES } from "./devotionCodex";
+import type { DeityId, TempleId } from "./devotion";
+import type { PrestigeTrackId } from "./prestige";
+import { PRESTIGE_LORE } from "./prestigeLore";
 
 export const CODEX_KNOWLEDGE_CATEGORIES = [
   "location",
@@ -78,6 +82,22 @@ export interface CodexMinigameSource extends CodexSourceBase {
   readonly activityId: MinigameActivityId;
 }
 
+export interface CodexDevotionTempleSource extends CodexSourceBase {
+  readonly type: "devotionTemple";
+  readonly templeId: TempleId;
+}
+
+export interface CodexDevotionAffiliationSource extends CodexSourceBase {
+  readonly type: "devotionAffiliation";
+  readonly deityId: DeityId;
+}
+
+export interface CodexPrestigeSource extends CodexSourceBase {
+  readonly type: "prestigeRank";
+  readonly trackId: PrestigeTrackId;
+  readonly minimumRank: number;
+}
+
 export type CodexUnlockSource =
   | CodexLocationSource
   | CodexQuestStageSource
@@ -88,7 +108,10 @@ export type CodexUnlockSource =
   | CodexReadableSource
   | CodexWorldEventSource
   | CodexReputationSource
-  | CodexMinigameSource;
+  | CodexMinigameSource
+  | CodexDevotionTempleSource
+  | CodexDevotionAffiliationSource
+  | CodexPrestigeSource;
 
 export interface CodexKnowledgeEntry {
   readonly id: string;
@@ -349,6 +372,10 @@ const CHARACTER_DETAILS: Readonly<Record<QuestNpcId, readonly string[]>> = {
   mystic: [
     "Selene Vey studies what flame reveals before it consumes.",
     "She carries a ward shaped from the quieted Volcanic Wyrm's magic.",
+  ],
+  tidehavenGlasskeeper: [
+    "Ossa keeps Tidehaven's model channels and the open island crossing account.",
+    "The Turning Room welcomes visitors without requiring Tessune's affiliation.",
   ],
 };
 
@@ -879,6 +906,7 @@ export const CODEX_READABLES: readonly CodexReadableDefinition[] = [
 ];
 
 export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
+  ...PRESTIGE_LORE,
   ...LOCATION_ENTRIES,
   ...ITEM_ENTRIES,
   ...CHARACTER_ENTRIES,
@@ -886,6 +914,7 @@ export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
   ...HISTORY_ENTRIES,
   ...WORLD_EVENT_ENTRIES,
   ...MINIGAME_CODEX_ENTRIES,
+  ...DEVOTION_CODEX_ENTRIES,
   {
     id: "locationTidehaven",
     category: "location",

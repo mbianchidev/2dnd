@@ -32,6 +32,9 @@ export const INPUT_ACTIONS = [
   "battleTargetNext",
   "battleLogUp",
   "battleLogDown",
+  "fastForwardDice",
+  "settingsDiceFrequency",
+  "settingsDiceSpeed",
   "cutsceneAdvance",
   "cutsceneSkip",
   "inventoryPrevious",
@@ -97,6 +100,7 @@ export const STANDARD_GAMEPAD_BINDINGS: readonly StandardGamepadBinding[] = [
   { button: 7, action: "battleLogDown", repeatable: true },
   { button: 8, action: "openTips" },
   { button: 9, action: "openMenu" },
+  { button: 10, action: "fastForwardDice" },
   { button: 12, action: "navigateUp", repeatable: true },
   { button: 13, action: "navigateDown", repeatable: true },
   { button: 14, action: "navigateLeft", repeatable: true },
@@ -138,6 +142,7 @@ const KEYBOARD_SHORTCUTS: Readonly<Record<string, InputAction>> = {
   KeyP: "openParty",
   KeyQ: "openJournal",
   KeyT: "toggleMount",
+  KeyZ: "fastForwardDice",
   PageUp: "battleLogUp",
   PageDown: "battleLogDown",
   Home: "inventoryFirst",
@@ -196,6 +201,7 @@ export function mapKeyboardCode(
   code: string,
   context: InputContext,
 ): InputAction | undefined {
+  if (code === "Tab" && context === "characterCreation") return "interact";
   if (code === "Enter" || code === "Space") {
     return context === "exploration" ? "interact" : "confirm";
   }
@@ -225,6 +231,10 @@ export function mapKeyboardCode(
     if (inventory[code]) return inventory[code];
   }
   if (context === "codex" && code === "Slash") return "codexSearch";
+  if (context === "title" || context === "overlay") {
+    if (code === "BracketLeft") return "settingsDiceFrequency";
+    if (code === "BracketRight") return "settingsDiceSpeed";
+  }
   return KEYBOARD_SHORTCUTS[code];
 }
 

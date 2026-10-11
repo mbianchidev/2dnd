@@ -36,7 +36,11 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - all three tavern/festival activities, every ordered 2d6 outcome and optimal
   stopping state, neutral precision scoring, reachable courses, atomic economy,
   finite claims, rollback, debug exclusion, and exact/corrupt pending recovery
+- original devotion content, source idempotency, qualification isolation,
+  temple transactions, affiliation choices and canonical blessing lifecycle
 - save round trips, migrations, corruption repair, and cross-field validation
+- unusable hero-core/import rejection, legacy hero-item preservation and actor item repair,
+  exact-byte slot isolation, and denied `localStorage` getter recovery
 - semantic input mappings, context priority, repeats, cleanup, and suppression
 - pure layout, wrapping, pagination, safe-area, and focus math
 - transition contracts with mocked camera/time adapters
@@ -62,8 +66,15 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   confirmations, and active-source prompts
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
+- exact resolved dice, hidden-information redaction, disadvantage/auto-hit,
+  combined hit/damage and saving-throw evidence, actual healing/trap HP caps,
+  one shared area pool with per-target results,
+  keyboard/touch/gamepad skip/log controls, event/trap/gathering/flee results,
+  preference reload, and runtime-log scene handoffs
 - layout audits at supported text scales and representative desktop/mobile
   viewports
+- devotion temple/profile, unaffiliated and affiliated routes, keeper/event/
+  optional-quest consequences, blessing reload/cleanup and ending presentation
 
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
 a strict port. `e2e/landing.spec.ts` exercises the showcase root; Phaser flows
@@ -77,16 +88,40 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v19 autosave/manual-slot persistence,
+- real character creation, schema-v22 autosave/manual-slot persistence,
   relaunch, and continue
+- independent desktop copy/import, exact source-slot bytes, interrupted
+  staging/core-corruption recovery, and loading a second campaign after relaunch
+- a real browser JSON download imported through Electron's file picker, with
+  equivalent normalized campaign/metadata and no cross-origin preference merge
 - keyboard Save & Return to Title plus pointer Quit Desktop
 - lifecycle/quit log creation without campaign-content leakage
 - renderer/page error cleanliness
 - all three optional activities with keyboard, emulated touch, and gamepad,
   including exact pending/result recovery and once-only payouts
 
+`electron-tests/deck.spec.ts` adds a production-like 1280x800 controller
+equivalent: hero naming/creation, exploration/Battle, Codex search, manual
+save/rename/relaunch/recovery, title exit, right-stick fullscreen, reconnect,
+focus loss, resizing, 100/125/150% text, high contrast and reduced motion.
+It attaches startup/frame/JS/native-memory/actual-atomic-slot-write samples and
+post-GC DOM/listener counts after repeated menu/Tips cycles. These are synthetic
+gamepad and short cleanup checks, not Steam Input, real Deck suspend/dock,
+hours-long endurance or portable performance-budget evidence.
+
+`ELECTRON_TEST_EXECUTABLE` optionally selects an explicitly supplied packaged
+binary for the same suite. It does not alter production preload/security.
+Packaged smoke runs use `electron-test-results/packaged` so a later invocation
+cannot erase native first-attempt traces. Save-parity artifacts include ordered
+phase timings to distinguish gameplay/import waits from browser/server cleanup.
+
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
 Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
+Native onboarding holds pointer/semantic confirmation across frames and observes each
+screen/mode through debug state before the next action; fixed sleeps and rapid
+pointer/keyboard source switches are not transition evidence.
+Quit is a pointer-down action: observe application closure without sending a
+release to a destroyed page.
 
 ## Performance baseline
 
@@ -94,6 +129,8 @@ Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work. The command rebuilds the production `/2dnd/`
 target, launches it on an unused local port, and samples cache-disabled
 headless Chromium startup with both empty storage and a fresh current-schema save.
+The harness validates that save against the canonical `SAVE_VERSION` declaration
+in `src/systems/save.ts`, rather than a separate hardcoded benchmark version.
 It reports:
 
 - deployed and JavaScript raw/gzip sizes plus source-map size
@@ -126,17 +163,77 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.
+- Setup commands that queue a scene restart must let the new input handlers
+  mount across rendered frames and confirm the saved location/handoff state
+  before sending the gameplay action.
+- Await persisted tutorial completion before leaving opening/controller drains
+  or testing pending-mechanic reloads; the first Overworld frame can precede the
+  deferred tutorial handoff.
 - Keep screenshot tolerance focused on genuine cross-platform raster variance;
   functional assertions remain primary.
 - Treat page errors, unexpected console errors, overlaps, and clipping as test
   failures.
+- Send visual skip controls while the result is still animating, before slower
+  receipt/text assertions; exact-result evidence remains available afterward.
+- Dice integration asserts source-aware multiclass modifiers without extra RNG
+  or resource use, and controller text-entry ownership before native roll-log
+  actions.
+- Effect-receipt tests retain exact dice sequence, signed/fractional custom
+  bonuses, critical pools, status-before-element adjustments and separately
+  captured applied HP. Fixed/derived amounts cannot gain fabricated faces.
+  Browser checks compare canonical diagnostics with the visible text/pools and
+  assert mobile dock, text and glyph widths at 100%/125%/150%.
+- `diceMotion.test.ts` checks deterministic measured travel, multi-axis tumble,
+  bounce-to-rest, finite viewport/count validation and no RNG/outcome callbacks.
+  The real physical-roll flow samples successive browser-frame transforms,
+  validates exact faces and pointer transparency, then checks natural finish,
+  skip and visibility cleanup. It writes `physical-roll-frame-evidence.json`
+  under the test output path and attaches that file; PR CI retains the result
+  tree on success or failure. Passed thresholds are not inferred FPS/budgets.
+- Discrete touch pulses remain pressed through Phaser poststep. Deterministic
+  input tests cover once-only press/keyup delivery, successive pulses,
+  held-source survival and pending-release cleanup before the next frame.
+  Fishing asserts persisted wait ticks and bite/tension transitions rather
+  than hiding a lost confirm behind timing retries.
+- Optional real-game motion recording uses
+  `DICE_CAPTURE_MOTION=1 npm run test:browser -- e2e/dice-presentation.spec.ts --grep "physical dice game-viewport demo"`.
+  Default CI video remains off. Capture viewport screenshots rather than
+  full-page snapshots: full-page resizing must still cancel a live throw.
+- Select Battle spells by registered stable action/spell layout IDs after
+  normalization; earned-spell additions must not shift fixture hit targets.
+- Native slot navigation observes both pressed and released frames and the
+  exact selected slot and shared same-key debounce interval, rather than
+  assuming an initial row or pulse count.
+- Install legacy-save fixtures at the next document's initialization, not into
+  a live scene whose pending autosaves can replace them. Assert migrated
+  evidence before exercising the UI that depends on it.
 
 The local `#layout-report` and canvas
 `data-layout-overlap-count`/`data-layout-clipping-count` attributes are
-debug/test surfaces. Registered groups should report zero unintended
+read-only debug/test surfaces on loopback and the local `app://2dnd` desktop
+origin. This does not enable desktop cheats or change production security.
+Registered groups should report zero unintended
 intersections and zero visible-content clipping.
 
 ## Targeted validation
+
+Prestige coverage belongs to `tests/prestige*.test.ts`, `e2e/prestige.spec.ts`
+and the focused Electron prestige flow. It covers every path/rank, grouped
+entry boundaries, fresh owner/clone contexts, frozen rest credits, gear and
+action rejection, scoped/legacy/deferred grants, debug exclusion, schema-v19
+migration and schema-v20 corruption, measured input/layout, battle, reload and
+campaign authority. Preserve the separate twelve-class compatibility tests.
+
+Hero progression coverage includes all base-class pairings and prerequisite
+boundaries, frozen resources, once-only overlaps, total-level ASIs, legacy
+levels 1-20 for every class, corrupt records, deferred historical unlocks,
+lossless 53-item custom hero fixtures, complete duplicate-equipment metadata,
+legacy orphan gear, independent companion actions and shared economy. The
+`multiclass.spec.ts` flow covers rest/choice/reload, exact previews, ASIs,
+mobile/gamepad, measured layouts and campaign completion.
+Seed browser randomness with a varying generator: constant global rolls collide
+with Phaser Text UUID textures. Compare exact prepared resolver receipts rather
+than assuming a global constant roll.
 
 During implementation, run the smallest related Vitest files first. Run focused
 Playwright specs for changed UI/scene flows. Before a pull request, run:
@@ -158,13 +255,13 @@ for them before release.
 
 `.github/workflows/pr.yml` runs Node 24, `npm ci`, typecheck, full Vitest,
 Chromium installation, full Playwright, and the production build for pull
-requests to `main`.
+requests to `main`. Its `pr-${{ github.ref }}` concurrency group is scoped to
+the Git ref, matching the desktop workflow: independent pull requests and
+manually dispatched branches cannot replace one another's pending checks.
+Runs for the same ref remain serialized; `cancel-in-progress` remains false.
 
-PR and desktop concurrency is scoped to the full `github.ref`
-(`pr-${{ github.ref }}` / `desktop-${{ github.ref }}`). Independent pull
-requests can validate concurrently; repeated runs for one ref stay serialized.
-Both retain `cancel-in-progress: false`, all release-gate steps, existing
-permissions, and unchanged triggers.
+Desktop uses `desktop-${{ github.ref }}` with the same serialization policy.
+Preserve all release-gate steps, existing permissions, and triggers.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page
@@ -173,3 +270,13 @@ smoke-tests, and packages each desktop platform without publishing.
 `.github/workflows/release.yml` accepts matching `v*` tags on `main`, reruns the
 full browser gate, smoke-tests and packages all desktop targets, then attaches
 the unsigned installers to the generated GitHub release.
+Desktop artifact CI also installs Chromium so its browser-to-Electron save
+parity test does not depend on a pre-populated browser cache.
+
+`tests/steamConfig.test.ts` and `tests/steamPreparation.test.ts` check approved
+placeholders, IDs, architecture headers, emulation/catalog completeness,
+runtime exclusions, symlinks, ASAR contents, source/hash receipts and private
+preview rendering with mock IDs. PR desktop CI stages and inspects actual
+platform payloads; no partner SDK/account is involved. Protected upload,
+real-client install/update/offline behavior and physical Deck tests remain
+separate human gates in [Steam preparation](steam.md).

@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { getPlayerClass } from "../systems/classes";
 import {
   deleteSave,
   type SaveActionResult,
@@ -10,6 +11,7 @@ import {
   importSaveSlot,
   listSaveSlots,
   renameSaveSlot,
+  SAVE_SLOT_KEY_DEBOUNCE_MS,
   type SaveSlotId,
   type SaveSlotInfo,
 } from "../systems/saveSlots";
@@ -75,7 +77,12 @@ function formatSavedAt(timestamp: number): string {
 function slotStatusText(slot: SaveSlotInfo): string {
   const metadata = slot.metadata;
   if (metadata) {
-    return `${metadata.characterName} Lv.${metadata.level} ${metadata.className}\n`
+    const label = metadata.classCount > 1
+      ? `${getPlayerClass(metadata.classId).label} +${metadata.classCount - 1}`
+      : metadata.className;
+    const name = metadata.classCount > 1 && metadata.characterName.length > 24
+      ? `${metadata.characterName.slice(0, 21)}...` : metadata.characterName;
+    return `${name} Lv.${metadata.level} ${label}\n`
       + `${metadata.location} | ${metadata.campaignStatus} | `
       + `${formatSavePlaytime(metadata.playtimeSeconds)} | `
       + `${formatSavedAt(metadata.savedAt)}`;
@@ -562,7 +569,7 @@ export class SaveSlotManager {
       event.repeat
       || (
         event.key === this.lastHandledKey
-        && handledAt - this.lastHandledAt < 80
+        && handledAt - this.lastHandledAt < SAVE_SLOT_KEY_DEBOUNCE_MS
       )
     ) {
       return;

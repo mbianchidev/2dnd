@@ -121,7 +121,9 @@ async function createCampaign(page: Page): Promise<void> {
     await holdKey(page, "Space");
   }
   await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL]");
-  await expect.poll(async () => (await readSave(page)).player.progression.tutorial.completed).toBe(true);
+  await expect.poll(async () =>
+    (await readSave(page)).player.progression.tutorial.completed
+  ).toBe(true);
   await waitForState(page, "OVERWORLD");
 }
 

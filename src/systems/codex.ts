@@ -29,6 +29,9 @@ import {
   REPUTATION_TIERS,
 } from "../data/reputation";
 import type { MinigameActivityId } from "../data/minigames";
+import type { DeityId, TempleId } from "../data/devotion";
+import { PRESTIGE_PATHS, type PrestigeTrackId } from "../data/prestige";
+import { getTrackLevel } from "./classProgression";
 
 export interface CodexEntry {
   monsterId: string;
@@ -57,6 +60,7 @@ export type CodexMonsterSort = "family" | "name" | "defeated" | "element";
 export type CodexKnowledgeSort = "category" | "name" | "source";
 
 export type CodexUnlockSignal =
+  | { readonly type: "prestigeRank"; readonly trackId: PrestigeTrackId; readonly rank: number }
   | {
     readonly type: "location";
     readonly locationKind: "city" | "dungeon";
@@ -86,6 +90,14 @@ export type CodexUnlockSignal =
   | {
     readonly type: "readable";
     readonly readableId: string;
+  }
+  | {
+    readonly type: "devotionTemple";
+    readonly templeId: TempleId;
+  }
+  | {
+    readonly type: "devotionAffiliation";
+    readonly deityId: DeityId;
   };
 
 export type CodexFutureUnlockSignal =
@@ -224,6 +236,13 @@ function sourceMatchesSignal(
         && source.milestoneId === signal.milestoneId;
     case "minigame":
       return signal.type === "minigame" && source.activityId === signal.activityId;
+    case "devotionTemple":
+      return signal.type === "devotionTemple" && source.templeId === signal.templeId;
+    case "devotionAffiliation":
+      return signal.type === "devotionAffiliation" && source.deityId === signal.deityId;
+    case "prestigeRank":
+      return signal.type === "prestigeRank" && source.trackId === signal.trackId
+        && Number.isInteger(signal.rank) && signal.rank >= source.minimumRank && signal.rank <= 5;
   }
 }
 
@@ -306,6 +325,16 @@ export function replayCodexUnlocks(
   const applyFuture = (signal: CodexFutureUnlockSignal): void => {
     unlockedIds.push(...unlockCodexFromFutureSignal(codex, signal).unlockedIds);
   };
+  for (const templeId of player.progression.devotion.visitedTempleIds) {
+    apply({ type: "devotionTemple", templeId });
+  }
+  if (player.progression.devotion.deityId) {
+    apply({ type: "devotionAffiliation", deityId: player.progression.devotion.deityId });
+  }
+  for (const path of PRESTIGE_PATHS) {
+    const rank = getTrackLevel(player, path.id);
+    if (rank > 0) apply({ type: "prestigeRank", trackId: path.id, rank });
+  }
 
   for (const [factionId, score] of Object.entries(
     player.progression.social.factionReputation,

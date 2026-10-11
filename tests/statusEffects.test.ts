@@ -71,7 +71,7 @@ afterEach(() => {
 
 describe("status effect definitions", () => {
   it("defines every supported effect", () => {
-    expect(STATUS_EFFECT_IDS).toHaveLength(15);
+    expect(STATUS_EFFECT_IDS).toHaveLength(16);
     for (const id of STATUS_EFFECT_IDS) {
       expect(getStatusEffectDef(id)).toBeDefined();
     }

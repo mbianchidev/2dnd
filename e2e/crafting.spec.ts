@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { SAVE_VERSION } from "../src/systems/save";
 import { clickLayoutItem } from "./helpers/layout";
+import { SAVE_VERSION } from "../src/systems/save";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_preferences";

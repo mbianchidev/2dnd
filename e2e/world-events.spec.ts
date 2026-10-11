@@ -14,6 +14,7 @@ interface BrowserSave {
   player: {
     inventory: Array<{ id: string }>;
     progression: {
+      tutorial: { completed: boolean };
       quests: {
         quests: Record<string, { status: string; stage: number }>;
       };
@@ -127,10 +128,11 @@ async function createCampaign(page: Page): Promise<void> {
   await clickGame(page, 420, 312);
   await waitForState(page, "CUTSCENE");
   await drainCutscenes(page);
-  if ((await page.locator("#debug-state").textContent())?.includes("[TUTORIAL")) {
-    await holdKey(page, "Escape");
-  }
+  await waitForState(page, "[TUTORIAL");
+  await holdKey(page, "Escape");
+  await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL");
   await waitForState(page, "OVERWORLD");
+  expect((await readSave(page)).player.progression.tutorial.completed).toBe(true);
 }
 
 async function readSave(page: Page): Promise<BrowserSave> {

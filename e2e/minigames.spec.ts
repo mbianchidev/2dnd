@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   clickLayoutItem,
   expectCleanLayout,
+  layoutItemCenter,
   tapLayoutItem,
 } from "./helpers/layout";
 import {
@@ -15,6 +16,7 @@ import {
   minigameBrowserErrors,
   minigameCancel,
   minigameConfirm,
+  minigameDirection,
   minigameFixture,
   minigameKey,
   openMinigameFixture,
@@ -34,6 +36,20 @@ for (const source of ["keyboard", "touch", "gamepad"] as const satisfies readonl
     const fixture = minigameFixture("willowInnTable", crownFixtureSeed());
     await seedMinigamePage(page, fixture, source);
     await openMinigameFixture(page, source);
+    if (source === "gamepad") {
+      const point = await layoutItemCenter(page, "minigame-rules");
+      const canvas = page.locator("#game-container canvas");
+      const bounds = await canvas.boundingBox();
+      if (!bounds) throw new Error("Missing stationary-pointer fixture canvas");
+      await page.mouse.move(
+        bounds.x + point.x / 640 * bounds.width,
+        bounds.y + point.y / 528 * bounds.height,
+      );
+      await expect(canvas).toHaveAttribute("data-minigame-selected-action", "rules");
+      await minigameDirection(page, "left", source);
+      await minigameDirection(page, "left", source);
+      await expect(canvas).toHaveAttribute("data-minigame-selected-action", "roll");
+    }
     await expectCleanLayout(page);
     const entry = await readMinigameSave(page);
     expect(entry.player.gold).toBe(995);
@@ -45,6 +61,9 @@ for (const source of ["keyboard", "touch", "gamepad"] as const satisfies readonl
         const current = (await readMinigameSave(page)).player.progression.minigames.pending;
         return current?.activityId === "crownAndBones" ? current.game.rollCount : 0;
       }).toBe(roll);
+      if (source === "gamepad" && roll < 4) {
+        await expect(page.locator("#game-container canvas")).toHaveAttribute("data-minigame-selected-action", "roll");
+      }
       await expectCleanLayout(page);
     }
     await waitMinigameState(page, "[MINIGAME_VIEW:result]");

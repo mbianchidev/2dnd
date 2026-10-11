@@ -155,6 +155,8 @@ preview remains scene-timed and never becomes scoring authority.
 Source and viewport relayout coalesce until the post-input frame so prompt
 changes cannot destroy the target of an in-flight pointer gesture. Held
 pointers defer that relayout until release; closing cancels queued reflow.
+An idle pointer cannot overwrite keyboard or gamepad selection when a board
+redraws. Actual pointer movement or presses still select the visible target.
 
 Panels use measured wrapping, pagination, filtered grids, stable focus IDs,
 scaled hit areas, and safe-area-aware shared touch controls. They support all
@@ -171,7 +173,7 @@ mechanics, score/result mapping, recovery, transactions, and presentation models
 live in `src/systems/minigame*.ts`; the scene-owned manager and procedural
 renderers live in `src/managers/minigames.ts` and `src/renderers/minigame*.ts`.
 
-Schema v19 adds `player.progression.minigames`: a stable seed, session and
+Schema v22 adds `player.progression.minigames`: a stable seed, session and
 settled-session watermarks, discovered venue IDs, paid/practice bests, paid
 statistics, finite claimed milestone IDs, a 40-entry history, and one exact
 pending session/receipt. Definitions, named tiers, UI state, animation time,
@@ -192,8 +194,10 @@ Unknown normalization validates IDs, rulesets, fixed challenge components,
 scores, caps, phases, revisions, boat snapshots, and cross-domain location/boat
 state. Invalid pending data is retired conservatively: no second charge,
 refund, reroll, reward replay, boat restoration, or quest mutation. Valid old
-schema-v18 campaigns gain deterministic empty minigame state without historical
-rewards. Manual snapshots remain isolated from subsequent autosave progress.
+schema-v21 and older campaigns without the domain gain deterministic empty state
+without historical rewards. Schema-v19/v20/v21 activity previews retain exact
+pending and settled authority alongside current class, prestige, and devotion
+state. Manual snapshots remain isolated from subsequent autosave progress.
 
 Only first paid difficulty medals emit bounded canonical town/faction
 reputation; routine wins/losses never change alignment. Activity completion

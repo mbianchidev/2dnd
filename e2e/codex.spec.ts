@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clickLayoutItem, tapLayoutItem } from "./helpers/layout";
+import { SAVE_VERSION } from "../src/systems/save";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -414,7 +415,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   await clickLayoutItem(page, "title-continue");
   await waitForState(page, "OVERWORLD");
   const loadedLegacy = await readSave(page);
-  expect(loadedLegacy.version).toBe(18);
+  expect(loadedLegacy.version).toBe(SAVE_VERSION);
   expect(loadedLegacy.codex.entries.slime.timesDefeated).toBe(4);
   expect(Array.isArray(loadedLegacy.codex.unlockedEntryIds)).toBe(true);
   await submitDebug(page, "/feature reveal codexLocation");
@@ -439,7 +440,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   await waitForState(page, "OVERWORLD");
 
   const migrated = await readSave(page);
-  expect(migrated.version).toBe(19);
+  expect(migrated.version).toBe(SAVE_VERSION);
   expect(migrated.codex.entries.slime.timesDefeated).toBe(4);
   expect(Array.isArray(migrated.codex.unlockedEntryIds)).toBe(true);
   expect(errors).toEqual([]);

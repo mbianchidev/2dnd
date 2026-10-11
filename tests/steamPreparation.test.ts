@@ -51,7 +51,9 @@ async function mockPayload(root: string, platform: SteamPlatform): Promise<strin
   await writeFile(join(application, "package.json"), JSON.stringify({
     name: "2dnd", version: "1.1.0", main: "dist-electron/main.js",
   }));
-  await writeFile(join(application, "dist", "game.html"), "<!doctype html><title>Mock game</title>");
+  await writeFile(join(application, "dist", "game.html"),
+    '<!doctype html><title>Mock game</title><link rel="stylesheet" href="./assets/game-mock.css">'
+    + '<script type="module" src="./assets/game-mock.js"></script>');
   await writeFile(join(application, "dist", "assets", "game-mock.js"), "export {};");
   await writeFile(join(application, "dist", "assets", "game-mock.css"), ".mock-dice { display: block; }");
   await writeFile(join(application, "dist-electron", "main.js"), "export {};");

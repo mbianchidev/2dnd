@@ -340,9 +340,8 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await expect(attack).toBeVisible();
     await page.locator("#dice-history summary").press("Escape");
     await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
-    const hasAbilities = ((await readSave(page)).player.knownAbilities?.length ?? 0) > 0;
-    await clickGame(page, hasAbilities ? 510 : 360, 468);
-    await clickGame(page, 360, 325);
+    await clickLayoutItem(page, "battle-action-spells");
+    await clickLayoutItem(page, "battle-spell-magicMissile");
     await holdKey(page, "Enter");
     const missile = log.locator('[data-category="attack"]').filter({ hasText: "Magic Missile" });
     await expect(missile).toContainText("Auto-hit (no attack roll)");

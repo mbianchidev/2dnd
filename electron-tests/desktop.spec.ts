@@ -106,6 +106,26 @@ async function activateSlotAction(
   throw new Error(`Unable to select desktop save action: ${action}`);
 }
 
+async function selectSlot(page: Page, slotIndex: 1 | 2): Promise<void> {
+  const slots = ["autosave", "manual-1", "manual-2"] as const;
+  for (let index = 0; index <= slotIndex; index += 1) {
+    const marker = `[SAVE_SLOT:${slots[index]}]`;
+    await page.keyboard.down(index === 0 ? "Home" : "ArrowDown");
+    try {
+      await waitForState(page, marker);
+      await page.evaluate(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }));
+    } finally {
+      await page.keyboard.up(index === 0 ? "Home" : "ArrowDown");
+    }
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }));
+    await waitForState(page, marker);
+  }
+}
+
 async function returnToTitle(page: Page): Promise<void> {
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
@@ -313,7 +333,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
 
     await activateTitleAction(page, "saveSlots");
     await waitForState(page, "[SAVE_SLOTS:load]");
-    await holdKey(page, "ArrowDown", 80);
+    await selectSlot(page, 1);
     await waitForState(page, "[SAVE_SLOT:manual-1]");
     await expect(page.locator("#save-slot-live-region")).toContainText(
       "Desktop Hero Lv.1 Ranger",
@@ -378,8 +398,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await waitForState(page, "BOOT | Screen: title");
     await activateTitleAction(page, "saveSlots");
     await waitForState(page, "[SAVE_SLOTS:load]");
-    await holdKey(page, "ArrowDown", 80);
-    await holdKey(page, "ArrowDown", 80);
+    await selectSlot(page, 2);
     await waitForState(page, "[SAVE_SLOT:manual-2]");
     await expect(page.locator("#save-slot-live-region")).toContainText(
       "Desktop Second Hero Lv.1 Ranger",

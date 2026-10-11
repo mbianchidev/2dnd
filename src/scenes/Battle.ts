@@ -3,6 +3,7 @@
  */
 
 import * as Phaser from "phaser";
+import { registerLayoutGroup } from "../managers/layout";
 import type { Monster, MonsterAbility } from "../data/monsters";
 import { getMonsterTextureKey } from "../data/monsterFamilies";
 import {
@@ -768,6 +769,9 @@ export class BattleScene extends Phaser.Scene {
       });
 
       container.add([bg, label]);
+      const layoutId = `battle-action-${act.label.toLowerCase()}`;
+      label.setData("layoutId", layoutId);
+      registerLayoutGroup(this, layoutId, container);
       this.actionButtons.push(container);
       this.actionButtonLabels.push({ text: label, label: act.label });
       this.actionButtonActions.push(act.action);
@@ -1258,25 +1262,23 @@ export class BattleScene extends Phaser.Scene {
     const start = this.battleSpellPage * MAX_PER_PAGE;
     const visible = spells.slice(start, start + MAX_PER_PAGE);
     const rowH = 36;
-    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
-
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
+    const container = this.add.container(w * 0.52, 0);
     container.setDepth(BATTLE_DEPTH.uiOverlay);
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a3e, 0.95);
-    bg.fillRect(-5, -5, 260, menuH);
     bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, menuH);
     container.add(bg);
 
-    visible.forEach((spell, i) => {
+    let rowsHeight = 0;
+    visible.forEach((spell) => {
       const canCast = this.player.mp >= spell.mpCost;
       const color = canCast ? "#aaddff" : "#666";
-      const text = this.add.text(0, i * rowH, `${spell.name} (${spell.mpCost} MP)`, {
+      const text = this.add.text(0, rowsHeight, `${spell.name} (${spell.mpCost} MP)`, {
         fontSize: "12px", fontFamily: "monospace", color,
       }).setInteractive({ useHandCursor: canCast });
-      const desc = this.add.text(0, i * rowH + 14, spell.description, {
+      text.setData("layoutId", `battle-spell-${spell.id}`);
+      const desc = this.add.text(0, rowsHeight + text.displayHeight + 2, spell.description, {
         fontSize: "9px", fontFamily: "monospace", color: "#888",
         wordWrap: { width: 250 },
       });
@@ -1286,10 +1288,11 @@ export class BattleScene extends Phaser.Scene {
         text.on("pointerdown", () => { this.closeAllSubMenus(); this.doPlayerSpell(spell.id); });
       }
       container.add([text, desc]);
+      rowsHeight += Math.max(rowH, text.displayHeight + desc.displayHeight + 6);
     });
 
     if (totalPages > 1) {
-      const navY = visible.length * rowH;
+      const navY = rowsHeight;
       const prevBtn = this.add.text(10, navY, "◄ A", {
         fontSize: "10px", fontFamily: "monospace", color: this.battleSpellPage > 0 ? "#aaa" : "#444",
       }).setInteractive({ useHandCursor: this.battleSpellPage > 0 });
@@ -1316,6 +1319,11 @@ export class BattleScene extends Phaser.Scene {
       container.add(nextBtn);
     }
 
+    const menuH = rowsHeight + (totalPages > 1 ? 20 : 0) + 10;
+    container.setY(this.cameras.main.height * 0.78 - menuH - 10);
+    bg.fillRect(-5, -5, 260, menuH);
+    bg.strokeRect(-5, -5, 260, menuH);
+    registerLayoutGroup(this, "battle-spells", container);
     this.spellMenu = container;
   }
 

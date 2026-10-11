@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SAVE_SLOT_KEY_DEBOUNCE_MS } from "../src/systems/saveSlots";
 import {
   APP_ROOT,
   closeDesktop,
@@ -111,11 +112,16 @@ async function selectSlot(page: Page, slotIndex: 1 | 2): Promise<void> {
   for (let index = 0; index <= slotIndex; index += 1) {
     const marker = `[SAVE_SLOT:${slots[index]}]`;
     await page.keyboard.down(index === 0 ? "Home" : "ArrowDown");
+    const pressedAt = await page.evaluate(() => performance.now());
     try {
       await waitForState(page, marker);
-      await page.evaluate(() => new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      }));
+      await page.evaluate(({ pressedAt, debounce }) => new Promise<void>((resolve) => {
+        const releasedFrame = (timestamp: number): void => {
+          if (timestamp - pressedAt < debounce) requestAnimationFrame(releasedFrame);
+          else requestAnimationFrame(() => resolve());
+        };
+        requestAnimationFrame(releasedFrame);
+      }), { pressedAt, debounce: SAVE_SLOT_KEY_DEBOUNCE_MS });
     } finally {
       await page.keyboard.up(index === 0 ? "Home" : "ArrowDown");
     }

@@ -39,6 +39,7 @@ import type { WeatherState } from "./weather";
 const SAVE_EXPORT_FORMAT = "2dnd-save-slot";
 const SAVE_EXPORT_VERSION = 1;
 const MAX_SLOT_NAME_LENGTH = 24;
+export const SAVE_SLOT_KEY_DEBOUNCE_MS = 80;
 
 export type SaveSlotState = "empty" | "valid" | "corrupt" | "unavailable";
 export type SaveCampaignStatus = "Prologue" | "In progress" | "Complete" | "Post-game";

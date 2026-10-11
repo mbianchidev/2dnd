@@ -156,7 +156,8 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Select Battle spells by registered stable action/spell layout IDs after
   normalization; earned-spell additions must not shift fixture hit targets.
 - Native slot navigation observes both pressed and released frames and the
-  exact selected slot, rather than assuming an initial row or pulse count.
+  exact selected slot and shared same-key debounce interval, rather than
+  assuming an initial row or pulse count.
 - Install legacy-save fixtures at the next document's initialization, not into
   a live scene whose pending autosaves can replace them. Assert migrated
   evidence before exercising the UI that depends on it.

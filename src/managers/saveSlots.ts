@@ -11,6 +11,7 @@ import {
   importSaveSlot,
   listSaveSlots,
   renameSaveSlot,
+  SAVE_SLOT_KEY_DEBOUNCE_MS,
   type SaveSlotId,
   type SaveSlotInfo,
 } from "../systems/saveSlots";
@@ -567,7 +568,7 @@ export class SaveSlotManager {
       event.repeat
       || (
         event.key === this.lastHandledKey
-        && handledAt - this.lastHandledAt < 80
+        && handledAt - this.lastHandledAt < SAVE_SLOT_KEY_DEBOUNCE_MS
       )
     ) {
       return;

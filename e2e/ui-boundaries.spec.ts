@@ -5,7 +5,8 @@ import { createCurrentSaveData } from "../src/systems/save";
 import { createWeatherState } from "../src/systems/weather";
 import { recruitCompanion } from "../src/systems/party";
 import { reconcileAchievements } from "../src/systems/achievements";
-import { reconcileFeatureDiscovery } from "../src/systems/featureDiscovery";
+import { executeFeatureDiscoveryDebugCommand, getEscapeMenuEntries, reconcileFeatureDiscovery } from "../src/systems/featureDiscovery";
+import { FEATURE_IDS } from "../src/data/featureDiscovery";
 import { CUTSCENE_IDS } from "../src/data/cutscenes";
 import { CITIES } from "../src/data/cities";
 import { ACHIEVEMENTS } from "../src/data/achievements";
@@ -113,6 +114,33 @@ test("gamepad achievement paging and search retain visible focus through resize"
   await minigamePad(page, 1);
   await expect(page.locator("#debug-state")).not.toContainText("[ACHIEVEMENTS");
   expect(errors).toEqual([]);
+});
+
+test("fully discovered menu keeps every enlarged action caption and page accessible", async ({ page }) => {
+  const campaign = boundaryCampaign();
+  for (const id of FEATURE_IDS) executeFeatureDiscoveryDebugCommand(campaign.player, `reveal ${id}`);
+  const expected = getEscapeMenuEntries(campaign.player).map((entry) => `escape-menu-${entry.action}`);
+  await page.goto("game.html", { waitUntil: "networkidle" });
+  await seedMinigamePage(page, campaign, "touch", { textScale: 1.5, touchControls: "on" });
+  await minigameKey(page, "Escape");
+  await waitMinigameState(page, "[MENU]");
+  const seen = new Set<string>();
+  for (let index = 0; index < expected.length; index += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    const selected = state.match(/\[MENU_SELECTION:([a-zA-Z]+)/)?.[1];
+    expect(selected).toBeDefined();
+    await expect.poll(async () => (await readGroupLayout(page, "escape-menu"))?.items.map((item) => item.id))
+      .toContain(`escape-menu-${selected}`);
+    await expectGroupClean(page, "escape-menu");
+    const report = await readGroupLayout(page, "escape-menu");
+    report?.items.filter((item) => expected.includes(item.id)).forEach((item) => seen.add(item.id));
+    if (seen.size === expected.length) break;
+    await tapLayoutItem(page, "escape-menu-page-next");
+  }
+  expect(seen).toEqual(new Set(expected));
+  await capture(page, "fully-discovered-menu");
+  await expectVisibleCanvas(page);
+  await minigameKey(page, "Escape");
 });
 
 async function capture(page: Page, name: string): Promise<void> {

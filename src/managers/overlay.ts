@@ -66,6 +66,7 @@ import {
   SETTINGS_PANEL_WIDTH,
 } from "../renderers/settings";
 import { layoutEquipmentColumn } from "../renderers/equipmentLayout";
+import { renderEscapeMenu } from "../renderers/escapeMenu";
 import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
 import {
@@ -145,6 +146,7 @@ export class OverlayManager {
   private menuSelectedIndex = 0;
   private menuEntries: EscapeMenuEntry[] = [];
   private menuButtons: Phaser.GameObjects.Text[] = [];
+  private reflowMenu: (() => void) | null = null;
   private menuPlayer: PlayerState | null = null;
   private menuDefeatedBosses: Set<string> | null = null;
   private menuCodex: CodexData | null = null;
@@ -1184,87 +1186,21 @@ export class OverlayManager {
     this.menuPlayer = player;
     this.menuDefeatedBosses = defeatedBosses;
     this.menuCodex = codex;
-    const menuWidth = 520;
-    const grid = layoutResponsiveGrid({
-      availableWidth: menuWidth - 40,
-      minColumnWidth: 210,
-      columnGap: 12,
-      rowGap: 8,
-      itemHeights: entries.map(() => 44),
-      maxColumns: 2,
-    });
-    const menuHeight = Math.min(440, grid.height + 102);
-    const { w, h, px, py, panelW, panelH } = calcPanelLayout(
-      this.scene,
-      menuWidth,
-      menuHeight,
-    );
-    this.menuOverlay = createOverlayContainer(
-      this.scene,
-      "escape-menu",
-      70,
-      { x: px, y: py, width: panelW, height: panelH },
-    );
-
-    const dim = createDimGraphics(this.scene, w, h);
-    this.menuOverlay.add(dim);
-    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
-    dim.on("pointerdown", () => this.toggleMenuOverlay(player, defeatedBosses, codex));
-
-    const bg = createPanelGraphics(this.scene, px, py, panelW, panelH);
-    this.menuOverlay.add(bg);
-
-    const title = this.scene.add.text(px + panelW / 2, py + 14, "⚙ Menu", {
-      fontSize: "16px", fontFamily: "monospace", color: "#ffd700",
-    }).setOrigin(0.5, 0);
-    title.setData("layoutId", "escape-menu-title");
-    this.menuOverlay.add(title);
-    const contentX = px + 20;
-    const contentY = py + 52;
-    this.menuButtons = entries.map((entry, index) => {
-      const cell = grid.cells[index]!;
-      const button = this.scene.add.text(
-        contentX + cell.x + cell.width / 2,
-        contentY + cell.y,
-        entry.label,
-        {
-          fontSize: "13px",
-          fontFamily: "monospace",
-          color: entry.color,
-          backgroundColor: "#2a2a4e",
-          align: "center",
-          padding: { x: 10, y: 6 },
-          fixedWidth: cell.width,
-          fixedHeight: cell.height,
-        },
-      ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-      button.setData("testId", entry.testId);
-      button.setData("layoutId", `escape-menu-${entry.action}`);
-      syncInteractiveHitArea(button);
-      button.on("pointerover", () => {
+    const menu = renderEscapeMenu(this.scene, entries, {
+      selected: () => this.menuSelectedIndex,
+      select: (index) => {
         this.menuSelectedIndex = index;
         this.updateMenuSelection();
-      });
-      button.on("pointerout", () => this.updateMenuSelection());
-      button.on("pointerdown", () => {
-        this.activateMenuAction(
-          entry.action,
-          player,
-          defeatedBosses,
-          codex,
-        );
-      });
-      this.menuOverlay?.add(button);
-      return button;
+      },
+      activate: (entry) => this.activateMenuAction(entry.action, player, defeatedBosses, codex),
+      close: () => this.toggleMenuOverlay(player, defeatedBosses, codex),
     });
+    this.menuOverlay = menu.container;
+    this.menuButtons = menu.buttons;
+    this.reflowMenu = menu.reflow;
     this.scene.input.keyboard?.on("keydown", this.handleMenuKeyDown, this);
     this.updateMenuSelection();
 
-    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 8, "Press ESC to close", {
-      fontSize: "10px", fontFamily: "monospace", color: "#666",
-    }).setOrigin(0.5, 1);
-    hint.setData("layoutId", "escape-menu-hint");
-    this.menuOverlay.add(hint);
   }
 
   private readonly handleMenuKeyDown = (event: KeyboardEvent): void => {
@@ -1327,12 +1263,14 @@ export class OverlayManager {
         index === this.menuSelectedIndex ? "#ffffff" : entry.color,
       );
     });
+    this.reflowMenu?.();
   }
 
   private clearMenuInput(): void {
     this.scene.input.keyboard?.off("keydown", this.handleMenuKeyDown, this);
     this.menuEntries = [];
     this.menuButtons = [];
+    this.reflowMenu = null;
     this.menuPlayer = null;
     this.menuDefeatedBosses = null;
     this.menuCodex = null;

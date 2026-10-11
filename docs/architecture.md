@@ -150,6 +150,10 @@ indexes, never reorders ownership. Tips/tutorial controls wrap and separate
 their measured headers, body, cards and footer; longer Tips content is paged.
 Map labels are bounded near their anchors, and simultaneous bottom messages
 and location prompts occupy separate measured rows.
+The Escape menu also measures every caption, including Save & Return to Title,
+and reveals all available actions across pages when the full discovered menu
+cannot fit. Hidden page controls are inert; keyboard selection follows the same
+stable action IDs and brings its page into view.
 
 The input adapter reads Phaser's current parent bounds before refreshing FIT
 scaling when the canvas host changes. `refresh()` alone uses cached parent

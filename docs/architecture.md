@@ -119,6 +119,11 @@ dialog, modal isolation, live accessibility, once-only commit/cancel and focus
 restoration. The input adapter re-exports `openMobileTextInput()` and routes
 semantic actions to this dialog before emitting game keys. The right-stick
 cursor also reaches existing desktop DOM controls.
+Discrete touch pulses release at the complete Phaser poststep boundary, not a
+zero-delay timer that can erase `JustDown` before scene polling. The shared
+adapter owns pulse tokens and scene listeners, preserves other held owners,
+and clears pending releases on blur, visibility, disconnect, context/scene
+change and destruction.
 
 Feature visibility and action gating live in
 `src/data/featureDiscovery.ts` and `src/systems/featureDiscovery.ts`. Hidden
@@ -175,7 +180,12 @@ Mechanics resolve before presentation. Actor animation receives stable IDs and
 immutable outcomes; tweens never apply damage, spend resources, or control
 authoritative turn/result transitions.
 
-`rollResults.ts` captures exact immutable natural-die receipts; `dicePresentation.ts`
+`rollResults.ts` captures exact immutable natural-die/effect receipts;
+`effectRolls.ts` retains canonical damage/healing faces, signed modifiers,
+recorded adjustments, resolved amounts and the HP delta at its owning write.
+It preserves existing RNG order, shared area pools, finite fractional custom
+item effects, resource use and result-hook timing; scene adapters only capture
+their existing shield/healing writes. `dicePresentation.ts`
 projects only permitted information and owns a bounded runtime log. The
 scene-owned dice manager and procedural SVG dock consume those results without
 RNG, resource mutations, input-block reasons, or gameplay completion callbacks.

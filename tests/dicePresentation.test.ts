@@ -3,13 +3,15 @@ import {
   createCombatDicePresentation,
   createComponentDicePresentation,
   createD20Presentation,
+  createEffectDicePresentation,
+  combineDicePresentations,
   createSkillDicePresentation,
   DicePresentationController,
   DiceRollHistory,
   formatDicePresentation,
   getDicePresentationDuration,
 } from "../src/systems/dicePresentation";
-import { snapshotD20Roll } from "../src/systems/rollResults";
+import { snapshotD20Roll, snapshotEffectRoll } from "../src/systems/rollResults";
 import type {
   DicePresentation,
   DicePresentationAdapter,
@@ -209,6 +211,132 @@ describe("resolved dice mapping", () => {
     expect(() => receipt({ naturalRolls: [0] })).toThrow(/natural/i);
     expect(() => receipt({ selectedIndex: 1 })).toThrow(/selected/i);
     expect(() => receipt({ naturalRoll: 7 })).toThrow(/selected/i);
+  });
+
+  it("keeps attack, actual critical damage dice, resolved amount and effective HP loss together", () => {
+    const rng = vi.spyOn(Math, "random");
+    const view = createCombatDicePresentation({
+      rollResult: receipt({ naturalRolls: [20], naturalRoll: 20, total: 23 }),
+      hit: true, critical: true, damage: 8, targetAC: 15,
+      damageRoll: snapshotEffectRoll({
+        roll: { sides: 6, naturalRolls: [1, 6], modifier: 3, total: 10 },
+        modifiers: [{ label: "Strength", value: 4 }, { label: "Statuses", value: -1 }],
+        adjustments: [{ label: "Shield defend -2", amount: 8 }],
+        amount: 8, application: { amount: 2, limit: "Overkill" }, criticalDice: true,
+      }),
+    }, { label: "Attack", actorId: "party:hero", targetId: "fixture:enemy:1", actionId: "attack" })!;
+    expect(formatDicePresentation(view)).toContain("d20 20 +3 = 23");
+    expect(formatDicePresentation(view)).toContain("Damage: 2d6 [1, 6] +3 = 10 (critical dice)");
+    expect(formatDicePresentation(view)).toContain("Strength +4, Statuses -1");
+    expect(formatDicePresentation(view)).toContain("Shield defend -2: 8");
+    expect(formatDicePresentation(view)).toContain("Resolved 8 damage | HP lost 2 (Overkill)");
+    expect(view.components).toBeUndefined();
+    expect(view.actionId).toBe("attack");
+    expect(Object.isFrozen(view.effect)).toBe(true);
+    expect(formatDicePresentation(view)).not.toContain("vs AC");
+    expect(rng).not.toHaveBeenCalled();
+    rng.mockRestore();
+  });
+
+  it("redacts hidden damage arithmetic and save details before any notice or history storage", () => {
+    const raw = snapshotEffectRoll({
+      roll: { sides: 6, naturalRolls: [1, 4], modifier: 131, total: 136 },
+      modifiers: [{ label: "Hidden synergy", value: 131 }],
+      adjustments: [{ label: "Hidden status stage", amount: 73 }],
+      amount: 7, application: { amount: 2, limit: "Overkill" },
+    });
+    const save = createD20Presentation(receipt({ modifier: 137, total: 149 }), {
+      category: "save", label: "Enemy save", outcome: "failure",
+      threshold: { kind: "DC", value: 91 }, revealModifier: false, revealThreshold: false,
+    });
+    const effect = createEffectDicePresentation(raw, {
+      category: "damage", label: "Enemy damage", outcome: "rolled", revealModifier: false,
+    });
+    const history = new DiceRollHistory();
+    const controller = new DicePresentationController({
+      record: (event) => history.append(event),
+      show: vi.fn(), settle: vi.fn(), clear: vi.fn(), schedule: vi.fn(() => vi.fn()),
+    });
+    controller.present(combineDicePresentations(save, [effect]),
+      { frequency: "off", speed: "instant" }, true, raw);
+    const stored = JSON.stringify(history.entries);
+    expect(stored).not.toMatch(/131|136|137|149|73|91|Hidden|vs DC/);
+    expect(effect.effect?.modifiers).toBeUndefined();
+    expect(effect.effect?.adjustments).toBeUndefined();
+    expect(effect.effect?.roll?.modifier).toBeUndefined();
+    expect(history.entries[0]?.text).toContain("2d6 [1, 4]");
+    expect(history.entries[0]?.text).toContain("Resolved 7 damage | HP lost 2");
+    expect(history.entries[0]?.presentation).not.toHaveProperty("source");
+    controller.cleanup();
+  });
+
+  it("shows the canonical healing pool separately from the maximum-HP cap", () => {
+    const view = createEffectDicePresentation(snapshotEffectRoll({
+      roll: { sides: 8, naturalRolls: [5], modifier: 0, total: 5 },
+      modifiers: [], adjustments: [], amount: 5,
+      application: { amount: 2, limit: "Maximum HP" },
+    }), { category: "healing", label: "Cure Wounds", outcome: "success" });
+    expect(formatDicePresentation(view)).toContain("Healing: 1d8 [5] +0 = 5");
+    expect(formatDicePresentation(view)).toContain("Resolved 5 healing | HP restored 2 (Maximum HP)");
+    const fixed = createEffectDicePresentation(snapshotEffectRoll({
+      modifiers: [], adjustments: [], amount: 6, application: { amount: 6 },
+    }), { category: "healing", label: "Fixed heal", outcome: "success" });
+    expect(formatDicePresentation(fixed)).toContain("Fixed amount (no dice)");
+    expect(fixed.effect?.roll).toBeUndefined();
+    expect(getDicePresentationDuration(fixed, { frequency: "all", speed: "normal" }, false)).toBe(0);
+  });
+
+  it("never reconstructs effect totals, elemental outcomes or applied damage from component faces", () => {
+    const view = createEffectDicePresentation({
+      roll: { sides: 4, naturalRolls: [1], modifier: -2, total: 73 },
+      modifiers: [{ label: "Canonical bonus", value: -2 }],
+      adjustments: [{ label: "Canonical stage", amount: 11 }],
+      amount: 9, application: { amount: 7, limit: "Nonlethal" },
+    }, { category: "damage", label: "Exact supplied outcome", outcome: "rolled" });
+    expect(formatDicePresentation(view)).toContain("1d4 [1] -2 = 73");
+    expect(formatDicePresentation(view)).toContain("Canonical stage: 11");
+    expect(formatDicePresentation(view)).toContain("Resolved 9 damage | HP lost 7 (Nonlethal)");
+  });
+
+  it("animates actual auto-hit damage dice without fabricating an attack roll", () => {
+    const view = createCombatDicePresentation({
+      autoHit: true, hit: true, damage: 7, targetAC: 91,
+      damageRoll: snapshotEffectRoll({
+        roll: { sides: 4, naturalRolls: [1, 2, 4], modifier: 0, total: 7 },
+        modifiers: [], adjustments: [], amount: 7, application: { amount: 7 },
+      }),
+    }, { label: "Magic Missile", revealThreshold: true })!;
+    expect(formatDicePresentation(view)).toContain("Auto-hit (no attack roll)");
+    expect(formatDicePresentation(view)).toContain("3d4 [1, 2, 4] +0 = 7");
+    expect(formatDicePresentation(view)).not.toMatch(/d20|\bAC\b/);
+    expect(getDicePresentationDuration(view, { frequency: "all", speed: "normal" }, false)).toBe(450);
+    for (const [preferences, reducedMotion] of [
+      [{ frequency: "off", speed: "normal" }, false],
+      [{ frequency: "all", speed: "instant" }, false],
+      [{ frequency: "all", speed: "normal" }, true],
+    ] as const) {
+      expect(getDicePresentationDuration(view, preferences, reducedMotion)).toBe(0);
+    }
+  });
+
+  it("preserves signed finite legacy arithmetic without rounding or inventing fixed-effect faces", () => {
+    const rolled = createEffectDicePresentation({
+      roll: { sides: 6, naturalRolls: [4], modifier: 1.5, total: 5.5 },
+      modifiers: [{ label: "Weapon", value: -0.5 }, { label: "Strength", value: 2 }],
+      adjustments: [{ label: "Psychic weakness x2", amount: 11 }],
+      amount: 11, application: { amount: 3.5, limit: "Overkill" },
+    }, { category: "damage", label: "Legacy weapon", outcome: "hit" });
+    expect(formatDicePresentation(rolled)).toContain("1d6 [4] +1.5 = 5.5");
+    expect(formatDicePresentation(rolled)).toContain("Weapon -0.5");
+    expect(formatDicePresentation(rolled)).toContain("Resolved 11 damage | HP lost 3.5");
+    const fixed = createEffectDicePresentation({
+      modifiers: [{ label: "Legacy effect", value: -0.5 }], adjustments: [],
+      amount: -0.5, application: { amount: -0.5 },
+    }, { category: "healing", label: "Fixed legacy effect", outcome: "success" });
+    expect(fixed.effect?.roll).toBeUndefined();
+    expect(formatDicePresentation(fixed)).toContain("Fixed amount (no dice)");
+    expect(formatDicePresentation(fixed)).toContain("Legacy effect -0.5");
+    expect(formatDicePresentation(fixed)).toContain("HP restored -0.5");
   });
 });
 

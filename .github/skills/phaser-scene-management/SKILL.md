@@ -183,6 +183,11 @@ Install `installDicePresentation(this)` in every scene too. It owns
 non-blocking exact-result visuals, cues, and skip listeners; its redacted
 runtime-only roll log survives handoffs and resets at Boot/reload. Never await
 dice animation or add it to movement/turn/transition input-block reasons.
+Keep combined d20/effect evidence immutable and redact before log storage.
+Capture existing scene-owned shield/healing HP deltas without recomputing
+damage; shared area pools and mechanics/hook timing stay independent of visuals.
+The shared input adapter releases discrete touch pulses at poststep and owns
+shutdown/destroy cleanup, so stale pulses cannot enter a replacement scene.
 
 Use `ActorAnimationDirector` for reusable actor poses and cleanup. Specialized
 battle/world directors register sprites by stable actor ID, use explicit

@@ -2,10 +2,11 @@
  * Combat status effect definitions and lifecycle operations.
  */
 
-import { abilityModifier, rollD20, rollDie } from "./dice";
+import { abilityModifier, rollD20 } from "./dice";
+import { rollEffectDice } from "./effectRolls";
 import type { DieType } from "./dice";
 import type { PlayerStats } from "./player";
-import type { ResolvedD20Roll } from "./rollResults";
+import type { ResolvedD20Roll, ResolvedEffectRoll } from "./rollResults";
 
 export const STATUS_EFFECT_IDS = [
   "poison",
@@ -61,6 +62,13 @@ export interface StatusTurnStartResult {
   tickDamage: number;
   skipTurn: boolean;
   readonly savingThrows: readonly StatusSavingThrowResult[];
+  readonly damageRolls: readonly StatusDamageRollResult[];
+}
+
+export interface StatusDamageRollResult {
+  readonly effectId: StatusEffectId;
+  readonly label: string;
+  readonly damageRoll: ResolvedEffectRoll;
 }
 
 export interface StatusSavingThrowResult {
@@ -349,6 +357,7 @@ export function processStartOfTurn(
 ): StatusTurnStartResult {
   const messages: string[] = [];
   const savingThrows: StatusSavingThrowResult[] = [];
+  const damageRolls: StatusDamageRollResult[] = [];
   let tickDamage = 0;
 
   for (let index = effects.length - 1; index >= 0; index--) {
@@ -357,8 +366,15 @@ export function processStartOfTurn(
     if (!definition) continue;
 
     if (definition.tickDamage > 0 || definition.tickDie > 0) {
-      const damage = definition.tickDamage
-        + (definition.tickDie > 0 ? rollDie(definition.tickDie) : 0);
+      const damageRoll = rollEffectDice(
+        definition.tickDie > 0 ? 1 : 0,
+        definition.tickDie,
+        [{ label: definition.name, value: definition.tickDamage }],
+      );
+      const damage = damageRoll.amount;
+      damageRolls.push(Object.freeze({
+        effectId: definition.id, label: definition.name, damageRoll,
+      }));
       tickDamage += damage;
       messages.push(`${definition.name} deals ${damage} damage!`);
     }
@@ -393,6 +409,7 @@ export function processStartOfTurn(
     tickDamage,
     skipTurn: mustSkipTurn(effects),
     savingThrows: Object.freeze(savingThrows),
+    damageRolls: Object.freeze(damageRolls),
   };
 }
 

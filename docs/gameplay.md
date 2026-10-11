@@ -122,9 +122,14 @@ Battle ends.
 
 Resolved rolls appear in a procedural dice dock, with both advantage/disadvantage
 faces and the selected die identified. Enemy bonuses and undiscovered AC/DC
-remain hidden. Magic Missile shows auto-hit, while damage/healing stay honest
-aggregates unless exact component dice are available. Use Z, L3, or the visible
-skip button; the last 40 results remain consultable across scene handoffs.
+remain hidden. Damage and healing show their actual die types/faces, signed
+modifiers, resolved amounts, and effective HP changes. Resistance, immunity,
+defending, overkill, nonlethal limits, and maximum-HP caps stay distinct from
+the original roll. Area effects show one shared pool with separate target
+results. Magic Missile shows damage dice but no attack die; fixed items and
+derived life-drain healing remain aggregate text without invented faces.
+Use Z, L3, or the visible skip button; the last 40 results remain consultable
+across scene handoffs.
 See [Dice presentation](dice-presentation.md).
 
 A full party wipe applies one recovery result, autosaves it, reports exact gold

@@ -59,6 +59,8 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
 - exact resolved dice, hidden-information redaction, disadvantage/auto-hit,
+  combined hit/damage and saving-throw evidence, actual healing/trap HP caps,
+  one shared area pool with per-target results,
   keyboard/touch/gamepad skip/log controls, event/trap/gathering/flee results,
   preference reload, and runtime-log scene handoffs
 - layout audits at supported text scales and representative desktop/mobile
@@ -156,6 +158,16 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Dice integration asserts source-aware multiclass modifiers without extra RNG
   or resource use, and controller text-entry ownership before native roll-log
   actions.
+- Effect-receipt tests retain exact dice sequence, signed/fractional custom
+  bonuses, critical pools, status-before-element adjustments and separately
+  captured applied HP. Fixed/derived amounts cannot gain fabricated faces.
+  Browser checks compare canonical diagnostics with the visible text/pools and
+  assert mobile dock, text and glyph widths at 100%/125%/150%.
+- Discrete touch pulses remain pressed through Phaser poststep. Deterministic
+  input tests cover once-only press/keyup delivery, successive pulses,
+  held-source survival and pending-release cleanup before the next frame.
+  Fishing asserts persisted wait ticks and bite/tension transitions rather
+  than hiding a lost confirm behind timing retries.
 - Select Battle spells by registered stable action/spell layout IDs after
   normalization; earned-spell additions must not shift fixture hit targets.
 - Native slot navigation observes both pressed and released frames and the

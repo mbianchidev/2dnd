@@ -22,9 +22,21 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
-.dice-result-row { display: flex; align-items: center; gap: 10px; }
-.dice-result-row p { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.resolved-dice { display: flex; flex: 0 0 auto; gap: 4px; }
+.dice-result-row { display: flex; align-items: flex-start; gap: 10px; }
+.dice-result-row p { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-line; }
+.resolved-dice {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  max-width: 45%;
+  max-height: calc(84px * var(--dice-text-scale));
+  overflow: auto;
+}
+.dice-group { max-width: 100%; }
+.dice-group-label { display: block; font-size: 0.8em; }
+.dice-faces { display: flex; flex-wrap: wrap; gap: 4px; }
 .resolved-die { width: calc(42px * var(--dice-text-scale)); text-align: center; }
 .resolved-die svg { display: block; width: 100%; }
 .resolved-die span { display: block; font-size: 0.75em; }
@@ -58,6 +70,7 @@
 
 @media (max-width: 600px) {
   .dice-result-row { flex-wrap: wrap; gap: 4px 8px; }
+  .resolved-dice { flex-basis: 100%; max-width: 100%; }
   .dice-result-row p { flex-basis: calc(100% - 150px); }
   .dice-presentation button { max-width: none; }
   .dice-presentation details { display: inline-block; margin-left: 8px; vertical-align: top; }

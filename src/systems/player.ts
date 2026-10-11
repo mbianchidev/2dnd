@@ -3,6 +3,8 @@
  */
 
 import { abilityModifier, rollDice } from "../systems/dice";
+import { captureEffectApplication, rollEffectDice } from "./effectRolls";
+import type { ResolvedEffectRoll } from "./rollResults";
 import type { DieType } from "../systems/dice";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
@@ -729,7 +731,7 @@ export function shortRest(player: PlayerState): { hpRestored: number; mpRestored
 export function castSpellOutsideCombat(
   player: PlayerState,
   spellId: string
-): { success: boolean; message: string; teleport?: boolean } {
+): { success: boolean; message: string; teleport?: boolean; healingRoll?: ResolvedEffectRoll } {
   const spell = getSpell(spellId);
   if (!spell) return { success: false, message: "Unknown spell!" };
   if (!canActorUseSpell(player, spellId)) {
@@ -756,11 +758,15 @@ export function castSpellOutsideCombat(
     if (player.hp >= player.maxHp) {
       return { success: false, message: "HP is already full!" };
     }
-    const healAmount = rollDice(spell.damageCount, spell.damageDie as DieType);
-    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
+    const healingRoll = rollEffectDice(spell.damageCount, spell.damageDie as DieType);
+    const actualHeal = Math.min(healingRoll.amount, player.maxHp - player.hp);
     player.hp += actualHeal;
     player.mp -= spell.mpCost;
-    return { success: true, message: `${spell.name} healed ${actualHeal} HP! (${spell.mpCost} MP)` };
+    return {
+      success: true,
+      message: `${spell.name} healed ${actualHeal} HP! (${spell.mpCost} MP)`,
+      healingRoll: captureEffectApplication(healingRoll, actualHeal, "Maximum HP"),
+    };
   }
 
   if (spell.type === "utility") {
@@ -776,7 +782,7 @@ export function useAbilityOutsideCombat(
   player: PlayerState,
   abilityId: string,
   deferHeroLevelUps = false,
-): { success: boolean; message: string; teleport?: boolean; evac?: boolean } {
+): { success: boolean; message: string; teleport?: boolean; evac?: boolean; healingRoll?: ResolvedEffectRoll } {
   const ability = getAbility(abilityId);
   if (!ability) return { success: false, message: "Unknown ability!" };
   if (!canActorUseAbility(player, abilityId)) {
@@ -835,11 +841,15 @@ export function useAbilityOutsideCombat(
     if (player.hp >= player.maxHp) {
       return { success: false, message: "HP is already full!" };
     }
-    const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
-    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
+    const healingRoll = rollEffectDice(ability.damageCount, ability.damageDie as DieType);
+    const actualHeal = Math.min(healingRoll.amount, player.maxHp - player.hp);
     player.hp += actualHeal;
     player.mp -= ability.mpCost;
-    return { success: true, message: `${ability.name} healed ${actualHeal} HP! (${ability.mpCost} MP)` };
+    return {
+      success: true,
+      message: `${ability.name} healed ${actualHeal} HP! (${ability.mpCost} MP)`,
+      healingRoll: captureEffectApplication(healingRoll, actualHeal, "Maximum HP"),
+    };
   }
 
   if (ability.type === "utility") {

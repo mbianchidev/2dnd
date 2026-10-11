@@ -1,25 +1,37 @@
-import type { DicePresentationEvent } from "../systems/dicePresentation";
+import type { DicePresentation, DicePresentationEvent } from "../systems/dicePresentation";
 import type { GamePreferences } from "../systems/accessibility";
 import { getInputPromptSource } from "../systems/input";
 import { debugLog } from "../config";
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
+const DIE_ART: Readonly<Record<number, { outline: string; facets: string }>> = {
+  4: { outline: "32,3 61,57 3,57", facets: "M32 3L32 40M3 57L32 40L61 57" },
+  6: { outline: "17,5 58,5 58,46 46,59 5,59 5,18", facets: "M5 18H46V59M46 18L58 5" },
+  8: { outline: "32,3 61,32 32,61 3,32", facets: "M32 3L13 45H51L32 3M3 32H61M13 45L32 61L51 45" },
+  10: { outline: "32,3 60,23 50,57 14,57 4,23", facets: "M32 3V16L14 57M32 16L50 57M4 23L32 16L60 23" },
+  12: { outline: "32,3 59,18 59,46 32,61 5,46 5,18", facets: "M32 12L51 26L44 48H20L13 26ZM32 3V12M59 18L51 26M59 46L44 48M5 46L20 48M5 18L13 26" },
+  20: { outline: "32,3 59,18 59,46 32,61 5,46 5,18", facets: "M5 18L32 9L59 18M5 46L32 55L59 46M32 9L9 46M32 9L55 46M9 46H55" },
+  100: { outline: "32,3 60,23 50,57 14,57 4,23", facets: "M32 3L32 16L14 57M32 16L50 57M4 23L32 16L60 23" },
+};
+
 function createDie(sides: number, natural: number, selected: boolean): HTMLDivElement {
   const die = document.createElement("div");
   die.className = `resolved-die${selected ? " selected" : ""}`;
   die.dataset.natural = String(natural);
+  die.dataset.sides = String(sides);
   die.dataset.selected = String(selected);
   const svg = document.createElementNS(SVG_NAMESPACE, "svg");
   svg.setAttribute("viewBox", "0 0 64 64");
   svg.setAttribute("aria-hidden", "true");
   const outline = document.createElementNS(SVG_NAMESPACE, "polygon");
-  outline.setAttribute("points", "32,3 59,18 59,46 32,61 5,46 5,18");
+  const art = DIE_ART[sides] ?? DIE_ART[20];
+  outline.setAttribute("points", art.outline);
   outline.setAttribute("fill", "#182842");
   outline.setAttribute("stroke", "#f4f1e8");
   outline.setAttribute("stroke-width", selected ? "4" : "2");
   const facets = document.createElementNS(SVG_NAMESPACE, "path");
-  facets.setAttribute("d", "M5 18L32 9L59 18M5 46L32 55L59 46M32 9L9 46M32 9L55 46M9 46H55");
+  facets.setAttribute("d", art.facets);
   facets.setAttribute("fill", "none");
   facets.setAttribute("stroke", "#a9bedb");
   facets.setAttribute("stroke-width", "1");
@@ -29,7 +41,7 @@ function createDie(sides: number, natural: number, selected: boolean): HTMLDivEl
   face.setAttribute("text-anchor", "middle");
   face.setAttribute("fill", "#ffffff");
   face.setAttribute("font-family", "monospace");
-  face.setAttribute("font-size", "23");
+  face.setAttribute("font-size", natural >= 100 ? "17" : "23");
   face.setAttribute("font-weight", "bold");
   face.setAttribute("stroke", "#182842");
   face.setAttribute("stroke-width", "1");
@@ -135,17 +147,7 @@ export class DiceRollRenderer {
     if (announce) this.announcement.textContent = event.text;
     this.glyphs.replaceChildren();
     if (preferences.dice.frequency !== "off") {
-      const roll = event.presentation.roll;
-      if (roll) {
-        roll.naturalRolls.forEach((natural, index) => {
-          this.glyphs.append(createDie(20, natural, index === roll.selectedIndex));
-        });
-      } else if (event.presentation.components) {
-        const components = event.presentation.components;
-        components.naturalRolls.forEach((natural) => {
-          this.glyphs.append(createDie(components.sides, natural, false));
-        });
-      }
+      this.appendResultDice(event.presentation);
     }
     if (event.duration > 0) {
       for (const svg of this.glyphs.querySelectorAll("svg")) {
@@ -178,6 +180,42 @@ export class DiceRollRenderer {
     this.root.dataset.frequency = preferences.dice.frequency;
     this.root.dataset.speed = preferences.dice.speed;
     if (preferences.dice.frequency === "off") this.glyphs.replaceChildren();
+  }
+
+  private appendResultDice(view: DicePresentation, sharedGroups = new Set<string>()): void {
+    const actionKey = `${view.actorId ?? ""}:${view.actionId ?? ""}`;
+    const attackKey = `${actionKey}:attack`;
+    if (view.roll && (!view.sharedRoll || !sharedGroups.has(attackKey))) {
+      this.appendDiceGroup(view.category, 20, view.roll.naturalRolls, view.roll.selectedIndex);
+      if (view.sharedRoll) sharedGroups.add(attackKey);
+    } else if (view.components) {
+      this.appendDiceGroup(view.category, view.components.sides, view.components.naturalRolls);
+    }
+    const effectKey = `${actionKey}:${view.effect?.kind}`;
+    if (view.effect?.roll && (!view.effect.shared || !sharedGroups.has(effectKey))) {
+      this.appendDiceGroup(view.effect.kind, view.effect.roll.sides, view.effect.roll.naturalRolls);
+      if (view.effect.shared) sharedGroups.add(effectKey);
+    }
+    for (const result of view.additionalResults ?? []) this.appendResultDice(result, sharedGroups);
+  }
+
+  private appendDiceGroup(
+    kind: string,
+    sides: number,
+    naturals: readonly number[],
+    selectedIndex?: number,
+  ): void {
+    const group = document.createElement("div");
+    group.className = "dice-group";
+    group.dataset.rollKind = kind;
+    const label = document.createElement("span");
+    label.className = "dice-group-label";
+    label.textContent = kind.charAt(0).toUpperCase() + kind.slice(1);
+    const faces = document.createElement("div");
+    faces.className = "dice-faces";
+    naturals.forEach((natural, index) => faces.append(createDie(sides, natural, index === selectedIndex)));
+    group.append(label, faces);
+    this.glyphs.append(group);
   }
 
   updatePrompt(): void {

@@ -578,8 +578,15 @@ Flow:
   tween callback.
 - Dice presentation consumes immutable `rollResults.ts` receipts through the
   redacting `systems/dicePresentation.ts` mapper and scene-owned dice manager.
-  Show exact naturals/selection only, hide enemy bonuses/totals and unknown AC/DC,
+  Show exact naturals/selection and permitted signed modifiers/totals; hide
+  enemy bonuses/intermediate arithmetic and unknown AC/DC,
   preserve Magic Missile auto-hit, and never reroll or delay mechanics.
+  `effectRolls.ts` captures actual damage/healing faces, named signed modifiers,
+  recorded status/element/defense adjustments and separately applied HP deltas
+  at their existing owners. Keep shared area pools shared and finite fractional
+  legacy item effects unchanged. Fixed/derived amounts never gain invented dice.
+  Snapshots retain only scalars/stable actor/action IDs; redact before notices
+  and normal/runtime log storage.
   The bounded roll log survives handoffs only at runtime; Boot/reload clears it.
 - Idle, attack, cast, ability, item, defend, damage, victory, faint, and flee
   states must have once-only completion, a duration-plus-grace visual recovery
@@ -1073,6 +1080,10 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   destinations cancel before the outer slot manager closes.
 - Clear held input and synthetic keys on blur, visibility loss, gamepad
   disconnect, scene changes, and runtime destruction.
+- Discrete touch pulses use owned tokens and release after Phaser poststep so
+  scene `JustDown` polling observes the press. Cancel pending release/listeners
+  on every cleanup boundary; never release another held owner or deliver stale
+  callbacks to a replacement scene. Preserve text-entry/log priority.
 - Resolve key conflicts by semantic context/priority. Never map production
   controls to debug cheat actions.
 - Prompts and focus state must adapt to the selected/active source using text or

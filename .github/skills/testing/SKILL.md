@@ -250,13 +250,22 @@ completion, `F1`, and Esc-menu access.
 
 ## Dice Testing Patterns
 
-`dicePresentation.test.ts`, `rollReceipts.test.ts`, and `diceRenderer.test.ts`
+`dicePresentation.test.ts`, `effectRollReceipts.test.ts`, `rollReceipts.test.ts`,
+and `diceRenderer.test.ts`
 cover exact natural/component receipts, hidden-stat redaction, selected
 advantage/disadvantage dice, critical/fumble/auto-hit, unchanged RNG/resources,
 native control propagation, runtime logs, and cancellation. Preference v3
 migration/corruption belongs in `accessibility.test.ts`. Real battle,
+damage/healing pools and HP caps, shared area rolls,
 event/trap/gathering/flee, skip, reload, and transition controls belong in
 `e2e/dice-presentation.spec.ts`; do not replace them with synthetic result hooks.
+Assert exact RNG sequence/next roll, source-owned resources, status/element
+ordering, integer faces/counts, finite fractional legacy arithmetic and distinct
+resolved/applied amounts. Filter enemy arithmetic before notices/history.
+`inputRuntime.test.ts` covers poststep touch pulses, successive once-only
+press/keyup, held-owner survival and blur/visibility/disconnect/context/scene/
+destroy cleanup without a later frame. Fishing checks the real persisted
+waitTicks/bite/tension sequence; do not substitute debug resolution or retries.
 
 ### Statistical Distribution Testing
 ```typescript

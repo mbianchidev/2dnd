@@ -10,7 +10,7 @@ export interface ResolvedD20Roll {
   readonly total: number;
 }
 
-/** Non-d20 components are displayable only when the resolver exposes them. */
+/** Exact component faces; arithmetic retains finite legacy-item fractions. */
 export interface ResolvedDiceComponents {
   readonly sides: number;
   readonly naturalRolls: readonly number[];
@@ -18,11 +18,36 @@ export interface ResolvedDiceComponents {
   readonly total: number;
 }
 
+export interface ResolvedRollModifier {
+  readonly label: string;
+  readonly value: number;
+}
+
+export interface ResolvedEffectAdjustment {
+  readonly label: string;
+  readonly amount: number;
+}
+
+/** Rolled arithmetic, resolved effect, and actual HP change are separate evidence. */
+export interface ResolvedEffectRoll {
+  readonly roll?: ResolvedDiceComponents;
+  readonly modifiers: readonly ResolvedRollModifier[];
+  readonly adjustments: readonly ResolvedEffectAdjustment[];
+  readonly amount: number;
+  readonly application?: {
+    readonly amount: number;
+    readonly limit?: string;
+  };
+  readonly criticalDice?: boolean;
+  readonly shared?: boolean;
+}
+
 function validateNumbers(
   naturalRolls: readonly number[],
   sides: number,
   modifier: number,
   total: number,
+  integerArithmetic: boolean,
 ): void {
   if (
     naturalRolls.length === 0
@@ -32,14 +57,15 @@ function validateNumbers(
   ) {
     throw new Error("[rollResults] Invalid exact natural dice.");
   }
-  if (!Number.isInteger(modifier) || !Number.isInteger(total)) {
+  const validArithmetic = integerArithmetic ? Number.isInteger : Number.isFinite;
+  if (!validArithmetic(modifier) || !validArithmetic(total)) {
     throw new Error("[rollResults] Invalid resolved modifier or total.");
   }
 }
 
 /** Freeze a copy without selecting dice, adding modifiers, or resolving an outcome. */
 export function snapshotD20Roll(result: ResolvedD20Roll): ResolvedD20Roll {
-  validateNumbers(result.naturalRolls, 20, result.modifier, result.total);
+  validateNumbers(result.naturalRolls, 20, result.modifier, result.total, true);
   if (
     !Number.isInteger(result.selectedIndex)
     || result.selectedIndex < 0
@@ -71,12 +97,41 @@ export function snapshotDiceComponents(
     throw new Error("[rollResults] Invalid exact die size.");
   }
   validateNumbers(
-    result.naturalRolls, result.sides, result.modifier, result.total,
+    result.naturalRolls, result.sides, result.modifier, result.total, false,
   );
   return Object.freeze({
     sides: result.sides,
     naturalRolls: Object.freeze([...result.naturalRolls]),
     modifier: result.modifier,
     total: result.total,
+  });
+}
+
+export function snapshotEffectRoll(result: ResolvedEffectRoll): ResolvedEffectRoll {
+  if (
+    !Number.isFinite(result.amount)
+    || result.modifiers.some((modifier) => !Number.isFinite(modifier.value))
+    || result.adjustments.some((adjustment) => !Number.isFinite(adjustment.amount))
+    || (result.application && !Number.isFinite(result.application.amount))
+  ) {
+    throw new Error("[rollResults] Invalid resolved effect evidence.");
+  }
+  return Object.freeze({
+    ...(result.roll ? { roll: snapshotDiceComponents(result.roll) } : {}),
+    modifiers: Object.freeze(result.modifiers.map((modifier) => Object.freeze({
+      label: modifier.label, value: modifier.value,
+    }))),
+    adjustments: Object.freeze(result.adjustments.map((adjustment) => Object.freeze({
+      label: adjustment.label, amount: adjustment.amount,
+    }))),
+    amount: result.amount,
+    ...(result.application ? {
+      application: Object.freeze({
+        amount: result.application.amount,
+        ...(result.application.limit ? { limit: result.application.limit } : {}),
+      }),
+    } : {}),
+    ...(result.criticalDice ? { criticalDice: true } : {}),
+    ...(result.shared ? { shared: true } : {}),
   });
 }

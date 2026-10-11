@@ -5,6 +5,9 @@ import { DiceRollRenderer } from "../src/renderers/dice";
 import { normalizeGamePreferences } from "../src/systems/accessibility";
 import {
   createD20Presentation,
+  createCombatDicePresentation,
+  createEffectDicePresentation,
+  combineDicePresentations,
   formatDicePresentation,
   type DicePresentationEvent,
 } from "../src/systems/dicePresentation";
@@ -79,5 +82,89 @@ describe("procedural resolved-dice renderer", () => {
     expect(gameKey).not.toHaveBeenCalled();
     renderer.destroy();
     window.removeEventListener("keydown", gameKey);
+  });
+
+  it("displays the hit and actual damage dice together with different procedural die geometry", () => {
+    const renderer = new DiceRollRenderer(vi.fn());
+    const presentation = createCombatDicePresentation({
+      rollResult: {
+        naturalRolls: [20], selectedIndex: 0, selection: "normal",
+        naturalRoll: 20, modifier: 3, total: 23,
+      },
+      hit: true, critical: true, damage: 10,
+      damageRoll: {
+        roll: { sides: 6, naturalRolls: [1, 6], modifier: 3, total: 10 },
+        modifiers: [{ label: "Strength", value: 3 }], adjustments: [],
+        amount: 10, application: { amount: 2, limit: "Overkill" }, criticalDice: true,
+      },
+    }, { label: "Attack" })!;
+    const text = formatDicePresentation(presentation);
+    renderer.show({ presentation, text, duration: 0, sequence: 1 }, normalizeGamePreferences(undefined));
+    expect([...renderer.root.querySelectorAll<HTMLElement>(".resolved-die")].map(
+      (die) => [die.dataset.sides, die.dataset.natural],
+    )).toEqual([["20", "20"], ["6", "1"], ["6", "6"]]);
+    const outlines = [...renderer.root.querySelectorAll("polygon")].map((outline) => outline.getAttribute("points"));
+    expect(outlines[0]).not.toBe(outlines[1]);
+    expect(outlines[1]).toBe(outlines[2]);
+    expect(renderer.root.querySelector("p")?.textContent).toContain("HP lost 2 (Overkill)");
+    expect(document.getElementById("dice-announcement")?.textContent).toBe(text);
+    renderer.destroy();
+  });
+
+  it("renders a shared area pool once while retaining every target's applied result", () => {
+    const renderer = new DiceRollRenderer(vi.fn());
+    const views = [16, 4, 0].map((amount, index) => createCombatDicePresentation({
+      rollResult: {
+        naturalRolls: [15], selectedIndex: 0, selection: "normal",
+        naturalRoll: 15, modifier: 4, total: 19,
+      },
+      hit: true, damage: amount,
+      damageRoll: {
+        roll: { sides: 10, naturalRolls: [6], modifier: 2, total: 8 },
+        modifiers: [{ label: "Statuses", value: 2 }], adjustments: [],
+        amount, application: { amount }, shared: true,
+      },
+    }, {
+      label: `Area target ${index}`, actorId: "party:hero", targetId: `fixture:${index}`,
+      actionId: "fireBolt", sharedRoll: true,
+    })!);
+    const presentation = combineDicePresentations(views[0]!, views.slice(1));
+    const text = formatDicePresentation(presentation);
+    renderer.show({ presentation, text, duration: 0, sequence: 1 }, normalizeGamePreferences(undefined));
+    expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(2);
+    expect(renderer.root.querySelectorAll('[data-sides="20"]')).toHaveLength(1);
+    expect(renderer.root.querySelectorAll('[data-sides="10"]')).toHaveLength(1);
+    for (const amount of [16, 4, 0]) {
+      expect(renderer.root.querySelector("p")?.textContent).toContain(`HP lost ${amount}`);
+    }
+    expect(renderer.root.querySelector("p")?.textContent).toContain("(shared roll)");
+    renderer.destroy();
+  });
+
+  it("keeps exact non-d20 faces and totals static and cancels repeated cleanup safely", () => {
+    const renderer = new DiceRollRenderer(vi.fn());
+    const views = [4, 6, 8, 10, 12, 20, 100].map((sides) =>
+      createEffectDicePresentation({
+        roll: { sides, naturalRolls: [sides], modifier: 0, total: sides },
+        modifiers: [], adjustments: [], amount: sides,
+      }, { category: "healing", label: `d${sides} heal`, outcome: "success" }),
+    );
+    const presentation = combineDicePresentations(views[0]!, views.slice(1));
+    const preferences = normalizeGamePreferences({
+      accessibility: { textScale: 1.5, highContrast: true, reducedMotion: true },
+      dice: { frequency: "all", speed: "instant" },
+    });
+    renderer.show({
+      presentation, text: formatDicePresentation(presentation), duration: 0, sequence: 1,
+    }, preferences);
+    expect([...renderer.root.querySelectorAll<HTMLElement>(".resolved-die")].map((die) =>
+      die.dataset.sides)).toEqual(["4", "6", "8", "10", "12", "20", "100"]);
+    expect(renderer.root.dataset.phase).toBe("ready");
+    expect(renderer.root.querySelector<HTMLButtonElement>("button")?.disabled).toBe(true);
+    expect(renderer.root.classList.contains("high-contrast")).toBe(true);
+    renderer.destroy();
+    renderer.destroy();
+    expect(document.getElementById("dice-presentation")).toBeNull();
+    expect(document.getElementById("dice-announcement")).toBeNull();
   });
 });

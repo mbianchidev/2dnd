@@ -31,11 +31,23 @@ interface GamepadSnapshot {
   axes: number[];
 }
 
+interface InputRuntimeScene {
+  readonly scene: { readonly key: string };
+  readonly events: {
+    on(event: "shutdown" | "destroy", listener: () => void): void;
+    off(event: "shutdown" | "destroy", listener: () => void): void;
+  };
+}
+
 interface InputRuntimeGame {
   readonly canvas: HTMLCanvasElement;
+  readonly events: {
+    once(event: "poststep", listener: () => void): void;
+    off(event: "poststep", listener: () => void): void;
+  };
   readonly scale: { refresh(): void };
   readonly scene: {
-    getScenes(active: boolean): readonly { readonly scene: { readonly key: string } }[];
+    getScenes(active: boolean): readonly InputRuntimeScene[];
   };
 }
 
@@ -134,6 +146,9 @@ export class SemanticInputRuntime {
   private readonly syntheticEvents = new WeakSet<Event>();
   private readonly heldSyntheticKeys = new Map<string, KeyDescriptor>();
   private readonly syntheticKeyOwnership = new InputKeyOwnership();
+  private readonly pulseReleases = new Map<string, () => void>();
+  private pulseSequence = 0;
+  private sceneEvents: InputRuntimeScene["events"] | null = null;
   private animationFrame = 0;
   private activeSceneKey = "";
   private activeContext: InputContext = "overlay";
@@ -156,6 +171,7 @@ export class SemanticInputRuntime {
   constructor(private readonly game: InputRuntimeGame) {}
 
   start(): void {
+    this.watchSceneLifecycle();
     window.addEventListener("keydown", this.handleKeyDown, true);
     window.addEventListener("keyup", this.handleKeyUp, true);
     window.addEventListener("gamepadconnected", this.handleGamepadConnection);
@@ -182,6 +198,7 @@ export class SemanticInputRuntime {
   }
 
   destroy(): void {
+    this.unwatchSceneLifecycle();
     window.cancelAnimationFrame(this.animationFrame);
     window.removeEventListener("keydown", this.handleKeyDown, true);
     window.removeEventListener("keyup", this.handleKeyUp, true);
@@ -212,6 +229,7 @@ export class SemanticInputRuntime {
       this.animationFrame = window.requestAnimationFrame(this.poll);
       return;
     }
+    this.watchSceneLifecycle();
     const sceneKey = this.getActiveSceneKey();
     const context = this.getContext();
     if (sceneKey !== this.activeSceneKey || context !== this.activeContext) {
@@ -255,7 +273,8 @@ export class SemanticInputRuntime {
     this.updatePresentation(source);
   };
 
-  private readonly handleGamepadConnection = (): void => {
+  private readonly handleGamepadConnection = (event: Event): void => {
+    if (event.type === "gamepaddisconnected") this.cancelPulseReleases();
     this.gamepadConnected = navigator.getGamepads().some(Boolean);
     if (!this.gamepadConnected) {
       const released = this.state.releaseMatching("gamepad:");
@@ -326,6 +345,7 @@ export class SemanticInputRuntime {
     }
     for (const index of this.gamepadSnapshots.keys()) {
       if (connectedIndices.has(index)) continue;
+      this.cancelPulseReleases();
       this.gamepadSnapshots.delete(index);
       const released = this.state.releaseMatching(`gamepad:${index}:`);
       for (const entry of released) this.releaseSyntheticToken(entry.token);
@@ -428,8 +448,17 @@ export class SemanticInputRuntime {
     if (event.token) {
       this.pressSyntheticToken(event.token, descriptor, event.repeated);
     } else {
-      this.dispatchKey("keydown", descriptor, event.repeated);
-      window.setTimeout(() => this.dispatchKey("keyup", descriptor, false), 0);
+      this.watchSceneLifecycle();
+      const token = `pulse:${++this.pulseSequence}`;
+      const release = (): void => {
+        this.game.events.off("poststep", release);
+        this.pulseReleases.delete(token);
+        this.releaseSyntheticToken(token);
+      };
+      this.pulseReleases.set(token, release);
+      // Phaser polls JustDown during its step; a zero-delay keyup can erase it first.
+      this.game.events.once("poststep", release);
+      this.pressSyntheticToken(token, descriptor, event.repeated);
     }
   }
 
@@ -569,6 +598,7 @@ export class SemanticInputRuntime {
   }
 
   private releaseAllSyntheticKeys(): void {
+    this.cancelPulseReleases();
     const descriptors = new Map<string, KeyDescriptor>();
     for (const descriptor of this.heldSyntheticKeys.values()) {
       descriptors.set(descriptor.code, descriptor);
@@ -579,6 +609,39 @@ export class SemanticInputRuntime {
       this.dispatchKey("keyup", descriptor, false);
     }
   }
+
+  private cancelPulseReleases(): void {
+    for (const [token, release] of this.pulseReleases) {
+      this.game.events.off("poststep", release);
+      this.releaseSyntheticToken(token);
+    }
+    this.pulseReleases.clear();
+  }
+
+  private watchSceneLifecycle(): void {
+    const events = this.game.scene.getScenes(true)[0]?.events ?? null;
+    if (events === this.sceneEvents) return;
+    this.releaseAllSyntheticKeys();
+    this.unwatchSceneLifecycle();
+    this.sceneEvents = events;
+    events?.on("shutdown", this.handleSceneEnd);
+    events?.on("destroy", this.handleSceneEnd);
+  }
+
+  private unwatchSceneLifecycle(): void {
+    this.sceneEvents?.off("shutdown", this.handleSceneEnd);
+    this.sceneEvents?.off("destroy", this.handleSceneEnd);
+    this.sceneEvents = null;
+  }
+
+  private readonly handleSceneEnd = (): void => {
+    this.unwatchSceneLifecycle();
+    this.releaseAllSyntheticKeys();
+    this.state.clear();
+    closeTextEntry();
+    this.cursorActive = false;
+    this.updateCursor();
+  };
 
   private dispatchWheel(deltaY: number): void {
     this.game.canvas.dispatchEvent(new WheelEvent("wheel", {

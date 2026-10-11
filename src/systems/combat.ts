@@ -4,7 +4,6 @@
 
 import {
   rollD20,
-  rollDice,
   rollWithDisadvantage,
   type DieType,
 } from "../systems/dice";
@@ -41,7 +40,8 @@ import {
 } from "./statusEffects";
 import type { ActiveStatusEffect } from "./statusEffects";
 import { getFleeDC } from "./groupCombat";
-import type { ResolvedD20Roll } from "./rollResults";
+import { captureEffectApplication, captureElementalEffect, rollEffectDice } from "./effectRolls";
+import type { ResolvedD20Roll, ResolvedEffectRoll } from "./rollResults";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -60,6 +60,7 @@ export interface CombatResult {
   /** Whether the attack roll used disadvantage. */
   disadvantage?: boolean;
   readonly rollResult?: ResolvedD20Roll;
+  readonly damageRoll?: ResolvedEffectRoll;
   fumble?: boolean;
 }
 
@@ -83,6 +84,7 @@ export interface HealingTargetResult {
   targetIndex: number;
   targetId: string;
   healing: number;
+  readonly healingRoll?: ResolvedEffectRoll;
 }
 
 export interface SpellEffectTargetResult {
@@ -174,18 +176,6 @@ function resolveAttackRoll(
   return { hit, critical: false, fumble: false, roll: d20Roll.roll, total: d20Roll.total };
 }
 
-/** Roll damage dice, doubling on critical hits. */
-function rollAttackDamage(
-  count: number,
-  die: DieType,
-  isCritical: boolean,
-  bonusDamage: number = 0,
-  minDamage: number = 0
-): number {
-  const dice = isCritical ? count * 2 : count;
-  return Math.max(minDamage, rollDice(dice, die) + bonusDamage);
-}
-
 function buildElementalMessage(
   targetName: string,
   element: Element | undefined,
@@ -272,16 +262,20 @@ export function playerAttack(
     const dexMod = abilityModifier(player.stats.dexterity);
     const isFinesse = player.equippedWeapon?.finesse === true;
     const dmgMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
-    const baseDamage = rollAttackDamage(
-      1,
+    const damageRoll = rollEffectDice(
+      outcome.critical ? 2 : 1,
       6,
-      outcome.critical,
-      weaponBonus + talentDmg + dmgMod + statusDamage,
-      outcome.critical ? 0 : 1,
+      [
+        { label: "Weapon", value: weaponBonus },
+        { label: "Talents", value: talentDmg },
+        { label: isFinesse ? "Finesse" : "Strength", value: dmgMod },
+        { label: "Statuses", value: statusDamage },
+      ],
+      { minimum: outcome.critical ? 0 : 1, criticalDice: outcome.critical },
     );
     const weaponElement = player.equippedWeapon?.element;
     const { damage, interaction: elementalLabel } = applyElementalModifier(
-      baseDamage,
+      damageRoll.amount,
       weaponElement,
       monster.elementalProfile,
     );
@@ -294,6 +288,7 @@ export function playerAttack(
     );
     return {
       message: `${prefix}${player.name} ${verb} for ${damage} damage!${elementalMessage}`,
+      damageRoll: captureElementalEffect(damageRoll, damage, weaponElement, elementalLabel),
       damage,
       hit: true,
       critical: outcome.critical,
@@ -364,16 +359,20 @@ export function playerOffHandAttack(
     })();
     const addAbilityMod = hasTwoWeaponFighting(player) || primaryStatMod < 0;
     const abilityDmgBonus = addAbilityMod ? primaryStatMod : 0;
-    const baseDamage = rollAttackDamage(
-      1,
+    const damageRoll = rollEffectDice(
+      outcome.critical ? 2 : 1,
       6,
-      outcome.critical,
-      offHandBonus + talentDmg + abilityDmgBonus + statusDamage,
-      outcome.critical ? 0 : 1,
+      [
+        { label: "Off-hand weapon", value: offHandBonus },
+        { label: "Talents", value: talentDmg },
+        { label: "Primary ability", value: abilityDmgBonus },
+        { label: "Statuses", value: statusDamage },
+      ],
+      { minimum: outcome.critical ? 0 : 1, criticalDice: outcome.critical },
     );
     const offHandElement = player.equippedOffHand.element;
     const { damage, interaction: elementalLabel } = applyElementalModifier(
-      baseDamage,
+      damageRoll.amount,
       offHandElement,
       monster.elementalProfile,
     );
@@ -387,6 +386,7 @@ export function playerOffHandAttack(
     );
     return {
       message: `${prefix}${player.name}'s ${hand} ${verb} for ${damage} damage!${elementalMessage}`,
+      damageRoll: captureElementalEffect(damageRoll, damage, offHandElement, elementalLabel),
       damage,
       hit: true,
       critical: outcome.critical,
@@ -481,14 +481,16 @@ export function playerCastSpellAtTargets(
         healingResults: [],
       };
     }
-    const healAmount = rollDice(
+    const healingRoll = rollEffectDice(
       spell.damageCount,
-      spell.damageDie as DieType
+      spell.damageDie as DieType,
+      [],
+      { shared: resolvedHealingTargets.length > 1 },
     );
     const healingResults = resolvedHealingTargets.map(
       (target, targetIndex): HealingTargetResult => {
         const actualHeal = Math.min(
-          healAmount,
+          healingRoll.amount,
           target.maxHp - target.currentHp,
         );
         target.currentHp += actualHeal;
@@ -496,6 +498,7 @@ export function playerCastSpellAtTargets(
           targetIndex,
           targetId: target.id,
           healing: actualHeal,
+          healingRoll: captureEffectApplication(healingRoll, actualHeal, "Maximum HP"),
         };
       },
     );
@@ -599,10 +602,15 @@ export function playerCastSpellAtTargets(
     : rollCombatD20(spellMod, playerEffects);
   player.mp -= spell.mpCost;
   const talentDmg = getTalentDamageBonus(player.knownTalents);
-  const baseDamage = rollDice(
+  const damageRoll = rollEffectDice(
     spell.damageCount,
     spell.damageDie as DieType,
-  ) + talentDmg + statusDamage;
+    [
+      { label: "Talents", value: talentDmg },
+      { label: "Statuses", value: statusDamage },
+    ],
+    { shared: targets.length > 1 },
+  );
 
   const results = targets.map((target, targetIndex): SpellTargetResult => {
     const effectiveAC = target.monster.ac
@@ -641,7 +649,7 @@ export function playerCastSpellAtTargets(
     }
 
     const { damage, interaction: elementalLabel } = applyElementalModifier(
-      baseDamage,
+      damageRoll.amount,
       spell.element,
       target.monster.elementalProfile,
     );
@@ -652,6 +660,7 @@ export function playerCastSpellAtTargets(
     );
     return {
       message: `${target.monster.name} takes ${damage} damage!${elementalMessage}`,
+      damageRoll: captureElementalEffect(damageRoll, damage, spell.element, elementalLabel),
       damage,
       hit: true,
       elementalLabel,
@@ -741,18 +750,25 @@ export function monsterAttackTarget(
   }
 
   if (outcome.hit) {
-    const damage = rollAttackDamage(
-      monster.damageCount,
+    const damageRoll = rollEffectDice(
+      outcome.critical ? monster.damageCount * 2 : monster.damageCount,
       monster.damageDie,
-      outcome.critical,
-      getEffectDamageModifier(monsterEffects) + synergyDamageBonus,
+      [
+        { label: "Statuses", value: getEffectDamageModifier(monsterEffects) },
+        { label: "Synergy", value: synergyDamageBonus },
+      ],
+      { minimum: 0, criticalDice: outcome.critical },
     );
+    const damage = damageRoll.amount;
+    const hpBefore = target.currentHp;
     target.currentHp = Math.max(0, target.currentHp - damage);
     const prefix = outcome.critical ? "CRITICAL! " : "";
     const verb = outcome.critical ? "savages" : "hits";
     return {
       message: `${prefix}${monster.name} ${verb} ${target.label} for ${damage} damage!`,
-      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
+      damage, hit: true, critical: outcome.critical, roll: outcome.roll,
+      damageRoll: captureEffectApplication(damageRoll, hpBefore - target.currentHp, "Overkill"),
+      ...meta,
     };
   }
 
@@ -922,11 +938,14 @@ export function playerUseAbility(
         healingResults: [],
       };
     }
-    const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
+    const healingRoll = rollEffectDice(
+      ability.damageCount, ability.damageDie as DieType, [],
+      { shared: targets.length > 1 },
+    );
     const healingResults = targets.map(
       (target, targetIndex): HealingTargetResult => {
         const actualHeal = Math.min(
-          healAmount,
+          healingRoll.amount,
           target.maxHp - target.currentHp,
         );
         target.currentHp += actualHeal;
@@ -934,6 +953,7 @@ export function playerUseAbility(
           targetIndex,
           targetId: target.id,
           healing: actualHeal,
+          healingRoll: captureEffectApplication(healingRoll, actualHeal, "Maximum HP"),
         };
       },
     );
@@ -982,14 +1002,17 @@ export function playerUseAbility(
   }
 
   if (outcome.hit) {
-    const baseDamage = rollAttackDamage(
-      ability.damageCount,
+    const damageRoll = rollEffectDice(
+      outcome.critical ? ability.damageCount * 2 : ability.damageCount,
       ability.damageDie as DieType,
-      outcome.critical,
-      talentDmg + getEffectDamageModifier(playerEffects),
+      [
+        { label: "Talents", value: talentDmg },
+        { label: "Statuses", value: getEffectDamageModifier(playerEffects) },
+      ],
+      { minimum: 0, criticalDice: outcome.critical },
     );
     const { damage, interaction: elementalLabel } = applyElementalModifier(
-      baseDamage,
+      damageRoll.amount,
       ability.element,
       monster.elementalProfile,
     );
@@ -1010,6 +1033,7 @@ export function playerUseAbility(
     }
     return {
       message: `${prefix}${player.name} uses ${ability.name}! ${damage} damage!${elementalMessage}${statusMessage}`,
+      damageRoll: captureElementalEffect(damageRoll, damage, ability.element, elementalLabel),
       damage,
       hit: true,
       critical: outcome.critical,
@@ -1033,6 +1057,8 @@ export interface MonsterAbilityResult {
   healing: number;
   abilityName: string;
   element?: Element;
+  readonly damageRoll?: ResolvedEffectRoll;
+  readonly healingRoll?: ResolvedEffectRoll;
 }
 
 /** Monster uses a special ability against a party combatant. */
@@ -1044,23 +1070,30 @@ export function monsterUseAbilityTarget(
   synergyDamageBonus: number = 0,
 ): MonsterAbilityResult {
   if (ability.type === "heal") {
-    const healing = rollDice(ability.damageCount, ability.damageDie);
+    const healingRoll = rollEffectDice(ability.damageCount, ability.damageDie);
+    const healing = healingRoll.amount;
     return {
       message: `${monster.name} uses ${ability.name}! Recovers ${healing} HP!`,
       damage: 0,
       healing,
       abilityName: ability.name,
       element: ability.element,
+      healingRoll,
     };
   }
 
   // Damage ability (bypasses AC — like breath weapons)
-  const damage = Math.max(
-    0,
-    rollDice(ability.damageCount, ability.damageDie)
-      + getEffectDamageModifier(monsterEffects)
-      + synergyDamageBonus,
+  const damageRoll = rollEffectDice(
+    ability.damageCount,
+    ability.damageDie,
+    [
+      { label: "Statuses", value: getEffectDamageModifier(monsterEffects) },
+      { label: "Synergy", value: synergyDamageBonus },
+    ],
+    { minimum: 0 },
   );
+  const damage = damageRoll.amount;
+  const hpBefore = target.currentHp;
   target.currentHp = Math.max(0, target.currentHp - damage);
 
   const selfHealMsg = ability.selfHeal
@@ -1085,6 +1118,7 @@ export function monsterUseAbilityTarget(
     healing: ability.selfHeal ? damage : 0,
     abilityName: ability.name,
     element: ability.element,
+    damageRoll: captureEffectApplication(damageRoll, hpBefore - target.currentHp, "Overkill"),
   };
 }
 

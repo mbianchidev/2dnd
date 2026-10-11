@@ -11,19 +11,23 @@ import {
 import {
   createTrapDicePresentation,
   createD20Presentation,
+  createCombatDicePresentation,
+  createEffectDicePresentation,
   formatDicePresentation,
   type CombatDiceReceipt,
 } from "../src/systems/dicePresentation";
-import type { ResolvedD20Roll } from "../src/systems/rollResults";
-import type { StatusSavingThrowResult } from "../src/systems/statusEffects";
-import type { TrapCheckResult } from "../src/systems/traps";
+import type { ResolvedD20Roll, ResolvedEffectRoll } from "../src/systems/rollResults";
+import type { StatusDamageRollResult, StatusSavingThrowResult } from "../src/systems/statusEffects";
+import type { TrapCheckResult, TrapTriggerResult } from "../src/systems/traps";
+import { getMonsterGroupTemplate } from "../src/data/monsterGroups";
+import { getMonster } from "../src/data/monsters";
 import {
   attemptTrapDetection,
   attemptTrapDisarm,
   generateDungeonTraps,
 } from "../src/systems/traps";
 import { DUNGEONS, getDungeonLevelMap, Terrain } from "../src/data/map";
-import { getTrapDefinition } from "../src/data/traps";
+import { getTrapDefinition, type TrapType } from "../src/data/traps";
 import { getSpell } from "../src/data/spells";
 import { getItem } from "../src/data/items";
 import { formatSkillCheckResult } from "../src/systems/skillChecks";
@@ -44,23 +48,31 @@ interface SeedOptions {
   disabled?: boolean;
   dungeon?: boolean;
   flee?: boolean;
+  healing?: boolean;
+  area?: boolean;
+  trapTrigger?: boolean;
+  instant?: boolean;
 }
 
 interface DiceDebugPacket {
   kind: string;
   actorId?: string;
   targetId?: string;
+  actionId?: string;
   trapId?: string;
   rollResult?: ResolvedD20Roll;
   attack?: CombatDiceReceipt;
   save?: StatusSavingThrowResult;
   flee?: { rollResult: ResolvedD20Roll; dc: number; success: boolean };
   trap?: TrapCheckResult;
+  damage?: StatusDamageRollResult | TrapTriggerResult;
+  appliedDamage?: number;
+  healing?: { healing?: number; healingRoll?: ResolvedEffectRoll };
 }
 
 function captureDice(page: Page): {
   packets: DiceDebugPacket[];
-  find(kind: string, actorId?: string): Promise<DiceDebugPacket>;
+  find(kind: string, actorId?: string, from?: number): Promise<DiceDebugPacket>;
 } {
   const packets: DiceDebugPacket[] = [];
   page.on("console", (message) => {
@@ -75,11 +87,11 @@ function captureDice(page: Page): {
   });
   return {
     packets,
-    find: async (kind, actorId) => {
-      await expect.poll(() => packets.some((packet) =>
+    find: async (kind, actorId, from = 0) => {
+      await expect.poll(() => packets.slice(from).some((packet) =>
         packet.kind === kind && (actorId === undefined || packet.actorId === actorId)
       )).toBe(true);
-      return packets.find((packet) =>
+      return packets.slice(from).find((packet) =>
         packet.kind === kind && (actorId === undefined || packet.actorId === actorId)
       )!;
     },
@@ -158,24 +170,30 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
   const player = createPlayer("Dice Tester", {
     strength: 14, dexterity: options.dungeon || options.flee ? 30 : 18, constitution: 8,
     intelligence: options.dungeon ? 28 : 18, wisdom: 14, charisma: 12,
-  }, "wizard");
-  player.level = 5;
-  player.classProgression = createHeroClassProgression("wizard", player.level);
-  player.hp = player.maxHp = 500;
+  }, options.healing ? "cleric" : "wizard");
+  player.level = options.area ? 6 : 5;
+  player.classProgression = createHeroClassProgression(options.healing ? "cleric" : "wizard", player.level);
+  player.maxHp = 500;
+  player.hp = options.healing ? 499 : options.trapTrigger ? 2 : 500;
   player.mp = player.maxMp = 100;
-  player.knownSpells = ["magicMissile", "fireBolt"];
+  player.knownSpells = options.healing ? ["cureWounds"]
+    : options.area ? ["fireball"] : ["magicMissile", "fireBolt"];
   player.progression.tutorial.completed = true;
   player.progression.seenCutsceneIds = ["campaign.opening"];
   player.progression.gathering.seed = 24680;
   player.progression.trapSeed = 24680;
   player.progression.trapGuidance = true;
-  player.activeEffects = options.dungeon ? [] : [
+  player.activeEffects = options.dungeon || options.healing || options.area ? [] : [
     { id: "poison", remainingTurns: 4, source: "Test effect" },
     { id: "prone", remainingTurns: 10, source: "Test effect" },
   ];
   let trapEvidence: {
     id: string;
     name: string;
+    type: TrapType;
+    x: number;
+    y: number;
+    triggerKey?: string;
   } | undefined;
   if (options.dungeon) {
     const trapKit = getItem("trapKit");
@@ -185,6 +203,8 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
     const map = getDungeonLevelMap(dungeon, 0);
     const traps = generateDungeonTraps(dungeon, 0, player.progression.trapSeed);
     for (const trap of traps) {
+      const definition = getTrapDefinition(trap.type);
+      if (options.trapTrigger && (!definition.damage || definition.dropsLevel || definition.startsEncounter)) continue;
       const approach = [
         { x: trap.x - 1, y: trap.y }, { x: trap.x + 1, y: trap.y },
         { x: trap.x, y: trap.y - 1 }, { x: trap.x, y: trap.y + 1 },
@@ -193,15 +213,23 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
           Math.abs(other.x - point.x) + Math.abs(other.y - point.y) <= 1
         ).length === 1);
       if (!approach) continue;
-      const resolvedPlayer = structuredClone(player);
-      const detection = attemptTrapDetection(resolvedPlayer, trap, 1);
-      const disarm = attemptTrapDisarm(resolvedPlayer, trap, 1);
-      if (!detection.success || !disarm.success) continue;
+      if (!options.trapTrigger) {
+        const resolvedPlayer = structuredClone(player);
+        const detection = attemptTrapDetection(resolvedPlayer, trap, 1);
+        const disarm = attemptTrapDisarm(resolvedPlayer, trap, 1);
+        if (!detection.success || !disarm.success) continue;
+      }
       const name = getTrapDefinition(trap.type).name;
       trapEvidence = {
         id: trap.id,
         name,
+        type: trap.type,
+        x: trap.x,
+        y: trap.y,
+        triggerKey: trap.x > approach.x ? "d" : trap.x < approach.x ? "a"
+          : trap.y > approach.y ? "s" : "w",
       };
+      if (options.trapTrigger) player.progression.trapStates[trap.id] = "missed";
       Object.assign(player.position, {
         inDungeon: true, dungeonId: dungeon.id, dungeonLevel: 0,
         inCity: false, ...approach,
@@ -225,7 +253,7 @@ async function seedCampaign(page: Page, options: SeedOptions = {}) {
       highContrast: options.textScale === 1.5,
     },
     controls: { touchControls: "on" },
-    dice: { frequency: options.disabled ? "off" : "all", speed: "normal" },
+    dice: { frequency: options.disabled ? "off" : "all", speed: options.instant ? "instant" : "normal" },
   });
   await page.addInitScript(({ campaign, preferences }) => {
     if (!sessionStorage.getItem("diceInitialized")) {
@@ -276,6 +304,27 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 
+async function expectDiceBounds(page: Page, textScale: TextScale): Promise<void> {
+  const bounds = await page.locator("#dice-presentation").evaluate((root) => {
+    const rect = root.getBoundingClientRect();
+    const glyphs = root.querySelector<HTMLElement>(".resolved-dice")!;
+    const result = root.querySelector<HTMLElement>("#dice-result")!;
+    return {
+      left: rect.left, right: rect.right, height: rect.height,
+      width: root.clientWidth, scrollWidth: root.scrollWidth,
+      glyphWidth: glyphs.clientWidth, glyphScrollWidth: glyphs.scrollWidth,
+      resultWidth: result.clientWidth, resultScrollWidth: result.scrollWidth,
+      viewportWidth: window.innerWidth, viewportHeight: window.innerHeight,
+    };
+  });
+  expect(bounds.left).toBeGreaterThanOrEqual(0);
+  expect(bounds.right).toBeLessThanOrEqual(bounds.viewportWidth);
+  expect(bounds.height).toBeLessThanOrEqual(Math.min(120 * textScale, bounds.viewportHeight * 0.3, 210) + 1);
+  expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.width);
+  expect(bounds.glyphScrollWidth).toBeLessThanOrEqual(bounds.glyphWidth);
+  expect(bounds.resultScrollWidth).toBeLessThanOrEqual(bounds.resultWidth);
+}
+
 for (const textScale of [1, 1.25, 1.5] as const) {
   test(`battle receipts and skip controls remain truthful at ${textScale * 100}% text`, async ({ page }) => {
     const errors = collectErrors(page);
@@ -306,6 +355,15 @@ for (const textScale of [1, 1.25, 1.5] as const) {
         threshold: { kind: "DC", value: savePacket.save.dc },
       })),
     );
+    const status = await evidence.find("statusDamage", "party:hero");
+    if (!status.damage || !("effectId" in status.damage)) throw new Error("Missing canonical status tick");
+    await expect(log).toContainText(formatDicePresentation(createEffectDicePresentation(
+      status.damage.damageRoll, {
+        category: "damage", label: `Dice Tester ${status.damage.label} damage`,
+        actorId: "party:hero", outcome: "rolled",
+      },
+    )));
+    await expect(log).toContainText(`HP lost ${status.appliedDamage}`);
 
     if (textScale === 1) {
       await holdKey(page, "Enter");
@@ -336,7 +394,15 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     expect(await attack.textContent()).not.toContain("vs AC");
     expect(await page.locator("#dice-presentation .resolved-die").evaluateAll(
       (dice) => dice.map((die) => (die as HTMLElement).dataset.natural),
-    )).toEqual(roll.naturalRolls.map(String));
+    )).toEqual([
+      ...roll.naturalRolls,
+      ...(attackPacket.attack?.damageRoll?.roll?.naturalRolls ?? []),
+    ].map(String));
+    await expect(attack).toContainText(formatDicePresentation(createCombatDicePresentation(
+      attackPacket.attack!, { label: `Dice Tester attack -> ${getMonster("orc")!.name}` },
+    )!));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectDiceBounds(page, textScale);
     await expect(attack).toHaveCount(1);
 
     await page.locator("#dice-history summary").click();
@@ -349,7 +415,18 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     const missile = log.locator('[data-category="attack"]').filter({ hasText: "Magic Missile" });
     await expect(missile).toContainText("Auto-hit (no attack roll)");
     expect(await missile.textContent()).not.toMatch(/d20|Disadvantage|\bAC\b/);
-    await expect(page.locator("#dice-presentation .resolved-die")).toHaveCount(0);
+    const missilePacket = await evidence.find("attack", "party:hero", evidence.packets.indexOf(attackPacket) + 1);
+    if (!missilePacket.attack?.damageRoll?.roll) throw new Error("Missing canonical Magic Missile damage");
+    expect(missilePacket.actionId).toBe("magicMissile");
+    expect(missilePacket.attack.damageRoll.roll.sides).toBe(4);
+    expect(missilePacket.attack.damageRoll.roll.naturalRolls).toHaveLength(3);
+    await expect(missile).toContainText(formatDicePresentation(createCombatDicePresentation(
+      missilePacket.attack, { label: `Dice Tester Magic Missile -> ${getMonster("orc")!.name}` },
+    )!));
+    expect(await page.locator("#dice-presentation .resolved-die").evaluateAll(
+      (dice) => dice.map((die) => [(die as HTMLElement).dataset.sides, (die as HTMLElement).dataset.natural]),
+    )).toEqual(missilePacket.attack.damageRoll.roll.naturalRolls.map((natural) => ["4", String(natural)]));
+    await expectDiceBounds(page, textScale);
     await page.screenshot({ path: test.info().outputPath(`dice-battle-${textScale}.png`) });
     await debugCommand(page, "/kill");
     await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
@@ -364,6 +441,103 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     expect(errors).toEqual([]);
   });
 }
+
+for (const textScale of [1, 1.25, 1.5] as const) {
+  test(`real exploration and battle healing keep exact pools and HP caps at ${textScale * 100}% mobile text`, async ({ page }) => {
+    const errors = collectErrors(page);
+    const evidence = captureDice(page);
+    await seedCampaign(page, { textScale, healing: true, reducedMotion: true });
+    await continueCampaign(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await holdKey(page, "e");
+    await clickLayoutItem(page, "equip-skills-tab");
+    await clickLayoutItem(page, "equip-spell-cureWounds");
+    const exploration = await evidence.find("healing", "party:hero");
+    const heal = exploration.healing?.healingRoll;
+    if (!heal?.roll) throw new Error("Missing exact exploration heal");
+    expect(exploration.actionId).toBe("cureWounds");
+    expect(heal.roll.sides).toBe(8);
+    expect(heal.roll.naturalRolls).toHaveLength(1);
+    expect(heal.roll.modifier).toBe(0);
+    expect(heal.application?.amount).toBe(1);
+    if (heal.amount > 1) expect(heal.application?.limit).toBe("Maximum HP");
+    await expect(page.locator("#dice-log")).toContainText(formatDicePresentation(
+      createEffectDicePresentation(heal, {
+        category: "healing", label: "Dice Tester Cure Wounds", outcome: "success",
+      }),
+    ));
+    await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
+    await expect(page.locator("#dice-fast-forward")).toBeDisabled();
+    expect(await page.locator("#dice-presentation").evaluate((root) => root.getAnimations({ subtree: true }).length)).toBe(0);
+    await expectDiceBounds(page, textScale);
+    await expectCleanLayout(page);
+    await holdKey(page, "e");
+    await debugCommand(page, "/spawn orc");
+    await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+    const from = evidence.packets.length;
+    await clickLayoutItem(page, "battle-action-spells");
+    await clickLayoutItem(page, "battle-spell-cureWounds");
+    const battle = await evidence.find("healing", "party:hero", from);
+    const battleHeal = battle.healing?.healingRoll;
+    if (!battleHeal?.roll) throw new Error("Missing exact battle heal");
+    expect(battle.actionId).toBe("cureWounds");
+    expect(battleHeal.roll.sides).toBe(8);
+    expect(battleHeal.roll.naturalRolls).toHaveLength(1);
+    expect(battleHeal.roll.modifier).toBe(0);
+    await expect(page.locator("#dice-log")).toContainText(formatDicePresentation(
+      createEffectDicePresentation(battleHeal, {
+        category: "healing", label: "Dice Tester Cure Wounds -> Dice Tester", outcome: "success",
+      }),
+    ));
+    await expectDiceBounds(page, textScale);
+    await debugCommand(page, "/kill");
+    await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+    expect((await readSave(page)).player.mp).toBe(100 - 2 * getSpell("cureWounds")!.mpCost);
+    await expect(page.locator("#dice-log")).toContainText("Cure Wounds");
+    await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
+    expect(errors).toEqual([]);
+  });
+}
+
+test("one real area cast shows one exact pool with independent target HP results in instant mode", async ({ page }) => {
+  const errors = collectErrors(page);
+  const evidence = captureDice(page);
+  await seedCampaign(page, { textScale: 1.5, area: true, instant: true });
+  await continueCampaign(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await debugCommand(page, "/battleview goblinRaidingParty forest day clear");
+  await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+  await clickLayoutItem(page, "battle-action-spells");
+  await clickLayoutItem(page, "battle-spell-fireball");
+  const targetCount = getMonsterGroupTemplate("goblinRaidingParty")!.members.length;
+  await expect.poll(() => evidence.packets.filter((packet) =>
+    packet.actorId === "party:hero" && packet.actionId === "fireball" && packet.kind === "attack"
+  ).length).toBe(targetCount);
+  const attacks = evidence.packets.filter((packet) =>
+    packet.actorId === "party:hero" && packet.actionId === "fireball" && packet.kind === "attack"
+  );
+  const pool = attacks[0]?.attack?.damageRoll?.roll;
+  if (!pool) throw new Error("Area fixture did not resolve a damage roll");
+  expect(pool.sides).toBe(6);
+  expect(pool.naturalRolls).toHaveLength(8);
+  const entry = page.locator('#dice-log [data-category="attack"]').filter({ hasText: "Dice Tester Fireball" });
+  await expect(entry).toHaveCount(1);
+  for (const packet of attacks) {
+    expect(packet.attack?.damageRoll?.roll).toEqual(pool);
+    expect(packet.attack?.damageRoll?.shared).toBe(true);
+    await expect(entry).toContainText(`HP lost ${packet.attack?.damageRoll?.application?.amount}`);
+  }
+  await expect(entry).toContainText("(shared roll)");
+  await expect(page.locator("#dice-presentation .resolved-die")).toHaveCount(9);
+  await expect(page.locator('#dice-presentation [data-roll-kind="damage"]')).toHaveCount(1);
+  await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
+  await expectDiceBounds(page, 1.5);
+  await debugCommand(page, "/kill");
+  await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+  expect((await readSave(page)).player.mp).toBe(100 - getSpell("fireball")!.mpCost);
+  await expect(entry).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
 
 test("preferences, disabled results and non-combat checks survive reload without campaign coupling", async ({ page }) => {
   const errors = collectErrors(page);
@@ -430,6 +604,45 @@ test("real trap detection and disarm use the exact canonical checks and never re
   expect(errors).toEqual([]);
 });
 
+test("stepping onto a real missed trap shows its exact damage dice and nonlethal HP change once", async ({ page }) => {
+  const errors = collectErrors(page);
+  const packets = captureDice(page);
+  const trap = await seedCampaign(page, {
+    dungeon: true, trapTrigger: true, textScale: 1.5, reducedMotion: true,
+  });
+  if (!trap?.triggerKey) throw new Error("Missing damage-trap approach");
+  await continueCampaign(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await holdKey(page, trap.triggerKey);
+  const packet = await packets.find("trapDamage");
+  if (!packet.damage || !("triggered" in packet.damage) || !packet.damage.damageRoll?.roll) {
+    throw new Error("Missing canonical trap damage");
+  }
+  const result = packet.damage;
+  const effect = result.damageRoll!;
+  expect(packet.trapId).toBe(trap.id);
+  const damage = getTrapDefinition(trap.type).damage!;
+  expect(effect.roll?.sides).toBe(damage.sides);
+  expect(effect.roll?.naturalRolls).toHaveLength(damage.count);
+  expect(effect.application?.amount).toBe(1);
+  if (effect.amount > 1) expect(effect.application?.limit).toBe("Nonlethal");
+  await expect(page.locator("#dice-log")).toContainText(formatDicePresentation(createEffectDicePresentation(
+    effect, { category: "damage", label: `${trap.name} damage`, outcome: "rolled" },
+  )));
+  await expectDiceBounds(page, 1.5);
+  const saved = await readSave(page);
+  expect(saved.player.hp).toBe(1);
+  expect(saved.player.position.x).toBe(trap.x);
+  expect(saved.player.position.y).toBe(trap.y);
+  expect(saved.player.progression.trapStates[trap.id]).toBe("triggered");
+  await page.reload({ waitUntil: "networkidle" });
+  await continueCampaign(page);
+  await expect(page.locator("#dice-presentation")).toBeHidden();
+  expect((await readSave(page)).player.hp).toBe(1);
+  expect((await readSave(page)).player.progression.trapStates[trap.id]).toBe("triggered");
+  expect(errors).toEqual([]);
+});
+
 test("a real flee check hands off once with readable immediate results and unchanged resources", async ({ page }) => {
   const errors = collectErrors(page);
   const evidence = captureDice(page);
@@ -487,9 +700,15 @@ test("real gathering controls show canonical scores without fabricated d20s and 
     if (pending.game.kind === "fishing") {
       for (let tick = 0; tick < pending.game.biteAt; tick += 1) {
         await page.locator('#touch-controls [data-action="confirm"]').tap();
+        await expect.poll(async () => {
+          const game = (await readSave(page)).player.progression.gathering.pending?.game;
+          return game?.kind === "fishing" ? game.waitTicks : undefined;
+        }).toBe(tick + 1);
         await page.waitForTimeout(90);
       }
+      await expect(page.locator("#debug-state")).toContainText("[GATHERING_PHASE:bite]");
       await page.locator('#touch-controls [data-action="confirm"]').tap();
+      await expect(page.locator("#debug-state")).toContainText("[GATHERING_PHASE:tension]");
       for (const direction of pending.game.tensionPattern) {
         await pressGamepad(page, GAMEPAD_DIRECTIONS[direction]);
       }

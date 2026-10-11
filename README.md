@@ -45,9 +45,11 @@ and campaign saves stay in your browser's local storage.
 - **Fight tactical battles:** face groups of up to four enemies with initiative,
   formations, ally and enemy targeting, nine elements, status effects, healing,
   items, bosses, and full-party defeat recovery.
-- **See the real rolls:** procedural dice display resolved natural rolls and
-  advantage/disadvantage selection without delaying mechanics or revealing
-  hidden enemy stats. Skip motion or consult the bounded runtime roll log.
+- **See the real rolls:** procedural dice display natural attack/save rolls,
+  modifiers, totals, exact damage/healing pools, and actual HP changes.
+  Advantage/disadvantage selection and shared area rolls stay truthful without
+  delaying mechanics or revealing hidden enemy stats. Skip motion or consult
+  the bounded runtime roll log.
 - **Explore a changing world:** travel through connected city districts,
   multi-level dungeons, seeded traps, fog of war, weather, day and night,
   non-combat skill checks, World Events, and optional danger zones.

@@ -74,11 +74,16 @@ handedness, and prompt source without changing campaign saves. Stable mappings
 are intentionally not remappable.
 
 Preference v3 includes dice animation frequency/speed independently of the
-campaign schema. Exact d20/component receipts live in `systems/rollResults.ts`, safe mapping
+campaign schema. Exact d20/component/effect receipts live in `systems/rollResults.ts`, safe mapping
 and runtime history in `systems/dicePresentation.ts`, scene-owned orchestration
 in `managers/dicePresentation.ts`/`battleDice.ts`, and procedural SVG rendering
 in `renderers/dice.ts`. Never add RNG, mechanics callbacks, resource mutation,
 hidden-stat leakage, or an input-block reason to this pipeline.
+`systems/effectRolls.ts` retains the original damage/healing RNG calls, named
+modifiers, recorded adjustments and actual HP delta at the existing write.
+Separate rolled, resolved and applied values, preserve finite fractional legacy
+item effects and shared area pools, and never infer fixed/derived component dice.
+Scene-owned shield/healing writes remain capture-only adapters.
 
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a
@@ -86,6 +91,9 @@ visible right-stick cursor clicked by pressing the stick. Responsive touch
 controls use safe areas, pointer capture for held directions, pointer-release
 pulses with a click fallback for discrete actions, and mobile text entry. Clear
 held state on blur, visibility loss, disconnect, scene changes, and shutdown.
+Discrete touch pulses release after Phaser poststep so frame-polled keys see
+them once. Own/cancel their tokens and scene listeners on cleanup, preserve
+other held sources, and prevent stale release callbacks entering new scenes.
 The title menu uses `src/managers/titleMenu.ts` so direct taps and semantic
 D-pad/A input share one selected action. Keep overwrite confirmation compact
 and centered within the landscape viewport.

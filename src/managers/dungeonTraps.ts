@@ -20,7 +20,7 @@ import {
   triggerDungeonTrap,
 } from "../systems/traps";
 import { TrapRenderer } from "../renderers/traps";
-import { createTrapDicePresentation } from "../systems/dicePresentation";
+import { createEffectDicePresentation, createTrapDicePresentation } from "../systems/dicePresentation";
 import { presentDiceResult } from "./dicePresentation";
 
 export interface DungeonTrapCallbacks {
@@ -275,6 +275,17 @@ export class DungeonTrapManager {
     if (!result.triggered) {
       this.callbacks.setMovementLocked(false);
       return false;
+    }
+    if (result.damageRoll) {
+      debugLog("[dice] receipt", { kind: "trapDamage", trapId: trap.id, damage: result });
+      presentDiceResult(this.scene, createEffectDicePresentation(result.damageRoll, {
+        category: "damage",
+        label: `${getTrapDefinition(trap.type).name} damage`,
+        actorId: "party:hero",
+        actionId: `trap:${trap.id}:trigger`,
+        outcome: "rolled",
+        detail: result.mpLoss > 0 ? `${result.mpLoss} MP lost (fixed amount)` : undefined,
+      }), result);
     }
 
     this.focusedTrapId = null;

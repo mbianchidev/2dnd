@@ -6,6 +6,9 @@ import { getSpell } from "../data/spells";
 import { createItemVisual } from "../renderers/itemVisuals";
 import { useCombatItem, useCombatItemOnTarget, type CombatActorState, type PlayerState } from "../systems/player";
 import { playerCastSpellAtTargets } from "../systems/combat";
+import { createEffectDicePresentation } from "../systems/dicePresentation";
+import { HERO_COMBATANT_ID } from "../systems/groupCombat";
+import { presentDiceResult } from "./dicePresentation";
 import { getCompanion, moveActiveCompanion, setCompanionActive, transferPartyItem, type CompanionState, type PartyMemberId } from "../systems/party";
 import {
   getItemTransferRestriction,
@@ -718,6 +721,18 @@ export class PartyOverlayManager {
         effects: target.state.activeEffects,
       }],
     );
+    for (const healing of result.healingResults) {
+      if (healing.healingRoll) {
+        presentDiceResult(this.scene, createEffectDicePresentation(healing.healingRoll, {
+          category: "healing",
+          label: `${member.name} ${spell.name} -> ${target.name}`,
+          actorId: member.id === "hero" ? HERO_COMBATANT_ID : `party:companion:${member.id}`,
+          targetId: target.id === "hero" ? HERO_COMBATANT_ID : `party:companion:${target.id}`,
+          actionId: spell.id,
+          outcome: "success",
+        }), healing);
+      }
+    }
     this.changed(result.message, result.mpUsed > 0);
   }
   private capitalize(value: string): string {

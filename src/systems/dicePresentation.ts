@@ -1,8 +1,12 @@
 import {
   snapshotD20Roll,
   snapshotDiceComponents,
+  snapshotEffectRoll,
   type ResolvedD20Roll,
   type ResolvedDiceComponents,
+  type ResolvedEffectRoll,
+  type ResolvedEffectAdjustment,
+  type ResolvedRollModifier,
 } from "./rollResults";
 import type { SkillCheckRecord } from "../data/skillChecks";
 import type { DicePreferences } from "./accessibility";
@@ -26,6 +30,17 @@ export interface VisibleDiceComponents extends Omit<ResolvedDiceComponents, "mod
   readonly total?: number;
 }
 
+export interface VisibleEffectRoll {
+  readonly kind: "damage" | "healing";
+  readonly roll?: VisibleDiceComponents;
+  readonly modifiers?: readonly ResolvedRollModifier[];
+  readonly adjustments?: readonly ResolvedEffectAdjustment[];
+  readonly amount: number;
+  readonly application?: ResolvedEffectRoll["application"];
+  readonly criticalDice?: boolean;
+  readonly shared?: boolean;
+}
+
 export interface DiceThreshold {
   readonly kind: "AC" | "DC";
   readonly value: number;
@@ -38,6 +53,8 @@ export interface DicePresentationOptions {
   readonly outcome: DiceOutcome;
   readonly actorId?: string;
   readonly targetId?: string;
+  readonly actionId?: string;
+  readonly sharedRoll?: boolean;
   readonly threshold?: DiceThreshold;
   readonly detail?: string;
   readonly revealModifier?: boolean;
@@ -52,8 +69,12 @@ export interface DicePresentation {
   readonly outcome: DiceOutcome;
   readonly actorId?: string;
   readonly targetId?: string;
+  readonly actionId?: string;
+  readonly sharedRoll?: boolean;
   readonly roll?: VisibleD20Roll;
   readonly components?: VisibleDiceComponents;
+  readonly effect?: VisibleEffectRoll;
+  readonly additionalResults?: readonly DicePresentation[];
   readonly threshold?: DiceThreshold;
   readonly detail?: string;
 }
@@ -66,6 +87,7 @@ export interface CombatDiceReceipt {
   readonly autoHit?: boolean;
   readonly targetAC?: number;
   readonly damage: number;
+  readonly damageRoll?: ResolvedEffectRoll;
 }
 
 export type CombatDiceOptions = Omit<
@@ -82,6 +104,8 @@ function snapshotPresentation(
     outcome: options.outcome,
     ...(options.actorId !== undefined ? { actorId: options.actorId } : {}),
     ...(options.targetId !== undefined ? { targetId: options.targetId } : {}),
+    ...(options.actionId !== undefined ? { actionId: options.actionId } : {}),
+    ...(options.sharedRoll ? { sharedRoll: true } : {}),
     ...(options.detail !== undefined ? { detail: options.detail } : {}),
     ...(options.threshold && options.revealThreshold !== false
       ? { threshold: Object.freeze({ ...options.threshold }) }
@@ -129,6 +153,51 @@ export function createAggregateDicePresentation(
   return Object.freeze(snapshotPresentation(options));
 }
 
+function createVisibleEffectRoll(
+  result: ResolvedEffectRoll,
+  kind: "damage" | "healing",
+  revealModifier: boolean,
+): VisibleEffectRoll {
+  const exact = snapshotEffectRoll(result);
+  return Object.freeze({
+    kind,
+    ...(exact.roll ? {
+      roll: Object.freeze({
+        sides: exact.roll.sides,
+        naturalRolls: exact.roll.naturalRolls,
+        ...(revealModifier ? { modifier: exact.roll.modifier, total: exact.roll.total } : {}),
+      }),
+    } : {}),
+    ...(revealModifier ? { modifiers: exact.modifiers, adjustments: exact.adjustments } : {}),
+    amount: exact.amount,
+    ...(exact.application ? { application: exact.application } : {}),
+    ...(exact.criticalDice ? { criticalDice: true } : {}),
+    ...(exact.shared ? { shared: true } : {}),
+  });
+}
+
+export function createEffectDicePresentation(
+  result: ResolvedEffectRoll,
+  options: DicePresentationOptions & { readonly category: "damage" | "healing" },
+): DicePresentation {
+  return Object.freeze({
+    ...snapshotPresentation(options),
+    effect: createVisibleEffectRoll(result, options.category, options.revealModifier !== false),
+  });
+}
+
+export function combineDicePresentations(
+  primary: DicePresentation,
+  additionalResults: readonly DicePresentation[],
+  detail?: string,
+): DicePresentation {
+  return Object.freeze({
+    ...primary,
+    additionalResults: Object.freeze([...additionalResults]),
+    ...(detail ? { detail: [primary.detail, detail].filter(Boolean).join("; ") } : {}),
+  });
+}
+
 export function createCombatDicePresentation(
   result: CombatDiceReceipt,
   options: CombatDiceOptions,
@@ -143,16 +212,20 @@ export function createCombatDicePresentation(
     ...options,
     category: "attack",
     outcome,
-    detail: `${result.damage} damage (aggregate)`,
+    detail: result.damageRoll ? options.detail : `${result.damage} damage (aggregate)`,
     ...(!result.autoHit && result.targetAC !== undefined
       ? { threshold: { kind: "AC", value: result.targetAC } }
       : {}),
     // Hidden until the owning combatant's normal AC discovery succeeds.
     revealThreshold: options.revealThreshold === true,
   };
-  return result.autoHit
+  const view = result.autoHit
     ? createAggregateDicePresentation(presentationOptions)
     : createD20Presentation(result.rollResult!, presentationOptions);
+  return result.damageRoll ? Object.freeze({
+    ...view,
+    effect: createVisibleEffectRoll(result.damageRoll, "damage", options.revealModifier !== false),
+  }) : view;
 }
 
 export function createSkillDicePresentation(
@@ -232,6 +305,38 @@ function signedModifier(modifier: number): string {
   return modifier >= 0 ? `+${modifier}` : String(modifier);
 }
 
+function formatEffectRoll(effect: VisibleEffectRoll): string {
+  const label = effect.kind === "healing" ? "Healing" : "Damage";
+  const parts: string[] = [];
+  if (effect.roll) {
+    const roll = effect.roll;
+    parts.push(`${roll.naturalRolls.length}d${roll.sides} [${roll.naturalRolls.join(", ")}]`);
+    if (roll.modifier !== undefined && roll.total !== undefined) {
+      parts.push(`${signedModifier(roll.modifier)} = ${roll.total}`);
+    }
+  } else {
+    parts.push("Fixed amount (no dice)");
+  }
+  if (effect.criticalDice) parts.push("(critical dice)");
+  if (effect.shared) parts.push("(shared roll)");
+  const modifiers = effect.modifiers?.filter((modifier) => modifier.value !== 0);
+  if (modifiers?.length) {
+    parts.push(`(${modifiers.map((modifier) =>
+      `${modifier.label} ${signedModifier(modifier.value)}`
+    ).join(", ")})`);
+  }
+  for (const adjustment of effect.adjustments ?? []) {
+    parts.push(`-> ${adjustment.label}: ${adjustment.amount}`);
+  }
+  parts.push(`| Resolved ${effect.amount} ${effect.kind === "healing" ? "healing" : "damage"}`);
+  if (effect.application) {
+    const application = effect.application;
+    parts.push(`| HP ${effect.kind === "healing" ? "restored" : "lost"} ${application.amount}`);
+    if (application.limit) parts.push(`(${application.limit})`);
+  }
+  return `${label}: ${parts.join(" ")}`;
+}
+
 export function formatDicePresentation(view: DicePresentation): string {
   const parts: string[] = [];
   if (view.roll) {
@@ -249,6 +354,7 @@ export function formatDicePresentation(view: DicePresentation): string {
     if (roll.modifier !== undefined && roll.total !== undefined) {
       parts.push(`${signedModifier(roll.modifier)} = ${roll.total}`);
     }
+    if (view.sharedRoll) parts.push("(shared attack roll)");
   } else if (view.components) {
     const dice = view.components;
     parts.push(`d${dice.sides} [${dice.naturalRolls.join(", ")}]`);
@@ -262,9 +368,13 @@ export function formatDicePresentation(view: DicePresentation): string {
   const details = [
     ...(parts.length > 0 ? [parts.join(" ")] : []),
     OUTCOME_LABELS[view.outcome],
+    ...(view.effect ? [formatEffectRoll(view.effect)] : []),
     ...(view.detail ? [view.detail] : []),
   ];
-  return `${view.label}: ${details.join(" | ")}`;
+  return [
+    `${view.label}: ${details.join(" | ")}`,
+    ...(view.additionalResults ?? []).map(formatDicePresentation),
+  ].join("\n");
 }
 
 export function getDicePresentationDuration(
@@ -279,7 +389,10 @@ export function getDicePresentationDuration(
     || presentation.outcome === "critical"
     || presentation.outcome === "fumble";
   if (preferences.frequency === "important" && !important) return 0;
-  if (!presentation.roll && !presentation.components) return 0;
+  if (!presentation.roll && !presentation.components && !presentation.effect?.roll
+    && !presentation.additionalResults?.some((result) =>
+      result.roll || result.components || result.effect?.roll
+    )) return 0;
   return preferences.speed === "fast" ? 150 : 450;
 }
 

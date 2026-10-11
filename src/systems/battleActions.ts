@@ -39,6 +39,8 @@ import {
 } from "./groupCombat";
 import { canActorUseSpell, getActorAbilityRejection } from "./classProgression";
 import type { CombatDiceReceipt } from "./dicePresentation";
+import { captureDamageApplication } from "./effectRolls";
+import type { ResolvedEffectRoll } from "./rollResults";
 
 export type BattleActionKind =
   | "attack"
@@ -147,6 +149,7 @@ export interface ResolvedBattleActionTarget {
   healing: number;
   hpBefore?: number;
   elementalLabel?: ElementalInteraction;
+  readonly healingRoll?: ResolvedEffectRoll;
 }
 
 export interface ResolvedBattleAction {
@@ -687,6 +690,7 @@ export function executeValidatedBattleAction(
       target.effects,
     );
     target.currentHp = Math.max(0, target.currentHp - result.damage);
+    const appliedResult = captureDamageApplication(result, hpBefore - target.currentHp);
     if (target.currentHp === 0) {
       target.isAlive = false;
       target.isKnockedOut = true;
@@ -701,7 +705,7 @@ export function executeValidatedBattleAction(
       executed: true,
       message: result.message,
       plan,
-      diceResults: [{ targetId: target.id, result }],
+      diceResults: [{ targetId: target.id, result: appliedResult }],
       targets: [{
         targetId: target.id,
         hit: result.hit,
@@ -739,6 +743,7 @@ export function executeValidatedBattleAction(
       healingTargets,
     );
     const targets: ResolvedBattleActionTarget[] = [];
+    const diceResults: { targetId: BattleCombatantId; result: CombatDiceReceipt }[] = [];
     for (const targetResult of result.results) {
       const target = enemies[targetResult.targetIndex];
       if (!target) continue;
@@ -748,6 +753,10 @@ export function executeValidatedBattleAction(
         target.isAlive = false;
         target.isKnockedOut = true;
       }
+      diceResults.push({
+        targetId: target.id,
+        result: captureDamageApplication(targetResult, hpBefore - target.currentHp),
+      });
       recordElementalInteraction(
         context,
         target.id,
@@ -769,6 +778,7 @@ export function executeValidatedBattleAction(
         hit: true,
         damage: 0,
         healing: healingResult.healing,
+        healingRoll: healingResult.healingRoll,
       });
     }
     for (const effectResult of result.effectResults ?? []) {
@@ -786,10 +796,7 @@ export function executeValidatedBattleAction(
         || (result.effectResults?.length ?? 0) > 0,
       message: result.message,
       plan,
-      diceResults: result.results.map((targetResult) => ({
-        targetId: enemies[targetResult.targetIndex]!.id,
-        result: targetResult,
-      })),
+      diceResults,
       targets,
       mpUsed: result.mpUsed,
       itemUsed: false,
@@ -836,6 +843,7 @@ export function executeValidatedBattleAction(
     healingTargets,
   );
   target.currentHp = Math.max(0, target.currentHp - result.damage);
+  const appliedResult = captureDamageApplication(result, hpBefore - target.currentHp);
   if (target.currentHp === 0) {
     target.isAlive = false;
     target.isKnockedOut = true;
@@ -862,6 +870,7 @@ export function executeValidatedBattleAction(
       hit: true,
       damage: 0,
       healing: healingResult.healing,
+      healingRoll: healingResult.healingRoll,
     });
   }
   return {
@@ -870,7 +879,7 @@ export function executeValidatedBattleAction(
     message: result.message,
     plan,
     diceResults: result.rollResult
-      ? [{ targetId: target.id, result }]
+      ? [{ targetId: target.id, result: appliedResult }]
       : [],
     targets,
     mpUsed: result.mpUsed,

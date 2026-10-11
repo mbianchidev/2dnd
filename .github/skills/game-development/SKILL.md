@@ -28,6 +28,16 @@ and changes spanning scenes, systems, data, renderers, or managers.
 
 ## Current architecture
 
+- Hero progression: immutable `data/classProgression.ts`, authoritative
+  `systems/classProgression.ts`, focused `classProgressionState.ts` and
+  `managers/heroProgression.ts`. Preserve normal cap 20, stable starting class,
+  single-class companions, frozen rest-ready choices and once-only grants.
+  Read [`docs/hero-progression.md`](../../../docs/hero-progression.md).
+- Prestige: six immutable five-rank profiles in `data/prestige.ts`, focused
+  `prestigeActions.ts`/`prestigeLore.ts`, and pure `systems/prestige.ts` details.
+  Use the same live owner context, frozen/rest credits, grants and normalizer.
+  Keep entry-only quest/location/social checks, fixed stats, scoped talents,
+  inherited gear and unaffiliated campaign completion. See `docs/prestige.md`.
 - Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, `Cutscene`,
   `Ending`, and `Defeat`
 - Overworld orchestration: `src/scenes/Overworld.ts`
@@ -63,15 +73,50 @@ symbolic cue. Control presentation preferences cover touch visibility,
 handedness, and prompt source without changing campaign saves. Stable mappings
 are intentionally not remappable.
 
+Preference v3 includes dice animation frequency/speed independently of the
+campaign schema. Exact d20/component/effect receipts live in `systems/rollResults.ts`, safe mapping
+and runtime history in `systems/dicePresentation.ts`, scene-owned orchestration
+in `managers/dicePresentation.ts`/`battleDice.ts`, and procedural SVG rendering
+in `renderers/dice.ts`. Never add RNG, mechanics callbacks, resource mutation,
+hidden-stat leakage, or an input-block reason to this pipeline.
+`systems/effectRolls.ts` retains the original damage/healing RNG calls, named
+modifiers, recorded adjustments and actual HP delta at the existing write.
+Separate rolled, resolved and applied values, preserve finite fractional legacy
+item effects and shared area pools, and never infer fixed/derived component dice.
+Scene-owned shield/healing writes remain capture-only adapters.
+`systems/diceMotion.ts` produces only measured deterministic throw geometry:
+visible travel, multi-axis tumble, bounce and settling. Procedural SVG motion
+over the game is pointer-transparent, displays the exact resolved faces and
+owns cleanup. Never pass actors/outcomes/RNG/completion callbacks to its geometry.
+Roll displays default enabled and ordinary notices may be Off; canonical
+attack crit/fumble feedback always remains visible, without overriding
+Instant/reduced motion or reclassifying non-attack outcomes.
+
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a
 visible right-stick cursor clicked by pressing the stick. Responsive touch
 controls use safe areas, pointer capture for held directions, pointer-release
 pulses with a click fallback for discrete actions, and mobile text entry. Clear
 held state on blur, visibility loss, disconnect, scene changes, and shutdown.
+Discrete touch pulses release after Phaser poststep so frame-polled keys see
+them once. Own/cancel their tokens and scene listeners on cleanup, preserve
+other held sources, and prevent stale release callbacks entering new scenes.
 The title menu uses `src/managers/titleMenu.ts` so direct taps and semantic
 D-pad/A input share one selected action. Keep overwrite confirmation compact
 and centered within the landscape viewport.
+
+Shared controller text entry lives in `systems/textEntry.ts` (keys/edits) and
+`managers/textEntry.ts` (HTML modal, live preferences, once-only commit/cancel,
+focus restoration). The adapter re-exports `openMobileTextInput()`, consumes
+text actions before game keys and allows its cursor to reach desktop DOM
+controls. Use positional prompts rather than guessed device glyphs.
+
+Steam tooling is separate from game authority: `steam/config.ts` and
+`hacks/prepare-steam.mjs` own inspected native Linux x64, Windows x64 and macOS
+universal depot previews. SDK, Steam achievements/Cloud and native Steam Input
+API remain disabled. Protected upload never sets a branch live. Read
+[`docs/steam.md`](../../../docs/steam.md); equivalent tests are not Steam/Deck,
+signing or store approval.
 
 Cutscene contracts live in `src/data/cutsceneTypes.ts`, focused campaign and
 boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and
@@ -285,7 +330,8 @@ is owned by the schema-v12 reputation system and must remain idempotent.
 ## Fictional devotion
 
 Optional devotion definitions live in `src/data/devotion.ts` and focused
-content modules. `devotionState.ts` owns schema-v19 normalization;
+content modules. `devotionState.ts` owns schema-v21 normalization and preserves
+valid schema-v19/v20 feature-preview devotion;
 `devotion.ts` owns independent bounded scores, canonical source idempotency,
 affiliation and pure prerequisite queries. `devotionTemples.ts` validates live
 approaches and reuses normal status/short-rest APIs; the devotion manager owns
@@ -425,6 +471,9 @@ starting `DefeatScene`, which continues only to Overworld.
 
 ## Companions and gambits
 
+- Hero multiclass actions share the existing validated planner and executor.
+  Companion state must not own hero class progression. Treat external profiles
+  as future hooks; do not ship prestige/epic behavior implicitly.
 - Persistent party state lives at `player.party`; do not add a parallel scene
   payload or companion combat model.
 - Stable companion IDs are `guardian`, `scout`, and `mystic`.

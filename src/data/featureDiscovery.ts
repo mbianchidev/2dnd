@@ -5,6 +5,7 @@ import type { GatheringDiscipline } from "./gathering";
 export const FEATURE_IDS = [
   "map",
   "equipment",
+  "prestige",
   "inventory",
   "tips",
   "settings",
@@ -95,6 +96,14 @@ export const FEATURE_DEFINITIONS: readonly FeatureDefinition[] = [
     owners: ["shortcut", "escapeMenu", "tutorial"],
     testId: "feature-equipment",
     alwaysAvailable: true,
+  },
+  {
+    id: "prestige",
+    label: "Prestige paths",
+    description: "Optional advanced hero ranks within the normal total-level cap.",
+    prerequisite: "Reach applied total level 6.",
+    owners: ["tutorial", "contextPrompt"],
+    testId: "feature-prestige",
   },
   {
     id: "inventory",

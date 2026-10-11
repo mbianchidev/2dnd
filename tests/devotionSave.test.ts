@@ -1,11 +1,15 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { createPlayer, type PlayerState } from "../src/systems/player";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { awardXP, createPlayer, xpForLevel, type PlayerState } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
-import { createCurrentSaveData, loadGame, normalizeSaveData, saveGame } from "../src/systems/save";
+import { createCurrentSaveData, loadGame, normalizeSaveData, saveGame, SAVE_VERSION } from "../src/systems/save";
 import { applyDevotionSource } from "../src/systems/devotion";
 import { changeDevotionAffiliation, getActiveDevotionBlessing, performTempleRite, visitDevotionTemple } from "../src/systems/devotionTemples";
 import { createDevotionState } from "../src/systems/devotionState";
 import { processEndOfTurn } from "../src/systems/statusEffects";
+import { prepareHeroLevelUp } from "../src/systems/classProgression";
+import { createWeatherState } from "../src/systems/weather";
+import { normalizeQuestLog } from "../src/systems/quests";
+import { advancePrestige, prestigeFixture } from "./helpers/prestige";
 
 function hero(): PlayerState {
   const player = createPlayer("Save fixture", {
@@ -19,10 +23,13 @@ function hero(): PlayerState {
 }
 
 function documentFor(player: PlayerState): ReturnType<typeof createCurrentSaveData> {
-  return structuredClone(createCurrentSaveData(player, new Set(), createCodex(), "knight", 0));
+  return structuredClone(createCurrentSaveData(
+    player, new Set(), createCodex(), player.appearanceId, 0, createWeatherState(),
+  ));
 }
 
 beforeEach(() => localStorage.clear());
+afterEach(() => vi.restoreAllMocks());
 
 describe("devotion persistence and migration", () => {
   it("round-trips a pre-Battle blessing without refreshing its turn duration or rites", () => {
@@ -69,6 +76,104 @@ describe("devotion persistence and migration", () => {
     expect(result.progression.devotion.deityId).toBeNull();
     expect(result.progression.devotion.appliedSourceIds).toContain("dispatchKept");
     expect(result.progression.quests.quests.ironboundDispatch.status).toBe("completed");
+  });
+
+  it.each([19, 20])("migrates shipped schema %s without devotion or historical rewards", (version) => {
+    const player = hero();
+    player.progression.quests.quests.ironboundDispatch.status = "completed";
+    player.progression.quests = normalizeQuestLog(player.progression.quests);
+    const before = structuredClone(player);
+    const raw = documentFor(player);
+    raw.version = version;
+    Reflect.deleteProperty(raw.player.progression, "devotion");
+    const result = normalizeSaveData(raw);
+    expect(result?.version).toBe(SAVE_VERSION);
+    expect(result?.player.progression.devotion).toEqual({
+      ...createDevotionState(), appliedSourceIds: ["dispatchKept"],
+    });
+    expect(result?.player.classProgression).toEqual(before.classProgression);
+    expect(result?.player.progression.social).toEqual(before.progression.social);
+    expect(result?.player.progression.quests).toEqual(before.progression.quests);
+    expect(result?.player.gold).toBe(before.gold);
+    expect(result?.player.xp).toBe(before.xp);
+  });
+
+  it.each([19, 20])("preserves schema %s feature-preview devotion and remaining blessing turns", (version) => {
+    const player = hero();
+    player.progression.devotion.deityId = "orivane";
+    visitDevotionTemple(player, "willowdaleSpan");
+    performTempleRite(player, "willowdaleSpanThread");
+    applyDevotionSource(player, "dispatchKept");
+    processEndOfTurn(player.activeEffects);
+    const before = structuredClone(player);
+    const raw = documentFor(player);
+    raw.version = version;
+    const result = normalizeSaveData(raw);
+    expect(result?.version).toBe(SAVE_VERSION);
+    expect(result?.player.progression.devotion).toEqual(before.progression.devotion);
+    expect(result?.player.classProgression).toEqual(before.classProgression);
+    expect(result?.player.activeEffects).toEqual(before.activeEffects);
+    if (!result) throw new Error("Valid preview devotion save rejected");
+    expect(getActiveDevotionBlessing(result.player)?.effect.remainingTurns).toBe(2);
+    expect(applyDevotionSource(result.player, "dispatchKept").changed).toBe(false);
+    expect(performTempleRite(result.player, "willowdaleSpanThread").changed).toBe(false);
+  });
+
+  it("preserves prestige, frozen credits and exact custom gear alongside devotion", () => {
+    const player = prestigeFixture("prismScribe");
+    advancePrestige(player, "prismScribe");
+    awardXP(player, xpForLevel(player.level + 1) - player.xp);
+    expect(prepareHeroLevelUp(player, () => 0.35).ok).toBe(true);
+    if (!player.equippedWeapon) throw new Error("Missing fixture weapon");
+    const original = { ...player.equippedWeapon, id: "mockEchoStaff", name: "Mock Echo Staff" };
+    const equipped = { ...original, name: "Mock Mended Echo Staff", cost: original.cost + 3 };
+    player.inventory.push(original, equipped);
+    player.equippedWeapon = equipped;
+    Object.assign(player.position, {
+      inCity: true, cityId: "willowdale_city", cityChunkIndex: 1, x: 10, y: 8,
+    });
+    player.progression.devotion.deityId = "selquor";
+    visitDevotionTemple(player, "willowdaleSpan");
+    performTempleRite(player, "willowdaleSpanThread");
+    processEndOfTurn(player.activeEffects);
+    const before = structuredClone(player);
+    const raw = documentFor(player);
+    raw.version = 20;
+    const random = vi.spyOn(Math, "random");
+    random.mockClear();
+    const result = normalizeSaveData(raw);
+    if (!result) throw new Error("Valid integrated prestige/devotion save rejected");
+    expect(result.version).toBe(SAVE_VERSION);
+    for (const key of [
+      "classProgression", "level", "xp", "hp", "maxHp", "mp", "maxMp",
+      "stats", "knownSpells", "knownAbilities", "knownTalents", "inventory", "activeEffects",
+    ] as const) {
+      expect(result.player[key]).toEqual(before[key]);
+    }
+    expect(result.player.equippedWeapon).toBe(result.player.inventory[result.player.inventory.length - 1]);
+    expect(result.player.progression.devotion).toEqual(before.progression.devotion);
+    expect(result.player.progression.social).toEqual(before.progression.social);
+    expect(random).not.toHaveBeenCalled();
+    const progression = structuredClone(result.player.classProgression);
+    expect(changeDevotionAffiliation(result.player, "willowdaleSpan", null, {
+      expectedDeityId: "selquor", expectedScore: result.player.progression.devotion.score,
+    }).changed).toBe(true);
+    expect(result.player.classProgression).toEqual(progression);
+    expect(result.player.activeEffects).toEqual([]);
+  });
+
+  it("consumes historical sources even when the legacy progression object is absent", () => {
+    const player = hero();
+    player.progression.quests.quests.ironboundDispatch.status = "completed";
+    const raw = documentFor(player);
+    raw.version = 20;
+    Reflect.set(raw.player, "quests", raw.player.progression.quests);
+    Reflect.deleteProperty(raw.player, "progression");
+    const result = normalizeSaveData(raw);
+    expect(result?.player.progression.devotion).toEqual({
+      ...createDevotionState(), appliedSourceIds: ["dispatchKept"],
+    });
+    expect(result?.player.progression.quests.quests.ironboundDispatch.status).toBe("completed");
   });
 
   it("normalizes IDs and cross-fields without overwriting social or campaign state", () => {

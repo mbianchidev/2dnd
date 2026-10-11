@@ -5,7 +5,8 @@ export const DEITY_IDS = ["orivane", "selquor", "tessune"] as const;
 export type DeityId = (typeof DEITY_IDS)[number];
 export const DEVOTION_SCORE_MAX = 100;
 export const DEVOTION_HISTORY_LIMIT = 40;
-export const DEVOTION_SAVE_VERSION = 19;
+export const DEVOTION_SAVE_VERSION = 21;
+export const DEVOTION_PREVIEW_SAVE_VERSION = 19;
 
 export const DEVOTION_DOMAINS = [
   { id: "making", name: "Making", description: "Useful things shaped without claiming their makers." },

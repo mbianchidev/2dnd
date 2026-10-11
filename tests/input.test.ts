@@ -21,12 +21,25 @@ describe("semantic input mappings", () => {
     expect(mapKeyboardCode("Slash", "inventory")).toBe("inventorySearch");
     expect(mapKeyboardCode("Slash", "codex")).toBe("codexSearch");
     expect(mapKeyboardCode("KeyK", "exploration")).toBe("openGathering");
+    expect(mapKeyboardCode("Tab", "characterCreation")).toBe("interact");
+    expect(mapKeyboardCode("Tab", "inventory")).toBe("inventoryNextTarget");
   });
 
   it("keeps debug keys outside production semantic mappings", () => {
     expect(mapKeyboardCode("KeyG", "exploration")).toBeUndefined();
     expect(mapKeyboardCode("KeyH", "battle")).toBeUndefined();
     expect(mapKeyboardCode("KeyO", "inventory")).toBeUndefined();
+  });
+
+  it("maps non-conflicting dice skip and settings controls without taking input context", () => {
+    expect(mapKeyboardCode("KeyZ", "battle")).toBe("fastForwardDice");
+    expect(mapKeyboardCode("KeyZ", "exploration")).toBe("fastForwardDice");
+    expect(mapKeyboardCode("BracketLeft", "overlay")).toBe("settingsDiceFrequency");
+    expect(mapKeyboardCode("BracketRight", "title")).toBe("settingsDiceSpeed");
+    expect(STANDARD_GAMEPAD_BINDINGS.find((binding) => binding.button === 10)?.action)
+      .toBe("fastForwardDice");
+    expect(isRepeatableAction("fastForwardDice")).toBe(false);
+    expect(mapKeyboardCode("Space", "exploration")).toBe("interact");
   });
 
   it("normalizes analog axes around a configurable dead zone", () => {

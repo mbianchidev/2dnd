@@ -3,6 +3,7 @@
  */
 
 import * as Phaser from "phaser";
+import { registerLayoutGroup } from "../managers/layout";
 import type { Monster, MonsterAbility } from "../data/monsters";
 import { getMonsterTextureKey } from "../data/monsterFamilies";
 import {
@@ -41,11 +42,15 @@ import type { HealingTarget } from "../systems/combat";
 import {
   createBattleActionEconomy,
   createPlayerBattleActionSource,
+  validateBattleAction,
   type BattleActionSource,
   type BattleActionEconomyState,
   type ResolvedBattleAction,
 } from "../systems/battleActions";
 import { abilityModifier } from "../systems/dice";
+import { captureDamageApplication, captureEffectAdjustment, captureEffectApplication } from "../systems/effectRolls";
+import { getActorAbilityRejection } from "../systems/classProgression";
+import { createBattleActionMenu } from "../managers/battleActionMenu";
 import {
   isDebug,
   debugLog,
@@ -81,6 +86,13 @@ import {
 import { BattlePartyRenderer } from "../renderers/battleParty";
 import { BattlePartyManager } from "../managers/battleParty";
 import { BattlePresentationDirector } from "../managers/battlePresentation";
+import {
+  BattleDicePresenter,
+  type ResolvedAttackDiceTarget,
+  type ResolvedHealingDiceTarget,
+} from "../managers/battleDice";
+import { clearDicePresentation } from "../managers/dicePresentation";
+import { redactSavingThrowMessage } from "../systems/dicePresentation";
 import {
   createActorTextureFamily,
   resolveMonsterTextureFamily,
@@ -201,6 +213,7 @@ export class BattleScene extends Phaser.Scene {
   private battlePartyManager!: BattlePartyManager;
   private battlePartyRenderer!: BattlePartyRenderer;
   private battlePresentation!: BattlePresentationDirector;
+  private battleDice!: BattleDicePresenter;
   private battleHooks: BattleResolutionHooks | undefined;
   private battleResultReported = false;
   private defeatResult: PartyDefeatResult | null = null;
@@ -449,6 +462,7 @@ export class BattleScene extends Phaser.Scene {
     });
 
     this.drawBattleUI();
+    this.battleDice = new BattleDicePresenter(this, (message) => this.addLog(message));
     this.battlePartyRenderer.render(
       this.partyCombatants,
       this.partyActionSources,
@@ -744,6 +758,7 @@ export class BattleScene extends Phaser.Scene {
           color: "#ddd",
         })
         .setOrigin(0.5)
+        .setData("layoutId", `battle-action-${act.label.toLowerCase()}`)
         .setData("accessibilityMaxWidth", btnW - 12);
 
       bg.on("pointerover", () => {
@@ -763,6 +778,7 @@ export class BattleScene extends Phaser.Scene {
       });
 
       container.add([bg, label]);
+      registerLayoutGroup(this, `battle-action-${act.label.toLowerCase()}`, container);
       this.actionButtons.push(container);
       this.actionButtonLabels.push({ text: label, label: act.label });
       this.actionButtonActions.push(act.action);
@@ -833,6 +849,7 @@ export class BattleScene extends Phaser.Scene {
       this.player.activeEffects,
       this.player.stats,
     );
+    const hpBeforeStatus = this.player.hp;
     for (const message of statusResult.messages) {
       this.addLog(`${this.player.name}: ${message}`);
     }
@@ -841,6 +858,7 @@ export class BattleScene extends Phaser.Scene {
       this.player.hp = Math.max(0, this.player.hp - statusResult.tickDamage);
       this.updatePlayerStats();
     }
+    this.battleDice.presentStatusTurn(this.heroCombatant, statusResult, hpBeforeStatus - this.player.hp);
     if (this.player.hp <= 0) {
       this.battlePresentation.presentFaint(this.heroCombatant.id, 0);
       if (this.handlePartyDefeatIfNeeded()) return;
@@ -874,12 +892,14 @@ export class BattleScene extends Phaser.Scene {
       combatant.effects,
       combatant.stats,
     );
+    const hpBeforeStatus = combatant.currentHp;
     for (const message of statusResult.messages) {
       this.addLog(`${combatant.label}: ${message}`);
     }
     if (statusResult.tickDamage > 0) {
       combatant.currentHp -= statusResult.tickDamage;
     }
+    this.battleDice.presentStatusTurn(combatant, statusResult, hpBeforeStatus - combatant.currentHp);
     if (!isCombatantActive(combatant)) {
       this.addLog(`${combatant.label} is knocked out!`);
       this.battlePresentation.presentFaint(combatant.id, 0);
@@ -1238,78 +1258,23 @@ export class BattleScene extends Phaser.Scene {
     this.closeAllSubMenus();
     if (!keepPage) this.battleSpellPage = 0;
 
-    const w = this.cameras.main.width;
     const spells = this.player.knownSpells
       .map((id) => getSpell(id))
       .filter((s): s is Spell => s !== undefined && s.type !== "utility");
 
     if (spells.length === 0) { this.addLog("No spells known!"); return; }
 
-    const MAX_PER_PAGE = 5;
-    const totalPages = Math.max(1, Math.ceil(spells.length / MAX_PER_PAGE));
-    this.battleSpellPage = Math.max(0, Math.min(this.battleSpellPage, totalPages - 1));
-    const start = this.battleSpellPage * MAX_PER_PAGE;
-    const visible = spells.slice(start, start + MAX_PER_PAGE);
-    const rowH = 36;
-    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
-
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
-    container.setDepth(BATTLE_DEPTH.uiOverlay);
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a3e, 0.95);
-    bg.fillRect(-5, -5, 260, menuH);
-    bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, menuH);
-    container.add(bg);
-
-    visible.forEach((spell, i) => {
-      const canCast = this.player.mp >= spell.mpCost;
-      const color = canCast ? "#aaddff" : "#666";
-      const text = this.add.text(0, i * rowH, `${spell.name} (${spell.mpCost} MP)`, {
-        fontSize: "12px", fontFamily: "monospace", color,
-      }).setInteractive({ useHandCursor: canCast });
-      const desc = this.add.text(0, i * rowH + 14, spell.description, {
-        fontSize: "9px", fontFamily: "monospace", color: "#888",
-        wordWrap: { width: 250 },
-      });
-      if (canCast) {
-        text.on("pointerover", () => text.setColor("#ffd700"));
-        text.on("pointerout", () => text.setColor(color));
-        text.on("pointerdown", () => { this.closeAllSubMenus(); this.doPlayerSpell(spell.id); });
-      }
-      container.add([text, desc]);
+    const menu = createBattleActionMenu(this, {
+      kind: "spell", page: this.battleSpellPage,
+      entries: spells.map((spell) => ({
+        id: spell.id, label: `${spell.name} (${spell.mpCost} MP)`, description: spell.description,
+        enabled: this.player.mp >= spell.mpCost,
+        activate: () => { this.closeAllSubMenus(); this.doPlayerSpell(spell.id); },
+      })),
+      onPageChange: (page) => { this.battleSpellPage = page; this.showSpellMenu(true); },
     });
-
-    if (totalPages > 1) {
-      const navY = visible.length * rowH;
-      const prevBtn = this.add.text(10, navY, "◄ A", {
-        fontSize: "10px", fontFamily: "monospace", color: this.battleSpellPage > 0 ? "#aaa" : "#444",
-      }).setInteractive({ useHandCursor: this.battleSpellPage > 0 });
-      if (this.battleSpellPage > 0) {
-        prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
-        prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
-        prevBtn.on("pointerdown", () => { this.battleSpellPage--; this.showSpellMenu(true); });
-      }
-      container.add(prevBtn);
-
-      const pageLabel = this.add.text(120, navY, `${this.battleSpellPage + 1}/${totalPages}`, {
-        fontSize: "10px", fontFamily: "monospace", color: "#888",
-      }).setOrigin(0.5, 0);
-      container.add(pageLabel);
-
-      const nextBtn = this.add.text(200, navY, "D ►", {
-        fontSize: "10px", fontFamily: "monospace", color: this.battleSpellPage < totalPages - 1 ? "#aaa" : "#444",
-      }).setInteractive({ useHandCursor: this.battleSpellPage < totalPages - 1 });
-      if (this.battleSpellPage < totalPages - 1) {
-        nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
-        nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
-        nextBtn.on("pointerdown", () => { this.battleSpellPage++; this.showSpellMenu(true); });
-      }
-      container.add(nextBtn);
-    }
-
-    this.spellMenu = container;
+    this.battleSpellPage = menu.page;
+    this.spellMenu = menu.container;
   }
 
   private showAbilityMenu(keepPage = false): void {
@@ -1321,80 +1286,25 @@ export class BattleScene extends Phaser.Scene {
     this.closeAllSubMenus();
     if (!keepPage) this.battleAbilityPage = 0;
 
-    const w = this.cameras.main.width;
     const abilities = (this.player.knownAbilities ?? [])
       .map((id) => getAbility(id))
       .filter((a): a is Ability => a !== undefined && a.type !== "utility");
 
     if (abilities.length === 0) { this.addLog("No abilities known!"); return; }
 
-    const MAX_PER_PAGE = 5;
-    const totalPages = Math.max(1, Math.ceil(abilities.length / MAX_PER_PAGE));
-    this.battleAbilityPage = Math.max(0, Math.min(this.battleAbilityPage, totalPages - 1));
-    const start = this.battleAbilityPage * MAX_PER_PAGE;
-    const visible = abilities.slice(start, start + MAX_PER_PAGE);
-    const rowH = 36;
-    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
-
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
-    container.setDepth(BATTLE_DEPTH.uiOverlay);
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1a2a1e, 0.95);
-    bg.fillRect(-5, -5, 260, menuH);
-    bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, menuH);
-    container.add(bg);
-
-    visible.forEach((ability, i) => {
-      const canUse = this.player.mp >= ability.mpCost;
-      const isBonusAction = ability.bonusAction ?? false;
-      const bonusTag = isBonusAction ? " [BA]" : "";
-      const color = canUse ? (isBonusAction ? "#aaffaa" : "#ffddaa") : "#666";
-      const text = this.add.text(0, i * rowH, `${ability.name}${bonusTag} (${ability.mpCost} MP)`, {
-        fontSize: "12px", fontFamily: "monospace", color,
-      }).setInteractive({ useHandCursor: canUse });
-      const desc = this.add.text(0, i * rowH + 14, ability.description, {
-        fontSize: "9px", fontFamily: "monospace", color: "#888",
-        wordWrap: { width: 250 },
-      });
-      if (canUse) {
-        text.on("pointerover", () => text.setColor("#ffd700"));
-        text.on("pointerout", () => text.setColor(color));
-        text.on("pointerdown", () => { this.closeAllSubMenus(); this.doPlayerAbility(ability.id); });
-      }
-      container.add([text, desc]);
+    const menu = createBattleActionMenu(this, {
+      kind: "ability", page: this.battleAbilityPage,
+      entries: abilities.map((ability) => ({
+        id: ability.id,
+        label: `${ability.name}${ability.bonusAction ? " [BA]" : ""} (${ability.mpCost} MP)`,
+        description: getActorAbilityRejection(this.player, ability.id) ?? ability.description,
+        enabled: this.player.mp >= ability.mpCost && !getActorAbilityRejection(this.player, ability.id),
+        activate: () => { this.closeAllSubMenus(); this.doPlayerAbility(ability.id); },
+      })),
+      onPageChange: (page) => { this.battleAbilityPage = page; this.showAbilityMenu(true); },
     });
-
-    if (totalPages > 1) {
-      const navY = visible.length * rowH;
-      const prevBtn = this.add.text(10, navY, "◄ A", {
-        fontSize: "10px", fontFamily: "monospace", color: this.battleAbilityPage > 0 ? "#aaa" : "#444",
-      }).setInteractive({ useHandCursor: this.battleAbilityPage > 0 });
-      if (this.battleAbilityPage > 0) {
-        prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
-        prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
-        prevBtn.on("pointerdown", () => { this.battleAbilityPage--; this.showAbilityMenu(true); });
-      }
-      container.add(prevBtn);
-
-      const pageLabel = this.add.text(120, navY, `${this.battleAbilityPage + 1}/${totalPages}`, {
-        fontSize: "10px", fontFamily: "monospace", color: "#888",
-      }).setOrigin(0.5, 0);
-      container.add(pageLabel);
-
-      const nextBtn = this.add.text(200, navY, "D ►", {
-        fontSize: "10px", fontFamily: "monospace", color: this.battleAbilityPage < totalPages - 1 ? "#aaa" : "#444",
-      }).setInteractive({ useHandCursor: this.battleAbilityPage < totalPages - 1 });
-      if (this.battleAbilityPage < totalPages - 1) {
-        nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
-        nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
-        nextBtn.on("pointerdown", () => { this.battleAbilityPage++; this.showAbilityMenu(true); });
-      }
-      container.add(nextBtn);
-    }
-
-    this.abilityMenu = container;
+    this.battleAbilityPage = menu.page;
+    this.abilityMenu = menu.container;
   }
 
   private doPlayerAbility(abilityId: string): void {
@@ -1402,6 +1312,11 @@ export class BattleScene extends Phaser.Scene {
     const ability = getAbility(abilityId);
     if (!ability) {
       this.addLog("Unknown ability!");
+      return;
+    }
+    const rejection = getActorAbilityRejection(this.player, abilityId);
+    if (rejection) {
+      this.addLog(rejection);
       return;
     }
 
@@ -1461,6 +1376,17 @@ export class BattleScene extends Phaser.Scene {
     const ability = getAbility(abilityId);
     if (!ability) {
       this.addLog("Unknown ability!");
+      return;
+    }
+    const validation = validateBattleAction(this.allCombatants, {
+      actorId: this.heroCombatant.id, kind: "ability", actionId: abilityId,
+      preferredTargetId: healingTargets?.[0]?.id ?? this.targetCombatant.id,
+    }, {
+      mp: this.player.mp, inventory: this.player.inventory, economy: this.playerEconomy,
+      knownAbilityIds: this.player.knownAbilities, actorState: this.player,
+    });
+    if (!validation.valid) {
+      this.addLog(validation.message);
       return;
     }
 
@@ -1526,8 +1452,20 @@ export class BattleScene extends Phaser.Scene {
         ability.element,
         targetIndex,
       );
-      this.applyPartyDamageToEnemy(targetIndex, result.damage);
+      const appliedDamage = this.applyPartyDamageToEnemy(targetIndex, result.damage);
       this.updateMonsterDisplay();
+      this.battleDice.presentAttack(
+        this.heroCombatant, this.targetCombatant, captureDamageApplication(result, appliedDamage),
+        ability.name, abilityId,
+      );
+      const healingDiceTargets: ResolvedHealingDiceTarget[] = [];
+      for (const healingResult of result.healingResults ?? []) {
+        const target = getCombatantById(this.partyCombatants, healingResult.targetId);
+        if (target) healingDiceTargets.push({ target, result: healingResult });
+      }
+      this.battleDice.presentHealings(
+        this.heroCombatant, healingDiceTargets, ability.name, abilityId, result,
+      );
       this.battlePresentation.presentAction({
         actorId: this.heroCombatant.id,
         kind: "ability",
@@ -2100,6 +2038,7 @@ export class BattleScene extends Phaser.Scene {
       this.addLog(
         `⚔ ${this.encounter.name} appears (${this.combatants.length} foe${this.combatants.length === 1 ? "" : "s"})!`
       );
+      this.battleDice.presentInitiative(this.allCombatants, result);
 
       // Announce weather effects and monster boost
       const weatherPenalty = getWeatherAccuracyPenalty(this.weatherState.current);
@@ -2189,8 +2128,11 @@ export class BattleScene extends Phaser.Scene {
         this.player.equippedWeapon?.element,
         targetIndex,
       );
-      this.applyPartyDamageToEnemy(targetIndex, result.damage);
+      const appliedDamage = this.applyPartyDamageToEnemy(targetIndex, result.damage);
       this.updateMonsterDisplay();
+      this.battleDice.presentAttack(
+        this.heroCombatant, this.targetCombatant, captureDamageApplication(result, appliedDamage),
+      );
       this.battlePresentation.presentAction({
         actorId: this.heroCombatant.id,
         kind: "attack",
@@ -2253,8 +2195,12 @@ export class BattleScene extends Phaser.Scene {
           this.player.equippedOffHand?.element,
           offHandTarget,
         );
-        this.applyPartyDamageToEnemy(offHandTarget, offResult.damage);
+        const offHandAppliedDamage = this.applyPartyDamageToEnemy(offHandTarget, offResult.damage);
         this.updateMonsterDisplay();
+        this.battleDice.presentAttack(
+          this.heroCombatant, this.targetCombatant,
+          captureDamageApplication(offResult, offHandAppliedDamage), "off-hand attack", "offHandAttack",
+        );
         this.battlePresentation.presentAction({
           actorId: this.heroCombatant.id,
           kind: "attack",
@@ -2353,6 +2299,20 @@ export class BattleScene extends Phaser.Scene {
       this.addLog("Unknown spell!");
       return;
     }
+    if (spell.progressionScope === "track") {
+      const validation = validateBattleAction(this.allCombatants, {
+        actorId: this.heroCombatant.id, kind: "spell", actionId: spellId,
+        preferredTargetId: targetIds[0],
+      }, {
+        mp: this.player.mp, inventory: this.player.inventory, economy: this.playerEconomy,
+        knownSpellIds: this.player.knownSpells, actorState: this.player,
+      });
+      if (!validation.plan) {
+        this.addLog(validation.message);
+        return;
+      }
+      targetIds = [...validation.plan.targetIds];
+    }
     if (this.player.mp < spell.mpCost) {
       this.addLog("Not enough MP!");
       return;
@@ -2409,6 +2369,7 @@ export class BattleScene extends Phaser.Scene {
       });
       this.addLog(result.message);
 
+      const attackDiceTargets: ResolvedAttackDiceTarget[] = [];
       for (const targetResult of result.results) {
         const target = enemyTargets[targetResult.targetIndex];
         if (!target) continue;
@@ -2440,8 +2401,13 @@ export class BattleScene extends Phaser.Scene {
           spell.element,
           combatantIndex,
         );
-        this.applyPartyDamageToEnemy(combatantIndex, targetResult.damage);
+        const appliedDamage = this.applyPartyDamageToEnemy(combatantIndex, targetResult.damage);
+        attackDiceTargets.push({
+          target: combatant, result: captureDamageApplication(targetResult, appliedDamage),
+        });
       }
+      this.battleDice.presentAttacks(this.heroCombatant, attackDiceTargets, spell.name, spellId, result);
+      const healingDiceTargets: ResolvedHealingDiceTarget[] = [];
       for (const healingResult of result.healingResults) {
         const target = getCombatantById(
           this.partyCombatants,
@@ -2449,7 +2415,9 @@ export class BattleScene extends Phaser.Scene {
         );
         if (!target) continue;
         this.addLog(`${target.label} recovers ${healingResult.healing} HP!`);
+        healingDiceTargets.push({ target, result: healingResult });
       }
+      this.battleDice.presentHealings(this.heroCombatant, healingDiceTargets, spell.name, spellId, result);
 
       this.updateMonsterDisplay();
       this.updatePlayerStats();
@@ -2568,6 +2536,7 @@ export class BattleScene extends Phaser.Scene {
         successful: result.success,
         targets: [],
       });
+      this.battleDice.presentFlee(this.heroCombatant, result);
 
       if (result.success) {
         this.phase = "fled";
@@ -2610,9 +2579,12 @@ export class BattleScene extends Phaser.Scene {
         deriveMonsterStats(combatant.monster.attackBonus),
       );
       for (const message of statusResult.messages) {
-        this.addLog(`${combatant.label}: ${message}`);
+        this.addLog(`${combatant.label}: ${
+          redactSavingThrowMessage(message, statusResult.savingThrows, false)
+        }`);
       }
       this.updateMonsterDisplay();
+      const hpBeforeStatus = combatant.currentHp;
       if (statusResult.tickDamage > 0) {
         this.setCombatantHp(
           combatantIndex,
@@ -2620,6 +2592,7 @@ export class BattleScene extends Phaser.Scene {
         );
         this.updateMonsterDisplay();
       }
+      this.battleDice.presentStatusTurn(combatant, statusResult, hpBeforeStatus - combatant.currentHp);
       if (!combatant.isAlive) {
         this.checkBattleEnd(false);
         if (countAliveCombatants(this.combatants) > 0) {
@@ -2720,6 +2693,7 @@ export class BattleScene extends Phaser.Scene {
         this.combatants,
         combatantIndex,
       );
+      const hpBeforeAttack = partyTarget.currentHp;
       const result = monsterAttackTarget(
         combatant.monster,
         partyTarget,
@@ -2741,14 +2715,22 @@ export class BattleScene extends Phaser.Scene {
         && partyTargetSource?.state.equippedShield
         && !partyTargetSource.state.equippedWeapon?.twoHanded
       ) ? 1 : 0;
+      let damageRoll = result.damageRoll;
       if (shieldDefendReduction > 0 && result.hit && result.damage > 0) {
         const reduced = Math.min(shieldDefendReduction, result.damage);
         result.damage -= reduced;
+        result.message += ` Shield reduces damage to ${result.damage}.`;
+        if (damageRoll) {
+          damageRoll = captureEffectAdjustment(damageRoll, `Shield defend -${reduced}`, result.damage);
+        }
         partyTarget.currentHp = Math.min(
           partyTarget.maxHp,
           partyTarget.currentHp + reduced,
         );
       }
+      const appliedAttack = captureDamageApplication(
+        { ...result, damageRoll }, hpBeforeAttack - partyTarget.currentHp,
+      );
 
       debugLog("Monster attack", {
         monster: combatant.label,
@@ -2768,10 +2750,11 @@ export class BattleScene extends Phaser.Scene {
         `  ↳ [Monster Attack ${combatant.label} → ${partyTarget.label}] d20=${result.roll} +=${result.attackBonus} = ${result.totalRoll} vs AC ${result.targetAC}${partyTarget.isDefending ? " (DEF+2)" : ""}${shieldDefendReduction ? " (shield -1)" : ""} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage} → HP ${partyTarget.currentHp}`,
         false, "roll-detail"
       );
-      // Only show the outcome message, never the enemy's roll details
+      // Enemy modifiers and totals stay hidden in the dice projection.
       this.addLog(
         result.message.replace(combatant.monster.name, combatant.label),
       );
+      this.battleDice.presentAttack(combatant, partyTarget, appliedAttack);
 
       this.battlePresentation.presentAction({
         actorId: combatant.id,
@@ -2834,6 +2817,7 @@ export class BattleScene extends Phaser.Scene {
         ? (findLowestHpAllyIndex(this.combatants) ?? combatantIndex)
         : combatantIndex;
       const healTarget = this.combatants[healTargetIndex]!;
+      const hpBeforeHealing = healTarget.currentHp;
       this.setCombatantHp(
         healTargetIndex,
         Math.min(
@@ -2841,6 +2825,13 @@ export class BattleScene extends Phaser.Scene {
           healTarget.currentHp + result.healing,
         ),
       );
+      const appliedHealing = healTarget.currentHp - hpBeforeHealing;
+      this.battleDice.presentMonsterAbility(combatant, partyTarget, {
+        ...result,
+        healingRoll: result.healingRoll
+          ? captureEffectApplication(result.healingRoll, appliedHealing, "Maximum HP")
+          : undefined,
+      }, healTarget, appliedHealing);
       this.addLog(
         healTargetIndex === combatantIndex
           ? result.message.replace(combatant.monster.name, combatant.label)
@@ -2858,6 +2849,7 @@ export class BattleScene extends Phaser.Scene {
         }],
       });
     } else {
+      this.battleDice.presentMonsterAbility(combatant, partyTarget, result);
       this.addLog(
         result.message.replace(combatant.monster.name, combatant.label),
       );
@@ -3309,6 +3301,7 @@ export class BattleScene extends Phaser.Scene {
     this.battlePartyManager.clear();
     this.battlePartyRenderer.clear();
     this.battlePresentation?.cleanup();
+    clearDicePresentation(this);
     this.battleBackdrop?.stopDynamicEffects();
     this.input?.keyboard?.removeAllKeys(true, false);
     setDebugCommandHandler(null);
@@ -3374,6 +3367,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private presentResolvedBattleAction(result: ResolvedBattleAction): void {
+    this.battleDice.presentResolvedAction(result, this.allCombatants);
     for (const targetResult of result.targets) {
       if (targetResult.hpBefore === undefined) {
         continue;
@@ -3403,7 +3397,7 @@ export class BattleScene extends Phaser.Scene {
   private applyPartyDamageToEnemy(
     combatantIndex: number,
     damage: number,
-  ): void {
+  ): number {
     const combatant = this.combatants[combatantIndex];
     if (!combatant) {
       throw new Error(`[BattleScene] Missing combatant ${combatantIndex}`);
@@ -3413,6 +3407,7 @@ export class BattleScene extends Phaser.Scene {
       this.oneHitDefeatIds.add(combatant.id);
     }
     this.setCombatantHp(combatantIndex, hpBefore - damage);
+    return hpBefore - combatant.currentHp;
   }
 
   private recordElementalDiscovery(

@@ -1,6 +1,7 @@
 import {
   DEVOTION_HISTORY_LIMIT,
   DEVOTION_SAVE_VERSION,
+  DEVOTION_PREVIEW_SAVE_VERSION,
   DEVOTION_SCORE_MAX,
   isDeityId,
   isDevotionSourceId,
@@ -68,7 +69,7 @@ export function normalizeDevotionState(
   value: unknown,
   sourceVersion = DEVOTION_SAVE_VERSION,
 ): DevotionState {
-  if (sourceVersion < DEVOTION_SAVE_VERSION || !isRecord(value)) {
+  if (sourceVersion < DEVOTION_PREVIEW_SAVE_VERSION || !isRecord(value)) {
     return createDevotionState();
   }
   const deityId = isDeityId(value["deityId"]) ? value["deityId"] : null;

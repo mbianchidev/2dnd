@@ -29,6 +29,8 @@ import {
   REPUTATION_TIERS,
 } from "../data/reputation";
 import type { DeityId, TempleId } from "../data/devotion";
+import { PRESTIGE_PATHS, type PrestigeTrackId } from "../data/prestige";
+import { getTrackLevel } from "./classProgression";
 
 export interface CodexEntry {
   monsterId: string;
@@ -57,6 +59,7 @@ export type CodexMonsterSort = "family" | "name" | "defeated" | "element";
 export type CodexKnowledgeSort = "category" | "name" | "source";
 
 export type CodexUnlockSignal =
+  | { readonly type: "prestigeRank"; readonly trackId: PrestigeTrackId; readonly rank: number }
   | {
     readonly type: "location";
     readonly locationKind: "city" | "dungeon";
@@ -230,6 +233,9 @@ function sourceMatchesSignal(
       return signal.type === "devotionTemple" && source.templeId === signal.templeId;
     case "devotionAffiliation":
       return signal.type === "devotionAffiliation" && source.deityId === signal.deityId;
+    case "prestigeRank":
+      return signal.type === "prestigeRank" && source.trackId === signal.trackId
+        && Number.isInteger(signal.rank) && signal.rank >= source.minimumRank && signal.rank <= 5;
   }
 }
 
@@ -318,6 +324,10 @@ export function replayCodexUnlocks(
   }
   if (player.progression.devotion.deityId) {
     apply({ type: "devotionAffiliation", deityId: player.progression.devotion.deityId });
+  }
+  for (const path of PRESTIGE_PATHS) {
+    const rank = getTrackLevel(player, path.id);
+    if (rank > 0) apply({ type: "prestigeRank", trackId: path.id, rank });
   }
 
   for (const [factionId, score] of Object.entries(

@@ -166,7 +166,9 @@ must declare their own requirement and cannot use Codex, social labels,
 achievements, or presentation as a substitute. Prestige classes are not
 implemented by this feature.
 
-Schema v19 defaults older or missing state to unaffiliated/zero. Exact known
+Schema v21 defaults missing devotion in older campaigns to unaffiliated/zero.
+Existing schema-v19/v20 feature-preview records preserve their owned scores,
+source/visit ledgers and exact remaining blessing turns. Exact known
 historical completion/outcome sources may be marked consumed, but scores and
 blessings are never guessed or awarded from them. Normalization validates IDs,
 duplicates, bounds, source/history links, and blessing source/affiliation/turn

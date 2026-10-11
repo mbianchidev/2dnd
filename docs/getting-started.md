@@ -46,6 +46,7 @@ unused loopback port, and closes both processes together. For a production-like
 desktop build and smoke test:
 
 ```bash
+npm run test:browser:install
 npm run build:desktop
 npm run test:desktop:built
 ```
@@ -79,7 +80,7 @@ The landing-page flow starts at that root; game flows open `game.html`. See
 
 | Key | Purpose |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, currently schema v19 |
+| `2dnd_save` | Dedicated autosave campaign, currently schema v21 |
 | `2dnd_save_slot_manual-1` through `manual-3` | Named manual campaign slots |
 | slot `:backup` / `:staging` keys | Automatic recovery from interrupted or corrupt writes |
 | `2dnd_preferences` | Versioned audio, accessibility, and control presentation settings |
@@ -96,7 +97,7 @@ validated campaign slot. There is no cloud sync.
 
 - **Blank or stale local page:** stop any old Vite process and rerun
   `npm run dev`; browser tests never reuse an existing server.
-- **Browser tests cannot launch Chromium:** run
+- **Browser or desktop parity tests cannot launch Chromium:** run
   `npm run test:browser:install`.
 - **Desktop shell does not start:** rerun `npm run build:electron`, confirm the
   Vite loopback port is not blocked, inspect main-process stderr, then check

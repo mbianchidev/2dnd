@@ -8,6 +8,8 @@ import type { CutsceneId } from "./cutscenes";
 import { Terrain } from "./mapTypes";
 import { DEVOTION_CODEX_ENTRIES } from "./devotionCodex";
 import type { DeityId, TempleId } from "./devotion";
+import type { PrestigeTrackId } from "./prestige";
+import { PRESTIGE_LORE } from "./prestigeLore";
 
 export const CODEX_KNOWLEDGE_CATEGORIES = [
   "location",
@@ -83,6 +85,12 @@ export interface CodexDevotionAffiliationSource extends CodexSourceBase {
   readonly deityId: DeityId;
 }
 
+export interface CodexPrestigeSource extends CodexSourceBase {
+  readonly type: "prestigeRank";
+  readonly trackId: PrestigeTrackId;
+  readonly minimumRank: number;
+}
+
 export type CodexUnlockSource =
   | CodexLocationSource
   | CodexQuestStageSource
@@ -94,7 +102,8 @@ export type CodexUnlockSource =
   | CodexWorldEventSource
   | CodexReputationSource
   | CodexDevotionTempleSource
-  | CodexDevotionAffiliationSource;
+  | CodexDevotionAffiliationSource
+  | CodexPrestigeSource;
 
 export interface CodexKnowledgeEntry {
   readonly id: string;
@@ -889,6 +898,7 @@ export const CODEX_READABLES: readonly CodexReadableDefinition[] = [
 ];
 
 export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
+  ...PRESTIGE_LORE,
   ...LOCATION_ENTRIES,
   ...ITEM_ENTRIES,
   ...CHARACTER_ENTRIES,

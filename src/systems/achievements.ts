@@ -25,6 +25,8 @@ import {
   type SocialAchievementHook,
 } from "./reputation";
 import { getQuestStageIndex, isQuestCompleted } from "./quests";
+import { PRESTIGE_PATHS } from "../data/prestige";
+import { getTrackLevel } from "./classProgression";
 
 const PROCESSED_EVENT_LIMIT = 200;
 
@@ -309,6 +311,12 @@ export function getAchievementProgress(
   let target = 1;
 
   switch (criteria.type) {
+    case "prestigeRank":
+      target = criteria.minimum;
+      current = Math.max(0, ...PRESTIGE_PATHS
+        .filter((path) => !player.classProgression.debugTrackIds?.includes(path.id))
+        .map((path) => getTrackLevel(player, path.id)));
+      break;
     case "questStageCompleted": {
       const progress = player.progression.quests.quests[criteria.questId];
       const stageIndex = getQuestStageIndex(criteria.questId, criteria.stageId);

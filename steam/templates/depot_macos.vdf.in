@@ -1,0 +1,16 @@
+"DepotBuild"
+{
+  "DepotID" "{{STEAM_DEPOT_MACOS_ID}}"
+  "ContentRoot" "../content/macos-universal"
+  "FileMapping"
+  {
+    "LocalPath" "*"
+    "DepotPath" "."
+    "Recursive" "1"
+  }
+  "FileExclusion" "*.map"
+  "FileExclusion" "*.pdb"
+  "FileExclusion" "*.log"
+  "FileExclusion" ".env*"
+  "FileExclusion" "steam_appid.txt"
+}

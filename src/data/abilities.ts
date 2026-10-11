@@ -7,6 +7,8 @@ import type { DieType } from "../systems/dice";
 import type { StatusEffectId } from "../systems/statusEffects";
 import { Element } from "./elements";
 import type { TargetType } from "./spells";
+import type { Item } from "./items";
+import { PRESTIGE_ABILITIES } from "./prestigeActions";
 
 export type AbilityRange = "melee" | "ranged";
 
@@ -19,6 +21,8 @@ export interface Ability {
   damageCount: number;
   damageDie: DieType;
   type: "damage" | "heal" | "utility" | "buff";
+  progressionScope?: "track";
+  equipmentRequirement?: "shield" | "meleeWeapon" | "lightWeapon" | "lightWeaponOrBow";
   /** Defaults to one enemy; heals declare ally/self scope explicitly. */
   targetType?: TargetType;
   /** Defaults to melee for damaging abilities. */
@@ -36,6 +40,7 @@ export interface Ability {
 }
 
 export const ABILITIES: Ability[] = [
+  ...PRESTIGE_ABILITIES,
   // ── Knight / Fighter (STR) ────────────────────────────────────
   {
     id: "shieldBash", name: "Shield Bash",
@@ -278,6 +283,29 @@ export const ABILITIES: Ability[] = [
 /** Look up an ability by ID. */
 export function getAbility(id: string): Ability | undefined {
   return ABILITIES.find((a) => a.id === id);
+}
+
+/** Read canonical action gear rules without spending MP, effects or action slots. */
+export function getAbilityEquipmentRejection(
+  ability: Ability,
+  actor: { equippedWeapon: Item | null; equippedShield: Item | null },
+): string | undefined {
+  const weapon = actor.equippedWeapon;
+  const light = weapon?.type === "weapon" && weapon.light === true && !weapon.twoHanded;
+  switch (ability.equipmentRequirement) {
+    case "shield":
+      return actor.equippedShield?.type === "shield" ? undefined : `${ability.name} requires an equipped shield.`;
+    case "meleeWeapon":
+      return weapon?.type === "weapon" && weapon.weaponSprite !== "bow"
+        ? undefined : `${ability.name} requires an equipped melee weapon.`;
+    case "lightWeapon":
+      return light ? undefined : `${ability.name} requires a light one-handed weapon.`;
+    case "lightWeaponOrBow":
+      return light || (weapon?.type === "weapon" && weapon.weaponSprite === "bow")
+        ? undefined : `${ability.name} requires a light one-handed weapon or bow.`;
+    default:
+      return ability.equipmentRequirement === undefined ? undefined : "Action equipment requirement is unavailable.";
+  }
 }
 
 export function getAbilityTargetType(ability: Ability): TargetType {

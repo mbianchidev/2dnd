@@ -76,6 +76,9 @@ jobs:
       - run: npm run generate:desktop-icons
       - run: npm run build:desktop
 
+      - name: Install Chromium for browser-to-desktop save parity
+        run: npx playwright install chromium
+
       - name: Install Linux runtime dependencies
         if: runner.os == 'Linux'
         run: npx playwright install-deps chromium

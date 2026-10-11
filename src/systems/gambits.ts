@@ -517,6 +517,7 @@ function getResources(
     economy,
     knownSpellIds: source.state.knownSpells,
     knownAbilityIds: source.state.knownAbilities,
+    actorState: source.state,
   };
 }
 

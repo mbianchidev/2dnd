@@ -3,7 +3,25 @@
  * Supports standard notation: d4, d6, d8, d10, d12, d20, d100
  */
 
+import { snapshotD20Roll, type ResolvedD20Roll } from "./rollResults";
+
 export type DieType = 0 | 4 | 6 | 8 | 10 | 12 | 20 | 100;
+
+export interface D20Roll {
+  roll: number;
+  modifier: number;
+  total: number;
+  readonly rollResult: ResolvedD20Roll;
+}
+
+export interface SelectedD20Roll {
+  roll1: number;
+  roll2: number;
+  chosen: number;
+  modifier: number;
+  total: number;
+  readonly rollResult: ResolvedD20Roll;
+}
 
 /** Roll a single die of the given type (1 to sides inclusive). Returns 0 for d0. */
 export function rollDie(sides: DieType): number {
@@ -45,25 +63,46 @@ export function rollDiceDetailed(
 }
 
 /** D20 roll with modifier, returns { roll, modifier, total }. */
-export function rollD20(modifier: number = 0) {
+export function rollD20(modifier: number = 0): D20Roll {
   const roll = rollDie(20);
-  return { roll, modifier, total: roll + modifier };
+  const total = roll + modifier;
+  return {
+    roll, modifier, total,
+    rollResult: snapshotD20Roll({
+      naturalRolls: [roll], selectedIndex: 0, selection: "normal",
+      naturalRoll: roll, modifier, total,
+    }),
+  };
 }
 
 /** Roll with advantage (roll 2d20, take higher) + modifier. */
-export function rollWithAdvantage(modifier: number = 0) {
+export function rollWithAdvantage(modifier: number = 0): SelectedD20Roll {
   const roll1 = rollDie(20);
   const roll2 = rollDie(20);
   const best = Math.max(roll1, roll2);
-  return { roll1, roll2, chosen: best, modifier, total: best + modifier };
+  const total = best + modifier;
+  return {
+    roll1, roll2, chosen: best, modifier, total,
+    rollResult: snapshotD20Roll({
+      naturalRolls: [roll1, roll2], selectedIndex: roll1 >= roll2 ? 0 : 1,
+      selection: "advantage", naturalRoll: best, modifier, total,
+    }),
+  };
 }
 
 /** Roll with disadvantage (roll 2d20 and take the lower result). */
-export function rollWithDisadvantage(modifier: number = 0) {
+export function rollWithDisadvantage(modifier: number = 0): SelectedD20Roll {
   const roll1 = rollDie(20);
   const roll2 = rollDie(20);
   const chosen = Math.min(roll1, roll2);
-  return { roll1, roll2, chosen, modifier, total: chosen + modifier };
+  const total = chosen + modifier;
+  return {
+    roll1, roll2, chosen, modifier, total,
+    rollResult: snapshotD20Roll({
+      naturalRolls: [roll1, roll2], selectedIndex: roll1 <= roll2 ? 0 : 1,
+      selection: "disadvantage", naturalRoll: chosen, modifier, total,
+    }),
+  };
 }
 
 /**

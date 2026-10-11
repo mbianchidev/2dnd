@@ -26,8 +26,14 @@ import {
   rollSkillCheck,
 } from "../systems/skillChecks";
 import { saveGame } from "../systems/save";
+import { restPartyAtInn } from "../systems/party";
+import { prepareHeroLevelUp } from "../systems/classProgression";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { installSceneAccessibility } from "../systems/accessibility";
+import {
+  installDicePresentation,
+  presentSkillDiceResult,
+} from "../managers/dicePresentation";
 import { CodexDiscoveryManager } from "../managers/codexDiscovery";
 import {
   combineShopAdjustments,
@@ -125,6 +131,7 @@ export class ShopScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x1a1a2e);
     this.sceneTransitions.prepare(300);
     installSceneAccessibility(this);
+    installDicePresentation(this);
     this.codexDiscovery = new CodexDiscoveryManager(this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.codexDiscovery.clear();
@@ -490,6 +497,7 @@ export class ShopScene extends Phaser.Scene {
       `Charisma check (${formatSkillCheckResult(result)}): ${outcome}`,
       result.success ? "#88ff88" : "#ff8888",
     );
+    presentSkillDiceResult(this, result, `Charisma negotiation: ${option.label}`);
     saveGame(
       this.player,
       this.defeatedBosses,
@@ -941,12 +949,19 @@ export class ShopScene extends Phaser.Scene {
   /** Execute the inn rest: heal the player and advance time to the target step. */
   private confirmInnRest(targetTimeStep: number, message: string): void {
     const innCost = getInnCost(this.cityId);
+    if (this.player.gold < innCost) {
+      this.setMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
+      return;
+    }
     this.player.gold -= innCost;
-    this.player.hp = this.player.maxHp;
-    this.player.mp = this.player.maxMp;
-    this.player.shortRestsRemaining = 2; // refill short rests on long rest
+    restPartyAtInn(this.player, true);
     this.timeStep = targetTimeStep;
-    this.setMessage(message, "#88ff88");
+    const preparation = this.player.pendingLevelUps > 0 ? prepareHeroLevelUp(this.player) : null;
+    const saved = saveGame(this.player, this.defeatedBosses, this.codex,
+      this.player.appearanceId, this.timeStep, this.weatherState);
+    const error = preparation?.ok === false ? preparation.message : !saved.ok ? saved.message : undefined;
+    this.setMessage(error ?? `${message}${preparation?.ok ? " Return outside to choose your next class." : ""}`,
+      error ? "#ff6666" : "#88ff88");
     this.updateDisplay();
     this.renderItems();
   }

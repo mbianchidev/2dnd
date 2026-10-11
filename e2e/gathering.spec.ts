@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clickLayoutItem } from "./helpers/layout";
+import { SAVE_VERSION } from "../src/systems/save";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -11,6 +12,7 @@ interface GatheringSave {
   player: {
     inventory: Array<{ id: string }>;
     progression: {
+      tutorial: { completed: boolean };
       gathering: {
         pending: {
           discipline: "fishing" | "mining" | "foraging";
@@ -114,11 +116,14 @@ async function createCampaign(page: Page): Promise<void> {
   await clickGame(page, 420, 312);
   await waitForState(page, "CUTSCENE");
   await drainCutscenes(page);
-  await waitForState(page, "[TUTORIAL");
+  await waitForState(page, "[TUTORIAL]");
   for (let step = 0; step < 5; step += 1) {
     await holdKey(page, "Space");
   }
-  await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL");
+  await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL]");
+  await expect.poll(async () =>
+    (await readSave(page)).player.progression.tutorial.completed
+  ).toBe(true);
   await waitForState(page, "OVERWORLD");
 }
 
@@ -300,6 +305,6 @@ test("plays, reloads, records, and battles through all gathering disciplines", a
   save = await readSave(page);
   expect(save.player.inventory.some((item) => item.id === "stormEel")).toBe(true);
   expect(save.player.progression.gathering.pending).toBeNull();
-  expect(save.version).toBe(19);
+  expect(save.version).toBe(SAVE_VERSION);
   expect(browserErrors).toEqual([]);
 });

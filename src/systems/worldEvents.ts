@@ -20,6 +20,7 @@ import { TimePeriod } from "./daynight";
 import { WeatherType } from "./weather";
 import { awardXP, type PlayerState } from "./player";
 import { applyNonlethalDamage, rollSkillCheck } from "./skillChecks";
+import type { SkillCheckRecord } from "../data/skillChecks";
 import {
   getQuestProgress,
   startQuestById,
@@ -125,6 +126,7 @@ export interface WorldEventResolution {
   codexUnlocks: CodexUnlockResult;
   socialEffects: readonly SocialMutationResult[];
   devotionEffects: readonly DevotionMutationResult[];
+  readonly skillCheck?: SkillCheckRecord;
 }
 
 export type OverworldStepTrigger =
@@ -651,7 +653,7 @@ export function resolveWorldEventChoice(
       },
     );
   player.progression.skillChecks[checkId] = result;
-  return completeOutcome(
+  const resolution = completeOutcome(
     player,
     codex,
     defeatedBosses,
@@ -661,6 +663,7 @@ export function resolveWorldEventChoice(
     choice.id,
     result.success ? choice.success : choice.failure,
   );
+  return { ...resolution, skillCheck: Object.freeze({ ...result }) };
 }
 
 export function prepareWorldEventBattle(

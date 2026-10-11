@@ -94,6 +94,9 @@ hours-long endurance or portable performance-budget evidence.
 
 `ELECTRON_TEST_EXECUTABLE` optionally selects an explicitly supplied packaged
 binary for the same suite. It does not alter production preload/security.
+Packaged smoke runs use `electron-test-results/packaged` so a later invocation
+cannot erase native first-attempt traces. Save-parity artifacts include ordered
+phase timings to distinguish gameplay/import waits from browser/server cleanup.
 
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
 Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.

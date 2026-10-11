@@ -15,7 +15,7 @@
 | happy-dom | 20.14.5 |
 | Electron | 44.5.1 |
 | electron-builder | 26.17.0 |
-| Campaign save schema | 19 |
+| Campaign save schema | 20 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -177,8 +177,10 @@ authoritative turn/result transitions.
 
 ## Hero progression authority
 
-`data/classProgression.ts` owns immutable twelve-class profiles and bounded
-extension contracts. `systems/classProgression.ts` owns qualification, rank/
+`data/classProgression.ts` registers immutable twelve-class and six prestige
+profiles. Original path, action and lore content lives in focused
+`data/prestige.ts`, `prestigeActions.ts` and `prestigeLore.ts`.
+`systems/classProgression.ts` owns qualification, rank/
 total queries, grant provenance, frozen previews, rest-ready queues and atomic
 one-level commits. `classProgressionState.ts` normalizes unknown ownership,
 knowledge, resources, pending receipts and equipment links.
@@ -189,7 +191,11 @@ own hero progression. Proficiency/ASIs/common talents use total level,
 restricted grants use source rank, and shared IDs/bonuses apply once.
 `managers/heroProgression.ts` owns measured, accessible presentation rather
 than another leveling or action engine. Normal total level remains 20; the
-static external-profile seam ships no prestige or epic content.
+static profiles install five-rank prestige content, not epic or NG+ progression.
+`classProgressionContext.ts` binds completed quest stages, discovered cities and
+inclusive social ranges to the live owner for preview and fresh commit. Grouped
+requirements fail closed; earned ranks never recheck mutable joining evidence.
+`systems/prestige.ts` derives readable qualification and complete rank tables.
 
 `systems/heroItemState.ts` owns typed serialized hero-item validation and
 complete duplicate-equipment matching. Well-formed custom hero ownership stays

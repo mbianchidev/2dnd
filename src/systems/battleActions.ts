@@ -37,7 +37,7 @@ import {
   type GroupCombatant,
   type PartyCombatant,
 } from "./groupCombat";
-import { canActorUseAbility, canActorUseSpell } from "./classProgression";
+import { canActorUseSpell, getActorAbilityRejection } from "./classProgression";
 
 export type BattleActionKind =
   | "attack"
@@ -62,6 +62,7 @@ export interface BattleActionResources {
   economy: BattleActionEconomyState;
   knownSpellIds?: readonly string[];
   knownAbilityIds?: readonly string[];
+  actorState?: CombatActorState;
 }
 
 export interface BattleActionEconomyState {
@@ -391,6 +392,19 @@ export function validateBattleAction(
   ) {
     return { valid: false, message: "Actor does not know that ability." };
   }
+  if (descriptor.kind === "ability") {
+    const ability = getAbility(descriptor.actionId ?? "");
+    if (ability?.equipmentRequirement || ability?.progressionScope === "track") {
+      if (!resources.actorState) return { valid: false, message: "Action equipment context is unavailable." };
+      const rejection = getActorAbilityRejection(resources.actorState, ability.id);
+      if (rejection) return { valid: false, message: rejection };
+    }
+  }
+  if (descriptor.kind === "spell" && getSpell(descriptor.actionId ?? "")?.progressionScope === "track") {
+    if (!resources.actorState || !canActorUseSpell(resources.actorState, descriptor.actionId ?? "")) {
+      return { valid: false, message: "The acting character has not learned this spell." };
+    }
+  }
   if (resources.mp < descriptor.mpCost) {
     return { valid: false, message: "Not enough MP." };
   }
@@ -563,11 +577,13 @@ export function executeValidatedBattleAction(
       itemUsed: false,
     };
   }
-  if ((plan.kind === "spell" && !canActorUseSpell(source.state, plan.actionId ?? ""))
-    || (plan.kind === "ability" && !canActorUseAbility(source.state, plan.actionId ?? ""))) {
+  const actionRejection = plan.kind === "spell" && !canActorUseSpell(source.state, plan.actionId ?? "")
+    ? "The acting character has not learned this spell."
+    : plan.kind === "ability" ? getActorAbilityRejection(source.state, plan.actionId ?? "") : undefined;
+  if (actionRejection) {
     return {
       executed: false,
-      message: "The acting character has not learned this action.",
+      message: actionRejection,
       plan,
       targets: [],
       mpUsed: 0,

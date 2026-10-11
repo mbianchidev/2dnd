@@ -177,6 +177,7 @@ describe("once-only prepared level application", () => {
       }
       for (const talent of TALENTS) {
         if (talent.levelRequired <= level && !talents.includes(talent.id)
+          && talent.progressionScope !== "track"
           && (!talent.classRestriction || talent.classRestriction.includes(definition.id))) {
           talents.push(talent.id);
           hp += talent.maxHpBonus ?? 0;

@@ -41,11 +41,15 @@ import type { HealingTarget } from "../systems/combat";
 import {
   createBattleActionEconomy,
   createPlayerBattleActionSource,
+  validateBattleAction,
   type BattleActionSource,
   type BattleActionEconomyState,
   type ResolvedBattleAction,
 } from "../systems/battleActions";
 import { abilityModifier } from "../systems/dice";
+import { getActorAbilityRejection } from "../systems/classProgression";
+import { createBattleActionMenu } from "../managers/battleActionMenu";
+import { registerLayoutGroup } from "../managers/layout";
 import {
   isDebug,
   debugLog,
@@ -744,6 +748,7 @@ export class BattleScene extends Phaser.Scene {
           color: "#ddd",
         })
         .setOrigin(0.5)
+        .setData("layoutId", `battle-action-${act.label.toLowerCase()}`)
         .setData("accessibilityMaxWidth", btnW - 12);
 
       bg.on("pointerover", () => {
@@ -763,6 +768,7 @@ export class BattleScene extends Phaser.Scene {
       });
 
       container.add([bg, label]);
+      registerLayoutGroup(this, `battle-action-${act.label.toLowerCase()}`, container);
       this.actionButtons.push(container);
       this.actionButtonLabels.push({ text: label, label: act.label });
       this.actionButtonActions.push(act.action);
@@ -1238,78 +1244,23 @@ export class BattleScene extends Phaser.Scene {
     this.closeAllSubMenus();
     if (!keepPage) this.battleSpellPage = 0;
 
-    const w = this.cameras.main.width;
     const spells = this.player.knownSpells
       .map((id) => getSpell(id))
       .filter((s): s is Spell => s !== undefined && s.type !== "utility");
 
     if (spells.length === 0) { this.addLog("No spells known!"); return; }
 
-    const MAX_PER_PAGE = 5;
-    const totalPages = Math.max(1, Math.ceil(spells.length / MAX_PER_PAGE));
-    this.battleSpellPage = Math.max(0, Math.min(this.battleSpellPage, totalPages - 1));
-    const start = this.battleSpellPage * MAX_PER_PAGE;
-    const visible = spells.slice(start, start + MAX_PER_PAGE);
-    const rowH = 36;
-    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
-
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
-    container.setDepth(BATTLE_DEPTH.uiOverlay);
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a3e, 0.95);
-    bg.fillRect(-5, -5, 260, menuH);
-    bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, menuH);
-    container.add(bg);
-
-    visible.forEach((spell, i) => {
-      const canCast = this.player.mp >= spell.mpCost;
-      const color = canCast ? "#aaddff" : "#666";
-      const text = this.add.text(0, i * rowH, `${spell.name} (${spell.mpCost} MP)`, {
-        fontSize: "12px", fontFamily: "monospace", color,
-      }).setInteractive({ useHandCursor: canCast });
-      const desc = this.add.text(0, i * rowH + 14, spell.description, {
-        fontSize: "9px", fontFamily: "monospace", color: "#888",
-        wordWrap: { width: 250 },
-      });
-      if (canCast) {
-        text.on("pointerover", () => text.setColor("#ffd700"));
-        text.on("pointerout", () => text.setColor(color));
-        text.on("pointerdown", () => { this.closeAllSubMenus(); this.doPlayerSpell(spell.id); });
-      }
-      container.add([text, desc]);
+    const menu = createBattleActionMenu(this, {
+      kind: "spell", page: this.battleSpellPage,
+      entries: spells.map((spell) => ({
+        id: spell.id, label: `${spell.name} (${spell.mpCost} MP)`, description: spell.description,
+        enabled: this.player.mp >= spell.mpCost,
+        activate: () => { this.closeAllSubMenus(); this.doPlayerSpell(spell.id); },
+      })),
+      onPageChange: (page) => { this.battleSpellPage = page; this.showSpellMenu(true); },
     });
-
-    if (totalPages > 1) {
-      const navY = visible.length * rowH;
-      const prevBtn = this.add.text(10, navY, "◄ A", {
-        fontSize: "10px", fontFamily: "monospace", color: this.battleSpellPage > 0 ? "#aaa" : "#444",
-      }).setInteractive({ useHandCursor: this.battleSpellPage > 0 });
-      if (this.battleSpellPage > 0) {
-        prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
-        prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
-        prevBtn.on("pointerdown", () => { this.battleSpellPage--; this.showSpellMenu(true); });
-      }
-      container.add(prevBtn);
-
-      const pageLabel = this.add.text(120, navY, `${this.battleSpellPage + 1}/${totalPages}`, {
-        fontSize: "10px", fontFamily: "monospace", color: "#888",
-      }).setOrigin(0.5, 0);
-      container.add(pageLabel);
-
-      const nextBtn = this.add.text(200, navY, "D ►", {
-        fontSize: "10px", fontFamily: "monospace", color: this.battleSpellPage < totalPages - 1 ? "#aaa" : "#444",
-      }).setInteractive({ useHandCursor: this.battleSpellPage < totalPages - 1 });
-      if (this.battleSpellPage < totalPages - 1) {
-        nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
-        nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
-        nextBtn.on("pointerdown", () => { this.battleSpellPage++; this.showSpellMenu(true); });
-      }
-      container.add(nextBtn);
-    }
-
-    this.spellMenu = container;
+    this.battleSpellPage = menu.page;
+    this.spellMenu = menu.container;
   }
 
   private showAbilityMenu(keepPage = false): void {
@@ -1321,80 +1272,25 @@ export class BattleScene extends Phaser.Scene {
     this.closeAllSubMenus();
     if (!keepPage) this.battleAbilityPage = 0;
 
-    const w = this.cameras.main.width;
     const abilities = (this.player.knownAbilities ?? [])
       .map((id) => getAbility(id))
       .filter((a): a is Ability => a !== undefined && a.type !== "utility");
 
     if (abilities.length === 0) { this.addLog("No abilities known!"); return; }
 
-    const MAX_PER_PAGE = 5;
-    const totalPages = Math.max(1, Math.ceil(abilities.length / MAX_PER_PAGE));
-    this.battleAbilityPage = Math.max(0, Math.min(this.battleAbilityPage, totalPages - 1));
-    const start = this.battleAbilityPage * MAX_PER_PAGE;
-    const visible = abilities.slice(start, start + MAX_PER_PAGE);
-    const rowH = 36;
-    const menuH = visible.length * rowH + (totalPages > 1 ? 20 : 0) + 10;
-
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
-    container.setDepth(BATTLE_DEPTH.uiOverlay);
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1a2a1e, 0.95);
-    bg.fillRect(-5, -5, 260, menuH);
-    bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 260, menuH);
-    container.add(bg);
-
-    visible.forEach((ability, i) => {
-      const canUse = this.player.mp >= ability.mpCost;
-      const isBonusAction = ability.bonusAction ?? false;
-      const bonusTag = isBonusAction ? " [BA]" : "";
-      const color = canUse ? (isBonusAction ? "#aaffaa" : "#ffddaa") : "#666";
-      const text = this.add.text(0, i * rowH, `${ability.name}${bonusTag} (${ability.mpCost} MP)`, {
-        fontSize: "12px", fontFamily: "monospace", color,
-      }).setInteractive({ useHandCursor: canUse });
-      const desc = this.add.text(0, i * rowH + 14, ability.description, {
-        fontSize: "9px", fontFamily: "monospace", color: "#888",
-        wordWrap: { width: 250 },
-      });
-      if (canUse) {
-        text.on("pointerover", () => text.setColor("#ffd700"));
-        text.on("pointerout", () => text.setColor(color));
-        text.on("pointerdown", () => { this.closeAllSubMenus(); this.doPlayerAbility(ability.id); });
-      }
-      container.add([text, desc]);
+    const menu = createBattleActionMenu(this, {
+      kind: "ability", page: this.battleAbilityPage,
+      entries: abilities.map((ability) => ({
+        id: ability.id,
+        label: `${ability.name}${ability.bonusAction ? " [BA]" : ""} (${ability.mpCost} MP)`,
+        description: getActorAbilityRejection(this.player, ability.id) ?? ability.description,
+        enabled: this.player.mp >= ability.mpCost && !getActorAbilityRejection(this.player, ability.id),
+        activate: () => { this.closeAllSubMenus(); this.doPlayerAbility(ability.id); },
+      })),
+      onPageChange: (page) => { this.battleAbilityPage = page; this.showAbilityMenu(true); },
     });
-
-    if (totalPages > 1) {
-      const navY = visible.length * rowH;
-      const prevBtn = this.add.text(10, navY, "◄ A", {
-        fontSize: "10px", fontFamily: "monospace", color: this.battleAbilityPage > 0 ? "#aaa" : "#444",
-      }).setInteractive({ useHandCursor: this.battleAbilityPage > 0 });
-      if (this.battleAbilityPage > 0) {
-        prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
-        prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
-        prevBtn.on("pointerdown", () => { this.battleAbilityPage--; this.showAbilityMenu(true); });
-      }
-      container.add(prevBtn);
-
-      const pageLabel = this.add.text(120, navY, `${this.battleAbilityPage + 1}/${totalPages}`, {
-        fontSize: "10px", fontFamily: "monospace", color: "#888",
-      }).setOrigin(0.5, 0);
-      container.add(pageLabel);
-
-      const nextBtn = this.add.text(200, navY, "D ►", {
-        fontSize: "10px", fontFamily: "monospace", color: this.battleAbilityPage < totalPages - 1 ? "#aaa" : "#444",
-      }).setInteractive({ useHandCursor: this.battleAbilityPage < totalPages - 1 });
-      if (this.battleAbilityPage < totalPages - 1) {
-        nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
-        nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
-        nextBtn.on("pointerdown", () => { this.battleAbilityPage++; this.showAbilityMenu(true); });
-      }
-      container.add(nextBtn);
-    }
-
-    this.abilityMenu = container;
+    this.battleAbilityPage = menu.page;
+    this.abilityMenu = menu.container;
   }
 
   private doPlayerAbility(abilityId: string): void {
@@ -1402,6 +1298,11 @@ export class BattleScene extends Phaser.Scene {
     const ability = getAbility(abilityId);
     if (!ability) {
       this.addLog("Unknown ability!");
+      return;
+    }
+    const rejection = getActorAbilityRejection(this.player, abilityId);
+    if (rejection) {
+      this.addLog(rejection);
       return;
     }
 
@@ -1461,6 +1362,17 @@ export class BattleScene extends Phaser.Scene {
     const ability = getAbility(abilityId);
     if (!ability) {
       this.addLog("Unknown ability!");
+      return;
+    }
+    const validation = validateBattleAction(this.allCombatants, {
+      actorId: this.heroCombatant.id, kind: "ability", actionId: abilityId,
+      preferredTargetId: healingTargets?.[0]?.id ?? this.targetCombatant.id,
+    }, {
+      mp: this.player.mp, inventory: this.player.inventory, economy: this.playerEconomy,
+      knownAbilityIds: this.player.knownAbilities, actorState: this.player,
+    });
+    if (!validation.valid) {
+      this.addLog(validation.message);
       return;
     }
 
@@ -2352,6 +2264,20 @@ export class BattleScene extends Phaser.Scene {
     if (!spell) {
       this.addLog("Unknown spell!");
       return;
+    }
+    if (spell.progressionScope === "track") {
+      const validation = validateBattleAction(this.allCombatants, {
+        actorId: this.heroCombatant.id, kind: "spell", actionId: spellId,
+        preferredTargetId: targetIds[0],
+      }, {
+        mp: this.player.mp, inventory: this.player.inventory, economy: this.playerEconomy,
+        knownSpellIds: this.player.knownSpells, actorState: this.player,
+      });
+      if (!validation.plan) {
+        this.addLog(validation.message);
+        return;
+      }
+      targetIds = [...validation.plan.targetIds];
     }
     if (this.player.mp < spell.mpCost) {
       this.addLog("Not enough MP!");

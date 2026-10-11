@@ -260,6 +260,7 @@ export function deriveAvailableFeatureIds(
   codex: CodexData,
 ): FeatureId[] {
   const ids = new Set<FeatureId>(ALWAYS_AVAILABLE_FEATURES);
+  if (player.level >= 6 || Object.keys(player.classProgression.trackLevels).length > 0) ids.add("prestige");
   if (hasStartedQuest(player)) ids.add("questJournal");
   if (
     player.progression.seenCutsceneIds.length > 0

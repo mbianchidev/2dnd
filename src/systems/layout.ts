@@ -289,7 +289,11 @@ export function paginateMeasuredItems(
   itemHeights: readonly number[],
   availableHeight: number,
   gap = 0,
+  maximumItems = Number.MAX_SAFE_INTEGER,
 ): number[][] {
+  if (!Number.isSafeInteger(maximumItems) || maximumItems < 1) {
+    throw new RangeError("A measured page must allow at least one item.");
+  }
   const heightLimit = finiteNonNegative(availableHeight);
   const safeGap = finiteNonNegative(gap);
   const pages: number[][] = [];
@@ -300,7 +304,7 @@ export function paginateMeasuredItems(
     const nextHeight = current.length === 0
       ? height
       : usedHeight + safeGap + height;
-    if (current.length > 0 && nextHeight > heightLimit) {
+    if (current.length > 0 && (nextHeight > heightLimit || current.length >= maximumItems)) {
       pages.push(current);
       current = [index];
       usedHeight = height;

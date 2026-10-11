@@ -30,6 +30,11 @@ small viewports and reduced motion.
 
 ## Entry prerequisites
 
+Six optional [prestige paths](prestige.md) appear in the same sheet at applied
+total level 6. They consume the same rested level credits and count toward 20;
+their original feature tables, fixed casting stats and joining requirements
+do not advance base-class ranks or change the starting identity.
+
 Continuing an owned class never rechecks entry prerequisites. Entering a new
 class requires both its requirements and those of the starting class. All
 requirements use actual ability scores, not equipment/status bonuses.
@@ -134,11 +139,17 @@ existing authoritative state. Class choices update combat/progression and
 derived character/slot/Ending labels; they do not complete quests, recruit
 companions, claim rewards or grant campaign access.
 
-The typed external-profile registry is an extension hook only. **No prestige,
-epic or NG+ content is installed**, and there is no arbitrary runtime cap
-override. Those future domains must consume the same engine after its merge.
+The static registry installs twelve base profiles and six five-rank prestige
+profiles. Epic and NG+ content are not installed; there is no arbitrary runtime
+cap override. Prestige grants use the same engine, canonical source selection,
+rest queue and once-only resource handling.
 
 ## Saves and debug
+
+Schema v20 recognizes registered prestige ranks and optional `debugTrackIds`.
+Older saves keep empty prestige ownership; unknown or irreparable rank data
+falls through isolated slot recovery. Debug-marked paths cannot earn natural
+prestige cosmetics, even if later ranks are advanced normally.
 
 Schema v19 migrates legacy single-class ownership from the old identity/level,
 preserving stats, rolled HP/MP, canonical known actions/talents and equipment
@@ -169,6 +180,10 @@ Debug-only commands:
 /class qualify <classId>
 /class level <classId>
 /class sheet
+/prestige list
+/prestige explain <pathId>
+/prestige preview <pathId>
+/prestige status
 ```
 
 `level` is a bounded canonical transaction available only during safe

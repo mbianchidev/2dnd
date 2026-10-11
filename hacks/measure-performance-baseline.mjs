@@ -24,6 +24,15 @@ const DEFAULT_SAMPLE_COUNT = 20;
 const SAVE_WRITE_BATCHES = 50;
 const SAVE_WRITES_PER_BATCH = 100;
 
+async function readCanonicalSaveVersion() {
+  const source = await readFile(join(ROOT, "src", "systems", "save.ts"), "utf8");
+  const matches = [...source.matchAll(/^export const SAVE_VERSION = (\d+);$/gm)];
+  if (matches.length !== 1) throw new Error("Cannot resolve the canonical SAVE_VERSION for the benchmark.");
+  const version = Number(matches[0][1]);
+  if (!Number.isSafeInteger(version) || version < 1) throw new Error("Canonical SAVE_VERSION is invalid.");
+  return version;
+}
+
 function readSampleCount(value) {
   if (value === undefined) return DEFAULT_SAMPLE_COUNT;
   const parsed = Number.parseInt(value, 10);
@@ -596,6 +605,7 @@ function printReport(result) {
 
 async function main() {
   const sampleCount = readSampleCount(process.env.PERFORMANCE_SAMPLES);
+  const currentSaveVersion = await readCanonicalSaveVersion();
   const npmCli = process.env.npm_execpath;
   if (!npmCli) {
     throw new Error(
@@ -604,17 +614,6 @@ async function main() {
     );
   }
   const initialProvenance = await getGitProvenance(ROOT);
-  const saveSource = await readFile(join(ROOT, "src/systems/save.ts"), "utf8");
-  const saveVersionMatch = saveSource.match(
-    /^export\s+const\s+SAVE_VERSION\s*=\s*(\d+)\s*;/m,
-  );
-  if (!saveVersionMatch) {
-    throw new Error("Missing canonical SAVE_VERSION in src/systems/save.ts");
-  }
-  const currentSaveVersion = Number(saveVersionMatch[1]);
-  if (!Number.isSafeInteger(currentSaveVersion) || currentSaveVersion < 1) {
-    throw new Error("Canonical SAVE_VERSION must be a positive safe integer");
-  }
   await runCommand(process.execPath, [npmCli, "run", "build"], {
     env: {
       ...process.env,

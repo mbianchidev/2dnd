@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { executeProgressionDebugCommand } from "../src/systems/classProgressionDebug";
 import { createPlayer } from "../src/systems/player";
+import { PROGRESSION_PROFILES } from "../src/data/classProgression";
 
 const stats = {
   strength: 15, dexterity: 15, constitution: 14,
@@ -13,7 +14,8 @@ describe("progression debug adapter", () => {
   it("enumerates only shipped profiles and reports total/rank ownership", () => {
     const player = createPlayer("Debug fixture", stats);
     const before = structuredClone(player);
-    expect(executeProgressionDebugCommand(player, "list").messages).toHaveLength(12);
+    expect(executeProgressionDebugCommand(player, "list").messages.map((message) => message.split(": ")[0]))
+      .toEqual(PROGRESSION_PROFILES.map((profile) => profile.id));
     expect(executeProgressionDebugCommand(player, "").messages[0]).toContain("Knight 1");
     expect(executeProgressionDebugCommand(player, "qualify wizard").messages[0]).toContain("met");
     expect(player).toEqual(before);

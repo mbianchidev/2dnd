@@ -100,7 +100,7 @@ dice: {
 
 Missing, legacy v1/v2, and malformed fields normalize to All/Normal while
 preserving audio, accessibility, and control preferences. This is stored only
-under `2dnd_preferences`, independently of the current schema-19 campaign.
+under `2dnd_preferences`, independently of the campaign schema.
 Neither receipts nor runtime log entries enter saves, and dice preferences do
 not increment the campaign schema.
 

@@ -33,6 +33,9 @@ and campaign saves stay in your browser's local storage.
 - **Multiclass the hero:** choose qualified class levels at rest, preview frozen
   HP/MP and feature gains, and combine the existing classes within a total-level
   cap of 20. Starting identity stays fixed; companions remain single-class.
+- **Choose an optional prestige path:** six original five-rank traditions build
+  on class, score and world entry conditions without increasing the total cap,
+  requiring affiliation, or taking away earned ranks after social changes.
 - **Complete a full campaign:** follow the Twelvefold Covenant through 12
   mainland cities, three keystone dungeons, data-driven cutscenes, boss
   encounters, an epilogue, and post-game continuation.
@@ -126,10 +129,11 @@ Use `npm run dev:desktop` for Electron development and
 | [Getting started](docs/getting-started.md) | Installation, local hosting, saves, troubleshooting |
 | [Gameplay](docs/gameplay.md) | Controls, campaign, combat, exploration, accessibility |
 | [Hero progression](docs/hero-progression.md) | Multiclass prerequisites, rest choices, resource rules, lossless hero saves |
+| [Prestige paths](docs/prestige.md) | Six optional traditions, qualification, complete rank tables, gear and tradeoffs |
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v19, slots, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v20, slots, migration, recovery, persistence rules |
 | [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
 | [Steam preparation](docs/steam.md) | Depot previews, controller equivalent, disabled services, store/human release gates |
 | [Release](docs/release.md) | GitHub Pages and release checklist |

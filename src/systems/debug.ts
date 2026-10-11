@@ -44,7 +44,7 @@ import {
   isCompanionId,
 } from "../data/companions";
 import { formatGambitRule } from "./gambits";
-import { executeProgressionDebugCommand } from "./classProgressionDebug";
+import { executePrestigeDebugCommand, executeProgressionDebugCommand } from "./classProgressionDebug";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -144,6 +144,9 @@ export function buildSharedCommands(
   cb: DebugCallbacks,
 ): Map<string, CommandHandler> {
   const cmds = new Map<string, CommandHandler>();
+  cmds.set("prestige", (args) => {
+    for (const line of executePrestigeDebugCommand(player, args)) debugPanelLog(`[PRESTIGE] ${line}`, true);
+  });
   cmds.set("class", (args) => {
     const result = executeProgressionDebugCommand(player, args, cb.allowProgressionChanges?.() ?? false);
     for (const message of result.messages) debugPanelLog(`[CLASS] ${message}`, true);

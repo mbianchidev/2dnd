@@ -5,6 +5,7 @@
 import type { DieType } from "../systems/dice";
 import type { StatusEffectId } from "../systems/statusEffects";
 import { Element } from "./elements";
+import { PRESTIGE_SPELLS } from "./prestigeActions";
 
 export type TargetType =
   | "single"
@@ -29,6 +30,7 @@ export interface Spell {
   damageCount: number; // number of dice
   damageDie: DieType; // die type
   type: "damage" | "heal" | "buff" | "utility";
+  progressionScope?: "track";
   /** Defaults to one enemy; healing spells declare ally/party scope explicitly. */
   targetType?: TargetType;
   /** Status effect applied to every resolved target by buff spells. */
@@ -38,6 +40,7 @@ export interface Spell {
 }
 
 export const SPELLS: Spell[] = [
+  ...PRESTIGE_SPELLS,
   // ── Cantrips (0 MP) ──────────────────────────────────────────
   { id: "fireBolt", name: "Fire Bolt", description: "Hurl a bolt of fire at a foe",
     mpCost: 0, levelRequired: 1, damageCount: 1, damageDie: 10, type: "damage", element: Element.Fire },
@@ -172,7 +175,7 @@ export function getSpellTargetType(spell: Spell): TargetType {
   return spell.type === "utility" ? "self" : "single_enemy";
 }
 
-/** Get all spells available at a given player level. */
+/** Legacy total-level listing excludes spells that require an owning progression track. */
 export function getAvailableSpells(level: number): Spell[] {
-  return SPELLS.filter((s) => s.levelRequired <= level);
+  return SPELLS.filter((s) => s.progressionScope !== "track" && s.levelRequired <= level);
 }

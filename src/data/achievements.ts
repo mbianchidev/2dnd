@@ -59,6 +59,8 @@ export const ACHIEVEMENT_IDS = [
   "firstCraft",
   "versatileCrafter",
   "masterSmith",
+  "prestigeInitiate",
+  "prestigeMaster",
 ] as const;
 
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
@@ -79,6 +81,7 @@ export const TITLE_IDS = [
   "relicKeeper",
   "realmGatherer",
   "artisan",
+  "pathkeeper",
 ] as const;
 
 export type TitleId = (typeof TITLE_IDS)[number];
@@ -88,6 +91,7 @@ export type AchievementCounterKey =
   | "oneHitDefeats";
 
 export type AchievementCriteria =
+  | { readonly type: "prestigeRank"; readonly minimum: number }
   | {
     readonly type: "questStageCompleted";
     readonly questId: QuestId;
@@ -213,7 +217,8 @@ export interface AchievementSourceMetadata {
     | "reputation"
     | "inventory"
     | "gathering"
-    | "crafting";
+    | "crafting"
+    | "progression";
   readonly authoritativeState: string;
   readonly targetIds?: readonly string[];
 }
@@ -240,6 +245,25 @@ export interface TitleDefinition {
 const MAIN_QUEST = "twelvefoldCovenant" as const;
 
 export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
+  {
+    id: "prestigeInitiate",
+    name: "A Road of Your Own",
+    description: "Earn the first rank of an optional prestige path.",
+    category: "collection",
+    points: 10,
+    criteria: { type: "prestigeRank", minimum: 1 },
+    source: { kind: "progression", authoritativeState: "Natural registered prestige ranks" },
+  },
+  {
+    id: "prestigeMaster",
+    name: "Fivefold Practice",
+    description: "Earn all five ranks of any prestige path.",
+    category: "collection",
+    points: 25,
+    criteria: { type: "prestigeRank", minimum: 5 },
+    rewardTitleId: "pathkeeper",
+    source: { kind: "progression", authoritativeState: "Natural registered prestige ranks" },
+  },
   {
     id: "firstSealComplete",
     name: "The First Seal",
@@ -651,6 +675,10 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
 ] as const;
 
 export const TITLES: readonly TitleDefinition[] = [
+  {
+    id: "pathkeeper", name: "Pathkeeper",
+    description: "Mastered an optional five-rank tradition.", achievementId: "prestigeMaster",
+  },
   { id: "covenantRoadwarden", name: "Covenant Roadwarden", description: "Bearer of the restored Twelvefold Covenant.", achievementId: "twelvefoldCovenantComplete" },
   { id: "unbroken", name: "The Unbroken", description: "Completed the covenant road without defeat.", achievementId: "unbrokenCovenant" },
   { id: "deepdelver", name: "Deepdelver", description: "Conqueror of the realm's three deepest dungeons.", achievementId: "threeDungeonsCleared" },

@@ -74,6 +74,13 @@ Character creation follows:
 - Class boosts apply after base stats.
 - Level progression reaches 20 with class actions, spells, talents, equipment,
   hit-point growth, proficiency increases, and ability-score improvements.
+
+At applied level 6, the character sheet also previews six optional
+[prestige paths](prestige.md). Each has five ranks with explicit class, score
+and world joining conditions. A rank spends one rested level within the same
+total cap of 20. Preview the table and the normal-class features you delay;
+later social changes never remove earned ranks. No affiliation or prestige
+path is required to finish the campaign.
 - At rest, keep advancing the starting class or select a qualified additional
   class. Preview exact frozen gains before each one-level commit. The total
   remains capped at 20, companions remain single-class, and there is no respec.

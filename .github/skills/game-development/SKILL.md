@@ -33,6 +33,11 @@ and changes spanning scenes, systems, data, renderers, or managers.
   `managers/heroProgression.ts`. Preserve normal cap 20, stable starting class,
   single-class companions, frozen rest-ready choices and once-only grants.
   Read [`docs/hero-progression.md`](../../../docs/hero-progression.md).
+- Prestige: six immutable five-rank profiles in `data/prestige.ts`, focused
+  `prestigeActions.ts`/`prestigeLore.ts`, and pure `systems/prestige.ts` details.
+  Use the same live owner context, frozen/rest credits, grants and normalizer.
+  Keep entry-only quest/location/social checks, fixed stats, scoped talents,
+  inherited gear and unaffiliated campaign completion. See `docs/prestige.md`.
 - Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, `Cutscene`,
   `Ending`, and `Defeat`
 - Overworld orchestration: `src/scenes/Overworld.ts`

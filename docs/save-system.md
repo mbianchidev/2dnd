@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v19; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v20; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -48,7 +48,22 @@ relinking and preserves well-formed serialized item ownership.
 
 ## Current schema
 
-`SAVE_VERSION` is **19**. Schema v19 adds authoritative hero class ownership,
+`SAVE_VERSION` is **20**. Schema v20 recognizes the six canonical five-rank
+prestige allocations in `player.classProgression.trackLevels` and optional
+`debugTrackIds`, defaulting to no debug paths. IDs must be registered, ranks
+must be positive integers within five, and total base/prestige ownership must
+not exceed 20. Irreparable path ownership rejects the candidate for per-slot
+staging/backup recovery rather than inventing ranks or resources.
+
+Schema-v19 and earlier saves do not gain prestige ranks or path-only actions.
+Valid base/multiclass ownership, XP, pending/rest credits, frozen receipts,
+legacy/deferred grants, HP/MP and custom equipment links remain intact. Loading
+does not recheck mutable joining evidence or apply delayed/historical bonuses.
+Path-only features cannot be smuggled into legacy/deferred exception lists.
+Only owned canonical debug IDs survive normalization; they exclude natural
+prestige points/titles without changing combat or the campaign.
+
+Schema v19 adds authoritative hero class ownership,
 fixed starting identity, a rest-ready queue and one frozen level receipt.
 Legacy HP/MP/stats/actions/equipment are preserved without rolling historical
 growth or applying bonuses on load. Exceptional canonical legacy grants and

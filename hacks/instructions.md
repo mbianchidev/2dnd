@@ -13,7 +13,9 @@
   launches it on an unused local port, and prints reproducible bundle, startup,
   Boot texture, memory, DOM/listener, and fresh-save metrics. Run
   `npm run test:browser:install` once, then invoke it through
-  `npm run benchmark:baseline`.
+  `npm run benchmark:baseline`. The harness reads canonical `SAVE_VERSION`
+  from the campaign owner and asserts the generated save matches it; schema
+  updates must never bypass or hardcode this measurement guard.
 - `lib/git-provenance.mjs` shares commit/clean-tree/diff-hash collection between
   the performance harness and Steam receipts without following untracked
   symlinks outside the worktree.

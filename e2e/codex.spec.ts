@@ -248,7 +248,7 @@ test("unlocks campaign knowledge and supports the full keyboard Codex flow", asy
   await clickLayoutItem(page, "title-continue");
   await waitForState(page, "[DUNGEON:heartlands_dungeon]");
   save = await readSave(page);
-  expect(save.version).toBe(19);
+  expect(save.version).toBe(20);
   expect(save.codex.unlockedEntryIds).toEqual(expect.arrayContaining([
     "willowdale",
     "foundingOfTheCovenant",

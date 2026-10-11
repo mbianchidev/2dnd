@@ -10,7 +10,7 @@ import {
 } from "../systems/dice";
 import type { Monster, MonsterAbility } from "../data/monsters";
 import { getSpell } from "../data/spells";
-import { getAbility } from "../data/abilities";
+import { getAbility, getAbilityEquipmentRejection } from "../data/abilities";
 import { getTalentAttackBonus, getTalentDamageBonus } from "../data/talents";
 import {
   getAttackModifier,
@@ -21,7 +21,9 @@ import {
   type PlayerState,
 } from "./player";
 import { abilityModifier } from "../systems/dice";
-import { getActorPrimaryStat, getProficiencyBonus } from "./classProgression";
+import {
+  canActorUseSpell, getActorAbilityRejection, getActorPrimaryStat, getProficiencyBonus,
+} from "./classProgression";
 import {
   applyElementalModifier,
   elementDisplayName,
@@ -422,6 +424,12 @@ export function playerCastSpellAtTargets(
       mpUsed: 0,
       results: [],
       healingResults: [],
+    };
+  }
+  if (spell.progressionScope === "track" && !canActorUseSpell(player, spellId)) {
+    return {
+      message: "The acting character has not learned this spell.",
+      damage: 0, hit: false, mpUsed: 0, results: [], healingResults: [],
     };
   }
 
@@ -846,6 +854,9 @@ export function playerUseAbility(
   if (!ability) {
     return { message: "Unknown ability!", damage: 0, hit: false, mpUsed: 0 };
   }
+  const gearRejection = ability.progressionScope === "track"
+    ? getActorAbilityRejection(player, abilityId) : getAbilityEquipmentRejection(ability, player);
+  if (gearRejection) return { message: gearRejection, damage: 0, hit: false, mpUsed: 0 };
 
   if (player.mp < ability.mpCost) {
     return { message: "Not enough MP!", damage: 0, hit: false, mpUsed: 0 };

@@ -14,6 +14,12 @@ import {
 } from "../src/systems/layout";
 
 describe("measured UI layout", () => {
+  it("bounds measured battle pages by both content height and item count", () => {
+    expect(paginateMeasuredItems([20, 20, 20, 20, 20, 20], 200, 0, 5))
+      .toEqual([[0, 1, 2, 3, 4], [5]]);
+    expect(paginateMeasuredItems([60, 60, 60], 125, 6, 5)).toEqual([[0], [1], [2]]);
+    expect(() => paginateMeasuredItems([20], 200, 0, 0)).toThrow(RangeError);
+  });
   it("centers and clamps panels inside safe-area insets", () => {
     expect(centeredRect(
       { x: 0, y: 0, width: 320, height: 240 },

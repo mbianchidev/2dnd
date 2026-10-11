@@ -130,11 +130,11 @@ async function useBattleMenuAction(
   page: Page,
   buttonX: number,
   buttonY: number,
-  menuY: number,
+  actionLayoutId: string,
 ): Promise<void> {
   await waitForState(page, "Phase: playerTurn");
   await clickGame(page, buttonX, buttonY);
-  await clickGame(page, 360, menuY);
+  await clickLayoutItem(page, actionLayoutId);
   await holdKey(page, "Enter", 100);
 }
 
@@ -215,12 +215,12 @@ test("battle, world, mount, companion, boss, and cutscene presentation animate",
   await finishBattle(page);
 
   await startEncounter(page, "orc");
-  await useBattleMenuAction(page, 510, 468, 250);
+  await useBattleMenuAction(page, 510, 468, "battle-spell-huntersMark");
   await waitForPresentation(page, "party:hero:cast:spell");
   await finishBattle(page);
 
   await startEncounter(page, "orc");
-  await useBattleMenuAction(page, 360, 468, 322);
+  await useBattleMenuAction(page, 360, 468, "battle-ability-aimedShot");
   await waitForPresentation(page, "party:hero:ability:ability");
   await finishBattle(page);
 

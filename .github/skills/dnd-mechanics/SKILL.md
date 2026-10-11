@@ -119,6 +119,23 @@ resistance, weakness, and immunity resolve independently per target.
 Healing target scopes are explicit: self, one ally, all allies, or the whole
 party. A single-ally action falls back to self when no ally is present.
 
+Capture exact immutable `ResolvedD20Roll` evidence at canonical resolution.
+Presentation shows both naturals and the selected die without rerolling,
+recalculating outcomes, or changing RNG order. Enemy bonuses/totals and unknown
+AC/DC remain redacted; natural 1/20 checks/saves retain canonical outcomes.
+Damage/healing stay aggregate when exact component rolls are unavailable.
+`ResolvedEffectRoll` captures the actual canonical dice pool and signed named
+modifiers, recorded adjustment stages, resolved amount and separate applied HP
+delta. Preserve finite fractional legacy effects, RNG sequence, source stats,
+status-before-element order, MP/items/economy and hook timing. Real critical
+damage doubles only its existing pool; spell natural-20 flags do not imply new
+damage dice. Area/healing pools remain shared with independent target limits.
+Status ticks show their pools plus the one applied aggregate HP write.
+No fabricated on-hit save, breath-attack d20, fixed-item or life-drain heal die.
+Ordinary roll displays may be Off, but canonical attack critical/fumble outcomes
+always show. Respect the selected natural, never a discarded20/1; keep checks,
+saves and initiative unreclassified. Instant/reduced motion stays static.
+
 ## Elements
 
 `src/data/elements.ts` defines:
@@ -294,6 +311,10 @@ Use deterministic dice mocks for:
 - Status saving throws, ticks, skips, and expiration
 - Elemental immunity/weakness/resistance
 - Status plus elemental damage ordering
+- Exact damage/healing components, critical counts, shared area pools,
+  per-target overkill/nonlethal/max-HP caps and finite fractional custom effects
+- Unchanged RNG call order and next roll, source-owned MP/economy and observer
+  hook timing through validated execution and capture-only presentation
 - Bonus-action scheduling
 - MP and inventory consumption on invalid actions
 - Seeded trap placement, one-shot checks, modifiers, nonlethal consequences,

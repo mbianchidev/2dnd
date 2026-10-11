@@ -34,6 +34,7 @@ system has been discovered. The Escape menu remains the reliable entry point.
 | `K` | Open Gathering after discovering a discipline |
 | `V` | Open Crafting after learning a non-starting recipe |
 | `T` | Mount or dismount after acquiring a mount |
+| `Z` | Skip resolved-dice animation without changing the result |
 
 Pointer and touch users can select visible buttons directly. Touch layouts use
 safe-area-aware movement and action controls. Standard gamepads use the left
@@ -119,6 +120,24 @@ Frightened, Slowed, Prone, Asleep, Confused, Enraged, Hasted, Inspired, Raging,
 and Sneak Stance. Effects resolve on actor turn boundaries and are cleared when
 Battle ends.
 
+Resolved rolls appear in a procedural dice dock, with both advantage/disadvantage
+faces and the selected die identified. Enemy bonuses and undiscovered AC/DC
+remain hidden. Damage and healing show their actual die types/faces, signed
+modifiers, resolved amounts, and effective HP changes. Resistance, immunity,
+defending, overkill, nonlethal limits, and maximum-HP caps stay distinct from
+the original roll. Area effects show one shared pool with separate target
+results. Magic Missile shows damage dice but no attack die; fixed items and
+derived life-drain healing remain aggregate text without invented faces.
+Use Z, L3, or the visible skip button; the last 40 results remain consultable
+across scene handoffs.
+With animation enabled, dice travel and tumble across the game with bouncing
+shadows, then settle on those exact faces. They never intercept controls or
+hold a turn; skip, Instant and reduced motion retain static readable results.
+Roll displays start enabled. Settings can turn ordinary displays Off; natural20
+attack crits and natural1 fumbles always appear. Instant/reduced motion still
+keep mandatory critical feedback static, and Off retains the consultable log.
+See [Dice presentation](dice-presentation.md).
+
 A full party wipe applies one recovery result, autosaves it, reports exact gold
 and XP losses, clears Battle effects, and returns the party to the last town at
 half HP/MP.
@@ -176,6 +195,12 @@ Accessibility and presentation settings include:
 - master, music, SFX, dialog, and mute controls
 - manual or automatic cutscene advance
 - touch visibility, handedness, and prompt-source controls
+- All/Important/Off dice visibility/frequency and Normal/Fast/Instant speed;
+  canonical attack crits/fumbles always show, even with Off
+
+Within Settings, `[` cycles dice frequency and `]` cycles speed. Reduced motion
+keeps immediate static feedback; Off hides ordinary notices but retains critical
+feedback and the consultable redacted log.
 
 Settings are stored separately from campaign progress. See
 [Getting started](getting-started.md#local-save-data) for storage details.

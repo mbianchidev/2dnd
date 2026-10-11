@@ -250,6 +250,30 @@ completion, `F1`, and Esc-menu access.
 
 ## Dice Testing Patterns
 
+`dicePresentation.test.ts`, `effectRollReceipts.test.ts`, `rollReceipts.test.ts`,
+and `diceRenderer.test.ts`
+cover exact natural/component receipts, hidden-stat redaction, selected
+advantage/disadvantage dice, critical/fumble/auto-hit, unchanged RNG/resources,
+native control propagation, runtime logs, and cancellation. Preference v3
+migration/corruption belongs in `accessibility.test.ts`. Real battle,
+damage/healing pools and HP caps, shared area rolls,
+event/trap/gathering/flee, skip, reload, and transition controls belong in
+`e2e/dice-presentation.spec.ts`; do not replace them with synthetic result hooks.
+Assert exact RNG sequence/next roll, source-owned resources, status/element
+ordering, integer faces/counts, finite fractional legacy arithmetic and distinct
+resolved/applied amounts. Filter enemy arithmetic before notices/history.
+`inputRuntime.test.ts` covers poststep touch pulses, successive once-only
+press/keyup, held-owner survival and blur/visibility/disconnect/context/scene/
+destroy cleanup without a later frame. Fishing checks the real persisted
+waitTicks/bite/tension sequence; do not substitute debug resolution or retries.
+`diceMotion.test.ts` owns viewport/count/trajectory/rest and no-RNG checks.
+Real motion coverage samples successive transforms and exact faces, verifies
+pointer transparency/cleanup and writes measured JSON to test.info().outputPath
+before attaching its path. Preserve failed evidence before any recheck; don't
+claim inline/lost attachments or passed thresholds are numeric FPS samples.
+Optional motion-only video uses `DICE_CAPTURE_MOTION=1`; default CI video stays
+off and viewport screenshots must not resize away the animation.
+
 ### Statistical Distribution Testing
 ```typescript
 import { describe, it, expect } from "vitest";
@@ -606,7 +630,7 @@ npx vitest run tests/dice.test.ts
 - Pull request CI installs Chromium and runs the browser suite as a release
   gate. Its concurrency group is ref-scoped so independent review branches do
   not replace one another's pending checks; same-ref runs remain serialized
-  without cancelling an active run.
+  with `cancel-in-progress: false`.
 - Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
   disable trace screenshots and video. Phaser repaints every frame, so the
   filmstrip creates thousands of canvas captures that stall context teardown.

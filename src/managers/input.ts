@@ -31,10 +31,23 @@ interface GamepadSnapshot {
   axes: number[];
 }
 
+interface InputRuntimeScene {
+  readonly scene: { readonly key: string };
+  readonly events: {
+    on(event: "shutdown" | "destroy", listener: () => void): void;
+    off(event: "shutdown" | "destroy", listener: () => void): void;
+  };
+}
+
 interface InputRuntimeGame {
   readonly canvas: HTMLCanvasElement;
+  readonly events: {
+    once(event: "poststep", listener: () => void): void;
+    off(event: "poststep", listener: () => void): void;
+  };
+  readonly scale: { refresh(): void };
   readonly scene: {
-    getScenes(active: boolean): readonly { readonly scene: { readonly key: string } }[];
+    getScenes(active: boolean): readonly InputRuntimeScene[];
   };
 }
 
@@ -72,6 +85,9 @@ const ACTION_KEYS: Partial<Record<InputAction, KeyDescriptor>> = {
   battleTargetNext: { code: "KeyD", key: "d" },
   battleLogUp: { code: "PageUp", key: "PageUp" },
   battleLogDown: { code: "PageDown", key: "PageDown" },
+  fastForwardDice: { code: "KeyZ", key: "z" },
+  settingsDiceFrequency: { code: "BracketLeft", key: "[" },
+  settingsDiceSpeed: { code: "BracketRight", key: "]" },
   cutsceneAdvance: { code: "Space", key: " " },
   cutsceneSkip: { code: "Escape", key: "Escape" },
   inventoryPrevious: { code: "ArrowUp", key: "ArrowUp" },
@@ -130,6 +146,9 @@ export class SemanticInputRuntime {
   private readonly syntheticEvents = new WeakSet<Event>();
   private readonly heldSyntheticKeys = new Map<string, KeyDescriptor>();
   private readonly syntheticKeyOwnership = new InputKeyOwnership();
+  private readonly pulseReleases = new Map<string, () => void>();
+  private pulseSequence = 0;
+  private sceneEvents: InputRuntimeScene["events"] | null = null;
   private animationFrame = 0;
   private activeSceneKey = "";
   private activeContext: InputContext = "overlay";
@@ -143,10 +162,16 @@ export class SemanticInputRuntime {
   private acceptsInput = true;
   private unsubscribePreferences: (() => void) | null = null;
   private unsubscribeFeatures: (() => void) | null = null;
+  private readonly resizeObserver = new ResizeObserver(() => {
+    this.updateDiceInset();
+    this.game.scale.refresh();
+  });
+  private pointerRoot: HTMLElement | null = null;
 
   constructor(private readonly game: InputRuntimeGame) {}
 
   start(): void {
+    this.watchSceneLifecycle();
     window.addEventListener("keydown", this.handleKeyDown, true);
     window.addEventListener("keyup", this.handleKeyUp, true);
     window.addEventListener("gamepadconnected", this.handleGamepadConnection);
@@ -155,9 +180,12 @@ export class SemanticInputRuntime {
     window.addEventListener("focus", this.handleFocus);
     window.addEventListener("resize", this.handleResize);
     document.addEventListener("visibilitychange", this.handleVisibility);
-    this.game.canvas.addEventListener("pointerdown", this.handlePointerSource, true);
+    this.pointerRoot = document.getElementById("game-inner") ?? this.game.canvas;
+    this.pointerRoot.addEventListener("pointerdown", this.handlePointerSource, true);
     this.game.canvas.addEventListener("pointermove", this.handlePointerSource, true);
     this.createTouchControls();
+    const gameContainer = document.getElementById("game-container");
+    if (gameContainer) this.resizeObserver.observe(gameContainer);
     this.createCursor();
     this.unsubscribePreferences = gamePreferences.subscribe(() => {
       this.applyControlPreferences();
@@ -170,6 +198,7 @@ export class SemanticInputRuntime {
   }
 
   destroy(): void {
+    this.unwatchSceneLifecycle();
     window.cancelAnimationFrame(this.animationFrame);
     window.removeEventListener("keydown", this.handleKeyDown, true);
     window.removeEventListener("keyup", this.handleKeyUp, true);
@@ -179,12 +208,14 @@ export class SemanticInputRuntime {
     window.removeEventListener("focus", this.handleFocus);
     window.removeEventListener("resize", this.handleResize);
     document.removeEventListener("visibilitychange", this.handleVisibility);
-    this.game.canvas.removeEventListener("pointerdown", this.handlePointerSource, true);
+    this.pointerRoot?.removeEventListener("pointerdown", this.handlePointerSource, true);
+    this.pointerRoot = null;
     this.game.canvas.removeEventListener("pointermove", this.handlePointerSource, true);
     this.unsubscribePreferences?.();
     this.unsubscribePreferences = null;
     this.unsubscribeFeatures?.();
     this.unsubscribeFeatures = null;
+    this.resizeObserver.disconnect();
     this.touchRoot?.remove();
     this.cursor?.remove();
     this.touchRoot = null;
@@ -198,6 +229,7 @@ export class SemanticInputRuntime {
       this.animationFrame = window.requestAnimationFrame(this.poll);
       return;
     }
+    this.watchSceneLifecycle();
     const sceneKey = this.getActiveSceneKey();
     const context = this.getContext();
     if (sceneKey !== this.activeSceneKey || context !== this.activeContext) {
@@ -241,7 +273,8 @@ export class SemanticInputRuntime {
     this.updatePresentation(source);
   };
 
-  private readonly handleGamepadConnection = (): void => {
+  private readonly handleGamepadConnection = (event: Event): void => {
+    if (event.type === "gamepaddisconnected") this.cancelPulseReleases();
     this.gamepadConnected = navigator.getGamepads().some(Boolean);
     if (!this.gamepadConnected) {
       const released = this.state.releaseMatching("gamepad:");
@@ -312,6 +345,7 @@ export class SemanticInputRuntime {
     }
     for (const index of this.gamepadSnapshots.keys()) {
       if (connectedIndices.has(index)) continue;
+      this.cancelPulseReleases();
       this.gamepadSnapshots.delete(index);
       const released = this.state.releaseMatching(`gamepad:${index}:`);
       for (const entry of released) this.releaseSyntheticToken(entry.token);
@@ -402,6 +436,7 @@ export class SemanticInputRuntime {
     this.updatePresentation(event.source);
     const action = this.contextualizeAction(event.action);
     if (handleTextEntryAction(action)) return;
+    if (this.handleDiceControls(action)) return;
     if (action === "battleLogUp" || action === "battleLogDown") {
       this.dispatchWheel(action === "battleLogUp" ? -120 : 120);
       return;
@@ -413,8 +448,17 @@ export class SemanticInputRuntime {
     if (event.token) {
       this.pressSyntheticToken(event.token, descriptor, event.repeated);
     } else {
-      this.dispatchKey("keydown", descriptor, event.repeated);
-      window.setTimeout(() => this.dispatchKey("keyup", descriptor, false), 0);
+      this.watchSceneLifecycle();
+      const token = `pulse:${++this.pulseSequence}`;
+      const release = (): void => {
+        this.game.events.off("poststep", release);
+        this.pulseReleases.delete(token);
+        this.releaseSyntheticToken(token);
+      };
+      this.pulseReleases.set(token, release);
+      // Phaser polls JustDown during its step; a zero-delay keyup can erase it first.
+      this.game.events.once("poststep", release);
+      this.pressSyntheticToken(token, descriptor, event.repeated);
     }
   }
 
@@ -543,6 +587,8 @@ export class SemanticInputRuntime {
       ArrowDown: 40,
       F1: 112,
       Slash: 191,
+      BracketLeft: 219,
+      BracketRight: 221,
     };
     if (fixed[code] !== undefined) return fixed[code];
     if (code.startsWith("Key") && code.length === 4) {
@@ -552,6 +598,7 @@ export class SemanticInputRuntime {
   }
 
   private releaseAllSyntheticKeys(): void {
+    this.cancelPulseReleases();
     const descriptors = new Map<string, KeyDescriptor>();
     for (const descriptor of this.heldSyntheticKeys.values()) {
       descriptors.set(descriptor.code, descriptor);
@@ -562,6 +609,39 @@ export class SemanticInputRuntime {
       this.dispatchKey("keyup", descriptor, false);
     }
   }
+
+  private cancelPulseReleases(): void {
+    for (const [token, release] of this.pulseReleases) {
+      this.game.events.off("poststep", release);
+      this.releaseSyntheticToken(token);
+    }
+    this.pulseReleases.clear();
+  }
+
+  private watchSceneLifecycle(): void {
+    const events = this.game.scene.getScenes(true)[0]?.events ?? null;
+    if (events === this.sceneEvents) return;
+    this.releaseAllSyntheticKeys();
+    this.unwatchSceneLifecycle();
+    this.sceneEvents = events;
+    events?.on("shutdown", this.handleSceneEnd);
+    events?.on("destroy", this.handleSceneEnd);
+  }
+
+  private unwatchSceneLifecycle(): void {
+    this.sceneEvents?.off("shutdown", this.handleSceneEnd);
+    this.sceneEvents?.off("destroy", this.handleSceneEnd);
+    this.sceneEvents = null;
+  }
+
+  private readonly handleSceneEnd = (): void => {
+    this.unwatchSceneLifecycle();
+    this.releaseAllSyntheticKeys();
+    this.state.clear();
+    closeTextEntry();
+    this.cursorActive = false;
+    this.updateCursor();
+  };
 
   private dispatchWheel(deltaY: number): void {
     this.game.canvas.dispatchEvent(new WheelEvent("wheel", {
@@ -577,6 +657,12 @@ export class SemanticInputRuntime {
       if (target instanceof HTMLButtonElement && target.closest("#mobile-text-input")) {
         target.click();
       }
+      return;
+    }
+    if (target instanceof HTMLElement && target.closest("#dice-presentation")) {
+      const control = target.closest<HTMLElement>("button, summary");
+      control?.focus();
+      control?.click();
       return;
     }
     if (target instanceof HTMLButtonElement) {
@@ -699,6 +785,12 @@ export class SemanticInputRuntime {
     }
   }
 
+  private updateDiceInset(): void {
+    const dice = document.getElementById("dice-presentation");
+    const height = dice && !dice.hidden ? dice.getBoundingClientRect().height : 0;
+    this.touchRoot?.style.setProperty("--touch-dice-inset", `${height}px`);
+  }
+
   private createCursor(): void {
     const cursor = document.createElement("div");
     cursor.id = "gamepad-cursor";
@@ -760,6 +852,31 @@ export class SemanticInputRuntime {
 
   private getActiveSceneKey(): string {
     return this.game.scene.getScenes(true)[0]?.scene.key ?? "";
+  }
+
+  private handleDiceControls(action: InputAction): boolean {
+    const focused = document.activeElement;
+    const dice = document.getElementById("dice-presentation");
+    if (!dice || !(focused instanceof HTMLElement) || !dice.contains(focused)
+      || action === "fastForwardDice") return false;
+    if (action === "confirm" || action === "interact") {
+      focused.click();
+    } else if (action === "cancel" || action === "openMenu") {
+      const history = dice.querySelector("details");
+      if (history) history.open = false;
+      this.game.canvas.tabIndex = -1;
+      this.game.canvas.focus({ preventScroll: true });
+      this.cursorActive = false;
+      this.updateCursor();
+    } else if (action.endsWith("Up") || action.endsWith("Down")) {
+      dice.scrollBy(0, action.endsWith("Up") ? -60 : 60);
+    } else if (action.endsWith("Left") || action.endsWith("Right")) {
+      const controls = [...dice.querySelectorAll<HTMLElement>("button:not(:disabled), summary")];
+      const index = controls.indexOf(focused);
+      const direction = action.endsWith("Left") ? -1 : 1;
+      controls[(index + direction + controls.length) % controls.length]?.focus();
+    }
+    return true;
   }
 
   private getContext(): InputContext {

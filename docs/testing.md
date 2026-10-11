@@ -58,6 +58,11 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   confirmations, and active-source prompts
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
+- exact resolved dice, hidden-information redaction, disadvantage/auto-hit,
+  combined hit/damage and saving-throw evidence, actual healing/trap HP caps,
+  one shared area pool with per-target results,
+  keyboard/touch/gamepad skip/log controls, event/trap/gathering/flee results,
+  preference reload, and runtime-log scene handoffs
 - layout audits at supported text scales and representative desktop/mobile
   viewports
 
@@ -100,6 +105,11 @@ phase timings to distinguish gameplay/import waits from browser/server cleanup.
 
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
 Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
+Native onboarding holds pointer/semantic confirmation across frames and observes each
+screen/mode through debug state before the next action; fixed sleeps and rapid
+pointer/keyboard source switches are not transition evidence.
+Quit is a pointer-down action: observe application closure without sending a
+release to a destroyed page.
 
 ## Performance baseline
 
@@ -135,6 +145,9 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.
+- Setup commands that queue a scene restart must let the new input handlers
+  mount across rendered frames and confirm the saved location/handoff state
+  before sending the gameplay action.
 - Await persisted tutorial completion before leaving opening/controller drains
   or testing pending-mechanic reloads; the first Overworld frame can precede the
   deferred tutorial handoff.
@@ -142,6 +155,40 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
   functional assertions remain primary.
 - Treat page errors, unexpected console errors, overlaps, and clipping as test
   failures.
+- Send visual skip controls while the result is still animating, before slower
+  receipt/text assertions; exact-result evidence remains available afterward.
+- Dice integration asserts source-aware multiclass modifiers without extra RNG
+  or resource use, and controller text-entry ownership before native roll-log
+  actions.
+- Effect-receipt tests retain exact dice sequence, signed/fractional custom
+  bonuses, critical pools, status-before-element adjustments and separately
+  captured applied HP. Fixed/derived amounts cannot gain fabricated faces.
+  Browser checks compare canonical diagnostics with the visible text/pools and
+  assert mobile dock, text and glyph widths at 100%/125%/150%.
+- `diceMotion.test.ts` checks deterministic measured travel, multi-axis tumble,
+  bounce-to-rest, finite viewport/count validation and no RNG/outcome callbacks.
+  The real physical-roll flow samples successive browser-frame transforms,
+  validates exact faces and pointer transparency, then checks natural finish,
+  skip and visibility cleanup. It writes `physical-roll-frame-evidence.json`
+  under the test output path and attaches that file; PR CI retains the result
+  tree on success or failure. Passed thresholds are not inferred FPS/budgets.
+- Discrete touch pulses remain pressed through Phaser poststep. Deterministic
+  input tests cover once-only press/keyup delivery, successive pulses,
+  held-source survival and pending-release cleanup before the next frame.
+  Fishing asserts persisted wait ticks and bite/tension transitions rather
+  than hiding a lost confirm behind timing retries.
+- Optional real-game motion recording uses
+  `DICE_CAPTURE_MOTION=1 npm run test:browser -- e2e/dice-presentation.spec.ts --grep "physical dice game-viewport demo"`.
+  Default CI video remains off. Capture viewport screenshots rather than
+  full-page snapshots: full-page resizing must still cancel a live throw.
+- Select Battle spells by registered stable action/spell layout IDs after
+  normalization; earned-spell additions must not shift fixture hit targets.
+- Native slot navigation observes both pressed and released frames and the
+  exact selected slot and shared same-key debounce interval, rather than
+  assuming an initial row or pulse count.
+- Install legacy-save fixtures at the next document's initialization, not into
+  a live scene whose pending autosaves can replace them. Assert migrated
+  evidence before exercising the UI that depends on it.
 
 The local `#layout-report` and canvas
 `data-layout-overlap-count`/`data-layout-clipping-count` attributes are

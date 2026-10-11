@@ -41,6 +41,8 @@ import { discoverCraftingRecipes } from "../systems/crafting";
 import { reconcileCraftingRecipes } from "../systems/crafting";
 import type { CraftingRecipeId } from "../data/crafting";
 import { createOverlayContainer } from "../utils/ui";
+import { createAggregateDicePresentation } from "../systems/dicePresentation";
+import { presentDiceResult } from "./dicePresentation";
 
 export interface GatheringManagerCallbacks {
   autoSave(): void;
@@ -425,6 +427,15 @@ export class GatheringManager {
     const resolution = resolveGatheringGame(player);
     this.close();
     if (!resolution.resolved) return;
+    presentDiceResult(this.scene, createAggregateDicePresentation({
+      id: pending ? `gathering:${pending.instanceId}:score` : undefined,
+      category: "gathering",
+      label: pending ? GATHERING_DEFINITIONS[pending.discipline].name : "Gathering",
+      outcome: resolution.success ? "success" : "failure",
+      detail: `Score ${resolution.score}`
+        + (resolution.requiredScore !== undefined ? `; required ${resolution.requiredScore}` : "")
+        + `. ${resolution.message} (no d20 roll)`,
+    }), resolution);
     if (resolution.battle) {
       audioEngine.playGatheringResultSFX(false, resolution.rarity);
       this.callbacks.showMessage(resolution.message, "#ffb74d");

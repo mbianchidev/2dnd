@@ -27,6 +27,7 @@ on discovering and playing the game.
 - [Desktop application](desktop.md)
 - [Steam preparation](steam.md)
 - [Inventory presentation](inventory.md)
+- [Resolved dice presentation](dice-presentation.md)
 
 Repository-wide constraints remain authoritative in
 [`.github/copilot-instructions.md`](../.github/copilot-instructions.md).

@@ -186,6 +186,7 @@ playNewSFX(): void {
 | `playGatheringStartSFX(discipline)` | Discipline-specific start cue | Gathering begins |
 | `playGatheringActionSFX(discipline, action)` | Short input feedback | Gathering input |
 | `playGatheringResultSFX(success, rarity)` | Success/failure rarity phrase | Gathering resolves |
+| `playDiceCue(outcome)` | Deterministic short oscillator phrase; returns cleanup | Already-resolved dice presentation |
 
 ### Footstep Terrain Mapping
 The `playFootstepSFX(terrainType)` method uses the Terrain enum value to pick filter parameters:
@@ -222,3 +223,5 @@ expect(() => audioEngine.playAttackSFX()).not.toThrow(); // no-op without AudioC
 - ❌ Don't leave ended cutscene oscillators or gain nodes connected
 - Battle presentation owns action-cue selection so scenes do not play the same
   synthesized cue twice.
+- Dice cues must not use shared RNG or noise buffers. Their scene-owned manager
+  cancels cues on replacement, skip, preference changes, and shutdown.

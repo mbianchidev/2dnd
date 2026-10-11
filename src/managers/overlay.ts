@@ -43,7 +43,6 @@ import { getPlayerClass } from "../systems/classes";
 import {
   getActorStartingClass,
   getProficiencyBonus,
-  getSpellCastingStat,
   prepareHeroLevelUp,
   prepareNextHeroLevelUp,
 } from "../systems/classProgression";
@@ -51,6 +50,8 @@ import { HeroProgressionManager } from "./heroProgression";
 import { abilityModifier } from "../systems/dice";
 import { CYCLE_LENGTH } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
+import { createEffectDicePresentation } from "../systems/dicePresentation";
+import { presentDiceResult } from "./dicePresentation";
 import {
   CONTINENTS,
   MERCHANT_ROUTES,
@@ -77,7 +78,7 @@ import {
   layoutResponsiveGrid,
   restoreLayoutFocus,
 } from "../systems/layout";
-import { TILE_SIZE } from "../config";
+import { TILE_SIZE, debugLog } from "../config";
 import {
   getQuestAccessDecision,
   getQuestDangerState,
@@ -323,7 +324,7 @@ export class OverlayManager {
       }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
       const pg = tabs[t].page;
       tab.on("pointerdown", () => { this.equipPage = pg; this.buildEquipOverlay(player); });
-      if (tabs[t].page === "skills") this.addProgressionLink(tab, "equip-skills-tab");
+      if (tabs[t].page === "skills") this.addMeasuredAction(tab, "equip-skills-tab");
       else this.equipOverlay.add(tab);
       if (this.equipPage === tabs[t].page) {
         ulGfx.lineBetween(tx - 28, tabY + 16, tx + 28, tabY + 16);
@@ -346,7 +347,7 @@ export class OverlayManager {
     this.equipOverlay.add(hint);
   }
 
-  private addProgressionLink(text: Phaser.GameObjects.Text, id: string): void {
+  private addMeasuredAction(text: Phaser.GameObjects.Text, id: string): void {
     const group = createOverlayContainer(this.scene, id, 0, {
       x: 0, y: 0, width: this.scene.cameras.main.width, height: this.scene.cameras.main.height,
     });
@@ -377,7 +378,7 @@ export class OverlayManager {
       wordWrap: { width: w },
     }).setInteractive({ useHandCursor: true });
     progression.on("pointerdown", () => this.showProgressionOverlay(player));
-    this.addProgressionLink(progression, "hero-progression-open");
+    this.addMeasuredAction(progression, "hero-progression-open");
     cy += progression.displayHeight + 6;
     cy += 6;
 
@@ -836,9 +837,7 @@ export class OverlayManager {
         const dmgOrHeal = spell.type === "heal" ? "heal" : "dmg";
         const hasDice = spell.damageDie > 0 && spell.damageCount > 0;
         const diceStr = hasDice ? `${spell.damageCount}d${spell.damageDie}` : "";
-        const primaryMod = abilityModifier(p.stats[getSpellCastingStat(p, spellId)]);
-        const modStr = primaryMod >= 0 ? `+${primaryMod}` : `${primaryMod}`;
-        const diceInfo = hasDice ? `  ${diceStr}${modStr} ${dmgOrHeal}` : "";
+        const diceInfo = hasDice ? `  ${diceStr} base ${dmgOrHeal}` : "";
         const isUsable = spell.type === "heal" || spell.type === "utility";
         let canCast = false;
         if (isUsable) {
@@ -860,6 +859,16 @@ export class OverlayManager {
             txt.on("pointerout", () => txt.setColor(baseColor));
             txt.on("pointerdown", () => {
               const result = castSpellOutsideCombat(p, spell.id);
+              if (result.healingRoll) {
+                debugLog("[dice] receipt", {
+                  kind: "healing", actorId: "party:hero", targetId: "party:hero",
+                  actionId: spell.id, healing: result,
+                });
+                presentDiceResult(this.scene, createEffectDicePresentation(result.healingRoll, {
+                  category: "healing", label: `${p.name} ${spell.name}`,
+                  actorId: "party:hero", targetId: "party:hero", actionId: spell.id, outcome: "success",
+                }), result);
+              }
               if (result.teleport) {
                 this.pendingTeleportCost = spell.mpCost;
                 this.toggleEquipOverlay(player);
@@ -873,7 +882,8 @@ export class OverlayManager {
             });
           }
         }
-        this.equipOverlay!.add(txt);
+        if (spell.type === "heal" && canCast) this.addMeasuredAction(txt, `equip-spell-${spell.id}`);
+        else this.equipOverlay!.add(txt);
         const desc = this.scene.add.text(px + 30, cy + 14,
           spell.description,
           { fontSize: "9px", fontFamily: "monospace", color: "#888", wordWrap: { width: panelW - 50 } },
@@ -923,10 +933,8 @@ export class OverlayManager {
         const dmgOrHeal = ability.type === "heal" ? "heal" : "dmg";
         const hasDice = ability.damageDie > 0 && ability.damageCount > 0;
         const diceStr = hasDice ? `${ability.damageCount}d${ability.damageDie}` : "";
-        const aMod = abilityModifier(p.stats[ability.statKey]);
-        const aModStr = aMod >= 0 ? `+${aMod}` : `${aMod}`;
         const bonusTag = ability.bonusAction ? " [bonus]" : "";
-        const diceInfo = hasDice ? `  ${diceStr}${aModStr} ${dmgOrHeal}` : "";
+        const diceInfo = hasDice ? `  ${diceStr} base ${dmgOrHeal}` : "";
         const isUsable = ability.type === "heal" || ability.type === "utility";
         let canUse = isUsable && p.mp >= ability.mpCost && (ability.type !== "heal" || p.hp < p.maxHp);
         // Special usability checks for shortRest and evac
@@ -952,6 +960,16 @@ export class OverlayManager {
             txt.on("pointerout", () => txt.setColor(baseColor));
             txt.on("pointerdown", () => {
               const result = useAbilityOutsideCombat(p, ability.id, true);
+              if (result.healingRoll) {
+                debugLog("[dice] receipt", {
+                  kind: "healing", actorId: "party:hero", targetId: "party:hero",
+                  actionId: ability.id, healing: result,
+                });
+                presentDiceResult(this.scene, createEffectDicePresentation(result.healingRoll, {
+                  category: "healing", label: `${p.name} ${ability.name}`,
+                  actorId: "party:hero", targetId: "party:hero", actionId: ability.id, outcome: "success",
+                }), result);
+              }
               if (result.teleport) {
                 this.pendingTeleportCost = ability.mpCost;
                 this.toggleEquipOverlay(player);
@@ -984,7 +1002,8 @@ export class OverlayManager {
             });
           }
         }
-        if (ability.id === "shortRest") this.addProgressionLink(txt, "hero-short-rest");
+        if (ability.id === "shortRest") this.addMeasuredAction(txt, "hero-short-rest");
+        else if (ability.type === "heal" && canUse) this.addMeasuredAction(txt, `equip-ability-${ability.id}`);
         else this.equipOverlay!.add(txt);
         const desc = this.scene.add.text(px + 30, cy + 14,
           ability.description,

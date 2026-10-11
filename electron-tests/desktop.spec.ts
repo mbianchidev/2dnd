@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SAVE_SLOT_KEY_DEBOUNCE_MS } from "../src/systems/saveSlots";
 import {
   APP_ROOT,
   closeDesktop,
@@ -31,12 +32,11 @@ interface DesktopSaveSummary {
   readonly appearanceId: string;
 }
 
-async function clickGame(
+async function gamePoint(
   page: Page,
   gameX: number,
   gameY: number,
-  activation: "held" | "terminal" = "held",
-): Promise<void> {
+): Promise<{ x: number; y: number }> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
   await page.evaluate(() => new Promise<void>((resolve) => {
@@ -44,15 +44,25 @@ async function clickGame(
   }));
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
-  const x = bounds.x + (gameX / GAME_WIDTH) * bounds.width;
-  const y = bounds.y + (gameY / GAME_HEIGHT) * bounds.height;
+  return {
+    x: bounds.x + (gameX / GAME_WIDTH) * bounds.width,
+    y: bounds.y + (gameY / GAME_HEIGHT) * bounds.height,
+  };
+}
+
+async function clickGame(
+  page: Page,
+  gameX: number,
+  gameY: number,
+  activation: "held" | "terminal" = "held",
+): Promise<void> {
+  const point = await gamePoint(page, gameX, gameY);
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.down();
   if (activation === "terminal") {
-    await page.mouse.click(x, y);
     return;
   }
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.waitForTimeout(120);
+  await page.waitForTimeout(180);
   await page.mouse.up();
   await page.evaluate(() => new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
@@ -97,6 +107,31 @@ async function activateSlotAction(
   throw new Error(`Unable to select desktop save action: ${action}`);
 }
 
+async function selectSlot(page: Page, slotIndex: 1 | 2): Promise<void> {
+  const slots = ["autosave", "manual-1", "manual-2"] as const;
+  for (let index = 0; index <= slotIndex; index += 1) {
+    const marker = `[SAVE_SLOT:${slots[index]}]`;
+    await page.keyboard.down(index === 0 ? "Home" : "ArrowDown");
+    const pressedAt = await page.evaluate(() => performance.now());
+    try {
+      await waitForState(page, marker);
+      await page.evaluate(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }));
+    } finally {
+      await page.keyboard.up(index === 0 ? "Home" : "ArrowDown");
+    }
+    await page.evaluate(({ pressedAt, debounce }) => new Promise<void>((resolve) => {
+      const releasedFrame = (timestamp: number): void => {
+        if (timestamp - pressedAt < debounce) requestAnimationFrame(releasedFrame);
+        else requestAnimationFrame(() => resolve());
+      };
+      requestAnimationFrame(releasedFrame);
+    }), { pressedAt, debounce: SAVE_SLOT_KEY_DEBOUNCE_MS });
+    await waitForState(page, marker);
+  }
+}
+
 async function returnToTitle(page: Page): Promise<void> {
   await holdKey(page, "Escape");
   await waitForState(page, "[MENU]");
@@ -118,6 +153,7 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await expect(nameInput).toBeVisible();
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
+  await expect(nameInput).not.toBeVisible();
   await clickGame(page, 284, 160);
   await waitForState(page, "[CLASS:ranger]");
   await holdKey(page, "Enter");
@@ -126,8 +162,9 @@ async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await waitForState(page, "[MODE:random]");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: appearance");
-  await clickGame(page, 320, 112);
+  await holdKey(page, "ArrowRight");
   await holdKey(page, "Enter");
+  await waitForState(page, "CUTSCENE | campaign.opening");
 
   await expect.poll(async () => page.evaluate((key) => {
     const raw = localStorage.getItem(key);
@@ -302,7 +339,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
 
     await activateTitleAction(page, "saveSlots");
     await waitForState(page, "[SAVE_SLOTS:load]");
-    await holdKey(page, "ArrowDown", 80);
+    await selectSlot(page, 1);
     await waitForState(page, "[SAVE_SLOT:manual-1]");
     await expect(page.locator("#save-slot-live-region")).toContainText(
       "Desktop Hero Lv.1 Ranger",
@@ -367,8 +404,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await waitForState(page, "BOOT | Screen: title");
     await activateTitleAction(page, "saveSlots");
     await waitForState(page, "[SAVE_SLOTS:load]");
-    await holdKey(page, "ArrowDown", 80);
-    await holdKey(page, "ArrowDown", 80);
+    await selectSlot(page, 2);
     await waitForState(page, "[SAVE_SLOT:manual-2]");
     await expect(page.locator("#save-slot-live-region")).toContainText(
       "Desktop Second Hero Lv.1 Ranger",

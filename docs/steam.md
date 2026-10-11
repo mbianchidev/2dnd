@@ -91,6 +91,8 @@ staged hashes. The runtime excludes source maps, screenshots/showcase assets,
 tests, source trees, development dependencies, credentials, SDK files, logs,
 saves and Chromium profile databases. Unknown native runtime files fail the
 gate rather than being silently copied or silently removed.
+The application archive permits only game-prefixed Vite JavaScript/CSS assets;
+showcase styles and asset source maps remain excluded.
 
 The package includes AGPL, Phaser/EventEmitter3 MIT and Electron/Chromium
 notices. `SOURCE.2dnd.txt` identifies its source commit and is generated
@@ -195,7 +197,9 @@ Start from a Steam gamepad-emulation template: D-pad/left stick navigate, south
 confirms, east cancels, west interacts/edits names, north/Menu opens menus,
 View opens Tips, bumpers change Battle targets/Codex categories and triggers
 scroll the Battle log. Right stick moves the existing virtual cursor and R3
-clicks it, including the native fullscreen DOM control. An optional right
+clicks it, including the native fullscreen and resolved-dice log controls.
+Left-stick press skips dice motion without delaying mechanics. Dice frequency
+and speed remain available through the Settings controls. An optional right
 trackpad may emulate the right stick; avoid duplicate mouse/gamepad outputs.
 All other unlocked actions are reached through their menus/pointer-first
 controls. Keep Steam, Quick Access and Shift+Tab reserved to the client.

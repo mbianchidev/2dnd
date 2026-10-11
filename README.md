@@ -45,6 +45,14 @@ and campaign saves stay in your browser's local storage.
 - **Fight tactical battles:** face groups of up to four enemies with initiative,
   formations, ally and enemy targeting, nine elements, status effects, healing,
   items, bosses, and full-party defeat recovery.
+- **See the real rolls:** procedural dice display natural attack/save rolls,
+  modifiers, totals, exact damage/healing pools, and actual HP changes.
+  Dice travel, tumble and bounce over the game before settling on those exact
+  faces. Advantage/disadvantage selection and shared area rolls stay truthful without
+  delaying mechanics or revealing hidden enemy stats. Skip motion or consult
+  the bounded runtime roll log.
+  Rolls start enabled and ordinary displays are easy to disable; attack
+  natural20 crits and natural1 fumbles always show (static with reduced motion).
 - **Explore a changing world:** travel through connected city districts,
   multi-level dungeons, seeded traps, fog of war, weather, day and night,
   non-combat skill checks, World Events, and optional danger zones.
@@ -136,6 +144,7 @@ Use `npm run dev:desktop` for Electron development and
 | [Release](docs/release.md) | GitHub Pages and release checklist |
 | [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |
 | [Inventory presentation](docs/inventory.md) | Ownership-safe sorting, filtering, controls, transfers |
+| [Dice presentation](docs/dice-presentation.md) | Exact resolved dice, discovery policy, controls, runtime logs |
 
 ## Contributing
 

@@ -30,7 +30,7 @@ continuation, plus deterministic fishing, mining, and foraging minigames.
 - Vitest 5.0.3
 - Playwright 1.63.0
 - happy-dom 20.14.5
-- Electron 44.5.1
+- Electron 44.7.0
 - electron-builder 26.17.0
 - Modern browsers, ES2020 target
 
@@ -576,6 +576,26 @@ Flow:
   combatant ID. Resolve mechanics first, then animate the immutable result;
   never consume resources twice or make turn/result transitions depend on a
   tween callback.
+- Dice presentation consumes immutable `rollResults.ts` receipts through the
+  redacting `systems/dicePresentation.ts` mapper and scene-owned dice manager.
+  Show exact naturals/selection and permitted signed modifiers/totals; hide
+  enemy bonuses/intermediate arithmetic and unknown AC/DC,
+  preserve Magic Missile auto-hit, and never reroll or delay mechanics.
+  `effectRolls.ts` captures actual damage/healing faces, named signed modifiers,
+  recorded status/element/defense adjustments and separately applied HP deltas
+  at their existing owners. Keep shared area pools shared and finite fractional
+  legacy item effects unchanged. Fixed/derived amounts never gain invented dice.
+  Snapshots retain only scalars/stable actor/action IDs; redact before notices
+  and normal/runtime log storage.
+  `diceMotion.ts` owns deterministic measured travel, multi-axis tumble and
+  bouncing shadows over the game viewport, never outcome-deciding physics.
+  Keep the visual layer pointer-transparent, inside safe game bounds and
+  cleanup-owned. Instant/reduced motion, skip, visibility loss, replacement
+  and scene shutdown remove motion immediately without focus/input blocking.
+  The bounded roll log survives handoffs only at runtime; Boot/reload clears it.
+  Ordinary displays default enabled and can be turned Off; canonical attack
+  selected-natural20 criticals and selected-natural1 fumbles always show even
+  with Off. Honor Instant/reduced motion and preserve real check/save outcomes.
 - Idle, attack, cast, ability, item, defend, damage, victory, faint, and flee
   states must have once-only completion, a duration-plus-grace visual recovery
   path, and explicit cleanup on battle handoff or scene shutdown.
@@ -961,6 +981,9 @@ Audio and accessibility preferences are not campaign save fields. The versioned
 `2dnd_preferences` document is normalized by `src/systems/accessibility.ts`,
 migrates the legacy audio and cutscene-accessibility keys, and notifies live
 title/in-game settings consumers immediately.
+Preference v3 adds `dice.frequency` (all/important/off) and `dice.speed`
+(normal/fast/instant), with All/Normal legacy/corruption defaults. Campaign
+schema is independent. Dice receipts and presentation logs never enter a save.
 
 When persistent data changes:
 
@@ -996,6 +1019,8 @@ Data-driven campaign scenes route short typed cues through
 `audioEngine.playCutsceneCue()`. Disconnect ended cue oscillators and gain nodes.
 Battle presentation routes spell, ability, defend, flee, and faint cues through
 the synthesized SFX graph; do not duplicate cues in scene-local action code.
+`audioEngine.playDiceCue()` uses deterministic oscillators, returns a cancel
+function, and must not consume shared RNG. The dice manager owns cancellation.
 Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 `audioEngine.playTrapSFX()`. Do not add external audio.
 
@@ -1063,6 +1088,10 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   destinations cancel before the outer slot manager closes.
 - Clear held input and synthetic keys on blur, visibility loss, gamepad
   disconnect, scene changes, and runtime destruction.
+- Discrete touch pulses use owned tokens and release after Phaser poststep so
+  scene `JustDown` polling observes the press. Cancel pending release/listeners
+  on every cleanup boundary; never release another held owner or deliver stale
+  callbacks to a replacement scene. Preserve text-entry/log priority.
 - Resolve key conflicts by semantic context/priority. Never map production
   controls to debug cheat actions.
 - Prompts and focus state must adapt to the selected/active source using text or

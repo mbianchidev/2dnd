@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clickLayoutItem, tapLayoutItem } from "./helpers/layout";
+import { SAVE_VERSION } from "../src/systems/save";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -395,18 +396,28 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   };
 
   await createCampaign(page);
-  await page.evaluate((saveKey) => {
+  const legacySave = await page.evaluate((saveKey) => {
     const save = JSON.parse(localStorage.getItem(saveKey)!) as BrowserSave;
     save.version = 9;
     save.player.progression.tutorial.completed = true;
     save.codex.entries.slime = { timesDefeated: 4 };
     delete (save.codex as Partial<BrowserSave["codex"]>).unlockedEntryIds;
-    localStorage.setItem(saveKey, JSON.stringify(save));
+    return JSON.stringify(save);
   }, SAVE_KEY);
+  await page.addInitScript(({ saveKey, raw }) => {
+    const marker = "codexLegacySaveInitialized";
+    if (sessionStorage.getItem(marker)) return;
+    localStorage.setItem(saveKey, raw);
+    sessionStorage.setItem(marker, "true");
+  }, { saveKey: SAVE_KEY, raw: legacySave });
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
   await clickLayoutItem(page, "title-continue");
   await waitForState(page, "OVERWORLD");
+  const loadedLegacy = await readSave(page);
+  expect(loadedLegacy.version).toBe(SAVE_VERSION);
+  expect(loadedLegacy.codex.entries.slime.timesDefeated).toBe(4);
+  expect(Array.isArray(loadedLegacy.codex.unlockedEntryIds)).toBe(true);
   await submitDebug(page, "/feature reveal codexLocation");
 
   await setAxes([0, 0, 0.8, 0]);
@@ -429,7 +440,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   await waitForState(page, "OVERWORLD");
 
   const migrated = await readSave(page);
-  expect(migrated.version).toBe(20);
+  expect(migrated.version).toBe(SAVE_VERSION);
   expect(migrated.codex.entries.slime.timesDefeated).toBe(4);
   expect(Array.isArray(migrated.codex.unlockedEntryIds)).toBe(true);
   expect(errors).toEqual([]);

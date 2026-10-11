@@ -12,7 +12,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Product | Browser/Electron JRPG, release v1.1.0 |
 | Runtime | Phaser 4.2.1 |
 | Language | TypeScript 7.0.2, strict, ES2020 |
-| Build/test | Vite 8.3.2, Electron 44.5.1, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.63.0 |
+| Build/test | Vite 8.3.2, Electron 44.7.0, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.63.0 |
 | DOM tests | happy-dom 20.14.5 |
 | Save schema | 20 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
@@ -26,6 +26,7 @@ future work until merged.
 | Domain | Data/contracts | Mechanics/state | Phaser/presentation | Tests |
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
+| Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, `effectRolls.ts`, redacted `dicePresentation.ts`, visual `diceMotion.ts` | dice/battleDice managers, procedural SVG dock/throw layer | dicePresentation/effectRollReceipts/rollReceipts/diceMotion/diceRenderer and dice E2E |
 | Hero progression | `src/data/classProgression.ts`, canonical class/action/talent definitions | `classProgression.ts`, `classProgressionState.ts`, `heroItemState.ts`, `classProgressionDebug.ts` | `heroProgression.ts`, rest/equipment adapters | progression/state/item/debug/battle/layout suites, multiclass E2E |
 | Prestige paths | `prestige.ts`, `prestigeActions.ts`, `prestigeLore.ts` | same progression engine/context/normalizer; `systems/prestige.ts` for inspection | existing hero progression manager | prestige/entry/save/battle suites, prestige browser/Electron flows |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
@@ -101,6 +102,20 @@ owning issue or pull request.
   content is installed. Path-only talents never enter generic scans.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
+- Dice views consume exact immutable receipts, redact hidden AC/DC and enemy
+  modifiers/totals, never use shared RNG, and never create an input-block reason.
+  Scene cleanup stops motion/cues; the last 40 redacted results remain runtime-only.
+- Damage/healing receipts separate real faces/signed modifiers, recorded
+  adjustments, resolved amounts and actual HP deltas. Capture at the existing
+  roll/write owner, preserve RNG/hook timing and finite fractional legacy
+  effects, render shared area pools once, and never fabricate fixed/derived dice.
+- Physical dice motion uses deterministic measured travel/tumble/bounce over
+  the game, not outcome-deciding physics/RNG. Keep its layer pointer-transparent,
+  its faces exact and its objects/listeners cleanup-owned. Instant/reduced
+  motion and skip stay immediate; never wait on a throw to advance mechanics.
+- Ordinary roll displays default to All and may be turned Off. Canonical attack
+  critical/fumble feedback always remains visible, including with Off, while
+  Instant/reduced motion stays static. Never reclassify checks/saves/initiative.
 - Use stable IDs for combatants, quests/stages/objectives/rewards, cutscenes,
   shops, traps, events, recipes, transactions, features, and layout items.
 - Persist authority, not derived presentation. Every schema change requires
@@ -111,6 +126,9 @@ owning issue or pull request.
 - Shared `systems/textEntry.ts` / `managers/textEntry.ts` own the controller
   keyboard for names/slot labels/search, modal isolation, cancellation and
   focus restoration; the input adapter re-exports the existing text-entry API.
+- Shared discrete pulses release after Phaser poststep, with owned tokens and
+  listeners cleaned on blur/visibility/disconnect/context/scene/destruction.
+  A pulse never releases another held owner or reaches a replacement scene.
 - Steam SDK, Steam achievements, Cloud and native Steam Input API are disabled.
   Stage native Linux x64, Windows x64 and inspected macOS universal payloads;
   never sync Chromium profiles or claim Proton/Deck/partner validation from
@@ -139,6 +157,7 @@ owning issue or pull request.
 | Docs copied from an issue or branch | Verify current `main`, source constants, package manifest, and merged PR |
 | Parallel features merged in arbitrary order | Identify shared files, choose dependency order, rebase after prerequisite, preserve both contracts |
 | Targeted tests only | Full typecheck, Vitest, Playwright, build, audit, CI, and CodeQL before completion |
+| Other branches replacing queued CI | Scope the PR web concurrency group to `github.ref`; retain `cancel-in-progress: false` |
 | Growing scenes/overlays | Extract focused system, manager, renderer, or data module |
 
 ## Change checklists

@@ -13,7 +13,9 @@ import {
   type TrapState,
 } from "../data/traps";
 import { getTalent } from "../data/talents";
-import { abilityModifier, rollDice } from "./dice";
+import { abilityModifier } from "./dice";
+import { captureEffectApplication, rollEffectDice } from "./effectRolls";
+import type { ResolvedEffectRoll } from "./rollResults";
 import { awardXP, type PlayerState } from "./player";
 import { resolveSkillCheck, rollSkillCheck } from "./skillChecks";
 import { applyStatusEffect } from "./statusEffects";
@@ -54,6 +56,7 @@ export interface TrapTriggerResult {
   dropsLevel: boolean;
   statusApplied?: string;
   message: string;
+  readonly damageRoll?: ResolvedEffectRoll;
 }
 
 export interface TrapDropDestination {
@@ -420,7 +423,8 @@ export function getTrapEntryDisposition(
 export function triggerDungeonTrap(
   player: PlayerState,
   trap: DungeonTrap,
-  damageRoller: (count: number, sides: TrapDie) => number = rollDice,
+  damageRoller: (count: number, sides: TrapDie) => number | ResolvedEffectRoll =
+    (count, sides) => rollEffectDice(count, sides, [], { minimum: 0 }),
 ): TrapTriggerResult {
   const state = player.progression.trapStates[trap.id];
   if (state === "disarmed" || state === "triggered") {
@@ -436,9 +440,9 @@ export function triggerDungeonTrap(
 
   player.progression.trapStates[trap.id] = "triggered";
   const definition = getTrapDefinition(trap.type);
-  const rolledDamage = definition.damage
-    ? Math.max(0, damageRoller(definition.damage.count, definition.damage.sides))
-    : 0;
+  const rolled = definition.damage
+    ? damageRoller(definition.damage.count, definition.damage.sides) : 0;
+  const rolledDamage = Math.max(0, typeof rolled === "number" ? rolled : rolled.amount);
   const damage = Math.min(Math.max(0, player.hp - 1), rolledDamage);
   player.hp -= damage;
 
@@ -466,6 +470,9 @@ export function triggerDungeonTrap(
   return {
     triggered: true,
     damage,
+    ...(typeof rolled !== "number" ? {
+      damageRoll: captureEffectApplication(rolled, damage, "Nonlethal"),
+    } : {}),
     mpLoss,
     startsEncounter: definition.startsEncounter === true,
     dropsLevel: definition.dropsLevel === true,

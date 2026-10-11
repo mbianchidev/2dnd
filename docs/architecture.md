@@ -13,7 +13,7 @@
 | Vitest | 5.0.3 |
 | Playwright | 1.63.0 |
 | happy-dom | 20.14.5 |
-| Electron | 44.5.1 |
+| Electron | 44.7.0 |
 | electron-builder | 26.17.0 |
 | Campaign save schema | 20 |
 
@@ -119,6 +119,11 @@ dialog, modal isolation, live accessibility, once-only commit/cancel and focus
 restoration. The input adapter re-exports `openMobileTextInput()` and routes
 semantic actions to this dialog before emitting game keys. The right-stick
 cursor also reaches existing desktop DOM controls.
+Discrete touch pulses release at the complete Phaser poststep boundary, not a
+zero-delay timer that can erase `JustDown` before scene polling. The shared
+adapter owns pulse tokens and scene listeners, preserves other held owners,
+and clears pending releases on blur, visibility, disconnect, context/scene
+change and destruction.
 
 Feature visibility and action gating live in
 `src/data/featureDiscovery.ts` and `src/systems/featureDiscovery.ts`. Hidden
@@ -174,6 +179,27 @@ target, formation, status, element, or economy rules.
 Mechanics resolve before presentation. Actor animation receives stable IDs and
 immutable outcomes; tweens never apply damage, spend resources, or control
 authoritative turn/result transitions.
+
+`rollResults.ts` captures exact immutable natural-die/effect receipts;
+`effectRolls.ts` retains canonical damage/healing faces, signed modifiers,
+recorded adjustments, resolved amounts and the HP delta at its owning write.
+It preserves existing RNG order, shared area pools, finite fractional custom
+item effects, resource use and result-hook timing; scene adapters only capture
+their existing shield/healing writes. `dicePresentation.ts`
+projects only permitted information and owns a bounded runtime log. The
+scene-owned dice manager, procedural SVG dock and pointer-transparent game
+throw layer consume those results without
+RNG, resource mutations, input-block reasons, or gameplay completion callbacks.
+They cancel visual/audio work on shutdown while retaining redacted log evidence
+across handoffs. See [Dice presentation](dice-presentation.md).
+`diceMotion.ts` owns measured deterministic travel, multi-axis tumble, bounce
+and settled layout, not physics that determines faces. Normal/Fast take
+900/300 ms; Instant/reduced motion stay static. Ordinary rolls default enabled
+and may be Off, while canonical attack crit/fumble feedback always shows without
+reclassifying checks/saves/initiative. Skip, replacement, window
+visibility/resize and scene cleanup cancel owned visual work without delaying
+mechanics or stealing focus. Motion evidence files/video are test artifacts,
+not gameplay/save data or a portable performance budget.
 
 ## Hero progression authority
 

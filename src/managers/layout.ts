@@ -30,6 +30,7 @@ export function subscribeOverlayReflow(scene: Phaser.Scene, render: () => void):
     scene.events.once(Phaser.Scenes.Events.POST_UPDATE, flush);
   };
   const flush = (): void => {
+    if (disposed) return;
     if (scene.input.activePointer.isDown) {
       scene.events.once(Phaser.Scenes.Events.POST_UPDATE, flush);
       return;

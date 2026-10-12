@@ -140,7 +140,9 @@ bars, swatches, and hero previews. A clean outer rectangle alone does not prove
 that its text is readable.
 
 `subscribeOverlayReflow()` coalesces preference/source/resize changes at a frame
-boundary and defers replacement while a pointer is held. Character creation
+boundary and defers replacement while a pointer is held. Disposal also
+invalidates callbacks already captured by the current event emission, preventing
+reflow against text destroyed by a menu or scene handoff. Character creation
 keeps cosmetic choices and rolled/allocated scores in the owner while the
 appearance manager and stat renderer rebuild only presentation. Save and
 achievement renderers measure wrapped sections and paginate available space;

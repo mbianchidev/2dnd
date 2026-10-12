@@ -78,6 +78,8 @@ and campaign saves stay in your browser's local storage.
   Seeded recovery, personal boards, free skill practice, and finite medal
   rewards keep those activities independent from campaign completion.
 - **Play your way:** use keyboard, pointer, touch, or a standard gamepad.
+  Choose Story, exact-baseline Standard, Veteran, Legendary, or bounded Custom
+  campaign rules with explicit effect and achievement previews.
   Accessibility settings include 100%/125%/150% text, high contrast, reduced
   motion, adjustable audio, cutscene advance options, and adaptive prompts.
   Character creation, stats, equipment, achievements, and campaign slots use
@@ -161,7 +163,8 @@ Use `npm run dev:desktop` for Electron development and
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v25, slots, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v26, slots, migration, recovery, persistence rules |
+| [Difficulty and Custom rules](docs/difficulty.md) | Profiles, bounds, economy, recovery, eligibility, extension APIs |
 | [Physical combat](docs/physical-combat.md) | Weapon types, monster sizes, aimed parts, local defenses and discovery |
 | [Fictional devotion](docs/devotion.md) | Original pantheon, temples, rites, independent scores, optional stories |
 | [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |

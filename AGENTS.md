@@ -14,7 +14,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.4, Electron 44.7.0, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.64.0 |
 | DOM tests | happy-dom 20.14.6 |
-| Save schema | 25 |
+| Save schema | 26 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -26,6 +26,7 @@ future work until merged.
 | Domain | Data/contracts | Mechanics/state | Phaser/presentation | Tests |
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
+| Difficulty/rules | `src/data/difficulty.ts` | `difficulty.ts`, `difficultyState.ts`, `difficultyEditor.ts`, `enemyTactics.ts` | focused difficulty manager, creation/settings/slots | frozen baseline, per-mode domain suites, difficulty E2E |
 | Timed decisions | `src/data/battleTiming.ts` | `battleTiming.ts`, `battleTimingSettings.ts` | Battle/timing/decision-menu managers | timing/scene/save/input tests + timed-battle E2E |
 | Physical/anatomy combat | `damageTypes.ts`, `anatomy.ts`, `itemCombat.ts`, monster metadata | `physicalCombat.ts`, existing combat/action owners and Codex normalization | shared `battleBodyTarget.ts`, hero/manual companion adapters | physicalCombat/physicalCombatSave and physical-combat E2E |
 | Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, `effectRolls.ts`, redacted `dicePresentation.ts`, visual `diceMotion.ts` | scene-local dice/battleDice managers, procedural SVG scene overlay, existing Battle log | dicePresentation/diceManager/effectRollReceipts/rollReceipts/diceMotion/diceRenderer and dice E2E |
@@ -150,6 +151,14 @@ headless mode; native release gates belong on isolated CI/virtual displays.
 - Persist authority, not derived presentation. Every schema change requires
   defaults, normalization, cross-field validation, migration, and corruption
   tests.
+- Standard difficulty is exact baseline. Compose canonical profile and future
+  scale once; keep base monster stats for Codex, clamp encounter pressure last,
+  preserve neutral currency rounding, and keep accessibility/dice preferences
+  outside profile classification. See [Difficulty](docs/difficulty.md).
+- Mid-campaign edits require explicit confirmation and safe exploration with
+  no pending authoritative outcome. Use `changeCampaignDifficulty()` for
+  no-op detection, bounded causes, atomic save rollback and irreversible preset
+  challenge loss; never replay old rewards or recovery.
 - Minigame histories never authorize payment. Use exact pending IDs/revisions,
   permanent settlement watermarks, finite milestone claims, and save-before-reveal
   rollback; archery preview motion never writes saves.
@@ -260,6 +269,7 @@ headless mode; native release gates belong on isolated CI/virtual displays.
 - [Development](docs/development.md)
 - [Testing](docs/testing.md)
 - [Save system](docs/save-system.md)
+- [Difficulty and Custom rules](docs/difficulty.md)
 - [Hero progression](docs/hero-progression.md)
 - [Prestige paths](docs/prestige.md)
 - [Companions and gambits](docs/companions.md)

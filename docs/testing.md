@@ -53,6 +53,8 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - active decision-time boundaries, overlapping pauses, stale/once-only timeouts,
   hero/manual/gambit economy, configuration migration, and checkpoint recovery
 - pure layout, wrapping, pagination, safe-area, and focus math
+- original Standard golden mechanics, every Custom bound, once-only scale
+  composition, and per-mode campaign/boss/economy/sea/defeat/save/eligibility
 - transition contracts with mocked camera/time adapters
 - Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
 
@@ -130,7 +132,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v25 autosave/manual-slot persistence,
+- real character creation, schema-v26 autosave/manual-slot persistence,
   relaunch, and continue
 - independent desktop copy/import, exact source-slot bytes, interrupted
   staging/core-corruption recovery, and loading a second campaign after relaunch
@@ -194,8 +196,13 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 ## Stable browser synchronization
 
 - Prefer stable debug-state transitions, layout IDs, and semantic actions.
-- Hold frame-polled Phaser keys across animation frames; instantaneous presses
-  can be missed.
+- Hold frame-polled Phaser keys and pointer activation across animation frames;
+  instantaneous presses can be missed. The measured-layout browser helper and
+  desktop pointer helper keep down/up separated by browser frames. Terminal
+  native Quit holds its pointer press until the authoritative application-close
+  event; it cannot await renderer frames or release input on a destroyed page.
+- Release controller test presses inside browser animation frames; host sleeps
+  can exceed semantic repeat thresholds under load.
 - Release single-step movement after the expected position appears, rather
   than holding through the next movement-repeat interval.
 - In Electron, wait for the Boot title before fixture writes or reloads;

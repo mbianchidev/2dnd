@@ -94,6 +94,9 @@ import {
   type EscapeMenuAction,
   type EscapeMenuEntry,
 } from "../systems/featureDiscovery";
+import { getCampaignDifficultyRules, scaleCost, type DifficultySelection } from "../systems/difficulty";
+import { DifficultyOverlayManager } from "./difficulty";
+import type { DifficultyOverlayFeedback } from "./difficulty";
 
 /** Callbacks the OverlayManager uses to interact with the parent scene. */
 export interface OverlayCallbacks {
@@ -128,11 +131,14 @@ export interface OverlayCallbacks {
     routeId: MerchantRouteId,
     currentPortId: PortId,
   ) => void;
+  onStateChange?(): void;
+  changeCampaignRules?(selection: DifficultySelection): DifficultyOverlayFeedback;
 }
 
 export class OverlayManager {
   private scene: Phaser.Scene;
   private callbacks: OverlayCallbacks;
+  private readonly difficultyManager: DifficultyOverlayManager;
   private readonly progression: HeroProgressionManager;
 
   // Overlay containers
@@ -168,6 +174,7 @@ export class OverlayManager {
   constructor(scene: Phaser.Scene, callbacks: OverlayCallbacks) {
     this.scene = scene;
     this.callbacks = callbacks;
+    this.difficultyManager = new DifficultyOverlayManager(scene);
     this.progression = new HeroProgressionManager(scene, {
       autoSave: callbacks.autoSave,
       updateHUD: () => {
@@ -185,6 +192,7 @@ export class OverlayManager {
   isOpen(): boolean {
     return !!(
       this.equipOverlay ||
+      this.difficultyManager.isOpen() ||
       this.statOverlay ||
       this.menuOverlay ||
       this.worldMapOverlay ||
@@ -198,6 +206,8 @@ export class OverlayManager {
   }
 
   getMenuDebugState(player: PlayerState): string {
+    if (this.difficultyManager.isOpen()) return this.difficultyManager.getDebugState();
+    if (this.settingsOverlay) return " [SETTINGS]";
     if (!this.menuOverlay) return this.progression.getDebugState();
     const entries = getEscapeMenuEntries(player);
     const selected = entries[this.menuSelectedIndex]?.action ?? "-";
@@ -223,6 +233,7 @@ export class OverlayManager {
 
   /** Destroy all overlays. */
   destroyAll(): void {
+    this.difficultyManager.close(false);
     this.progression.close();
     this.scene.input.keyboard?.off("keydown", this.handleEquipKeyDown, this);
     this.scene.input.keyboard?.off("keyup", this.handleEquipKeyUp, this);
@@ -1385,6 +1396,7 @@ export class OverlayManager {
       panelH,
       {
         player,
+        openCampaignRules: () => this.showDifficultyOverlay(player, true),
         openBattleTiming: () => {
           this.settingsOverlay?.destroy();
           this.settingsOverlay = createBattleTimingSettingsOverlay(
@@ -1399,6 +1411,28 @@ export class OverlayManager {
       fontSize: "10px", fontFamily: "monospace", color: "#666",
     }).setOrigin(0.5, 1);
     this.settingsOverlay.add(hint);
+    this.callbacks.onStateChange?.();
+  }
+
+  isDifficultyOpen(): boolean { return this.difficultyManager.isOpen(); }
+
+  closeDifficultyOverlay(): void { this.difficultyManager.close(); }
+
+  showDifficultyOverlay(player: PlayerState, returnToSettings = false): void {
+    if (this.difficultyManager.isOpen()) return;
+    this.closeOverlays("menuOverlay", "equipOverlay", "statOverlay", "settingsOverlay");
+    const changeRules = this.callbacks.changeCampaignRules;
+    this.difficultyManager.open({
+      selection: player.difficulty.selection,
+      campaign: player,
+      apply: changeRules
+        ? (selection) => changeRules(selection)
+        : undefined,
+      onClose: () => {
+        if (returnToSettings) this.showSettingsOverlay(player);
+      },
+      onStateChange: () => this.callbacks.onStateChange?.(),
+    });
   }
 
   // ── ASI Stat Allocation Overlay ────────────────────────────────────
@@ -1434,7 +1468,7 @@ export class OverlayManager {
   /** Show the inn rest confirmation with Sleep/Wait/Cancel options. */
   showInnConfirmation(player: PlayerState): void {
     if (this.innConfirmOverlay) return;
-    const innCost = getInnCost(player.position.cityId);
+    const innCost = scaleCost(getInnCost(player.position.cityId), getCampaignDifficultyRules(player));
     const container = this.scene.add.container(0, 0).setDepth(55);
     const boxW = 280;
     const boxH = 120;
@@ -1502,7 +1536,7 @@ export class OverlayManager {
   /** Execute inn rest: deduct gold, heal, advance time, process level-ups. */
   private executeInnRest(player: PlayerState, targetTimeStep: number, message: string): void {
     this.dismissInnConfirmation();
-    const innCost = getInnCost(player.position.cityId);
+    const innCost = scaleCost(getInnCost(player.position.cityId), getCampaignDifficultyRules(player));
     if (player.gold < innCost) {
       this.callbacks.showMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
       return;
@@ -2063,7 +2097,7 @@ export class OverlayManager {
         player.progression.nautical.discoveredRouteIds.includes(route.id)
       )
       .map((route) =>
-        `${route.name}: ${route.fee}g`
+        `${route.name}: ${scaleCost(route.fee, getCampaignDifficultyRules(player))}g`
         + ("questGate" in route ? " · quest required" : "")
       );
     const nauticalParts: string[] = [];

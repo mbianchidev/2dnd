@@ -70,6 +70,7 @@ describe("tutorial and tips", () => {
       .toEqual([
         "controls.context",
         "controls.shortcuts",
+        "controls.difficulty",
         "combat.turns",
         "combat.resources",
         "combat.timing",
@@ -85,8 +86,9 @@ describe("tutorial and tips", () => {
       hasSkillCheck: true,
       hasTrapExperience: true,
       discoveredFeatureIds: new Set(FEATURE_IDS),
+      difficultyProfileId: "standard",
     }).map((tip) => tip.id))
-      .toEqual(TIPS.map((tip) => tip.id));
+      .toEqual(TIPS.filter((tip) => tip.unlock.type !== "difficulty").map((tip) => tip.id));
   });
 
   it("keeps mount advice unlocked while the player is dismounted", () => {

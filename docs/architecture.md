@@ -15,7 +15,7 @@
 | happy-dom | 20.14.6 |
 | Electron | 44.7.0 |
 | electron-builder | 26.17.0 |
-| Campaign save schema | 25 |
+| Campaign save schema | 26 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -237,6 +237,28 @@ target, formation, status, element, or economy rules.
 Mechanics resolve before presentation. Actor animation receives stable IDs and
 immutable outcomes; tweens never apply damage, spend resources, or control
 authoritative turn/result transitions.
+
+## Difficulty composition
+
+`src/data/difficulty.ts` owns immutable profiles and constrained Custom bounds.
+`src/systems/difficulty.ts` derives rules, previews, scaling and eligibility;
+`difficultyState.ts` normalizes canonical selection/continuity, and
+`enemyTactics.ts` owns bounded enemy targeting and chance policy. The focused
+`src/managers/difficulty.ts` owns measured, accessible creation/settings
+presentation without spending resources or replaying outcomes.
+Confirmed mid-campaign changes use the Phaser-free safe-state transaction,
+which owns cause append, no-op detection, pending-domain validation and exact
+metadata rollback when autosave fails. Scene callbacks provide accepted-input
+and transition state, never their own rule composition.
+
+Standard is exact baseline. Enemy HP uses an isolated runtime copy, while base
+definitions remain authoritative for Codex persistence. Accuracy does not leak
+into initiative or saves. Group rewards scale after the existing group
+adjustment; party distribution never scales twice. Timed-round suggestions are
+optional typed hooks, not countdowns or permission to enable timing. See
+[Difficulty and Custom rules](difficulty.md).
+
+## Timing and resolved dice
 
 Optional timing uses `systems/battleTiming.ts` for active decision time and
 once-only validated Defend, `battleTimingSettings.ts` for configuration repair,

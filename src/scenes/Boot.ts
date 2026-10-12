@@ -55,6 +55,10 @@ import {
   moveGridSelection,
   type GridNavigationDirection,
 } from "../systems/layout";
+import { DifficultyOverlayManager } from "../managers/difficulty";
+import { getDifficultyProfile, STANDARD_DIFFICULTY_SELECTION } from "../data/difficulty";
+import type { DifficultySelection } from "../systems/difficulty";
+import { cycleDifficultyProfile } from "../systems/difficultyEditor";
 import { getScaledBounds, getTextContentSize, subscribeOverlayReflow, syncInteractiveHitArea } from "../managers/layout";
 
 const BOOT_TEXTURE_MEASURE = "2dnd:boot-textures";
@@ -73,6 +77,8 @@ export class BootScene extends Phaser.Scene {
   private saveSlotManager!: SaveSlotManager;
   private titleMenuManager: TitleMenuManager | null = null;
   private titleSettingsContainer: Phaser.GameObjects.Container | null = null;
+  private difficultyManager!: DifficultyOverlayManager;
+  private newGameDifficulty: DifficultySelection = STANDARD_DIFFICULTY_SELECTION;
   private characterAppearanceManager: CharacterAppearanceManager | null = null;
   private unsubscribeCreationReflow: (() => void) | null = null;
 
@@ -87,6 +93,7 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.sceneTransitions.prepare();
     installSceneAccessibility(this);
+    this.difficultyManager = new DifficultyOverlayManager(this);
     installDicePresentation(this);
     performance.clearMeasures(BOOT_TEXTURE_MEASURE);
     performance.clearMarks(BOOT_TEXTURE_START_MARK);
@@ -152,6 +159,7 @@ export class BootScene extends Phaser.Scene {
     ];
     for (const [eventName, handler, repeatable] of bindings) {
       keyboard.on(eventName, (event: KeyboardEvent) => {
+        if (this.difficultyManager?.isOpen()) return;
         if (event.timeStamp <= boundAt || (!repeatable && event.repeat)) return;
         handler();
       });
@@ -306,7 +314,10 @@ export class BootScene extends Phaser.Scene {
   }
 
   private requestNewGame(): void {
-    this.saveSlotManager.confirmNewGame(() => this.showCharacterCreation());
+    this.saveSlotManager.confirmNewGame(() => {
+      this.newGameDifficulty = STANDARD_DIFFICULTY_SELECTION;
+      this.showCharacterCreation();
+    });
   }
 
   private quitDesktopApp(): void {
@@ -816,7 +827,35 @@ export class BootScene extends Phaser.Scene {
       },
       start: (appearance: CustomAppearance) => {
         if (this.sceneTransitions.isPending) return;
-        this.startNewGame(createPlayer(playerName.trim() || "Hero", baseStats, selectedClass.id, appearance));
+        this.startNewGame(createPlayer(playerName.trim() || "Hero", baseStats, selectedClass.id, appearance, {
+          difficulty: this.newGameDifficulty,
+        }));
+      },
+      campaignRules: {
+        label: () => getDifficultyProfile(this.newGameDifficulty.profileId).name,
+        isOpen: () => this.difficultyManager.isOpen(),
+        adjust: (direction) => {
+          this.newGameDifficulty = cycleDifficultyProfile(
+            this.newGameDifficulty, direction,
+            this.newGameDifficulty.profileId === "custom" ? this.newGameDifficulty.overrides : {},
+          );
+        },
+        open: () => {
+          if (this.difficultyManager.isOpen()) return;
+          this.difficultyManager.open({
+            selection: this.newGameDifficulty,
+            apply: (selection) => {
+              this.newGameDifficulty = selection;
+              return { ok: true, message: "New campaign rules selected." };
+            },
+            onClose: () => this.characterAppearanceManager?.refresh(),
+            onStateChange: () => {
+              if (this.difficultyManager.isOpen()) {
+                debugPanelState(`BOOT | Screen: difficulty${this.difficultyManager.getDebugState()}`);
+              }
+            },
+          });
+        },
       },
     });
     this.characterAppearanceManager.open();

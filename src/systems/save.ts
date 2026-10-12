@@ -91,8 +91,9 @@ import {
   type SaveSlotId,
   type SaveStorageErrorCode,
 } from "./saveStorage";
+import { normalizeCampaignDifficulty } from "./difficulty";
 
-export const SAVE_VERSION = 25;
+export const SAVE_VERSION = 26;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -551,12 +552,16 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     const timingPreviewWithoutClassOwnership = sourceVersion === 19
       && parsed["player"]["classProgression"] === undefined
       && isRecord(parsed["player"]["battleTiming"]);
+    const difficultyPreviewWithoutClassOwnership = sourceVersion === 19
+      && parsed["player"]["classProgression"] === undefined
+      && isRecord(parsed["player"]["difficulty"]);
     const heroFields = normalizeHeroProgressionState({
       ...parsed["player"],
       inventory: Array.isArray(rawInventory)
         ? rawInventory.filter((item: unknown) => !isRecord(item) || item["id"] !== "adventurerTrapNotes")
         : rawInventory,
-    }, activityPreviewWithoutClassOwnership || timingPreviewWithoutClassOwnership ? 18 : sourceVersion);
+    }, activityPreviewWithoutClassOwnership || timingPreviewWithoutClassOwnership
+      || difficultyPreviewWithoutClassOwnership ? 18 : sourceVersion);
     if (!heroFields) return null;
     const data = parsed as unknown as SaveData;
     Object.assign(data.player, heroFields);
@@ -574,6 +579,10 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     data.player.knownTalents = normalizeStringArray(data.player.knownTalents);
 
     const playerRecord = data.player as unknown as Record<string, unknown>;
+    data.player.difficulty = normalizeCampaignDifficulty(
+      playerRecord["difficulty"],
+      sourceVersion,
+    );
     data.player.battleTiming = sourceVersion < 19
       ? createBattleTimingSettings()
       : normalizeBattleTimingSettings(playerRecord["battleTiming"]);

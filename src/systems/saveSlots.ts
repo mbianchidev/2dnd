@@ -35,6 +35,11 @@ import {
   type SaveSlotId,
 } from "./saveStorage";
 import type { WeatherState } from "./weather";
+import {
+  getCampaignDifficultyEligibility,
+  type DifficultyProfileId,
+} from "./difficulty";
+import { getDifficultyProfile } from "../data/difficulty";
 
 const SAVE_EXPORT_FORMAT = "2dnd-save-slot";
 const SAVE_EXPORT_VERSION = 1;
@@ -57,6 +62,10 @@ export interface SaveSlotMetadata {
   schemaVersion: number;
   savedAt: number;
   playtimeSeconds: number;
+  difficultyProfileId: DifficultyProfileId;
+  difficultyName: string;
+  difficultyChangeCount: number;
+  difficultyChallengeProfile: "veteran" | "legendary" | null;
 }
 
 export interface SaveSlotInfo {
@@ -148,6 +157,10 @@ function deriveSlotMetadata(
     schemaVersion: data.version,
     savedAt: data.timestamp,
     playtimeSeconds: data.playtimeSeconds,
+    difficultyProfileId: data.player.difficulty.selection.profileId,
+    difficultyName: getDifficultyProfile(data.player.difficulty.selection.profileId).name,
+    difficultyChangeCount: data.player.difficulty.changeCount,
+    difficultyChallengeProfile: getCampaignDifficultyEligibility(data.player).challengeProfile,
   };
 }
 

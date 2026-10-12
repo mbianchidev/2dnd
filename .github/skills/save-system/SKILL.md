@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v25, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v26, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -52,8 +52,23 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 25.
+`SAVE_VERSION` is 26.
 
+Schema v26 owns `player.difficulty`: canonical selection, bounded Custom
+overrides, initial profile, lifetime change count, and at most 20 validated
+causes. Normalize from unknown through `normalizeCampaignDifficulty()` before
+achievement reconciliation. Campaigns through v25 without difficulty retain Standard;
+valid v19 rule previews preserve owned selection/history and legacy hero resources. Repaired
+modern continuity is never inferred as an unchanged high-difficulty campaign.
+Persist no derived modifiers or future scale layers. Actual merchant-route
+`feePaid` is a bounded transaction receipt, not a rate to recompute at reload.
+See [Difficulty and Custom rules](../../../docs/difficulty.md).
+
+`changeCampaignDifficulty()` is the confirmed safe-exploration transaction:
+block pending outcomes and input handoffs, append one canonical cause, autosave
+once, and restore the exact prior metadata on save failure. A no-op selection
+does not write another cause or remove challenge continuity. Never replay or
+rerate existing resources, checks, rewards, or recovery receipts.
 Schema v24 adds optional armor-only `Item.physicalResistances` with unique known
 types. Keep valid custom lists, including empty lists, and exact equipped
 same-ID objects. Resolve old canonical armor at use time without rewriting
@@ -223,6 +238,10 @@ interface QuestLogState {
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
+`PlayerState.difficulty` persists canonical profile/Custom selection and
+bounded continuity metadata. Derived rules, price factors, timer execution,
+and future scale layers are never stored there. Slots derive difficulty labels
+and current challenge eligibility; loading a snapshot never changes its source.
 Codex entries persist `discoveredElements` and body-scoped `discoveredPhysical`.
 `PlayerState.party` persists unique
 companion states, active order, independent progression/inventories/equipment,
@@ -446,7 +465,7 @@ to browsing before closing the manager.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v25 battle timing, armor metadata, physical discovery, minigame authority, devotion,
+- Current schema-v26 difficulty, battle timing, armor metadata, physical discovery, minigame authority, devotion,
   hero/base/prestige progression, playtime,
   position, objective/reward/warning quest state,
   skill checks,
@@ -475,7 +494,7 @@ to browsing before closing the manager.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v25 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v26 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

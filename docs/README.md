@@ -29,6 +29,7 @@ on discovering and playing the game.
 - [Desktop application](desktop.md)
 - [Steam preparation](steam.md)
 - [Inventory presentation](inventory.md)
+- [Difficulty and Custom rules](difficulty.md)
 - [Tavern and festival activities](minigames.md)
 - [Fictional devotion](devotion.md)
 - [Resolved dice presentation](dice-presentation.md)

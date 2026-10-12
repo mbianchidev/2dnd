@@ -25,6 +25,7 @@ import {
   type SocialAchievementHook,
 } from "./reputation";
 import { getQuestStageIndex, isQuestCompleted } from "./quests";
+import { isDifficultyChallengeEligible } from "./difficulty";
 import { PRESTIGE_PATHS } from "../data/prestige";
 import { getTrackLevel } from "./classProgression";
 
@@ -350,6 +351,12 @@ export function getAchievementProgress(
           && isQuestCompleted(player.progression.quests, "twelvefoldCovenant")
         ? 1
         : 0;
+      break;
+    case "difficultyCampaign":
+      current = isDifficultyChallengeEligible(player.difficulty, criteria.minimum)
+          && !player.progression.achievements.debugSuppressedIds.includes(definition.id)
+          && isQuestCompleted(player.progression.quests, "twelvefoldCovenant")
+        ? 1 : 0;
       break;
     case "successfulSkillChecks":
       target = criteria.threshold;
@@ -677,7 +684,17 @@ export function markNextBattleAsDebug(player: PlayerState): void {
 }
 
 export function beginAchievementDebugMutation(player: PlayerState): void {
-  player.progression.achievements.debugMutationActive = true;
+  const state = player.progression.achievements;
+  state.debugMutationActive = true;
+  for (const definition of ACHIEVEMENTS) {
+    if (
+      definition.criteria.type === "difficultyCampaign"
+      && !isAchievementEarned(state, definition.id)
+      && !state.debugSuppressedIds.includes(definition.id)
+    ) {
+      state.debugSuppressedIds.push(definition.id);
+    }
+  }
 }
 
 export function endAchievementDebugMutation(player: PlayerState): void {

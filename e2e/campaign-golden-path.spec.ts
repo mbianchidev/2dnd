@@ -390,11 +390,17 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await clickLayoutItem(page, "escape-menu-chronicle");
     await waitForState(page, "[CHRONICLE]");
     await page.mouse.move(0, 0);
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      if ((await page.locator("#debug-state").textContent())?.includes("[CHRONICLE_SELECTION:1/")) break;
+    const selection = (await page.locator("#debug-state").textContent())
+      ?.match(/\[CHRONICLE_SELECTION:\d+\/(\d+)\]/);
+    if (!selection) throw new Error("Missing Chronicle selection metadata");
+    const entryCount = Number(selection[1]);
+    for (let attempt = 0; attempt < entryCount; attempt += 1) {
+      const current = await page.locator("#debug-state").textContent() ?? "";
+      if (current.includes("[CHRONICLE_SELECTION:1/")) break;
       await holdKey(page, "ArrowUp");
     }
     await waitForState(page, "[CHRONICLE_SELECTION:1/");
+    await expect(page.locator("#layout-report")).toContainText("chronicle-cutscene-campaign.opening");
     await holdKey(page, "Enter");
     await waitForState(page, "CUTSCENE | campaign.opening");
     await page.waitForTimeout(420);

@@ -194,6 +194,14 @@ import {
 } from "../systems/groupCombat";
 import { CodexDiscoveryManager } from "../managers/codexDiscovery";
 import type { CodexKnowledgeEntry } from "../data/codexKnowledge";
+import {
+  STANDARD_DIFFICULTY_RULES,
+  getCampaignDifficultyRules,
+  getDifficultyTimingAdjustment,
+  scaleEnemyDamage,
+  type DifficultyRules,
+} from "../systems/difficulty";
+import { getEnemyAbilityChance } from "../systems/enemyTactics";
 
 type BattlePhase = "init" | "playerTurn" | "monsterTurn" | "victory" | "defeat" | "fled";
 
@@ -227,6 +235,7 @@ export interface BattleSceneData {
 export class BattleScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
   private player!: PlayerState;
+  private difficultyRules: DifficultyRules = STANDARD_DIFFICULTY_RULES;
   private encounter!: MonsterEncounter;
   private combatants: GroupCombatant[] = [];
   private heroCombatant!: PartyCombatant;
@@ -384,12 +393,13 @@ export class BattleScene extends Phaser.Scene {
 
   init(data: BattleSceneData): void {
     this.player = data.player;
+    this.difficultyRules = getCampaignDifficultyRules(this.player);
     this.battleTiming?.destroy();
     this.battleTiming = null;
     this.heroDecisions = null;
     this.timingSettings = resolveBattleTimingSettings(
       this.player.battleTiming,
-      data.battleTimingAdjustment,
+      data.battleTimingAdjustment ?? getDifficultyTimingAdjustment(this.player.difficulty.selection),
     );
     if (!data.encounter && !data.monster) {
       throw new Error("[BattleScene] Missing encounter data");
@@ -402,7 +412,8 @@ export class BattleScene extends Phaser.Scene {
     this.achievementBattleDebug = consumeNextBattleDebugFlag(this.player)
       || this.encounter.id.includes("debug:");
     this.oneHitDefeatIds = new Set();
-    this.combatants = createGroupCombatants(this.encounter);
+    this.combatants = createGroupCombatants(this.encounter, this.difficultyRules);
+    debugLog("Battle difficulty rules", this.difficultyRules);
     this.heroCombatant = createHeroCombatant(this.player);
     this.partyCombatants = [
       this.heroCombatant,
@@ -991,6 +1002,7 @@ export class BattleScene extends Phaser.Scene {
     const statusResult = processStatusStartOfTurn(
       this.player.activeEffects,
       this.player.stats,
+      { adjustDamage: (damage) => scaleEnemyDamage(damage, this.difficultyRules) },
     );
     const hpBeforeStatus = this.player.hp;
     for (const message of statusResult.messages) {
@@ -1039,6 +1051,7 @@ export class BattleScene extends Phaser.Scene {
     const statusResult = processStatusStartOfTurn(
       combatant.effects,
       combatant.stats,
+      { adjustDamage: (damage) => scaleEnemyDamage(damage, this.difficultyRules) },
     );
     const hpBeforeStatus = combatant.currentHp;
     for (const message of statusResult.messages) {
@@ -2795,7 +2808,7 @@ export class BattleScene extends Phaser.Scene {
     try {
       const dexMod = abilityModifier(this.player.stats.dexterity);
       const aliveCount = countAliveCombatants(this.combatants);
-      const result = attemptFlee(dexMod, aliveCount);
+      const result = attemptFlee(dexMod, aliveCount, this.difficultyRules);
       debugLog("Flee attempt", { success: result.success, dexMod, aliveCount });
       debugPanelLog(
         `  ↳ [Flee] dexMod=${dexMod} → ${result.success ? "ESCAPED" : "FAILED"}`,
@@ -2908,6 +2921,7 @@ export class BattleScene extends Phaser.Scene {
         this.encounter.synergy,
         this.combatants,
         combatantIndex,
+        this.difficultyRules,
       );
       if (Math.random() < defendChance) {
         combatant.isDefending = true;
@@ -2935,7 +2949,7 @@ export class BattleScene extends Phaser.Scene {
         return;
       }
 
-      const partyTarget = selectMonsterTarget(this.partyCombatants);
+      const partyTarget = selectMonsterTarget(this.partyCombatants, Math.random, this.difficultyRules);
       if (!partyTarget) {
         this.handlePartyDefeatIfNeeded();
         return;
@@ -2944,7 +2958,9 @@ export class BattleScene extends Phaser.Scene {
       // Check for monster ability use
       if (combatant.monster.abilities) {
         for (const ability of combatant.monster.abilities) {
-          if (Math.random() < ability.chance) {
+          if (Math.random() < getEnemyAbilityChance(
+            ability, combatant.currentHp, combatant.maxHp, this.difficultyRules,
+          )) {
             this.executeMonsterAbility(combatantIndex, ability, partyTarget);
             return;
           }
@@ -2977,6 +2993,7 @@ export class BattleScene extends Phaser.Scene {
         combatant.effects,
         synergyAttackBonus,
         synergyDamageBonus,
+        this.difficultyRules,
       );
       if (warCryActive) this.warCryCombatants.delete(combatantIndex);
 
@@ -3068,6 +3085,7 @@ export class BattleScene extends Phaser.Scene {
         this.combatants,
         combatantIndex,
       ),
+      this.difficultyRules,
     );
     debugLog("Monster ability", {
       monster: combatant.label,
@@ -3283,7 +3301,7 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
-    const rewards = resolveBattleRewards(this.encounter, this.battleHooks);
+    const rewards = resolveBattleRewards(this.encounter, this.battleHooks, this.difficultyRules);
     const battleResult = this.reportBattleResult(
       "victory",
       rewards,

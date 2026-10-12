@@ -3,7 +3,7 @@
  */
 
 import { abilityModifier, rollD20 } from "./dice";
-import { rollEffectDice } from "./effectRolls";
+import { captureEffectAdjustment, rollEffectDice } from "./effectRolls";
 import type { DieType } from "./dice";
 import type { PlayerStats } from "./player";
 import type { ResolvedD20Roll, ResolvedEffectRoll } from "./rollResults";
@@ -370,10 +370,15 @@ export function mustSkipTurn(effects: ActiveStatusEffect[]): boolean {
   );
 }
 
+export interface StatusTurnStartOptions {
+  adjustDamage?(damage: number): number;
+}
+
 /** Apply tick damage and saving throws before an actor takes a turn. */
 export function processStartOfTurn(
   effects: ActiveStatusEffect[],
   stats: PlayerStats,
+  options: StatusTurnStartOptions = {},
 ): StatusTurnStartResult {
   const messages: string[] = [];
   const savingThrows: StatusSavingThrowResult[] = [];
@@ -386,12 +391,18 @@ export function processStartOfTurn(
     if (!definition) continue;
 
     if (definition.tickDamage > 0 || definition.tickDie > 0) {
-      const damageRoll = rollEffectDice(
+      const baseDamageRoll = rollEffectDice(
         definition.tickDie > 0 ? 1 : 0,
         definition.tickDie,
         [{ label: definition.name, value: definition.tickDamage }],
       );
-      const damage = damageRoll.amount;
+      const damage = options.adjustDamage
+        ? options.adjustDamage(baseDamageRoll.amount) : baseDamageRoll.amount;
+      if (!Number.isSafeInteger(damage) || damage < 0) {
+        throw new Error("[statusEffects] Tick damage adjustments must be non-negative integers.");
+      }
+      const damageRoll = damage === baseDamageRoll.amount ? baseDamageRoll
+        : captureEffectAdjustment(baseDamageRoll, "Incoming damage adjustment", damage);
       damageRolls.push(Object.freeze({
         effectId: definition.id, label: definition.name, damageRoll,
       }));

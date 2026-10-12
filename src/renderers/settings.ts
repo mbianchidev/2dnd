@@ -6,6 +6,7 @@ import {
 } from "../systems/accessibility";
 import { layoutTextStack, syncInteractiveHitArea } from "../managers/layout";
 import type { PlayerState } from "../systems/player";
+import { getDifficultyProfile } from "../data/difficulty";
 
 export const SETTINGS_PANEL_WIDTH = 520;
 export const SETTINGS_PANEL_HEIGHT = 480;
@@ -127,7 +128,7 @@ export function addSettingsControls(
   py: number,
   panelWidth: number,
   panelHeight: number,
-  campaign?: SettingsControlsOptions,
+  options: SettingsControlsOptions = {},
 ): SettingsControls {
   const centerX = px + panelWidth / 2;
   const contentX = px + 18;
@@ -136,12 +137,21 @@ export function addSettingsControls(
   const columnWidth = Math.floor((contentWidth - columnGap) / 2);
   const rightX = contentX + columnWidth + columnGap;
   const controls: Phaser.GameObjects.GameObject[] = [];
-  const title = scene.add.text(campaign ? contentX : centerX, py + 10, "Settings", {
+  const campaignLaunchers: Array<{ id: string; label: string; activate(): void }> = [];
+  if (options.openBattleTiming) campaignLaunchers.push({
+    id: "settings-battle-timing", label: "Battle Timing", activate: options.openBattleTiming,
+  });
+  if (options.player && options.openCampaignRules) campaignLaunchers.push({
+    id: "settings-difficulty",
+    label: `Rules: ${getDifficultyProfile(options.player.difficulty.selection.profileId).name}`,
+    activate: options.openCampaignRules,
+  });
+  const title = scene.add.text(campaignLaunchers.length > 0 ? contentX : centerX, py + 10, "Settings", {
     fontSize: "15px",
     fontFamily: "monospace",
     color: "#ffdf66",
     fontStyle: "bold",
-  }).setOrigin(campaign ? 0 : 0.5, 0);
+  }).setOrigin(campaignLaunchers.length > 0 ? 0 : 0.5, 0);
   const audioTitle = scene.add.text(contentX, py + 48, "Audio", {
     fontSize: "12px",
     fontFamily: "monospace",
@@ -150,30 +160,48 @@ export function addSettingsControls(
   });
   container.add([title, audioTitle]);
   controls.push(title, audioTitle);
-  const openBattleTiming = campaign?.openBattleTiming;
-  if (openBattleTiming) {
-    const battle = createControl(
-      scene, "settings-battle-timing", rightX + columnWidth / 2, py + 8, columnWidth,
-      () => "> Battle Timing", openBattleTiming,
-    );
-    container.add(battle.text);
-    controls.push(battle.text);
+  if (campaignLaunchers.length > 0) {
+    let selected = 0;
+    const launchWidth = (contentWidth - 130 - 12 * (campaignLaunchers.length - 1)) / campaignLaunchers.length;
+    const launchControls = campaignLaunchers.map((launcher, index) => createControl(
+      scene, launcher.id, contentX + 130 + index * (launchWidth + 12) + launchWidth / 2,
+      py + 8, launchWidth, () => `${selected === index ? "> " : ""}${launcher.label}`,
+      launcher.activate, 9,
+    ));
+    const selectLauncher = (index: number): void => {
+      selected = index;
+      launchControls.forEach((control) => control.updateLabel());
+    };
+    launchControls.forEach((control, index) => {
+      control.text.on("pointerover", () => selectLauncher(index));
+      container.add(control.text);
+      controls.push(control.text);
+    });
     const readyAt = scene.time.now + 150;
-    let pending = false;
+    let pending: (() => void) | null = null;
     const keyDown = (event: KeyboardEvent): void => {
+      if (!container.active || scene.time.now < readyAt) return;
+      if (["ArrowLeft", "ArrowRight", "a", "d"].includes(event.key)) {
+        const direction = event.key === "ArrowLeft" || event.key === "a" ? -1 : 1;
+        selectLauncher((selected + direction + campaignLaunchers.length) % campaignLaunchers.length);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (
-        container.active && scene.time.now >= readyAt && !event.repeat
+        !pending && !event.repeat
         && (event.key === "Enter" || event.key === " ")
       ) {
-        pending = true;
+        pending = campaignLaunchers[selected]!.activate;
         event.preventDefault();
         event.stopImmediatePropagation();
       }
     };
     const keyUp = (event: KeyboardEvent): void => {
       if (pending && (event.key === "Enter" || event.key === " ")) {
-        pending = false;
-        if (container.active) openBattleTiming();
+        const activate = pending;
+        pending = null;
+        if (container.active) activate();
       }
     };
     scene.input.keyboard?.on("keydown", keyDown);
@@ -383,7 +411,9 @@ export function addSettingsControls(
   const mappingNote = scene.add.text(
     centerX,
     py + panelHeight - 48,
-    "Off: crits still show. [ dice / ] speed.",
+    campaignLaunchers.length > 1
+      ? "Left/Right: rules/timing. [ dice / ] speed. Off keeps crits."
+      : "Off: crits still show. [ dice / ] speed.",
     {
       fontSize: "8px",
       fontFamily: "monospace",

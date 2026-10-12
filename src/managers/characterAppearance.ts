@@ -22,6 +22,12 @@ interface CharacterAppearanceCallbacks {
   bindControls(handlers: CharacterCreationControlHandlers): void;
   back(): void;
   start(appearance: CustomAppearance): void;
+  campaignRules?: {
+    label(): string;
+    isOpen(): boolean;
+    open(): void;
+    adjust(direction: -1 | 1): void;
+  };
 }
 
 interface ColorChoice {
@@ -62,7 +68,8 @@ export class CharacterAppearanceManager {
       down: () => this.moveGroup("down"),
       left: () => this.moveOption("left"),
       right: () => this.moveOption("right"),
-      confirm: () => this.callbacks.start({ ...this.appearance }),
+      confirm: () => this.selectedGroup === 3
+        ? this.callbacks.campaignRules?.open() : this.callbacks.start({ ...this.appearance }),
       cancel: () => this.callbacks.back(),
     });
     this.render();
@@ -79,6 +86,10 @@ export class CharacterAppearanceManager {
       this.scene.textures.remove(this.previewKey);
     }
     this.previewKey = null;
+  }
+
+  refresh(): void {
+    if (this.container) this.render();
   }
 
   private updatePreviewTexture(): void {
@@ -104,11 +115,17 @@ export class CharacterAppearanceManager {
   }
 
   private moveGroup(direction: "up" | "down"): void {
-    this.selectedGroup = moveGridSelection(this.selectedGroup, 3, 1, direction);
+    this.selectedGroup = moveGridSelection(this.selectedGroup,
+      this.callbacks.campaignRules ? 4 : 3, 1, direction);
     this.render();
   }
 
   private moveOption(direction: "left" | "right"): void {
+    if (this.selectedGroup === 3) {
+      this.callbacks.campaignRules?.adjust(direction === "left" ? -1 : 1);
+      this.render();
+      return;
+    }
     if (this.selectedGroup === 0) {
       const index = SKIN_COLOR_OPTIONS.findIndex((option) => option.color === this.appearance.skinColor);
       const next = moveGridSelection(index, SKIN_COLOR_OPTIONS.length, SKIN_COLOR_OPTIONS.length, direction);
@@ -162,6 +179,13 @@ export class CharacterAppearanceManager {
     const headerHeight = Math.max(preview.displayHeight, title.displayHeight + 6 + classLabel.displayHeight);
     const headerWidth = preview.displayWidth + 16 + Math.max(title.displayWidth, classLabel.displayWidth);
     const randomize = button("appearance-randomize", "🎲 Randomize", 12, "#88ccff", () => this.randomize());
+    const rules = this.callbacks.campaignRules;
+    const rulesButton = rules ? button("character-difficulty",
+      `${this.selectedGroup === 3 ? "> " : ""}Rules: ${rules.label()}`, 12, "#e5eef6", () => rules.open()) : null;
+    const utilityWidth = (width - 12) / 2;
+    if (rulesButton) [randomize, rulesButton].forEach((label) =>
+      label.setWordWrapWidth(utilityWidth - 14, true).setFixedSize(utilityWidth, 0));
+    const utilityHeight = Math.max(randomize.displayHeight, rulesButton?.displayHeight ?? 0);
     const groupLabels = ["Skin Color:", "Hair Style:", "Hair Color:"].map((label, index) =>
       text(`appearance-group-${index}`, `${index === this.selectedGroup ? "> " : ""}${label}`, 13,
         index === this.selectedGroup ? "#ffd700" : "#c0a060")
@@ -198,7 +222,7 @@ export class CharacterAppearanceManager {
     footer.forEach((label) => label.setWordWrapWidth(footerWidth - 14, true).setFixedSize(footerWidth, 0));
     const footerHeight = Math.max(44, ...footer.map((label) => label.displayHeight));
     const heights = [
-      headerHeight, randomize.displayHeight,
+      headerHeight, utilityHeight,
       groupLabels[0]!.displayHeight, skin.height,
       groupLabels[1]!.displayHeight, styleHeight,
       groupLabels[2]!.displayHeight, hair.height, footerHeight,
@@ -212,9 +236,11 @@ export class CharacterAppearanceManager {
     title.setPosition(titleX, cursor);
     classLabel.setPosition(titleX, cursor + title.displayHeight + 6);
     cursor += headerHeight + 8;
-    randomize.setPosition(centerX, cursor);
+    randomize.setPosition(rulesButton ? x + utilityWidth / 2 : centerX, cursor);
+    rulesButton?.setPosition(x + utilityWidth + 12 + utilityWidth / 2, cursor);
     syncInteractiveHitArea(randomize);
-    cursor += randomize.displayHeight + 8;
+    if (rulesButton) syncInteractiveHitArea(rulesButton);
+    cursor += utilityHeight + 8;
     groupLabels[0]!.setPosition(centerX, cursor);
     cursor += groupLabels[0]!.displayHeight + 8;
     skin.position(centerX, cursor);
@@ -243,8 +269,11 @@ export class CharacterAppearanceManager {
     if (!isReducedMotionEnabled()) this.scene.tweens.add({
       targets: this.startButton, alpha: 0.4, duration: 900, yoyo: true, repeat: -1,
     });
-    debugPanelState(`BOOT | Screen: appearance [GROUP:${this.selectedGroup + 1}/3]`
-      + ` [SKIN:${this.appearance.skinColor}] [HAIR:${this.appearance.hairStyle}] [HAIR_COLOR:${this.appearance.hairColor}]`);
+    if (!rules?.isOpen()) {
+      debugPanelState(`BOOT | Screen: appearance [GROUP:${this.selectedGroup + 1}/${rules ? 4 : 3}]`
+        + ` [SKIN:${this.appearance.skinColor}] [HAIR:${this.appearance.hairStyle}] [HAIR_COLOR:${this.appearance.hairColor}]`
+        + (rules ? ` [DIFFICULTY_PROFILE:${rules.label().toLowerCase()}]` : ""));
+    }
   }
 
   private colorRow(

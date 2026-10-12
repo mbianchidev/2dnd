@@ -30,6 +30,13 @@ import {
   type CraftingHistoryEntry,
 } from "./craftingState";
 import { getDefaultCraftingRecipeIds } from "../data/crafting";
+import {
+  STANDARD_DIFFICULTY_RULES,
+  getCampaignDifficultyRules,
+  scaleCost,
+  scaleSaleValue,
+  type DifficultyRules,
+} from "./difficulty";
 
 export const CRAFTING_SORTS = ["category", "name", "known", "craftable"] as const;
 
@@ -321,6 +328,7 @@ export function validateCraftingRequest(
       goldRequired: 0,
     };
   }
+  const goldRequired = scaleCost((recipe.goldCost ?? 0) * batch, getCampaignDifficultyRules(player));
   if (recipe.station && request.station !== recipe.station) {
     return {
       valid: false,
@@ -329,7 +337,7 @@ export function validateCraftingRequest(
       actorId,
       batch,
       ingredients: [],
-      goldRequired: (recipe.goldCost ?? 0) * batch,
+      goldRequired,
     };
   }
   const outputItem = getItem(recipe.outputItemId);
@@ -378,11 +386,10 @@ export function validateCraftingRequest(
       actorId,
       batch,
       ingredients,
-      goldRequired: (recipe.goldCost ?? 0) * batch,
+      goldRequired,
       outputItem,
     };
   }
-  const goldRequired = (recipe.goldCost ?? 0) * batch;
   if (player.gold < goldRequired) {
     return {
       valid: false,
@@ -802,6 +809,7 @@ export function selectCraftingRecipes(
 export function getRecipeInputMarketValue(
   recipe: CraftingRecipe,
   maximumDiscount = 0,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): number {
   const ingredientValue = recipe.ingredients.reduce((total, ingredient) => {
     const candidates = ingredient.match.kind === "item"
@@ -818,17 +826,20 @@ export function getRecipeInputMarketValue(
     );
     const unitCost = Number.isFinite(minimum)
       ? minimum > 0
-        ? Math.max(1, Math.floor(minimum * (1 - maximumDiscount)))
+        ? scaleCost(minimum, rules, maximumDiscount, 1)
         : 0
       : 0;
     return total + unitCost * ingredient.quantity;
-  }, recipe.goldCost ?? 0);
+  }, scaleCost(recipe.goldCost ?? 0, rules));
   return ingredientValue;
 }
 
-export function getRecipeOutputSellValue(recipe: CraftingRecipe): number {
+export function getRecipeOutputSellValue(
+  recipe: CraftingRecipe,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
+): number {
   const output = getItem(recipe.outputItemId);
-  return output ? getSellValue(output) * recipe.outputQuantity : 0;
+  return output ? scaleSaleValue(getSellValue(output), rules) * recipe.outputQuantity : 0;
 }
 
 export function isCraftingQueryCategory(

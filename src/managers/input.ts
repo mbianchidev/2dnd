@@ -955,6 +955,8 @@ export class SemanticInputRuntime {
         state.includes("[PARTY:")
         || state.includes("[MENU]")
         || state.includes("[SAVE_SLOTS:")
+        || state.includes("[SETTINGS]")
+        || state.includes("[DIFFICULTY]")
         || state.includes("[TIPS")
         || state.includes("[WORLD_EVENT:")
         || state.includes("[DEVOTION:")

@@ -43,6 +43,12 @@ import {
 } from "./statusEffects";
 import type { ActiveStatusEffect } from "./statusEffects";
 import { getFleeDC } from "./groupCombat";
+import {
+  STANDARD_DIFFICULTY_RULES,
+  getCampaignDifficultyRules,
+  scaleEnemyDamageRoll,
+  type DifficultyRules,
+} from "./difficulty";
 import { captureEffectApplication, captureElementalEffect, rollEffectDice } from "./effectRolls";
 import type { ResolvedD20Roll, ResolvedEffectRoll } from "./rollResults";
 import { applyAimedHitEffect, requireAimedBodyPart, resolveArmorHit, resolvePhysicalHit } from "./physicalCombat";
@@ -753,6 +759,7 @@ export function monsterAttackTarget(
   monsterEffects: ActiveStatusEffect[] = [],
   synergyAttackBonus: number = 0,
   synergyDamageBonus: number = 0,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): CombatResult & { attackBonus: number; totalRoll: number; targetAC: number } {
   if (!monster || !target) {
     throw new Error("[combat] monsterAttackTarget: missing monster or target");
@@ -762,6 +769,7 @@ export function monsterAttackTarget(
   const effectiveAtkBonus = monster.attackBonus
     + monsterAtkBoost
     + synergyAttackBonus
+    + rules.enemyAccuracyBonus
     + getEffectAccuracyModifier(monsterEffects);
   const roll = rollCombatD20(effectiveAtkBonus, monsterEffects);
   const outcome = resolveAttackRoll(roll, playerAC);
@@ -792,7 +800,7 @@ export function monsterAttackTarget(
       ],
       { minimum: 0, criticalDice: outcome.critical },
     );
-    const armor = resolveArmorHit(damageRoll, physicalType, target);
+    const armor = resolveArmorHit(scaleEnemyDamageRoll(damageRoll, rules), physicalType, target);
     const damage = armor.damage;
     const hpBefore = target.currentHp;
     target.currentHp = Math.max(0, target.currentHp - damage);
@@ -855,11 +863,16 @@ export function monsterAttack(
     monsterEffects,
     synergyAttackBonus,
     synergyDamageBonus,
+    getCampaignDifficultyRules(player),
   );
 }
 
 /** Attempt to flee from combat. Larger living groups raise the DEX-check DC. */
-export function attemptFlee(dexModifier: number, aliveCount: number = 1): {
+export function attemptFlee(
+  dexModifier: number,
+  aliveCount: number = 1,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
+): {
   success: boolean;
   message: string;
   readonly rollResult: ResolvedD20Roll;
@@ -869,7 +882,7 @@ export function attemptFlee(dexModifier: number, aliveCount: number = 1): {
     throw new Error(`[combat] attemptFlee: invalid dexModifier ${dexModifier}`);
   }
   const roll = rollD20(dexModifier);
-  const dc = getFleeDC(aliveCount);
+  const dc = getFleeDC(aliveCount, rules);
   if (roll.total >= dc) {
     return {
       success: true, message: `Escaped! (rolled ${roll.total})`,
@@ -1123,6 +1136,7 @@ export function monsterUseAbilityTarget(
   target: MonsterAttackTarget,
   monsterEffects: ActiveStatusEffect[] = [],
   synergyDamageBonus: number = 0,
+  rules: DifficultyRules = STANDARD_DIFFICULTY_RULES,
 ): MonsterAbilityResult {
   if (ability.type === "heal") {
     const healingRoll = rollEffectDice(ability.damageCount, ability.damageDie);
@@ -1149,7 +1163,7 @@ export function monsterUseAbilityTarget(
   );
   const physicalType = ability.physicalDamageType
     ?? (ability.element ? undefined : monster.physicalDamageType ?? PhysicalDamageType.Bludgeoning);
-  const armor = resolveArmorHit(damageRoll, physicalType, target);
+  const armor = resolveArmorHit(scaleEnemyDamageRoll(damageRoll, rules), physicalType, target);
   const damage = armor.damage;
   const hpBefore = target.currentHp;
   target.currentHp = Math.max(0, target.currentHp - damage);
@@ -1219,5 +1233,6 @@ export function monsterUseAbility(
     },
     monsterEffects,
     synergyDamageBonus,
+    getCampaignDifficultyRules(player),
   );
 }

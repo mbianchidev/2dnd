@@ -41,6 +41,7 @@ import { renderPartyStatus } from "../renderers/partyStatus";
 import { subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
 import { getPartyDiscoveryPages, isFeatureAvailable } from "../systems/featureDiscovery";
 import type { PartyMemberView, PartyOverlayCallbacks, PartyOverlayPage } from "./partyOverlayTypes";
+import { getDifficultyProfile } from "../data/difficulty";
 
 export class PartyOverlayManager {
   private readonly scene: Phaser.Scene;
@@ -301,6 +302,12 @@ export class PartyOverlayManager {
       state: member.state,
       companion: member.companion,
       targetName: this.getMember(this.targetId)?.name ?? "Hero",
+      campaignRulesLabel: getDifficultyProfile(this.player!.difficulty.selection.profileId).name,
+      openCampaignRules: this.callbacks.openCampaignRules
+        ? () => {
+          this.close();
+          this.callbacks.openCampaignRules?.();
+        } : undefined,
       x,
       y,
       width,

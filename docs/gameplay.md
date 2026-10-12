@@ -70,6 +70,14 @@ Character creation follows:
 
 **Name -> Class -> Stats -> Appearance -> Adventure**
 
+- **Campaign Rules** on Appearance chooses Story, Standard, Veteran, Legendary,
+  or constrained Custom. Standard is the original mechanics. Settings and the
+  character sheet show all effects and eligibility; see
+  [Difficulty and Custom rules](difficulty.md).
+- Campaign rules can change later only through a preview and explicit
+  confirmation during safe exploration. Pending outcomes and battles block
+  changes; actual edits permanently remove future preset-challenge continuity,
+  while general and already earned achievements remain.
 - Choose Knight, Ranger, Wizard, Sorcerer, Rogue, Paladin, Warlock, Cleric,
   Druid, Barbarian, Monk, or Bard.
 - Spend 27 points on base scores from 8 to 15, or use 4d6-drop-lowest random
@@ -123,6 +131,12 @@ Frightened, Slowed, Prone, Asleep, Confused, Weakened, Enraged, Hasted, Inspired
 and Sneak Stance. Effects resolve on actor turn boundaries and are cleared when
 Battle ends.
 
+A full party wipe applies one profile-governed recovery result, autosaves it,
+reports exact gold and XP losses, clears Battle effects, and returns the party
+to the last town. Standard restores half HP/MP; Story restores all HP/MP without
+gold/XP loss. General achievements remain available on every mode, while preset
+campaign challenges require unchanged natural progression.
+
 Weapons also deal Bludgeoning, Slashing or Piercing damage. Match observed
 monster defenses, or choose **Aim parts** (Up/Down while selecting a physical
 target) for harder-to-hit local weaknesses and temporary effects. Eligible
@@ -156,9 +170,6 @@ Battle log. Outside combat, results remain for three seconds after settling
 and then fade; changing scenes or entering another event clears them.
 See [Dice presentation](dice-presentation.md).
 
-A full party wipe applies one recovery result, autosaves it, reports exact gold
-and XP losses, clears Battle effects, and returns the party to the last town at
-half HP/MP.
 
 Standard battles remain unlimited. **Esc menu > Settings > Battle Timing**
 opts only the current campaign into 15/30/45/60/90-second hero and manual

@@ -75,6 +75,7 @@ function slotStatusText(slot: SaveSlotInfo): string {
     const name = metadata.classCount > 1 && metadata.characterName.length > 24
       ? `${metadata.characterName.slice(0, 21)}...` : metadata.characterName;
     return `${name} Lv.${metadata.level} ${label}\n`
+      + `Rules: ${metadata.difficultyName}${metadata.difficultyChangeCount > 0 ? " (changed)" : ""}\n`
       + `${metadata.location} | ${metadata.campaignStatus} | `
       + `${formatSavePlaytime(metadata.playtimeSeconds)} | `
       + `${formatSavedAt(metadata.savedAt)}`;
@@ -299,7 +300,13 @@ export class SaveSlotManager {
         ? "Choose a different manual slot."
         : `Copy into ${slot.displayName}. Existing data requires confirmation.`;
     }
-    return slot.diagnostic ?? `${slot.displayName}: ${slot.state}.`;
+    if (slot.diagnostic) return slot.diagnostic;
+    const metadata = slot.metadata;
+    return metadata
+      ? `${metadata.difficultyName}: ${metadata.difficultyChallengeProfile
+        ? "natural preset challenge eligible" : "general achievements available"}. `
+        + `${metadata.difficultyChangeCount} rule changes. Schema ${metadata.schemaVersion}.`
+      : `${slot.displayName}: ${slot.state}.`;
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {

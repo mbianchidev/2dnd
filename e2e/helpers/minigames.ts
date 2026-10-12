@@ -5,7 +5,7 @@ import { createMinigameChallenge } from "../../src/systems/minigameRules";
 import { getMinigameRunId } from "../../src/systems/minigameState";
 import { createWeatherState, WeatherType } from "../../src/systems/weather";
 import { playerAt } from "../../tests/helpers/minigames";
-import { clickPointerAt, tapLayoutItem, tapPointerAt, waitForGameInputFrame } from "./layout";
+import { clickPointerAt, enableNativeCanvasTouch, tapLayoutItem, tapPointerAt, waitForGameInputFrame } from "./layout";
 import { MINIGAME_VENUES, type MinigameVenueId } from "../../src/data/minigames";
 import type { SaveData } from "../../src/systems/save";
 import type { MinigameSession } from "../../src/systems/minigameTypes";
@@ -179,6 +179,9 @@ export async function seedMinigamePage(
   source: MinigameTestSource,
   options: { reducedMotion?: boolean; textScale?: 1 | 1.25 | 1.5; touchControls?: "on" | "off" } = {},
 ): Promise<void> {
+  if (source === "touch" && await page.evaluate(() => window.desktop !== undefined)) {
+    await enableNativeCanvasTouch(page);
+  }
   await page.evaluate(({ campaign, preferences }) => {
     localStorage.clear();
     localStorage.setItem("2dnd_save", JSON.stringify(campaign));

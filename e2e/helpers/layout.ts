@@ -1,8 +1,20 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type CDPSession, type Page } from "@playwright/test";
 import type { LayoutAuditItem, LayoutAuditResult } from "../../src/systems/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
+const nativeTouchSessions = new WeakMap<Page, CDPSession>();
+
+/** Advertise native touch before game boot and keep that device stable across reloads. */
+export async function enableNativeCanvasTouch(page: Page): Promise<CDPSession> {
+  let protocol = nativeTouchSessions.get(page);
+  if (!protocol) {
+    protocol = await page.context().newCDPSession(page);
+    nativeTouchSessions.set(page, protocol);
+  }
+  await protocol.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  return protocol;
+}
 
 interface LayoutReport {
   overlapCount: number;
@@ -31,7 +43,10 @@ export async function clickPointerAt(page: Page, x: number, y: number): Promise<
 }
 
 export async function tapPointerAt(page: Page, x: number, y: number): Promise<void> {
-  const protocol = await page.context().newCDPSession(page);
+  const nativeDesktop = await page.evaluate(() => window.desktop !== undefined);
+  const protocol = nativeDesktop
+    ? await enableNativeCanvasTouch(page)
+    : await page.context().newCDPSession(page);
   try {
     await protocol.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
     await protocol.send("Input.dispatchTouchEvent", {
@@ -43,7 +58,7 @@ export async function tapPointerAt(page: Page, x: number, y: number): Promise<vo
       await protocol.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     }
   } finally {
-    await protocol.detach();
+    if (!nativeDesktop) await protocol.detach();
   }
 }
 

@@ -99,6 +99,10 @@ Desktop control coverage loads saved Touch On, requires absent mobile rails,
 types physical WASD into a focused name field, and moves through all four
 keyboard directions after text closes. Native activity touch fixtures use real
 canvas venue/action/meter/sailing targets, never an invisible or test-only pad.
+Advertise the native emulated touch device before game boot and retain its CDP
+session across reloads; enabling it only during a gesture can leave Phaser
+without touch listeners. Verify moved positions in saves after a real
+Save & Return to Title action, not by assuming every city step autosaves.
 
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
 a strict port. `e2e/landing.spec.ts` exercises the showcase root; Phaser flows

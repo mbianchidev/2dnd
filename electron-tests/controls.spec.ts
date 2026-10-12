@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { closeDesktop, holdKey, launchDesktop, monitorRendererErrors, resizeDesktop, waitForState } from "./helpers/desktop";
-import { clickLayoutItem } from "../e2e/helpers/layout";
+import { clickLayoutItem, readLayoutReport } from "../e2e/helpers/layout";
 import { minigameFixture, readMinigameSave, seedMinigamePage } from "../e2e/helpers/minigames";
 
 async function movementFrame(page: Page, key: string, code: string, keyCode: number): Promise<void> {
@@ -70,10 +70,19 @@ test("desktop hides saved mobile controls and isolates physical WASD typing from
       await waitForState(page, "Move: ready");
       await page.waitForTimeout(170);
     }
-    expect((await readMinigameSave(page)).player.position).toMatchObject(position);
     const path = test.info().outputPath("desktop-keyboard-no-mobile-controls.png");
     await page.screenshot({ path });
     await test.info().attach("desktop-keyboard-no-mobile-controls", { path, contentType: "image/png" });
+    await holdKey(page, "Escape");
+    await waitForState(page, "[MENU]");
+    for (let index = 0; index < 20; index += 1) {
+      const group = (await readLayoutReport(page)).groups["escape-menu"];
+      if (group?.items.some((item) => item.id === "escape-menu-quit")) break;
+      await holdKey(page, "ArrowDown");
+    }
+    await clickLayoutItem(page, "escape-menu-quit");
+    await waitForState(page, "BOOT | Screen: title");
+    expect((await readMinigameSave(page)).player.position).toMatchObject(position);
     expect(errors).toEqual([]);
   } finally {
     if (application) await closeDesktop(application);

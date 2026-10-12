@@ -27,10 +27,10 @@ class-neutral archery, and Harbor Regatta minigames.
 
 - Phaser 4.2.1
 - TypeScript 7.0.2 in strict mode
-- Vite 8.3.2
+- Vite 8.3.4
 - Vitest 5.0.3
-- Playwright 1.63.0
-- happy-dom 20.14.5
+- Playwright 1.64.0
+- happy-dom 20.14.6
 - Electron 44.7.0
 - electron-builder 26.17.0
 - Modern browsers, ES2020 target

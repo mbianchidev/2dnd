@@ -94,6 +94,8 @@ interface DisplayedDiceSnapshot {
   faces: { sides: string | undefined; natural: string | undefined }[];
   hidden: boolean;
   rollingFaces: { sides: string | undefined; natural: string | undefined }[];
+  phase: string | undefined;
+  motionCount: number;
 }
 
 function captureDice(page: Page): {
@@ -363,6 +365,17 @@ function collectErrors(page: Page): string[] {
 }
 
 async function expectDiceBounds(page: Page, textScale: TextScale): Promise<void> {
+  await expect.poll(() => page.evaluate(() => {
+    const root = document.getElementById("dice-presentation");
+    const canvas = document.querySelector("#game-container canvas");
+    if (!root || root.hidden || !canvas) return false;
+    const rect = root.getBoundingClientRect();
+    const bounds = canvas.getBoundingClientRect();
+    return Math.abs(rect.left - bounds.left) < 1
+      && Math.abs(rect.width - bounds.width) < 1
+      && rect.right <= window.innerWidth
+      && rect.bottom <= window.innerHeight;
+  })).toBe(true);
   const bounds = await page.locator("#dice-presentation").evaluate((root) => {
     const rect = root.getBoundingClientRect();
     const glyphs = root.querySelector<HTMLElement>(".resolved-dice")!;
@@ -409,19 +422,28 @@ async function skipDiceWithKeyboard(page: Page): Promise<void> {
   }
 }
 
-async function captureDisplayedDice(page: Page, label: string): Promise<DisplayedDiceSnapshot> {
-  return page.evaluate((expected) => new Promise<DisplayedDiceSnapshot>((resolve, reject) => {
+async function captureDisplayedDice(
+  page: Page,
+  label: string,
+  boundary: "present" | "skip" = "present",
+): Promise<DisplayedDiceSnapshot> {
+  return page.evaluate(({ expected, boundary }) => new Promise<DisplayedDiceSnapshot>((resolve, reject) => {
     const root = document.getElementById("dice-presentation");
     if (!root) throw new Error("Missing live dice view");
-    const previousSequence = root.dataset.sequence;
+    const previousSequence = boundary === "skip"
+      ? root.dataset.lastSkippedSequence : root.dataset.sequence;
     const read = (): boolean => {
-      if (root.dataset.sequence === previousSequence) return false;
+      const sequence = boundary === "skip"
+        ? root.dataset.lastSkippedSequence : root.dataset.sequence;
+      if (sequence === previousSequence) return false;
       const text = root.querySelector("#dice-result")?.textContent ?? "";
       if (!text.startsWith(expected)) return false;
       observer.disconnect();
       window.clearTimeout(timeout);
       resolve({
         text,
+        phase: root.dataset.phase,
+        motionCount: root.getAnimations({ subtree: true }).length,
         hidden: root.hidden === true,
         faces: [...root.querySelectorAll<HTMLElement>(".resolved-die")].map((die) => ({
           sides: die.dataset.sides, natural: die.dataset.natural,
@@ -439,7 +461,7 @@ async function captureDisplayedDice(page: Page, label: string): Promise<Displaye
     }, 5000);
     observer.observe(root, { childList: true, subtree: true, attributes: true });
     read();
-  }), label);
+  }), { expected: label, boundary });
 }
 
 test.describe("physical dice game-viewport demo", () => {
@@ -633,13 +655,15 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     const dock = page.locator("#dice-presentation");
     await expect(dock).toHaveAttribute("data-phase", "animating");
     const beforeSkip = await dock.getAttribute("data-last-skipped-sequence");
+    const skipSnapshot = captureDisplayedDice(page, "", "skip");
     if (textScale === 1) await skipDiceWithKeyboard(page);
     else if (textScale === 1.25) await pressGamepad(page, 10);
     else await page.locator("#dice-fast-forward").tap();
     await expect.poll(() => dock.getAttribute("data-last-skipped-sequence")).not.toBe(beforeSkip);
-    await expect(dock).toHaveAttribute("data-phase", "ready");
-    await expect(page.locator("#dice-roll-stage")).toBeVisible();
-    expect(await page.locator("#dice-roll-stage").evaluate((stage) => stage.getAnimations({ subtree: true }).length)).toBe(0);
+    const skipped = await skipSnapshot;
+    expect(skipped.phase).toBe("ready");
+    expect(skipped.motionCount).toBe(0);
+    expect(skipped.rollingFaces).toEqual(skipped.faces);
 
     const attack = log.locator('[data-category="attack"]').filter({ hasText: "Dice Tester attack" });
     const attackPacket = await evidence.find("attack", "party:hero");

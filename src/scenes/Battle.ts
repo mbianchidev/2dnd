@@ -1415,13 +1415,9 @@ export class BattleScene extends Phaser.Scene {
       .setText(
         `${pending.label}: whole`
         + (penalty > 0 ? ` (-${penalty} melee penalty)` : "")
-        + (this.battleTiming ? " | Enter/A" : " — arrows/WASD, Enter/Space"),
+        + " | Confirm",
       )
       .setVisible(true);
-    if (this.battleTiming) {
-      this.targetHint.setWordWrapWidth(this.cameras.main.width * 0.47);
-      this.targetHint.setY(this.logAreaY - this.targetHint.displayHeight - 8);
-    }
   }
 
   private showPartCursor(targetIndex: number, part?: BodyPart): void {

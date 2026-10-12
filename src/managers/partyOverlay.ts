@@ -240,17 +240,17 @@ export class PartyOverlayManager {
       );
       currentY += memberButton.displayHeight + 6;
       if (companion) {
-        this.addButton(x, currentY, "Up", () => {
+        const up = this.addButton(x, currentY, "Up", () => {
           this.applyMutation(
             moveActiveCompanion(this.player!.party, companion.id, -1),
           );
         }, "#aaaaaa", 42);
-        this.addButton(x + 48, currentY, "Down", () => {
+        const down = this.addButton(x + 48, currentY, "Down", () => {
           this.applyMutation(
             moveActiveCompanion(this.player!.party, companion.id, 1),
           );
         }, "#aaaaaa", 50);
-        this.addButton(x + 104, currentY, activeIndex >= 0 ? "Out" : "In", () => {
+        const active = this.addButton(x + 104, currentY, activeIndex >= 0 ? "Out" : "In", () => {
           this.applyMutation(
             setCompanionActive(
               this.player!.party,
@@ -259,7 +259,7 @@ export class PartyOverlayManager {
             ),
           );
         }, "#aaaaaa", 42);
-        currentY += 28;
+        currentY += Math.max(up.displayHeight, down.displayHeight, active.displayHeight) + 6;
       }
     }
   }

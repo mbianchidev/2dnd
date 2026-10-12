@@ -210,6 +210,20 @@ test("dice input replay, loss, abandonment, and personal-board exit cannot leak 
   expect(save.player.progression.minigames.claimedMilestoneIds).toEqual([]);
   await minigameKey(page, "Escape");
   const position = save.player.position;
+  // Release in the browser frame; hosted protocol latency can outlast movement's repeat interval.
+  await page.evaluate(() => {
+    window.addEventListener("keydown", (event) => {
+      if (event.code !== "KeyW") return;
+      requestAnimationFrame(() => {
+        const release = new KeyboardEvent("keyup", {
+          key: "w", code: "KeyW", bubbles: true, cancelable: true,
+        });
+        Object.defineProperty(release, "keyCode", { value: 87 });
+        Object.defineProperty(release, "which", { value: 87 });
+        window.dispatchEvent(release);
+      });
+    }, { once: true });
+  });
   await page.keyboard.down("w");
   try {
     await page.waitForFunction((expected) =>

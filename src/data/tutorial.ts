@@ -338,8 +338,8 @@ export const TIPS: readonly TipDefinition[] = [
   {
     id: "combat.elements",
     category: "combat",
-    title: "Elemental scouting",
-    body: "Weaknesses double damage, resistances halve it, and immunities prevent it. Observed interactions are recorded in the Codex.",
+    title: "Physical and elemental scouting",
+    body: "Weapons deal Bludgeoning, Slashing or Piercing. Weaknesses double damage, resistances halve it, and immunity prevents it. Armor adds matching physical resistance independently of AC; check its gear description. While selecting a physical target, Aim parts or Up/Down opens eligible humanoid/Large+ parts with shared HP, accuracy tradeoffs and temporary effects. Confirm still attacks the whole target. Observations enter the Codex; pure magic keeps its own elements.",
     unlock: { type: "level", minimum: 2 },
   },
   {

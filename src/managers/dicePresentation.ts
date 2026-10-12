@@ -1,4 +1,3 @@
-import type * as Phaser from "phaser";
 import { debugPanelLog } from "../config";
 import {
   gamePreferences,
@@ -6,16 +5,34 @@ import {
 } from "../systems/accessibility";
 import {
   DicePresentationController,
-  diceRollHistory,
   createSkillDicePresentation,
   type DicePresentation,
+  type DicePresentationEvent,
 } from "../systems/dicePresentation";
 import { inputPromptSource } from "../systems/input";
 import { audioEngine } from "../systems/audio";
 import { DiceRollRenderer } from "../renderers/dice";
 import type { SkillCheckRecord } from "../data/skillChecks";
 
-const scenePresentations = new WeakMap<Phaser.Scene, DicePresentationManager>();
+interface DicePresentationScene {
+  readonly scene: { readonly key: string };
+  readonly time: {
+    delayedCall(duration: number, complete: () => void): { remove(dispatchCallback: boolean): unknown };
+  };
+  readonly input: {
+    readonly keyboard?: {
+      on(event: string, listener: () => void): unknown;
+      off(event: string, listener: () => void): unknown;
+    } | null;
+  };
+  readonly events: {
+    once(event: string, listener: () => void, context?: object): unknown;
+    off(event: string, listener: () => void, context?: object): unknown;
+  };
+}
+
+const scenePresentations = new WeakMap<DicePresentationScene, DicePresentationManager>();
+const inactiveScenes = new WeakSet<DicePresentationScene>();
 
 export class DicePresentationManager {
   private readonly controller: DicePresentationController;
@@ -26,18 +43,13 @@ export class DicePresentationManager {
   private cleaned = false;
 
   constructor(
-    private readonly scene: Phaser.Scene,
-    addLog?: (message: string) => void,
+    private readonly scene: DicePresentationScene,
+    addLog?: (message: string, event: DicePresentationEvent) => void,
   ) {
     this.renderer = new DiceRollRenderer(() => this.fastForward());
-    for (const event of diceRollHistory.entries) this.renderer.record(event);
-    const latest = diceRollHistory.entries[diceRollHistory.entries.length - 1];
-    if (latest) this.renderer.show({ ...latest, duration: 0 }, gamePreferences.get(), false);
     this.controller = new DicePresentationController({
       record: (event) => {
-        diceRollHistory.append(event);
-        this.renderer.record(event);
-        if (addLog) addLog(event.text);
+        if (addLog) addLog(event.text, event);
         debugPanelLog(`[ROLL] ${event.text}`, false, "roll-detail");
       },
       show: (event) => {
@@ -47,6 +59,11 @@ export class DicePresentationManager {
         }
       },
       settle: () => this.settle(),
+      hide: () => this.renderer.hide(),
+      dismiss: (duration) => {
+        this.settle();
+        this.renderer.dismiss(duration);
+      },
       clear: () => {
         this.settle();
         this.renderer.destroy();
@@ -55,7 +72,7 @@ export class DicePresentationManager {
         const timer = this.scene.time.delayedCall(duration, complete);
         return () => timer.remove(false);
       },
-    });
+    }, scene.scene.key === "BattleScene" ? "battle" : "transient");
     this.renderer.applyPreferences(gamePreferences.get());
     this.unsubscribePreferences = gamePreferences.subscribe((preferences) => {
       this.controller.fastForward();
@@ -64,7 +81,7 @@ export class DicePresentationManager {
     this.unsubscribePrompts = inputPromptSource.subscribe(() => this.renderer.updatePrompt());
     this.scene.input.keyboard?.on("keydown-Z", this.handleFastForward);
     document.addEventListener("visibilitychange", this.handleVisibility);
-    window.addEventListener("blur", this.handleWindowChange);
+    window.addEventListener("blur", this.handleBlur);
     window.addEventListener("resize", this.handleWindowChange);
     this.scene.events.once("shutdown", this.cleanup, this);
     this.scene.events.once("destroy", this.cleanup, this);
@@ -84,6 +101,12 @@ export class DicePresentationManager {
     this.controller.fastForward();
   }
 
+  reset(): void {
+    this.controller.reset();
+    this.stopCue?.();
+    this.stopCue = null;
+  }
+
   private readonly handleFastForward = (): void => {
     const focused = document.activeElement;
     if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) return;
@@ -91,8 +114,10 @@ export class DicePresentationManager {
   };
 
   private readonly handleVisibility = (): void => {
-    if (document.visibilityState !== "visible") this.fastForward();
+    if (document.visibilityState !== "visible") this.reset();
   };
+
+  private readonly handleBlur = (): void => this.reset();
 
   private readonly handleWindowChange = (): void => {
     this.fastForward();
@@ -112,20 +137,22 @@ export class DicePresentationManager {
     this.unsubscribePrompts();
     this.scene.input.keyboard?.off("keydown-Z", this.handleFastForward);
     document.removeEventListener("visibilitychange", this.handleVisibility);
-    window.removeEventListener("blur", this.handleWindowChange);
+    window.removeEventListener("blur", this.handleBlur);
     window.removeEventListener("resize", this.handleWindowChange);
     this.scene.events.off("shutdown", this.cleanup, this);
     this.scene.events.off("destroy", this.cleanup, this);
     scenePresentations.delete(this.scene);
+    inactiveScenes.add(this.scene);
   }
 }
 
 export function installDicePresentation(
-  scene: Phaser.Scene,
-  addLog?: (message: string) => void,
+  scene: DicePresentationScene,
+  addLog?: (message: string, event: DicePresentationEvent) => void,
 ): DicePresentationManager {
   const existing = scenePresentations.get(scene);
   if (existing) return existing;
+  inactiveScenes.delete(scene);
   const manager = new DicePresentationManager(scene, addLog);
   scenePresentations.set(scene, manager);
   return manager;
@@ -133,25 +160,26 @@ export function installDicePresentation(
 
 /** Accepts resolved presentation only; never blocks scene input or returns a promise. */
 export function presentDiceResult(
-  scene: Phaser.Scene,
+  scene: DicePresentationScene,
   presentation: DicePresentation,
   source?: object,
 ): void {
+  if (inactiveScenes.has(scene)) return;
   installDicePresentation(scene).present(presentation, source);
 }
 
 export function presentSkillDiceResult(
-  scene: Phaser.Scene,
+  scene: DicePresentationScene,
   result: SkillCheckRecord,
   label: string,
 ): void {
   presentDiceResult(scene, createSkillDicePresentation(result, { label }), result);
 }
 
-export function clearDicePresentation(scene: Phaser.Scene): void {
+export function clearDicePresentation(scene: DicePresentationScene): void {
   scenePresentations.get(scene)?.cleanup();
 }
 
-export function resetDiceRollHistory(): void {
-  diceRollHistory.clear();
+export function resetDicePresentation(scene: DicePresentationScene): void {
+  scenePresentations.get(scene)?.reset();
 }

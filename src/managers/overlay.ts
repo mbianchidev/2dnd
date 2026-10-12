@@ -24,6 +24,7 @@ import {
 } from "../data/map";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
+import { getItemDescription } from "../data/items";
 import { getMount } from "../data/mounts";
 import {
   type PlayerState,
@@ -779,7 +780,7 @@ export class OverlayManager {
     type ItemEntry = { label: string; desc: string; color: string; itemId?: string };
     const allEntries: ItemEntry[] = [];
     for (const [, { item, count }] of grouped) {
-      allEntries.push({ label: `${item.name} ×${count}`, desc: item.description, color: "#aaddff", itemId: item.id });
+      allEntries.push({ label: `${item.name} ×${count}`, desc: getItemDescription(item), color: "#aaddff", itemId: item.id });
     }
     for (const ki of keyItems) {
       allEntries.push({ label: ki.name, desc: ki.description, color: "#ffdd88" });

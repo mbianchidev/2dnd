@@ -7,7 +7,8 @@ import {
   combineDicePresentations,
   createSkillDicePresentation,
   DicePresentationController,
-  DiceRollHistory,
+  DICE_FADE_MS,
+  TRANSIENT_DICE_HOLD_MS,
   formatDicePresentation,
   getDicePresentationDuration,
   isCriticalDicePresentation,
@@ -17,6 +18,7 @@ import { snapshotD20Roll, snapshotEffectRoll } from "../src/systems/rollResults"
 import type {
   DicePresentation,
   DicePresentationAdapter,
+  DicePresentationScope,
 } from "../src/systems/dicePresentation";
 import type { ResolvedD20Roll } from "../src/systems/rollResults";
 
@@ -254,21 +256,20 @@ describe("resolved dice mapping", () => {
     const effect = createEffectDicePresentation(raw, {
       category: "damage", label: "Enemy damage", outcome: "rolled", revealModifier: false,
     });
-    const history = new DiceRollHistory();
     const controller = new DicePresentationController({
-      record: (event) => history.append(event),
-      show: vi.fn(), settle: vi.fn(), clear: vi.fn(), schedule: vi.fn(() => vi.fn()),
+      record: vi.fn(), show: vi.fn(), settle: vi.fn(), hide: vi.fn(),
+      dismiss: vi.fn(), clear: vi.fn(), schedule: vi.fn(() => vi.fn()),
     });
     controller.present(combineDicePresentations(save, [effect]),
       { frequency: "off", speed: "instant" }, true, raw);
-    const stored = JSON.stringify(history.entries);
+    const stored = JSON.stringify(controller.history);
     expect(stored).not.toMatch(/131|136|137|149|73|91|Hidden|vs DC/);
     expect(effect.effect?.modifiers).toBeUndefined();
     expect(effect.effect?.adjustments).toBeUndefined();
     expect(effect.effect?.roll?.modifier).toBeUndefined();
-    expect(history.entries[0]?.text).toContain("2d6 [1, 4]");
-    expect(history.entries[0]?.text).toContain("Resolved 7 damage | HP lost 2");
-    expect(history.entries[0]?.presentation).not.toHaveProperty("source");
+    expect(controller.history[0]?.text).toContain("2d6 [1, 4]");
+    expect(controller.history[0]?.text).toContain("Resolved 7 damage | HP lost 2");
+    expect(controller.history[0]?.presentation).not.toHaveProperty("source");
     controller.cleanup();
   });
 
@@ -343,20 +344,22 @@ describe("resolved dice mapping", () => {
 });
 
 describe("non-blocking dice presentation lifecycle", () => {
-  function setup() {
+  function setup(scope: DicePresentationScope = "battle") {
     const scheduled: Array<() => void> = [];
     const cancelTimer = vi.fn();
     const adapter: DicePresentationAdapter = {
       record: vi.fn(),
       show: vi.fn(),
       settle: vi.fn(),
+      hide: vi.fn(),
+      dismiss: vi.fn(),
       clear: vi.fn(),
       schedule: vi.fn((_duration, complete) => {
         scheduled.push(complete);
         return cancelTimer;
       }),
     };
-    const controller = new DicePresentationController(adapter);
+    const controller = new DicePresentationController(adapter, scope);
     return { controller, adapter, scheduled, cancelTimer };
   }
 
@@ -458,19 +461,60 @@ describe("non-blocking dice presentation lifecycle", () => {
     )).toBe(300);
   });
 
-  it("keeps bounded resolved history across visual cleanup and explicitly resets at title", () => {
-    const history = new DiceRollHistory();
-    const { controller, adapter } = setup();
-    vi.mocked(adapter.record).mockImplementation((event) => history.append(event));
+  it("keeps bounded evidence only in its current battle and resets on exit", () => {
+    const { controller } = setup();
     for (let index = 0; index < 45; index += 1) {
       controller.present(presentation(), { frequency: "off", speed: "instant" }, true);
     }
+    expect(controller.history).toHaveLength(40);
+    expect(controller.history[0]?.text).toBe(formatDicePresentation(presentation()));
+    expect(Object.isFrozen(controller.history)).toBe(true);
     controller.cleanup();
-    expect(history.entries).toHaveLength(40);
-    expect(history.entries[0]?.text).toBe(formatDicePresentation(presentation()));
-    expect(Object.isFrozen(history.entries)).toBe(true);
-    history.clear();
-    expect(history.entries).toEqual([]);
+    expect(controller.history).toEqual([]);
+    expect(setup().controller.history).toEqual([]);
+  });
+
+  it("fades an outside-battle result after its exact throw and a short reading interval", () => {
+    const { controller, adapter, scheduled } = setup("transient");
+    controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
+    expect(adapter.schedule).toHaveBeenNthCalledWith(1, 900, expect.any(Function));
+    expect(adapter.schedule).toHaveBeenNthCalledWith(2, 900 + TRANSIENT_DICE_HOLD_MS, expect.any(Function));
+    scheduled[0]!();
+    expect(controller.phase).toBe("ready");
+    expect(adapter.dismiss).not.toHaveBeenCalled();
+    scheduled[1]!();
+    expect(adapter.dismiss).toHaveBeenCalledWith(DICE_FADE_MS);
+    expect(controller.history).toEqual([]);
+  });
+
+  it("expires static reduced-motion results without a fade or outcome callback", () => {
+    const { controller, adapter, scheduled } = setup("transient");
+    controller.present(presentation(), { frequency: "all", speed: "instant" }, true);
+    expect(adapter.schedule).toHaveBeenCalledOnce();
+    expect(adapter.schedule).toHaveBeenCalledWith(TRANSIENT_DICE_HOLD_MS, expect.any(Function));
+    scheduled[0]!();
+    expect(adapter.dismiss).toHaveBeenCalledWith(0);
+    expect(controller.history).toEqual([]);
+  });
+
+  it("cancels stale expiry on replacement, event reset and shutdown without reviving results", () => {
+    const { controller, adapter, scheduled, cancelTimer } = setup("transient");
+    controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
+    controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
+    scheduled[1]!();
+    expect(adapter.dismiss).not.toHaveBeenCalled();
+    expect(controller.history).toHaveLength(1);
+    controller.reset();
+    expect(adapter.hide).toHaveBeenCalledOnce();
+    expect(controller.history).toEqual([]);
+    for (const complete of scheduled) complete();
+    expect(adapter.dismiss).not.toHaveBeenCalled();
+    expect(cancelTimer).toHaveBeenCalledTimes(4);
+    controller.present(presentation(), { frequency: "all", speed: "instant" }, true);
+    controller.cleanup();
+    scheduled[scheduled.length - 1]!();
+    expect(adapter.clear).toHaveBeenCalledOnce();
+    expect(adapter.dismiss).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -529,7 +529,7 @@ export const CITIES: CityData[] = [
     mapData: withNorthGate(WILLOWDALE_INTERIOR), spawnX: 10, spawnY: 13,
     connections: northGateConnections(),
     shops: [
-      { type: "weapon", name: "Blade & Bow", x: 3, y: 4, shopItems: ["shortSword", "longSword"] },
+      { type: "weapon", name: "Blade & Bow", x: 3, y: 4, shopItems: ["shortSword", "longSword", "warhammer", "huntingBow"] },
       { type: "armor", name: "Hide & Mail", x: 16, y: 4, shopItems: ["leatherArmor", "woodenShield"] },
       { type: "general", name: "General Store", x: 3, y: 11, shopItems: ["potion", "ether", "antidote", "burnSalve", "thawingTonic", "paralysisRemedy", "smellingSalts", "wildHerbs", "brookTrout", "dungeonKey"] },
       { type: "inn", name: "Willow Inn", x: 16, y: 11, shopItems: [] },

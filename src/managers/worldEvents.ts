@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { presentSkillDiceResult } from "./dicePresentation";
+import { presentSkillDiceResult, resetDicePresentation } from "./dicePresentation";
 import { GAME_HEIGHT, GAME_WIDTH, debugPanelLog } from "../config";
 import {
   getWorldEventDefinition,
@@ -195,6 +195,7 @@ export class WorldEventManager {
   }
 
   close(): void {
+    resetDicePresentation(this.scene);
     this.container?.destroy(true);
     this.container = null;
   }
@@ -213,6 +214,7 @@ export class WorldEventManager {
     defeatedBosses: ReadonlySet<string>,
     terrain: Terrain,
   ): void {
+    resetDicePresentation(this.scene);
     this.player = player;
     this.codex = codex;
     this.defeatedBosses = defeatedBosses;

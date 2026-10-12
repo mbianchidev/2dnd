@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v22; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v24; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -19,8 +19,8 @@ Legacy `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values migrate into
 schema.
 
 Preference v3 adds normalized dice animation frequency/speed, defaulting missing
-or corrupt v1/v2 values to All/Normal. Exact roll receipts and the bounded
-cross-scene roll log are runtime-only. Dice preferences never alter campaign or
+or corrupt v1/v2 values to All/Normal. Exact roll receipts, transient scene dice
+and the current Battle log are runtime-only and clear on exit. Dice preferences never alter campaign or
 slot documents or increment their schema.
 
 Browser deployments store these documents under their HTTP/HTTPS origin.
@@ -52,7 +52,31 @@ relinking and preserves well-formed serialized item ownership.
 
 ## Current schema
 
-`SAVE_VERSION` is **22**. Schema v22 adds normalized deterministic
+`SAVE_VERSION` is **24**. Schema v24 adds optional armor-only
+`Item.physicalResistances` with unique known physical types. Canonical older
+armor copies resolve their current protection at use time without replacing
+serialized metadata or equipment links. Valid custom arrays, including an
+explicit empty list, preserve their authority and exact owned object. Invalid
+unknown armor records reject the candidate before slot/import writes; malformed
+known gear follows the existing canonical repair path.
+Preserve all prior physical observations, minigame challenges/receipts,
+progression/rest credits, resources and every other campaign domain.
+
+Schema v23 adds observed whole/part physical defenses
+in `CodexEntry.discoveredPhysical` and optional typed weapon metadata.
+Pre-v22 saves gain empty observations without inventing history. Normalize
+canonical type/part combinations, duplicates, neutral observations and invalid
+weapon-only fields. Keep valid custom/legacy item content, inventory order,
+exact equipment links, every other campaign domain and frozen rest receipts.
+Old canonical weapons resolve their new type at use time without rewriting
+serialized ownership. Part selection and monster limb effects are runtime-only.
+Schema-v22 activity campaigns without physical observations gain empty lists;
+valid v22 physical-combat previews retain their recorded IDs and typed weapons.
+Exact v22 pending/settled minigames, challenges, resources and watermarks remain
+unchanged while upgrading to v23.
+See [Physical combat](physical-combat.md).
+
+Schema v22 adds normalized deterministic
 `player.progression.minigames` for optional dice, archery, and regatta sessions.
 It preserves exact pending challenges/accepted inputs, compact session and
 settlement watermarks, finite milestone claims, separate paid/practice bests,

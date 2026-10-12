@@ -200,8 +200,11 @@ mode. New scene animations must also branch through
 `isReducedMotionEnabled()` or `getMotionDuration()`.
 
 Install `installDicePresentation(this)` in every scene too. It owns
-non-blocking exact-result visuals, cues, and skip listeners; its redacted
-runtime-only roll log survives handoffs and resets at Boot/reload. Never await
+non-blocking exact-result visuals, cues, and skip listeners. Numbered dice sit
+over the measured scene; details join Battle's existing log, which resets on
+exit. Other results expire after a short reading interval/fade, and event
+reset clears the previous view. Never restore a result/history across scenes.
+Never await
 dice animation or add it to movement/turn/transition input-block reasons.
 Keep combined d20/effect evidence immutable and redact before log storage.
 Capture existing scene-owned shield/healing HP deltas without recomputing
@@ -210,7 +213,8 @@ The shared input adapter releases discrete touch pulses at poststep and owns
 shutdown/destroy cleanup, so stale pulses cannot enter a replacement scene.
 Physical dice throws are a pointer-transparent procedural layer over the game.
 Own Web Animations, stage objects, resize/visibility listeners and synthesized
-cues; stop them on skip, preference changes, replacement and handoff. Keep exact
+cues and expiry/fade timers; stop them on reset, replacement and handoff. Skip
+settles exact numbered faces, while blur/visibility loss clears the view. Keep exact
 faces visible and never block input/turns or wait for a tumble to finish.
 
 Use `ActorAnimationDirector` for reusable actor poses and cleanup. Specialized
@@ -300,6 +304,13 @@ The Battle scene renders only messages that fit and changes the message offset
 on mouse-wheel input.
 
 ## Battle lifecycle
+
+- Optional physical aiming uses `BattleBodyTargetManager` for both the hero and
+  manual companions. Preserve whole-target confirmation, stable enemy/part IDs,
+  native accessible controls, keyboard/pointer/touch/gamepad navigation,
+  keyup activation, measured pagination and cleanup. Reticles use canonical
+  normalized anchors; presentation never owns limb HP or damage. See
+  `docs/physical-combat.md`.
 
 - Reinitialize phase, menus, turn flags, discoveries, and monster effects in
   `init()`.

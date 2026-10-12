@@ -127,7 +127,7 @@ Damage/healing stay aggregate when exact component rolls are unavailable.
 `ResolvedEffectRoll` captures the actual canonical dice pool and signed named
 modifiers, recorded adjustment stages, resolved amount and separate applied HP
 delta. Preserve finite fractional legacy effects, RNG sequence, source stats,
-status-before-element order, MP/items/economy and hook timing. Real critical
+status-before-physical-before-element order, MP/items/economy and hook timing. Real critical
 damage doubles only its existing pool; spell natural-20 flags do not imply new
 damage dice. Area/healing pools remain shared with independent target limits.
 Status ticks show their pools plus the one applied aggregate HP write.
@@ -135,6 +135,33 @@ No fabricated on-hit save, breath-attack d20, fixed-item or life-drain heal die.
 Ordinary roll displays may be Off, but canonical attack critical/fumble outcomes
 always show. Respect the selected natural, never a discarded20/1; keep checks,
 saves and initiative unreclassified. Instant/reduced motion stays static.
+
+## Physical damage and anatomy
+
+Body armor applies its type-specific resistance after status/synergy damage and
+before the actual HP write. Keep AC independent, use live equipped armor for
+heroes/companions, and resolve old canonical copies without replacing them.
+Basic monster attacks declare a physical type; physical abilities may override
+it, including an explicit physical component on elemental strikes.
+Elemental-only abilities and healing bypass this protection. Shield defense
+then adjusts final damage using pre-hit HP, never adding back capped overkill.
+Preserve exact dice faces, selected naturals, resource use and redacted receipts.
+
+Use `data/damageTypes.ts` for Bludgeoning/Slashing/Piercing and common affinity
+precedence; explicit `data/anatomy.ts` sizes/parts; `data/itemCombat.ts` for
+canonical/legacy weapon typing. `systems/physicalCombat.ts` integrates at the
+existing attack/off-hand/ability resolver and `battleActions.ts` validation.
+Damage order is status modifiers, physical profile/local override, elements,
+then the owning HP write. Never double-stack whole/part physical weakness or
+bypass whole-body immunity; pure magic stays elemental-only.
+
+Humanoid forms can be aimed at any size, other stable anatomies only at Large+.
+Parts share HP and existing status effects. Preserve optional whole-target
+Confirm, selected natural 1/20/disadvantage, formation/weather/defend, one main
+and one bonus action, and exact RNG/receipts. Apply limb effects only on positive
+final damage, for at most two target turns; saves may end them sooner.
+Persist only observed scope/type IDs in Codex schema v23, not limb HP or
+selection. See `docs/physical-combat.md`.
 
 ## Elements
 
@@ -212,6 +239,9 @@ matching effects. Combat effects are cleared when leaving Battle.
   farmed by stepping away or reloading.
 - Successful disarming awards XP through `awardXP()`.
 - Trigger damage and MP loss apply immediately and cannot reduce HP below 1.
+  Declared physical trap damage first applies the current armor profile through
+  the same physical modifier and receipt capture; magical damage and MP loss
+  bypass it.
   Trap-applied statuses seed the next battle and then follow the existing
   combat-turn lifecycle.
 - Alarm traps replace the normal encounter roll with a forced dungeon

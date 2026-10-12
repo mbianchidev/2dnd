@@ -32,7 +32,7 @@ export const TRAP_DEFINITIONS: Record<TrapType, TrapDefinition> = {
     disarmDC: 12,
     rewardXp: 25,
     color: 0xc62828,
-    damage: { count: 2, sides: 6 },
+    damage: { count: 2, sides: 6, physicalDamageType: "piercing" },
     statusEffect: "prone",
   },
   poisonDarts: {
@@ -45,7 +45,7 @@ export const TRAP_DEFINITIONS: Record<TrapType, TrapDefinition> = {
     disarmDC: 13,
     rewardXp: 30,
     color: 0x7cb342,
-    damage: { count: 1, sides: 6 },
+    damage: { count: 1, sides: 6, physicalDamageType: "piercing" },
     statusEffect: "poison",
   },
   fallingRocks: {
@@ -58,7 +58,7 @@ export const TRAP_DEFINITIONS: Record<TrapType, TrapDefinition> = {
     disarmDC: 13,
     rewardXp: 35,
     color: 0x795548,
-    damage: { count: 2, sides: 8 },
+    damage: { count: 2, sides: 8, physicalDamageType: "bludgeoning" },
     statusEffect: "stunned",
   },
   alarm: {
@@ -83,7 +83,7 @@ export const TRAP_DEFINITIONS: Record<TrapType, TrapDefinition> = {
     disarmDC: 14,
     rewardXp: 40,
     color: 0x8d6e63,
-    damage: { count: 1, sides: 8 },
+    damage: { count: 1, sides: 8, physicalDamageType: "bludgeoning" },
     mpLoss: 4,
     statusEffect: "prone",
     dropsLevel: true,

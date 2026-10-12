@@ -106,7 +106,7 @@ describe("schema-v22 exact activity recovery", () => {
       .toEqual(createMinigameState(LEGACY_MINIGAME_SEED));
   });
 
-  it.each([19, 20, 21])(
+  it.each([19, 20, 21, 22])(
     "preserves exact pending and settled activity previews from schema %s",
     (version) => {
       for (const venueId of ["willowInnTable", "willowdaleRange", "sandportRegatta"] as const) {
@@ -135,7 +135,7 @@ describe("schema-v22 exact activity recovery", () => {
     },
   );
 
-  it.each([19, 20, 21])("adds empty activity defaults to schema %s without changing other campaign authority", (version) => {
+  it.each([19, 20, 21, 22])("adds empty activity defaults to schema %s without changing other campaign authority", (version) => {
     const player = playerAt("willowdaleRange");
     const before = structuredClone(player);
     const raw = structuredClone(createCurrentSaveData(player, new Set(), createCodex(), player.appearanceId, 45));

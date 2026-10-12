@@ -628,7 +628,8 @@ describe("canonical effect dice receipts", () => {
         return seed / 0x1_0000_0000;
       });
       const controller = new DicePresentationController({
-        record: vi.fn(), show: vi.fn(), settle: vi.fn(), clear: vi.fn(),
+        record: vi.fn(), show: vi.fn(), settle: vi.fn(), hide: vi.fn(),
+        dismiss: vi.fn(), clear: vi.fn(),
         schedule: vi.fn(() => vi.fn()),
       });
       const attack = playerAttack(actor, monster);

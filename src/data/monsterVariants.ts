@@ -1,8 +1,12 @@
 import { Element } from "./elements";
+import { MONSTER_PHYSICAL_PROFILES } from "./anatomy";
 import type { Monster } from "./monsters";
 
 export const TOXIC_SLIME: Monster = {
   id: "toxicSlime",
+  physicalDamageType: "bludgeoning",
+  size: "small",
+  physicalProfile: MONSTER_PHYSICAL_PROFILES.soft,
   name: "Toxic Slime",
   family: "slime",
   variantOf: "slime",
@@ -41,6 +45,9 @@ export const TOXIC_SLIME: Monster = {
 
 export const GOBLIN_SHAMAN: Monster = {
   id: "goblinShaman",
+  physicalDamageType: "bludgeoning",
+  size: "small",
+  anatomy: "humanoid",
   name: "Goblin Shaman",
   family: "raider",
   variantOf: "goblin",
@@ -76,6 +83,9 @@ export const GOBLIN_SHAMAN: Monster = {
 
 export const ORC_BERSERKER: Monster = {
   id: "orcBerserker",
+  physicalDamageType: "slashing",
+  size: "medium",
+  anatomy: "humanoid",
   name: "Orc Berserker",
   family: "raider",
   variantOf: "orc",
@@ -95,6 +105,7 @@ export const ORC_BERSERKER: Monster = {
   abilities: [
     {
       name: "Burning Cleave",
+      physicalDamageType: "slashing",
       chance: 0.4,
       damageCount: 3,
       damageDie: 8,
@@ -111,6 +122,8 @@ export const ORC_BERSERKER: Monster = {
 
 export const RUNIC_MIMIC: Monster = {
   id: "runicMimic",
+  physicalDamageType: "piercing",
+  size: "medium",
   name: "Runic Mimic",
   family: "mimic",
   variantOf: "mimic",
@@ -149,6 +162,9 @@ export const RUNIC_MIMIC: Monster = {
 
 export const FROST_SLIME: Monster = {
   id: "frostSlime",
+  physicalDamageType: "bludgeoning",
+  size: "small",
+  physicalProfile: MONSTER_PHYSICAL_PROFILES.soft,
   name: "Frost Slime",
   family: "slime",
   variantOf: "slime",
@@ -184,6 +200,10 @@ export const FROST_SLIME: Monster = {
 
 export const ICE_GOLEM: Monster = {
   id: "iceGolem",
+  physicalDamageType: "bludgeoning",
+  size: "large",
+  anatomy: "humanoid",
+  physicalProfile: MONSTER_PHYSICAL_PROFILES.stone,
   name: "Ice Golem",
   family: "construct",
   variantOf: "stoneGolem",
@@ -206,6 +226,7 @@ export const ICE_GOLEM: Monster = {
   abilities: [
     {
       name: "Permafrost Slam",
+      physicalDamageType: "bludgeoning",
       chance: 0.35,
       damageCount: 4,
       damageDie: 8,
@@ -222,6 +243,9 @@ export const ICE_GOLEM: Monster = {
 
 export const EMBER_WOLF: Monster = {
   id: "emberWolf",
+  physicalDamageType: "piercing",
+  size: "large",
+  anatomy: "quadruped",
   name: "Ember Wolf",
   family: "lupine",
   variantOf: "wolf",
@@ -241,6 +265,7 @@ export const EMBER_WOLF: Monster = {
   abilities: [
     {
       name: "Cinder Pounce",
+      physicalDamageType: "bludgeoning",
       chance: 0.35,
       damageCount: 3,
       damageDie: 8,
@@ -257,6 +282,10 @@ export const EMBER_WOLF: Monster = {
 
 export const STORM_DRAKE: Monster = {
   id: "stormDrake",
+  physicalDamageType: "piercing",
+  size: "large",
+  anatomy: "winged",
+  physicalProfile: MONSTER_PHYSICAL_PROFILES.scales,
   name: "Storm Drake",
   family: "drake",
   variantOf: "canyonDrake",

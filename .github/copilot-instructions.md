@@ -27,10 +27,10 @@ class-neutral archery, and Harbor Regatta minigames.
 
 - Phaser 4.2.1
 - TypeScript 7.0.2 in strict mode
-- Vite 8.3.2
+- Vite 8.3.4
 - Vitest 5.0.3
-- Playwright 1.63.0
-- happy-dom 20.14.5
+- Playwright 1.64.0
+- happy-dom 20.14.6
 - Electron 44.7.0
 - electron-builder 26.17.0
 - Modern browsers, ES2020 target
@@ -521,6 +521,30 @@ Flow:
 
 ## Combat
 
+- Physical Bludgeoning/Slashing/Piercing types and common affinity precedence
+  live in `data/damageTypes.ts`; explicit monster size/anatomy/part anchors in
+  `data/anatomy.ts`; old/custom weapon typing in `data/itemCombat.ts`.
+- `systems/physicalCombat.ts` integrates through the existing combat/action
+  owners. Apply status damage, physical whole/local profile, then elements.
+  Local affinities override rather than double-stack whole physical affinity;
+  whole-body immunity always wins. Magic stays outside physical profiles.
+- Body armor declares canonical `physicalResistances` independently of AC;
+  resolve live hero/companion armor through `getArmorPhysicalProfile()`.
+  Explicit monster basic/ability physical types use the same physical modifier
+  and exact dice capture. Elemental-only abilities and healing remain unchanged.
+  Shield reduction uses pre-hit HP and final damage; never restore capped
+  overkill damage and accidentally revive a defeated actor.
+  Physical trap definitions use the same armor modifier before the existing
+  nonlethal cap, without changing magic/MP/status consequences or trap ledgers.
+- Humanoid anatomy is aimable at any size; other stable anatomies require
+  Large+. Parts share monster HP and the normal status clock. Optional aim
+  trades accuracy for local defenses and at most two target-turn effects,
+  never limb HP, severing or another action. Whole-target Confirm stays unchanged.
+- `managers/battleBodyTarget.ts` shares measured, native-accessible aiming for
+  the hero and manual companions. Keep keyboard/pointer/touch/gamepad parity,
+  cancellation, 150% text and cleanup. Gambits retain whole-target defaults.
+  See `docs/physical-combat.md`.
+
 - Attack rolls, saves, and checks use d20.
 - Natural 20 on an attack is a critical hit; natural 1 automatically misses.
 - Initiative is d20 + Dexterity modifier.
@@ -597,7 +621,11 @@ Flow:
   Keep the visual layer pointer-transparent, inside safe game bounds and
   cleanup-owned. Instant/reduced motion, skip, visibility loss, replacement
   and scene shutdown remove motion immediately without focus/input blocking.
-  The bounded roll log survives handoffs only at runtime; Boot/reload clears it.
+  Numbered dice render over the active scene, never in a dock. Roll details
+  belong to the existing Battle log and reset on battle exit. Non-battle
+  results expire after three seconds and a 250-ms fade (no fade with reduced
+  motion); event reset, blur and handoff clear views/cues/timers. Never restore
+  another scene's latest result or keep a separate cross-scene roll log.
   Ordinary displays default enabled and can be turned Off; canonical attack
   selected-natural20 criticals and selected-natural1 fumbles always show even
   with Off. Honor Instant/reduced motion and preserve real check/save outcomes.
@@ -927,7 +955,24 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 22.
+Save schema version is 24.
+
+Schema v24 adds optional armor-only `Item.physicalResistances`: unique supported
+physical types, with explicit empty custom lists preserved. Resolve legacy
+canonical protection at use time without changing serialized item metadata,
+append order or exact equipment links. Unknown malformed ownership rejects
+imports/slots before writing; known gear uses the existing repair path.
+Keep v23 physical observations and all exact activity, rest and other domains.
+
+Schema v23 adds `CodexEntry.discoveredPhysical` with stable type and optional
+part IDs, plus optional `Item.physicalDamageType`. Normalize unknown/duplicate/
+neutral/impossible observations and weapon-only metadata. Pre-v22 records gain
+empty observations without invented history. Schema-v22 activity saves without
+physical observations also gain empty lists; valid v22 physical-combat previews
+retain their observed IDs and typed weapons. Preserve every existing campaign
+domain, custom item metadata/order and exact equipment links; legacy weapons
+resolve canonical or shape-derived types without rewriting serialized ownership.
+Monster part selection/effects remain runtime-only.
 
 Schema v22 adds `player.progression.minigames`: deterministic exact pending
 sessions/receipts, permanent sequence/settlement watermarks, finite milestone
@@ -1122,7 +1167,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v22
+  visibility, handedness, and prompt source only; they never enter schema-v24
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the
@@ -1241,6 +1286,8 @@ npm run benchmark:baseline
 ## Testing
 
 - Frameworks: Vitest for logic and Playwright for browser/Electron flows.
+- Run local tests headlessly, never by opening native windows or controlling
+  the developer's desktop. Native gates use isolated CI/virtual displays.
 - Files: `tests/*.test.ts`, `e2e/*.spec.ts`, and `electron-tests/*.spec.ts`.
 - Add deterministic tests for mechanics and migrations.
 - Add deterministic layout tests for measured stacks/grids, long wrapping,

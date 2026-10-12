@@ -1,4 +1,5 @@
 import { Element } from "./elements";
+import { MONSTER_PHYSICAL_PROFILES } from "./anatomy";
 import { EMBER_WOLF, STORM_DRAKE } from "./monsterVariants";
 import type { Monster } from "./monsters";
 
@@ -6,6 +7,9 @@ import type { Monster } from "./monsters";
 export const NIGHT_MONSTERS: Monster[] = [
   {
     id: "nightWolf",
+    physicalDamageType: "piercing",
+    size: "medium",
+    anatomy: "quadruped",
     name: "Night Wolf",
     family: "lupine",
     variantOf: "wolf",
@@ -34,6 +38,9 @@ export const NIGHT_MONSTERS: Monster[] = [
   EMBER_WOLF,
   {
     id: "vampireBat",
+    physicalDamageType: "piercing",
+    size: "tiny",
+    anatomy: "winged",
     name: "Vampire Bat",
     family: "fey",
     affinity: Element.Necrotic,
@@ -64,6 +71,9 @@ export const NIGHT_MONSTERS: Monster[] = [
   },
   {
     id: "specter",
+    physicalDamageType: "bludgeoning",
+    size: "medium",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.spectral,
     name: "Specter",
     family: "spectral",
     variantOf: "wraith",
@@ -101,6 +111,9 @@ export const NIGHT_MONSTERS: Monster[] = [
 export const TUNDRA_NIGHT_MONSTERS: Monster[] = [
   {
     id: "frostWraith",
+    physicalDamageType: "bludgeoning",
+    size: "medium",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.spectral,
     name: "Frost Wraith",
     family: "spectral",
     variantOf: "wraith",
@@ -140,6 +153,9 @@ export const TUNDRA_NIGHT_MONSTERS: Monster[] = [
   },
   {
     id: "snowStalker",
+    physicalDamageType: "piercing",
+    size: "medium",
+    anatomy: "quadruped",
     name: "Snow Stalker",
     family: "lupine",
     variantOf: "wolf",
@@ -169,6 +185,9 @@ export const TUNDRA_NIGHT_MONSTERS: Monster[] = [
 export const SWAMP_NIGHT_MONSTERS: Monster[] = [
   {
     id: "willOWisp",
+    physicalDamageType: "bludgeoning",
+    size: "tiny",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.spectral,
     name: "Will-o'-Wisp",
     family: "fey",
     affinity: Element.Lightning,
@@ -208,6 +227,10 @@ export const SWAMP_NIGHT_MONSTERS: Monster[] = [
   },
   {
     id: "bogCreeper",
+    physicalDamageType: "bludgeoning",
+    size: "large",
+    anatomy: "treant",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.bark,
     name: "Bog Creeper",
     family: "flora",
     affinity: Element.Poison,
@@ -248,6 +271,10 @@ export const SWAMP_NIGHT_MONSTERS: Monster[] = [
 export const FOREST_NIGHT_MONSTERS: Monster[] = [
   {
     id: "darkTreent",
+    physicalDamageType: "bludgeoning",
+    size: "huge",
+    anatomy: "treant",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.bark,
     name: "Dark Treant",
     family: "flora",
     variantOf: "bogCreeper",
@@ -284,6 +311,9 @@ export const FOREST_NIGHT_MONSTERS: Monster[] = [
   },
   {
     id: "gloomSprite",
+    physicalDamageType: "piercing",
+    size: "tiny",
+    anatomy: "humanoid",
     name: "Gloom Sprite",
     family: "fey",
     variantOf: "willOWisp",
@@ -322,6 +352,10 @@ export const FOREST_NIGHT_MONSTERS: Monster[] = [
 export const CANYON_NIGHT_MONSTERS: Monster[] = [
   {
     id: "stoneLurker",
+    physicalDamageType: "piercing",
+    size: "large",
+    anatomy: "quadruped",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.scales,
     name: "Stone Lurker",
     family: "stalker",
     variantOf: "giantRat",
@@ -354,6 +388,10 @@ export const CANYON_NIGHT_MONSTERS: Monster[] = [
   },
   {
     id: "dustDevil",
+    physicalDamageType: "bludgeoning",
+    size: "large",
+    anatomy: "elemental",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.spectral,
     name: "Dust Devil",
     family: "elemental",
     variantOf: "iceElemental",

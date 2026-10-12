@@ -2,6 +2,9 @@
  * Elemental damage types, resistances, weaknesses, and immunities.
  */
 
+import { applyDamageProfile } from "./damageTypes";
+import type { DamageInteraction, DamageProfile } from "./damageTypes";
+
 export enum Element {
   Fire = "fire",
   Ice = "ice",
@@ -14,13 +17,9 @@ export enum Element {
   Psychic = "psychic",
 }
 
-export interface ElementalProfile {
-  resistances?: Element[];
-  weaknesses?: Element[];
-  immunities?: Element[];
-}
+export interface ElementalProfile extends DamageProfile<Element> {}
 
-export type ElementalInteraction = "" | "immune" | "weak" | "resistant";
+export type ElementalInteraction = DamageInteraction;
 
 export interface ElementalDamageResult {
   damage: number;
@@ -33,19 +32,7 @@ export function applyElementalModifier(
   attackElement: Element | undefined,
   target: ElementalProfile | undefined,
 ): ElementalDamageResult {
-  if (!attackElement || !target) {
-    return { damage: baseDamage, interaction: "" };
-  }
-  if (target.immunities?.includes(attackElement)) {
-    return { damage: 0, interaction: "immune" };
-  }
-  if (target.weaknesses?.includes(attackElement)) {
-    return { damage: baseDamage * 2, interaction: "weak" };
-  }
-  if (target.resistances?.includes(attackElement)) {
-    return { damage: Math.floor(baseDamage / 2), interaction: "resistant" };
-  }
-  return { damage: baseDamage, interaction: "" };
+  return applyDamageProfile(baseDamage, attackElement, target);
 }
 
 /** Return whether a runtime value is a supported element. */

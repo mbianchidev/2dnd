@@ -8,7 +8,8 @@ import {
 } from "../data/companions";
 import { getAbility } from "../data/abilities";
 import { getAllTowns } from "../data/chunks";
-import { getItem, type Item } from "../data/items";
+import { getArmorPhysicalProfile, getItem, type Item } from "../data/items";
+import type { PhysicalProfile } from "../data/damageTypes";
 import { getSpell } from "../data/spells";
 import { TALENTS, isTotalLevelTalent } from "../data/talents";
 import { abilityModifier } from "./dice";
@@ -414,6 +415,8 @@ export function createActivePartyCombatants(
         },
         getArmorClass: (defendBonus: number): number =>
           getArmorClass(companion, defendBonus),
+        getPhysicalProfile: (): PhysicalProfile | undefined =>
+          getArmorPhysicalProfile(companion.equippedArmor),
       },
       "companion",
     )

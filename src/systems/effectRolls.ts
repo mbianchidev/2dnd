@@ -1,4 +1,5 @@
 import { elementDisplayName, type Element, type ElementalInteraction } from "../data/elements";
+import { physicalDamageTypeName, type DamageInteraction, type PhysicalDamageType } from "../data/damageTypes";
 import { rollDiceDetailed, type DieType } from "./dice";
 import {
   snapshotEffectRoll,
@@ -56,6 +57,21 @@ export function captureElementalEffect(
   const operation = interaction === "weak" ? "weakness x2"
     : interaction === "resistant" ? "resistance /2 (floor)" : "immunity";
   return captureEffectAdjustment(result, `${elementDisplayName(element)} ${operation}`, amount);
+}
+
+export function capturePhysicalEffect(
+  result: ResolvedEffectRoll,
+  amount: number,
+  type: PhysicalDamageType | undefined,
+  interaction: DamageInteraction,
+  scope?: string,
+): ResolvedEffectRoll {
+  if (!type || !interaction) return result;
+  const operation = interaction === "weak" ? "weakness x2"
+    : interaction === "resistant" ? "resistance /2 (floor)" : "immunity";
+  return captureEffectAdjustment(
+    result, `${scope ? `${scope}: ` : ""}${physicalDamageTypeName(type)} ${operation}`, amount,
+  );
 }
 
 /** Capture the actual delta immediately beside its owning HP mutation. */

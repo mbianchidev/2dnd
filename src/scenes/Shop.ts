@@ -5,7 +5,7 @@
 import * as Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import { useItem, ownsEquipment, sellItem, isLastEquipment, isItemEquipped } from "../systems/player";
-import { getShopItems, getShopItemsForTown, getSellValue, canSellItem, type Item } from "../data/items";
+import { getItemDescription, getShopItems, getShopItemsForTown, getSellValue, canSellItem, type Item } from "../data/items";
 import { discoverCraftingRecipes } from "../systems/crafting";
 import {
   unlockCodexFromSignal,
@@ -559,7 +559,7 @@ export class ShopScene extends Phaser.Scene {
         .text(
           0,
           yOffset,
-          `${typeIcon} ${item.name} ${item.description} ${priceLabel}${tag}`,
+          `${typeIcon} ${item.name} ${getItemDescription(item)} ${priceLabel}${tag}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",
@@ -658,7 +658,7 @@ export class ShopScene extends Phaser.Scene {
         .text(
           0,
           yOffset,
-          `${typeIcon} ${item.name}${countLabel} ${item.description} ${priceLabel}${equippedLabel}${reason}`,
+          `${typeIcon} ${item.name}${countLabel} ${getItemDescription(item)} ${priceLabel}${equippedLabel}${reason}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",

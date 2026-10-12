@@ -8,6 +8,7 @@ import {
   combineDicePresentations,
   type CombatDiceReceipt,
   type DicePresentation,
+  type DicePresentationEvent,
 } from "../systems/dicePresentation";
 import type {
   BattleCombatantState,
@@ -33,7 +34,7 @@ export interface ResolvedHealingDiceTarget {
 export class BattleDicePresenter {
   constructor(
     private readonly scene: Phaser.Scene,
-    addLog: (message: string) => void,
+    addLog: (message: string, event: DicePresentationEvent) => void,
   ) {
     installDicePresentation(scene, addLog);
   }
@@ -66,7 +67,8 @@ export class BattleDicePresenter {
         targetId: target.id,
         actionId,
         sharedRoll: targets.length > 1,
-        label: `${actor.label} ${label} -> ${target.label}`,
+        label: `${actor.label} ${label} -> ${target.label}`
+          + (result.bodyPartLabel ? ` [${result.bodyPartLabel}]` : ""),
         revealModifier: actor.side === "party",
         revealThreshold: target.side === "party"
           || ("acDiscovered" in target && target.acDiscovered === true),

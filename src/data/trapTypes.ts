@@ -1,4 +1,5 @@
 import type { SkillCheckAbility } from "./skillChecks";
+import type { PhysicalDamageType } from "./damageTypes";
 
 export const TRAP_TYPES = [
   "spikePit",
@@ -37,6 +38,7 @@ export type TrapStatusEffect =
 export interface TrapDamage {
   count: number;
   sides: TrapDie;
+  physicalDamageType?: PhysicalDamageType;
 }
 
 export interface TrapDefinition {

@@ -9,13 +9,13 @@
 | --- | --- |
 | Phaser | 4.2.1 |
 | TypeScript | 7.0.2, strict, ES2020 target |
-| Vite | 8.3.2 |
+| Vite | 8.3.4 |
 | Vitest | 5.0.3 |
-| Playwright | 1.63.0 |
-| happy-dom | 20.14.5 |
+| Playwright | 1.64.0 |
+| happy-dom | 20.14.6 |
 | Electron | 44.7.0 |
 | electron-builder | 26.17.0 |
-| Campaign save schema | 22 |
+| Campaign save schema | 24 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -178,7 +178,8 @@ live regions never take input focus or delay a scene handoff.
 
 The input adapter reads Phaser's current parent bounds before refreshing FIT
 scaling when the canvas host changes. `refresh()` alone uses cached parent
-dimensions and can let the canvas extend behind the dice dock or past the window.
+dimensions and can let the canvas extend past the window. Dice overlays track
+the canvas without changing its host dimensions.
 
 Every scene installs shared accessibility. New motion must use the reduced-motion
 accessors and complete callbacks exactly once even when animation duration is
@@ -211,6 +212,18 @@ signing and store operations remain human gates in [Steam preparation](steam.md)
 
 ## Combat authority
 
+Physical types and common affinity precedence live in `data/damageTypes.ts`;
+size, anatomy and part anchors in `data/anatomy.ts`; legacy weapon resolution in
+`data/itemCombat.ts`. `systems/physicalCombat.ts` owns aim validation, physical
+adjustments and status application at the existing combat resolver.
+`managers/battleBodyTarget.ts` shares measured, accessible hero/companion aiming.
+Armor resistance is canonical item metadata resolved through live party
+accessors, independently of AC. Typed monster attacks and physical ability
+components use the same physical modifier and exact dice/HP receipt pipeline.
+Pure elemental abilities retain their original damage path.
+Parts use one monster HP pool and the existing status clock, never a parallel
+action/limb engine. See [Physical combat](physical-combat.md).
+
 Combat formulas live in `src/systems/combat.ts`,
 `src/systems/groupCombat.ts`, `src/systems/statusEffects.ts`, and
 `src/data/elements.ts`.
@@ -231,12 +244,15 @@ recorded adjustments, resolved amounts and the HP delta at its owning write.
 It preserves existing RNG order, shared area pools, finite fractional custom
 item effects, resource use and result-hook timing; scene adapters only capture
 their existing shield/healing writes. `dicePresentation.ts`
-projects only permitted information and owns a bounded runtime log. The
-scene-owned dice manager, procedural SVG dock and pointer-transparent game
+projects only permitted information and owns scene-local evidence. The
+scene-owned dice manager and pointer-transparent procedural SVG game
 throw layer consume those results without
 RNG, resource mutations, input-block reasons, or gameplay completion callbacks.
-They cancel visual/audio work on shutdown while retaining redacted log evidence
-across handoffs. See [Dice presentation](dice-presentation.md).
+Battle routes redacted detail into its existing bounded log and accessible
+counterpart. Non-battle results expire after three seconds with an optional
+250-ms fade. No history or latest result crosses a scene handoff; event reset,
+blur and shutdown cancel visuals, cues and owned timers.
+See [Dice presentation](dice-presentation.md).
 `diceMotion.ts` owns measured deterministic travel, multi-axis tumble, bounce
 and settled layout, not physics that determines faces. Normal/Fast take
 900/300 ms; Instant/reduced motion stay static. Ordinary rolls default enabled

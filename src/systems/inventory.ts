@@ -1,5 +1,5 @@
 import { debugLog } from "../config";
-import { getItem, type Item } from "../data/items";
+import { getItem, getItemDescription, type Item } from "../data/items";
 import type { CombatActorState } from "./player";
 
 export const INVENTORY_PREFERENCES_STORAGE_KEY = "2dnd_inventory_prefs";
@@ -243,7 +243,7 @@ function matchesSearch(entry: InventoryViewEntry, search: string): boolean {
   return [
     entry.item.id,
     entry.item.name,
-    entry.item.description,
+    getItemDescription(entry.item),
     entry.item.type,
     entry.category,
     entry.rarity,

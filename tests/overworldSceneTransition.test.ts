@@ -88,6 +88,7 @@ describe("OverworldScene transition contracts", () => {
             goldReward: 5,
             itemsDropped: [],
             discoveredElements: [],
+            discoveredPhysical: [],
           },
         },
       },

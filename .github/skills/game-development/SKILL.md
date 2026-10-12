@@ -75,10 +75,14 @@ are intentionally not remappable.
 
 Preference v3 includes dice animation frequency/speed independently of the
 campaign schema. Exact d20/component/effect receipts live in `systems/rollResults.ts`, safe mapping
-and runtime history in `systems/dicePresentation.ts`, scene-owned orchestration
+and scoped visual lifetime in `systems/dicePresentation.ts`, scene-owned orchestration
 in `managers/dicePresentation.ts`/`battleDice.ts`, and procedural SVG rendering
 in `renderers/dice.ts`. Never add RNG, mechanics callbacks, resource mutation,
-hidden-stat leakage, or an input-block reason to this pipeline.
+hidden-stat leakage, or an input-block reason to this pipeline. Dice render over
+the measured active scene, never in an external dock. Details join the existing
+Battle log; battle exit clears it. Non-combat results expire after three seconds
+and a short fade. Event reset, blur and handoff clear views, cues and timers;
+no latest result or history is restored into another scene.
 `systems/effectRolls.ts` retains the original damage/healing RNG calls, named
 modifiers, recorded adjustments and actual HP delta at the existing write.
 Separate rolled, resolved and applied values, preserve finite fractional legacy
@@ -244,10 +248,16 @@ Non-combat checks are split across:
 
 ## Adding monsters
 
+Declare a canonical D&D `size` and optional stable `anatomy` from
+`data/anatomy.ts`, plus data-owned `physicalProfile` where meaningful.
+Humanoid forms and Large+ anatomical creatures use the shared HP/aiming
+pipeline; oozes and incorporeal forms need no invented parts. Read
+[`docs/physical-combat.md`](../../../docs/physical-combat.md).
+
 1. Define the monster in the appropriate focused pool (`monsters.ts`,
    `nightMonsters.ts`, or `monsterVariants.ts`).
 2. Use a camelCase ID and set a valid typed `family`, stats, rewards, drops,
-   abilities, and `isBoss`.
+   abilities, basic `physicalDamageType`, and `isBoss`.
 3. For a palette/stat variant, set `variantOf` to a valid same-family monster,
    use a distinct color and ability set, and assign a positive
    `encounterWeight`.
@@ -349,6 +359,20 @@ content only. See `docs/devotion.md`; do not implement prestige classes here.
 
 ## Adding spells, abilities, and equipment
 
+- Body armor declares optional canonical `physicalResistances`; use
+  `getArmorPhysicalProfile()` for old/custom/live equipped gear. Keep AC
+  independent and route physical basic/ability monster damage through existing
+  combat resolution and receipts. Pure elemental abilities/healing bypass it.
+  Shared party wrappers resolve current armor rather than snapshots.
+
+- Weapons declare `physicalDamageType`; resolve old/custom copies with
+  `getWeaponPhysicalDamageType()` without changing their ownership metadata.
+  Damaging physical abilities declare an explicit type or `"weapon"`.
+  Pure elemental magic is not inferred to be weapon damage.
+- Optional parts validate before rolls/resources and share existing monster HP
+  and target-owned statuses. Reuse `BattleBodyTargetManager` for hero/manual
+  companion presentation; whole-target/gambit defaults remain unchanged.
+
 - Damage sources may declare an `Element` from `src/data/elements.ts`.
 - Player abilities may apply `selfEffect` or `targetEffect` IDs defined by
   `src/systems/statusEffects.ts`.
@@ -364,7 +388,9 @@ Combat calculation order is:
 
 1. Roll and resolve the attack or save.
 2. Apply active-status accuracy, disadvantage, AC, and damage modifiers.
-3. Apply elemental immunity, weakness, or resistance to the modified damage.
+3. Apply physical whole/part affinity for physical sources, then elemental
+   immunity, weakness, or resistance to the modified damage. Local physical
+   affinity replaces rather than stacks the whole affinity; immunity wins.
 4. Apply damage and status effects.
 5. Report discoveries and combat feedback.
 
@@ -406,6 +432,9 @@ can persist and display them.
   dungeon maps or randomize layouts independently in scenes.
 - Detected traps block movement until disarmed. Trap triggers must short-circuit
   the normal random-encounter check for that step.
+- Physical trap damage declares its type and uses equipped armor resistance
+  before the existing nonlethal cap; magic, MP, status and once-only state remain
+  at the trap owner.
 - Use `FogOfWar.exploredKey()` for exploration keys.
 - Use `isWalkable()` and `ENCOUNTER_RATES`; do not hardcode terrain behavior.
 - Nautical metadata lives in `src/data/nautical.ts`; state normalization,
@@ -547,7 +576,9 @@ npm run build
 npm run build:desktop
 ```
 
-For UI changes, run the committed Playwright flow in headless Chromium. Keep
+For UI changes, run the committed Playwright flow in headless Chromium. Never
+launch visible native windows or control the developer's desktop; native gates
+run on isolated CI/virtual displays. Keep
 browser actions synchronized through debug-state transitions, and hold
 frame-polled Phaser keys across frames rather than using instantaneous presses.
 Build responsive UI from `src/systems/layout.ts`, register modal groups through

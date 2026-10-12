@@ -32,34 +32,34 @@ describe("procedural resolved-dice renderer", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders only exact faces, selected text, an accessible result and bounded log", () => {
+  it("renders exact numbered faces over the canvas without an external dock or log", () => {
     const renderer = new DiceRollRenderer(vi.fn());
     const result = event();
-    renderer.record(result);
     renderer.show(result, normalizeGamePreferences(undefined));
     expect([...renderer.root.querySelectorAll(".resolved-die")].map((die) =>
       (die as HTMLElement).dataset.natural)).toEqual(["20", "1"]);
-    expect(renderer.root.querySelector(".selected")?.textContent).toContain("1d20 selected");
+    expect(renderer.root.querySelector(".selected")?.textContent).toContain("1d20*");
     expect(document.querySelector('[role="status"]')?.textContent).toBe(result.text);
     expect(document.getElementById("dice-announcement")?.hidden).toBe(false);
     expect(renderer.root.querySelector("p")?.textContent).toBe(result.text);
     expect(renderer.root.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
-    expect(renderer.root.querySelector("summary")?.textContent).toBe("Roll log (1)");
-    for (let index = 2; index <= 45; index++) renderer.record(event(index));
-    expect(renderer.root.querySelectorAll("li")).toHaveLength(40);
+    expect(renderer.root.querySelector("details")).toBeNull();
+    expect(document.getElementById("dice-log")).toBeNull();
+    expect(renderer.root.style.left).toBe("80px");
+    expect(Number.parseFloat(renderer.root.style.top)).toBeCloseTo(126.4);
+    expect(renderer.root.style.width).toBe("640px");
     renderer.destroy();
     expect(document.getElementById("dice-presentation")).toBeNull();
     expect(document.getElementById("dice-announcement")).toBeNull();
   });
 
-  it("keeps ordinary disabled information in history without showing or announcing a roll", () => {
+  it("does not display or announce an ordinary disabled roll or create separate history", () => {
     const renderer = new DiceRollRenderer(vi.fn());
     const presentation = createD20Presentation({
       naturalRolls: [12], selectedIndex: 0, selection: "normal",
       naturalRoll: 12, modifier: 3, total: 15,
     }, { category: "attack", label: "Ordinary attack", outcome: "hit" });
     const result = { presentation, text: formatDicePresentation(presentation), duration: 0, sequence: 1 };
-    renderer.record(result);
     renderer.show(result, normalizeGamePreferences({
       accessibility: { textScale: 1.5, highContrast: true, reducedMotion: true },
       dice: { frequency: "off", speed: "instant" },
@@ -70,7 +70,7 @@ describe("procedural resolved-dice renderer", () => {
     expect(renderer.root.style.getPropertyValue("--dice-text-scale")).toBe("1.5");
     expect(renderer.root.classList.contains("high-contrast")).toBe(true);
     expect(renderer.root.querySelector("p")?.textContent).toBe(result.text);
-    expect(renderer.root.querySelector("li")?.textContent).toBe(result.text);
+    expect(renderer.root.querySelector("li")).toBeNull();
     expect(document.getElementById("dice-announcement")?.textContent).toBe("");
     expect(renderer.root.querySelector("button")?.disabled).toBe(true);
     renderer.destroy();
@@ -92,13 +92,13 @@ describe("procedural resolved-dice renderer", () => {
     expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(1);
     expect(renderer.root.querySelector<HTMLElement>(".resolved-die")?.dataset.natural).toBe(String(natural));
     expect(document.getElementById("dice-announcement")?.textContent).toBe(result.text);
-    expect(document.getElementById("dice-roll-stage")?.hidden).toBe(true);
+    expect(document.getElementById("dice-roll-stage")?.hidden).toBe(false);
     renderer.applyPreferences(normalizeGamePreferences({ dice: { frequency: "off", speed: "normal" } }));
     expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(1);
     renderer.destroy();
   });
 
-  it("applies ordinary visibility changes live while leaving an explicit open log reader focused", () => {
+  it("applies visibility live and never revives a result that has been dismissed", () => {
     const renderer = new DiceRollRenderer(vi.fn());
     const presentation = createD20Presentation({
       naturalRolls: [12], selectedIndex: 0, selection: "normal",
@@ -111,15 +111,12 @@ describe("procedural resolved-dice renderer", () => {
     expect(renderer.root.hidden).toBe(true);
     renderer.applyPreferences(normalizeGamePreferences(undefined));
     expect(renderer.root.hidden).toBe(false);
-    const details = renderer.root.querySelector("details")!;
-    details.open = true;
-    const summary = renderer.root.querySelector("summary")!;
-    summary.focus();
-    renderer.root.scrollTop = 120;
+    renderer.hide();
     renderer.applyPreferences(normalizeGamePreferences({ dice: { frequency: "off" } }));
-    expect(renderer.root.hidden).toBe(false);
-    expect(document.activeElement).toBe(summary);
-    expect(renderer.root.scrollTop).toBe(120);
+    renderer.applyPreferences(normalizeGamePreferences(undefined));
+    expect(renderer.root.hidden).toBe(true);
+    expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(0);
+    expect(renderer.root.querySelector("p")?.textContent).toBe("");
     renderer.destroy();
   });
 
@@ -224,24 +221,20 @@ describe("procedural resolved-dice renderer", () => {
     expect(document.getElementById("dice-announcement")).toBeNull();
   });
 
-  it("reveals the latest dice after closed-log scrolling without moving an open log or focus", () => {
+  it("reveals a new transient result without changing canvas focus or inheriting scroll state", () => {
     const renderer = new DiceRollRenderer(vi.fn());
     const preferences = normalizeGamePreferences(undefined);
     renderer.show(event(), preferences);
-    const details = renderer.root.querySelector("details")!;
     const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
     canvas.tabIndex = -1;
     canvas.focus();
-    renderer.root.scrollTop = 120;
+    renderer.root.querySelector("p")!.scrollTop = 120;
     renderer.show(event(2), preferences);
-    expect(renderer.root.scrollTop).toBe(0);
+    expect(renderer.root.querySelector("p")!.scrollTop).toBe(0);
     expect(document.activeElement).toBe(canvas);
-    details.open = true;
-    renderer.root.scrollTop = 120;
-    renderer.root.querySelector("summary")!.focus();
-    renderer.show(event(3), preferences);
-    expect(renderer.root.scrollTop).toBe(120);
-    expect(document.activeElement).toBe(renderer.root.querySelector("summary"));
+    renderer.hide();
+    expect(renderer.root.hidden).toBe(true);
+    expect(document.activeElement).toBe(canvas);
     renderer.destroy();
   });
 
@@ -268,7 +261,7 @@ describe("procedural resolved-dice renderer", () => {
       const stage = document.getElementById("dice-roll-stage")!;
       expect(stage.hidden).toBe(false);
       expect(stage.getAttribute("aria-hidden")).toBe("true");
-      expect(stage.style.left).toBe("80px");
+      expect(renderer.root.style.left).toBe("80px");
       expect(stage.querySelectorAll(".rolling-die")).toHaveLength(2);
       expect(stage.querySelectorAll(".rolling-die-shadow")).toHaveLength(2);
       expect([...stage.querySelectorAll<HTMLElement>(".rolling-die")].map((die) =>
@@ -281,9 +274,12 @@ describe("procedural resolved-dice renderer", () => {
       renderer.settle();
       renderer.settle();
       for (const call of calls) expect(call.cancel).toHaveBeenCalledTimes(1);
+      expect(stage.hidden).toBe(false);
+      expect(stage.querySelectorAll(".rolling-die")).toHaveLength(2);
+      expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(2);
+      renderer.hide();
       expect(stage.hidden).toBe(true);
       expect(stage.childElementCount).toBe(0);
-      expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(2);
       await Promise.resolve();
       renderer.destroy();
       expect(document.getElementById("dice-roll-stage")).toBeNull();

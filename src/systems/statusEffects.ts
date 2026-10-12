@@ -19,6 +19,7 @@ export const STATUS_EFFECT_IDS = [
   "prone",
   "asleep",
   "confused",
+  "weakened",
   "enraged",
   "haste",
   "inspired",
@@ -175,6 +176,15 @@ export const STATUS_EFFECT_DEFS: StatusEffectDef[] = [
     acModifier: 0, damageModifier: 0, skipsTurn: false,
     saveStat: "wisdom", saveDC: 12,
     removalMethods: ["duration", "save"],
+  },
+  {
+    id: "weakened", name: "Weakened",
+    description: "Deals 2 less damage after an aimed limb hit",
+    category: "debuff", defaultDuration: 2, tickDamage: 0, tickDie: 0,
+    accuracyModifier: 0, attackDisadvantage: false,
+    acModifier: 0, damageModifier: -2, skipsTurn: false,
+    saveStat: "constitution", saveDC: 0,
+    removalMethods: ["duration"],
   },
   {
     id: "enraged", name: "Enraged",

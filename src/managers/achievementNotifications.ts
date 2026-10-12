@@ -13,6 +13,7 @@ export class AchievementNotificationManager {
   private container: Phaser.GameObjects.Container | null = null;
   private dismissTimer: Phaser.Time.TimerEvent | null = null;
   private currentId: AchievementId | null = null;
+  private readonly loggedIds = new Set<AchievementId>();
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -58,7 +59,10 @@ export class AchievementNotificationManager {
     });
     this.container = container;
     this.currentId = achievementId;
-    debugPanelLog(`[ACHIEVEMENT] Unlocked ${achievementId}`, true);
+    if (!this.loggedIds.has(achievementId)) {
+      this.loggedIds.add(achievementId);
+      debugPanelLog(`[ACHIEVEMENT] Unlocked ${achievementId}`, true);
+    }
 
     const fadeDuration = getMotionDuration(160);
     if (fadeDuration > 0) {

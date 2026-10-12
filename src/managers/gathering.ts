@@ -42,7 +42,7 @@ import { reconcileCraftingRecipes } from "../systems/crafting";
 import type { CraftingRecipeId } from "../data/crafting";
 import { createOverlayContainer } from "../utils/ui";
 import { createAggregateDicePresentation } from "../systems/dicePresentation";
-import { presentDiceResult } from "./dicePresentation";
+import { presentDiceResult, resetDicePresentation } from "./dicePresentation";
 
 export interface GatheringManagerCallbacks {
   autoSave(): void;
@@ -342,6 +342,7 @@ export class GatheringManager {
   }
 
   close(): void {
+    resetDicePresentation(this.scene);
     this.tickTimer?.remove();
     this.tickTimer = null;
     this.container?.destroy(true);
@@ -357,6 +358,7 @@ export class GatheringManager {
   }
 
   private openGame(): void {
+    resetDicePresentation(this.scene);
     this.mode = "game";
     this.renderGame();
     this.scheduleTick();

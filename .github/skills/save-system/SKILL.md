@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v22, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v24, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -52,7 +52,25 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 22.
+`SAVE_VERSION` is 24.
+
+Schema v24 adds optional armor-only `Item.physicalResistances` with unique known
+types. Keep valid custom lists, including empty lists, and exact equipped
+same-ID objects. Resolve old canonical armor at use time without rewriting
+owned metadata. Invalid custom ownership rejects a candidate; malformed known
+gear uses the normal item repair path. Preserve v23 observations, exact
+minigames, frozen/rest credits, stats, resources and all other domains.
+
+Schema v23 adds `CodexEntry.discoveredPhysical` with stable physical type and
+optional canonical part IDs, plus optional weapon-only `physicalDamageType`.
+Pre-v22 campaigns gain empty observations without fabricated history.
+Schema-v22 activity campaigns missing physical observations gain empty lists;
+valid v22 physical-combat previews retain their observations and typed weapons.
+Normalize duplicate/unknown/neutral/impossible observations and malformed
+weapon types. Preserve all earlier domains, custom metadata/order and exact
+equipped object links. Legacy weapons resolve typing at use time without
+mutating their serialized copies. Monster selection/limb effects remain
+runtime-only. See `docs/physical-combat.md`.
 
 Schema v22 adds exact pending tavern/festival sessions, permanent session and
 settlement watermarks, finite milestone claims, paid/practice personal bests,
@@ -191,7 +209,8 @@ interface QuestLogState {
 ```
 
 `PlayerState.activeEffects` persists normalized `ActiveStatusEffect` values.
-Codex entries persist `discoveredElements`. `PlayerState.party` persists unique
+Codex entries persist `discoveredElements` and body-scoped `discoveredPhysical`.
+`PlayerState.party` persists unique
 companion states, active order, independent progression/inventories/equipment,
 control modes, dialogue state, and gambits. Quest progress stores status, stage,
 objective counters, claimed reward IDs, and acknowledged danger warnings.
@@ -413,7 +432,8 @@ to browsing before closing the manager.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v22 minigame authority, devotion, hero/base/prestige progression, playtime,
+- Current schema-v24 armor metadata, physical discovery, minigame authority, devotion,
+  hero/base/prestige progression, playtime,
   position, objective/reward/warning quest state,
   skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
@@ -441,7 +461,7 @@ to browsing before closing the manager.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v22 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v24 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

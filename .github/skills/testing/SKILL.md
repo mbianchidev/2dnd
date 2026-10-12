@@ -14,9 +14,13 @@ Write comprehensive game-mechanics tests with Vitest. Use the committed
 Playwright suite only for high-value Phaser browser flows that cannot be proven
 through pure logic tests.
 
+Local validation is headless only; never launch visible native windows or
+control the developer's desktop. Native gates run on isolated CI/virtual
+displays, not the user's host.
+
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
-schema-v22 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
+schema-v24 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
 `electron-tests/saveParity.spec.ts` additionally downloads a real browser slot
 export and imports it through the native renderer's file picker. Assert the same
@@ -154,6 +158,19 @@ and page/console cleanliness.
 
 ## Test File Organization
 
+`armorCombat.test.ts` and `armorSave.test.ts` cover every canonical armor/type
+pair, live hero/companion armor, basic and explicit physical ability sources,
+magic/heal bypass, exact critical/status/HP/RNG/redaction, old canonical copies,
+same-ID custom ownership and rejected-import isolation.
+
+`physicalCombat.test.ts` and `physicalCombatSave.test.ts` own physical affinity
+precedence, explicit size/anatomy, aimed accuracy/effects, selected naturals,
+off-hand/ability typing, shared HP, duplicate/stale target isolation, exact RNG/
+receipts, scoped observations and schema-v21/custom-item compatibility.
+`e2e/physical-combat.spec.ts` owns optional aim, unchanged whole-target Confirm,
+cancel/reload, boss parts, manual companions, input parity and clean
+100%/125%/150% measured layouts.
+
 `tests/prestige*.test.ts` covers all six profiles/ranks, grouped/class/stat/world
 boundaries, live/stale/detached owner contexts, frozen rest credits, scoped and
 legacy/deferred grants, action/equipment validation, natural/debug exclusion,
@@ -263,16 +280,20 @@ completion, `F1`, and Esc-menu access.
 
 ## Dice Testing Patterns
 
-`dicePresentation.test.ts`, `effectRollReceipts.test.ts`, `rollReceipts.test.ts`,
+`dicePresentation.test.ts`, `diceManager.test.ts`, `effectRollReceipts.test.ts`, `rollReceipts.test.ts`,
 and `diceRenderer.test.ts`
 cover exact natural/component receipts, hidden-stat redaction, selected
 advantage/disadvantage dice, critical/fumble/auto-hit, unchanged RNG/resources,
-native control propagation, runtime logs, and cancellation. Preference v3
+native control propagation, scene-local evidence, expiry/reset, stale-callback
+rejection and cancellation. Preference v3
 migration/corruption belongs in `accessibility.test.ts`. Real battle,
 damage/healing pools and HP caps, shared area rolls,
 event/trap/gathering/flee, skip, reload, and transition controls belong in
 `e2e/dice-presentation.spec.ts`; do not replace them with synthetic result hooks.
-Assert exact RNG sequence/next roll, source-owned resources, status/element
+Assert numbered faces within the canvas without an external dock, unchanged
+canvas geometry, three-second non-battle expiry and immediate battle-exit log/
+view cleanup. Roll details belong to the existing Battle log, never a separate
+cross-scene history. Assert exact RNG sequence/next roll, source-owned resources, status/element
 ordering, integer faces/counts, finite fractional legacy arithmetic and distinct
 resolved/applied amounts. Filter enemy arithmetic before notices/history.
 `inputRuntime.test.ts` covers poststep touch pulses, successive once-only
@@ -660,7 +681,7 @@ npx vitest run tests/dice.test.ts
   text scales and desktop/mobile sizes. Wait for the selected row in the fresh
   report before collecting page coverage; an older clean report is not proof
   that a newly selected page has rendered.
-- Cover active notifications together with menus and the dice dock, not only
+- Cover active notifications together with menus and transient scene dice, not only
   individual panels. Opening menus must remove visible notices without
   acknowledging them; queued feedback resumes once after closing. Mock removed
   timers and late fade completions in lifecycle tests, and retain real browser
@@ -691,7 +712,7 @@ npx vitest run tests/dice.test.ts
 - Assert `location.origin === "app://2dnd"`, the `game.html` entry, and the
   fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
-  shell, create a manual snapshot, and continue the same schema-v22 campaign.
+  shell, create a manual snapshot, and continue the same schema-v24 campaign.
 - Return to title through the keyboard menu, quit through the visible title
   action, and verify lifecycle/quit logs without save-content leakage.
 - Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.

@@ -3,10 +3,7 @@
  */
 
 import * as Phaser from "phaser";
-import {
-  installDicePresentation,
-  resetDiceRollHistory,
-} from "../managers/dicePresentation";
+import { installDicePresentation } from "../managers/dicePresentation";
 import { generateAllTextures } from "../renderers/textures";
 import { renderCharacterStatsPanel } from "../renderers/characterStats";
 import { PLAYER_CLASSES, type PlayerClass } from "../systems/classes";
@@ -90,7 +87,6 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.sceneTransitions.prepare();
     installSceneAccessibility(this);
-    resetDiceRollHistory();
     installDicePresentation(this);
     performance.clearMeasures(BOOT_TEXTURE_MEASURE);
     performance.clearMarks(BOOT_TEXTURE_START_MARK);

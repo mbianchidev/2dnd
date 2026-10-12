@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { getAbility } from "../data/abilities";
 import { COMPANION_IDS, isCompanionId, type CompanionId } from "../data/companions";
-import type { Item } from "../data/items";
+import { getItemDescription, type Item } from "../data/items";
 import { getSpell } from "../data/spells";
 import { renderPartyInventory } from "../renderers/partyInventory";
 import type { PartyInventoryContent } from "../renderers/partyInventory";
@@ -449,7 +449,7 @@ export class PartyOverlayManager {
       }),
       selectedPosition,
       detail: selectedEntry
-        ? `${selectedEntry.item.description} | ${selectedEntry.item.cost}g | ${selectedEntry.item.type}${restriction ? ` | ${restriction}` : ""}`
+        ? `${getItemDescription(selectedEntry.item)} | ${selectedEntry.item.cost}g | ${selectedEntry.item.type}${restriction ? ` | ${restriction}` : ""}`
         : "No items match the current view.",
       detailColor: restriction ? "#ffcc88" : "#bbbbbb",
       actions,

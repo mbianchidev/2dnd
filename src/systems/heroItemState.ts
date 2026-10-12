@@ -1,4 +1,5 @@
 import { isElement } from "../data/elements";
+import { isPhysicalDamageType } from "../data/damageTypes";
 import {
   GATHERING_DISCIPLINES,
   GATHERING_RARITIES,
@@ -65,6 +66,13 @@ export function isSerializedHeroItem(value: unknown): value is Item {
     && (value["weaponSprite"] === undefined || isMember(value["weaponSprite"], WEAPON_SPRITES))
     && (value["mountId"] === undefined || typeof value["mountId"] === "string")
     && (value["element"] === undefined || isElement(value["element"]))
+    && (value["physicalDamageType"] === undefined
+      || (value["type"] === "weapon" && isPhysicalDamageType(value["physicalDamageType"])))
+    && (value["physicalResistances"] === undefined
+      || (value["type"] === "armor" && Array.isArray(value["physicalResistances"])
+        && value["physicalResistances"].length <= 3
+        && value["physicalResistances"].every(isPhysicalDamageType)
+        && new Set(value["physicalResistances"]).size === value["physicalResistances"].length))
     && (value["targetType"] === undefined
       || value["targetType"] === "self" || value["targetType"] === "single_ally")
     && (value["tags"] === undefined || isStringArray(value["tags"]))

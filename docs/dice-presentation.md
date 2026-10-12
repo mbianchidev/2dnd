@@ -5,14 +5,14 @@
 
 ## Player controls
 
-The resolved-dice dock shows the actual natural faces, the selected
+Dice appear directly over the active game's measured viewport, showing the actual numbered faces, the selected
 advantage/disadvantage die, permitted modifiers/totals, known AC/DC, and the
 canonical outcome. Results are readable from the first frame; the short settling
 motion never delays an action, resource update, turn, or scene transition.
 Dice are visibly thrown across the game viewport, tumble on multiple axes,
 bounce with floor shadows, and settle on their exact resolved faces. The
 pointer-transparent animation layer never covers input with a hit area; the
-static dock and log retain readable results throughout.
+settled numbered faces remain readable without a separate dock.
 
 Attack and damage evidence appear together: the natural d20 plus its permitted
 signed modifier/total, then the real damage pool and named additive modifiers.
@@ -24,10 +24,19 @@ target's own result. Spell/ability menus describe base pools rather than adding
 a casting-stat damage/healing bonus the resolver never applied.
 
 Use **Z**, **L3** (left-stick press), or the pointer/touch **Skip animation**
-button to fast-forward motion. The **Roll log** retains the last 40 results
-across scene changes. It is keyboard accessible with Tab, Enter/Space, and
-Escape, and reachable with the gamepad cursor; focused log controls consume
-their own input rather than activating the game underneath.
+button to fast-forward motion. Roll details belong to the existing **Battle
+log**, alongside attacks and other combat messages; use its normal wheel or
+controller scrolling. Its accessible counterpart mirrors those same messages.
+There is no second roll-log panel or history carried into another scene.
+The skip button appears only while motion is active, supports native keyboard,
+touch and the gamepad cursor, and never activates the game underneath.
+
+Outside Battle, results remain readable for three seconds after settling,
+then fade over 250 ms and clear their faces, text and announcement. Reduced
+motion removes the fade. Starting or closing another event clears its previous
+view. Leaving Battle or changing scenes immediately removes the view and its
+scene-owned evidence; title, Codex, cutscenes and result screens never restore
+the last roll. These visual lifetimes never delay gameplay.
 
 Title and in-game Settings share **Dice** and **Speed** controls. While Settings
 is open, **[** cycles frequency and **]** cycles speed:
@@ -39,7 +48,7 @@ is open, **[** cycles frequency and **]** cycles speed:
 
 Important animates checks, saves, flee, and critical/fumble feedback rather than
 routine attacks or initiative. Off hides ordinary roll notices, announcements
-and animations, retaining the redacted consultable history. **Canonical attack
+and animations; the current Battle log still receives redacted details. **Canonical attack
 critical hits (selected natural20) and fumbles (selected natural1) always show,
 even with Off.** Instant and reduced motion still make those results static;
 they never force motion or a gameplay wait. Checks, saves and initiative keep
@@ -47,8 +56,8 @@ their actual outcomes and are not reclassified as attack crits.
 Reduced motion and Instant show exact static results without
 animation timers. Text scale and high contrast update live.
 
-The runtime log resets on returning to title or reloading. It is consultable
-evidence, not campaign history or gameplay authority.
+The Battle log resets when the battle ends. Neither it nor transient
+non-combat results are campaign history or gameplay authority.
 
 ## Authority and hidden information
 
@@ -81,7 +90,7 @@ evidence, not campaign history or gameplay authority.
   item effects and HP changes without rounding; NaN/Infinity are rejected.
   Snapshots copy scalar values and stable actor/action metadata, not mutable
   players/combatants. Enemy modifiers and intermediate arithmetic are removed
-  before notices, normal logs and runtime history.
+  before notices and the Battle log.
 - Multiple status ticks retain their own rolled components and existing RNG
   order before saves. Their one capped aggregate HP write is shown separately,
   without inventing per-tick overkill allocations.
@@ -108,7 +117,7 @@ recorded adjustments and mechanics-owned HP deltas.
 from only the visible die count and measured viewport. It receives no rolls,
 actors, resources or outcome callbacks and consumes no RNG.
 `src/systems/dicePresentation.ts` owns redacted snapshots, exact text formatting,
-visual timing, presentation deduplication, bounded runtime history, and the
+visual timing, presentation deduplication, bounded scene-local evidence, and the
 Phaser-free lifecycle controller.
 
 `installDicePresentation(scene)` installs a scene-owned manager.
@@ -121,16 +130,19 @@ reads current discovery flags without changing them.
 `combineDicePresentations()` preserves per-target results within one immediate
 notice/log entry; it neither combines mechanics nor derives another outcome.
 
-The procedural SVG renderer lives in `src/renderers/dice.ts`; its responsive
-DOM dock is outside the Phaser canvas, so it does not obscure game content.
-`src/managers/input.ts` keeps touch controls below the dock and extends its
-existing gamepad cursor to native log controls without adding a blocking input
-context. All Phaser scenes install the manager so the log survives immediate
-battle, trap, gathering, cutscene, result, and exploration handoffs.
-The dock keeps the same bounded height across animation modes and refreshes
-Phaser's scale/pointer geometry when its host changes size.
-New results reveal the top of a closed dock rather than retaining an old
-log/focus scroll offset. An open log retains its scroll position and focus.
+The procedural SVG renderer lives in `src/renderers/dice.ts`. Its overlay
+tracks the actual canvas bounds without changing the canvas size, pointer
+geometry or touch-control positions. The exact same numbered dice animate and
+remain at rest, including Instant/reduced-motion results; no dock copies are
+rendered. Long result captions wrap in a bounded in-scene reading area.
+`src/managers/input.ts` routes the existing skip action and native skip control
+without adding a blocking input context.
+
+Managers never restore another scene's latest result or history. Battle routes
+redacted detail through its normal log owner. Other scenes use a cancellable
+reading/expiry timer, fade and cleanup watchdog; event starts/closes explicitly
+reset prior results. Skip settles the numbered faces without rerolling. Blur
+and visibility loss clear the view, and resize settles/repositions it.
 
 Shutdown/explicit Battle cleanup cancels timers, Web Animations, synthesized
 cues, subscriptions, and keyboard listeners exactly once. Stale completion
@@ -160,16 +172,20 @@ dice: {
 Missing, legacy v1/v2, and malformed fields normalize to All/Normal while
 preserving audio, accessibility, and control preferences. This is stored only
 under `2dnd_preferences`, independently of the campaign schema.
-Neither receipts nor runtime log entries enter saves, and dice preferences do
+Neither receipts nor Battle log entries enter saves, and dice preferences do
 not increment the campaign schema.
 
-`dicePresentation`, `effectRollReceipts`, `rollReceipts`, `diceRenderer`,
+`dicePresentation`, `diceManager`, `effectRollReceipts`, `rollReceipts`, `diceRenderer`,
 `accessibility`, `input`, and `inputRuntime`
 Vitest suites cover redaction, both dice, critical/fumble/auto-hit semantics,
 exact component mapping, fractional legacy compatibility, RNG/MP/HP parity,
-per-target caps, observer-hook timing, preferences, cancellation, and history.
+per-target caps, observer-hook timing, preferences, cancellation, scoped
+expiry and rejection of stale fade/scene callbacks.
 `e2e/dice-presentation.spec.ts` exercises production battle, event, trap,
 gathering, flee, skip, log, reload, and transition controls, real exploration/
 battle healing, and a shared area pool at all text scales and desktop/mobile
-viewports. It asserts measured dock/text/pool widths, immediate reduced-motion/
-instant results, and the actual fishing tick/bite/tension input sequence.
+viewports. Headless Chromium asserts measured in-scene dice/text bounds,
+unchanged canvas geometry, immediate reduced-motion/instant numbered faces,
+normal event fading, Battle log reset and the actual fishing tick/bite/tension
+input sequence. Native gates run only in isolated CI environments, never by
+taking control of the developer's desktop.

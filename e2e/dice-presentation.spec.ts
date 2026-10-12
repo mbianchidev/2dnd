@@ -367,17 +367,25 @@ async function expectDiceBounds(page: Page, textScale: TextScale): Promise<void>
     const rect = root.getBoundingClientRect();
     const glyphs = root.querySelector<HTMLElement>(".resolved-dice")!;
     const result = root.querySelector<HTMLElement>("#dice-result")!;
+    const canvas = document.querySelector<HTMLCanvasElement>("#game-container canvas")!.getBoundingClientRect();
     return {
-      left: rect.left, right: rect.right, height: rect.height,
+      left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, height: rect.height,
       width: root.clientWidth, scrollWidth: root.scrollWidth,
       glyphWidth: glyphs.clientWidth, glyphScrollWidth: glyphs.scrollWidth,
       resultWidth: result.clientWidth, resultScrollWidth: result.scrollWidth,
       viewportWidth: window.innerWidth, viewportHeight: window.innerHeight,
+      canvas: { left: canvas.left, right: canvas.right, top: canvas.top, bottom: canvas.bottom, height: canvas.height },
+      textScale: Number(root.style.getPropertyValue("--dice-text-scale")),
     };
   });
   expect(bounds.left).toBeGreaterThanOrEqual(0);
   expect(bounds.right).toBeLessThanOrEqual(bounds.viewportWidth);
-  expect(bounds.height).toBeLessThanOrEqual(Math.min(120 * textScale, bounds.viewportHeight * 0.3, 210) + 1);
+  expect(bounds.left).toBeGreaterThanOrEqual(bounds.canvas.left);
+  expect(bounds.right).toBeLessThanOrEqual(bounds.canvas.right);
+  expect(bounds.top).toBeGreaterThanOrEqual(bounds.canvas.top);
+  expect(bounds.bottom).toBeLessThanOrEqual(bounds.canvas.bottom);
+  expect(bounds.height).toBeCloseTo(bounds.canvas.height * 0.72, 0);
+  expect(bounds.textScale).toBe(textScale);
   expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.width);
   expect(bounds.glyphScrollWidth).toBeLessThanOrEqual(bounds.glyphWidth);
   expect(bounds.resultScrollWidth).toBeLessThanOrEqual(bounds.resultWidth);
@@ -496,8 +504,8 @@ test.describe("physical dice game-viewport demo", () => {
     const y = motion.samples.map((sample) => sample.y);
     expect(y.some((height, index) => index > 0 && height < y[index - 1]! - 0.5)).toBe(true);
     expect(motion.samples.every((sample) => sample.natural === String(healing.roll!.naturalRolls[0]))).toBe(true);
-    expect(motion.hidden).toBe(true);
-    expect(motion.childCount).toBe(0);
+    expect(motion.hidden).toBe(false);
+    expect(motion.childCount).toBeGreaterThan(0);
     expect(motion.skipped).toBe("false");
     expect(motion.pointerEvents).toBe("none");
     expect(motion.stage.left).toBeGreaterThanOrEqual(motion.canvas.left);
@@ -516,15 +524,16 @@ test.describe("physical dice game-viewport demo", () => {
     await evidence.find("healing", "party:hero", from);
     await expect(page.locator("#dice-roll-stage")).toBeVisible();
     await captureDiceScreenshot(page, "physical-die-mobile-in-flight");
-    await expect(page.locator("#dice-roll-stage")).toBeHidden();
-    await expect(page.locator("#dice-roll-stage .rolling-die")).toHaveCount(0);
+    await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
+    await expect(page.locator("#dice-roll-stage .rolling-die")).toHaveCount(1);
     await expectDiceBounds(page, 1.5);
     await captureDiceScreenshot(page, "physical-die-mobile-final");
     await clickLayoutItem(page, "equip-spell-cureWounds");
     await expect(page.locator("#dice-roll-stage")).toBeVisible();
     await skipDiceWithKeyboard(page);
-    await expect(page.locator("#dice-roll-stage")).toBeHidden();
-    await expect(page.locator("#dice-roll-stage .rolling-die")).toHaveCount(0);
+    await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
+    await expect(page.locator("#dice-roll-stage .rolling-die")).toHaveCount(1);
+    expect(await page.locator("#dice-roll-stage").evaluate((stage) => stage.getAnimations({ subtree: true }).length)).toBe(0);
     await clickLayoutItem(page, "equip-spell-cureWounds");
     await expect(page.locator("#dice-roll-stage")).toBeVisible();
     await page.evaluate(() => {
@@ -576,7 +585,8 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await continueCampaign(page);
     await debugCommand(page, "/spawn orc");
     await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
-    const log = page.locator("#dice-log");
+    const log = page.locator("#battle-log");
+    await expect(page.locator("#dice-history, #dice-log")).toHaveCount(0);
     await expect(log.locator('[data-category="initiative"]')).toHaveCount(2);
     await expect.poll(() => evidence.packets.some((packet) =>
       packet.kind === "initiative" && packet.actorId?.includes(":enemy:")
@@ -628,8 +638,8 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     else await page.locator("#dice-fast-forward").tap();
     await expect.poll(() => dock.getAttribute("data-last-skipped-sequence")).not.toBe(beforeSkip);
     await expect(dock).toHaveAttribute("data-phase", "ready");
-    await expect(page.locator("#dice-roll-stage")).toBeHidden();
-    await expect(page.locator("#dice-roll-stage .rolling-die")).toHaveCount(0);
+    await expect(page.locator("#dice-roll-stage")).toBeVisible();
+    expect(await page.locator("#dice-roll-stage").evaluate((stage) => stage.getAnimations({ subtree: true }).length)).toBe(0);
 
     const attack = log.locator('[data-category="attack"]').filter({ hasText: "Dice Tester attack" });
     const attackPacket = await evidence.find("attack", "party:hero");
@@ -655,9 +665,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await expectDiceBounds(page, textScale);
     await expect(attack).toHaveCount(1);
 
-    await page.locator("#dice-history summary").click();
-    await expect(attack).toBeVisible();
-    await page.locator("#dice-history summary").press("Escape");
+    await expect(log).toHaveAttribute("aria-label", "Battle log");
     await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
     const displayedMissile = captureDisplayedDice(page, "Dice Tester Magic Missile");
     await clickLayoutItem(page, "battle-action-spells");
@@ -688,7 +696,9 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     }
     await debugCommand(page, "/kill");
     await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
-    await expect(log).toContainText("Magic Missile");
+    await expect(log).toHaveCount(0);
+    await expect(page.locator("#dice-presentation")).toBeHidden();
+    await expect(page.locator("#dice-roll-stage .resolved-die")).toHaveCount(0);
     await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
     const save = await readSave(page);
     expect(save.version).toBe(SAVE_VERSION);
@@ -722,7 +732,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     expect(heal.roll.modifier).toBe(0);
     expect(heal.application?.amount).toBe(1);
     if (heal.amount > 1) expect(heal.application?.limit).toBe("Maximum HP");
-    await expect(page.locator("#dice-log")).toContainText(formatDicePresentation(
+    await expect(page.locator("#dice-result")).toContainText(formatDicePresentation(
       createEffectDicePresentation(heal, {
         category: "healing", label: "Dice Tester Cure Wounds", outcome: "success",
       }),
@@ -760,7 +770,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     expect(battleHeal.roll.sides).toBe(8);
     expect(battleHeal.roll.naturalRolls).toHaveLength(1);
     expect(battleHeal.roll.modifier).toBe(0);
-    await expect(page.locator("#dice-log")).toContainText(formatDicePresentation(
+    await expect(page.locator("#battle-log")).toContainText(formatDicePresentation(
       createEffectDicePresentation(battleHeal, {
         category: "healing", label: "Dice Tester Cure Wounds -> Dice Tester", outcome: "success",
       }),
@@ -774,7 +784,8 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await debugCommand(page, "/kill");
     await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
     expect((await readSave(page)).player.mp).toBe(100 - 2 * getSpell("cureWounds")!.mpCost);
-    await expect(page.locator("#dice-log")).toContainText("Cure Wounds");
+    await expect(page.locator("#battle-log")).toHaveCount(0);
+    await expect(page.locator("#dice-presentation")).toBeHidden();
     await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
     expect(errors).toEqual([]);
   });
@@ -789,6 +800,7 @@ test("one real area cast shows one exact pool with independent target HP results
   await debugCommand(page, "/battleview goblinRaidingParty forest day clear");
   await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
   await clickLayoutItem(page, "battle-action-spells");
+  const displayed = captureDisplayedDice(page, "Dice Tester Fireball");
   await clickLayoutItem(page, "battle-spell-fireball");
   const targetCount = getMonsterGroupTemplate("goblinRaidingParty")!.members.length;
   await expect.poll(() => evidence.packets.filter((packet) =>
@@ -801,7 +813,7 @@ test("one real area cast shows one exact pool with independent target HP results
   if (!pool) throw new Error("Area fixture did not resolve a damage roll");
   expect(pool.sides).toBe(6);
   expect(pool.naturalRolls).toHaveLength(8);
-  const entry = page.locator('#dice-log [data-category="attack"]').filter({ hasText: "Dice Tester Fireball" });
+  const entry = page.locator('#battle-log [data-category="attack"]').filter({ hasText: "Dice Tester Fireball" });
   await expect(entry).toHaveCount(1);
   for (const packet of attacks) {
     expect(packet.attack?.damageRoll?.roll).toEqual(pool);
@@ -809,14 +821,18 @@ test("one real area cast shows one exact pool with independent target HP results
     await expect(entry).toContainText(`HP lost ${packet.attack?.damageRoll?.application?.amount}`);
   }
   await expect(entry).toContainText("(shared roll)");
-  await expect(page.locator("#dice-presentation .resolved-die")).toHaveCount(9);
-  await expect(page.locator('#dice-presentation [data-roll-kind="damage"]')).toHaveCount(1);
+  const visible = await displayed;
+  expect(visible.faces.map((die) => [die.sides, die.natural])).toEqual([
+    ["20", String(attacks[0]!.attack!.rollResult!.naturalRoll)],
+    ...pool.naturalRolls.map((natural) => ["6", String(natural)]),
+  ]);
+  expect(visible.rollingFaces).toEqual(visible.faces);
   await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
   await expectDiceBounds(page, 1.5);
   await debugCommand(page, "/kill");
   await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
   expect((await readSave(page)).player.mp).toBe(100 - getSpell("fireball")!.mpCost);
-  await expect(entry).toHaveCount(1);
+  await expect(entry).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -844,7 +860,8 @@ test("preferences, disabled results and non-combat checks survive reload without
   const check = Object.entries(save.player.progression.skillChecks)
     .find(([id]) => id.startsWith("worldEvent:"))?.[1];
   if (!check) throw new Error("No authoritative World Event check was persisted");
-  await expect(page.locator("#dice-log")).toContainText(formatSkillCheckResult(check));
+  await expect(page.locator("#dice-result")).toContainText(formatSkillCheckResult(check));
+  await expect(page.locator("#dice-log, #battle-log")).toHaveCount(0);
   await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
   await expect(page.locator("#dice-presentation")).toBeHidden();
   await expect(page.locator("#dice-presentation svg")).toHaveCount(0);
@@ -852,6 +869,41 @@ test("preferences, disabled results and non-combat checks survive reload without
   await continueCampaign(page);
   expect((await readSave(page)).player.progression.skillChecks).toEqual(save.player.progression.skillChecks);
   await expect(page.locator("#game-container canvas")).toHaveAttribute("data-dice-frequency", "off");
+  await expect(page.locator("#dice-presentation")).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test("non-battle event dice fade without a dock, lasting history or replay in another battle", async ({ page }) => {
+  const errors = collectErrors(page);
+  await seedCampaign(page);
+  await continueCampaign(page);
+  await expect(page.locator("#dice-presentation")).toBeHidden();
+  const canvasBefore = await page.locator("#game-container canvas").boundingBox();
+  await debugCommand(page, "/event trigger moonlitShrine");
+  await clickLayoutItem(page, "world-event-choice-studyRunes");
+  await expect(page.locator("#debug-state")).not.toContainText("[WORLD_EVENT:");
+  const check = Object.entries((await readSave(page)).player.progression.skillChecks)
+    .find(([id]) => id.startsWith("worldEvent:"))?.[1];
+  if (!check) throw new Error("No canonical World Event result");
+  await expect(page.locator("#dice-result")).toContainText(formatSkillCheckResult(check));
+  await expect(page.locator('#dice-roll-stage [data-sides="20"]'))
+    .toHaveAttribute("data-natural", String(check.naturalRoll));
+  await expect(page.locator("#dice-history, #dice-log, #battle-log")).toHaveCount(0);
+  expect(await page.locator("#game-container canvas").boundingBox()).toEqual(canvasBefore);
+  await expectDiceBounds(page, 1);
+  await expect(page.locator("#dice-presentation")).toBeHidden({ timeout: 5_000 });
+  await expect(page.locator("#dice-result")).toBeEmpty();
+  await expect(page.locator("#dice-roll-stage .resolved-die")).toHaveCount(0);
+  await holdKey(page, "Escape");
+  await expect(page.locator("#debug-state")).toContainText("[MENU]");
+  await expect(page.locator("#dice-presentation")).toBeHidden();
+  await holdKey(page, "Escape");
+  await debugCommand(page, "/spawn orc");
+  await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+  await expect(page.locator('#battle-log [data-category="skill"]')).toHaveCount(0);
+  await debugCommand(page, "/kill");
+  await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+  await expect(page.locator("#battle-log")).toHaveCount(0);
   await expect(page.locator("#dice-presentation")).toBeHidden();
   expect(errors).toEqual([]);
 });
@@ -900,7 +952,7 @@ test("rolls default on, disable easily, and actual positive/negative crits remai
       expect(visible.rollingFaces[0]).toEqual({ sides: "20", natural: String(natural) });
       expect(visible.text).toContain(natural === 20 ? "Critical hit" : "Fumble / critical miss");
     }
-    await expect(page.locator("#dice-log")).toContainText(visible.text);
+    await expect(page.locator("#battle-log")).toContainText(visible.text);
     await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
   }
   await debugCommand(page, "/kill");
@@ -919,13 +971,13 @@ test("real trap detection and disarm use the exact canonical checks and never re
   await continueCampaign(page);
   const detection = await packets.find("trapDetection");
   if (!detection.trap || detection.trapId !== evidence.id) throw new Error("Wrong canonical detection target");
-  await expect(page.locator("#dice-log")).toContainText(
+  await expect(page.locator("#dice-result")).toContainText(
     formatDicePresentation(createTrapDicePresentation(detection.trap, evidence.name, true)!),
   );
   await holdKey(page, "Space");
   const disarm = await packets.find("trapDisarm");
   if (!disarm.trap || disarm.trapId !== evidence.id) throw new Error("Wrong canonical disarm target");
-  await expect(page.locator("#dice-log")).toContainText(
+  await expect(page.locator("#dice-result")).toContainText(
     formatDicePresentation(createTrapDicePresentation(disarm.trap, evidence.name, false)!),
   );
   await page.locator("#dice-fast-forward").click();
@@ -963,7 +1015,7 @@ test("stepping onto a real missed trap shows its exact damage dice and nonlethal
   expect(effect.roll?.naturalRolls).toHaveLength(damage.count);
   expect(effect.application?.amount).toBe(1);
   if (effect.amount > 1) expect(effect.application?.limit).toBe("Nonlethal");
-  await expect(page.locator("#dice-log")).toContainText(formatDicePresentation(createEffectDicePresentation(
+  await expect(page.locator("#dice-result")).toContainText(formatDicePresentation(createEffectDicePresentation(
     effect, { category: "damage", label: `${trap.name} damage`, outcome: "rolled" },
   )));
   await expectDiceBounds(page, 1.5);
@@ -980,7 +1032,7 @@ test("stepping onto a real missed trap shows its exact damage dice and nonlethal
   expect(errors).toEqual([]);
 });
 
-test("a real flee check hands off once with readable immediate results and unchanged resources", async ({ page }) => {
+test("a real flee check clears its battle log and dice on handoff without changing resources", async ({ page }) => {
   const errors = collectErrors(page);
   const evidence = captureDice(page);
   await seedCampaign(page, { reducedMotion: true, flee: true });
@@ -993,7 +1045,7 @@ test("a real flee check hands off once with readable immediate results and uncha
   const packet = await evidence.find("flee");
   if (!packet.flee) throw new Error("Missing canonical flee receipt");
   expect(packet.flee.success).toBe(true);
-  await expect(page.locator("#dice-log [data-category='flee']")).toContainText(
+  await expect(page.locator("#debug-log")).toContainText(
     formatDicePresentation(createD20Presentation(packet.flee.rollResult, {
       category: "flee", label: "Dice Tester flee",
       outcome: packet.flee.success ? "success" : "failure",
@@ -1001,7 +1053,9 @@ test("a real flee check hands off once with readable immediate results and uncha
     })),
   );
   await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
-  await expect(page.locator("#dice-log [data-category='flee']")).toHaveCount(1);
+  await expect(page.locator("#battle-log, #dice-log")).toHaveCount(0);
+  await expect(page.locator("#dice-presentation")).toBeHidden();
+  await expect(page.locator("#dice-roll-stage .resolved-die")).toHaveCount(0);
   await expect(page.locator("#dice-presentation")).toHaveAttribute("data-phase", "ready");
   const after = await readSave(page);
   expect(after.player.mp).toBe(before.player.mp);
@@ -1010,7 +1064,7 @@ test("a real flee check hands off once with readable immediate results and uncha
   expect(errors).toEqual([]);
 });
 
-test("real gathering controls show canonical scores without fabricated d20s and retain transition feedback", async ({ page }) => {
+test("real gathering scores fade without fabricated d20s or history surviving a battle", async ({ page }) => {
   const errors = collectErrors(page);
   await seedCampaign(page, { textScale: 1.5, reducedMotion: true });
   await continueCampaign(page);
@@ -1063,25 +1117,27 @@ test("real gathering controls show canonical scores without fabricated d20s and 
       }
     }
     await expect(page.locator("#debug-state")).not.toContainText(`[GATHERING:${discipline}]`);
-    const entry = page.locator('#dice-log [data-category="gathering"]')
-      .filter({ hasText: discipline.charAt(0).toUpperCase() + discipline.slice(1) }).last();
-    await expect(entry).toContainText("Score 100; required 50");
-    await expect(entry).toContainText("(no d20 roll)");
+    await expect(page.locator("#debug-log")).toContainText("Score 100; required 50");
+    await expect(page.locator("#debug-log")).toContainText("(no d20 roll)");
     if ((await page.locator("#debug-state").textContent())?.includes("BATTLE")) {
       await debugCommand(page, "/kill");
       await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
-      await expect(entry).toContainText("Score 100");
+      await expect(page.locator("#dice-presentation")).toBeHidden();
+    } else {
+      await expect(page.locator("#dice-result")).toContainText("Score 100; required 50");
+      const bounds = await page.locator("#dice-presentation").boundingBox();
+      if (!bounds) throw new Error("No visible transient gathering result");
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+      await expect(page.locator("#dice-presentation")).toBeHidden({ timeout: 5_000 });
+      await expect(page.locator("#dice-result")).toBeEmpty();
     }
     pending = (await readSave(page)).player.progression.gathering.pending;
     expect(pending).toBeNull();
-    const bounds = await page.locator("#dice-presentation").boundingBox();
-    if (!bounds) throw new Error("No visible gathering result");
-    expect(bounds.x).toBeGreaterThanOrEqual(0);
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+    await expect(page.locator("#dice-log, #battle-log")).toHaveCount(0);
   }
   await page.setViewportSize({ width: 932, height: 430 });
-  await page.locator("#dice-history summary").click();
-  await expect(page.locator("#dice-log")).toBeVisible();
+  await expect(page.locator("#dice-history")).toHaveCount(0);
   expect((await readSave(page)).player.progression.gathering.stats.mining.successes).toBe(1);
   expect(errors).toEqual([]);
 });

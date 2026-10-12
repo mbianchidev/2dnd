@@ -97,7 +97,7 @@ import {
   type ResolvedHealingDiceTarget,
 } from "../managers/battleDice";
 import { clearDicePresentation } from "../managers/dicePresentation";
-import { redactSavingThrowMessage } from "../systems/dicePresentation";
+import { redactSavingThrowMessage, type DiceRollCategory } from "../systems/dicePresentation";
 import {
   createActorTextureFamily,
   resolveMonsterTextureFamily,
@@ -240,6 +240,7 @@ export class BattleScene extends Phaser.Scene {
   private phase: BattlePhase = "init";
   private logLines: string[] = [];
   private logText!: Phaser.GameObjects.Text;
+  private accessibleLog: HTMLOListElement | null = null;
   private logScrollOffset = 0;
   private logAreaY = 0;
   private logAreaH = 0;
@@ -477,7 +478,8 @@ export class BattleScene extends Phaser.Scene {
     });
 
     this.drawBattleUI();
-    this.battleDice = new BattleDicePresenter(this, (message) => this.addLog(message));
+    this.battleDice = new BattleDicePresenter(this, (message, event) =>
+      this.addLog(message, event.presentation.category));
     this.battlePartyRenderer.render(
       this.partyCombatants,
       this.partyActionSources,
@@ -538,6 +540,8 @@ export class BattleScene extends Phaser.Scene {
     bind(Phaser.Input.Keyboard.KeyCodes.ENTER, () => this.confirmBattleSelection());
     bind(Phaser.Input.Keyboard.KeyCodes.SPACE, () => this.confirmBattleSelection());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.accessibleLog?.remove();
+      this.accessibleLog = null;
       this.bodyTargetManager?.close();
       this.battlePartyManager?.clear();
       this.battlePresentation?.cleanup();
@@ -724,6 +728,15 @@ export class BattleScene extends Phaser.Scene {
       wordWrap: { width: w * 0.5 - 20 },
       lineSpacing: 5,
     }).setDepth(BATTLE_DEPTH.ui);
+    this.accessibleLog = document.createElement("ol");
+    this.accessibleLog.id = "battle-log";
+    this.accessibleLog.className = "battle-log-accessible";
+    this.accessibleLog.setAttribute("role", "log");
+    this.accessibleLog.setAttribute("aria-label", "Battle log");
+    this.accessibleLog.setAttribute("aria-live", "off");
+    const logHost = document.getElementById("game-inner");
+    if (!logHost) throw new Error("[battle] Game container is unavailable for the battle log.");
+    logHost.append(this.accessibleLog);
 
     // Mouse wheel scrolling on the log area
     this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gos: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
@@ -1879,8 +1892,16 @@ export class BattleScene extends Phaser.Scene {
     return "[" + "#".repeat(filled) + "-".repeat(length - filled) + "]";
   }
 
-  private addLog(msg: string): void {
-    this.logLines.push(msg);
+  private addLog(msg: string, category?: DiceRollCategory): void {
+    this.logLines.push(...this.logText.getWrappedText(msg));
+    if (this.logLines.length > 400) this.logLines.splice(0, this.logLines.length - 400);
+    if (this.accessibleLog) {
+      const item = document.createElement("li");
+      item.textContent = msg;
+      if (category) item.dataset.category = category;
+      this.accessibleLog.append(item);
+      if (this.accessibleLog.children.length > 200) this.accessibleLog.firstElementChild?.remove();
+    }
     this.logScrollOffset = 0;
     this.renderBattleLog();
     // Also push to the HTML debug panel (always, panel visibility is toggled separately)
@@ -1889,7 +1910,7 @@ export class BattleScene extends Phaser.Scene {
 
   private renderBattleLog(): void {
     if (this.logLines.length === 0) {
-      this.logText.setText("");
+      this.logText?.setText("");
       return;
     }
 
@@ -3422,6 +3443,10 @@ export class BattleScene extends Phaser.Scene {
     this.battlePartyRenderer.clear();
     this.battlePresentation?.cleanup();
     clearDicePresentation(this);
+    this.accessibleLog?.remove();
+    this.accessibleLog = null;
+    this.logLines = [];
+    this.logText?.setText("");
     this.battleBackdrop?.stopDynamicEffects();
     this.input?.keyboard?.removeAllKeys(true, false);
     setDebugCommandHandler(null);

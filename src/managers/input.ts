@@ -164,7 +164,6 @@ export class SemanticInputRuntime {
   private unsubscribePreferences: (() => void) | null = null;
   private unsubscribeFeatures: (() => void) | null = null;
   private readonly resizeObserver = new ResizeObserver(() => {
-    this.updateDiceInset();
     this.game.scale.getParentBounds();
     this.game.scale.refresh();
   });
@@ -669,7 +668,7 @@ export class SemanticInputRuntime {
       return;
     }
     if (target instanceof HTMLElement && target.closest("#dice-presentation")) {
-      const control = target.closest<HTMLElement>("button, summary");
+      const control = target.closest<HTMLElement>("button");
       control?.focus();
       control?.click();
       return;
@@ -795,12 +794,6 @@ export class SemanticInputRuntime {
     }
   }
 
-  private updateDiceInset(): void {
-    const dice = document.getElementById("dice-presentation");
-    const height = dice && !dice.hidden ? dice.getBoundingClientRect().height : 0;
-    this.touchRoot?.style.setProperty("--touch-dice-inset", `${height}px`);
-  }
-
   private createCursor(): void {
     const cursor = document.createElement("div");
     cursor.id = "gamepad-cursor";
@@ -866,16 +859,14 @@ export class SemanticInputRuntime {
     if (action === "confirm" || action === "interact") {
       focused.click();
     } else if (action === "cancel" || action === "openMenu") {
-      const history = dice.querySelector("details");
-      if (history) history.open = false;
       this.game.canvas.tabIndex = -1;
       this.game.canvas.focus({ preventScroll: true });
       this.cursorActive = false;
       this.updateCursor();
     } else if (action.endsWith("Up") || action.endsWith("Down")) {
-      dice.scrollBy(0, action.endsWith("Up") ? -60 : 60);
+      dice.querySelector("#dice-result")?.scrollBy(0, action.endsWith("Up") ? -60 : 60);
     } else if (action.endsWith("Left") || action.endsWith("Right")) {
-      const controls = [...dice.querySelectorAll<HTMLElement>("button:not(:disabled), summary")];
+      const controls = [...dice.querySelectorAll<HTMLElement>("button:not(:disabled):not([hidden])")];
       const index = controls.indexOf(focused);
       const direction = action.endsWith("Left") ? -1 : 1;
       controls[(index + direction + controls.length) % controls.length]?.focus();

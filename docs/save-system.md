@@ -19,8 +19,8 @@ Legacy `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values migrate into
 schema.
 
 Preference v3 adds normalized dice animation frequency/speed, defaulting missing
-or corrupt v1/v2 values to All/Normal. Exact roll receipts and the bounded
-cross-scene roll log are runtime-only. Dice preferences never alter campaign or
+or corrupt v1/v2 values to All/Normal. Exact roll receipts, transient scene dice
+and the current Battle log are runtime-only and clear on exit. Dice preferences never alter campaign or
 slot documents or increment their schema.
 
 Browser deployments store these documents under their HTTP/HTTPS origin.

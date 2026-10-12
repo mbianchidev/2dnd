@@ -197,7 +197,7 @@ Start from a Steam gamepad-emulation template: D-pad/left stick navigate, south
 confirms, east cancels, west interacts/edits names, north/Menu opens menus,
 View opens Tips, bumpers change Battle targets/Codex categories and triggers
 scroll the Battle log. Right stick moves the existing virtual cursor and R3
-clicks it, including the native fullscreen and resolved-dice log controls.
+clicks it, including the native fullscreen and transient dice-skip controls.
 Left-stick press skips dice motion without delaying mechanics. Dice frequency
 and speed remain available through the Settings controls. An optional right
 trackpad may emulate the right stick; avoid duplicate mouse/gamepad outputs.

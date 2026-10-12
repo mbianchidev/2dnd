@@ -243,6 +243,8 @@ describe("canonical roll receipts", () => {
         record: () => {},
         show: () => {},
         settle: () => {},
+        hide: () => {},
+        dismiss: () => {},
         clear: () => {},
         schedule: () => () => {},
       });

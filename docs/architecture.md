@@ -178,7 +178,8 @@ live regions never take input focus or delay a scene handoff.
 
 The input adapter reads Phaser's current parent bounds before refreshing FIT
 scaling when the canvas host changes. `refresh()` alone uses cached parent
-dimensions and can let the canvas extend behind the dice dock or past the window.
+dimensions and can let the canvas extend past the window. Dice overlays track
+the canvas without changing its host dimensions.
 
 Every scene installs shared accessibility. New motion must use the reduced-motion
 accessors and complete callbacks exactly once even when animation duration is
@@ -243,12 +244,15 @@ recorded adjustments, resolved amounts and the HP delta at its owning write.
 It preserves existing RNG order, shared area pools, finite fractional custom
 item effects, resource use and result-hook timing; scene adapters only capture
 their existing shield/healing writes. `dicePresentation.ts`
-projects only permitted information and owns a bounded runtime log. The
-scene-owned dice manager, procedural SVG dock and pointer-transparent game
+projects only permitted information and owns scene-local evidence. The
+scene-owned dice manager and pointer-transparent procedural SVG game
 throw layer consume those results without
 RNG, resource mutations, input-block reasons, or gameplay completion callbacks.
-They cancel visual/audio work on shutdown while retaining redacted log evidence
-across handoffs. See [Dice presentation](dice-presentation.md).
+Battle routes redacted detail into its existing bounded log and accessible
+counterpart. Non-battle results expire after three seconds with an optional
+250-ms fade. No history or latest result crosses a scene handoff; event reset,
+blur and shutdown cancel visuals, cues and owned timers.
+See [Dice presentation](dice-presentation.md).
 `diceMotion.ts` owns measured deterministic travel, multi-axis tumble, bounce
 and settled layout, not physics that determines faces. Normal/Fast take
 900/300 ms; Instant/reduced motion stay static. Ordinary rolls default enabled

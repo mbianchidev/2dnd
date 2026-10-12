@@ -75,10 +75,14 @@ are intentionally not remappable.
 
 Preference v3 includes dice animation frequency/speed independently of the
 campaign schema. Exact d20/component/effect receipts live in `systems/rollResults.ts`, safe mapping
-and runtime history in `systems/dicePresentation.ts`, scene-owned orchestration
+and scoped visual lifetime in `systems/dicePresentation.ts`, scene-owned orchestration
 in `managers/dicePresentation.ts`/`battleDice.ts`, and procedural SVG rendering
 in `renderers/dice.ts`. Never add RNG, mechanics callbacks, resource mutation,
-hidden-stat leakage, or an input-block reason to this pipeline.
+hidden-stat leakage, or an input-block reason to this pipeline. Dice render over
+the measured active scene, never in an external dock. Details join the existing
+Battle log; battle exit clears it. Non-combat results expire after three seconds
+and a short fade. Event reset, blur and handoff clear views, cues and timers;
+no latest result or history is restored into another scene.
 `systems/effectRolls.ts` retains the original damage/healing RNG calls, named
 modifiers, recorded adjustments and actual HP delta at the existing write.
 Separate rolled, resolved and applied values, preserve finite fractional legacy
@@ -572,7 +576,9 @@ npm run build
 npm run build:desktop
 ```
 
-For UI changes, run the committed Playwright flow in headless Chromium. Keep
+For UI changes, run the committed Playwright flow in headless Chromium. Never
+launch visible native windows or control the developer's desktop; native gates
+run on isolated CI/virtual displays. Keep
 browser actions synchronized through debug-state transitions, and hold
 frame-polled Phaser keys across frames rather than using instantaneous presses.
 Build responsive UI from `src/systems/layout.ts`, register modal groups through

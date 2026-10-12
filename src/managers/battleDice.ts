@@ -8,6 +8,7 @@ import {
   combineDicePresentations,
   type CombatDiceReceipt,
   type DicePresentation,
+  type DicePresentationEvent,
 } from "../systems/dicePresentation";
 import type {
   BattleCombatantState,
@@ -33,7 +34,7 @@ export interface ResolvedHealingDiceTarget {
 export class BattleDicePresenter {
   constructor(
     private readonly scene: Phaser.Scene,
-    addLog: (message: string) => void,
+    addLog: (message: string, event: DicePresentationEvent) => void,
   ) {
     installDicePresentation(scene, addLog);
   }

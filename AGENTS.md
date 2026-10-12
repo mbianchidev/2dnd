@@ -27,7 +27,7 @@ future work until merged.
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
 | Physical/anatomy combat | `damageTypes.ts`, `anatomy.ts`, `itemCombat.ts`, monster metadata | `physicalCombat.ts`, existing combat/action owners and Codex normalization | shared `battleBodyTarget.ts`, hero/manual companion adapters | physicalCombat/physicalCombatSave and physical-combat E2E |
-| Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, `effectRolls.ts`, redacted `dicePresentation.ts`, visual `diceMotion.ts` | dice/battleDice managers, procedural SVG dock/throw layer | dicePresentation/effectRollReceipts/rollReceipts/diceMotion/diceRenderer and dice E2E |
+| Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, `effectRolls.ts`, redacted `dicePresentation.ts`, visual `diceMotion.ts` | scene-local dice/battleDice managers, procedural SVG scene overlay, existing Battle log | dicePresentation/diceManager/effectRollReceipts/rollReceipts/diceMotion/diceRenderer and dice E2E |
 | Hero progression | `src/data/classProgression.ts`, canonical class/action/talent definitions | `classProgression.ts`, `classProgressionState.ts`, `heroItemState.ts`, `classProgressionDebug.ts` | `heroProgression.ts`, rest/equipment adapters | progression/state/item/debug/battle/layout suites, multiclass E2E |
 | Prestige paths | `prestige.ts`, `prestigeActions.ts`, `prestigeLore.ts` | same progression engine/context/normalizer; `systems/prestige.ts` for inspection | existing hero progression manager | prestige/entry/save/battle suites, prestige browser/Electron flows |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
@@ -82,6 +82,10 @@ Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work and record its commit, environment, and output in the
 owning issue or pull request.
 
+Local validation is headless only. Never launch visible native windows or
+control the developer's desktop. The Chromium configuration explicitly selects
+headless mode; native release gates belong on isolated CI/virtual displays.
+
 ## Non-negotiable invariants
 
 - Strict TypeScript, explicit types, no `any`, no unsafe nested save casts.
@@ -120,7 +124,9 @@ owning issue or pull request.
   controls authoritative outcomes.
 - Dice views consume exact immutable receipts, redact hidden AC/DC and enemy
   modifiers/totals, never use shared RNG, and never create an input-block reason.
-  Scene cleanup stops motion/cues; the last 40 redacted results remain runtime-only.
+  Dice use the measured game viewport, not a dock. Battle details join its
+  existing log; no history survives exit. Non-battle results expire after a
+  short reading interval. Event reset and scene cleanup clear views/cues/timers.
 - Damage/healing receipts separate real faces/signed modifiers, recorded
   adjustments, resolved amounts and actual HP deltas. Capture at the existing
   roll/write owner, preserve RNG/hook timing and finite fractional legacy

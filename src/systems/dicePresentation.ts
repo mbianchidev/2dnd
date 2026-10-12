@@ -421,39 +421,31 @@ export interface DicePresentationAdapter {
   record(event: DicePresentationEvent): void;
   show(event: DicePresentationEvent): void;
   settle(): void;
+  hide(): void;
+  dismiss(duration: number): void;
   clear(): void;
   schedule(duration: number, complete: () => void): () => void;
 }
 
-/** Bounded consultable evidence across scene handoffs, never campaign state. */
-export class DiceRollHistory {
-  private events: readonly DicePresentationEvent[] = [];
-
-  get entries(): readonly DicePresentationEvent[] {
-    return this.events;
-  }
-
-  append(event: DicePresentationEvent): void {
-    this.events = Object.freeze([...this.events.slice(-39), event]);
-  }
-
-  clear(): void {
-    this.events = [];
-  }
-}
-
-export const diceRollHistory = new DiceRollHistory();
+export type DicePresentationScope = "battle" | "transient";
+export const TRANSIENT_DICE_HOLD_MS = 3_000;
+export const DICE_FADE_MS = 250;
 
 /** Visual ownership only: no action, reward, turn, or handoff callbacks exist. */
 export class DicePresentationController {
-  private events: DicePresentationEvent[] = [];
+  private events: readonly DicePresentationEvent[] = [];
   private readonly seenSources = new WeakMap<object, Set<string>>();
   private readonly seenIds = new Set<string>();
   private cancelTimer: (() => void) | null = null;
+  private cancelExpiry: (() => void) | null = null;
+  private cancelFade: (() => void) | null = null;
   private sequence = 0;
   private state: "ready" | "animating" | "clean" = "ready";
 
-  constructor(private readonly adapter: DicePresentationAdapter) {}
+  constructor(
+    private readonly adapter: DicePresentationAdapter,
+    private readonly scope: DicePresentationScope = "battle",
+  ) {}
 
   get phase(): "ready" | "animating" | "clean" {
     return this.state;
@@ -486,6 +478,10 @@ export class DicePresentationController {
       }
     }
     this.fastForward();
+    this.cancelExpiry?.();
+    this.cancelExpiry = null;
+    this.cancelFade?.();
+    this.cancelFade = null;
     const sequence = ++this.sequence;
     const event = Object.freeze({
       presentation,
@@ -493,7 +489,7 @@ export class DicePresentationController {
       duration: getDicePresentationDuration(presentation, preferences, reducedMotion),
       sequence,
     });
-    this.events = [...this.events.slice(-39), event];
+    this.events = Object.freeze(this.scope === "battle" ? [...this.events.slice(-39), event] : [event]);
     this.adapter.record(event);
     this.state = event.duration > 0 ? "animating" : "ready";
     this.adapter.show(event);
@@ -503,6 +499,23 @@ export class DicePresentationController {
         this.cancelTimer = null;
         this.state = "ready";
         this.adapter.settle();
+      });
+    }
+    if (this.scope === "transient") {
+      this.cancelExpiry = this.adapter.schedule(event.duration + TRANSIENT_DICE_HOLD_MS, () => {
+        if (this.state === "clean" || sequence !== this.sequence) return;
+        this.cancelExpiry = null;
+        this.fastForward();
+        this.events = [];
+        const fadeDuration = reducedMotion ? 0 : DICE_FADE_MS;
+        this.adapter.dismiss(fadeDuration);
+        if (fadeDuration > 0) {
+          this.cancelFade = this.adapter.schedule(fadeDuration, () => {
+            if (this.state === "clean" || sequence !== this.sequence) return;
+            this.cancelFade = null;
+            this.adapter.hide();
+          });
+        }
       });
     }
   }
@@ -515,10 +528,26 @@ export class DicePresentationController {
     this.adapter.settle();
   }
 
+  reset(): void {
+    if (this.state === "clean") return;
+    this.fastForward();
+    this.cancelExpiry?.();
+    this.cancelExpiry = null;
+    this.cancelFade?.();
+    this.cancelFade = null;
+    this.events = [];
+    this.sequence++;
+    this.adapter.hide();
+  }
+
   cleanup(): void {
     if (this.state === "clean") return;
     this.cancelTimer?.();
     this.cancelTimer = null;
+    this.cancelExpiry?.();
+    this.cancelExpiry = null;
+    this.cancelFade?.();
+    this.cancelFade = null;
     this.state = "clean";
     this.events = [];
     this.seenIds.clear();

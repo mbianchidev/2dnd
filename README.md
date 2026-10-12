@@ -55,7 +55,8 @@ and campaign saves stay in your browser's local storage.
   Dice travel, tumble and bounce over the game before settling on those exact
   faces. Advantage/disadvantage selection and shared area rolls stay truthful without
   delaying mechanics or revealing hidden enemy stats. Skip motion or consult
-  the bounded runtime roll log.
+  the normal Battle log. Non-combat results fade after a short reading interval;
+  rolls and their log never carry into another scene.
   Rolls start enabled and ordinary displays are easy to disable; attack
   natural20 crits and natural1 fumbles always show (static with reduced motion).
 - **Explore a changing world:** travel through connected city districts,

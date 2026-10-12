@@ -61,14 +61,10 @@ export class DiceRollRenderer {
   private readonly result: HTMLParagraphElement;
   private readonly announcement: HTMLDivElement;
   private readonly fastForwardButton: HTMLButtonElement;
-  private readonly history: HTMLOListElement;
-  private readonly summary: HTMLElement;
   private readonly animations = new Set<Animation>();
   private readonly stage: HTMLDivElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly resizeObserver: ResizeObserver;
-  private stageWidth = 0;
-  private stageHeight = 0;
   private currentEvent: DicePresentationEvent | null = null;
 
   constructor(onFastForward: () => void) {
@@ -82,21 +78,18 @@ export class DiceRollRenderer {
     this.canvas = canvas;
     this.stage = document.createElement("div");
     this.stage.id = "dice-roll-stage";
-    this.stage.className = "dice-roll-stage";
+    this.stage.className = "dice-roll-stage resolved-dice";
     this.stage.hidden = true;
     this.stage.setAttribute("aria-hidden", "true");
-    this.resizeObserver = new ResizeObserver(() => this.fitStageToCanvas());
+    this.resizeObserver = new ResizeObserver(() => this.fitToCanvas());
     this.resizeObserver.observe(canvas);
     this.root = document.createElement("section");
     this.root.id = "dice-presentation";
     this.root.className = "dice-presentation";
     this.root.hidden = true;
+    this.root.dataset.phase = "ready";
     this.root.setAttribute("aria-label", "Resolved dice");
-    const row = document.createElement("div");
-    row.className = "dice-result-row";
-    this.glyphs = document.createElement("div");
-    this.glyphs.className = "resolved-dice";
-    this.glyphs.setAttribute("aria-hidden", "true");
+    this.glyphs = this.stage;
     this.result = document.createElement("p");
     this.result.id = "dice-result";
     this.announcement = document.createElement("div");
@@ -110,43 +103,17 @@ export class DiceRollRenderer {
     this.fastForwardButton.id = "dice-fast-forward";
     this.fastForwardButton.dataset.action = "fastForwardDice";
     this.fastForwardButton.addEventListener("click", onFastForward);
-    const details = document.createElement("details");
-    details.id = "dice-history";
-    this.summary = document.createElement("summary");
-    this.summary.textContent = "Roll log";
-    this.history = document.createElement("ol");
-    this.history.id = "dice-log";
-    this.history.setAttribute("aria-label", "Resolved roll log");
-    this.history.setAttribute("aria-live", "off");
-    details.append(this.summary, this.history);
-    row.append(this.glyphs, this.result, this.fastForwardButton);
-    this.root.append(row, details);
+    this.root.append(this.stage, this.result, this.fastForwardButton);
     const stopGameKeys = (event: KeyboardEvent): void => {
       if (event.code === "Escape") {
-        details.open = false;
-        const canvas = canvasHost.querySelector("canvas");
-        if (canvas) {
-          canvas.tabIndex = -1;
-          canvas.focus({ preventScroll: true });
-        }
+        this.restoreCanvasFocus();
       }
       if (event.code !== "KeyZ") event.stopPropagation();
     };
     this.root.addEventListener("keydown", stopGameKeys);
     this.root.addEventListener("keyup", stopGameKeys);
-    host.insertBefore(this.root, canvasHost);
+    host.append(this.root);
     host.append(this.announcement);
-    host.append(this.stage);
-  }
-
-  record(event: DicePresentationEvent): void {
-    const item = document.createElement("li");
-    item.textContent = event.text;
-    item.dataset.category = event.presentation.category;
-    item.dataset.sequence = String(event.sequence);
-    this.history.append(item);
-    if (this.history.children.length > 40) this.history.firstElementChild?.remove();
-    this.summary.textContent = `Roll log (${this.history.children.length})`;
   }
 
   show(
@@ -154,7 +121,7 @@ export class DiceRollRenderer {
     preferences: Readonly<GamePreferences>,
     announce = true,
   ): void {
-    this.settle();
+    this.hide();
     this.currentEvent = event;
     this.root.dataset.phase = event.duration > 0 ? "animating" : "ready";
     this.root.dataset.sequence = String(event.sequence);
@@ -164,15 +131,15 @@ export class DiceRollRenderer {
     this.applyPreferences(preferences);
     const visible = isDicePresentationVisible(event.presentation, preferences.dice);
     if (announce && visible) this.announcement.textContent = event.text;
-    if (visible && event.duration > 0) {
-      this.throwDice(event, preferences);
-    }
+    if (visible) this.placeDice(event.duration, preferences);
     this.fastForwardButton.disabled = !visible || event.duration === 0;
+    this.fastForwardButton.hidden = this.fastForwardButton.disabled;
     this.updatePrompt();
-    if (!this.root.querySelector("details")?.open) this.root.scrollTop = 0;
+    this.result.scrollTop = 0;
   }
 
   applyPreferences(preferences: Readonly<GamePreferences>): void {
+    if (this.root.dataset.phase === "fading") this.hide();
     this.root.style.setProperty(
       "--dice-text-scale", String(preferences.accessibility.textScale),
     );
@@ -184,17 +151,16 @@ export class DiceRollRenderer {
     const event = this.currentEvent;
     if (!event) return;
     const visible = isDicePresentationVisible(event.presentation, preferences.dice);
-    const readerOpen = this.root.querySelector("details")?.open === true;
-    this.root.hidden = !visible && !readerOpen;
-    if (!visible || preferences.accessibility.reducedMotion || preferences.dice.speed === "instant") {
-      this.settle();
-    }
+    this.root.hidden = !visible;
+    this.cancelAnimations();
     this.glyphs.replaceChildren();
-    if (visible) this.appendResultDice(event.presentation);
-    else this.announcement.textContent = "";
+    this.stage.hidden = true;
+    if (visible) {
+      this.appendResultDice(event.presentation);
+      this.placeDice(0, preferences);
+    } else this.announcement.textContent = "";
     if (this.root.hidden && this.root.contains(document.activeElement)) {
-      this.canvas.tabIndex = -1;
-      this.canvas.focus({ preventScroll: true });
+      this.restoreCanvasFocus();
     }
   }
 
@@ -234,63 +200,65 @@ export class DiceRollRenderer {
     this.glyphs.append(group);
   }
 
-  private throwDice(event: DicePresentationEvent, preferences: Readonly<GamePreferences>): void {
+  private placeDice(duration: number, preferences: Readonly<GamePreferences>): void {
+    for (const shadow of this.stage.querySelectorAll(".rolling-die-shadow")) shadow.remove();
     const bounds = this.canvas.getBoundingClientRect();
-    const height = bounds.height * 0.65;
+    const height = bounds.height * 0.52;
     const dice = [...this.glyphs.querySelectorAll<HTMLElement>(".resolved-die")];
     const motion = createDiceThrowMotion(dice.length, bounds.width, height, preferences.accessibility.textScale);
-    this.stageWidth = bounds.width;
-    this.stageHeight = height;
     this.stage.style.width = `${bounds.width}px`;
     this.stage.style.height = `${height}px`;
-    this.stage.dataset.sequence = String(event.sequence);
-    this.stage.hidden = false;
-    this.fitStageToCanvas();
-    for (const [index, original] of dice.entries()) {
+    this.stage.dataset.sequence = this.root.dataset.sequence;
+    this.stage.hidden = dice.length === 0;
+    this.fitToCanvas();
+    for (const [index, die] of dice.entries()) {
       const path = motion[index]!;
-      const die = original.cloneNode(true);
-      if (!(die instanceof HTMLElement)) throw new Error("[dice] Invalid procedural die clone.");
       die.classList.add("rolling-die");
       die.style.left = `${path.x}px`;
       die.style.top = `${path.y}px`;
       die.style.width = `${path.size}px`;
       die.style.setProperty("--rolling-die-size", `${path.size}px`);
       const caption = die.querySelector("span");
-      if (caption) caption.textContent = `d${original.dataset.sides}${original.dataset.selected === "true" ? "*" : ""}`;
+      if (caption) caption.textContent = `d${die.dataset.sides}${die.dataset.selected === "true" ? "*" : ""}`;
       const shadow = document.createElement("div");
       shadow.className = "rolling-die-shadow";
       shadow.style.left = `${path.x}px`;
       shadow.style.top = `${path.y + path.size * 0.9}px`;
       shadow.style.width = `${path.size}px`;
       shadow.style.height = `${path.size * 0.15}px`;
-      this.stage.append(shadow, die);
-      if (typeof die.animate !== "function") continue;
+      this.stage.append(shadow);
+      if (duration === 0 || typeof die.animate !== "function") continue;
       this.ownAnimation(die.animate(path.frames.map((frame) => ({
         offset: frame.offset,
         transform: `translate3d(${frame.x}px,${frame.y}px,0) rotateZ(${frame.rotation}deg)`
           + ` rotateX(${frame.tilt}deg) rotateY(${frame.yaw}deg) scale(${frame.scaleX},${frame.scaleY})`,
-      })), { duration: event.duration, easing: "linear", fill: "forwards" }));
+      })), { duration, easing: "linear", fill: "forwards" }));
       this.ownAnimation(shadow.animate(path.frames.map((frame) => ({
         offset: frame.offset,
         transform: `translateX(${frame.x}px) scale(${frame.shadowScale},${frame.shadowScale})`,
         opacity: frame.shadowOpacity,
-      })), { duration: event.duration, easing: "linear", fill: "forwards" }));
+      })), { duration, easing: "linear", fill: "forwards" }));
     }
   }
 
-  private fitStageToCanvas(): void {
-    if (this.stage.hidden || this.stageWidth === 0 || this.stageHeight === 0) return;
+  private fitToCanvas(): void {
+    if (this.root.hidden) return;
     const bounds = this.canvas.getBoundingClientRect();
-    this.stage.style.left = `${bounds.left}px`;
-    this.stage.style.top = `${bounds.top + bounds.height * 0.07}px`;
-    this.stage.style.transform = `scale(${bounds.width / this.stageWidth},${bounds.height * 0.65 / this.stageHeight})`;
+    this.root.style.left = `${bounds.left}px`;
+    this.root.style.top = `${bounds.top + bounds.height * 0.05}px`;
+    this.root.style.width = `${bounds.width}px`;
+    this.root.style.height = `${bounds.height * 0.72}px`;
+    this.stage.style.transformOrigin = "0 0";
+    const originalWidth = Number.parseFloat(this.stage.style.width);
+    const originalHeight = Number.parseFloat(this.stage.style.height);
+    if (originalWidth > 0 && originalHeight > 0) {
+      this.stage.style.transform = `scale(${bounds.width / originalWidth},${bounds.height * 0.52 / originalHeight})`;
+    }
   }
 
   private ownAnimation(animation: Animation): void {
     this.animations.add(animation);
-    void animation.finished.then(() => {
-      this.animations.delete(animation);
-    }, (error: unknown) => {
+    void animation.finished.catch((error: unknown) => {
       this.animations.delete(animation);
       if (!(error instanceof DOMException && error.name === "AbortError")) {
         debugLog("[dice] Visual animation failed", error);
@@ -301,34 +269,63 @@ export class DiceRollRenderer {
   updatePrompt(): void {
     const source = getInputPromptSource();
     const shortcut = source === "gamepad" ? "L3" : source === "keyboard" ? "Z" : "tap";
-    this.fastForwardButton.textContent = `Skip animation (${shortcut})`;
+    this.fastForwardButton.textContent = `Skip (${shortcut})`;
     this.fastForwardButton.setAttribute("aria-label", `Fast-forward dice animation, ${shortcut}`);
   }
 
   settle(): void {
+    this.cancelAnimations();
+    this.root.dataset.phase = "ready";
+    if (document.activeElement === this.fastForwardButton) this.restoreCanvasFocus();
+    this.fastForwardButton.disabled = true;
+    this.fastForwardButton.hidden = true;
+  }
+
+  private cancelAnimations(): void {
     for (const animation of this.animations) animation.cancel();
     this.animations.clear();
+  }
+
+  private restoreCanvasFocus(): void {
+    this.canvas.tabIndex = -1;
+    this.canvas.focus({ preventScroll: true });
+  }
+
+  dismiss(duration: number): void {
+    this.settle();
+    const event = this.currentEvent;
+    if (this.root.hidden || duration === 0 || typeof this.root.animate !== "function") {
+      this.hide();
+      return;
+    }
+    this.root.dataset.phase = "fading";
+    const fade = this.root.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration, easing: "ease-out", fill: "forwards",
+    });
+    this.ownAnimation(fade);
+    void fade.finished.then(() => {
+      if (this.currentEvent === event) this.hide();
+    }, (error: unknown) => {
+      if (!(error instanceof DOMException && error.name === "AbortError")
+        && this.currentEvent === event) this.hide();
+    });
+  }
+
+  hide(): void {
+    this.settle();
+    this.currentEvent = null;
+    this.root.hidden = true;
     this.stage.hidden = true;
     this.stage.replaceChildren();
-    this.stageWidth = 0;
-    this.stageHeight = 0;
-    this.root.dataset.phase = "ready";
-    if (document.activeElement === this.fastForwardButton) {
-      this.summary.focus({ preventScroll: true });
-    }
-    this.fastForwardButton.disabled = true;
+    this.result.textContent = "";
+    this.announcement.textContent = "";
   }
 
   destroy(): void {
-    this.settle();
-    this.currentEvent = null;
     if (this.root.contains(document.activeElement)) {
-      const canvas = document.querySelector<HTMLCanvasElement>("#game-container canvas");
-      if (canvas) {
-        canvas.tabIndex = -1;
-        canvas.focus({ preventScroll: true });
-      }
+      this.restoreCanvasFocus();
     }
+    this.hide();
     this.root.remove();
     this.announcement.remove();
     this.stage.remove();

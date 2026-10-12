@@ -25,6 +25,10 @@ npm run benchmark:baseline
 but the standalone typecheck remains a separate release gate and gives faster
 diagnostics.
 
+Local checks are headless only. `playwright.config.ts` explicitly selects
+headless Chromium; never run visible native windows or take control of the
+developer's desktop. Native release checks run on isolated CI/virtual displays.
+
 ## Vitest responsibilities
 
 Tests in `tests/*.test.ts` own Phaser-free behavior:
@@ -92,7 +96,7 @@ creation fixtures on stable layout IDs; never restore fixed click coordinates
 when a measured layout moves.
 
 Combined-menu cases additionally start a real earned notification, cast Cure
-Wounds through Equipment to populate the dice dock, and open menus with
+Wounds through Equipment to show transient in-scene dice, and open menus with
 keyboard, touch and gamepad controls. They verify the popup is absent while the
 menu owns the screen, survives beyond its normal dismissal deadline, and
 returns and acknowledges exactly once without replaying points or titles.
@@ -210,13 +214,16 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Send visual skip controls while the result is still animating, before slower
   receipt/text assertions; exact-result evidence remains available afterward.
 - Dice integration asserts source-aware multiclass modifiers without extra RNG
-  or resource use, and controller text-entry ownership before native roll-log
+  or resource use, and controller text-entry ownership before native dice-skip
   actions.
 - Effect-receipt tests retain exact dice sequence, signed/fractional custom
   bonuses, critical pools, status-before-element adjustments and separately
   captured applied HP. Fixed/derived amounts cannot gain fabricated faces.
   Browser checks compare canonical diagnostics with the visible text/pools and
-  assert mobile dock, text and glyph widths at 100%/125%/150%.
+  assert in-scene text/dice bounds at 100%/125%/150%, unchanged canvas geometry,
+  shared pools, fade expiry and no history or animation remaining after Battle.
+- `diceManager.test.ts` verifies cue/timer cleanup, event reset, rejection of
+  late receipts after shutdown and clean explicit scene restart.
 - `diceMotion.test.ts` checks deterministic measured travel, multi-axis tumble,
   bounce-to-rest, finite viewport/count validation and no RNG/outcome callbacks.
   The real physical-roll flow samples successive browser-frame transforms,

@@ -248,7 +248,7 @@ describe("semantic runtime focus and modal ownership", () => {
     expect(controls?.closest("[inert]")).toBeNull();
   });
 
-  it("prioritizes controller text entry over the dice log and restores log controls afterward", () => {
+  it("prioritizes controller text entry over the dice skip control and restores it afterward", () => {
     advance(100);
     const dice = document.createElement("section");
     dice.id = "dice-presentation";
@@ -259,7 +259,7 @@ describe("semantic runtime focus and modal ownership", () => {
     document.body.append(dice);
     button.focus();
     const commit = vi.fn();
-    openMobileTextInput("Mock dice-log search", "", 20, commit);
+    openMobileTextInput("Mock text entry", "", 20, commit);
     pressedButtons.add(0);
     advance(200);
     expect(document.querySelector<HTMLInputElement>("#mobile-text-input input")?.value)

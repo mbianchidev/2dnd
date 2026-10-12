@@ -621,7 +621,11 @@ Flow:
   Keep the visual layer pointer-transparent, inside safe game bounds and
   cleanup-owned. Instant/reduced motion, skip, visibility loss, replacement
   and scene shutdown remove motion immediately without focus/input blocking.
-  The bounded roll log survives handoffs only at runtime; Boot/reload clears it.
+  Numbered dice render over the active scene, never in a dock. Roll details
+  belong to the existing Battle log and reset on battle exit. Non-battle
+  results expire after three seconds and a 250-ms fade (no fade with reduced
+  motion); event reset, blur and handoff clear views/cues/timers. Never restore
+  another scene's latest result or keep a separate cross-scene roll log.
   Ordinary displays default enabled and can be turned Off; canonical attack
   selected-natural20 criticals and selected-natural1 fumbles always show even
   with Off. Honor Instant/reduced motion and preserve real check/save outcomes.
@@ -1282,6 +1286,8 @@ npm run benchmark:baseline
 ## Testing
 
 - Frameworks: Vitest for logic and Playwright for browser/Electron flows.
+- Run local tests headlessly, never by opening native windows or controlling
+  the developer's desktop. Native gates use isolated CI/virtual displays.
 - Files: `tests/*.test.ts`, `e2e/*.spec.ts`, and `electron-tests/*.spec.ts`.
 - Add deterministic tests for mechanics and migrations.
 - Add deterministic layout tests for measured stacks/grids, long wrapping,

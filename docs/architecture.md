@@ -15,7 +15,7 @@
 | happy-dom | 20.14.5 |
 | Electron | 44.7.0 |
 | electron-builder | 26.17.0 |
-| Campaign save schema | 23 |
+| Campaign save schema | 24 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -216,6 +216,10 @@ size, anatomy and part anchors in `data/anatomy.ts`; legacy weapon resolution in
 `data/itemCombat.ts`. `systems/physicalCombat.ts` owns aim validation, physical
 adjustments and status application at the existing combat resolver.
 `managers/battleBodyTarget.ts` shares measured, accessible hero/companion aiming.
+Armor resistance is canonical item metadata resolved through live party
+accessors, independently of AC. Typed monster attacks and physical ability
+components use the same physical modifier and exact dice/HP receipt pipeline.
+Pure elemental abilities retain their original damage path.
 Parts use one monster HP pool and the existing status clock, never a parallel
 action/limb engine. See [Physical combat](physical-combat.md).
 

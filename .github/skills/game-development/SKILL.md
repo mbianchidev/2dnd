@@ -253,7 +253,7 @@ pipeline; oozes and incorporeal forms need no invented parts. Read
 1. Define the monster in the appropriate focused pool (`monsters.ts`,
    `nightMonsters.ts`, or `monsterVariants.ts`).
 2. Use a camelCase ID and set a valid typed `family`, stats, rewards, drops,
-   abilities, and `isBoss`.
+   abilities, basic `physicalDamageType`, and `isBoss`.
 3. For a palette/stat variant, set `variantOf` to a valid same-family monster,
    use a distinct color and ability set, and assign a positive
    `encounterWeight`.
@@ -355,6 +355,12 @@ content only. See `docs/devotion.md`; do not implement prestige classes here.
 
 ## Adding spells, abilities, and equipment
 
+- Body armor declares optional canonical `physicalResistances`; use
+  `getArmorPhysicalProfile()` for old/custom/live equipped gear. Keep AC
+  independent and route physical basic/ability monster damage through existing
+  combat resolution and receipts. Pure elemental abilities/healing bypass it.
+  Shared party wrappers resolve current armor rather than snapshots.
+
 - Weapons declare `physicalDamageType`; resolve old/custom copies with
   `getWeaponPhysicalDamageType()` without changing their ownership metadata.
   Damaging physical abilities declare an explicit type or `"weapon"`.
@@ -422,6 +428,9 @@ can persist and display them.
   dungeon maps or randomize layouts independently in scenes.
 - Detected traps block movement until disarmed. Trap triggers must short-circuit
   the normal random-encounter check for that step.
+- Physical trap damage declares its type and uses equipped armor resistance
+  before the existing nonlethal cap; magic, MP, status and once-only state remain
+  at the trap owner.
 - Use `FogOfWar.exploredKey()` for exploration keys.
 - Use `isWalkable()` and `ENCOUNTER_RATES`; do not hardcode terrain behavior.
 - Nautical metadata lives in `src/data/nautical.ts`; state normalization,

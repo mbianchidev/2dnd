@@ -14,7 +14,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.2, Electron 44.7.0, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.63.0 |
 | DOM tests | happy-dom 20.14.5 |
-| Save schema | 23 |
+| Save schema | 24 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -104,6 +104,11 @@ owning issue or pull request.
   and part weakness or bypass whole-body immunity. Persist only observed Codex
   scope/type IDs in schema v23; retain exact old/custom weapon ownership and
   valid v22 activity/physical-preview authority during migration.
+- Body armor declares type-specific physical resistances independently of AC.
+  Party wrappers resolve live equipped armor, including old canonical copies;
+  basic/physical special monster hits share the physical modifier and receipts.
+  Pure elemental abilities bypass it. Preserve pre-shield HP when applying
+  shield defense so overkill never restores a defeated target.
 - Hero class ownership lives in `player.classProgression`; `level` mirrors its
   total. Starting identity never changes with appearance or multiclass entry.
   Prepare one frozen receipt at rest, preserve rest credits across reload, and

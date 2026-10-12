@@ -1,4 +1,5 @@
 import type { CompanionState } from "../systems/party";
+import { getItemDescription } from "../data/items";
 import {
   allocateStatPoint,
   getArmorClass,
@@ -112,7 +113,8 @@ export function renderPartyStatus(options: PartyStatusRenderOptions): void {
   line("Equipment", "#c0a060");
   for (const label of [
     state.equippedWeapon?.name ?? "Bare Hands",
-    state.equippedArmor?.name ?? "No Armor",
+    state.equippedArmor
+      ? `${state.equippedArmor.name}: ${getItemDescription(state.equippedArmor)}` : "No Armor",
     state.equippedShield?.name ?? "No Shield",
   ]) {
     line(label);

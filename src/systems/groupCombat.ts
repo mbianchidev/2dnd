@@ -9,11 +9,11 @@ import type {
   MonsterEncounter,
 } from "../data/monsterGroups";
 import type { FormationPosition } from "../data/monsterGroups";
-import type { Item } from "../data/items";
+import { getArmorPhysicalProfile, type Item } from "../data/items";
 import type { Monster } from "../data/monsters";
 import type { PhysicalDiscovery } from "../data/anatomy";
 import type { BodyPartId } from "../data/anatomy";
-import type { DamageInteraction, PhysicalDamageType } from "../data/damageTypes";
+import type { DamageInteraction, PhysicalDamageType, PhysicalProfile } from "../data/damageTypes";
 import type { TargetType } from "../data/spells";
 import {
   discoverElement,
@@ -61,6 +61,7 @@ export interface PartyCombatantSource {
   stats: PlayerStats;
   activeEffects: ActiveStatusEffect[];
   getArmorClass(defendBonus: number): number;
+  getPhysicalProfile?(): PhysicalProfile | undefined;
 }
 
 export interface PartyCombatant extends BattleCombatantState {
@@ -68,6 +69,7 @@ export interface PartyCombatant extends BattleCombatantState {
   readonly actorKind: "hero" | "companion";
   readonly sourceId: string;
   readonly stats: PlayerStats;
+  readonly physicalProfile?: PhysicalProfile;
   getArmorClass(defendBonus: number): number;
 }
 
@@ -224,6 +226,9 @@ export function createPartyCombatant(
     get stats(): PlayerStats {
       return source.stats;
     },
+    get physicalProfile(): PhysicalProfile | undefined {
+      return source.getPhysicalProfile?.();
+    },
     getArmorClass: (defendBonus: number): number =>
       source.getArmorClass(defendBonus),
   };
@@ -252,6 +257,8 @@ export function createHeroCombatant(player: PlayerState): PartyCombatant {
       },
       getArmorClass: (defendBonus: number): number =>
         getArmorClass(player, defendBonus),
+      getPhysicalProfile: (): PhysicalProfile | undefined =>
+        getArmorPhysicalProfile(player.equippedArmor),
     },
     "hero",
   );

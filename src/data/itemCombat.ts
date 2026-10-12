@@ -1,4 +1,5 @@
 import { PhysicalDamageType, physicalDamageTypeName } from "./damageTypes";
+import type { PhysicalProfile } from "./damageTypes";
 import { getItem, type Item } from "./items";
 
 /** Old canonical copies retain their exact metadata; resolve new weapon typing at use time. */
@@ -16,7 +17,20 @@ export function getWeaponPhysicalDamageType(weapon: Item | null | undefined): Ph
 }
 
 export function getItemDescription(item: Item): string {
-  return item.type === "weapon"
-    ? `${item.description} | ${physicalDamageTypeName(getWeaponPhysicalDamageType(item))}`
-    : item.description;
+  if (item.type === "weapon") {
+    return `${item.description} | ${physicalDamageTypeName(getWeaponPhysicalDamageType(item))}`;
+  }
+  if (item.type === "armor") {
+    const resistances = getArmorPhysicalProfile(item)?.resistances ?? [];
+    return `${item.description} | Resists: ${resistances.length > 0
+      ? resistances.map(physicalDamageTypeName).join(", ") : "none"}`;
+  }
+  return item.description;
+}
+
+/** Resolve old armor copies at use time without replacing their exact owned metadata. */
+export function getArmorPhysicalProfile(armor: Item | null | undefined): PhysicalProfile | undefined {
+  if (armor?.type !== "armor") return undefined;
+  const resistances = armor.physicalResistances ?? getItem(armor.id)?.physicalResistances;
+  return resistances === undefined ? undefined : { resistances };
 }

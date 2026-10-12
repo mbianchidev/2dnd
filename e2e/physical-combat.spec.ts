@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type ConsoleMessage, type Page } from "@playwright/test";
 import { CUTSCENE_IDS, CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../src/data/cutscenes";
 import { getItem } from "../src/data/items";
 import { getMonster } from "../src/data/monsters";
@@ -9,11 +9,69 @@ import { createCurrentSaveData, SAVE_VERSION, type SaveData } from "../src/syste
 import { normalizeGamePreferences, type TextScale } from "../src/systems/accessibility";
 import { createWeatherState } from "../src/systems/weather";
 import { auditLayout, type LayoutRect } from "../src/systems/layout";
+import type { CombatDiceReceipt } from "../src/systems/dicePresentation";
+import type { CombatResult } from "../src/systems/combat";
 import { clickLayoutItem, expectCleanLayout, tapLayoutItem } from "./helpers/layout";
 
 type CombatGamepadWindow = Window & {
   __combatPadButton?: (index: number, pressed: boolean) => void;
 };
+
+interface ArmorFixtureOptions {
+  armorId?: string;
+  hp?: number;
+  shield?: boolean;
+  forceEnemyAttacks?: boolean;
+}
+
+interface IncomingArmorReceipt {
+  kind: string;
+  actorId: string;
+  targetId: string;
+  attack: CombatDiceReceipt & Pick<CombatResult, "physicalType" | "physicalLabel">;
+}
+
+const armorCaptures = new WeakMap<Page, () => Promise<void>>();
+
+test.afterEach(async ({ page }) => {
+  const cleanup = armorCaptures.get(page);
+  armorCaptures.delete(page);
+  await cleanup?.();
+});
+
+function captureIncomingArmor(page: Page): IncomingArmorReceipt[] {
+  const packets: IncomingArmorReceipt[] = [];
+  const pending: Promise<void>[] = [];
+  const failures: unknown[] = [];
+  const listener = (message: ConsoleMessage): void => {
+    if (!message.text().startsWith("[DEBUG] [dice] receipt")) return;
+    const argument = message.args()[2];
+    if (!argument) {
+      failures.push(new Error("Missing canonical armor diagnostic."));
+      return;
+    }
+    const reading = argument.jsonValue().then((value: unknown) => {
+      if (typeof value !== "object" || value === null
+        || !("kind" in value) || typeof value.kind !== "string") {
+        throw new Error("Invalid canonical armor diagnostic.");
+      }
+      if (value.kind !== "attack" || !("targetId" in value) || value.targetId !== "party:hero") return;
+      if (!("actorId" in value) || typeof value.actorId !== "string"
+        || !("attack" in value) || typeof value.attack !== "object" || value.attack === null) {
+        throw new Error("Invalid incoming armor attack diagnostic.");
+      }
+      if (value.actorId !== "party:hero") packets.push(value as IncomingArmorReceipt);
+    }).catch((error: unknown) => { failures.push(error); });
+    pending.push(reading);
+  };
+  page.on("console", listener);
+  armorCaptures.set(page, async () => {
+    page.off("console", listener);
+    await Promise.all(pending);
+    if (failures.length > 0) throw failures[0];
+  });
+  return packets;
+}
 
 async function holdKey(page: Page, key: string): Promise<void> {
   await page.keyboard.down(key);
@@ -71,19 +129,28 @@ async function seedCampaign(
   textScale: TextScale = 1,
   weaponId = "startMace",
   companion = false,
+  armorOptions: ArmorFixtureOptions = {},
 ): Promise<string[]> {
   const player = createPlayer("Combat browser fixture", {
     strength: 10, dexterity: 14, constitution: 12,
     intelligence: 12, wisdom: 12, charisma: 10,
   });
   player.stats.strength = 12;
-  player.hp = player.maxHp = 500;
+  player.maxHp = 500;
+  player.hp = armorOptions.hp ?? player.maxHp;
   player.mp = player.maxMp = 100;
   player.knownTalents = [];
   const weapon = { ...getItem(weaponId)!, effect: 0 };
   player.inventory.push(weapon);
   player.equippedWeapon = weapon;
   player.equippedOffHand = null;
+  if (armorOptions.armorId) {
+    const armor = { ...getItem(armorOptions.armorId)! };
+    player.inventory.push(armor);
+    player.equippedArmor = armor;
+    player.equippedShield = armorOptions.shield ? { ...getItem("woodenShield")! } : null;
+    if (player.equippedShield) player.inventory.push(player.equippedShield);
+  }
   player.progression.tutorial.completed = true;
   player.progression.seenCutsceneIds = CUTSCENE_IDS.filter((id) => id !== CAMPAIGN_EPILOGUE_CUTSCENE_ID);
   player.progression.pendingCutsceneIds = [];
@@ -109,7 +176,7 @@ async function seedCampaign(
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
-  await page.addInitScript(({ campaign, settings }) => {
+  await page.addInitScript(({ campaign, settings, forceEnemyAttacks }) => {
     if (!sessionStorage.getItem("physicalCombatInitialized")) {
       sessionStorage.setItem("physicalCombatInitialized", "true");
       localStorage.clear();
@@ -119,6 +186,9 @@ async function seedCampaign(
     let seed = 0x22b0d1;
     Math.random = () => {
       const stack = new Error().stack ?? "";
+      if (forceEnemyAttacks && stack.includes("monsterAttackTarget") && stack.includes("rollCombatD20")) return 0.999;
+      if (forceEnemyAttacks && stack.includes("monsterAttackTarget") && stack.includes("rollDiceDetailed")) return 0.8;
+      if (forceEnemyAttacks && stack.includes("doMonsterTurn")) return 0.99;
       if (stack.includes("playerAttack") && stack.includes("rollCombatD20")) return 0.999;
       if (stack.includes("playerAttack") && stack.includes("rollDiceDetailed")) return 0.5;
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -136,7 +206,10 @@ async function seedCampaign(
         pad.timestamp++;
       },
     });
-  }, { campaign: JSON.stringify(save), settings: preferences });
+  }, {
+    campaign: JSON.stringify(save), settings: preferences,
+    forceEnemyAttacks: armorOptions.forceEnemyAttacks === true,
+  });
   await page.goto("game.html", { waitUntil: "networkidle" });
   await expect(page.locator("#debug-state")).toContainText("BOOT | Screen: title");
   await holdKey(page, "Enter");
@@ -339,5 +412,63 @@ test("losing focus cancels held aim confirmation without consuming the action", 
   await holdKey(page, "Escape");
   await holdKey(page, "Escape");
   await endBattle(page);
+  expect(errors).toEqual([]);
+});
+
+for (const [armorId, damage] of [["chainMail", 5], ["leatherArmor", 10]] as const) {
+  test(`${armorId} protects only its declared types through a real enemy attack`, async ({ page }) => {
+    const errors = await seedCampaign(page, 1.5, "startMace", false, {
+      armorId, forceEnemyAttacks: true,
+    });
+    const packets = captureIncomingArmor(page);
+    await enterBattle(page, "goblin");
+    await clickLayoutItem(page, "battle-action-defend");
+    await expect.poll(() => packets.length).toBeGreaterThan(0);
+    const attack = packets[0]!.attack;
+    expect(attack).toMatchObject({
+      hit: true, critical: true, damage, physicalType: "slashing",
+      physicalLabel: armorId === "chainMail" ? "resistant" : "",
+      damageRoll: {
+        roll: { sides: 6, naturalRolls: [5, 5], total: 10 },
+        amount: damage, application: { amount: damage },
+      },
+    });
+    if (armorId === "chainMail") {
+      await expect(page.locator("#debug-log")).toContainText("armor resists Slashing");
+    }
+    await endBattle(page);
+    const saved = await readSave(page);
+    expect(saved.player.hp).toBe(500 - damage);
+    expect(saved.player.equippedArmor?.id).toBe(armorId);
+    await holdKey(page, "Escape");
+    await expect(page.locator("#debug-state")).toContainText("[MENU]");
+    await holdKey(page, "ArrowDown");
+    await holdKey(page, "Enter");
+    await expect(page.locator("#debug-state")).toContainText("[PARTY:items");
+    await expectCleanLayout(page);
+    await holdKey(page, "Escape");
+    expect(errors).toEqual([]);
+  });
+}
+
+test("armor and shield defense never revive an actor after capped overkill", async ({ page }) => {
+  const errors = await seedCampaign(page, 1, "startMace", false, {
+    armorId: "chainMail", hp: 1, shield: true, forceEnemyAttacks: true,
+  });
+  const packets = captureIncomingArmor(page);
+  await enterBattle(page, "goblin");
+  await clickLayoutItem(page, "battle-action-defend");
+  await expect.poll(() => packets.length).toBeGreaterThan(0);
+  expect(packets[0]!.attack).toMatchObject({
+    hit: true, critical: true, damage: 4,
+    damageRoll: {
+      amount: 4, application: { amount: 1, limit: "Overkill" },
+      adjustments: [
+        { label: "Armor: Slashing resistance /2 (floor)", amount: 5 },
+        { label: "Shield defend -1", amount: 4 },
+      ],
+    },
+  });
+  await expect(page.locator("#debug-state")).toContainText("DEFEAT");
   expect(errors).toEqual([]);
 });

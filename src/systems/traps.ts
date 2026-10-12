@@ -13,8 +13,10 @@ import {
   type TrapState,
 } from "../data/traps";
 import { getTalent } from "../data/talents";
+import { getArmorPhysicalProfile } from "../data/items";
+import { applyPhysicalModifier, physicalDamageTypeName } from "../data/damageTypes";
 import { abilityModifier } from "./dice";
-import { captureEffectApplication, rollEffectDice } from "./effectRolls";
+import { captureEffectApplication, capturePhysicalEffect, rollEffectDice } from "./effectRolls";
 import type { ResolvedEffectRoll } from "./rollResults";
 import { awardXP, type PlayerState } from "./player";
 import { resolveSkillCheck, rollSkillCheck } from "./skillChecks";
@@ -426,7 +428,9 @@ export function triggerDungeonTrap(
   const rolled = definition.damage
     ? damageRoller(definition.damage.count, definition.damage.sides) : 0;
   const rolledDamage = Math.max(0, typeof rolled === "number" ? rolled : rolled.amount);
-  const damage = Math.min(Math.max(0, player.hp - 1), rolledDamage);
+  const physicalType = definition.damage?.physicalDamageType;
+  const physical = applyPhysicalModifier(rolledDamage, physicalType, getArmorPhysicalProfile(player.equippedArmor));
+  const damage = Math.min(Math.max(0, player.hp - 1), physical.damage);
   player.hp -= damage;
 
   const mpLoss = Math.min(player.mp, definition.mpLoss ?? 0);
@@ -454,13 +458,18 @@ export function triggerDungeonTrap(
     triggered: true,
     damage,
     ...(typeof rolled !== "number" ? {
-      damageRoll: captureEffectApplication(rolled, damage, "Nonlethal"),
+      damageRoll: captureEffectApplication(
+        capturePhysicalEffect(rolled, physical.damage, physicalType, physical.interaction, "Armor"),
+        damage, "Nonlethal",
+      ),
     } : {}),
     mpLoss,
     startsEncounter: definition.startsEncounter === true,
     dropsLevel: definition.dropsLevel === true,
     statusApplied,
-    message: `${definition.name} triggered!${detail}`,
+    message: `${definition.name} triggered!${detail}`
+      + (physical.interaction === "resistant" && physicalType
+        ? ` Armor resists ${physicalDamageTypeName(physicalType)}.` : ""),
   };
 }
 

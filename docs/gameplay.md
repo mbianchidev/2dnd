@@ -130,6 +130,11 @@ humanoids and Large+ anatomical monsters share one HP pool across all parts.
 Normal Confirm still attacks the whole target. Canceling aim spends nothing.
 See [Physical combat](physical-combat.md) for controls, weapon access, anatomy
 and defense rules. Long Codex records use the Info buttons or Page Up/Down.
+Body armor also has type-specific resistances independent of AC: leather and
+thick pelts soften bludgeoning, mail resists slashing, and plate counters
+slashing and piercing. Matching physical damage is halved with a floor.
+Heroes and companions share the rule; pure magical abilities and healing bypass
+it. Equipment and inventory descriptions show the exact protection.
 
 Resolved rolls appear in a procedural dice dock, with both advantage/disadvantage
 faces and the selected die identified. Enemy bonuses and undiscovered AC/DC

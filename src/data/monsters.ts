@@ -46,6 +46,7 @@ export const MONSTERS: Monster[] = [
   // --- Random encounter monsters (ordered by difficulty) ---
   {
     id: "slime",
+    physicalDamageType: "bludgeoning",
     name: "Slime",
     family: "slime",
     size: "small",
@@ -67,6 +68,7 @@ export const MONSTERS: Monster[] = [
   TOXIC_SLIME,
   {
     id: "goblin",
+    physicalDamageType: "slashing",
     name: "Goblin",
     family: "raider",
     size: "small",
@@ -85,6 +87,7 @@ export const MONSTERS: Monster[] = [
   GOBLIN_SHAMAN,
   {
     id: "skeleton",
+    physicalDamageType: "piercing",
     name: "Skeleton",
     family: "skeletal",
     size: "medium",
@@ -110,6 +113,7 @@ export const MONSTERS: Monster[] = [
   },
   {
     id: "wolf",
+    physicalDamageType: "piercing",
     name: "Dire Wolf",
     family: "lupine",
     size: "large",
@@ -125,11 +129,12 @@ export const MONSTERS: Monster[] = [
     color: 0x888888,
     drops: [{ itemId: "potion", chance: 0.25 }],
     abilities: [
-      { name: "Pounce", chance: 0.30, damageCount: 3, damageDie: 6, type: "damage", statusEffect: "prone" },
+      { name: "Pounce", chance: 0.30, damageCount: 3, damageDie: 6, type: "damage", physicalDamageType: "bludgeoning", statusEffect: "prone" },
     ],
   },
   {
     id: "orc",
+    physicalDamageType: "slashing",
     name: "Orc Warrior",
     family: "raider",
     size: "medium",
@@ -151,6 +156,7 @@ export const MONSTERS: Monster[] = [
   ORC_BERSERKER,
   {
     id: "wraith",
+    physicalDamageType: "bludgeoning",
     name: "Wraith",
     family: "spectral",
     size: "medium",
@@ -179,6 +185,7 @@ export const MONSTERS: Monster[] = [
   // --- Fixed boss encounters ---
   {
     id: "troll",
+    physicalDamageType: "slashing",
     name: "Cave Troll",
     family: "colossus",
     size: "large",
@@ -195,7 +202,7 @@ export const MONSTERS: Monster[] = [
     drops: [{ itemId: "greaterPotion", chance: 0.5 }, { itemId: "chainMail", chance: 0.25 }],
     abilities: [
       { name: "Regenerate", chance: 0.25, damageCount: 3, damageDie: 8, type: "heal" },
-      { name: "Rock Slam", chance: 0.35, damageCount: 3, damageDie: 10, type: "damage" },
+      { name: "Rock Slam", chance: 0.35, damageCount: 3, damageDie: 10, type: "damage", physicalDamageType: "bludgeoning" },
     ],
     elementalProfile: {
       weaknesses: [Element.Fire],
@@ -203,6 +210,7 @@ export const MONSTERS: Monster[] = [
   },
   {
     id: "dragon",
+    physicalDamageType: "piercing",
     name: "Young Red Dragon",
     family: "drake",
     size: "large",
@@ -221,7 +229,7 @@ export const MONSTERS: Monster[] = [
     drops: [{ itemId: "greaterPotion", chance: 0.75 }, { itemId: "plateArmor", chance: 0.3 }, { itemId: "greatSword", chance: 0.2 }],
     abilities: [
       { name: "Fire Breath", chance: 0.40, damageCount: 6, damageDie: 8, type: "damage", element: Element.Fire, statusEffect: "burn" },
-      { name: "Tail Sweep", chance: 0.25, damageCount: 3, damageDie: 10, type: "damage" },
+      { name: "Tail Sweep", chance: 0.25, damageCount: 3, damageDie: 10, type: "damage", physicalDamageType: "bludgeoning" },
     ],
     elementalProfile: {
       immunities: [Element.Fire],
@@ -231,6 +239,7 @@ export const MONSTERS: Monster[] = [
   // --- Bosses added for expanded biomes ---
   {
     id: "frostGiant",
+    physicalDamageType: "slashing",
     name: "Frost Giant",
     family: "colossus",
     size: "huge",
@@ -248,7 +257,7 @@ export const MONSTERS: Monster[] = [
     color: 0x90caf9,
     drops: [{ itemId: "greaterPotion", chance: 0.6 }, { itemId: "chainMail", chance: 0.3 }],
     abilities: [
-      { name: "Icy Smash", chance: 0.35, damageCount: 4, damageDie: 8, type: "damage", element: Element.Ice },
+      { name: "Icy Smash", chance: 0.35, damageCount: 4, damageDie: 8, type: "damage", physicalDamageType: "bludgeoning", element: Element.Ice },
       { name: "Frost Aura", chance: 0.2, damageCount: 2, damageDie: 10, type: "damage", element: Element.Ice, statusEffect: "freeze" },
     ],
     elementalProfile: {
@@ -258,6 +267,7 @@ export const MONSTERS: Monster[] = [
   },
   {
     id: "swampHydra",
+    physicalDamageType: "piercing",
     name: "Swamp Hydra",
     family: "chimaera",
     size: "huge",
@@ -285,6 +295,7 @@ export const MONSTERS: Monster[] = [
   },
   {
     id: "volcanicWyrm",
+    physicalDamageType: "piercing",
     name: "Volcanic Wyrm",
     family: "drake",
     size: "huge",
@@ -313,6 +324,7 @@ export const MONSTERS: Monster[] = [
   },
   {
     id: "canyonDrake",
+    physicalDamageType: "piercing",
     name: "Canyon Drake",
     family: "drake",
     size: "large",
@@ -330,13 +342,14 @@ export const MONSTERS: Monster[] = [
     color: 0xa1887f,
     drops: [{ itemId: "greaterPotion", chance: 0.65 }, { itemId: "ironShield", chance: 0.3 }],
     abilities: [
-      { name: "Stone Barrage", chance: 0.35, damageCount: 4, damageDie: 8, type: "damage" },
-      { name: "Wing Gust", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage" },
+      { name: "Stone Barrage", chance: 0.35, damageCount: 4, damageDie: 8, type: "damage", physicalDamageType: "bludgeoning" },
+      { name: "Wing Gust", chance: 0.25, damageCount: 3, damageDie: 6, type: "damage", physicalDamageType: "bludgeoning" },
     ],
   },
   // ── Chimaera enemies (Chimaera Wing drops) ────────────────────
   {
     id: "chimaera",
+    physicalDamageType: "piercing",
     name: "Chimaera",
     family: "chimaera",
     size: "large",
@@ -358,6 +371,7 @@ export const MONSTERS: Monster[] = [
   },
   {
     id: "greatChimaera",
+    physicalDamageType: "piercing",
     name: "Great Chimaera",
     family: "chimaera",
     size: "huge",
@@ -384,6 +398,7 @@ export const DUNGEON_MONSTERS: Monster[] = [
   // --- Shared dungeon monsters (appear in all dungeons) ---
   {
     id: "giantRat",
+    physicalDamageType: "piercing",
     name: "Giant Rat",
     family: "stalker",
     size: "small",
@@ -404,6 +419,7 @@ export const DUNGEON_MONSTERS: Monster[] = [
   },
   {
     id: "shadow",
+    physicalDamageType: "bludgeoning",
     name: "Shadow",
     family: "spectral",
     size: "medium",
@@ -430,6 +446,7 @@ export const DUNGEON_MONSTERS: Monster[] = [
   },
   {
     id: "mimic",
+    physicalDamageType: "piercing",
     name: "Mimic",
     family: "mimic",
     size: "medium",
@@ -453,6 +470,7 @@ export const DUNGEON_MONSTERS: Monster[] = [
   RUNIC_MIMIC,
   {
     id: "stoneGolem",
+    physicalDamageType: "bludgeoning",
     name: "Stone Golem",
     family: "construct",
     size: "large",
@@ -486,6 +504,7 @@ export const DUNGEON_MONSTERS: Monster[] = [
 export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
   {
     id: "cryptSkeleton",
+    physicalDamageType: "piercing",
     name: "Crypt Skeleton",
     family: "skeletal",
     size: "medium",
@@ -514,6 +533,7 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
   },
   {
     id: "tombWraith",
+    physicalDamageType: "bludgeoning",
     name: "Tomb Wraith",
     family: "spectral",
     size: "medium",
@@ -541,6 +561,7 @@ export const HEARTLANDS_CRYPT_MONSTERS: Monster[] = [
   },
   {
     id: "bonePile",
+    physicalDamageType: "piercing",
     name: "Animated Bone Pile",
     family: "skeletal",
     size: "medium",
@@ -568,6 +589,7 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
   FROST_SLIME,
   {
     id: "iceElemental",
+    physicalDamageType: "piercing",
     name: "Ice Elemental",
     family: "elemental",
     size: "large",
@@ -595,6 +617,7 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
   },
   {
     id: "frostSpider",
+    physicalDamageType: "piercing",
     name: "Frost Spider",
     family: "stalker",
     size: "medium",
@@ -622,6 +645,7 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
   },
   {
     id: "glacialBear",
+    physicalDamageType: "slashing",
     name: "Glacial Bear",
     family: "colossus",
     size: "large",
@@ -652,6 +676,7 @@ export const FROST_CAVERN_MONSTERS: Monster[] = [
 export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
   {
     id: "magmaSlime",
+    physicalDamageType: "bludgeoning",
     name: "Magma Slime",
     family: "slime",
     size: "medium",
@@ -678,6 +703,7 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
   },
   {
     id: "cinderWraith",
+    physicalDamageType: "bludgeoning",
     name: "Cinder Wraith",
     family: "spectral",
     size: "medium",
@@ -705,6 +731,7 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
   },
   {
     id: "obsidianGolem",
+    physicalDamageType: "bludgeoning",
     name: "Obsidian Golem",
     family: "construct",
     size: "large",
@@ -726,7 +753,7 @@ export const VOLCANIC_FORGE_MONSTERS: Monster[] = [
       { itemId: "chainMail", chance: 0.1 },
     ],
     abilities: [
-      { name: "Molten Slam", chance: 0.35, damageCount: 4, damageDie: 8, type: "damage", element: Element.Fire },
+      { name: "Molten Slam", chance: 0.35, damageCount: 4, damageDie: 8, type: "damage", physicalDamageType: "bludgeoning", element: Element.Fire },
       { name: "Magma Shell", chance: 0.15, damageCount: 3, damageDie: 8, type: "heal" },
     ],
     elementalProfile: {
@@ -754,6 +781,7 @@ export const DUNGEON_BOSSES: Monster[] = [
   KRAKEN,
   {
     id: "cryptLich",
+    physicalDamageType: "bludgeoning",
     name: "Crypt Lich",
     family: "skeletal",
     size: "medium",
@@ -783,6 +811,7 @@ export const DUNGEON_BOSSES: Monster[] = [
   },
   {
     id: "frostWarden",
+    physicalDamageType: "bludgeoning",
     name: "Frost Warden",
     family: "spectral",
     size: "large",
@@ -812,6 +841,7 @@ export const DUNGEON_BOSSES: Monster[] = [
   },
   {
     id: "infernoForgemaster",
+    physicalDamageType: "bludgeoning",
     name: "Inferno Forgemaster",
     family: "construct",
     size: "huge",

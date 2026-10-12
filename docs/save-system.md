@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v23; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v24; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -52,7 +52,17 @@ relinking and preserves well-formed serialized item ownership.
 
 ## Current schema
 
-`SAVE_VERSION` is **23**. Schema v23 adds observed whole/part physical defenses
+`SAVE_VERSION` is **24**. Schema v24 adds optional armor-only
+`Item.physicalResistances` with unique known physical types. Canonical older
+armor copies resolve their current protection at use time without replacing
+serialized metadata or equipment links. Valid custom arrays, including an
+explicit empty list, preserve their authority and exact owned object. Invalid
+unknown armor records reject the candidate before slot/import writes; malformed
+known gear follows the existing canonical repair path.
+Preserve all prior physical observations, minigame challenges/receipts,
+progression/rest credits, resources and every other campaign domain.
+
+Schema v23 adds observed whole/part physical defenses
 in `CodexEntry.discoveredPhysical` and optional typed weapon metadata.
 Pre-v22 saves gain empty observations without inventing history. Normalize
 canonical type/part combinations, duplicates, neutral observations and invalid

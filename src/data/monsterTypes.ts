@@ -3,7 +3,7 @@ import type { StatusEffectId } from "../systems/statusEffects";
 import type { Element, ElementalProfile } from "./elements";
 import type { MonsterFamilyId } from "./monsterFamilies";
 import type { MonsterAnatomyId, MonsterSize } from "./anatomy";
-import type { PhysicalProfile } from "./damageTypes";
+import type { PhysicalDamageType, PhysicalProfile } from "./damageTypes";
 
 export interface MonsterDrop {
   itemId: string;
@@ -19,6 +19,8 @@ export interface MonsterAbility {
   /** Damage abilities with life drain heal by their actual damage, without another roll. */
   selfHeal?: boolean;
   element?: Element;
+  /** Explicit physical component; elemental-only abilities remain outside armor resistance. */
+  physicalDamageType?: PhysicalDamageType;
   statusEffect?: StatusEffectId;
 }
 
@@ -30,6 +32,8 @@ export interface Monster {
   size?: MonsterSize;
   anatomy?: MonsterAnatomyId;
   physicalProfile?: PhysicalProfile;
+  /** Physical source of a basic attack, independent of defensive affinities. */
+  physicalDamageType?: PhysicalDamageType;
   /** Base roster member used to validate deliberate palette/stat variants. */
   variantOf?: string;
   /** Dominant elemental identity shown by the Codex. */

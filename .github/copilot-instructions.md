@@ -528,6 +528,14 @@ Flow:
   owners. Apply status damage, physical whole/local profile, then elements.
   Local affinities override rather than double-stack whole physical affinity;
   whole-body immunity always wins. Magic stays outside physical profiles.
+- Body armor declares canonical `physicalResistances` independently of AC;
+  resolve live hero/companion armor through `getArmorPhysicalProfile()`.
+  Explicit monster basic/ability physical types use the same physical modifier
+  and exact dice capture. Elemental-only abilities and healing remain unchanged.
+  Shield reduction uses pre-hit HP and final damage; never restore capped
+  overkill damage and accidentally revive a defeated actor.
+  Physical trap definitions use the same armor modifier before the existing
+  nonlethal cap, without changing magic/MP/status consequences or trap ledgers.
 - Humanoid anatomy is aimable at any size; other stable anatomies require
   Large+. Parts share monster HP and the normal status clock. Optional aim
   trades accuracy for local defenses and at most two target-turn effects,
@@ -943,7 +951,14 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 23.
+Save schema version is 24.
+
+Schema v24 adds optional armor-only `Item.physicalResistances`: unique supported
+physical types, with explicit empty custom lists preserved. Resolve legacy
+canonical protection at use time without changing serialized item metadata,
+append order or exact equipment links. Unknown malformed ownership rejects
+imports/slots before writing; known gear uses the existing repair path.
+Keep v23 physical observations and all exact activity, rest and other domains.
 
 Schema v23 adds `CodexEntry.discoveredPhysical` with stable type and optional
 part IDs, plus optional `Item.physicalDamageType`. Normalize unknown/duplicate/
@@ -1148,7 +1163,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v23
+  visibility, handedness, and prompt source only; they never enter schema-v24
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

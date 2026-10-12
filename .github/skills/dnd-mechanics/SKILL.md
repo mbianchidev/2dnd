@@ -138,6 +138,15 @@ saves and initiative unreclassified. Instant/reduced motion stays static.
 
 ## Physical damage and anatomy
 
+Body armor applies its type-specific resistance after status/synergy damage and
+before the actual HP write. Keep AC independent, use live equipped armor for
+heroes/companions, and resolve old canonical copies without replacing them.
+Basic monster attacks declare a physical type; physical abilities may override
+it, including an explicit physical component on elemental strikes.
+Elemental-only abilities and healing bypass this protection. Shield defense
+then adjusts final damage using pre-hit HP, never adding back capped overkill.
+Preserve exact dice faces, selected naturals, resource use and redacted receipts.
+
 Use `data/damageTypes.ts` for Bludgeoning/Slashing/Piercing and common affinity
 precedence; explicit `data/anatomy.ts` sizes/parts; `data/itemCombat.ts` for
 canonical/legacy weapon typing. `systems/physicalCombat.ts` integrates at the
@@ -230,6 +239,9 @@ matching effects. Combat effects are cleared when leaving Battle.
   farmed by stepping away or reloading.
 - Successful disarming awards XP through `awardXP()`.
 - Trigger damage and MP loss apply immediately and cannot reduce HP below 1.
+  Declared physical trap damage first applies the current armor profile through
+  the same physical modifier and receipt capture; magical damage and MP loss
+  bypass it.
   Trap-applied statuses seed the next battle and then follow the existing
   combat-turn lifecycle.
 - Alarm traps replace the normal encounter roll with a forced dungeon

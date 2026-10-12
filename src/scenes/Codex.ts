@@ -7,6 +7,7 @@ import {
   type CodexUnlockSource,
 } from "../data/codexKnowledge";
 import { elementDisplayName } from "../data/elements";
+import { PhysicalDamageType, physicalDamageTypeName } from "../data/damageTypes";
 import { getTargetableBodyParts } from "../data/anatomy";
 import { getItem, getItemDescription } from "../data/items";
 import {
@@ -611,6 +612,7 @@ export class CodexScene extends Phaser.Scene {
       `Defeated: ${entry.timesDefeated}`,
       `Family: ${family.name}`,
       `Size: ${monster.size ?? "medium"}`,
+      `Basic attack: ${physicalDamageTypeName(monster.physicalDamageType ?? PhysicalDamageType.Bludgeoning)}`,
       `Affinity: ${
         monster.affinity ? elementDisplayName(monster.affinity) : "None"
       }`,
@@ -681,7 +683,7 @@ export class CodexScene extends Phaser.Scene {
       const item = getItem(entry.id);
       if (item) {
         lines.push("", `Item type: ${item.type}`);
-        if (item.type === "weapon") lines.push(getItemDescription(item));
+        if (item.type === "weapon" || item.type === "armor") lines.push(getItemDescription(item));
         if (item.effect > 0) lines.push(`Effect value: +${item.effect}`);
         if (item.cost > 0) lines.push(`Shop price: ${item.cost} gold`);
       }

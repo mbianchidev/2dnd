@@ -68,6 +68,11 @@ export function isSerializedHeroItem(value: unknown): value is Item {
     && (value["element"] === undefined || isElement(value["element"]))
     && (value["physicalDamageType"] === undefined
       || (value["type"] === "weapon" && isPhysicalDamageType(value["physicalDamageType"])))
+    && (value["physicalResistances"] === undefined
+      || (value["type"] === "armor" && Array.isArray(value["physicalResistances"])
+        && value["physicalResistances"].length <= 3
+        && value["physicalResistances"].every(isPhysicalDamageType)
+        && new Set(value["physicalResistances"]).size === value["physicalResistances"].length))
     && (value["targetType"] === undefined
       || value["targetType"] === "self" || value["targetType"] === "single_ally")
     && (value["tags"] === undefined || isStringArray(value["tags"]))

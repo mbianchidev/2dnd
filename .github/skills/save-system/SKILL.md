@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v23, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v24, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -52,7 +52,14 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 23.
+`SAVE_VERSION` is 24.
+
+Schema v24 adds optional armor-only `Item.physicalResistances` with unique known
+types. Keep valid custom lists, including empty lists, and exact equipped
+same-ID objects. Resolve old canonical armor at use time without rewriting
+owned metadata. Invalid custom ownership rejects a candidate; malformed known
+gear uses the normal item repair path. Preserve v23 observations, exact
+minigames, frozen/rest credits, stats, resources and all other domains.
 
 Schema v23 adds `CodexEntry.discoveredPhysical` with stable physical type and
 optional canonical part IDs, plus optional weapon-only `physicalDamageType`.
@@ -425,7 +432,7 @@ to browsing before closing the manager.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v23 physical discovery, minigame authority, devotion,
+- Current schema-v24 armor metadata, physical discovery, minigame authority, devotion,
   hero/base/prestige progression, playtime,
   position, objective/reward/warning quest state,
   skill checks,
@@ -454,7 +461,7 @@ to browsing before closing the manager.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v23 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v24 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

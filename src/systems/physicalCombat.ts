@@ -3,10 +3,10 @@ import {
 } from "../data/anatomy";
 import {
   applyPhysicalModifier, physicalDamageTypeName,
-  type DamageInteraction, type PhysicalDamageType,
+  type DamageInteraction, type PhysicalDamageType, type PhysicalProfile,
 } from "../data/damageTypes";
 import type { Monster } from "../data/monsters";
-import { captureEffectAdjustment } from "./effectRolls";
+import { capturePhysicalEffect } from "./effectRolls";
 import { applyStatusEffect, getStatusEffectDef, type ActiveStatusEffect } from "./statusEffects";
 import type { ResolvedEffectRoll } from "./rollResults";
 
@@ -75,8 +75,6 @@ export function resolvePhysicalHit(
     roll.amount, type, monster.physicalProfile, part?.physicalProfile,
   );
   const name = type ? physicalDamageTypeName(type) : "";
-  const operation = interaction === "weak" ? "weakness x2"
-    : interaction === "resistant" ? "resistance /2 (floor)" : "immunity";
   const target = part ? `${monster.name} [${part.label}]` : monster.name;
   const message = !interaction ? "" : interaction === "weak"
     ? ` ${target} is weak to ${name}!`
@@ -84,14 +82,31 @@ export function resolvePhysicalHit(
       : ` ${target} resists ${name}!`;
   return {
     damage,
-    damageRoll: interaction
-      ? captureEffectAdjustment(roll, `${part ? `${part.label}: ` : ""}${name} ${operation}`, damage)
-      : roll,
+    damageRoll: capturePhysicalEffect(roll, damage, type, interaction, part?.label),
     physicalType: type,
     physicalLabel: type ? interaction : undefined,
     bodyPartId: part?.id,
     bodyPartLabel: part?.label,
     message,
+  };
+}
+
+/** Party armor uses the same physical affinity calculation without adding dice or modifying AC. */
+export function resolveArmorHit(
+  roll: ResolvedEffectRoll,
+  type: PhysicalDamageType | undefined,
+  target: { readonly label: string; readonly physicalProfile?: PhysicalProfile },
+): PhysicalHitResult {
+  const { damage, interaction } = applyPhysicalModifier(roll.amount, type, target.physicalProfile);
+  return {
+    damage,
+    damageRoll: capturePhysicalEffect(roll, damage, type, interaction, "Armor"),
+    physicalType: type,
+    physicalLabel: type ? interaction : undefined,
+    message: interaction && type
+      ? ` ${target.label}'s armor ${interaction === "resistant" ? "resists" : interaction === "weak"
+        ? "is weak to" : "is immune to"} ${physicalDamageTypeName(type)}!`
+      : "",
   };
 }
 

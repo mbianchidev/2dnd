@@ -10,9 +10,9 @@ import {
 import type { Monster, MonsterAbility } from "../data/monsters";
 import { getSpell } from "../data/spells";
 import { getAbility, getAbilityEquipmentRejection, getAbilityPhysicalDamageType } from "../data/abilities";
-import { getWeaponPhysicalDamageType } from "../data/items";
+import { getArmorPhysicalProfile, getWeaponPhysicalDamageType } from "../data/items";
 import { getBodyPart, type BodyPartId } from "../data/anatomy";
-import type { DamageInteraction, PhysicalDamageType } from "../data/damageTypes";
+import { PhysicalDamageType, type DamageInteraction, type PhysicalProfile } from "../data/damageTypes";
 import { getTalentAttackBonus, getTalentDamageBonus } from "../data/talents";
 import {
   getAttackModifier,
@@ -45,7 +45,7 @@ import type { ActiveStatusEffect } from "./statusEffects";
 import { getFleeDC } from "./groupCombat";
 import { captureEffectApplication, captureElementalEffect, rollEffectDice } from "./effectRolls";
 import type { ResolvedD20Roll, ResolvedEffectRoll } from "./rollResults";
-import { applyAimedHitEffect, requireAimedBodyPart, resolvePhysicalHit } from "./physicalCombat";
+import { applyAimedHitEffect, requireAimedBodyPart, resolveArmorHit, resolvePhysicalHit } from "./physicalCombat";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -107,6 +107,7 @@ export interface MonsterAttackTarget {
   currentHp: number;
   readonly maxHp: number;
   effects: ActiveStatusEffect[];
+  readonly physicalProfile?: PhysicalProfile;
   getArmorClass(defendBonus: number): number;
 }
 
@@ -757,6 +758,7 @@ export function monsterAttackTarget(
     throw new Error("[combat] monsterAttackTarget: missing monster or target");
   }
   const playerAC = target.getArmorClass(playerDefendBonus) + weatherPenalty;
+  const physicalType = monster.physicalDamageType ?? PhysicalDamageType.Bludgeoning;
   const effectiveAtkBonus = monster.attackBonus
     + monsterAtkBoost
     + synergyAttackBonus
@@ -770,6 +772,7 @@ export function monsterAttackTarget(
     disadvantage: roll.disadvantage,
     rollResult: roll.rollResult,
     fumble: outcome.fumble,
+    physicalType,
   };
 
   if (outcome.fumble) {
@@ -789,15 +792,17 @@ export function monsterAttackTarget(
       ],
       { minimum: 0, criticalDice: outcome.critical },
     );
-    const damage = damageRoll.amount;
+    const armor = resolveArmorHit(damageRoll, physicalType, target);
+    const damage = armor.damage;
     const hpBefore = target.currentHp;
     target.currentHp = Math.max(0, target.currentHp - damage);
     const prefix = outcome.critical ? "CRITICAL! " : "";
     const verb = outcome.critical ? "savages" : "hits";
     return {
-      message: `${prefix}${monster.name} ${verb} ${target.label} for ${damage} damage!`,
+      message: `${prefix}${monster.name} ${verb} ${target.label} for ${damage} damage!${armor.message}`,
       damage, hit: true, critical: outcome.critical, roll: outcome.roll,
-      damageRoll: captureEffectApplication(damageRoll, hpBefore - target.currentHp, "Overkill"),
+      physicalLabel: armor.physicalLabel,
+      damageRoll: captureEffectApplication(armor.damageRoll, hpBefore - target.currentHp, "Overkill"),
       ...meta,
     };
   }
@@ -823,6 +828,9 @@ export function monsterAttack(
     monster,
     {
       label: player.name,
+      get physicalProfile(): PhysicalProfile | undefined {
+        return getArmorPhysicalProfile(player.equippedArmor);
+      },
       get currentHp(): number {
         return player.hp;
       },
@@ -1102,6 +1110,8 @@ export interface MonsterAbilityResult {
   healing: number;
   abilityName: string;
   element?: Element;
+  physicalType?: PhysicalDamageType;
+  physicalLabel?: DamageInteraction;
   readonly damageRoll?: ResolvedEffectRoll;
   readonly healingRoll?: ResolvedEffectRoll;
 }
@@ -1137,7 +1147,10 @@ export function monsterUseAbilityTarget(
     ],
     { minimum: 0 },
   );
-  const damage = damageRoll.amount;
+  const physicalType = ability.physicalDamageType
+    ?? (ability.element ? undefined : monster.physicalDamageType ?? PhysicalDamageType.Bludgeoning);
+  const armor = resolveArmorHit(damageRoll, physicalType, target);
+  const damage = armor.damage;
   const hpBefore = target.currentHp;
   target.currentHp = Math.max(0, target.currentHp - damage);
 
@@ -1158,12 +1171,15 @@ export function monsterUseAbilityTarget(
   }
 
   return {
-    message: `${monster.name} uses ${ability.name}!${elementalSuffix} ${damage} damage!${selfHealMsg}${statusMessage}`,
+    message: `${monster.name} uses ${ability.name}!${elementalSuffix} ${damage} damage!`
+      + armor.message + selfHealMsg + statusMessage,
     damage,
     healing: ability.selfHeal ? damage : 0,
     abilityName: ability.name,
     element: ability.element,
-    damageRoll: captureEffectApplication(damageRoll, hpBefore - target.currentHp, "Overkill"),
+    physicalType,
+    physicalLabel: armor.physicalLabel,
+    damageRoll: captureEffectApplication(armor.damageRoll, hpBefore - target.currentHp, "Overkill"),
   };
 }
 
@@ -1180,6 +1196,9 @@ export function monsterUseAbility(
     monster,
     {
       label: player.name,
+      get physicalProfile(): PhysicalProfile | undefined {
+        return getArmorPhysicalProfile(player.equippedArmor);
+      },
       get currentHp(): number {
         return player.hp;
       },

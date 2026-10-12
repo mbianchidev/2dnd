@@ -79,7 +79,7 @@ describe("physical defense discovery", () => {
   });
 });
 
-describe("schema-v23 physical combat compatibility", () => {
+describe("current-schema physical combat compatibility", () => {
   it.each([false, true])(
     "migrates v22 activity saves while retaining physical-preview observations: %s",
     (hasPhysicalPreview) => {
@@ -110,7 +110,7 @@ describe("schema-v23 physical combat compatibility", () => {
       const random = vi.spyOn(Math, "random");
       random.mockClear();
       const migrated = normalizeSaveData(structuredClone(raw))!;
-      expect(migrated.version).toBe(23);
+      expect(migrated.version).toBe(SAVE_VERSION);
       expect(migrated.player.progression.minigames).toEqual(before.progression.minigames);
       expect(migrated.player.gold).toBe(before.gold);
       expect(migrated.player.classProgression).toEqual(before.classProgression);
@@ -138,7 +138,7 @@ describe("schema-v23 physical combat compatibility", () => {
     expect(saveGame(player, new Set(), codex, player.appearanceId).ok).toBe(true);
     const saved = loadGame();
     expect(saved?.version).toBe(SAVE_VERSION);
-    expect(saved?.version).toBe(23);
+    expect(saved?.version).toBe(SAVE_VERSION);
     expect(saved?.codex.entries[monster.id]!.discoveredPhysical).toEqual([{ damageType: Bludgeoning }]);
     const restored = saved!.player.inventory.find((item) => item.id === custom.id)!;
     expect(restored).toEqual(custom);
@@ -155,7 +155,7 @@ describe("schema-v23 physical combat compatibility", () => {
     raw.version = 21;
     raw.codex.entries[monster.id]!.discoveredPhysical = [{ damageType: Bludgeoning }];
     const migrated = normalizeSaveData(structuredClone(raw))!;
-    expect(migrated.version).toBe(23);
+    expect(migrated.version).toBe(SAVE_VERSION);
     expect(migrated.codex.entries[monster.id]!.discoveredPhysical).toEqual([]);
     expect(migrated.codex.entries[monster.id]!.timesDefeated).toBe(1);
     expect(migrated.codex.entries[monster.id]!.itemsDropped).toEqual(["ether"]);

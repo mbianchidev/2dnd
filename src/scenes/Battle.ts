@@ -2843,10 +2843,7 @@ export class BattleScene extends Phaser.Scene {
         if (damageRoll) {
           damageRoll = captureEffectAdjustment(damageRoll, `Shield defend -${reduced}`, result.damage);
         }
-        partyTarget.currentHp = Math.min(
-          partyTarget.maxHp,
-          partyTarget.currentHp + reduced,
-        );
+        partyTarget.currentHp = Math.max(0, hpBeforeAttack - result.damage);
       }
       const appliedAttack = captureDamageApplication(
         { ...result, damageRoll }, hpBeforeAttack - partyTarget.currentHp,

@@ -31,6 +31,9 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 
 - combat, physical/elemental profiles, sizes/anatomy, aimed parts, statuses,
   target scopes, action economy, rewards
+- the full armor/physical-type matrix, live hero/companion equipment, magic
+  bypass, status/critical/shield ordering, exact HP/RNG receipts and v23/custom
+  armor migration with rejected-import byte preservation
 - player and companion progression, gambits, inventories, transfers
 - quests, cutscene triggers/queues, Codex, events, social state, achievements
 - gathering, crafting, nautical state, world/map/trap/fog helpers
@@ -119,7 +122,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v23 autosave/manual-slot persistence,
+- real character creation, schema-v24 autosave/manual-slot persistence,
   relaunch, and continue
 - independent desktop copy/import, exact source-slot bytes, interrupted
   staging/core-corruption recovery, and loading a second campaign after relaunch

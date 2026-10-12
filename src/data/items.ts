@@ -4,7 +4,7 @@
 
 import { Element } from "./elements";
 import { PhysicalDamageType } from "./damageTypes";
-export { getItemDescription, getWeaponPhysicalDamageType } from "./itemCombat";
+export { getArmorPhysicalProfile, getItemDescription, getWeaponPhysicalDamageType } from "./itemCombat";
 import type {
   GatheringDiscipline,
   GatheringRarity,
@@ -35,6 +35,8 @@ export interface Item {
   weaponSprite?: WeaponSpriteType;
   /** Physical weapon damage, independent of any elemental enchantment. */
   physicalDamageType?: PhysicalDamageType;
+  /** Body-armor protection, independent of its Armor Class bonus. */
+  physicalResistances?: readonly PhysicalDamageType[];
   levelReq?: number; // minimum player level to purchase
   mountId?: string; // for type "mount" — references a MountData id
   /** Elemental damage type for weapons. */
@@ -303,6 +305,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "leatherArmor",
+    physicalResistances: [PhysicalDamageType.Bludgeoning],
     name: "Leather Armor",
     description: "+2 AC",
     type: "armor",
@@ -311,6 +314,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "chainMail",
+    physicalResistances: [PhysicalDamageType.Slashing],
     name: "Chain Mail",
     description: "+4 AC",
     type: "armor",
@@ -320,6 +324,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "plateArmor",
+    physicalResistances: [PhysicalDamageType.Slashing, PhysicalDamageType.Piercing],
     name: "Plate Armor",
     description: "+6 AC",
     type: "armor",
@@ -669,6 +674,7 @@ export const ITEMS: Item[] = [
   // --- Crafted equipment variants ---
   {
       id: "frostWardMail",
+      physicalResistances: [PhysicalDamageType.Bludgeoning, PhysicalDamageType.Slashing],
       name: "Frost Ward Mail",
       description: "+5 AC, winter wards set into fitted links",
       type: "armor",
@@ -751,6 +757,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "shadowCloak",
+    physicalResistances: [PhysicalDamageType.Piercing],
     name: "Shadow Cloak",
     description: "+5 AC, woven from darkness",
     type: "armor",
@@ -792,6 +799,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "tundraPelt",
+    physicalResistances: [PhysicalDamageType.Bludgeoning],
     name: "Tundra Pelt",
     description: "+3 AC, thick winter hide",
     type: "armor",
@@ -838,6 +846,7 @@ export const ITEMS: Item[] = [
   },
   {
     id: "swampMantle",
+    physicalResistances: [PhysicalDamageType.Slashing],
     name: "Swamp Mantle",
     description: "+4 AC, enchanted vine weave",
     type: "armor",

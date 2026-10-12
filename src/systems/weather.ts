@@ -123,7 +123,11 @@ function resolveWeatherWeights(biomeName: string): WeatherWeights {
  * Determine the next weather type for a given biome + time of day.
  * Returns a weather type based on weighted random selection.
  */
-export function rollWeather(biomeName: string, timeStep: number): WeatherType {
+export function rollWeather(
+  biomeName: string,
+  timeStep: number,
+  random: () => number = Math.random,
+): WeatherType {
   const period = getTimePeriod(timeStep);
   const baseWeights = resolveWeatherWeights(biomeName);
   const timeMods = TIME_MULTIPLIERS[period] ?? {};
@@ -147,7 +151,10 @@ export function rollWeather(biomeName: string, timeStep: number): WeatherType {
     totalNonClear = 0.70;
   }
 
-  const roll = Math.random();
+  const roll = random();
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
+    throw new Error("[weather] The weather selection roll must be in [0, 1).");
+  }
   let cumulative = 0;
   for (const e of entries) {
     cumulative += e.prob;

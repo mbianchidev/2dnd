@@ -15,7 +15,7 @@
 | happy-dom | 20.14.5 |
 | Electron | 44.7.0 |
 | electron-builder | 26.17.0 |
-| Campaign save schema | 22 |
+| Campaign save schema | 23 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -104,6 +104,12 @@ screens or duplicate state changes.
 dead zones, repeats, source switching, and duplicate suppression.
 `src/managers/input.ts` is the only browser adapter for keyboard, pointer,
 gamepad, and touch.
+Pure input policy suppresses mobile rails on native desktop even with saved
+Touch On and maps native canvas touch to pointer-first prompts. The adapter
+does not create mobile DOM controls there; mobile-only Settings rows are
+filtered without hidden targets. WASD remains gameplay input outside text
+fields; the shared dialog isolates physical typing and forwards key releases
+so a previously held game key cannot stick.
 `src/managers/titleMenu.ts` owns title selection and large direct-pointer hit
 targets so touch D-pad/A input and visible buttons activate the same actions.
 The new-game overwrite confirmation uses a compact centered layout that remains
@@ -119,6 +125,9 @@ dialog, modal isolation, live accessibility, once-only commit/cancel and focus
 restoration. The input adapter re-exports `openMobileTextInput()` and routes
 semantic actions to this dialog before emitting game keys. The right-stick
 cursor also reaches existing desktop DOM controls.
+Controller face-position hints share arrow/circle icons rather than compass
+words. Switching to physical typing retains the first character and hides the
+controller key grid; native gamepad text entry remains available.
 Discrete touch pulses release at the complete Phaser poststep boundary, not a
 zero-delay timer that can erase `JustDown` before scene polling. The shared
 adapter owns pulse tokens and scene listeners, preserves other held owners,
@@ -134,6 +143,42 @@ Pure layout math lives in `src/systems/layout.ts`. Phaser scaled bounds, reflow,
 hit-area synchronization, group registration, and audit reporting live in
 `src/managers/layout.ts`. Modal content uses `createOverlayContainer()` and
 stable layout IDs. Tests should select those IDs rather than canvas coordinates.
+The audit includes natural glyph/padding bounds inside fixed text surfaces,
+nested containers, and explicitly registered graphic bounds such as progress
+bars, swatches, and hero previews. A clean outer rectangle alone does not prove
+that its text is readable.
+
+`subscribeOverlayReflow()` coalesces preference/source/resize changes at a frame
+boundary and defers replacement while a pointer is held. Disposal also
+invalidates callbacks already captured by the current event emission, preventing
+reflow against text destroyed by a menu or scene handoff. Character creation
+keeps cosmetic choices and rolled/allocated scores in the owner while the
+appearance manager and stat renderer rebuild only presentation. Save and
+achievement renderers measure wrapped sections and paginate available space;
+equipment/status/inventory pages retain their existing source-owned actions and
+values. Inventory page navigation uses measured pages and original inventory
+indexes, never reorders ownership. Tips/tutorial controls wrap and separate
+their measured headers, body, cards and footer; longer Tips content is paged.
+Map labels are bounded near their anchors, and simultaneous bottom messages
+and location prompts occupy separate measured rows.
+The Escape menu also measures every caption, including Save & Return to Title,
+and reveals all available actions across pages when the full discovered menu
+cannot fit. Hidden page controls are inert; keyboard selection follows the same
+stable action IDs and brings its page into view.
+
+Achievement and Codex notices share the measured, non-interactive
+`renderers/notification.ts` panel. Overworld reconciles their visibility after
+each scene update: opening any menu, dialogue or activity removes an active
+notice and its timers without acknowledging unseen feedback. Achievement IDs
+remain in their existing persisted queue; the latest Codex batch stays
+runtime-only. Notices resume when safe, with stale completion callbacks rejected.
+Shop defers acquired-item lore IDs through the full shared return payload,
+rather than covering its buy/sell or confirmation menus. Notice reflow and
+live regions never take input focus or delay a scene handoff.
+
+The input adapter reads Phaser's current parent bounds before refreshing FIT
+scaling when the canvas host changes. `refresh()` alone uses cached parent
+dimensions and can let the canvas extend behind the dice dock or past the window.
 
 Every scene installs shared accessibility. New motion must use the reduced-motion
 accessors and complete callbacks exactly once even when animation duration is
@@ -301,3 +346,20 @@ serialized hero items, and shares equipment repair with companion normalization,
 `src/managers/saveSlots.ts` provides the shared title and Overworld interface.
 Electron uses the same renderer-owned storage path and exposes no native
 filesystem API for slot import/export.
+
+## Optional city activities
+
+`src/data/minigames.ts` owns stable activities, venues, rulesets, difficulties,
+scores, rewards, and records. Focused `src/systems/minigame*.ts` modules own
+seeded dice/precision/course mechanics, compact once-only ledgers, transactional
+save rollback, unknown normalization, and pure presentation/layout models.
+`MinigameManager` owns in-place Overworld input, accessible rules/boards, preview
+updates, and cleanup; focused renderers own procedural panels and venue signs.
+
+Archery's moving meter is a runtime input preview, not a save clock. Accepted
+positions and exact challenges save before results. Regatta reuses
+`nauticalNavigation.ts`, canonical boat upgrade multipliers, and seeded
+`rollWeather()` selection without moving the campaign or changing global
+weather. The manager restores its scene-owned semantic context on close.
+Minigame histories and consumer achievements/lore never authorize payments or
+quests. See [Tavern and festival activities](minigames.md).

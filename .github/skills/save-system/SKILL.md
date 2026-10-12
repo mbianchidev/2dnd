@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v22, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v23, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -16,6 +16,9 @@ Campaign normalization and autosave compatibility live in
 `src/systems/saveStorage.ts`; and shared Phaser presentation lives in
 `src/managers/saveSlots.ts`. Shared audio, accessibility, and inventory
 presentation preferences stay separate.
+`src/renderers/saveSlotPanel.ts` measures wrapped rows/actions/footers and pages
+slot lists as needed. Reflow preserves selected IDs and release-based activation;
+it never changes source-slot bytes, transactions or the save schema.
 `src/systems/saveActor.ts` validates required hero authority, preserves usable
 serialized hero items, and shares equipment repair with companion normalization.
 
@@ -49,16 +52,30 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 22.
+`SAVE_VERSION` is 23.
 
-Schema v22 adds `CodexEntry.discoveredPhysical` with stable physical type and
+Schema v23 adds `CodexEntry.discoveredPhysical` with stable physical type and
 optional canonical part IDs, plus optional weapon-only `physicalDamageType`.
 Pre-v22 campaigns gain empty observations without fabricated history.
+Schema-v22 activity campaigns missing physical observations gain empty lists;
+valid v22 physical-combat previews retain their observations and typed weapons.
 Normalize duplicate/unknown/neutral/impossible observations and malformed
 weapon types. Preserve all earlier domains, custom metadata/order and exact
 equipped object links. Legacy weapons resolve typing at use time without
 mutating their serialized copies. Monster selection/limb effects remain
 runtime-only. See `docs/physical-combat.md`.
+
+Schema v22 adds exact pending tavern/festival sessions, permanent session and
+settlement watermarks, finite milestone claims, paid/practice personal bests,
+natural statistics, discovered venues, and bounded history through
+`src/systems/minigameState.ts`. History is never a payment ledger. Replacing a
+bad seed or retiring an invalid pending state cannot refund, reroll, recharge,
+replay a reward, or restore boat condition.
+Missing activity state in schema-v21 and older campaigns receives deterministic
+empty defaults; valid schema-v19/v20/v21 feature previews preserve their exact
+run IDs, challenges, paid/wear receipts, ledgers, claims, and personal records.
+Original v19 activity previews without `classProgression` require legacy hero
+migration so resource rolls and exceptional/deferred grants remain unchanged.
 
 Schema v21 adds independent optional devotion. Older campaigns without that
 record stay unaffiliated/zero and consume historical sources without rewards.
@@ -164,6 +181,7 @@ interface PlayerProgression {
   gathering: GatheringState;
   crafting: CraftingState;
   nautical: NauticalState;
+  minigames: MinigameState;
   discoveredFeatureIds: FeatureId[];
   pendingFeatureRevealIds: FeatureId[];
   debugDiscoveredFeatureIds: FeatureId[];
@@ -231,6 +249,11 @@ Feature discovery persists only stable revealed IDs, pending one-time feedback,
 marked debug reveals, and debug-suppressed evidence. Availability is reconciled
 from authoritative gameplay state and never controls that state.
 
+`minigames` persists only exact activity authority and durable personal evidence.
+The moving archery meter, input contexts, Phaser/DOM objects, and presentation
+clocks are runtime-only. Accepted inputs, payments, hull wear, settlement, and
+abandonment use save-before-reveal rollback across all touched consumers.
+
 ## Loading and migration
 
 Treat parsed JSON as `unknown`. Use typed record guards and normalization
@@ -295,6 +318,11 @@ and in-memory preferences usable while reporting campaign write failures.
 - Missing, malformed, duplicate, or unknown feature IDs through
   `normalizeFeatureDiscoveryProgress()`; schema-v16 and older saves discard
   pending/debug metadata and silently reconcile mature authoritative evidence
+- Schema-v21 and older missing minigame state gets deterministic empty defaults;
+  valid feature previews preserve exact authority; current unknown
+  normalization validates venue/ruleset/difficulty IDs, fixed challenge
+  components, score/payout caps, revisions/phases, permanent watermarks, finite
+  claims, debug/practice isolation, and recovered location/boat state
 - Missing time and weather data
 - Missing/legacy/corrupt devotion through `normalizeDevotionState()`; validate
   canonical IDs, duplicate/source/history cross-fields and temple blessing
@@ -397,7 +425,8 @@ to browsing before closing the manager.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v22 physical discovery, devotion, hero/base/prestige progression, playtime,
+- Current schema-v23 physical discovery, minigame authority, devotion,
+  hero/base/prestige progression, playtime,
   position, objective/reward/warning quest state,
   skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
@@ -425,9 +454,14 @@ to browsing before closing the manager.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v22 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v23 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
+
+`tests/minigameSave.test.ts` covers exact pending/result round trips, conservative
+corrupt repair, legacy defaults, and manual-source isolation.
+`electron-tests/minigames.spec.ts` covers actual multi-input activity recovery
+and once-only settlement on the secure packaged origin.
 
 ## Common pitfalls
 

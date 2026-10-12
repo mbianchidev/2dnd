@@ -59,21 +59,32 @@ export type InputAction = (typeof INPUT_ACTIONS)[number];
 
 export type InputSource = "keyboard" | "pointer" | "gamepad" | "touch";
 
-export type InputContext =
-  | "title"
-  | "characterCreation"
-  | "exploration"
-  | "overlay"
-  | "chronicle"
-  | "inventory"
-  | "gathering"
-  | "crafting"
-  | "shop"
-  | "codex"
-  | "battle"
-  | "cutscene"
-  | "ending"
-  | "result";
+export const DIRECTION_ICONS = { up: "↑", down: "↓", left: "←", right: "→" } as const;
+export const FACE_BUTTON_ICONS = { up: "◉↑", down: "◉↓", left: "◉←", right: "◉→" } as const;
+
+export function shouldShowTouchControls(
+  visibility: "auto" | "on" | "off",
+  touchDevice: boolean,
+  nativeDesktop: boolean,
+): boolean {
+  return !nativeDesktop && (visibility === "on" || visibility === "auto" && touchDevice);
+}
+
+export function resolveControlPromptSource(
+  source: InputSource,
+  preference: InputSource | "auto",
+  nativeDesktop: boolean,
+): InputSource {
+  const requested = preference === "auto" ? source : preference;
+  return nativeDesktop && requested === "touch" ? "pointer" : requested;
+}
+
+export const INPUT_CONTEXTS = [
+  "title", "characterCreation", "exploration", "overlay", "chronicle",
+  "inventory", "gathering", "crafting", "minigame", "shop", "codex",
+  "battle", "cutscene", "ending", "result",
+] as const;
+export type InputContext = (typeof INPUT_CONTEXTS)[number];
 
 export interface SemanticInputEvent {
   action: InputAction;
@@ -166,6 +177,7 @@ const NAVIGATION_CONTEXTS = new Set<InputContext>([
   "chronicle",
   "inventory",
   "gathering",
+  "minigame",
   "shop",
   "codex",
   "battle",
@@ -190,6 +202,10 @@ function directionalAction(
 export function isInputAction(value: unknown): value is InputAction {
   return typeof value === "string"
     && (INPUT_ACTIONS as readonly string[]).includes(value);
+}
+
+export function isInputContext(value: unknown): value is InputContext {
+  return typeof value === "string" && (INPUT_CONTEXTS as readonly string[]).includes(value);
 }
 
 export function normalizeAnalogAxis(value: number, deadZone = 0.24): number {
@@ -261,6 +277,9 @@ export function isTouchActionAvailable(
   context: InputContext,
   featureAvailable = true,
 ): boolean {
+  if (context === "minigame") {
+    return featureAvailable && (action.startsWith("navigate") || action === "confirm" || action === "cancel");
+  }
   return featureAvailable
     && (
       !EXPLORATION_ONLY_TOUCH_ACTIONS.has(action)

@@ -1,6 +1,7 @@
 import type { CodexKnowledgeCategory } from "./codexKnowledge";
 import type { CraftingCategory } from "./crafting";
 import type { GatheringDiscipline } from "./gathering";
+import type { MinigameActivityId } from "./minigames";
 
 export const FEATURE_IDS = [
   "map",
@@ -39,6 +40,10 @@ export const FEATURE_IDS = [
   "nauticalHarbors",
   "nauticalRoutes",
   "nauticalBoat",
+  "minigames",
+  "minigameCrownAndBones",
+  "minigameArchery",
+  "minigameRegatta",
 ] as const;
 
 export type FeatureId = (typeof FEATURE_IDS)[number];
@@ -50,6 +55,7 @@ export type FeatureOwner =
   | "codexTab"
   | "craftingCategory"
   | "gatheringDiscipline"
+  | "minigameActivity"
   | "shortcut"
   | "touchAction"
   | "gamepadAction"
@@ -298,6 +304,23 @@ export const FEATURE_DEFINITIONS: readonly FeatureDefinition[] = [
     owners: ["worldMap", "contextPrompt", "tutorial"],
     testId: "feature-nautical-boat",
   },
+  {
+    id: "minigames", label: "Tavern & Festival Games",
+    description: "Optional activity instructions, venues, and personal boards.",
+    prerequisite: "Discover an activity venue or receive a festival invitation.",
+    owners: ["escapeMenu", "contextPrompt", "tutorial"],
+    testId: "feature-minigames",
+  },
+  ...([
+    ["minigameCrownAndBones", "Crown & Bones"],
+    ["minigameArchery", "Archery Challenge"],
+    ["minigameRegatta", "Harbor Regatta"],
+  ] as const).map(([id, label]): FeatureDefinition => ({
+    id, label, description: `${label} instructions and personal records.`,
+    prerequisite: `Discover a ${label} venue.`,
+    owners: ["minigameActivity", "contextPrompt", "tutorial"],
+    testId: `feature-${id}`,
+  })),
 ];
 
 export const FEATURE_DEFINITION_BY_ID = new Map(
@@ -334,6 +357,12 @@ export const GATHERING_DISCIPLINE_FEATURES: Readonly<Record<
   fishing: "gatheringFishing",
   mining: "gatheringMining",
   foraging: "gatheringForaging",
+};
+
+export const MINIGAME_ACTIVITY_FEATURES: Readonly<Record<MinigameActivityId, FeatureId>> = {
+  crownAndBones: "minigameCrownAndBones",
+  archery: "minigameArchery",
+  regatta: "minigameRegatta",
 };
 
 export function isFeatureId(value: unknown): value is FeatureId {

@@ -14,7 +14,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.2, Electron 44.7.0, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.63.0 |
 | DOM tests | happy-dom 20.14.5 |
-| Save schema | 22 |
+| Save schema | 23 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -37,6 +37,7 @@ future work until merged.
 | Events/social/achievements | matching `src/data/` modules | matching `src/systems/` modules | managers/overlays/social renderer | matching unit and E2E |
 | Fictional devotion | `devotion.ts`, focused `devotion*.ts` content | `devotion.ts`, `devotionState.ts`, `devotionTemples.ts`, profile/debug | devotion manager + native accessibility bridge | devotion, temple, integration, save and browser suites |
 | Gathering/crafting | matching `src/data/` modules | matching systems + state normalizers | matching managers | matching unit and E2E |
+| Tavern/festival games | `minigames.ts`, focused lore/event data | `minigame*.ts`, nautical/weather helpers | minigame manager/renderers | rules/economy/recovery/layout + web/Electron multi-input |
 | Saves | owning interfaces/defaults | `save.ts`, `saveActor.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/validation/availability/domain migration suites |
 | Accessibility/input | tutorial/feature definitions | `accessibility.ts`, `input.ts`, `featureDiscovery.ts` | input/tutorial/layout managers | accessibility/input/layout/feature E2E |
 | Audio | typed data cues | `audio.ts`, `trapAudio.ts` | callers only | audio + representative browser flows |
@@ -59,8 +60,10 @@ future work until merged.
    resolve every failure and review comment. Do not merge without explicit
    instruction.
 
-Browser and desktop CI concurrency is scoped to the Git ref so unrelated
-review branches do not replace one another's pending checks.
+PR/desktop CI concurrency is ref-scoped (`pr-${{ github.ref }}` and
+`desktop-${{ github.ref }}`), with `cancel-in-progress: false`. Preserve the
+complete gate, existing permissions, and triggers; never weaken checks to
+accelerate an independent feature branch.
 
 ```bash
 npm ci
@@ -99,7 +102,8 @@ owning issue or pull request.
   confirmation unchanged; validate optional parts before RNG/resources. Apply
   statuses, physical profile/local override, then elements; never stack whole
   and part weakness or bypass whole-body immunity. Persist only observed Codex
-  scope/type IDs in schema v22; retain exact old/custom weapon ownership.
+  scope/type IDs in schema v23; retain exact old/custom weapon ownership and
+  valid v22 activity/physical-preview authority during migration.
 - Hero class ownership lives in `player.classProgression`; `level` mirrors its
   total. Starting identity never changes with appearance or multiclass entry.
   Prepare one frozen receipt at rest, preserve rest credits across reload, and
@@ -128,6 +132,9 @@ owning issue or pull request.
 - Persist authority, not derived presentation. Every schema change requires
   defaults, normalization, cross-field validation, migration, and corruption
   tests.
+- Minigame histories never authorize payment. Use exact pending IDs/revisions,
+  permanent settlement watermarks, finite milestone claims, and save-before-reveal
+  rollback; archery preview motion never writes saves.
 - Devotion uses an original fictional pantheon only, independent bounded
   scores and canonical once-only sources. Legacy heroes remain unaffiliated;
   every choice retains the campaign. Blessings use the normal status clock;
@@ -202,6 +209,12 @@ owning issue or pull request.
 - [ ] Focus restored by ID and clamped
 - [ ] Keyboard, pointer, touch, gamepad, 150% text, high contrast, and reduced motion checked
 - [ ] Layout audit reports no unintended overlap or clipping
+- [ ] Fixed text surfaces fit their natural glyph/padding bounds, not just their outer boxes
+- [ ] Resize/preference reflow preserves choices, scores, action IDs and held-input ownership
+- [ ] Active notices are deferred behind menus without consuming queued feedback
+- [ ] Combined panels are covered; clean individual groups alone do not prove safe coexistence
+- [ ] Native desktop has no mobile rails/options; focused physical typing is isolated from WASD gameplay
+- [ ] Controller/heading hints use shared icons without changing stable direction or action IDs
 
 ### Combat
 
@@ -233,5 +246,6 @@ owning issue or pull request.
 - [Prestige paths](docs/prestige.md)
 - [Companions and gambits](docs/companions.md)
 - [Inventory presentation](docs/inventory.md)
+- [Tavern and festival activities](docs/minigames.md)
 - [Fictional devotion](docs/devotion.md)
 - [Steam preparation](docs/steam.md)

@@ -151,7 +151,7 @@ Parts share HP and existing status effects. Preserve optional whole-target
 Confirm, selected natural 1/20/disadvantage, formation/weather/defend, one main
 and one bonus action, and exact RNG/receipts. Apply limb effects only on positive
 final damage, for at most two target turns; saves may end them sooner.
-Persist only observed scope/type IDs in Codex schema v22, not limb HP or
+Persist only observed scope/type IDs in Codex schema v23, not limb HP or
 selection. See `docs/physical-combat.md`.
 
 ## Elements

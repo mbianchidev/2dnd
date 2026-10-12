@@ -38,20 +38,23 @@ system has been discovered. The Escape menu remains the reliable entry point.
 
 Pointer and touch users can select visible buttons directly. Touch layouts use
 safe-area-aware movement and action controls. Standard gamepads use the left
-stick or D-pad for movement/navigation, the south button to confirm, east to
-cancel, west to interact, Menu/north for the menu, View for Tips, bumpers for targets/pages, and
+stick or `↑ ↓ ← →` for movement/navigation, `◉↓` to confirm, `◉→` to
+cancel, `◉←` to interact, Menu/`◉↑` for the menu, View for Tips, bumpers for targets/pages, and
 triggers for Battle-log scrolling. The right stick moves a visible cursor;
 press the stick to click pointer-first controls and the desktop fullscreen
 button. Xbox positions are A/B/X/Y; prompts use positions so they do not guess
 PlayStation or Nintendo labels.
 
-During hero creation, west or unmodified `Tab` edits the name. Names, manual
-slot labels and searches share a controller keyboard: D-pad selects, south
-types, west deletes, Menu submits and east cancels. `Aa` switches letter case.
+During hero creation, `◉←` or unmodified `Tab` edits the name. Names, manual
+slot labels and searches share a controller keyboard: arrows select, `◉↓`
+types, `◉←` deletes, Menu submits and `◉→` cancels. `Aa` switches letter case.
 Keyboard/touch text input remains available; cancel never commits a draft.
 
 Mappings are stable rather than user-remappable. Settings can control touch
 visibility, handedness, and automatic or fixed prompt sources.
+Native desktop builds hide mobile touch rails and their mobile-only settings.
+Use WASD for movement; focused text fields use normal physical keyboard typing.
+Circle-arrow icons show controller face-button position, not compass headings.
 
 The in-game menu includes **Save Game** for three named manual slots and
 **Save & Return to Title** for the dedicated autosave. The title screen exposes
@@ -183,6 +186,22 @@ Merchant routes work before boat ownership. Later, the Tideglass Charter grants
 a Reed Skiff for free sailing, hazards, sea encounters, open-water fishing,
 boat upgrades, island discovery, Tideglass Grotto, and the optional Kraken.
 
+## Optional tavern and festival games
+
+Marked city venues offer **Crown & Bones**, a capped in-game-only push-your-luck
+dice game; **Archery Challenge**, five class-neutral precision targets; and
+**Harbor Regatta**, an owned-boat buoy course with a fixed forecast and bounded
+hull wear. None is required for a quest, route, campaign ending, or post-game.
+
+Stand on a D/A/R venue marker and interact. After discovery, the Esc menu opens
+instructions and personal boards. Setup selects difficulty, capped stakes, or
+free archery/regatta practice. Reduced-motion archery uses explicit aiming with
+the same targets and scores. Leaving first opens a pause/abandon confirmation;
+abandoning forfeits the entry but never repeats charges or undoes committed wear.
+
+See [Tavern and festival activities](minigames.md) for all venues, controls,
+transparent dice odds, capped payouts, records, and reload recovery.
+
 ## Optional fictional devotion
 
 The original **Unfinished Constellation** consists of Orivane (Making and
@@ -228,3 +247,9 @@ feedback and the consultable redacted log.
 
 Settings are stored separately from campaign progress. See
 [Getting started](getting-started.md#local-save-data) for storage details.
+
+Larger text and longer labels wrap or page in character creation, equipment,
+stat profiles, achievements and save slots. Use the visible page buttons;
+equipment also supports Page Up/Down and achievement lists support Left/Right.
+Changing window size or text preferences preserves current cosmetic choices,
+rolled/allocated scores and selected records rather than rerolling them.

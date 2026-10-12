@@ -7,6 +7,7 @@ import {
   insetRect,
   layoutResponsiveGrid,
   layoutVerticalStack,
+  layoutAnchoredLabels,
   moveGridSelection,
   paginateMeasuredItems,
   restoreLayoutFocus,
@@ -40,6 +41,16 @@ describe("measured UI layout", () => {
     )).toEqual({ x: 40, y: 50, width: 0, height: 0 });
   });
 
+  it("keeps enlarged anchored location labels within map edges and apart", () => {
+    const viewport = { x: 0, y: 0, width: 640, height: 480 };
+    const labels = layoutAnchoredLabels([
+      { id: "city", bounds: { x: -20, y: -12, width: 180, height: 40 } },
+      { id: "shop", bounds: { x: 30, y: 8, width: 150, height: 38 } },
+      { id: "port", bounds: { x: 580, y: 460, width: 160, height: 32 } },
+    ], viewport);
+    expect(auditLayout(labels, viewport)).toEqual({ overlaps: [], clipping: [] });
+    expect(labels.map((item) => item.id)).toEqual(["city", "shop", "port"]);
+  });
   it("stacks variable-height rows from measured bounds", () => {
     const result = layoutVerticalStack([
       { id: "short", width: 40, height: 12 },
@@ -151,5 +162,15 @@ describe("measured UI layout", () => {
       secondId,
     ])).toEqual([["title", "button"]]);
     expect(result.clipping.map((entry) => entry.id)).toEqual(["tooltip"]);
+  });
+
+  it("detects glyphs clipped inside an otherwise in-bounds fixed text surface", () => {
+    const bounds = { x: 10, y: 10, width: 120, height: 40 };
+    const result = auditLayout([{
+      id: "slot-row", bounds, contentBounds: { ...bounds, height: 65 },
+    }], { x: 0, y: 0, width: 200, height: 200 });
+    expect(result.clipping).toEqual([{
+      id: "slot-row", bounds: { ...bounds, height: 65 }, viewport: bounds, reason: "content",
+    }]);
   });
 });

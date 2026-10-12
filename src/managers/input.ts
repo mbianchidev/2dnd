@@ -5,9 +5,12 @@ import {
   inputPromptSource,
   inputSource,
   isInputAction,
+  isInputContext,
   isTouchActionAvailable,
   normalizeAnalogAxis,
   resolveGamepadAction,
+  resolveControlPromptSource,
+  shouldShowTouchControls,
   type InputAction,
   type InputContext,
   type InputSource,
@@ -18,10 +21,7 @@ import {
   featureAvailability,
   getInputActionFeature,
 } from "../systems/featureDiscovery";
-import {
-  gamePreferences,
-  type TouchControlVisibility,
-} from "../systems/accessibility";
+import { gamePreferences } from "../systems/accessibility";
 import { closeTextEntry, handleTextEntryAction, isTextEntryOpen } from "./textEntry";
 
 export { closeTextEntry, openMobileTextInput } from "./textEntry";
@@ -33,6 +33,7 @@ interface GamepadSnapshot {
 
 interface InputRuntimeScene {
   readonly scene: { readonly key: string };
+  readonly data?: { get(key: string): unknown };
   readonly events: {
     on(event: "shutdown" | "destroy", listener: () => void): void;
     off(event: "shutdown" | "destroy", listener: () => void): void;
@@ -45,7 +46,7 @@ interface InputRuntimeGame {
     once(event: "poststep", listener: () => void): void;
     off(event: "poststep", listener: () => void): void;
   };
-  readonly scale: { refresh(): void };
+  readonly scale: { getParentBounds(): boolean; refresh(): void };
   readonly scene: {
     getScenes(active: boolean): readonly InputRuntimeScene[];
   };
@@ -164,6 +165,7 @@ export class SemanticInputRuntime {
   private unsubscribeFeatures: (() => void) | null = null;
   private readonly resizeObserver = new ResizeObserver(() => {
     this.updateDiceInset();
+    this.game.scale.getParentBounds();
     this.game.scale.refresh();
   });
   private pointerRoot: HTMLElement | null = null;
@@ -262,6 +264,9 @@ export class SemanticInputRuntime {
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
     if (this.syntheticEvents.has(event)) return;
+    if (isTextEntryOpen() && event.code) {
+      this.dispatchKey("keyup", { code: event.code, key: event.key }, false);
+    }
   };
 
   private readonly handlePointerSource = (event: PointerEvent): void => {
@@ -504,6 +509,9 @@ export class SemanticInputRuntime {
       if (action === "cancel") return "cutsceneSkip";
     }
     if (context === "inventory") {
+      if (action === "interact" && document.getElementById("debug-state")?.textContent?.includes("[ACHIEVEMENTS")) {
+        return "inventorySearch";
+      }
       const inventoryActions: Partial<Record<InputAction, InputAction>> = {
         navigateUp: "inventoryPrevious",
         navigateDown: "inventoryNext",
@@ -526,6 +534,7 @@ export class SemanticInputRuntime {
       (
         this.getContext() === "shop"
         || this.getContext() === "chronicle"
+        || this.getContext() === "minigame"
       )
       && action.startsWith("navigate")
     ) {
@@ -540,7 +549,7 @@ export class SemanticInputRuntime {
       return { code: `Arrow${direction}`, key: `Arrow${direction}` };
     }
     if (
-      this.getContext() === "characterCreation"
+      (this.getContext() === "characterCreation" || this.getContext() === "minigame")
       && action === "confirm"
     ) {
       return { code: "Enter", key: "Enter" };
@@ -688,6 +697,7 @@ export class SemanticInputRuntime {
   }
 
   private createTouchControls(): void {
+    if (window.desktop) return;
     const root = document.createElement("div");
     root.id = "touch-controls";
     root.setAttribute("aria-label", "Touch game controls");
@@ -813,7 +823,9 @@ export class SemanticInputRuntime {
 
   private applyControlPreferences(): void {
     const controls = gamePreferences.getControls();
-    const showTouch = this.shouldShowTouch(controls.touchControls);
+    const showTouch = shouldShowTouchControls(
+      controls.touchControls, isTouchDevice(), window.desktop !== undefined,
+    );
     this.touchRoot?.classList.toggle("visible", showTouch);
     this.touchRoot?.classList.toggle(
       "right-handed",
@@ -828,17 +840,9 @@ export class SemanticInputRuntime {
     this.updatePresentation(inputSource.get());
   }
 
-  private shouldShowTouch(visibility: TouchControlVisibility): boolean {
-    if (visibility === "on") return true;
-    if (visibility === "off") return false;
-    return isTouchDevice();
-  }
-
   private updatePresentation(source: InputSource): void {
     const promptPreference = gamePreferences.getControls().promptSource;
-    const promptSource = promptPreference === "auto"
-      ? source
-      : promptPreference;
+    const promptSource = resolveControlPromptSource(source, promptPreference, window.desktop !== undefined);
     this.game.canvas.dataset.inputSource = source;
     this.game.canvas.dataset.promptSource = promptSource;
     this.game.canvas.dataset.gamepadConnected = String(this.gamepadConnected);
@@ -881,13 +885,16 @@ export class SemanticInputRuntime {
 
   private getContext(): InputContext {
     const key = this.getActiveSceneKey();
+    const activeScene = this.game.scene.getScenes(true).find((scene) => scene.scene.key === key);
+    const explicitContext: unknown = activeScene?.data?.get("semanticInputContext");
+    if (isInputContext(explicitContext)) return explicitContext;
     if (key === "BootScene") {
       const state = document.getElementById("debug-state")?.textContent ?? "";
       return state.includes("Screen: title") ? "title" : "characterCreation";
     }
     if (key === "OverworldScene") {
       const state = document.getElementById("debug-state")?.textContent ?? "";
-      if (state.includes("[PARTY:items")) return "inventory";
+      if (state.includes("[PARTY:items") || state.includes("[ACHIEVEMENTS")) return "inventory";
       if (state.includes("[GATHERING")) return "gathering";
       if (state.includes("[CHRONICLE]")) return "chronicle";
       if (

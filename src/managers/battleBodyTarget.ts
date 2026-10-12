@@ -3,10 +3,9 @@ import { getBodyPart, type BodyPart, type BodyPartId, type PhysicalDiscovery } f
 import type { Monster } from "../data/monsters";
 import type { PhysicalDamageType } from "../data/damageTypes";
 import { getBodyTargetChoices, type BodyTargetChoice } from "../systems/physicalCombat";
-import { gamePreferences } from "../systems/accessibility";
-import { getInputPromptSource, inputPromptSource, type InputSource } from "../systems/input";
+import { getInputPromptSource, type InputSource } from "../systems/input";
 import { createBattleActionMenu } from "./battleActionMenu";
-import { publishSceneLayoutReport, syncInteractiveHitArea } from "./layout";
+import { publishSceneLayoutReport, subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
 
 interface BodyTargetOptions {
   readonly monster: Monster;
@@ -37,8 +36,7 @@ export class BattleBodyTargetManager {
   private container: Phaser.GameObjects.Container | null = null;
   private root: HTMLDivElement | null = null;
   private previousFocus: HTMLElement | null = null;
-  private unsubscribePreferences: (() => void) | null = null;
-  private unsubscribePrompts: (() => void) | null = null;
+  private unsubscribeReflow: (() => void) | null = null;
   private pendingActivation: string | null = null;
   private readonly consumedKeys = new WeakSet<KeyboardEvent>();
 
@@ -76,9 +74,7 @@ export class BattleBodyTargetManager {
     window.addEventListener("blur", this.handleWindowBlur, true);
     window.addEventListener("gamepaddisconnected", this.clearPendingActivation, true);
     document.addEventListener("visibilitychange", this.clearPendingActivation, true);
-    this.scene.scale.on("resize", this.render, this);
-    this.unsubscribePreferences = gamePreferences.subscribe(() => this.render());
-    this.unsubscribePrompts = inputPromptSource.subscribe(() => this.render());
+    this.unsubscribeReflow = subscribeOverlayReflow(this.scene, () => this.render());
     this.render();
   }
 
@@ -88,11 +84,8 @@ export class BattleBodyTargetManager {
     window.removeEventListener("blur", this.handleWindowBlur, true);
     window.removeEventListener("gamepaddisconnected", this.clearPendingActivation, true);
     document.removeEventListener("visibilitychange", this.clearPendingActivation, true);
-    this.scene.scale.off("resize", this.render, this);
-    this.unsubscribePreferences?.();
-    this.unsubscribePrompts?.();
-    this.unsubscribePreferences = null;
-    this.unsubscribePrompts = null;
+    this.unsubscribeReflow?.();
+    this.unsubscribeReflow = null;
     this.container?.destroy(true);
     this.container = null;
     this.root?.remove();

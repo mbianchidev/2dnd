@@ -3,7 +3,8 @@ import { getAbility } from "../data/abilities";
 import { COMPANION_IDS, isCompanionId, type CompanionId } from "../data/companions";
 import { getItemDescription, type Item } from "../data/items";
 import { getSpell } from "../data/spells";
-import { createItemVisual } from "../renderers/itemVisuals";
+import { renderPartyInventory } from "../renderers/partyInventory";
+import type { PartyInventoryContent } from "../renderers/partyInventory";
 import { useCombatItem, useCombatItemOnTarget, type CombatActorState, type PlayerState } from "../systems/player";
 import { playerCastSpellAtTargets } from "../systems/combat";
 import { createEffectDicePresentation } from "../systems/dicePresentation";
@@ -37,11 +38,11 @@ import {
 import { openMobileTextInput } from "./input";
 import { getSocialSummaryPageCount, renderSocialSummary } from "../renderers/social";
 import { renderPartyStatus } from "../renderers/partyStatus";
+import { subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
 import { getPartyDiscoveryPages, isFeatureAvailable } from "../systems/featureDiscovery";
 import type { PartyMemberView, PartyOverlayCallbacks, PartyOverlayPage } from "./partyOverlayTypes";
 
 export class PartyOverlayManager {
-  private static readonly INVENTORY_PAGE_SIZE = 6;
   private readonly scene: Phaser.Scene;
   private readonly callbacks: PartyOverlayCallbacks;
   private overlay: Phaser.GameObjects.Container | null = null;
@@ -52,6 +53,8 @@ export class PartyOverlayManager {
   private listPage = 0;
   private inventorySelectedIndex: number | null = null;
   private inventorySearchActive = false;
+  private inventoryPages: readonly (readonly number[])[] = [];
+  private unsubscribeReflow: (() => void) | null = null;
   constructor(scene: Phaser.Scene, callbacks: PartyOverlayCallbacks) {
     this.scene = scene; this.callbacks = callbacks;
   }
@@ -70,11 +73,15 @@ export class PartyOverlayManager {
     this.listPage = 0;
     this.inventorySelectedIndex = null;
     this.inventorySearchActive = false;
+    this.inventoryPages = [];
     this.scene.input.keyboard?.on("keydown", this.handleKeyDown, this);
+    this.unsubscribeReflow = subscribeOverlayReflow(this.scene, () => this.render());
     this.render();
   }
   openInventory(player: PlayerState): void { this.open(player, "items"); }
   close(): void {
+    this.unsubscribeReflow?.();
+    this.unsubscribeReflow = null;
     this.scene.input.keyboard?.off("keydown", this.handleKeyDown, this);
     this.overlay?.destroy();
     this.overlay = null;
@@ -93,17 +100,10 @@ export class PartyOverlayManager {
     const selectedPosition = entries.findIndex(
       (entry) => entry.inventoryIndex === this.inventorySelectedIndex,
     );
-    const page = selectedPosition < 0
-      ? 1
-      : Math.floor(
-        selectedPosition / PartyOverlayManager.INVENTORY_PAGE_SIZE,
-      ) + 1;
-    const totalPages = Math.max(
-      1,
-      Math.ceil(entries.length / PartyOverlayManager.INVENTORY_PAGE_SIZE),
-    );
+    const page = Math.max(0, this.inventoryPages.findIndex((indices) => indices.includes(selectedPosition))) + 1;
+    const totalPages = Math.max(1, this.inventoryPages.length);
     const preferences = inventoryPreferences.get();
-    return ` [PARTY:items Inventory ${Math.max(selectedPosition + 1, 0)}/${entries.length} Page ${page}/${totalPages} Sort:${preferences.sortMode} Filter:${preferences.filter} Search:${preferences.search || "-"}${this.inventorySearchActive ? " Focus:search" : ""}]`;
+    return ` [PARTY:items Inventory ${Math.max(selectedPosition + 1, 0)}/${entries.length} Page ${page}/${totalPages} SelectedIndex:${this.inventorySelectedIndex ?? "-"} Sort:${preferences.sortMode} Filter:${preferences.filter} Search:${preferences.search || "-"}${this.inventorySearchActive ? " Focus:search" : ""}]`;
   }
 
   private resolveSelectedId(player: PlayerState): PartyMemberId {
@@ -141,7 +141,7 @@ export class PartyOverlayManager {
     const width = this.scene.cameras.main.width;
     const height = this.scene.cameras.main.height;
     const panelWidth = Math.min(620, width - 24);
-    const panelHeight = Math.min(450, height - 24);
+    const panelHeight = Math.min(this.page === "items" ? 494 : 450, height - 24);
     const panelX = Math.floor((width - panelWidth) / 2);
     const panelY = Math.floor((height - panelHeight) / 2);
     const container = createOverlayContainer(
@@ -191,21 +191,25 @@ export class PartyOverlayManager {
     const contentWidth = hasParty ? panelWidth - 188 : panelWidth - 32;
     this.renderTabs(contentX, panelY + 42, contentWidth);
     if (this.page === "status") {
-      this.renderStatusPage(contentX, panelY + 74, contentWidth);
+      this.renderStatusPage(contentX, panelY + 80, contentWidth, panelHeight - 128);
     } else if (this.page === "social") {
       this.renderSocialPage(contentX, panelY + 74, contentWidth);
     } else if (this.page === "items") {
-      this.renderItemsPage(contentX, panelY + 74, contentWidth);
+      this.renderItemsPage(contentX, panelY + 82, contentWidth, panelHeight - 108);
     } else {
       this.renderGambitsPage(contentX, panelY + 74, contentWidth);
     }
-    this.addButton(
+    const closeButton = this.addButton(
       panelX + panelWidth - 70,
       panelY + panelHeight - 30,
       "Close",
       () => this.close(),
       "#ff9999",
+      60,
+      "party-close",
     );
+    closeButton.setY(panelY + 10);
+    syncInteractiveHitArea(closeButton);
   }
 
   private renderMemberList(x: number, y: number, width: number): void {
@@ -220,7 +224,7 @@ export class PartyOverlayManager {
         : activeIndex >= 0
           ? `[${activeIndex + 1}]`
           : "[Reserve]";
-      this.addButton(
+      const memberButton = this.addButton(
         x,
         currentY,
         `${member.id === this.selectedId ? "▶" : " "} ${member.name} ${activeLabel}`,
@@ -234,19 +238,19 @@ export class PartyOverlayManager {
         member.id === this.selectedId ? "#ffd700" : "#b8ddff",
         width,
       );
-      currentY += 30;
+      currentY += memberButton.displayHeight + 6;
       if (companion) {
-        this.addButton(x, currentY, "Up", () => {
+        const up = this.addButton(x, currentY, "Up", () => {
           this.applyMutation(
             moveActiveCompanion(this.player!.party, companion.id, -1),
           );
         }, "#aaaaaa", 42);
-        this.addButton(x + 48, currentY, "Down", () => {
+        const down = this.addButton(x + 48, currentY, "Down", () => {
           this.applyMutation(
             moveActiveCompanion(this.player!.party, companion.id, 1),
           );
         }, "#aaaaaa", 50);
-        this.addButton(x + 104, currentY, activeIndex >= 0 ? "Out" : "In", () => {
+        const active = this.addButton(x + 104, currentY, activeIndex >= 0 ? "Out" : "In", () => {
           this.applyMutation(
             setCompanionActive(
               this.player!.party,
@@ -255,7 +259,7 @@ export class PartyOverlayManager {
             ),
           );
         }, "#aaaaaa", 42);
-        currentY += 28;
+        currentY += Math.max(up.displayHeight, down.displayHeight, active.displayHeight) + 6;
       }
     }
   }
@@ -289,7 +293,7 @@ export class PartyOverlayManager {
     });
   }
 
-  private renderStatusPage(x: number, y: number, width: number): void {
+  private renderStatusPage(x: number, y: number, width: number, height: number): void {
     const member = this.getMember(this.selectedId);
     if (!member) return;
     renderPartyStatus({
@@ -299,6 +303,10 @@ export class PartyOverlayManager {
       targetName: this.getMember(this.targetId)?.name ?? "Hero",
       x,
       y,
+      width,
+      height,
+      page: this.listPage,
+      changePage: (page) => { this.listPage = page; this.render(); },
       addText: (...args) => this.addText(...args),
       addButton: (...args) => this.addButton(...args),
       changed: (message) => this.changed(message),
@@ -341,7 +349,7 @@ export class PartyOverlayManager {
     }, "#bbbbbb", 70);
   }
 
-  private renderItemsPage(x: number, y: number, width: number): void {
+  private renderItemsPage(x: number, y: number, width: number, height: number): void {
     const member = this.getMember(this.selectedId);
     const target = this.getMember(this.targetId);
     if (!member || !target) return;
@@ -350,38 +358,27 @@ export class PartyOverlayManager {
     const selectedPosition = entries.findIndex(
       (entry) => entry.inventoryIndex === this.inventorySelectedIndex,
     );
-    const pageSize = PartyOverlayManager.INVENTORY_PAGE_SIZE;
-    const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
-    const currentPage = selectedPosition < 0
-      ? 0
-      : Math.floor(selectedPosition / pageSize);
-    const visible = entries.slice(
-      currentPage * pageSize,
-      (currentPage + 1) * pageSize,
-    );
     const preferences = inventoryPreferences.get();
-    this.addText(
-      x,
-      y,
-      `${member.name}'s bag  ${entries.length}/${member.state.inventory.length}  Page ${currentPage + 1}/${totalPages}`,
-      "#ffd700",
-      13,
-    );
-    this.addButton(x, y + 22, `Sort:${this.capitalize(preferences.sortMode)}`, () => {
-      this.handleInventoryAction("cycleSort");
-    }, "#b8ddff", 118);
-    this.addButton(x + 124, y + 22, `Filter:${this.capitalize(preferences.filter)}`, () => {
-      this.handleInventoryAction("cycleFilter");
-    }, "#b8ddff", 112);
+    const controls: Array<PartyInventoryContent["controls"][number]> = [
+      {
+        id: "party-inventory-sort", label: `Sort:${this.capitalize(preferences.sortMode)}`, color: "#b8ddff",
+        activate: () => { this.handleInventoryAction("cycleSort"); },
+      },
+      {
+        id: "party-inventory-filter", label: `Filter:${this.capitalize(preferences.filter)}`, color: "#b8ddff",
+        activate: () => { this.handleInventoryAction("cycleFilter"); },
+      },
+    ];
     if (isFeatureAvailable(this.player!, "crafting")) {
-      this.addButton(x + 242, y + 22, "Craft", () => {
-        this.close(); this.callbacks.openCrafting();
-      }, "#f7c948", 66);
+      controls.push({
+        id: "party-inventory-craft", label: "Craft", color: "#f7c948",
+        activate: () => { this.close(); this.callbacks.openCrafting(); },
+      });
     }
     const searchLabel = preferences.search.length > 0
       ? `Search:${this.truncate(preferences.search, 13)}`
       : this.inventorySearchActive ? "Search:typing..." : "Search:/";
-    this.addButton(x, y + 50, searchLabel, () => {
+    const search = (): void => {
       if (
         this.scene.input.activePointer.event instanceof PointerEvent
         && this.scene.input.activePointer.event.pointerType === "touch"
@@ -400,70 +397,63 @@ export class PartyOverlayManager {
         return;
       }
       this.handleInventoryAction("toggleSearch");
-    }, this.inventorySearchActive ? "#ffd700" : "#b8ddff", width - 38);
-    this.addButton(x + width - 32, y + 50, "X", () => {
-      this.handleInventoryAction("clearSearch");
-    }, "#ffaaaa", 32, "party-inventory-clear-search");
-
-    visible.forEach((entry, offset) => {
-      const rowY = y + 80 + offset * 30;
-      const selected = entry.inventoryIndex === this.inventorySelectedIndex;
-      const equipped = isInventoryItemEquipped(member.state, entry.item);
-      const label = `${selected ? ">" : " "} ${this.truncate(entry.item.name, 25)}  ${this.capitalize(entry.rarity)}${equipped ? " [E]" : ""}`;
-      this.addButton(x, rowY, label, () => {
-        this.inventorySelectedIndex = entry.inventoryIndex;
-        this.render();
-      }, selected ? "#ffd700" : "#dddddd", width);
-      this.overlay?.add(createItemVisual(
-        this.scene,
-        entry.item,
-        x + 4,
-        rowY + 1,
-        22,
-      ));
-    });
-
+    };
     const selectedEntry = this.getSelectedInventoryEntry(entries);
-    if (selectedEntry) {
-      const restriction = getItemTransferRestriction(
-        member.state,
-        selectedEntry.item,
-      );
-      this.addText(
-        x,
-        y + 266,
-        `${getItemDescription(selectedEntry.item)} | ${selectedEntry.item.cost}g | ${selectedEntry.item.type}${restriction ? ` | ${restriction}` : ""}`,
-        restriction ? "#ffcc88" : "#bbbbbb",
-        9,
-        width,
-      );
-    } else {
-      this.addText(x, y + 266, "No items match the current view.", "#888888");
-    }
-
-    this.addButton(x, y + 312, "< Page", () => {
-      this.handleInventoryAction("previousPage");
-    }, "#bbbbbb", 58);
-    this.addButton(x + 62, y + 312, "Page >", () => {
-      this.handleInventoryAction("nextPage");
-    }, "#bbbbbb", 58);
-    this.addButton(x + 124, y + 312, this.getPrimaryActionLabel(selectedEntry), () => {
-      this.handleInventoryAction("primaryAction");
-    }, "#aaffaa", 62);
-    this.addButton(x + 190, y + 312, "Transfer", () => {
-      this.handleInventoryAction("transfer");
-    }, "#aaddff", 72);
+    const restriction = selectedEntry ? getItemTransferRestriction(member.state, selectedEntry.item) : "";
+    const actions: Array<PartyInventoryContent["actions"][number]> = [
+      {
+        id: "party-inventory-previous", label: "< Page", color: "#bbbbbb",
+        activate: () => { this.handleInventoryAction("previousPage"); },
+      },
+      {
+        id: "party-inventory-next", label: "Page >", color: "#bbbbbb",
+        activate: () => { this.handleInventoryAction("nextPage"); },
+      },
+      {
+        id: "party-inventory-primary", label: this.getPrimaryActionLabel(selectedEntry), color: "#aaffaa",
+        activate: () => { this.handleInventoryAction("primaryAction"); },
+      },
+      {
+        id: "party-inventory-transfer", label: "Transfer", color: "#aaddff",
+        activate: () => { this.handleInventoryAction("transfer"); },
+      },
+    ];
     const healingSpells = member.state.knownSpells
       .map((spellId) => getSpell(spellId))
       .filter((spell) => spell?.type === "heal");
     if (healingSpells.length > 0) {
-      this.addButton(x + 266, y + 312, "Heal", () => {
-        this.castFirstHealingSpell(member, target);
-      }, "#ccffcc", 54);
+      actions.push({
+        id: "party-inventory-heal", label: "Heal", color: "#ccffcc",
+        activate: () => this.castFirstHealingSpell(member, target),
+      });
     }
-    this.addButton(x + width - 100, y + 312, `To:${this.truncate(target.name, 8)}`, () => {
-      this.handleInventoryAction("nextTarget");
-    }, "#bbbbff", 100);
+    actions.push({
+      id: "party-inventory-target", label: `To:${target.name}`, color: "#bbbbff",
+      activate: () => { this.handleInventoryAction("nextTarget"); },
+    });
+    this.inventoryPages = renderPartyInventory(this.scene, this.overlay!, { x, y, width, height }, {
+      heading: `${member.name}'s bag  ${entries.length}/${member.state.inventory.length}`,
+      controls,
+      search: { id: "party-inventory-search", label: searchLabel, color: this.inventorySearchActive ? "#ffd700" : "#b8ddff", activate: search },
+      clearSearch: () => { this.handleInventoryAction("clearSearch"); },
+      rows: entries.map((entry) => {
+        const selected = entry.inventoryIndex === this.inventorySelectedIndex;
+        const equipped = isInventoryItemEquipped(member.state, entry.item);
+        return {
+          id: `party-inventory-item-${entry.inventoryIndex}`,
+          item: entry.item,
+          label: `${selected ? ">" : " "} ${entry.item.name}  ${this.capitalize(entry.rarity)}${equipped ? " [E]" : ""}`,
+          selected,
+          activate: () => { this.inventorySelectedIndex = entry.inventoryIndex; this.render(); },
+        };
+      }),
+      selectedPosition,
+      detail: selectedEntry
+        ? `${getItemDescription(selectedEntry.item)} | ${selectedEntry.item.cost}g | ${selectedEntry.item.type}${restriction ? ` | ${restriction}` : ""}`
+        : "No items match the current view.",
+      detailColor: restriction ? "#ffcc88" : "#bbbbbb",
+      actions,
+    });
   }
 
   handleInventoryAction(action: InventorySemanticAction): boolean {
@@ -510,13 +500,13 @@ export class PartyOverlayManager {
       return true;
     }
     if (action === "previousPage" || action === "nextPage") {
-      this.inventorySelectedIndex = moveInventorySelection(
-        entries,
-        this.inventorySelectedIndex,
-        action === "previousPage"
-          ? -PartyOverlayManager.INVENTORY_PAGE_SIZE
-          : PartyOverlayManager.INVENTORY_PAGE_SIZE,
-      );
+      const position = entries.findIndex((entry) => entry.inventoryIndex === this.inventorySelectedIndex);
+      const current = Math.max(0, this.inventoryPages.findIndex((indices) => indices.includes(position)));
+      const direction = action === "previousPage" ? -1 : 1;
+      const destination = this.inventoryPages[Math.max(0, Math.min(current + direction, this.inventoryPages.length - 1))];
+      const offset = Math.max(0, this.inventoryPages[current]?.indexOf(position) ?? 0);
+      const targetPosition = destination?.[Math.min(offset, destination.length - 1)];
+      if (targetPosition !== undefined) this.inventorySelectedIndex = entries[targetPosition]?.inventoryIndex ?? null;
       this.render();
       return true;
     }
@@ -1002,7 +992,7 @@ export class PartyOverlayManager {
       fontSize: `${size}px`,
       fontFamily: "monospace",
       color,
-      wordWrap: width ? { width } : undefined,
+      wordWrap: width ? { width, useAdvancedWrap: true } : undefined,
     });
     this.overlay?.add(label);
     return label;
@@ -1024,8 +1014,10 @@ export class PartyOverlayManager {
       backgroundColor: "#29324a",
       padding: { x: 5, y: 4 },
       fixedWidth: width,
+      wordWrap: { width: width - 12, useAdvancedWrap: true },
       align: "center",
     }).setInteractive({ useHandCursor: true });
+    syncInteractiveHitArea(button);
     if (layoutId) button.setData("layoutId", layoutId);
     button.on("pointerover", () => button.setColor("#ffd700"));
     button.on("pointerout", () => button.setColor(color));

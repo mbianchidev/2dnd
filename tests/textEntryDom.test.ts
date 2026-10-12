@@ -70,6 +70,28 @@ describe("shared text-entry surface", () => {
     expect(document.getElementById("mobile-text-input")).toBeNull();
   });
 
+  it("keeps the first physical character when switching from a controller key to typing", () => {
+    inputSource.set("gamepad");
+    openMobileTextInput("Mock name", "Initial", 20, vi.fn());
+    handleTextEntryAction("navigateRight");
+    const selected = document.querySelector<HTMLButtonElement>("#controller-keyboard [data-selected=true]");
+    const input = document.querySelector<HTMLInputElement>("#mobile-text-input input");
+    if (!selected || !input) throw new Error("Missing controller-to-keyboard fixture");
+    selected.dispatchEvent(new KeyboardEvent("keydown", { key: "w", code: "KeyW", bubbles: true }));
+    expect(input.value).toBe("w");
+    expect(document.activeElement).toBe(input);
+    expect(document.querySelector<HTMLElement>("#controller-keyboard")!.hidden).toBe(true);
+  });
+
+  it("uses icon hints with descriptive accessible button positions", () => {
+    inputSource.set("gamepad");
+    openMobileTextInput("Mock icons", "", 20, vi.fn());
+    const hint = document.querySelector("#controller-keyboard p");
+    expect(hint?.textContent).toContain("↑ ↓ ← →");
+    expect(hint?.textContent).not.toMatch(/\b(north|west|south|east)\b/i);
+    expect(hint?.getAttribute("aria-label")).toContain("Bottom face button");
+  });
+
   it("updates accessibility live without adding campaign data", () => {
     inputSource.set("gamepad");
     localStorage.setItem("2dnd_save", "untouched mock campaign");

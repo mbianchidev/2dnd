@@ -1,5 +1,6 @@
 import {
   getBoat,
+  getBoatUpgrade,
   isBoatId,
   isBoatCosmeticId,
   isBoatUpgradeId,
@@ -13,6 +14,13 @@ import { findBoat, type BoatState, type NauticalState } from "./nauticalState";
 
 export interface NauticalWallet {
   gold: number;
+}
+
+export function getBoatConditionLossMultiplier(boat: BoatState): number {
+  return boat.upgradeIds.reduce(
+    (multiplier, id) => multiplier * getBoatUpgrade(id).conditionLossMultiplier,
+    1,
+  );
 }
 
 export function acquireBoat(

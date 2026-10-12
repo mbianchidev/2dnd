@@ -83,10 +83,14 @@ unknown until that physical type has been observed at that exact scope.
 Discovering a head's piercing weakness does not reveal whole-body piercing
 resistance or another monster's anatomy knowledge.
 
-Schema v22 adds `CodexEntry.discoveredPhysical` with stable damage-type and
+Schema v23 adds `CodexEntry.discoveredPhysical` with stable damage-type and
 optional part IDs. Duplicate, unknown, neutral and impossible observations are
 removed during normalization. Pre-v22 saves gain an empty observation list
-without invented combat history. The Codex's Info pages keep long defenses and
+without invented combat history. Shipped schema-v22 activity campaigns missing
+physical observations gain empty lists, while valid v22 physical-combat previews
+retain their records. Both retain exact minigame challenges, pending/settled
+authority, resource receipts and custom equipment when migrating to v23.
+The Codex's Info pages keep long defenses and
 part lists readable; Page Up/Down or the visible Info controls change pages.
 First records still require a defeat; a known record can retain new observations
 after fleeing. The existing scouting Tip explains physical and elemental types.
@@ -96,6 +100,8 @@ their exact serialized metadata and equipment links; resolution falls back to
 the canonical item or, for a custom weapon, its procedural weapon shape.
 Part selection and enemy limb effects are runtime-only. Battle cleanup clears
 the picker, reticle, listeners, native controls and normal status effects.
+The picker uses shared deferred overlay reflow so source, preference and resize
+updates cannot replace a held pointer target or reach a disposed panel.
 
 ## Ownership and coverage
 

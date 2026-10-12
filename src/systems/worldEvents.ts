@@ -44,10 +44,12 @@ import {
 import {
   consumeSocialAchievementHooks,
   consumeWorldEventDebugFlag,
+  isWorldEventMarkedDebug,
   reconcileAchievements,
   recordAchievementEvent,
 } from "./achievements";
 import { discoverCraftingRecipes } from "./crafting";
+import { discoverMinigameVenue } from "./minigameVenues";
 import { recordDevotionWorldEventOutcome, type DevotionMutationResult } from "./devotion";
 
 export const WORLD_EVENT_LOG_LIMIT = 40;
@@ -533,6 +535,11 @@ function completeOutcome(
   }
 
   const questUpdates: QuestUpdate[] = [];
+  if (!isWorldEventMarkedDebug(player, pending.instanceId)) {
+    for (const venueId of outcome.discoverMinigameVenueIds ?? []) {
+      discoverMinigameVenue(player.progression.minigames, venueId);
+    }
+  }
   if (outcome.startQuestId) {
     const questResult = startQuestById(
       player,

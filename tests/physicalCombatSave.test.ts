@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PhysicalDamageType } from "../src/data/damageTypes";
 import { getMonster } from "../src/data/monsters";
 import { getItem } from "../src/data/items";
@@ -14,6 +14,10 @@ import {
   createCurrentSaveData, deleteSave, loadGame, normalizeSaveData, saveGame, SAVE_VERSION,
 } from "../src/systems/save";
 import { isSerializedHeroItem, heroItemsMatch } from "../src/systems/heroItemState";
+import { applyMinigameAction, startMinigame } from "../src/systems/minigames";
+import { prepareHeroLevelUp } from "../src/systems/classProgression";
+import { awardXP, xpForLevel } from "../src/systems/player";
+import { playerAt, requestFor, startRequest } from "./helpers/minigames";
 
 const { Bludgeoning, Slashing, Piercing } = PhysicalDamageType;
 
@@ -29,6 +33,7 @@ function createFixture() {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   deleteSave();
   localStorage.clear();
 });
@@ -74,7 +79,53 @@ describe("physical defense discovery", () => {
   });
 });
 
-describe("schema-v22 physical combat compatibility", () => {
+describe("schema-v23 physical combat compatibility", () => {
+  it.each([false, true])(
+    "migrates v22 activity saves while retaining physical-preview observations: %s",
+    (hasPhysicalPreview) => {
+      const player = playerAt("willowdaleRange");
+      const monster = getMonster("skeleton")!;
+      const codex = createCodex();
+      recordDefeat(codex, monster, true, ["ether"]);
+      if (hasPhysicalPreview) discoverPhysical(codex, monster, {
+        damageType: Piercing, bodyPartId: "head",
+      });
+      const custom = {
+        ...getItem("startSword")!, id: "mockIntegratedWeapon",
+        physicalDamageType: Bludgeoning, effect: 2.5,
+      };
+      player.inventory.push(custom);
+      player.equippedWeapon = custom;
+      awardXP(player, xpForLevel(2));
+      expect(prepareHeroLevelUp(player, () => 0.5).ok).toBe(true);
+      expect(startMinigame(player, startRequest(player, "willowdaleRange")).ok).toBe(true);
+      applyMinigameAction(player, requestFor(player, { type: "aimTo", aim: 40 }));
+      applyMinigameAction(player, requestFor(player, { type: "fire" }));
+      const raw = createCurrentSaveData(player, new Set(["troll"]), codex, player.appearanceId, 45);
+      raw.version = 22;
+      if (!hasPhysicalPreview) {
+        Reflect.deleteProperty(raw.codex.entries[monster.id]!, "discoveredPhysical");
+      }
+      const before = structuredClone(player);
+      const random = vi.spyOn(Math, "random");
+      random.mockClear();
+      const migrated = normalizeSaveData(structuredClone(raw))!;
+      expect(migrated.version).toBe(23);
+      expect(migrated.player.progression.minigames).toEqual(before.progression.minigames);
+      expect(migrated.player.gold).toBe(before.gold);
+      expect(migrated.player.classProgression).toEqual(before.classProgression);
+      expect(migrated.player.progression.quests).toEqual(before.progression.quests);
+      expect(migrated.player.inventory).toEqual(before.inventory);
+      expect(migrated.player.equippedWeapon)
+        .toBe(migrated.player.inventory.find((item) => item.id === custom.id));
+      expect(migrated.codex.entries[monster.id]!.discoveredPhysical).toEqual(
+        hasPhysicalPreview ? [{ damageType: Piercing, bodyPartId: "head" }] : [],
+      );
+      expect(migrated.defeatedBosses).toEqual(["troll"]);
+      expect(random).not.toHaveBeenCalled();
+    },
+  );
+
   it("round-trips observations and typed custom weapons while keeping exact equipment ownership", () => {
     const { player, monster, codex } = createFixture();
     const custom = {
@@ -87,7 +138,7 @@ describe("schema-v22 physical combat compatibility", () => {
     expect(saveGame(player, new Set(), codex, player.appearanceId).ok).toBe(true);
     const saved = loadGame();
     expect(saved?.version).toBe(SAVE_VERSION);
-    expect(saved?.version).toBe(22);
+    expect(saved?.version).toBe(23);
     expect(saved?.codex.entries[monster.id]!.discoveredPhysical).toEqual([{ damageType: Bludgeoning }]);
     const restored = saved!.player.inventory.find((item) => item.id === custom.id)!;
     expect(restored).toEqual(custom);
@@ -104,7 +155,7 @@ describe("schema-v22 physical combat compatibility", () => {
     raw.version = 21;
     raw.codex.entries[monster.id]!.discoveredPhysical = [{ damageType: Bludgeoning }];
     const migrated = normalizeSaveData(structuredClone(raw))!;
-    expect(migrated.version).toBe(22);
+    expect(migrated.version).toBe(23);
     expect(migrated.codex.entries[monster.id]!.discoveredPhysical).toEqual([]);
     expect(migrated.codex.entries[monster.id]!.timesDefeated).toBe(1);
     expect(migrated.codex.entries[monster.id]!.itemsDropped).toEqual(["ether"]);

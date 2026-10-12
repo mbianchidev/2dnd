@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SAVE_SLOT_KEY_DEBOUNCE_MS } from "../src/systems/saveSlots";
 import { SAVE_VERSION } from "../src/systems/save";
+import { clickLayoutItem, pressPointerAt, waitForGameInputFrame } from "../e2e/helpers/layout";
 import {
   APP_ROOT,
   closeDesktop,
@@ -40,9 +41,7 @@ async function gamePoint(
 ): Promise<{ x: number; y: number }> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toBeVisible();
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  }));
+  await waitForGameInputFrame(page);
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Desktop game canvas has no rendered bounds");
   return {
@@ -57,17 +56,21 @@ async function clickGame(
   gameY: number,
   activation: "held" | "terminal" = "held",
 ): Promise<void> {
+  const initial = await gamePoint(page, gameX, gameY);
+  await page.mouse.move(initial.x, initial.y);
+  await waitForGameInputFrame(page);
   const point = await gamePoint(page, gameX, gameY);
-  await page.mouse.move(point.x, point.y);
-  await page.mouse.down();
+  await pressPointerAt(page, point.x, point.y);
   if (activation === "terminal") {
     return;
   }
-  await page.waitForTimeout(180);
-  await page.mouse.up();
-  await page.evaluate(() => new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-  ));
+  try {
+    await page.waitForTimeout(180);
+    await waitForGameInputFrame(page);
+  } finally {
+    await page.mouse.up();
+  }
+  await waitForGameInputFrame(page);
 }
 
 async function activateTitleAction(
@@ -149,18 +152,19 @@ async function returnToTitle(page: Page): Promise<void> {
 async function createDesktopSave(page: Page): Promise<DesktopSaveSummary> {
   await activateTitleAction(page, "newGame");
   await waitForState(page, "BOOT | Screen: character");
-  await clickGame(page, 320, 76);
+  await clickLayoutItem(page, "creation-name");
   const nameInput = page.locator("#mobile-text-input input");
   await expect(nameInput).toBeVisible();
   await nameInput.fill("Desktop Hero");
   await nameInput.press("Enter");
   await expect(nameInput).not.toBeVisible();
-  await clickGame(page, 284, 160);
+  await waitForState(page, "BOOT | Screen: character");
+  await clickLayoutItem(page, "creation-class-ranger");
   await waitForState(page, "[CLASS:ranger]");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: stats");
   await waitForState(page, "[MODE:pointbuy]");
-  await clickGame(page, 390, 64);
+  await clickLayoutItem(page, "creation-stat-mode-random");
   await waitForState(page, "[MODE:random]");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: appearance");
@@ -227,6 +231,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
   try {
     desktop = await launchDesktop(userDataDirectory);
     let page = await desktop.firstWindow();
+    await resizeDesktop(desktop);
     const rendererErrors = monitorRendererErrors(page);
 
     await expect(page).toHaveTitle(/2D&D/);
@@ -245,6 +250,10 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(desktopState?.isFullscreen).toBe(false);
     logPath = desktopState?.logPath ?? "";
     expect(logPath).toBe(join(userDataDirectory, "logs", "2dnd.log"));
+    await waitForState(page, "BOOT | Screen: title");
+    const originalViewport = await page.evaluate(() => ({
+      width: innerWidth, height: innerHeight,
+    }));
 
     await page.locator("#desktop-fullscreen").click();
     await expect.poll(() => page.evaluate(
@@ -257,7 +266,9 @@ test("secure desktop shell persists a campaign across launches", async () => {
     await expect.poll(() => page.evaluate(
       () => window.desktop?.getState().then((state) => state.isFullscreen),
     )).toBe(false);
-    await resizeDesktop(desktop);
+    await resizeDesktop(desktop, originalViewport.width, originalViewport.height);
+    await page.bringToFront();
+    await waitForGameInputFrame(page);
 
     const saved = await createDesktopSave(page);
     await prepareSaveForOverworld(page);
@@ -267,6 +278,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
 
     desktop = await launchDesktop(userDataDirectory);
     page = await desktop.firstWindow();
+    await resizeDesktop(desktop);
     const relaunchedRendererErrors = monitorRendererErrors(page);
     await expect(page.locator("#desktop-fullscreen")).toBeVisible();
     const loaded = await page.evaluate((key) => {
@@ -402,6 +414,7 @@ test("secure desktop shell persists a campaign across launches", async () => {
 
     desktop = await launchDesktop(userDataDirectory);
     page = await desktop.firstWindow();
+    await resizeDesktop(desktop);
     const recoveredRendererErrors = monitorRendererErrors(page);
     await waitForState(page, "BOOT | Screen: title");
     await activateTitleAction(page, "saveSlots");

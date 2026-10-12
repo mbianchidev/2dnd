@@ -7,6 +7,9 @@ import {
 } from "../systems/player";
 import { getActorStartingClass, getProgressionDisplayName, getProgressionTracks } from "../systems/classProgression";
 import { getPlayerClass } from "../systems/classes";
+import { layoutResponsiveGrid, paginateMeasuredItems } from "../systems/layout";
+import { getScaledBounds, syncInteractiveHitArea } from "../managers/layout";
+import type * as Phaser from "phaser";
 
 const STAT_LABELS: Array<{ key: keyof PlayerStats; label: string }> = [
   { key: "strength", label: "STR" },
@@ -24,6 +27,10 @@ export interface PartyStatusRenderOptions {
   targetName: string;
   x: number;
   y: number;
+  width: number;
+  height: number;
+  page: number;
+  changePage(page: number): void;
   addText(
     x: number,
     y: number,
@@ -31,7 +38,7 @@ export interface PartyStatusRenderOptions {
     color?: string,
     fontSize?: number,
     width?: number,
-  ): void;
+  ): Phaser.GameObjects.Text;
   addButton(
     x: number,
     y: number,
@@ -39,7 +46,7 @@ export interface PartyStatusRenderOptions {
     onClick: () => void,
     color?: string,
     width?: number,
-  ): void;
+  ): Phaser.GameObjects.Text;
   changed(message: string): void;
   nextTarget(): void;
   openProgression?(): void;
@@ -52,64 +59,100 @@ export function renderPartyStatus(options: PartyStatusRenderOptions): void {
     companion,
     targetName,
     x,
-    y,
+    y, width, height,
     addText,
     addButton,
     changed,
     nextTarget,
   } = options;
-  let currentY = y;
-  addText(x, currentY, `${memberName} Lv.${state.level}`, "#ffd700", 14);
-  currentY += 24;
+  const rows: Phaser.GameObjects.Text[][] = [];
+  const line = (value: string, color = "#dddddd", size = 11): void => {
+    rows.push([addText(x, y, value, color, size, width)]);
+  };
+  line(`${memberName} Lv.${state.level}`, "#ffd700", 14);
   const tracks = getProgressionTracks(state);
   const classLabel = tracks.length <= 2 ? getProgressionDisplayName(state)
     : `${getPlayerClass(getActorStartingClass(state)).label}; ${tracks.length} classes`;
-  addText(x, currentY, classLabel, "#b8ddff", 11, 310);
-  currentY += 26;
+  line(classLabel, "#b8ddff");
   if (!companion && options.openProgression) {
-    addButton(x, currentY, "Class progression", options.openProgression, "#aaffcc", 180);
-    currentY += 34;
+    rows.push([addButton(x, y, "Class progression", options.openProgression, "#aaffcc", Math.min(width, 180))]);
   }
-  addText(
-    x,
-    currentY,
-    `HP ${state.hp}/${state.maxHp}  MP ${state.mp}/${state.maxMp}  AC ${getArmorClass(state)}`,
-  );
-  currentY += 22;
-  addText(x, currentY, `XP ${state.xp}  Pending levels ${state.pendingLevelUps}`);
-  currentY += 24;
+  line(`HP ${state.hp}/${state.maxHp}  MP ${state.mp}/${state.maxMp}  AC ${getArmorClass(state)}`);
+  line(`XP ${state.xp}  Pending levels ${state.pendingLevelUps}`);
   if (companion) {
-    addButton(x, currentY, `Control: ${companion.controlMode}`, () => {
+    rows.push([addButton(x, y, `Control: ${companion.controlMode}`, () => {
       companion.controlMode = companion.controlMode === "manual"
         ? "gambit"
         : "manual";
       changed("Companion control updated.");
-    }, "#aaffaa", 180);
-    currentY += 34;
+    }, "#aaffaa", Math.min(width, 180))]);
   }
-  addText(x, currentY, "Stats", "#c0a060");
-  currentY += 20;
-  STAT_LABELS.forEach(({ key, label }, index) => {
-    const column = index % 3;
-    const row = Math.floor(index / 3);
-    addText(x + column * 105, currentY + row * 26, `${label} ${state.stats[key]}`);
+  line("Stats", "#c0a060");
+  const statCells = STAT_LABELS.map(({ key, label }) => {
+    const value = addText(x, y, `${label} ${state.stats[key]}`, "#dddddd", 11);
+    value.setData("layoutId", `party-stat-${key}`);
+    const cell = [value];
     if (state.pendingStatPoints > 0) {
-      addButton(x + column * 105 + 62, currentY + row * 26 - 3, "+", () => {
+      const plus = addButton(x, y, "+", () => {
         if (allocateStatPoint(state, key)) changed(`${label} increased.`);
       }, "#88ff88", 26);
+      plus.setData("layoutId", `party-stat-${key}-increase`);
+      cell.push(plus);
     }
+    return cell;
   });
-  currentY += 64;
-  addText(x, currentY, "Equipment", "#c0a060");
-  currentY += 20;
+  const cellWidth = Math.max(...statCells.map((cell) =>
+    cell.reduce((sum, label) => sum + label.displayWidth, 0) + 8
+  ));
+  const grid = layoutResponsiveGrid({
+    availableWidth: width, minColumnWidth: cellWidth, columnGap: 8,
+    rowGap: 6, maxColumns: 3, itemHeights: statCells.map((cell) => Math.max(...cell.map((label) => label.displayHeight))),
+  });
+  for (let index = 0; index < grid.rows; index += 1) rows.push(statCells.slice(index * grid.columns, (index + 1) * grid.columns).flat());
+  line("Equipment", "#c0a060");
   for (const label of [
     state.equippedWeapon?.name ?? "Bare Hands",
     state.equippedArmor?.name ?? "No Armor",
     state.equippedShield?.name ?? "No Shield",
   ]) {
-    addText(x + 8, currentY, label);
-    currentY += 18;
+    line(label);
   }
-  addText(x, currentY + 8, `Target: ${targetName}`, "#c0a060");
-  addButton(x + 210, currentY + 3, "Next Target", nextTarget, "#bbbbff", 110);
+  line(`Target: ${targetName}`, "#c0a060");
+  rows.push([addButton(x, y, "Next Target", nextTarget, "#bbbbff", 110)]);
+  rows.forEach((row) => row.forEach((label) => {
+    if (label.style.fixedWidth > 0) {
+      label.setWordWrapWidth(label.style.fixedWidth - 12, true).setFixedSize(label.style.fixedWidth, 0);
+    }
+  }));
+  const rowHeights = rows.map((row) => Math.max(...row.map((label) => label.displayHeight)));
+  let pages = paginateMeasuredItems(rowHeights, height, 6);
+  if (pages.length > 1) pages = paginateMeasuredItems(rowHeights, height - 38, 6);
+  const page = Math.max(0, Math.min(options.page, Math.max(0, pages.length - 1)));
+  const visible = new Set(pages[page] ?? []);
+  let cursor = y;
+  rows.forEach((row, index) => {
+    row.forEach((label) => {
+      label.setVisible(visible.has(index)).setActive(visible.has(index));
+      if (label.input) label.input.enabled = visible.has(index);
+    });
+    if (!visible.has(index)) return;
+    let left = x;
+    row.forEach((label, cellIndex) => {
+      const bounds = getScaledBounds(label);
+      const column = row.length > 1 ? Math.floor(cellIndex / (state.pendingStatPoints > 0 ? 2 : 1)) : 0;
+      if (row.length > 1 && cellIndex % (state.pendingStatPoints > 0 ? 2 : 1) === 0) left = x + column * (grid.cells[0]!.width + 8);
+      label.setPosition(label.x + left - bounds.x, label.y + cursor - bounds.y);
+      left += label.displayWidth + 6;
+      syncInteractiveHitArea(label);
+    });
+    cursor += rowHeights[index]! + 6;
+  });
+  if (pages.length > 1) {
+    addButton(x, y + height - 28, `‹ ${page + 1}/${pages.length}`, () =>
+      options.changePage((page - 1 + pages.length) % pages.length), "#b8ddff", 78)
+      .setData("layoutId", "party-status-page-previous");
+    addButton(x + width - 90, y + height - 28, "Next ›", () =>
+      options.changePage((page + 1) % pages.length), "#b8ddff", 90)
+      .setData("layoutId", "party-status-page-next");
+  }
 }

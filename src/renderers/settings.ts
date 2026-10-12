@@ -290,8 +290,9 @@ export function addSettingsControls(
     color: "#ffffff",
     fontStyle: "bold",
   });
+  const nativeDesktop = window.desktop !== undefined;
   const compactWidth = Math.floor((contentWidth - 16) / 3);
-  const touch = createControl(
+  const mobileControls = nativeDesktop ? [] : [createControl(
     scene,
     "settings-touch-controls",
     contentX + compactWidth / 2,
@@ -299,8 +300,7 @@ export function addSettingsControls(
     compactWidth,
     () => `Touch\n${gamePreferences.getControls().touchControls}`,
     () => gamePreferences.cycleTouchControls(),
-  );
-  const handedness = createControl(
+  ), createControl(
     scene,
     "settings-handedness",
     contentX + compactWidth + 8 + compactWidth / 2,
@@ -310,15 +310,23 @@ export function addSettingsControls(
     () => gamePreferences.setControlHandedness(
       gamePreferences.getControls().handedness === "right" ? "left" : "right",
     ),
-  );
+  )];
   const prompts = createControl(
     scene,
     "settings-prompts",
-    contentX + (compactWidth + 8) * 2 + compactWidth / 2,
+    nativeDesktop ? centerX : contentX + (compactWidth + 8) * 2 + compactWidth / 2,
     py + 354,
-    compactWidth,
-    () => `Prompts\n${gamePreferences.getControls().promptSource}`,
-    () => gamePreferences.cyclePromptSource(),
+    nativeDesktop ? contentWidth : compactWidth,
+    () => {
+      const preference = gamePreferences.getControls().promptSource;
+      return `Prompts\n${nativeDesktop && preference === "touch" ? "pointer" : preference}`;
+    },
+    () => {
+      gamePreferences.cyclePromptSource();
+      if (nativeDesktop && gamePreferences.getControls().promptSource === "touch") {
+        gamePreferences.cyclePromptSource();
+      }
+    },
   );
   const controlsToUpdate = [
     mute,
@@ -326,8 +334,7 @@ export function addSettingsControls(
     contrast,
     motion,
     advance,
-    touch,
-    handedness,
+    ...mobileControls,
     prompts,
     diceFrequency,
     diceSpeed,
@@ -352,8 +359,7 @@ export function addSettingsControls(
     motion.text,
     advance.text,
     controlsTitle,
-    touch.text,
-    handedness.text,
+    ...mobileControls.map((control) => control.text),
     prompts.text,
     mappingNote,
     diceFrequency.text,
@@ -367,8 +373,7 @@ export function addSettingsControls(
     motion.text,
     advance.text,
     controlsTitle,
-    touch.text,
-    handedness.text,
+    ...mobileControls.map((control) => control.text),
     prompts.text,
     mappingNote,
     diceFrequency.text,

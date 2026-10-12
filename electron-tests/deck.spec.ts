@@ -318,6 +318,22 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
       contentType: "application/json",
       path: metricsPath,
     });
+    if (after.nodes !== before.nodes) {
+      const domPath = test.info().outputPath("cleanup-dom.html");
+      await writeFile(domPath, await page.content());
+      await test.info().attach("cleanup-dom.html", { path: domPath, contentType: "text/html" });
+      const chunks: string[] = [];
+      const collectChunk = (event: { chunk: string }): void => { chunks.push(event.chunk); };
+      cdp.on("HeapProfiler.addHeapSnapshotChunk", collectChunk);
+      try {
+        await cdp.send("HeapProfiler.takeHeapSnapshot");
+      } finally {
+        cdp.off("HeapProfiler.addHeapSnapshotChunk", collectChunk);
+      }
+      const heapPath = test.info().outputPath("cleanup.heapsnapshot");
+      await writeFile(heapPath, chunks.join(""));
+      await test.info().attach("cleanup.heapsnapshot", { path: heapPath, contentType: "application/json" });
+    }
     expect(after.jsEventListeners).toBe(before.jsEventListeners);
     expect(after.nodes).toBe(before.nodes);
     await cdp.detach();

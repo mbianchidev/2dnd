@@ -1,3 +1,5 @@
+import { FACE_BUTTON_ICONS } from "../systems/input";
+
 export type TutorialStepId =
   | "welcome"
   | "interface"
@@ -97,7 +99,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Interact / confirm",
     keyboard: "Space",
     pointer: "Select the highlighted action",
-    gamepad: "A / X",
+    gamepad: `${FACE_BUTTON_ICONS.down} / ${FACE_BUTTON_ICONS.left}`,
     touch: "A or tap the prompt",
   },
   menu: {
@@ -105,7 +107,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Open / close menu",
     keyboard: "Esc",
     pointer: "Use menu buttons",
-    gamepad: "Menu / Y",
+    gamepad: `Menu / ${FACE_BUTTON_ICONS.up}`,
     touch: "MENU",
   },
   tips: {
@@ -177,7 +179,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Party management",
     keyboard: "P",
     pointer: "Party controls",
-    gamepad: "PARTY / menu",
+    gamepad: "Menu, then Party",
     touch: "PARTY",
   },
   mount: {
@@ -201,7 +203,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Confirm target",
     keyboard: "Enter / Space",
     pointer: "Select the target",
-    gamepad: "A",
+    gamepad: FACE_BUTTON_ICONS.down,
     touch: "A or tap",
   },
   battleCancel: {
@@ -209,7 +211,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Cancel targeting",
     keyboard: "Esc",
     pointer: "Choose another action",
-    gamepad: "B",
+    gamepad: FACE_BUTTON_ICONS.right,
     touch: "B",
   },
 };
@@ -270,6 +272,32 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
 
 export const TIPS: readonly TipDefinition[] = [
   {
+    id: "exploration.minigames", category: "exploration",
+    title: "Tavern and festival games",
+    body: "Use marked city venues for Crown & Bones, class-neutral archery, and Harbor Regatta. The Esc menu keeps instructions and personal records. Stakes are capped in-game gold only; abandoning forfeits the entry, and reloading resumes the same challenge. Archery and regatta offer free practice with no rewards.",
+    controls: ["interact", "move", "menu"],
+    unlock: { type: "feature", featureId: "minigames" },
+  },
+  {
+    id: "advanced.devotion", category: "advanced",
+    title: "A freely chosen thread",
+    body: "Approach a marked Unfinished Constellation site to browse three original fictional figures, remain unaffiliated, or take an optional rite. Confirming a switch or renunciation resets devotion to 0 and clears the temple blessing. Completed sources stay consumed and never award devotion again. Alignment, reputation and the campaign are unchanged. Every visitor gets the same small blessing through normal combat turns. The Esc menu opens Devotion after the first visit.",
+    controls: ["interact", "menu"],
+    unlock: { type: "feature", featureId: "devotionProfile" },
+  },
+  {
+    id: "advanced.prestige",
+    category: "advanced",
+    title: "Optional prestige paths",
+    body: "At applied total level 6, the character sheet lists six optional five-rank paths."
+      + " Meet class, score and world entry conditions, then spend one rested level per rank."
+      + " Preview the full table and the base features you delay. All ranks share total cap 20,"
+      + " MP, proficiency, ASIs and action economy. Later social changes never remove earned ranks."
+      + " No affiliation or prestige path is required to finish the campaign.",
+    controls: ["equipment"],
+    unlock: { type: "feature", featureId: "prestige" },
+  },
+  {
     id: "controls.context",
     category: "controls",
     title: "Context actions",
@@ -318,8 +346,8 @@ export const TIPS: readonly TipDefinition[] = [
   {
     id: "combat.elements",
     category: "combat",
-    title: "Elemental scouting",
-    body: "Weaknesses double damage, resistances halve it, and immunities prevent it. Observed interactions are recorded in the Codex.",
+    title: "Physical and elemental scouting",
+    body: "Weapons deal Bludgeoning, Slashing or Piercing. Weaknesses double damage, resistances halve it, and immunity prevents it. Armor adds matching physical resistance independently of AC; check its gear description. While selecting a physical target, Aim parts or Up/Down opens eligible humanoid/Large+ parts with shared HP, accuracy tradeoffs and temporary effects. Confirm still attacks the whole target. Observations enter the Codex; pure magic keeps its own elements.",
     unlock: { type: "level", minimum: 2 },
   },
   {

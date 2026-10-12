@@ -17,10 +17,12 @@ export default defineConfig(({ mode }) => {
       outDir: "dist",
       sourcemap: !isDesktopBuild,
       rollupOptions: {
-        input: {
-          landing: resolve(import.meta.dirname, "index.html"),
-          game: resolve(import.meta.dirname, "game.html"),
-        },
+        input: isDesktopBuild
+          ? { game: resolve(import.meta.dirname, "game.html") }
+          : {
+            landing: resolve(import.meta.dirname, "index.html"),
+            game: resolve(import.meta.dirname, "game.html"),
+          },
       },
     },
     server: {

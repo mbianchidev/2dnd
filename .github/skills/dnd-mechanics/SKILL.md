@@ -47,8 +47,23 @@ Character creation supports:
 | Monk | DEX +2, WIS +1 | DEX |
 | Bard | CHA +2, DEX +1 | CHA |
 
-The class `primaryStat` is used for attack/to-hit calculations where the
-specific action does not override the stat.
+Spells resolve the highest eligible source ability score, with stable
+starting-class/registry-order ties; appearance is not progression authority.
+Abilities use their explicit stat key. Main weapon attacks retain STR/finesse
+rules; the compatible off-hand fallback uses the fixed starting primary stat.
+
+Hero multiclass rules live in `src/data/classProgression.ts` and
+`src/systems/classProgression.ts`; normalization is in `classProgressionState.ts`.
+Keep normal total level at 20, creation one-class and companions single-class.
+Check starting/new-class prerequisites only on entry, never when preserving
+earned ranks. Starting boosts/equipment/gold are not multiclass grants.
+Use frozen rest receipts, read-only previews and expected-level commits;
+preserve rest-ready queues across reload without authorizing later XP.
+Shared feature IDs and resource bonuses apply once. See
+[`docs/hero-progression.md`](../../../docs/hero-progression.md).
+Only explicit `progressionScope: "totalLevel"` talents enter generic scans.
+Track-only/unscoped talents require owning-profile grants, including HP/MP
+bonuses; companion creation must use the same common-talent predicate.
 
 ## Non-combat ability checks
 
@@ -104,6 +119,50 @@ resistance, weakness, and immunity resolve independently per target.
 Healing target scopes are explicit: self, one ally, all allies, or the whole
 party. A single-ally action falls back to self when no ally is present.
 
+Capture exact immutable `ResolvedD20Roll` evidence at canonical resolution.
+Presentation shows both naturals and the selected die without rerolling,
+recalculating outcomes, or changing RNG order. Enemy bonuses/totals and unknown
+AC/DC remain redacted; natural 1/20 checks/saves retain canonical outcomes.
+Damage/healing stay aggregate when exact component rolls are unavailable.
+`ResolvedEffectRoll` captures the actual canonical dice pool and signed named
+modifiers, recorded adjustment stages, resolved amount and separate applied HP
+delta. Preserve finite fractional legacy effects, RNG sequence, source stats,
+status-before-physical-before-element order, MP/items/economy and hook timing. Real critical
+damage doubles only its existing pool; spell natural-20 flags do not imply new
+damage dice. Area/healing pools remain shared with independent target limits.
+Status ticks show their pools plus the one applied aggregate HP write.
+No fabricated on-hit save, breath-attack d20, fixed-item or life-drain heal die.
+Ordinary roll displays may be Off, but canonical attack critical/fumble outcomes
+always show. Respect the selected natural, never a discarded20/1; keep checks,
+saves and initiative unreclassified. Instant/reduced motion stays static.
+
+## Physical damage and anatomy
+
+Body armor applies its type-specific resistance after status/synergy damage and
+before the actual HP write. Keep AC independent, use live equipped armor for
+heroes/companions, and resolve old canonical copies without replacing them.
+Basic monster attacks declare a physical type; physical abilities may override
+it, including an explicit physical component on elemental strikes.
+Elemental-only abilities and healing bypass this protection. Shield defense
+then adjusts final damage using pre-hit HP, never adding back capped overkill.
+Preserve exact dice faces, selected naturals, resource use and redacted receipts.
+
+Use `data/damageTypes.ts` for Bludgeoning/Slashing/Piercing and common affinity
+precedence; explicit `data/anatomy.ts` sizes/parts; `data/itemCombat.ts` for
+canonical/legacy weapon typing. `systems/physicalCombat.ts` integrates at the
+existing attack/off-hand/ability resolver and `battleActions.ts` validation.
+Damage order is status modifiers, physical profile/local override, elements,
+then the owning HP write. Never double-stack whole/part physical weakness or
+bypass whole-body immunity; pure magic stays elemental-only.
+
+Humanoid forms can be aimed at any size, other stable anatomies only at Large+.
+Parts share HP and existing status effects. Preserve optional whole-target
+Confirm, selected natural 1/20/disadvantage, formation/weather/defend, one main
+and one bonus action, and exact RNG/receipts. Apply limb effects only on positive
+final damage, for at most two target turns; saves may end them sooner.
+Persist only observed scope/type IDs in Codex schema v23, not limb HP or
+selection. See `docs/physical-combat.md`.
+
 ## Elements
 
 `src/data/elements.ts` defines:
@@ -157,6 +216,8 @@ Buffs:
 - Inspired: increased accuracy and damage
 - Raging: increased damage
 - Sneak Stance: increased AC
+- Traveling Thread: the same optional +1 AC for three hero turns for every
+  fictional affiliation and unaffiliated temple visitor
 
 Lifecycle for each actor:
 
@@ -178,6 +239,9 @@ matching effects. Combat effects are cleared when leaving Battle.
   farmed by stepping away or reloading.
 - Successful disarming awards XP through `awardXP()`.
 - Trigger damage and MP loss apply immediately and cannot reduce HP below 1.
+  Declared physical trap damage first applies the current armor profile through
+  the same physical modifier and receipt capture; magical damage and MP loss
+  bypass it.
   Trap-applied statuses seed the next battle and then follow the existing
   combat-turn lifecycle.
 - Alarm traps replace the normal encounter roll with a forced dungeon
@@ -247,9 +311,20 @@ victory/flee/defeat autosave, so result-delay reload cannot resurrect statuses.
 ## Leveling
 
 - Proficiency increases at levels 5, 9, 13, and 17.
-- Ability score improvements occur at levels 4, 8, 12, 16, and 19.
-- Pending level gains are applied by the existing rest/level processing logic.
-- Class hit dice and unlock tables are defined in `src/systems/classes.ts`.
+- Ability score improvements occur once at total levels 4, 8, 12, 16, and 19.
+- Common talents/proficiency use total level; restricted actions/talents use
+  their source class rank. Existing shared INT-grown MP is preserved.
+- Prepare at rest and commit one frozen, qualified choice at a time through
+  the authoritative engine; default single-class/companion processing uses the
+  same grant/resource implementation.
+- Profiles reuse canonical class hit dice and spell/ability/talent grant data.
+  Six original five-rank prestige profiles now use the same engine. First entry
+  is applied total 6; normal cap remains 20. Base ranks do not advance alongside
+  a path rank. Fixed casting stats and scoped grants never use appearance.
+- Prestige joining checks are entry-only and share the live owner context.
+  Later social changes retain earned ranks; normal and unaffiliated campaigns
+  stay complete. Canonical action gear checks reject before MP/economy use.
+  Reuse statuses without stacking duplicate effects; Haste grants no extra action.
 
 ## Alignment and reputation
 
@@ -273,6 +348,15 @@ victory/flee/defeat autosave, so result-delay reload cannot resurrect statuses.
 - Achievements and equipped cosmetic titles never modify ability scores, AC,
   attacks, damage, rewards, or action economy.
 
+## Fictional devotion
+
+Use original fictional content only. Devotion is a separate 0-100 score,
+derived tiers and canonical once-only sources, never an alignment lock or
+campaign requirement. Temple rites reuse status and short-rest authority and
+cannot stack, refresh, or replay a consumed blessing. Qualification APIs are
+pure optional extension points; no prestige implementation belongs here.
+See `docs/devotion.md` and `src/systems/devotion*.ts`.
+
 ## Testing
 
 Use deterministic dice mocks for:
@@ -281,6 +365,10 @@ Use deterministic dice mocks for:
 - Status saving throws, ticks, skips, and expiration
 - Elemental immunity/weakness/resistance
 - Status plus elemental damage ordering
+- Exact damage/healing components, critical counts, shared area pools,
+  per-target overkill/nonlethal/max-HP caps and finite fractional custom effects
+- Unchanged RNG call order and next roll, source-owned MP/economy and observer
+  hook timing through validated execution and capture-only presentation
 - Bonus-action scheduling
 - MP and inventory consumption on invalid actions
 - Seeded trap placement, one-shot checks, modifiers, nonlethal consequences,

@@ -6,7 +6,7 @@
 ## Party model
 
 The persistent party was introduced in schema v6 and lives at `player.party` in
-the current schema v19:
+the current schema v25:
 
 - `companions`: unique recruited `CompanionState` records
 - `activeCompanionIds`: up to three recruited IDs in battle/follower order
@@ -20,6 +20,11 @@ Optional [timed decisions](battle-timing.md) apply only to manual companion
 turns, including target and bonus-action choices. Gambits keep their existing
 untimed execution. A timeout validates one Defend if the main action remains,
 otherwise only ends the turn.
+
+The hero can multiclass, but companions remain single-class and have no hero
+`classProgression` field. Recruitment matches the hero's total level. Inn
+companion levels still process automatically; the hero chooses one qualified
+class at a time through the shared progression engine.
 
 The three stable companion IDs are:
 

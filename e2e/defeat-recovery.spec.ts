@@ -134,14 +134,14 @@ test("random and boss defeats recover cleanly through the result sequence", asyn
   for (const key of ["f", "a", "l", "l", "e", "n", "h", "e", "r", "o"]) {
     await page.keyboard.press(key);
   }
-  await clickGame(page, 284, 160);
+  await clickLayoutItem(page, "creation-class-ranger");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: stats");
-  await clickGame(page, 390, 64);
-  await clickGame(page, 400, 460);
+  await clickLayoutItem(page, "creation-stat-mode-random");
+  await clickLayoutItem(page, "creation-stats-next");
   await waitForState(page, "BOOT | Screen: appearance");
-  await clickGame(page, 320, 112);
-  await clickGame(page, 420, 312);
+  await clickLayoutItem(page, "appearance-randomize");
+  await clickLayoutItem(page, "appearance-start");
   await drainOpeningCutscenes(page);
   await page.waitForTimeout(300);
   if ((await page.locator("#debug-state").textContent())?.includes("[TUTORIAL")) {

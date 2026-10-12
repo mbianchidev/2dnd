@@ -5,8 +5,6 @@ import { SAVE_VERSION, type SaveData } from "../src/systems/save";
 import { clickLayoutItem, expectCleanLayout, tapLayoutItem } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
-const GAME_WIDTH = 640;
-const GAME_HEIGHT = 528;
 const canvasSelector = "#game-container canvas";
 
 interface FixtureOptions {
@@ -24,15 +22,6 @@ async function holdKey(page: Page, key: string): Promise<void> {
   await page.waitForTimeout(140);
   await page.keyboard.up(key);
   await page.waitForTimeout(100);
-}
-
-async function clickGame(page: Page, x: number, y: number): Promise<void> {
-  const bounds = await page.locator(canvasSelector).boundingBox();
-  if (!bounds) throw new Error("Game canvas has no rendered bounds");
-  await page.mouse.click(
-    bounds.x + x / GAME_WIDTH * bounds.width,
-    bounds.y + y / GAME_HEIGHT * bounds.height,
-  );
 }
 
 async function readSave(page: Page): Promise<SaveData> {
@@ -74,14 +63,15 @@ async function readyCampaign(page: Page, options: FixtureOptions = {}): Promise<
   await state(page, "BOOT | Screen: title");
   await clickLayoutItem(page, "title-new-game");
   await state(page, "BOOT | Screen: character");
-  await clickGame(page, 284, 160);
+  await clickLayoutItem(page, "creation-class-ranger");
   await holdKey(page, "Enter");
   await state(page, "BOOT | Screen: stats");
-  await clickGame(page, 390, 64);
-  await clickGame(page, 400, 460);
+  await clickLayoutItem(page, "creation-stat-mode-random");
+  await state(page, "[MODE:random]");
+  await holdKey(page, "Enter");
   await state(page, "BOOT | Screen: appearance");
-  await clickGame(page, 320, 112);
-  await clickGame(page, 420, 312);
+  await holdKey(page, "ArrowRight");
+  await holdKey(page, "Enter");
   await state(page, "CUTSCENE");
   await page.evaluate(({ timing, items }) => {
     const raw = localStorage.getItem("2dnd_save");
@@ -91,12 +81,16 @@ async function readyCampaign(page: Page, options: FixtureOptions = {}): Promise<
     save.player.progression.seenCutsceneIds = ["campaign.opening", "campaign.stage.firstSeal"];
     save.player.progression.tutorial.completed = true;
     save.player.level = 5;
+    save.player.classProgression.classLevels = { ranger: 5 };
+    save.player.classProgression.legacyGrants = {
+      spells: ["magicMissile", "cureWounds"], abilities: ["rage", "recklessStrike"], talents: [],
+    };
     save.player.hp = 200;
     save.player.maxHp = 500;
     save.player.mp = 20;
     save.player.maxMp = 40;
     save.player.gold = 100;
-    save.player.stats.dexterity = 60;
+    save.player.stats.dexterity = 30;
     save.player.knownSpells = ["magicMissile", "cureWounds"];
     save.player.knownAbilities = ["rage", "recklessStrike"];
     save.player.inventory.push(...items);
@@ -368,6 +362,38 @@ test("log reading, text entry, focus, and visibility freeze time without confirm
   await state(page, "[TARGET:Attack]");
   await expect(canvas).toHaveAttribute("data-battle-timeout-count", "0");
   await expectCleanLayout(page);
+  await debug(page, "/kill");
+  await state(page, "OVERWORLD");
+  expect(errors).toEqual([]);
+});
+
+test("timed aimed targets retain one budget, resume without acting, and discard timeout selection", async ({ page }) => {
+  const errors = trackErrors(page);
+  await readyCampaign(page, {
+    timing: { mode: "timed", durationSeconds: 15, timeoutAction: "defend" },
+    reducedMotion: true,
+  });
+  await encounter(page);
+  const canvas = page.locator(canvasSelector);
+  const turn = await canvas.getAttribute("data-battle-timing-turn");
+  await holdKey(page, "Enter");
+  await holdKey(page, "ArrowUp");
+  await expect(page.locator("#battle-body-accessibility")).toBeAttached();
+  await expect(canvas).toHaveAttribute("data-battle-timing-state", "active");
+  await holdKey(page, "ArrowDown");
+  await clickLayoutItem(page, "battle-timing-pause");
+  await expect(canvas).toHaveAttribute("data-battle-timing-reasons", /log/);
+  const paused = await remaining(page);
+  await page.waitForTimeout(250);
+  expect(await remaining(page)).toBe(paused);
+  await holdKey(page, "Enter");
+  await expect(canvas).toHaveAttribute("data-battle-timing-state", "active");
+  await expect(page.locator("#battle-body-accessibility")).toBeAttached();
+  expect(await canvas.getAttribute("data-battle-timing-turn")).toBe(turn);
+  await expect(canvas).toHaveAttribute("data-battle-timeout-count", "1");
+  await expect(page.locator("#battle-body-accessibility")).toHaveCount(0);
+  await state(page, "[TARGET:-]");
+  await expect(page.locator("#debug-log")).toContainText("Time expired:");
   await debug(page, "/kill");
   await state(page, "OVERWORLD");
   expect(errors).toEqual([]);

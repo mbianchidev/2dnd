@@ -228,6 +228,7 @@ describe("cutscene progression", () => {
       goldReward: 5,
       itemsDropped: [],
       discoveredElements: [],
+      discoveredPhysical: [],
     };
     const before = JSON.stringify(player);
 

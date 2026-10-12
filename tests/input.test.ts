@@ -9,9 +9,31 @@ import {
   mapKeyboardCode,
   normalizeAnalogAxis,
   resolveGamepadAction,
+  resolveControlPromptSource,
+  shouldShowTouchControls,
 } from "../src/systems/input";
 
 describe("semantic input mappings", () => {
+  it.each(["auto", "on", "off"] as const)("never exposes desktop touch rails with %s preferences", (visibility) => {
+    expect(shouldShowTouchControls(visibility, true, true)).toBe(false);
+    expect(shouldShowTouchControls(visibility, false, true)).toBe(false);
+  });
+
+  it("preserves mobile and explicit browser touch settings", () => {
+    expect(shouldShowTouchControls("auto", true, false)).toBe(true);
+    expect(shouldShowTouchControls("auto", false, false)).toBe(false);
+    expect(shouldShowTouchControls("on", false, false)).toBe(true);
+    expect(shouldShowTouchControls("off", true, false)).toBe(false);
+  });
+
+  it("keeps native canvas touch pointer-first without changing controller or keyboard prompts", () => {
+    expect(resolveControlPromptSource("touch", "auto", true)).toBe("pointer");
+    expect(resolveControlPromptSource("keyboard", "touch", true)).toBe("pointer");
+    expect(resolveControlPromptSource("gamepad", "auto", true)).toBe("gamepad");
+    expect(resolveControlPromptSource("keyboard", "auto", true)).toBe("keyboard");
+    expect(resolveControlPromptSource("touch", "auto", false)).toBe("touch");
+  });
+
   it("resolves the same physical direction by active context", () => {
     expect(mapKeyboardCode("KeyW", "exploration")).toBe("moveUp");
     expect(mapKeyboardCode("KeyW", "battle")).toBe("navigateUp");
@@ -21,12 +43,25 @@ describe("semantic input mappings", () => {
     expect(mapKeyboardCode("Slash", "inventory")).toBe("inventorySearch");
     expect(mapKeyboardCode("Slash", "codex")).toBe("codexSearch");
     expect(mapKeyboardCode("KeyK", "exploration")).toBe("openGathering");
+    expect(mapKeyboardCode("Tab", "characterCreation")).toBe("interact");
+    expect(mapKeyboardCode("Tab", "inventory")).toBe("inventoryNextTarget");
   });
 
   it("keeps debug keys outside production semantic mappings", () => {
     expect(mapKeyboardCode("KeyG", "exploration")).toBeUndefined();
     expect(mapKeyboardCode("KeyH", "battle")).toBeUndefined();
     expect(mapKeyboardCode("KeyO", "inventory")).toBeUndefined();
+  });
+
+  it("maps non-conflicting dice skip and settings controls without taking input context", () => {
+    expect(mapKeyboardCode("KeyZ", "battle")).toBe("fastForwardDice");
+    expect(mapKeyboardCode("KeyZ", "exploration")).toBe("fastForwardDice");
+    expect(mapKeyboardCode("BracketLeft", "overlay")).toBe("settingsDiceFrequency");
+    expect(mapKeyboardCode("BracketRight", "title")).toBe("settingsDiceSpeed");
+    expect(STANDARD_GAMEPAD_BINDINGS.find((binding) => binding.button === 10)?.action)
+      .toBe("fastForwardDice");
+    expect(isRepeatableAction("fastForwardDice")).toBe(false);
+    expect(mapKeyboardCode("Space", "exploration")).toBe("interact");
   });
 
   it("normalizes analog axes around a configurable dead zone", () => {

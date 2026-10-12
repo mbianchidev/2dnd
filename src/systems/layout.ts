@@ -59,6 +59,7 @@ export type GridNavigationDirection = "up" | "down" | "left" | "right";
 export interface LayoutAuditItem {
   id: string;
   bounds: LayoutRect;
+  contentBounds?: LayoutRect;
   allowOverlapWith?: readonly string[];
   containedBy?: string;
 }
@@ -73,6 +74,7 @@ export interface LayoutClipping {
   id: string;
   bounds: LayoutRect;
   viewport: LayoutRect;
+  reason?: "content";
 }
 
 export interface LayoutAuditResult {
@@ -150,6 +152,32 @@ export function centeredRect(
     width,
     height,
   };
+}
+
+/** Keep map labels near their anchor while avoiding already placed labels and map edges. */
+export function layoutAnchoredLabels(
+  items: readonly { id: string; bounds: LayoutRect }[],
+  viewport: LayoutRect,
+  gap = 4,
+): Array<{ id: string; bounds: LayoutRect }> {
+  const placed: Array<{ id: string; bounds: LayoutRect }> = [];
+  for (const item of items) {
+    const preferred = clampRectToViewport(item.bounds, viewport);
+    const step = Math.max(1, preferred.height + gap);
+    const candidates = [preferred];
+    for (let distance = 1; distance <= Math.ceil(viewport.height / step); distance += 1) {
+      candidates.push({ ...preferred, y: preferred.y - distance * step });
+      candidates.push({ ...preferred, y: preferred.y + distance * step });
+    }
+    const bounds = candidates.find((candidate) => containsRect(viewport, candidate)
+      && placed.every((other) => !intersectRects(candidate, {
+        x: other.bounds.x - gap, y: other.bounds.y - gap,
+        width: other.bounds.width + gap * 2, height: other.bounds.height + gap * 2,
+      })));
+    if (!bounds) throw new RangeError(`Map label ${item.id} cannot fit its viewport without overlap`);
+    placed.push({ id: item.id, bounds });
+  }
+  return placed;
 }
 
 export function layoutVerticalStack(
@@ -319,7 +347,11 @@ export function paginateMeasuredItems(
   itemHeights: readonly number[],
   availableHeight: number,
   gap = 0,
+  maximumItems = Number.MAX_SAFE_INTEGER,
 ): number[][] {
+  if (!Number.isSafeInteger(maximumItems) || maximumItems < 1) {
+    throw new RangeError("A measured page must allow at least one item.");
+  }
   const heightLimit = finiteNonNegative(availableHeight);
   const safeGap = finiteNonNegative(gap);
   const pages: number[][] = [];
@@ -330,7 +362,7 @@ export function paginateMeasuredItems(
     const nextHeight = current.length === 0
       ? height
       : usedHeight + safeGap + height;
-    if (current.length > 0 && nextHeight > heightLimit) {
+    if (current.length > 0 && (nextHeight > heightLimit || current.length >= maximumItems)) {
       pages.push(current);
       current = [index];
       usedHeight = height;
@@ -459,6 +491,11 @@ export function auditLayout(
   items.forEach((item, index) => {
     if (viewport && !containsRect(viewport, item.bounds)) {
       clipping.push({ id: item.id, bounds: item.bounds, viewport });
+    }
+    if (item.contentBounds && !containsRect(item.bounds, item.contentBounds)) {
+      clipping.push({
+        id: item.id, bounds: item.contentBounds, viewport: item.bounds, reason: "content",
+      });
     }
     for (let otherIndex = index + 1; otherIndex < items.length; otherIndex += 1) {
       const other = items[otherIndex];

@@ -14,10 +14,35 @@ Write comprehensive game-mechanics tests with Vitest. Use the committed
 Playwright suite only for high-value Phaser browser flows that cannot be proven
 through pure logic tests.
 
+Local validation is headless only; never launch visible native windows or
+control the developer's desktop. Native gates run on isolated CI/virtual
+displays, not the user's host.
+
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
-schema-v19 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
+schema-v25 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
+`electron-tests/saveParity.spec.ts` additionally downloads a real browser slot
+export and imports it through the native renderer's file picker. Assert the same
+normalized campaign/metadata while browser and desktop preferences stay isolated.
+Use production keyboard controls in Electron. Read-only layout audits are
+available on loopback and `app://2dnd`; they never enable desktop cheats.
+Native controls tests must require absent mobile rails even with saved Touch On,
+type physical WASD in focused fields without gameplay actions, then prove all
+four movement keys work after closing. Native activity touch tests use real
+canvas venue/action/meter/sailing targets, not a test-only or invisible pad.
+
+`electron-tests/deck.spec.ts` adds a 1280x800 standard-gamepad equivalent with
+name/rename/search text entry, normal exploration/Battle, save/reload/recovery,
+cursor fullscreen, reconnect/focus/resize, accessibility and controller-only
+exit. It records actual atomic slot-write timing, frame/JS/native-memory data
+and bounded cleanup samples. Physical Deck, Steam client/Input/overlay,
+suspend/dock, long-session endurance and partner/signing approval are not
+claimed. `ELECTRON_TEST_EXECUTABLE` selects an explicit packaged test binary.
+
+Steam contract/CLI tests use mock IDs and synthetic architecture/ASAR fixtures;
+actual depot payload inspection belongs to the native packaging matrix.
+Keep preview generation separate from protected upload and public release.
 
 ## Testing Philosophy
 
@@ -55,8 +80,10 @@ debug exclusion, category-specific discovery, and schema-v17 migration
 independent overwrite/rename/copy/delete, deterministic import/export, and
 keyboard/touch/gamepad management
 ✅ Timed decision boundaries, overlapping pause/resume reasons, once-only/stale
-timeouts, hero/manual/gambit economy, fixed validated Defend, schema-v19
+timeouts, hero/manual/gambit economy, fixed validated Defend, schema-v25
 configuration repair, and checkpoint/pending-encounter reload without replay
+✅ Unusable hero-core rejection before import writes, serialized hero-item
+compatibility, actor equipment repair, exact byte isolation, and denied storage getters
 ✅ Defeat penalty receipts, once-only Battle resolution, recovered save
 round-trips, result-scene continuation, and random/boss parity
 ✅ Animation state selection, reduced-motion timing, stable actor/target mapping,
@@ -70,6 +97,10 @@ hit-area alignment, and debug/test overlap detection
 ✅ Alignment boundaries, reputation tiers, clamping, stable-source
 idempotency, quest/dialogue/event/trap/combat hooks, shop composition, Codex
 milestones, schema-v12 migration, bounded history, and debug commands
+✅ Original fictional devotion references, independent authority, optional
+qualification, source/debug idempotency, affiliation and temple transactions,
+normal status expiration and pre-Battle/post-result reload, schema-v21
+migration/corruption, and native accessible profile/temple controls
 ✅ Achievement definition integrity, deterministic progress, hidden entries,
 idempotent battle/event/social hooks, reconciliation, schema-v13 migration,
 one-hit/no-defeat rules, cosmetic titles, debug exclusion, notices, and
@@ -85,6 +116,11 @@ exclusion, authority isolation, schema-v15 migration, and corruption repair
 boat acquisition/upgrades, embark/disembark safety, sea fog, capped encounters,
 weather hazards, Kraken hooks, sea gathering/crafting economy, schema-v16
 migration/corruption recovery, debug commands, and browser reload while sailing
+✅ All three original tavern/festival activities, all 36 ordered dice outcomes
+and exact optimal stopping (including doubles/floors/banking), neutral archery,
+reachable regatta courses, canonical weather/boat wear, capped atomic payments,
+finite claims, delayed input, rollback, abandonment, debug isolation, schema-v22
+recovery, measured layout, and actual multi-input browser/Electron flows
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -124,6 +160,26 @@ migration, keyboard/touch/gamepad search and filters, 150% text, reduced motion,
 and page/console cleanliness.
 
 ## Test File Organization
+
+`armorCombat.test.ts` and `armorSave.test.ts` cover every canonical armor/type
+pair, live hero/companion armor, basic and explicit physical ability sources,
+magic/heal bypass, exact critical/status/HP/RNG/redaction, old canonical copies,
+same-ID custom ownership and rejected-import isolation.
+
+`physicalCombat.test.ts` and `physicalCombatSave.test.ts` own physical affinity
+precedence, explicit size/anatomy, aimed accuracy/effects, selected naturals,
+off-hand/ability typing, shared HP, duplicate/stale target isolation, exact RNG/
+receipts, scoped observations and schema-v21/custom-item compatibility.
+`e2e/physical-combat.spec.ts` owns optional aim, unchanged whole-target Confirm,
+cancel/reload, boss parts, manual companions, input parity and clean
+100%/125%/150% measured layouts.
+
+`tests/prestige*.test.ts` covers all six profiles/ranks, grouped/class/stat/world
+boundaries, live/stale/detached owner contexts, frozen rest credits, scoped and
+legacy/deferred grants, action/equipment validation, natural/debug exclusion,
+equal-total opportunity costs and schema-v19 migration/schema-v20 corruption.
+`e2e/prestige.spec.ts` and the focused Electron prestige flow own real preview,
+rejection, entry, battle, input/layout, import/reload and campaign behavior.
 
 ```
 tests/
@@ -226,6 +282,34 @@ completion, `F1`, and Esc-menu access.
   selection stability, search, and menu access.
 
 ## Dice Testing Patterns
+
+`dicePresentation.test.ts`, `diceManager.test.ts`, `effectRollReceipts.test.ts`, `rollReceipts.test.ts`,
+and `diceRenderer.test.ts`
+cover exact natural/component receipts, hidden-stat redaction, selected
+advantage/disadvantage dice, critical/fumble/auto-hit, unchanged RNG/resources,
+native control propagation, scene-local evidence, expiry/reset, stale-callback
+rejection and cancellation. Preference v3
+migration/corruption belongs in `accessibility.test.ts`. Real battle,
+damage/healing pools and HP caps, shared area rolls,
+event/trap/gathering/flee, skip, reload, and transition controls belong in
+`e2e/dice-presentation.spec.ts`; do not replace them with synthetic result hooks.
+Assert numbered faces within the canvas without an external dock, unchanged
+canvas geometry, three-second non-battle expiry and immediate battle-exit log/
+view cleanup. Roll details belong to the existing Battle log, never a separate
+cross-scene history. Assert exact RNG sequence/next roll, source-owned resources, status/element
+ordering, integer faces/counts, finite fractional legacy arithmetic and distinct
+resolved/applied amounts. Filter enemy arithmetic before notices/history.
+`inputRuntime.test.ts` covers poststep touch pulses, successive once-only
+press/keyup, held-owner survival and blur/visibility/disconnect/context/scene/
+destroy cleanup without a later frame. Fishing checks the real persisted
+waitTicks/bite/tension sequence; do not substitute debug resolution or retries.
+`diceMotion.test.ts` owns viewport/count/trajectory/rest and no-RNG checks.
+Real motion coverage samples successive transforms and exact faces, verifies
+pointer transparency/cleanup and writes measured JSON to test.info().outputPath
+before attaching its path. Preserve failed evidence before any recheck; don't
+claim inline/lost attachments or passed thresholds are numeric FPS samples.
+Optional motion-only video uses `DICE_CAPTURE_MOTION=1`; default CI video stays
+off and viewport screenshots must not resize away the animation.
 
 ### Statistical Distribution Testing
 ```typescript
@@ -334,45 +418,53 @@ describe("damage calculation", () => {
 ## Player System Testing
 
 ### Leveling Logic
+
+The current hero engine is `classProgression.ts`. Cover all 144 base entry
+combinations, every prerequisite boundary and per-class grant level, exact
+historical single-class growth, total-level ASIs/proficiency, overlapping
+features, immutable prepared resources, rest-credit recovery, stale/repeated
+input, and concrete battle execution. `classProgressionState.test.ts` covers
+all twelve legacy classes at levels 1-20, corrupt ownership/knowledge/resources,
+deferred old unlocks, equipped duplicates, KO credit clearing and reload.
+`heroItemState.test.ts` and persistence regressions preserve the original
+53-item custom hero fixture, serialized metadata/order, exact duplicate
+equipment links and valid legacy orphan gear. Do not replace those IDs with
+canonical definitions to hide data loss. Browser fixtures need a varying seeded
+RNG so Phaser Text UUID textures remain unique; assert true frozen receipts.
+`e2e/multiclass.spec.ts` owns natural rest choices, previews, martial/caster/
+hybrid flows, interrupted queues, ASIs, mobile/gamepad, clean measured layout
+and the production campaign turn-in.
+
 ```typescript
-import { gainXP, levelUp, calculateMaxHP } from "../src/systems/player";
+import { awardXP, createPlayer, processPendingLevelUps, xpForLevel } from "../src/systems/player";
+import { commitHeroLevelUp, prepareHeroLevelUp, previewHeroLevelUp } from "../src/systems/classProgression";
 
 describe("player leveling", () => {
-  it("levels up when reaching XP threshold", () => {
-    const player = createTestPlayer({ level: 1, xp: 0 });
-    const xpNeeded = getXPForLevel(2);
-    
-    gainXP(player, xpNeeded);
-    
+  it("queues XP levels until rest and preserves cumulative XP", () => {
+    const player = createTestPlayer();
+    awardXP(player, xpForLevel(2));
+    expect(player.level).toBe(1);
+    expect(player.pendingLevelUps).toBe(1);
+    processPendingLevelUps(player);
     expect(player.level).toBe(2);
-    expect(player.xp).toBe(0);  // XP resets after level
+    expect(player.xp).toBe(xpForLevel(2));
   });
 
-  it("increases max HP on level up", () => {
-    const player = createTestPlayer({ 
-      level: 1, 
-      maxHp: 10,
-      stats: { constitution: 14 }  // +2 modifier
-    });
-    
-    const oldMaxHP = player.maxHp;
-    levelUp(player);
-    
-    expect(player.maxHp).toBeGreaterThan(oldMaxHP);
-    // Should increase by at least 1 (minimum HP gain)
-    expect(player.maxHp - oldMaxHP).toBeGreaterThanOrEqual(1);
-  });
-
-  it("unlocks spells at correct levels", () => {
-    const player = createTestPlayer({ level: 1, class: "wizard" });
-    
+  it("previews a frozen qualified class and commits exactly once", () => {
+    const player = createPlayer("Fixture", {
+      strength: 15, dexterity: 8, constitution: 13,
+      intelligence: 15, wisdom: 10, charisma: 10,
+    }, "knight");
+    awardXP(player, xpForLevel(2));
+    prepareHeroLevelUp(player, () => 0.5);
+    const preview = previewHeroLevelUp(player, "wizard");
+    expect(preview.ok).toBe(true);
+    const selection = { trackId: "wizard", expectedTotalLevel: 1 };
+    expect(commitHeroLevelUp(player, selection).ok).toBe(true);
+    expect(player.classProgression.classLevels).toEqual({ knight: 1, wizard: 1 });
+    expect(player.knownSpells).toContain("fireBolt");
     expect(player.knownSpells).not.toContain("fireball");
-    
-    // Level up to spell unlock level
-    player.level = 5;
-    updateKnownSpells(player);
-    
-    expect(player.knownSpells).toContain("fireball");
+    expect(commitHeroLevelUp(player, selection).ok).toBe(false);
   });
 });
 ```
@@ -474,7 +566,10 @@ describe("spell data integrity", () => {
 
 ### Helper Functions
 ```typescript
-// createPlayer now requires baseStats — never called without them
+import { createPlayer, type PlayerState, type PlayerStats } from "../src/systems/player";
+import { createHeroClassProgression } from "../src/systems/classProgression";
+import { getPlayerClass } from "../src/systems/classes";
+
 const defaultStats: PlayerStats = {
   strength: 10, dexterity: 10, constitution: 10,
   intelligence: 10, wisdom: 10, charisma: 10,
@@ -484,7 +579,7 @@ function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
   const player = createPlayer("Test", {
     strength: 10, dexterity: 8, constitution: 12,
     intelligence: 8, wisdom: 8, charisma: 8,
-  });
+  }, overrides?.appearanceId);
   // Pin stats for deterministic tests
   player.stats = {
     strength: 12, dexterity: 10, constitution: 14,
@@ -493,6 +588,11 @@ function createTestPlayer(overrides?: Partial<PlayerState>): PlayerState {
   player.maxHp = 30; player.hp = 30;
   player.maxMp = 10; player.mp = 10;
   if (overrides) Object.assign(player, overrides);
+  if (!overrides?.classProgression) {
+    player.classProgression = createHeroClassProgression(
+      getPlayerClass(player.appearanceId).id, player.level,
+    );
+  }
   return player;
 }
 ```
@@ -566,6 +666,9 @@ npx vitest run tests/dice.test.ts
   responsive width, Steam banner, and page/console cleanliness.
 - Pull request CI installs Chromium and runs the browser suite as a release
   gate.
+- PR/desktop CI groups are scoped to `github.ref`, with
+  `cancel-in-progress: false`. Preserve all gate steps, permissions, and
+  triggers; independent PRs must not cancel or globally serialize one another.
 - Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
   disable trace screenshots and video. Phaser repaints every frame, so the
   filmstrip creates thousands of canvas captures that stall context teardown.
@@ -575,6 +678,17 @@ npx vitest run tests/dice.test.ts
   `#layout-report`, `data-layout-overlap-count`, and
   `data-layout-clipping-count`; use stable `layoutId` values instead of brittle
   coordinate-only clicks.
+- The audit checks glyph/padding content in fixed surfaces, nested groups and
+  explicit graphic bounds. UI boundary flows cover character creation,
+  equipment, save/rename, achievements, city entry and party attributes across
+  text scales and desktop/mobile sizes. Wait for the selected row in the fresh
+  report before collecting page coverage; an older clean report is not proof
+  that a newly selected page has rendered.
+- Cover active notifications together with menus and transient scene dice, not only
+  individual panels. Opening menus must remove visible notices without
+  acknowledging them; queued feedback resumes once after closing. Mock removed
+  timers and late fade completions in lifecycle tests, and retain real browser
+  and source/packaged Electron screenshots at enlarged text.
 - Hold frame-polled keys with `keyboard.down()`, wait across frames, then
   `keyboard.up()`. Do not use instantaneous presses for Overworld or Ending
   actions.
@@ -583,7 +697,7 @@ npx vitest run tests/dice.test.ts
 - Run `npm run benchmark:baseline` before performance-affecting work and attach
   its commit, environment, and output to the owning issue or pull request. The
   harness uses the named `2dnd:boot-textures` browser performance measure and a
-  fresh schema-v19 save.
+  fresh current-schema save.
 - Cover random and boss defeat results, exact displayed penalties, clean
   continuation, and recovered save/reload state through the production
   `/defeat` debug path.
@@ -601,7 +715,7 @@ npx vitest run tests/dice.test.ts
 - Assert `location.origin === "app://2dnd"`, the `game.html` entry, and the
   fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
-  shell, create a manual snapshot, and continue the same schema-v19 campaign.
+  shell, create a manual snapshot, and continue the same schema-v25 campaign.
 - Return to title through the keyboard menu, quit through the visible title
   action, and verify lifecycle/quit logs without save-content leakage.
 - Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.
@@ -625,6 +739,12 @@ npx vitest run --coverage
 8. **One assertion per test (when possible)** - Makes failures clear
 9. **Inject group RNG** - Initiative, weighted generation, and random-two
    targeting helpers accept deterministic random functions
+
+For activity coverage, use `tests/minigame*.test.ts`, `e2e/minigames.spec.ts`, and
+`electron-tests/minigames.spec.ts`. Drive actual Roll/Bank/Fire/sailing controls,
+not forced success helpers. Assert exact pending/result reload and wallet
+receipts, not only a completion marker. Practice and debug must not award paid
+medals, currency, reputation, or titles. Meter motion must not write saves.
 
 ## Common Pitfalls
 

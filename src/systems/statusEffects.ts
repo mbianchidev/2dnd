@@ -2,9 +2,11 @@
  * Combat status effect definitions and lifecycle operations.
  */
 
-import { abilityModifier, rollD20, rollDie } from "./dice";
+import { abilityModifier, rollD20 } from "./dice";
+import { rollEffectDice } from "./effectRolls";
 import type { DieType } from "./dice";
 import type { PlayerStats } from "./player";
+import type { ResolvedD20Roll, ResolvedEffectRoll } from "./rollResults";
 
 export const STATUS_EFFECT_IDS = [
   "poison",
@@ -17,11 +19,13 @@ export const STATUS_EFFECT_IDS = [
   "prone",
   "asleep",
   "confused",
+  "weakened",
   "enraged",
   "haste",
   "inspired",
   "rage",
   "sneakStance",
+  "templeWard",
 ] as const;
 
 export type StatusEffectId = (typeof STATUS_EFFECT_IDS)[number];
@@ -59,6 +63,23 @@ export interface StatusTurnStartResult {
   messages: string[];
   tickDamage: number;
   skipTurn: boolean;
+  readonly savingThrows: readonly StatusSavingThrowResult[];
+  readonly damageRolls: readonly StatusDamageRollResult[];
+}
+
+export interface StatusDamageRollResult {
+  readonly effectId: StatusEffectId;
+  readonly label: string;
+  readonly damageRoll: ResolvedEffectRoll;
+}
+
+export interface StatusSavingThrowResult {
+  readonly effectId: StatusEffectId;
+  readonly label: string;
+  readonly rollResult: ResolvedD20Roll;
+  readonly dc: number;
+  readonly success: boolean;
+  readonly successMessage?: string;
 }
 
 export interface StatusTurnEndResult {
@@ -157,6 +178,15 @@ export const STATUS_EFFECT_DEFS: StatusEffectDef[] = [
     removalMethods: ["duration", "save"],
   },
   {
+    id: "weakened", name: "Weakened",
+    description: "Deals 2 less damage after an aimed limb hit",
+    category: "debuff", defaultDuration: 2, tickDamage: 0, tickDie: 0,
+    accuracyModifier: 0, attackDisadvantage: false,
+    acModifier: 0, damageModifier: -2, skipsTurn: false,
+    saveStat: "constitution", saveDC: 0,
+    removalMethods: ["duration"],
+  },
+  {
     id: "enraged", name: "Enraged",
     description: "Deals more damage but suffers reduced AC",
     category: "buff", defaultDuration: 3, tickDamage: 0, tickDie: 0,
@@ -199,6 +229,15 @@ export const STATUS_EFFECT_DEFS: StatusEffectDef[] = [
     accuracyModifier: 0, attackDisadvantage: false,
     acModifier: 2, damageModifier: 0, skipsTurn: false,
     saveStat: "dexterity", saveDC: 0,
+    removalMethods: ["duration", "manual"],
+  },
+  {
+    id: "templeWard", name: "Traveling Thread",
+    description: "An optional temple thread grants 1 AC for three hero turns",
+    category: "buff", defaultDuration: 3, tickDamage: 0, tickDie: 0,
+    accuracyModifier: 0, attackDisadvantage: false,
+    acModifier: 1, damageModifier: 0, skipsTurn: false,
+    saveStat: "wisdom", saveDC: 0,
     removalMethods: ["duration", "manual"],
   },
 ];
@@ -337,6 +376,8 @@ export function processStartOfTurn(
   stats: PlayerStats,
 ): StatusTurnStartResult {
   const messages: string[] = [];
+  const savingThrows: StatusSavingThrowResult[] = [];
+  const damageRolls: StatusDamageRollResult[] = [];
   let tickDamage = 0;
 
   for (let index = effects.length - 1; index >= 0; index--) {
@@ -345,8 +386,15 @@ export function processStartOfTurn(
     if (!definition) continue;
 
     if (definition.tickDamage > 0 || definition.tickDie > 0) {
-      const damage = definition.tickDamage
-        + (definition.tickDie > 0 ? rollDie(definition.tickDie) : 0);
+      const damageRoll = rollEffectDice(
+        definition.tickDie > 0 ? 1 : 0,
+        definition.tickDie,
+        [{ label: definition.name, value: definition.tickDamage }],
+      );
+      const damage = damageRoll.amount;
+      damageRolls.push(Object.freeze({
+        effectId: definition.id, label: definition.name, damageRoll,
+      }));
       tickDamage += damage;
       messages.push(`${definition.name} deals ${damage} damage!`);
     }
@@ -358,10 +406,19 @@ export function processStartOfTurn(
     ) {
       const modifier = abilityModifier(stats[definition.saveStat]);
       const savingThrow = rollD20(modifier);
-      if (savingThrow.total >= definition.saveDC) {
-        messages.push(
-          `Saved vs ${definition.name}! (${savingThrow.total} vs DC ${definition.saveDC})`,
-        );
+      const success = savingThrow.total >= definition.saveDC;
+      const successMessage =
+        `Saved vs ${definition.name}! (${savingThrow.total} vs DC ${definition.saveDC})`;
+      savingThrows.push(Object.freeze({
+        effectId: definition.id,
+        label: definition.name,
+        rollResult: savingThrow.rollResult,
+        dc: definition.saveDC,
+        success,
+        ...(success ? { successMessage } : {}),
+      }));
+      if (success) {
+        messages.push(successMessage);
         effects.splice(index, 1);
       }
     }
@@ -371,6 +428,8 @@ export function processStartOfTurn(
     messages,
     tickDamage,
     skipTurn: mustSkipTurn(effects),
+    savingThrows: Object.freeze(savingThrows),
+    damageRolls: Object.freeze(damageRolls),
   };
 }
 

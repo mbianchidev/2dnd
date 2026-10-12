@@ -1,13 +1,19 @@
-import * as Phaser from "phaser";
+import type * as Phaser from "phaser";
 import { debugPanelLog } from "../config";
 import type { CodexKnowledgeEntry } from "../data/codexKnowledge";
 import { getMotionDuration } from "../systems/accessibility";
+import { renderNotificationPanel } from "../renderers/notification";
 
 export class CodexDiscoveryManager {
   private container: Phaser.GameObjects.Container | null = null;
   private dismissTimer: Phaser.Time.TimerEvent | null = null;
+  private pendingEntries: readonly CodexKnowledgeEntry[] = [];
+  private safeToShow = true;
 
-  constructor(private readonly scene: Phaser.Scene) {}
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly canShow: () => boolean = () => true,
+  ) {}
 
   isShowing(): boolean {
     return this.container !== null;
@@ -16,33 +22,34 @@ export class CodexDiscoveryManager {
   show(entries: readonly CodexKnowledgeEntry[]): void {
     if (entries.length === 0) return;
     this.clear();
+    this.pendingEntries = [...entries];
+    if (this.safeToShow && this.canShow()) this.present();
+  }
 
-    const first = entries[0]!;
-    const suffix = entries.length > 1 ? ` (+${entries.length - 1})` : "";
+  update(safeToShow: boolean): void {
+    this.safeToShow = safeToShow && this.canShow();
+    if (!this.safeToShow) {
+      this.clearPresentation();
+    } else if (!this.container && this.pendingEntries.length > 0) {
+      this.present();
+    }
+  }
+
+  private present(): void {
+    const first = this.pendingEntries[0]!;
+    const suffix = this.pendingEntries.length > 1 ? ` (+${this.pendingEntries.length - 1})` : "";
     const category = first.category.toUpperCase();
     const message = `CODEX ${category}: ${first.name}${suffix}`;
     debugPanelLog(`[CODEX] Discovered ${first.id}${suffix}`, true);
 
-    const width = Math.min(300, this.scene.cameras.main.width - 16);
-    const background = this.scene.add.graphics();
-    background.fillStyle(0x101024, 0.96);
-    background.fillRoundedRect(0, 0, width, 34, 5);
-    background.lineStyle(2, 0xffd700, 1);
-    background.strokeRoundedRect(0, 0, width, 34, 5);
-
-    const text = this.scene.add.text(8, 6, `NEW - ${message}`, {
-      fontSize: "10px",
-      fontFamily: "monospace",
-      color: "#fff3a6",
-      wordWrap: { width: width - 16 },
+    const container = renderNotificationPanel(this.scene, {
+      id: "codex-discovery-notice",
+      message: `NEW - ${message}`,
+      maxWidth: 300,
+      y: 8,
+      depth: 10_000,
+      backgroundColor: 0x101024,
     });
-    text.setData("accessibilityMaxWidth", width - 16);
-
-    const container = this.scene.add.container(
-      this.scene.cameras.main.width - width - 8,
-      8,
-      [background, text],
-    ).setDepth(10_000);
     this.container = container;
 
     const fadeDuration = getMotionDuration(160);
@@ -57,21 +64,31 @@ export class CodexDiscoveryManager {
 
     this.dismissTimer = this.scene.time.delayedCall(2600, () => {
       if (this.container !== container) return;
+      const finish = (): void => {
+        if (this.container !== container) return;
+        if (this.canShow()) this.clear();
+        else this.clearPresentation();
+      };
       const duration = getMotionDuration(180);
       if (duration === 0) {
-        this.clear();
+        finish();
         return;
       }
       this.scene.tweens.add({
         targets: container,
         alpha: 0,
         duration,
-        onComplete: () => this.clear(),
+        onComplete: finish,
       });
     });
   }
 
   clear(): void {
+    this.clearPresentation();
+    this.pendingEntries = [];
+  }
+
+  private clearPresentation(): void {
     this.dismissTimer?.remove(false);
     this.dismissTimer = null;
     if (this.container) {

@@ -63,6 +63,10 @@ interface SceneHarness {
   finishCompanionTurn(actor: PartyCombatant): void;
   handleTimedBattleTimeout(decision: Readonly<BattleTimedDecision>): boolean;
   executeTimedHeroPlan(plan: BattleActionPlan): void;
+  performPlayerAttack(targetIndex: number, range: "melee" | "ranged", bodyPartId?: string): void;
+  performPlayerAbility(
+    abilityId: string, targetIndex: number, allies?: PartyCombatant[], bodyPartId?: string,
+  ): void;
   confirmTargetSelection(): void;
   cleanupBattleTransientState(): void;
 }
@@ -81,6 +85,7 @@ function scene(timed = true, companionId?: "guardian" | "scout" | "mystic") {
     intelligence: 10, wisdom: 10, charisma: 10,
   }, "barbarian");
   player.level = 5;
+  player.classProgression.classLevels = { barbarian: 5 };
   player.maxMp = 20;
   player.mp = 20;
   player.knownAbilities = ["rage"];
@@ -114,6 +119,13 @@ function scene(timed = true, companionId?: "guardian" | "scout" | "mystic") {
     },
     codexDiscovery: { show: vi.fn() },
     battlePartyRenderer: { update: vi.fn(), clear: vi.fn() },
+    battleDice: {
+      presentResolvedAction: vi.fn(), presentStatusTurn: vi.fn(), presentFlee: vi.fn(),
+      presentAttack: vi.fn(), presentAttacks: vi.fn(), presentHealings: vi.fn(),
+    },
+    input: { keyboard: {
+      on: vi.fn(), off: vi.fn(), resetKeys: vi.fn(), removeAllKeys: vi.fn(),
+    } },
     time: { delayedCall: scheduled },
   });
   const clock = new BattleDecisionClock(player.battleTiming);
@@ -144,6 +156,7 @@ function plan(harness: SceneHarness, request: Parameters<typeof validateBattleAc
       knownSpellIds: harness.player.knownSpells,
       knownAbilityIds: harness.player.knownAbilities,
       economy: harness.playerEconomy,
+      actorState: harness.player,
     },
   );
   expect(validation.plan).toBeDefined();
@@ -156,6 +169,26 @@ afterEach(() => {
 });
 
 describe("timed Battle authority contracts", () => {
+  it("retains validated aimed-part targets when dispatching timed hero attacks and abilities", () => {
+    const { harness, clock } = scene();
+    harness.player.knownAbilities.push("recklessStrike");
+    const attack = plan(harness, {
+      actorId: harness.heroCombatant.id, kind: "attack",
+      preferredTargetId: harness.combatants[0]!.id, bodyPartId: "head",
+    });
+    const attackResolver = vi.spyOn(harness, "performPlayerAttack").mockImplementation(() => undefined);
+    harness.executeTimedHeroPlan(attack);
+    expect(attackResolver).toHaveBeenCalledWith(0, "melee", "head");
+    const ability = plan(harness, {
+      actorId: harness.heroCombatant.id, kind: "ability",
+      actionId: "recklessStrike", preferredTargetId: harness.combatants[0]!.id, bodyPartId: "head",
+    });
+    const abilityResolver = vi.spyOn(harness, "performPlayerAbility").mockImplementation(() => undefined);
+    harness.executeTimedHeroPlan(ability);
+    expect(abilityResolver).toHaveBeenCalledWith("recklessStrike", 0, [], "head");
+    expect(clock.snapshot.decision?.remainingMs).toBe(15_000);
+  });
+
   it("applies a runtime duration suggestion without changing configuration or enabling Standard", () => {
     for (const timed of [false, true]) {
       const fixture = scene(timed);

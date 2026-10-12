@@ -164,6 +164,7 @@ export function executeTimedBattleTimeout(
       inventory: source.state.inventory,
       knownSpellIds: source.state.knownSpells,
       knownAbilityIds: source.state.knownAbilities,
+      actorState: source.state,
       economy,
     },
   );

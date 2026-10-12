@@ -1028,6 +1028,7 @@ describe("save system - PlayerState composition migration", () => {
       goldReward: 5,
       itemsDropped: [],
       discoveredElements: [],
+      discoveredPhysical: [],
     };
 
     saveGame(

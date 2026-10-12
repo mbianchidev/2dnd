@@ -1,0 +1,98 @@
+.dice-presentation {
+  --dice-text-scale: 1;
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  color: #f4f1e8;
+  font: calc(12px * var(--dice-text-scale)) / 1.4 monospace;
+}
+
+.dice-presentation[hidden],
+.dice-roll-stage[hidden],
+.dice-presentation button[hidden] { display: none; }
+
+.dice-announcement,
+.battle-log-accessible,
+.dice-group-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+#dice-result {
+  position: absolute;
+  bottom: 0;
+  left: 4px;
+  right: 4px;
+  max-height: 25%;
+  margin: 0;
+  padding: 4px 6px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  border: 1px solid #a9bedb;
+  border-radius: 4px;
+  background: #111827ed;
+  pointer-events: auto;
+}
+
+.dice-group,
+.dice-faces { display: contents; }
+.resolved-die { text-align: center; }
+.resolved-die svg { display: block; width: 100%; }
+.resolved-die span { display: block; }
+.resolved-die.selected { border-bottom: 2px solid #fff; }
+
+.dice-presentation button {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  min-height: 44px;
+  max-width: calc(100% - 8px);
+  padding: 5px 8px;
+  border: 2px solid #a9bedb;
+  border-radius: 4px;
+  background: #182842;
+  color: #f4f1e8;
+  font: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.dice-presentation :focus-visible { outline: 3px solid #ffe18a; outline-offset: -3px; }
+.dice-presentation.high-contrast #dice-result,
+.dice-presentation.high-contrast button { color: #fff; background: #000; border-color: #fff; }
+.dice-roll-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  perspective: 700px;
+  perspective-origin: 50% 80%;
+}
+.dice-roll-stage .rolling-die {
+  position: absolute;
+  z-index: 1;
+  transform-style: preserve-3d;
+  filter: drop-shadow(2px 3px 1px #000);
+  will-change: transform;
+}
+.dice-roll-stage .rolling-die span {
+  color: #fff;
+  background: #111827;
+  white-space: nowrap;
+  font: bold min(calc(12px * var(--dice-text-scale, 1)), calc(var(--rolling-die-size) * 0.16)) / 1.2 monospace;
+}
+.rolling-die-shadow {
+  position: absolute;
+  max-height: 16px;
+  border-radius: 50%;
+  background: #000;
+  opacity: 0.6;
+  will-change: transform, opacity;
+}
+.dice-roll-stage.high-contrast polygon { fill: #000; stroke: #fff; }
+body:has(#mobile-text-input) .dice-presentation { visibility: hidden; }

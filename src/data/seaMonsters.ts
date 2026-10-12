@@ -1,9 +1,13 @@
 import { Element } from "./elements";
+import { MONSTER_PHYSICAL_PROFILES } from "./anatomy";
 import type { Monster } from "./monsters";
 
 export const SEA_DAY_MONSTER_DEFINITIONS: readonly Monster[] = [
   {
     id: "reefSlime",
+    physicalDamageType: "bludgeoning",
+    size: "medium",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.soft,
     name: "Reef Slime",
     family: "slime",
     variantOf: "slime",
@@ -32,6 +36,9 @@ export const SEA_DAY_MONSTER_DEFINITIONS: readonly Monster[] = [
   },
   {
     id: "razorfin",
+    physicalDamageType: "slashing",
+    size: "medium",
+    anatomy: "serpent",
     name: "Razorfin",
     family: "stalker",
     affinity: Element.Thunder,
@@ -49,6 +56,7 @@ export const SEA_DAY_MONSTER_DEFINITIONS: readonly Monster[] = [
     drops: [{ itemId: "saltfin", chance: 0.3 }],
     abilities: [{
       name: "Hull Rake",
+      physicalDamageType: "slashing",
       chance: 0.3,
       damageCount: 3,
       damageDie: 6,
@@ -58,6 +66,10 @@ export const SEA_DAY_MONSTER_DEFINITIONS: readonly Monster[] = [
   },
   {
     id: "coralCrab",
+    physicalDamageType: "bludgeoning",
+    size: "large",
+    anatomy: "arthropod",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.stone,
     name: "Coral Crab",
     family: "construct",
     affinity: Element.Force,
@@ -80,6 +92,10 @@ export const SEA_DAY_MONSTER_DEFINITIONS: readonly Monster[] = [
   },
   {
     id: "seaSerpent",
+    physicalDamageType: "piercing",
+    size: "huge",
+    anatomy: "serpent",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.scales,
     name: "Sea Serpent",
     family: "drake",
     affinity: Element.Ice,
@@ -97,6 +113,7 @@ export const SEA_DAY_MONSTER_DEFINITIONS: readonly Monster[] = [
     drops: [{ itemId: "oceanPearl", chance: 0.22 }],
     abilities: [{
       name: "Tidal Coil",
+      physicalDamageType: "bludgeoning",
       chance: 0.35,
       damageCount: 4,
       damageDie: 6,
@@ -114,6 +131,9 @@ export const SEA_DAY_MONSTER_DEFINITIONS: readonly Monster[] = [
 export const SEA_NIGHT_MONSTER_DEFINITIONS: readonly Monster[] = [
   {
     id: "moonJelly",
+    physicalDamageType: "piercing",
+    size: "medium",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.soft,
     name: "Phantom Moon Jelly",
     family: "spectral",
     affinity: Element.Psychic,
@@ -141,6 +161,10 @@ export const SEA_NIGHT_MONSTER_DEFINITIONS: readonly Monster[] = [
   },
   {
     id: "drownedSailor",
+    physicalDamageType: "slashing",
+    size: "medium",
+    anatomy: "humanoid",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.skeletal,
     name: "Drowned Sailor",
     family: "skeletal",
     affinity: Element.Necrotic,
@@ -163,6 +187,9 @@ export const SEA_NIGHT_MONSTER_DEFINITIONS: readonly Monster[] = [
   },
   {
     id: "abyssalEel",
+    physicalDamageType: "piercing",
+    size: "large",
+    anatomy: "serpent",
     name: "Abyssal Eel",
     family: "elemental",
     affinity: Element.Lightning,
@@ -194,6 +221,10 @@ export const SEA_NIGHT_MONSTER_DEFINITIONS: readonly Monster[] = [
   },
   {
     id: "nightSerpent",
+    physicalDamageType: "piercing",
+    size: "huge",
+    anatomy: "serpent",
+    physicalProfile: MONSTER_PHYSICAL_PROFILES.scales,
     name: "Nightwake Serpent",
     family: "drake",
     variantOf: "seaSerpent",
@@ -224,6 +255,9 @@ export const SEA_NIGHT_MONSTER_DEFINITIONS: readonly Monster[] = [
 
 export const KRAKEN: Monster = {
   id: "kraken",
+  physicalDamageType: "bludgeoning",
+  size: "gargantuan",
+  anatomy: "tentacled",
   name: "The Deepwake Kraken",
   family: "chimaera",
   affinity: Element.Thunder,

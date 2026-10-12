@@ -57,6 +57,10 @@ import {
   createSocialState,
   normalizeSocialState,
 } from "./reputation";
+import { createDevotionState, normalizeDevotionState } from "./devotionState";
+import { consumeHistoricalDevotionSources } from "./devotion";
+import { normalizeDevotionBlessing } from "./devotionTemples";
+import { DEVOTION_PREVIEW_SAVE_VERSION } from "../data/devotion";
 import {
   normalizeAchievementState,
   reconcileAchievements,
@@ -65,6 +69,7 @@ import { normalizeGatheringState } from "./gatheringState";
 import { normalizeCraftingState } from "./craftingState";
 import { reconcileCraftingRecipes } from "./crafting";
 import { normalizeNauticalState } from "./nauticalState";
+import { normalizeMinigameState, validateMinigameRecovery } from "./minigameState";
 import {
   getBoat,
   getPort,
@@ -75,6 +80,8 @@ import {
   normalizeFeatureDiscoveryProgress,
   reconcileFeatureDiscovery,
 } from "./featureDiscovery";
+import { normalizeHeroProgressionState } from "./classProgressionState";
+import { hasUsableSavePlayerCore } from "./saveActor";
 import {
   LEGACY_SAVE_STORAGE_KEY,
   SAVE_SLOT_IDS,
@@ -85,7 +92,7 @@ import {
   type SaveStorageErrorCode,
 } from "./saveStorage";
 
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 25;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -123,8 +130,14 @@ interface PlaytimeSession {
 
 let playtimeSession: PlaytimeSession | null = null;
 
-function getSaveStorage(): SaveKeyValueStorage | null {
-  return typeof localStorage === "undefined" ? null : localStorage;
+/** Acquire renderer storage even when browser privacy settings deny access. */
+export function getSaveStorage(): SaveKeyValueStorage | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch (error: unknown) {
+    debugLog("[save] Local campaign storage is unavailable", error);
+    return null;
+  }
 }
 
 function getStorageAdapter(): SaveSlotStorageAdapter | null {
@@ -323,7 +336,7 @@ function getInterimTrapState(record: unknown): TrapState | undefined {
   return undefined;
 }
 
-function migrateInterimTrapProgression(player: PlayerState): void {
+function migrateInterimTrapProgression(player: PlayerState, rawInventory: unknown): void {
   const progression = player.progression as unknown as Record<string, unknown>;
   const rawChecks = isRecord(progression["skillChecks"])
     ? progression["skillChecks"]
@@ -355,7 +368,9 @@ function migrateInterimTrapProgression(player: PlayerState): void {
 
   const hadGuidanceItem = player.inventory.some(
     (item) => item.id === "adventurerTrapNotes",
-  );
+  ) || (Array.isArray(rawInventory) && rawInventory.some((item) =>
+    isRecord(item) && item["id"] === "adventurerTrapNotes"
+  ));
   if (hadGuidanceItem) {
     progression["trapGuidance"] = true;
     player.inventory = player.inventory.filter(
@@ -512,7 +527,13 @@ function normalizePlayerLocation(player: PlayerState): void {
 export function normalizeSaveData(value: unknown): SaveData | null {
   try {
     const parsed = value;
-    if (!isRecord(parsed) || !isRecord(parsed["player"])) return null;
+    if (
+      !isRecord(parsed)
+      || !isRecord(parsed["player"])
+      || !hasUsableSavePlayerCore(parsed["player"])
+    ) {
+      return null;
+    }
     if (
       typeof parsed["version"] !== "number"
       || !Number.isInteger(parsed["version"])
@@ -522,7 +543,23 @@ export function normalizeSaveData(value: unknown): SaveData | null {
       return null;
     }
     const sourceVersion = parsed["version"];
+    const rawInventory = parsed["player"]["inventory"];
+    const rawProgression = parsed["player"]["progression"];
+    const activityPreviewWithoutClassOwnership = sourceVersion === 19
+      && parsed["player"]["classProgression"] === undefined
+      && isRecord(rawProgression) && isRecord(rawProgression["minigames"]);
+    const timingPreviewWithoutClassOwnership = sourceVersion === 19
+      && parsed["player"]["classProgression"] === undefined
+      && isRecord(parsed["player"]["battleTiming"]);
+    const heroFields = normalizeHeroProgressionState({
+      ...parsed["player"],
+      inventory: Array.isArray(rawInventory)
+        ? rawInventory.filter((item: unknown) => !isRecord(item) || item["id"] !== "adventurerTrapNotes")
+        : rawInventory,
+    }, activityPreviewWithoutClassOwnership || timingPreviewWithoutClassOwnership ? 18 : sourceVersion);
+    if (!heroFields) return null;
     const data = parsed as unknown as SaveData;
+    Object.assign(data.player, heroFields);
 
     // Migration: old saves stored this field as "bestiary" — map to "codex"
     if (!data.codex && parsed["bestiary"]) {
@@ -530,7 +567,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
       delete parsed["bestiary"];
     }
 
-    data.codex = normalizeCodexData(data.codex);
+    data.codex = normalizeCodexData(data.codex, sourceVersion >= 22);
     data.appearanceId = readString(data.appearanceId, "knight");
     data.defeatedBosses = normalizeStringArray(data.defeatedBosses);
     data.player.knownAbilities = normalizeStringArray(data.player.knownAbilities);
@@ -540,6 +577,9 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     data.player.battleTiming = sourceVersion < 19
       ? createBattleTimingSettings()
       : normalizeBattleTimingSettings(playerRecord["battleTiming"]);
+    const rawDevotion = isRecord(playerRecord["progression"])
+      ? playerRecord["progression"]["devotion"]
+      : undefined;
     if (!isRecord(playerRecord["position"])) {
       data.player.position = {
         x: readInteger(playerRecord["x"], 3),
@@ -587,10 +627,12 @@ export function normalizeSaveData(value: unknown): SaveData | null {
         tutorial: normalizeTutorialProgress(undefined),
         worldEvents: normalizeWorldEventState(undefined),
         social: createSocialState(),
+        devotion: createDevotionState(),
         achievements: normalizeAchievementState(undefined, sourceVersion),
         gathering: normalizeGatheringState(undefined, sourceVersion),
         crafting: normalizeCraftingState(undefined, sourceVersion),
         nautical: normalizeNauticalState(undefined, sourceVersion),
+        minigames: normalizeMinigameState(undefined, sourceVersion),
         discoveredFeatureIds: [],
         pendingFeatureRevealIds: [],
         debugDiscoveredFeatureIds: [],
@@ -610,7 +652,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     data.player.progression.exploredTiles = normalizeExploredTiles(
       data.player.progression.exploredTiles,
     );
-    migrateInterimTrapProgression(data.player);
+    migrateInterimTrapProgression(data.player, rawInventory);
     data.player.progression.quests = normalizeQuestLog(
       data.player.progression.quests,
     );
@@ -648,6 +690,14 @@ export function normalizeSaveData(value: unknown): SaveData | null {
         ...getHistoricalQuestSocialSourceIds(data.player.progression.quests),
       );
     }
+    data.player.progression.devotion = normalizeDevotionState(rawDevotion, sourceVersion);
+    if (sourceVersion < DEVOTION_PREVIEW_SAVE_VERSION || !isRecord(rawDevotion)) {
+      consumeHistoricalDevotionSources(
+        data.player.progression.devotion,
+        data.player.progression.quests,
+        data.player.progression.worldEvents.log,
+      );
+    }
     data.player.progression.achievements = normalizeAchievementState(
       data.player.progression.achievements,
       sourceVersion,
@@ -662,6 +712,10 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     );
     data.player.progression.nautical = normalizeNauticalState(
       data.player.progression.nautical,
+      sourceVersion,
+    );
+    data.player.progression.minigames = normalizeMinigameState(
+      data.player.progression.minigames,
       sourceVersion,
     );
     const featureDiscovery = sourceVersion < 17
@@ -693,25 +747,9 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     if (data.player.mountId === undefined) data.player.mountId = "";
     if (data.player.shortRestsRemaining === undefined) data.player.shortRestsRemaining = 2;
     if (data.player.pendingLevelUps === undefined) data.player.pendingLevelUps = 0;
-    data.player.activeEffects = normalizeActiveEffects(data.player.activeEffects);
-
-    const p = data.player;
-    if (p.equippedWeapon) {
-      const match = p.inventory.find(i => i.id === p.equippedWeapon!.id && i.type === "weapon");
-      if (match) p.equippedWeapon = match;
-    }
-    if (p.equippedOffHand) {
-      const match = p.inventory.find(i => i.id === p.equippedOffHand!.id && i.type === "weapon");
-      if (match) p.equippedOffHand = match;
-    }
-    if (p.equippedArmor) {
-      const match = p.inventory.find(i => i.id === p.equippedArmor!.id && i.type === "armor");
-      if (match) p.equippedArmor = match;
-    }
-    if (p.equippedShield) {
-      const match = p.inventory.find(i => i.id === p.equippedShield!.id && i.type === "shield");
-      if (match) p.equippedShield = match;
-    }
+    const savedEffects: unknown = data.player.activeEffects;
+    data.player.activeEffects = normalizeActiveEffects(savedEffects);
+    normalizeDevotionBlessing(data.player, savedEffects);
 
     const validCityIds = new Set(CITIES.map((city) => city.id));
     if (!Array.isArray(data.player.progression.discoveredCities)) {
@@ -734,6 +772,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     }
 
     normalizePlayerLocation(data.player);
+    validateMinigameRecovery(data.player);
     replayCodexUnlocks(data.codex, data.player);
     reconcileCraftingRecipes(data.player, data.codex);
     reconcileAchievements({

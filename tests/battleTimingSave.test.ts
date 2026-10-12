@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SAVE_VERSION,
   createCurrentSaveData,
@@ -31,6 +31,48 @@ function campaign() {
 beforeEach(() => localStorage.clear());
 
 describe("campaign timing persistence and checkpoint recovery", () => {
+  it.each([19, 20, 21, 22, 23, 24])("migrates main schema v%s to Standard without changing owned domains", (version) => {
+    const { player, codex, defeatedBosses } = campaign();
+    const before = structuredClone(player);
+    const save = createCurrentSaveData(player, defeatedBosses, codex, player.appearanceId, 0);
+    const { battleTiming: _timing, ...withoutTiming } = save.player;
+    const normalized = normalizeSaveData({ ...save, version, player: withoutTiming });
+    expect(normalized?.version).toBe(SAVE_VERSION);
+    expect(normalized?.player.battleTiming).toEqual(createBattleTimingSettings());
+    expect(normalized?.player.classProgression).toEqual(before.classProgression);
+    expect(normalized?.player.progression.devotion).toEqual(before.progression.devotion);
+    expect(normalized?.player.progression.minigames).toEqual(before.progression.minigames);
+  });
+
+  it("preserves a schema-v19 timed preview that predates hero class ownership", () => {
+    const { player, codex, defeatedBosses } = campaign();
+    player.level = 5;
+    player.maxHp = 99;
+    player.hp = 62;
+    player.maxMp = 27;
+    player.mp = 13;
+    player.knownSpells.push("magicMissile");
+    const customArmor = { ...getItem("chainMail")!, id: "timedPreviewArmor", effect: 2.5 };
+    player.inventory.push(customArmor);
+    player.equippedArmor = customArmor;
+    const save = createCurrentSaveData(player, defeatedBosses, codex, player.appearanceId, 0);
+    const { classProgression: _progression, ...legacyPlayer } = save.player;
+    const random = vi.spyOn(Math, "random");
+    try {
+      const migrated = normalizeSaveData({ ...save, version: 19, player: legacyPlayer });
+      expect(migrated?.player).toMatchObject({
+        battleTiming: player.battleTiming, level: 5,
+        maxHp: 99, hp: 62, maxMp: 27, mp: 13, knownSpells: player.knownSpells,
+      });
+      expect(migrated?.player.inventory).toEqual(player.inventory);
+      expect(migrated?.player.equippedArmor)
+        .toBe(migrated?.player.inventory[migrated.player.inventory.length - 1]);
+      expect(random).not.toHaveBeenCalled();
+    } finally {
+      random.mockRestore();
+    }
+  });
+
   it("round-trips configuration in autosave and independent manual slots", () => {
     const { player, codex, defeatedBosses } = campaign();
     expect(saveGame(player, defeatedBosses, codex, player.appearanceId).ok).toBe(true);

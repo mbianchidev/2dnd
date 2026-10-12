@@ -9,15 +9,20 @@ import type {
   MonsterEncounter,
 } from "../data/monsterGroups";
 import type { FormationPosition } from "../data/monsterGroups";
-import type { Item } from "../data/items";
+import { getArmorPhysicalProfile, type Item } from "../data/items";
 import type { Monster } from "../data/monsters";
+import type { PhysicalDiscovery } from "../data/anatomy";
+import type { BodyPartId } from "../data/anatomy";
+import type { DamageInteraction, PhysicalDamageType, PhysicalProfile } from "../data/damageTypes";
 import type { TargetType } from "../data/spells";
 import {
   discoverElement,
+  discoverPhysical,
   recordDefeat,
   type CodexData,
 } from "./codex";
-import { rollD20 } from "./dice";
+import { rollD20, type D20Roll } from "./dice";
+import type { ResolvedD20Roll } from "./rollResults";
 import {
   getArmorClass,
   type PlayerState,
@@ -56,6 +61,7 @@ export interface PartyCombatantSource {
   stats: PlayerStats;
   activeEffects: ActiveStatusEffect[];
   getArmorClass(defendBonus: number): number;
+  getPhysicalProfile?(): PhysicalProfile | undefined;
 }
 
 export interface PartyCombatant extends BattleCombatantState {
@@ -63,6 +69,7 @@ export interface PartyCombatant extends BattleCombatantState {
   readonly actorKind: "hero" | "companion";
   readonly sourceId: string;
   readonly stats: PlayerStats;
+  readonly physicalProfile?: PhysicalProfile;
   getArmorClass(defendBonus: number): number;
 }
 
@@ -76,6 +83,7 @@ export interface GroupCombatant extends BattleCombatantState {
   hpRevealed: boolean;
   droppedItemIds: string[];
   elementalDiscoveries: Set<Element>;
+  physicalDiscoveries: PhysicalDiscovery[];
 }
 
 export interface BattleTurn {
@@ -86,6 +94,7 @@ export interface BattleTurn {
 export interface BattleInitiativeResult {
   order: BattleTurn[];
   rolls: Record<BattleCombatantId, number>;
+  readonly rollResults: Readonly<Record<BattleCombatantId, ResolvedD20Roll | undefined>>;
 }
 
 export interface GroupInitiativeResult extends BattleInitiativeResult {
@@ -128,6 +137,12 @@ export interface CompanionTurnContext {
     targetId: BattleCombatantId,
     interaction: ElementalInteraction,
     element: Element,
+  ): void;
+  recordPhysicalInteraction?(
+    targetId: BattleCombatantId,
+    interaction: DamageInteraction,
+    damageType: PhysicalDamageType,
+    bodyPartId?: BodyPartId,
   ): void;
   addLog(message: string): void;
   completeTurn(): void;
@@ -211,6 +226,9 @@ export function createPartyCombatant(
     get stats(): PlayerStats {
       return source.stats;
     },
+    get physicalProfile(): PhysicalProfile | undefined {
+      return source.getPhysicalProfile?.();
+    },
     getArmorClass: (defendBonus: number): number =>
       source.getArmorClass(defendBonus),
   };
@@ -239,6 +257,8 @@ export function createHeroCombatant(player: PlayerState): PartyCombatant {
       },
       getArmorClass: (defendBonus: number): number =>
         getArmorClass(player, defendBonus),
+      getPhysicalProfile: (): PhysicalProfile | undefined =>
+        getArmorPhysicalProfile(player.equippedArmor),
     },
     "hero",
   );
@@ -283,6 +303,7 @@ export function createGroupCombatants(
       acDiscovered: false,
       hpRevealed: false,
       droppedItemIds: [],
+      physicalDiscoveries: [],
       elementalDiscoveries: new Set<Element>(),
     };
   });
@@ -292,15 +313,18 @@ export function createGroupCombatants(
 export function rollBattleInitiative(
   combatants: BattleCombatantState[],
   getModifier: (combatant: BattleCombatantState) => number,
-  roller: (modifier: number) => number = (modifier) => rollD20(modifier).total,
+  roller: (modifier: number) => number | D20Roll = rollD20,
 ): BattleInitiativeResult {
   const activeCombatants = combatants.filter(isCombatantActive);
   const originalOrder = new Map(
     activeCombatants.map((combatant, index) => [combatant.id, index]),
   );
   const rolls: Record<BattleCombatantId, number> = {};
+  const rollResults: Record<BattleCombatantId, ResolvedD20Roll> = {};
   const order = activeCombatants.map((combatant): BattleTurn => {
-    const initiative = roller(getModifier(combatant));
+    const result = roller(getModifier(combatant));
+    const initiative = typeof result === "number" ? result : result.total;
+    if (typeof result !== "number") rollResults[combatant.id] = result.rollResult;
     rolls[combatant.id] = initiative;
     return { combatantId: combatant.id, initiative };
   });
@@ -309,7 +333,7 @@ export function rollBattleInitiative(
     return (originalOrder.get(a.combatantId) ?? 0)
       - (originalOrder.get(b.combatantId) ?? 0);
   });
-  return { order, rolls };
+  return { order, rolls, rollResults: Object.freeze(rollResults) };
 }
 
 /** Backward-compatible player-plus-monsters initiative adapter. */
@@ -317,12 +341,25 @@ export function rollGroupInitiative(
   playerDexMod: number,
   combatants: GroupCombatant[],
   getMonsterBonus: (monster: Monster, index: number) => number = () => 0,
-  roller: (modifier: number) => number = (modifier) => rollD20(modifier).total,
+  roller: (modifier: number) => number | D20Roll = rollD20,
 ): GroupInitiativeResult {
-  const playerRoll = roller(playerDexMod);
-  const monsterRolls = combatants.map((combatant, index) =>
+  const playerResult = roller(playerDexMod);
+  const monsterResults = combatants.map((combatant, index) =>
     roller(combatant.monster.attackBonus + getMonsterBonus(combatant.monster, index))
   );
+  const playerRoll = typeof playerResult === "number" ? playerResult : playerResult.total;
+  const monsterRolls = monsterResults.map((result) =>
+    typeof result === "number" ? result : result.total
+  );
+  const rollResults: Record<BattleCombatantId, ResolvedD20Roll> = {};
+  if (typeof playerResult !== "number") {
+    rollResults[HERO_COMBATANT_ID] = playerResult.rollResult;
+  }
+  for (const [index, result] of monsterResults.entries()) {
+    if (typeof result !== "number") {
+      rollResults[combatants[index]!.id] = result.rollResult;
+    }
+  }
   const rolls: Record<BattleCombatantId, number> = {
     [HERO_COMBATANT_ID]: playerRoll,
   };
@@ -351,7 +388,10 @@ export function rollGroupInitiative(
       - (originalOrder.get(b.combatantId) ?? 0);
   });
 
-  return { order, rolls, playerRoll, monsterRolls };
+  return {
+    order, rolls, playerRoll, monsterRolls,
+    rollResults: Object.freeze(rollResults),
+  };
 }
 
 export function getCombatantById<T extends BattleCombatantState>(
@@ -655,6 +695,9 @@ export function recordGroupDefeats(
     );
     for (const element of combatant.elementalDiscoveries) {
       discoverElement(codex, combatant.monster.id, element);
+    }
+    for (const discovery of combatant.physicalDiscoveries) {
+      discoverPhysical(codex, combatant.monster, discovery);
     }
   }
 }

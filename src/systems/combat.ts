@@ -4,13 +4,15 @@
 
 import {
   rollD20,
-  rollDice,
   rollWithDisadvantage,
   type DieType,
 } from "../systems/dice";
 import type { Monster, MonsterAbility } from "../data/monsters";
 import { getSpell } from "../data/spells";
-import { getAbility } from "../data/abilities";
+import { getAbility, getAbilityEquipmentRejection, getAbilityPhysicalDamageType } from "../data/abilities";
+import { getArmorPhysicalProfile, getWeaponPhysicalDamageType } from "../data/items";
+import { getBodyPart, type BodyPartId } from "../data/anatomy";
+import { PhysicalDamageType, type DamageInteraction, type PhysicalProfile } from "../data/damageTypes";
 import { getTalentAttackBonus, getTalentDamageBonus } from "../data/talents";
 import {
   getAttackModifier,
@@ -21,7 +23,9 @@ import {
   type PlayerState,
 } from "./player";
 import { abilityModifier } from "../systems/dice";
-import { getPlayerClass } from "./classes";
+import {
+  canActorUseSpell, getActorAbilityRejection, getActorPrimaryStat, getProficiencyBonus,
+} from "./classProgression";
 import {
   applyElementalModifier,
   elementDisplayName,
@@ -39,6 +43,9 @@ import {
 } from "./statusEffects";
 import type { ActiveStatusEffect } from "./statusEffects";
 import { getFleeDC } from "./groupCombat";
+import { captureEffectApplication, captureElementalEffect, rollEffectDice } from "./effectRolls";
+import type { ResolvedD20Roll, ResolvedEffectRoll } from "./rollResults";
+import { applyAimedHitEffect, requireAimedBodyPart, resolveArmorHit, resolvePhysicalHit } from "./physicalCombat";
 
 export interface CombatAction {
   type: "attack" | "spell" | "item" | "flee";
@@ -54,8 +61,15 @@ export interface CombatResult {
   roll?: number;
   /** Elemental interaction observed on a successful hit. */
   elementalLabel?: ElementalInteraction;
+  physicalType?: PhysicalDamageType;
+  physicalLabel?: DamageInteraction;
+  bodyPartId?: BodyPartId;
+  bodyPartLabel?: string;
   /** Whether the attack roll used disadvantage. */
   disadvantage?: boolean;
+  readonly rollResult?: ResolvedD20Roll;
+  readonly damageRoll?: ResolvedEffectRoll;
+  fumble?: boolean;
 }
 
 export interface SpellTarget {
@@ -78,6 +92,7 @@ export interface HealingTargetResult {
   targetIndex: number;
   targetId: string;
   healing: number;
+  readonly healingRoll?: ResolvedEffectRoll;
 }
 
 export interface SpellEffectTargetResult {
@@ -92,6 +107,7 @@ export interface MonsterAttackTarget {
   currentHp: number;
   readonly maxHp: number;
   effects: ActiveStatusEffect[];
+  readonly physicalProfile?: PhysicalProfile;
   getArmorClass(defendBonus: number): number;
 }
 
@@ -128,6 +144,7 @@ interface CombatD20Roll {
   roll: number;
   total: number;
   disadvantage: boolean;
+  readonly rollResult: ResolvedD20Roll;
 }
 
 function rollCombatD20(
@@ -140,6 +157,7 @@ function rollCombatD20(
       roll: result.chosen,
       total: result.total,
       disadvantage: true,
+      rollResult: result.rollResult,
     };
   }
   const result = rollD20(modifier);
@@ -147,6 +165,7 @@ function rollCombatD20(
     roll: result.roll,
     total: result.total,
     disadvantage: false,
+    rollResult: result.rollResult,
   };
 }
 
@@ -164,18 +183,6 @@ function resolveAttackRoll(
   }
   const hit = d20Roll.total >= targetAC || autoHit;
   return { hit, critical: false, fumble: false, roll: d20Roll.roll, total: d20Roll.total };
-}
-
-/** Roll damage dice, doubling on critical hits. */
-function rollAttackDamage(
-  count: number,
-  die: DieType,
-  isCritical: boolean,
-  bonusDamage: number = 0,
-  minDamage: number = 0
-): number {
-  const dice = isCritical ? count * 2 : count;
-  return Math.max(minDamage, rollDice(dice, die) + bonusDamage);
 }
 
 function buildElementalMessage(
@@ -198,7 +205,13 @@ function buildElementalMessage(
 export function rollInitiative(
   playerDexMod: number,
   monsterBonus: number
-): { playerFirst: boolean; playerRoll: number; monsterRoll: number } {
+): {
+  playerFirst: boolean;
+  playerRoll: number;
+  monsterRoll: number;
+  readonly playerRollResult: ResolvedD20Roll;
+  readonly monsterRollResult: ResolvedD20Roll;
+} {
   if (typeof playerDexMod !== "number" || typeof monsterBonus !== "number") {
     throw new Error(`[combat] rollInitiative: invalid modifiers playerDex=${playerDexMod} monster=${monsterBonus}`);
   }
@@ -208,6 +221,8 @@ export function rollInitiative(
     playerFirst: playerInit.total >= monsterInit.total,
     playerRoll: playerInit.total,
     monsterRoll: monsterInit.total,
+    playerRollResult: playerInit.rollResult,
+    monsterRollResult: monsterInit.rollResult,
   };
 }
 
@@ -218,13 +233,17 @@ export function playerAttack(
   monsterDefendBonus: number = 0,
   weatherPenalty: number = 0,
   monsterEffects: ActiveStatusEffect[] = [],
+  bodyPartId?: BodyPartId,
 ): CombatResult & { attackMod: number; totalRoll: number; targetAC: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerAttack: missing player or monster`);
   }
+  const physicalType = getWeaponPhysicalDamageType(player.equippedWeapon);
+  const bodyPart = requireAimedBodyPart(monster, bodyPartId, physicalType);
   const playerEffects = player.activeEffects;
   const attackMod = getAttackModifier(player)
-    + getEffectAccuracyModifier(playerEffects);
+    + getEffectAccuracyModifier(playerEffects)
+    - (bodyPart?.aimPenalty ?? 0);
   const statusDamage = getEffectDamageModifier(playerEffects);
   const roll = rollCombatD20(attackMod, playerEffects);
   const effectiveAC = monster.ac
@@ -237,6 +256,11 @@ export function playerAttack(
     totalRoll: roll.total,
     targetAC: effectiveAC,
     disadvantage: roll.disadvantage,
+    rollResult: roll.rollResult,
+    fumble: outcome.fumble,
+    physicalType,
+    bodyPartId: bodyPart?.id,
+    bodyPartLabel: bodyPart?.label,
   };
 
   if (outcome.fumble) {
@@ -254,16 +278,21 @@ export function playerAttack(
     const dexMod = abilityModifier(player.stats.dexterity);
     const isFinesse = player.equippedWeapon?.finesse === true;
     const dmgMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
-    const baseDamage = rollAttackDamage(
-      1,
+    const damageRoll = rollEffectDice(
+      outcome.critical ? 2 : 1,
       6,
-      outcome.critical,
-      weaponBonus + talentDmg + dmgMod + statusDamage,
-      outcome.critical ? 0 : 1,
+      [
+        { label: "Weapon", value: weaponBonus },
+        { label: "Talents", value: talentDmg },
+        { label: isFinesse ? "Finesse" : "Strength", value: dmgMod },
+        { label: "Statuses", value: statusDamage },
+      ],
+      { minimum: outcome.critical ? 0 : 1, criticalDice: outcome.critical },
     );
+    const physical = resolvePhysicalHit(damageRoll, physicalType, monster, bodyPart);
     const weaponElement = player.equippedWeapon?.element;
     const { damage, interaction: elementalLabel } = applyElementalModifier(
-      baseDamage,
+      physical.damage,
       weaponElement,
       monster.elementalProfile,
     );
@@ -275,7 +304,11 @@ export function playerAttack(
       elementalLabel,
     );
     return {
-      message: `${prefix}${player.name} ${verb} for ${damage} damage!${elementalMessage}`,
+      message: `${prefix}${player.name} ${verb}${bodyPart ? ` ${bodyPart.label.toLowerCase()}` : ""} for ${damage} damage!`
+        + physical.message + elementalMessage
+        + applyAimedHitEffect(monsterEffects, bodyPart, damage, player.name),
+      physicalLabel: physical.physicalLabel,
+      damageRoll: captureElementalEffect(physical.damageRoll, damage, weaponElement, elementalLabel),
       damage,
       hit: true,
       critical: outcome.critical,
@@ -302,6 +335,7 @@ export function playerOffHandAttack(
   monsterDefendBonus: number = 0,
   weatherPenalty: number = 0,
   monsterEffects: ActiveStatusEffect[] = [],
+  bodyPartId?: BodyPartId,
 ): CombatResult & { attackMod: number; totalRoll: number; targetAC: number } {
   if (!player || !monster) {
     throw new Error(`[combat] playerOffHandAttack: missing player or monster`);
@@ -310,9 +344,12 @@ export function playerOffHandAttack(
     throw new Error(`[combat] playerOffHandAttack: no off-hand weapon equipped`);
   }
 
+  const physicalType = getWeaponPhysicalDamageType(player.equippedOffHand);
+  const bodyPart = requireAimedBodyPart(monster, bodyPartId, physicalType);
   const playerEffects = player.activeEffects;
   const attackMod = getAttackModifier(player)
-    + getEffectAccuracyModifier(playerEffects);
+    + getEffectAccuracyModifier(playerEffects)
+    - (bodyPart?.aimPenalty ?? 0);
   const statusDamage = getEffectDamageModifier(playerEffects);
   const roll = rollCombatD20(attackMod, playerEffects);
   const effectiveAC = monster.ac
@@ -325,6 +362,11 @@ export function playerOffHandAttack(
     totalRoll: roll.total,
     targetAC: effectiveAC,
     disadvantage: roll.disadvantage,
+    rollResult: roll.rollResult,
+    fumble: outcome.fumble,
+    physicalType,
+    bodyPartId: bodyPart?.id,
+    bodyPartLabel: bodyPart?.label,
   };
 
   if (outcome.fumble) {
@@ -340,21 +382,25 @@ export function playerOffHandAttack(
     // D&D 5e: off-hand does NOT add ability modifier to damage
     // unless player has Two-Weapon Fighting style OR modifier is negative
     const primaryStatMod = (() => {
-      const playerClass = getPlayerClass(player.appearanceId);
-      return abilityModifier(player.stats[playerClass.primaryStat]);
+      return abilityModifier(player.stats[getActorPrimaryStat(player)]);
     })();
     const addAbilityMod = hasTwoWeaponFighting(player) || primaryStatMod < 0;
     const abilityDmgBonus = addAbilityMod ? primaryStatMod : 0;
-    const baseDamage = rollAttackDamage(
-      1,
+    const damageRoll = rollEffectDice(
+      outcome.critical ? 2 : 1,
       6,
-      outcome.critical,
-      offHandBonus + talentDmg + abilityDmgBonus + statusDamage,
-      outcome.critical ? 0 : 1,
+      [
+        { label: "Off-hand weapon", value: offHandBonus },
+        { label: "Talents", value: talentDmg },
+        { label: "Primary ability", value: abilityDmgBonus },
+        { label: "Statuses", value: statusDamage },
+      ],
+      { minimum: outcome.critical ? 0 : 1, criticalDice: outcome.critical },
     );
+    const physical = resolvePhysicalHit(damageRoll, physicalType, monster, bodyPart);
     const offHandElement = player.equippedOffHand.element;
     const { damage, interaction: elementalLabel } = applyElementalModifier(
-      baseDamage,
+      physical.damage,
       offHandElement,
       monster.elementalProfile,
     );
@@ -367,7 +413,11 @@ export function playerOffHandAttack(
       elementalLabel,
     );
     return {
-      message: `${prefix}${player.name}'s ${hand} ${verb} for ${damage} damage!${elementalMessage}`,
+      message: `${prefix}${player.name}'s ${hand} ${verb}${bodyPart ? ` ${bodyPart.label.toLowerCase()}` : ""} for ${damage} damage!`
+        + physical.message + elementalMessage
+        + applyAimedHitEffect(monsterEffects, bodyPart, damage, player.name),
+      physicalLabel: physical.physicalLabel,
+      damageRoll: captureElementalEffect(physical.damageRoll, damage, offHandElement, elementalLabel),
       damage,
       hit: true,
       critical: outcome.critical,
@@ -405,6 +455,12 @@ export function playerCastSpellAtTargets(
       mpUsed: 0,
       results: [],
       healingResults: [],
+    };
+  }
+  if (spell.progressionScope === "track" && !canActorUseSpell(player, spellId)) {
+    return {
+      message: "The acting character has not learned this spell.",
+      damage: 0, hit: false, mpUsed: 0, results: [], healingResults: [],
     };
   }
 
@@ -456,14 +512,16 @@ export function playerCastSpellAtTargets(
         healingResults: [],
       };
     }
-    const healAmount = rollDice(
+    const healingRoll = rollEffectDice(
       spell.damageCount,
-      spell.damageDie as DieType
+      spell.damageDie as DieType,
+      [],
+      { shared: resolvedHealingTargets.length > 1 },
     );
     const healingResults = resolvedHealingTargets.map(
       (target, targetIndex): HealingTargetResult => {
         const actualHeal = Math.min(
-          healAmount,
+          healingRoll.amount,
           target.maxHp - target.currentHp,
         );
         target.currentHp += actualHeal;
@@ -471,6 +529,7 @@ export function playerCastSpellAtTargets(
           targetIndex,
           targetId: target.id,
           healing: actualHeal,
+          healingRoll: captureEffectApplication(healingRoll, actualHeal, "Maximum HP"),
         };
       },
     );
@@ -565,19 +624,24 @@ export function playerCastSpellAtTargets(
 
   // Damage spell - roll once, then resolve independently against each target.
   const playerEffects = player.activeEffects;
-  const spellMod = getSpellModifier(player)
+  const spellMod = getSpellModifier(player, spellId)
     + getEffectAccuracyModifier(playerEffects);
   const statusDamage = getEffectDamageModifier(playerEffects);
   const autoHit = spell.id === "magicMissile";
   const roll = autoHit
-    ? { roll: 0, total: 0, disadvantage: false }
+    ? { roll: 0, total: 0, disadvantage: false, rollResult: undefined }
     : rollCombatD20(spellMod, playerEffects);
   player.mp -= spell.mpCost;
   const talentDmg = getTalentDamageBonus(player.knownTalents);
-  const baseDamage = rollDice(
+  const damageRoll = rollEffectDice(
     spell.damageCount,
     spell.damageDie as DieType,
-  ) + talentDmg + statusDamage;
+    [
+      { label: "Talents", value: talentDmg },
+      { label: "Statuses", value: statusDamage },
+    ],
+    { shared: targets.length > 1 },
+  );
 
   const results = targets.map((target, targetIndex): SpellTargetResult => {
     const effectiveAC = target.monster.ac
@@ -601,6 +665,9 @@ export function playerCastSpellAtTargets(
       targetAC: effectiveAC,
       autoHit,
       disadvantage: roll.disadvantage,
+      rollResult: roll.rollResult,
+      critical: outcome.critical,
+      fumble: outcome.fumble,
     };
 
     if (!outcome.hit) {
@@ -613,7 +680,7 @@ export function playerCastSpellAtTargets(
     }
 
     const { damage, interaction: elementalLabel } = applyElementalModifier(
-      baseDamage,
+      damageRoll.amount,
       spell.element,
       target.monster.elementalProfile,
     );
@@ -624,6 +691,7 @@ export function playerCastSpellAtTargets(
     );
     return {
       message: `${target.monster.name} takes ${damage} damage!${elementalMessage}`,
+      damageRoll: captureElementalEffect(damageRoll, damage, spell.element, elementalLabel),
       damage,
       hit: true,
       elementalLabel,
@@ -690,6 +758,7 @@ export function monsterAttackTarget(
     throw new Error("[combat] monsterAttackTarget: missing monster or target");
   }
   const playerAC = target.getArmorClass(playerDefendBonus) + weatherPenalty;
+  const physicalType = monster.physicalDamageType ?? PhysicalDamageType.Bludgeoning;
   const effectiveAtkBonus = monster.attackBonus
     + monsterAtkBoost
     + synergyAttackBonus
@@ -701,6 +770,9 @@ export function monsterAttackTarget(
     totalRoll: roll.total,
     targetAC: playerAC,
     disadvantage: roll.disadvantage,
+    rollResult: roll.rollResult,
+    fumble: outcome.fumble,
+    physicalType,
   };
 
   if (outcome.fumble) {
@@ -711,18 +783,27 @@ export function monsterAttackTarget(
   }
 
   if (outcome.hit) {
-    const damage = rollAttackDamage(
-      monster.damageCount,
+    const damageRoll = rollEffectDice(
+      outcome.critical ? monster.damageCount * 2 : monster.damageCount,
       monster.damageDie,
-      outcome.critical,
-      getEffectDamageModifier(monsterEffects) + synergyDamageBonus,
+      [
+        { label: "Statuses", value: getEffectDamageModifier(monsterEffects) },
+        { label: "Synergy", value: synergyDamageBonus },
+      ],
+      { minimum: 0, criticalDice: outcome.critical },
     );
+    const armor = resolveArmorHit(damageRoll, physicalType, target);
+    const damage = armor.damage;
+    const hpBefore = target.currentHp;
     target.currentHp = Math.max(0, target.currentHp - damage);
     const prefix = outcome.critical ? "CRITICAL! " : "";
     const verb = outcome.critical ? "savages" : "hits";
     return {
-      message: `${prefix}${monster.name} ${verb} ${target.label} for ${damage} damage!`,
-      damage, hit: true, critical: outcome.critical, roll: outcome.roll, ...meta,
+      message: `${prefix}${monster.name} ${verb} ${target.label} for ${damage} damage!${armor.message}`,
+      damage, hit: true, critical: outcome.critical, roll: outcome.roll,
+      physicalLabel: armor.physicalLabel,
+      damageRoll: captureEffectApplication(armor.damageRoll, hpBefore - target.currentHp, "Overkill"),
+      ...meta,
     };
   }
 
@@ -747,6 +828,9 @@ export function monsterAttack(
     monster,
     {
       label: player.name,
+      get physicalProfile(): PhysicalProfile | undefined {
+        return getArmorPhysicalProfile(player.equippedArmor);
+      },
       get currentHp(): number {
         return player.hp;
       },
@@ -778,6 +862,8 @@ export function monsterAttack(
 export function attemptFlee(dexModifier: number, aliveCount: number = 1): {
   success: boolean;
   message: string;
+  readonly rollResult: ResolvedD20Roll;
+  dc: number;
 } {
   if (typeof dexModifier !== "number") {
     throw new Error(`[combat] attemptFlee: invalid dexModifier ${dexModifier}`);
@@ -785,11 +871,16 @@ export function attemptFlee(dexModifier: number, aliveCount: number = 1): {
   const roll = rollD20(dexModifier);
   const dc = getFleeDC(aliveCount);
   if (roll.total >= dc) {
-    return { success: true, message: `Escaped! (rolled ${roll.total})` };
+    return {
+      success: true, message: `Escaped! (rolled ${roll.total})`,
+      rollResult: roll.rollResult, dc,
+    };
   }
   return {
     success: false,
     message: `Failed to escape! (rolled ${roll.total}, needed ${dc})`,
+    rollResult: roll.rollResult,
+    dc,
   };
 }
 
@@ -803,6 +894,7 @@ export function playerUseAbility(
   weatherPenalty: number = 0,
   monsterEffects: ActiveStatusEffect[] = [],
   healingTargets?: HealingTarget[],
+  bodyPartId?: BodyPartId,
 ): CombatResult & {
   mpUsed: number;
   attackMod?: number;
@@ -817,6 +909,15 @@ export function playerUseAbility(
   if (!ability) {
     return { message: "Unknown ability!", damage: 0, hit: false, mpUsed: 0 };
   }
+  const physicalType = getAbilityPhysicalDamageType(abilityId, player.equippedWeapon);
+  const bodyPart = getBodyPart(monster, bodyPartId);
+  if (bodyPartId !== undefined && (!bodyPart || !physicalType
+    || (ability.targetType && ability.targetType !== "single" && ability.targetType !== "single_enemy"))) {
+    return { message: "That body part cannot be targeted by this action.", damage: 0, hit: false, mpUsed: 0 };
+  }
+  const gearRejection = ability.progressionScope === "track"
+    ? getActorAbilityRejection(player, abilityId) : getAbilityEquipmentRejection(ability, player);
+  if (gearRejection) return { message: gearRejection, damage: 0, hit: false, mpUsed: 0 };
 
   if (player.mp < ability.mpCost) {
     return { message: "Not enough MP!", damage: 0, hit: false, mpUsed: 0 };
@@ -882,11 +983,14 @@ export function playerUseAbility(
         healingResults: [],
       };
     }
-    const healAmount = rollDice(ability.damageCount, ability.damageDie as DieType);
+    const healingRoll = rollEffectDice(
+      ability.damageCount, ability.damageDie as DieType, [],
+      { shared: targets.length > 1 },
+    );
     const healingResults = targets.map(
       (target, targetIndex): HealingTargetResult => {
         const actualHeal = Math.min(
-          healAmount,
+          healingRoll.amount,
           target.maxHp - target.currentHp,
         );
         target.currentHp += actualHeal;
@@ -894,6 +998,7 @@ export function playerUseAbility(
           targetIndex,
           targetId: target.id,
           healing: actualHeal,
+          healingRoll: captureEffectApplication(healingRoll, actualHeal, "Maximum HP"),
         };
       },
     );
@@ -910,13 +1015,14 @@ export function playerUseAbility(
   // Damage ability — uses STR, DEX, or WIS
   const playerEffects = player.activeEffects;
   const stat = player.stats[ability.statKey];
-  const profBonus = Math.floor((player.level - 1) / 4) + 2;
+  const profBonus = getProficiencyBonus(player);
   const talentAtk = getTalentAttackBonus(player.knownTalents);
   const talentDmg = getTalentDamageBonus(player.knownTalents);
   const attackMod = abilityModifier(stat)
     + profBonus
     + talentAtk
-    + getEffectAccuracyModifier(playerEffects);
+    + getEffectAccuracyModifier(playerEffects)
+    - (bodyPart?.aimPenalty ?? 0);
   const roll = rollCombatD20(attackMod, playerEffects);
   const effectiveAC = monster.ac
     + weatherPenalty
@@ -928,6 +1034,11 @@ export function playerUseAbility(
     totalRoll: roll.total,
     targetAC: effectiveAC,
     disadvantage: roll.disadvantage,
+    rollResult: roll.rollResult,
+    fumble: outcome.fumble,
+    physicalType,
+    bodyPartId: bodyPart?.id,
+    bodyPartLabel: bodyPart?.label,
   };
 
   player.mp -= ability.mpCost;
@@ -940,14 +1051,18 @@ export function playerUseAbility(
   }
 
   if (outcome.hit) {
-    const baseDamage = rollAttackDamage(
-      ability.damageCount,
+    const damageRoll = rollEffectDice(
+      outcome.critical ? ability.damageCount * 2 : ability.damageCount,
       ability.damageDie as DieType,
-      outcome.critical,
-      talentDmg + getEffectDamageModifier(playerEffects),
+      [
+        { label: "Talents", value: talentDmg },
+        { label: "Statuses", value: getEffectDamageModifier(playerEffects) },
+      ],
+      { minimum: 0, criticalDice: outcome.critical },
     );
+    const physical = resolvePhysicalHit(damageRoll, physicalType, monster, bodyPart);
     const { damage, interaction: elementalLabel } = applyElementalModifier(
-      baseDamage,
+      physical.damage,
       ability.element,
       monster.elementalProfile,
     );
@@ -958,7 +1073,7 @@ export function playerUseAbility(
       elementalLabel,
     );
     let statusMessage = "";
-    if (ability.targetEffect) {
+    if (ability.targetEffect && damage > 0) {
       const effectResult = applyStatusEffect(
         monsterEffects,
         ability.targetEffect,
@@ -967,7 +1082,11 @@ export function playerUseAbility(
       if (effectResult.applied) statusMessage = ` ${effectResult.message}`;
     }
     return {
-      message: `${prefix}${player.name} uses ${ability.name}! ${damage} damage!${elementalMessage}${statusMessage}`,
+      message: `${prefix}${player.name} uses ${ability.name}${bodyPart ? ` on ${bodyPart.label.toLowerCase()}` : ""}! ${damage} damage!`
+        + physical.message + elementalMessage + statusMessage
+        + applyAimedHitEffect(monsterEffects, bodyPart, damage, player.name),
+      physicalLabel: physical.physicalLabel,
+      damageRoll: captureElementalEffect(physical.damageRoll, damage, ability.element, elementalLabel),
       damage,
       hit: true,
       critical: outcome.critical,
@@ -991,6 +1110,10 @@ export interface MonsterAbilityResult {
   healing: number;
   abilityName: string;
   element?: Element;
+  physicalType?: PhysicalDamageType;
+  physicalLabel?: DamageInteraction;
+  readonly damageRoll?: ResolvedEffectRoll;
+  readonly healingRoll?: ResolvedEffectRoll;
 }
 
 /** Monster uses a special ability against a party combatant. */
@@ -1002,23 +1125,33 @@ export function monsterUseAbilityTarget(
   synergyDamageBonus: number = 0,
 ): MonsterAbilityResult {
   if (ability.type === "heal") {
-    const healing = rollDice(ability.damageCount, ability.damageDie);
+    const healingRoll = rollEffectDice(ability.damageCount, ability.damageDie);
+    const healing = healingRoll.amount;
     return {
       message: `${monster.name} uses ${ability.name}! Recovers ${healing} HP!`,
       damage: 0,
       healing,
       abilityName: ability.name,
       element: ability.element,
+      healingRoll,
     };
   }
 
   // Damage ability (bypasses AC — like breath weapons)
-  const damage = Math.max(
-    0,
-    rollDice(ability.damageCount, ability.damageDie)
-      + getEffectDamageModifier(monsterEffects)
-      + synergyDamageBonus,
+  const damageRoll = rollEffectDice(
+    ability.damageCount,
+    ability.damageDie,
+    [
+      { label: "Statuses", value: getEffectDamageModifier(monsterEffects) },
+      { label: "Synergy", value: synergyDamageBonus },
+    ],
+    { minimum: 0 },
   );
+  const physicalType = ability.physicalDamageType
+    ?? (ability.element ? undefined : monster.physicalDamageType ?? PhysicalDamageType.Bludgeoning);
+  const armor = resolveArmorHit(damageRoll, physicalType, target);
+  const damage = armor.damage;
+  const hpBefore = target.currentHp;
   target.currentHp = Math.max(0, target.currentHp - damage);
 
   const selfHealMsg = ability.selfHeal
@@ -1038,11 +1171,15 @@ export function monsterUseAbilityTarget(
   }
 
   return {
-    message: `${monster.name} uses ${ability.name}!${elementalSuffix} ${damage} damage!${selfHealMsg}${statusMessage}`,
+    message: `${monster.name} uses ${ability.name}!${elementalSuffix} ${damage} damage!`
+      + armor.message + selfHealMsg + statusMessage,
     damage,
     healing: ability.selfHeal ? damage : 0,
     abilityName: ability.name,
     element: ability.element,
+    physicalType,
+    physicalLabel: armor.physicalLabel,
+    damageRoll: captureEffectApplication(armor.damageRoll, hpBefore - target.currentHp, "Overkill"),
   };
 }
 
@@ -1059,6 +1196,9 @@ export function monsterUseAbility(
     monster,
     {
       label: player.name,
+      get physicalProfile(): PhysicalProfile | undefined {
+        return getArmorPhysicalProfile(player.equippedArmor);
+      },
       get currentHp(): number {
         return player.hp;
       },

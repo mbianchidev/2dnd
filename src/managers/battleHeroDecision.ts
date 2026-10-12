@@ -2,6 +2,8 @@ import type * as Phaser from "phaser";
 import { getAbility } from "../data/abilities";
 import { getSpell } from "../data/spells";
 import type { Item } from "../data/items";
+import type { BodyPartId } from "../data/anatomy";
+import type { PhysicalDamageType } from "../data/damageTypes";
 import {
   getBattleActionDescriptor,
   validateBattleAction,
@@ -20,7 +22,12 @@ interface BattleHeroDecisionCallbacks {
   acceptsInput(): boolean;
   economy(): BattleActionEconomyState;
   context(): BattleActionExecutionContext;
-  chooseEnemy(label: string, range: AttackRange, confirm: (id: string) => void): void;
+  chooseEnemy(
+    label: string,
+    range: AttackRange,
+    confirm: (id: string, bodyPartId?: BodyPartId) => void,
+    physicalType?: PhysicalDamageType,
+  ): void;
   execute(plan: BattleActionPlan): void;
   swapWeapon(item: Item): void;
   addLog(message: string): void;
@@ -142,9 +149,9 @@ export class BattleHeroDecisionManager {
     }
     this.clear();
     if (descriptor.targetType === "single" || descriptor.targetType === "single_enemy") {
-      this.callbacks.chooseEnemy(label, descriptor.range, (preferredTargetId) =>
-        this.executeRequest({ ...request, preferredTargetId })
-      );
+      this.callbacks.chooseEnemy(label, descriptor.range, (preferredTargetId, bodyPartId) =>
+        this.executeRequest({ ...request, preferredTargetId, bodyPartId }),
+      descriptor.physicalType);
       return;
     }
     if (descriptor.targetType === "single_ally") {
@@ -168,6 +175,7 @@ export class BattleHeroDecisionManager {
       knownSpellIds: this.source.state.knownSpells,
       knownAbilityIds: this.source.state.knownAbilities,
       economy: this.callbacks.economy(),
+      actorState: this.source.state,
     };
   }
 

@@ -42,9 +42,10 @@ function createControl(
   width: number,
   label: () => string,
   onActivate: () => void,
+  fontSize = 12,
 ): SettingsControl {
   const text = scene.add.text(x, y, label(), {
-    fontSize: "12px",
+    fontSize: `${fontSize}px`,
     fontFamily: "monospace",
     color: "#f4f1e8",
     backgroundColor: "#252b45",
@@ -300,14 +301,39 @@ export function addSettingsControls(
     });
   };
   layoutAccessibility();
+  const diceWidth = Math.floor((columnWidth - 8) / 2);
+  const diceFrequency = createControl(
+    scene,
+    "settings-dice-frequency",
+    rightX + diceWidth / 2,
+    py + 276,
+    diceWidth,
+    () => {
+      const frequency = gamePreferences.getDice().frequency;
+      return `Dice [\n${frequency === "off" ? "off (crits)" : frequency}`;
+    },
+    () => gamePreferences.cycleDiceFrequency(),
+    10,
+  );
+  const diceSpeed = createControl(
+    scene,
+    "settings-dice-speed",
+    rightX + diceWidth + 8 + diceWidth / 2,
+    py + 276,
+    diceWidth,
+    () => `Speed ]\n${gamePreferences.getDice().speed}`,
+    () => gamePreferences.cycleDiceSpeed(),
+    10,
+  );
   const controlsTitle = scene.add.text(contentX, py + 330, "Controls", {
     fontSize: "12px",
     fontFamily: "monospace",
     color: "#ffffff",
     fontStyle: "bold",
   });
+  const nativeDesktop = window.desktop !== undefined;
   const compactWidth = Math.floor((contentWidth - 16) / 3);
-  const touch = createControl(
+  const mobileControls = nativeDesktop ? [] : [createControl(
     scene,
     "settings-touch-controls",
     contentX + compactWidth / 2,
@@ -315,8 +341,7 @@ export function addSettingsControls(
     compactWidth,
     () => `Touch\n${gamePreferences.getControls().touchControls}`,
     () => gamePreferences.cycleTouchControls(),
-  );
-  const handedness = createControl(
+  ), createControl(
     scene,
     "settings-handedness",
     contentX + compactWidth + 8 + compactWidth / 2,
@@ -326,15 +351,23 @@ export function addSettingsControls(
     () => gamePreferences.setControlHandedness(
       gamePreferences.getControls().handedness === "right" ? "left" : "right",
     ),
-  );
+  )];
   const prompts = createControl(
     scene,
     "settings-prompts",
-    contentX + (compactWidth + 8) * 2 + compactWidth / 2,
+    nativeDesktop ? centerX : contentX + (compactWidth + 8) * 2 + compactWidth / 2,
     py + 354,
-    compactWidth,
-    () => `Prompts\n${gamePreferences.getControls().promptSource}`,
-    () => gamePreferences.cyclePromptSource(),
+    nativeDesktop ? contentWidth : compactWidth,
+    () => {
+      const preference = gamePreferences.getControls().promptSource;
+      return `Prompts\n${nativeDesktop && preference === "touch" ? "pointer" : preference}`;
+    },
+    () => {
+      gamePreferences.cyclePromptSource();
+      if (nativeDesktop && gamePreferences.getControls().promptSource === "touch") {
+        gamePreferences.cyclePromptSource();
+      }
+    },
   );
   const controlsToUpdate = [
     mute,
@@ -342,14 +375,15 @@ export function addSettingsControls(
     contrast,
     motion,
     advance,
-    touch,
-    handedness,
+    ...mobileControls,
     prompts,
+    diceFrequency,
+    diceSpeed,
   ];
   const mappingNote = scene.add.text(
     centerX,
     py + panelHeight - 48,
-    "Stable mappings; custom remapping is unsupported.",
+    "Off: crits still show. [ dice / ] speed.",
     {
       fontSize: "8px",
       fontFamily: "monospace",
@@ -366,10 +400,11 @@ export function addSettingsControls(
     motion.text,
     advance.text,
     controlsTitle,
-    touch.text,
-    handedness.text,
+    ...mobileControls.map((control) => control.text),
     prompts.text,
     mappingNote,
+    diceFrequency.text,
+    diceSpeed.text,
   ]);
   controls.push(
     mute.text,
@@ -379,16 +414,25 @@ export function addSettingsControls(
     motion.text,
     advance.text,
     controlsTitle,
-    touch.text,
-    handedness.text,
+    ...mobileControls.map((control) => control.text),
     prompts.text,
     mappingNote,
+    diceFrequency.text,
+    diceSpeed.text,
   );
 
   const unsubscribe = gamePreferences.subscribe(() => {
     redrawAudio.forEach((redraw) => redraw());
     controlsToUpdate.forEach((control) => control.updateLabel());
     layoutAccessibility();
+  });
+  const handleDiceSettings = (event: KeyboardEvent): void => {
+    if (event.code === "BracketLeft") gamePreferences.cycleDiceFrequency();
+    if (event.code === "BracketRight") gamePreferences.cycleDiceSpeed();
+  };
+  scene.input.keyboard?.on("keyup", handleDiceSettings);
+  container.once(Phaser.GameObjects.Events.DESTROY, () => {
+    scene.input.keyboard?.off("keyup", handleDiceSettings);
   });
   container.once(Phaser.GameObjects.Events.DESTROY, unsubscribe);
   return { controls };

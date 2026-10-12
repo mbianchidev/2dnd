@@ -36,6 +36,11 @@ statuses finish. Action menus and enemy/ally target selection use that same
 budget. A bonus action does **not** reset it. Monsters, gambits, skipped turns,
 KO actors, and battle results never receive a decision timer.
 
+Optional physical body-part aiming uses the same budget as enemy selection,
+including native accessible controls. Pausing or recovering a controller while
+aiming cannot confirm that queued strike; timeout closes the picker and still
+validates only Defend. Independent dice notices never pause decision time.
+
 At zero, the system claims the current stable turn/actor once and validates a
 fresh self-Defend through `battleActions.ts`. It never confirms a highlighted
 spell, item, ability, or target. Defend spends only an available main action,
@@ -68,13 +73,17 @@ The timing controls and menus support 100%, 125%, and 150% text.
 
 ## Reload and integration boundaries
 
-Schema v19 persists configuration only. Reload during an ordinary Battle
+Schema v25 persists configuration only. Reload during an ordinary Battle
 returns to the existing autosaved Overworld checkpoint; a pending special
 encounter resumes the same selected event/gathering/navigation contract.
 Unsaved Battle damage/resources are not a partial-turn checkpoint. Loading
 does not execute a timeout or replay a result, reward, or selected action.
 A restarted encounter receives a fresh budget after its normal status/input
 setup. No deadline, initiative adapter, or timer callback is serialized.
+Valid schema-v19 timing previews retain their exact configuration and migrate
+their pre-multiclass hero state without historical resource rolls or bonuses.
+Schema-v24 campaigns without timing settings gain unlimited Standard while
+keeping class/prestige ranks, devotion, activities and physical discoveries.
 Victory, flee, and defeat clear actor/companion combat effects after result and
 reward hooks and before the outgoing autosave, so a reload during the result
 delay cannot resurrect turn-based effects outside Battle.

@@ -1,4 +1,3 @@
-import type * as Phaser from "phaser";
 import {
   STANDARD_GAMEPAD_BINDINGS,
   InputKeyOwnership,
@@ -8,9 +7,12 @@ import {
   inputAvailability,
   hasLostActiveGamepad,
   isInputAction,
+  isInputContext,
   isTouchActionAvailable,
   normalizeAnalogAxis,
   resolveGamepadAction,
+  resolveControlPromptSource,
+  shouldShowTouchControls,
   type InputAction,
   type InputContext,
   type InputSource,
@@ -21,14 +23,35 @@ import {
   featureAvailability,
   getInputActionFeature,
 } from "../systems/featureDiscovery";
-import {
-  gamePreferences,
-  type TouchControlVisibility,
-} from "../systems/accessibility";
+import { gamePreferences } from "../systems/accessibility";
+import { closeTextEntry, handleTextEntryAction, isTextEntryOpen } from "./textEntry";
+
+export { closeTextEntry, openMobileTextInput } from "./textEntry";
 
 interface GamepadSnapshot {
   buttons: boolean[];
   axes: number[];
+}
+
+interface InputRuntimeScene {
+  readonly scene: { readonly key: string };
+  readonly data?: { get(key: string): unknown };
+  readonly events: {
+    on(event: "shutdown" | "destroy", listener: () => void): void;
+    off(event: "shutdown" | "destroy", listener: () => void): void;
+  };
+}
+
+interface InputRuntimeGame {
+  readonly canvas: HTMLCanvasElement;
+  readonly events: {
+    once(event: "poststep", listener: () => void): void;
+    off(event: "poststep", listener: () => void): void;
+  };
+  readonly scale: { getParentBounds(): boolean; refresh(): void };
+  readonly scene: {
+    getScenes(active: boolean): readonly InputRuntimeScene[];
+  };
 }
 
 interface KeyDescriptor {
@@ -65,6 +88,9 @@ const ACTION_KEYS: Partial<Record<InputAction, KeyDescriptor>> = {
   battleTargetNext: { code: "KeyD", key: "d" },
   battleLogUp: { code: "PageUp", key: "PageUp" },
   battleLogDown: { code: "PageDown", key: "PageDown" },
+  fastForwardDice: { code: "KeyZ", key: "z" },
+  settingsDiceFrequency: { code: "BracketLeft", key: "[" },
+  settingsDiceSpeed: { code: "BracketRight", key: "]" },
   cutsceneAdvance: { code: "Space", key: " " },
   cutsceneSkip: { code: "Escape", key: "Escape" },
   inventoryPrevious: { code: "ArrowUp", key: "ArrowUp" },
@@ -123,6 +149,9 @@ export class SemanticInputRuntime {
   private readonly syntheticEvents = new WeakSet<Event>();
   private readonly heldSyntheticKeys = new Map<string, KeyDescriptor>();
   private readonly syntheticKeyOwnership = new InputKeyOwnership();
+  private readonly pulseReleases = new Map<string, () => void>();
+  private pulseSequence = 0;
+  private sceneEvents: InputRuntimeScene["events"] | null = null;
   private animationFrame = 0;
   private activeSceneKey = "";
   private activeContext: InputContext = "overlay";
@@ -133,24 +162,36 @@ export class SemanticInputRuntime {
   private cursorActive = false;
   private gamepadConnected = false;
   private activeGamepadIndex: number | null = null;
+  private previousFrameAt = 0;
+  private acceptsInput = true;
   private unsubscribePreferences: (() => void) | null = null;
   private unsubscribeFeatures: (() => void) | null = null;
+  private readonly resizeObserver = new ResizeObserver(() => {
+    this.game.scale.getParentBounds();
+    this.game.scale.refresh();
+  });
+  private pointerRoot: HTMLElement | null = null;
 
-  constructor(private readonly game: Phaser.Game) {}
+  constructor(private readonly game: InputRuntimeGame) {}
 
   start(): void {
+    this.watchSceneLifecycle();
     window.addEventListener("keydown", this.handleKeyDown, true);
     window.addEventListener("keyup", this.handleKeyUp, true);
     window.addEventListener("gamepadconnected", this.handleGamepadConnection);
     window.addEventListener("gamepaddisconnected", this.handleGamepadConnection);
     window.addEventListener("blur", this.handleBlur);
     window.addEventListener("focus", this.handleFocus);
-    document.addEventListener("visibilitychange", this.handleVisibility);
     document.addEventListener("focusin", this.handleTextFocus);
     document.addEventListener("focusout", this.handleTextFocus);
-    this.game.canvas.addEventListener("pointerdown", this.handlePointerSource, true);
+    window.addEventListener("resize", this.handleResize);
+    document.addEventListener("visibilitychange", this.handleVisibility);
+    this.pointerRoot = document.getElementById("game-inner") ?? this.game.canvas;
+    this.pointerRoot.addEventListener("pointerdown", this.handlePointerSource, true);
     this.game.canvas.addEventListener("pointermove", this.handlePointerSource, true);
     this.createTouchControls();
+    const gameContainer = document.getElementById("game-container");
+    if (gameContainer) this.resizeObserver.observe(gameContainer);
     this.createCursor();
     this.unsubscribePreferences = gamePreferences.subscribe(() => {
       this.applyControlPreferences();
@@ -168,6 +209,7 @@ export class SemanticInputRuntime {
   }
 
   destroy(): void {
+    this.unwatchSceneLifecycle();
     window.cancelAnimationFrame(this.animationFrame);
     window.removeEventListener("keydown", this.handleKeyDown, true);
     window.removeEventListener("keyup", this.handleKeyUp, true);
@@ -175,15 +217,18 @@ export class SemanticInputRuntime {
     window.removeEventListener("gamepaddisconnected", this.handleGamepadConnection);
     window.removeEventListener("blur", this.handleBlur);
     window.removeEventListener("focus", this.handleFocus);
-    document.removeEventListener("visibilitychange", this.handleVisibility);
     document.removeEventListener("focusin", this.handleTextFocus);
     document.removeEventListener("focusout", this.handleTextFocus);
-    this.game.canvas.removeEventListener("pointerdown", this.handlePointerSource, true);
+    window.removeEventListener("resize", this.handleResize);
+    document.removeEventListener("visibilitychange", this.handleVisibility);
+    this.pointerRoot?.removeEventListener("pointerdown", this.handlePointerSource, true);
+    this.pointerRoot = null;
     this.game.canvas.removeEventListener("pointermove", this.handlePointerSource, true);
     this.unsubscribePreferences?.();
     this.unsubscribePreferences = null;
     this.unsubscribeFeatures?.();
     this.unsubscribeFeatures = null;
+    this.resizeObserver.disconnect();
     this.touchRoot?.remove();
     this.cursor?.remove();
     this.touchRoot = null;
@@ -195,13 +240,19 @@ export class SemanticInputRuntime {
   }
 
   private readonly poll = (timestamp: number): void => {
+    if (!this.acceptsInput || document.visibilityState !== "visible") {
+      this.previousFrameAt = timestamp;
+      this.animationFrame = window.requestAnimationFrame(this.poll);
+      return;
+    }
+    this.watchSceneLifecycle();
     const sceneKey = this.getActiveSceneKey();
     const context = this.getContext();
     if (sceneKey !== this.activeSceneKey || context !== this.activeContext) {
       if (sceneKey !== this.activeSceneKey) {
         inputAvailability.acknowledgeControllerRecovery();
       }
-      this.closeMobileTextInput();
+      closeTextEntry();
       this.releaseAllSyntheticKeys();
       this.state.clear();
       this.activeSceneKey = sceneKey;
@@ -210,7 +261,14 @@ export class SemanticInputRuntime {
       this.updateCursor();
       this.applyTouchActionAvailability(context);
     }
-    this.pollGamepads(timestamp);
+    const frameDuration = this.previousFrameAt === 0
+      ? 1000 / 60
+      : Math.min(50, Math.max(0, timestamp - this.previousFrameAt));
+    this.previousFrameAt = timestamp;
+    if (isTextEntryOpen() && this.heldSyntheticKeys.size > 0) {
+      this.releaseAllSyntheticKeys();
+    }
+    this.pollGamepads(timestamp, frameDuration);
     inputAvailability.update({ textEntryActive: this.isTextEntryActive() });
     for (const event of this.state.update(timestamp)) this.dispatch(event);
     this.animationFrame = window.requestAnimationFrame(this.poll);
@@ -224,6 +282,9 @@ export class SemanticInputRuntime {
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
     if (this.syntheticEvents.has(event)) return;
+    if (isTextEntryOpen() && event.code) {
+      this.dispatchKey("keyup", { code: event.code, key: event.key }, false);
+    }
   };
 
   private readonly handlePointerSource = (event: PointerEvent): void => {
@@ -235,7 +296,8 @@ export class SemanticInputRuntime {
     this.updatePresentation(source);
   };
 
-  private readonly handleGamepadConnection = (): void => {
+  private readonly handleGamepadConnection = (event: Event): void => {
+    if (event.type === "gamepaddisconnected") this.cancelPulseReleases();
     const previouslyConnected = this.gamepadConnected;
     const pads = navigator.getGamepads();
     this.gamepadConnected = pads.some(Boolean);
@@ -247,17 +309,21 @@ export class SemanticInputRuntime {
       const released = this.state.releaseMatching("gamepad:");
       for (const entry of released) this.releaseSyntheticToken(entry.token);
       this.gamepadSnapshots.clear();
+      this.cursorActive = false;
+      this.updateCursor();
     }
     this.applyControlPreferences();
   };
 
   private readonly handleBlur = (): void => {
     inputAvailability.update({ windowFocused: false });
+    this.acceptsInput = false;
     this.clearAll();
   };
 
   private readonly handleFocus = (): void => {
     inputAvailability.update({ windowFocused: true });
+    this.acceptsInput = true;
   };
 
   private readonly handleVisibility = (): void => {
@@ -271,7 +337,7 @@ export class SemanticInputRuntime {
 
   private isTextEntryActive(): boolean {
     const element = document.activeElement;
-    return element instanceof HTMLElement
+    return isTextEntryOpen() || element instanceof HTMLElement
       && (element.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(element.tagName));
   }
 
@@ -292,22 +358,28 @@ export class SemanticInputRuntime {
   private releaseDisconnectedGamepads(connectedIndices: ReadonlySet<number>): void {
     for (const index of this.gamepadSnapshots.keys()) {
       if (connectedIndices.has(index)) continue;
+      this.cancelPulseReleases();
       this.gamepadSnapshots.delete(index);
       const released = this.state.releaseMatching(`gamepad:${index}:`);
       for (const entry of released) this.releaseSyntheticToken(entry.token);
     }
   }
 
+  private readonly handleResize = (): void => {
+    this.clampCursor();
+    this.updateCursor();
+  };
+
   private clearAll(): void {
     this.state.clear();
     this.gamepadSnapshots.clear();
     this.releaseAllSyntheticKeys();
-    this.closeMobileTextInput();
+    closeTextEntry();
     this.cursorActive = false;
     this.updateCursor();
   }
 
-  private pollGamepads(timestamp: number): void {
+  private pollGamepads(timestamp: number, frameDuration: number): void {
     const pads = navigator.getGamepads();
     const previouslyConnected = this.gamepadConnected;
     this.gamepadConnected = pads.some(Boolean);
@@ -330,7 +402,7 @@ export class SemanticInputRuntime {
       for (const binding of STANDARD_GAMEPAD_BINDINGS) {
         this.updateGamepadBinding(pad.index, binding, previous, next, timestamp);
       }
-      this.updateGamepadCursor(pad);
+      this.updateGamepadCursor(pad, frameDuration);
       if (
         this.cursorActive
         && next.buttons[11] === true
@@ -399,7 +471,7 @@ export class SemanticInputRuntime {
     return direction < 0 ? value <= -0.55 : value >= 0.55;
   }
 
-  private updateGamepadCursor(gamepad: Gamepad): void {
+  private updateGamepadCursor(gamepad: Gamepad, frameDuration: number): void {
     const x = normalizeAnalogAxis(gamepad.axes[2] ?? 0);
     const y = normalizeAnalogAxis(gamepad.axes[3] ?? 0);
     if (x === 0 && y === 0) return;
@@ -409,15 +481,10 @@ export class SemanticInputRuntime {
       this.cursorX = bounds.left + bounds.width / 2;
       this.cursorY = bounds.top + bounds.height / 2;
     }
-    const speed = 12;
-    this.cursorX = Math.max(
-      bounds.left,
-      Math.min(bounds.right, this.cursorX + x * speed),
-    );
-    this.cursorY = Math.max(
-      bounds.top,
-      Math.min(bounds.bottom, this.cursorY + y * speed),
-    );
+    const distance = 720 * frameDuration / 1000;
+    this.cursorX += x * distance;
+    this.cursorY += y * distance;
+    this.clampCursor();
     this.cursorActive = true;
     inputSource.set("gamepad");
     this.updatePresentation("gamepad");
@@ -435,7 +502,8 @@ export class SemanticInputRuntime {
     inputSource.set(event.source);
     this.updatePresentation(event.source);
     const action = this.contextualizeAction(event.action);
-    if (this.handleMobileTextInput(action)) return;
+    if (handleTextEntryAction(action)) return;
+    if (this.handleDiceControls(action)) return;
     if (action === "battleLogUp" || action === "battleLogDown") {
       this.dispatchWheel(action === "battleLogUp" ? -120 : 120);
       return;
@@ -447,8 +515,17 @@ export class SemanticInputRuntime {
     if (event.token) {
       this.pressSyntheticToken(event.token, descriptor, event.repeated);
     } else {
-      this.dispatchKey("keydown", descriptor, event.repeated);
-      window.setTimeout(() => this.dispatchKey("keyup", descriptor, false), 0);
+      this.watchSceneLifecycle();
+      const token = `pulse:${++this.pulseSequence}`;
+      const release = (): void => {
+        this.game.events.off("poststep", release);
+        this.pulseReleases.delete(token);
+        this.releaseSyntheticToken(token);
+      };
+      this.pulseReleases.set(token, release);
+      // Phaser polls JustDown during its step; a zero-delay keyup can erase it first.
+      this.game.events.once("poststep", release);
+      this.pressSyntheticToken(token, descriptor, event.repeated);
     }
   }
 
@@ -494,6 +571,9 @@ export class SemanticInputRuntime {
       if (action === "cancel") return "cutsceneSkip";
     }
     if (context === "inventory") {
+      if (action === "interact" && document.getElementById("debug-state")?.textContent?.includes("[ACHIEVEMENTS")) {
+        return "inventorySearch";
+      }
       const inventoryActions: Partial<Record<InputAction, InputAction>> = {
         navigateUp: "inventoryPrevious",
         navigateDown: "inventoryNext",
@@ -516,6 +596,7 @@ export class SemanticInputRuntime {
       (
         this.getContext() === "shop"
         || this.getContext() === "chronicle"
+        || this.getContext() === "minigame"
       )
       && action.startsWith("navigate")
     ) {
@@ -530,10 +611,13 @@ export class SemanticInputRuntime {
       return { code: `Arrow${direction}`, key: `Arrow${direction}` };
     }
     if (
-      this.getContext() === "characterCreation"
-      && (action === "confirm" || action === "interact")
+      (this.getContext() === "characterCreation" || this.getContext() === "minigame")
+      && action === "confirm"
     ) {
       return { code: "Enter", key: "Enter" };
+    }
+    if (this.getContext() === "characterCreation" && action === "interact") {
+      return { code: "Tab", key: "Tab" };
     }
     return ACTION_KEYS[action];
   }
@@ -574,6 +658,8 @@ export class SemanticInputRuntime {
       ArrowDown: 40,
       F1: 112,
       Slash: 191,
+      BracketLeft: 219,
+      BracketRight: 221,
     };
     if (fixed[code] !== undefined) return fixed[code];
     if (code.startsWith("Key") && code.length === 4) {
@@ -583,6 +669,7 @@ export class SemanticInputRuntime {
   }
 
   private releaseAllSyntheticKeys(): void {
+    this.cancelPulseReleases();
     const descriptors = new Map<string, KeyDescriptor>();
     for (const descriptor of this.heldSyntheticKeys.values()) {
       descriptors.set(descriptor.code, descriptor);
@@ -594,6 +681,39 @@ export class SemanticInputRuntime {
     }
   }
 
+  private cancelPulseReleases(): void {
+    for (const [token, release] of this.pulseReleases) {
+      this.game.events.off("poststep", release);
+      this.releaseSyntheticToken(token);
+    }
+    this.pulseReleases.clear();
+  }
+
+  private watchSceneLifecycle(): void {
+    const events = this.game.scene.getScenes(true)[0]?.events ?? null;
+    if (events === this.sceneEvents) return;
+    this.releaseAllSyntheticKeys();
+    this.unwatchSceneLifecycle();
+    this.sceneEvents = events;
+    events?.on("shutdown", this.handleSceneEnd);
+    events?.on("destroy", this.handleSceneEnd);
+  }
+
+  private unwatchSceneLifecycle(): void {
+    this.sceneEvents?.off("shutdown", this.handleSceneEnd);
+    this.sceneEvents?.off("destroy", this.handleSceneEnd);
+    this.sceneEvents = null;
+  }
+
+  private readonly handleSceneEnd = (): void => {
+    this.unwatchSceneLifecycle();
+    this.releaseAllSyntheticKeys();
+    this.state.clear();
+    closeTextEntry();
+    this.cursorActive = false;
+    this.updateCursor();
+  };
+
   private dispatchWheel(deltaY: number): void {
     this.game.canvas.dispatchEvent(new WheelEvent("wheel", {
       bubbles: true,
@@ -603,6 +723,23 @@ export class SemanticInputRuntime {
   }
 
   private clickCursor(): void {
+    const target = document.elementFromPoint(this.cursorX, this.cursorY);
+    if (isTextEntryOpen()) {
+      if (target instanceof HTMLButtonElement && target.closest("#mobile-text-input")) {
+        target.click();
+      }
+      return;
+    }
+    if (target instanceof HTMLElement && target.closest("#dice-presentation")) {
+      const control = target.closest<HTMLElement>("button");
+      control?.focus();
+      control?.click();
+      return;
+    }
+    if (target instanceof HTMLButtonElement) {
+      target.click();
+      return;
+    }
     const init: MouseEventInit = {
       bubbles: true,
       cancelable: true,
@@ -622,6 +759,7 @@ export class SemanticInputRuntime {
   }
 
   private createTouchControls(): void {
+    if (window.desktop) return;
     const root = document.createElement("div");
     root.id = "touch-controls";
     root.setAttribute("aria-label", "Touch game controls");
@@ -693,7 +831,7 @@ export class SemanticInputRuntime {
       });
       root.append(button);
     }
-    document.getElementById("game-inner")?.append(root);
+    document.body.append(root);
     this.touchRoot = root;
     this.applyTouchActionAvailability();
   }
@@ -734,9 +872,16 @@ export class SemanticInputRuntime {
     this.cursor.style.transform = `translate(${this.cursorX}px, ${this.cursorY}px)`;
   }
 
+  private clampCursor(): void {
+    this.cursorX = Math.max(0, Math.min(window.innerWidth - 1, this.cursorX));
+    this.cursorY = Math.max(0, Math.min(window.innerHeight - 1, this.cursorY));
+  }
+
   private applyControlPreferences(): void {
     const controls = gamePreferences.getControls();
-    const showTouch = this.shouldShowTouch(controls.touchControls);
+    const showTouch = shouldShowTouchControls(
+      controls.touchControls, isTouchDevice(), window.desktop !== undefined,
+    );
     this.touchRoot?.classList.toggle("visible", showTouch);
     this.touchRoot?.classList.toggle(
       "right-handed",
@@ -751,17 +896,9 @@ export class SemanticInputRuntime {
     this.updatePresentation(inputSource.get());
   }
 
-  private shouldShowTouch(visibility: TouchControlVisibility): boolean {
-    if (visibility === "on") return true;
-    if (visibility === "off") return false;
-    return isTouchDevice();
-  }
-
   private updatePresentation(source: InputSource): void {
     const promptPreference = gamePreferences.getControls().promptSource;
-    const promptSource = promptPreference === "auto"
-      ? source
-      : promptPreference;
+    const promptSource = resolveControlPromptSource(source, promptPreference, window.desktop !== undefined);
     this.game.canvas.dataset.inputSource = source;
     this.game.canvas.dataset.promptSource = promptSource;
     this.game.canvas.dataset.gamepadConnected = String(this.gamepadConnected);
@@ -777,40 +914,41 @@ export class SemanticInputRuntime {
     return this.game.scene.getScenes(true)[0]?.scene.key ?? "";
   }
 
-  private handleMobileTextInput(action: InputAction): boolean {
-    const form = document.getElementById("mobile-text-input");
-    if (!(form instanceof HTMLFormElement)) return false;
-    if (
-      action === "confirm"
-      || action === "interact"
-      || action === "inventoryPrimary"
-    ) {
-      form.requestSubmit();
-    } else if (
-      action === "cancel"
-      || action === "openMenu"
-    ) {
-      const cancel = form.querySelector<HTMLButtonElement>(
-        'button[type="button"]',
-      );
-      cancel?.click();
+  private handleDiceControls(action: InputAction): boolean {
+    const focused = document.activeElement;
+    const dice = document.getElementById("dice-presentation");
+    if (!dice || !(focused instanceof HTMLElement) || !dice.contains(focused)
+      || action === "fastForwardDice") return false;
+    if (action === "confirm" || action === "interact") {
+      focused.click();
+    } else if (action === "cancel" || action === "openMenu") {
+      this.game.canvas.tabIndex = -1;
+      this.game.canvas.focus({ preventScroll: true });
+      this.cursorActive = false;
+      this.updateCursor();
+    } else if (action.endsWith("Up") || action.endsWith("Down")) {
+      dice.querySelector("#dice-result")?.scrollBy(0, action.endsWith("Up") ? -60 : 60);
+    } else if (action.endsWith("Left") || action.endsWith("Right")) {
+      const controls = [...dice.querySelectorAll<HTMLElement>("button:not(:disabled):not([hidden])")];
+      const index = controls.indexOf(focused);
+      const direction = action.endsWith("Left") ? -1 : 1;
+      controls[(index + direction + controls.length) % controls.length]?.focus();
     }
     return true;
   }
 
-  private closeMobileTextInput(): void {
-    document.getElementById("mobile-text-input")?.remove();
-  }
-
   private getContext(): InputContext {
     const key = this.getActiveSceneKey();
+    const activeScene = this.game.scene.getScenes(true).find((scene) => scene.scene.key === key);
+    const explicitContext: unknown = activeScene?.data?.get("semanticInputContext");
+    if (isInputContext(explicitContext)) return explicitContext;
     if (key === "BootScene") {
       const state = document.getElementById("debug-state")?.textContent ?? "";
       return state.includes("Screen: title") ? "title" : "characterCreation";
     }
     if (key === "OverworldScene") {
       const state = document.getElementById("debug-state")?.textContent ?? "";
-      if (state.includes("[PARTY:items")) return "inventory";
+      if (state.includes("[PARTY:items") || state.includes("[ACHIEVEMENTS")) return "inventory";
       if (state.includes("[GATHERING")) return "gathering";
       if (state.includes("[CHRONICLE]")) return "chronicle";
       if (
@@ -819,6 +957,8 @@ export class SemanticInputRuntime {
         || state.includes("[SAVE_SLOTS:")
         || state.includes("[TIPS")
         || state.includes("[WORLD_EVENT:")
+        || state.includes("[DEVOTION:")
+        || state.includes("[PROGRESSION:")
       ) {
         return "overlay";
       }
@@ -832,45 +972,4 @@ export class SemanticInputRuntime {
     if (key === "DefeatScene") return "result";
     return "overlay";
   }
-}
-
-export function openMobileTextInput(
-  label: string,
-  initialValue: string,
-  maximumLength: number,
-  onCommit: (value: string) => void,
-): void {
-  const existing = document.getElementById("mobile-text-input");
-  existing?.remove();
-  const form = document.createElement("form");
-  form.id = "mobile-text-input";
-  form.setAttribute("aria-label", label);
-  const input = document.createElement("input");
-  input.type = "text";
-  input.value = initialValue;
-  input.maxLength = maximumLength;
-  input.autocomplete = "off";
-  input.setAttribute("aria-label", label);
-  const commit = document.createElement("button");
-  commit.type = "submit";
-  commit.textContent = "Done";
-  const cancel = document.createElement("button");
-  cancel.type = "button";
-  cancel.textContent = "Cancel";
-  const close = (): void => form.remove();
-  const stopGamePropagation = (event: KeyboardEvent): void => {
-    event.stopPropagation();
-  };
-  form.addEventListener("keydown", stopGamePropagation);
-  form.addEventListener("keyup", stopGamePropagation);
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    onCommit(input.value);
-    close();
-  });
-  cancel.addEventListener("click", close);
-  form.append(input, commit, cancel);
-  document.body.append(form);
-  input.focus();
-  input.select();
 }

@@ -19,7 +19,8 @@ import {
   type QuestId,
   type QuestProgress,
 } from "../data/quests";
-import { getPlayerClass } from "./classes";
+import { getProgressionDisplayName } from "./classProgression";
+import type { CombatActorState } from "./player";
 import { isQuestCompleted } from "./quests";
 import type { CodexData } from "./codex";
 import type {
@@ -31,6 +32,7 @@ import {
   getReputationScore,
   getReputationTier,
 } from "./reputation";
+import { getDevotionEndingText } from "./devotion";
 
 export interface CampaignEndingSummary {
   hero: string;
@@ -47,6 +49,7 @@ export interface CampaignEndingSummary {
   alignment: string;
   epilogueVariant: string;
   roadwardenStanding: string;
+  devotion: string;
 }
 
 export interface CutsceneTriggerSnapshot {
@@ -364,9 +367,9 @@ export function getChronicleCutscenes(
 }
 
 function formatPartyMember(
-  member: Pick<PlayerState, "appearanceId" | "level" | "name">,
+  member: CombatActorState,
 ): string {
-  return `${member.name} - Lv.${member.level} ${getPlayerClass(member.appearanceId).label}`;
+  return `${member.name} - Lv.${member.level} ${getProgressionDisplayName(member)}`;
 }
 
 export function buildCampaignEndingSummary(
@@ -437,5 +440,6 @@ export function buildCampaignEndingSummary(
     epilogueVariant: epilogueVariants[alignment],
     roadwardenStanding:
       `${getReputationTier(roadwardenScore).name} (${roadwardenScore})`,
+    devotion: getDevotionEndingText(player),
   };
 }

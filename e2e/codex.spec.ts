@@ -113,20 +113,21 @@ async function createCampaign(page: Page): Promise<void> {
   await waitForState(page, "BOOT | Screen: title");
   await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
-  await clickGame(page, 284, 160);
+  await clickLayoutItem(page, "creation-class-ranger");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: stats");
-  await clickGame(page, 390, 64);
-  await clickGame(page, 400, 460);
+  await clickLayoutItem(page, "creation-stat-mode-random");
+  await clickLayoutItem(page, "creation-stats-next");
   await waitForState(page, "BOOT | Screen: appearance");
-  await clickGame(page, 320, 112);
-  await clickGame(page, 420, 312);
+  await clickLayoutItem(page, "appearance-randomize");
+  await clickLayoutItem(page, "appearance-start");
   await waitForState(page, "CUTSCENE");
   await drainCutscenes(page);
-  if ((await page.locator("#debug-state").textContent())?.includes("[TUTORIAL")) {
-    await holdKey(page, "Escape");
-  }
+  await waitForState(page, "[TUTORIAL");
+  await holdKey(page, "Escape");
+  await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL");
   await waitForState(page, "OVERWORLD");
+  expect((await readSave(page)).player.progression.tutorial.completed).toBe(true);
 }
 
 async function readSave(page: Page): Promise<BrowserSave> {
@@ -275,12 +276,7 @@ test.describe("touch Codex controls", () => {
     await createCampaign(page);
     await submitDebug(page, "/feature reveal codexLocation");
 
-    await page.waitForTimeout(350);
     await page.locator('[data-action="openMenu"]').tap();
-    if (!(await page.locator("#debug-state").textContent())?.includes("[MENU]")) {
-      await page.waitForTimeout(250);
-      await page.locator('[data-action="openMenu"]').tap();
-    }
     await waitForState(page, "[MENU]");
     await tapLayoutItem(page, "escape-menu-codex");
     await waitForState(page, "CODEX | Category: Locations");
@@ -396,18 +392,28 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   };
 
   await createCampaign(page);
-  await page.evaluate((saveKey) => {
+  const legacySave = await page.evaluate((saveKey) => {
     const save = JSON.parse(localStorage.getItem(saveKey)!) as BrowserSave;
     save.version = 9;
     save.player.progression.tutorial.completed = true;
     save.codex.entries.slime = { timesDefeated: 4 };
     delete (save.codex as Partial<BrowserSave["codex"]>).unlockedEntryIds;
-    localStorage.setItem(saveKey, JSON.stringify(save));
+    return JSON.stringify(save);
   }, SAVE_KEY);
+  await page.addInitScript(({ saveKey, raw }) => {
+    const marker = "codexLegacySaveInitialized";
+    if (sessionStorage.getItem(marker)) return;
+    localStorage.setItem(saveKey, raw);
+    sessionStorage.setItem(marker, "true");
+  }, { saveKey: SAVE_KEY, raw: legacySave });
   await page.reload({ waitUntil: "networkidle" });
   await waitForState(page, "BOOT | Screen: title");
   await clickLayoutItem(page, "title-continue");
   await waitForState(page, "OVERWORLD");
+  const loadedLegacy = await readSave(page);
+  expect(loadedLegacy.version).toBe(SAVE_VERSION);
+  expect(loadedLegacy.codex.entries.slime.timesDefeated).toBe(4);
+  expect(Array.isArray(loadedLegacy.codex.unlockedEntryIds)).toBe(true);
   await submitDebug(page, "/feature reveal codexLocation");
 
   await setAxes([0, 0, 0.8, 0]);
@@ -424,7 +430,7 @@ test("supports gamepad navigation, cursor controls, and migrated old saves", asy
   await pressGamepad(2);
   await expect(page.locator("#mobile-text-input")).toBeVisible();
   await page.locator("#mobile-text-input input").fill("willow");
-  await pressGamepad(0);
+  await pressGamepad(9);
   await waitForState(page, "Search: willow");
   await pressGamepad(1);
   await waitForState(page, "OVERWORLD");

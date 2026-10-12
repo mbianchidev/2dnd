@@ -16,14 +16,22 @@ on discovering and playing the game.
 | Persistent-state changes | [Save system](save-system.md) |
 | Maintainers preparing a release | [Release](release.md) |
 | Desktop developers and packagers | [Desktop application](desktop.md) |
+| Steam distribution and controller preparation | [Steam preparation](steam.md) |
 | Coding agents | [AGENTS.md](../AGENTS.md) |
 
 ## Focused references
 
+- [Physical damage and aimed strikes](physical-combat.md)
 - [Companions and gambits](companions.md)
 - [Timed battle decisions](battle-timing.md)
+- [Hero multiclass progression](hero-progression.md)
+- [Optional prestige paths](prestige.md)
 - [Desktop application](desktop.md)
+- [Steam preparation](steam.md)
 - [Inventory presentation](inventory.md)
+- [Tavern and festival activities](minigames.md)
+- [Fictional devotion](devotion.md)
+- [Resolved dice presentation](dice-presentation.md)
 
 Repository-wide constraints remain authoritative in
 [`.github/copilot-instructions.md`](../.github/copilot-instructions.md).

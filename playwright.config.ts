@@ -40,6 +40,7 @@ export default defineConfig({
   outputDir: "test-results",
   snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}{ext}",
   use: {
+    headless: true,
     baseURL: serverUrl,
     viewport: { width: 1440, height: 900 },
     // Phaser repaints every frame; omit the trace filmstrip so teardown does not

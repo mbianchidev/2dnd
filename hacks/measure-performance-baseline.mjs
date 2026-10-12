@@ -1,5 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
@@ -14,16 +13,25 @@ import { dirname, extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { chromium } from "@playwright/test";
+import { getGitProvenance } from "./lib/git-provenance.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const DIST = join(ROOT, "dist");
 const BASE_PATH = "/2dnd/";
-const CURRENT_SAVE_VERSION = 18;
 const SAVE_KEY = "2dnd_save";
 const BOOT_TEXTURE_MEASURE = "2dnd:boot-textures";
 const DEFAULT_SAMPLE_COUNT = 20;
 const SAVE_WRITE_BATCHES = 50;
 const SAVE_WRITES_PER_BATCH = 100;
+
+async function readCanonicalSaveVersion() {
+  const source = await readFile(join(ROOT, "src", "systems", "save.ts"), "utf8");
+  const matches = [...source.matchAll(/^export const SAVE_VERSION = (\d+);$/gm)];
+  if (matches.length !== 1) throw new Error("Cannot resolve the canonical SAVE_VERSION for the benchmark.");
+  const version = Number(matches[0][1]);
+  if (!Number.isSafeInteger(version) || version < 1) throw new Error("Canonical SAVE_VERSION is invalid.");
+  return version;
+}
 
 function readSampleCount(value) {
   if (value === undefined) return DEFAULT_SAMPLE_COUNT;
@@ -66,58 +74,6 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 ** 2) return `${round(bytes / 1024)} KiB`;
   return `${round(bytes / 1024 ** 2)} MiB`;
-}
-
-function runGit(args) {
-  const result = spawnSync("git", args, {
-    cwd: ROOT,
-    maxBuffer: 50 * 1024 * 1024,
-  });
-  if (result.status !== 0) {
-    throw new Error(
-      `Git command failed: git ${args.join(" ")}\n`
-      + `${result.stderr.toString().trim() || "git failed"}`,
-    );
-  }
-  return result.stdout;
-}
-
-async function getGitProvenance() {
-  const commit = runGit(["rev-parse", "HEAD"]).toString().trim();
-  const status = runGit([
-    "status",
-    "--porcelain=v1",
-    "-z",
-    "--untracked-files=all",
-  ]);
-  if (status.length === 0) {
-    return {
-      commit,
-      dirty: false,
-      diffHash: null,
-    };
-  }
-
-  const trackedDiff = runGit(["diff", "--binary", "HEAD", "--no-ext-diff"]);
-  const hash = createHash("sha256");
-  hash.update(status);
-  hash.update(trackedDiff);
-
-  const statusEntries = status.toString().split("\0").filter(Boolean);
-  const untrackedPaths = statusEntries
-    .filter((entry) => entry.startsWith("?? "))
-    .map((entry) => entry.slice(3))
-    .sort();
-  for (const path of untrackedPaths) {
-    hash.update(path);
-    hash.update(await readFile(join(ROOT, path)));
-  }
-
-  return {
-    commit,
-    dirty: true,
-    diffHash: hash.digest("hex"),
-  };
 }
 
 function assertMatchingProvenance(before, after) {
@@ -598,7 +554,7 @@ function printReport(result) {
   );
   console.log(
     `- Method: ${result.startup.sampleCount} cache-disabled production `
-    + `navigations per startup case; fresh schema-v${CURRENT_SAVE_VERSION} `
+    + `navigations per startup case; fresh schema-v${result.save.schemaVersion} `
     + "campaign for save metrics.",
   );
   console.log("");
@@ -649,6 +605,7 @@ function printReport(result) {
 
 async function main() {
   const sampleCount = readSampleCount(process.env.PERFORMANCE_SAMPLES);
+  const currentSaveVersion = await readCanonicalSaveVersion();
   const npmCli = process.env.npm_execpath;
   if (!npmCli) {
     throw new Error(
@@ -656,7 +613,7 @@ async function main() {
       + "`npm run benchmark:baseline`.",
     );
   }
-  const initialProvenance = await getGitProvenance();
+  const initialProvenance = await getGitProvenance(ROOT);
   await runCommand(process.execPath, [npmCli, "run", "build"], {
     env: {
       ...process.env,
@@ -682,9 +639,9 @@ async function main() {
     });
     try {
       const freshSave = await createFreshSave(browser, url);
-      if (freshSave.schemaVersion !== CURRENT_SAVE_VERSION) {
+      if (freshSave.schemaVersion !== currentSaveVersion) {
         throw new Error(
-          `Expected fresh save schema v${CURRENT_SAVE_VERSION}, received `
+          `Expected fresh save schema v${currentSaveVersion}, received `
           + `v${freshSave.schemaVersion}`,
         );
       }
@@ -745,7 +702,7 @@ async function main() {
           combinedWriteMs: summarize(saveWrites.combinedWriteMs, 3),
         },
       };
-      const finalProvenance = await getGitProvenance();
+      const finalProvenance = await getGitProvenance(ROOT);
       assertMatchingProvenance(initialProvenance, finalProvenance);
       printReport(result);
     } finally {

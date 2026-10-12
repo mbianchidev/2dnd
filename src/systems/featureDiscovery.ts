@@ -5,6 +5,7 @@ import {
   FEATURE_DEFINITION_BY_ID,
   FEATURE_IDS,
   GATHERING_DISCIPLINE_FEATURES,
+  MINIGAME_ACTIVITY_FEATURES,
   isFeatureId,
   type FeatureId,
 } from "../data/featureDiscovery";
@@ -24,6 +25,7 @@ import type { InputAction } from "./input";
 import type { CodexData } from "./codex";
 import type { PlayerState } from "./player";
 import type { ControlActionId } from "../data/tutorial";
+import { MINIGAME_ACTIVITY_IDS, MINIGAME_VENUES } from "../data/minigames";
 
 export interface FeatureDiscoveryProgress {
   discoveredFeatureIds: FeatureId[];
@@ -47,6 +49,8 @@ export type EscapeMenuAction =
   | "achievements"
   | "gathering"
   | "crafting"
+  | "minigames"
+  | "devotion"
   | "tips"
   | "save"
   | "settings"
@@ -120,6 +124,20 @@ const ESCAPE_MENU_ENTRIES: readonly EscapeMenuEntry[] = [
     color: "#f7c948",
     featureId: "crafting",
     testId: "menu-crafting",
+  },
+  {
+    action: "minigames",
+    label: "Tavern & Festival Games",
+    color: "#ffe38a",
+    featureId: "minigames",
+    testId: "menu-minigames",
+  },
+  {
+    action: "devotion",
+    label: "Devotion Profile",
+    color: "#b8ddff",
+    featureId: "devotionProfile",
+    testId: "menu-devotion",
   },
   {
     action: "tips",
@@ -260,6 +278,7 @@ export function deriveAvailableFeatureIds(
   codex: CodexData,
 ): FeatureId[] {
   const ids = new Set<FeatureId>(ALWAYS_AVAILABLE_FEATURES);
+  if (player.level >= 6 || Object.keys(player.classProgression.trackLevels).length > 0) ids.add("prestige");
   if (hasStartedQuest(player)) ids.add("questJournal");
   if (
     player.progression.seenCutsceneIds.length > 0
@@ -316,6 +335,7 @@ export function deriveAvailableFeatureIds(
     ids.add("chronicle");
   }
   if (hasNaturalSocialEvidence(player)) ids.add("socialProfile");
+  if (player.progression.devotion.visitedTempleIds.length > 0) ids.add("devotionProfile");
   if (
     player.mountId.length > 0
     || player.inventory.some((item) => item.type === "mount" && item.mountId)
@@ -326,6 +346,16 @@ export function deriveAvailableFeatureIds(
   if (nautical.discoveredPortIds.length > 0) ids.add("nauticalHarbors");
   if (nautical.discoveredRouteIds.length > 0) ids.add("nauticalRoutes");
   if (nautical.ownedBoats.length > 0) ids.add("nauticalBoat");
+  const minigames = player.progression.minigames;
+  for (const activityId of MINIGAME_ACTIVITY_IDS) {
+    const visited = MINIGAME_VENUES.some((venue) =>
+      venue.activityId === activityId && minigames.discoveredVenueIds.includes(venue.id));
+    const pending = minigames.pending?.activityId === activityId && !minigames.pending.debug;
+    if (visited || pending || minigames.statistics[activityId].attempts > 0) {
+      ids.add("minigames");
+      ids.add(MINIGAME_ACTIVITY_FEATURES[activityId]);
+    }
+  }
   return FEATURE_IDS.filter((id) => ids.has(id));
 }
 
@@ -388,6 +418,9 @@ export function isFeatureAvailable(
     return Object.values(GATHERING_DISCIPLINE_FEATURES).some((id) =>
       discovered.has(id)
     );
+  }
+  if (featureId === "minigames") {
+    return Object.values(MINIGAME_ACTIVITY_FEATURES).some((id) => discovered.has(id));
   }
   return true;
 }

@@ -79,14 +79,14 @@ async function createRangerCampaign(page: Page): Promise<void> {
   await waitForState(page, "BOOT | Screen: title");
   await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
-  await clickGame(page, 284, 160);
+  await clickLayoutItem(page, "creation-class-ranger");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: stats");
-  await clickGame(page, 390, 64);
-  await clickGame(page, 400, 460);
+  await clickLayoutItem(page, "creation-stat-mode-random");
+  await clickLayoutItem(page, "creation-stats-next");
   await waitForState(page, "BOOT | Screen: appearance");
-  await clickGame(page, 320, 112);
-  await clickGame(page, 420, 312);
+  await clickLayoutItem(page, "appearance-randomize");
+  await clickLayoutItem(page, "appearance-start");
   await drainCutscenes(page);
   await page.waitForTimeout(320);
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -130,11 +130,11 @@ async function useBattleMenuAction(
   page: Page,
   buttonX: number,
   buttonY: number,
-  menuY: number,
+  actionLayoutId: string,
 ): Promise<void> {
   await waitForState(page, "Phase: playerTurn");
   await clickGame(page, buttonX, buttonY);
-  await clickGame(page, 360, menuY);
+  await clickLayoutItem(page, actionLayoutId);
   await holdKey(page, "Enter", 100);
 }
 
@@ -215,12 +215,12 @@ test("battle, world, mount, companion, boss, and cutscene presentation animate",
   await finishBattle(page);
 
   await startEncounter(page, "orc");
-  await useBattleMenuAction(page, 510, 468, 250);
+  await useBattleMenuAction(page, 510, 468, "battle-spell-huntersMark");
   await waitForPresentation(page, "party:hero:cast:spell");
   await finishBattle(page);
 
   await startEncounter(page, "orc");
-  await useBattleMenuAction(page, 360, 468, 322);
+  await useBattleMenuAction(page, 360, 468, "battle-ability-aimedShot");
   await waitForPresentation(page, "party:hero:ability:ability");
   await finishBattle(page);
 

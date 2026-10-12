@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
+  clickLayoutItem,
   expectCleanLayout,
   tapLayoutItem,
 } from "./helpers/layout";
@@ -120,6 +121,272 @@ async function seedDungeonExitCampaign(page: Page): Promise<void> {
     );
   });
 }
+
+test("invalid imports preserve exact slot bytes and malformed cores recover after reload", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem("saveValidationInitialized")) {
+      localStorage.clear();
+      sessionStorage.setItem("saveValidationInitialized", "true");
+    }
+  });
+  await page.goto("game.html", { waitUntil: "networkidle" });
+  await seedCampaigns(page, true);
+  await page.reload({ waitUntil: "networkidle" });
+  await waitForState(page, "BOOT | Screen: title");
+  const before = await page.evaluate(() =>
+    Object.fromEntries(Object.keys(localStorage).map(
+      (key): [string, string | null] => [key, localStorage.getItem(key)],
+    ))
+  );
+  const original = before["2dnd_save_slot_manual-1"];
+  if (!original) throw new Error("Missing manual campaign fixture");
+  const parsed: unknown = JSON.parse(original);
+  if (
+    typeof parsed !== "object"
+    || parsed === null
+    || !("player" in parsed)
+    || typeof parsed.player !== "object"
+    || parsed.player === null
+  ) {
+    throw new Error("Invalid manual campaign fixture");
+  }
+  const malformed = JSON.stringify({
+    ...parsed,
+    player: { ...parsed.player, stats: null },
+  });
+
+  await clickLayoutItem(page, "title-save-slots");
+  await clickLayoutItem(page, "save-slot-row-manual-1");
+  await clickLayoutItem(page, "save-slot-action-import");
+  await waitForState(page, "[SAVE_PHASE:confirm-import]");
+  const chooser = page.waitForEvent("filechooser");
+  await clickLayoutItem(page, "save-slot-action-confirm");
+  await (await chooser).setFiles({
+    name: "mock-invalid-campaign.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(malformed),
+  });
+  await expect(page.locator("#save-storage-alert")).toContainText(
+    "not a supported 2D&D campaign save",
+  );
+  expect(await page.evaluate(() =>
+    Object.fromEntries(Object.keys(localStorage).map(
+      (key): [string, string | null] => [key, localStorage.getItem(key)],
+    ))
+  )).toEqual(before);
+
+  await page.evaluate(({ raw, invalid }) => {
+    localStorage.setItem("2dnd_save_slot_manual-1:backup", raw);
+    localStorage.setItem("2dnd_save_slot_manual-1", invalid);
+    localStorage.setItem("2dnd_save_slot_manual-2", "{broken");
+  }, { raw: original, invalid: malformed });
+  await page.reload({ waitUntil: "networkidle" });
+  await clickLayoutItem(page, "title-save-slots");
+  await clickLayoutItem(page, "save-slot-row-manual-1");
+  await expect(page.locator("#save-slot-live-region")).toContainText("Manual Hero");
+  expect(await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1")
+  )).toBe(original);
+  expect(await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-2")
+  )).toBe("{broken");
+  await expectCleanLayout(page);
+  await clickLayoutItem(page, "save-slot-action-load");
+  await waitForState(page, "OVERWORLD");
+  expect(await page.evaluate(() => {
+    const raw = localStorage.getItem("2dnd_save");
+    return raw ? JSON.parse(raw).player.name : null;
+  })).toBe("Manual Hero");
+  expect(await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1")
+  )).toBe(original);
+  await page.reload({ waitUntil: "networkidle" });
+  await clickLayoutItem(page, "title-continue");
+  await waitForState(page, "OVERWORLD");
+  expect(await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1")
+  )).toBe(original);
+  expect(errors).toEqual([]);
+});
+
+test("blocked browser storage keeps title and slot diagnostics usable", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      get: () => {
+        throw new DOMException("Mock browser storage is blocked", "SecurityError");
+      },
+    });
+  });
+  await page.goto("game.html", { waitUntil: "networkidle" });
+  await waitForState(page, "BOOT | Screen: title");
+  await clickLayoutItem(page, "title-save-slots");
+  await waitForState(page, "[SAVE_SLOTS:load]");
+  await expect(page.locator("#save-slot-live-region")).toContainText(
+    "Storage unavailable",
+  );
+  await expectCleanLayout(page);
+  await page.keyboard.press("Escape");
+
+  const result = await page.evaluate(async () => {
+    const savePath = "/2dnd/src/systems/save.ts";
+    const playerPath = "/2dnd/src/systems/player.ts";
+    const codexPath = "/2dnd/src/systems/codex.ts";
+    const save = await import(savePath);
+    const player = await import(playerPath);
+    const codex = await import(codexPath);
+    const hero = player.createPlayer("Mock Offline Hero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    return save.saveGame(
+      hero,
+      new Set(),
+      codex.createCodex(),
+      hero.appearanceId,
+    );
+  });
+  expect(result).toMatchObject({ ok: false, code: "unavailable" });
+  await expect(page.getByRole("alert")).toContainText("storage is unavailable");
+  await clickLayoutItem(page, "title-new-game");
+  await waitForState(page, "[SAVE_PHASE:confirm-newGame]");
+  await clickLayoutItem(page, "save-slot-action-confirm");
+  await waitForState(page, "BOOT | Screen: character");
+  expect(errors).toEqual([]);
+});
+
+test("gamepad overwrite and delete stay inert until explicitly confirmed", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem("saveGamepadInitialized")) {
+      localStorage.clear();
+      sessionStorage.setItem("saveGamepadInitialized", "true");
+    }
+    const pad = {
+      id: "Mock Standard Save Gamepad",
+      index: 0,
+      connected: true,
+      mapping: "standard",
+      timestamp: 0,
+      axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 17 }, () => ({
+        pressed: false, touched: false, value: 0,
+      })),
+    };
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [pad],
+    });
+    Object.defineProperty(window, "__setSaveGamepadButton", {
+      value: (index: number, pressed: boolean) => {
+        pad.buttons[index] = { pressed, touched: pressed, value: pressed ? 1 : 0 };
+        pad.timestamp += 1;
+      },
+    });
+  });
+  const pressGamepad = async (button: number): Promise<void> => {
+    for (const pressed of [true, false]) {
+      await page.evaluate(({ index, held }) => {
+        (window as typeof window & {
+          __setSaveGamepadButton(index: number, pressed: boolean): void;
+        }).__setSaveGamepadButton(index, held);
+      }, { index: button, held: pressed });
+      await page.waitForTimeout(150);
+    }
+  };
+  const selectDelete = async (): Promise<void> => {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const state = await page.locator("#debug-state").textContent() ?? "";
+      if (state.includes("[SAVE_ACTION:delete]")) return;
+      await pressGamepad(15);
+    }
+    throw new Error("Gamepad did not select the Delete action");
+  };
+  await page.goto("game.html", { waitUntil: "networkidle" });
+  await seedCampaigns(page, true);
+  await page.reload({ waitUntil: "networkidle" });
+  await waitForState(page, "BOOT | Screen: title");
+  await pressGamepad(0);
+  await waitForState(page, "OVERWORLD");
+  const autosave = await page.evaluate(() => localStorage.getItem("2dnd_save"));
+  const source = await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1")
+  );
+  await pressGamepad(9);
+  await waitForState(page, "[MENU]");
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (state.includes("[MENU_SELECTION:save]")) break;
+    await pressGamepad(13);
+  }
+  await waitForState(page, "[MENU_SELECTION:save]");
+  await pressGamepad(0);
+  await waitForState(page, "[SAVE_SLOTS:save]");
+  await pressGamepad(0);
+  await waitForState(page, "[SAVE_PHASE:confirm-save]");
+  expect(await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1")
+  )).toBe(source);
+  await pressGamepad(1);
+  await waitForState(page, "[SAVE_PHASE:browse]");
+  expect(await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1")
+  )).toBe(source);
+  await pressGamepad(0);
+  await waitForState(page, "[SAVE_PHASE:confirm-save]");
+  await pressGamepad(0);
+  await waitForState(page, "[SAVE_PHASE:browse]");
+  const overwritten = await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1")
+  );
+  expect(overwritten).not.toBe(source);
+  expect(await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1:backup")
+  )).toBe(source);
+
+  await selectDelete();
+  await pressGamepad(0);
+  await waitForState(page, "[SAVE_PHASE:confirm-delete]");
+  expect(await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1")
+  )).toBe(overwritten);
+  await pressGamepad(1);
+  await waitForState(page, "[SAVE_PHASE:browse]");
+  expect(await page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1")
+  )).toBe(overwritten);
+  await selectDelete();
+  await pressGamepad(0);
+  await waitForState(page, "[SAVE_PHASE:confirm-delete]");
+  await pressGamepad(0);
+  await expect.poll(() => page.evaluate(() =>
+    localStorage.getItem("2dnd_save_slot_manual-1")
+  )).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save"))).toBe(autosave);
+  await expectCleanLayout(page);
+  await pressGamepad(1);
+  expect(errors).toEqual([]);
+});
 
 test("keyboard manages independent save slots with explicit confirmations", async ({
   page,
@@ -377,6 +644,17 @@ test.describe("touch save slots", () => {
     await expect(page.locator("#save-slot-live-region")).toContainText(
       "Saved Autosave Hero",
     );
+    await expectCleanLayout(page);
+    const snapshot = await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-1")
+    );
+    await page.locator('[data-action="confirm"]').tap();
+    await waitForState(page, "[SAVE_PHASE:confirm-save]");
+    await page.locator('[data-action="cancel"]').tap();
+    await waitForState(page, "[SAVE_PHASE:browse]");
+    expect(await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-1")
+    )).toBe(snapshot);
     await expectCleanLayout(page);
     await page.locator('[data-action="cancel"]').tap();
     await expect(page.locator("#debug-state")).not.toContainText("[SAVE_SLOTS:");

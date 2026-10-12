@@ -1,0 +1,24 @@
+2D&D source and licenses
+
+2D&D is licensed under GNU AGPL version 3 only. See LICENSE.2dnd.txt.
+Corresponding source, dependency lockfile and build instructions:
+https://github.com/mbianchidev/2dnd
+
+Use the source commit identified by the distributor's build receipt, not a
+later main branch or a different release. A public distributor must make that
+exact corresponding source and its build scripts available with the binary.
+Desktop packaging adds the immutable source URL before any code signing.
+
+Build prerequisites: Node.js 24 and npm. From the matching source checkout:
+  npm ci
+  npm run build:desktop
+  npm run generate:desktop-icons
+  npm run package:steam:ci -- <platform and architecture arguments>
+
+Phaser and EventEmitter3 notices are LICENSE.phaser.txt and
+LICENSE.eventemitter3.txt. Electron and its embedded Chromium include their
+own LICENSE / LICENSE.electron.txt and LICENSES.chromium.html notices.
+
+The game uses original procedural graphics and synthesized audio. No Steam
+SDK or Steam DRM wrapper is included. Third-party trademarks do not imply
+affiliation and are not licensed by the game's AGPL license.

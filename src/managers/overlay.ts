@@ -24,12 +24,12 @@ import {
 } from "../data/map";
 import { getSpell } from "../data/spells";
 import { getAbility } from "../data/abilities";
+import { getItemDescription } from "../data/items";
 import { getMount } from "../data/mounts";
 import {
   type PlayerState,
   type PlayerStats,
   xpForLevel,
-  allocateStatPoint,
   applyBankInterest,
   equipOffHand,
   castSpellOutsideCombat,
@@ -37,12 +37,22 @@ import {
   useItem,
   isLightWeapon,
   getArmorClass,
+  getAttackModifier,
 } from "../systems/player";
 import { restPartyAtInn } from "../systems/party";
 import { getPlayerClass } from "../systems/classes";
+import {
+  getActorStartingClass,
+  getProficiencyBonus,
+  prepareHeroLevelUp,
+  prepareNextHeroLevelUp,
+} from "../systems/classProgression";
+import { HeroProgressionManager } from "./heroProgression";
 import { abilityModifier } from "../systems/dice";
 import { CYCLE_LENGTH } from "../systems/daynight";
 import { audioEngine } from "../systems/audio";
+import { createEffectDicePresentation } from "../systems/dicePresentation";
+import { presentDiceResult } from "./dicePresentation";
 import {
   CONTINENTS,
   MERCHANT_ROUTES,
@@ -56,6 +66,8 @@ import {
   SETTINGS_PANEL_HEIGHT,
   SETTINGS_PANEL_WIDTH,
 } from "../renderers/settings";
+import { layoutEquipmentColumn } from "../renderers/equipmentLayout";
+import { renderEscapeMenu } from "../renderers/escapeMenu";
 import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
 import {
@@ -64,13 +76,13 @@ import {
   createOverlayContainer,
   createPanelGraphics,
 } from "../utils/ui";
-import { syncInteractiveHitArea } from "./layout";
 import { createBattleTimingSettingsOverlay } from "./battleTimingSettings";
+import { subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
 import {
   layoutResponsiveGrid,
   restoreLayoutFocus,
 } from "../systems/layout";
-import { TILE_SIZE } from "../config";
+import { TILE_SIZE, debugLog } from "../config";
 import {
   getQuestAccessDecision,
   getQuestDangerState,
@@ -85,6 +97,7 @@ import {
 
 /** Callbacks the OverlayManager uses to interact with the parent scene. */
 export interface OverlayCallbacks {
+  isInputBlocked?: () => boolean;
   updateHUD: () => void;
   autoSave: () => void;
   showMessage: (text: string, color?: string) => void;
@@ -106,6 +119,8 @@ export interface OverlayCallbacks {
   openAchievements: () => void;
   openGathering: () => void;
   openCrafting: () => void;
+  openMinigames: () => void;
+  openDevotion: () => void;
   openTips: () => void;
   openSaveSlots: () => void;
   fadeOutAndIn: (atBlack: () => void, duration: number) => boolean;
@@ -118,6 +133,7 @@ export interface OverlayCallbacks {
 export class OverlayManager {
   private scene: Phaser.Scene;
   private callbacks: OverlayCallbacks;
+  private readonly progression: HeroProgressionManager;
 
   // Overlay containers
   equipOverlay: Phaser.GameObjects.Container | null = null;
@@ -132,6 +148,7 @@ export class OverlayManager {
   private menuSelectedIndex = 0;
   private menuEntries: EscapeMenuEntry[] = [];
   private menuButtons: Phaser.GameObjects.Text[] = [];
+  private reflowMenu: (() => void) | null = null;
   private menuPlayer: PlayerState | null = null;
   private menuDefeatedBosses: Set<string> | null = null;
   private menuCodex: CodexData | null = null;
@@ -151,6 +168,15 @@ export class OverlayManager {
   constructor(scene: Phaser.Scene, callbacks: OverlayCallbacks) {
     this.scene = scene;
     this.callbacks = callbacks;
+    this.progression = new HeroProgressionManager(scene, {
+      autoSave: callbacks.autoSave,
+      updateHUD: () => {
+        callbacks.updateHUD();
+        callbacks.refreshPlayerSprite();
+      },
+      showMessage: callbacks.showMessage,
+      isInputBlocked: () => callbacks.isInputBlocked?.() ?? false,
+    });
   }
 
   // ── Query ──────────────────────────────────────────────────────────
@@ -167,11 +193,12 @@ export class OverlayManager {
       this.bankOverlay ||
       this.townPickerOverlay ||
       this.cityMapOverlay
+      || this.progression.isOpen()
     );
   }
 
   getMenuDebugState(player: PlayerState): string {
-    if (!this.menuOverlay) return "";
+    if (!this.menuOverlay) return this.progression.getDebugState();
     const entries = getEscapeMenuEntries(player);
     const selected = entries[this.menuSelectedIndex]?.action ?? "-";
     return ` [MENU] [MENU_ENTRIES:${entries.map((entry) => entry.action).join(",")}]`
@@ -196,6 +223,10 @@ export class OverlayManager {
 
   /** Destroy all overlays. */
   destroyAll(): void {
+    this.progression.close();
+    this.scene.input.keyboard?.off("keydown", this.handleEquipKeyDown, this);
+    this.scene.input.keyboard?.off("keyup", this.handleEquipKeyUp, this);
+    this.pendingEquipProgression = false;
     this.closeOverlays(
       "equipOverlay", "statOverlay", "menuOverlay", "worldMapOverlay",
       "settingsOverlay", "innConfirmOverlay", "bankOverlay", "townPickerOverlay",
@@ -208,11 +239,16 @@ export class OverlayManager {
   /** Toggle the equip overlay open/closed. */
   toggleEquipOverlay(player: PlayerState): void {
     if (this.equipOverlay) {
+      this.scene.input.keyboard?.off("keydown", this.handleEquipKeyDown, this);
+      this.scene.input.keyboard?.off("keyup", this.handleEquipKeyUp, this);
+      this.pendingEquipProgression = false;
       this.equipOverlay.destroy();
       this.equipOverlay = null;
       return;
     }
     this.equipPage = "gear";
+    this.equipInfoPage = 0;
+    this.equipBodyPage = 0;
     this.gearWeaponPage = 0;
     this.gearOffHandPage = 0;
     this.gearArmorPage = 0;
@@ -224,8 +260,40 @@ export class OverlayManager {
     this.buildEquipOverlay(player);
   }
 
+  private equipPlayer: PlayerState | null = null;
+  private equipInfoPage = 0;
+  private equipBodyPage = 0;
+  private equipInfoPageCount = 1;
+  private equipBodyPageCount = 1;
+  private pendingEquipProgression = false;
+  private readonly handleEquipKeyDown = (event: KeyboardEvent): void => {
+    if (!this.equipOverlay || !this.equipPlayer) return;
+    if (event.key === "PageUp" || event.key === "PageDown") {
+      const direction = event.key === "PageUp" ? -1 : 1;
+      this.equipInfoPage = Math.max(0, Math.min(this.equipInfoPage + direction, this.equipInfoPageCount - 1));
+      this.equipBodyPage = Math.max(0, Math.min(this.equipBodyPage + direction, this.equipBodyPageCount - 1));
+      event.preventDefault();
+      this.buildEquipOverlay(this.equipPlayer);
+      return;
+    }
+    if (event.key !== "Tab" || event.repeat) return;
+    event.preventDefault();
+    this.pendingEquipProgression = true;
+  };
+  private readonly handleEquipKeyUp = (event: KeyboardEvent): void => {
+    if (event.key !== "Tab") return;
+    const pending = this.pendingEquipProgression;
+    this.pendingEquipProgression = false;
+    if (pending && this.equipOverlay && this.equipPlayer) this.showProgressionOverlay(this.equipPlayer);
+  };
+
   /** Build (or rebuild) the equip overlay panel. */
   buildEquipOverlay(player: PlayerState): void {
+    this.equipPlayer = player;
+    this.scene.input.keyboard?.off("keydown", this.handleEquipKeyDown, this);
+    this.scene.input.keyboard?.on("keydown", this.handleEquipKeyDown, this);
+    this.scene.input.keyboard?.off("keyup", this.handleEquipKeyUp, this);
+    this.scene.input.keyboard?.on("keyup", this.handleEquipKeyUp, this);
     if (this.equipOverlay) {
       this.equipOverlay.destroy();
       this.equipOverlay = null;
@@ -241,7 +309,11 @@ export class OverlayManager {
     const px = startX + infoPanelW + 6; // right panel (gear/skills/items)
     const py = Math.floor((h - panelH) / 2) - 20;
 
-    this.equipOverlay = this.scene.add.container(0, 0).setDepth(50);
+    this.equipOverlay = createOverlayContainer(this.scene, "equipment", 50, {
+      x: startX, y: py, width: totalW, height: panelH,
+    });
+    const unsubscribeReflow = subscribeOverlayReflow(this.scene, () => this.buildEquipOverlay(player));
+    this.equipOverlay.once(Phaser.GameObjects.Events.DESTROY, unsubscribeReflow);
 
     // Dim background
     const dim = createDimGraphics(this.scene, w, h, 0.5);
@@ -254,7 +326,17 @@ export class OverlayManager {
     const infoBg = createPanelGraphics(this.scene, ipx, py, infoPanelW, panelH, 0.95, 0xc0a060);
     this.equipOverlay.add(infoBg);
 
+    const beforeInfo = new Set(this.equipOverlay.list);
     this.buildInfoPanel(player, ipx + 8, py + 8, infoPanelW - 16);
+    const infoObjects = this.equipOverlay.list.filter((object) => !beforeInfo.has(object));
+    const info = layoutEquipmentColumn(this.scene, this.equipOverlay, infoObjects, "equipment-info", {
+      x: ipx + 8, y: py + 8, width: infoPanelW - 16, height: panelH - 16,
+    }, this.equipInfoPage, (page) => {
+      this.equipInfoPage = page;
+      this.buildEquipOverlay(player);
+    });
+    this.equipInfoPage = info.page;
+    this.equipInfoPageCount = info.count;
 
     // --- Right panel background ---
     const bg = createPanelGraphics(this.scene, px, py, panelW, panelH, 0.95, 0xc0a060);
@@ -270,6 +352,7 @@ export class OverlayManager {
     ];
     const ulGfx = this.scene.add.graphics();
     ulGfx.lineStyle(2, 0xffd700, 1);
+    let tabHeight = 0;
     for (let t = 0; t < 3; t++) {
       const tx = px + panelW * tabPositions[t];
       const tab = this.scene.add.text(tx, tabY, tabs[t].label, {
@@ -277,33 +360,60 @@ export class OverlayManager {
         color: this.equipPage === tabs[t].page ? "#ffd700" : "#888",
       }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
       const pg = tabs[t].page;
-      tab.on("pointerdown", () => { this.equipPage = pg; this.buildEquipOverlay(player); });
-      this.equipOverlay.add(tab);
+      tab.on("pointerdown", () => {
+        this.equipPage = pg;
+        this.equipBodyPage = 0;
+        this.buildEquipOverlay(player);
+      });
+      if (tabs[t].page === "skills") this.addMeasuredAction(tab, "equip-skills-tab");
+      else this.equipOverlay.add(tab);
       if (this.equipPage === tabs[t].page) {
-        ulGfx.lineBetween(tx - 28, tabY + 16, tx + 28, tabY + 16);
+        ulGfx.lineBetween(tx - 28, tabY + tab.displayHeight + 3, tx + 28, tabY + tab.displayHeight + 3);
       }
+      tabHeight = Math.max(tabHeight, tab.displayHeight);
     }
     this.equipOverlay.add(ulGfx);
 
-    if (this.equipPage === "gear") {
-      this.buildEquipGearPage(player, px, py + 28, panelW, panelH - 28);
-    } else if (this.equipPage === "skills") {
-      this.buildEquipSkillsPage(player, px, py + 28, panelW, panelH - 28);
-    } else {
-      this.buildEquipItemsPage(player, px, py + 28, panelW, panelH - 28);
-    }
-
-    // Close hint
-    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 14, "Press E or click to close", {
-      fontSize: "10px", fontFamily: "monospace", color: "#666",
-    }).setOrigin(0.5, 1);
+    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 8,
+      "PageUp/Down: pages; Tab: progression; E: close", {
+        fontSize: "10px", fontFamily: "monospace", color: "#90a4ae",
+        align: "center", wordWrap: { width: panelW - 24, useAdvancedWrap: true },
+      }).setOrigin(0.5, 1).setData("layoutId", "equipment-hint");
     this.equipOverlay.add(hint);
+    const beforeBody = new Set(this.equipOverlay.list);
+    const bodyY = tabY + tabHeight + 10;
+    const bodyHeight = hint.getBounds().y - 10 - bodyY;
+    if (this.equipPage === "gear") {
+      this.buildEquipGearPage(player, px, bodyY, panelW, bodyHeight);
+    } else if (this.equipPage === "skills") {
+      this.buildEquipSkillsPage(player, px, bodyY, panelW, bodyHeight);
+    } else {
+      this.buildEquipItemsPage(player, px, bodyY, panelW, bodyHeight);
+    }
+    const bodyObjects = this.equipOverlay.list.filter((object) => !beforeBody.has(object));
+    const body = layoutEquipmentColumn(this.scene, this.equipOverlay, bodyObjects, "equipment-body", {
+      x: px + 12, y: bodyY, width: panelW - 24, height: bodyHeight,
+    }, this.equipBodyPage, (page) => {
+      this.equipBodyPage = page;
+      this.buildEquipOverlay(player);
+    });
+    this.equipBodyPage = body.page;
+    this.equipBodyPageCount = body.count;
+  }
+
+  private addMeasuredAction(text: Phaser.GameObjects.Text, id: string): void {
+    const group = createOverlayContainer(this.scene, id, 0, {
+      x: 0, y: 0, width: this.scene.cameras.main.width, height: this.scene.cameras.main.height,
+    });
+    text.setData("layoutId", id);
+    group.add(text);
+    this.equipOverlay?.add(group);
   }
 
   /** Build the left-side info panel showing player status, location, and stats. */
   private buildInfoPanel(player: PlayerState, x: number, y: number, w: number): void {
     const p = player;
-    const cls = getPlayerClass(p.appearanceId);
+    const cls = getPlayerClass(getActorStartingClass(p));
     let cy = y;
 
     const addLine = (text: string, color = "#ccc", size = "10px") => {
@@ -312,11 +422,18 @@ export class OverlayManager {
         wordWrap: { width: w },
       });
       this.equipOverlay!.add(t);
-      cy += parseInt(size) + 6;
+      cy += t.displayHeight + 6;
     };
 
     addLine(`${p.name}`, "#ffd700", "13px");
     addLine(`${cls.label}  Lv.${p.level}`, "#aabbcc", "11px");
+    const progression = this.scene.add.text(x, cy, "[Class progression]", {
+      fontSize: "10px", fontFamily: "monospace", color: "#aaffcc",
+      wordWrap: { width: w },
+    }).setInteractive({ useHandCursor: true });
+    progression.on("pointerdown", () => this.showProgressionOverlay(player));
+    this.addMeasuredAction(progression, "hero-progression-open");
+    cy += progression.displayHeight + 6;
     cy += 6;
 
     // Location & world info — each on its own line
@@ -354,13 +471,11 @@ export class OverlayManager {
 
     // AC + To-Hit
     const ac = getArmorClass(p);
-    const primaryStat = cls.primaryStat;
-    const primaryVal = p.stats[primaryStat as keyof typeof p.stats];
-    const primaryMod = abilityModifier(primaryVal);
-    const profBonus = Math.floor((p.level - 1) / 4) + 2;
-    const toHit = primaryMod + profBonus;
+    const profBonus = getProficiencyBonus(p);
+    const toHit = getAttackModifier(p);
     addLine(`AC: ${ac}`, "#aaddff");
     addLine(`To-Hit: ${toHit >= 0 ? "+" : ""}${toHit}`, "#aaddff");
+    addLine(`Proficiency: +${profBonus}`, "#aaddff");
 
     if (p.pendingStatPoints > 0) {
       cy += 6;
@@ -400,11 +515,7 @@ export class OverlayManager {
       const padVal = val < 10 ? ` ${val}` : `${val}`;
       return `${label} ${padVal} (${modStr})`;
     };
-    const appearance = getPlayerClass(p.appearanceId);
-    const primaryVal = p.stats[appearance.primaryStat];
-    const primaryMod = abilityModifier(primaryVal);
-    const profBonus = Math.floor((p.level - 1) / 4) + 2;
-    const toHit = primaryMod + profBonus;
+    const toHit = getAttackModifier(p);
     const toHitStr = toHit >= 0 ? `+${toHit}` : `${toHit}`;
     const statsBlock = this.scene.add.text(px + 14, cy, [
       `― Stats ―  To-Hit: ${toHitStr}`,
@@ -670,7 +781,7 @@ export class OverlayManager {
     type ItemEntry = { label: string; desc: string; color: string; itemId?: string };
     const allEntries: ItemEntry[] = [];
     for (const [, { item, count }] of grouped) {
-      allEntries.push({ label: `${item.name} ×${count}`, desc: item.description, color: "#aaddff", itemId: item.id });
+      allEntries.push({ label: `${item.name} ×${count}`, desc: getItemDescription(item), color: "#aaddff", itemId: item.id });
     }
     for (const ki of keyItems) {
       allEntries.push({ label: ki.name, desc: ki.description, color: "#ffdd88" });
@@ -751,8 +862,6 @@ export class OverlayManager {
   /** Skills page: paginated spells and abilities. */
   private buildEquipSkillsPage(player: PlayerState, px: number, py: number, panelW: number, _panelH: number): void {
     const p = player;
-    const appearance = getPlayerClass(p.appearanceId);
-    const primaryMod = abilityModifier(p.stats[appearance.primaryStat]);
     let cy = py + 6;
     const MAX_SPELL_VISIBLE = 5;
     const MAX_ABILITY_VISIBLE = 5;
@@ -782,8 +891,7 @@ export class OverlayManager {
         const dmgOrHeal = spell.type === "heal" ? "heal" : "dmg";
         const hasDice = spell.damageDie > 0 && spell.damageCount > 0;
         const diceStr = hasDice ? `${spell.damageCount}d${spell.damageDie}` : "";
-        const modStr = primaryMod >= 0 ? `+${primaryMod}` : `${primaryMod}`;
-        const diceInfo = hasDice ? `  ${diceStr}${modStr} ${dmgOrHeal}` : "";
+        const diceInfo = hasDice ? `  ${diceStr} base ${dmgOrHeal}` : "";
         const isUsable = spell.type === "heal" || spell.type === "utility";
         let canCast = false;
         if (isUsable) {
@@ -805,6 +913,16 @@ export class OverlayManager {
             txt.on("pointerout", () => txt.setColor(baseColor));
             txt.on("pointerdown", () => {
               const result = castSpellOutsideCombat(p, spell.id);
+              if (result.healingRoll) {
+                debugLog("[dice] receipt", {
+                  kind: "healing", actorId: "party:hero", targetId: "party:hero",
+                  actionId: spell.id, healing: result,
+                });
+                presentDiceResult(this.scene, createEffectDicePresentation(result.healingRoll, {
+                  category: "healing", label: `${p.name} ${spell.name}`,
+                  actorId: "party:hero", targetId: "party:hero", actionId: spell.id, outcome: "success",
+                }), result);
+              }
               if (result.teleport) {
                 this.pendingTeleportCost = spell.mpCost;
                 this.toggleEquipOverlay(player);
@@ -818,7 +936,8 @@ export class OverlayManager {
             });
           }
         }
-        this.equipOverlay!.add(txt);
+        if (spell.type === "heal" && canCast) this.addMeasuredAction(txt, `equip-spell-${spell.id}`);
+        else this.equipOverlay!.add(txt);
         const desc = this.scene.add.text(px + 30, cy + 14,
           spell.description,
           { fontSize: "9px", fontFamily: "monospace", color: "#888", wordWrap: { width: panelW - 50 } },
@@ -868,10 +987,8 @@ export class OverlayManager {
         const dmgOrHeal = ability.type === "heal" ? "heal" : "dmg";
         const hasDice = ability.damageDie > 0 && ability.damageCount > 0;
         const diceStr = hasDice ? `${ability.damageCount}d${ability.damageDie}` : "";
-        const aMod = abilityModifier(p.stats[ability.statKey]);
-        const aModStr = aMod >= 0 ? `+${aMod}` : `${aMod}`;
         const bonusTag = ability.bonusAction ? " [bonus]" : "";
-        const diceInfo = hasDice ? `  ${diceStr}${aModStr} ${dmgOrHeal}` : "";
+        const diceInfo = hasDice ? `  ${diceStr} base ${dmgOrHeal}` : "";
         const isUsable = ability.type === "heal" || ability.type === "utility";
         let canUse = isUsable && p.mp >= ability.mpCost && (ability.type !== "heal" || p.hp < p.maxHp);
         // Special usability checks for shortRest and evac
@@ -896,7 +1013,17 @@ export class OverlayManager {
             txt.on("pointerover", () => txt.setColor("#ffd700"));
             txt.on("pointerout", () => txt.setColor(baseColor));
             txt.on("pointerdown", () => {
-              const result = useAbilityOutsideCombat(p, ability.id);
+              const result = useAbilityOutsideCombat(p, ability.id, true);
+              if (result.healingRoll) {
+                debugLog("[dice] receipt", {
+                  kind: "healing", actorId: "party:hero", targetId: "party:hero",
+                  actionId: ability.id, healing: result,
+                });
+                presentDiceResult(this.scene, createEffectDicePresentation(result.healingRoll, {
+                  category: "healing", label: `${p.name} ${ability.name}`,
+                  actorId: "party:hero", targetId: "party:hero", actionId: ability.id, outcome: "success",
+                }), result);
+              }
               if (result.teleport) {
                 this.pendingTeleportCost = ability.mpCost;
                 this.toggleEquipOverlay(player);
@@ -912,9 +1039,13 @@ export class OverlayManager {
               this.callbacks.showMessage(result.message);
               if (ability.id === "shortRest") {
                 audioEngine.playCampfireSFX();
+                if (result.success && p.pendingLevelUps > 0) {
+                  this.showLevelUpOverlay(player);
+                  return;
+                }
                 if (p.pendingStatPoints > 0) {
                   this.toggleEquipOverlay(player);
-                  this.scene.time.delayedCall(500, () => this.showStatOverlay(player));
+                  this.showStatOverlay(player);
                   return;
                 }
               } else {
@@ -925,7 +1056,9 @@ export class OverlayManager {
             });
           }
         }
-        this.equipOverlay!.add(txt);
+        if (ability.id === "shortRest") this.addMeasuredAction(txt, "hero-short-rest");
+        else if (ability.type === "heal" && canUse) this.addMeasuredAction(txt, `equip-ability-${ability.id}`);
+        else this.equipOverlay!.add(txt);
         const desc = this.scene.add.text(px + 30, cy + 14,
           ability.description,
           { fontSize: "9px", fontFamily: "monospace", color: "#888", wordWrap: { width: panelW - 50 } },
@@ -1055,87 +1188,21 @@ export class OverlayManager {
     this.menuPlayer = player;
     this.menuDefeatedBosses = defeatedBosses;
     this.menuCodex = codex;
-    const menuWidth = 520;
-    const grid = layoutResponsiveGrid({
-      availableWidth: menuWidth - 40,
-      minColumnWidth: 210,
-      columnGap: 12,
-      rowGap: 8,
-      itemHeights: entries.map(() => 44),
-      maxColumns: 2,
-    });
-    const menuHeight = Math.min(440, grid.height + 102);
-    const { w, h, px, py, panelW, panelH } = calcPanelLayout(
-      this.scene,
-      menuWidth,
-      menuHeight,
-    );
-    this.menuOverlay = createOverlayContainer(
-      this.scene,
-      "escape-menu",
-      70,
-      { x: px, y: py, width: panelW, height: panelH },
-    );
-
-    const dim = createDimGraphics(this.scene, w, h);
-    this.menuOverlay.add(dim);
-    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
-    dim.on("pointerdown", () => this.toggleMenuOverlay(player, defeatedBosses, codex));
-
-    const bg = createPanelGraphics(this.scene, px, py, panelW, panelH);
-    this.menuOverlay.add(bg);
-
-    const title = this.scene.add.text(px + panelW / 2, py + 14, "⚙ Menu", {
-      fontSize: "16px", fontFamily: "monospace", color: "#ffd700",
-    }).setOrigin(0.5, 0);
-    title.setData("layoutId", "escape-menu-title");
-    this.menuOverlay.add(title);
-    const contentX = px + 20;
-    const contentY = py + 52;
-    this.menuButtons = entries.map((entry, index) => {
-      const cell = grid.cells[index]!;
-      const button = this.scene.add.text(
-        contentX + cell.x + cell.width / 2,
-        contentY + cell.y,
-        entry.label,
-        {
-          fontSize: "13px",
-          fontFamily: "monospace",
-          color: entry.color,
-          backgroundColor: "#2a2a4e",
-          align: "center",
-          padding: { x: 10, y: 6 },
-          fixedWidth: cell.width,
-          fixedHeight: cell.height,
-        },
-      ).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-      button.setData("testId", entry.testId);
-      button.setData("layoutId", `escape-menu-${entry.action}`);
-      syncInteractiveHitArea(button);
-      button.on("pointerover", () => {
+    const menu = renderEscapeMenu(this.scene, entries, {
+      selected: () => this.menuSelectedIndex,
+      select: (index) => {
         this.menuSelectedIndex = index;
         this.updateMenuSelection();
-      });
-      button.on("pointerout", () => this.updateMenuSelection());
-      button.on("pointerdown", () => {
-        this.activateMenuAction(
-          entry.action,
-          player,
-          defeatedBosses,
-          codex,
-        );
-      });
-      this.menuOverlay?.add(button);
-      return button;
+      },
+      activate: (entry) => this.activateMenuAction(entry.action, player, defeatedBosses, codex),
+      close: () => this.toggleMenuOverlay(player, defeatedBosses, codex),
     });
+    this.menuOverlay = menu.container;
+    this.menuButtons = menu.buttons;
+    this.reflowMenu = menu.reflow;
     this.scene.input.keyboard?.on("keydown", this.handleMenuKeyDown, this);
     this.updateMenuSelection();
 
-    const hint = this.scene.add.text(px + panelW / 2, py + panelH - 8, "Press ESC to close", {
-      fontSize: "10px", fontFamily: "monospace", color: "#666",
-    }).setOrigin(0.5, 1);
-    hint.setData("layoutId", "escape-menu-hint");
-    this.menuOverlay.add(hint);
   }
 
   private readonly handleMenuKeyDown = (event: KeyboardEvent): void => {
@@ -1198,12 +1265,14 @@ export class OverlayManager {
         index === this.menuSelectedIndex ? "#ffffff" : entry.color,
       );
     });
+    this.reflowMenu?.();
   }
 
   private clearMenuInput(): void {
     this.scene.input.keyboard?.off("keydown", this.handleMenuKeyDown, this);
     this.menuEntries = [];
     this.menuButtons = [];
+    this.reflowMenu = null;
     this.menuPlayer = null;
     this.menuDefeatedBosses = null;
     this.menuCodex = null;
@@ -1246,6 +1315,12 @@ export class OverlayManager {
         return;
       case "crafting":
         this.callbacks.openCrafting();
+        return;
+      case "minigames":
+        this.callbacks.openMinigames();
+        return;
+      case "devotion":
+        this.callbacks.openDevotion();
         return;
       case "tips":
         this.callbacks.openTips();
@@ -1330,91 +1405,28 @@ export class OverlayManager {
 
   /** Show the ASI (Ability Score Improvement) overlay for stat allocation. */
   showStatOverlay(player: PlayerState): void {
-    this.closeOverlays("equipOverlay", "statOverlay");
+    this.destroyAll();
+    this.progression.open(player, "stats");
+  }
 
-    const { w, h, px, py, panelW, panelH } = calcPanelLayout(this.scene, 280, 320, -10);
+  showProgressionOverlay(player: PlayerState): void {
+    this.destroyAll();
+    this.progression.open(player);
+  }
 
-    this.statOverlay = this.scene.add.container(0, 0).setDepth(60);
+  isProgressionOpen(): boolean {
+    return this.progression.isOpen();
+  }
 
-    const dim = createDimGraphics(this.scene, w, h);
-    this.statOverlay.add(dim);
-
-    const bg = createPanelGraphics(this.scene, px, py, panelW, panelH);
-    this.statOverlay.add(bg);
-
-    const title = this.scene.add.text(px + panelW / 2, py + 10, "★ Ability Score Improvement", {
-      fontSize: "13px", fontFamily: "monospace", color: "#ffd700",
-    }).setOrigin(0.5, 0);
-    this.statOverlay.add(title);
-
-    const remaining = this.scene.add.text(px + panelW / 2, py + 30, `Points remaining: ${player.pendingStatPoints}`, {
-      fontSize: "12px", fontFamily: "monospace", color: "#88ff88",
-    }).setOrigin(0.5, 0);
-    this.statOverlay.add(remaining);
-
-    const p = player;
-    const statNames: { key: keyof PlayerStats; label: string }[] = [
-      { key: "strength", label: "STR" },
-      { key: "dexterity", label: "DEX" },
-      { key: "constitution", label: "CON" },
-      { key: "intelligence", label: "INT" },
-      { key: "wisdom", label: "WIS" },
-      { key: "charisma", label: "CHA" },
-    ];
-
-    let cy = py + 54;
-    for (const { key, label } of statNames) {
-      const val = p.stats[key];
-      const mod = abilityModifier(val);
-      const modStr = mod >= 0 ? `+${mod}` : `${mod}`;
-
-      const row = this.scene.add.text(px + 20, cy, `${label}:  ${val}  (${modStr})`, {
-        fontSize: "12px", fontFamily: "monospace", color: "#ddd",
-      });
-      this.statOverlay.add(row);
-
-      const btn = this.scene.add.text(px + panelW - 40, cy - 2, "[+]", {
-        fontSize: "14px", fontFamily: "monospace", color: "#88ff88",
-      }).setInteractive({ useHandCursor: true });
-
-      btn.on("pointerover", () => btn.setColor("#ffd700"));
-      btn.on("pointerout", () => btn.setColor("#88ff88"));
-      btn.on("pointerdown", () => {
-        if (allocateStatPoint(p, key)) {
-          this.callbacks.updateHUD();
-          this.showStatOverlay(player);
-        }
-      });
-
-      this.statOverlay.add(btn);
-      cy += 28;
+  showLevelUpOverlay(player: PlayerState, rested = true): void {
+    const prepared = rested ? prepareHeroLevelUp(player) : prepareNextHeroLevelUp(player);
+    if (!prepared.ok) {
+      this.callbacks.showMessage(prepared.message, "#ffaaaa");
+      return;
     }
-
-    if (p.pendingStatPoints <= 0) {
-      const confirmBtn = this.scene.add.text(px + panelW / 2, py + panelH - 36, "✔ Confirm", {
-        fontSize: "12px", fontFamily: "monospace", color: "#88ff88",
-        backgroundColor: "#1a2e1a", padding: { x: 6, y: 3 },
-      }).setOrigin(0.5, 0.5).setInteractive({ useHandCursor: true });
-      confirmBtn.on("pointerover", () => confirmBtn.setColor("#ffd700"));
-      confirmBtn.on("pointerout", () => confirmBtn.setColor("#88ff88"));
-      confirmBtn.on("pointerdown", () => {
-        this.statOverlay?.destroy();
-        this.statOverlay = null;
-      });
-      this.statOverlay.add(confirmBtn);
-
-      const hint = this.scene.add.text(px + panelW / 2, py + panelH - 10,
-        "All points allocated!", {
-          fontSize: "9px", fontFamily: "monospace", color: "#666",
-        }).setOrigin(0.5, 1);
-      this.statOverlay.add(hint);
-    } else {
-      const hint = this.scene.add.text(px + panelW / 2, py + panelH - 10,
-        "Click [+] to allocate", {
-          fontSize: "10px", fontFamily: "monospace", color: "#666",
-        }).setOrigin(0.5, 1);
-      this.statOverlay.add(hint);
-    }
+    this.callbacks.autoSave();
+    this.destroyAll();
+    this.progression.open(player, "level");
   }
 
   // ── Inn Confirmation Overlay ───────────────────────────────────────
@@ -1500,7 +1512,7 @@ export class OverlayManager {
       player.gold -= innCost;
       this.callbacks.setTimeStep(targetTimeStep);
 
-      const partyRest = restPartyAtInn(player);
+      const partyRest = restPartyAtInn(player, true);
       let fullMsg = message;
       for (const actor of partyRest.actors) {
         const levelResult = actor.result;
@@ -1525,9 +1537,8 @@ export class OverlayManager {
 
       this.callbacks.showMessage(fullMsg, "#88ff88");
 
-      if (player.pendingStatPoints > 0) {
-        this.scene.time.delayedCall(1200, () => this.showStatOverlay(player));
-      }
+      if (player.pendingLevelUps > 0) this.showLevelUpOverlay(player);
+      else if (player.pendingStatPoints > 0) this.showStatOverlay(player);
     }, 800);
     if (!started) {
       this.callbacks.showMessage("Please wait for the current transition.", "#ffcc66");

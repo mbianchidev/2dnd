@@ -65,6 +65,10 @@ test("city entry, location prompts and party characteristics remain bounded", as
   await expect(page.locator("#debug-state")).not.toContainText("[PROGRESSION:");
   await minigameKey(page, "Space");
   await waitMinigameState(page, `[CITY:${city.id}:0]`);
+  await waitMinigameState(page, "[PROGRESSION:stats");
+  await expect(page.locator("#debug-state")).toContainText("Points:2");
+  await clickLayoutItem(page, "progression-control-close");
+  await expect(page.locator("#debug-state")).not.toContainText("[PROGRESSION:");
   await expectGroupClean(page, "map-labels");
   await expectGroupClean(page, "world-hud");
   await capture(page, "city-entry");

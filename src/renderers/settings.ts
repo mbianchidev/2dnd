@@ -411,8 +411,9 @@ export function addSettingsControls(
   const mappingNote = scene.add.text(
     centerX,
     py + panelHeight - 48,
-    (campaignLaunchers.length > 1 ? "Left/Right selects rules/timing; Confirm opens.\n" : "")
-      + "Off: crits still show. [ dice / ] speed.",
+    campaignLaunchers.length > 1
+      ? "Left/Right: rules/timing. [ dice / ] speed. Off keeps crits."
+      : "Off: crits still show. [ dice / ] speed.",
     {
       fontSize: "8px",
       fontFamily: "monospace",

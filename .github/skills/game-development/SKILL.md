@@ -110,6 +110,11 @@ Shared controller text entry lives in `systems/textEntry.ts` (keys/edits) and
 focus restoration). The adapter re-exports `openMobileTextInput()`, consumes
 text actions before game keys and allows its cursor to reach desktop DOM
 controls. Use positional prompts rather than guessed device glyphs.
+Use shared arrow/circle face-position icons instead of cardinal-word hints.
+Native desktop does not create mobile touch rails or expose mobile-only
+Settings rows, even with saved Touch On. Preserve WASD outside focused text,
+ordinary physical typing inside it, controller text entry on gamepad, and real
+canvas-touch activity controls without recreating a hidden mobile pad.
 
 Steam tooling is separate from game authority: `steam/config.ts` and
 `hacks/prepare-steam.mjs` own inspected native Linux x64, Windows x64 and macOS

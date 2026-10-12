@@ -2,6 +2,7 @@ import { MINIGAME_DIFFICULTIES, getMinigameActivity } from "../data/minigames";
 import { classifyCrownDice, getCrownPayout } from "./minigameRules";
 import { getMinigameScore } from "./minigameResults";
 import { getRegattaProgress, getRegattaWind } from "./minigameRegatta";
+import { DIRECTION_ICONS, FACE_BUTTON_ICONS } from "./input";
 import type { MinigameDifficultyId } from "../data/minigames";
 import type { InputSource } from "./input";
 import type { MinigamePoint, MinigameSession, ResolvedCrownRoll } from "./minigameTypes";
@@ -19,6 +20,11 @@ export type MinigameBoard =
     readonly position: MinigamePoint;
     readonly buoyIndex: number;
   };
+
+export const MINIGAME_HEADING_ICONS = {
+  north: DIRECTION_ICONS.up, south: DIRECTION_ICONS.down,
+  west: DIRECTION_ICONS.left, east: DIRECTION_ICONS.right,
+} as const;
 
 export interface MinigameGamePresentation {
   readonly title: string;
@@ -44,18 +50,18 @@ export function getMinigameControlPrompt(
 ): string {
   if (activity === "archery") {
     if (source === "keyboard") return "Left/right: 1; up/down: 5; release Enter/Space fires; Esc pauses.";
-    if (source === "gamepad") return "D-pad: left/right 1, up/down 5; release A fires; B pauses.";
+    if (source === "gamepad") return `←/→: 1; ↑/↓: 5; ${FACE_BUTTON_ICONS.down} fires; ${FACE_BUTTON_ICONS.right} pauses.`;
     if (source === "touch") return "D-pad or meter aims; tap Fire; B pauses.";
     return "Aim with buttons or the meter; Fire on release; outside pauses.";
   }
   if (activity === "regatta") {
     if (source === "keyboard") return "Arrows/WASD sail; Enter/Space pauses; Esc opens leave.";
-    if (source === "gamepad") return "D-pad/left stick sails; A pauses; B opens leave.";
+    if (source === "gamepad") return `↑ ↓ ← → / left stick sails; ${FACE_BUTTON_ICONS.down} pauses; ${FACE_BUTTON_ICONS.right} opens leave.`;
     if (source === "touch") return "Directional pad sails; A pauses; B opens leave.";
     return "Use the sailing buttons; outside opens pause and leave.";
   }
   if (source === "keyboard") return "Arrows/WASD choose; release Enter/Space; Esc goes back.";
-  if (source === "gamepad") return "D-pad chooses; A confirms; B goes back.";
+  if (source === "gamepad") return `↑ ↓ ← → choose; ${FACE_BUTTON_ICONS.down} confirms; ${FACE_BUTTON_ICONS.right} goes back.`;
   if (source === "touch") return "Tap a button or use D-pad/A; B goes back.";
   return "Choose a visible button; click outside to go back.";
 }
@@ -99,7 +105,8 @@ export function getMinigameGamePresentation(
   }
   const progress = getRegattaProgress(session);
   const next = session.challenge.buoys[progress.buoyIndex] ?? session.challenge.finish;
-  const wind = getRegattaWind(session) ?? "calm";
+  const heading = getRegattaWind(session);
+  const wind = heading ? MINIGAME_HEADING_ICONS[heading] : "calm";
   return {
     title, prompt,
     status: `Boat (${progress.position.x},${progress.position.y}) | Next ${progress.buoyIndex < session.challenge.buoys.length ? `buoy ${progress.buoyIndex + 1}` : "F"} (${next.x},${next.y})\n`

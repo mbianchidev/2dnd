@@ -42,6 +42,7 @@ import {
   queueCutscenes,
 } from "../systems/cutscenes";
 import { openMobileTextInput } from "../managers/input";
+import { FACE_BUTTON_ICONS, getInputPromptSource } from "../systems/input";
 import { SaveSlotManager } from "../managers/saveSlots";
 import {
   TitleMenuManager,
@@ -437,7 +438,7 @@ export class BootScene extends Phaser.Scene {
 
     // Name entry
     const nameLabel = this.add
-      .text(cx, title.y + title.height + 4, "Name (West / select to edit):", {
+      .text(cx, title.y + title.height + 4, "Name (Tab / select to edit):", {
         fontSize: "11px",
         fontFamily: "monospace",
         color: "#c0a060",
@@ -601,6 +602,8 @@ export class BootScene extends Phaser.Scene {
 
     nextBtn.on("pointerdown", goNext);
     const reflowClassForm = (): void => {
+      const editKey = getInputPromptSource() === "gamepad" ? FACE_BUTTON_ICONS.left : "Tab";
+      nameLabel.setText(`Name (${editKey} / select to edit):`);
       title.setPosition(cx, 8);
       const nameY = title.y + title.displayHeight + 6;
       nameLabel.setPosition(cx - formWidth / 4, nameY);

@@ -1,3 +1,5 @@
+import { FACE_BUTTON_ICONS } from "../systems/input";
+
 export type TutorialStepId =
   | "welcome"
   | "interface"
@@ -97,7 +99,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Interact / confirm",
     keyboard: "Space",
     pointer: "Select the highlighted action",
-    gamepad: "South / West",
+    gamepad: `${FACE_BUTTON_ICONS.down} / ${FACE_BUTTON_ICONS.left}`,
     touch: "A or tap the prompt",
   },
   menu: {
@@ -105,7 +107,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Open / close menu",
     keyboard: "Esc",
     pointer: "Use menu buttons",
-    gamepad: "Menu / North",
+    gamepad: `Menu / ${FACE_BUTTON_ICONS.up}`,
     touch: "MENU",
   },
   tips: {
@@ -201,7 +203,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Confirm target",
     keyboard: "Enter / Space",
     pointer: "Select the target",
-    gamepad: "South",
+    gamepad: FACE_BUTTON_ICONS.down,
     touch: "A or tap",
   },
   battleCancel: {
@@ -209,7 +211,7 @@ export const CONTROL_GUIDANCE: Record<ControlActionId, ControlGuidance> = {
     label: "Cancel targeting",
     keyboard: "Esc",
     pointer: "Choose another action",
-    gamepad: "East",
+    gamepad: FACE_BUTTON_ICONS.right,
     touch: "B",
   },
 };

@@ -95,6 +95,10 @@ All menu pages remain reachable across text scales and viewport changes.
 measured bounds in source and actual packaged desktops. Lifecycle unit tests
 reject removed-timer and stale-fade callbacks and preserve Shop purchases and
 full-state lore handoffs without rendering Phaser graphics.
+Desktop control coverage loads saved Touch On, requires absent mobile rails,
+types physical WASD into a focused name field, and moves through all four
+keyboard directions after text closes. Native activity touch fixtures use real
+canvas venue/action/meter/sailing targets, never an invisible or test-only pad.
 
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
 a strict port. `e2e/landing.spec.ts` exercises the showcase root; Phaser flows

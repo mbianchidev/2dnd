@@ -23,6 +23,10 @@ export and imports it through the native renderer's file picker. Assert the same
 normalized campaign/metadata while browser and desktop preferences stay isolated.
 Use production keyboard controls in Electron. Read-only layout audits are
 available on loopback and `app://2dnd`; they never enable desktop cheats.
+Native controls tests must require absent mobile rails even with saved Touch On,
+type physical WASD in focused fields without gameplay actions, then prove all
+four movement keys work after closing. Native activity touch tests use real
+canvas venue/action/meter/sailing targets, not a test-only or invisible pad.
 
 `electron-tests/deck.spec.ts` adds a 1280x800 standard-gamepad equivalent with
 name/rename/search text entry, normal exploration/Battle, save/reload/recovery,

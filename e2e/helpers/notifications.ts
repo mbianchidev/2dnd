@@ -135,6 +135,12 @@ export async function finishNoticeMenu(
   }
   await clickLayoutItem(page, "escape-menu-settings");
   await expect.poll(async () => Object.keys((await readLayoutReport(page)).groups)).toContain("settings");
+  if (await page.evaluate(() => window.desktop !== undefined)) {
+    await expect(page.locator("#touch-controls")).toHaveCount(0);
+    const items = (await readLayoutReport(page)).groups["settings"]?.items.map((item) => item.id);
+    expect(items).not.toContain("settings-touch-controls");
+    expect(items).not.toContain("settings-handedness");
+  }
   await expectNoticeDeferred(page, fixture);
   await minigameCancel(page, source);
   const notice = page.locator("#achievement-notification-live-region");

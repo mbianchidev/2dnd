@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { TILE_SIZE } from "../config";
 import { MINIGAME_VENUES } from "../data/minigames";
+import { createOverlayContainer } from "../utils/ui";
 import type { MinigameVenueId } from "../data/minigames";
 import type { PlayerState } from "../systems/player";
 
@@ -25,7 +26,9 @@ export class MinigameVenueRenderer {
     const venues = MINIGAME_VENUES.filter((venue) =>
       venue.cityId === player.position.cityId && venue.cityChunkIndex === player.position.cityChunkIndex);
     if (venues.length === 0) return;
-    this.container = this.scene.add.container(0, 0).setDepth(8);
+    this.container = createOverlayContainer(this.scene, "minigame-venues", 8, {
+      x: 0, y: 0, width: this.scene.cameras.main.width, height: this.scene.cameras.main.height,
+    });
     for (const venue of venues) {
       const sign = this.scene.add.container(0, 0);
       this.container.add(sign);
@@ -41,6 +44,7 @@ export class MinigameVenueRenderer {
         fontFamily: "monospace", fontSize: "10px", color: "#ffffff",
       }).setOrigin(0.5);
       text.setData("minigameVenueId", venue.id);
+      text.setData("layoutId", `minigame-venue-${venue.id}`);
       text.setInteractive({ useHandCursor: true }).on("pointerup", () => activate(venue.id));
       sign.add(text);
       this.signs.push({ x: venue.x, y: venue.y, container: sign, label: text });

@@ -9,6 +9,8 @@ import {
   isTouchActionAvailable,
   normalizeAnalogAxis,
   resolveGamepadAction,
+  resolveControlPromptSource,
+  shouldShowTouchControls,
   type InputAction,
   type InputContext,
   type InputSource,
@@ -19,10 +21,7 @@ import {
   featureAvailability,
   getInputActionFeature,
 } from "../systems/featureDiscovery";
-import {
-  gamePreferences,
-  type TouchControlVisibility,
-} from "../systems/accessibility";
+import { gamePreferences } from "../systems/accessibility";
 import { closeTextEntry, handleTextEntryAction, isTextEntryOpen } from "./textEntry";
 
 export { closeTextEntry, openMobileTextInput } from "./textEntry";
@@ -265,6 +264,9 @@ export class SemanticInputRuntime {
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
     if (this.syntheticEvents.has(event)) return;
+    if (isTextEntryOpen() && event.code) {
+      this.dispatchKey("keyup", { code: event.code, key: event.key }, false);
+    }
   };
 
   private readonly handlePointerSource = (event: PointerEvent): void => {
@@ -695,6 +697,7 @@ export class SemanticInputRuntime {
   }
 
   private createTouchControls(): void {
+    if (window.desktop) return;
     const root = document.createElement("div");
     root.id = "touch-controls";
     root.setAttribute("aria-label", "Touch game controls");
@@ -820,7 +823,9 @@ export class SemanticInputRuntime {
 
   private applyControlPreferences(): void {
     const controls = gamePreferences.getControls();
-    const showTouch = this.shouldShowTouch(controls.touchControls);
+    const showTouch = shouldShowTouchControls(
+      controls.touchControls, isTouchDevice(), window.desktop !== undefined,
+    );
     this.touchRoot?.classList.toggle("visible", showTouch);
     this.touchRoot?.classList.toggle(
       "right-handed",
@@ -835,17 +840,9 @@ export class SemanticInputRuntime {
     this.updatePresentation(inputSource.get());
   }
 
-  private shouldShowTouch(visibility: TouchControlVisibility): boolean {
-    if (visibility === "on") return true;
-    if (visibility === "off") return false;
-    return isTouchDevice();
-  }
-
   private updatePresentation(source: InputSource): void {
     const promptPreference = gamePreferences.getControls().promptSource;
-    const promptSource = promptPreference === "auto"
-      ? source
-      : promptPreference;
+    const promptSource = resolveControlPromptSource(source, promptPreference, window.desktop !== undefined);
     this.game.canvas.dataset.inputSource = source;
     this.game.canvas.dataset.promptSource = promptSource;
     this.game.canvas.dataset.gamepadConnected = String(this.gamepadConnected);

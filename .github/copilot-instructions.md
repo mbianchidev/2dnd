@@ -1154,6 +1154,10 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - `src/managers/input.ts` is the only browser adapter for keyboard, pointer,
   standard gamepads, and touch. Do not add parallel scene-specific gamepad or
   mobile mappings.
+  Native desktop never creates mobile touch rails, even with saved On
+  preferences. Keep WASD gameplay outside focused text fields, preserve ordinary
+  typing/key release isolation, and use arrow/face-position icons rather than
+  compass words. Native canvas touch uses pointer-first prompts and controls.
 - Shared key rows/edit rules in `src/systems/textEntry.ts` and the dialog in
   `src/managers/textEntry.ts` own controller name/slot/search entry. Reuse
   `openMobileTextInput()`, clear held game keys, isolate the modal, and preserve

@@ -59,6 +59,26 @@ export type InputAction = (typeof INPUT_ACTIONS)[number];
 
 export type InputSource = "keyboard" | "pointer" | "gamepad" | "touch";
 
+export const DIRECTION_ICONS = { up: "↑", down: "↓", left: "←", right: "→" } as const;
+export const FACE_BUTTON_ICONS = { up: "◉↑", down: "◉↓", left: "◉←", right: "◉→" } as const;
+
+export function shouldShowTouchControls(
+  visibility: "auto" | "on" | "off",
+  touchDevice: boolean,
+  nativeDesktop: boolean,
+): boolean {
+  return !nativeDesktop && (visibility === "on" || visibility === "auto" && touchDevice);
+}
+
+export function resolveControlPromptSource(
+  source: InputSource,
+  preference: InputSource | "auto",
+  nativeDesktop: boolean,
+): InputSource {
+  const requested = preference === "auto" ? source : preference;
+  return nativeDesktop && requested === "touch" ? "pointer" : requested;
+}
+
 export const INPUT_CONTEXTS = [
   "title", "characterCreation", "exploration", "overlay", "chronicle",
   "inventory", "gathering", "crafting", "minigame", "shop", "codex",

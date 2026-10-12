@@ -30,6 +30,7 @@ import { consumeMinigameRecoveryNotice } from "../systems/minigameState";
 import { commitMinigameMutation } from "../systems/minigameTransactions";
 import {
   MinigameInputGate,
+  MINIGAME_HEADING_ICONS,
   getArcheryMeterAim,
   getMinigameControlPrompt,
   getMinigameGamePresentation,
@@ -541,7 +542,7 @@ export class MinigameManager {
       const actions = this.panel.hasTouchPad()
         ? [this.action("pause", "Pause / leave", () => this.back())]
         : (["north", "west", "east", "south"] as const).map((heading) =>
-          this.action(`sail-${heading}`, heading.toUpperCase(), () =>
+          this.action(`sail-${heading}`, MINIGAME_HEADING_ICONS[heading], () =>
             this.perform({ ...requestBase, action: { type: "sail", heading } })));
       return { ...base, ...view, actions, columns: this.panel.hasTouchPad() ? 1 : 2 };
     }

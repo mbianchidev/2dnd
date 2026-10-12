@@ -76,6 +76,8 @@ and campaign saves stay in your browser's local storage.
   measured spacing, wrapping, and paging rather than cropping enlarged text.
   Achievement and lore notices wait behind menus and return during safe
   exploration without losing earned feedback.
+  Desktop builds use keyboard/mouse or gamepad without mobile controls on screen;
+  focused text fields accept normal typing and directional hints use icons.
 
 See the [gameplay guide](docs/gameplay.md) for controls, progression, and player
 guidance.

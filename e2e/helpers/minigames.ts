@@ -5,8 +5,8 @@ import { createMinigameChallenge } from "../../src/systems/minigameRules";
 import { getMinigameRunId } from "../../src/systems/minigameState";
 import { createWeatherState, WeatherType } from "../../src/systems/weather";
 import { playerAt } from "../../tests/helpers/minigames";
-import { clickPointerAt, tapPointerAt, waitForGameInputFrame } from "./layout";
-import type { MinigameVenueId } from "../../src/data/minigames";
+import { clickPointerAt, tapLayoutItem, tapPointerAt, waitForGameInputFrame } from "./layout";
+import { MINIGAME_VENUES, type MinigameVenueId } from "../../src/data/minigames";
 import type { SaveData } from "../../src/systems/save";
 import type { MinigameSession } from "../../src/systems/minigameTypes";
 import type { InputSource } from "../../src/systems/input";
@@ -102,6 +102,54 @@ export async function minigamePad(page: Page, index: number): Promise<void> {
 }
 
 export async function minigameTouchControl(page: Page, action: string): Promise<void> {
+  if (await page.evaluate(() => window.desktop !== undefined)) {
+    await expect(page.locator("#touch-controls")).toHaveCount(0);
+    const save = await readMinigameSave(page);
+    const state = await page.locator("#debug-state").textContent() ?? "";
+    if (action === "confirm" && !state.includes("[MINIGAME:")) {
+      const venue = MINIGAME_VENUES.find((entry) => entry.cityId === save.player.position.cityId
+        && entry.cityChunkIndex === save.player.position.cityChunkIndex
+        && entry.x === save.player.position.x && entry.y === save.player.position.y);
+      if (!venue) throw new Error("Missing native canvas-touch venue fixture");
+      await tapLayoutItem(page, `minigame-venue-${venue.id}`);
+      return;
+    }
+    if (action === "confirm") {
+      const id = state.includes("[MINIGAME_VIEW:lobby]") ? "play"
+        : save.player.progression.minigames.pending?.activityId === "archery" ? "fire"
+          : save.player.progression.minigames.pending?.activityId === "crownAndBones" ? "roll" : undefined;
+      if (!id) {
+        const bounds = await page.locator("#game-container canvas").boundingBox();
+        if (!bounds) throw new Error("Missing native regatta canvas");
+        await tapPointerAt(page, bounds.x + 2, bounds.y + 2);
+        return;
+      }
+      await tapLayoutItem(page, `minigame-${id}`);
+      return;
+    }
+    if (action === "cancel") {
+      const id = state.includes("[MINIGAME_VIEW:result]") ? "close"
+        : state.includes("[MINIGAME_VIEW:pause]") ? "resume" : "back";
+      await tapLayoutItem(page, `minigame-${id}`);
+      return;
+    }
+    const directions: Readonly<Record<string, { heading: string; aim: number }>> = {
+      navigateUp: { heading: "north", aim: 5 }, navigateDown: { heading: "south", aim: -5 },
+      navigateLeft: { heading: "west", aim: -1 }, navigateRight: { heading: "east", aim: 1 },
+    };
+    const direction = directions[action];
+    if (!direction) throw new Error(`Unsupported native canvas-touch action ${action}`);
+    if (save.player.progression.minigames.pending?.activityId === "archery") {
+      const raw = await page.locator("#game-container canvas").getAttribute("data-minigame-visible-aim");
+      if (raw === null) throw new Error("Missing native archery aim");
+      const current = Number(raw);
+      if (!Number.isFinite(current)) throw new Error("Missing native archery aim");
+      await aimMinigamePointer(page, Math.max(0, Math.min(100, current + direction.aim)), true);
+    } else {
+      await tapLayoutItem(page, `minigame-sail-${direction.heading}`);
+    }
+    return;
+  }
   const control = page.locator(`[data-action="${action}"]`);
   await expect(control).toBeVisible();
   const bounds = await control.boundingBox();

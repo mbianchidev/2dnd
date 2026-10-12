@@ -5,10 +5,12 @@ import { SemanticInputRuntime } from "../src/managers/input";
 import { closeTextEntry, openMobileTextInput } from "../src/managers/textEntry";
 import { gamePreferences } from "../src/systems/accessibility";
 import { inputSource } from "../src/systems/input";
+import type { DesktopApi } from "../electron/contracts";
 
 describe("semantic runtime focus and modal ownership", () => {
   let runtime: SemanticInputRuntime | undefined;
   let originalGamepads: PropertyDescriptor | undefined;
+  let originalDesktop: PropertyDescriptor | undefined;
   let frame: FrameRequestCallback | null;
   let rightPressed: boolean;
   let game: ConstructorParameters<typeof SemanticInputRuntime>[0];
@@ -29,6 +31,7 @@ describe("semantic runtime focus and modal ownership", () => {
   }
 
   beforeEach(() => {
+    originalDesktop = Object.getOwnPropertyDescriptor(window, "desktop");
     localStorage.clear();
     gamePreferences.reload();
     inputSource.set("keyboard");
@@ -106,7 +109,40 @@ describe("semantic runtime focus and modal ownership", () => {
     vi.unstubAllGlobals();
     if (originalGamepads) Object.defineProperty(navigator, "getGamepads", originalGamepads);
     else Reflect.deleteProperty(navigator, "getGamepads");
+    if (originalDesktop) Object.defineProperty(window, "desktop", originalDesktop);
+    else Reflect.deleteProperty(window, "desktop");
     document.body.replaceChildren();
+  });
+
+  it("does not create mobile controls in native desktop even with saved On and touch prompts", () => {
+    runtime?.destroy();
+    const desktop: DesktopApi = {
+      getState: async () => ({ appVersion: "mock", isFullscreen: false, logPath: "mock.log", platform: "other" }),
+      toggleFullscreen: async () => false,
+      quitApp: vi.fn(), reportError: vi.fn(), onFullscreenChanged: () => () => {},
+    };
+    Object.defineProperty(window, "desktop", { configurable: true, value: desktop });
+    gamePreferences.cycleTouchControls();
+    for (let index = 0; index < 5 && gamePreferences.getControls().promptSource !== "touch"; index += 1) {
+      gamePreferences.cyclePromptSource();
+    }
+    runtime = new SemanticInputRuntime(game);
+    runtime.start();
+    expect(gamePreferences.getControls().touchControls).toBe("on");
+    expect(document.getElementById("touch-controls")).toBeNull();
+    expect(game.canvas.dataset.touchControls).toBe("false");
+    expect(game.canvas.dataset.promptSource).toBe("pointer");
+  });
+
+  it("lets focused text keep physical keydowns while releasing held gameplay keys on keyup", () => {
+    openMobileTextInput("Mock text", "", 20, vi.fn());
+    const input = document.querySelector<HTMLInputElement>("#mobile-text-input input");
+    if (!input) throw new Error("Missing focused text fixture");
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "d", code: "KeyD", bubbles: true }));
+    expect(emitted).toEqual([]);
+    input.dispatchEvent(new KeyboardEvent("keyup", { key: "d", code: "KeyD", bubbles: true }));
+    expect(emitted).toEqual(["keyup"]);
+    expect(document.activeElement).toBe(input);
   });
 
   it("reads the resized canvas host before refreshing FIT geometry", () => {

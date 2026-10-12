@@ -104,6 +104,12 @@ screens or duplicate state changes.
 dead zones, repeats, source switching, and duplicate suppression.
 `src/managers/input.ts` is the only browser adapter for keyboard, pointer,
 gamepad, and touch.
+Pure input policy suppresses mobile rails on native desktop even with saved
+Touch On and maps native canvas touch to pointer-first prompts. The adapter
+does not create mobile DOM controls there; mobile-only Settings rows are
+filtered without hidden targets. WASD remains gameplay input outside text
+fields; the shared dialog isolates physical typing and forwards key releases
+so a previously held game key cannot stick.
 `src/managers/titleMenu.ts` owns title selection and large direct-pointer hit
 targets so touch D-pad/A input and visible buttons activate the same actions.
 The new-game overwrite confirmation uses a compact centered layout that remains
@@ -119,6 +125,9 @@ dialog, modal isolation, live accessibility, once-only commit/cancel and focus
 restoration. The input adapter re-exports `openMobileTextInput()` and routes
 semantic actions to this dialog before emitting game keys. The right-stick
 cursor also reaches existing desktop DOM controls.
+Controller face-position hints share arrow/circle icons rather than compass
+words. Switching to physical typing retains the first character and hides the
+controller key grid; native gamepad text entry remains available.
 Discrete touch pulses release at the complete Phaser poststep boundary, not a
 zero-delay timer that can erase `JustDown` before scene polling. The shared
 adapter owns pulse tokens and scene listeners, preserves other held owners,

@@ -1,5 +1,5 @@
 import { gamePreferences } from "../systems/accessibility";
-import { inputSource, type InputAction } from "../systems/input";
+import { FACE_BUTTON_ICONS, inputSource, type InputAction } from "../systems/input";
 import {
   editTextSelection,
   moveTextKeySelection,
@@ -78,7 +78,9 @@ export function openMobileTextInput(
   keyboard.setAttribute("role", "group");
   keyboard.setAttribute("aria-label", "Controller keyboard");
   const hint = document.createElement("p");
-  hint.textContent = "D-pad: select | South: type | West: delete | Menu: done | East: cancel";
+  hint.textContent = `↑ ↓ ← →: select | ${FACE_BUTTON_ICONS.down}: type | ${FACE_BUTTON_ICONS.left}: delete | Menu: done | ${FACE_BUTTON_ICONS.right}: cancel`;
+  hint.setAttribute("aria-label",
+    "Directional pad: select. Bottom face button: type. Left face button: delete. Menu: done. Right face button: cancel.");
   keyboard.append(hint);
   const keyViewport = document.createElement("div");
   keyViewport.className = "text-entry-keys";
@@ -218,6 +220,20 @@ export function openMobileTextInput(
   };
   form.addEventListener("keydown", (event) => {
     event.stopPropagation();
+    const controllerTarget = event.target instanceof HTMLElement && keyboard.contains(event.target);
+    if (controllerTarget && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing) {
+      event.preventDefault();
+      inputSource.set("keyboard");
+      input.focus({ preventScroll: true });
+      applyEdit(event.key);
+      return;
+    }
+    if (controllerTarget && event.key === "Enter") {
+      event.preventDefault();
+      inputSource.set("keyboard");
+      form.requestSubmit();
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       close();
@@ -233,6 +249,7 @@ export function openMobileTextInput(
     }
   });
   form.addEventListener("keyup", (event) => event.stopPropagation());
+  input.addEventListener("pointerdown", () => inputSource.set("keyboard"));
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     if (closed) return;

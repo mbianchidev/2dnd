@@ -206,6 +206,8 @@ owning issue or pull request.
 - [ ] Resize/preference reflow preserves choices, scores, action IDs and held-input ownership
 - [ ] Active notices are deferred behind menus without consuming queued feedback
 - [ ] Combined panels are covered; clean individual groups alone do not prove safe coexistence
+- [ ] Native desktop has no mobile rails/options; focused physical typing is isolated from WASD gameplay
+- [ ] Controller/heading hints use shared icons without changing stable direction or action IDs
 
 ### Combat
 

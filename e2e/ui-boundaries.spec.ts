@@ -116,6 +116,10 @@ test("gamepad achievement paging and search retain visible focus through resize"
   await minigamePad(page, 2);
   await expect(page.locator("#controller-keyboard")).toBeVisible();
   await expectTextDialogFits(page);
+  await minigamePad(page, 15);
+  await page.keyboard.type("wasd");
+  await expect(page.locator("#mobile-text-input input")).toHaveValue("wasd");
+  await expect(page.locator("#controller-keyboard")).toBeHidden();
   await minigamePad(page, 1);
   await expect(page.locator("#mobile-text-input")).toHaveCount(0);
   await expectGroupClean(page, "achievements");

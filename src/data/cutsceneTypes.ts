@@ -112,6 +112,7 @@ export interface CutsceneDialogueStep extends CutsceneStepBase {
 export interface CutsceneSummaryStep extends CutsceneStepBase {
   readonly type: "summary";
   readonly heading: string;
+  readonly section?: "campaign" | "devotion";
 }
 
 export interface CutsceneCreditsStep extends CutsceneStepBase {

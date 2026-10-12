@@ -17,6 +17,7 @@ import {
 import { awardXP } from "./player";
 import { applySocialMutation } from "./reputation";
 import { consumeSocialAchievementHooks } from "./achievements";
+import { recordDevotionQuestCompletion } from "./devotion";
 import {
   createQuestLog,
   normalizeQuestLog,
@@ -342,6 +343,11 @@ function advanceReadyStages(
         quest.completionRewards ?? [],
         updates,
       ) || true;
+      for (const result of recordDevotionQuestCompletion(player, quest.id)) {
+        if (result.changed && result.delta !== 0) {
+          updates.push({ type: "reward", questId: quest.id, message: result.message });
+        }
+      }
       break;
     }
 

@@ -15,6 +15,8 @@ import type { Monster } from "../data/monsters";
 import { isDifficultySelection } from "./difficultyState";
 import type { CampaignDifficultyState } from "./difficultyState";
 import { getEffectiveEncounterRate } from "./encounterRate";
+import { captureEffectAdjustment } from "./effectRolls";
+import type { ResolvedEffectRoll } from "./rollResults";
 
 export * from "./difficultyState";
 export type {
@@ -155,6 +157,19 @@ export function scaleEnemy(monster: Monster, rules: DifficultyRules): Monster {
 /** Apply after status/synergy damage and before elemental or shield reductions. */
 export function scaleEnemyDamage(amount: number, rules: DifficultyRules): number {
   return scaleQuantity(amount, rules.enemyDamageMultiplier);
+}
+
+/** Retain the original faces and record scaling before physical/elemental reductions. */
+export function scaleEnemyDamageRoll(
+  result: ResolvedEffectRoll,
+  rules: DifficultyRules,
+): ResolvedEffectRoll {
+  if (rules.enemyDamageMultiplier === 1) return result;
+  return captureEffectAdjustment(
+    result,
+    `Campaign damage x${rules.enemyDamageMultiplier}`,
+    scaleEnemyDamage(result.amount, rules),
+  );
 }
 
 export function scaleReward(

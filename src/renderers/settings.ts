@@ -43,9 +43,10 @@ function createControl(
   width: number,
   label: () => string,
   onActivate: () => void,
+  fontSize = 12,
 ): SettingsControl {
   const text = scene.add.text(x, y, label(), {
-    fontSize: "12px",
+    fontSize: `${fontSize}px`,
     fontFamily: "monospace",
     color: "#f4f1e8",
     backgroundColor: "#252b45",
@@ -63,7 +64,7 @@ function createControl(
   text.on("pointerout", () => text.setStroke("", 0));
   text.on("pointerdown", () => {
     onActivate();
-    updateLabel();
+    if (text.active) updateLabel();
   });
   return { text, updateLabel };
 }
@@ -136,13 +137,21 @@ export function addSettingsControls(
   const columnWidth = Math.floor((contentWidth - columnGap) / 2);
   const rightX = contentX + columnWidth + columnGap;
   const controls: Phaser.GameObjects.GameObject[] = [];
-  const title = scene.add.text(centerX, py + 10, "Settings", {
+  const campaignLaunchers: Array<{ id: string; label: string; activate(): void }> = [];
+  if (options.openBattleTiming) campaignLaunchers.push({
+    id: "settings-battle-timing", label: "Battle Timing", activate: options.openBattleTiming,
+  });
+  if (options.player && options.openCampaignRules) campaignLaunchers.push({
+    id: "settings-difficulty",
+    label: `Rules: ${getDifficultyProfile(options.player.difficulty.selection.profileId).name}`,
+    activate: options.openCampaignRules,
+  });
+  const title = scene.add.text(campaignLaunchers.length > 0 ? contentX : centerX, py + 10, "Settings", {
     fontSize: "15px",
     fontFamily: "monospace",
     color: "#ffdf66",
     fontStyle: "bold",
-  }).setOrigin(options.openCampaignRules ? 0 : 0.5, 0);
-  if (options.openCampaignRules) title.setX(contentX);
+  }).setOrigin(campaignLaunchers.length > 0 ? 0 : 0.5, 0);
   const audioTitle = scene.add.text(contentX, py + 48, "Audio", {
     fontSize: "12px",
     fontFamily: "monospace",
@@ -151,34 +160,55 @@ export function addSettingsControls(
   });
   container.add([title, audioTitle]);
   controls.push(title, audioTitle);
-  if (options.player && options.openCampaignRules) {
-    const activate = options.openCampaignRules;
-    const label = `> Rules: ${getDifficultyProfile(options.player.difficulty.selection.profileId).name}`;
-    const rules = scene.add.text(px + panelWidth - 18, py + 10, label, {
-      fontSize: "9px", fontFamily: "monospace", color: "#ffffff",
-      backgroundColor: "#273650", padding: { x: 8, y: 6 },
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    rules.setData("layoutId", "settings-difficulty");
-    syncInteractiveHitArea(rules, 8);
-    rules.on("pointerup", activate);
-    container.add(rules);
-    controls.push(rules);
-    let pending: { name: string; handler: () => void } | null = null;
-    const handleConfirm = (event: KeyboardEvent): void => {
-      if (event.repeat || pending || (event.key !== "Enter" && event.key !== " ")) return;
-      event.preventDefault();
-      const name = event.key === " " ? "keyup-SPACE" : "keyup-ENTER";
-      const handler = (): void => {
-        pending = null;
-        activate();
-      };
-      pending = { name, handler };
-      scene.input.keyboard?.once(name, handler);
+  if (campaignLaunchers.length > 0) {
+    let selected = 0;
+    const launchWidth = (contentWidth - 130 - 12 * (campaignLaunchers.length - 1)) / campaignLaunchers.length;
+    const launchControls = campaignLaunchers.map((launcher, index) => createControl(
+      scene, launcher.id, contentX + 130 + index * (launchWidth + 12) + launchWidth / 2,
+      py + 8, launchWidth, () => `${selected === index ? "> " : ""}${launcher.label}`,
+      launcher.activate, 9,
+    ));
+    const selectLauncher = (index: number): void => {
+      selected = index;
+      launchControls.forEach((control) => control.updateLabel());
     };
-    scene.input.keyboard?.on("keydown", handleConfirm);
+    launchControls.forEach((control, index) => {
+      control.text.on("pointerover", () => selectLauncher(index));
+      container.add(control.text);
+      controls.push(control.text);
+    });
+    const readyAt = scene.time.now + 150;
+    let pending: (() => void) | null = null;
+    const keyDown = (event: KeyboardEvent): void => {
+      if (!container.active || scene.time.now < readyAt) return;
+      if (["ArrowLeft", "ArrowRight", "a", "d"].includes(event.key)) {
+        const direction = event.key === "ArrowLeft" || event.key === "a" ? -1 : 1;
+        selectLauncher((selected + direction + campaignLaunchers.length) % campaignLaunchers.length);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (
+        !pending && !event.repeat
+        && (event.key === "Enter" || event.key === " ")
+      ) {
+        pending = campaignLaunchers[selected]!.activate;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    };
+    const keyUp = (event: KeyboardEvent): void => {
+      if (pending && (event.key === "Enter" || event.key === " ")) {
+        const activate = pending;
+        pending = null;
+        if (container.active) activate();
+      }
+    };
+    scene.input.keyboard?.on("keydown", keyDown);
+    scene.input.keyboard?.on("keyup", keyUp);
     container.once(Phaser.GameObjects.Events.DESTROY, () => {
-      scene.input.keyboard?.off("keydown", handleConfirm);
-      if (pending) scene.input.keyboard?.off(pending.name, pending.handler);
+      scene.input.keyboard?.off("keydown", keyDown);
+      scene.input.keyboard?.off("keyup", keyUp);
     });
   }
 
@@ -299,14 +329,39 @@ export function addSettingsControls(
     });
   };
   layoutAccessibility();
+  const diceWidth = Math.floor((columnWidth - 8) / 2);
+  const diceFrequency = createControl(
+    scene,
+    "settings-dice-frequency",
+    rightX + diceWidth / 2,
+    py + 276,
+    diceWidth,
+    () => {
+      const frequency = gamePreferences.getDice().frequency;
+      return `Dice [\n${frequency === "off" ? "off (crits)" : frequency}`;
+    },
+    () => gamePreferences.cycleDiceFrequency(),
+    10,
+  );
+  const diceSpeed = createControl(
+    scene,
+    "settings-dice-speed",
+    rightX + diceWidth + 8 + diceWidth / 2,
+    py + 276,
+    diceWidth,
+    () => `Speed ]\n${gamePreferences.getDice().speed}`,
+    () => gamePreferences.cycleDiceSpeed(),
+    10,
+  );
   const controlsTitle = scene.add.text(contentX, py + 330, "Controls", {
     fontSize: "12px",
     fontFamily: "monospace",
     color: "#ffffff",
     fontStyle: "bold",
   });
+  const nativeDesktop = window.desktop !== undefined;
   const compactWidth = Math.floor((contentWidth - 16) / 3);
-  const touch = createControl(
+  const mobileControls = nativeDesktop ? [] : [createControl(
     scene,
     "settings-touch-controls",
     contentX + compactWidth / 2,
@@ -314,8 +369,7 @@ export function addSettingsControls(
     compactWidth,
     () => `Touch\n${gamePreferences.getControls().touchControls}`,
     () => gamePreferences.cycleTouchControls(),
-  );
-  const handedness = createControl(
+  ), createControl(
     scene,
     "settings-handedness",
     contentX + compactWidth + 8 + compactWidth / 2,
@@ -325,15 +379,23 @@ export function addSettingsControls(
     () => gamePreferences.setControlHandedness(
       gamePreferences.getControls().handedness === "right" ? "left" : "right",
     ),
-  );
+  )];
   const prompts = createControl(
     scene,
     "settings-prompts",
-    contentX + (compactWidth + 8) * 2 + compactWidth / 2,
+    nativeDesktop ? centerX : contentX + (compactWidth + 8) * 2 + compactWidth / 2,
     py + 354,
-    compactWidth,
-    () => `Prompts\n${gamePreferences.getControls().promptSource}`,
-    () => gamePreferences.cyclePromptSource(),
+    nativeDesktop ? contentWidth : compactWidth,
+    () => {
+      const preference = gamePreferences.getControls().promptSource;
+      return `Prompts\n${nativeDesktop && preference === "touch" ? "pointer" : preference}`;
+    },
+    () => {
+      gamePreferences.cyclePromptSource();
+      if (nativeDesktop && gamePreferences.getControls().promptSource === "touch") {
+        gamePreferences.cyclePromptSource();
+      }
+    },
   );
   const controlsToUpdate = [
     mute,
@@ -341,16 +403,16 @@ export function addSettingsControls(
     contrast,
     motion,
     advance,
-    touch,
-    handedness,
+    ...mobileControls,
     prompts,
+    diceFrequency,
+    diceSpeed,
   ];
   const mappingNote = scene.add.text(
     centerX,
     py + panelHeight - 48,
-    options.openCampaignRules
-      ? "Confirm opens campaign rules. Stable mappings; no remapping."
-      : "Stable mappings; custom remapping is unsupported.",
+    (campaignLaunchers.length > 1 ? "Left/Right selects rules/timing; Confirm opens.\n" : "")
+      + "Off: crits still show. [ dice / ] speed.",
     {
       fontSize: "8px",
       fontFamily: "monospace",
@@ -367,10 +429,11 @@ export function addSettingsControls(
     motion.text,
     advance.text,
     controlsTitle,
-    touch.text,
-    handedness.text,
+    ...mobileControls.map((control) => control.text),
     prompts.text,
     mappingNote,
+    diceFrequency.text,
+    diceSpeed.text,
   ]);
   controls.push(
     mute.text,
@@ -380,16 +443,25 @@ export function addSettingsControls(
     motion.text,
     advance.text,
     controlsTitle,
-    touch.text,
-    handedness.text,
+    ...mobileControls.map((control) => control.text),
     prompts.text,
     mappingNote,
+    diceFrequency.text,
+    diceSpeed.text,
   );
 
   const unsubscribe = gamePreferences.subscribe(() => {
     redrawAudio.forEach((redraw) => redraw());
     controlsToUpdate.forEach((control) => control.updateLabel());
     layoutAccessibility();
+  });
+  const handleDiceSettings = (event: KeyboardEvent): void => {
+    if (event.code === "BracketLeft") gamePreferences.cycleDiceFrequency();
+    if (event.code === "BracketRight") gamePreferences.cycleDiceSpeed();
+  };
+  scene.input.keyboard?.on("keyup", handleDiceSettings);
+  container.once(Phaser.GameObjects.Events.DESTROY, () => {
+    scene.input.keyboard?.off("keyup", handleDiceSettings);
   });
   container.once(Phaser.GameObjects.Events.DESTROY, unsubscribe);
   return { controls };

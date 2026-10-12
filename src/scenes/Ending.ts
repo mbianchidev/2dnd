@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { installDicePresentation } from "../managers/dicePresentation";
 import {
   CAMPAIGN_EPILOGUE_CUTSCENE_ID,
   getCutsceneDefinition,
@@ -78,6 +79,7 @@ export class EndingScene extends Phaser.Scene {
   create(): void {
     this.sceneTransitions.prepare(500);
     installSceneAccessibility(this);
+    installDicePresentation(this);
     this.endingRenderer = new ResultRenderer(
       this,
       "ending",

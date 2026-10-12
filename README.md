@@ -30,6 +30,12 @@ and campaign saves stay in your browser's local storage.
 - **Create your hero:** choose from 12 classes, use 27-point buy or
   4d6-drop-lowest stats, customize appearance, level to 20, and collect
   equipment, talents, spells, abilities, and mounts.
+- **Multiclass the hero:** choose qualified class levels at rest, preview frozen
+  HP/MP and feature gains, and combine the existing classes within a total-level
+  cap of 20. Starting identity stays fixed; companions remain single-class.
+- **Choose an optional prestige path:** six original five-rank traditions build
+  on class, score and world entry conditions without increasing the total cap,
+  requiring affiliation, or taking away earned ranks after social changes.
 - **Complete a full campaign:** follow the Twelvefold Covenant through 12
   mainland cities, three keystone dungeons, data-driven cutscenes, boss
   encounters, an epilogue, and post-game continuation.
@@ -39,23 +45,54 @@ and campaign saves stay in your browser's local storage.
 - **Fight tactical battles:** face groups of up to four enemies with initiative,
   formations, ally and enemy targeting, nine elements, status effects, healing,
   items, bosses, and full-party defeat recovery.
+  Standard stays unlimited; optional [timed decisions](docs/battle-timing.md)
+  offer bounded durations, pausable countdowns, and a safe Defend timeout.
+- **Aim and match weapons:** exploit bludgeoning, slashing and piercing defenses,
+  or target eligible humanoid and Large+ monster parts with accuracy tradeoffs,
+  shared HP and temporary limb effects.
+  Match armor to incoming physical types too: padded hides soften blows,
+  mail resists cuts, and plate protects against cuts and piercing strikes.
+- **See the real rolls:** procedural dice display natural attack/save rolls,
+  modifiers, totals, exact damage/healing pools, and actual HP changes.
+  Dice travel, tumble and bounce over the game before settling on those exact
+  faces. Advantage/disadvantage selection and shared area rolls stay truthful without
+  delaying mechanics or revealing hidden enemy stats. Skip motion or consult
+  the normal Battle log. Non-combat results fade after a short reading interval;
+  rolls and their log never carry into another scene.
+  Rolls start enabled and ordinary displays are easy to disable; attack
+  natural20 crits and natural1 fumbles always show (static with reduced motion).
 - **Explore a changing world:** travel through connected city districts,
   multi-level dungeons, seeded traps, fog of war, weather, day and night,
   non-combat skill checks, World Events, and optional danger zones.
 - **Discover more than monsters:** expand the Codex with lore, make alignment
   and reputation choices, earn achievements and cosmetic titles, and replay
   unlocked story scenes in the Chronicle.
+- **Choose an optional fictional thread:** remain unaffiliated or explore the
+  original Unfinished Constellation, its temples, independent devotion,
+  optional stories, and small temporary blessings available to every visitor.
 - **Gather, craft, and sail:** fish, mine, forage, craft deterministic recipes
   and equipment upgrades, use merchant routes, earn a boat, explore Tidehaven,
   and challenge the Deepwake Kraken.
+- **Try optional city games:** bank capped in-game stakes in Crown & Bones,
+  practice class-neutral archery, and steer Harbor Regatta buoy courses.
+  Seeded recovery, personal boards, free skill practice, and finite medal
+  rewards keep those activities independent from campaign completion.
 - **Play your way:** use keyboard, pointer, touch, or a standard gamepad.
   Choose Story, exact-baseline Standard, Veteran, Legendary, or bounded Custom
   campaign rules with explicit effect and achievement previews.
   Accessibility settings include 100%/125%/150% text, high contrast, reduced
   motion, adjustable audio, cutscene advance options, and adaptive prompts.
+  Character creation, stats, equipment, achievements, and campaign slots use
+  measured spacing, wrapping, and paging rather than cropping enlarged text.
+  Achievement and lore notices wait behind menus and return during safe
+  exploration without losing earned feedback.
+  Desktop builds use keyboard/mouse or gamepad without mobile controls on screen;
+  focused text fields accept normal typing and directional hints use icons.
 
 See the [gameplay guide](docs/gameplay.md) for controls, progression, and player
 guidance.
+See [Tavern and festival activities](docs/minigames.md) for venues, transparent
+odds, scoring, capped rewards, recovery, and reduced-motion controls.
 
 ## Browser, desktop, and save support
 
@@ -75,6 +112,15 @@ per-slot backup recovery, and validated JSON import/export. Accessibility/audio
 settings and inventory-view preferences remain separate. Saves do not
 automatically sync between browsers, devices, private windows, or cleared site
 data. The game has no account system, analytics, or server-side save service.
+Unusable campaign imports cannot replace valid saves. If browser privacy
+settings block local storage, the game remains usable but clearly reports that
+campaigns cannot be saved.
+
+Maintainers can prepare credential-free Steam depot previews and exercise a
+1280x800 controller equivalent. Steam SDK, Steam achievements and Steam Cloud
+remain disabled; no Steam release, Proton support or Deck Verified status is
+claimed. See [Steam preparation](docs/steam.md) for the protected delivery
+template and outstanding client/hardware/human release gates.
 
 ## Run locally
 
@@ -99,7 +145,7 @@ npm run build          # Type-check and build dist/
 npm run build:desktop  # Type-check and build the desktop renderer and shell
 ```
 
-Install Chromium once before the browser suite with
+Install Chromium once before the browser or desktop suites with
 `npm run test:browser:install`.
 
 Use `npm run dev:desktop` for Electron development and
@@ -112,15 +158,22 @@ Use `npm run dev:desktop` for Electron development and
 | [Documentation index](docs/README.md) | Complete documentation map |
 | [Getting started](docs/getting-started.md) | Installation, local hosting, saves, troubleshooting |
 | [Gameplay](docs/gameplay.md) | Controls, campaign, combat, exploration, accessibility |
+| [Hero progression](docs/hero-progression.md) | Multiclass prerequisites, rest choices, resource rules, lossless hero saves |
+| [Prestige paths](docs/prestige.md) | Six optional traditions, qualification, complete rank tables, gear and tradeoffs |
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v19, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v26, slots, migration, recovery, persistence rules |
 | [Difficulty and Custom rules](docs/difficulty.md) | Profiles, bounds, economy, recovery, eligibility, extension APIs |
+| [Physical combat](docs/physical-combat.md) | Weapon types, monster sizes, aimed parts, local defenses and discovery |
+| [Fictional devotion](docs/devotion.md) | Original pantheon, temples, rites, independent scores, optional stories |
 | [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
+| [Steam preparation](docs/steam.md) | Depot previews, controller equivalent, disabled services, store/human release gates |
 | [Release](docs/release.md) | GitHub Pages and release checklist |
 | [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |
 | [Inventory presentation](docs/inventory.md) | Ownership-safe sorting, filtering, controls, transfers |
+| [Tavern and festival activities](docs/minigames.md) | Dice, archery, regatta, personal boards, local economy |
+| [Dice presentation](docs/dice-presentation.md) | Exact resolved dice, discovery policy, controls, runtime logs |
 
 ## Contributing
 

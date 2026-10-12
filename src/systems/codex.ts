@@ -6,6 +6,13 @@
 import { ALL_MONSTERS, getMonster, type Monster } from "../data/monsters";
 import type { Element } from "../data/elements";
 import {
+  getBodyPart, getTargetableBodyParts, type PhysicalDiscovery,
+} from "../data/anatomy";
+import {
+  applyPhysicalModifier, isPhysicalDamageType, physicalDamageTypeName,
+  type PhysicalDamageType,
+} from "../data/damageTypes";
+import {
   getMonsterFamily,
   MONSTER_FAMILIES,
   type MonsterFamily,
@@ -28,6 +35,10 @@ import {
   REPUTATION_MILESTONE_IDS,
   REPUTATION_TIERS,
 } from "../data/reputation";
+import type { MinigameActivityId } from "../data/minigames";
+import type { DeityId, TempleId } from "../data/devotion";
+import { PRESTIGE_PATHS, type PrestigeTrackId } from "../data/prestige";
+import { getTrackLevel } from "./classProgression";
 
 export interface CodexEntry {
   monsterId: string;
@@ -45,6 +56,8 @@ export interface CodexEntry {
   itemsDropped: string[];
   /** Elements whose resistance, weakness, or immunity has been observed. */
   discoveredElements: Element[];
+  /** Observed physical affinities scoped to a whole target or one canonical part. */
+  discoveredPhysical: PhysicalDiscovery[];
 }
 
 export interface CodexData {
@@ -56,6 +69,7 @@ export type CodexMonsterSort = "family" | "name" | "defeated" | "element";
 export type CodexKnowledgeSort = "category" | "name" | "source";
 
 export type CodexUnlockSignal =
+  | { readonly type: "prestigeRank"; readonly trackId: PrestigeTrackId; readonly rank: number }
   | {
     readonly type: "location";
     readonly locationKind: "city" | "dungeon";
@@ -85,9 +99,21 @@ export type CodexUnlockSignal =
   | {
     readonly type: "readable";
     readonly readableId: string;
+  }
+  | {
+    readonly type: "devotionTemple";
+    readonly templeId: TempleId;
+  }
+  | {
+    readonly type: "devotionAffiliation";
+    readonly deityId: DeityId;
   };
 
 export type CodexFutureUnlockSignal =
+  | {
+    readonly type: "minigame";
+    readonly activityId: MinigameActivityId;
+  }
   | {
     readonly type: "worldEvent";
     readonly eventId: string;
@@ -129,6 +155,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function normalizeMonsterEntry(
   monsterId: string,
   value: unknown,
+  allowPhysicalDiscoveries: boolean,
 ): CodexEntry | undefined {
   const monster = getMonster(monsterId);
   if (!monster || !isRecord(value)) return undefined;
@@ -159,16 +186,18 @@ function normalizeMonsterEntry(
     goldReward: monster.goldReward,
     itemsDropped,
     discoveredElements,
+    discoveredPhysical: allowPhysicalDiscoveries
+      ? normalizePhysicalDiscoveries(monster, value["discoveredPhysical"]) : [],
   };
 }
 
-export function normalizeCodexData(value: unknown): CodexData {
+export function normalizeCodexData(value: unknown, allowPhysicalDiscoveries = true): CodexData {
   if (!isRecord(value)) return createCodex();
   const normalized = createCodex();
   const rawEntries = value["entries"];
   if (isRecord(rawEntries)) {
     for (const [monsterId, rawEntry] of Object.entries(rawEntries)) {
-      const entry = normalizeMonsterEntry(monsterId, rawEntry);
+      const entry = normalizeMonsterEntry(monsterId, rawEntry, allowPhysicalDiscoveries);
       if (entry) normalized.entries[monsterId] = entry;
     }
   }
@@ -217,6 +246,15 @@ function sourceMatchesSignal(
       return signal.type === "reputationMilestone"
         && source.factionId === signal.factionId
         && source.milestoneId === signal.milestoneId;
+    case "minigame":
+      return signal.type === "minigame" && source.activityId === signal.activityId;
+    case "devotionTemple":
+      return signal.type === "devotionTemple" && source.templeId === signal.templeId;
+    case "devotionAffiliation":
+      return signal.type === "devotionAffiliation" && source.deityId === signal.deityId;
+    case "prestigeRank":
+      return signal.type === "prestigeRank" && source.trackId === signal.trackId
+        && Number.isInteger(signal.rank) && signal.rank >= source.minimumRank && signal.rank <= 5;
   }
 }
 
@@ -255,8 +293,7 @@ export function unlockCodexFromSignal(
 }
 
 /**
- * Reserved dispatch boundary for #69 world events and #70 reputation.
- * Active scenes must not call this until those systems own the signal.
+ * Source-owned dispatch for events, reputation milestones, and completed activities.
  */
 export function unlockCodexFromFutureSignal(
   codex: CodexData,
@@ -300,6 +337,16 @@ export function replayCodexUnlocks(
   const applyFuture = (signal: CodexFutureUnlockSignal): void => {
     unlockedIds.push(...unlockCodexFromFutureSignal(codex, signal).unlockedIds);
   };
+  for (const templeId of player.progression.devotion.visitedTempleIds) {
+    apply({ type: "devotionTemple", templeId });
+  }
+  if (player.progression.devotion.deityId) {
+    apply({ type: "devotionAffiliation", deityId: player.progression.devotion.deityId });
+  }
+  for (const path of PRESTIGE_PATHS) {
+    const rank = getTrackLevel(player, path.id);
+    if (rank > 0) apply({ type: "prestigeRank", trackId: path.id, rank });
+  }
 
   for (const [factionId, score] of Object.entries(
     player.progression.social.factionReputation,
@@ -356,6 +403,11 @@ export function replayCodexUnlocks(
   }
   for (const record of player.progression.worldEvents.log) {
     applyFuture({ type: "worldEvent", eventId: record.eventId });
+  }
+  for (const activityId of ["crownAndBones", "archery", "regatta"] as const) {
+    if (player.progression.minigames.statistics[activityId].completions > 0) {
+      applyFuture({ type: "minigame", activityId });
+    }
   }
   for (const cutsceneId of player.progression.seenCutsceneIds) {
     apply({ type: "cutscene", cutsceneId });
@@ -464,10 +516,12 @@ export function recordDefeat(
       goldReward: monster.goldReward,
       itemsDropped: [],
       discoveredElements: [],
+      discoveredPhysical: [],
     };
     bestiary.entries[monster.id] = entry;
   }
   if (!entry.discoveredElements) entry.discoveredElements = [];
+  if (!entry.discoveredPhysical) entry.discoveredPhysical = [];
 
   entry.timesDefeated++;
   if (acWasDiscovered) {
@@ -503,6 +557,55 @@ export function discoverElement(
   if (!entry.discoveredElements.includes(element)) {
     entry.discoveredElements.push(element);
   }
+}
+
+/** Keep only canonical, non-neutral observations; a part never reveals whole-body knowledge. */
+export function normalizePhysicalDiscoveries(
+  monster: Monster,
+  value: unknown,
+): PhysicalDiscovery[] {
+  if (!Array.isArray(value)) return [];
+  const result: PhysicalDiscovery[] = [];
+  for (const raw of value) {
+    if (!isRecord(raw) || !isPhysicalDamageType(raw["damageType"])) continue;
+    const rawPartId = raw["bodyPartId"];
+    const part = rawPartId === undefined ? undefined : getTargetableBodyParts(monster)
+      .find((candidate) => candidate.id === rawPartId);
+    if (rawPartId !== undefined && !part) continue;
+    const damageType = raw["damageType"];
+    const bodyPartId = part?.id;
+    if (!applyPhysicalModifier(1, damageType, monster.physicalProfile, part?.physicalProfile).interaction
+      || result.some((entry) => entry.damageType === damageType && entry.bodyPartId === bodyPartId)) continue;
+    result.push({ damageType, ...(bodyPartId ? { bodyPartId } : {}) });
+  }
+  return result;
+}
+
+export function discoverPhysical(
+  codex: CodexData,
+  monster: Monster,
+  discovery: PhysicalDiscovery,
+): void {
+  const entry = codex.entries[monster.id];
+  if (!entry) return;
+  entry.discoveredPhysical = normalizePhysicalDiscoveries(
+    monster, [...(entry.discoveredPhysical ?? []), discovery],
+  );
+}
+
+export function getObservedPhysicalLines(
+  monster: Monster,
+  discoveries: readonly PhysicalDiscovery[],
+): string[] {
+  return discoveries.map((discovery) => {
+    const part = getBodyPart(monster, discovery.bodyPartId);
+    const result = applyPhysicalModifier(
+      1, discovery.damageType, monster.physicalProfile, part?.physicalProfile,
+    );
+    const label = result.interaction === "immune" ? "Immune"
+      : result.interaction === "weak" ? "Weak" : "Resists";
+    return `- ${part?.label ?? "Whole target"}: ${label} to ${physicalDamageTypeName(discovery.damageType)}`;
+  });
 }
 
 /** Get all bestiary entries sorted: bosses last, then alphabetical. */

@@ -12,9 +12,9 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Product | Browser/Electron JRPG, release v1.1.0 |
 | Runtime | Phaser 4.2.1 |
 | Language | TypeScript 7.0.2, strict, ES2020 |
-| Build/test | Vite 8.3.2, Electron 44.5.1, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.63.0 |
-| DOM tests | happy-dom 20.14.5 |
-| Save schema | 19 |
+| Build/test | Vite 8.3.4, Electron 44.7.0, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.64.0 |
+| DOM tests | happy-dom 20.14.6 |
+| Save schema | 26 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -27,17 +27,25 @@ future work until merged.
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
 | Difficulty/rules | `src/data/difficulty.ts` | `difficulty.ts`, `difficultyState.ts`, `difficultyEditor.ts`, `enemyTactics.ts` | focused difficulty manager, creation/settings/slots | frozen baseline, per-mode domain suites, difficulty E2E |
+| Timed decisions | `src/data/battleTiming.ts` | `battleTiming.ts`, `battleTimingSettings.ts` | Battle/timing/decision-menu managers | timing/scene/save/input tests + timed-battle E2E |
+| Physical/anatomy combat | `damageTypes.ts`, `anatomy.ts`, `itemCombat.ts`, monster metadata | `physicalCombat.ts`, existing combat/action owners and Codex normalization | shared `battleBodyTarget.ts`, hero/manual companion adapters | physicalCombat/physicalCombatSave and physical-combat E2E |
+| Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, `effectRolls.ts`, redacted `dicePresentation.ts`, visual `diceMotion.ts` | scene-local dice/battleDice managers, procedural SVG scene overlay, existing Battle log | dicePresentation/diceManager/effectRollReceipts/rollReceipts/diceMotion/diceRenderer and dice E2E |
+| Hero progression | `src/data/classProgression.ts`, canonical class/action/talent definitions | `classProgression.ts`, `classProgressionState.ts`, `heroItemState.ts`, `classProgressionDebug.ts` | `heroProgression.ts`, rest/equipment adapters | progression/state/item/debug/battle/layout suites, multiclass E2E |
+| Prestige paths | `prestige.ts`, `prestigeActions.ts`, `prestigeLore.ts` | same progression engine/context/normalizer; `systems/prestige.ts` for inspection | existing hero progression manager | prestige/entry/save/battle suites, prestige browser/Electron flows |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
 | Quests/cutscenes | `quests.ts`, focused `cutscene*.ts` | `quests.ts`, `questState.ts`, `cutscenes.ts` | quest/cutscene managers, `Cutscene.ts`, `Ending.ts` | quest/cutscene/campaign E2E |
 | World/map/traps | `map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, `traps.ts` | `movement.ts`, `traps.ts` | map/city/trap/fog managers/renderers | map, city, trap, fog, movement |
 | Sea navigation | `nautical.ts`, `islands.ts`, `seaMonsters.ts` | `nautical*.ts` | Overworld/map/audio | nautical unit and E2E |
 | Events/social/achievements | matching `src/data/` modules | matching `src/systems/` modules | managers/overlays/social renderer | matching unit and E2E |
+| Fictional devotion | `devotion.ts`, focused `devotion*.ts` content | `devotion.ts`, `devotionState.ts`, `devotionTemples.ts`, profile/debug | devotion manager + native accessibility bridge | devotion, temple, integration, save and browser suites |
 | Gathering/crafting | matching `src/data/` modules | matching systems + state normalizers | matching managers | matching unit and E2E |
-| Saves | owning interfaces/defaults | `save.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/domain migration suites |
+| Tavern/festival games | `minigames.ts`, focused lore/event data | `minigame*.ts`, nautical/weather helpers | minigame manager/renderers | rules/economy/recovery/layout + web/Electron multi-input |
+| Saves | owning interfaces/defaults | `save.ts`, `saveActor.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/validation/availability/domain migration suites |
 | Accessibility/input | tutorial/feature definitions | `accessibility.ts`, `input.ts`, `featureDiscovery.ts` | input/tutorial/layout managers | accessibility/input/layout/feature E2E |
 | Audio | typed data cues | `audio.ts`, `trapAudio.ts` | callers only | audio + representative browser flows |
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
 | Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
+| Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | `hacks/prepare-steam.mjs`, protected upload utility | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck-equivalent Electron |
 
 ## Required workflow
 
@@ -53,6 +61,11 @@ future work until merged.
 5. **PR/CI:** push a review branch, open a PR, wait for PR CI and CodeQL, and
    resolve every failure and review comment. Do not merge without explicit
    instruction.
+
+PR/desktop CI concurrency is ref-scoped (`pr-${{ github.ref }}` and
+`desktop-${{ github.ref }}`), with `cancel-in-progress: false`. Preserve the
+complete gate, existing permissions, and triggers; never weaken checks to
+accelerate an independent feature branch.
 
 ```bash
 npm ci
@@ -71,6 +84,10 @@ Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work and record its commit, environment, and output in the
 owning issue or pull request.
 
+Local validation is headless only. Never launch visible native windows or
+control the developer's desktop. The Chromium configuration explicitly selects
+headless mode; native release gates belong on isolated CI/virtual displays.
+
 ## Non-negotiable invariants
 
 - Strict TypeScript, explicit types, no `any`, no unsafe nested save casts.
@@ -87,8 +104,48 @@ owning issue or pull request.
   duration-plus-grace timer is recovery only.
 - `battleActions.ts` owns party action validation, targets, resources, and
   one-action/one-bonus-action economy.
+- Aimable parts share monster HP and the normal status clock. Keep whole-target
+  confirmation unchanged; validate optional parts before RNG/resources. Apply
+  statuses, physical profile/local override, then elements; never stack whole
+  and part weakness or bypass whole-body immunity. Persist only observed Codex
+  scope/type IDs in schema v23; retain exact old/custom weapon ownership and
+  valid v22 activity/physical-preview authority during migration.
+- Body armor declares type-specific physical resistances independently of AC.
+  Party wrappers resolve live equipped armor, including old canonical copies;
+  basic/physical special monster hits share the physical modifier and receipts.
+  Pure elemental abilities bypass it. Preserve pre-shield HP when applying
+  shield defense so overkill never restores a defeated target.
+- Hero class ownership lives in `player.classProgression`; `level` mirrors its
+  total. Starting identity never changes with appearance or multiclass entry.
+  Prepare one frozen receipt at rest, preserve rest credits across reload, and
+  commit one expected-level choice atomically. Normal progression stops at 20;
+  companions stay single-class. Six registered five-rank prestige paths use
+  the same engine and inclusive entry-only world/social checks; no epic/NG+
+  content is installed. Path-only talents never enter generic scans.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
+- Standard is unlimited. Timed mode persists only bounded per-campaign settings,
+  counts accepted hero/manual decision time, and validates Defend once at timeout.
+  Pause real input/presentation blockers, not normal logs or non-blocking notices.
+  Never serialize a deadline or let runtime duration suggestions enable timing.
+- Timing settings are Overworld-only. Clear actor/companion combat effects after
+  result/reward hooks and before outgoing Battle autosave, not only at handoff.
+- Dice views consume exact immutable receipts, redact hidden AC/DC and enemy
+  modifiers/totals, never use shared RNG, and never create an input-block reason.
+  Dice use the measured game viewport, not a dock. Battle details join its
+  existing log; no history survives exit. Non-battle results expire after a
+  short reading interval. Event reset and scene cleanup clear views/cues/timers.
+- Damage/healing receipts separate real faces/signed modifiers, recorded
+  adjustments, resolved amounts and actual HP deltas. Capture at the existing
+  roll/write owner, preserve RNG/hook timing and finite fractional legacy
+  effects, render shared area pools once, and never fabricate fixed/derived dice.
+- Physical dice motion uses deterministic measured travel/tumble/bounce over
+  the game, not outcome-deciding physics/RNG. Keep its layer pointer-transparent,
+  its faces exact and its objects/listeners cleanup-owned. Instant/reduced
+  motion and skip stay immediate; never wait on a throw to advance mechanics.
+- Ordinary roll displays default to All and may be turned Off. Canonical attack
+  critical/fumble feedback always remains visible, including with Off, while
+  Instant/reduced motion stays static. Never reclassify checks/saves/initiative.
 - Use stable IDs for combatants, quests/stages/objectives/rewards, cutscenes,
   shops, traps, events, recipes, transactions, features, and layout items.
 - Persist authority, not derived presentation. Every schema change requires
@@ -102,8 +159,26 @@ owning issue or pull request.
   no pending authoritative outcome. Use `changeCampaignDifficulty()` for
   no-op detection, bounded causes, atomic save rollback and irreversible preset
   challenge loss; never replay old rewards or recovery.
+- Minigame histories never authorize payment. Use exact pending IDs/revisions,
+  permanent settlement watermarks, finite milestone claims, and save-before-reveal
+  rollback; archery preview motion never writes saves.
+- Devotion uses an original fictional pantheon only, independent bounded
+  scores and canonical once-only sources. Legacy heroes remain unaffiliated;
+  every choice retains the campaign. Blessings use the normal status clock;
+  qualification queries are optional extension points, not campaign gates.
 - Route all release input through semantic contexts; do not add scene-local
   gamepad/touch mappings or conflicting production/debug keys.
+- Shared `systems/textEntry.ts` / `managers/textEntry.ts` own the controller
+  keyboard for names/slot labels/search, modal isolation, cancellation and
+  focus restoration; the input adapter re-exports the existing text-entry API.
+- Shared discrete pulses release after Phaser poststep, with owned tokens and
+  listeners cleaned on blur/visibility/disconnect/context/scene/destruction.
+  A pulse never releases another held owner or reaches a replacement scene.
+- Steam SDK, Steam achievements, Cloud and native Steam Input API are disabled.
+  Stage native Linux x64, Windows x64 and inspected macOS universal payloads;
+  never sync Chromium profiles or claim Proton/Deck/partner validation from
+  equivalent tests. Upload requires explicit protected human authorization;
+  `SetLive` stays empty.
 - `TitleMenuManager` owns title selection, large pointer targets, and semantic
   D-pad/confirm activation; keep overwrite confirmation usable in landscape.
 - Own and clean up listeners, timers, tweens, emitters, DOM controls, texture
@@ -127,6 +202,7 @@ owning issue or pull request.
 | Docs copied from an issue or branch | Verify current `main`, source constants, package manifest, and merged PR |
 | Parallel features merged in arbitrary order | Identify shared files, choose dependency order, rebase after prerequisite, preserve both contracts |
 | Targeted tests only | Full typecheck, Vitest, Playwright, build, audit, CI, and CodeQL before completion |
+| Other branches replacing queued CI | Scope the PR web concurrency group to `github.ref`; retain `cancel-in-progress: false` |
 | Growing scenes/overlays | Extract focused system, manager, renderer, or data module |
 
 ## Change checklists
@@ -160,6 +236,12 @@ owning issue or pull request.
 - [ ] Focus restored by ID and clamped
 - [ ] Keyboard, pointer, touch, gamepad, 150% text, high contrast, and reduced motion checked
 - [ ] Layout audit reports no unintended overlap or clipping
+- [ ] Fixed text surfaces fit their natural glyph/padding bounds, not just their outer boxes
+- [ ] Resize/preference reflow preserves choices, scores, action IDs and held-input ownership
+- [ ] Active notices are deferred behind menus without consuming queued feedback
+- [ ] Combined panels are covered; clean individual groups alone do not prove safe coexistence
+- [ ] Native desktop has no mobile rails/options; focused physical typing is isolated from WASD gameplay
+- [ ] Controller/heading hints use shared icons without changing stable direction or action IDs
 
 ### Combat
 
@@ -183,9 +265,16 @@ owning issue or pull request.
 ## Detailed references
 
 - [Architecture](docs/architecture.md)
+- [Physical combat](docs/physical-combat.md)
 - [Development](docs/development.md)
 - [Testing](docs/testing.md)
 - [Save system](docs/save-system.md)
 - [Difficulty and Custom rules](docs/difficulty.md)
+- [Hero progression](docs/hero-progression.md)
+- [Prestige paths](docs/prestige.md)
 - [Companions and gambits](docs/companions.md)
 - [Inventory presentation](docs/inventory.md)
+- [Timed battle decisions](docs/battle-timing.md)
+- [Tavern and festival activities](docs/minigames.md)
+- [Fictional devotion](docs/devotion.md)
+- [Steam preparation](docs/steam.md)

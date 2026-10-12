@@ -1,5 +1,6 @@
 import {
   getBoat,
+  getBoatUpgrade,
   isBoatId,
   isBoatCosmeticId,
   isBoatUpgradeId,
@@ -23,6 +24,13 @@ export interface NauticalWallet {
 
 export function getBoatPurchaseCost(wallet: NauticalWallet, boatId: BoatId): number {
   return scaleCost(getBoat(boatId).price, getCampaignDifficultyRules(wallet));
+}
+
+export function getBoatConditionLossMultiplier(boat: BoatState): number {
+  return boat.upgradeIds.reduce(
+    (multiplier, id) => multiplier * getBoatUpgrade(id).conditionLossMultiplier,
+    1,
+  );
 }
 
 export function acquireBoat(

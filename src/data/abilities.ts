@@ -6,7 +6,11 @@
 import type { DieType } from "../systems/dice";
 import type { StatusEffectId } from "../systems/statusEffects";
 import { Element } from "./elements";
+import type { PhysicalDamageType } from "./damageTypes";
+import { getWeaponPhysicalDamageType } from "./items";
 import type { TargetType } from "./spells";
+import type { Item } from "./items";
+import { PRESTIGE_ABILITIES } from "./prestigeActions";
 
 export type AbilityRange = "melee" | "ranged";
 
@@ -19,6 +23,8 @@ export interface Ability {
   damageCount: number;
   damageDie: DieType;
   type: "damage" | "heal" | "utility" | "buff";
+  progressionScope?: "track";
+  equipmentRequirement?: "shield" | "meleeWeapon" | "lightWeapon" | "lightWeaponOrBow";
   /** Defaults to one enemy; heals declare ally/self scope explicitly. */
   targetType?: TargetType;
   /** Defaults to melee for damaging abilities. */
@@ -29,6 +35,8 @@ export interface Ability {
   bonusAction?: boolean;
   /** Elemental damage type. */
   element?: Element;
+  /** Weapon-derived strikes or an explicit physical source; magic remains elemental-only. */
+  physicalDamageType?: PhysicalDamageType | "weapon";
   /** Status effect applied to the user. */
   selfEffect?: StatusEffectId;
   /** Status effect applied to the target on hit. */
@@ -36,9 +44,11 @@ export interface Ability {
 }
 
 export const ABILITIES: Ability[] = [
+  ...PRESTIGE_ABILITIES,
   // ── Knight / Fighter (STR) ────────────────────────────────────
   {
     id: "shieldBash", name: "Shield Bash",
+    physicalDamageType: "bludgeoning",
     description: "Slam your shield into the foe, stunning them",
     mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 8,
     type: "damage", statKey: "strength",
@@ -46,6 +56,7 @@ export const ABILITIES: Ability[] = [
   },
   {
     id: "actionSurge", name: "Action Surge",
+    physicalDamageType: "weapon",
     description: "Push beyond your limits for a devastating strike",
     mpCost: 5, levelRequired: 5, damageCount: 2, damageDie: 10,
     type: "damage", statKey: "strength",
@@ -58,6 +69,7 @@ export const ABILITIES: Ability[] = [
   },
   {
     id: "championStrike", name: "Champion Strike",
+    physicalDamageType: "weapon",
     description: "A legendary blow that cleaves through armor",
     mpCost: 12, levelRequired: 15, damageCount: 4, damageDie: 10,
     type: "damage", statKey: "strength",
@@ -66,12 +78,14 @@ export const ABILITIES: Ability[] = [
   // ── Ranger (DEX) ─────────────────────────────────────────────
   {
     id: "aimedShot", name: "Aimed Shot",
+    physicalDamageType: "piercing",
     description: "Take careful aim at a weak point",
     mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 10,
     type: "damage", statKey: "dexterity", range: "ranged",
   },
   {
     id: "huntersMark", name: "Hunter's Mark",
+    physicalDamageType: "piercing",
     description: "Mark your prey for extra damage",
     mpCost: 5, levelRequired: 5, damageCount: 2, damageDie: 8,
     type: "damage", statKey: "dexterity", range: "ranged",
@@ -84,6 +98,7 @@ export const ABILITIES: Ability[] = [
   },
   {
     id: "deadeye", name: "Deadeye",
+    physicalDamageType: "piercing",
     description: "An arrow that never misses its mark",
     mpCost: 12, levelRequired: 15, damageCount: 5, damageDie: 8,
     type: "damage", statKey: "dexterity", range: "ranged",
@@ -92,6 +107,7 @@ export const ABILITIES: Ability[] = [
   // ── Rogue (DEX) ──────────────────────────────────────────────
   {
     id: "sneakAttack", name: "Sneak Attack",
+    physicalDamageType: "weapon",
     description: "Strike from the shadows for devastating damage",
     mpCost: 2, levelRequired: 1, damageCount: 2, damageDie: 6,
     type: "damage", statKey: "dexterity",
@@ -106,6 +122,7 @@ export const ABILITIES: Ability[] = [
   },
   {
     id: "cunningStrike", name: "Cunning Strike",
+    physicalDamageType: "weapon",
     description: "Exploit an opening with lightning reflexes",
     mpCost: 5, levelRequired: 5, damageCount: 3, damageDie: 6,
     type: "damage", statKey: "dexterity",
@@ -118,6 +135,7 @@ export const ABILITIES: Ability[] = [
   },
   {
     id: "assassinate", name: "Assassinate",
+    physicalDamageType: "weapon",
     description: "A lethal strike to a vital point — pure lethality",
     mpCost: 12, levelRequired: 15, damageCount: 6, damageDie: 6,
     type: "damage", statKey: "dexterity",
@@ -152,6 +170,7 @@ export const ABILITIES: Ability[] = [
   // ── Barbarian (STR) ──────────────────────────────────────────
   {
     id: "recklessStrike", name: "Reckless Attack",
+    physicalDamageType: "weapon",
     description: "Throw caution to the wind for a wild strike",
     mpCost: 2, levelRequired: 1, damageCount: 2, damageDie: 6,
     type: "damage", statKey: "strength",
@@ -179,6 +198,7 @@ export const ABILITIES: Ability[] = [
   },
   {
     id: "titansBlow", name: "Titan's Blow",
+    physicalDamageType: "weapon",
     description: "A strike that shakes the earth itself",
     mpCost: 12, levelRequired: 15, damageCount: 5, damageDie: 10,
     type: "damage", statKey: "strength",
@@ -187,12 +207,14 @@ export const ABILITIES: Ability[] = [
   // ── Monk (DEX / WIS) ─────────────────────────────────────────
   {
     id: "flurryOfBlows", name: "Flurry of Blows",
+    physicalDamageType: "bludgeoning",
     description: "Unleash a rapid series of unarmed strikes",
     mpCost: 2, levelRequired: 1, damageCount: 2, damageDie: 6,
     type: "damage", statKey: "dexterity",
   },
   {
     id: "kiStrike", name: "Ki Strike",
+    physicalDamageType: "bludgeoning",
     description: "Channel ki energy into a powerful blow",
     mpCost: 5, levelRequired: 5, damageCount: 3, damageDie: 6,
     type: "damage", statKey: "dexterity",
@@ -205,6 +227,7 @@ export const ABILITIES: Ability[] = [
   },
   {
     id: "stunningStrike", name: "Stunning Strike",
+    physicalDamageType: "bludgeoning",
     description: "Strike a pressure point with devastating precision",
     mpCost: 10, levelRequired: 15, damageCount: 5, damageDie: 8,
     type: "damage", statKey: "dexterity",
@@ -229,6 +252,7 @@ export const ABILITIES: Ability[] = [
   // ── Druid (WIS) ──────────────────────────────────────────────
   {
     id: "thornWhip", name: "Thorn Whip",
+    physicalDamageType: "piercing",
     description: "Lash out with a thorny vine that rends flesh",
     mpCost: 2, levelRequired: 1, damageCount: 1, damageDie: 8,
     type: "damage", statKey: "wisdom", range: "ranged",
@@ -241,12 +265,14 @@ export const ABILITIES: Ability[] = [
   },
   {
     id: "naturesWrath", name: "Nature's Wrath",
+    physicalDamageType: "bludgeoning",
     description: "Command the forces of nature to crush your enemy",
     mpCost: 6, levelRequired: 7, damageCount: 3, damageDie: 8,
     type: "damage", statKey: "wisdom",
   },
   {
     id: "primalStrike", name: "Primal Strike",
+    physicalDamageType: "slashing",
     description: "Strike with the raw fury of the natural world",
     mpCost: 10, levelRequired: 13, damageCount: 4, damageDie: 10,
     type: "damage", statKey: "wisdom",
@@ -278,6 +304,39 @@ export const ABILITIES: Ability[] = [
 /** Look up an ability by ID. */
 export function getAbility(id: string): Ability | undefined {
   return ABILITIES.find((a) => a.id === id);
+}
+
+export function getAbilityPhysicalDamageType(
+  id: string,
+  weapon: Item | null | undefined,
+): PhysicalDamageType | undefined {
+  const ability = getAbility(id);
+  if (ability?.type !== "damage") return undefined;
+  return ability.physicalDamageType === "weapon"
+    ? getWeaponPhysicalDamageType(weapon) : ability.physicalDamageType;
+}
+
+/** Read canonical action gear rules without spending MP, effects or action slots. */
+export function getAbilityEquipmentRejection(
+  ability: Ability,
+  actor: { equippedWeapon: Item | null; equippedShield: Item | null },
+): string | undefined {
+  const weapon = actor.equippedWeapon;
+  const light = weapon?.type === "weapon" && weapon.light === true && !weapon.twoHanded;
+  switch (ability.equipmentRequirement) {
+    case "shield":
+      return actor.equippedShield?.type === "shield" ? undefined : `${ability.name} requires an equipped shield.`;
+    case "meleeWeapon":
+      return weapon?.type === "weapon" && weapon.weaponSprite !== "bow"
+        ? undefined : `${ability.name} requires an equipped melee weapon.`;
+    case "lightWeapon":
+      return light ? undefined : `${ability.name} requires a light one-handed weapon.`;
+    case "lightWeaponOrBow":
+      return light || (weapon?.type === "weapon" && weapon.weaponSprite === "bow")
+        ? undefined : `${ability.name} requires a light one-handed weapon or bow.`;
+    default:
+      return ability.equipmentRequirement === undefined ? undefined : "Action equipment requirement is unavailable.";
+  }
 }
 
 export function getAbilityTargetType(ability: Ability): TargetType {

@@ -15,7 +15,8 @@ import type {
 } from "../data/difficulty";
 import type { PlayerState } from "./player";
 
-export const DIFFICULTY_SAVE_VERSION = 19;
+export const DIFFICULTY_SAVE_VERSION = 26;
+export const DIFFICULTY_PREVIEW_SAVE_VERSION = 19;
 export const DIFFICULTY_HISTORY_LIMIT = 20;
 
 export interface DifficultyChangeCause {
@@ -156,7 +157,10 @@ export function normalizeCampaignDifficulty(
   value: unknown,
   sourceVersion: number = DIFFICULTY_SAVE_VERSION,
 ): CampaignDifficultyState {
-  if (sourceVersion < DIFFICULTY_SAVE_VERSION) return createCampaignDifficulty();
+  if (sourceVersion < DIFFICULTY_PREVIEW_SAVE_VERSION
+      || (sourceVersion < DIFFICULTY_SAVE_VERSION && value === undefined)) {
+    return createCampaignDifficulty();
+  }
   if (!isRecord(value)) {
     debugLog("[difficulty] Missing campaign rules; recovered Standard without challenge continuity.");
     return { ...createCampaignDifficulty(), changeCount: 1 };
@@ -253,6 +257,9 @@ export function changeCampaignDifficulty(
   }
   if (progression.gathering.pending) {
     return rejectDifficultyChange("Finish the pending gathering outcome before changing campaign rules.");
+  }
+  if (progression.minigames.pending) {
+    return rejectDifficultyChange("Finish the pending tavern or festival activity before changing campaign rules.");
   }
   if (progression.nautical.pendingMerchantRoute
       || progression.nautical.pendingHazard

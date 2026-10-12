@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { clickLayoutItem, layoutItemCenter } from "./helpers/layout";
 import { SAVE_VERSION } from "../src/systems/save";
+import { clickLayoutItem, layoutItemCenter } from "./helpers/layout";
 
 const SAVE_KEY = "2dnd_save";
 const PREFERENCES_KEY = "2dnd_preferences";
@@ -73,14 +73,14 @@ async function createCharacter(page: Page): Promise<void> {
   await waitForState(page, "BOOT | Screen: title");
   await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "BOOT | Screen: character");
-  await clickGame(page, 284, 160);
+  await clickLayoutItem(page, "creation-class-ranger");
   await holdKey(page, "Enter");
   await waitForState(page, "BOOT | Screen: stats");
-  await clickGame(page, 390, 64);
-  await clickGame(page, 400, 460);
+  await clickLayoutItem(page, "creation-stat-mode-random");
+  await clickLayoutItem(page, "creation-stats-next");
   await waitForState(page, "BOOT | Screen: appearance");
-  await clickGame(page, 320, 112);
-  await clickGame(page, 420, 312);
+  await clickLayoutItem(page, "appearance-randomize");
+  await clickLayoutItem(page, "appearance-start");
   await waitForState(page, "CUTSCENE");
 }
 

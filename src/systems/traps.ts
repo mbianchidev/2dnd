@@ -13,13 +13,18 @@ import {
   type TrapState,
 } from "../data/traps";
 import { getTalent } from "../data/talents";
-import { abilityModifier, rollDice } from "./dice";
+import { getArmorPhysicalProfile } from "../data/items";
+import { applyPhysicalModifier, physicalDamageTypeName } from "../data/damageTypes";
+import { abilityModifier } from "./dice";
+import { captureEffectApplication, capturePhysicalEffect, rollEffectDice } from "./effectRolls";
+import type { ResolvedEffectRoll } from "./rollResults";
 import { awardXP, type PlayerState } from "./player";
 import { resolveSkillCheck, rollSkillCheck } from "./skillChecks";
 import { applyStatusEffect } from "./statusEffects";
 import { applySocialMutation } from "./reputation";
 import { consumeSocialAchievementHooks } from "./achievements";
 import { getCampaignDifficultyRules, scaleReward } from "./difficulty";
+import { createSeededRandom } from "../utils/seededRandom";
 
 interface TrapCandidate {
   x: number;
@@ -55,30 +60,13 @@ export interface TrapTriggerResult {
   dropsLevel: boolean;
   statusApplied?: string;
   message: string;
+  readonly damageRoll?: ResolvedEffectRoll;
 }
 
 export interface TrapDropDestination {
   level: number;
   x: number;
   y: number;
-}
-
-function hashString(value: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index++) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function createSeededRandom(seed: number, salt: string): () => number {
-  let state = (seed ^ hashString(salt)) >>> 0;
-  if (state === 0) state = 1;
-  return () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
 }
 
 function shuffleCandidates(
@@ -426,7 +414,8 @@ export function getTrapEntryDisposition(
 export function triggerDungeonTrap(
   player: PlayerState,
   trap: DungeonTrap,
-  damageRoller: (count: number, sides: TrapDie) => number = rollDice,
+  damageRoller: (count: number, sides: TrapDie) => number | ResolvedEffectRoll =
+    (count, sides) => rollEffectDice(count, sides, [], { minimum: 0 }),
 ): TrapTriggerResult {
   const state = player.progression.trapStates[trap.id];
   if (state === "disarmed" || state === "triggered") {
@@ -442,10 +431,12 @@ export function triggerDungeonTrap(
 
   player.progression.trapStates[trap.id] = "triggered";
   const definition = getTrapDefinition(trap.type);
-  const rolledDamage = definition.damage
-    ? Math.max(0, damageRoller(definition.damage.count, definition.damage.sides))
-    : 0;
-  const damage = Math.min(Math.max(0, player.hp - 1), rolledDamage);
+  const rolled = definition.damage
+    ? damageRoller(definition.damage.count, definition.damage.sides) : 0;
+  const rolledDamage = Math.max(0, typeof rolled === "number" ? rolled : rolled.amount);
+  const physicalType = definition.damage?.physicalDamageType;
+  const physical = applyPhysicalModifier(rolledDamage, physicalType, getArmorPhysicalProfile(player.equippedArmor));
+  const damage = Math.min(Math.max(0, player.hp - 1), physical.damage);
   player.hp -= damage;
 
   const mpLoss = Math.min(player.mp, definition.mpLoss ?? 0);
@@ -472,11 +463,19 @@ export function triggerDungeonTrap(
   return {
     triggered: true,
     damage,
+    ...(typeof rolled !== "number" ? {
+      damageRoll: captureEffectApplication(
+        capturePhysicalEffect(rolled, physical.damage, physicalType, physical.interaction, "Armor"),
+        damage, "Nonlethal",
+      ),
+    } : {}),
     mpLoss,
     startsEncounter: definition.startsEncounter === true,
     dropsLevel: definition.dropsLevel === true,
     statusApplied,
-    message: `${definition.name} triggered!${detail}`,
+    message: `${definition.name} triggered!${detail}`
+      + (physical.interaction === "resistant" && physicalType
+        ? ` Armor resists ${physicalDamageTypeName(physicalType)}.` : ""),
   };
 }
 

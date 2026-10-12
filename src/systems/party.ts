@@ -8,15 +8,17 @@ import {
 } from "../data/companions";
 import { getAbility } from "../data/abilities";
 import { getAllTowns } from "../data/chunks";
-import { getItem, type Item } from "../data/items";
+import { getArmorPhysicalProfile, getItem, type Item } from "../data/items";
+import type { PhysicalProfile } from "../data/damageTypes";
 import { getSpell } from "../data/spells";
-import { TALENTS } from "../data/talents";
+import { TALENTS, isTotalLevelTalent } from "../data/talents";
 import { abilityModifier } from "./dice";
 import {
   createBattleActionSource,
   type BattleActionSource,
 } from "./battleActions";
 import { getClassAbilities, getClassSpells, getPlayerClass } from "./classes";
+import { discardPendingLevelUps } from "./classProgression";
 import {
   createPartyCombatant,
   HERO_COMBATANT_ID,
@@ -47,10 +49,12 @@ import {
   getCampaignDifficultyRules,
   type DifficultyRules,
 } from "./difficulty";
+import { normalizeSavedInventory, relinkSavedEquipment } from "./saveActor";
 
 export const MAX_ACTIVE_COMPANIONS = 3;
 
 export interface CompanionState extends CombatActorState {
+  classProgression?: never;
   id: CompanionId;
   xp: number;
   pendingStatPoints: number;
@@ -182,7 +186,7 @@ function getEquippedItem(
 function getKnownTalents(classId: string, level: number): string[] {
   return TALENTS.filter((talent) =>
     talent.levelRequired <= level
-    && (!talent.classRestriction || talent.classRestriction.includes(classId))
+    && (isTotalLevelTalent(talent) || talent.classRestriction?.includes(classId))
   ).map((talent) => talent.id);
 }
 
@@ -416,6 +420,8 @@ export function createActivePartyCombatants(
         },
         getArmorClass: (defendBonus: number): number =>
           getArmorClass(companion, defendBonus),
+        getPhysicalProfile: (): PhysicalProfile | undefined =>
+          getArmorPhysicalProfile(companion.equippedArmor),
       },
       "companion",
     )
@@ -442,7 +448,7 @@ export function applyKnockoutXpPenalty(
 ): void {
   if (rules.defeatXpPenalty === "none") return;
   actor.xp = xpFloorForLevel(actor.level);
-  actor.pendingLevelUps = 0;
+  discardPendingLevelUps(actor);
 }
 
 export function isPartyMemberId(value: unknown): value is PartyMemberId {
@@ -594,7 +600,7 @@ export function applyPartyDefeat(
   };
 }
 
-export function restPartyAtInn(player: PlayerState): PartyRestResult {
+export function restPartyAtInn(player: PlayerState, deferHeroLevelUps = false): PartyRestResult {
   const leveledActorIds: PartyMemberId[] = [];
   const actors: Array<{
     id: PartyMemberId;
@@ -611,7 +617,9 @@ export function restPartyAtInn(player: PlayerState): PartyRestResult {
     actor.state.hp = actor.state.maxHp;
     actor.state.mp = actor.state.maxMp;
     clearAllEffects(actor.state.activeEffects);
-    const result = processPendingLevelUps(actor.state);
+    const result = actor.id === "hero" && deferHeroLevelUps
+      ? { leveledUp: false, newLevel: player.level, newSpells: [], newAbilities: [], newTalents: [], asiGained: 0 }
+      : processPendingLevelUps(actor.state);
     actor.state.hp = actor.state.maxHp;
     actor.state.mp = actor.state.maxMp;
     actorResults.push({
@@ -675,36 +683,6 @@ function normalizeKnownIds(
   ];
 }
 
-function normalizeInventory(
-  value: unknown,
-  fallback: Item[],
-): Item[] {
-  if (!Array.isArray(value)) return fallback.map((item) => ({ ...item }));
-  return value.flatMap((candidate) => {
-    if (!isRecord(candidate) || typeof candidate["id"] !== "string") return [];
-    const item = getItem(candidate["id"]);
-    return item ? [{ ...item }] : [];
-  });
-}
-
-function readEquippedItemId(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  return isRecord(value) && typeof value["id"] === "string"
-    ? value["id"]
-    : undefined;
-}
-
-function relinkEquipment(
-  inventory: Item[],
-  value: unknown,
-  type: "weapon" | "armor" | "shield",
-): Item | null {
-  const itemId = readEquippedItemId(value);
-  return itemId
-    ? inventory.find((item) => item.id === itemId && item.type === type) ?? null
-    : null;
-}
-
 function normalizeCustomAppearance(
   value: unknown,
   fallback: CompanionState["customAppearance"],
@@ -725,7 +703,7 @@ function normalizeCompanionState(
   const fallback = createCompanionState(value["id"], level);
   const maxHp = readInteger(value["maxHp"], fallback.maxHp, 1);
   const maxMp = readInteger(value["maxMp"], fallback.maxMp, 1);
-  const inventory = normalizeInventory(value["inventory"], fallback.inventory);
+  const inventory = normalizeSavedInventory(value["inventory"], fallback.inventory);
   const talentIds = new Set(TALENTS.map((talent) => talent.id));
   const companion: CompanionState = {
     ...fallback,
@@ -764,22 +742,22 @@ function normalizeCompanionState(
       (id) => talentIds.has(id),
       fallback.knownTalents,
     ),
-    equippedWeapon: relinkEquipment(
+    equippedWeapon: relinkSavedEquipment(
       inventory,
       value["equippedWeapon"],
       "weapon",
     ),
-    equippedOffHand: relinkEquipment(
+    equippedOffHand: relinkSavedEquipment(
       inventory,
       value["equippedOffHand"],
       "weapon",
     ),
-    equippedArmor: relinkEquipment(
+    equippedArmor: relinkSavedEquipment(
       inventory,
       value["equippedArmor"],
       "armor",
     ),
-    equippedShield: relinkEquipment(
+    equippedShield: relinkSavedEquipment(
       inventory,
       value["equippedShield"],
       "shield",

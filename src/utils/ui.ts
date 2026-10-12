@@ -103,3 +103,18 @@ export function createPanelGraphics(
   bg.strokeRect(px, py, panelW, panelH);
   return bg;
 }
+
+/** Scene-owned polite status region; the owner removes it when its modal closes. */
+export function createStatusAnnouncer(id: string): HTMLDivElement {
+  const region = document.createElement("div");
+  region.id = id;
+  region.setAttribute("role", "status");
+  region.setAttribute("aria-live", "polite");
+  region.setAttribute("aria-atomic", "true");
+  Object.assign(region.style, {
+    position: "fixed", width: "1px", height: "1px",
+    overflow: "hidden", clipPath: "inset(50%)",
+  });
+  document.body.append(region);
+  return region;
+}

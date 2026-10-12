@@ -1,0 +1,568 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  createCombatDicePresentation,
+  createComponentDicePresentation,
+  createD20Presentation,
+  createEffectDicePresentation,
+  combineDicePresentations,
+  createSkillDicePresentation,
+  DicePresentationController,
+  DICE_FADE_MS,
+  TRANSIENT_DICE_HOLD_MS,
+  formatDicePresentation,
+  getDicePresentationDuration,
+  isCriticalDicePresentation,
+  isDicePresentationVisible,
+} from "../src/systems/dicePresentation";
+import { snapshotD20Roll, snapshotEffectRoll } from "../src/systems/rollResults";
+import type {
+  DicePresentation,
+  DicePresentationAdapter,
+  DicePresentationScope,
+} from "../src/systems/dicePresentation";
+import type { ResolvedD20Roll } from "../src/systems/rollResults";
+
+function receipt(
+  changes: Partial<ResolvedD20Roll> = {},
+): ResolvedD20Roll {
+  return snapshotD20Roll({
+    naturalRolls: [12],
+    selectedIndex: 0,
+    selection: "normal",
+    naturalRoll: 12,
+    modifier: 3,
+    total: 15,
+    ...changes,
+  });
+}
+
+function presentation(): DicePresentation {
+  return createD20Presentation(receipt(), {
+    category: "skill",
+    label: "Wisdom check",
+    outcome: "success",
+    threshold: { kind: "DC", value: 14 },
+  });
+}
+
+describe("resolved dice mapping", () => {
+  it("copies and freezes exact authoritative values without RNG or arithmetic", () => {
+    const rng = vi.spyOn(Math, "random");
+    const naturals = [4, 19];
+    const result = receipt({
+      naturalRolls: naturals,
+      selectedIndex: 1,
+      selection: "advantage",
+      naturalRoll: 19,
+      modifier: -2,
+      total: 17,
+    });
+    const view = createD20Presentation(result, {
+      category: "skill",
+      label: "Check",
+      outcome: "failure",
+      threshold: { kind: "DC", value: 18 },
+    });
+    naturals[1] = 1;
+    expect(view.roll).toEqual(result);
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.naturalRolls)).toBe(true);
+    expect(Object.isFrozen(view)).toBe(true);
+    expect(formatDicePresentation(view)).toContain("Advantage");
+    expect(formatDicePresentation(view)).toContain("19 selected");
+    expect(formatDicePresentation(view)).toContain("-2 = 17 vs DC 18");
+    expect(formatDicePresentation(view)).toContain("Failure");
+    expect(rng).not.toHaveBeenCalled();
+    rng.mockRestore();
+  });
+
+  it("never recalculates a supplied total or decides the outcome", () => {
+    const view = createD20Presentation(receipt({ total: 73 }), {
+      category: "save",
+      label: "Save",
+      outcome: "failure",
+      threshold: { kind: "DC", value: 10 },
+    });
+    expect(formatDicePresentation(view)).toContain("= 73 vs DC 10");
+    expect(formatDicePresentation(view)).toContain("Failure");
+  });
+
+  it("shows both disadvantage dice and the selected natural 1, not the discarded 20", () => {
+    const roll = receipt({
+      naturalRolls: [20, 1],
+      selectedIndex: 1,
+      selection: "disadvantage",
+      naturalRoll: 1,
+      modifier: 8,
+      total: 9,
+    });
+    const view = createCombatDicePresentation({
+      rollResult: roll,
+      hit: false,
+      critical: false,
+      fumble: true,
+      damage: 0,
+      targetAC: 12,
+    }, {
+      label: "Hero attacks",
+      revealThreshold: false,
+    });
+    expect(view?.outcome).toBe("fumble");
+    expect(view?.roll?.selectedIndex).toBe(1);
+    expect(formatDicePresentation(view!))
+      .toContain("Disadvantage: d20 [20, 1 selected]");
+    expect(formatDicePresentation(view!)).not.toContain("Critical hit");
+    expect(formatDicePresentation(view!)).not.toContain("AC");
+  });
+
+  it("uses canonical critical and auto-hit flags without inventing dice", () => {
+    const critical = createCombatDicePresentation({
+      rollResult: receipt({
+        naturalRolls: [20],
+        naturalRoll: 20,
+        total: 23,
+      }),
+      critical: true,
+      hit: true,
+      damage: 11,
+      targetAC: 99,
+    }, { label: "Attack" });
+    expect(formatDicePresentation(critical!)).toContain("Critical hit");
+    expect(formatDicePresentation(critical!)).toContain("11 damage (aggregate)");
+
+    const missile = createCombatDicePresentation({
+      autoHit: true,
+      hit: true,
+      damage: 8,
+      targetAC: 99,
+    }, { label: "Magic Missile", revealThreshold: true });
+    expect(missile?.roll).toBeUndefined();
+    expect(missile?.threshold).toBeUndefined();
+    expect(formatDicePresentation(missile!)).toContain("Auto-hit (no attack roll)");
+    expect(formatDicePresentation(missile!)).not.toMatch(/d20|\bAC\b|critical/i);
+  });
+
+  it("redacts undiscovered AC and hidden monster bonuses/totals from the entire view", () => {
+    const attack = {
+      rollResult: receipt({ modifier: 137, total: 149 }),
+      hit: true,
+      damage: 4,
+      targetAC: 91,
+    };
+    const hidden = createCombatDicePresentation(attack, {
+      label: "Monster attacks",
+      revealModifier: false,
+      revealThreshold: false,
+    });
+    expect(hidden?.roll?.naturalRoll).toBe(12);
+    expect(hidden?.roll?.modifier).toBeUndefined();
+    expect(hidden?.roll?.total).toBeUndefined();
+    expect(hidden?.threshold).toBeUndefined();
+    expect(JSON.stringify(hidden)).not.toMatch(/137|149|91/);
+    expect(formatDicePresentation(hidden!)).not.toMatch(/137|149|91|AC/);
+
+    const known = createCombatDicePresentation(attack, {
+      label: "Hero attacks",
+      revealThreshold: true,
+    });
+    expect(known?.threshold).toEqual({ kind: "AC", value: 91 });
+    expect(formatDicePresentation(known!)).toContain("vs AC 91");
+  });
+
+  it("keeps skill-check natural 1/20 separate from attack fumbles/criticals", () => {
+    for (const naturalRoll of [1, 20]) {
+      const view = createSkillDicePresentation({
+        ability: "wisdom",
+        naturalRoll,
+        modifier: 0,
+        total: naturalRoll,
+        dc: 25,
+        success: false,
+      }, { label: "Wisdom check" });
+      expect(view.outcome).toBe("failure");
+      expect(formatDicePresentation(view)).not.toMatch(/critical|fumble/i);
+    }
+  });
+
+  it("presents exact non-d20 components only when a canonical resolver supplies them", () => {
+    const view = createComponentDicePresentation({
+      sides: 6,
+      naturalRolls: [2, 5],
+      modifier: 1,
+      total: 8,
+    }, {
+      category: "healing",
+      label: "Heal",
+      outcome: "success",
+    });
+    expect(view.roll).toBeUndefined();
+    expect(formatDicePresentation(view)).toContain("d6 [2, 5] +1 = 8");
+    expect(formatDicePresentation(view)).not.toContain("d20");
+    expect(createCombatDicePresentation({
+      hit: true,
+      damage: 8,
+    }, { label: "No exposed dice" })).toBeNull();
+    const hidden = createComponentDicePresentation({
+      sides: 6, naturalRolls: [2, 5], modifier: 131, total: 138,
+    }, {
+      category: "damage", label: "Components", outcome: "hit", revealModifier: false,
+    });
+    expect(JSON.stringify(hidden)).not.toMatch(/131|138/);
+    expect(formatDicePresentation(hidden)).toContain("d6 [2, 5]");
+  });
+
+  it("rejects invalid or missing exact natural faces", () => {
+    expect(() => receipt({ naturalRolls: [0] })).toThrow(/natural/i);
+    expect(() => receipt({ selectedIndex: 1 })).toThrow(/selected/i);
+    expect(() => receipt({ naturalRoll: 7 })).toThrow(/selected/i);
+  });
+
+  it("keeps attack, actual critical damage dice, resolved amount and effective HP loss together", () => {
+    const rng = vi.spyOn(Math, "random");
+    const view = createCombatDicePresentation({
+      rollResult: receipt({ naturalRolls: [20], naturalRoll: 20, total: 23 }),
+      hit: true, critical: true, damage: 8, targetAC: 15,
+      damageRoll: snapshotEffectRoll({
+        roll: { sides: 6, naturalRolls: [1, 6], modifier: 3, total: 10 },
+        modifiers: [{ label: "Strength", value: 4 }, { label: "Statuses", value: -1 }],
+        adjustments: [{ label: "Shield defend -2", amount: 8 }],
+        amount: 8, application: { amount: 2, limit: "Overkill" }, criticalDice: true,
+      }),
+    }, { label: "Attack", actorId: "party:hero", targetId: "fixture:enemy:1", actionId: "attack" })!;
+    expect(formatDicePresentation(view)).toContain("d20 20 +3 = 23");
+    expect(formatDicePresentation(view)).toContain("Damage: 2d6 [1, 6] +3 = 10 (critical dice)");
+    expect(formatDicePresentation(view)).toContain("Strength +4, Statuses -1");
+    expect(formatDicePresentation(view)).toContain("Shield defend -2: 8");
+    expect(formatDicePresentation(view)).toContain("Resolved 8 damage | HP lost 2 (Overkill)");
+    expect(view.components).toBeUndefined();
+    expect(view.actionId).toBe("attack");
+    expect(Object.isFrozen(view.effect)).toBe(true);
+    expect(formatDicePresentation(view)).not.toContain("vs AC");
+    expect(rng).not.toHaveBeenCalled();
+    rng.mockRestore();
+  });
+
+  it("redacts hidden damage arithmetic and save details before any notice or history storage", () => {
+    const raw = snapshotEffectRoll({
+      roll: { sides: 6, naturalRolls: [1, 4], modifier: 131, total: 136 },
+      modifiers: [{ label: "Hidden synergy", value: 131 }],
+      adjustments: [{ label: "Hidden status stage", amount: 73 }],
+      amount: 7, application: { amount: 2, limit: "Overkill" },
+    });
+    const save = createD20Presentation(receipt({ modifier: 137, total: 149 }), {
+      category: "save", label: "Enemy save", outcome: "failure",
+      threshold: { kind: "DC", value: 91 }, revealModifier: false, revealThreshold: false,
+    });
+    const effect = createEffectDicePresentation(raw, {
+      category: "damage", label: "Enemy damage", outcome: "rolled", revealModifier: false,
+    });
+    const controller = new DicePresentationController({
+      record: vi.fn(), show: vi.fn(), settle: vi.fn(), hide: vi.fn(),
+      dismiss: vi.fn(), clear: vi.fn(), schedule: vi.fn(() => vi.fn()),
+    });
+    controller.present(combineDicePresentations(save, [effect]),
+      { frequency: "off", speed: "instant" }, true, raw);
+    const stored = JSON.stringify(controller.history);
+    expect(stored).not.toMatch(/131|136|137|149|73|91|Hidden|vs DC/);
+    expect(effect.effect?.modifiers).toBeUndefined();
+    expect(effect.effect?.adjustments).toBeUndefined();
+    expect(effect.effect?.roll?.modifier).toBeUndefined();
+    expect(controller.history[0]?.text).toContain("2d6 [1, 4]");
+    expect(controller.history[0]?.text).toContain("Resolved 7 damage | HP lost 2");
+    expect(controller.history[0]?.presentation).not.toHaveProperty("source");
+    controller.cleanup();
+  });
+
+  it("shows the canonical healing pool separately from the maximum-HP cap", () => {
+    const view = createEffectDicePresentation(snapshotEffectRoll({
+      roll: { sides: 8, naturalRolls: [5], modifier: 0, total: 5 },
+      modifiers: [], adjustments: [], amount: 5,
+      application: { amount: 2, limit: "Maximum HP" },
+    }), { category: "healing", label: "Cure Wounds", outcome: "success" });
+    expect(formatDicePresentation(view)).toContain("Healing: 1d8 [5] +0 = 5");
+    expect(formatDicePresentation(view)).toContain("Resolved 5 healing | HP restored 2 (Maximum HP)");
+    const fixed = createEffectDicePresentation(snapshotEffectRoll({
+      modifiers: [], adjustments: [], amount: 6, application: { amount: 6 },
+    }), { category: "healing", label: "Fixed heal", outcome: "success" });
+    expect(formatDicePresentation(fixed)).toContain("Fixed amount (no dice)");
+    expect(fixed.effect?.roll).toBeUndefined();
+    expect(getDicePresentationDuration(fixed, { frequency: "all", speed: "normal" }, false)).toBe(0);
+  });
+
+  it("never reconstructs effect totals, elemental outcomes or applied damage from component faces", () => {
+    const view = createEffectDicePresentation({
+      roll: { sides: 4, naturalRolls: [1], modifier: -2, total: 73 },
+      modifiers: [{ label: "Canonical bonus", value: -2 }],
+      adjustments: [{ label: "Canonical stage", amount: 11 }],
+      amount: 9, application: { amount: 7, limit: "Nonlethal" },
+    }, { category: "damage", label: "Exact supplied outcome", outcome: "rolled" });
+    expect(formatDicePresentation(view)).toContain("1d4 [1] -2 = 73");
+    expect(formatDicePresentation(view)).toContain("Canonical stage: 11");
+    expect(formatDicePresentation(view)).toContain("Resolved 9 damage | HP lost 7 (Nonlethal)");
+  });
+
+  it("animates actual auto-hit damage dice without fabricating an attack roll", () => {
+    const view = createCombatDicePresentation({
+      autoHit: true, hit: true, damage: 7, targetAC: 91,
+      damageRoll: snapshotEffectRoll({
+        roll: { sides: 4, naturalRolls: [1, 2, 4], modifier: 0, total: 7 },
+        modifiers: [], adjustments: [], amount: 7, application: { amount: 7 },
+      }),
+    }, { label: "Magic Missile", revealThreshold: true })!;
+    expect(formatDicePresentation(view)).toContain("Auto-hit (no attack roll)");
+    expect(formatDicePresentation(view)).toContain("3d4 [1, 2, 4] +0 = 7");
+    expect(formatDicePresentation(view)).not.toMatch(/d20|\bAC\b/);
+    expect(getDicePresentationDuration(view, { frequency: "all", speed: "normal" }, false)).toBe(900);
+    for (const [preferences, reducedMotion] of [
+      [{ frequency: "off", speed: "normal" }, false],
+      [{ frequency: "all", speed: "instant" }, false],
+      [{ frequency: "all", speed: "normal" }, true],
+    ] as const) {
+      expect(getDicePresentationDuration(view, preferences, reducedMotion)).toBe(0);
+    }
+  });
+
+  it("preserves signed finite legacy arithmetic without rounding or inventing fixed-effect faces", () => {
+    const rolled = createEffectDicePresentation({
+      roll: { sides: 6, naturalRolls: [4], modifier: 1.5, total: 5.5 },
+      modifiers: [{ label: "Weapon", value: -0.5 }, { label: "Strength", value: 2 }],
+      adjustments: [{ label: "Psychic weakness x2", amount: 11 }],
+      amount: 11, application: { amount: 3.5, limit: "Overkill" },
+    }, { category: "damage", label: "Legacy weapon", outcome: "hit" });
+    expect(formatDicePresentation(rolled)).toContain("1d6 [4] +1.5 = 5.5");
+    expect(formatDicePresentation(rolled)).toContain("Weapon -0.5");
+    expect(formatDicePresentation(rolled)).toContain("Resolved 11 damage | HP lost 3.5");
+    const fixed = createEffectDicePresentation({
+      modifiers: [{ label: "Legacy effect", value: -0.5 }], adjustments: [],
+      amount: -0.5, application: { amount: -0.5 },
+    }, { category: "healing", label: "Fixed legacy effect", outcome: "success" });
+    expect(fixed.effect?.roll).toBeUndefined();
+    expect(formatDicePresentation(fixed)).toContain("Fixed amount (no dice)");
+    expect(formatDicePresentation(fixed)).toContain("Legacy effect -0.5");
+    expect(formatDicePresentation(fixed)).toContain("HP restored -0.5");
+  });
+});
+
+describe("non-blocking dice presentation lifecycle", () => {
+  function setup(scope: DicePresentationScope = "battle") {
+    const scheduled: Array<() => void> = [];
+    const cancelTimer = vi.fn();
+    const adapter: DicePresentationAdapter = {
+      record: vi.fn(),
+      show: vi.fn(),
+      settle: vi.fn(),
+      hide: vi.fn(),
+      dismiss: vi.fn(),
+      clear: vi.fn(),
+      schedule: vi.fn((_duration, complete) => {
+        scheduled.push(complete);
+        return cancelTimer;
+      }),
+    };
+    const controller = new DicePresentationController(adapter, scope);
+    return { controller, adapter, scheduled, cancelTimer };
+  }
+
+  it("records and shows immediately, deduplicates one receipt, and fast-forwards only visuals", () => {
+    const { controller, adapter, scheduled, cancelTimer } = setup();
+    const source = {};
+    const view = presentation();
+    controller.present(view, { frequency: "all", speed: "normal" }, false, source);
+    controller.present(view, { frequency: "all", speed: "normal" }, false, source);
+    expect(adapter.record).toHaveBeenCalledTimes(1);
+    expect(adapter.show).toHaveBeenCalledTimes(1);
+    expect(controller.history).toHaveLength(1);
+    expect(controller.phase).toBe("animating");
+    controller.fastForward();
+    controller.fastForward();
+    scheduled[0]!();
+    expect(cancelTimer).toHaveBeenCalledTimes(1);
+    expect(adapter.settle).toHaveBeenCalledTimes(1);
+    expect(controller.phase).toBe("ready");
+    expect(controller.history[0]?.text).toBe(formatDicePresentation(view));
+  });
+
+  it("deduplicates stable action IDs from custom component resolvers", () => {
+    const { controller, adapter } = setup();
+    for (let index = 0; index < 2; index += 1) {
+      const view = createComponentDicePresentation({
+        sides: 6, naturalRolls: [2, 5], modifier: 0, total: 7,
+      }, { id: "table:round:4", category: "other", label: "Crown & Bones", outcome: "rolled", detail: "Safe" });
+      controller.present(view, { frequency: "all", speed: "normal" }, false);
+    }
+    expect(adapter.record).toHaveBeenCalledTimes(1);
+    expect(controller.history[0]?.text).toContain("Safe");
+  });
+
+  it("keeps disabled, instant, and reduced-motion information without scheduling", () => {
+    for (const [preferences, reducedMotion] of [
+      [{ frequency: "off", speed: "normal" }, false],
+      [{ frequency: "all", speed: "instant" }, false],
+      [{ frequency: "all", speed: "normal" }, true],
+    ] as const) {
+      const { controller, adapter } = setup();
+      controller.present(presentation(), preferences, reducedMotion);
+      expect(adapter.record).toHaveBeenCalledTimes(1);
+      expect(adapter.show).toHaveBeenCalledWith(expect.objectContaining({
+        duration: 0,
+        text: formatDicePresentation(presentation()),
+      }));
+      expect(adapter.schedule).not.toHaveBeenCalled();
+      expect(controller.phase).toBe("ready");
+    }
+  });
+
+  it("cleans timers and stale completions once without rerunning log or scene callbacks", () => {
+    const { controller, adapter, scheduled, cancelTimer } = setup();
+    controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
+    controller.cleanup();
+    controller.cleanup();
+    scheduled[0]!();
+    controller.fastForward();
+    controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
+    expect(cancelTimer).toHaveBeenCalledTimes(1);
+    expect(adapter.clear).toHaveBeenCalledTimes(1);
+    expect(adapter.record).toHaveBeenCalledTimes(1);
+    expect(controller.phase).toBe("clean");
+    expect(controller.history).toEqual([]);
+  });
+
+  it("cancels superseded visuals, retains bounded logs, and never consumes RNG", () => {
+    const { controller, adapter, scheduled } = setup();
+    const rng = vi.spyOn(Math, "random");
+    for (let index = 0; index < 45; index += 1) {
+      controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
+    }
+    scheduled[0]!();
+    expect(controller.phase).toBe("animating");
+    scheduled[scheduled.length - 1]!();
+    expect(controller.phase).toBe("ready");
+    expect(controller.history).toHaveLength(40);
+    expect(adapter.record).toHaveBeenCalledTimes(45);
+    expect(rng).not.toHaveBeenCalled();
+    rng.mockRestore();
+  });
+
+  it("filters visual frequency only and gives fast mode a shorter visual duration", () => {
+    const ordinaryAttack = createD20Presentation(receipt(), {
+      category: "attack",
+      label: "Attack",
+      outcome: "hit",
+    });
+
+    expect(getDicePresentationDuration(
+      ordinaryAttack, { frequency: "important", speed: "normal" }, false,
+    )).toBe(0);
+    expect(getDicePresentationDuration(
+      presentation(), { frequency: "important", speed: "normal" }, false,
+    )).toBe(900);
+    expect(getDicePresentationDuration(
+      presentation(), { frequency: "all", speed: "fast" }, false,
+    )).toBe(300);
+  });
+
+  it("keeps bounded evidence only in its current battle and resets on exit", () => {
+    const { controller } = setup();
+    for (let index = 0; index < 45; index += 1) {
+      controller.present(presentation(), { frequency: "off", speed: "instant" }, true);
+    }
+    expect(controller.history).toHaveLength(40);
+    expect(controller.history[0]?.text).toBe(formatDicePresentation(presentation()));
+    expect(Object.isFrozen(controller.history)).toBe(true);
+    controller.cleanup();
+    expect(controller.history).toEqual([]);
+    expect(setup().controller.history).toEqual([]);
+  });
+
+  it("fades an outside-battle result after its exact throw and a short reading interval", () => {
+    const { controller, adapter, scheduled } = setup("transient");
+    controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
+    expect(adapter.schedule).toHaveBeenNthCalledWith(1, 900, expect.any(Function));
+    expect(adapter.schedule).toHaveBeenNthCalledWith(2, 900 + TRANSIENT_DICE_HOLD_MS, expect.any(Function));
+    scheduled[0]!();
+    expect(controller.phase).toBe("ready");
+    expect(adapter.dismiss).not.toHaveBeenCalled();
+    scheduled[1]!();
+    expect(adapter.dismiss).toHaveBeenCalledWith(DICE_FADE_MS);
+    expect(controller.history).toEqual([]);
+  });
+
+  it("expires static reduced-motion results without a fade or outcome callback", () => {
+    const { controller, adapter, scheduled } = setup("transient");
+    controller.present(presentation(), { frequency: "all", speed: "instant" }, true);
+    expect(adapter.schedule).toHaveBeenCalledOnce();
+    expect(adapter.schedule).toHaveBeenCalledWith(TRANSIENT_DICE_HOLD_MS, expect.any(Function));
+    scheduled[0]!();
+    expect(adapter.dismiss).toHaveBeenCalledWith(0);
+    expect(controller.history).toEqual([]);
+  });
+
+  it("cancels stale expiry on replacement, event reset and shutdown without reviving results", () => {
+    const { controller, adapter, scheduled, cancelTimer } = setup("transient");
+    controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
+    controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
+    scheduled[1]!();
+    expect(adapter.dismiss).not.toHaveBeenCalled();
+    expect(controller.history).toHaveLength(1);
+    controller.reset();
+    expect(adapter.hide).toHaveBeenCalledOnce();
+    expect(controller.history).toEqual([]);
+    for (const complete of scheduled) complete();
+    expect(adapter.dismiss).not.toHaveBeenCalled();
+    expect(cancelTimer).toHaveBeenCalledTimes(4);
+    controller.present(presentation(), { frequency: "all", speed: "instant" }, true);
+    controller.cleanup();
+    scheduled[scheduled.length - 1]!();
+    expect(adapter.clear).toHaveBeenCalledOnce();
+    expect(adapter.dismiss).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["critical", 20],
+    ["fumble", 1],
+  ] as const)("always shows an actual attack %s even when ordinary rolls are off", (outcome, naturalRoll) => {
+    const view = createD20Presentation(receipt({
+      naturalRolls: [naturalRoll], naturalRoll, total: naturalRoll + 3,
+    }), { category: "attack", label: "Attack", outcome });
+    expect(isCriticalDicePresentation(view)).toBe(true);
+    expect(isDicePresentationVisible(view, { frequency: "off", speed: "normal" })).toBe(true);
+    expect(getDicePresentationDuration(view, { frequency: "off", speed: "normal" }, false)).toBe(900);
+    expect(getDicePresentationDuration(view, { frequency: "off", speed: "fast" }, false)).toBe(300);
+    expect(getDicePresentationDuration(view, { frequency: "off", speed: "instant" }, false)).toBe(0);
+    expect(getDicePresentationDuration(view, { frequency: "off", speed: "normal" }, true)).toBe(0);
+  });
+
+  it("hides ordinary Off notices without reclassifying checks/saves or discarded natural extremes", () => {
+    const ordinary = createD20Presentation(receipt(), {
+      category: "attack", label: "Attack", outcome: "hit",
+    });
+    expect(isDicePresentationVisible(ordinary, { frequency: "off", speed: "normal" })).toBe(false);
+    expect(isDicePresentationVisible(ordinary, { frequency: "all", speed: "normal" })).toBe(true);
+    const discarded = createD20Presentation(receipt({
+      naturalRolls: [20, 5], selectedIndex: 1, selection: "disadvantage",
+      naturalRoll: 5, total: 8,
+    }), { category: "attack", label: "Attack", outcome: "miss" });
+    expect(isCriticalDicePresentation(discarded)).toBe(false);
+    for (const category of ["skill", "save", "initiative"] as const) {
+      const view = createD20Presentation(receipt({
+        naturalRolls: [20], naturalRoll: 20, total: 23,
+      }), { category, label: category, outcome: "failure" });
+      expect(isCriticalDicePresentation(view)).toBe(false);
+      expect(isDicePresentationVisible(view, { frequency: "off", speed: "normal" })).toBe(false);
+      expect(view.outcome).toBe("failure");
+    }
+  });
+
+  it("keeps a critical target visible in a combined presentation without exposing hidden values", () => {
+    const ordinary = presentation();
+    const critical = createD20Presentation(receipt({
+      naturalRolls: [20], naturalRoll: 20, modifier: 137, total: 157,
+    }), {
+      category: "attack", label: "Enemy critical", outcome: "critical",
+      revealModifier: false, revealThreshold: false,
+    });
+    const view = combineDicePresentations(ordinary, [critical]);
+    expect(isDicePresentationVisible(view, { frequency: "off", speed: "normal" })).toBe(true);
+    expect(JSON.stringify(view)).not.toMatch(/137|157/);
+  });
+});

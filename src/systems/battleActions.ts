@@ -6,9 +6,12 @@ import {
   getAbility,
   getAbilityRange,
   getAbilityTargetType,
+  getAbilityPhysicalDamageType,
 } from "../data/abilities";
+import { getBodyPart, type BodyPartId } from "../data/anatomy";
+import type { DamageInteraction, PhysicalDamageType } from "../data/damageTypes";
 import type { Element, ElementalInteraction } from "../data/elements";
-import { getItemTargetType, type Item } from "../data/items";
+import { getItemTargetType, getWeaponPhysicalDamageType, type Item } from "../data/items";
 import {
   getSpell,
   getSpellTargetType,
@@ -30,6 +33,8 @@ import {
   createHeroCombatant,
   getBattleTargetIds,
   getCombatantById,
+  getAttackRangeForWeapon,
+  getFormationAttackPenalty,
   isCombatantActive,
   type AttackRange,
   type BattleCombatantId,
@@ -37,6 +42,10 @@ import {
   type GroupCombatant,
   type PartyCombatant,
 } from "./groupCombat";
+import { canActorUseSpell, getActorAbilityRejection } from "./classProgression";
+import type { CombatDiceReceipt } from "./dicePresentation";
+import { captureDamageApplication } from "./effectRolls";
+import type { ResolvedEffectRoll } from "./rollResults";
 
 export type BattleActionKind =
   | "attack"
@@ -53,6 +62,7 @@ export interface BattleActionRequest {
   itemIndex?: number;
   preferredTargetId?: BattleCombatantId;
   attackRange?: AttackRange;
+  bodyPartId?: BodyPartId;
 }
 
 export interface BattleActionResources {
@@ -61,6 +71,7 @@ export interface BattleActionResources {
   economy: BattleActionEconomyState;
   knownSpellIds?: readonly string[];
   knownAbilityIds?: readonly string[];
+  actorState?: CombatActorState;
 }
 
 export interface BattleActionEconomyState {
@@ -89,6 +100,7 @@ export interface BattleActionDescriptor {
   range: AttackRange;
   mpCost: number;
   cost: BattleActionCost;
+  physicalType?: PhysicalDamageType;
 }
 
 export interface BattleActionPlan {
@@ -98,6 +110,7 @@ export interface BattleActionPlan {
   readonly itemIndex?: number;
   readonly targetIds: readonly BattleCombatantId[];
   readonly descriptor: Readonly<BattleActionDescriptor>;
+  readonly bodyPartId?: BodyPartId;
 }
 
 export interface BattleActionValidation {
@@ -135,6 +148,12 @@ export interface BattleActionExecutionContext {
     interaction: ElementalInteraction,
     element: Element,
   ): void;
+  onPhysicalInteraction?(
+    targetId: BattleCombatantId,
+    interaction: DamageInteraction,
+    damageType: PhysicalDamageType,
+    bodyPartId?: BodyPartId,
+  ): void;
 }
 
 export interface ResolvedBattleActionTarget {
@@ -144,6 +163,10 @@ export interface ResolvedBattleActionTarget {
   healing: number;
   hpBefore?: number;
   elementalLabel?: ElementalInteraction;
+  physicalLabel?: DamageInteraction;
+  physicalType?: PhysicalDamageType;
+  bodyPartId?: BodyPartId;
+  readonly healingRoll?: ResolvedEffectRoll;
 }
 
 export interface ResolvedBattleAction {
@@ -153,6 +176,10 @@ export interface ResolvedBattleAction {
   targets: ResolvedBattleActionTarget[];
   mpUsed: number;
   itemUsed: boolean;
+  readonly diceResults?: readonly {
+    readonly targetId: BattleCombatantId;
+    readonly result: CombatDiceReceipt;
+  }[];
 }
 
 export function createBattleActionSource(
@@ -207,9 +234,10 @@ export function getBattleActionDescriptor(
     return {
       kind: "attack",
       targetType: "single_enemy",
-      range: request.attackRange ?? "melee",
+      range: request.attackRange ?? getAttackRangeForWeapon(resources.actorState?.equippedWeapon),
       mpCost: 0,
       cost: "action",
+      physicalType: getWeaponPhysicalDamageType(resources.actorState?.equippedWeapon),
     };
   }
   if (request.kind === "defend") {
@@ -243,6 +271,7 @@ export function getBattleActionDescriptor(
       range: getAbilityRange(ability),
       mpCost: ability.mpCost,
       cost: ability.bonusAction ? "bonus_action" : "action",
+      physicalType: getAbilityPhysicalDamageType(ability.id, resources.actorState?.equippedWeapon),
     };
   }
 
@@ -348,6 +377,7 @@ function freezePlan(
     itemIndex: request.itemIndex,
     targetIds: frozenTargets,
     descriptor: frozenDescriptor,
+    bodyPartId: request.bodyPartId,
   });
 }
 
@@ -390,6 +420,19 @@ export function validateBattleAction(
   ) {
     return { valid: false, message: "Actor does not know that ability." };
   }
+  if (descriptor.kind === "ability") {
+    const ability = getAbility(descriptor.actionId ?? "");
+    if (ability?.equipmentRequirement || ability?.progressionScope === "track") {
+      if (!resources.actorState) return { valid: false, message: "Action equipment context is unavailable." };
+      const rejection = getActorAbilityRejection(resources.actorState, ability.id);
+      if (rejection) return { valid: false, message: rejection };
+    }
+  }
+  if (descriptor.kind === "spell" && getSpell(descriptor.actionId ?? "")?.progressionScope === "track") {
+    if (!resources.actorState || !canActorUseSpell(resources.actorState, descriptor.actionId ?? "")) {
+      return { valid: false, message: "The acting character has not learned this spell." };
+    }
+  }
   if (resources.mp < descriptor.mpCost) {
     return { valid: false, message: "Not enough MP." };
   }
@@ -415,6 +458,22 @@ export function validateBattleAction(
   );
   if (targetIds.length === 0) {
     return { valid: false, message: "No valid target for that action." };
+  }
+  if (request.bodyPartId !== undefined) {
+    const target = combatants.find((candidate): candidate is GroupCombatant =>
+      candidate.id === targetIds[0] && candidate.side === "enemy"
+      && candidate.actorKind === "monster" && "monster" in candidate
+    );
+    if (!resources.actorState || !descriptor.physicalType || targetIds.length !== 1
+      || (descriptor.kind !== "attack" && descriptor.kind !== "ability")
+      || (descriptor.targetType !== "single" && descriptor.targetType !== "single_enemy")
+      || !target || !getBodyPart(target.monster, request.bodyPartId)) {
+      return { valid: false, message: "That body part cannot be targeted by this action." };
+    }
+    if (descriptor.kind === "attack"
+      && descriptor.range !== getAttackRangeForWeapon(resources.actorState.equippedWeapon)) {
+      return { valid: false, message: "Aimed attack range does not match the equipped weapon." };
+    }
   }
 
   return {
@@ -536,6 +595,24 @@ function recordElementalInteraction(
   context.onElementalInteraction?.(targetId, interaction, element);
 }
 
+function recordPhysicalInteraction(
+  context: BattleActionExecutionContext,
+  target: GroupCombatant,
+  result: { physicalLabel?: DamageInteraction; physicalType?: PhysicalDamageType; bodyPartId?: BodyPartId },
+): void {
+  if (!result.physicalLabel || !result.physicalType) return;
+  if (!target.physicalDiscoveries.some((entry) =>
+    entry.damageType === result.physicalType && entry.bodyPartId === result.bodyPartId
+  )) {
+    target.physicalDiscoveries.push({
+      damageType: result.physicalType, bodyPartId: result.bodyPartId,
+    });
+  }
+  context.onPhysicalInteraction?.(
+    target.id, result.physicalLabel, result.physicalType, result.bodyPartId,
+  );
+}
+
 /** Execute a previously validated plan using reusable combat mechanics. */
 export function executeValidatedBattleAction(
   source: BattleActionSource,
@@ -561,6 +638,39 @@ export function executeValidatedBattleAction(
       mpUsed: 0,
       itemUsed: false,
     };
+  }
+  const actionRejection = plan.kind === "spell" && !canActorUseSpell(source.state, plan.actionId ?? "")
+    ? "The acting character has not learned this spell."
+    : plan.kind === "ability" ? getActorAbilityRejection(source.state, plan.actionId ?? "") : undefined;
+  if (actionRejection) {
+    return {
+      executed: false,
+      message: actionRejection,
+      plan,
+      targets: [],
+      mpUsed: 0,
+      itemUsed: false,
+    };
+  }
+  if (plan.bodyPartId !== undefined) {
+    const fresh = validateBattleAction(context.combatants, {
+      actorId: plan.actorId, kind: plan.kind, actionId: plan.actionId,
+      preferredTargetId: plan.targetIds[0], bodyPartId: plan.bodyPartId,
+      attackRange: plan.descriptor.range,
+    }, {
+      mp: source.state.mp, inventory: source.state.inventory,
+      economy: createBattleActionEconomy(plan.actorId), actorState: source.state,
+      knownSpellIds: source.state.knownSpells, knownAbilityIds: source.state.knownAbilities,
+    });
+    if (!fresh.valid) {
+      return { executed: false, message: fresh.message, plan, targets: [], mpUsed: 0, itemUsed: false };
+    }
+    if (fresh.plan?.descriptor.physicalType !== plan.descriptor.physicalType) {
+      return {
+        executed: false, message: "The aimed weapon changed. Select the action again.",
+        plan, targets: [], mpUsed: 0, itemUsed: false,
+      };
+    }
   }
 
   if (plan.kind === "defend") {
@@ -650,10 +760,14 @@ export function executeValidatedBattleAction(
       target.monster,
       (target.isDefending ? 2 : 0)
         + (context.getEnemyDefenseBonus?.(target) ?? 0),
-      context.weatherPenalty ?? 0,
+      (context.weatherPenalty ?? 0) + getFormationAttackPenalty(
+        context.enemies, context.enemies.indexOf(target), plan.descriptor.range,
+      ),
       target.effects,
+      plan.bodyPartId,
     );
     target.currentHp = Math.max(0, target.currentHp - result.damage);
+    const appliedResult = captureDamageApplication(result, hpBefore - target.currentHp);
     if (target.currentHp === 0) {
       target.isAlive = false;
       target.isKnockedOut = true;
@@ -664,10 +778,12 @@ export function executeValidatedBattleAction(
       result.elementalLabel,
       source.state.equippedWeapon?.element,
     );
+    recordPhysicalInteraction(context, target, result);
     return {
       executed: true,
       message: result.message,
       plan,
+      diceResults: [{ targetId: target.id, result: appliedResult }],
       targets: [{
         targetId: target.id,
         hit: result.hit,
@@ -675,6 +791,9 @@ export function executeValidatedBattleAction(
         healing: 0,
         hpBefore,
         elementalLabel: result.elementalLabel,
+        physicalLabel: result.physicalLabel,
+        physicalType: result.physicalType,
+        bodyPartId: result.bodyPartId,
       }],
       mpUsed: 0,
       itemUsed: false,
@@ -705,6 +824,7 @@ export function executeValidatedBattleAction(
       healingTargets,
     );
     const targets: ResolvedBattleActionTarget[] = [];
+    const diceResults: { targetId: BattleCombatantId; result: CombatDiceReceipt }[] = [];
     for (const targetResult of result.results) {
       const target = enemies[targetResult.targetIndex];
       if (!target) continue;
@@ -714,6 +834,10 @@ export function executeValidatedBattleAction(
         target.isAlive = false;
         target.isKnockedOut = true;
       }
+      diceResults.push({
+        targetId: target.id,
+        result: captureDamageApplication(targetResult, hpBefore - target.currentHp),
+      });
       recordElementalInteraction(
         context,
         target.id,
@@ -735,6 +859,7 @@ export function executeValidatedBattleAction(
         hit: true,
         damage: 0,
         healing: healingResult.healing,
+        healingRoll: healingResult.healingRoll,
       });
     }
     for (const effectResult of result.effectResults ?? []) {
@@ -752,6 +877,7 @@ export function executeValidatedBattleAction(
         || (result.effectResults?.length ?? 0) > 0,
       message: result.message,
       plan,
+      diceResults,
       targets,
       mpUsed: result.mpUsed,
       itemUsed: false,
@@ -793,11 +919,16 @@ export function executeValidatedBattleAction(
     target.monster,
     (context.weatherPenalty ?? 0)
       + (target.isDefending ? 2 : 0)
-      + (context.getEnemyDefenseBonus?.(target) ?? 0),
+      + (context.getEnemyDefenseBonus?.(target) ?? 0)
+      + (ability?.type === "damage" ? getFormationAttackPenalty(
+        context.enemies, context.enemies.indexOf(target), plan.descriptor.range,
+      ) : 0),
     target.effects,
     healingTargets,
+    plan.bodyPartId,
   );
   target.currentHp = Math.max(0, target.currentHp - result.damage);
+  const appliedResult = captureDamageApplication(result, hpBefore - target.currentHp);
   if (target.currentHp === 0) {
     target.isAlive = false;
     target.isKnockedOut = true;
@@ -808,6 +939,7 @@ export function executeValidatedBattleAction(
     result.elementalLabel,
     getAbility(plan.actionId)?.element,
   );
+  recordPhysicalInteraction(context, target, result);
   const targets: ResolvedBattleActionTarget[] = result.damage > 0
     ? [{
         targetId: target.id,
@@ -816,6 +948,9 @@ export function executeValidatedBattleAction(
         healing: 0,
         hpBefore,
         elementalLabel: result.elementalLabel,
+        physicalLabel: result.physicalLabel,
+        physicalType: result.physicalType,
+        bodyPartId: result.bodyPartId,
       }]
     : [];
   for (const healingResult of result.healingResults ?? []) {
@@ -824,6 +959,7 @@ export function executeValidatedBattleAction(
       hit: true,
       damage: 0,
       healing: healingResult.healing,
+      healingRoll: healingResult.healingRoll,
     });
   }
   return {
@@ -831,6 +967,9 @@ export function executeValidatedBattleAction(
       || (ability?.mpCost === 0 && result.hit),
     message: result.message,
     plan,
+    diceResults: result.rollResult
+      ? [{ targetId: target.id, result: appliedResult }]
+      : [],
     targets,
     mpUsed: result.mpUsed,
     itemUsed: false,

@@ -3,6 +3,7 @@ import {
   clickLayoutItem,
   expectCleanLayout,
   layoutItemCenter,
+  tapLayoutItem,
 } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
@@ -219,19 +220,19 @@ test.describe("touch controls", () => {
     await expect(page.locator('[data-action="openTips"]')).toBeHidden();
 
     await page.locator('[data-action="navigateUp"]').tap();
-    await tapGame(page, 320, 76);
+    await tapLayoutItem(page, "creation-name");
     await expect(page.locator("#mobile-text-input")).toBeVisible();
     await expect(page.locator("#mobile-text-input input")).toHaveValue("Hero");
     await page.locator("#mobile-text-input input").fill("Touch");
     await page.locator('[data-action="confirm"]').tap();
     await expect(page.locator("#mobile-text-input")).not.toBeVisible();
     await waitForState(page, "BOOT | Screen: character");
-    await tapGame(page, 320, 76);
+    await tapLayoutItem(page, "creation-name");
     await page.locator("#mobile-text-input input").fill("Touch Hero");
     await page.locator("#mobile-text-input input").press("Enter");
     await expect(page.locator("#mobile-text-input")).not.toBeVisible();
     await waitForState(page, "BOOT | Screen: character");
-    await tapGame(page, 284, 160);
+    await tapLayoutItem(page, "creation-class-ranger");
     await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "BOOT | Screen: stats [STAT:strength]");
     await page.locator('[data-action="navigateDown"]').tap();
@@ -240,7 +241,7 @@ test.describe("touch controls", () => {
     await waitForState(page, "BOOT | Screen: character [CLASS:ranger]");
     await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "BOOT | Screen: stats [STAT:strength]");
-    await tapGame(page, 390, 64);
+    await tapLayoutItem(page, "creation-stat-mode-random");
     await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "BOOT | Screen: appearance [GROUP:1/4]");
     await page.locator('[data-action="navigateDown"]').tap();
@@ -249,7 +250,7 @@ test.describe("touch controls", () => {
     await waitForState(page, "BOOT | Screen: stats [STAT:strength] [MODE:random]");
     await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "BOOT | Screen: appearance [GROUP:1/4]");
-    await tapGame(page, 320, 112);
+    await tapLayoutItem(page, "appearance-randomize");
     await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "CUTSCENE");
     expect(await page.evaluate(() => {
@@ -422,11 +423,11 @@ test.describe("standard gamepad controls", () => {
     await waitForState(page, "BOOT | Screen: character");
     await pressGamepad(0);
     await waitForState(page, "BOOT | Screen: stats");
-    await clickGame(page, 390, 64);
-    await clickGame(page, 400, 460);
+    await clickLayoutItem(page, "creation-stat-mode-random");
+    await clickLayoutItem(page, "creation-stats-next");
     await waitForState(page, "BOOT | Screen: appearance");
-    await clickGame(page, 320, 112);
-    await clickGame(page, 420, 312);
+    await clickLayoutItem(page, "appearance-randomize");
+    await clickLayoutItem(page, "appearance-start");
     await waitForState(page, "CUTSCENE");
     for (let step = 0; step < 30; step += 1) {
       const state = await page.locator("#debug-state").textContent() ?? "";

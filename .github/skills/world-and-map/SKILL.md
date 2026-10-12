@@ -80,6 +80,21 @@ available before boat ownership. Disembarkation validates canonical walkability
 and rejects towns, dungeons, bosses, chests, events, and other blocked landing
 tiles. Sea encounter rates always pass through `getEffectiveEncounterRate()`.
 
+## Harbor courses and activity venues
+
+Activity venues are stable non-blocking metadata on existing walkable city
+districts. Show D/A/R flags only when their tiles are explored, remove hidden
+hit targets, and reveal instructions/personal boards from authoritative venue
+evidence rather than quest or achievement authority.
+
+Harbor Regatta supplies a seeded local course to shared
+`nauticalNavigation.ts` cardinal/Water/boat/depth checks. It never mutates
+campaign maps, position, sailing, sea fog, travel routes, or encounters.
+Forecasts reuse seeded canonical biome/time weather without changing world
+weather. Paid wear commits per input, uses canonical upgrades, is capped, and
+leaves at least one condition; practice has no wear. See
+[`docs/minigames.md`](../../../docs/minigames.md).
+
 ## Random World Events
 
 World Events run only on ordinary overworld movement after the move and
@@ -122,6 +137,15 @@ City and dungeon entry emit idempotent Codex location signals. Readable records
 reuse stable non-walkable temple/statue coordinates defined in
 `src/data/codexKnowledge.ts`; interaction is adjacent and presentation-only.
 Do not add lore flags to map terrain or use Codex state for access decisions.
+
+## Fictional temples
+
+Fictional devotion sites are canonical metadata in `src/data/devotion.ts`.
+Reuse existing blocked statues/temples without replacing Codex readables.
+Tidehaven's model has a safe adjacent approach. Validate the live city,
+logical district and walkable adjacency before rites or affiliation choices.
+Merchant routes keep the island quest accessible without a boat or affiliation.
+Temple visits and devotion never become world/quest access authority.
 
 ## Multi-chunk cities
 

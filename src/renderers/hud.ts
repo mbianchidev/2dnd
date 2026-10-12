@@ -8,6 +8,32 @@ import { xpForLevel } from "../systems/player";
 import { MAP_WIDTH, MAP_HEIGHT } from "../data/map";
 import { TILE_SIZE } from "../config";
 import { isReducedMotionEnabled } from "../systems/accessibility";
+import { layoutVerticalStack } from "../systems/layout";
+import { getScaledBounds } from "../managers/layout";
+
+/** Expand the bottom message surface upward and keep concurrent prompts in separate rows. */
+export function layoutHudMessages(
+  scene: Phaser.Scene,
+  background: Phaser.GameObjects.Graphics,
+  message: Phaser.GameObjects.Text,
+  location: Phaser.GameObjects.Text,
+): void {
+  const width = scene.cameras.main.width;
+  const height = scene.cameras.main.height;
+  const texts = [message, location].filter((text) => text.active && text.alpha > 0 && text.text.trim().length > 0);
+  texts.forEach((text) => text.setWordWrapWidth(width - 24 - text.style.strokeThickness, true));
+  const stack = layoutVerticalStack(texts.map((text, index) => ({
+    id: String(index), width: text.displayWidth, height: text.displayHeight,
+  })), { x: 12, width: width - 24, gap: 6, align: "center" });
+  const top = Math.max(0, height - stack.height - 16);
+  stack.items.forEach((item, index) => {
+    const text = texts[index]!;
+    const bounds = getScaledBounds(text);
+    text.setPosition(text.x + item.x - bounds.x, text.y + top + 8 + item.y - bounds.y);
+  });
+  background.clear().fillStyle(0x1a1a2e, 0.95).fillRect(0, top, width, height - top);
+  background.lineStyle(2, 0xc0a060, 1).strokeRect(1, top + 1, width - 2, height - top - 2);
+}
 
 export class HUDRenderer {
   private scene: Phaser.Scene;

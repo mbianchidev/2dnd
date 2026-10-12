@@ -33,7 +33,7 @@ import type {
 } from "../data/nautical";
 import type { SkillCheckAbility } from "../data/skillChecks";
 import { WeatherType } from "./weather";
-import { DIFFICULTY_SAVE_VERSION, MAX_COMPOSED_DIFFICULTY_PRICE_MULTIPLIER } from "./difficulty";
+import { DIFFICULTY_PREVIEW_SAVE_VERSION, MAX_COMPOSED_DIFFICULTY_PRICE_MULTIPLIER } from "./difficulty";
 
 export const NAUTICAL_ID_HISTORY_LIMIT = 120;
 export const NAUTICAL_SEA_TILE_LIMIT = 5_000;
@@ -382,7 +382,7 @@ function normalizePendingRoute(
     fromPortId: value["fromPortId"],
     toPortId: value["toPortId"],
     boatId: value["boatId"],
-    feePaid: sourceVersion < DIFFICULTY_SAVE_VERSION ? route.fee
+    feePaid: sourceVersion < DIFFICULTY_PREVIEW_SAVE_VERSION ? route.fee
       : clampInteger(value["feePaid"], 0,
         Math.ceil(route.fee * MAX_COMPOSED_DIFFICULTY_PRICE_MULTIPLIER), route.fee),
     safety: route.safety,

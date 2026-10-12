@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v19, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v26, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -16,10 +16,25 @@ Campaign normalization and autosave compatibility live in
 `src/systems/saveStorage.ts`; and shared Phaser presentation lives in
 `src/managers/saveSlots.ts`. Shared audio, accessibility, and inventory
 presentation preferences stay separate.
+`src/renderers/saveSlotPanel.ts` measures wrapped rows/actions/footers and pages
+slot lists as needed. Reflow preserves selected IDs and release-based activation;
+it never changes source-slot bytes, transactions or the save schema.
+`src/systems/saveActor.ts` validates required hero authority, preserves usable
+serialized hero items, and shares equipment repair with companion normalization.
 
 Browser builds use their HTTP/HTTPS origin. Packaged Electron builds use the
 stable secure `app://2dnd` origin and the same save implementation. The stores
 remain isolated and are never copied or merged implicitly.
+
+Steam Cloud/Auto-Cloud remains disabled. Preparation never copies or syncs
+Chromium profile databases and introduces no native storage bridge. A future
+Cloud adapter must export validated slot/preference documents through these
+owners and explicitly handle conflicts, quota, corruption, backups, offline
+replay and cross-device/account policy; see `docs/steam.md`.
+
+The bounded `2dnd:save-slot-write` Performance measure times the actual atomic
+adapter path and retains only its latest duration/outcome, never campaign
+content. It is instrumentation, not persistent state or a schema change.
 
 ## Storage keys
 
@@ -37,12 +52,13 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 19.
+`SAVE_VERSION` is 26.
 
-Schema v19 owns `player.difficulty`: canonical selection, bounded Custom
+Schema v26 owns `player.difficulty`: canonical selection, bounded Custom
 overrides, initial profile, lifetime change count, and at most 20 validated
 causes. Normalize from unknown through `normalizeCampaignDifficulty()` before
-achievement reconciliation. Legacy v18 and older retain Standard; repaired
+achievement reconciliation. Campaigns through v25 without difficulty retain Standard;
+valid v19 rule previews preserve owned selection/history and legacy hero resources. Repaired
 modern continuity is never inferred as an unchanged high-difficulty campaign.
 Persist no derived modifiers or future scale layers. Actual merchant-route
 `feePaid` is a bounded transaction receipt, not a rate to recompute at reload.
@@ -53,6 +69,69 @@ block pending outcomes and input handoffs, append one canonical cause, autosave
 once, and restore the exact prior metadata on save failure. A no-op selection
 does not write another cause or remove challenge continuity. Never replay or
 rerate existing resources, checks, rewards, or recovery receipts.
+Schema v24 adds optional armor-only `Item.physicalResistances` with unique known
+types. Keep valid custom lists, including empty lists, and exact equipped
+same-ID objects. Resolve old canonical armor at use time without rewriting
+owned metadata. Invalid custom ownership rejects a candidate; malformed known
+gear uses the normal item repair path. Preserve v23 observations, exact
+minigames, frozen/rest credits, stats, resources and all other domains.
+
+Schema v23 adds `CodexEntry.discoveredPhysical` with stable physical type and
+optional canonical part IDs, plus optional weapon-only `physicalDamageType`.
+Pre-v22 campaigns gain empty observations without fabricated history.
+Schema-v22 activity campaigns missing physical observations gain empty lists;
+valid v22 physical-combat previews retain their observations and typed weapons.
+Normalize duplicate/unknown/neutral/impossible observations and malformed
+weapon types. Preserve all earlier domains, custom metadata/order and exact
+equipped object links. Legacy weapons resolve typing at use time without
+mutating their serialized copies. Monster selection/limb effects remain
+runtime-only. See `docs/physical-combat.md`.
+
+Schema v22 adds exact pending tavern/festival sessions, permanent session and
+settlement watermarks, finite milestone claims, paid/practice personal bests,
+natural statistics, discovered venues, and bounded history through
+`src/systems/minigameState.ts`. History is never a payment ledger. Replacing a
+bad seed or retiring an invalid pending state cannot refund, reroll, recharge,
+replay a reward, or restore boat condition.
+Missing activity state in schema-v21 and older campaigns receives deterministic
+empty defaults; valid schema-v19/v20/v21 feature previews preserve their exact
+run IDs, challenges, paid/wear receipts, ledgers, claims, and personal records.
+Original v19 activity previews without `classProgression` require legacy hero
+migration so resource rolls and exceptional/deferred grants remain unchanged.
+
+Schema v21 adds independent optional devotion. Older campaigns without that
+record stay unaffiliated/zero and consume historical sources without rewards.
+Validate existing schema-v19/v20 feature-preview devotion instead of resetting
+its owned affiliation, source/visit ledgers or remaining blessing turns.
+
+Schema v20 recognizes the six registered five-rank prestige profiles through
+the same `player.classProgression` owner. Optional `debugTrackIds` defaults to
+empty and retains only owned canonical IDs; debug paths grant no natural
+prestige cosmetics. Unknown, malformed or overcap path authority rejects the
+candidate for slot recovery. Schema-v19 and earlier saves gain no prestige
+ranks/knowledge and preserve frozen/rest-ready/legacy/deferred resources,
+stats and custom equipment. Path-only features cannot enter legacy exception
+lists; never requalify earned ranks or replay bonuses on load.
+
+Schema v19 adds `player.classProgression`: stable starting identity, base
+ranks, reserved empty external ranks, rest-ready credits, one frozen resource
+receipt, retained canonical legacy exceptions, and optional undelivered legacy
+grants. The flat `level` mirrors total ownership.
+Use `classProgressionState.ts` to normalize unknown counts, IDs, knowledge,
+resources, receipts and exact equipped inventory links. Do not recheck mutable
+entry requirements or reroll/reapply historical gains. Undelivered legacy
+unlocks wait for the next applied level, including across intermediate saves.
+
+`heroItemState.ts` validates serialized hero items without dropping well-formed
+custom IDs, metadata or append order. Equipment matches complete serialized
+content so same-ID duplicates retain exact ownership; valid legacy orphan gear
+is recovered. Companion inventory restrictions remain canonical and separate.
+
+Campaign loads validate required core fields with `hasUsableSavePlayerCore()`
+before progression repair. `normalizeSavedHeroInventory()` reuses the shared
+item guard, rejects unusable unknown ownership and repairs malformed known
+records. Progression normalization relinks hero equipment exactly once; do not
+run the companion first-ID relinker over those links afterward.
 
 ```typescript
 interface SaveData {
@@ -74,6 +153,20 @@ loading path.
 Schema v18 normalizes malformed or missing playtime to zero. Storage metadata
 does not enter the campaign payload. Autosave and manual slot IDs are stable;
 manual saves are independent snapshots.
+
+Schema v25 adds `player.battleTiming` configuration: Standard/Timed,
+15/30/45/60/90-second durations, and fixed validated Defend. Campaigns without
+the field start Standard; valid v19 timing previews preserve configuration and
+use legacy hero migration if they predate class ownership. Malformed modes
+never opt in. Normalize from `unknown`
+with `normalizeBattleTimingSettings()`, default unsupported durations to 30,
+and repair unsupported policies to Defend. Manual snapshots keep their own
+configuration. Never serialize a countdown deadline or partial Battle economy;
+loading uses existing checkpoint/pending-encounter recovery without executing
+a timeout, action, or reward. See [Timed battle decisions](../../../docs/battle-timing.md).
+Configuration is editable only in Overworld; Battle log Pause/Resume does not
+save live combat resources. Result/reward hooks must finish before actor and
+companion effects are cleared and before outgoing Battle autosave.
 
 ```typescript
 interface CodexData {
@@ -119,10 +212,12 @@ interface PlayerProgression {
   tutorial: TutorialProgress;
   worldEvents: WorldEventState;
   social: SocialState;
+  devotion: DevotionState;
   achievements: AchievementState;
   gathering: GatheringState;
   crafting: CraftingState;
   nautical: NauticalState;
+  minigames: MinigameState;
   discoveredFeatureIds: FeatureId[];
   pendingFeatureRevealIds: FeatureId[];
   debugDiscoveredFeatureIds: FeatureId[];
@@ -147,7 +242,8 @@ interface QuestLogState {
 bounded continuity metadata. Derived rules, price factors, timer execution,
 and future scale layers are never stored there. Slots derive difficulty labels
 and current challenge eligibility; loading a snapshot never changes its source.
-Codex entries persist `discoveredElements`. `PlayerState.party` persists unique
+Codex entries persist `discoveredElements` and body-scoped `discoveredPhysical`.
+`PlayerState.party` persists unique
 companion states, active order, independent progression/inventories/equipment,
 control modes, dialogue state, and gambits. Quest progress stores status, stage,
 objective counters, claimed reward IDs, and acknowledged danger warnings.
@@ -167,6 +263,13 @@ counters, and the bounded chronological World Events record.
 scores, stable applied source IDs, and at most 40 recent cause entries. Names,
 tiers, thresholds, shop modifiers, Codex milestones, and achievement hooks are
 derived.
+`devotion` persists one optional fictional affiliation, a bounded independent
+score, canonical source/visit ledgers, debug-consumed sources, an affiliation
+sequence and bounded causes. Tiers/domains/tenets are derived; blessings remain
+normal `activeEffects` with no parallel clock. Older campaigns missing devotion
+remain unaffiliated/zero; existing schema-v19/v20 feature-preview records are
+normalized without losing owned state. Exact historical sources are consumed
+without reconstructing scores or rewards. See `docs/devotion.md`.
 `achievements` persists earned records, once-only event counters/IDs, explicit
 defeat-history validity, unlocked/equipped cosmetic titles, debug suppression,
 and pending notice IDs. Definitions, categories, points, totals, and
@@ -186,10 +289,25 @@ Feature discovery persists only stable revealed IDs, pending one-time feedback,
 marked debug reveals, and debug-suppressed evidence. Availability is reconciled
 from authoritative gameplay state and never controls that state.
 
+`minigames` persists only exact activity authority and durable personal evidence.
+The moving archery meter, input contexts, Phaser/DOM objects, and presentation
+clocks are runtime-only. Accepted inputs, payments, hull wear, settlement, and
+abandonment use save-before-reveal rollback across all touched consumers.
+
 ## Loading and migration
 
 Treat parsed JSON as `unknown`. Use typed record guards and normalization
 helpers; do not cast unvalidated nested values directly.
+Reject unusable hero identity, level, stats, economy, resources, spell lists,
+or item-ID arrays before repairing optional campaign state. Preserve well-formed
+hero item records, legacy/custom IDs, metadata, and order. Repair malformed known
+hero items from canonical definitions; reject unusable unknown records without
+deleting ownership. Companion inventories retain canonical normalization.
+Relink equipment only to owned items. Invalid primaries must fall through to
+staging/backup; invalid imports must not change any slot bytes.
+Use `getSaveStorage()` for campaign access: browser privacy settings can throw
+on the `localStorage` getter itself. Denied storage must leave title diagnostics
+and in-memory preferences usable while reporting campaign write failures.
 
 `loadGame()` currently handles:
 
@@ -240,7 +358,15 @@ helpers; do not cast unvalidated nested values directly.
 - Missing, malformed, duplicate, or unknown feature IDs through
   `normalizeFeatureDiscoveryProgress()`; schema-v16 and older saves discard
   pending/debug metadata and silently reconcile mature authoritative evidence
+- Schema-v21 and older missing minigame state gets deterministic empty defaults;
+  valid feature previews preserve exact authority; current unknown
+  normalization validates venue/ruleset/difficulty IDs, fixed challenge
+  components, score/payout caps, revisions/phases, permanent watermarks, finite
+  claims, debug/practice isolation, and recovered location/boat state
 - Missing time and weather data
+- Missing/legacy/corrupt devotion through `normalizeDevotionState()`; validate
+  canonical IDs, duplicate/source/history cross-fields and temple blessing
+  source/affiliation/turns without refreshing or reconstructing an effect
 - Invalid string arrays and explored-tile records
 
 ## Location recovery
@@ -321,17 +447,27 @@ as backup, and roll back failures. Reads recover primary, interrupted staging,
 or backup in that order. Save failures use `debugLog()` and a visible
 screen-reader alert. Loading returns `null` only when the selected slot has no
 recoverable valid campaign.
+Healthy manual reads/copies preserve source bytes, but recovery reads may repair
+the source primary and legacy migration may write bookkeeping. They are not
+read-only inspection APIs. Copy preserves gameplay/playtime, updates only the
+destination timestamp/name, and does not start a playtime session.
+The slot manager owns nested Esc/B/touch Cancel behavior. Scene-level Escape
+listeners must yield while it is open so cancellation returns from confirmation
+to browsing before closing the manager.
 
 ## Tests
 
 `tests/save.test.ts`, `tests/saveSlots.test.ts`, and
-`tests/saveStorage.test.ts` cover:
+`tests/saveStorage.test.ts`, `tests/saveValidation.test.ts`, and
+`tests/saveAvailability.test.ts` cover:
 
 - Save/load round trips
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v19 difficulty, playtime, position, objective/reward/warning quest state,
+- Current schema-v26 difficulty, battle timing, armor metadata, physical discovery, minigame authority, devotion,
+  hero/base/prestige progression, playtime,
+  position, objective/reward/warning quest state,
   skill checks,
   traps, party state, pending cutscene queue, tutorial completion, and World
   Event recovery, plus alignment/reputation round trips and corruption repair
@@ -352,12 +488,20 @@ recoverable valid campaign.
 - one-time schema-v17 autosave migration, atomic writes, quota failures,
   corruption isolation, backup/staging recovery, metadata, independent slots,
   overwrite, rename, copy, delete, and validated deterministic import/export
+- unusable required hero cores, canonical item/equipment repair, exact-byte
+  preservation on rejected imports and healthy copy/load/autosave paths, and
+  denied storage-property access without breaking title/preferences
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v19 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v26 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
+
+`tests/minigameSave.test.ts` covers exact pending/result round trips, conservative
+corrupt repair, legacy defaults, and manual-source isolation.
+`electron-tests/minigames.spec.ts` covers actual multi-input activity recovery
+and once-only settlement on the secure packaged origin.
 
 ## Common pitfalls
 

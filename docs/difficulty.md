@@ -16,7 +16,9 @@ text heights and reserve measured footer space, rather than assuming a fixed
 row count. Focus follows its stable rule ID when wrapping changes. Supported
 text scales, high contrast, and reduced motion remain usable; the native
 screen-reader dialog includes non-interactive previews and exact confirmed
-value changes.
+value changes. In Settings, Left/Right selects Battle Timing or Rules; Confirm
+opens the selected control. Timing remains the default selection and remains
+independent of the campaign profile.
 
 ## Preset effects
 
@@ -55,6 +57,9 @@ composition at 15%. World Events keep their independent 8% cap and are not made
 more frequent by difficulty. Boss fleeing remains prohibited. Quest gates,
 required interactions, social outcomes, crafting success, gathering patterns,
 and the real final Elowen interaction never depend on a profile.
+Tavern/festival activities retain their own tier, wager, fixed challenge and
+settlement rules. Their paid sessions and once-only receipts remain independent
+of campaign rule changes.
 
 ## Custom bounds
 
@@ -88,7 +93,7 @@ preset-challenge consequence, then Confirm Change performs one autosave
 transaction.
 
 Battle, queued cutscenes, scene handoffs, movement, active dialogue, and pending
-World Event, gathering, merchant-route, sea-hazard, or sea-encounter outcomes
+World Event, gathering, tavern/festival, merchant-route, sea-hazard, or sea-encounter outcomes
 block the transaction. Finish the authoritative outcome first. Existing checks,
 resources, rewards, recruitment, quests, social state, and recovery receipts are
 not replayed or rerated.
@@ -138,7 +143,9 @@ Text scale, high contrast, reduced motion, audio, input/prompt preferences, and
 dice presentation do not enter difficulty classification or campaign metadata.
 A timer suggestion never enables timing or supplies a countdown. Its optional
 consumer may apply a supported duration only after timed rounds were explicitly
-enabled.
+enabled. The existing Battle timing engine consumes this duration suggestion
+once at battle initialization; changing profiles never toggles that engine or
+rewrites its saved configuration.
 
 ## Ownership and extension APIs
 
@@ -152,31 +159,42 @@ enabled.
 `resolveDifficultyRules(selection, scale?)` composes the profile and one optional
 `DifficultyScaleLayer`. HP, damage, pressure, XP, gold, and price layer multipliers
 must be finite from 0.25 to 4. Consumers apply the resulting rules once through
-`scaleEnemy`, `scaleEnemyDamage`, `scaleReward`, `scaleCost`, `scaleSaleValue`,
+`scaleEnemy`, `scaleEnemyDamage`, `scaleEnemyDamageRoll`, `scaleReward`, `scaleCost`, `scaleSaleValue`,
 and `getDifficultyEncounterRate`.
 
 Runtime combatants keep both a scaled HP copy and their immutable base definition.
 Codex persistence stores canonical base stats, not adjusted enemy HP. Save slots
 derive their profile label, continuity count, and current eligibility.
+Damage receipts keep their exact rolled faces/modifiers and record campaign
+scaling before armor, elements, shields and HP caps. Standard adds no adjustment.
 
 These APIs are extension points for future New Game+ work. They do not implement
 cycles, carry/reset policy, epic progression, or timed-round execution.
 
 ## Persistence and coverage
 
-Schema 19 adds `player.difficulty`: canonical selection, bounded Custom overrides,
+Schema 26 adds `player.difficulty`: canonical selection, bounded Custom overrides,
 initial profile ID, lifetime change count, and the latest 20 canonical causes.
-Legacy schema 18 and older normalize to Standard. Malformed modern selections,
+Campaigns through schema25 without difficulty normalize to Standard. Valid
+schema19 difficulty previews retain selection/history and use the legacy hero
+adapter if class ownership was not yet stored. This preserves exact old
+resources and item links rather than replaying progression gains.
+Malformed modern selections,
 bounds, or continuity recover conservatively; unrelated campaign state and claimed
 rewards remain intact.
 
 `difficultyBaseline.test.ts` contains a matrix captured from main `183954b`
 before the feature: all 58 enemies/abilities, group/solo rewards, natural
 attack outcomes, exact odd-value defeat/companion recovery, economy, flee,
-encounters, and checks. It is not regenerated to accommodate altered mechanics.
+encounters, and checks. It is not regenerated to accommodate altered mechanics;
+the original output projection excludes later dice/physical presentation
+receipts while retaining every captured mechanic and digest.
 Focused mode suites exercise all seven chapters/twelve cities, keystone bosses,
 companions/gambits, events, social bounds, crafting margins, gathering, sea,
 defeat, migration, independent slots, and honest eligibility.
+`difficultyIntegration.test.ts` additionally covers physical armor and exact
+roll/HP receipts, opt-in timing suggestions, all three pending activity types,
+main-v25 authority preservation and legacy difficulty-preview migration.
 
 `e2e/difficulty.spec.ts` covers actual preset/Custom creation, keyboard, touch,
 gamepad, supported text scales, preference independence, save metadata/reload,

@@ -5,7 +5,7 @@
 import * as Phaser from "phaser";
 import type { PlayerState } from "../systems/player";
 import { useItem, ownsEquipment, sellItem, isLastEquipment, isItemEquipped } from "../systems/player";
-import { getShopItems, getShopItemsForTown, getSellValue, canSellItem, type Item } from "../data/items";
+import { getItemDescription, getShopItems, getShopItemsForTown, getSellValue, canSellItem, type Item } from "../data/items";
 import { discoverCraftingRecipes } from "../systems/crafting";
 import {
   unlockCodexFromSignal,
@@ -26,9 +26,15 @@ import {
   rollSkillCheck,
 } from "../systems/skillChecks";
 import { saveGame } from "../systems/save";
+import { restPartyAtInn } from "../systems/party";
+import { prepareHeroLevelUp } from "../systems/classProgression";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { installSceneAccessibility } from "../systems/accessibility";
-import { CodexDiscoveryManager } from "../managers/codexDiscovery";
+import {
+  installDicePresentation,
+  presentSkillDiceResult,
+} from "../managers/dicePresentation";
+import { createSharedSceneState } from "../systems/sceneState";
 import {
   combineShopAdjustments,
   getTownShopAdjustment,
@@ -64,7 +70,7 @@ export class ShopScene extends Phaser.Scene {
   private sellTabButton!: Phaser.GameObjects.Text;
   private negotiateButton?: Phaser.GameObjects.Text;
   private negotiationOverlay: Phaser.GameObjects.Container | null = null;
-  private codexDiscovery!: CodexDiscoveryManager;
+  private pendingCodexDiscoveryIds: string[] = [];
 
   constructor() {
     super({ key: "ShopScene" });
@@ -110,6 +116,7 @@ export class ShopScene extends Phaser.Scene {
     );
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.negotiationOverlay = null;
+    this.pendingCodexDiscoveryIds = [];
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -126,10 +133,7 @@ export class ShopScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x1a1a2e);
     this.sceneTransitions.prepare(300);
     installSceneAccessibility(this);
-    this.codexDiscovery = new CodexDiscoveryManager(this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.codexDiscovery.clear();
-    });
+    installDicePresentation(this);
 
     // Play city music for this town
     if (audioEngine.initialized) {
@@ -491,6 +495,7 @@ export class ShopScene extends Phaser.Scene {
       `Charisma check (${formatSkillCheckResult(result)}): ${outcome}`,
       result.success ? "#88ff88" : "#ff8888",
     );
+    presentSkillDiceResult(this, result, `Charisma negotiation: ${option.label}`);
     saveGame(
       this.player,
       this.defeatedBosses,
@@ -555,7 +560,7 @@ export class ShopScene extends Phaser.Scene {
         .text(
           0,
           yOffset,
-          `${typeIcon} ${item.name} ${item.description} ${priceLabel}${tag}`,
+          `${typeIcon} ${item.name} ${getItemDescription(item)} ${priceLabel}${tag}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",
@@ -654,7 +659,7 @@ export class ShopScene extends Phaser.Scene {
         .text(
           0,
           yOffset,
-          `${typeIcon} ${item.name}${countLabel} ${item.description} ${priceLabel}${equippedLabel}${reason}`,
+          `${typeIcon} ${item.name}${countLabel} ${getItemDescription(item)} ${priceLabel}${equippedLabel}${reason}`,
           {
             fontSize: "12px",
             fontFamily: "monospace",
@@ -811,10 +816,11 @@ export class ShopScene extends Phaser.Scene {
       type: "item",
       itemId: item.id,
     });
-    this.codexDiscovery.show(unlockCodexFromSignal(this.codex, {
+    const discovery = unlockCodexFromSignal(this.codex, {
       type: "itemAcquired",
       itemId: item.id,
-    }).entries);
+    });
+    this.pendingCodexDiscoveryIds.push(...discovery.unlockedIds);
     this.setMessage(`Purchased ${item.name}!`, "#88ff88");
 
     // Auto-equip only if the new item is better than current
@@ -946,12 +952,19 @@ export class ShopScene extends Phaser.Scene {
   /** Execute the inn rest: heal the player and advance time to the target step. */
   private confirmInnRest(targetTimeStep: number, message: string): void {
     const innCost = this.getInnPrice();
+    if (this.player.gold < innCost) {
+      this.setMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
+      return;
+    }
     this.player.gold -= innCost;
-    this.player.hp = this.player.maxHp;
-    this.player.mp = this.player.maxMp;
-    this.player.shortRestsRemaining = 2; // refill short rests on long rest
+    restPartyAtInn(this.player, true);
     this.timeStep = targetTimeStep;
-    this.setMessage(message, "#88ff88");
+    const preparation = this.player.pendingLevelUps > 0 ? prepareHeroLevelUp(this.player) : null;
+    const saved = saveGame(this.player, this.defeatedBosses, this.codex,
+      this.player.appearanceId, this.timeStep, this.weatherState);
+    const error = preparation?.ok === false ? preparation.message : !saved.ok ? saved.message : undefined;
+    this.setMessage(error ?? `${message}${preparation?.ok ? " Return outside to choose your next class." : ""}`,
+      error ? "#ff6666" : "#88ff88");
     this.updateDisplay();
     this.renderItems();
   }
@@ -994,14 +1007,15 @@ export class ShopScene extends Phaser.Scene {
 
   private leaveShop(): void {
     this.sceneTransitions.startWithFade(() => {
-      this.scene.start("OverworldScene", {
+      this.scene.start("OverworldScene", createSharedSceneState({
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         codex: this.codex,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,
-      });
+        codexDiscoveryIds: [...new Set(this.pendingCodexDiscoveryIds)],
+      }));
     }, {
       duration: 300,
       label: "leave shop",

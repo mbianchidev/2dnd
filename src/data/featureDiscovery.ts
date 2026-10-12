@@ -1,10 +1,12 @@
 import type { CodexKnowledgeCategory } from "./codexKnowledge";
 import type { CraftingCategory } from "./crafting";
 import type { GatheringDiscipline } from "./gathering";
+import type { MinigameActivityId } from "./minigames";
 
 export const FEATURE_IDS = [
   "map",
   "equipment",
+  "prestige",
   "inventory",
   "tips",
   "settings",
@@ -33,10 +35,15 @@ export const FEATURE_IDS = [
   "gatheringForaging",
   "worldEvents",
   "socialProfile",
+  "devotionProfile",
   "mounts",
   "nauticalHarbors",
   "nauticalRoutes",
   "nauticalBoat",
+  "minigames",
+  "minigameCrownAndBones",
+  "minigameArchery",
+  "minigameRegatta",
 ] as const;
 
 export type FeatureId = (typeof FEATURE_IDS)[number];
@@ -48,6 +55,7 @@ export type FeatureOwner =
   | "codexTab"
   | "craftingCategory"
   | "gatheringDiscipline"
+  | "minigameActivity"
   | "shortcut"
   | "touchAction"
   | "gamepadAction"
@@ -94,6 +102,14 @@ export const FEATURE_DEFINITIONS: readonly FeatureDefinition[] = [
     owners: ["shortcut", "escapeMenu", "tutorial"],
     testId: "feature-equipment",
     alwaysAvailable: true,
+  },
+  {
+    id: "prestige",
+    label: "Prestige paths",
+    description: "Optional advanced hero ranks within the normal total-level cap.",
+    prerequisite: "Reach applied total level 6.",
+    owners: ["tutorial", "contextPrompt"],
+    testId: "feature-prestige",
   },
   {
     id: "inventory",
@@ -249,6 +265,14 @@ export const FEATURE_DEFINITIONS: readonly FeatureDefinition[] = [
     testId: "feature-social-profile",
   },
   {
+    id: "devotionProfile",
+    label: "Devotion",
+    description: "Optional fictional affiliations, causes, temples, and rites.",
+    prerequisite: "Visit an Unfinished Constellation site.",
+    owners: ["escapeMenu", "contextPrompt", "tutorial"],
+    testId: "feature-devotion-profile",
+  },
+  {
     id: "mounts",
     label: "Mounts",
     description: "Mount selection and mount or dismount controls.",
@@ -280,6 +304,23 @@ export const FEATURE_DEFINITIONS: readonly FeatureDefinition[] = [
     owners: ["worldMap", "contextPrompt", "tutorial"],
     testId: "feature-nautical-boat",
   },
+  {
+    id: "minigames", label: "Tavern & Festival Games",
+    description: "Optional activity instructions, venues, and personal boards.",
+    prerequisite: "Discover an activity venue or receive a festival invitation.",
+    owners: ["escapeMenu", "contextPrompt", "tutorial"],
+    testId: "feature-minigames",
+  },
+  ...([
+    ["minigameCrownAndBones", "Crown & Bones"],
+    ["minigameArchery", "Archery Challenge"],
+    ["minigameRegatta", "Harbor Regatta"],
+  ] as const).map(([id, label]): FeatureDefinition => ({
+    id, label, description: `${label} instructions and personal records.`,
+    prerequisite: `Discover a ${label} venue.`,
+    owners: ["minigameActivity", "contextPrompt", "tutorial"],
+    testId: `feature-${id}`,
+  })),
 ];
 
 export const FEATURE_DEFINITION_BY_ID = new Map(
@@ -316,6 +357,12 @@ export const GATHERING_DISCIPLINE_FEATURES: Readonly<Record<
   fishing: "gatheringFishing",
   mining: "gatheringMining",
   foraging: "gatheringForaging",
+};
+
+export const MINIGAME_ACTIVITY_FEATURES: Readonly<Record<MinigameActivityId, FeatureId>> = {
+  crownAndBones: "minigameCrownAndBones",
+  archery: "minigameArchery",
+  regatta: "minigameRegatta",
 };
 
 export function isFeatureId(value: unknown): value is FeatureId {

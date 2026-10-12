@@ -26,6 +26,8 @@ import {
 } from "./reputation";
 import { getQuestStageIndex, isQuestCompleted } from "./quests";
 import { isDifficultyChallengeEligible } from "./difficulty";
+import { PRESTIGE_PATHS } from "../data/prestige";
+import { getTrackLevel } from "./classProgression";
 
 const PROCESSED_EVENT_LIMIT = 200;
 
@@ -310,6 +312,12 @@ export function getAchievementProgress(
   let target = 1;
 
   switch (criteria.type) {
+    case "prestigeRank":
+      target = criteria.minimum;
+      current = Math.max(0, ...PRESTIGE_PATHS
+        .filter((path) => !player.classProgression.debugTrackIds?.includes(path.id))
+        .map((path) => getTrackLevel(player, path.id)));
+      break;
     case "questStageCompleted": {
       const progress = player.progression.quests.quests[criteria.questId];
       const stageIndex = getQuestStageIndex(criteria.questId, criteria.stageId);
@@ -456,6 +464,23 @@ export function getAchievementProgress(
     case "craftEquipmentUpgrades":
       target = criteria.threshold;
       current = player.progression.crafting.statistics.equipmentUpgrades;
+      break;
+    case "minigameMedals":
+      target = criteria.threshold;
+      current = player.progression.minigames.statistics[criteria.activityId].medals;
+      break;
+    case "minigameActivitiesWon":
+      target = 3;
+      current = Object.values(player.progression.minigames.statistics)
+        .filter((statistics) => statistics.medals > 0).length;
+      break;
+    case "templesVisited":
+      target = criteria.threshold;
+      current = player.progression.devotion.visitedTempleIds.length;
+      break;
+    case "devotionScore":
+      target = criteria.threshold;
+      current = player.progression.devotion.deityId ? player.progression.devotion.score : 0;
       break;
   }
 

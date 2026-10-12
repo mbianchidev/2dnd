@@ -40,6 +40,23 @@ function digest(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
+/** Freeze original mechanical output, excluding subsequently added runtime evidence. */
+function originalCombatOutput<T extends {
+  readonly rollResult?: unknown;
+  readonly damageRoll?: unknown;
+  readonly healingRoll?: unknown;
+  readonly physicalType?: unknown;
+  readonly physicalLabel?: unknown;
+  readonly fumble?: unknown;
+}>(value: T): Omit<T, "rollResult" | "damageRoll" | "healingRoll" | "physicalType" | "physicalLabel" | "fumble"> {
+  const {
+    rollResult: _rollResult, damageRoll: _damageRoll, healingRoll: _healingRoll,
+    physicalType: _physicalType, physicalLabel: _physicalLabel, fumble: _fumble,
+    ...original
+  } = value;
+  return original;
+}
+
 afterEach(() => vi.restoreAllMocks());
 
 describe("Standard baseline captured from main 183954b", () => {
@@ -54,11 +71,11 @@ describe("Standard baseline captured from main 183954b", () => {
         applyStatusEffect(targetEffects, "haste", "baseline");
         const effects: PlayerState["activeEffects"] = [];
         applyStatusEffect(effects, "slow", "baseline");
-        const attack = monsterAttack(monster, player, 2, 1, 1, effects, 2, 1);
+        const attack = originalCombatOutput(monsterAttack(monster, player, 2, 1, 1, effects, 2, 1));
         const abilities = (monster.abilities ?? []).map((ability) => {
           player.hp = player.maxHp;
           player.activeEffects = [];
-          const result = monsterUseAbility(ability, monster, player, effects, 1);
+          const result = originalCombatOutput(monsterUseAbility(ability, monster, player, effects, 1));
           return { result, hp: player.hp, effects: player.activeEffects };
         });
         return { attack, abilities };
@@ -107,10 +124,10 @@ describe("Standard baseline captured from main 183954b", () => {
           getEffectiveEncounterRate(base, multiplier, 1.5, 0.8, 1.25),
         ),
       ),
-      flee: [1, 2, 3, 4].map((count) => ({
-        dc: getFleeDC(count),
-        result: attemptFlee(2, count),
-      })),
+      flee: [1, 2, 3, 4].map((count) => {
+        const { success, message } = attemptFlee(2, count);
+        return { dc: getFleeDC(count), result: { success, message } };
+      }),
       checks: [1, 8, 20].map((roll) =>
         [10, 13, 18].map((dc) =>
           resolveSkillCheck(player.stats, "wisdom", dc, roll, {

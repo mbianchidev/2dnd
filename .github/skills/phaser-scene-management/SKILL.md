@@ -95,6 +95,15 @@ touch and the gamepad cursor share the keyboard surface. Search uses
 scene-local notices and must be cleared on shutdown; it never changes input
 context or delays scene transitions.
 
+Hero progression uses the existing measured `HeroProgressionManager` for base
+and six optional prestige paths. Bind its live owner context on open, show
+entry-only qualification and complete rank tables, preserve frozen/rest-ready
+credits on close, and activate Enter/Space and the Equipment Tab handoff on
+release. Filter hidden paths before pagination; never replay resource grants.
+`BattleActionMenu` owns shared measured spell/ability rows and registered
+`battle-<spell|ability>-<id>` layout items. Gear/ownership rejection still goes
+through canonical action validation/execution, not presentation.
+
 `AchievementOverlayManager` owns the accessible Achievements/profile surface and
 presentation-only title selection. `AchievementNotificationManager` reads
 persisted pending IDs but displays them only in safe Overworld states; scene
@@ -106,6 +115,26 @@ high contrast, and reduced motion.
 timers, pointer controls, status record, and cleanup. Overworld resumes pending
 gathering before World Events, blocks movement and other interactions while it
 is open, and routes guarded rare finds through Battle with resolution hooks.
+
+`MinigameManager` owns in-place dice/archery/regatta panels, rules/personal
+boards, accepted input, live announcements, and cleanup. It leases
+`scene.data.semanticInputContext = "minigame"` and restores the previous value
+on close/shutdown. Hold confirms until keyup, capture stable session/revision
+intent, coalesce duplicates, and never leave held input for Overworld.
+Archery preview updates are runtime-only; accepted shots save before results.
+Resume exact pending/result state before exploration and block other
+state-changing inputs while the activity is open. Fog-hidden venue flags must
+have no hit target and become visible as exploration advances.
+
+## Devotion presentation
+
+`DevotionManager` owns the optional temple/profile surface. Register measured
+paginated content with the layout audit, use the shared overlay semantic
+context and defer activation to keyup. Its native accessibility bridge mirrors
+named controls and canvas focus. Clean up containers, key/resize listeners,
+preference/prompt subscriptions, pending confirmation and DOM controls on
+close/shutdown. Persist only `player.progression.devotion`; blessings remain
+normal actor effects and clear before a resolved Battle snapshot is saved.
 
 ## Shared state flow
 
@@ -181,6 +210,24 @@ canvas for browser assertions, and suppresses residual tweens in reduced-motion
 mode. New scene animations must also branch through
 `isReducedMotionEnabled()` or `getMotionDuration()`.
 
+Install `installDicePresentation(this)` in every scene too. It owns
+non-blocking exact-result visuals, cues, and skip listeners. Numbered dice sit
+over the measured scene; details join Battle's existing log, which resets on
+exit. Other results expire after a short reading interval/fade, and event
+reset clears the previous view. Never restore a result/history across scenes.
+Never await
+dice animation or add it to movement/turn/transition input-block reasons.
+Keep combined d20/effect evidence immutable and redact before log storage.
+Capture existing scene-owned shield/healing HP deltas without recomputing
+damage; shared area pools and mechanics/hook timing stay independent of visuals.
+The shared input adapter releases discrete touch pulses at poststep and owns
+shutdown/destroy cleanup, so stale pulses cannot enter a replacement scene.
+Physical dice throws are a pointer-transparent procedural layer over the game.
+Own Web Animations, stage objects, resize/visibility listeners and synthesized
+cues and expiry/fade timers; stop them on reset, replacement and handoff. Skip
+settles exact numbered faces, while blur/visibility loss clears the view. Keep exact
+faces visible and never block input/turns or wait for a tumble to finish.
+
 Use `ActorAnimationDirector` for reusable actor poses and cleanup. Specialized
 battle/world directors register sprites by stable actor ID, use explicit
 `ActorTextureFamily` frame keys with fallback textures, and expose deterministic
@@ -251,6 +298,10 @@ state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.
   pagination, safe-area clamping, and focus restoration.
 - Use `src/managers/layout.ts` for actual scaled Phaser bounds, text-stack
   reflow, hit-area synchronization, and debug/test overlap audits.
+- Measure natural glyph/padding bounds as well as outer text boxes; audit
+  nested content and explicit bars/swatches/previews. Coalesce preference and
+  resize changes through `subscribeOverlayReflow()` without rerolling choices
+  or replacing held-pointer controls.
 - Register modal containers with `createOverlayContainer()` and their final
   content viewport. Give interactive rows stable `layoutId` values.
 - Filter hidden or disabled entries before layout; variable-length menus must
@@ -264,6 +315,23 @@ The Battle scene renders only messages that fit and changes the message offset
 on mouse-wheel input.
 
 ## Battle lifecycle
+
+- Standard creates no countdown or timed menu manager. Timed mode uses the
+  scene-owned `BattleTimingManager`, `BattleHeroDecisionManager`, and
+  `BattleDecisionMenu`; clear their UI, listeners, ARIA regions, and clock on
+  every handoff/shutdown. Begin only after controlled actor statuses resolve.
+- Pause through shared input availability and real action presentation; source
+  loss, blocking log reading, text entry, fades, and scene pause cannot expire a
+  budget. Recovery confirmation must not also confirm the selected action.
+- `battleTimingAdjustment` is runtime-only and may suggest a supported duration,
+  never opt in. Preserve configuration through the shared `player` contract;
+  do not persist a deadline or partial initiative/economy.
+- Optional physical aiming uses `BattleBodyTargetManager` for both the hero and
+  manual companions. Preserve whole-target confirmation, stable enemy/part IDs,
+  native accessible controls, keyboard/pointer/touch/gamepad navigation,
+  keyup activation, measured pagination and cleanup. Reticles use canonical
+  normalized anchors; presentation never owns limb HP or damage. See
+  `docs/physical-combat.md`.
 
 - Reinitialize phase, menus, turn flags, discoveries, and monster effects in
   `init()`.

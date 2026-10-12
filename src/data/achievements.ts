@@ -2,6 +2,8 @@ import type { AlignmentAxis, ReputationTargetKind, ReputationTierId } from "./re
 import type { QuestId } from "./quests";
 import type { SkillCheckAbility } from "./skillChecks";
 import type { TrapState } from "./traps";
+import type { MinigameActivityId } from "./minigames";
+import { WORLD_EVENT_DEFINITIONS } from "./worldEvents";
 
 export const ACHIEVEMENT_CATEGORIES = [
   "campaign",
@@ -61,6 +63,14 @@ export const ACHIEVEMENT_IDS = [
   "firstCraft",
   "versatileCrafter",
   "masterSmith",
+  "crownKeeper",
+  "steadyHand",
+  "harborChampion",
+  "festivalTriathlete",
+  "constellationVisitor",
+  "steadfastDevotion",
+  "prestigeInitiate",
+  "prestigeMaster",
 ] as const;
 
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
@@ -81,6 +91,12 @@ export const TITLE_IDS = [
   "relicKeeper",
   "realmGatherer",
   "artisan",
+  "crownKeeper",
+  "steadyHand",
+  "harborChampion",
+  "festivalLaureate",
+  "threadkeeper",
+  "pathkeeper",
 ] as const;
 
 export type TitleId = (typeof TITLE_IDS)[number];
@@ -90,6 +106,7 @@ export type AchievementCounterKey =
   | "oneHitDefeats";
 
 export type AchievementCriteria =
+  | { readonly type: "prestigeRank"; readonly minimum: number }
   | {
     readonly type: "questStageCompleted";
     readonly questId: QuestId;
@@ -199,6 +216,18 @@ export type AchievementCriteria =
   | {
     readonly type: "craftEquipmentUpgrades";
     readonly threshold: number;
+  }
+  | {
+    readonly type: "minigameMedals";
+    readonly activityId: MinigameActivityId;
+    readonly threshold: number;
+  }
+  | {
+    readonly type: "minigameActivitiesWon";
+  }
+  | {
+    readonly type: "templesVisited" | "devotionScore";
+    readonly threshold: number;
   };
 
 export interface AchievementSourceMetadata {
@@ -220,7 +249,10 @@ export interface AchievementSourceMetadata {
     | "inventory"
     | "gathering"
     | "crafting"
-    | "difficulty";
+    | "difficulty"
+    | "minigame"
+    | "devotion"
+    | "progression";
   readonly authoritativeState: string;
   readonly targetIds?: readonly string[];
 }
@@ -247,6 +279,39 @@ export interface TitleDefinition {
 const MAIN_QUEST = "twelvefoldCovenant" as const;
 
 export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
+  {
+    id: "constellationVisitor", name: "Room for Another Road",
+    description: "Visit three Unfinished Constellation sites; no affiliation is required.",
+    category: "social", points: 10,
+    criteria: { type: "templesVisited", threshold: 3 },
+    source: { kind: "devotion", authoritativeState: "player.progression.devotion.visitedTempleIds" },
+  },
+  {
+    id: "steadfastDevotion", name: "A Thread Kept Freely",
+    description: "Reach 50 devotion through distinct, freely chosen causes.",
+    category: "social", points: 10,
+    criteria: { type: "devotionScore", threshold: 50 }, rewardTitleId: "threadkeeper",
+    source: { kind: "devotion", authoritativeState: "player.progression.devotion.score" },
+  },
+  {
+    id: "prestigeInitiate",
+    name: "A Road of Your Own",
+    description: "Earn the first rank of an optional prestige path.",
+    category: "collection",
+    points: 10,
+    criteria: { type: "prestigeRank", minimum: 1 },
+    source: { kind: "progression", authoritativeState: "Natural registered prestige ranks" },
+  },
+  {
+    id: "prestigeMaster",
+    name: "Fivefold Practice",
+    description: "Earn all five ranks of any prestige path.",
+    category: "collection",
+    points: 25,
+    criteria: { type: "prestigeRank", minimum: 5 },
+    rewardTitleId: "pathkeeper",
+    source: { kind: "progression", authoritativeState: "Natural registered prestige ranks" },
+  },
   {
     id: "firstSealComplete",
     name: "The First Seal",
@@ -561,7 +626,7 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     description: "Resolve every kind of World Event.",
     category: "world",
     points: 35,
-    criteria: { type: "worldEventsResolved", threshold: 8, unique: true },
+    criteria: { type: "worldEventsResolved", threshold: WORLD_EVENT_DEFINITIONS.length, unique: true },
     rewardTitleId: "eventWitness",
     source: { kind: "worldEvent", authoritativeState: "World Event repeat counters" },
   },
@@ -681,9 +746,46 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     rewardTitleId: "artisan",
     source: { kind: "crafting", authoritativeState: "Natural equipment-upgrade count" },
   },
+  {
+    id: "crownKeeper", name: "Crown Keeper",
+    description: "Bank a paid Crown & Bones hand with a score of 80 or more.",
+    category: "world", points: 10, rewardTitleId: "crownKeeper",
+    criteria: { type: "minigameMedals", activityId: "crownAndBones", threshold: 1 },
+    source: { kind: "minigame", authoritativeState: "Paid natural Crown & Bones medals" },
+  },
+  {
+    id: "steadyHand", name: "Steady Hand",
+    description: "Earn an 80+ paid Archery Challenge medal with the shared borrowed bow.",
+    category: "world", points: 10, rewardTitleId: "steadyHand",
+    criteria: { type: "minigameMedals", activityId: "archery", threshold: 1 },
+    source: { kind: "minigame", authoritativeState: "Paid natural archery medals" },
+  },
+  {
+    id: "harborChampion", name: "Harbor Champion",
+    description: "Finish a paid Harbor Regatta with a score of 80 or more.",
+    category: "world", points: 15, rewardTitleId: "harborChampion",
+    criteria: { type: "minigameMedals", activityId: "regatta", threshold: 1 },
+    source: { kind: "minigame", authoritativeState: "Paid natural regatta medals" },
+  },
+  {
+    id: "festivalTriathlete", name: "Three Pennants",
+    description: "Earn a paid natural medal in all three optional activities.",
+    category: "world", points: 25, rewardTitleId: "festivalLaureate",
+    criteria: { type: "minigameActivitiesWon" },
+    source: { kind: "minigame", authoritativeState: "Paid natural per-activity medal counts" },
+  },
 ] as const;
 
 export const TITLES: readonly TitleDefinition[] = [
+  {
+    id: "threadkeeper", name: "Threadkeeper",
+    description: "A cosmetic title for a freely kept thread.",
+    achievementId: "steadfastDevotion",
+  },
+  {
+    id: "pathkeeper", name: "Pathkeeper",
+    description: "Mastered an optional five-rank tradition.", achievementId: "prestigeMaster",
+  },
   { id: "covenantRoadwarden", name: "Covenant Roadwarden", description: "Bearer of the restored Twelvefold Covenant.", achievementId: "twelvefoldCovenantComplete" },
   { id: "unbroken", name: "The Unbroken", description: "Completed the covenant road without defeat.", achievementId: "unbrokenCovenant" },
   { id: "deepdelver", name: "Deepdelver", description: "Conqueror of the realm's three deepest dungeons.", achievementId: "threeDungeonsCleared" },
@@ -699,6 +801,10 @@ export const TITLES: readonly TitleDefinition[] = [
   { id: "relicKeeper", name: "Relic Keeper", description: "Carried a collection worthy of a royal archive.", achievementId: "relicCollector" },
   { id: "realmGatherer", name: "Realm Gatherer", description: "Mastered fishing, mining, and foraging.", achievementId: "masterGatherer" },
   { id: "artisan", name: "Master Artisan", description: "Forged dependable equipment from gathered materials.", achievementId: "masterSmith" },
+  { id: "crownKeeper", name: "Crown Keeper", description: "Banked a four-roll tavern hand.", achievementId: "crownKeeper" },
+  { id: "steadyHand", name: "Steady Hand", description: "Earned an Arrow Fair laurel.", achievementId: "steadyHand" },
+  { id: "harborChampion", name: "Harbor Champion", description: "Earned a buoykeepers' pennant.", achievementId: "harborChampion" },
+  { id: "festivalLaureate", name: "Festival Laureate", description: "Earned all three optional activity medals.", achievementId: "festivalTriathlete" },
 ] as const;
 
 const ACHIEVEMENT_BY_ID = new Map(

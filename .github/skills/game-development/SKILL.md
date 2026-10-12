@@ -28,6 +28,16 @@ and changes spanning scenes, systems, data, renderers, or managers.
 
 ## Current architecture
 
+- Hero progression: immutable `data/classProgression.ts`, authoritative
+  `systems/classProgression.ts`, focused `classProgressionState.ts` and
+  `managers/heroProgression.ts`. Preserve normal cap 20, stable starting class,
+  single-class companions, frozen rest-ready choices and once-only grants.
+  Read [`docs/hero-progression.md`](../../../docs/hero-progression.md).
+- Prestige: six immutable five-rank profiles in `data/prestige.ts`, focused
+  `prestigeActions.ts`/`prestigeLore.ts`, and pure `systems/prestige.ts` details.
+  Use the same live owner context, frozen/rest credits, grants and normalizer.
+  Keep entry-only quest/location/social checks, fixed stats, scoped talents,
+  inherited gear and unaffiliated campaign completion. See `docs/prestige.md`.
 - Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, `Cutscene`,
   `Ending`, and `Defeat`
 - Overworld orchestration: `src/scenes/Overworld.ts`
@@ -78,15 +88,68 @@ autosave/rollback; pending outcomes remain unchanged and challenge continuity
 cannot be restored through equivalent Custom/preset round trips.
 See [Difficulty and Custom rules](../../../docs/difficulty.md).
 
+Per-campaign `player.battleTiming` is separate from presentation preferences.
+Standard creates no timer. Timed hero/manual decisions use one bounded active
+budget through menus, targeting, and bonus actions; `battleActions.ts` validates
+one safe self-Defend at timeout. Pause real action/input/log-overlay/transition/
+visibility/focus/controller-recovery blockers, not ordinary logs or independent
+non-blocking notices. Only configuration is persisted; reload uses the existing
+checkpoint or selected pending encounter and never executes a deadline.
+See [Timed battle decisions](../../../docs/battle-timing.md).
+
+Preference v3 includes dice animation frequency/speed independently of the
+campaign schema. Exact d20/component/effect receipts live in `systems/rollResults.ts`, safe mapping
+and scoped visual lifetime in `systems/dicePresentation.ts`, scene-owned orchestration
+in `managers/dicePresentation.ts`/`battleDice.ts`, and procedural SVG rendering
+in `renderers/dice.ts`. Never add RNG, mechanics callbacks, resource mutation,
+hidden-stat leakage, or an input-block reason to this pipeline. Dice render over
+the measured active scene, never in an external dock. Details join the existing
+Battle log; battle exit clears it. Non-combat results expire after three seconds
+and a short fade. Event reset, blur and handoff clear views, cues and timers;
+no latest result or history is restored into another scene.
+`systems/effectRolls.ts` retains the original damage/healing RNG calls, named
+modifiers, recorded adjustments and actual HP delta at the existing write.
+Separate rolled, resolved and applied values, preserve finite fractional legacy
+item effects and shared area pools, and never infer fixed/derived component dice.
+Scene-owned shield/healing writes remain capture-only adapters.
+`systems/diceMotion.ts` produces only measured deterministic throw geometry:
+visible travel, multi-axis tumble, bounce and settling. Procedural SVG motion
+over the game is pointer-transparent, displays the exact resolved faces and
+owns cleanup. Never pass actors/outcomes/RNG/completion callbacks to its geometry.
+Roll displays default enabled and ordinary notices may be Off; canonical
+attack crit/fumble feedback always remains visible, without overriding
+Instant/reduced motion or reclassifying non-attack outcomes.
+
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a
 visible right-stick cursor clicked by pressing the stick. Responsive touch
 controls use safe areas, pointer capture for held directions, pointer-release
 pulses with a click fallback for discrete actions, and mobile text entry. Clear
 held state on blur, visibility loss, disconnect, scene changes, and shutdown.
+Discrete touch pulses release after Phaser poststep so frame-polled keys see
+them once. Own/cancel their tokens and scene listeners on cleanup, preserve
+other held sources, and prevent stale release callbacks entering new scenes.
 The title menu uses `src/managers/titleMenu.ts` so direct taps and semantic
 D-pad/A input share one selected action. Keep overwrite confirmation compact
 and centered within the landscape viewport.
+
+Shared controller text entry lives in `systems/textEntry.ts` (keys/edits) and
+`managers/textEntry.ts` (HTML modal, live preferences, once-only commit/cancel,
+focus restoration). The adapter re-exports `openMobileTextInput()`, consumes
+text actions before game keys and allows its cursor to reach desktop DOM
+controls. Use positional prompts rather than guessed device glyphs.
+Use shared arrow/circle face-position icons instead of cardinal-word hints.
+Native desktop does not create mobile touch rails or expose mobile-only
+Settings rows, even with saved Touch On. Preserve WASD outside focused text,
+ordinary physical typing inside it, controller text entry on gamepad, and real
+canvas-touch activity controls without recreating a hidden mobile pad.
+
+Steam tooling is separate from game authority: `steam/config.ts` and
+`hacks/prepare-steam.mjs` own inspected native Linux x64, Windows x64 and macOS
+universal depot previews. SDK, Steam achievements/Cloud and native Steam Input
+API remain disabled. Protected upload never sets a branch live. Read
+[`docs/steam.md`](../../../docs/steam.md); equivalent tests are not Steam/Deck,
+signing or store approval.
 
 Cutscene contracts live in `src/data/cutsceneTypes.ts`, focused campaign and
 boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and
@@ -209,10 +272,16 @@ Non-combat checks are split across:
 
 ## Adding monsters
 
+Declare a canonical D&D `size` and optional stable `anatomy` from
+`data/anatomy.ts`, plus data-owned `physicalProfile` where meaningful.
+Humanoid forms and Large+ anatomical creatures use the shared HP/aiming
+pipeline; oozes and incorporeal forms need no invented parts. Read
+[`docs/physical-combat.md`](../../../docs/physical-combat.md).
+
 1. Define the monster in the appropriate focused pool (`monsters.ts`,
    `nightMonsters.ts`, or `monsterVariants.ts`).
 2. Use a camelCase ID and set a valid typed `family`, stats, rewards, drops,
-   abilities, and `isBoss`.
+   abilities, basic `physicalDamageType`, and `isBoss`.
 3. For a palette/stat variant, set `variantOf` to a valid same-family monster,
    use a distinct color and ability set, and assign a positive
    `encounterWeight`.
@@ -297,7 +366,36 @@ is owned by the schema-v12 reputation system and must remain idempotent.
 - Achievement state never controls gameplay authority. Titles are
   presentation-only and notices are queued for safe Overworld presentation.
 
+## Fictional devotion
+
+Optional devotion definitions live in `src/data/devotion.ts` and focused
+content modules. `devotionState.ts` owns schema-v21 normalization and preserves
+valid schema-v19/v20 feature-preview devotion;
+`devotion.ts` owns independent bounded scores, canonical source idempotency,
+affiliation and pure prerequisite queries. `devotionTemples.ts` validates live
+approaches and reuses normal status/short-rest APIs; the devotion manager owns
+measured pages, native accessible controls, semantic input and cleanup.
+Confirmed changes reset score to 0 and remove only the temple blessing; exact
+loss and permanently consumed sources must be explained before confirmation.
+Legacy heroes stay unaffiliated, sources are consumed without historical point
+guesses, and every choice can complete the campaign. Use original fictional
+content only. See `docs/devotion.md`; do not implement prestige classes here.
+
 ## Adding spells, abilities, and equipment
+
+- Body armor declares optional canonical `physicalResistances`; use
+  `getArmorPhysicalProfile()` for old/custom/live equipped gear. Keep AC
+  independent and route physical basic/ability monster damage through existing
+  combat resolution and receipts. Pure elemental abilities/healing bypass it.
+  Shared party wrappers resolve current armor rather than snapshots.
+
+- Weapons declare `physicalDamageType`; resolve old/custom copies with
+  `getWeaponPhysicalDamageType()` without changing their ownership metadata.
+  Damaging physical abilities declare an explicit type or `"weapon"`.
+  Pure elemental magic is not inferred to be weapon damage.
+- Optional parts validate before rolls/resources and share existing monster HP
+  and target-owned statuses. Reuse `BattleBodyTargetManager` for hero/manual
+  companion presentation; whole-target/gambit defaults remain unchanged.
 
 - Damage sources may declare an `Element` from `src/data/elements.ts`.
 - Player abilities may apply `selfEffect` or `targetEffect` IDs defined by
@@ -314,7 +412,9 @@ Combat calculation order is:
 
 1. Roll and resolve the attack or save.
 2. Apply active-status accuracy, disadvantage, AC, and damage modifiers.
-3. Apply elemental immunity, weakness, or resistance to the modified damage.
+3. Apply physical whole/part affinity for physical sources, then elemental
+   immunity, weakness, or resistance to the modified damage. Local physical
+   affinity replaces rather than stacks the whole affinity; immunity wins.
 4. Apply damage and status effects.
 5. Report discoveries and combat feedback.
 
@@ -356,6 +456,9 @@ can persist and display them.
   dungeon maps or randomize layouts independently in scenes.
 - Detected traps block movement until disarmed. Trap triggers must short-circuit
   the normal random-encounter check for that step.
+- Physical trap damage declares its type and uses equipped armor resistance
+  before the existing nonlethal cap; magic, MP, status and once-only state remain
+  at the trap owner.
 - Use `FogOfWar.exploredKey()` for exploration keys.
 - Use `isWalkable()` and `ENCOUNTER_RATES`; do not hardcode terrain behavior.
 - Nautical metadata lives in `src/data/nautical.ts`; state normalization,
@@ -426,6 +529,9 @@ starting `DefeatScene`, which continues only to Overworld.
 
 ## Companions and gambits
 
+- Hero multiclass actions share the existing validated planner and executor.
+  Companion state must not own hero class progression. Treat external profiles
+  as future hooks; do not ship prestige/epic behavior implicitly.
 - Persistent party state lives at `player.party`; do not add a parallel scene
   payload or companion combat model.
 - Stable companion IDs are `guardian`, `scout`, and `mystic`.
@@ -461,6 +567,17 @@ minigame logic in `src/systems/gathering.ts`, schema normalization in
 location-derived nodes, route guarded finds through normal Battle hooks, and
 keep material identity limited to stable `Item.material` recipe-input metadata.
 
+## Tavern and festival games
+
+Use the [minigames skill](../minigames/SKILL.md) and
+[`docs/minigames.md`](../../../docs/minigames.md) for all three original
+activities. Definitions and focused pure mechanics own exact seeded challenges,
+fixed forecasts, capped local economy, permanent watermarks, finite claims, and
+unknown recovery. The Overworld manager owns accessible controls/records,
+runtime-only archery previews, semantic-context restoration, and cleanup.
+Practice/debug never grant paid milestones or natural achievement credit;
+history never authorizes payment and no consumer controls campaign quests.
+
 ## Crafting
 
 Crafting recipes live in `src/data/crafting.ts`, atomic mechanics and discovery
@@ -483,12 +600,23 @@ npm run build
 npm run build:desktop
 ```
 
-For UI changes, run the committed Playwright flow in headless Chromium. Keep
+For UI changes, run the committed Playwright flow in headless Chromium. Never
+launch visible native windows or control the developer's desktop; native gates
+run on isolated CI/virtual displays. Keep
 browser actions synchronized through debug-state transitions, and hold
 frame-polled Phaser keys across frames rather than using instantaneous presses.
 Build responsive UI from `src/systems/layout.ts`, register modal groups through
 `createOverlayContainer()`, and assert the local `#layout-report` reports zero
 unintended overlap or clipping at supported text scales.
+Measure natural glyph/padding extents inside fixed text surfaces and nested
+content too. Use `subscribeOverlayReflow()` for owned frame-boundary reflow,
+preserve choices and scores, and prefer wrapping/paging to masking overflow.
+The canvas-host ResizeObserver must read current Phaser parent bounds before FIT refresh.
+Opening a menu must remove active achievement/Codex notices, not merely block
+new ones. Reconcile Overworld notices after scene updates, retain unread
+achievement IDs, defer Shop lore through the full return state, and reject
+stale dismissal/fade callbacks. Use the shared measured notification renderer
+without taking input focus or delaying mechanics.
 
 ## Common pitfalls
 

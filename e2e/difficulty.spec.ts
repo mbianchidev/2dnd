@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import type { DifficultyProfileId } from "../src/data/difficulty";
 import { getDifficultyEffectPreview } from "../src/systems/difficulty";
 import { normalizeSaveData, SAVE_VERSION, type SaveData } from "../src/systems/save";
-import { clickGamePoint as clickGame, clickLayoutItem, expectCleanLayout, tapLayoutItem } from "./helpers/layout";
+import { clickLayoutItem, expectCleanLayout, tapLayoutItem } from "./helpers/layout";
 
 async function key(page: Page, name: string): Promise<void> {
   await page.keyboard.down(name);
@@ -15,12 +15,6 @@ async function key(page: Page, name: string): Promise<void> {
     await page.keyboard.up(name);
   }
   await page.waitForTimeout(120);
-}
-
-async function gamePoint(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
-  const bounds = await page.locator("#game-container canvas").boundingBox();
-  if (!bounds) throw new Error("Missing game canvas bounds");
-  return { x: bounds.x + x / 640 * bounds.width, y: bounds.y + y / 528 * bounds.height };
 }
 
 async function state(page: Page, value: string): Promise<void> {
@@ -79,9 +73,9 @@ async function appearance(page: Page): Promise<void> {
   await state(page, "Screen: character");
   await key(page, "Enter");
   await state(page, "Screen: stats");
-  await clickGame(page, 390, 64);
+  await clickLayoutItem(page, "creation-stat-mode-random");
   await state(page, "[MODE:random]");
-  await clickGame(page, 400, 460);
+  await clickLayoutItem(page, "creation-stats-next");
   await state(page, "Screen: appearance");
 }
 
@@ -129,7 +123,7 @@ for (const profileId of ["story", "standard", "veteran", "legendary", "custom"] 
     }
     await clickLayoutItem(page, "difficulty-apply");
     await state(page, "Screen: appearance");
-    await clickGame(page, 420, 312);
+    await clickLayoutItem(page, "appearance-start");
     await state(page, "CUTSCENE");
     const saved = await readCampaign(page);
     expect(saved.version).toBe(SAVE_VERSION);
@@ -191,7 +185,7 @@ test("settings inspect live campaign rules without rewriting a manual source or 
   await clickLayoutItem(page, "character-difficulty");
   await chooseProfile(page, "veteran");
   await clickLayoutItem(page, "difficulty-apply");
-  await clickGame(page, 420, 312);
+  await clickLayoutItem(page, "appearance-start");
   await opening(page);
   await key(page, "Escape");
   await clickLayoutItem(page, "escape-menu-settings");
@@ -199,6 +193,7 @@ test("settings inspect live campaign rules without rewriting a manual source or 
   const before = (await readCampaign(page)).player.difficulty;
   await clickLayoutItem(page, "settings-text-scale");
   await clickLayoutItem(page, "settings-high-contrast");
+  await key(page, "ArrowRight");
   await key(page, "Enter");
   await state(page, "[DIFFICULTY]");
   await state(page, "[RULE_PROFILE:veteran]");
@@ -217,7 +212,7 @@ test("safe mid-run changes require confirmation, persist causes and never replay
   await clickLayoutItem(page, "character-difficulty");
   await chooseProfile(page, "veteran");
   await clickLayoutItem(page, "difficulty-apply");
-  await clickGame(page, 420, 312);
+  await clickLayoutItem(page, "appearance-start");
   await opening(page);
   const before = await readCampaign(page);
   await page.evaluate(async () => {
@@ -302,7 +297,7 @@ test("Custom mid-run edits preview exact values and failed autosaves roll back t
   await clickLayoutItem(page, "character-difficulty");
   await chooseProfile(page, "custom");
   await clickLayoutItem(page, "difficulty-apply");
-  await clickGame(page, 420, 312);
+  await clickLayoutItem(page, "appearance-start");
   await opening(page);
   await key(page, "Escape");
   await clickLayoutItem(page, "escape-menu-settings");
@@ -362,8 +357,7 @@ test.describe("touch difficulty selection", () => {
     await page.locator('[data-action="navigateRight"]').tap();
     await expectCleanLayout(page);
     await tapLayoutItem(page, "difficulty-apply");
-    const point = await gamePoint(page, 420, 312);
-    await page.touchscreen.tap(point.x, point.y);
+    await tapLayoutItem(page, "appearance-start");
     await state(page, "CUTSCENE");
     expect((await readCampaign(page)).player.difficulty.selection).toEqual({
       profileId: "custom", overrides: { enemyHpPercent: 105 },
@@ -442,7 +436,7 @@ for (const profileId of ["story", "legendary"] as const) {
     await clickLayoutItem(page, "character-difficulty");
     await chooseProfile(page, profileId);
     await clickLayoutItem(page, "difficulty-apply");
-    await clickGame(page, 420, 312);
+    await clickLayoutItem(page, "appearance-start");
     await opening(page);
     await debug(page, "/quest set main lastForge");
     await debug(page, "/max_hp 999");

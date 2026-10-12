@@ -279,6 +279,7 @@ export const CITY_NPCS: Record<string, NpcInstance[]> = {
     { templateId: "male_young", job: "merchant", x: 15, y: 8, moves: false, shopIndex: 3 },
     { templateId: "child_girl2", job: "villager", x: 8, y: 10, moves: true },
     { templateId: "guard_female", job: "guard", x: 11, y: 3, moves: false },
+    { templateId: "female_thin", job: "villager", x: 8, y: 6, moves: false, questNpcId: "tidehavenGlasskeeper" },
   ],
   willowdale_city: [
     { templateId: "male_stout",   job: "blacksmith",    x: 4,  y: 5,  moves: false, shopIndex: 0 },

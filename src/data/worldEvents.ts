@@ -1,4 +1,5 @@
 import { Terrain } from "./mapTypes";
+import { DEVOTION_WORLD_EVENTS } from "./devotionEvents";
 import {
   IRON_DISPATCH_QUEST_ID,
   MAIN_QUEST_ID,
@@ -12,6 +13,8 @@ import type {
   AlignmentName,
   ReputationTargetKind,
 } from "./reputation";
+import type { MinigameVenueId } from "./minigames";
+import { MINIGAME_WORLD_EVENTS } from "./minigameEvents";
 
 export const WORLD_EVENT_FAMILIES = [
   "shrine",
@@ -52,6 +55,7 @@ export interface WorldEventOutcomeDefinition {
   readonly rewards?: readonly WorldEventRewardDefinition[];
   readonly nonlethalDamage?: number;
   readonly startQuestId?: QuestId;
+  readonly discoverMinigameVenueIds?: readonly MinigameVenueId[];
   readonly futureHooks?: readonly WorldEventFutureHook[];
 }
 
@@ -150,6 +154,7 @@ export const WORLD_EVENT_TRIGGER_RULES = {
 } as const;
 
 export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
+  ...DEVOTION_WORLD_EVENTS,
   {
     id: "adriftChartCase",
     family: "discovery",
@@ -620,6 +625,7 @@ export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
       },
     ],
   },
+  ...MINIGAME_WORLD_EVENTS,
 ];
 
 export const WORLD_EVENT_IDS = WORLD_EVENT_DEFINITIONS.map(

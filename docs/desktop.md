@@ -18,6 +18,10 @@ npm run test:desktop      # Production-like Electron Playwright smoke test
 npm run package:desktop   # Unsigned artifacts for the current host
 ```
 
+Run `npm run test:browser:install` once before desktop tests. The parity flow
+uses Playwright Chromium to export a browser campaign and verifies the same
+state/metadata through production Electron import controls.
+
 Desktop development binds Vite to a dynamically allocated loopback port.
 Production packages load `dist/game.html` from the relative Vite build at the
 stable `app://2dnd` origin.
@@ -46,7 +50,7 @@ generic IPC APIs through preload.
 
 ## Persistence
 
-The desktop shell uses the same schema-v19 autosave, manual-slot, staging, and
+The desktop shell uses the same schema-v26 autosave, manual-slot, staging, and
 backup `localStorage` documents as the web game. The stable `app://2dnd` origin
 keeps them available across launches and upgrades:
 
@@ -60,6 +64,11 @@ Chromium stores the documents beneath that root. Browser and desktop origins
 remain isolated; they do not silently copy or merge saves.
 Slot import/export uses validated JSON through renderer browser APIs; preload
 does not expose filesystem access.
+
+Optional tavern/festival sessions use those same renderer-owned documents and
+recovery rules. Electron activity tests exercise keyboard, emulated touch, and
+standard-gamepad play, pending/result reload, and once-only rewards without
+adding IPC or relaxing the production sandbox.
 
 ## Diagnostic logs
 
@@ -118,3 +127,28 @@ macOS and Windows builds remain unsigned until protected signing credentials
 are configured; operating systems may warn before opening them. Apple Developer
 ID/notarization and Authenticode credentials must stay in a protected release
 environment, never in source or pull-request workflows.
+
+Desktop packages now contain only the game entry, compiled shell and runtime:
+the showcase/screenshots and source maps are excluded. AGPL,
+Phaser/EventEmitter3 and Electron/Chromium notices accompany the package.
+
+Steam review CI also creates inspected unpacked Windows x64, macOS universal
+and native Linux x64 depot previews. These are not installers, signed releases
+or a Steam/Deck certification. See [Steam preparation](steam.md) for launch
+paths, licenses/source receipts, protected upload prerequisites and manual
+client/hardware gates. Steam SDK, achievements and Cloud remain disabled;
+preload, `app://2dnd` and renderer-owned local storage are unchanged.
+
+Desktop builds never show mobile movement/action rails, even when a migrated
+preference says Touch On. Keyboard movement uses WASD; a focused name, slot label
+or search field accepts normal typing without moving the hero or navigating the
+game. Mobile visibility/handedness settings stay in browser/mobile presentation.
+Direct canvas pointer/touch input and standard gamepads remain supported.
+
+The shared renderer text-entry dialog includes a controller keyboard only while
+using a gamepad. Face-position icons replace cardinal words: `◉←` edits the hero
+name/deletes, `◉↓` types, Menu submits and `◉→` cancels; arrows select keys.
+Physical typing or selecting the text field hides this keyboard without losing
+the first character. The right-stick cursor can
+also activate the native fullscreen button. No native Steam keyboard or
+filesystem API is exposed.

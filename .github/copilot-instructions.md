@@ -20,17 +20,18 @@ procedural graphics/audio, weather, day/night, a 90-chunk world, connected city
 districts, multi-level dungeons, procedural traps, non-combat skill checks,
 quest-recruited companions, ranked gambits, elemental interactions, status
 effects, boss fights, and a replayable campaign epilogue with post-game
-continuation, plus deterministic fishing, mining, and foraging minigames.
+continuation, deterministic fishing/mining/foraging, and optional Crown & Bones,
+class-neutral archery, and Harbor Regatta minigames.
 
 ## Stack
 
 - Phaser 4.2.1
 - TypeScript 7.0.2 in strict mode
-- Vite 8.3.2
+- Vite 8.3.4
 - Vitest 5.0.3
-- Playwright 1.63.0
-- happy-dom 20.14.5
-- Electron 44.5.1
+- Playwright 1.64.0
+- happy-dom 20.14.6
+- Electron 44.7.0
 - electron-builder 26.17.0
 - Modern browsers, ES2020 target
 
@@ -288,10 +289,12 @@ interface PlayerProgression {
   tutorial: TutorialProgress;
   worldEvents: WorldEventState;
   social: SocialState;
+  devotion: DevotionState;
   achievements: AchievementState;
   gathering: GatheringState;
   crafting: CraftingState;
   nautical: NauticalState;
+  minigames: MinigameState;
   discoveredFeatureIds: FeatureId[];
   pendingFeatureRevealIds: FeatureId[];
   debugDiscoveredFeatureIds: FeatureId[];
@@ -301,6 +304,11 @@ interface PlayerProgression {
 
 Access fields through `player.position` and `player.progression`.
 `player.activeEffects` stores normalized combat effects.
+`player.classProgression` owns the fixed starting class, base-class ranks,
+reserved empty external ranks, rest-ready levels, one frozen HP/MP receipt, and
+canonical legacy grant metadata. The flat `level` mirrors the owned-rank sum.
+Normalize through `classProgressionState.ts`; qualify/preview/commit through
+`classProgression.ts`. Never infer class identity from later appearance changes.
 `player.party` stores unique recruited companion states and up to three active
 companion IDs. Companion state composes `CombatActorState` plus independent XP,
 level-up/stat state, control mode, dialogue cursor, and normalized gambits.
@@ -462,7 +470,93 @@ Flow:
 | Monk | DEX +2, WIS +1 | DEX |
 | Bard | CHA +2, DEX +1 | CHA |
 
+### Hero multiclass progression
+
+- Keep creation single-class and companions single-class. Starting boosts,
+  gold and equipment apply only at creation; there is no respec API.
+- Immutable twelve-class profiles/entry requirements live in
+  `src/data/classProgression.ts`; mechanics in `systems/classProgression.ts`,
+  unknown normalization in `classProgressionState.ts`, and measured accessible
+  presentation in `managers/heroProgression.ts`.
+- Entry checks apply to new tracks, including starting-class requirements;
+  continuing or normalizing recognized earned ranks never rechecks mutable
+  prerequisites. Normal total level is capped at 20.
+- Proficiency, ASIs and common talents use total level once. Restricted
+  features/spells/abilities use owned rank. Deduplicate stable action/feature
+  IDs and apply shared one-time HP/MP bonuses once.
+- Freeze one resource roll and CON/INT scores at rest. Preserve rest-ready
+  credits across save/reload; new XP cannot reuse older rest authorization.
+  A commit binds the expected total level and consumes one pending/rest-ready
+  level. Invalid/stale/repeated input consumes nothing.
+- Keep all current classes' shared INT-grown MP and selected hit-die/CON HP.
+  Spells resolve eligible source stats independently from appearance;
+  abilities keep explicit stat keys. Preserve permissive equipment and the
+  existing one-action/one-bonus-action economy.
+
+### Prestige paths
+
+- Six original five-rank paths live in `data/prestige.ts`; actions/talents in
+  `prestigeActions.ts`, lore in `prestigeLore.ts`, and inspection in
+  `systems/prestige.ts`. They register static profiles with the existing engine.
+- First entry requires applied total 6, owned class ranks, permanent scores and
+  explicit quest/location/social evidence. All paths have unaffiliated routes.
+  New ranks spend the same rested credits within total cap 20; base ranks do
+  not advance simultaneously. Never add an extra proficiency, ASI or action.
+- Use typed `allOf`/`anyOf`, stable completed-stage IDs, discovered-city evidence
+  and inclusive alignment ranges through the canonical qualifier and live
+  `createHeroProgressionContext()`. Preview and fresh commit share validation.
+  Bind detached/loaded actors to a new owner context; malformed/stale evidence
+  fails closed. Recognized earned ranks never requalify after social changes.
+- Path-only features require owning-profile grants, not generic talent/spell
+  scans or legacy exceptions. Preserve frozen/rest/deferred legacy authority.
+  Gear requirements use canonical action helpers through `battleActions.ts`
+  and its executor before resources are spent; no parallel action engine.
+- Paths grant no equipment permissions or campaign access. Profile/Tips/Codex,
+  cosmetic achievements and Ending derive from engine state. Owned canonical
+  `debugTrackIds` exclude natural prestige points/titles, not gameplay.
+- `E` then `Tab` and the visible equipment/hero-party links open progression.
+  Support semantic multi-input, measured pagination, 150% text, high contrast,
+  reduced motion, cleanup, and keyup confirmation before exploration resumes.
+- Static external-profile hooks are not shipped prestige, epic or NG+ content.
+  Future domains must use the merged engine, not copy XP/rest/grant logic.
+
 ## Combat
+
+- Standard is unlimited. `player.battleTiming` is a per-campaign opt-in with
+  supported 15/30/45/60/90-second durations and fixed validated Defend.
+- `systems/battleTiming.ts` owns accepted decision time and once-only timeout;
+  its manager pauses real action/input/log-overlay/transition/focus/visibility/
+  controller-recovery blockers, not ordinary log appends or non-blocking notices.
+- Hero/manual target and bonus-action decisions share one turn budget. Timeout
+  never confirms a queued action, duplicates consumption/results, or times gambits.
+- Persist configuration only and keep existing checkpoint/pending-encounter
+  reload recovery. Runtime duration suggestions cannot opt in or change policy.
+- Timing settings are editable only in Overworld. Battle Pause/Resume never
+  saves partial resources, initiative, or action economy. Clear hero/companion
+  effects after result/reward hooks and before outgoing Battle autosave.
+- Physical Bludgeoning/Slashing/Piercing types and common affinity precedence
+  live in `data/damageTypes.ts`; explicit monster size/anatomy/part anchors in
+  `data/anatomy.ts`; old/custom weapon typing in `data/itemCombat.ts`.
+- `systems/physicalCombat.ts` integrates through the existing combat/action
+  owners. Apply status damage, physical whole/local profile, then elements.
+  Local affinities override rather than double-stack whole physical affinity;
+  whole-body immunity always wins. Magic stays outside physical profiles.
+- Body armor declares canonical `physicalResistances` independently of AC;
+  resolve live hero/companion armor through `getArmorPhysicalProfile()`.
+  Explicit monster basic/ability physical types use the same physical modifier
+  and exact dice capture. Elemental-only abilities and healing remain unchanged.
+  Shield reduction uses pre-hit HP and final damage; never restore capped
+  overkill damage and accidentally revive a defeated actor.
+  Physical trap definitions use the same armor modifier before the existing
+  nonlethal cap, without changing magic/MP/status consequences or trap ledgers.
+- Humanoid anatomy is aimable at any size; other stable anatomies require
+  Large+. Parts share monster HP and the normal status clock. Optional aim
+  trades accuracy for local defenses and at most two target-turn effects,
+  never limb HP, severing or another action. Whole-target Confirm stays unchanged.
+- `managers/battleBodyTarget.ts` shares measured, native-accessible aiming for
+  the hero and manual companions. Keep keyboard/pointer/touch/gamepad parity,
+  cancellation, 150% text and cleanup. Gambits retain whole-target defaults.
+  See `docs/physical-combat.md`.
 
 - Attack rolls, saves, and checks use d20.
 - Natural 20 on an attack is a critical hit; natural 1 automatically misses.
@@ -495,6 +589,8 @@ Flow:
   Codex state back into gameplay decisions.
 - `CodexDiscoveryManager` owns short non-interactive notices. Notices never
   change input context, delay transitions, or outlive scene shutdown.
+  Overworld defers their latest runtime batch behind menus; Shop carries
+  acquired-item notice IDs through its full shared return state.
 - `BattleCombatantState` is the shared actor contract: stable ID, party/enemy
   side, hero/companion/monster kind, formation, HP, alive/KO, defend, and
   effects. Hero state must remain accessor-backed by `PlayerState`.
@@ -522,6 +618,30 @@ Flow:
   combatant ID. Resolve mechanics first, then animate the immutable result;
   never consume resources twice or make turn/result transitions depend on a
   tween callback.
+- Dice presentation consumes immutable `rollResults.ts` receipts through the
+  redacting `systems/dicePresentation.ts` mapper and scene-owned dice manager.
+  Show exact naturals/selection and permitted signed modifiers/totals; hide
+  enemy bonuses/intermediate arithmetic and unknown AC/DC,
+  preserve Magic Missile auto-hit, and never reroll or delay mechanics.
+  `effectRolls.ts` captures actual damage/healing faces, named signed modifiers,
+  recorded status/element/defense adjustments and separately applied HP deltas
+  at their existing owners. Keep shared area pools shared and finite fractional
+  legacy item effects unchanged. Fixed/derived amounts never gain invented dice.
+  Snapshots retain only scalars/stable actor/action IDs; redact before notices
+  and normal/runtime log storage.
+  `diceMotion.ts` owns deterministic measured travel, multi-axis tumble and
+  bouncing shadows over the game viewport, never outcome-deciding physics.
+  Keep the visual layer pointer-transparent, inside safe game bounds and
+  cleanup-owned. Instant/reduced motion, skip, visibility loss, replacement
+  and scene shutdown remove motion immediately without focus/input blocking.
+  Numbered dice render over the active scene, never in a dock. Roll details
+  belong to the existing Battle log and reset on battle exit. Non-battle
+  results expire after three seconds and a 250-ms fade (no fade with reduced
+  motion); event reset, blur and handoff clear views/cues/timers. Never restore
+  another scene's latest result or keep a separate cross-scene roll log.
+  Ordinary displays default enabled and can be turned Off; canonical attack
+  selected-natural20 criticals and selected-natural1 fumbles always show even
+  with Off. Honor Instant/reduced motion and preserve real check/save outcomes.
 - Idle, attack, cast, ability, item, defend, damage, victory, faint, and flee
   states must have once-only completion, a duration-plus-grace visual recovery
   path, and explicit cleanup on battle handoff or scene shutdown.
@@ -739,6 +859,39 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 - `/craft list|unlock|lock|craft|material|status|reset` is debug-only. Debug
   crafting and discovery do not advance natural crafting achievements.
 
+## Tavern and festival activities
+
+- Stable activities, venues, rulesets, difficulties, scores, rewards, and records
+  live in `src/data/minigames.ts`; focused `minigame*.ts` systems own deterministic
+  mechanics, transactions, unknown normalization, and pure layout/presentation.
+  Scene-owned controls, instructions, personal boards, and cleanup live in
+  `src/managers/minigames.ts` and procedural renderers.
+- Crown & Bones resolves exact 2d6 before presentation, exposes all 36 ordered
+  odds, caps stakes at 5/10/20g and total payout at twice the stake, and has no
+  positive optimal pre-entry expected return. Crowns affect score, not payout.
+- Archery borrows one bow for all classes and scores only accepted precision.
+  Its normal meter is runtime-only; reduced motion uses explicit aiming.
+  Never autosave frames, infer a shot from animation, or reroll saved targets.
+- Regatta uses canonical nautical cardinal movement, Water/boat/depth checks,
+  condition-loss multipliers, and seeded canonical weather. Persist forecast
+  and course; never move campaign position/sailing/fog or alter global weather.
+- Buy-ins, accepted inputs, wear, payouts, and abandonment persist atomically
+  before results. Failed writes restore all touched domains and consumers.
+  Use permanent session/settlement watermarks and finite milestone claims,
+  never the bounded 40-entry history, to authorize payment.
+- Paid 80+ skill runs refund at most their entry plus a first-only 8/16/24g
+  archery or 10/20/30g regatta bonus. Venue switching cannot repeat claims.
+  Free practice and persistently marked debug sessions grant no currency,
+  reputation, natural records/achievements, or wear.
+- Only first paid medals emit bounded town/faction reputation; normal wins and
+  losses never shift alignment. Lore and cosmetic achievements consume
+  authoritative evidence and never control quests, access, combat, or endings.
+- Reveal activity menus from venue evidence, keep rules/records paginated,
+  restore stable focus and semantic input, support all controls/text scales/
+  contrast/reduced motion, and clean up every owned callback/container.
+- `/minigame list|status|near|play` is local debug only. See `docs/minigames.md`
+  and the minigames skill.
+
 ## Alignment and reputation
 
 - Canonical definitions and thresholds live in `src/data/reputation.ts`; pure
@@ -784,20 +937,46 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
   hidden presentation, completion order/timestamps, summary points, and title
   selection. `AchievementNotificationManager` shows persisted notices only
   during safe Overworld states and leaves interrupted notices queued.
+  Remove active notice containers/timers when a menu opens, reconcile after
+  scene updates, reject stale completions, and measure wrapped popup text
+  through the shared notification renderer rather than fixed heights.
 - Debug unlocks are marked and grant no points or titles. Debug mutations must
   suppress newly satisfied natural criteria, and debug-spawned battles/events
   must not advance event counters.
 
+## Fictional devotion
+
+- Original pantheon/temple/rite/blessing/dialogue/source definitions live in
+  `src/data/devotion.ts`; focused quest, event and Codex content stays beside it.
+  Never represent real-world religion, scripture, rituals or living beliefs.
+- `devotionState.ts` normalizes independent authoritative state;
+  `devotion.ts` owns canonical source idempotency, tiers, affiliation and
+  read-only qualification APIs. Consume sources even while unaffiliated.
+  Confirmed switches/renunciation reset score to 0 and clear only temple
+  blessings. Show the exact loss first and retain every source/visit ledger;
+  completed causes cannot award again. Do not infer historical scores.
+- Temple transactions validate live city/district/adjacency before mutation
+  through `devotionTemples.ts`. Every visitor can receive the same optional
+  +1 AC/three-hero-turn `templeWard` through the existing status lifecycle or use
+  one normal short rest. Never add a second blessing clock or farmable rite.
+- Profile presentation is derived. The devotion manager owns measured pages,
+  semantic controls, native accessible counterparts, explicit confirmation and
+  cleanup. Codex, achievements, discovery and ending text only consume evidence.
+- Every affiliation and none can complete the campaign. Pure optional
+  prerequisite queries are the only prestige extension; no prestige classes
+  are implemented here. See `docs/devotion.md`.
+
 ## Save system
 
-Save schema version is 19.
+Save schema version is 26.
 
-Schema v19 adds `player.difficulty`: canonical selected profile, bounded Custom
+Schema v26 adds `player.difficulty`: canonical selected profile, bounded Custom
 overrides, initial profile ID, lifetime change count, and up to 20 canonical
 from/to/step/cause records. Derive modifiers from `src/data/difficulty.ts` through
 `src/systems/difficulty.ts`; never serialize derived rules or future scale layers.
-Older saves retain exact Standard. Corrupt modern continuity cannot restore
-preset challenge credit.
+Campaigns through v25 without difficulty retain exact Standard. Valid v19
+difficulty previews preserve owned rules/history and legacy hero resources.
+Corrupt modern continuity cannot restore preset challenge credit.
 
 Difficulty composition is authoritative in shared helpers, not scene profile
 conditionals. Scale runtime enemy HP without mutating definitions; keep base
@@ -816,6 +995,68 @@ confirmation, and an atomic autosave. Roll back the exact selection/history on
 save failure. No-op selections do not record causes or lose eligibility; actual
 changes append one canonical movement-step cause and irreversibly remove future
 preset challenge continuity without replaying gameplay.
+Schema v25 adds normalized `player.battleTiming`: Standard/Timed mode,
+15/30/45/60/90-second durations, and validated Defend. Missing configuration
+migrates to unlimited Standard; valid v19 timing previews retain configuration.
+Malformed modes do not opt in, and unknown
+durations/policies recover to 30 seconds/Defend. No deadline or in-progress
+initiative/economy is serialized; loading never executes a timeout.
+Schema v24 adds optional armor-only `Item.physicalResistances`: unique supported
+physical types, with explicit empty custom lists preserved. Resolve legacy
+canonical protection at use time without changing serialized item metadata,
+append order or exact equipment links. Unknown malformed ownership rejects
+imports/slots before writing; known gear uses the existing repair path.
+Keep v23 physical observations and all exact activity, rest and other domains.
+
+Schema v23 adds `CodexEntry.discoveredPhysical` with stable type and optional
+part IDs, plus optional `Item.physicalDamageType`. Normalize unknown/duplicate/
+neutral/impossible observations and weapon-only metadata. Pre-v22 records gain
+empty observations without invented history. Schema-v22 activity saves without
+physical observations also gain empty lists; valid v22 physical-combat previews
+retain their observed IDs and typed weapons. Preserve every existing campaign
+domain, custom item metadata/order and exact equipment links; legacy weapons
+resolve canonical or shape-derived types without rewriting serialized ownership.
+Monster part selection/effects remain runtime-only.
+
+Schema v22 adds `player.progression.minigames`: deterministic exact pending
+sessions/receipts, permanent sequence/settlement watermarks, finite milestone
+claims, discovered venues, paid/practice bests, natural statistics, and bounded
+history. Schema-v21 and older campaigns without the domain gain deterministic
+empty defaults. Valid schema-v19/v20/v21 feature previews retain their exact
+run IDs, challenges, committed wear, watermarks, and claims.
+Validate known IDs, rulesets, fixed challenges, caps, phases/revisions, natural/
+debug/practice distinctions, and venue/owned-boat state. Corrupt pending repair
+never refunds, rerolls, recharges, replays a reward, or restores spent hull wear.
+
+Schema v21 adds independent optional devotion with unaffiliated/zero legacy
+defaults, stable source/visit ledgers, debug-consumed sources, an affiliation
+sequence and bounded causes. Exact historical completion/outcome sources may
+only be marked consumed, never replayed for points or blessings. Normalize
+unknown/duplicate IDs, bounds, history links and status source/affiliation/turn
+cross-fields while preserving every other domain.
+Valid schema-v19/v20 feature-preview devotion records retain their existing
+authority; missing records in older campaigns never gain historical points.
+
+Schema v20 recognizes only the six registered `prestige:<pathId>` rank maps
+and optional owned `debugTrackIds`. Ranks are integers 1-5 and aggregate base/
+path ownership stays at most 20. Irreparable path records fall through isolated
+slot recovery. Schema-v19 and older saves gain no path ranks or path-only
+knowledge; preserve their stats, resources, custom item links, frozen/rest
+credits and canonical legacy/deferred exceptions. Never replay bonuses during
+load or recheck mutable joining conditions for earned ranks.
+
+Schema v19 adds normalized hero class ownership and fixed starting identity,
+total-level mirroring, rest-ready credits and one frozen level receipt. Migrate
+legacy single-class HP/MP/stats/actions/equipment without rerolling or replaying
+bonuses. Retain canonical legacy exceptions and optional undelivered legacy
+grants until the next applied level, preserving the old processor's behavior.
+Normalize IDs, ranks, totals, action overlap, resources, equipment links,
+rest/XP cross-fields and malformed receipts without touching campaign authority.
+
+Hero inventory validation lives in `heroItemState.ts`. Preserve well-formed
+serialized custom IDs, metadata and append order; relink equipment by complete
+content and recover valid legacy orphan gear. Companion-only canonical-item
+restrictions must never drop valid hero items.
 
 Schema v18 adds non-negative campaign playtime and a resilient local slot
 layout: the legacy-compatible `2dnd_save` autosave, three stable manual slots,
@@ -824,6 +1065,14 @@ migration marker. Migrate a valid legacy autosave atomically without deleting
 it, isolate corruption per slot, recover staging/backup copies before failure,
 and validate all deterministic JSON imports through the existing campaign
 normalizer. Loading a manual snapshot must not mutate that source slot.
+Validate required hero identity, stats, level, economy, resources, spell-list,
+and item-ID records before optional repair; an unusable core must fall through
+to recovery or reject an import before writing. Preserve well-formed serialized
+hero items, including legacy/custom IDs and order; only malformed known records
+may recover canonical metadata. Never silently delete unknown hero ownership.
+Share actor item validation and owned-equipment repair through `saveActor.ts`.
+Catch denial of the `localStorage` getter as well as its methods. Keep title
+diagnostics and in-memory preferences usable, and surface campaign write errors.
 
 Schema v17 adds normalized feature-discovery IDs, pending one-time reveal IDs,
 explicit debug reveals, and debug-suppressed evidence. Schema-v16 and older
@@ -903,6 +1152,9 @@ Audio and accessibility preferences are not campaign save fields. The versioned
 `2dnd_preferences` document is normalized by `src/systems/accessibility.ts`,
 migrates the legacy audio and cutscene-accessibility keys, and notifies live
 title/in-game settings consumers immediately.
+Preference v3 adds `dice.frequency` (all/important/off) and `dice.speed`
+(normal/fast/instant), with All/Normal legacy/corruption defaults. Campaign
+schema is independent. Dice receipts and presentation logs never enter a save.
 
 When persistent data changes:
 
@@ -938,6 +1190,8 @@ Data-driven campaign scenes route short typed cues through
 `audioEngine.playCutsceneCue()`. Disconnect ended cue oscillators and gain nodes.
 Battle presentation routes spell, ability, defend, flee, and faint cues through
 the synthesized SFX graph; do not duplicate cues in scene-local action code.
+`audioEngine.playDiceCue()` uses deterministic oscillators, returns a cancel
+function, and must not consume shared RNG. The dice manager owns cancellation.
 Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 `audioEngine.playTrapSFX()`. Do not add external audio.
 
@@ -957,7 +1211,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v19
+  visibility, handedness, and prompt source only; they never enter schema-v26
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the
@@ -973,6 +1227,13 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - `#layout-report` and `data-layout-overlap-count` /
   `data-layout-clipping-count` are local debug/test selectors. Registered groups
   must report zero unintended intersections and zero visible-content clipping.
+- Measure natural glyph/padding bounds before fixing text height. Audit nested
+  content and explicit progress-bar/swatch/preview bounds; wrap and page rather
+  than shrinking supported text or masking overflow.
+- Use `subscribeOverlayReflow()` for preference/source/resize changes and keep
+  state in its existing owner. Reflow never rerolls creation stats/cosmetics or
+  changes source-owned transactions. Read Phaser parent bounds before FIT
+  refresh when the DOM canvas host changes.
 
 ## Semantic controls
 
@@ -982,9 +1243,20 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - `src/managers/input.ts` is the only browser adapter for keyboard, pointer,
   standard gamepads, and touch. Do not add parallel scene-specific gamepad or
   mobile mappings.
+  Native desktop never creates mobile touch rails, even with saved On
+  preferences. Keep WASD gameplay outside focused text fields, preserve ordinary
+  typing/key release isolation, and use arrow/face-position icons rather than
+  compass words. Native canvas touch uses pointer-first prompts and controls.
+- Shared key rows/edit rules in `src/systems/textEntry.ts` and the dialog in
+  `src/managers/textEntry.ts` own controller name/slot/search entry. Reuse
+  `openMobileTextInput()`, clear held game keys, isolate the modal, and preserve
+  cancel/focus restoration; do not add a second gamepad map.
 - Standard gamepads use digital fallback plus analog dead zones. The right
   stick owns a visible virtual cursor for pointer-first surfaces, and pressing
   it clicks without replacing the normal A/confirm action.
+- Positional south/east/west/north prompts avoid guessing hardware glyphs.
+  The right-stick cursor may activate existing desktop DOM controls, including
+  fullscreen; unmodified Tab/west edits the hero name.
 - Touch controls are procedural DOM controls with safe-area/orientation CSS,
   pointer capture for held directions, pointer-release pulses with a click
   fallback for discrete actions, and simultaneous movement/action support.
@@ -994,8 +1266,14 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Route title selection and direct pointer targets through
   `src/managers/titleMenu.ts`. Keep the new-game overwrite confirmation compact,
   centered, and directly tappable in mobile landscape.
+- Let `SaveSlotManager` own Esc/B/Cancel while open so confirmations and copy
+  destinations cancel before the outer slot manager closes.
 - Clear held input and synthetic keys on blur, visibility loss, gamepad
   disconnect, scene changes, and runtime destruction.
+- Discrete touch pulses use owned tokens and release after Phaser poststep so
+  scene `JustDown` polling observes the press. Cancel pending release/listeners
+  on every cleanup boundary; never release another held owner or deliver stale
+  callbacks to a replacement scene. Preserve text-entry/log priority.
 - Resolve key conflicts by semantic context/priority. Never map production
   controls to debug cheat actions.
 - Prompts and focus state must adapt to the selected/active source using text or
@@ -1020,6 +1298,9 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   current city's primary district; it never completes the interaction.
 - `/companion` lists, recruits, changes control mode, heals, or explains stored
   gambits. Recruitment mutations refresh follower presentation immediately.
+- `/class list|status|qualify <id>|level <id>|sheet` inspects bounded hero
+  progression. Advancement uses the canonical transaction only in safe
+  exploration and suppresses newly met natural achievement criteria.
 - `/achievement` lists, debug-unlocks, resets, reports progress, or explains
   authoritative criteria. Debug unlocks never grant natural points or titles.
 - `/feature` lists, explicitly debug-reveals, hides, resets, or explains stable
@@ -1041,12 +1322,16 @@ npm run test:watch
 npm run build
 npm run build:desktop
 npm run package:desktop
+npm run package:steam:ci -- --mac --universal
+npm run steam:prepare
 npm run benchmark:baseline
 ```
 
 ## Testing
 
 - Frameworks: Vitest for logic and Playwright for browser/Electron flows.
+- Run local tests headlessly, never by opening native windows or controlling
+  the developer's desktop. Native gates use isolated CI/virtual displays.
 - Files: `tests/*.test.ts`, `e2e/*.spec.ts`, and `electron-tests/*.spec.ts`.
 - Add deterministic tests for mechanics and migrations.
 - Add deterministic layout tests for measured stacks/grids, long wrapping,
@@ -1066,6 +1351,13 @@ npm run benchmark:baseline
 - Desktop CI audits, smoke-tests `app://2dnd/game.html`, and creates unsigned
   macOS, Windows, and Linux artifacts. Matching version tags rerun the full gate
   and attach those packages to a GitHub release without signing credentials.
+- Steam preparation stages native Linux x64, Windows x64 and inspected macOS
+  universal runtimes with source/license/hash receipts. SDK, native Steam Input
+  API, Steam achievements and Cloud remain disabled. Never sync Chromium
+  profiles, expose partner IDs/credentials to PRs, or infer Proton/Deck/client/
+  signing/store approval from equivalent tests. Protected upload requires
+  explicit human authorization and never sets a branch live. See
+  `docs/steam.md`; keep #183 incomplete until external evidence exists.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run `npm run benchmark:baseline` on the current base commit before

@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { presentSkillDiceResult, resetDicePresentation } from "./dicePresentation";
 import { GAME_HEIGHT, GAME_WIDTH, debugPanelLog } from "../config";
 import {
   getWorldEventDefinition,
@@ -28,7 +29,7 @@ import type { QuestUpdate } from "../systems/quests";
 import type { Terrain } from "../data/mapTypes";
 import type { SocialMutationResult } from "../systems/reputation";
 import { createOverlayContainer } from "../utils/ui";
-import { layoutTextStack } from "./layout";
+import { layoutTextStack, syncInteractiveHitArea } from "./layout";
 import { paginateMeasuredItems } from "../systems/layout";
 
 export interface WorldEventManagerCallbacks {
@@ -194,6 +195,7 @@ export class WorldEventManager {
   }
 
   close(): void {
+    resetDicePresentation(this.scene);
     this.container?.destroy(true);
     this.container = null;
   }
@@ -212,6 +214,7 @@ export class WorldEventManager {
     defeatedBosses: ReadonlySet<string>,
     terrain: Terrain,
   ): void {
+    resetDicePresentation(this.scene);
     this.player = player;
     this.codex = codex;
     this.defeatedBosses = defeatedBosses;
@@ -255,6 +258,9 @@ export class WorldEventManager {
     );
     this.close();
     if (resolution.resolved) {
+      if (resolution.skillCheck) {
+        presentSkillDiceResult(this.scene, resolution.skillCheck, choice.label);
+      }
       debugPanelLog(
         `[EVENT] ${choice.id}: ${resolution.summary}`,
         true,
@@ -263,7 +269,11 @@ export class WorldEventManager {
       this.callbacks.showCodexUnlocks(resolution.codexUnlocks);
       this.callbacks.handleSocialEffects(resolution.socialEffects);
       this.callbacks.updateHUD();
-      this.callbacks.showMessage(resolution.summary, "#f7c948");
+      this.callbacks.showMessage([
+        resolution.summary,
+        ...resolution.devotionEffects.filter((effect) => effect.delta !== 0)
+          .map((effect) => effect.message),
+      ].join(" "), "#f7c948");
       this.callbacks.autoSave();
     }
   }
@@ -294,9 +304,13 @@ export class WorldEventManager {
             true,
           );
           return {
-            messages: resolution.socialEffects
-              .filter((effect) => effect.changed)
-              .map((effect) => `Social: ${effect.summary}`),
+            messages: [
+              ...resolution.socialEffects
+                .filter((effect) => effect.changed)
+                .map((effect) => `Social: ${effect.summary}`),
+              ...resolution.devotionEffects.filter((effect) => effect.delta !== 0)
+                .map((effect) => effect.message),
+            ],
             codexEntries: resolution.codexUnlocks.entries,
           };
         },
@@ -399,7 +413,17 @@ export class WorldEventManager {
       row.on("pointerover", () => {
         if (this.selectedIndex === index) return;
         this.selectedIndex = index;
-        this.render();
+        rows.forEach((candidate, candidateIndex) => {
+          if (!candidate.active) return;
+          const definition = event.choices[candidateIndex];
+          const focused = candidateIndex === this.selectedIndex;
+          candidate.setText(
+            `${focused ? ">" : " "} ${definition.label}\n  ${definition.detail}`,
+          );
+          candidate.setColor(focused ? "#ffffff" : "#d1d5db");
+          candidate.setBackgroundColor(focused ? "#374151" : "#1f2937");
+          syncInteractiveHitArea(candidate, 4);
+        });
       });
       row.on("pointerdown", () => {
         this.selectedIndex = index;

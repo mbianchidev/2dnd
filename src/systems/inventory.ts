@@ -1,5 +1,5 @@
 import { debugLog } from "../config";
-import { getItem, type Item } from "../data/items";
+import { getItem, getItemDescription, type Item } from "../data/items";
 import type { CombatActorState } from "./player";
 
 export const INVENTORY_PREFERENCES_STORAGE_KEY = "2dnd_inventory_prefs";
@@ -130,10 +130,10 @@ export function normalizeInventoryPreferences(
 }
 
 function loadInventoryPreferences(): InventoryPreferences {
-  if (typeof localStorage === "undefined") {
-    return normalizeInventoryPreferences(undefined);
-  }
   try {
+    if (typeof localStorage === "undefined") {
+      return normalizeInventoryPreferences(undefined);
+    }
     const saved = localStorage.getItem(INVENTORY_PREFERENCES_STORAGE_KEY);
     return normalizeInventoryPreferences(
       saved === null ? undefined : JSON.parse(saved) as unknown,
@@ -177,8 +177,8 @@ export class InventoryPreferenceStore {
 
   private update(changes: Partial<InventoryPreferences>): void {
     this.preferences = { ...this.preferences, ...changes };
-    if (typeof localStorage === "undefined") return;
     try {
+      if (typeof localStorage === "undefined") return;
       localStorage.setItem(
         INVENTORY_PREFERENCES_STORAGE_KEY,
         JSON.stringify(this.preferences),
@@ -243,7 +243,7 @@ function matchesSearch(entry: InventoryViewEntry, search: string): boolean {
   return [
     entry.item.id,
     entry.item.name,
-    entry.item.description,
+    getItemDescription(entry.item),
     entry.item.type,
     entry.category,
     entry.rarity,

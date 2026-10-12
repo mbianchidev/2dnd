@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v24, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v25, slots, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -52,7 +52,7 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 24.
+`SAVE_VERSION` is 25.
 
 Schema v24 adds optional armor-only `Item.physicalResistances` with unique known
 types. Keep valid custom lists, including empty lists, and exact equipped
@@ -138,6 +138,20 @@ loading path.
 Schema v18 normalizes malformed or missing playtime to zero. Storage metadata
 does not enter the campaign payload. Autosave and manual slot IDs are stable;
 manual saves are independent snapshots.
+
+Schema v25 adds `player.battleTiming` configuration: Standard/Timed,
+15/30/45/60/90-second durations, and fixed validated Defend. Campaigns without
+the field start Standard; valid v19 timing previews preserve configuration and
+use legacy hero migration if they predate class ownership. Malformed modes
+never opt in. Normalize from `unknown`
+with `normalizeBattleTimingSettings()`, default unsupported durations to 30,
+and repair unsupported policies to Defend. Manual snapshots keep their own
+configuration. Never serialize a countdown deadline or partial Battle economy;
+loading uses existing checkpoint/pending-encounter recovery without executing
+a timeout, action, or reward. See [Timed battle decisions](../../../docs/battle-timing.md).
+Configuration is editable only in Overworld; Battle log Pause/Resume does not
+save live combat resources. Result/reward hooks must finish before actor and
+companion effects are cleared and before outgoing Battle autosave.
 
 ```typescript
 interface CodexData {
@@ -432,7 +446,7 @@ to browsing before closing the manager.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v24 armor metadata, physical discovery, minigame authority, devotion,
+- Current schema-v25 battle timing, armor metadata, physical discovery, minigame authority, devotion,
   hero/base/prestige progression, playtime,
   position, objective/reward/warning quest state,
   skill checks,
@@ -461,7 +475,7 @@ to browsing before closing the manager.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v24 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real schema-v25 campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

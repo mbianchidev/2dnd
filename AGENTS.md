@@ -14,7 +14,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.4, Electron 44.7.0, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.64.0 |
 | DOM tests | happy-dom 20.14.6 |
-| Save schema | 24 |
+| Save schema | 25 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -26,6 +26,7 @@ future work until merged.
 | Domain | Data/contracts | Mechanics/state | Phaser/presentation | Tests |
 | --- | --- | --- | --- | --- |
 | Combat/status/elements | `src/data/{abilities,spells,elements}.ts` | `src/systems/{combat,groupCombat,battleActions,statusEffects}.ts` | `Battle.ts`, battle managers/renderers | `combat`, `groupCombat`, `battleActions`, `statusEffects`, Battle E2E |
+| Timed decisions | `src/data/battleTiming.ts` | `battleTiming.ts`, `battleTimingSettings.ts` | Battle/timing/decision-menu managers | timing/scene/save/input tests + timed-battle E2E |
 | Physical/anatomy combat | `damageTypes.ts`, `anatomy.ts`, `itemCombat.ts`, monster metadata | `physicalCombat.ts`, existing combat/action owners and Codex normalization | shared `battleBodyTarget.ts`, hero/manual companion adapters | physicalCombat/physicalCombatSave and physical-combat E2E |
 | Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, `effectRolls.ts`, redacted `dicePresentation.ts`, visual `diceMotion.ts` | scene-local dice/battleDice managers, procedural SVG scene overlay, existing Battle log | dicePresentation/diceManager/effectRollReceipts/rollReceipts/diceMotion/diceRenderer and dice E2E |
 | Hero progression | `src/data/classProgression.ts`, canonical class/action/talent definitions | `classProgression.ts`, `classProgressionState.ts`, `heroItemState.ts`, `classProgressionDebug.ts` | `heroProgression.ts`, rest/equipment adapters | progression/state/item/debug/battle/layout suites, multiclass E2E |
@@ -122,6 +123,12 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   content is installed. Path-only talents never enter generic scans.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
+- Standard is unlimited. Timed mode persists only bounded per-campaign settings,
+  counts accepted hero/manual decision time, and validates Defend once at timeout.
+  Pause real input/presentation blockers, not normal logs or non-blocking notices.
+  Never serialize a deadline or let runtime duration suggestions enable timing.
+- Timing settings are Overworld-only. Clear actor/companion combat effects after
+  result/reward hooks and before outgoing Battle autosave, not only at handoff.
 - Dice views consume exact immutable receipts, redact hidden AC/DC and enemy
   modifiers/totals, never use shared RNG, and never create an input-block reason.
   Dice use the measured game viewport, not a dock. Battle details join its
@@ -257,6 +264,7 @@ headless mode; native release gates belong on isolated CI/virtual displays.
 - [Prestige paths](docs/prestige.md)
 - [Companions and gambits](docs/companions.md)
 - [Inventory presentation](docs/inventory.md)
+- [Timed battle decisions](docs/battle-timing.md)
 - [Tavern and festival activities](docs/minigames.md)
 - [Fictional devotion](docs/devotion.md)
 - [Steam preparation](docs/steam.md)

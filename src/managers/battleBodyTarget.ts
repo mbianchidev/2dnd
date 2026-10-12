@@ -40,7 +40,10 @@ export class BattleBodyTargetManager {
   private pendingActivation: string | null = null;
   private readonly consumedKeys = new WeakSet<KeyboardEvent>();
 
-  constructor(private readonly scene: Phaser.Scene) {}
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly input?: { accepts(): boolean; resume(): boolean },
+  ) {}
 
   get isOpen(): boolean { return this.options !== null; }
 
@@ -185,6 +188,7 @@ export class BattleBodyTargetManager {
   }
 
   private activate(id: string): void {
+    if (this.input?.resume() || this.input?.accepts() === false) return;
     const options = this.options;
     if (!options) return;
     const choice = this.choices.find((entry) => entry.id === id);
@@ -208,6 +212,13 @@ export class BattleBodyTargetManager {
     const forward = ["ArrowDown", "ArrowRight", "s", "S", "d", "D", "Tab"].includes(event.key);
     if (!backward && !forward && !["Home", "End", "Escape", "Enter", " "].includes(event.key)) return;
     this.consumedKeys.add(event);
+    const confirming = ["Escape", "Enter", " "].includes(event.key);
+    if ((confirming && this.input?.resume()) || this.input?.accepts() === false) {
+      this.pendingActivation = null;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     if (backward || forward) {
       const index = Math.max(0, ids.indexOf(this.selectedId));
       this.select(ids[(index + (backward ? -1 : 1) + ids.length) % ids.length]!);

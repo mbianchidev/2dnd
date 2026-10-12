@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v24; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v25; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -52,7 +52,22 @@ relinking and preserves well-formed serialized item ownership.
 
 ## Current schema
 
-`SAVE_VERSION` is **24**. Schema v24 adds optional armor-only
+`SAVE_VERSION` is **25**. Schema v25 adds normalized `player.battleTiming`
+configuration: Standard/Timed mode, a supported 15/30/45/60/90-second duration,
+and fixed validated Defend. Campaigns without timing configuration migrate to
+Standard; valid schema-v19 timing previews retain their opt-in and duration.
+Missing/malformed modes never opt in, unsupported durations recover
+to 30 seconds, and unsupported timeout actions recover to Defend.
+
+Only configuration is persisted. Battle reload retains existing checkpoint or
+pending-encounter recovery; no deadline, partial initiative/economy, or timeout
+callback is saved or executed on load. See [Timed battle decisions](battle-timing.md).
+Timing configuration is editable only in Overworld Settings; Battle log
+Pause/Resume cannot overwrite a checkpoint with unsaved combat resources.
+Result/reward hooks run before hero/companion combat effects are cleared and
+before the victory, flee, or defeat autosave.
+
+Schema v24 adds optional armor-only
 `Item.physicalResistances` with unique known physical types. Canonical older
 armor copies resolve their current protection at use time without replacing
 serialized metadata or equipment links. Valid custom arrays, including an
@@ -154,6 +169,7 @@ player.position
 player.progression
 player.party
 player.activeEffects
+player.battleTiming
 player.classProgression
 ```
 
@@ -269,6 +285,8 @@ Current loading preserves and repairs earlier releases, including:
 - World Event, social, achievement, gathering, crafting, nautical, and feature
   discovery defaults and corruption repair
 - schema-v17 and older playtime defaulting to zero
+- campaigns without timing configuration defaulting to unlimited Standard;
+  valid schema-v19 timing previews preserve their settings and legacy hero state
 - schema-v21 and older missing minigame state gains deterministic empty defaults
   without historical payouts or medals; valid feature previews are preserved
   through ID/cap/phase/revision/challenge/receipt repair,

@@ -521,6 +521,18 @@ Flow:
 
 ## Combat
 
+- Standard is unlimited. `player.battleTiming` is a per-campaign opt-in with
+  supported 15/30/45/60/90-second durations and fixed validated Defend.
+- `systems/battleTiming.ts` owns accepted decision time and once-only timeout;
+  its manager pauses real action/input/log-overlay/transition/focus/visibility/
+  controller-recovery blockers, not ordinary log appends or non-blocking notices.
+- Hero/manual target and bonus-action decisions share one turn budget. Timeout
+  never confirms a queued action, duplicates consumption/results, or times gambits.
+- Persist configuration only and keep existing checkpoint/pending-encounter
+  reload recovery. Runtime duration suggestions cannot opt in or change policy.
+- Timing settings are editable only in Overworld. Battle Pause/Resume never
+  saves partial resources, initiative, or action economy. Clear hero/companion
+  effects after result/reward hooks and before outgoing Battle autosave.
 - Physical Bludgeoning/Slashing/Piercing types and common affinity precedence
   live in `data/damageTypes.ts`; explicit monster size/anatomy/part anchors in
   `data/anatomy.ts`; old/custom weapon typing in `data/itemCombat.ts`.
@@ -955,8 +967,14 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 24.
+Save schema version is 25.
 
+Schema v25 adds normalized `player.battleTiming`: Standard/Timed mode,
+15/30/45/60/90-second durations, and validated Defend. Missing configuration
+migrates to unlimited Standard; valid v19 timing previews retain configuration.
+Malformed modes do not opt in, and unknown
+durations/policies recover to 30 seconds/Defend. No deadline or in-progress
+initiative/economy is serialized; loading never executes a timeout.
 Schema v24 adds optional armor-only `Item.physicalResistances`: unique supported
 physical types, with explicit empty custom lists preserved. Resolve legacy
 canonical protection at use time without changing serialized item metadata,
@@ -1167,7 +1185,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v24
+  visibility, handedness, and prompt source only; they never enter schema-v25
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

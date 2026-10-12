@@ -50,6 +50,8 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - unusable hero-core/import rejection, legacy hero-item preservation and actor item repair,
   exact-byte slot isolation, and denied `localStorage` getter recovery
 - semantic input mappings, context priority, repeats, cleanup, and suppression
+- active decision-time boundaries, overlapping pauses, stale/once-only timeouts,
+  hero/manual/gambit economy, configuration migration, and checkpoint recovery
 - pure layout, wrapping, pagination, safe-area, and focus math
 - transition contracts with mocked camera/time adapters
 - Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
@@ -72,6 +74,8 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   records, quota rejection, input cleanup, and pending/result reload
 - keyboard, pointer, touch, gamepad, mobile text entry, title actions, landscape
   confirmations, and active-source prompts
+- optional timed decisions, blocking log/visibility/controller recovery, manual
+  companions, safe timeout, configuration reload, and pending-encounter recovery
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
 - exact resolved dice, hidden-information redaction, disadvantage/auto-hit,
@@ -126,7 +130,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v24 autosave/manual-slot persistence,
+- real character creation, schema-v25 autosave/manual-slot persistence,
   relaunch, and continue
 - independent desktop copy/import, exact source-slot bytes, interrupted
   staging/core-corruption recovery, and loading a second campaign after relaunch

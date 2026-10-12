@@ -96,6 +96,12 @@ export class ActorAnimationDirector {
     return this.actors.get(actorId)?.active?.lifecycle.status === "pending";
   }
 
+  public get isBusy(): boolean {
+    return [...this.actors.values()].some(
+      (actor) => actor.active?.lifecycle.status === "pending",
+    );
+  }
+
   public refreshBase(actorId: string): void {
     const record = this.actors.get(actorId);
     if (!record || this.isAnimating(actorId)) return;

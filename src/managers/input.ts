@@ -4,6 +4,8 @@ import {
   SemanticInputState,
   inputPromptSource,
   inputSource,
+  inputAvailability,
+  hasLostActiveGamepad,
   isInputAction,
   isInputContext,
   isTouchActionAvailable,
@@ -159,6 +161,7 @@ export class SemanticInputRuntime {
   private cursorY = 0;
   private cursorActive = false;
   private gamepadConnected = false;
+  private activeGamepadIndex: number | null = null;
   private previousFrameAt = 0;
   private acceptsInput = true;
   private unsubscribePreferences: (() => void) | null = null;
@@ -179,6 +182,8 @@ export class SemanticInputRuntime {
     window.addEventListener("gamepaddisconnected", this.handleGamepadConnection);
     window.addEventListener("blur", this.handleBlur);
     window.addEventListener("focus", this.handleFocus);
+    document.addEventListener("focusin", this.handleTextFocus);
+    document.addEventListener("focusout", this.handleTextFocus);
     window.addEventListener("resize", this.handleResize);
     document.addEventListener("visibilitychange", this.handleVisibility);
     this.pointerRoot = document.getElementById("game-inner") ?? this.game.canvas;
@@ -190,6 +195,11 @@ export class SemanticInputRuntime {
     this.createCursor();
     this.unsubscribePreferences = gamePreferences.subscribe(() => {
       this.applyControlPreferences();
+      inputAvailability.update({
+        pageVisible: document.visibilityState === "visible",
+        windowFocused: document.hasFocus(),
+        textEntryActive: this.isTextEntryActive(),
+      });
     });
     this.unsubscribeFeatures = featureAvailability.subscribe(() => {
       this.applyTouchActionAvailability();
@@ -207,6 +217,8 @@ export class SemanticInputRuntime {
     window.removeEventListener("gamepaddisconnected", this.handleGamepadConnection);
     window.removeEventListener("blur", this.handleBlur);
     window.removeEventListener("focus", this.handleFocus);
+    document.removeEventListener("focusin", this.handleTextFocus);
+    document.removeEventListener("focusout", this.handleTextFocus);
     window.removeEventListener("resize", this.handleResize);
     document.removeEventListener("visibilitychange", this.handleVisibility);
     this.pointerRoot?.removeEventListener("pointerdown", this.handlePointerSource, true);
@@ -222,6 +234,9 @@ export class SemanticInputRuntime {
     this.touchRoot = null;
     this.cursor = null;
     this.clearAll();
+    this.activeGamepadIndex = null;
+    this.gamepadConnected = false;
+    inputAvailability.reset();
   }
 
   private readonly poll = (timestamp: number): void => {
@@ -234,6 +249,9 @@ export class SemanticInputRuntime {
     const sceneKey = this.getActiveSceneKey();
     const context = this.getContext();
     if (sceneKey !== this.activeSceneKey || context !== this.activeContext) {
+      if (sceneKey !== this.activeSceneKey) {
+        inputAvailability.acknowledgeControllerRecovery();
+      }
       closeTextEntry();
       this.releaseAllSyntheticKeys();
       this.state.clear();
@@ -251,6 +269,7 @@ export class SemanticInputRuntime {
       this.releaseAllSyntheticKeys();
     }
     this.pollGamepads(timestamp, frameDuration);
+    inputAvailability.update({ textEntryActive: this.isTextEntryActive() });
     for (const event of this.state.update(timestamp)) this.dispatch(event);
     this.animationFrame = window.requestAnimationFrame(this.poll);
   };
@@ -279,7 +298,13 @@ export class SemanticInputRuntime {
 
   private readonly handleGamepadConnection = (event: Event): void => {
     if (event.type === "gamepaddisconnected") this.cancelPulseReleases();
-    this.gamepadConnected = navigator.getGamepads().some(Boolean);
+    const previouslyConnected = this.gamepadConnected;
+    const pads = navigator.getGamepads();
+    this.gamepadConnected = pads.some(Boolean);
+    this.updateControllerRecovery(previouslyConnected, pads);
+    this.releaseDisconnectedGamepads(new Set(
+      pads.flatMap((pad) => pad?.mapping === "standard" ? [pad.index] : []),
+    ));
     if (!this.gamepadConnected) {
       const released = this.state.releaseMatching("gamepad:");
       for (const entry of released) this.releaseSyntheticToken(entry.token);
@@ -291,17 +316,54 @@ export class SemanticInputRuntime {
   };
 
   private readonly handleBlur = (): void => {
+    inputAvailability.update({ windowFocused: false });
     this.acceptsInput = false;
     this.clearAll();
   };
 
   private readonly handleFocus = (): void => {
+    inputAvailability.update({ windowFocused: true });
     this.acceptsInput = true;
   };
 
   private readonly handleVisibility = (): void => {
+    inputAvailability.update({ pageVisible: document.visibilityState === "visible" });
     if (document.visibilityState !== "visible") this.clearAll();
   };
+
+  private readonly handleTextFocus = (): void => {
+    inputAvailability.update({ textEntryActive: this.isTextEntryActive() });
+  };
+
+  private isTextEntryActive(): boolean {
+    const element = document.activeElement;
+    return isTextEntryOpen() || element instanceof HTMLElement
+      && (element.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(element.tagName));
+  }
+
+  private updateControllerRecovery(
+    previouslyConnected: boolean,
+    pads: readonly (Gamepad | null)[],
+  ): void {
+    const source = inputSource.get();
+    const indices = pads.flatMap((pad) => pad?.mapping === "standard" ? [pad.index] : []);
+    if (
+      hasLostActiveGamepad(source, this.activeGamepadIndex, indices)
+      || (previouslyConnected && !this.gamepadConnected && source === "gamepad")
+    ) {
+      inputAvailability.update({ controllerRecovery: true });
+    }
+  }
+
+  private releaseDisconnectedGamepads(connectedIndices: ReadonlySet<number>): void {
+    for (const index of this.gamepadSnapshots.keys()) {
+      if (connectedIndices.has(index)) continue;
+      this.cancelPulseReleases();
+      this.gamepadSnapshots.delete(index);
+      const released = this.state.releaseMatching(`gamepad:${index}:`);
+      for (const entry of released) this.releaseSyntheticToken(entry.token);
+    }
+  }
 
   private readonly handleResize = (): void => {
     this.clampCursor();
@@ -319,8 +381,13 @@ export class SemanticInputRuntime {
 
   private pollGamepads(timestamp: number, frameDuration: number): void {
     const pads = navigator.getGamepads();
+    const previouslyConnected = this.gamepadConnected;
     this.gamepadConnected = pads.some(Boolean);
-    const connectedIndices = new Set<number>();
+    this.updateControllerRecovery(previouslyConnected, pads);
+    const connectedIndices = new Set(pads.flatMap(
+      (pad) => pad?.mapping === "standard" ? [pad.index] : [],
+    ));
+    this.releaseDisconnectedGamepads(connectedIndices);
     for (const pad of pads) {
       if (!pad || pad.mapping !== "standard") continue;
       connectedIndices.add(pad.index);
@@ -341,18 +408,12 @@ export class SemanticInputRuntime {
         && next.buttons[11] === true
         && previous.buttons[11] !== true
       ) {
+        this.activeGamepadIndex = pad.index;
         this.clickCursor();
         inputSource.set("gamepad");
         this.updatePresentation("gamepad");
       }
       this.gamepadSnapshots.set(pad.index, next);
-    }
-    for (const index of this.gamepadSnapshots.keys()) {
-      if (connectedIndices.has(index)) continue;
-      this.cancelPulseReleases();
-      this.gamepadSnapshots.delete(index);
-      const released = this.state.releaseMatching(`gamepad:${index}:`);
-      for (const entry of released) this.releaseSyntheticToken(entry.token);
     }
   }
 
@@ -379,6 +440,7 @@ export class SemanticInputRuntime {
         binding.direction ?? 1,
       );
     if (pressed && !wasPressed) {
+      this.activeGamepadIndex = index;
       const action = resolveGamepadAction(binding, this.getContext());
       if (
         this.cursorActive
@@ -413,6 +475,7 @@ export class SemanticInputRuntime {
     const x = normalizeAnalogAxis(gamepad.axes[2] ?? 0);
     const y = normalizeAnalogAxis(gamepad.axes[3] ?? 0);
     if (x === 0 && y === 0) return;
+    this.activeGamepadIndex = gamepad.index;
     const bounds = this.game.canvas.getBoundingClientRect();
     if (!this.cursorActive) {
       this.cursorX = bounds.left + bounds.width / 2;

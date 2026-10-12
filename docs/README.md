@@ -23,6 +23,7 @@ on discovering and playing the game.
 
 - [Physical damage and aimed strikes](physical-combat.md)
 - [Companions and gambits](companions.md)
+- [Timed battle decisions](battle-timing.md)
 - [Hero multiclass progression](hero-progression.md)
 - [Optional prestige paths](prestige.md)
 - [Desktop application](desktop.md)

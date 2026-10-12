@@ -75,6 +75,8 @@ import {
   createFeatureDiscoveryProgress,
   type FeatureDiscoveryProgress,
 } from "./featureDiscovery";
+import { createBattleTimingSettings } from "./battleTimingSettings";
+import type { BattleTimingSettings } from "../data/battleTiming";
 
 export interface PlayerStats {
   strength: number;
@@ -186,6 +188,7 @@ export interface PlayerState {
   pendingLevelUps: number; // levels earned but not yet applied (applied on rest)
   activeEffects: ActiveStatusEffect[];
   party: PartyState;
+  battleTiming: BattleTimingSettings;
 }
 
 /** Mutable actor state required by reusable battle action resolvers. */
@@ -335,6 +338,7 @@ export function createPlayer(
     shortRestsRemaining: 2,
     pendingLevelUps: 0,
     activeEffects: [],
+    battleTiming: createBattleTimingSettings(),
     party: {
       companions: [],
       activeCompanionIds: [],

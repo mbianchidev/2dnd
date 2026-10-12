@@ -73,6 +73,15 @@ symbolic cue. Control presentation preferences cover touch visibility,
 handedness, and prompt source without changing campaign saves. Stable mappings
 are intentionally not remappable.
 
+Per-campaign `player.battleTiming` is separate from presentation preferences.
+Standard creates no timer. Timed hero/manual decisions use one bounded active
+budget through menus, targeting, and bonus actions; `battleActions.ts` validates
+one safe self-Defend at timeout. Pause real action/input/log-overlay/transition/
+visibility/focus/controller-recovery blockers, not ordinary logs or independent
+non-blocking notices. Only configuration is persisted; reload uses the existing
+checkpoint or selected pending encounter and never executes a deadline.
+See [Timed battle decisions](../../../docs/battle-timing.md).
+
 Preference v3 includes dice animation frequency/speed independently of the
 campaign schema. Exact d20/component/effect receipts live in `systems/rollResults.ts`, safe mapping
 and scoped visual lifetime in `systems/dicePresentation.ts`, scene-owned orchestration

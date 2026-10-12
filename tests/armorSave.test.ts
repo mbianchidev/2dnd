@@ -44,7 +44,6 @@ describe("schema-v24 armor ownership", () => {
     expect(saveGame(player, new Set(), createCodex(), player.appearanceId).ok).toBe(true);
     const saved = loadGame()!;
     expect(saved.version).toBe(SAVE_VERSION);
-    expect(saved.version).toBe(24);
     expect(saved.player.inventory).toEqual(before);
     expect(saved.player.equippedArmor).toBe(saved.player.inventory[saved.player.inventory.length - 1]);
     expect(getArmorPhysicalProfile(saved.player.equippedArmor)).toEqual({ resistances: [Bludgeoning] });
@@ -69,7 +68,7 @@ describe("schema-v24 armor ownership", () => {
     const random = vi.spyOn(Math, "random");
     random.mockClear();
     const restored = normalizeSaveData(structuredClone(raw))!;
-    expect(restored.version).toBe(24);
+    expect(restored.version).toBe(SAVE_VERSION);
     expect(restored.player.inventory).toEqual(before.inventory);
     expect(restored.player.equippedArmor).toBe(restored.player.inventory[restored.player.inventory.length - 1]);
     expect(restored.player.equippedArmor?.physicalResistances).toBeUndefined();

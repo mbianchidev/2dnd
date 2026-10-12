@@ -20,7 +20,7 @@ displays, not the user's host.
 
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
-schema-v24 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
+schema-v25 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
 `electron-tests/saveParity.spec.ts` additionally downloads a real browser slot
 export and imports it through the native renderer's file picker. Assert the same
@@ -79,6 +79,9 @@ debug exclusion, category-specific discovery, and schema-v17 migration
 ✅ Save-slot migration, staging/backup atomicity, corruption isolation, metadata,
 independent overwrite/rename/copy/delete, deterministic import/export, and
 keyboard/touch/gamepad management
+✅ Timed decision boundaries, overlapping pause/resume reasons, once-only/stale
+timeouts, hero/manual/gambit economy, fixed validated Defend, schema-v25
+configuration repair, and checkpoint/pending-encounter reload without replay
 ✅ Unusable hero-core rejection before import writes, serialized hero-item
 compatibility, actor equipment repair, exact byte isolation, and denied storage getters
 ✅ Defeat penalty receipts, once-only Battle resolution, recovered save
@@ -712,7 +715,7 @@ npx vitest run tests/dice.test.ts
 - Assert `location.origin === "app://2dnd"`, the `game.html` entry, and the
   fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
-  shell, create a manual snapshot, and continue the same schema-v24 campaign.
+  shell, create a manual snapshot, and continue the same schema-v25 campaign.
 - Return to title through the keyboard menu, quit through the visible title
   action, and verify lifecycle/quit logs without save-content leakage.
 - Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.

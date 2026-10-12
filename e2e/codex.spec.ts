@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { clickLayoutItem, tapLayoutItem } from "./helpers/layout";
 import { SAVE_VERSION } from "../src/systems/save";
+import { clickLayoutItem, tapLayoutItem } from "./helpers/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;

@@ -65,6 +65,7 @@ import { normalizeGatheringState } from "./gatheringState";
 import { normalizeCraftingState } from "./craftingState";
 import { reconcileCraftingRecipes } from "./crafting";
 import { normalizeNauticalState } from "./nauticalState";
+import { normalizeMinigameState, validateMinigameRecovery } from "./minigameState";
 import {
   getBoat,
   getPort,
@@ -87,7 +88,7 @@ import {
   type SaveStorageErrorCode,
 } from "./saveStorage";
 
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 22;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -539,12 +540,16 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     }
     const sourceVersion = parsed["version"];
     const rawInventory = parsed["player"]["inventory"];
+    const rawProgression = parsed["player"]["progression"];
+    const activityPreviewWithoutClassOwnership = sourceVersion === 19
+      && parsed["player"]["classProgression"] === undefined
+      && isRecord(rawProgression) && isRecord(rawProgression["minigames"]);
     const heroFields = normalizeHeroProgressionState({
       ...parsed["player"],
       inventory: Array.isArray(rawInventory)
         ? rawInventory.filter((item: unknown) => !isRecord(item) || item["id"] !== "adventurerTrapNotes")
         : rawInventory,
-    }, sourceVersion);
+    }, activityPreviewWithoutClassOwnership ? 18 : sourceVersion);
     if (!heroFields) return null;
     const data = parsed as unknown as SaveData;
     Object.assign(data.player, heroFields);
@@ -617,6 +622,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
         gathering: normalizeGatheringState(undefined, sourceVersion),
         crafting: normalizeCraftingState(undefined, sourceVersion),
         nautical: normalizeNauticalState(undefined, sourceVersion),
+        minigames: normalizeMinigameState(undefined, sourceVersion),
         discoveredFeatureIds: [],
         pendingFeatureRevealIds: [],
         debugDiscoveredFeatureIds: [],
@@ -698,6 +704,10 @@ export function normalizeSaveData(value: unknown): SaveData | null {
       data.player.progression.nautical,
       sourceVersion,
     );
+    data.player.progression.minigames = normalizeMinigameState(
+      data.player.progression.minigames,
+      sourceVersion,
+    );
     const featureDiscovery = sourceVersion < 17
       ? normalizeFeatureDiscoveryProgress({})
       : normalizeFeatureDiscoveryProgress(data.player.progression);
@@ -752,6 +762,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     }
 
     normalizePlayerLocation(data.player);
+    validateMinigameRecovery(data.player);
     replayCodexUnlocks(data.codex, data.player);
     reconcileCraftingRecipes(data.player, data.codex);
     reconcileAchievements({

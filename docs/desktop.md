@@ -50,7 +50,7 @@ generic IPC APIs through preload.
 
 ## Persistence
 
-The desktop shell uses the same schema-v21 autosave, manual-slot, staging, and
+The desktop shell uses the same schema-v22 autosave, manual-slot, staging, and
 backup `localStorage` documents as the web game. The stable `app://2dnd` origin
 keeps them available across launches and upgrades:
 
@@ -64,6 +64,11 @@ Chromium stores the documents beneath that root. Browser and desktop origins
 remain isolated; they do not silently copy or merge saves.
 Slot import/export uses validated JSON through renderer browser APIs; preload
 does not expose filesystem access.
+
+Optional tavern/festival sessions use those same renderer-owned documents and
+recovery rules. Electron activity tests exercise keyboard, emulated touch, and
+standard-gamepad play, pending/result reload, and once-only rewards without
+adding IPC or relaxing the production sandbox.
 
 ## Diagnostic logs
 
@@ -134,8 +139,16 @@ paths, licenses/source receipts, protected upload prerequisites and manual
 client/hardware gates. Steam SDK, achievements and Cloud remain disabled;
 preload, `app://2dnd` and renderer-owned local storage are unchanged.
 
-The shared renderer text-entry dialog includes a controller keyboard for names,
-slot labels and search. West edits the hero name; D-pad selects keys, south
-types, west deletes, Menu submits and east cancels. The right-stick cursor can
+Desktop builds never show mobile movement/action rails, even when a migrated
+preference says Touch On. Keyboard movement uses WASD; a focused name, slot label
+or search field accepts normal typing without moving the hero or navigating the
+game. Mobile visibility/handedness settings stay in browser/mobile presentation.
+Direct canvas pointer/touch input and standard gamepads remain supported.
+
+The shared renderer text-entry dialog includes a controller keyboard only while
+using a gamepad. Face-position icons replace cardinal words: `◉←` edits the hero
+name/deletes, `◉↓` types, Menu submits and `◉→` cancels; arrows select keys.
+Physical typing or selecting the text field hides this keyboard without losing
+the first character. The right-stick cursor can
 also activate the native fullscreen button. No native Steam keyboard or
 filesystem API is exposed.

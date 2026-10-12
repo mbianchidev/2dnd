@@ -130,6 +130,9 @@ import { SpecialNpcManager, type SpecialNpcCallbacks } from "../managers/special
 import { OverlayManager } from "../managers/overlay";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { WorldPresentationDirector } from "../managers/worldPresentation";
+import { layoutHudMessages } from "../renderers/hud";
+import { subscribeOverlayReflow } from "../managers/layout";
+import { createOverlayContainer } from "../utils/ui";
 import {
   getMotionDuration,
   installSceneAccessibility,
@@ -191,6 +194,7 @@ import {
 } from "../systems/achievements";
 import { applySocialMutation } from "../systems/reputation";
 import { GatheringManager } from "../managers/gathering";
+import { MinigameManager } from "../managers/minigames";
 import { tickGatheringCooldowns } from "../systems/gathering";
 import { CraftingManager } from "../managers/crafting";
 import { SaveSlotManager } from "../managers/saveSlots";
@@ -350,6 +354,7 @@ export class OverworldScene extends Phaser.Scene {
   private achievementOverlayManager!: AchievementOverlayManager;
   private achievementNotifications!: AchievementNotificationManager;
   private gatheringManager!: GatheringManager;
+  private minigameManager!: MinigameManager;
   private craftingManager!: CraftingManager;
   private saveSlotManager!: SaveSlotManager;
   private devotionManager!: DevotionManager;
@@ -462,6 +467,12 @@ export class OverworldScene extends Phaser.Scene {
       startBattle: (encounter, terrain, hooks, immediate) =>
         this.startBattle(encounter, terrain, immediate, hooks),
     });
+    this.minigameManager = new MinigameManager(this, {
+      autoSave: () => this.autoSave(),
+      updateHUD: () => this.updateHUD(),
+      showMessage: (message, color) => this.showMessage(message, color),
+      showCodexUnlocks: (result) => this.showCodexUnlocks(result),
+    });
     this.tutorialManager = new TutorialManager(this, {
       autoSave: () => this.autoSave(),
     });
@@ -502,6 +513,7 @@ export class OverworldScene extends Phaser.Scene {
       openAchievements: () => this.openAchievements(),
       openGathering: () => this.openGatheringStatus(),
       openCrafting: () => this.openCrafting(),
+      openMinigames: () => this.openMinigames(),
       openDevotion: () => this.openDevotionProfile(),
       openTips: () => this.tutorialManager.showTips(this.player),
       openSaveSlots: () => this.openManualSaveSlots(),
@@ -565,6 +577,7 @@ export class OverworldScene extends Phaser.Scene {
       this,
       this.player,
       () => this.autoSave(),
+      () => this.canShowNotifications() && !this.codexDiscovery.isShowing(),
     );
     this.devotionManager = new DevotionManager(this, {
       canVisitTemple: () => !this.isMoving && !this.sceneTransitions.isPending
@@ -608,7 +621,8 @@ export class OverworldScene extends Phaser.Scene {
       },
       data?.questUpdates,
     );
-    this.codexDiscovery = new CodexDiscoveryManager(this);
+    this.codexDiscovery = new CodexDiscoveryManager(this, () => this.canShowNotifications());
+    this.codexDiscovery.update(false);
     synchronizeCompanionRecruitment(this.player);
 
     // Reset movement state — a tween may have been orphaned when the scene
@@ -639,7 +653,9 @@ export class OverworldScene extends Phaser.Scene {
     this.createPlayerSprite();
     this.refreshPartyActors();
     this.setupInput();
+    this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.updateNotifications, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.updateNotifications, this);
       this.companionFollowerManager.clear();
       this.worldPresentation.cleanup();
       this.codexDiscovery.clear();
@@ -647,6 +663,7 @@ export class OverworldScene extends Phaser.Scene {
       this.achievementNotifications.clear();
       this.worldEventManager.clear();
       this.gatheringManager.clear();
+      this.minigameManager.clear();
       this.craftingManager.clear();
       this.saveSlotManager?.destroy();
       this.devotionManager.destroy();
@@ -668,6 +685,9 @@ export class OverworldScene extends Phaser.Scene {
     if (this.resumePendingNautical()) {
       return;
     }
+    if (this.minigameManager.resumePending(
+      this.player, this.codex, this.timeStep, this.weatherState.current,
+    )) return;
     if (this.gatheringManager.resumePending(
       this.player,
       this.codex,
@@ -756,6 +776,10 @@ export class OverworldScene extends Phaser.Scene {
     replay = false,
     debugHeroVisual?: HeroVisualDescriptor,
   ): boolean {
+    if (this.minigameManager.isOpen()) {
+      this.showMessage("Finish or abandon the activity before starting a cutscene.", "#ffe38a");
+      return false;
+    }
     if (this.sceneTransitions.isPending) return false;
     this.dialogueSystem.dismissDialogue();
     this.tutorialManager.close();
@@ -882,6 +906,22 @@ export class OverworldScene extends Phaser.Scene {
         return "Gathering state reset.";
       },
       gatheringStatus: () => this.gatheringManager.status(this.player),
+      minigameCommand: (args) => {
+        const result = this.minigameManager.executeDebug(
+          this.player, this.codex, args, this.timeStep, this.weatherState.current,
+        );
+        if (result.relocated) {
+          this.revealAround();
+          replayCodexUnlocks(this.codex, this.player);
+          suppressCurrentlyAvailableFeatures(this.player, this.codex);
+          suppressCurrentlyMetAchievements({
+            player: this.player, codex: this.codex, defeatedBosses: this.defeatedBosses,
+          });
+          this.autoSave();
+          this.restartOverworld("debug near minigame venue");
+        }
+        return result.messages;
+      },
       startCutsceneView: (cutsceneId, heroVisual) =>
         this.startCutscene(cutsceneId, true, heroVisual),
     });
@@ -908,6 +948,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const cKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     cKey.on("down", () => {
+      if (this.minigameManager.isOpen()) return;
       if (this.devotionManager.isOpen()) return;
       if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "codex")) return;
@@ -925,6 +966,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const yKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Y);
     yKey.on("down", () => {
+      if (this.minigameManager.isOpen()) return;
       if (this.devotionManager.isOpen()) return;
       if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "achievements")) return;
@@ -947,6 +989,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const eKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     eKey.on("down", () => {
+      if (this.minigameManager.isOpen()) return;
       if (this.devotionManager.isOpen()) return;
       if (this.overlayManager.isProgressionOpen()) return;
       if (this.saveSlotManager?.isOpen()) return;
@@ -961,6 +1004,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const pKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     pKey.on("down", () => {
+      if (this.minigameManager.isOpen()) return;
       if (this.devotionManager.isOpen()) return;
       if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "party")) return;
@@ -975,6 +1019,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const mKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     mKey.on("down", () => {
+      if (this.minigameManager.isOpen()) return;
       if (this.devotionManager.isOpen()) return;
       if (this.overlayManager.isProgressionOpen()) return;
       if (this.saveSlotManager?.isOpen()) return;
@@ -993,6 +1038,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     escKey.on("down", () => {
+      if (this.minigameManager.isOpen()) return;
       if (this.devotionManager.isOpen()) {
         this.devotionManager.cancel();
         return;
@@ -1040,6 +1086,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const qKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     qKey.on("down", () => {
+      if (this.minigameManager.isOpen()) return;
       if (this.devotionManager.isOpen()) return;
       if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "questJournal")) return;
@@ -1056,6 +1103,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const tKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T);
     tKey.on("down", () => {
+      if (this.minigameManager.isOpen()) return;
       if (this.devotionManager.isOpen()) return;
       if (this.saveSlotManager?.isOpen()) return;
       if (!isFeatureAvailable(this.player, "mounts")) return;
@@ -1167,6 +1215,15 @@ export class OverworldScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setDepth(21)
       .setAlpha(0);
+    this.hudText.setData("layoutId", "world-hud-message");
+    this.locationText.setData("layoutId", "world-hud-location");
+    const group = createOverlayContainer(this, "world-hud", 20, {
+      x: 0, y: 0, width: this.cameras.main.width, height: this.cameras.main.height,
+    });
+    group.add([hudBg, this.hudText, this.locationText]);
+    const unsubscribeReflow = subscribeOverlayReflow(this, () =>
+      layoutHudMessages(this, this.hudBg, this.hudText, this.locationText));
+    group.once(Phaser.GameObjects.Events.DESTROY, unsubscribeReflow);
     const pending = this.pendingHudMessage;
     this.pendingHudMessage = null;
     if (pending) {
@@ -1187,6 +1244,7 @@ export class OverworldScene extends Phaser.Scene {
     this.hudText.setColor(color);
     this.hudBg.setAlpha(1);
     this.hudText.setAlpha(1);
+    layoutHudMessages(this, this.hudBg, this.hudText, this.locationText);
 
     // Cancel previous fade
     if (this.hudFadeTimer) this.hudFadeTimer.remove();
@@ -1227,6 +1285,7 @@ export class OverworldScene extends Phaser.Scene {
     this.locationText.setText(text);
     this.locationText.setAlpha(1);
     this.hudBg.setAlpha(1);
+    layoutHudMessages(this, this.hudBg, this.hudText, this.locationText);
 
     // Cancel previous fade
     if (this.hudFadeTimer) this.hudFadeTimer.remove();
@@ -1260,7 +1319,8 @@ export class OverworldScene extends Phaser.Scene {
     } else if (p.position.inCity) {
       const city = getCity(p.position.cityId);
       const chunk = city ? getCityChunk(city, p.position.cityChunkIndex) : undefined;
-      regionName = city && chunk ? `🏘 ${city.name}: ${chunk.name}` : "City";
+      regionName = city && chunk
+        ? `🏘 ${city.name}${city.name === chunk.name ? "" : `: ${chunk.name}`}` : "City";
     } else {
       const chunk = getChunk(p.position.chunkX, p.position.chunkY);
       const sea = p.progression.nautical.sailing
@@ -1296,7 +1356,10 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private updateLocationText(): void {
-    if (this.gatheringManager.discoverNearby(this.player)) {
+    const gatheringChanged = this.gatheringManager.discoverNearby(this.player);
+    const minigameChanged = this.minigameManager.discoverNearby(this.player);
+    this.minigameManager.updateVenueVisibility((x, y) => this.fogOfWar.isExplored(x, y, this.player));
+    if (gatheringChanged || minigameChanged) {
       this.autoSave();
     }
     this.showLocationInfo();
@@ -1382,6 +1445,8 @@ export class OverworldScene extends Phaser.Scene {
       const temple = getAdjacentDevotionTemple(this.player.position);
       if (temple) return `${temple.name}  [SPACE] Visit`;
       if (shop) return `${shop.name}  [SPACE] Enter`;
+      const minigamePrompt = this.minigameManager.getPrompt(this.player);
+      if (minigamePrompt) return `${city.name}: ${chunk.name}  ${minigamePrompt}`;
       const gatheringPrompt = this.gatheringManager.getPrompt(this.player);
       return gatheringPrompt
         ? `${city.name}: ${chunk.name}  ${gatheringPrompt}`
@@ -1539,6 +1604,7 @@ export class OverworldScene extends Phaser.Scene {
     const chronicleTag = this.chronicleManager?.getDebugState() ?? "";
     const worldEventTag = this.worldEventManager?.getDebugState() ?? "";
     const gatheringTag = this.gatheringManager?.getDebugState() ?? "";
+    const minigameTag = this.minigameManager.getDebugState();
     const tutorialTag = this.tutorialManager.isTutorialOpen()
       ? " [TUTORIAL]"
       : this.tutorialManager.isTipsOpen()
@@ -1550,7 +1616,7 @@ export class OverworldScene extends Phaser.Scene {
     const devotionTag = this.devotionManager.getDebugState();
     const timePeriod = getTimePeriod(this.timeStep);
     debugPanelState(
-      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${boatTag}${menuTag}${saveSlotTag}${chronicleTag}${worldEventTag}${gatheringTag}${tutorialTag}${partyTag}${achievementTag}${craftingTag}${devotionTag} | ` +
+      `OVERWORLD | Chunk: (${p.position.chunkX},${p.position.chunkY}) Pos: (${p.position.x},${p.position.y}) ${tName}${cityTag}${dungeonTag}${mountTag}${boatTag}${menuTag}${saveSlotTag}${chronicleTag}${worldEventTag}${gatheringTag}${minigameTag}${tutorialTag}${partyTag}${achievementTag}${craftingTag}${devotionTag} | ` +
       `Anim: ${this.worldPresentation.debugState} | ` +
       `Move: ${this.isMoving ? "locked" : "ready"} `
       + `Handoff: ${this.sceneTransitions.isPending ? "pending" : "ready"} | ` +
@@ -1571,6 +1637,7 @@ export class OverworldScene extends Phaser.Scene {
       || this.chronicleManager?.isOpen()
       || this.worldEventManager.isOpen()
       || this.gatheringManager.isOpen()
+      || this.minigameManager.isOpen()
       || this.craftingManager.isOpen()
       || this.devotionManager.isOpen()
       || this.tutorialManager.isOpen();
@@ -2069,20 +2136,14 @@ export class OverworldScene extends Phaser.Scene {
       this.sceneTransitions.isPending || this.isMoving || this.isOverlayOpen()
         || this.dialogueSystem.isDialogueOpen(),
     );
-    this.achievementNotifications.update(
-      !this.sceneTransitions.isPending
-      && !this.isMoving
-      && !this.isOverlayOpen()
-      && !this.dialogueSystem.isDialogueOpen()
-      && !this.codexDiscovery.isShowing(),
-    );
-
     if (this.tutorialManager.isOpen()) {
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
         this.tutorialManager.handleAction("confirm");
       }
       return;
     }
+
+    if (this.minigameManager.isOpen()) return;
 
     if (this.gatheringManager.isOpen()) {
       this.gatheringManager.update();
@@ -2474,6 +2535,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handleAction(): void {
+    if (this.minigameManager.isOpen()) return;
     if (this.sceneTransitions.isPending) return;
     if (this.devotionManager.isOpen()) return;
     if (this.overlayManager?.isProgressionOpen()) return;
@@ -2686,6 +2748,10 @@ export class OverworldScene extends Phaser.Scene {
         );
         return;
       }
+
+      if (!this.isMoving && this.minigameManager.startNearby(
+        this.player, this.codex, this.timeStep, this.weatherState.current,
+      )) return;
 
       // NPC interaction
       const npcResult = findAdjacentNpc(
@@ -3253,6 +3319,18 @@ export class OverworldScene extends Phaser.Scene {
       this.player,
       (x, y) => this.fogOfWar.isExplored(x, y, this.player),
     );
+    this.minigameManager.renderVenues(
+      this.player,
+      (x, y) => this.fogOfWar.isExplored(x, y, this.player),
+      (venueId) => {
+        if (this.isMoving || this.sceneTransitions.isPending || this.isOverlayOpen()
+          || this.dialogueSystem.isDialogueOpen()
+        ) return;
+        this.minigameManager.openVenue(
+          this.player, this.codex, venueId, this.timeStep, this.weatherState.current,
+        );
+      },
+    );
     // Spawn special NPCs on overworld (not in city/dungeon)
     if (!this.player.position.inDungeon && !this.player.position.inCity) {
       const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
@@ -3412,6 +3490,10 @@ export class OverworldScene extends Phaser.Scene {
     battleHooks?: BattleResolutionHooks,
     biomeOverride?: string,
   ): void {
+    if (this.minigameManager.isOpen()) {
+      this.showMessage("Finish or abandon the activity before starting a battle.", "#ffe38a");
+      return;
+    }
     if (this.sceneTransitions.isPending) return;
     const encounter = "members" in encounterOrMonster
       ? encounterOrMonster
@@ -3486,7 +3568,7 @@ export class OverworldScene extends Phaser.Scene {
     }, "open codex");
   }
 
-  private autoSave(): void {
+  private autoSave(): SaveActionResult {
     this.preparePersistentState("overworld:autoSave");
     const result = saveGame(
       this.player,
@@ -3498,6 +3580,7 @@ export class OverworldScene extends Phaser.Scene {
     );
     if (!result.ok) this.showMessage(result.message, "#ff8a80");
     this.scheduleFeatureRevealFeedback();
+    return result;
   }
 
   private preparePersistentState(sourceId: string): void {
@@ -3562,6 +3645,17 @@ export class OverworldScene extends Phaser.Scene {
     this.gatheringManager.openStatus(this.player);
   }
 
+  private openMinigames(): void {
+    if (!isFeatureAvailable(this.player, "minigames")) return;
+    if (this.sceneTransitions.isPending || this.isMoving || this.minigameManager.isOpen()
+      || this.dialogueSystem.isDialogueOpen()
+    ) return;
+    this.overlayManager.destroyAll();
+    this.minigameManager.openRecords(
+      this.player, this.codex, this.timeStep, this.weatherState.current,
+    );
+  }
+
   private openAchievements(): void {
     if (!isFeatureAvailable(this.player, "achievements")) return;
     if (this.sceneTransitions.isPending || this.isMoving) return;
@@ -3587,6 +3681,19 @@ export class OverworldScene extends Phaser.Scene {
     this.questFlow.handleResult(result);
     this.autoSave();
     if (this.queueNewlyTriggeredCutscenes(snapshot).length > 0) this.startNextPendingCutscene();
+  }
+
+  private canShowNotifications(): boolean {
+    return !this.sceneTransitions.isPending
+      && !this.isMoving
+      && !this.isOverlayOpen()
+      && !this.dialogueSystem.isDialogueOpen();
+  }
+
+  private updateNotifications(): void {
+    const safeToShow = this.canShowNotifications();
+    this.codexDiscovery.update(safeToShow);
+    this.achievementNotifications.update(safeToShow && !this.codexDiscovery.isShowing());
   }
 
   private flushPendingCodexDiscovery(): void {

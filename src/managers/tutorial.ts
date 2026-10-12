@@ -15,7 +15,6 @@ import {
 import { isControlGuidanceAvailable } from "../systems/featureDiscovery";
 import {
   getInputPromptSource,
-  inputPromptSource,
   type InputSource,
 } from "../systems/input";
 import type { PlayerState } from "../systems/player";
@@ -25,7 +24,8 @@ import {
   createOverlayContainer,
   createPanelGraphics,
 } from "../utils/ui";
-import { layoutTextStack } from "./layout";
+import { layoutTextStack, subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
+import { paginateMeasuredItems } from "../systems/layout";
 
 export type TutorialNavigationAction =
   | "previous"
@@ -48,23 +48,14 @@ export class TutorialManager {
   private replayingTutorial = false;
   private categoryIndex = 0;
   private tipIndex = 0;
-  private readonly unsubscribePromptSource: () => void;
+  private detailPage = 0;
+  private unsubscribeReflow: (() => void) | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly callbacks: TutorialManagerCallbacks,
   ) {
-    this.unsubscribePromptSource = inputPromptSource.subscribe(() => {
-      if (this.mode === "tutorial") this.renderTutorial();
-      else if (this.mode === "tips") this.renderTips();
-    });
-    if (!this.scene.events) {
-      this.unsubscribePromptSource();
-      return;
-    }
-    this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.unsubscribePromptSource();
-    });
+    this.scene.events?.once(Phaser.Scenes.Events.SHUTDOWN, () => this.unsubscribeReflow?.());
   }
 
   isOpen(): boolean {
@@ -80,6 +71,7 @@ export class TutorialManager {
   }
 
   showTutorial(player: PlayerState, replay = false): void {
+    this.watchReflow();
     this.player = player;
     this.mode = "tutorial";
     this.replayingTutorial = replay;
@@ -88,10 +80,12 @@ export class TutorialManager {
   }
 
   showTips(player: PlayerState): void {
+    this.watchReflow();
     this.player = player;
     this.mode = "tips";
     this.categoryIndex = 0;
     this.tipIndex = 0;
+    this.detailPage = 0;
     this.renderTips();
   }
 
@@ -167,9 +161,19 @@ export class TutorialManager {
   }
 
   private destroyOverlay(): void {
+    this.unsubscribeReflow?.();
+    this.unsubscribeReflow = null;
     this.overlay?.destroy();
     this.overlay = null;
     this.mode = null;
+  }
+
+  private watchReflow(): void {
+    this.unsubscribeReflow?.();
+    this.unsubscribeReflow = subscribeOverlayReflow(this.scene, () => {
+      if (this.mode === "tutorial") this.renderTutorial();
+      else if (this.mode === "tips") this.renderTips();
+    });
   }
 
   private createOverlay(
@@ -207,7 +211,7 @@ export class TutorialManager {
 
   private renderTutorial(): void {
     const step = TUTORIAL_STEPS[this.tutorialStepIndex];
-    const { container, px, py, panelW, panelH } = this.createOverlay(580, 450);
+    const { container, px, py, panelW, panelH } = this.createOverlay(620, 512);
     const title = this.scene.add.text(
       px + panelW / 2,
       py + 18,
@@ -218,7 +222,7 @@ export class TutorialManager {
         color: "#ffd86b",
         fontStyle: "bold",
       },
-    ).setOrigin(0.5, 0);
+    ).setOrigin(0.5, 0).setWordWrapWidth(panelW - 100, true);
     const progress = this.scene.add.text(
       px + panelW - 18,
       py + 20,
@@ -229,9 +233,9 @@ export class TutorialManager {
         color: "#8da2c9",
       },
     ).setOrigin(1, 0);
-    const contentTop = py + 68;
+    const contentTop = title.y + title.displayHeight + 14;
     const contentGap = 24;
-    const controlsWidth = 180;
+    const controlsWidth = 210;
     const detailWidth = panelW - 56 - controlsWidth - contentGap;
     const controlsX = px + panelW - 28 - controlsWidth;
     const summary = this.scene.add.text(
@@ -331,6 +335,8 @@ export class TutorialManager {
       nextLabel,
       () => this.handleAction("confirm"),
     );
+    previous.setData("layoutId", "tutorial-previous");
+    next.setData("layoutId", "tutorial-next");
     const skip = this.scene.add.text(
       px + panelW / 2,
       py + panelH - 42,
@@ -342,10 +348,35 @@ export class TutorialManager {
       },
     ).setOrigin(0.5, 0);
     container.add([previous, next, skip]);
+    skip.setWordWrapWidth(Math.max(80, panelW - previous.displayWidth - next.displayWidth - 56), true);
+    const footerHeight = Math.max(previous.displayHeight, next.displayHeight, skip.displayHeight);
+    previous.setY(py + panelH - 16 - footerHeight);
+    next.setY(previous.y);
+    skip.setY(previous.y + (footerHeight - skip.displayHeight) / 2);
+    const contentBottom = previous.y - 12;
+    const availableHeight = contentBottom - controlsTitle.y - controlsTitle.displayHeight - 10;
+    const pages = paginateMeasuredItems(controlCards.map((card) => card.displayHeight), availableHeight, 6);
+    if (pages.length > 1) {
+      const grid = this.scene.add.container();
+      const columns = 2;
+      const width = (controlsWidth - 8) / columns;
+      controlCards.forEach((card, index) => {
+        card.setFixedSize(width, 0).setWordWrapWidth(width - 18, true);
+        const row = Math.floor(index / columns);
+        const previous = controlCards.slice(0, row * columns);
+        let offset = 0;
+        for (let pair = 0; pair < previous.length; pair += columns) {
+          offset += Math.max(...previous.slice(pair, pair + columns).map((label) => label.displayHeight)) + 6;
+        }
+        card.setPosition(controlsX + index % columns * (width + 8), controlsTitle.y + controlsTitle.displayHeight + 10 + offset);
+        grid.add(card);
+      });
+      container.add(grid);
+    }
   }
 
   private renderTips(): void {
-    const { container, px, py, panelW, panelH } = this.createOverlay(590, 470);
+    const { container, px, py, panelW, panelH } = this.createOverlay(620, 512);
     const category = TIP_CATEGORIES[this.categoryIndex];
     const tips = this.getCurrentTips();
     if (tips.length > 0) {
@@ -375,14 +406,22 @@ export class TutorialManager {
       "Close",
       () => this.close(),
     );
+    replay.setData("layoutId", "tips-replay");
+    close.setData("layoutId", "tips-close");
     container.add([title, replay, close]);
+    close.setPosition(px + panelW - 18 - close.displayWidth / 2, py + 14);
+    replay.setPosition(close.getBounds().x - 12 - replay.displayWidth / 2, py + 14);
+    title.setWordWrapWidth(Math.max(100, replay.getBounds().x - title.x - 12), true);
+    syncInteractiveHitArea(replay);
+    syncInteractiveHitArea(close);
+    const tabY = py + 14 + Math.max(title.displayHeight, replay.displayHeight, close.displayHeight) + 12;
 
     const tabWidth = (panelW - 36) / TIP_CATEGORIES.length;
-    TIP_CATEGORIES.forEach((tipCategory, index) => {
+    const tabs = TIP_CATEGORIES.map((tipCategory, index) => {
       const active = index === this.categoryIndex;
       const tab = this.scene.add.text(
         px + 18 + tabWidth * index + tabWidth / 2,
-        py + 58,
+        tabY,
         TIP_CATEGORY_LABELS[tipCategory],
         {
           fontSize: "11px",
@@ -391,21 +430,40 @@ export class TutorialManager {
           backgroundColor: active ? "#83d8ff" : "#262c40",
           padding: { x: 7, y: 6 },
           fixedWidth: tabWidth - 4,
+          wordWrap: { width: tabWidth - 20, useAdvancedWrap: true },
           align: "center",
         },
-      ).setOrigin(0.5, 0).setFixedSize(tabWidth - 4, 28)
-        .setInteractive({ useHandCursor: true });
+      ).setOrigin(0.5, 0)
+        .setInteractive({ useHandCursor: true }).setData("layoutId", `tips-category-${tipCategory}`);
       tab.on("pointerdown", () => {
         this.categoryIndex = index;
         this.tipIndex = 0;
+        this.detailPage = 0;
         this.renderTips();
       });
       container.add(tab);
+      return tab;
+    });
+    const tabHeight = Math.max(...tabs.map((tab) => Math.ceil(tab.displayHeight)));
+    tabs.forEach((tab) => {
+      tab.setFixedSize(tabWidth - 4, tabHeight);
+      syncInteractiveHitArea(tab);
     });
 
     const listX = px + 22;
-    const listY = py + 104;
+    const listY = tabY + tabHeight + 14;
     const listWidth = 172;
+    const hint = this.scene.add.text(
+      px + panelW / 2, 0,
+      `${this.navigationPrompt()}  |  ${this.closePrompt()}: close`,
+      {
+        fontSize: "10px", fontFamily: "monospace", color: "#a8b4cc",
+        align: "center", wordWrap: { width: panelW - 32, useAdvancedWrap: true },
+      },
+    ).setOrigin(0.5, 0);
+    hint.setY(py + panelH - 12 - hint.displayHeight);
+    container.add(hint);
+    const availableHeight = hint.y - 12 - listY;
     if (tips.length === 0) {
       const locked = this.scene.add.text(
         listX,
@@ -421,11 +479,11 @@ export class TutorialManager {
       );
       container.add(locked);
     } else {
-      tips.forEach((tip, index) => {
+      const items = tips.map((tip, index) => {
         const selected = index === this.tipIndex;
         const item = this.scene.add.text(
           listX,
-          listY + index * 50,
+          listY,
           tip.title,
           {
             fontSize: "11px",
@@ -435,13 +493,35 @@ export class TutorialManager {
             padding: { x: 8, y: 8 },
             wordWrap: { width: listWidth - 16, useAdvancedWrap: true },
           },
-        ).setFixedSize(listWidth, 44).setInteractive({ useHandCursor: true });
+        ).setFixedSize(listWidth, 0).setInteractive({ useHandCursor: true }).setData("layoutId", `tip-${tip.id}`);
         item.on("pointerdown", () => {
           this.tipIndex = index;
+          this.detailPage = 0;
           this.renderTips();
         });
+        return item;
+      });
+      let pages = paginateMeasuredItems(items.map((item) => item.displayHeight), availableHeight, 6);
+      if (pages.length > 1) pages = paginateMeasuredItems(items.map((item) => item.displayHeight), availableHeight - 34, 6);
+      const currentPage = Math.max(0, pages.findIndex((indices) => indices.includes(this.tipIndex)));
+      const visible = new Set(pages[currentPage] ?? []);
+      let cursor = listY;
+      items.forEach((item, index) => {
+        if (!visible.has(index)) { item.destroy(); return; }
+        item.setY(cursor);
+        cursor += item.displayHeight + 6;
+        syncInteractiveHitArea(item);
         container.add(item);
       });
+      if (pages.length > 1) {
+        const next = this.addButton(container, listX + listWidth / 2, listY + availableHeight - 30,
+          `Tips ${currentPage + 1}/${pages.length} ›`, () => {
+            this.tipIndex = pages[(currentPage + 1) % pages.length]![0]!;
+            this.detailPage = 0;
+            this.renderTips();
+          });
+        container.add(next);
+      }
     }
 
     this.renderTipDetail(
@@ -451,19 +531,8 @@ export class TutorialManager {
       px + 220,
       listY,
       panelW - 244,
+      availableHeight,
     );
-
-    const hint = this.scene.add.text(
-      px + panelW / 2,
-      py + panelH - 20,
-      `${this.navigationPrompt()}  |  ${this.closePrompt()}: close`,
-      {
-        fontSize: "10px",
-        fontFamily: "monospace",
-        color: "#77839c",
-      },
-    ).setOrigin(0.5, 0);
-    container.add(hint);
   }
 
   private renderTipDetail(
@@ -473,6 +542,7 @@ export class TutorialManager {
     x: number,
     y: number,
     width: number,
+    height: number,
   ): void {
     const heading = this.scene.add.text(
       x,
@@ -499,8 +569,7 @@ export class TutorialManager {
       },
     );
     container.add([heading, body]);
-    if (!tip?.controls?.length) return;
-    const controls = tip.controls.filter((id) =>
+    const controls = (tip?.controls ?? []).filter((id) =>
       isControlGuidanceAvailable(this.player!, id)
     ).map((id) => {
       const control = CONTROL_GUIDANCE[id];
@@ -517,9 +586,33 @@ export class TutorialManager {
         backgroundColor: "#252b42",
         padding: { x: 10, y: 8 },
         lineSpacing: 5,
+        wordWrap: { width: width - 20, useAdvancedWrap: true },
       },
-    ).setFixedSize(width, Math.max(44, controls.length * 22 + 16));
+    ).setFixedSize(width, 0);
     container.add(controlsText);
+    const items = [body, ...(controls.length ? [controlsText] : [])];
+    if (controls.length === 0) controlsText.destroy();
+    const available = Math.max(0, height - heading.displayHeight - 12);
+    let pages = paginateMeasuredItems(items.map((item) => item.displayHeight), available, 12);
+    if (pages.length > 1) pages = paginateMeasuredItems(items.map((item) => item.displayHeight), available - 38, 12);
+    this.detailPage = Math.min(this.detailPage, Math.max(0, pages.length - 1));
+    let cursor = y + heading.displayHeight + 12;
+    items.forEach((item, index) => {
+      if (!pages[this.detailPage]?.includes(index)) {
+        item.setVisible(false).setActive(false);
+        return;
+      }
+      item.setY(cursor);
+      cursor += item.displayHeight + 12;
+    });
+    if (pages.length > 1) {
+      const next = this.addButton(container, x + width / 2, y + height - 30,
+        `Details ${this.detailPage + 1}/${pages.length} ›`, () => {
+          this.detailPage = (this.detailPage + 1) % pages.length;
+          this.renderTips();
+        });
+      container.add(next);
+    }
   }
 
   private controlPrompt(

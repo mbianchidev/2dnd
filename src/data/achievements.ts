@@ -2,6 +2,7 @@ import type { AlignmentAxis, ReputationTargetKind, ReputationTierId } from "./re
 import type { QuestId } from "./quests";
 import type { SkillCheckAbility } from "./skillChecks";
 import type { TrapState } from "./traps";
+import type { MinigameActivityId } from "./minigames";
 import { WORLD_EVENT_DEFINITIONS } from "./worldEvents";
 
 export const ACHIEVEMENT_CATEGORIES = [
@@ -60,6 +61,10 @@ export const ACHIEVEMENT_IDS = [
   "firstCraft",
   "versatileCrafter",
   "masterSmith",
+  "crownKeeper",
+  "steadyHand",
+  "harborChampion",
+  "festivalTriathlete",
   "constellationVisitor",
   "steadfastDevotion",
   "prestigeInitiate",
@@ -84,6 +89,10 @@ export const TITLE_IDS = [
   "relicKeeper",
   "realmGatherer",
   "artisan",
+  "crownKeeper",
+  "steadyHand",
+  "harborChampion",
+  "festivalLaureate",
   "threadkeeper",
   "pathkeeper",
 ] as const;
@@ -203,6 +212,14 @@ export type AchievementCriteria =
     readonly threshold: number;
   }
   | {
+    readonly type: "minigameMedals";
+    readonly activityId: MinigameActivityId;
+    readonly threshold: number;
+  }
+  | {
+    readonly type: "minigameActivitiesWon";
+  }
+  | {
     readonly type: "templesVisited" | "devotionScore";
     readonly threshold: number;
   };
@@ -226,6 +243,7 @@ export interface AchievementSourceMetadata {
     | "inventory"
     | "gathering"
     | "crafting"
+    | "minigame"
     | "devotion"
     | "progression";
   readonly authoritativeState: string;
@@ -695,6 +713,34 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     rewardTitleId: "artisan",
     source: { kind: "crafting", authoritativeState: "Natural equipment-upgrade count" },
   },
+  {
+    id: "crownKeeper", name: "Crown Keeper",
+    description: "Bank a paid Crown & Bones hand with a score of 80 or more.",
+    category: "world", points: 10, rewardTitleId: "crownKeeper",
+    criteria: { type: "minigameMedals", activityId: "crownAndBones", threshold: 1 },
+    source: { kind: "minigame", authoritativeState: "Paid natural Crown & Bones medals" },
+  },
+  {
+    id: "steadyHand", name: "Steady Hand",
+    description: "Earn an 80+ paid Archery Challenge medal with the shared borrowed bow.",
+    category: "world", points: 10, rewardTitleId: "steadyHand",
+    criteria: { type: "minigameMedals", activityId: "archery", threshold: 1 },
+    source: { kind: "minigame", authoritativeState: "Paid natural archery medals" },
+  },
+  {
+    id: "harborChampion", name: "Harbor Champion",
+    description: "Finish a paid Harbor Regatta with a score of 80 or more.",
+    category: "world", points: 15, rewardTitleId: "harborChampion",
+    criteria: { type: "minigameMedals", activityId: "regatta", threshold: 1 },
+    source: { kind: "minigame", authoritativeState: "Paid natural regatta medals" },
+  },
+  {
+    id: "festivalTriathlete", name: "Three Pennants",
+    description: "Earn a paid natural medal in all three optional activities.",
+    category: "world", points: 25, rewardTitleId: "festivalLaureate",
+    criteria: { type: "minigameActivitiesWon" },
+    source: { kind: "minigame", authoritativeState: "Paid natural per-activity medal counts" },
+  },
 ] as const;
 
 export const TITLES: readonly TitleDefinition[] = [
@@ -722,6 +768,10 @@ export const TITLES: readonly TitleDefinition[] = [
   { id: "relicKeeper", name: "Relic Keeper", description: "Carried a collection worthy of a royal archive.", achievementId: "relicCollector" },
   { id: "realmGatherer", name: "Realm Gatherer", description: "Mastered fishing, mining, and foraging.", achievementId: "masterGatherer" },
   { id: "artisan", name: "Master Artisan", description: "Forged dependable equipment from gathered materials.", achievementId: "masterSmith" },
+  { id: "crownKeeper", name: "Crown Keeper", description: "Banked a four-roll tavern hand.", achievementId: "crownKeeper" },
+  { id: "steadyHand", name: "Steady Hand", description: "Earned an Arrow Fair laurel.", achievementId: "steadyHand" },
+  { id: "harborChampion", name: "Harbor Champion", description: "Earned a buoykeepers' pennant.", achievementId: "harborChampion" },
+  { id: "festivalLaureate", name: "Festival Laureate", description: "Earned all three optional activity medals.", achievementId: "festivalTriathlete" },
 ] as const;
 
 const ACHIEVEMENT_BY_ID = new Map(

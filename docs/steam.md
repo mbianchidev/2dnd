@@ -7,7 +7,7 @@ This is a preparation and human release guide, **not a Steam release, a Deck
 Verified claim, or evidence of a successful partner upload**. Steam SDK,
 Steam achievements, Steam Cloud and the native Steam Input API are disabled.
 The game remains a local, offline-capable Electron application with the
-existing sandboxed bridge and schema-v21 slots.
+existing sandboxed bridge and schema-v22 slots.
 
 ## Platform and depot contract
 

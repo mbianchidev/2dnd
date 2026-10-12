@@ -34,7 +34,7 @@ import {
   installDicePresentation,
   presentSkillDiceResult,
 } from "../managers/dicePresentation";
-import { CodexDiscoveryManager } from "../managers/codexDiscovery";
+import { createSharedSceneState } from "../systems/sceneState";
 import {
   combineShopAdjustments,
   getTownShopAdjustment,
@@ -69,7 +69,7 @@ export class ShopScene extends Phaser.Scene {
   private sellTabButton!: Phaser.GameObjects.Text;
   private negotiateButton?: Phaser.GameObjects.Text;
   private negotiationOverlay: Phaser.GameObjects.Container | null = null;
-  private codexDiscovery!: CodexDiscoveryManager;
+  private pendingCodexDiscoveryIds: string[] = [];
 
   constructor() {
     super({ key: "ShopScene" });
@@ -115,6 +115,7 @@ export class ShopScene extends Phaser.Scene {
     );
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.negotiationOverlay = null;
+    this.pendingCodexDiscoveryIds = [];
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -132,10 +133,6 @@ export class ShopScene extends Phaser.Scene {
     this.sceneTransitions.prepare(300);
     installSceneAccessibility(this);
     installDicePresentation(this);
-    this.codexDiscovery = new CodexDiscoveryManager(this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.codexDiscovery.clear();
-    });
 
     // Play city music for this town
     if (audioEngine.initialized) {
@@ -818,10 +815,11 @@ export class ShopScene extends Phaser.Scene {
       type: "item",
       itemId: item.id,
     });
-    this.codexDiscovery.show(unlockCodexFromSignal(this.codex, {
+    const discovery = unlockCodexFromSignal(this.codex, {
       type: "itemAcquired",
       itemId: item.id,
-    }).entries);
+    });
+    this.pendingCodexDiscoveryIds.push(...discovery.unlockedIds);
     this.setMessage(`Purchased ${item.name}!`, "#88ff88");
 
     // Auto-equip only if the new item is better than current
@@ -1004,14 +1002,15 @@ export class ShopScene extends Phaser.Scene {
 
   private leaveShop(): void {
     this.sceneTransitions.startWithFade(() => {
-      this.scene.start("OverworldScene", {
+      this.scene.start("OverworldScene", createSharedSceneState({
         player: this.player,
         defeatedBosses: this.defeatedBosses,
         codex: this.codex,
         timeStep: this.timeStep,
         weatherState: this.weatherState,
         savedSpecialNpcs: this.savedSpecialNpcs,
-      });
+        codexDiscoveryIds: [...new Set(this.pendingCodexDiscoveryIds)],
+      }));
     }, {
       duration: 300,
       label: "leave shop",

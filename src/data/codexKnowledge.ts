@@ -6,6 +6,8 @@ import {
 } from "./quests";
 import type { CutsceneId } from "./cutscenes";
 import { Terrain } from "./mapTypes";
+import { MINIGAME_CODEX_ENTRIES } from "./codexMinigames";
+import type { MinigameActivityId } from "./minigames";
 import { DEVOTION_CODEX_ENTRIES } from "./devotionCodex";
 import type { DeityId, TempleId } from "./devotion";
 import type { PrestigeTrackId } from "./prestige";
@@ -75,6 +77,11 @@ export interface CodexReputationSource extends CodexSourceBase {
   readonly milestoneId: string;
 }
 
+export interface CodexMinigameSource extends CodexSourceBase {
+  readonly type: "minigame";
+  readonly activityId: MinigameActivityId;
+}
+
 export interface CodexDevotionTempleSource extends CodexSourceBase {
   readonly type: "devotionTemple";
   readonly templeId: TempleId;
@@ -101,6 +108,7 @@ export type CodexUnlockSource =
   | CodexReadableSource
   | CodexWorldEventSource
   | CodexReputationSource
+  | CodexMinigameSource
   | CodexDevotionTempleSource
   | CodexDevotionAffiliationSource
   | CodexPrestigeSource;
@@ -905,6 +913,7 @@ export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
   ...FACTION_ENTRIES,
   ...HISTORY_ENTRIES,
   ...WORLD_EVENT_ENTRIES,
+  ...MINIGAME_CODEX_ENTRIES,
   ...DEVOTION_CODEX_ENTRIES,
   {
     id: "locationTidehaven",

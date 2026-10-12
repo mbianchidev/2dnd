@@ -27,6 +27,9 @@ import { isReducedMotionEnabled } from "../systems/accessibility";
 import type { PlayerState } from "../systems/player";
 import type { CityRenderer } from "./city";
 import { TILE_SIZE } from "../config";
+import { layoutAnchoredLabels } from "../systems/layout";
+import { getScaledBounds, subscribeOverlayReflow } from "../managers/layout";
+import { createOverlayContainer } from "../utils/ui";
 
 /** Biome wall texture overrides for city rendering. */
 const BIOME_WALL_MAP: Record<number, string> = {
@@ -138,6 +141,8 @@ export class MapRenderer {
   private weatherParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
   biomeDecoEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
+  private labelLayer: Phaser.GameObjects.Container | null = null;
+  private labelRows: Array<{ text: Phaser.GameObjects.Text; id: string; x: number; y: number; maxWidth: number }> = [];
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -156,6 +161,9 @@ export class MapRenderer {
     cityRenderer: CityRenderer,
     timeStep: number = 0,
   ): void {
+    this.labelLayer?.destroy(true);
+    this.labelLayer = null;
+    this.labelRows = [];
     // Clear old tile sprites
     for (const row of this.tileSprites) {
       for (const sprite of row) sprite.destroy();
@@ -180,6 +188,37 @@ export class MapRenderer {
 
     // ── Overworld ──
     this.renderOverworld(player, defeatedBosses, isExplored);
+  }
+
+  private addMapLabel(text: Phaser.GameObjects.Text, id: string, maxWidth = 160): void {
+    if (!this.labelLayer) {
+      this.labelLayer = createOverlayContainer(this.scene, "map-labels", 15, {
+        x: 0, y: 0, width: MAP_WIDTH * TILE_SIZE, height: MAP_HEIGHT * TILE_SIZE,
+      });
+      const unsubscribe = subscribeOverlayReflow(this.scene, () => this.reflowMapLabels());
+      this.labelLayer.once(Phaser.GameObjects.Events.DESTROY, unsubscribe);
+    }
+    text.setData("layoutId", id);
+    this.labelRows.push({ text, id, x: text.x, y: text.y, maxWidth });
+    this.labelLayer.add(text);
+    this.reflowMapLabels();
+  }
+
+  private reflowMapLabels(): void {
+    const viewport = { x: 0, y: 0, width: MAP_WIDTH * TILE_SIZE, height: MAP_HEIGHT * TILE_SIZE };
+    this.labelRows.forEach(({ text, x, y, maxWidth }) => {
+      text.setPosition(x, y).setWordWrapWidth(
+        maxWidth - (text.padding.left ?? 0) - (text.padding.right ?? 0) - text.style.strokeThickness, true,
+      );
+    });
+    const layout = layoutAnchoredLabels(this.labelRows.map(({ text, id }) => ({
+      id, bounds: getScaledBounds(text),
+    })), viewport);
+    layout.forEach((item, index) => {
+      const text = this.labelRows[index]!.text;
+      const bounds = getScaledBounds(text);
+      text.setPosition(text.x + item.bounds.x - bounds.x, text.y + item.bounds.y - bounds.y);
+    });
   }
 
   /**
@@ -373,7 +412,7 @@ export class MapRenderer {
 
     // Dungeon name label
     const levelLabel = (dungeon.levels?.length ?? 0) > 0 ? ` (Level ${player.position.dungeonLevel + 1})` : "";
-    this.scene.add
+    const title = this.scene.add
       .text(MAP_WIDTH * TILE_SIZE / 2, 4, `${dungeon.name}${levelLabel}`, {
         fontSize: "10px",
         fontFamily: "monospace",
@@ -382,6 +421,7 @@ export class MapRenderer {
         strokeThickness: 2,
       })
       .setOrigin(0.5, 0);
+    this.addMapLabel(title, "dungeon-location-name", MAP_WIDTH * TILE_SIZE - 32);
 
     // Exit and stairs labels
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -445,6 +485,13 @@ export class MapRenderer {
     const chunk = getCityChunk(city, player.position.cityChunkIndex);
     if (!chunk) return;
     const cityMap = chunk.mapData;
+    const cityTitle = this.scene.add.text(MAP_WIDTH * TILE_SIZE / 2, 4,
+      city.name === chunk.name ? city.name : `${city.name}: ${chunk.name}`, {
+        fontFamily: "monospace", fontSize: "10px", color: "#ffd700",
+        stroke: "#000000", strokeThickness: 2, backgroundColor: "#00000088",
+        padding: { x: 4, y: 2 }, align: "center",
+      }).setOrigin(0.5, 0);
+    this.addMapLabel(cityTitle, "city-location-name", MAP_WIDTH * TILE_SIZE - 32);
     const shops = chunk.shops;
 
     const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
@@ -557,7 +604,7 @@ export class MapRenderer {
     for (const shop of shops) {
       if (isExplored(shop.x, shop.y)) {
         const icon = shop.type === "weapon" ? "⚔" : shop.type === "armor" ? "🛡" : shop.type === "inn" ? "🏨" : shop.type === "bank" ? "🏦" : shop.type === "stable" ? "🐴" : "🏪";
-        this.scene.add
+        const label = this.scene.add
           .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 6, `${icon} ${shop.name}`, {
             fontSize: "9px",
             fontFamily: "monospace",
@@ -569,6 +616,7 @@ export class MapRenderer {
           })
           .setOrigin(0.5, 1)
           .setDepth(15);
+        this.addMapLabel(label, `city-shop-${shop.x}-${shop.y}`);
       }
     }
 
@@ -652,7 +700,7 @@ export class MapRenderer {
     // Town labels
     for (const town of chunk.towns) {
       if (isExplored(town.x, town.y)) {
-        this.scene.add
+        const label = this.scene.add
           .text(town.x * TILE_SIZE + TILE_SIZE / 2, town.y * TILE_SIZE - 4, town.name, {
             fontSize: "9px",
             fontFamily: "monospace",
@@ -661,13 +709,14 @@ export class MapRenderer {
             strokeThickness: 2,
           })
           .setOrigin(0.5, 1);
+        this.addMapLabel(label, `town-name-${town.x}-${town.y}`);
       }
     }
 
     // Boss markers (if not defeated)
     for (const boss of chunk.bosses) {
       if (!defeatedBosses.has(boss.monsterId) && isExplored(boss.x, boss.y)) {
-        this.scene.add
+        const label = this.scene.add
           .text(
             boss.x * TILE_SIZE + TILE_SIZE / 2,
             boss.y * TILE_SIZE - 4,
@@ -681,6 +730,7 @@ export class MapRenderer {
             },
           )
           .setOrigin(0.5, 1);
+        this.addMapLabel(label, `boss-location-${boss.monsterId}`);
       }
     }
 

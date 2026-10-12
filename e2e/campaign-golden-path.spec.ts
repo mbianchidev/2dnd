@@ -153,20 +153,20 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await clickLayoutItem(page, "title-new-game");
     await waitForState(page, "BOOT | Screen: character");
 
-    await clickGame(page, 320, 76);
+    await clickLayoutItem(page, "creation-name");
     const nameInput = page.locator("#mobile-text-input input");
     await expect(nameInput).toBeVisible();
     await nameInput.fill("browserhero");
     await nameInput.press("Enter");
-    await clickGame(page, 284, 160);
+    await clickLayoutItem(page, "creation-class-ranger");
     await holdKey(page, "Enter");
     await waitForState(page, "BOOT | Screen: stats");
 
-    await clickGame(page, 390, 64);
-    await clickGame(page, 400, 460);
+    await clickLayoutItem(page, "creation-stat-mode-random");
+    await clickLayoutItem(page, "creation-stats-next");
     await waitForState(page, "BOOT | Screen: appearance");
-    await clickGame(page, 320, 112);
-    await clickGame(page, 420, 312);
+    await clickLayoutItem(page, "appearance-randomize");
+    await clickLayoutItem(page, "appearance-start");
     await waitForState(page, "CUTSCENE | campaign.opening | Step 1/2");
     const interruptedSave = await readSave(page);
     expect(interruptedSave.player.progression.pendingCutsceneIds).toEqual([
@@ -181,7 +181,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "CUTSCENE | campaign.opening | Step 1/2");
     await drainGenericCutscenesUntil(page, "OVERWORLD");
     await waitForState(page, "[TUTORIAL]");
-    await clickGame(page, 506, 455);
+    await clickLayoutItem(page, "tutorial-next");
     await holdKey(page, "Enter");
     await holdKey(page, "Enter");
     await holdKey(page, "Enter");
@@ -389,6 +389,12 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     await waitForState(page, "[MENU]");
     await clickLayoutItem(page, "escape-menu-chronicle");
     await waitForState(page, "[CHRONICLE]");
+    await page.mouse.move(0, 0);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      if ((await page.locator("#debug-state").textContent())?.includes("[CHRONICLE_SELECTION:1/")) break;
+      await holdKey(page, "ArrowUp");
+    }
+    await waitForState(page, "[CHRONICLE_SELECTION:1/");
     await holdKey(page, "Enter");
     await waitForState(page, "CUTSCENE | campaign.opening");
     await page.waitForTimeout(420);

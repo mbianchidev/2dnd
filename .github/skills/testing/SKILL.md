@@ -16,13 +16,17 @@ through pure logic tests.
 
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
-schema-v21 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
+schema-v22 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
 `electron-tests/saveParity.spec.ts` additionally downloads a real browser slot
 export and imports it through the native renderer's file picker. Assert the same
 normalized campaign/metadata while browser and desktop preferences stay isolated.
-Use production keyboard controls in Electron; local-only layout audit selectors
-are intentionally unavailable at `app://2dnd`.
+Use production keyboard controls in Electron. Read-only layout audits are
+available on loopback and `app://2dnd`; they never enable desktop cheats.
+Native controls tests must require absent mobile rails even with saved Touch On,
+type physical WASD in focused fields without gameplay actions, then prove all
+four movement keys work after closing. Native activity touch tests use real
+canvas venue/action/meter/sailing targets, not a test-only or invisible pad.
 
 `electron-tests/deck.spec.ts` adds a 1280x800 standard-gamepad equivalent with
 name/rename/search text entry, normal exploration/Battle, save/reload/recovery,
@@ -105,6 +109,11 @@ exclusion, authority isolation, schema-v15 migration, and corruption repair
 boat acquisition/upgrades, embark/disembark safety, sea fog, capped encounters,
 weather hazards, Kraken hooks, sea gathering/crafting economy, schema-v16
 migration/corruption recovery, debug commands, and browser reload while sailing
+✅ All three original tavern/festival activities, all 36 ordered dice outcomes
+and exact optimal stopping (including doubles/floors/banking), neutral archery,
+reachable regatta courses, canonical weather/boat wear, capped atomic payments,
+finite claims, delayed input, rollback, abandonment, debug isolation, schema-v22
+recovery, measured layout, and actual multi-input browser/Electron flows
 
 ### What NOT to Test  
 ❌ Phaser rendering/graphics
@@ -632,9 +641,10 @@ npx vitest run tests/dice.test.ts
 - Cover the showcase's Play/download links, game-generated screenshots,
   responsive width, Steam banner, and page/console cleanliness.
 - Pull request CI installs Chromium and runs the browser suite as a release
-  gate. Its concurrency group is ref-scoped so independent review branches do
-  not replace one another's pending checks; same-ref runs remain serialized
-  with `cancel-in-progress: false`.
+  gate.
+- PR/desktop CI groups are scoped to `github.ref`, with
+  `cancel-in-progress: false`. Preserve all gate steps, permissions, and
+  triggers; independent PRs must not cancel or globally serialize one another.
 - Keep trace action logs, DOM snapshots, sources, and failure screenshots, but
   disable trace screenshots and video. Phaser repaints every frame, so the
   filmstrip creates thousands of canvas captures that stall context teardown.
@@ -644,6 +654,17 @@ npx vitest run tests/dice.test.ts
   `#layout-report`, `data-layout-overlap-count`, and
   `data-layout-clipping-count`; use stable `layoutId` values instead of brittle
   coordinate-only clicks.
+- The audit checks glyph/padding content in fixed surfaces, nested groups and
+  explicit graphic bounds. UI boundary flows cover character creation,
+  equipment, save/rename, achievements, city entry and party attributes across
+  text scales and desktop/mobile sizes. Wait for the selected row in the fresh
+  report before collecting page coverage; an older clean report is not proof
+  that a newly selected page has rendered.
+- Cover active notifications together with menus and the dice dock, not only
+  individual panels. Opening menus must remove visible notices without
+  acknowledging them; queued feedback resumes once after closing. Mock removed
+  timers and late fade completions in lifecycle tests, and retain real browser
+  and source/packaged Electron screenshots at enlarged text.
 - Hold frame-polled keys with `keyboard.down()`, wait across frames, then
   `keyboard.up()`. Do not use instantaneous presses for Overworld or Ending
   actions.
@@ -670,7 +691,7 @@ npx vitest run tests/dice.test.ts
 - Assert `location.origin === "app://2dnd"`, the `game.html` entry, and the
   fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
-  shell, create a manual snapshot, and continue the same schema-v21 campaign.
+  shell, create a manual snapshot, and continue the same schema-v22 campaign.
 - Return to title through the keyboard menu, quit through the visible title
   action, and verify lifecycle/quit logs without save-content leakage.
 - Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.
@@ -694,6 +715,12 @@ npx vitest run --coverage
 8. **One assertion per test (when possible)** - Makes failures clear
 9. **Inject group RNG** - Initiative, weighted generation, and random-two
    targeting helpers accept deterministic random functions
+
+For activity coverage, use `tests/minigame*.test.ts`, `e2e/minigames.spec.ts`, and
+`electron-tests/minigames.spec.ts`. Drive actual Roll/Bank/Fire/sailing controls,
+not forced success helpers. Assert exact pending/result reload and wallet
+receipts, not only a completion marker. Practice and debug must not award paid
+medals, currency, reputation, or titles. Meter motion must not write saves.
 
 ## Common Pitfalls
 

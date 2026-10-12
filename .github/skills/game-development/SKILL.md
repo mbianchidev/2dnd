@@ -110,6 +110,11 @@ Shared controller text entry lives in `systems/textEntry.ts` (keys/edits) and
 focus restoration). The adapter re-exports `openMobileTextInput()`, consumes
 text actions before game keys and allows its cursor to reach desktop DOM
 controls. Use positional prompts rather than guessed device glyphs.
+Use shared arrow/circle face-position icons instead of cardinal-word hints.
+Native desktop does not create mobile touch rails or expose mobile-only
+Settings rows, even with saved Touch On. Preserve WASD outside focused text,
+ordinary physical typing inside it, controller text entry on gamepad, and real
+canvas-touch activity controls without recreating a hidden mobile pad.
 
 Steam tooling is separate from game authority: `steam/config.ts` and
 `hacks/prepare-steam.mjs` own inspected native Linux x64, Windows x64 and macOS
@@ -509,6 +514,17 @@ minigame logic in `src/systems/gathering.ts`, schema normalization in
 location-derived nodes, route guarded finds through normal Battle hooks, and
 keep material identity limited to stable `Item.material` recipe-input metadata.
 
+## Tavern and festival games
+
+Use the [minigames skill](../minigames/SKILL.md) and
+[`docs/minigames.md`](../../../docs/minigames.md) for all three original
+activities. Definitions and focused pure mechanics own exact seeded challenges,
+fixed forecasts, capped local economy, permanent watermarks, finite claims, and
+unknown recovery. The Overworld manager owns accessible controls/records,
+runtime-only archery previews, semantic-context restoration, and cleanup.
+Practice/debug never grant paid milestones or natural achievement credit;
+history never authorizes payment and no consumer controls campaign quests.
+
 ## Crafting
 
 Crafting recipes live in `src/data/crafting.ts`, atomic mechanics and discovery
@@ -537,6 +553,15 @@ frame-polled Phaser keys across frames rather than using instantaneous presses.
 Build responsive UI from `src/systems/layout.ts`, register modal groups through
 `createOverlayContainer()`, and assert the local `#layout-report` reports zero
 unintended overlap or clipping at supported text scales.
+Measure natural glyph/padding extents inside fixed text surfaces and nested
+content too. Use `subscribeOverlayReflow()` for owned frame-boundary reflow,
+preserve choices and scores, and prefer wrapping/paging to masking overflow.
+The canvas-host ResizeObserver must read current Phaser parent bounds before FIT refresh.
+Opening a menu must remove active achievement/Codex notices, not merely block
+new ones. Reconcile Overworld notices after scene updates, retain unread
+achievement IDs, defer Shop lore through the full return state, and reject
+stale dismissal/fade callbacks. Use the shared measured notification renderer
+without taking input focus or delaying mechanics.
 
 ## Common pitfalls
 

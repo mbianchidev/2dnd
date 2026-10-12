@@ -35,6 +35,7 @@
 | Sea navigation | `src/data/nautical.ts`, `src/systems/nautical*.ts`, `src/data/islands.ts` |
 | Fictional devotion | `src/data/devotion*.ts`, `src/systems/devotion*.ts`, `src/managers/devotion*.ts` |
 | Gathering/crafting | matching `src/data/`, `src/systems/`, and `src/managers/` modules |
+| Tavern/festival games | `data/minigames.ts`, focused `systems/minigame*.ts`, `managers/minigames.ts`, procedural renderers |
 | Save field or slot | owning interface/default, normalization module, `save.ts`, `saveSlots.ts`, `saveStorage.ts`, migration/recovery tests |
 | Input/control | `src/systems/input.ts`, `src/managers/input.ts`; title selection in `src/managers/titleMenu.ts`; never a scene-local gamepad map |
 | UI layout | `src/systems/layout.ts`, `src/managers/layout.ts`, owning manager/renderer |
@@ -105,6 +106,7 @@ Useful command families include:
 /feature
 /gather
 /craft
+/minigame
 /devotion
 /prestige
 ```

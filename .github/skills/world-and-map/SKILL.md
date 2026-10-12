@@ -80,6 +80,21 @@ available before boat ownership. Disembarkation validates canonical walkability
 and rejects towns, dungeons, bosses, chests, events, and other blocked landing
 tiles. Sea encounter rates always pass through `getEffectiveEncounterRate()`.
 
+## Harbor courses and activity venues
+
+Activity venues are stable non-blocking metadata on existing walkable city
+districts. Show D/A/R flags only when their tiles are explored, remove hidden
+hit targets, and reveal instructions/personal boards from authoritative venue
+evidence rather than quest or achievement authority.
+
+Harbor Regatta supplies a seeded local course to shared
+`nauticalNavigation.ts` cardinal/Water/boat/depth checks. It never mutates
+campaign maps, position, sailing, sea fog, travel routes, or encounters.
+Forecasts reuse seeded canonical biome/time weather without changing world
+weather. Paid wear commits per input, uses canonical upgrades, is capped, and
+leaves at least one condition; practice has no wear. See
+[`docs/minigames.md`](../../../docs/minigames.md).
+
 ## Random World Events
 
 World Events run only on ordinary overworld movement after the move and

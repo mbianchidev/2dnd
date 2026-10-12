@@ -20,7 +20,8 @@ procedural graphics/audio, weather, day/night, a 90-chunk world, connected city
 districts, multi-level dungeons, procedural traps, non-combat skill checks,
 quest-recruited companions, ranked gambits, elemental interactions, status
 effects, boss fights, and a replayable campaign epilogue with post-game
-continuation, plus deterministic fishing, mining, and foraging minigames.
+continuation, deterministic fishing/mining/foraging, and optional Crown & Bones,
+class-neutral archery, and Harbor Regatta minigames.
 
 ## Stack
 
@@ -293,6 +294,7 @@ interface PlayerProgression {
   gathering: GatheringState;
   crafting: CraftingState;
   nautical: NauticalState;
+  minigames: MinigameState;
   discoveredFeatureIds: FeatureId[];
   pendingFeatureRevealIds: FeatureId[];
   debugDiscoveredFeatureIds: FeatureId[];
@@ -550,6 +552,8 @@ Flow:
   Codex state back into gameplay decisions.
 - `CodexDiscoveryManager` owns short non-interactive notices. Notices never
   change input context, delay transitions, or outlive scene shutdown.
+  Overworld defers their latest runtime batch behind menus; Shop carries
+  acquired-item notice IDs through its full shared return state.
 - `BattleCombatantState` is the shared actor contract: stable ID, party/enemy
   side, hero/companion/monster kind, formation, HP, alive/KO, defend, and
   effects. Hero state must remain accessor-backed by `PlayerState`.
@@ -814,6 +818,39 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 - `/craft list|unlock|lock|craft|material|status|reset` is debug-only. Debug
   crafting and discovery do not advance natural crafting achievements.
 
+## Tavern and festival activities
+
+- Stable activities, venues, rulesets, difficulties, scores, rewards, and records
+  live in `src/data/minigames.ts`; focused `minigame*.ts` systems own deterministic
+  mechanics, transactions, unknown normalization, and pure layout/presentation.
+  Scene-owned controls, instructions, personal boards, and cleanup live in
+  `src/managers/minigames.ts` and procedural renderers.
+- Crown & Bones resolves exact 2d6 before presentation, exposes all 36 ordered
+  odds, caps stakes at 5/10/20g and total payout at twice the stake, and has no
+  positive optimal pre-entry expected return. Crowns affect score, not payout.
+- Archery borrows one bow for all classes and scores only accepted precision.
+  Its normal meter is runtime-only; reduced motion uses explicit aiming.
+  Never autosave frames, infer a shot from animation, or reroll saved targets.
+- Regatta uses canonical nautical cardinal movement, Water/boat/depth checks,
+  condition-loss multipliers, and seeded canonical weather. Persist forecast
+  and course; never move campaign position/sailing/fog or alter global weather.
+- Buy-ins, accepted inputs, wear, payouts, and abandonment persist atomically
+  before results. Failed writes restore all touched domains and consumers.
+  Use permanent session/settlement watermarks and finite milestone claims,
+  never the bounded 40-entry history, to authorize payment.
+- Paid 80+ skill runs refund at most their entry plus a first-only 8/16/24g
+  archery or 10/20/30g regatta bonus. Venue switching cannot repeat claims.
+  Free practice and persistently marked debug sessions grant no currency,
+  reputation, natural records/achievements, or wear.
+- Only first paid medals emit bounded town/faction reputation; normal wins and
+  losses never shift alignment. Lore and cosmetic achievements consume
+  authoritative evidence and never control quests, access, combat, or endings.
+- Reveal activity menus from venue evidence, keep rules/records paginated,
+  restore stable focus and semantic input, support all controls/text scales/
+  contrast/reduced motion, and clean up every owned callback/container.
+- `/minigame list|status|near|play` is local debug only. See `docs/minigames.md`
+  and the minigames skill.
+
 ## Alignment and reputation
 
 - Canonical definitions and thresholds live in `src/data/reputation.ts`; pure
@@ -859,6 +896,9 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
   hidden presentation, completion order/timestamps, summary points, and title
   selection. `AchievementNotificationManager` shows persisted notices only
   during safe Overworld states and leaves interrupted notices queued.
+  Remove active notice containers/timers when a menu opens, reconcile after
+  scene updates, reject stale completions, and measure wrapped popup text
+  through the shared notification renderer rather than fixed heights.
 - Debug unlocks are marked and grant no points or titles. Debug mutations must
   suppress newly satisfied natural criteria, and debug-spawned battles/events
   must not advance event counters.
@@ -887,7 +927,17 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 21.
+Save schema version is 22.
+
+Schema v22 adds `player.progression.minigames`: deterministic exact pending
+sessions/receipts, permanent sequence/settlement watermarks, finite milestone
+claims, discovered venues, paid/practice bests, natural statistics, and bounded
+history. Schema-v21 and older campaigns without the domain gain deterministic
+empty defaults. Valid schema-v19/v20/v21 feature previews retain their exact
+run IDs, challenges, committed wear, watermarks, and claims.
+Validate known IDs, rulesets, fixed challenges, caps, phases/revisions, natural/
+debug/practice distinctions, and venue/owned-boat state. Corrupt pending repair
+never refunds, rerolls, recharges, replays a reward, or restores spent hull wear.
 
 Schema v21 adds independent optional devotion with unaffiliated/zero legacy
 defaults, stable source/visit ledgers, debug-consumed sources, an affiliation
@@ -1072,7 +1122,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v21
+  visibility, handedness, and prompt source only; they never enter schema-v22
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the
@@ -1088,6 +1138,13 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - `#layout-report` and `data-layout-overlap-count` /
   `data-layout-clipping-count` are local debug/test selectors. Registered groups
   must report zero unintended intersections and zero visible-content clipping.
+- Measure natural glyph/padding bounds before fixing text height. Audit nested
+  content and explicit progress-bar/swatch/preview bounds; wrap and page rather
+  than shrinking supported text or masking overflow.
+- Use `subscribeOverlayReflow()` for preference/source/resize changes and keep
+  state in its existing owner. Reflow never rerolls creation stats/cosmetics or
+  changes source-owned transactions. Read Phaser parent bounds before FIT
+  refresh when the DOM canvas host changes.
 
 ## Semantic controls
 
@@ -1097,6 +1154,10 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - `src/managers/input.ts` is the only browser adapter for keyboard, pointer,
   standard gamepads, and touch. Do not add parallel scene-specific gamepad or
   mobile mappings.
+  Native desktop never creates mobile touch rails, even with saved On
+  preferences. Keep WASD gameplay outside focused text fields, preserve ordinary
+  typing/key release isolation, and use arrow/face-position icons rather than
+  compass words. Native canvas touch uses pointer-first prompts and controls.
 - Shared key rows/edit rules in `src/systems/textEntry.ts` and the dialog in
   `src/managers/textEntry.ts` own controller name/slot/search entry. Reuse
   `openMobileTextInput()`, clear held game keys, isolate the modal, and preserve

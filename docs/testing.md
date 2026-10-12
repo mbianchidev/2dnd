@@ -33,6 +33,9 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - player and companion progression, gambits, inventories, transfers
 - quests, cutscene triggers/queues, Codex, events, social state, achievements
 - gathering, crafting, nautical state, world/map/trap/fog helpers
+- all three tavern/festival activities, every ordered 2d6 outcome and optimal
+  stopping state, neutral precision scoring, reachable courses, atomic economy,
+  finite claims, rollback, debug exclusion, and exact/corrupt pending recovery
 - original devotion content, source idempotency, qualification isolation,
   temple transactions, affiliation choices and canonical blessing lifecycle
 - save round trips, migrations, corruption repair, and cross-field validation
@@ -56,6 +59,9 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 - random and boss defeat recovery
 - tutorial, Tips, Codex, inventory, achievements, events, gathering, crafting,
   nautical, feature discovery, save-slot management/recovery, and accessibility
+- tavern dice, archery, and regatta through real keyboard, touch, and gamepad
+  controls, fixed challenges/forecasts, reduced motion, paid/practice/debug
+  records, quota rejection, input cleanup, and pending/result reload
 - keyboard, pointer, touch, gamepad, mobile text entry, title actions, landscape
   confirmations, and active-source prompts
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
@@ -70,6 +76,34 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 - devotion temple/profile, unaffiliated and affiliated routes, keeper/event/
   optional-quest consequences, blessing reload/cleanup and ending presentation
 
+`e2e/ui-boundaries.spec.ts` captures real character/class/stat/appearance,
+equipment, save/rename, achievement/title, city-entry and party-status flows.
+It checks glyph content as well as outer bounds at 100%/125%/150%, 1280x800,
+932x430 and 390x844, including live resize/preferences, nested controller text
+entry, all achievement pages, all five tutorial steps, core Tips/settings/
+inventory, and unchanged manual snapshots. Keep existing
+creation fixtures on stable layout IDs; never restore fixed click coordinates
+when a measured layout moves.
+
+Combined-menu cases additionally start a real earned notification, cast Cure
+Wounds through Equipment to populate the dice dock, and open menus with
+keyboard, touch and gamepad controls. They verify the popup is absent while the
+menu owns the screen, survives beyond its normal dismissal deadline, and
+returns and acknowledges exactly once without replaying points or titles.
+All menu pages remain reachable across text scales and viewport changes.
+`electron-tests/menus.spec.ts` exercises the same interruption/recovery and
+measured bounds in source and actual packaged desktops. Lifecycle unit tests
+reject removed-timer and stale-fade callbacks and preserve Shop purchases and
+full-state lore handoffs without rendering Phaser graphics.
+Desktop control coverage loads saved Touch On, requires absent mobile rails,
+types physical WASD into a focused name field, and moves through all four
+keyboard directions after text closes. Native activity touch fixtures use real
+canvas venue/action/meter/sailing targets, never an invisible or test-only pad.
+Advertise the native emulated touch device before game boot and retain its CDP
+session across reloads; enabling it only during a gesture can leave Phaser
+without touch listeners. Verify moved positions in saves after a real
+Save & Return to Title action, not by assuming every city step autosaves.
+
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
 a strict port. `e2e/landing.spec.ts` exercises the showcase root; Phaser flows
 open `game.html`. `hacks/run-browser-tests.mjs` allocates a free port and
@@ -82,7 +116,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v21 autosave/manual-slot persistence,
+- real character creation, schema-v22 autosave/manual-slot persistence,
   relaunch, and continue
 - independent desktop copy/import, exact source-slot bytes, interrupted
   staging/core-corruption recovery, and loading a second campaign after relaunch
@@ -91,6 +125,8 @@ the relative `game.html` renderer. The smoke flow verifies:
 - keyboard Save & Return to Title plus pointer Quit Desktop
 - lifecycle/quit log creation without campaign-content leakage
 - renderer/page error cleanliness
+- all three optional activities with keyboard, emulated touch, and gamepad,
+  including exact pending/result recovery and once-only payouts
 
 `electron-tests/deck.spec.ts` adds a production-like 1280x800 controller
 equivalent: hero naming/creation, exploration/Battle, Codex search, manual
@@ -146,6 +182,12 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Prefer stable debug-state transitions, layout IDs, and semantic actions.
 - Hold frame-polled Phaser keys across animation frames; instantaneous presses
   can be missed.
+- Release single-step movement after the expected position appears, rather
+  than holding through the next movement-repeat interval.
+- In Electron, wait for the Boot title before fixture writes or reloads;
+  the correct origin alone does not mean initial navigation has finished.
+- After native fullscreen restoration, settle a complete input/layout frame and
+  remeasure canvas pointer targets after hover before pressing them.
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.
@@ -245,6 +287,9 @@ requests to `main`. Its `pr-${{ github.ref }}` concurrency group is scoped to
 the Git ref, matching the desktop workflow: independent pull requests and
 manually dispatched branches cannot replace one another's pending checks.
 Runs for the same ref remain serialized; `cancel-in-progress` remains false.
+
+Desktop uses `desktop-${{ github.ref }}` with the same serialization policy.
+Preserve all release-gate steps, existing permissions, and triggers.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page

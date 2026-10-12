@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v21; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v22; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -41,6 +41,10 @@ title/Overworld interface lives in `src/managers/saveSlots.ts`. Focused
 normalization remains beside its domain where appropriate, including
 `questState.ts`, `gatheringState.ts`, `craftingState.ts`, and
 `nauticalState.ts`.
+`src/renderers/saveSlotPanel.ts` measures wrapped metadata, actions and footers
+before placing rows. Larger text uses slot paging; selected slot/action IDs
+survive reflow. Those presentation changes do not alter slot documents, the
+schema, key-release confirmation, or overwrite/copy/import/delete ownership.
 Required hero-core and inventory validation live in `saveActor.ts`, using the
 shared serialized-item guard in `heroItemState.ts`. Companion loading retains
 canonical inventory repair; hero progression normalization owns exact equipment
@@ -48,7 +52,24 @@ relinking and preserves well-formed serialized item ownership.
 
 ## Current schema
 
-`SAVE_VERSION` is **21**. Schema v21 adds independent optional fictional
+`SAVE_VERSION` is **22**. Schema v22 adds normalized deterministic
+`player.progression.minigames` for optional dice, archery, and regatta sessions.
+It preserves exact pending challenges/accepted inputs, compact session and
+settlement watermarks, finite milestone claims, separate paid/practice bests,
+natural statistics, and a 40-entry history. History never authorizes payments.
+Invalid pending state retires conservatively without refunds, rerolls, payout
+replay, or boat restoration. See [Tavern and festival activities](minigames.md).
+
+Schema-v21 and older campaigns without activity state gain deterministic empty
+defaults. Valid schema-v19/v20/v21 feature previews retain exact run references
+(including old `sessionId` aliases), challenge components, accepted inputs,
+already-applied hull wear, settlement watermarks, claims, and personal records.
+None of those fields is reconstructed from the bounded history.
+Original schema-v19 activity previews that predate `classProgression` use the
+legacy hero migration, preserving rolled resources, exceptional known grants
+and missing historical unlocks instead of applying modern repair bonuses.
+
+Schema v21 adds independent optional fictional
 `player.progression.devotion` with unaffiliated/zero legacy defaults, canonical
 source/visit ledgers, debug-consumed sources, affiliation-change sequence, and a
 bounded cause history. Tiers, domains and active-blessing presentation are
@@ -97,7 +118,7 @@ migration bookkeeping remain storage metadata rather than campaign authority.
 
 The campaign save contains the authoritative player, location, progression,
 party, quest, cutscene queue, trap, Codex, skill-check, event, social,
-achievement, gathering, crafting, nautical, feature-discovery, time, weather,
+achievement, gathering, crafting, nautical, minigame, feature-discovery, time, weather,
 boss, and playtime state needed to resume play.
 Devotion remains distinct from social scores and never controls canonical
 campaign access. See [Fictional devotion](devotion.md).
@@ -224,6 +245,10 @@ Current loading preserves and repairs earlier releases, including:
 - World Event, social, achievement, gathering, crafting, nautical, and feature
   discovery defaults and corruption repair
 - schema-v17 and older playtime defaulting to zero
+- schema-v21 and older missing minigame state gains deterministic empty defaults
+  without historical payouts or medals; valid feature previews are preserved
+  through ID/cap/phase/revision/challenge/receipt repair,
+  paid/practice/debug isolation, and venue/boat cross-field validation
 - schema-v18 and older devotion defaulting to unaffiliated/zero; exact known
   historical sources are consumed without awarding points or blessings
 

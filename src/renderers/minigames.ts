@@ -4,7 +4,7 @@ import { getAccessibilityPreferences } from "../systems/accessibility";
 import { inputSource, isInputAction, isTouchActionAvailable } from "../systems/input";
 import { layoutMinigamePanel, paginateMinigameLines } from "../systems/minigameLayout";
 import { wrapMeasuredText } from "../systems/layout";
-import { syncInteractiveHitArea } from "../managers/layout";
+import { getTextContentSize, syncInteractiveHitArea } from "../managers/layout";
 import { createDimGraphics, createOverlayContainer, createPanelGraphics, setOverlayViewport } from "../utils/ui";
 import type { MinigameBoard } from "../systems/minigamePresentation";
 import type { LayoutRect } from "../systems/layout";
@@ -165,13 +165,23 @@ export class MinigamePanelRenderer {
     const lineHeight = Math.ceil(Number.parseFloat(String(probe.style.fontSize)) * 1.25);
     probe.destroy();
     this.visibleActions = content.actions.filter((action) => !action.disabled);
-    const layout = layoutMinigamePanel({
+    const layoutOptions = {
       viewport: { x: 0, y: 0, width: GAME_WIDTH, height: GAME_HEIGHT },
       safeArea: { bottom: reserve },
       titleHeight: title.displayHeight, statusHeight: status.displayHeight,
       promptHeight: prompt.displayHeight, buttonHeight: Math.max(48, Math.ceil(44 / canvasScale)),
       buttonCount: this.visibleActions.length, columns: content.columns ?? 3,
-    });
+    };
+    let layout = layoutMinigamePanel(layoutOptions);
+    const buttonWidth = layout.grid.cells[0]?.width ?? 186;
+    const actionProbe = this.scene.add.text(0, 0, "", {
+      fontFamily: "monospace", fontSize: "12px", padding: { x: 6, y: 6 },
+      wordWrap: { width: Math.floor(buttonWidth) - 16, useAdvancedWrap: true },
+    }).setVisible(false);
+    const measuredHeight = Math.max(layoutOptions.buttonHeight,
+      ...this.visibleActions.map((action) => Math.ceil(getTextContentSize(actionProbe, `> ${action.label}`).height) + 2));
+    actionProbe.destroy();
+    layout = layoutMinigamePanel({ ...layoutOptions, buttonHeight: measuredHeight });
     this.columns = layout.grid.columns;
     setOverlayViewport(this.scene, "minigames", layout.panel);
     const background = createPanelGraphics(this.scene, layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height, 1,

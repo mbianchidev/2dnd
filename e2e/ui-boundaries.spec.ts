@@ -60,6 +60,9 @@ test("city entry, location prompts and party characteristics remain bounded", as
   reconcileFeatureDiscovery(campaign.player, campaign.codex, { silent: true });
   await page.goto("game.html", { waitUntil: "networkidle" });
   await seedMinigamePage(page, campaign, "keyboard", { textScale: 1.5, touchControls: "on" });
+  await waitMinigameState(page, "[PROGRESSION:stats");
+  await clickLayoutItem(page, "progression-control-close");
+  await expect(page.locator("#debug-state")).not.toContainText("[PROGRESSION:");
   await minigameKey(page, "Space");
   await waitMinigameState(page, `[CITY:${city.id}:0]`);
   await expectGroupClean(page, "map-labels");

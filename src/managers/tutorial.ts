@@ -348,12 +348,12 @@ export class TutorialManager {
       },
     ).setOrigin(0.5, 0);
     container.add([previous, next, skip]);
-    const footerHeight = Math.max(previous.displayHeight, next.displayHeight);
+    skip.setWordWrapWidth(Math.max(80, panelW - previous.displayWidth - next.displayWidth - 56), true);
+    const footerHeight = Math.max(previous.displayHeight, next.displayHeight, skip.displayHeight);
     previous.setY(py + panelH - 16 - footerHeight);
     next.setY(previous.y);
-    skip.setWordWrapWidth(Math.max(80, panelW - previous.displayWidth - next.displayWidth - 56), true);
-    skip.setY(previous.y - 8 - skip.displayHeight);
-    const contentBottom = skip.y - 12;
+    skip.setY(previous.y + (footerHeight - skip.displayHeight) / 2);
+    const contentBottom = previous.y - 12;
     const availableHeight = contentBottom - controlsTitle.y - controlsTitle.displayHeight - 10;
     const pages = paginateMeasuredItems(controlCards.map((card) => card.displayHeight), availableHeight, 6);
     if (pages.length > 1) {

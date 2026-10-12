@@ -577,6 +577,7 @@ export class OverworldScene extends Phaser.Scene {
       this,
       this.player,
       () => this.autoSave(),
+      () => this.canShowNotifications() && !this.codexDiscovery.isShowing(),
     );
     this.devotionManager = new DevotionManager(this, {
       canVisitTemple: () => !this.isMoving && !this.sceneTransitions.isPending
@@ -620,7 +621,8 @@ export class OverworldScene extends Phaser.Scene {
       },
       data?.questUpdates,
     );
-    this.codexDiscovery = new CodexDiscoveryManager(this);
+    this.codexDiscovery = new CodexDiscoveryManager(this, () => this.canShowNotifications());
+    this.codexDiscovery.update(false);
     synchronizeCompanionRecruitment(this.player);
 
     // Reset movement state — a tween may have been orphaned when the scene
@@ -651,7 +653,9 @@ export class OverworldScene extends Phaser.Scene {
     this.createPlayerSprite();
     this.refreshPartyActors();
     this.setupInput();
+    this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.updateNotifications, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.updateNotifications, this);
       this.companionFollowerManager.clear();
       this.worldPresentation.cleanup();
       this.codexDiscovery.clear();
@@ -2132,14 +2136,6 @@ export class OverworldScene extends Phaser.Scene {
       this.sceneTransitions.isPending || this.isMoving || this.isOverlayOpen()
         || this.dialogueSystem.isDialogueOpen(),
     );
-    this.achievementNotifications.update(
-      !this.sceneTransitions.isPending
-      && !this.isMoving
-      && !this.isOverlayOpen()
-      && !this.dialogueSystem.isDialogueOpen()
-      && !this.codexDiscovery.isShowing(),
-    );
-
     if (this.tutorialManager.isOpen()) {
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
         this.tutorialManager.handleAction("confirm");
@@ -3685,6 +3681,19 @@ export class OverworldScene extends Phaser.Scene {
     this.questFlow.handleResult(result);
     this.autoSave();
     if (this.queueNewlyTriggeredCutscenes(snapshot).length > 0) this.startNextPendingCutscene();
+  }
+
+  private canShowNotifications(): boolean {
+    return !this.sceneTransitions.isPending
+      && !this.isMoving
+      && !this.isOverlayOpen()
+      && !this.dialogueSystem.isDialogueOpen();
+  }
+
+  private updateNotifications(): void {
+    const safeToShow = this.canShowNotifications();
+    this.codexDiscovery.update(safeToShow);
+    this.achievementNotifications.update(safeToShow && !this.codexDiscovery.isShowing());
   }
 
   private flushPendingCodexDiscovery(): void {

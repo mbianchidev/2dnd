@@ -21,8 +21,8 @@ quit, bounded lifecycle logs, and renderer error cleanliness.
 `electron-tests/saveParity.spec.ts` additionally downloads a real browser slot
 export and imports it through the native renderer's file picker. Assert the same
 normalized campaign/metadata while browser and desktop preferences stay isolated.
-Use production keyboard controls in Electron; local-only layout audit selectors
-are intentionally unavailable at `app://2dnd`.
+Use production keyboard controls in Electron. Read-only layout audits are
+available on loopback and `app://2dnd`; they never enable desktop cheats.
 
 `electron-tests/deck.spec.ts` adds a 1280x800 standard-gamepad equivalent with
 name/rename/search text entry, normal exploration/Battle, save/reload/recovery,
@@ -656,6 +656,11 @@ npx vitest run tests/dice.test.ts
   text scales and desktop/mobile sizes. Wait for the selected row in the fresh
   report before collecting page coverage; an older clean report is not proof
   that a newly selected page has rendered.
+- Cover active notifications together with menus and the dice dock, not only
+  individual panels. Opening menus must remove visible notices without
+  acknowledging them; queued feedback resumes once after closing. Mock removed
+  timers and late fade completions in lifecycle tests, and retain real browser
+  and source/packaged Electron screenshots at enlarged text.
 - Hold frame-polled keys with `keyboard.down()`, wait across frames, then
   `keyboard.up()`. Do not use instantaneous presses for Overworld or Ending
   actions.

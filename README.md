@@ -74,6 +74,8 @@ and campaign saves stay in your browser's local storage.
   motion, adjustable audio, cutscene advance options, and adaptive prompts.
   Character creation, stats, equipment, achievements, and campaign slots use
   measured spacing, wrapping, and paging rather than cropping enlarged text.
+  Achievement and lore notices wait behind menus and return during safe
+  exploration without losing earned feedback.
 
 See the [gameplay guide](docs/gameplay.md) for controls, progression, and player
 guidance.

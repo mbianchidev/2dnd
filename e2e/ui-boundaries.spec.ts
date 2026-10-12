@@ -10,8 +10,9 @@ import { FEATURE_IDS } from "../src/data/featureDiscovery";
 import { CUTSCENE_IDS } from "../src/data/cutscenes";
 import { CITIES } from "../src/data/cities";
 import { ACHIEVEMENTS } from "../src/data/achievements";
-import { clickLayoutItem, expectCleanLayout, tapLayoutItem } from "./helpers/layout";
+import { clickLayoutItem, expectCleanLayout, expectVisibleCanvas, tapLayoutItem } from "./helpers/layout";
 import { installMinigameGamepad, minigameKey, minigamePad, seedMinigamePage, waitMinigameState } from "./helpers/minigames";
+import { expectNoticeDeferred, finishNoticeMenu, prepareNoticeMenu, visitNoticeMenuPages } from "./helpers/notifications";
 import type { SaveData } from "../src/systems/save";
 import type { LayoutAuditItem, LayoutAuditResult } from "../src/systems/layout";
 
@@ -150,24 +151,35 @@ test("fully discovered menu keeps every enlarged action caption and page accessi
   await minigameKey(page, "Escape");
 });
 
+for (const { source, textScale } of [
+  { source: "keyboard", textScale: 1 },
+  { source: "touch", textScale: 1.25 },
+  { source: "gamepad", textScale: 1.5 },
+] as const) {
+  test(`menus defer active notices without losing rewards with ${source} at ${textScale * 100}% text`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    await page.goto("game.html", { waitUntil: "networkidle" });
+    const fixture = await prepareNoticeMenu(page, source, textScale);
+    await page.waitForTimeout(3100);
+    await expectNoticeDeferred(page, fixture);
+    for (const viewport of VIEWPORTS) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await expectVisibleCanvas(page);
+      await expectNoticeDeferred(page, fixture);
+      await capture(page, `menu-notice-deferred-${viewport.name}`);
+    }
+    await visitNoticeMenuPages(page, source, fixture);
+    await finishNoticeMenu(page, source, fixture);
+    expect(errors).toEqual([]);
+  });
+}
+
 async function capture(page: Page, name: string): Promise<void> {
   const path = test.info().outputPath(`${name}.png`);
   await page.screenshot({ path });
   await test.info().attach(name, { path, contentType: "image/png" });
-}
-
-async function expectVisibleCanvas(page: Page): Promise<void> {
-  await expect.poll(async () => page.evaluate(() => {
-    const canvas = document.querySelector<HTMLCanvasElement>("#game-container canvas");
-    const host = document.getElementById("game-container");
-    if (!canvas || !host) return { fits: false };
-    const bounds = canvas.getBoundingClientRect();
-    const viewport = host.getBoundingClientRect();
-    const fits = bounds.left >= viewport.left - 1 && bounds.right <= viewport.right + 1
-      && bounds.top >= viewport.top - 1 && bounds.bottom <= viewport.bottom + 1
-      && bounds.bottom <= innerHeight + 1;
-    return { fits, canvas: bounds.toJSON(), host: viewport.toJSON(), viewportHeight: innerHeight };
-  })).toMatchObject({ fits: true });
 }
 
 async function readGroupLayout(page: Page, id: string): Promise<GroupLayout | null> {

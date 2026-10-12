@@ -1,17 +1,13 @@
 import { expect, type Page } from "@playwright/test";
+import type { LayoutAuditItem, LayoutAuditResult } from "../../src/systems/layout";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
 
-interface LayoutReportItem {
-  id: string;
-  bounds: { x: number; y: number; width: number; height: number };
-}
-
 interface LayoutReport {
   overlapCount: number;
   clippingCount: number;
-  groups: Record<string, { items: LayoutReportItem[] }>;
+  groups: Record<string, LayoutAuditResult & { items: LayoutAuditItem[] }>;
 }
 
 export async function waitForGameInputFrame(page: Page): Promise<void> {
@@ -51,7 +47,7 @@ export async function tapPointerAt(page: Page, x: number, y: number): Promise<vo
   }
 }
 
-async function readLayoutReport(page: Page): Promise<LayoutReport> {
+export async function readLayoutReport(page: Page): Promise<LayoutReport> {
   await expect(page.locator("#layout-report")).not.toHaveText("");
   return page.locator("#layout-report").evaluate((element) =>
     JSON.parse(element.textContent ?? "{}") as LayoutReport
@@ -115,4 +111,18 @@ export async function expectCleanLayout(page: Page): Promise<void> {
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toHaveAttribute("data-layout-overlap-count", "0");
   await expect(canvas).toHaveAttribute("data-layout-clipping-count", "0");
+}
+
+export async function expectVisibleCanvas(page: Page): Promise<void> {
+  await expect.poll(async () => page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#game-container canvas");
+    const host = document.getElementById("game-container");
+    if (!canvas || !host) return { fits: false };
+    const bounds = canvas.getBoundingClientRect();
+    const viewport = host.getBoundingClientRect();
+    const fits = bounds.left >= viewport.left - 1 && bounds.right <= viewport.right + 1
+      && bounds.top >= viewport.top - 1 && bounds.bottom <= viewport.bottom + 1
+      && bounds.bottom <= innerHeight + 1;
+    return { fits, canvas: bounds.toJSON(), host: viewport.toJSON(), viewportHeight: innerHeight };
+  })).toMatchObject({ fits: true });
 }

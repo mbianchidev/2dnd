@@ -85,6 +85,17 @@ inventory, and unchanged manual snapshots. Keep existing
 creation fixtures on stable layout IDs; never restore fixed click coordinates
 when a measured layout moves.
 
+Combined-menu cases additionally start a real earned notification, cast Cure
+Wounds through Equipment to populate the dice dock, and open menus with
+keyboard, touch and gamepad controls. They verify the popup is absent while the
+menu owns the screen, survives beyond its normal dismissal deadline, and
+returns and acknowledges exactly once without replaying points or titles.
+All menu pages remain reachable across text scales and viewport changes.
+`electron-tests/menus.spec.ts` exercises the same interruption/recovery and
+measured bounds in source and actual packaged desktops. Lifecycle unit tests
+reject removed-timer and stale-fade callbacks and preserve Shop purchases and
+full-state lore handoffs without rendering Phaser graphics.
+
 `playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
 a strict port. `e2e/landing.spec.ts` exercises the showcase root; Phaser flows
 open `game.html`. `hacks/run-browser-tests.mjs` allocates a free port and

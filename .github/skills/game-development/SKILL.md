@@ -552,6 +552,11 @@ Measure natural glyph/padding extents inside fixed text surfaces and nested
 content too. Use `subscribeOverlayReflow()` for owned frame-boundary reflow,
 preserve choices and scores, and prefer wrapping/paging to masking overflow.
 The canvas-host ResizeObserver must read current Phaser parent bounds before FIT refresh.
+Opening a menu must remove active achievement/Codex notices, not merely block
+new ones. Reconcile Overworld notices after scene updates, retain unread
+achievement IDs, defer Shop lore through the full return state, and reject
+stale dismissal/fade callbacks. Use the shared measured notification renderer
+without taking input focus or delaying mechanics.
 
 ## Common pitfalls
 

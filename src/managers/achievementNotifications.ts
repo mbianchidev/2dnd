@@ -1,4 +1,4 @@
-import * as Phaser from "phaser";
+import type * as Phaser from "phaser";
 import { debugPanelLog } from "../config";
 import { getAchievement, getTitle } from "../data/achievements";
 import {
@@ -6,6 +6,7 @@ import {
   type AchievementId,
 } from "../systems/achievements";
 import { getMotionDuration } from "../systems/accessibility";
+import { renderNotificationPanel } from "../renderers/notification";
 import type { PlayerState } from "../systems/player";
 
 export class AchievementNotificationManager {
@@ -17,10 +18,15 @@ export class AchievementNotificationManager {
     private readonly scene: Phaser.Scene,
     private readonly player: PlayerState,
     private readonly onAcknowledged: () => void,
+    private readonly canShow: () => boolean = () => true,
   ) {}
 
   update(safeToShow: boolean): void {
-    if (!safeToShow || this.container) return;
+    if (!safeToShow) {
+      this.clear();
+      return;
+    }
+    if (this.container) return;
     const achievementId =
       this.player.progression.achievements.pendingNotificationIds[0];
     if (achievementId) this.show(achievementId);
@@ -42,30 +48,14 @@ export class AchievementNotificationManager {
     const reward = definition.rewardTitleId
       ? getTitle(definition.rewardTitleId)
       : undefined;
-    const width = Math.min(330, this.scene.cameras.main.width - 16);
-    const height = reward ? 58 : 46;
-    const background = this.scene.add.graphics();
-    background.fillStyle(0x101b18, 0.97);
-    background.fillRoundedRect(0, 0, width, height, 5);
-    background.lineStyle(2, 0xffd700, 1);
-    background.strokeRoundedRect(0, 0, width, height, 5);
-    const text = this.scene.add.text(
-      8,
-      6,
-      `ACHIEVEMENT UNLOCKED\n${definition.name} (+${definition.points} pts)${reward ? `\nTitle: ${reward.name}` : ""}`,
-      {
-        fontSize: "10px",
-        fontFamily: "monospace",
-        color: "#fff3a6",
-        wordWrap: { width: width - 16 },
-      },
-    );
-    text.setData("accessibilityMaxWidth", width - 16);
-    const container = this.scene.add.container(
-      this.scene.cameras.main.width - width - 8,
-      48,
-      [background, text],
-    ).setDepth(9_900);
+    const container = renderNotificationPanel(this.scene, {
+      id: "achievement-notification",
+      message: `ACHIEVEMENT UNLOCKED\n${definition.name} (+${definition.points} pts)${reward ? `\nTitle: ${reward.name}` : ""}`,
+      maxWidth: 330,
+      y: 48,
+      depth: 9_900,
+      backgroundColor: 0x101b18,
+    });
     this.container = container;
     this.currentId = achievementId;
     debugPanelLog(`[ACHIEVEMENT] Unlocked ${achievementId}`, true);
@@ -82,6 +72,11 @@ export class AchievementNotificationManager {
     this.dismissTimer = this.scene.time.delayedCall(2800, () => {
       if (this.container !== container || this.currentId !== achievementId) return;
       const finish = (): void => {
+        if (this.container !== container || this.currentId !== achievementId) return;
+        if (!this.canShow()) {
+          this.clear();
+          return;
+        }
         acknowledgeAchievementNotification(this.player, achievementId);
         this.clear();
         this.onAcknowledged();

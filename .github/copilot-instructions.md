@@ -552,6 +552,8 @@ Flow:
   Codex state back into gameplay decisions.
 - `CodexDiscoveryManager` owns short non-interactive notices. Notices never
   change input context, delay transitions, or outlive scene shutdown.
+  Overworld defers their latest runtime batch behind menus; Shop carries
+  acquired-item notice IDs through its full shared return state.
 - `BattleCombatantState` is the shared actor contract: stable ID, party/enemy
   side, hero/companion/monster kind, formation, HP, alive/KO, defend, and
   effects. Hero state must remain accessor-backed by `PlayerState`.
@@ -894,6 +896,9 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
   hidden presentation, completion order/timestamps, summary points, and title
   selection. `AchievementNotificationManager` shows persisted notices only
   during safe Overworld states and leaves interrupted notices queued.
+  Remove active notice containers/timers when a menu opens, reconcile after
+  scene updates, reject stale completions, and measure wrapped popup text
+  through the shared notification renderer rather than fixed heights.
 - Debug unlocks are marked and grant no points or titles. Debug mutations must
   suppress newly satisfied natural criteria, and debug-spawned battles/events
   must not advance event counters.

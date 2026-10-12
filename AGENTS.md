@@ -204,6 +204,8 @@ owning issue or pull request.
 - [ ] Layout audit reports no unintended overlap or clipping
 - [ ] Fixed text surfaces fit their natural glyph/padding bounds, not just their outer boxes
 - [ ] Resize/preference reflow preserves choices, scores, action IDs and held-input ownership
+- [ ] Active notices are deferred behind menus without consuming queued feedback
+- [ ] Combined panels are covered; clean individual groups alone do not prove safe coexistence
 
 ### Combat
 

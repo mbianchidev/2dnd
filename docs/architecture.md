@@ -155,6 +155,16 @@ and reveals all available actions across pages when the full discovered menu
 cannot fit. Hidden page controls are inert; keyboard selection follows the same
 stable action IDs and brings its page into view.
 
+Achievement and Codex notices share the measured, non-interactive
+`renderers/notification.ts` panel. Overworld reconciles their visibility after
+each scene update: opening any menu, dialogue or activity removes an active
+notice and its timers without acknowledging unseen feedback. Achievement IDs
+remain in their existing persisted queue; the latest Codex batch stays
+runtime-only. Notices resume when safe, with stale completion callbacks rejected.
+Shop defers acquired-item lore IDs through the full shared return payload,
+rather than covering its buy/sell or confirmation menus. Notice reflow and
+live regions never take input focus or delay a scene handoff.
+
 The input adapter reads Phaser's current parent bounds before refreshing FIT
 scaling when the canvas host changes. `refresh()` alone uses cached parent
 dimensions and can let the canvas extend behind the dice dock or past the window.

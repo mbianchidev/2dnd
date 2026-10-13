@@ -61,6 +61,10 @@ competing positional arguments. Timer suggestions do not enable timing.
 
 Bound controller test presses inside browser animation frames: a host sleep
 can exceed the shared repeat delay on a loaded machine.
+For one grid step, keep both keyboard edges in the renderer's consecutive
+animation frames and assert the exact tile before interacting.
+Measure title labels and wrapped save captions together before positioning
+each row; audit captions rather than clipping enlarged Continue with offsets.
 
 `src/systems/input.ts` owns stable action/context contracts and pure state.
 `src/managers/input.ts` is the single browser adapter for keyboard, pointer,

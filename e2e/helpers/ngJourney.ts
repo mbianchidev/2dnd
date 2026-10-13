@@ -27,6 +27,22 @@ export async function holdJourneyKey(page: Page, key: string): Promise<void> {
   await page.waitForTimeout(90);
 }
 
+/** Keep both edges in the renderer so runner/CDP latency cannot repeat a grid step. */
+export async function stepJourneySouth(page: Page, position: string): Promise<void> {
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const key = { key: "s", code: "KeyS", keyCode: 83, which: 83, bubbles: true };
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", key));
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new KeyboardEvent("keyup", key));
+        resolve();
+      });
+    });
+  }));
+  await expect(page.locator("#debug-state")).toContainText(position);
+  await expect(page.locator("#debug-state")).toContainText("Move: ready");
+}
+
 export async function readJourneySave(page: Page): Promise<SaveData> {
   return page.evaluate(() => {
     const raw = localStorage.getItem("2dnd_save");

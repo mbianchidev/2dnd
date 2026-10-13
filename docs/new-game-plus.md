@@ -14,6 +14,8 @@ If the completed campaign exists only in Autosave, explicitly save it to a
 manual snapshot first. Occupied destinations require confirmation; slots are
 never silently evicted. Review the paginated carry/reset policy and choose
 **Create & Play**.
+Title rows measure the button and wrapped save caption together, so Continue
+and NG+ remain inside their actual bounds at enlarged text sizes.
 
 The selected completed manual source remains byte-for-byte unchanged during
 inspection, creation, activation, normal play, and reload. **Autosave becomes

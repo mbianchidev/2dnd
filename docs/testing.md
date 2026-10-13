@@ -167,6 +167,10 @@ The native island flow imports a canonical voyage, sails to the actual dock,
 lands through Interact, and relaunches into the same interior with unchanged
 source bytes and hull condition. Local runs remain headless Chromium only;
 the compiled shell flow runs on the isolated native CI matrix.
+The island fixture keeps both keyboard edges in the renderer's consecutive
+animation frames and asserts the exact dock/exit tile before interacting.
+Host-time sleeps and separate CDP round trips can keep a direction held through
+repeated movement on a loaded runner.
 
 `electron-tests/deck.spec.ts` adds a production-like 1280x800 controller
 equivalent: hero naming/creation, exploration/Battle, Codex search, manual

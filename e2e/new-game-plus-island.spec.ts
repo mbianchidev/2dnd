@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createIslandVoyage } from "../tests/helpers/campaign";
-import { holdJourneyKey, readJourneySave } from "./helpers/ngJourney";
+import { holdJourneyKey, readJourneySave, stepJourneySouth } from "./helpers/ngJourney";
 import { clickLayoutItem, expectCleanLayout, readLayoutReport } from "./helpers/layout";
 import type { SaveData } from "../src/systems/save";
 
@@ -67,7 +67,7 @@ for (const ng of [false, true]) {
     await expect.poll(() => markerIds(page)).toEqual(ng
       ? expect.arrayContaining(["island-name-starfallAtoll"])
       : expect.not.arrayContaining(["island-name-starfallAtoll"]));
-    await holdJourneyKey(page, "s");
+    await stepJourneySouth(page, "Pos: (12,1)");
     await holdJourneyKey(page, "Space");
     if (ng) {
       await expect(page.locator("#debug-state")).toContainText("[CITY:starfall_atoll:0]");
@@ -81,7 +81,7 @@ for (const ng of [false, true]) {
       await page.reload({ waitUntil: "networkidle" });
       await clickLayoutItem(page, "title-continue");
       await expect(page.locator("#debug-state")).toContainText("[CITY:starfall_atoll:0]");
-      await holdJourneyKey(page, "s");
+      await stepJourneySouth(page, "Pos: (10,14)");
       await page.locator('[data-action="confirm"]').tap();
       await expect(page.locator("#debug-state")).toContainText("[BOAT:reedSkiff]");
       const departed = await readJourneySave(page);

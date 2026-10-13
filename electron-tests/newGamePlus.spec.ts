@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../src/data/cutscenes";
 import { QUEST_NPCS } from "../src/data/quests";
 import { clickLayoutItem, expectCleanLayout } from "../e2e/helpers/layout";
-import { createJourneySource, drainJourneyScenes, holdJourneyKey, playCanonicalNgCampaign, readJourneySave } from "../e2e/helpers/ngJourney";
+import { createJourneySource, drainJourneyScenes, holdJourneyKey, playCanonicalNgCampaign, readJourneySave, stepJourneySouth } from "../e2e/helpers/ngJourney";
 import { createIslandVoyage } from "../tests/helpers/campaign";
 import { closeDesktop, launchDesktop, monitorRendererErrors, waitForState } from "./helpers/desktop";
 import type { SaveData } from "../src/systems/save";
@@ -83,6 +83,7 @@ test("compiled app imports a completed source and plays the full independent NG+
     const continued = await desktop.firstWindow();
     const reloadErrors = monitorRendererErrors(continued);
     await waitForState(continued, "BOOT | Screen: title");
+    await expectCleanLayout(continued);
     await clickLayoutItem(continued, "title-continue");
     await waitForState(continued, "OVERWORLD");
     expect((await readJourneySave(continued)).player.newGamePlus?.cycle).toBe(1);
@@ -127,7 +128,7 @@ test("compiled app lands on the NG+ secret island and preserves its interior and
     await selectNativeFixtureSlot(page, "manual-2");
     await clickLayoutItem(page, "save-slot-action-load");
     await drainJourneyScenes(page);
-    await holdJourneyKey(page, "s");
+    await stepJourneySouth(page, "Pos: (12,1)");
     await holdJourneyKey(page, "Space");
     await waitForState(page, "[CITY:starfall_atoll:0]");
     const landed = await readJourneySave(page);
@@ -142,6 +143,7 @@ test("compiled app lands on the NG+ secret island and preserves its interior and
     const continued = await desktop.firstWindow();
     const reloadErrors = monitorRendererErrors(continued);
     await waitForState(continued, "BOOT | Screen: title");
+    await expectCleanLayout(continued);
     await clickLayoutItem(continued, "title-continue");
     await waitForState(continued, "[CITY:starfall_atoll:0]");
     expect((await readJourneySave(continued)).player.progression.nautical.ownedBoats[0]?.condition).toBe(47);

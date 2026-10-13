@@ -3,7 +3,7 @@
 - `run-browser-tests.mjs` allocates an unused localhost port, passes it to the
   Playwright config, and runs the browser suite without reusing stale Vite
   servers. Invoke it through `npm run test:browser`.
-  `--balanced-shard=N/4` interleaves adjacent cases using native Playwright
+  `--balanced-shard=N/5` interleaves adjacent cases using native Playwright
   test-list selection, verifies the exact case set before running, and retains
   the plan in `test-results/shard-plan.json`. This distributes long campaign
   and multi-input activity files without hiding slow-test warnings or dropping

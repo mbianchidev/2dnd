@@ -378,16 +378,18 @@ for them before release.
 ## CI
 
 `.github/workflows/pr.yml` runs Node 24, `npm ci`, audit, typecheck, full Vitest
-and the production build, then the complete Playwright suite across four
+and the production build, then the complete Playwright suite across five
 single-worker shards and the paired production benchmark. No tests or slow-test
 warnings are disabled. Shard artifacts have unique names; the existing `build`
 check aggregates every required job, including failures/skips. Manual dispatch
 runs the full release gate without the PR-only comparison.
-CI uses `--balanced-shard=N/4`: native contiguous sharding put all five long
+CI uses `--balanced-shard=N/5`: native contiguous sharding put all five long
 NG+ journeys in one job. The browser wrapper interleaves individually discovered
 cases, uses Playwright's native `--test-list`, and rechecks the exact selection
-before execution. It preserves every case once across the four shards and
+before execution. It preserves every case once across the five shards and
 retains the complete shard plan and JSON results even for clean passing shards.
+Each of the five adjacent campaign journeys gets its own single-worker runner,
+instead of accumulating two journeys into one slow-file warning.
 The browser matrix fails fast on a failed shard as requested; its aggregate gate
 still requires every shard to pass. Workflow/ref concurrency remains non-cancelling.
 Its `pr-${{ github.ref }}` concurrency group is scoped to

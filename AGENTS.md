@@ -88,7 +88,7 @@ owning issue or pull request.
 
 Performance validation retains raw samples, host load and deterministic frame-work
 counts. PR CI compares exact clean base/head builds with one harness in
-base/head/head/base order and runs all browser cases across four single-worker
+base/head/head/base order and runs all browser cases across five single-worker
 shards. The existing `build` check aggregates the complete gate; do not disable
 slow-test warnings, raise bundle limits or treat busy-host timings as portable
 budgets. Vitest uses isolated bounded threads and content-aware transform caching.

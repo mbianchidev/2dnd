@@ -1408,7 +1408,7 @@ npm run benchmark:baseline
   owning issue or pull request.
 - Keep all performance receipts, raw samples, host load and frame-work evidence.
   PR CI compares clean base/head builds on one runner in base/head/head/base
-  order and runs every browser case through four single-worker shards. Preserve
+  order and runs every browser case through five single-worker shards. Preserve
   the aggregate `build` check, complete gates, ref-scoped concurrency and warnings.
   Vitest retains isolation with bounded threads and content-aware transform caching.
 - Run typecheck, full Vitest, browser tests, and build before completion.

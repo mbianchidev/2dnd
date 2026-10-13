@@ -156,7 +156,7 @@ Install Chromium once before the browser or desktop suites with
 
 Performance receipts retain raw samples and host load; PR CI compares clean base
 and head builds on one runner. Tests retain full coverage while using bounded
-isolated workers and four browser shards. See [Testing](docs/testing.md).
+isolated workers and five browser shards. See [Testing](docs/testing.md).
 
 Use `npm run dev:desktop` for Electron development and
 `npm run package:desktop` for unsigned artifacts on the current host.

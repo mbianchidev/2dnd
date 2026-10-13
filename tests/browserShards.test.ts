@@ -25,6 +25,24 @@ describe("complete balanced browser shards", () => {
     expect(shards.flat().sort()).toEqual(createBrowserShards(report, 1).flat().sort());
   });
 
+  it("puts each of five adjacent campaign journeys on a separate shard", () => {
+    const campaign = {
+      title: "mock-campaign.spec.ts",
+      file: "mock-campaign.spec.ts",
+      specs: Array.from({ length: 5 }, (_, index) => ({
+        file: "mock-campaign.spec.ts", title: `Mock campaign ${index}`,
+        tests: [{ projectName: "" }],
+      })),
+    };
+    const discovery = { suites: [...report.suites, campaign] };
+    const shards = createBrowserShards(discovery, 5);
+    expect(shards.map((shard) => shard.length)).toEqual([3, 3, 3, 3, 3]);
+    expect(shards.map((shard) => shard.filter((test) =>
+      test.startsWith("mock-campaign.spec.ts > ")).length)).toEqual([1, 1, 1, 1, 1]);
+    expect(new Set(shards.flat()).size).toBe(15);
+    expect(shards.flat().sort()).toEqual(createBrowserShards(discovery, 1).flat().sort());
+  });
+
   it("rejects missing, duplicate and ambiguous discovery rather than reporting an incomplete gate", () => {
     expect(() => createBrowserShards({}, 4)).toThrow(/discovery/);
     expect(() => createBrowserShards({ ...report, errors: ["mock failure"] }, 4)).toThrow(/discovery/);

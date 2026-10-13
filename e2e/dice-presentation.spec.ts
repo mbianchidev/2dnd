@@ -1094,6 +1094,24 @@ test("real gathering scores fade without fabricated d20s or history surviving a 
   await continueCampaign(page);
   await page.setViewportSize({ width: 390, height: 844 });
   for (const discipline of ["fishing", "mining", "foraging"] as const) {
+    interface GatheringResultObservation {
+      battle: boolean;
+      text: string;
+      bounds: { x: number; width: number; height: number } | null;
+    }
+    const observeResult = () => page.waitForFunction((): GatheringResultObservation | null => {
+      if (document.getElementById("debug-state")?.textContent?.includes("BATTLE")) {
+        return { battle: true, text: "", bounds: null };
+      }
+      const text = document.getElementById("dice-result")?.textContent ?? "";
+      const panel = document.getElementById("dice-presentation");
+      if (!text.includes("Score 100; required 50") || !panel) return null;
+      const bounds = panel.getBoundingClientRect();
+      return { battle: false, text, bounds: {
+        x: bounds.x, width: bounds.width, height: bounds.height,
+      } };
+    }, undefined, { polling: "raf" });
+    let observation: ReturnType<typeof observeResult> | null = null;
     await debugCommand(page, `/gather near ${discipline}`);
     await expect(page.locator("#debug-log")).toContainText(`Moved near ${discipline} node`);
     const position = (await readSave(page)).player.position;
@@ -1124,22 +1142,30 @@ test("real gathering scores fade without fabricated d20s or history surviving a 
       await expect(page.locator("#debug-state")).toContainText("[GATHERING_PHASE:bite]");
       await page.locator('#touch-controls [data-action="confirm"]').tap();
       await expect(page.locator("#debug-state")).toContainText("[GATHERING_PHASE:tension]");
-      for (const direction of pending.game.tensionPattern) {
+      for (const [index, direction] of pending.game.tensionPattern.entries()) {
+        if (index === pending.game.tensionPattern.length - 1) observation = observeResult();
         await pressGamepad(page, GAMEPAD_DIRECTIONS[direction]);
       }
     } else if (pending.game.kind === "mining") {
-      for (const direction of pending.game.pattern) {
+      for (const [index, direction] of pending.game.pattern.entries()) {
         await holdKey(page, DIRECTIONS[direction]);
+        if (index === pending.game.pattern.length - 1) observation = observeResult();
         await holdKey(page, "Enter");
       }
     } else {
       for (let clue = 0; clue < pending.game.pattern.length; clue += 1) {
         await holdKey(page, "Enter");
       }
-      for (const direction of pending.game.pattern) {
+      for (const [index, direction] of pending.game.pattern.entries()) {
+        if (index === pending.game.pattern.length - 1) observation = observeResult();
         await pressGamepad(page, GAMEPAD_DIRECTIONS[direction]);
       }
     }
+    if (!observation) throw new Error("No final gathering input was observed");
+    const observed = await observation;
+    const view = await observed.jsonValue();
+    await observed.dispose();
+    if (!view) throw new Error("No gathering result evidence");
     await expect(page.locator("#debug-state")).not.toContainText(`[GATHERING:${discipline}]`);
     await expect(page.locator("#debug-log")).toContainText("Score 100; required 50");
     await expect(page.locator("#debug-log")).toContainText("(no d20 roll)");
@@ -1148,9 +1174,11 @@ test("real gathering scores fade without fabricated d20s or history surviving a 
       await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
       await expect(page.locator("#dice-presentation")).toBeHidden();
     } else {
-      await expect(page.locator("#dice-result")).toContainText("Score 100; required 50");
-      const bounds = await page.locator("#dice-presentation").boundingBox();
-      if (!bounds) throw new Error("No visible transient gathering result");
+      expect(view.text).toContain("Score 100; required 50");
+      const bounds = view.bounds;
+      if (!bounds || bounds.height <= 0) {
+        throw new Error("No visible transient gathering result");
+      }
       expect(bounds.x).toBeGreaterThanOrEqual(0);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
       await expect(page.locator("#dice-presentation")).toBeHidden({ timeout: 5_000 });

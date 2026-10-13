@@ -92,6 +92,8 @@ base/head/head/base order and runs all browser cases across four single-worker
 shards. The existing `build` check aggregates the complete gate; do not disable
 slow-test warnings, raise bundle limits or treat busy-host timings as portable
 budgets. Vitest uses isolated bounded threads and content-aware transform caching.
+The browser wrapper's balanced shard plan verifies native test-list selection
+and retains every case exactly once plus JSON receipts for clean passing shards.
 
 Local validation is headless only. Never launch visible native windows or
 control the developer's desktop. The Chromium configuration explicitly selects

@@ -3,6 +3,14 @@
 - `run-browser-tests.mjs` allocates an unused localhost port, passes it to the
   Playwright config, and runs the browser suite without reusing stale Vite
   servers. Invoke it through `npm run test:browser`.
+  `--balanced-shard=N/4` interleaves adjacent cases using native Playwright
+  test-list selection, verifies the exact case set before running, and retains
+  the plan in `test-results/shard-plan.json`. This distributes long campaign
+  and multi-input activity files without hiding slow-test warnings or dropping
+  tests. Ordinary arguments, including native `--shard`, remain supported.
+- `lib/browserShards.ts` validates discovered test identities and creates the
+  complete deterministic interleaved shard plan. Duplicate, ambiguous, empty or
+  failed discovery rejects the run rather than producing a partial passing gate.
 - `run-desktop-dev.mjs` allocates a loopback-only Vite port, waits for it to
   become responsive, launches the Electron shell, and stops both child
   processes together. Invoke it through `npm run dev:desktop`.

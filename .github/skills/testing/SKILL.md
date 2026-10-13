@@ -652,6 +652,9 @@ export function createTestMonster(overrides?: Partial<MonsterInstance>): Monster
 Vitest uses isolated threads capped at four/available CPUs and a content-aware
 filesystem transform cache. Keep mocks/globals isolated. Browser tests use one
 local worker and four single-worker PR shards with full aggregate gating.
+Use the wrapper's `--balanced-shard=N/4` in CI; native contiguous shards can
+concentrate every long campaign case in one job. Preserve exact discovered and
+native-selected case parity, full plan/results artifacts and slow-test reporting.
 Shared input helpers await actual scene gates and complete pressed/released
 frames, not unconditional settling sleeps or network idle. Preserve waits that
 exercise real timing.

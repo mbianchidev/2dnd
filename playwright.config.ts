@@ -36,7 +36,9 @@ export default defineConfig({
     timeout: 30_000,
   },
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "github" : "line",
+  reporter: process.env.CI
+    ? [["github"], ["json", { outputFile: "test-results/results.json" }]]
+    : "line",
   outputDir: "test-results",
   snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}{ext}",
   use: {

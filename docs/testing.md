@@ -154,6 +154,9 @@ authoritative title/scene assertion for game navigation, not an unrelated
 that settled title/exploration/reflowed scenes perform no redundant canvas,
 debug-state or layout-report writes. It checks live preferences, clean layout
 and unchanged campaign bytes. Frame/JS timings are evidence, not flaky FPS gates.
+Observe the real startup reveal/achievement queues and HUD notices finishing
+before the idle sample; their legitimate presentation changes are not redundant
+work. Live-preference samples require a fresh changed layout report first.
 
 ## Electron responsibilities
 
@@ -379,6 +382,13 @@ single-worker shards and the paired production benchmark. No tests or slow-test
 warnings are disabled. Shard artifacts have unique names; the existing `build`
 check aggregates every required job, including failures/skips. Manual dispatch
 runs the full release gate without the PR-only comparison.
+CI uses `--balanced-shard=N/4`: native contiguous sharding put all five long
+NG+ journeys in one job. The browser wrapper interleaves individually discovered
+cases, uses Playwright's native `--test-list`, and rechecks the exact selection
+before execution. It preserves every case once across the four shards and
+retains the complete shard plan and JSON results even for clean passing shards.
+The browser matrix fails fast on a failed shard as requested; its aggregate gate
+still requires every shard to pass. Workflow/ref concurrency remains non-cancelling.
 Its `pr-${{ github.ref }}` concurrency group is scoped to
 the Git ref, matching the desktop workflow: independent pull requests and
 manually dispatched branches cannot replace one another's pending checks.

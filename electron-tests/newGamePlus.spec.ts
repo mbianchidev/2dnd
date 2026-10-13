@@ -10,13 +10,21 @@ import { createIslandVoyage } from "../tests/helpers/campaign";
 import { closeDesktop, launchDesktop, monitorRendererErrors, waitForState } from "./helpers/desktop";
 import type { SaveData } from "../src/systems/save";
 
+async function selectNativeFixtureSlot(page: Page, slotId: "manual-1" | "manual-2"): Promise<void> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if ((await page.locator("#debug-state").textContent())?.includes(`[SAVE_SLOT:${slotId}]`)) return;
+    await holdJourneyKey(page, "ArrowDown");
+  }
+  throw new Error(`Could not select ${slotId} through the measured slot pager`);
+}
+
 async function importNativeFixture(
   page: Page,
   slotId: "manual-1" | "manual-2",
   name: string,
   save: SaveData,
 ): Promise<void> {
-  await clickLayoutItem(page, `save-slot-row-${slotId}`);
+  await selectNativeFixtureSlot(page, slotId);
   const chooser = page.waitForEvent("filechooser");
   await clickLayoutItem(page, "save-slot-action-import");
   await (await chooser).setFiles({
@@ -116,7 +124,7 @@ test("compiled app lands on the NG+ secret island and preserves its interior and
     })));
     await page.reload({ waitUntil: "networkidle" });
     await clickLayoutItem(page, "title-save-slots");
-    await clickLayoutItem(page, "save-slot-row-manual-2");
+    await selectNativeFixtureSlot(page, "manual-2");
     await clickLayoutItem(page, "save-slot-action-load");
     await drainJourneyScenes(page);
     await holdJourneyKey(page, "s");

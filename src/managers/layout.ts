@@ -38,6 +38,7 @@ export function subscribeOverlayReflow(scene: Phaser.Scene, render: () => void):
     }
     pending = false;
     render();
+    requestSceneAudits.get(scene)?.();
   };
   const unsubscribePreferences = gamePreferences.subscribe(request);
   const unsubscribeSource = inputPromptSource.subscribe(request);

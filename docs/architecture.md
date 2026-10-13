@@ -163,7 +163,8 @@ Scenes inject `installSceneLayoutAudit` into `installSceneAccessibility`; pure
 preferences never dynamically import the Phaser adapter. Unchanged preferences,
 text styles and debug/layout reports do not rewrite DOM properties every frame.
 Group registration, replacement, destruction and viewport changes coalesce into
-a next-frame audit; the 200-ms audit remains for animated/in-place changes.
+a next-frame audit, including in-place overlay reflow; the 200-ms audit remains
+for other animated/in-place changes.
 Captured callbacks are invalidated on shutdown, and an old container cannot
 unregister its replacement.
 

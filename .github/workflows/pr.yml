@@ -75,11 +75,7 @@ jobs:
           [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
           git fetch --no-tags --depth=1 origin "$BASE_SHA"
           git worktree add --detach "$RUNNER_TEMP/2dnd-performance-base" "$BASE_SHA"
-          if cmp --silent package-lock.json "$RUNNER_TEMP/2dnd-performance-base/package-lock.json"; then
-            ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/2dnd-performance-base/node_modules"
-          else
-            npm ci --prefix "$RUNNER_TEMP/2dnd-performance-base"
-          fi
+          npm ci --prefix "$RUNNER_TEMP/2dnd-performance-base"
       - name: Measure base and head in balanced order
         run: |
           mkdir "$RUNNER_TEMP/2dnd-performance"

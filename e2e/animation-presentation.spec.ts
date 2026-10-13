@@ -41,10 +41,11 @@ async function waitForPresentation(
   text: string,
   timeout = 12_000,
 ): Promise<void> {
-  await expect.poll(
-    async () => page.locator("#debug-state").textContent(),
-    { timeout },
-  ).toContain(text);
+  await page.waitForFunction(
+    (expected) => document.getElementById("debug-state")?.textContent?.includes(expected),
+    text,
+    { timeout, polling: "raf" },
+  );
 }
 
 async function enableDebug(page: Page): Promise<void> {
@@ -113,8 +114,10 @@ async function startEncounter(
 }
 
 async function finishBattle(page: Page, boss = false): Promise<void> {
-  await submitDebug(page, "/kill");
-  await waitForPresentation(page, ":faint");
+  await Promise.all([
+    waitForPresentation(page, ":faint"),
+    submitDebug(page, "/kill"),
+  ]);
   if (boss) {
     await expect.poll(async () => {
       const state = await page.locator("#debug-state").textContent() ?? "";
@@ -246,6 +249,11 @@ test("reduced motion makes presentation immediate and readable", async ({
     if (message.type() === "error") browserErrors.push(message.text());
   });
   await page.addInitScript((preferencesKey) => {
+    let seed = 0x72_2026;
+    Math.random = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 0x1_0000_0000;
+    };
     if (sessionStorage.getItem("reducedAnimationInitialized")) return;
     localStorage.clear();
     sessionStorage.setItem("reducedAnimationInitialized", "true");
@@ -273,13 +281,15 @@ test("reduced motion makes presentation immediate and readable", async ({
     page,
     "overworld:mount:horse:walk:immediate",
   );
-  await startEncounter(page, "slime");
+  await startEncounter(page, "orc");
   await waitForState(page, "Phase: playerTurn");
   await clickGame(page, 360, 435);
   await holdKey(page, "Enter", 100);
   await waitForPresentation(page, "party:hero:attack:attack:immediate");
-  await submitDebug(page, "/kill");
-  await waitForPresentation(page, ":faint:immediate");
+  await Promise.all([
+    waitForPresentation(page, ":faint:immediate"),
+    submitDebug(page, "/kill"),
+  ]);
   await expect(page.locator("#game-container canvas"))
     .toHaveAttribute("data-reduced-motion", "true");
   await expect(page.locator("#game-container canvas"))

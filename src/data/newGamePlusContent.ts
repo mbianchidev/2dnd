@@ -105,6 +105,22 @@ export const NEW_GAME_PLUS_WORLD_EVENTS: readonly WorldEventDefinition[] = [
 
 export const NEW_GAME_PLUS_LORE: readonly CodexKnowledgeEntry[] = [
   {
+    id: "locationStarfallAtoll", category: "location", name: "Starfall Atoll", hiddenUntilUnlocked: true,
+    summary: "A secret island visible only to sailors on a renewed covenant.",
+    details: [
+      "A remembered star opens the atoll in New Game+. Ordinary voyages find only water at its coordinates.",
+      "The Remembered Lantern offers a normal paid rest, and the shore supports quiet fishing and foraging.",
+      "The island has no merchant route, keystone, or required oath. Its chart and inhabitants never complete campaign objectives.",
+    ],
+    tags: ["new game plus", "secret island", "starfall", "navigation"], sortOrder: 951,
+    sources: [
+      { type: "location", locationKind: "city", targetId: "starfall_atoll",
+        label: "Land on Starfall Atoll", hint: "Explore the Covenant Strait in New Game+." },
+      { type: "readable", readableId: "starfallRememberedChart",
+        label: "The Remembered Chart", hint: "Read the fallen-star monument on the atoll." },
+    ],
+  },
+  {
     id: "historyCovenantEchoes", category: "history", name: "The Remembered Road",
     summary: "A new world may echo an old oath, but each covenant must still be restored.",
     details: ["Echoes are optional reflections, not proof of quest completion.",

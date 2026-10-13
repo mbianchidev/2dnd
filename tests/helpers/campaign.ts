@@ -7,6 +7,10 @@ import {
 } from "../../src/systems/quests";
 import { commitHeroLevelUp, prepareHeroLevelUp } from "../../src/systems/classProgression";
 import { createHeroProgressionContext } from "../../src/systems/classProgressionContext";
+import { buildNewGamePlus } from "../../src/systems/newGamePlus";
+import { acquireBoat } from "../../src/systems/nauticalOwnership";
+import { getIsland } from "../../src/data/nautical";
+import { getNauticalMoveTarget } from "../../src/systems/nauticalNavigation";
 import type { BaseClassId } from "../../src/data/classProgression";
 import type { PlayerState } from "../../src/systems/player";
 import type { SaveData } from "../../src/systems/save";
@@ -47,4 +51,28 @@ export function createCompletedCampaign(classId: BaseClassId = "knight", level =
     }
   }
   return createCurrentSaveData(player, bosses, createCodex(), player.appearanceId, 500);
+}
+
+/** Synthetic voyage starts one real sailing step away; dock entry and reload use production controls. */
+export function createIslandVoyage(ng = true): { source: SaveData; voyage: SaveData } {
+  const source = createCompletedCampaign();
+  source.player.progression.tutorial.completed = true;
+  let voyage = structuredClone(source);
+  if (ng) {
+    const built = buildNewGamePlus(source, "starfall-voyage-fixture", 1000, "1234abcd");
+    if (!built.ok) throw new Error(built.message);
+    voyage = built.data;
+  }
+  acquireBoat(voyage.player.progression.nautical, "reedSkiff").boat.condition = 47;
+  voyage.player.progression.nautical.sailing = true;
+  const dock = getIsland("starfallAtoll").dock;
+  if (!dock) throw new Error("Missing canonical secret-island dock");
+  Object.assign(voyage.player.position, {
+    inCity: false, cityId: "", cityChunkIndex: 0, inDungeon: false, dungeonId: "", dungeonLevel: 0,
+    chunkX: dock.chunkX, chunkY: dock.chunkY, x: dock.tileX, y: dock.tileY,
+  });
+  const approach = getNauticalMoveTarget(voyage.player.position, "north");
+  if (!approach) throw new Error("Missing canonical island approach");
+  voyage.player.position = approach;
+  return { source, voyage };
 }

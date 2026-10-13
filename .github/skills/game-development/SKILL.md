@@ -44,6 +44,10 @@ and changes spanning scenes, systems, data, renderers, or managers.
   runtime-bind companion policy after clone/load. Retire pending activities
   without refunds or replay; compose cycle scaling once through difficulty.
   See `docs/new-game-plus.md`.
+- Secret islands: immutable nautical cycle/dock metadata, pure `islandAccess.ts`
+  and shared `systems/islands.ts` own entry/exit. Starfall Atoll is NG+-only;
+  normal terrain remains Water. Reuse existing interiors, inns, gathering,
+  lore, fog and semantic input; no merchant/fast-travel shortcut or reward replay.
 - Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, `Cutscene`,
   `Ending`, and `Defeat`
 - Overworld orchestration: `src/scenes/Overworld.ts`

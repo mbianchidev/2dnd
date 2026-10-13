@@ -12,6 +12,9 @@ import { awardXP, processPendingLevelUps, xpForLevel, type PlayerState } from ".
 import { ITEMS } from "../data/items";
 import { MOUNTS } from "../data/mounts";
 import { CITIES, DUNGEONS } from "../data/map";
+import { getIslandForCity } from "../data/nautical";
+import { isIslandCityAvailable } from "./islandAccess";
+import { getNextLevelXP } from "./classProgression";
 import { ALL_MONSTERS, findMonster } from "../data/monsters";
 import {
   createGroupEncounter,
@@ -113,7 +116,12 @@ export function registerSharedHotkeys(
 
   lKey.on("down", () => {
     if (!isDebug() || isInputBlocked()) return;
-    const needed = xpForLevel(player.level + 1) - player.xp;
+    const nextLevelXP = getNextLevelXP(player);
+    if (nextLevelXP === null) {
+      debugPanelLog(`[CHEAT] Already at the campaign level cap (${player.level}).`, true);
+      return;
+    }
+    const needed = nextLevelXP - player.xp;
     awardXP(player, Math.max(needed, 0));
     const xpResult = processPendingLevelUps(player);
     debugLog("CHEAT: Level up", { newLevel: xpResult.newLevel });
@@ -215,8 +223,8 @@ export function buildSharedCommands(
       consumables: () => ITEMS.filter((i) => i.type === "consumable").map((i) => i.id),
       mount: () => MOUNTS.map((m) => m.id),
       mounts: () => MOUNTS.map((m) => m.id),
-      city: () => CITIES.map((c) => `${c.id} (${c.name})`),
-      cities: () => CITIES.map((c) => `${c.id} (${c.name})`),
+      city: () => CITIES.filter((c) => isIslandCityAvailable(c.id, player.newGamePlus)).map((c) => `${c.id} (${c.name})`),
+      cities: () => CITIES.filter((c) => isIslandCityAvailable(c.id, player.newGamePlus)).map((c) => `${c.id} (${c.name})`),
       dungeon: () => DUNGEONS.map((d) => `${d.id} (${d.name})`),
       dungeons: () => DUNGEONS.map((d) => `${d.id} (${d.name})`),
       monster: () => ALL_MONSTERS.map((m) => m.id),
@@ -1115,6 +1123,12 @@ export class DebugCommandSystem {
       if (nameArg && (parts.length !== 2 || isNaN(parseInt(parts[0], 10)))) {
         const city = CITIES.find((c) => c.name.toLowerCase() === nameArg || c.id.toLowerCase() === nameArg);
         if (city) {
+          const island = getIslandForCity(city.id);
+          if (!isIslandCityAvailable(city.id, this.player.newGamePlus)
+            || island?.minimumNewGamePlusCycle !== undefined) {
+            debugPanelLog("[CMD] Secret islands require NG+ and a boat approach through /island.", true);
+            return;
+          }
           this.player.position.chunkX = city.chunkX;
           this.player.position.chunkY = city.chunkY;
           this.player.position.x = city.tileX;
@@ -1142,7 +1156,8 @@ export class DebugCommandSystem {
           return;
         }
         const allNames = [
-          ...CITIES.map((c) => ({ label: c.name, type: "city" })),
+          ...CITIES.filter((c) => isIslandCityAvailable(c.id, this.player.newGamePlus))
+            .map((c) => ({ label: c.name, type: "city" })),
           ...DUNGEONS.map((d) => ({ label: d.name, type: "dungeon" })),
         ];
         const match = allNames.find((n) => n.label.toLowerCase().includes(nameArg));

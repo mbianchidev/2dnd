@@ -126,8 +126,11 @@ export function createNewGamePlusSlot(
     return reportSaveFailure("invalid", "The source changed. Review a new preview; no campaign was overwritten.");
   }
   const existing = target.inspection.data;
+  const parentCycle = source.inspection.data.player.newGamePlus?.cycle ?? 0;
   if (existing?.player.newGamePlus?.requestId === request.requestId
     && existing.player.newGamePlus.createdAt === request.createdAt
+    && existing.player.newGamePlus.parentCycle === parentCycle
+    && existing.player.newGamePlus.cycle === parentCycle + 1
     && existing.player.newGamePlus.sourceFingerprint === newGamePlusFingerprint(source.inspection.raw)) {
     return { ok: true, data: existing, message: "This New Game+ cycle was already created." };
   }

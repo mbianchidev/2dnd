@@ -45,6 +45,9 @@ export interface IslandDefinition {
   location: NauticalCoordinate;
   seaZoneId: SeaZoneId;
   continentId: ContinentId;
+  cityId?: string;
+  dock?: NauticalCoordinate;
+  minimumNewGamePlusCycle?: number;
 }
 
 export interface PortDefinition {
@@ -183,6 +186,8 @@ export const ISLANDS = [
     location: { chunkX: 4, chunkY: 2, tileX: 6, tileY: 1 },
     seaZoneId: "covenantStrait",
     continentId: "verdantCovenant",
+    cityId: "tidehaven_city",
+    dock: { chunkX: 4, chunkY: 2, tileX: 6, tileY: 0 },
   },
   {
     id: "emberwakeCay",
@@ -197,6 +202,9 @@ export const ISLANDS = [
     location: { chunkX: 4, chunkY: 2, tileX: 12, tileY: 1 },
     seaZoneId: "covenantStrait",
     continentId: "verdantCovenant",
+    cityId: "starfall_atoll",
+    dock: { chunkX: 4, chunkY: 2, tileX: 12, tileY: 1 },
+    minimumNewGamePlusCycle: 1,
   },
   {
     id: "mistcoilIsle",
@@ -462,6 +470,10 @@ export function getSeaZone(id: SeaZoneId): SeaZoneDefinition {
 
 export function getIsland(id: IslandId): IslandDefinition {
   return ISLANDS.find((island) => island.id === id) as IslandDefinition;
+}
+
+export function getIslandForCity(cityId: string): IslandDefinition | undefined {
+  return ISLANDS.find((island: IslandDefinition) => island.cityId === cityId);
 }
 
 export function getPort(id: PortId): PortDefinition {

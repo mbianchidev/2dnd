@@ -148,6 +148,12 @@ export class NewGamePlusManager {
       this.busy = true;
       const created = createNewGamePlusSlot(this.request);
       if (created.ok) {
+        if (created.warning) {
+          this.status = `${created.warning} Select Create & Play again to continue.`;
+          this.busy = false;
+          this.render();
+          return;
+        }
         const launched = this.launch(this.request.targetSlotId);
         if (launched.ok) { this.close(); return; }
         this.status = launched.message;

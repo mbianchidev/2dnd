@@ -22,6 +22,7 @@ import {
 } from "../data/map";
 import { canSailTo } from "./nautical";
 import { isIslandLandmarkAt } from "../data/nautical";
+import { isIslandCityAvailable } from "./islandAccess";
 
 /** Result of a grid move attempt. */
 export interface MoveResult {
@@ -54,6 +55,7 @@ export function useDungeonConnection(player: PlayerState): boolean {
 /** Use the city gate connection at the player's current tile. */
 export function useCityConnection(player: PlayerState): boolean {
   if (!player.position.inCity) return false;
+  if (!isIslandCityAvailable(player.position.cityId, player.newGamePlus)) return false;
   const city = getCity(player.position.cityId);
   if (!city) return false;
   const connection = getCityConnectionAt(
@@ -100,6 +102,7 @@ export function tryGridMove(
 
   // ── City movement ────────────────────────────────────────────
   if (player.position.inCity) {
+    if (!isIslandCityAvailable(player.position.cityId, player.newGamePlus)) return noMove;
     const city = getCity(player.position.cityId);
     if (!city) return noMove;
     const chunkMap = getCityChunkMap(city, player.position.cityChunkIndex);

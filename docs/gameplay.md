@@ -183,7 +183,8 @@ See [Timed battle decisions](battle-timing.md) for reload and control details.
 
 The world contains 90 legacy-compatible chunks, 13 cities including optional
 Tidehaven, and four multi-level dungeons including Tideglass Grotto. Exploration
-includes:
+includes the additional secret Starfall Atoll only in New Game+. Exploration
+features:
 
 - connected city districts, shops, inns, banks, stables, and fast travel
 - day/night lighting, six weather types, biome encounters, and fog of war
@@ -211,6 +212,8 @@ gear. Upgrades preserve exact equipment ownership links.
 Merchant routes work before boat ownership. Later, the Tideglass Charter grants
 a Reed Skiff for free sailing, hazards, sea encounters, open-water fishing,
 boat upgrades, island discovery, Tideglass Grotto, and the optional Kraken.
+NG+ sailors can also land on Starfall Atoll. Its optional sanctuary is hidden
+on ordinary voyages and has no merchant route or fast-travel destination.
 
 ## Optional tavern and festival games
 

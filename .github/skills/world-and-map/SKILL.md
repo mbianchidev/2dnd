@@ -80,6 +80,14 @@ available before boat ownership. Disembarkation validates canonical walkability
 and rejects towns, dungeons, bosses, chests, events, and other blocked landing
 tiles. Sea encounter rates always pass through `getEffectiveEncounterRate()`.
 
+`islandAccess.ts` validates immutable minimum-cycle requirements against full
+NG+ authority. `systems/islands.ts` shares live serviceable-boat/exact-dock entry
+and exit with Tidehaven. Starfall Atoll's optional interior appears only in NG+;
+its ordinary tile remains Water. Render explored eligible markers without
+mutating chunks or adding hidden hit targets. Merchant routes and fast travel
+cannot enter it. Normalize inaccessible city/island/fog evidence and recover
+ineligible or boatless saved interiors to Willowdale without a refund/repair.
+
 ## Harbor courses and activity venues
 
 Activity venues are stable non-blocking metadata on existing walkable city

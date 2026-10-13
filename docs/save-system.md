@@ -60,6 +60,11 @@ reject the candidate. Frozen/rest/deferred grants, inventory links and all
 earlier domains remain unchanged. See [New Game+](new-game-plus.md) for every
 carry/reset rule and strictly non-writing source inspection.
 
+Starfall Atoll uses existing city-interior, nautical discovery, and fog fields;
+it adds no second cycle/access flag. The normalizer validates its required NG+
+authority and serviceable boat, removes ineligible discovery, and recovers
+unusable interiors to Willowdale without a refund or repair.
+
 Schema v26 adds canonical `player.difficulty`: selected
 profile, bounded Custom overrides, initial profile, lifetime change count, and
 at most 20 canonical causes. It stores no derived modifiers. Campaigns through

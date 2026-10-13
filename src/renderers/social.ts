@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
 import { CITIES } from "../data/map";
+import { isIslandCityAvailable } from "../systems/islandAccess";
 import {
   FACTION_DEFINITIONS,
   getFactionName,
@@ -107,7 +108,7 @@ export function renderSocialSummary(
   if (resolvedPage === 1) {
     addText(scene, container, x, currentY, "Town reputation", "#ffd700", 14);
     currentY += 24;
-    for (const city of CITIES) {
+    for (const city of CITIES.filter((candidate) => isIslandCityAvailable(candidate.id, null))) {
       const townId = city.id as TownId;
       const score = getReputationScore(social, "town", townId);
       addText(

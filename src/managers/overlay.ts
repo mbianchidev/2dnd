@@ -6,6 +6,7 @@
 
 import * as Phaser from "phaser";
 import { getNextLevelXP } from "../systems/classProgression";
+import { getSecretIslands, isIslandCityAvailable } from "../systems/islandAccess";
 import {
   MAP_WIDTH,
   MAP_HEIGHT,
@@ -58,6 +59,7 @@ import {
   CONTINENTS,
   MERCHANT_ROUTES,
   PORTS,
+  getIslandForCity,
   type MerchantRouteId,
   type PortId,
 } from "../data/nautical";
@@ -1599,7 +1601,10 @@ export class OverlayManager {
 
     const visitedCityIds = new Set<string>(player.progression.discoveredCities);
 
-    const visitedCities = CITIES.filter((c) => visitedCityIds.has(c.id));
+    const visitedCities = CITIES.filter((c) =>
+      visitedCityIds.has(c.id) && isIslandCityAvailable(c.id, player.newGamePlus)
+      && getIslandForCity(c.id)?.minimumNewGamePlusCycle === undefined,
+    );
 
     const container = this.scene.add.container(0, 0).setDepth(56);
 
@@ -2163,6 +2168,7 @@ export class OverlayManager {
 
     const redraw = (): void => {
       mapContainer.removeAll(true);
+      const islands = getSecretIslands(player.newGamePlus);
 
       if (detailChunk) {
         const { cx: dcx, cy: dcy } = detailChunk;
@@ -2181,7 +2187,10 @@ export class OverlayManager {
         const gfx = this.scene.add.graphics();
         for (let ty = 0; ty < MAP_HEIGHT; ty++) {
           for (let tx = 0; tx < MAP_WIDTH; tx++) {
-            const terrain = chunk.mapData[ty][tx];
+            const terrain = islands.some((island) =>
+              island.location.chunkX === dcx && island.location.chunkY === dcy
+              && island.location.tileX === tx && island.location.tileY === ty,
+            ) ? Terrain.Town : chunk.mapData[ty][tx];
             const exploredKey = `${dcx},${dcy},${tx},${ty}`;
             const explored = !!player.progression.exploredTiles[exploredKey];
             const color = explored ? TERRAIN_COLORS[terrain] : 0x0a0a0a;
@@ -2195,7 +2204,10 @@ export class OverlayManager {
         }
         mapContainer.add(gfx);
 
-        for (const town of chunk.towns) {
+        const landmarks = [...chunk.towns, ...islands.filter((island) =>
+          island.location.chunkX === dcx && island.location.chunkY === dcy,
+        ).map((island) => ({ name: island.name, x: island.location.tileX, y: island.location.tileY }))];
+        for (const town of landmarks) {
           const eKey = `${dcx},${dcy},${town.x},${town.y}`;
           if (!player.progression.exploredTiles[eKey]) continue;
           const mx = ox + town.x * detailTile + detailTile / 2;
@@ -2276,7 +2288,10 @@ export class OverlayManager {
           let hasExplored = false;
           for (let ty = 0; ty < MAP_HEIGHT; ty++) {
             for (let tx = 0; tx < MAP_WIDTH; tx++) {
-              const terrain = chunk.mapData[ty][tx];
+              const terrain = islands.some((island) =>
+                island.location.chunkX === cx && island.location.chunkY === cy
+                && island.location.tileX === tx && island.location.tileY === ty,
+              ) ? Terrain.Town : chunk.mapData[ty][tx];
               const exploredKey = `${cx},${cy},${tx},${ty}`;
               const explored = !!player.progression.exploredTiles[exploredKey];
               if (explored) hasExplored = true;
@@ -2310,7 +2325,10 @@ export class OverlayManager {
           });
           mapContainer.add(clickZone);
 
-          for (const town of chunk.towns) {
+          const landmarks = [...chunk.towns, ...islands.filter((island) =>
+            island.location.chunkX === cx && island.location.chunkY === cy,
+          ).map((island) => ({ name: island.name, x: island.location.tileX, y: island.location.tileY }))];
+          for (const town of landmarks) {
             const tKey = `${cx},${cy},${town.x},${town.y}`;
             if (!player.progression.exploredTiles[tKey]) continue;
             const mx = ox + town.x * tp + tp / 2;

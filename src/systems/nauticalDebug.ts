@@ -1,4 +1,5 @@
 import { debugPanelLog } from "../config";
+import { isIslandAvailable } from "./islandAccess";
 import {
   BOATS,
   ISLANDS,
@@ -6,6 +7,7 @@ import {
   PORTS,
   SEA_DAY_MONSTERS,
   SEA_NIGHT_MONSTERS,
+  getIsland,
   getPort,
   isBoatId,
   isIslandId,
@@ -147,7 +149,7 @@ export function registerNauticalDebugCommands(
         `sailing=${state.sailing}`,
         `ports=${state.discoveredPortIds.length}/${PORTS.length}`,
         `routes=${state.discoveredRouteIds.length}/${MERCHANT_ROUTES.length}`,
-        `islands=${state.discoveredIslandIds.length}/${ISLANDS.length}`,
+        `islands=${state.discoveredIslandIds.length}/${ISLANDS.filter((island) => isIslandAvailable(island, player.newGamePlus)).length}`,
         `steps=${state.stats.seaSteps}`,
       ]);
       return;
@@ -173,14 +175,27 @@ export function registerNauticalDebugCommands(
   commands.set("island", (args) => {
     const command = args.trim();
     if (!command || command === "list") {
-      logLines(ISLANDS.map((island) => `${island.id}: ${island.name}`));
+      logLines(ISLANDS.filter((island) => isIslandAvailable(island, player.newGamePlus))
+        .map((island) => `${island.id}: ${island.name}`));
       return;
     }
     if (!isIslandId(command)) {
       debugPanelLog(`[SEA] Unknown island: ${command}`, true);
       return;
     }
-    const island = ISLANDS.find((candidate) => candidate.id === command)!;
+    const island = getIsland(command);
+    if (!isIslandAvailable(island, player.newGamePlus)) {
+      debugPanelLog("[SEA] This island requires a validated New Game+ cycle.", true);
+      return;
+    }
+    if (island.minimumNewGamePlusCycle !== undefined) {
+      const boat = getActiveBoatState(player.progression.nautical);
+      if (!boat || boat.condition <= 0) {
+        debugPanelLog("[SEA] Select a serviceable boat before approaching the secret island.", true);
+        return;
+      }
+      player.progression.nautical.sailing = true;
+    }
     Object.assign(player.position, {
       inCity: false,
       cityId: "",

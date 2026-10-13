@@ -34,6 +34,7 @@ import type {
 import type { SkillCheckAbility } from "../data/skillChecks";
 import { WeatherType } from "./weather";
 import { DIFFICULTY_PREVIEW_SAVE_VERSION, MAX_COMPOSED_DIFFICULTY_PRICE_MULTIPLIER } from "./difficulty";
+import { isIslandAvailable } from "./islandAccess";
 
 export const NAUTICAL_ID_HISTORY_LIMIT = 120;
 export const NAUTICAL_SEA_TILE_LIMIT = 5_000;
@@ -496,6 +497,7 @@ export function createNauticalState(): NauticalState {
 export function normalizeNauticalState(
   value: unknown,
   sourceVersion: number,
+  newGamePlus: unknown = null,
 ): NauticalState {
   if (sourceVersion < 15 || !isRecord(value)) return createNauticalState();
   const state = createNauticalState();
@@ -527,7 +529,7 @@ export function normalizeNauticalState(
   state.discoveredIslandIds = uniqueFiltered(
     value["discoveredIslandIds"],
     isIslandId,
-  );
+  ).filter((id) => isIslandAvailable(getIsland(id), newGamePlus));
   state.discoveredContinentIds = uniqueFiltered(
     value["discoveredContinentIds"],
     isContinentId,

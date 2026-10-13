@@ -68,6 +68,11 @@ campaign writes to a protected source. Retire pending activities without
 refund/reroll/reward/wear restoration. See `docs/new-game-plus.md` for every
 carry/reset rule.
 
+Starfall Atoll stores no separate access flag. Validate its NG+ cycle and
+serviceable boat through existing city/nautical fields; remove ineligible
+island/city/fog discovery and recover unusable interiors to Willowdale without
+repairing hull condition or granting resources.
+
 Schema v26 owns `player.difficulty`: canonical selection, bounded Custom
 overrides, initial profile, lifetime change count, and at most 20 validated
 causes. Normalize from unknown through `normalizeCampaignDifficulty()` before

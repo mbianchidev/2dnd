@@ -25,6 +25,41 @@ function sourceBytes() {
 }
 
 describe("protected NG+ source transactions", () => {
+  it("does not confuse another valid lineage with a repeated creation receipt", () => {
+    const bytes = seedSource();
+    const prepared = prepareNewGamePlus("manual-1", "manual-2", "lineage-fixture", false, 1000);
+    if (!prepared.ok) throw new Error(prepared.message);
+    expect(createNewGamePlusSlot(prepared.request).ok).toBe(true);
+    const child = decodeStoredSave(localStorage.getItem("2dnd_save_slot_manual-2")!);
+    if (!child?.player.newGamePlus) throw new Error("Missing canonical child");
+    child.player.newGamePlus.cycle = 2;
+    child.player.newGamePlus.parentCycle = 1;
+    const unrelated = JSON.stringify(child);
+    localStorage.setItem("2dnd_save_slot_manual-2", unrelated);
+    expect(createNewGamePlusSlot(prepared.request)).toMatchObject({ ok: false, code: "occupied" });
+    expect(localStorage.getItem("2dnd_save_slot_manual-2")).toBe(unrelated);
+    expect(sourceBytes()).toEqual(bytes);
+  });
+
+  it("surfaces a naming warning while retaining the created child and immutable source", () => {
+    const bytes = seedSource();
+    const prepared = prepareNewGamePlus("manual-1", "manual-2", "name-warning-fixture", false, 1000);
+    if (!prepared.ok) throw new Error(prepared.message);
+    const original = localStorage.setItem.bind(localStorage);
+    vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
+      if (key === "2dnd_save_slot_manual-2:name") throw new DOMException("Mock quota", "QuotaExceededError");
+      original(key, value);
+    });
+    expect(createNewGamePlusSlot(prepared.request)).toMatchObject({
+      ok: true, warning: expect.stringContaining("naming failed"),
+    });
+    const child = localStorage.getItem("2dnd_save_slot_manual-2");
+    expect(decodeStoredSave(child!)?.player.newGamePlus?.cycle).toBe(1);
+    expect(createNewGamePlusSlot(prepared.request).ok).toBe(true);
+    expect(localStorage.getItem("2dnd_save_slot_manual-2")).toBe(child);
+    expect(sourceBytes()).toEqual(bytes);
+  });
+
   it("writes only the destination and keeps a played child intact on duplicate commit", () => {
     const bytes = seedSource();
     const prepared = prepareNewGamePlus("manual-1", "manual-2", "slot-fixture", false, 1000);

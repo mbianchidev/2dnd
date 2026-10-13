@@ -74,6 +74,33 @@ async function chooseIndependentCycle(page: Page): Promise<void> {
   await expect(page.locator("#debug-state")).toContainText("[NG_PLUS:preview]");
 }
 
+test("a saved child with a naming warning stays in preview until explicit acknowledgement", async ({ page }) => {
+  const errors = watchErrors(page);
+  const source = await seedCompletedSource(page);
+  await clickLayoutItem(page, "title-new-game-plus");
+  await chooseIndependentCycle(page);
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (this: Storage, key: string, value: string): void {
+      if (key === "2dnd_save_slot_manual-2:name") throw new DOMException("Mock quota", "QuotaExceededError");
+      original.call(this, key, value);
+    };
+  });
+  await clickLayoutItem(page, "save-slot-action-confirm");
+  await expect(page.locator("#debug-state")).toContainText("[NG_PLUS:preview]");
+  await expect(page.locator('[id$="-accessible-content"]').filter({ hasText: "naming failed" }))
+    .toContainText("again to continue");
+  await expectCleanLayout(page);
+  const child = await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-2"));
+  expect(child).not.toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save"))).toBeNull();
+  await clickLayoutItem(page, "save-slot-action-confirm");
+  await skipOpening(page);
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-2"))).toBe(child);
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(source);
+  expect(errors).toEqual([]);
+});
+
 test("NG+ preview/cancel is read-only, creation protects the manual source and epic rest survives reload", async ({ page }) => {
   const errors = watchErrors(page);
   const source = await seedCompletedSource(page);
@@ -162,4 +189,59 @@ test("native Tab focus selects Cancel rather than committing the focused source"
   expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(source);
   expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-2"))).toBeNull();
   expect(await page.locator("#new-game-plus-accessibility").count()).toBe(0);
+});
+
+test("standard gamepad selects an independent cycle without a second mapping or source write", async ({ page }) => {
+  await page.addInitScript(() => {
+    const pad = {
+      id: "Synthetic standard NG+ controller", index: 0, mapping: "standard", connected: true,
+      timestamp: 0, axes: [0, 0, 0, 0], vibrationActuator: null,
+      buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
+    };
+    Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => [pad] });
+    Object.defineProperty(window, "__ngPadButton", {
+      value: (index: number, pressed: boolean) => {
+        pad.buttons[index] = { pressed, touched: pressed, value: pressed ? 1 : 0 };
+        pad.timestamp++;
+      },
+    });
+  });
+  const press = async (button: number): Promise<void> => {
+    await page.evaluate((index) =>
+      (window as typeof window & { __ngPadButton(index: number, pressed: boolean): void })
+        .__ngPadButton(index, true), button);
+    await page.waitForTimeout(120);
+    await page.evaluate((index) =>
+      (window as typeof window & { __ngPadButton(index: number, pressed: boolean): void })
+        .__ngPadButton(index, false), button);
+    await page.waitForTimeout(120);
+  };
+  const errors = watchErrors(page);
+  const source = await seedCompletedSource(page);
+  await press(13);
+  await press(0);
+  await expect(page.locator("#debug-state")).toContainText("[NG_PLUS:source]");
+  await press(13);
+  await press(0);
+  await expect(page.locator("#debug-state")).toContainText("[NG_PLUS:destination]");
+  await press(0);
+  await expect(page.locator("#debug-state")).toContainText("[NG_PLUS:preview]");
+  await expectCleanLayout(page);
+  await press(0);
+  await skipOpening(page);
+  expect((await readCampaign(page)).player.newGamePlus?.cycle).toBe(1);
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(source);
+  expect(errors).toEqual([]);
+});
+
+test("blur cancels a held confirmation rather than creating a cycle on late release", async ({ page }) => {
+  const source = await seedCompletedSource(page);
+  await clickLayoutItem(page, "title-new-game-plus");
+  await chooseIndependentCycle(page);
+  await page.keyboard.down("Enter");
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await page.keyboard.up("Enter");
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-2"))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(source);
+  await holdKey(page, "Escape");
 });

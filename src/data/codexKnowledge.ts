@@ -123,6 +123,7 @@ export interface CodexKnowledgeEntry {
   readonly tags: readonly string[];
   readonly sortOrder: number;
   readonly sources: readonly CodexUnlockSource[];
+  readonly hiddenUntilUnlocked?: boolean;
 }
 
 export interface CodexReadableDefinition {
@@ -865,6 +866,20 @@ const WORLD_EVENT_ENTRIES: readonly CodexKnowledgeEntry[] = [
 ];
 
 export const CODEX_READABLES: readonly CodexReadableDefinition[] = [
+  {
+    id: "starfallRememberedChart",
+    cityId: "starfall_atoll",
+    cityChunkIndex: 0,
+    x: 10,
+    y: 4,
+    terrain: Terrain.Statue,
+    title: "The Remembered Chart",
+    text: [
+      "A chart carved beneath a fallen star shows an island that the first voyage could not see.",
+      "Its lantern shelters returning roadwardens. No remembered oath replaces the twelve promises awaiting renewal.",
+      "The sea keeps its own account: this shore repairs neither hull nor history.",
+    ],
+  },
   {
     id: "willowdaleFoundingVolume",
     cityId: "willowdale_city",

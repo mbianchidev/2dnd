@@ -460,6 +460,7 @@ export function getCodexKnowledgeList(
     CODEX_KNOWLEDGE_CATEGORIES.map((category, index) => [category, index]),
   );
   const entries = CODEX_KNOWLEDGE_ENTRIES.filter((entry) => {
+    if (entry.hiddenUntilUnlocked && !isCodexKnowledgeUnlocked(codex, entry.id)) return false;
     if (query.category && entry.category !== query.category) return false;
     if (!normalizedSearch) return true;
     return [

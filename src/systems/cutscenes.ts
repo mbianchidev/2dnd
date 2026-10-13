@@ -11,6 +11,7 @@ import {
   type CutsceneTriggerCondition,
 } from "../data/cutscenes";
 import { CITIES } from "../data/map";
+import { isIslandCityAvailable } from "./islandAccess";
 import { getBoss } from "../data/monsters";
 import {
   MAIN_QUEST_ID,
@@ -410,7 +411,7 @@ export function buildCampaignEndingSummary(
   }
 
   return {
-    hero: formatPartyMember(player),
+    hero: `${formatPartyMember(player)}${player.newGamePlus ? ` | NG+ ${player.newGamePlus.cycle}` : ""}`,
     party: [
       formatPartyMember(player),
       ...player.party.companions.map(formatPartyMember),
@@ -431,8 +432,10 @@ export function buildCampaignEndingSummary(
       .filter((bossId) => defeatedBosses.has(bossId))
       .map((bossId) => getBoss(bossId)?.name ?? bossId),
     discoveredCities: {
-      current: new Set(player.progression.discoveredCities).size,
-      total: CITIES.length,
+      current: new Set(player.progression.discoveredCities.filter((id) =>
+        isIslandCityAvailable(id, player.newGamePlus),
+      )).size,
+      total: CITIES.filter((city) => isIslandCityAvailable(city.id, player.newGamePlus)).length,
     },
     codexEntries: Object.keys(codex.entries).length,
     pendingProgression,

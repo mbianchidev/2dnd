@@ -278,7 +278,8 @@ export const TIPS: readonly TipDefinition[] = [
     id: "newGamePlusCycle", category: "advanced", title: "An independent New Game+ road",
     body: "Carry your hero, gear, party and learned records; replay the seven chapters and real Elowen return. "
       + "The completed manual source stays safe while Autosave tracks this run. Cycle scaling saturates at cycle 5; "
-      + "NG+ supports 99 cycles. Unique permanent grants never repeat. Echo events and post-game trial are optional.",
+      + "NG+ supports 99 cycles. Unique permanent grants never repeat. Echo events and post-game trial are optional. "
+      + "A serviceable boat can find secret Starfall Atoll; its shore never opens a campaign gate.",
     unlock: { type: "newGamePlus" },
   },
   {

@@ -22,6 +22,7 @@ import {
 } from "../data/map";
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { getBlockedQuestEntranceAt } from "../systems/quests";
+import { getSecretIslands } from "../systems/islandAccess";
 import { WeatherType, WEATHER_TINT, type WeatherState } from "../systems/weather";
 import { isReducedMotionEnabled } from "../systems/accessibility";
 import type { PlayerState } from "../systems/player";
@@ -653,12 +654,16 @@ export class MapRenderer {
   ): void {
     const chunk = getChunk(player.position.chunkX, player.position.chunkY);
     if (!chunk) return;
+    const islands = getSecretIslands(player.newGamePlus).filter((island) =>
+      island.location.chunkX === player.position.chunkX && island.location.chunkY === player.position.chunkY,
+    );
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       this.tileSprites[y] = [];
       for (let x = 0; x < MAP_WIDTH; x++) {
         const explored = isExplored(x, y);
-        const terrain = chunk.mapData[y][x];
+        const terrain = islands.some((island) => island.location.tileX === x && island.location.tileY === y)
+          ? Terrain.Town : chunk.mapData[y][x];
         let texKey = explored ? `tile_${terrain}` : "tile_fog";
         if (explored && terrain === Terrain.Town) {
           const biome = getTownBiome(player.position.chunkX, player.position.chunkY, x, y);
@@ -712,6 +717,7 @@ export class MapRenderer {
         this.addMapLabel(label, `town-name-${town.x}-${town.y}`);
       }
     }
+    this.renderSecretIslandLabels(player, isExplored);
 
     // Boss markers (if not defeated)
     for (const boss of chunk.bosses) {
@@ -819,10 +825,14 @@ export class MapRenderer {
   private revealOverworldTiles(player: PlayerState, isExplored: (x: number, y: number) => boolean): void {
     const chunk = getChunk(player.position.chunkX, player.position.chunkY);
     if (!chunk) return;
+    const islands = getSecretIslands(player.newGamePlus).filter((island) =>
+      island.location.chunkX === player.position.chunkX && island.location.chunkY === player.position.chunkY,
+    );
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         if (isExplored(x, y) && this.tileSprites[y]?.[x]) {
-          const terrain = chunk.mapData[y][x];
+          const terrain = islands.some((island) => island.location.tileX === x && island.location.tileY === y)
+            ? Terrain.Town : chunk.mapData[y][x];
           let texKey = `tile_${terrain}`;
           if (terrain === Terrain.Town) {
             const biome = getTownBiome(player.position.chunkX, player.position.chunkY, x, y);
@@ -854,6 +864,21 @@ export class MapRenderer {
           this.tileSprites[y][x].setTexture(texKey);
         }
       }
+    }
+    this.renderSecretIslandLabels(player, isExplored);
+  }
+
+  private renderSecretIslandLabels(player: PlayerState, isExplored: (x: number, y: number) => boolean): void {
+    for (const island of getSecretIslands(player.newGamePlus)) {
+      const location = island.location;
+      const id = `island-name-${island.id}`;
+      if (location.chunkX !== player.position.chunkX || location.chunkY !== player.position.chunkY
+        || !isExplored(location.tileX, location.tileY) || this.labelRows.some((row) => row.id === id)) continue;
+      const label = this.scene.add.text(
+        location.tileX * TILE_SIZE + TILE_SIZE / 2, location.tileY * TILE_SIZE - 4, island.name,
+        { fontSize: "9px", fontFamily: "monospace", color: "#fff", stroke: "#000", strokeThickness: 2 },
+      ).setOrigin(0.5, 1);
+      this.addMapLabel(label, id);
     }
   }
 }

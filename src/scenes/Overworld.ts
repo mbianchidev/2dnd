@@ -7,6 +7,7 @@
 
 import * as Phaser from "phaser";
 import { selectNewGamePlusVariant } from "../systems/newGamePlusScaling";
+import { enterIsland, getSailingIsland, leaveIsland } from "../systems/islands";
 import {
   MAP_WIDTH,
   MAP_HEIGHT,
@@ -203,6 +204,7 @@ import {
 import { getCraftingRecipe, type CraftingRecipeId } from "../data/crafting";
 import {
   PORTS,
+  getIslandForCity,
   getPort,
   getSeaZone,
   getSeaZoneAt,
@@ -1428,7 +1430,9 @@ export class OverworldScene extends Phaser.Scene {
       if (!chunk) return "???";
       const cityMap = chunk.mapData;
       const terrain = cityMap[this.player.position.y]?.[this.player.position.x];
-      if (terrain === Terrain.CityExit) return `${city.name}  [SPACE] Leave`;
+      if (terrain === Terrain.CityExit) {
+        return `${city.name}  [SPACE] ${getIslandForCity(city.id)?.dock ? "Sail" : "Leave"}`;
+      }
       if (city.id === "tidehaven_city" && terrain === Terrain.Dungeon) {
         return "Tideglass Grotto  [SPACE] Enter Dungeon";
       }
@@ -1466,15 +1470,8 @@ export class OverworldScene extends Phaser.Scene {
     const terrain = getTerrainAt(this.player.position.chunkX, this.player.position.chunkY, this.player.position.x, this.player.position.y);
     const nautical = this.player.progression.nautical;
     if (nautical.sailing) {
-      const tidehaven = getPort("tidehavenPort");
-      if (
-        this.player.position.chunkX === tidehaven.location.chunkX
-        && this.player.position.chunkY === tidehaven.location.chunkY
-        && this.player.position.x === tidehaven.location.tileX
-        && this.player.position.y === tidehaven.location.tileY
-      ) {
-        return "Tidehaven Free Port  [SPACE] Enter";
-      }
+      const island = getSailingIsland(this.player);
+      if (island) return `${island.name}  [SPACE] Enter`;
       const sea = getSeaZoneAt(
         this.player.position.chunkX,
         this.player.position.chunkY,
@@ -1767,37 +1764,21 @@ export class OverworldScene extends Phaser.Scene {
     const blocked = (position: PlayerState["position"]): boolean =>
       this.isNauticalLandingBlocked(position);
     if (state.sailing) {
-      const tidehaven = getPort("tidehavenPort");
-      if (
-        this.player.position.chunkX === tidehaven.location.chunkX
-        && this.player.position.chunkY === tidehaven.location.chunkY
-        && this.player.position.x === tidehaven.location.tileX
-        && this.player.position.y === tidehaven.location.tileY
-      ) {
-        const city = getCity(tidehaven.cityId);
-        if (!city) return false;
-        state.sailing = false;
-        this.player.position.inCity = true;
-        this.player.position.cityId = city.id;
-        this.player.position.cityChunkIndex = 0;
-        this.player.position.x = city.spawnX;
-        this.player.position.y = city.spawnY;
-        this.player.lastTownX = tidehaven.location.tileX;
-        this.player.lastTownY = tidehaven.location.tileY;
-        this.player.lastTownChunkX = tidehaven.location.chunkX;
-        this.player.lastTownChunkY = tidehaven.location.chunkY;
-        discoverPort(state, "tidehavenPort");
-        if (!this.player.progression.discoveredCities.includes(city.id)) {
-          this.player.progression.discoveredCities.push(city.id);
+      const island = getSailingIsland(this.player);
+      if (island) {
+        const entered = enterIsland(this.player, island.id);
+        if (!entered.ok) {
+          this.showMessage(entered.reason, "#ff8888");
+          return true;
         }
         const cityUnlock = unlockCodexFromSignal(this.codex, {
           type: "location",
           locationKind: "city",
-          targetId: city.id,
+          targetId: entered.city.id,
         });
         this.weatherState.current = WeatherType.Clear;
         this.autoSave();
-        this.restartOverworld("enter Tidehaven", cityUnlock.unlockedIds);
+        this.restartOverworld(`enter ${island.name}`, cityUnlock.unlockedIds);
         return true;
       }
       const check = canDisembark(
@@ -2664,27 +2645,15 @@ export class OverworldScene extends Phaser.Scene {
       const terrain = cityMap[this.player.position.y]?.[this.player.position.x];
 
       if (terrain === Terrain.CityExit) {
-        if (city.id === "tidehaven_city") {
-          const boat = getActiveBoatState(this.player.progression.nautical);
-          if (!boat || boat.condition <= 0) {
-            this.showMessage(
-              "No serviceable boat. Use the world map for a merchant route.",
-              "#ffab91",
-            );
+        if (getIslandForCity(city.id)?.dock) {
+          const sailed = leaveIsland(this.player);
+          if (!sailed.ok) {
+            this.showMessage(sailed.reason, "#ffab91");
             return;
           }
-          const port = getPort("tidehavenPort");
-          this.player.position.inCity = false;
-          this.player.position.cityId = "";
-          this.player.position.cityChunkIndex = 0;
-          this.player.position.chunkX = port.location.chunkX;
-          this.player.position.chunkY = port.location.chunkY;
-          this.player.position.x = port.location.tileX;
-          this.player.position.y = port.location.tileY;
-          this.player.progression.nautical.sailing = true;
           this.rerollWeather();
           this.autoSave();
-          this.restartOverworld("sail from Tidehaven");
+          this.restartOverworld(`sail from ${sailed.island.name}`);
           return;
         }
         this.player.position.inCity = false;

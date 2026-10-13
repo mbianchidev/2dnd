@@ -545,6 +545,12 @@ Flow:
   once through canonical enemy/reward/cost/encounter helpers, preserve original
   Codex definitions and final rate/party limits. Optional echoes never replace
   a required boss or canonical final Elowen interaction.
+- Starfall Atoll is NG+-only. Immutable island/dock metadata and its procedural
+  interior reuse existing world IDs and city state; `islandAccess.ts` validates
+  cycle authority and `systems/islands.ts` owns fresh boat/dock entry and exit.
+  Ordinary terrain stays Water, hidden markers have no extra hit target, and
+  no merchant/fast-travel route enters it. Recover ineligible saved interiors
+  and discovery without repairing boats or replaying rewards.
 
 ## Combat
 

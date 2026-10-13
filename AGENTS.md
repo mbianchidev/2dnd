@@ -37,6 +37,7 @@ future work until merged.
 | Quests/cutscenes | `quests.ts`, focused `cutscene*.ts` | `quests.ts`, `questState.ts`, `cutscenes.ts` | quest/cutscene managers, `Cutscene.ts`, `Ending.ts` | quest/cutscene/campaign E2E |
 | World/map/traps | `map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, `traps.ts` | `movement.ts`, `traps.ts` | map/city/trap/fog managers/renderers | map, city, trap, fog, movement |
 | Sea navigation | `nautical.ts`, `islands.ts`, `seaMonsters.ts` | `nautical*.ts` | Overworld/map/audio | nautical unit and E2E |
+| NG+ secret island | nautical island metadata, `islands.ts`, Codex lore | `islandAccess.ts`, `systems/islands.ts`, nautical/save normalization | existing sailing, city, map, inn and lore adapters | island access/recovery/carry and actual sailing/reload flows |
 | Events/social/achievements | matching `src/data/` modules | matching `src/systems/` modules | managers/overlays/social renderer | matching unit and E2E |
 | Fictional devotion | `devotion.ts`, focused `devotion*.ts` content | `devotion.ts`, `devotionState.ts`, `devotionTemples.ts`, profile/debug | devotion manager + native accessibility bridge | devotion, temple, integration, save and browser suites |
 | Gathering/crafting | matching `src/data/` modules | matching systems + state normalizers | matching managers | matching unit and E2E |
@@ -129,6 +130,9 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   names/activates the source. Preserve exact frozen/rest/deferred grants and
   item links; retire pending activities without refunds or replay. See
   [New Game+](docs/new-game-plus.md).
+- Starfall Atoll uses validated NG+ metadata and the actual serviceable boat/
+  dock, never discovery or lore authority. Hide ordinary markers and travel
+  entries, keep base terrain Water, and recover ineligible interiors safely.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
 - Standard is unlimited. Timed mode persists only bounded per-campaign settings,

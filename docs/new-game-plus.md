@@ -27,6 +27,10 @@ NG+ repeats the original seven chapters, twelve city oaths, three keystone
 guardians, and final Elowen interaction. Carried knowledge, boats, titles,
 levels, or prestige ranks never substitute for quest completion. Each completed
 cycle may create another independent cycle, up to **99**.
+Ending recaps keep the full party and cycle label on measured pages. Use
+left/right or the shared A/D navigation, pointer/touch page buttons, or the
+gamepad cursor, then explicitly confirm **Continue**. Empty space cannot skip
+a recap page.
 
 ## Carry/reset policy
 
@@ -110,6 +114,32 @@ adds original lore; the voluntary Covenant Echo trial becomes eligible only
 after that cycle's real main-quest completion and uses normal battle/recovery
 hooks. NG+ achievements and the Echo Roadwarden title are cosmetic.
 
+## The secret island
+
+**Starfall Atoll** appears only in a validated NG+ campaign, starting at cycle
+1. Its dock is in the Covenant Strait at chunk `(4, 2)`, tile `(12, 1)`. Sail
+there with a serviceable boat and use the normal **Interact** action to land.
+The shallow approach works with a Reed Skiff.
+
+Ordinary campaigns and ordinary completed post-game see only the original
+water tile. Fog, lore, achievements, difficulty, debug discovery, or a forged
+visited-city ID cannot authorize entry. There is no merchant route or
+fast-travel destination for the atoll; initial and repeat visits use its dock.
+The normal ninety-chunk terrain definitions are never changed.
+
+The optional island has a fallen-star chart, original Codex lore, a small
+community, fishing/foraging approaches, and **The Remembered Lantern**, which
+uses the normal paid inn/rest and progression owners. It contains no campaign
+keystone or required objective and grants no entry bonus, hull repair, or
+duplicate carried reward. Its exit returns to the same dock in the owned boat.
+
+Eligible saves preserve the interior, owned boat, and discovered island.
+Ordinary/legacy saves with a forged island location recover to Willowdale and
+drop inaccessible island/city/fog discovery. An imported interior without a
+serviceable boat also recovers safely, without repairing the hull or restoring
+resources. Another NG+ cycle resets island/world discovery while preserving
+boat ownership, exact hull condition, and earned lore under the existing policy.
+
 ## Persistence and transactions
 
 Schema **27** adds nullable `player.newGamePlus`: bounded cycle/parent, stable
@@ -132,6 +162,9 @@ the source unchanged. Repeating a matching creation request returns the existing
 child rather than rewinding an already-played run. Activation must successfully
 autosave before leaving title; a failed activation leaves the created manual
 checkpoint available for retry.
+If only the optional slot name cannot be written, the preview keeps the
+warning visible. Confirm again to play the already-created child; its creation
+receipt prevents another reset or reward.
 
 Seeds and fingerprints are deterministic gameplay identities, not security
 credentials. No parent slot reference, runtime callback, deadline, Phaser

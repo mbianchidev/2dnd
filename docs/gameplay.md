@@ -150,7 +150,7 @@ slashing and piercing. Matching physical damage is halved with a floor.
 Heroes and companions share the rule; pure magical abilities and healing bypass
 it. Equipment and inventory descriptions show the exact protection.
 
-Resolved rolls appear directly over the game scene, with both advantage/disadvantage
+Pixel-art resolved dice appear directly over the game scene, with both advantage/disadvantage
 faces and the selected die identified. Enemy bonuses and undiscovered AC/DC
 remain hidden. Damage and healing show their actual die types/faces, signed
 modifiers, resolved amounts, and effective HP changes. Resistance, immunity,
@@ -159,7 +159,8 @@ the original roll. Area effects show one shared pool with separate target
 results. Magic Missile shows damage dice but no attack die; fixed items and
 derived life-drain healing remain aggregate text without invented faces.
 Use Z, L3, or the visible skip button. Details join the normal Battle log,
-which resets when the battle ends; there is no separate roll log.
+which resets when the battle ends; there is no second visible result strip or
+separate roll log.
 With animation enabled, dice travel and tumble across the game with bouncing
 shadows, then settle on those exact faces. They never intercept controls or
 hold a turn; skip, Instant and reduced motion retain static readable results.

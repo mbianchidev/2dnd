@@ -75,6 +75,8 @@ describe("scene-scoped dice ownership", () => {
     const manager = installDicePresentation(battle.scene, log);
     manager.present(roll());
     expect(log).toHaveBeenCalledOnce();
+    expect(document.getElementById("dice-result")).toBeNull();
+    expect(document.getElementById("dice-presentation")?.dataset.scope).toBe("battle");
     expect(document.querySelectorAll(".resolved-die")).toHaveLength(1);
     battle.shutdown();
     expect(document.getElementById("dice-presentation")).toBeNull();
@@ -84,6 +86,7 @@ describe("scene-scoped dice ownership", () => {
     installDicePresentation(overworld.scene);
     expect(document.getElementById("dice-presentation")?.hidden).toBe(true);
     expect(document.querySelectorAll(".resolved-die")).toHaveLength(0);
+    expect(document.getElementById("dice-presentation")?.dataset.scope).toBe("transient");
     expect(document.getElementById("dice-result")?.textContent).toBe("");
     expect(document.getElementById("dice-log")).toBeNull();
   });

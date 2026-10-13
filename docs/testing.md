@@ -95,6 +95,8 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   companions, safe timeout, configuration reload, and pending-encounter recovery
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
+- area music on actual region crossings with unchanged weather, city/dungeon
+  entry, canonical named-shop music, day/night and battle/interior return
 - exact resolved dice, hidden-information redaction, disadvantage/auto-hit,
   combined hit/damage and saving-throw evidence, actual healing/trap HP caps,
   one shared area pool with per-target results,

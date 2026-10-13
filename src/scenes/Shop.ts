@@ -12,8 +12,8 @@ import {
   type CodexData,
 } from "../systems/codex";
 import { type WeatherState, createWeatherState } from "../systems/weather";
-import { CYCLE_LENGTH } from "../systems/daynight";
-import { getInnCost } from "../data/map";
+import { CYCLE_LENGTH, getTimePeriod } from "../systems/daynight";
+import { getCity, getInnCost } from "../data/map";
 import type { SavedSpecialNpc } from "../data/npcs";
 import { audioEngine } from "../systems/audio";
 import {
@@ -138,7 +138,10 @@ export class ShopScene extends Phaser.Scene {
 
     // Play city music for this town
     if (audioEngine.initialized) {
-      audioEngine.playCityMusic(this.townName);
+      audioEngine.playCityMusic(
+        getCity(this.cityId)?.name ?? this.townName,
+        getTimePeriod(this.timeStep),
+      );
     }
 
     // Title

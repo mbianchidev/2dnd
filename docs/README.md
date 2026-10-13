@@ -34,6 +34,7 @@ on discovering and playing the game.
 - [Tavern and festival activities](minigames.md)
 - [Fictional devotion](devotion.md)
 - [Resolved dice presentation](dice-presentation.md)
+- [Procedural area music](audio.md)
 
 Repository-wide constraints remain authoritative in
 [`.github/copilot-instructions.md`](../.github/copilot-instructions.md).

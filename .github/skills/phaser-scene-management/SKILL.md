@@ -217,7 +217,7 @@ mode. New scene animations must also branch through
 Install `installDicePresentation(this)` in every scene too. It owns
 non-blocking exact-result visuals, cues, and skip listeners. Numbered dice sit
 over the measured scene; details join Battle's existing log, which resets on
-exit. Other results expire after a short reading interval/fade, and event
+exit. Battle creates no second result-caption strip. Other results expire after a short reading interval/fade, and event
 reset clears the previous view. Never restore a result/history across scenes.
 Never await
 dice animation or add it to movement/turn/transition input-block reasons.
@@ -231,6 +231,11 @@ Own Web Animations, stage objects, resize/visibility listeners and synthesized
 cues and expiry/fade timers; stop them on reset, replacement and handoff. Skip
 settles exact numbered faces, while blur/visibility loss clears the view. Keep exact
 faces visible and never block input/turns or wait for a tumble to finish.
+
+Overworld chooses city/dungeon/sailing/biome music from live location state and
+refreshes it at every chunk boundary, even when weather does not change.
+Shop resolves canonical `cityId` before its decorated title; entering a shop
+in the same city must not restart the score. See `docs/audio.md`.
 
 Use `ActorAnimationDirector` for reusable actor poses and cleanup. Specialized
 battle/world directors register sprites by stable actor ID, use explicit

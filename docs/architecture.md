@@ -24,6 +24,12 @@ The game loads no external image or audio assets and makes no gameplay network
 calls. Textures are generated procedurally; music and sound effects use Web
 Audio synthesis.
 
+Immutable area scores and motifs live in `data/music.ts`; `systems/music.ts`
+resolves named regions and deterministic day/night phrases. `systems/audio.ts`
+owns synthesis and deduplicated crossfades. Overworld selects city, dungeon,
+sailing or region music from live location state, and shops retain the canonical
+city score rather than using their decorated display title. See [Area music](audio.md).
+
 Production builds use Phaser's supported modular `phaser-no-physics.js` entry:
 2D&D uses neither Arcade nor Matter. Both Canvas/WebGL renderers and Phaser's
 normal sound API remain available; GPU inspection is disabled. The game disables
@@ -298,8 +304,8 @@ projects only permitted information and owns scene-local evidence. The
 scene-owned dice manager and pointer-transparent procedural SVG game
 throw layer consume those results without
 RNG, resource mutations, input-block reasons, or gameplay completion callbacks.
-Battle routes redacted detail into its existing bounded log and accessible
-counterpart. Non-battle results expire after three seconds with an optional
+Battle routes redacted detail only into its existing lower bounded log and accessible
+counterpart; its pixel-dice layer adds no duplicate caption strip. Non-battle results expire after three seconds with an optional
 250-ms fade. No history or latest result crosses a scene handoff; event reset,
 blur and shutdown cancel visuals, cues and owned timers.
 See [Dice presentation](dice-presentation.md).

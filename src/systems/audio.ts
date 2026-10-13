@@ -2,7 +2,7 @@
  * Procedural audio system using the Web Audio API.
  *
  * Provides biome-based background music, weather ambient SFX, boss/battle
- * themes, city themes, day/night tone shifts, defeat music, and dialogue blips.
+ * themes, city/dungeon scores, day/night tone shifts, defeat music, and dialogue blips.
  *
  * All audio is synthesised at runtime – no external assets required.
  */
@@ -22,187 +22,31 @@ import {
   gamePreferences,
   type AudioPreferences,
 } from "./accessibility";
+import {
+  BATTLE_PROFILE,
+  BOSS_OVERRIDES,
+  BOSS_PROFILE,
+  DEFEAT_PROFILE,
+  ENDING_PROFILE,
+  TITLE_PROFILE,
+} from "../data/music";
+import {
+  buildMusicPhrase,
+  getProfileForBiome,
+  getProfileForCity,
+  getProfileForDungeon,
+  noteFreq,
+  resolveBiomePrefix,
+} from "./music";
+import type { BiomeProfile } from "../data/music";
 
-// ── Musical constants ──────────────────────────────────────────
-
-/** Concert-pitch A4 reference. */
-const A4 = 440;
-
-/** Semitone-to-frequency helper. */
-function noteFreq(semitonesFromA4: number): number {
-  return A4 * Math.pow(2, semitonesFromA4 / 12);
-}
-
-/**
- * A scale is an array of semitone offsets from A4.
- * We store *one* octave and shift it for night mode.
- */
-type Scale = number[];
-
-// Major pentatonic (happy / bright)
-const MAJOR_PENTA: Scale = [0, 2, 4, 7, 9];
-// Minor pentatonic (melancholic)
-const MINOR_PENTA: Scale = [0, 3, 5, 7, 10];
-// Harmonic minor (exotic / desert feel)
-const HARMONIC_MINOR: Scale = [0, 2, 3, 5, 7, 8, 11];
-// Diminished (eerie / swamp)
-const DIMINISHED: Scale = [0, 1, 3, 4, 6, 7, 9, 10];
-// Minor (general dark mood)
-const NATURAL_MINOR: Scale = [0, 2, 3, 5, 7, 8, 10];
-// Phrygian dominant (boss fight tension)
-const PHRYGIAN_DOM: Scale = [0, 1, 4, 5, 7, 8, 10];
-
-// ── Biome music profiles ───────────────────────────────────────
-
-export interface BiomeProfile {
-  /** Base note offset from A4 in semitones. */
-  baseNote: number;
-  /** Scale intervals. */
-  scale: Scale;
-  /** BPM — beats per minute. */
-  bpm: number;
-  /** Oscillator wave type for lead. */
-  wave: OscillatorType;
-  /** Oscillator wave type for bass/pad. */
-  padWave: OscillatorType;
-}
-
-/**
- * Map from biome prefix → music profile.
- * Biome prefixes match the first word of chunk names (Frozen, Murky, etc.).
- */
-export const BIOME_PROFILES: Record<string, BiomeProfile> = {
-  Frozen:   { baseNote: 4,  scale: MINOR_PENTA,    bpm: 72,  wave: "triangle", padWave: "sine" },
-  Murky:    { baseNote: -5, scale: DIMINISHED,      bpm: 66,  wave: "sawtooth", padWave: "triangle" },
-  Ancient:  { baseNote: 0,  scale: MINOR_PENTA,     bpm: 80,  wave: "triangle", padWave: "sine" },
-  Scorched: { baseNote: -3, scale: NATURAL_MINOR,   bpm: 96,  wave: "sawtooth", padWave: "square" },
-  Rocky:    { baseNote: -2, scale: HARMONIC_MINOR,   bpm: 84,  wave: "square",   padWave: "triangle" },
-  Arid:     { baseNote: 2,  scale: HARMONIC_MINOR,   bpm: 78,  wave: "triangle", padWave: "sine" },
-  Woodland: { baseNote: 0,  scale: MAJOR_PENTA,      bpm: 88,  wave: "triangle", padWave: "sine" },
-  Highland: { baseNote: 2,  scale: MAJOR_PENTA,      bpm: 82,  wave: "sine",     padWave: "triangle" },
-  Rolling:  { baseNote: 0,  scale: MAJOR_PENTA,      bpm: 90,  wave: "sine",     padWave: "sine" },
-  Sea:      { baseNote: -2, scale: MINOR_PENTA,      bpm: 76,  wave: "sine",     padWave: "triangle" },
-};
-
-/** Default/fallback profile (Heartlands, plains, etc.) */
-const DEFAULT_PROFILE: BiomeProfile = {
-  baseNote: 0, scale: MAJOR_PENTA, bpm: 90, wave: "sine", padWave: "sine",
-};
-
-/** Boss-fight profile — intense, fast, Phrygian dominant. */
-const BOSS_PROFILE: BiomeProfile = {
-  baseNote: -7, scale: PHRYGIAN_DOM, bpm: 140, wave: "sawtooth", padWave: "square",
-};
-
-/** Battle profile (non-boss) — fast, driving, Phrygian dominant for epic feel. */
-const BATTLE_PROFILE: BiomeProfile = {
-  baseNote: -5, scale: PHRYGIAN_DOM, bpm: 138, wave: "sawtooth", padWave: "square",
-};
-
-/** City / shop profile — cheerful, slower. */
-const CITY_PROFILE: BiomeProfile = {
-  baseNote: 4, scale: MAJOR_PENTA, bpm: 100, wave: "triangle", padWave: "sine",
-};
-
-/** Title screen profile — soft but majestic, slow harmonic minor for an epic feel. */
-const TITLE_PROFILE: BiomeProfile = {
-  baseNote: -2, scale: HARMONIC_MINOR, bpm: 68, wave: "triangle", padWave: "sine",
-};
-
-/** Campaign ending profile - warm, spacious, and resolved. */
-const ENDING_PROFILE: BiomeProfile = {
-  baseNote: -5, scale: MAJOR_PENTA, bpm: 62, wave: "triangle", padWave: "sine",
-};
-
-/** Defeat / game-over profile. */
-const DEFEAT_PROFILE: BiomeProfile = {
-  baseNote: -5, scale: NATURAL_MINOR, bpm: 52, wave: "sine", padWave: "sine",
-};
-
-// ── Boss-specific tuning overrides ─────────────────────────────
-
-const BOSS_OVERRIDES: Record<string, Partial<BiomeProfile>> = {
-  // Cave Troll — brutish, stomping rhythm, heavy and slow
-  troll:        { baseNote: -10, bpm: 120, scale: NATURAL_MINOR,   wave: "square",   padWave: "sawtooth" },
-  // Young Red Dragon — blazing fast, dissonant, fiery
-  dragon:       { baseNote: -12, bpm: 155, scale: PHRYGIAN_DOM,    wave: "sawtooth", padWave: "square" },
-  // Frost Giant — glacial, powerful, cold and wide
-  frostGiant:   { baseNote: -5,  bpm: 110, scale: MINOR_PENTA,     wave: "triangle", padWave: "sine" },
-  // Swamp Hydra — chaotic, slithering, eerie multi-headed
-  swampHydra:   { baseNote: -8,  bpm: 135, scale: DIMINISHED,      wave: "sawtooth", padWave: "triangle" },
-  // Volcanic Wyrm — explosive, intense, relentless
-  volcanicWyrm: { baseNote: -14, bpm: 160, scale: HARMONIC_MINOR,  wave: "square",   padWave: "sawtooth" },
-  // Canyon Drake — agile, soaring, sharp attacks
-  canyonDrake:  { baseNote: -7,  bpm: 145, scale: HARMONIC_MINOR,  wave: "sawtooth", padWave: "triangle" },
-  kraken:       { baseNote: -15, bpm: 148, scale: DIMINISHED,       wave: "sawtooth", padWave: "square" },
-};
-
-// ── City-specific tuning overrides ─────────────────────────────
-
-const CITY_OVERRIDES: Record<string, Partial<BiomeProfile>> = {
-  // Willowdale — peaceful pastoral village, warm and gentle
-  Willowdale:  { baseNote: 4,  bpm: 92,  scale: MAJOR_PENTA,      wave: "sine",     padWave: "triangle" },
-  // Ironhold — industrial fortress city, strong and rhythmic
-  Ironhold:    { baseNote: -1, bpm: 108, scale: NATURAL_MINOR,     wave: "square",   padWave: "sawtooth" },
-  // Frostheim — frozen northern town, melancholic and quiet
-  Frostheim:   { baseNote: 2,  bpm: 76,  scale: MINOR_PENTA,       wave: "triangle", padWave: "sine" },
-  // Deeproot — ancient forest settlement, mystical and organic
-  Deeproot:    { baseNote: -2, bpm: 84,  scale: MINOR_PENTA,       wave: "triangle", padWave: "triangle" },
-  // Sandport — bustling desert trade hub, exotic and lively
-  Sandport:    { baseNote: 5,  bpm: 104, scale: HARMONIC_MINOR,    wave: "sawtooth", padWave: "sine" },
-  // Canyonwatch — rugged mountain outpost, adventurous
-  Canyonwatch: { baseNote: 3,  bpm: 96,  scale: HARMONIC_MINOR,    wave: "triangle", padWave: "square" },
-  // Ashfall — volcanic settlement, ominous and smoky
-  Ashfall:     { baseNote: -4, bpm: 88,  scale: PHRYGIAN_DOM,      wave: "sawtooth", padWave: "square" },
-  // Dunerest — quiet desert oasis town, relaxed and warm
-  Dunerest:    { baseNote: 5,  bpm: 90,  scale: MAJOR_PENTA,       wave: "sine",     padWave: "sine" },
-  // Thornvale — dark forest town, tense and alert
-  Thornvale:   { baseNote: 0,  bpm: 94,  scale: NATURAL_MINOR,     wave: "triangle", padWave: "sawtooth" },
-  // Bogtown — murky swamp village, unsettling and damp
-  Bogtown:     { baseNote: -3, bpm: 72,  scale: DIMINISHED,         wave: "sawtooth", padWave: "triangle" },
-  // Shadowfen — sinister swamp enclave, dark and creeping
-  Shadowfen:   { baseNote: -5, bpm: 68,  scale: DIMINISHED,         wave: "square",   padWave: "sawtooth" },
-  // Ridgewatch — highland fortress, proud and bright
-  Ridgewatch:  { baseNote: 2,  bpm: 100, scale: MAJOR_PENTA,       wave: "triangle", padWave: "sine" },
-};
-
-// ── Night mode helpers ─────────────────────────────────────────
-
-/**
- * Shift a major scale to its relative minor by lowering the 3rd, 6th, 7th.
- * For already-minor scales we just flatten the root by 3 semitones.
- */
-function nightScale(profile: BiomeProfile): { scale: Scale; baseNote: number } {
-  if (profile.scale === MAJOR_PENTA) {
-    return { scale: MINOR_PENTA, baseNote: profile.baseNote - 3 };
-  }
-  // Already dark — just drop the root a bit
-  return { scale: profile.scale, baseNote: profile.baseNote - 2 };
-}
-
-// ── Resolve biome prefix ──────────────────────────────────────
-
-/**
- * Resolve the biome prefix from a chunk name (e.g. "Frozen Reach" → "Frozen").
- */
-export function resolveBiomePrefix(chunkName: string): string {
-  const prefix = chunkName.split(" ")[0];
-  if (BIOME_PROFILES[prefix]) return prefix;
-  return "";
-}
-
-/**
- * Get the music profile for a given chunk name.
- */
-export function getProfileForBiome(chunkName: string): BiomeProfile {
-  const prefix = resolveBiomePrefix(chunkName);
-  return prefix ? BIOME_PROFILES[prefix] : DEFAULT_PROFILE;
-}
+export { BIOME_PROFILES, type BiomeProfile } from "../data/music";
+export { getProfileForBiome, resolveBiomePrefix } from "./music";
 
 // ── Audio Engine ──────────────────────────────────────────────
 
 /** Current track identifier so we avoid restarting the same music. */
-export type TrackKind = "biome" | "battle" | "boss" | "city" | "title" | "ending" | "defeat" | "victory" | "none";
+export type TrackKind = "biome" | "dungeon" | "battle" | "boss" | "city" | "title" | "ending" | "defeat" | "victory" | "none";
 
 /** Duration in seconds for crossfade between tracks. */
 const CROSSFADE_DURATION = 1.0;
@@ -445,39 +289,6 @@ class AudioEngine {
   // ─── Music playback ───────────────────────────────────────
 
   /**
-   * Build a 16-note melodic phrase from the given scale, with variation.
-   *
-   * The phrase walks through the scale across two octaves, using a mix of
-   * ascending runs, descending steps, and occasional leaps so the loop
-   * feels musical rather than robotic.
-   */
-  private buildPhrase(scale: Scale, baseNote: number): number[] {
-    const phrase: number[] = [];
-    const len = scale.length;
-
-    // Section A (4 notes): ascending root octave
-    for (let i = 0; i < 4; i++) {
-      phrase.push(noteFreq(baseNote + scale[i % len]));
-    }
-    // Section B (4 notes): upper octave descending
-    for (let i = 3; i >= 0; i--) {
-      phrase.push(noteFreq(baseNote + scale[i % len] + 12));
-    }
-    // Section C (4 notes): mixed — leap up, step down, step up, root
-    phrase.push(noteFreq(baseNote + scale[2 % len]));
-    phrase.push(noteFreq(baseNote + scale[(len - 1) % len] + 12));
-    phrase.push(noteFreq(baseNote + scale[1 % len] + 12));
-    phrase.push(noteFreq(baseNote + scale[3 % len]));
-    // Section D (4 notes): resolve back toward root with passing tones
-    phrase.push(noteFreq(baseNote + scale[(len - 2) % len]));
-    phrase.push(noteFreq(baseNote + scale[0] + 12));
-    phrase.push(noteFreq(baseNote + scale[1 % len]));
-    phrase.push(noteFreq(baseNote + scale[0]));
-
-    return phrase;
-  }
-
-  /**
    * Start a looping procedural melody from the given profile.
    * Crossfades out the previous track, then fades in the new one.
    */
@@ -487,13 +298,12 @@ class AudioEngine {
     // Crossfade: fade out old track, then start new one
     this.stopMusic(); // initiates fade-out
 
-    const { scale, baseNote } = isNight ? nightScale(profile) : { scale: profile.scale, baseNote: profile.baseNote };
     const secPerBeat = 60 / profile.bpm;
     const ctx = this.ctx;
     const dest = this.musicGain;
 
     // Build a 16-note phrase for a longer, less repetitive loop
-    const phrase = this.buildPhrase(scale, baseNote);
+    const phrase = buildMusicPhrase(profile, isNight);
 
     const startPlayback = () => {
       if (!this.ctx || this.ctx.state === "closed") return;
@@ -683,15 +493,25 @@ class AudioEngine {
   }
 
   /** Play city / shop music. */
-  playCityMusic(cityName: string): void {
+  playCityMusic(cityName: string, period: TimePeriod = TimePeriod.Day): void {
     if (!this.ctx) return;
-    if (this.state.trackKind === "city" && this.state.trackId === cityName) return;
-    const overrides = CITY_OVERRIDES[cityName] ?? {};
-    const profile: BiomeProfile = { ...CITY_PROFILE, ...overrides };
+    const isNight = period === TimePeriod.Night || period === TimePeriod.Dusk;
+    const trackId = `${cityName}_${isNight ? "night" : "day"}`;
+    if (this.state.trackKind === "city" && this.state.trackId === trackId) return;
     this.state.trackKind = "city";
-    this.state.trackId = cityName;
+    this.state.trackId = trackId;
+    this.state.nightMode = isNight;
+    this.playProfile(getProfileForCity(cityName), isNight);
+  }
+
+  /** Dungeon scores are independent of the outdoor biome and time of day. */
+  playDungeonMusic(dungeonId: string): void {
+    if (!this.ctx) return;
+    if (this.state.trackKind === "dungeon" && this.state.trackId === dungeonId) return;
+    this.state.trackKind = "dungeon";
+    this.state.trackId = dungeonId;
     this.state.nightMode = false;
-    this.playProfile(profile, false);
+    this.playProfile(getProfileForDungeon(dungeonId), false);
   }
 
   /** Play title screen music. */
@@ -1699,6 +1519,10 @@ class AudioEngine {
       { label: "Victory jingle", fn: () => this.playVictoryJingle() },
       { label: "City: Willowdale", fn: () => this.playCityMusic("Willowdale") },
       { label: "City: Frostheim", fn: () => this.playCityMusic("Frostheim") },
+      { label: "Dungeon: Crypt", fn: () => this.playDungeonMusic("heartlands_dungeon") },
+      { label: "Dungeon: Frost", fn: () => this.playDungeonMusic("frost_cavern") },
+      { label: "Dungeon: Forge", fn: () => this.playDungeonMusic("volcanic_forge") },
+      { label: "Dungeon: Grotto", fn: () => this.playDungeonMusic("tideglass_grotto") },
       { label: "Defeat",         fn: () => this.playDefeatMusic() },
       { label: "SFX: Attack",    fn: () => { this.stopMusic(true); this.playAttackSFX(); } },
       { label: "SFX: Miss",      fn: () => this.playMissSFX() },

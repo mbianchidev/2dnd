@@ -5,7 +5,7 @@
 
 ## Player controls
 
-Dice appear directly over the active game's measured viewport, showing the actual numbered faces, the selected
+Pixel-art dice appear directly over the active game's measured viewport, showing the actual numbered faces, the selected
 advantage/disadvantage die, permitted modifiers/totals, known AC/DC, and the
 canonical outcome. Results are readable from the first frame; the short settling
 motion never delays an action, resource update, turn, or scene transition.
@@ -13,6 +13,9 @@ Dice are visibly thrown across the game viewport, tumble on multiple axes,
 bounce with floor shadows, and settle on their exact resolved faces. The
 pointer-transparent animation layer never covers input with a hit area; the
 settled numbered faces remain readable without a separate dock.
+Stepped 32-pixel silhouettes, bitmap numerals, indigo faces and gold borders
+match the game's procedural art. Selected dice keep their visible `*` marker;
+high contrast uses black/white faces without changing the rolled number.
 
 Attack and damage evidence appear together: the natural d20 plus its permitted
 signed modifier/total, then the real damage pool and named additive modifiers.
@@ -27,7 +30,9 @@ Use **Z**, **L3** (left-stick press), or the pointer/touch **Skip animation**
 button to fast-forward motion. Roll details belong to the existing **Battle
 log**, alongside attacks and other combat messages; use its normal wheel or
 controller scrolling. Its accessible counterpart mirrors those same messages.
-There is no second roll-log panel or history carried into another scene.
+Battle has only that lower visible log: the dice layer contains faces and the
+skip control, not another result-caption strip. Screen-reader roll announcements
+remain available. There is no second roll-log panel or history carried into another scene.
 The skip button appears only while motion is active, supports native keyboard,
 touch and the gamepad cursor, and never activates the game underneath.
 
@@ -134,7 +139,8 @@ The procedural SVG renderer lives in `src/renderers/dice.ts`. Its overlay
 tracks the actual canvas bounds without changing the canvas size, pointer
 geometry or touch-control positions. The exact same numbered dice animate and
 remain at rest, including Instant/reduced-motion results; no dock copies are
-rendered. Long result captions wrap in a bounded in-scene reading area.
+rendered. Outside Battle, long result captions wrap in a bounded in-scene reading
+area; Battle sends that text exclusively to its existing lower log.
 `src/managers/input.ts` routes the existing skip action and native skip control
 without adding a blocking input context.
 

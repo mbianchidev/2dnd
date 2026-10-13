@@ -7,6 +7,8 @@ import {
   audioEngine,
 } from "../src/systems/audio";
 import { TRAP_TYPES } from "../src/data/traps";
+import { TimePeriod } from "../src/systems/daynight";
+import { WeatherType } from "../src/systems/weather";
 
 describe("audio system", () => {
   describe("resolveBiomePrefix", () => {
@@ -21,9 +23,13 @@ describe("audio system", () => {
       expect(resolveBiomePrefix("Highland Ridge")).toBe("Highland");
     });
 
+    it("resolves named regions instead of silently using the default track", () => {
+      expect(resolveBiomePrefix("Heartlands")).toBe("Rolling");
+      expect(resolveBiomePrefix("Dragon's Domain")).toBe("Scorched");
+      expect(resolveBiomePrefix("Eastern Desert")).toBe("Arid");
+    });
+
     it("returns empty string for unknown biomes", () => {
-      expect(resolveBiomePrefix("Heartlands")).toBe("");
-      expect(resolveBiomePrefix("Dragon's Domain")).toBe("");
       expect(resolveBiomePrefix("Unknown Place")).toBe("");
     });
   });
@@ -35,7 +41,7 @@ describe("audio system", () => {
     });
 
     it("returns default profile for unknown biomes", () => {
-      const p1 = getProfileForBiome("Heartlands");
+      const p1 = getProfileForBiome("Unknown Place");
       const p2 = getProfileForBiome("Unknown");
       // Both should be the default profile (same structure)
       expect(p1.scale).toEqual(p2.scale);
@@ -105,6 +111,7 @@ describe("audio system", () => {
       expect(typeof audioEngine.playBattleMusic).toBe("function");
       expect(typeof audioEngine.playBossMusic).toBe("function");
       expect(typeof audioEngine.playCityMusic).toBe("function");
+      expect(typeof audioEngine.playDungeonMusic).toBe("function");
       expect(typeof audioEngine.playTitleMusic).toBe("function");
       expect(typeof audioEngine.playEndingMusic).toBe("function");
       expect(typeof audioEngine.playDefeatMusic).toBe("function");
@@ -142,15 +149,16 @@ describe("audio system", () => {
 
     it("does not throw when calling play methods before init", () => {
       // These should be no-ops when AudioContext is not available
-      expect(() => audioEngine.playBiomeMusic("Frozen Reach", "Day" as any)).not.toThrow();
+      expect(() => audioEngine.playBiomeMusic("Frozen Reach", TimePeriod.Day)).not.toThrow();
       expect(() => audioEngine.playBattleMusic()).not.toThrow();
       expect(() => audioEngine.playBossMusic("dragon")).not.toThrow();
       expect(() => audioEngine.playCityMusic("Willowdale")).not.toThrow();
+      expect(() => audioEngine.playDungeonMusic("heartlands_dungeon")).not.toThrow();
       expect(() => audioEngine.playTitleMusic()).not.toThrow();
       expect(() => audioEngine.playEndingMusic()).not.toThrow();
       expect(() => audioEngine.playDefeatMusic()).not.toThrow();
       expect(() => audioEngine.playVictoryJingle()).not.toThrow();
-      expect(() => audioEngine.playWeatherSFX("Rain" as any)).not.toThrow();
+      expect(() => audioEngine.playWeatherSFX(WeatherType.Rain)).not.toThrow();
       expect(() => audioEngine.playDialogueBlip()).not.toThrow();
       expect(() => audioEngine.playAttackSFX()).not.toThrow();
       expect(() => audioEngine.playMissSFX()).not.toThrow();

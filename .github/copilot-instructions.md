@@ -666,8 +666,10 @@ Flow:
   Keep the visual layer pointer-transparent, inside safe game bounds and
   cleanup-owned. Instant/reduced motion, skip, visibility loss, replacement
   and scene shutdown remove motion immediately without focus/input blocking.
-  Numbered dice render over the active scene, never in a dock. Roll details
-  belong to the existing Battle log and reset on battle exit. Non-battle
+  Numbered dice render over the active scene, never in a dock. Use stepped
+  pixel-art silhouettes, bitmap numerals and the shared game palette.
+  Roll details belong to the existing lower Battle log and reset on battle
+  exit; Battle never displays a duplicate result strip. Non-battle
   results expire after three seconds and a 250-ms fade (no fade with reduced
   motion); event reset, blur and handoff clear views/cues/timers. Never restore
   another scene's latest result or keep a separate cross-scene roll log.
@@ -1218,6 +1220,11 @@ When persistent data changes:
 ## Audio
 
 All music and SFX use Web Audio synthesis. Initialize from a user gesture.
+Immutable scores, scale-degree motifs and area aliases live in `data/music.ts`;
+pure profile/phrase resolution lives in `systems/music.ts`. Route city,
+dungeon, sailing and region music from authoritative location state, refresh
+on every region boundary even with unchanged weather, and resolve shop music
+from canonical city identity rather than the decorated display title.
 Master, Music, SFX, Dialog, and mute use the shared preference store rather than
 campaign saves. Keep title and in-game controls backed by the same setters.
 The campaign epilogue uses `audioEngine.playEndingMusic()` and the procedural

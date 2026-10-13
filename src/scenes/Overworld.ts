@@ -3779,8 +3779,8 @@ export class OverworldScene extends Phaser.Scene {
     if (weatherChanged) {
       this.applyDayNightTint();
       this.mapRenderer.updateWeatherParticles(this.weatherState);
-      this.updateAudio();
     }
+    this.updateAudio();
   }
 
   private updateAudio(): void {
@@ -3788,7 +3788,12 @@ export class OverworldScene extends Phaser.Scene {
     const chunk = getChunk(this.player.position.chunkX, this.player.position.chunkY);
     const biomeName = chunk?.name ?? "Heartlands";
     const period = getTimePeriod(this.timeStep);
-    if (this.player.progression.nautical.sailing) {
+    const city = this.player.position.inCity ? getCity(this.player.position.cityId) : undefined;
+    if (this.player.position.inDungeon) {
+      audioEngine.playDungeonMusic(this.player.position.dungeonId);
+    } else if (city) {
+      audioEngine.playCityMusic(city.name, period);
+    } else if (this.player.progression.nautical.sailing) {
       audioEngine.playSailingMusic(period);
     } else {
       audioEngine.playBiomeMusic(biomeName, period);

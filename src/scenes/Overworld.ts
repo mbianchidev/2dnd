@@ -130,7 +130,7 @@ import { OverlayManager } from "../managers/overlay";
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import { WorldPresentationDirector } from "../managers/worldPresentation";
 import { layoutHudMessages } from "../renderers/hud";
-import { subscribeOverlayReflow } from "../managers/layout";
+import { installSceneLayoutAudit, subscribeOverlayReflow } from "../managers/layout";
 import { createOverlayContainer } from "../utils/ui";
 import {
   getMotionDuration,
@@ -646,7 +646,7 @@ export class OverworldScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(0x111111);
     this.sceneTransitions.prepare(500);
-    installSceneAccessibility(this);
+    installSceneAccessibility(this, installSceneLayoutAudit);
     installDicePresentation(this);
 
     // Dungeons are enclosed — always force clear weather

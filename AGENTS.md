@@ -86,6 +86,15 @@ Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work and record its commit, environment, and output in the
 owning issue or pull request.
 
+Performance validation retains raw samples, host load and deterministic frame-work
+counts. PR CI compares exact clean base/head builds with one harness in
+base/head/head/base order and runs all browser cases across five single-worker
+shards. The existing `build` check aggregates the complete gate; do not disable
+slow-test warnings, raise bundle limits or treat busy-host timings as portable
+budgets. Vitest uses isolated bounded threads and content-aware transform caching.
+The browser wrapper's balanced shard plan verifies native test-list selection
+and retains every case exactly once plus JSON receipts for clean passing shards.
+
 Local validation is headless only. Never launch visible native windows or
 control the developer's desktop. The Chromium configuration explicitly selects
 headless mode; native release gates belong on isolated CI/virtual displays.
@@ -196,6 +205,9 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   leases, and transient containers.
 - Install accessibility in every scene; support text scales, high contrast,
   reduced motion, non-color cues, touch, and gamepad cursor flows.
+- Inject `installSceneLayoutAudit` into `installSceneAccessibility`. Keep pure
+  preferences Phaser-free, settled DOM/text updates idempotent, and changed layout
+  groups next-frame audited with shutdown/stale-owner guards.
 - Use `debugLog()`/debug panels, never production `console.log`.
 - At 1,000 source lines, consider extraction before adding responsibility.
 

@@ -16,11 +16,27 @@ import {
 
 const ROOT = resolve(import.meta.dirname, "..");
 const temporaryDirectories: string[] = [];
+let sourceNotice: Promise<string> | null = null;
 
 async function temporaryDirectory(): Promise<string> {
   const path = await mkdtemp(join(tmpdir(), "2dnd-steam-contract-"));
   temporaryDirectories.push(path);
   return path;
+}
+
+function sourceNoticeFixture(): Promise<string> {
+  sourceNotice ??= (async () => {
+    const root = await temporaryDirectory();
+    const output = join(root, "SOURCE.2dnd.txt");
+    const result = spawnSync(process.execPath, [
+      "hacks/generate-desktop-notice.mjs", "--output", output,
+    ], { cwd: ROOT, encoding: "utf8" });
+    if (result.status !== 0 || result.stderr) {
+      throw new Error(result.stderr || result.error?.message || "Source notice generation failed");
+    }
+    return readFile(output, "utf8");
+  })();
+  return sourceNotice;
 }
 
 function mockBinary(platform: SteamPlatform): Buffer {
@@ -70,10 +86,7 @@ async function mockPayload(root: string, platform: SteamPlatform): Promise<strin
   for (const [index, file] of STEAM_LICENSE_FILES.entries()) {
     await cp(join(ROOT, licenses[index]!), join(licenseRoot, file));
   }
-  const notice = spawnSync(process.execPath, [
-    "hacks/generate-desktop-notice.mjs", "--output", join(licenseRoot, "SOURCE.2dnd.txt"),
-  ], { cwd: ROOT, encoding: "utf8" });
-  if (notice.status !== 0) throw new Error(notice.stderr);
+  await writeFile(join(licenseRoot, "SOURCE.2dnd.txt"), await sourceNoticeFixture());
   const electronLicenses = platform === "macos-universal"
     ? join(payload, "2D-and-D.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources")
     : payload;

@@ -59,7 +59,7 @@ test("city entry, location prompts and party characteristics remain bounded", as
   for (const companion of ["guardian", "scout", "mystic"]) recruitCompanion(campaign.player, companion);
   expect(campaign.player.pendingStatPoints).toBe(2);
   reconcileFeatureDiscovery(campaign.player, campaign.codex, { silent: true });
-  await page.goto("game.html", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
   await seedMinigamePage(page, campaign, "keyboard", { textScale: 1.5, touchControls: "on" });
   await waitMinigameState(page, "[PROGRESSION:stats");
   await clickLayoutItem(page, "progression-control-close");
@@ -97,7 +97,7 @@ test("gamepad achievement paging and search retain visible focus through resize"
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await installMinigameGamepad(page);
-  await page.goto("game.html", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
   await seedMinigamePage(page, boundaryCampaign(), "gamepad", { textScale: 1.5 });
   await minigameKey(page, "Escape");
   await clickLayoutItem(page, "escape-menu-achievements");
@@ -132,7 +132,7 @@ test("fully discovered menu keeps every enlarged action caption and page accessi
   const campaign = boundaryCampaign();
   for (const id of FEATURE_IDS) executeFeatureDiscoveryDebugCommand(campaign.player, `reveal ${id}`);
   const expected = getEscapeMenuEntries(campaign.player).map((entry) => `escape-menu-${entry.action}`);
-  await page.goto("game.html", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
   await seedMinigamePage(page, campaign, "touch", { textScale: 1.5, touchControls: "on" });
   await minigameKey(page, "Escape");
   await waitMinigameState(page, "[MENU]");
@@ -164,7 +164,7 @@ for (const { source, textScale } of [
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-    await page.goto("game.html", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
     const fixture = await prepareNoticeMenu(page, source, textScale);
     await page.waitForTimeout(3100);
     await expectNoticeDeferred(page, fixture);
@@ -228,7 +228,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-    await page.goto("game.html", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
     await page.evaluate((scale) => {
       localStorage.clear();
       localStorage.setItem("2dnd_preferences", JSON.stringify({
@@ -238,7 +238,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
         controls: { touchControls: "on" },
       }));
     }, textScale);
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await clickLayoutItem(page, "title-new-game");
     await waitMinigameState(page, "BOOT | Screen: character");
     await capture(page, "character-classes");
@@ -282,7 +282,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-    await page.goto("game.html", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
     await seedMinigamePage(page, boundaryCampaign(), "keyboard", { textScale });
     await minigameKey(page, "e");
     await capture(page, "equipment-stats");

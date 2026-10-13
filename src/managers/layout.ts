@@ -19,6 +19,7 @@ interface LayoutGroup {
 
 const sceneGroups = new WeakMap<Phaser.Scene, Map<string, LayoutGroup>>();
 const installedScenes = new WeakSet<Phaser.Scene>();
+const requestSceneAudits = new WeakMap<Phaser.Scene, () => void>();
 
 /** Reflow at a frame boundary without destroying a control held by a pointer. */
 export function subscribeOverlayReflow(scene: Phaser.Scene, render: () => void): () => void {
@@ -37,6 +38,7 @@ export function subscribeOverlayReflow(scene: Phaser.Scene, render: () => void):
     }
     pending = false;
     render();
+    requestSceneAudits.get(scene)?.();
   };
   const unsubscribePreferences = gamePreferences.subscribe(request);
   const unsubscribeSource = inputPromptSource.subscribe(request);
@@ -169,9 +171,13 @@ export function registerLayoutGroup(
     sceneGroups.set(scene, groups);
   }
   container.setData("layoutGroupId", id);
-  groups.set(id, { id, container, viewport });
+  const group = { id, container, viewport };
+  groups.set(id, group);
+  requestSceneAudits.get(scene)?.();
   container.once(Phaser.GameObjects.Events.DESTROY, () => {
+    if (groups?.get(id) !== group) return;
     groups?.delete(id);
+    requestSceneAudits.get(scene)?.();
   });
 }
 
@@ -181,7 +187,10 @@ export function updateLayoutGroupViewport(
   viewport: LayoutRect,
 ): void {
   const group = sceneGroups.get(scene)?.get(id);
-  if (group) group.viewport = viewport;
+  if (group) {
+    group.viewport = viewport;
+    requestSceneAudits.get(scene)?.();
+  }
 }
 
 function getAuditObjects(container: Phaser.GameObjects.Container): Phaser.GameObjects.GameObject[] {
@@ -248,14 +257,20 @@ export function auditSceneLayout(scene: Phaser.Scene): {
 export function publishSceneLayoutReport(scene: Phaser.Scene): void {
   if (!isLocalDev() && globalThis.location?.origin !== "app://2dnd") return;
   const report = auditSceneLayout(scene);
-  scene.game.canvas.dataset.layoutOverlapCount = String(report.overlapCount);
-  scene.game.canvas.dataset.layoutClippingCount = String(report.clippingCount);
-  scene.game.canvas.dataset.layoutScene = report.scene;
+  const dataset = scene.game.canvas.dataset;
+  const overlapCount = String(report.overlapCount);
+  const clippingCount = String(report.clippingCount);
+  if (dataset.layoutOverlapCount !== overlapCount) dataset.layoutOverlapCount = overlapCount;
+  if (dataset.layoutClippingCount !== clippingCount) dataset.layoutClippingCount = clippingCount;
+  if (dataset.layoutScene !== report.scene) dataset.layoutScene = report.scene;
   const element = getReportElement();
   if (element) {
     const content = JSON.stringify(report);
-    if (element.firstChild instanceof Text) element.firstChild.data = content;
-    else element.textContent = content;
+    if (element.firstChild instanceof Text) {
+      if (element.firstChild.data !== content) element.firstChild.data = content;
+    } else if (element.textContent !== content) {
+      element.textContent = content;
+    }
   }
 }
 
@@ -264,14 +279,31 @@ export function installSceneLayoutAudit(scene: Phaser.Scene): void {
   if ((!isLocalDev() && !localDesktop) || installedScenes.has(scene)) return;
   installedScenes.add(scene);
   let lastAudit = 0;
+  let pending = false;
+  let disposed = false;
+  const flush = (time: number): void => {
+    if (disposed) return;
+    pending = false;
+    lastAudit = time;
+    publishSceneLayoutReport(scene);
+  };
+  const request = (): void => {
+    if (disposed || pending) return;
+    pending = true;
+    scene.events.once(Phaser.Scenes.Events.POST_UPDATE, flush);
+  };
+  requestSceneAudits.set(scene, request);
   const audit = (time: number): void => {
-    if (time - lastAudit < 200) return;
+    if (disposed || pending || time - lastAudit < 200) return;
     lastAudit = time;
     publishSceneLayoutReport(scene);
   };
   scene.events.on("postupdate", audit);
   scene.events.once("shutdown", () => {
+    disposed = true;
     scene.events.off("postupdate", audit);
+    scene.events.off(Phaser.Scenes.Events.POST_UPDATE, flush);
+    requestSceneAudits.delete(scene);
     sceneGroups.delete(scene);
     installedScenes.delete(scene);
   });

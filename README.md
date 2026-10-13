@@ -148,10 +148,15 @@ npm run test:browser   # Full Playwright/Chromium suite
 npm run test:desktop   # Production-like Electron smoke suite
 npm run build          # Type-check and build dist/
 npm run build:desktop  # Type-check and build the desktop renderer and shell
+npm run benchmark:baseline # Production startup, sizes and measured frame work
 ```
 
 Install Chromium once before the browser or desktop suites with
 `npm run test:browser:install`.
+
+Performance receipts retain raw samples and host load; PR CI compares clean base
+and head builds on one runner. Tests retain full coverage while using bounded
+isolated workers and five browser shards. See [Testing](docs/testing.md).
 
 Use `npm run dev:desktop` for Electron development and
 `npm run package:desktop` for unsigned artifacts on the current host.

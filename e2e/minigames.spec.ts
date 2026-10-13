@@ -32,7 +32,7 @@ for (const source of ["keyboard", "touch", "gamepad"] as const satisfies readonl
   test(`Crown & Bones banks and recovers exact paid results with ${source}`, async ({ page }) => {
     const errors = minigameBrowserErrors(page);
     await installMinigameGamepad(page);
-    await page.goto("game.html", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
     const fixture = minigameFixture("willowInnTable", crownFixtureSeed());
     await seedMinigamePage(page, fixture, source);
     await openMinigameFixture(page, source);
@@ -74,7 +74,7 @@ for (const source of ["keyboard", "touch", "gamepad"] as const satisfies readonl
     expect(settled.player.position).toEqual(position);
     expect(settled.player.progression.social.alignment).toEqual(fixture.player.progression.social.alignment);
     const receipt = settled.player.progression.minigames.pending?.receipt;
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await continueMinigameFixture(page);
     await waitMinigameState(page, "[MINIGAME_VIEW:result]");
     const recovered = await readMinigameSave(page);
@@ -95,7 +95,7 @@ for (const source of ["keyboard", "touch", "gamepad"] as const satisfies readonl
     const errors = minigameBrowserErrors(page);
     await installMinigameGamepad(page);
     if (source === "touch") await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("game.html", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
     const fixture = minigameFixture("willowdaleRange");
     await seedMinigamePage(page, fixture, source);
     await openMinigameFixture(page, source);
@@ -107,7 +107,7 @@ for (const source of ["keyboard", "touch", "gamepad"] as const satisfies readonl
       if (index !== 1) return;
       const before = await readMinigameSave(page);
       const pending = before.player.progression.minigames.pending;
-      await page.reload({ waitUntil: "networkidle" });
+      await page.reload({ waitUntil: "domcontentloaded" });
       await continueMinigameFixture(page);
       await waitMinigameState(page, "[MINIGAME_VIEW:game]");
       const recovered = await readMinigameSave(page);
@@ -133,7 +133,7 @@ for (const source of ["keyboard", "touch", "gamepad"] as const satisfies readonl
   test(`Harbor Regatta reuses boat movement, forecast, and recovery with ${source}`, async ({ page }) => {
     const errors = minigameBrowserErrors(page);
     await installMinigameGamepad(page);
-    await page.goto("game.html", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
     const fixture = minigameFixture("sandportRegatta");
     fixture.weatherState = { current: MINIGAME_TEST_WEATHER, stepsUntilChange: 40 };
     await seedMinigamePage(page, fixture, source);
@@ -143,7 +143,7 @@ for (const source of ["keyboard", "touch", "gamepad"] as const satisfies readonl
     expect(pending?.activityId).toBe("regatta");
     expect(pending?.weather).toBe(MINIGAME_TEST_WEATHER);
     expect(entry.player.gold).toBe(995);
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await continueMinigameFixture(page);
     await waitMinigameState(page, "[MINIGAME_VIEW:game]");
     const recovered = await readMinigameSave(page);
@@ -169,7 +169,7 @@ for (const source of ["keyboard", "touch", "gamepad"] as const satisfies readonl
 
 test("dice input replay, loss, abandonment, and personal-board exit cannot leak resources or input", async ({ page }) => {
   const errors = minigameBrowserErrors(page);
-  await page.goto("game.html", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
   await seedMinigamePage(page, minigameFixture("willowInnTable", crownFixtureSeed()), "keyboard");
   await openMinigameFixture(page, "keyboard");
   await page.keyboard.down("Enter");
@@ -238,7 +238,7 @@ test("dice input replay, loss, abandonment, and personal-board exit cannot leak 
 
 test("timed archery displays an input preview without saving frames or rerolling targets", async ({ page }) => {
   const errors = minigameBrowserErrors(page);
-  await page.goto("game.html", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
   await seedMinigamePage(page, minigameFixture("willowdaleRange"), "keyboard", { reducedMotion: false });
   await openMinigameFixture(page, "keyboard");
   const initial = await readMinigameSave(page);
@@ -255,7 +255,7 @@ test("timed archery displays an input preview without saving frames or rerolling
   expect(pending.game.shots[0]).toBeGreaterThanOrEqual(0);
   expect(pending.game.shots[0]).toBeLessThanOrEqual(100);
   expect(pending.challenge).toEqual(initial.player.progression.minigames.pending?.challenge);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await continueMinigameFixture(page);
   expect((await readMinigameSave(page)).player.progression.minigames.pending).toEqual(pending);
   await expectCleanLayout(page);
@@ -264,7 +264,7 @@ test("timed archery displays an input preview without saving frames or rerolling
 
 test("a failed real local-storage write cannot charge an entry or expose uncommitted results", async ({ page }) => {
   const errors = minigameBrowserErrors(page);
-  await page.goto("game.html", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
   await seedMinigamePage(page, minigameFixture("willowInnTable", crownFixtureSeed()), "keyboard");
   await minigameKey(page, "Space");
   await waitMinigameState(page, "[MINIGAME_VIEW:lobby]");
@@ -299,7 +299,7 @@ test("a failed real local-storage write cannot charge an entry or expose uncommi
 
 test("free practice and persisted debug archery cannot create paid medals or first-reward claims", async ({ page }) => {
   const errors = minigameBrowserErrors(page);
-  await page.goto("game.html", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
   await seedMinigamePage(page, minigameFixture("willowdaleRange"), "touch");
   await page.locator('[data-action="confirm"]').tap();
   await waitMinigameState(page, "[MINIGAME_VIEW:lobby]");
@@ -327,7 +327,7 @@ test("free practice and persisted debug archery cannot create paid medals or fir
   await page.locator("#debug-cmd").blur();
   await waitMinigameState(page, "[MINIGAME_VIEW:game]");
   expect((await readMinigameSave(page)).player.progression.minigames.pending?.debug).toBe(true);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await continueMinigameFixture(page);
   await finishArcheryFixture(page, "keyboard");
   const debug = await readMinigameSave(page);
@@ -341,7 +341,7 @@ test("free practice and persisted debug archery cannot create paid medals or fir
 for (const venueId of ["willowInnTable", "willowdaleRange", "sandportRegatta"] as const) {
   test(`${venueId} keeps every activity view usable at mobile orientations and text scales`, async ({ page }) => {
     const errors = minigameBrowserErrors(page);
-    await page.goto("game.html", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
     for (const viewport of [{ width: 390, height: 844 }, { width: 932, height: 430 }]) {
       await page.setViewportSize(viewport);
       for (const textScale of [1, 1.25, 1.5] as const) {

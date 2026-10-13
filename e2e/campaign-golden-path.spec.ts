@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clickLayoutItem, expectCleanLayout } from "./helpers/layout";
+import { pressGameKey } from "./helpers/input";
 
 const SAVE_KEY = "2dnd_save";
 const MAIN_QUEST_ID = "twelvefoldCovenant";
@@ -39,12 +40,9 @@ interface BrowserSave {
 async function holdKey(
   page: Page,
   key: string,
-  duration = 180,
+  duration = 0,
 ): Promise<void> {
-  await page.keyboard.down(key);
-  await page.waitForTimeout(duration);
-  await page.keyboard.up(key);
-  await page.waitForTimeout(120);
+  await pressGameKey(page, key, duration);
 }
 
 async function clickGame(
@@ -106,9 +104,7 @@ async function enterCurrentTown(
 }
 
 async function advanceGenericCutscene(page: Page): Promise<void> {
-  await page.waitForTimeout(420);
   await holdKey(page, "Enter");
-  await page.waitForTimeout(420);
 }
 
 async function drainGenericCutscenesUntil(
@@ -148,7 +144,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   });
 
   await test.step("create a new character", async () => {
-    await page.goto("game.html", { waitUntil: "networkidle" });
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
     await waitForState(page, "BOOT | Screen: title");
     await clickLayoutItem(page, "title-new-game");
     await waitForState(page, "BOOT | Screen: character");
@@ -175,7 +171,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
     ]);
 
     await advanceGenericCutscene(page);
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await waitForState(page, "BOOT | Screen: title");
     await clickLayoutItem(page, "title-continue");
     await waitForState(page, "CUTSCENE | campaign.opening | Step 1/2");
@@ -229,7 +225,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   });
 
   await test.step("reload the persisted campaign", async () => {
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await waitForState(page, "BOOT | Screen: title");
     await clickLayoutItem(page, "title-continue");
     await waitForState(page, "OVERWORLD");
@@ -324,7 +320,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   });
 
   await test.step("resume an interrupted epilogue from its durable queue", async () => {
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await waitForState(page, "BOOT | Screen: title");
     await clickLayoutItem(page, "title-continue");
     await waitForState(page, "ENDING | Step: 1/6 | Type: narration");
@@ -359,7 +355,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
   });
 
   await test.step("reload the completed campaign into durable post-game", async () => {
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await waitForState(page, "BOOT | Screen: title");
     await clickLayoutItem(page, "title-continue");
     await waitForState(page, "OVERWORLD");
@@ -421,7 +417,7 @@ test("campaign golden path reaches and recovers the post-game ending", async ({
       localStorage.setItem(saveKey, JSON.stringify(save));
     }, { saveKey: SAVE_KEY, epilogueId: EPILOGUE_ID });
 
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await waitForState(page, "BOOT | Screen: title");
     await clickLayoutItem(page, "title-continue");
     await waitForState(page, "ENDING | Step: 1/6 | Type: narration");
@@ -447,7 +443,7 @@ test("a corrupt save falls back to a usable new-game path", async ({ page }) => 
     }));
   }, { saveKey: SAVE_KEY });
 
-  await page.goto("game.html", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
   await waitForState(page, "BOOT | Screen: title");
   await clickLayoutItem(page, "title-new-game");
   await waitForState(page, "[SAVE_PHASE:confirm-newGame]");

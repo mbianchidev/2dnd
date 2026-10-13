@@ -29,14 +29,16 @@ const serverUrl = `http://127.0.0.1:${port}${basePath}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: false,
+  fullyParallel: true,
   workers: 1,
   timeout: 300_000,
   expect: {
     timeout: 30_000,
   },
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "github" : "line",
+  reporter: process.env.CI
+    ? [["github"], ["json", { outputFile: "test-results/results.json" }]]
+    : "line",
   outputDir: "test-results",
   snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}{ext}",
   use: {

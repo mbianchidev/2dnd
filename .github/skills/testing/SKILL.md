@@ -649,6 +649,22 @@ export function createTestMonster(overrides?: Partial<MonsterInstance>): Monster
 
 ## Running Tests
 
+Vitest uses isolated threads capped at four/available CPUs and a content-aware
+filesystem transform cache. Keep mocks/globals isolated. Browser tests use one
+local worker and five single-worker PR shards with full aggregate gating.
+Use the wrapper's `--balanced-shard=N/5` in CI; native contiguous shards can
+concentrate every long campaign case in one job. Preserve exact discovered and
+native-selected case parity, full plan/results artifacts and slow-test reporting.
+The five adjacent campaign journeys each run on a different shard.
+Shared input helpers await actual scene gates and complete pressed/released
+frames, not unconditional settling sleeps or network idle. Preserve waits that
+exercise real timing.
+
+Performance receipts retain raw samples, deviations, host load, source/harness
+commits and read-only 120-frame work counts. PR comparisons use identical
+base/head/head/base measurement on one runner; retain every run, including slower
+ones. Never hide slow-test/bundle warnings or impose noisy portable FPS gates.
+
 ### Command Line
 ```bash
 # Run all tests once

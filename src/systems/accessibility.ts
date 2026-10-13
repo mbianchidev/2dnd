@@ -91,6 +91,7 @@ const DEFAULT_CONTROL_PREFERENCES: ControlPreferences = {
 };
 
 const textPresentations = new WeakMap<Phaser.GameObjects.Text, TextPresentation>();
+const canvasPresentations = new WeakMap<HTMLCanvasElement, Readonly<GamePreferences>>();
 const installedScenes = new WeakSet<Phaser.Scene>();
 const pausedEmitters = new WeakSet<
   Phaser.GameObjects.Particles.ParticleEmitter
@@ -450,10 +451,14 @@ function applyTextPresentation(
   preferences: Readonly<AccessibilityPreferences>,
 ): void {
   const base = getTextPresentation(text);
-  text.setFontSize(Math.round(base.fontSize * preferences.textScale));
+  const fontSize = Math.round(base.fontSize * preferences.textScale);
+  if (Number.parseFloat(String(text.style.fontSize)) !== fontSize) {
+    text.setFontSize(fontSize);
+  }
   const maxWidth = text.getData("accessibilityMaxWidth");
   if (typeof maxWidth === "number" && maxWidth > 0) {
-    text.setScale(Math.min(1, maxWidth / text.width), 1);
+    const scale = Math.min(1, maxWidth / text.width);
+    if (text.scaleX !== scale || text.scaleY !== 1) text.setScale(scale, 1);
   }
   if (
     text.input?.enabled
@@ -462,10 +467,11 @@ function applyTextPresentation(
   ) {
     text.input.hitArea.setSize(text.width, text.height);
   }
-  if (preferences.highContrast) {
-    text.setStroke("#000000", Math.max(2, base.strokeThickness));
-  } else {
-    text.setStroke(base.stroke, base.strokeThickness);
+  const stroke = preferences.highContrast ? "#000000" : base.stroke;
+  const thickness = preferences.highContrast
+    ? Math.max(2, base.strokeThickness) : base.strokeThickness;
+  if (text.style.stroke !== stroke || text.style.strokeThickness !== thickness) {
+    text.setStroke(stroke, thickness);
   }
 }
 
@@ -514,23 +520,25 @@ function applyCanvasPresentation(
   preferences: Readonly<GamePreferences>,
 ): void {
   const canvas = scene.game.canvas;
-  canvas.style.filter = preferences.accessibility.highContrast
-    ? "contrast(1.35) saturate(0.85)"
-    : "";
-  canvas.dataset.highContrast = String(
-    preferences.accessibility.highContrast,
-  );
-  canvas.dataset.textScale = String(preferences.accessibility.textScale);
-  canvas.dataset.reducedMotion = String(
-    preferences.accessibility.reducedMotion,
-  );
-  canvas.dataset.masterVolume = String(preferences.audio.masterVolume);
-  canvas.dataset.audioMuted = String(preferences.audio.muted);
-  canvas.dataset.touchControlsPreference = preferences.controls.touchControls;
-  canvas.dataset.controlHandedness = preferences.controls.handedness;
-  canvas.dataset.promptPreference = preferences.controls.promptSource;
-  canvas.dataset.diceFrequency = preferences.dice.frequency;
-  canvas.dataset.diceSpeed = preferences.dice.speed;
+  if (canvasPresentations.get(canvas) === preferences) return;
+  const filter = preferences.accessibility.highContrast ? "contrast(1.35) saturate(0.85)" : "";
+  if (canvas.style.filter !== filter) canvas.style.filter = filter;
+  const attributes = {
+    highContrast: String(preferences.accessibility.highContrast),
+    textScale: String(preferences.accessibility.textScale),
+    reducedMotion: String(preferences.accessibility.reducedMotion),
+    masterVolume: String(preferences.audio.masterVolume),
+    audioMuted: String(preferences.audio.muted),
+    touchControlsPreference: preferences.controls.touchControls,
+    controlHandedness: preferences.controls.handedness,
+    promptPreference: preferences.controls.promptSource,
+    diceFrequency: preferences.dice.frequency,
+    diceSpeed: preferences.dice.speed,
+  };
+  for (const [key, value] of Object.entries(attributes)) {
+    if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
+  }
+  canvasPresentations.set(canvas, preferences);
 }
 
 function isInfiniteTween(tween: Phaser.Tweens.Tween): boolean {
@@ -567,14 +575,13 @@ export function applySceneAccessibility(scene: Phaser.Scene): void {
   }
 }
 
-export function installSceneAccessibility(scene: Phaser.Scene): void {
+/** Inject the scene-owned audit without pulling Phaser into pure preference consumers. */
+export function installSceneAccessibility(
+  scene: Phaser.Scene,
+  installLayoutAudit: (scene: Phaser.Scene) => void,
+): void {
   if (installedScenes.has(scene)) return;
   installedScenes.add(scene);
-  void import("../managers/layout")
-    .then(({ installSceneLayoutAudit }) => installSceneLayoutAudit(scene))
-    .catch((error: unknown) => {
-      debugLog(`Could not install scene layout audit: ${String(error)}`);
-    });
   const originalAddText = scene.add.text;
   scene.add.text = (
     x: number,
@@ -596,4 +603,5 @@ export function installSceneAccessibility(scene: Phaser.Scene): void {
     installedScenes.delete(scene);
   });
   apply();
+  installLayoutAudit(scene);
 }

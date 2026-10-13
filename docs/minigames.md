@@ -152,6 +152,9 @@ cannot act twice or leak into world interactions after close.
 Input coalescing uses a monotonic input clock, not the render-frame clock, so
 frame stalls do not discard legitimately spaced controls. The visual aim
 preview remains scene-timed and never becomes scoring authority.
+The canonical action gap remains 90 ms, exported as
+`MINIGAME_ACTION_INPUT_GAP_MS`; optimized browser fixtures honor that same gate
+rather than changing production timing or issuing retries to force acceptance.
 Source and viewport relayout coalesce until the post-input frame so prompt
 changes cannot destroy the target of an in-flight pointer gesture. Held
 pointers defer that relayout until release; closing cancels queued reflow.

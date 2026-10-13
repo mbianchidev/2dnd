@@ -29,6 +29,7 @@ import { saveGame } from "../systems/save";
 import { restPartyAtInn } from "../systems/party";
 import { prepareHeroLevelUp } from "../systems/classProgression";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { installSceneLayoutAudit } from "../managers/layout";
 import { installSceneAccessibility } from "../systems/accessibility";
 import {
   installDicePresentation,
@@ -132,7 +133,7 @@ export class ShopScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(0x1a1a2e);
     this.sceneTransitions.prepare(300);
-    installSceneAccessibility(this);
+    installSceneAccessibility(this, installSceneLayoutAudit);
     installDicePresentation(this);
 
     // Play city music for this town

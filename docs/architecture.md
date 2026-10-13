@@ -24,6 +24,17 @@ The game loads no external image or audio assets and makes no gameplay network
 calls. Textures are generated procedurally; music and sound effects use Web
 Audio synthesis.
 
+Production builds use Phaser's supported modular `phaser-no-physics.js` entry:
+2D&D uses neither Arcade nor Matter. Both Canvas/WebGL renderers and Phaser's
+normal sound API remain available; GPU inspection is disabled. The game disables
+Phaser's unused sound manager to avoid a second AudioContext; the existing
+procedural Web Audio engine still owns every cue and live volume setting. Rolldown splits
+engine and game modules into bounded, entry-aware chunks without increasing the
+default 500 kB warning limit. Strict execution order preserves existing data
+initialization cycles. Emitted JS/CSS keep the `game-` asset namespace accepted
+by the unchanged Steam allowlist. The showcase does not preload the game graph.
+Development retains Phaser's published ESM entry.
+
 ## Responsibility boundaries
 
 | Area | Ownership |
@@ -147,6 +158,15 @@ The audit includes natural glyph/padding bounds inside fixed text surfaces,
 nested containers, and explicitly registered graphic bounds such as progress
 bars, swatches, and hero previews. A clean outer rectangle alone does not prove
 that its text is readable.
+
+Scenes inject `installSceneLayoutAudit` into `installSceneAccessibility`; pure
+preferences never dynamically import the Phaser adapter. Unchanged preferences,
+text styles and debug/layout reports do not rewrite DOM properties every frame.
+Group registration, replacement, destruction and viewport changes coalesce into
+a next-frame audit, including in-place overlay reflow; the 200-ms audit remains
+for other animated/in-place changes.
+Captured callbacks are invalidated on shutdown, and an old container cannot
+unregister its replacement.
 
 `subscribeOverlayReflow()` coalesces preference/source/resize changes at a frame
 boundary and defers replacement while a pointer is held. Disposal also

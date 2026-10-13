@@ -154,9 +154,10 @@ authoritative title/scene assertion for game navigation, not an unrelated
 that settled title/exploration/reflowed scenes perform no redundant canvas,
 debug-state or layout-report writes. It checks live preferences, clean layout
 and unchanged campaign bytes. Frame/JS timings are evidence, not flaky FPS gates.
-Observe the real startup reveal/achievement queues and HUD notices finishing
+Observe the real startup reveal/achievement queues and transient HUD messages finishing
 before the idle sample; their legitimate presentation changes are not redundant
-work. Live-preference samples require a fresh changed layout report first.
+work. Persistent location hints may remain visible. Live-preference samples
+require a fresh changed layout report first.
 
 ## Electron responsibilities
 

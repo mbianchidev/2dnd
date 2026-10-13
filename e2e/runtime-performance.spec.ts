@@ -33,7 +33,8 @@ test("settled scenes do no redundant DOM work and live preferences still reflow"
     return {
       reveals: progression.pendingFeatureRevealIds.length,
       achievements: progression.achievements.pendingNotificationIds.length,
-      hud: report.groups["world-hud"]?.items.map((item) => item.id),
+      hud: report.groups["world-hud"]?.items
+        .filter((item) => item.id === "world-hud-message").map((item) => item.id),
       notices: await page.locator("#achievement-notification-live-region, #codex-discovery-notice-live-region").count(),
     };
   }, { message: "Observe actual startup feedback completing before measuring a settled scene" })

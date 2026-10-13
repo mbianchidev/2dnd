@@ -277,6 +277,8 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Wait for fade-complete-driven scene state, not the nominal fade duration.
 - Use `pressGameKey()` for ordinary discrete controls; it observes Cutscene,
   Ending and Defeat readiness and preserves both input edges across game frames.
+  A readiness wait is bound to its original scene/step and cancels if that owner
+  changes, so a cutscene handoff cannot consume the next scene's first action.
   Explicit long holds remain available for tests of held input.
 - Setup commands that queue a scene restart must let the new input handlers
   mount across rendered frames and confirm the saved location/handoff state

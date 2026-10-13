@@ -322,6 +322,10 @@ async function prepareContext(browser, url, rawSave) {
     viewport: { width: 1440, height: 900 },
     storageState,
   });
+  context.on("page", (page) => {
+    page.on("pageerror", (error) => console.error(`[performance-baseline] Renderer error: ${error.stack ?? error.message}`));
+    page.on("requestfailed", (request) => console.error(`[performance-baseline] Failed request: ${request.url()} ${request.failure()?.errorText ?? ""}`));
+  });
   await context.addInitScript(BASELINE_INIT_SCRIPT);
   return context;
 }

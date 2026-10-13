@@ -35,6 +35,10 @@ export default defineConfig(({ command, mode }) => {
             game: resolve(import.meta.dirname, "game.html"),
           },
         output: {
+          strictExecutionOrder: true,
+          sanitizeFileName: (name: string): string => name.replace(/~/g, "-"),
+          chunkFileNames: "assets/game-[name]-[hash].js",
+          assetFileNames: "assets/game-[name]-[hash][extname]",
           codeSplitting: {
             groups: [
               {

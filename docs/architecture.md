@@ -30,7 +30,9 @@ normal sound API remain available; GPU inspection is disabled. The game disables
 Phaser's unused sound manager to avoid a second AudioContext; the existing
 procedural Web Audio engine still owns every cue and live volume setting. Rolldown splits
 engine and game modules into bounded, entry-aware chunks without increasing the
-default 500 kB warning limit. The showcase does not preload the game graph.
+default 500 kB warning limit. Strict execution order preserves existing data
+initialization cycles. Emitted JS/CSS keep the `game-` asset namespace accepted
+by the unchanged Steam allowlist. The showcase does not preload the game graph.
 Development retains Phaser's published ESM entry.
 
 ## Responsibility boundaries

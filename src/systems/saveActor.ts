@@ -2,6 +2,7 @@ import { getItem } from "../data/items";
 import type { Item } from "../data/items";
 import { isSerializedHeroItem } from "./heroItemState";
 import type { PlayerStats } from "./player";
+import { isNewGamePlusState } from "./newGamePlusState";
 
 const STAT_KEYS = [
   "strength",
@@ -29,7 +30,7 @@ export function hasUsableSavePlayerCore(value: unknown): boolean {
   return typeof value["name"] === "string"
     && value["name"].trim().length > 0
     && isIntegerAtLeast(value["level"], 1)
-    && value["level"] <= 20
+    && value["level"] <= (isNewGamePlusState(value["newGamePlus"]) ? 30 : 20)
     && isIntegerAtLeast(value["xp"], 0)
     && isIntegerAtLeast(value["gold"], 0)
     && isIntegerAtLeast(value["hp"], 0)
@@ -53,14 +54,14 @@ export function normalizeSavedHeroInventory(value: unknown): Item[] | null {
   const inventory: Item[] = [];
   for (const candidate of value) {
     if (isSerializedHeroItem(candidate)) {
-      inventory.push({ ...candidate });
+      inventory.push(structuredClone(candidate));
       continue;
     }
     const canonical = isRecord(candidate) && typeof candidate["id"] === "string"
       ? getItem(candidate["id"])
       : undefined;
     if (!canonical) return null;
-    inventory.push({ ...canonical });
+    inventory.push(structuredClone(canonical));
   }
   return inventory;
 }
@@ -70,11 +71,11 @@ export function normalizeSavedInventory(
   value: unknown,
   fallback: Item[],
 ): Item[] {
-  if (!Array.isArray(value)) return fallback.map((item) => ({ ...item }));
+  if (!Array.isArray(value)) return fallback.map((item) => structuredClone(item));
   return value.flatMap((candidate: unknown) => {
     if (!isRecord(candidate) || typeof candidate["id"] !== "string") return [];
     const item = getItem(candidate["id"]);
-    return item ? [{ ...item }] : [];
+    return item ? [structuredClone(item)] : [];
   });
 }
 

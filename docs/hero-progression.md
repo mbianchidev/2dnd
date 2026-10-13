@@ -15,6 +15,8 @@ authorizes those levels for selection. Choose one class, inspect its exact
 HP/MP, spells, abilities, talents and ASI preview, then confirm. The result page
 requires another confirmation before the next choice. Normal total level stops
 at **20**, even when many classes are owned.
+Validated [New Game+](new-game-plus.md) campaigns extend total level to **30**
+through ten Epic Roadwarden ranks, not extra base/prestige ranks.
 
 The rest-ready queue survives cancellation and save/reload. Later XP does not
 inherit an earlier rest's authorization. A KO clears uncommitted XP levels and
@@ -139,10 +141,15 @@ existing authoritative state. Class choices update combat/progression and
 derived character/slot/Ending labels; they do not complete quests, recruit
 companions, claim rewards or grant campaign access.
 
-The static registry installs twelve base profiles and six five-rank prestige
-profiles. Epic and NG+ content are not installed; there is no arbitrary runtime
-cap override. Prestige grants use the same engine, canonical source selection,
+The static registry installs twelve base profiles, six five-rank prestige
+profiles and one NG+-gated ten-rank epic profile. There is no arbitrary runtime
+cap override. Prestige and epic grants use the same engine, canonical source selection,
 rest queue and once-only resource handling.
+
+Epic levels use frozen d8/CON HP and the existing INT-grown MP, total-level
+proficiency and ASIs at 22/26/30. Resolve (+10 HP), Focus (+5 MP) and Edge (+2
+damage) are once-only owned grants. Companion epic policy is runtime-bound to
+the owning campaign; companions stay single-class and store no duplicate cycle.
 
 ## Saves and debug
 

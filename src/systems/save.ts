@@ -93,7 +93,7 @@ import {
 } from "./saveStorage";
 import { normalizeCampaignDifficulty } from "./difficulty";
 
-export const SAVE_VERSION = 26;
+export const SAVE_VERSION = 27;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -731,7 +731,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
       ? normalizeFeatureDiscoveryProgress({})
       : normalizeFeatureDiscoveryProgress(data.player.progression);
     Object.assign(data.player.progression, featureDiscovery);
-    data.player.party = normalizePartyState(playerRecord["party"]);
+    data.player.party = normalizePartyState(playerRecord["party"], data.player);
     synchronizeCompanionRecruitment(data.player);
     synchronizeNauticalQuestRewards(data.player);
     ensureLegacyCampaignEpilogueQueued(data.player);

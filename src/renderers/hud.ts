@@ -3,6 +3,7 @@
  */
 
 import * as Phaser from "phaser";
+import { getNextLevelXP } from "../systems/classProgression";
 import type { PlayerState } from "../systems/player";
 import { xpForLevel } from "../systems/player";
 import { MAP_WIDTH, MAP_HEIGHT } from "../data/map";
@@ -75,7 +76,8 @@ export class HUDRenderer {
   updateHUD(player: PlayerState): void {
     if (!this.hudText) return;
     
-    const xpNeeded = xpForLevel(player.level + 1);
+    const nextXP = getNextLevelXP(player);
+    const xpNeeded = nextXP ?? Math.max(1, player.xp);
     const hpBar = this.makeBar(player.hp, player.maxHp, 10, "█");
     const mpBar = this.makeBar(player.mp, player.maxMp, 10, "█");
     const xpBar = this.makeBar(player.xp, xpNeeded, 10, "▓");
@@ -83,8 +85,8 @@ export class HUDRenderer {
     const lines = [
       `HP ${hpBar} ${player.hp}/${player.maxHp}`,
       `MP ${mpBar} ${player.mp}/${player.maxMp}`,
-      `XP ${xpBar} ${player.xp}/${xpNeeded}`,
-      `Gold: ${player.gold}g  Lv.${player.level}`,
+      `XP ${xpBar} ${player.xp}/${nextXP ?? "MAX"}`,
+      `Gold: ${player.gold}g  Lv.${player.level}${player.newGamePlus ? ` NG+${player.newGamePlus.cycle}` : ""}`,
     ];
     
     this.hudText.setText(lines.join("\n"));

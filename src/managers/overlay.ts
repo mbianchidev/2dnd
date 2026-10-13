@@ -5,6 +5,7 @@
  */
 
 import * as Phaser from "phaser";
+import { getNextLevelXP } from "../systems/classProgression";
 import {
   MAP_WIDTH,
   MAP_HEIGHT,
@@ -460,8 +461,8 @@ export class OverlayManager {
     const hpColor = hpPct > 50 ? "#88ff88" : hpPct > 25 ? "#ffdd44" : "#ff6666";
     addLine(`HP: ${p.hp}/${p.maxHp}`, hpColor);
     addLine(`MP: ${p.mp}/${p.maxMp}`, "#88ccff");
-    const xpNeeded = xpForLevel(p.level + 1);
-    addLine(`XP: ${p.xp}/${xpNeeded}`, "#cc88ff");
+    const xpNeeded = getNextLevelXP(p);
+    addLine(`XP: ${p.xp}/${xpNeeded ?? "MAX"}`, "#cc88ff");
     addLine(`Gold: ${p.gold}g`, "#ffd700");
     cy += 8;
 
@@ -508,11 +509,11 @@ export class OverlayManager {
     let cy = py + 6;
 
     // Header stats
-    const xpNeeded = xpForLevel(p.level + 1);
+    const xpNeeded = getNextLevelXP(p);
     const header = this.scene.add.text(px + 14, cy, [
       `${p.name}  Lv.${p.level}`,
       `HP: ${p.hp}/${p.maxHp}   MP: ${p.mp}/${p.maxMp}   AC: ${ac}`,
-      `EXP: ${p.xp}/${xpNeeded}  (${xpNeeded - p.xp} to next)`,
+      `EXP: ${p.xp}/${xpNeeded ?? "MAX"}${xpNeeded === null ? "" : ` (${xpNeeded - p.xp} to next)`}`,
     ].join("\n"), {
       fontSize: "11px", fontFamily: "monospace", color: "#ccc", lineSpacing: 4,
     });

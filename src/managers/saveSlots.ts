@@ -24,12 +24,14 @@ import { openMobileTextInput } from "./input";
 export type SaveSlotOverlayMode = "load" | "save";
 
 interface SaveSlotManagerCallbacks {
+  newGamePlus?(slotId: SaveSlotId): void;
   load(slotId: SaveSlotId): void;
   save(slotId: SaveSlotId, overwrite: boolean): SaveActionResult;
   onStateChange?(): void;
 }
 
 type SaveSlotAction =
+  | "newGamePlus"
   | "load"
   | "save"
   | "rename"
@@ -48,6 +50,7 @@ interface PendingConfirmation {
 }
 
 const ACTION_LABELS: Readonly<Record<SaveSlotAction, string>> = {
+  newGamePlus: "New Game+",
   load: "Load",
   save: "Save",
   rename: "Rename",
@@ -74,7 +77,7 @@ function slotStatusText(slot: SaveSlotInfo): string {
       : metadata.className;
     const name = metadata.classCount > 1 && metadata.characterName.length > 24
       ? `${metadata.characterName.slice(0, 21)}...` : metadata.characterName;
-    return `${name} Lv.${metadata.level} ${label}\n`
+    return `${name} Lv.${metadata.level} ${label}${metadata.cycle > 0 ? ` | NG+ ${metadata.cycle}` : ""}\n`
       + `Rules: ${metadata.difficultyName}${metadata.difficultyChangeCount > 0 ? " (changed)" : ""}\n`
       + `${metadata.location} | ${metadata.campaignStatus} | `
       + `${formatSavePlaytime(metadata.playtimeSeconds)} | `
@@ -126,7 +129,7 @@ export class SaveSlotManager {
   open(mode: SaveSlotOverlayMode): void {
     this.close();
     this.mode = mode;
-    this.slots = listSaveSlots();
+    this.slots = listSaveSlots(this.callbacks.newGamePlus !== undefined);
     this.selectedSlotIndex = mode === "save"
       ? Math.max(0, this.slots.findIndex((slot) => slot.slotId === "manual-1"))
       : Math.max(0, this.slots.findIndex((slot) => slot.state === "valid"));
@@ -205,7 +208,7 @@ export class SaveSlotManager {
 
   private render(): void {
     this.container?.destroy();
-    this.slots = listSaveSlots();
+    this.slots = listSaveSlots(this.callbacks.newGamePlus !== undefined);
     this.selectedSlotIndex = Math.min(
       Math.max(this.selectedSlotIndex, 0),
       this.slots.length - 1,
@@ -273,6 +276,10 @@ export class SaveSlotManager {
     if (this.copySourceSlotId) return ["confirm", "cancel"];
 
     const actions: SaveSlotAction[] = [];
+    if (this.callbacks.newGamePlus && slot.state === "valid"
+      && (slot.metadata?.campaignStatus === "Complete" || slot.metadata?.campaignStatus === "Post-game")) {
+      actions.push("newGamePlus");
+    }
     if (this.mode === "load" && slot.state === "valid") actions.push("load");
     if (this.mode === "save" && slot.kind === "manual") actions.push("save");
     if (slot.kind === "manual" && slot.state === "valid") actions.push("rename");
@@ -437,6 +444,11 @@ export class SaveSlotManager {
     }
     if (action === "confirm") {
       this.confirmPendingAction(slot);
+      return;
+    }
+    if (action === "newGamePlus" && this.callbacks.newGamePlus) {
+      this.close();
+      this.callbacks.newGamePlus(slot.slotId);
       return;
     }
     if (action === "load") {

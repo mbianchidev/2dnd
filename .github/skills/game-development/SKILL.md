@@ -38,6 +38,12 @@ and changes spanning scenes, systems, data, renderers, or managers.
   Use the same live owner context, frozen/rest credits, grants and normalizer.
   Keep entry-only quest/location/social checks, fixed stats, scoped talents,
   inherited gear and unaffiliated campaign completion. See `docs/prestige.md`.
+- NG+/epic: protected-manual, detached independent cycles in `newGamePlus*.ts`;
+  one registered ten-rank epic profile reuses the existing engine to reach 30.
+  Preserve normal base/prestige cap 20 and all frozen/rest/deferred ownership;
+  runtime-bind companion policy after clone/load. Retire pending activities
+  without refunds or replay; compose cycle scaling once through difficulty.
+  See `docs/new-game-plus.md`.
 - Phaser 4 scenes: `Boot`, `Overworld`, `Battle`, `Shop`, `Codex`, `Cutscene`,
   `Ending`, and `Defeat`
 - Overworld orchestration: `src/scenes/Overworld.ts`
@@ -529,9 +535,9 @@ starting `DefeatScene`, which continues only to Overworld.
 
 ## Companions and gambits
 
-- Hero multiclass actions share the existing validated planner and executor.
-  Companion state must not own hero class progression. Treat external profiles
-  as future hooks; do not ship prestige/epic behavior implicitly.
+- Hero multiclass/prestige/epic actions share the validated planner and executor.
+  Companions remain single-class and never own hero class progression or a
+  serialized duplicate cycle/cap.
 - Persistent party state lives at `player.party`; do not add a parallel scene
   payload or companion combat model.
 - Stable companion IDs are `guardian`, `scout`, and `mystic`.

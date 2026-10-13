@@ -19,6 +19,8 @@ import {
 } from "./battleActions";
 import { getClassAbilities, getClassSpells, getPlayerClass } from "./classes";
 import { discardPendingLevelUps } from "./classProgression";
+import { bindActorProgressionOwner, getActorLevelCap } from "./epicProgressionPolicy";
+import { EPIC_TALENTS } from "../data/epicProgression";
 import {
   createPartyCombatant,
   HERO_COMBATANT_ID,
@@ -193,12 +195,13 @@ function getKnownTalents(classId: string, level: number): string[] {
 export function createCompanionState(
   companionId: CompanionId,
   level: number,
+  owner?: Pick<PlayerState, "newGamePlus">,
 ): CompanionState {
   const definition = getCompanionDefinition(companionId);
   if (!definition) {
     throw new Error(`[party] Unknown companion definition: ${companionId}`);
   }
-  const safeLevel = Math.min(Math.max(Math.trunc(level), 1), 20);
+  const safeLevel = Math.min(Math.max(Math.trunc(level), 1), getActorLevelCap(owner ?? {}));
   const playerClass = getPlayerClass(definition.classId);
   const stats = applyClassBoosts(definition.baseStats, definition.classId);
   const conModifier = abilityModifier(stats.constitution);
@@ -207,11 +210,14 @@ export function createCompanionState(
   let maxMp = Math.max(4, 8 + intModifier * 2);
   const averageHitDie = Math.floor(playerClass.hitDie / 2) + 1;
   for (let currentLevel = 2; currentLevel <= safeLevel; currentLevel++) {
-    maxHp += Math.max(1, averageHitDie + conModifier);
+    maxHp += Math.max(1, (currentLevel > 20 ? 5 : averageHitDie) + conModifier);
     maxMp += Math.max(1, 2 + intModifier);
   }
 
   const knownTalents = getKnownTalents(definition.classId, safeLevel);
+  if (owner?.newGamePlus) {
+    knownTalents.push(...EPIC_TALENTS.filter((talent) => talent.levelRequired <= safeLevel).map((talent) => talent.id));
+  }
   for (const talent of TALENTS) {
     if (!knownTalents.includes(talent.id)) continue;
     maxHp += talent.maxHpBonus ?? 0;
@@ -231,7 +237,7 @@ export function createCompanionState(
   const loadout = selectLoadout(definition.loadouts, safeLevel);
   const inventory = getInventoryCopy(loadout.itemIds);
 
-  return {
+  const companion: CompanionState = {
     id: companionId,
     name: definition.name,
     level: safeLevel,
@@ -258,6 +264,8 @@ export function createCompanionState(
     gambits: [],
     dialogueCursor: 0,
   };
+  if (owner) bindActorProgressionOwner(companion, () => owner);
+  return companion;
 }
 
 export function recruitCompanion(
@@ -281,7 +289,7 @@ export function recruitCompanion(
     };
   }
 
-  const companion = createCompanionState(targetId, player.level);
+  const companion = createCompanionState(targetId, player.level, player);
   player.party.companions.push(companion);
   if (player.party.activeCompanionIds.length < MAX_ACTIVE_COMPANIONS) {
     player.party.activeCompanionIds.push(targetId);
@@ -508,6 +516,7 @@ export function distributePartyVictory(
   player: PlayerState,
   result: BattleResult,
 ): PartyVictoryDistribution {
+  bindPartyProgression(player);
   const rules = getCampaignDifficultyRules(player);
   player.gold += result.rewards.gold;
   const knockedOutIds = [...new Set(result.knockedOutPartyIds)];
@@ -601,6 +610,7 @@ export function applyPartyDefeat(
 }
 
 export function restPartyAtInn(player: PlayerState, deferHeroLevelUps = false): PartyRestResult {
+  bindPartyProgression(player);
   const leveledActorIds: PartyMemberId[] = [];
   const actors: Array<{
     id: PartyMemberId;
@@ -697,10 +707,11 @@ function normalizeCustomAppearance(
 
 function normalizeCompanionState(
   value: unknown,
+  owner?: Pick<PlayerState, "newGamePlus">,
 ): CompanionState | undefined {
   if (!isRecord(value) || !isCompanionId(value["id"])) return undefined;
-  const level = readInteger(value["level"], 1, 1, 20);
-  const fallback = createCompanionState(value["id"], level);
+  const level = readInteger(value["level"], 1, 1, getActorLevelCap(owner ?? {}));
+  const fallback = createCompanionState(value["id"], level, owner);
   const maxHp = readInteger(value["maxHp"], fallback.maxHp, 1);
   const maxMp = readInteger(value["maxMp"], fallback.maxMp, 1);
   const inventory = normalizeSavedInventory(value["inventory"], fallback.inventory);
@@ -739,7 +750,8 @@ function normalizeCompanionState(
     ),
     knownTalents: normalizeKnownIds(
       value["knownTalents"],
-      (id) => talentIds.has(id),
+      (id) => talentIds.has(id) && (!EPIC_TALENTS.some((talent) => talent.id === id)
+        || fallback.knownTalents.includes(id)),
       fallback.knownTalents,
     ),
     equippedWeapon: relinkSavedEquipment(
@@ -775,16 +787,24 @@ function normalizeCompanionState(
       0,
     ),
   };
+  if (owner) bindActorProgressionOwner(companion, () => owner);
   return companion;
 }
 
-export function normalizePartyState(value: unknown): PartyState {
+/** Bind every actor to current campaign authority without serializing a duplicate cycle/cap. */
+export function bindPartyProgression(player: PlayerState): void {
+  for (const companion of player.party.companions) {
+    bindActorProgressionOwner(companion, () => player);
+  }
+}
+
+export function normalizePartyState(value: unknown, owner?: Pick<PlayerState, "newGamePlus">): PartyState {
   if (!isRecord(value)) return createPartyState();
   const companions: CompanionState[] = [];
   const seen = new Set<CompanionId>();
   if (Array.isArray(value["companions"])) {
     for (const candidate of value["companions"]) {
-      const companion = normalizeCompanionState(candidate);
+      const companion = normalizeCompanionState(candidate, owner);
       if (!companion || seen.has(companion.id)) continue;
       seen.add(companion.id);
       companions.push(companion);

@@ -105,6 +105,7 @@ export interface WorldEventState {
 }
 
 export interface WorldEventContext {
+  newGamePlus?: PlayerState["newGamePlus"];
   location: WorldEventLocation;
   level: number;
   timeStep: number;
@@ -239,6 +240,7 @@ export function isWorldEventEligible(
   context: WorldEventContext,
 ): boolean {
   const eligibility = event.eligibility;
+  if ((context.newGamePlus?.cycle ?? 0) < (eligibility.minimumNewGamePlusCycle ?? 0)) return false;
   const repeats = state.repeatCounters[event.id] ?? 0;
   if (event.maxRepeats !== undefined && repeats >= event.maxRepeats) return false;
   if (

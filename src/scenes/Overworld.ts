@@ -6,6 +6,7 @@
  */
 
 import * as Phaser from "phaser";
+import { selectNewGamePlusVariant } from "../systems/newGamePlusScaling";
 import {
   MAP_WIDTH,
   MAP_HEIGHT,
@@ -2106,6 +2107,7 @@ export class OverworldScene extends Phaser.Scene {
         weather: this.weatherState.current,
         boat,
         difficulty: this.player.difficulty.selection,
+        newGamePlus: this.player.newGamePlus,
         position,
       });
     const monster = krakenEligible
@@ -2421,6 +2423,7 @@ export class OverworldScene extends Phaser.Scene {
       quests: this.player.progression.quests,
       defeatedBosses: this.defeatedBosses,
       social: this.player.progression.social,
+      newGamePlus: this.player.newGamePlus,
     };
   }
 
@@ -2471,6 +2474,7 @@ export class OverworldScene extends Phaser.Scene {
           isNightTime(this.timeStep) ? "night" : "day",
         );
       }
+      monster = selectNewGamePlusVariant(monster, this.player.newGamePlus);
       const encounter = forcedGroup ?? createRandomEncounter(
         monster,
         effectiveLevel,

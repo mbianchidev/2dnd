@@ -14,7 +14,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.4, Electron 44.7.0, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.64.0 |
 | DOM tests | happy-dom 20.14.6 |
-| Save schema | 26 |
+| Save schema | 27 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -32,6 +32,7 @@ future work until merged.
 | Resolved dice | immutable `rollResults.ts` receipts | `dice.ts`, `effectRolls.ts`, redacted `dicePresentation.ts`, visual `diceMotion.ts` | scene-local dice/battleDice managers, procedural SVG scene overlay, existing Battle log | dicePresentation/diceManager/effectRollReceipts/rollReceipts/diceMotion/diceRenderer and dice E2E |
 | Hero progression | `src/data/classProgression.ts`, canonical class/action/talent definitions | `classProgression.ts`, `classProgressionState.ts`, `heroItemState.ts`, `classProgressionDebug.ts` | `heroProgression.ts`, rest/equipment adapters | progression/state/item/debug/battle/layout suites, multiclass E2E |
 | Prestige paths | `prestige.ts`, `prestigeActions.ts`, `prestigeLore.ts` | same progression engine/context/normalizer; `systems/prestige.ts` for inspection | existing hero progression manager | prestige/entry/save/battle suites, prestige browser/Electron flows |
+| NG+/epic | `newGamePlus.ts`, `newGamePlusContent.ts`, `epicProgression.ts` | NG+ factory/state/slots/scaling; existing progression engine and runtime companion owner policy | title/save-slot NG+ manager, existing progression/result UI | carry/slots/save/scaling/epic suites and NG+ browser/Electron paths |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
 | Quests/cutscenes | `quests.ts`, focused `cutscene*.ts` | `quests.ts`, `questState.ts`, `cutscenes.ts` | quest/cutscene managers, `Cutscene.ts`, `Ending.ts` | quest/cutscene/campaign E2E |
 | World/map/traps | `map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, `traps.ts` | `movement.ts`, `traps.ts` | map/city/trap/fog managers/renderers | map, city, trap, fog, movement |
@@ -120,8 +121,14 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   Prepare one frozen receipt at rest, preserve rest credits across reload, and
   commit one expected-level choice atomically. Normal progression stops at 20;
   companions stay single-class. Six registered five-rank prestige paths use
-  the same engine and inclusive entry-only world/social checks; no epic/NG+
-  content is installed. Path-only talents never enter generic scans.
+  the same engine and inclusive entry-only world/social checks. NG+ extends
+  total to 30 through one registered ten-rank epic track, without raising
+  base/prestige ownership above 20. Track-only talents never enter generic scans.
+- NG+ uses a protected completed manual source and distinct manual destination;
+  Autosave becomes active normally. Strict inspection never restores/migrates/
+  names/activates the source. Preserve exact frozen/rest/deferred grants and
+  item links; retire pending activities without refunds or replay. See
+  [New Game+](docs/new-game-plus.md).
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
 - Standard is unlimited. Timed mode persists only bounded per-campaign settings,

@@ -42,7 +42,7 @@ export function executeProgressionDebugCommand(
       `${profile.id}: ${qualifyNextClass(player, profile.id, context).message}`
     );
   } else if (command === "status") {
-    result.messages.push(`${getProgressionSummary(player)}; total ${player.level}/20;`
+    result.messages.push(`${getProgressionSummary(player)}; total ${player.level}/${player.newGamePlus ? 30 : 20};`
       + ` ${player.pendingLevelUps} earned / ${player.classProgression.readyLevelUps} rested levels.`);
   } else if (command === "sheet") {
     result.openSheet = true;

@@ -9,6 +9,7 @@ export interface TutorialProgress {
 }
 
 export interface TutorialTipContext {
+  newGamePlusCycle?: number;
   level: number;
   companionCount: number;
   hasMount: boolean;
@@ -63,6 +64,7 @@ export function createTutorialTipContext(
       || Object.keys(player.progression.trapStates).length > 0,
     discoveredFeatureIds: new Set(player.progression.discoveredFeatureIds),
     difficultyProfileId: player.difficulty.selection.profileId,
+    newGamePlusCycle: player.newGamePlus?.cycle ?? 0,
   };
 }
 
@@ -73,6 +75,8 @@ export function isTipUnlocked(
   switch (unlock.type) {
     case "always":
       return true;
+    case "newGamePlus":
+      return (context.newGamePlusCycle ?? 0) > 0;
     case "level":
       return context.level >= unlock.minimum;
     case "companion":

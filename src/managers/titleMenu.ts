@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import { createOverlayContainer } from "../utils/ui";
 
 export type TitleMenuActionId =
+  | "newGamePlus"
   | "continue"
   | "newGame"
   | "saveSlots"
@@ -30,6 +31,7 @@ interface TitleMenuButton {
 }
 
 const ACTION_LAYOUT_IDS: Readonly<Record<TitleMenuActionId, string>> = {
+  newGamePlus: "title-new-game-plus",
   continue: "title-continue",
   newGame: "title-new-game",
   saveSlots: "title-save-slots",

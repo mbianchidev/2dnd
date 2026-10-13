@@ -17,6 +17,8 @@ import type { CampaignDifficultyState } from "./difficultyState";
 import { getEffectiveEncounterRate } from "./encounterRate";
 import { captureEffectAdjustment } from "./effectRolls";
 import type { ResolvedEffectRoll } from "./rollResults";
+import { getNewGamePlusScale } from "./newGamePlusScaling";
+import type { NewGamePlusState } from "./newGamePlusState";
 
 export * from "./difficultyState";
 export type {
@@ -127,12 +129,12 @@ export const STANDARD_DIFFICULTY_RULES = resolveDifficultyRules();
 
 /** Optional wallet/adapter inputs explicitly retain neutral legacy behavior. */
 export function getCampaignDifficultyRules(
-  campaign: { readonly difficulty?: CampaignDifficultyState },
+  campaign: { readonly difficulty?: CampaignDifficultyState; readonly newGamePlus?: NewGamePlusState | null },
   scale?: DifficultyScaleLayer,
 ): Readonly<DifficultyRules> {
   return resolveDifficultyRules(
     campaign.difficulty?.selection ?? STANDARD_DIFFICULTY_SELECTION,
-    scale,
+    scale ?? getNewGamePlusScale(campaign.newGamePlus),
   );
 }
 

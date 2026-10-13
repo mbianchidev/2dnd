@@ -18,6 +18,7 @@ import {
   getActorStartingClass,
   getFeatureSources,
   getProficiencyBonus,
+  getActorLevelCap,
   getTrackLevel,
   prepareNextHeroLevelUp,
   previewHeroLevelUp,
@@ -29,6 +30,7 @@ import { createHeroProgressionContext } from "../systems/classProgressionContext
 import { isFeatureAvailable } from "../systems/featureDiscovery";
 import { getPrestigePath } from "../data/prestige";
 import { buildPrestigeDetails } from "../systems/prestige";
+import { EPIC_TRACK_ID } from "../data/epicProgression";
 import { paginateMeasuredItems, wrapMeasuredText, type LayoutRect } from "../systems/layout";
 import { allocateStatPoint, getArmorClass, getAttackModifier, type PlayerState, type PlayerStats } from "../systems/player";
 import { layoutProgressionPanel, type ProgressionPanelLayout } from "../systems/progressionPresentation";
@@ -70,8 +72,10 @@ export class HeroProgressionManager {
   private context: HeroProgressionContext | null = null;
 
   private get profiles(): readonly ProgressionTrackProfile[] {
-    return PROGRESSION_PROFILES.filter((profile) => profile.kind === "base"
-      || (this.player && (isFeatureAvailable(this.player, "prestige") || getTrackLevel(this.player, profile.id) > 0)));
+    return PROGRESSION_PROFILES.filter((profile) =>
+      profile.kind === "epic" ? !!this.player?.newGamePlus && this.player.level >= 20
+        : profile.kind === "base" || (this.player
+          && (isFeatureAvailable(this.player, "prestige") || getTrackLevel(this.player, profile.id) > 0)));
   }
 
   constructor(
@@ -97,7 +101,7 @@ export class HeroProgressionManager {
     this.close();
     this.player = player;
     this.context = createHeroProgressionContext(() => player);
-    this.selectedTrackId = getActorStartingClass(player);
+    this.selectedTrackId = player.newGamePlus && player.level >= 20 ? EPIC_TRACK_ID : getActorStartingClass(player);
     this.selectedStatIndex = 0;
     this.mode = mode;
     if (mode === "sheet" && player.classProgression.readyLevelUps > 0) {
@@ -173,7 +177,7 @@ export class HeroProgressionManager {
     y += header.displayHeight + 6;
     const owner = this.addText("progression-owner", viewport.x + 12, y,
       `Starting: ${getProgressionProfile(getActorStartingClass(player))?.label}`
-        + `   Total: ${player.level}/20   Proficiency: +${getProficiencyBonus(player)}`,
+        + `   Total: ${player.level}/${getActorLevelCap(player)}   Proficiency: +${getProficiencyBonus(player)}`,
       10, viewport.width - 24);
     y += owner.displayHeight + 6;
     const pending = this.addText("progression-pending", viewport.x + 12, y,
@@ -252,6 +256,13 @@ export class HeroProgressionManager {
       return getPrestigePath(profile.id) ? `${preview}\n${buildPrestigeDetails(player, profile.id)}` : preview;
     }
     if (getPrestigePath(profile.id)) return buildPrestigeDetails(player, profile.id);
+    if (profile.kind === "epic") {
+      return "New Game+ Epic Roadwarden: ten ranks after applied total 20.\n"
+        + "d8 + frozen CON HP; normal shared INT MP; total cap 30, ability scores cap 30.\n"
+        + "ASIs: +2 at totals 22, 26 and 30. Proficiency: +7 / +8 / +9 at 21 / 25 / 29.\n"
+        + "Rank 1: Resolve (+10 HP once); rank 5: Focus (+5 MP once); rank 9: Edge (+2 damage).\n"
+        + "No base/prestige rank or extra action is granted. Carried rested credits and rolls stay frozen.";
+    }
     const features = profile.grants.filter((grant) =>
       getFeatureSources(player, grant.kind, grant.id).some((source) => source.trackId === profile.id)
     ).map((grant) => {

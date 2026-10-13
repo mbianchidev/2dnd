@@ -12,6 +12,7 @@ import { DEVOTION_CODEX_ENTRIES } from "./devotionCodex";
 import type { DeityId, TempleId } from "./devotion";
 import type { PrestigeTrackId } from "./prestige";
 import { PRESTIGE_LORE } from "./prestigeLore";
+import { NEW_GAME_PLUS_LORE } from "./newGamePlusContent";
 
 export const CODEX_KNOWLEDGE_CATEGORIES = [
   "location",
@@ -906,6 +907,7 @@ export const CODEX_READABLES: readonly CodexReadableDefinition[] = [
 ];
 
 export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
+  ...NEW_GAME_PLUS_LORE,
   ...PRESTIGE_LORE,
   ...LOCATION_ENTRIES,
   ...ITEM_ENTRIES,

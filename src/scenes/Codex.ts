@@ -581,7 +581,7 @@ export class CodexScene extends Phaser.Scene {
 
   private showMonsterDetail(monster: Monster): void {
     const discovered = this.isDiscovered(monster);
-    const progress = getCodexFamilyProgress(this.codex, monster.family);
+    const progress = getCodexFamilyProgress(this.codex, monster.family, this.player.newGamePlus?.cycle ?? 0);
     const family = progress.family;
     this.headerText.setText(
       `${family.symbol} ${family.name} - ${progress.discovered}/${progress.total}\n`

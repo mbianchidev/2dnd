@@ -105,6 +105,7 @@ export class SaveSlotStorageAdapter {
   read<T>(
     slotId: SaveSlotId,
     decode: (raw: string) => T | null,
+    restore = true,
   ): SaveStorageReadResult<T> {
     const candidates: ReadonlyArray<{
       source: "primary" | "staging" | "backup";
@@ -148,13 +149,13 @@ export class SaveSlotStorageAdapter {
         };
       }
 
-      const recoveryError = this.restorePrimary(slotId, raw);
+      const recoveryError = restore ? this.restorePrimary(slotId, raw) : undefined;
       return {
         ok: true,
         value,
         raw,
         source: candidate.source,
-        recovered: true,
+        recovered: restore,
         ...(recoveryError ? { recoveryError } : {}),
       };
     }
@@ -169,6 +170,11 @@ export class SaveSlotStorageAdapter {
       },
       present,
     };
+  }
+
+  /** Decode recovery candidates without restoring or deleting any source bytes. */
+  inspect<T>(slotId: SaveSlotId, decode: (raw: string) => T | null): SaveStorageReadResult<T> {
+    return this.read(slotId, decode, false);
   }
 
   write<T>(

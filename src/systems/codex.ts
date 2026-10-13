@@ -619,9 +619,11 @@ export function getCodexEntries(bestiary: CodexData): CodexEntry[] {
 export function getCodexFamilyProgress(
   bestiary: CodexData,
   familyId: MonsterFamilyId,
+  cycle = Number.POSITIVE_INFINITY,
 ): CodexFamilyProgress {
   const family = getMonsterFamily(familyId);
-  const members = ALL_MONSTERS.filter((monster) => monster.family === familyId);
+  const members = ALL_MONSTERS.filter((monster) => monster.family === familyId
+    && (monster.minimumNewGamePlusCycle ?? 0) <= cycle);
   const discovered = members.filter(
     (monster) => monster.id in bestiary.entries,
   ).length;
@@ -635,9 +637,10 @@ export function getCodexFamilyProgress(
 
 export function getCodexFamilyProgressList(
   bestiary: CodexData,
+  cycle = Number.POSITIVE_INFINITY,
 ): CodexFamilyProgress[] {
   return MONSTER_FAMILIES.map((family) =>
-    getCodexFamilyProgress(bestiary, family.id)
+    getCodexFamilyProgress(bestiary, family.id, cycle)
   );
 }
 

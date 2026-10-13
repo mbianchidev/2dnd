@@ -48,6 +48,7 @@ const BUTTON_WIDTH = 360;
 const MAX_BUTTON_HEIGHT = 64;
 const BUTTON_GAP = 4;
 const DETAIL_GAP = 2;
+const BUTTON_CONTENT_INSET = 1;
 
 export class TitleMenuManager {
   private container: Phaser.GameObjects.Container | null = null;
@@ -74,7 +75,8 @@ export class TitleMenuManager {
     const contentHeights = this.buttons.map(({ label, detail }) =>
       label.displayHeight + (detail ? DETAIL_GAP + detail.displayHeight : 0),
     );
-    const contentHeight = contentHeights.reduce((total, height) => total + height, 0);
+    const minimumHeights = contentHeights.map((height) => height + BUTTON_CONTENT_INSET * 2);
+    const contentHeight = minimumHeights.reduce((total, height) => total + height, 0);
     const gap = this.buttons.length > 1
       ? Math.min(BUTTON_GAP, Math.max(0, (availableHeight - contentHeight) / (this.buttons.length - 1)))
       : 0;
@@ -83,8 +85,8 @@ export class TitleMenuManager {
       id: action.id,
       width: BUTTON_WIDTH,
       height: Math.min(
-        Math.max(MAX_BUTTON_HEIGHT, contentHeights[index]!),
-        contentHeights[index]! + spareHeight / this.buttons.length,
+        Math.max(MAX_BUTTON_HEIGHT, minimumHeights[index]!),
+        minimumHeights[index]! + spareHeight / this.buttons.length,
       ),
     })), { x: camera.centerX - BUTTON_WIDTH / 2, gap });
     const startY = MENU_TOP + (availableHeight - rows.height) / 2;

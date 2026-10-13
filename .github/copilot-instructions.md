@@ -1236,7 +1236,11 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 
 ## Accessibility
 
-- Install `installSceneAccessibility()` in every Phaser scene.
+- Install `installSceneAccessibility(this, installSceneLayoutAudit)` in every
+  Phaser scene. Inject the Phaser adapter; pure preferences never import it.
+- Avoid redundant preference/text/debug DOM writes. Coalesce changed layout
+  groups into a next-frame audit while preserving periodic dynamic audits and
+  shutdown/stale-owner cleanup.
 - Supported text scales are 100%, 125%, and 150%; core overlays must remain
   usable at each scale.
 - High contrast updates live through the shared scene adapter.
@@ -1402,6 +1406,11 @@ npm run benchmark:baseline
 - Run `npm run benchmark:baseline` on the current base commit before
   performance-affecting work and record the environment and output in the
   owning issue or pull request.
+- Keep all performance receipts, raw samples, host load and frame-work evidence.
+  PR CI compares clean base/head builds on one runner in base/head/head/base
+  order and runs every browser case through four single-worker shards. Preserve
+  the aggregate `build` check, complete gates, ref-scoped concurrency and warnings.
+  Vitest retains isolation with bounded threads and content-aware transform caching.
 - Run typecheck, full Vitest, browser tests, and build before completion.
 
 ## Prohibited

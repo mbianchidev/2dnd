@@ -27,8 +27,8 @@ describe("tagged desktop release workflow", () => {
     expect(workflow).toContain("builderArgument: --linux");
     expect(workflow).toContain("builderArgument: --mac");
     expect(workflow).toContain("builderArgument: --win");
-    expect(workflow).toContain("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a");
-    expect(workflow).toContain("actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c");
+    expect(workflow).toContain("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9");
+    expect(workflow).toContain("actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333");
     expect(workflow).toContain("gh release create");
     expect(workflow).toContain("gh release upload");
     expect(workflow).toContain("GH_REPO: ${{ github.repository }}");

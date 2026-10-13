@@ -127,6 +127,13 @@ finished. Do not add planning or summary Markdown files to the repository.
 The permanent `hacks/run-browser-tests.mjs` wrapper allocates a fresh local port
 for the Playwright suite.
 
+For performance work, use `npm run benchmark:baseline` and retain the complete
+receipt, not just its best run. The shared frame-workload helper measures actual
+DOM writes and JS/frame samples without modifying gameplay; PR CI compares clean
+base/head builds on one runner. See [Testing](testing.md#performance-baseline).
+Production uses the supported modular no-physics Phaser entry and entry-aware
+Rolldown chunks; keep both rendering backends and the default bundle warning.
+
 ## Documentation ownership
 
 Update documentation in the same change when behavior, commands, architecture,

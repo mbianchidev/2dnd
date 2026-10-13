@@ -8,6 +8,7 @@ import {
 } from "../data/cutscenes";
 import { CutsceneDirector } from "../managers/cutscene";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { installSceneLayoutAudit } from "../managers/layout";
 import { ResultRenderer } from "../renderers/result";
 import { audioEngine } from "../systems/audio";
 import { installSceneAccessibility } from "../systems/accessibility";
@@ -82,7 +83,7 @@ export class EndingScene extends Phaser.Scene {
 
   create(): void {
     this.sceneTransitions.prepare(500);
-    installSceneAccessibility(this);
+    installSceneAccessibility(this, installSceneLayoutAudit);
     installDicePresentation(this);
     this.endingRenderer = new ResultRenderer(
       this,
@@ -129,6 +130,7 @@ export class EndingScene extends Phaser.Scene {
   }
 
   update(time: number): void {
+    this.updateDebugPanel();
     if (time < this.inputReadyAt || this.sceneTransitions.isPending) return;
 
     if (this.showingChoices) {
@@ -249,10 +251,16 @@ export class EndingScene extends Phaser.Scene {
   }
 
   private updateDebugPanel(): void {
+    const readiness = this.time.now >= this.inputReadyAt && !this.sceneTransitions.isPending
+      ? "ready" : "locked";
+    if (this.showingChoices) {
+      debugPanelState(`ENDING | Choices | Input: ${readiness}`);
+      return;
+    }
     const step = this.director.currentStep;
     debugPanelState(
       `ENDING | Step: ${this.director.currentStepIndex + 1}/${this.director.definition.steps.length} | Type: ${step.type}`
-      + ` | Hero: ${this.endingRenderer.heroInspectionReport}`,
+      + ` | Hero: ${this.endingRenderer.heroInspectionReport} | Input: ${readiness}`,
     );
   }
 

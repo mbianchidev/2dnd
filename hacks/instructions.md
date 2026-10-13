@@ -18,6 +18,18 @@
   updates must never bypass or hardcode this measurement guard.
   Character-creation actions use the registered layout IDs, not fixed stat/
   appearance coordinates, so the receipt measures the current real UI.
+  Receipts include raw samples, deviations, host load and 120-frame work counts.
+  `PERFORMANCE_ROOT=/absolute/checkout npm run benchmark:baseline` measures that
+  checkout with the current harness and records both commits; PR CI uses this
+  for balanced base/head/head/base comparisons on one runner.
+- `lib/frameWorkload.ts` supplies the read-only 120-frame DOM/JS/frame sampler
+  shared by the production harness and browser work-budget regression. It never
+  alters input, RNG, clocks or campaign state.
+- `compare-performance.mjs` reads four complete harness logs in
+  base/head/head/base order, validates provenance/environment parity and prints
+  the pooled comparison. It preserves slower samples and applies no portable
+  wall-clock threshold. PR CI publishes its output in the job summary and retains
+  every original log.
 - `lib/git-provenance.mjs` shares commit/clean-tree/diff-hash collection between
   the performance harness and Steam receipts without following untracked
   symlinks outside the worktree.

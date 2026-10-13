@@ -21,6 +21,7 @@ import type { SavedSpecialNpc } from "../data/npcs";
 import { debugPanelState } from "../config";
 import { closeTextEntry, openMobileTextInput } from "../managers/input";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { installSceneLayoutAudit } from "../managers/layout";
 import { gamePreferences, installSceneAccessibility } from "../systems/accessibility";
 import { paginateMeasuredItems } from "../systems/layout";
 import { createOverlayContainer } from "../utils/ui";
@@ -190,7 +191,7 @@ export class CodexScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(0x0e0e1e);
     this.sceneTransitions.prepare(300);
-    installSceneAccessibility(this);
+    installSceneAccessibility(this, installSceneLayoutAudit);
     installDicePresentation(this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       closeTextEntry();

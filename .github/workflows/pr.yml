@@ -13,27 +13,109 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
 
       - run: npm ci
+      - run: npm audit
       - run: npm run typecheck
       - run: npm test
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
       - run: npm run build
+
+  browser:
+    name: Browser (${{ matrix.shard }}/4)
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser -- --shard=${{ matrix.shard }}/4
       - name: Preserve browser flow evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: browser-results-${{ github.event.pull_request.number || github.run_id }}-${{ github.sha }}
+          name: browser-results-${{ matrix.shard }}-${{ github.event.pull_request.number || github.run_id }}-${{ github.sha }}
           path: test-results
           if-no-files-found: error
           retention-days: 7
+
+  performance:
+    name: Paired performance
+    needs: verify
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare exact base revision
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          git worktree add --detach "$RUNNER_TEMP/2dnd-performance-base" "$BASE_SHA"
+          if cmp --silent package-lock.json "$RUNNER_TEMP/2dnd-performance-base/package-lock.json"; then
+            ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/2dnd-performance-base/node_modules"
+          else
+            npm ci --prefix "$RUNNER_TEMP/2dnd-performance-base"
+          fi
+      - name: Measure base and head in balanced order
+        run: |
+          mkdir "$RUNNER_TEMP/2dnd-performance"
+          PERFORMANCE_ROOT="$RUNNER_TEMP/2dnd-performance-base" npm run benchmark:baseline > "$RUNNER_TEMP/2dnd-performance/base-1.log" 2>&1
+          npm run benchmark:baseline > "$RUNNER_TEMP/2dnd-performance/head-1.log" 2>&1
+          npm run benchmark:baseline > "$RUNNER_TEMP/2dnd-performance/head-2.log" 2>&1
+          PERFORMANCE_ROOT="$RUNNER_TEMP/2dnd-performance-base" npm run benchmark:baseline > "$RUNNER_TEMP/2dnd-performance/base-2.log" 2>&1
+      - name: Publish measured comparison
+        run: |
+          node hacks/compare-performance.mjs \
+            "$RUNNER_TEMP/2dnd-performance/base-1.log" \
+            "$RUNNER_TEMP/2dnd-performance/head-1.log" \
+            "$RUNNER_TEMP/2dnd-performance/head-2.log" \
+            "$RUNNER_TEMP/2dnd-performance/base-2.log" >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve every benchmark receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: performance-results-${{ github.event.pull_request.number }}-${{ github.sha }}
+          path: ${{ runner.temp }}/2dnd-performance
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    needs: [verify, browser, performance]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the complete release gate
+        env:
+          VERIFY: ${{ needs.verify.result }}
+          BROWSER: ${{ needs.browser.result }}
+          PERFORMANCE: ${{ needs.performance.result }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          [[ "$VERIFY" == "success" && "$BROWSER" == "success" ]] || exit 1
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            [[ "$PERFORMANCE" == "success" ]] || exit 1
+          fi

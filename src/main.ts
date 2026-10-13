@@ -32,6 +32,7 @@ const config: Phaser.Types.Core.GameConfig = {
   height: GAME_HEIGHT,
   pixelArt: true,
   backgroundColor: "#111111",
+  audio: { noAudio: true },
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,

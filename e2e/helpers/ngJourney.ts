@@ -17,14 +17,12 @@ import { createCompletedCampaign, completeCampaignThroughOwners } from "../../te
 import type { PlayerPosition } from "../../src/systems/player";
 import type { SaveData } from "../../src/systems/save";
 import { clickLayoutItem, readLayoutReport } from "./layout";
+import { pressGameKey } from "./input";
 
 const checkpointPages = new WeakSet<Page>();
 
 export async function holdJourneyKey(page: Page, key: string): Promise<void> {
-  await page.keyboard.down(key);
-  await page.waitForTimeout(90);
-  await page.keyboard.up(key);
-  await page.waitForTimeout(90);
+  await pressGameKey(page, key);
 }
 
 /** Keep both edges in the renderer so runner/CDP latency cannot repeat a grid step. */
@@ -182,7 +180,7 @@ async function relocateCheckpoint(page: Page, position: PlayerPosition): Promise
   await page.evaluate((next) => {
     sessionStorage.setItem("ng-journey-next-position", JSON.stringify(next));
   }, position);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await clickLayoutItem(page, "title-continue");
   await drainJourneyScenes(page);
 }

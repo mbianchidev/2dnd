@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { Terrain } from "../src/data/mapTypes";
 import { TimePeriod } from "../src/systems/daynight";
 import { WeatherType } from "../src/systems/weather";
+import { pressGameKey } from "./helpers/input";
 import {
   clickLayoutItem,
   expectCleanLayout,
@@ -58,11 +59,8 @@ async function readSave(page: Page): Promise<BrowserSave> {
   }, SAVE_KEY);
 }
 
-async function holdKey(page: Page, key: string, duration = 140): Promise<void> {
-  await page.keyboard.down(key);
-  await page.waitForTimeout(duration);
-  await page.keyboard.up(key);
-  await page.waitForTimeout(120);
+async function holdKey(page: Page, key: string, duration = 0): Promise<void> {
+  await pressGameKey(page, key, duration);
 }
 
 async function state(page: Page, value: string): Promise<void> {
@@ -110,7 +108,7 @@ async function drainCutscenes(page: Page, destination = "OVERWORLD"): Promise<vo
 }
 
 async function createCampaign(page: Page): Promise<void> {
-  await page.goto("game.html", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
   await state(page, "BOOT | Screen: title");
   await clickLayoutItem(page, "title-new-game");
   await state(page, "BOOT | Screen: character");
@@ -191,7 +189,7 @@ async function initialAffiliation(page: Page, deityId: string): Promise<void> {
 }
 
 async function continueCampaign(page: Page): Promise<void> {
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await state(page, "BOOT | Screen: title");
   await clickLayoutItem(page, "title-continue");
   await state(page, "OVERWORLD");

@@ -63,7 +63,7 @@ import { DifficultyOverlayManager } from "../managers/difficulty";
 import { getDifficultyProfile, STANDARD_DIFFICULTY_SELECTION } from "../data/difficulty";
 import type { DifficultySelection } from "../systems/difficulty";
 import { cycleDifficultyProfile } from "../systems/difficultyEditor";
-import { getScaledBounds, getTextContentSize, subscribeOverlayReflow, syncInteractiveHitArea } from "../managers/layout";
+import { getScaledBounds, getTextContentSize, installSceneLayoutAudit, subscribeOverlayReflow, syncInteractiveHitArea } from "../managers/layout";
 
 const BOOT_TEXTURE_MEASURE = "2dnd:boot-textures";
 const BOOT_TEXTURE_START_MARK = `${BOOT_TEXTURE_MEASURE}:start`;
@@ -97,7 +97,7 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     this.sceneTransitions.prepare();
-    installSceneAccessibility(this);
+    installSceneAccessibility(this, installSceneLayoutAudit);
     this.difficultyManager = new DifficultyOverlayManager(this);
     installDicePresentation(this);
     performance.clearMeasures(BOOT_TEXTURE_MEASURE);

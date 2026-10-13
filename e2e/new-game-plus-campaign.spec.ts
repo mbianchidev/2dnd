@@ -39,7 +39,7 @@ test(`${journeyCase.selection.profileId} NG+ ${journeyCase.parentCycle + 1} play
       sessionStorage.setItem("ng-journey-initialized", "true");
     }
   }, source);
-  await page.goto("game.html", { waitUntil: "networkidle" });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
   await clickLayoutItem(page, "title-new-game-plus");
   await clickLayoutItem(page, "save-slot-row-manual-1");
   await clickLayoutItem(page, "save-slot-action-confirm");
@@ -62,7 +62,7 @@ test(`${journeyCase.selection.profileId} NG+ ${journeyCase.parentCycle + 1} play
   await holdJourneyKey(page, "Enter");
   await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
   expect((await readJourneySave(page)).player.progression.seenCutsceneIds).toContain(CAMPAIGN_EPILOGUE_CUTSCENE_ID);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await clickLayoutItem(page, "title-continue");
   await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
   expect((await readJourneySave(page)).player.newGamePlus?.cycle).toBe(journeyCase.parentCycle + 1);

@@ -65,6 +65,12 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 Random mechanics must accept deterministic values or seeded state. Test the
 authoritative helper rather than reproducing formulas in assertions.
 
+Vitest uses isolated threads, capped at four workers or the host's available
+parallelism, with `fsModuleCache` enabled. The content-aware transform cache
+accelerates reruns without sharing test globals, mocks or campaign state.
+Steam fixtures reuse one immutable, genuinely generated source notice;
+subprocess assertions and all platform/archive/security cases remain intact.
+
 ## Playwright responsibilities
 
 The `e2e/*.spec.ts` suites own real browser behavior:
@@ -129,10 +135,23 @@ session across reloads; enabling it only during a gesture can leave Phaser
 without touch listeners. Verify moved positions in saves after a real
 Save & Return to Title action, not by assuming every city step autosaves.
 
-`playwright.config.ts` defaults to `/2dnd/`, uses one worker, and starts Vite on
-a strict port. `e2e/landing.spec.ts` exercises the showcase root; Phaser flows
+`playwright.config.ts` defaults to `/2dnd/`, uses one local worker, allows
+individual tests to be sharded, and starts Vite on a strict port.
+`e2e/landing.spec.ts` exercises the showcase root; Phaser flows
 open `game.html`. `hacks/run-browser-tests.mjs` allocates a free port and
 disables server reuse so tests cannot silently attach to stale code.
+
+The shared input/layout helpers observe actual scene readiness and complete
+pressed/released browser frames rather than adding sleeps after every action.
+Cutscene/result diagnostics expose their existing input gates; no deadline,
+animation or game clock is accelerated. Use `domcontentloaded` plus the
+authoritative title/scene assertion for game navigation, not an unrelated
+500-ms network-idle interval. Keep explicit waits that test real timed behavior.
+
+`e2e/runtime-performance.spec.ts` records 120-frame work samples before asserting
+that settled title/exploration/reflowed scenes perform no redundant canvas,
+debug-state or layout-report writes. It checks live preferences, clean layout
+and unchanged campaign bytes. Frame/JS timings are evidence, not flaky FPS gates.
 
 ## Electron responsibilities
 
@@ -209,11 +228,25 @@ It reports:
 - title readiness and the named `2dnd:boot-textures` generation measure
 - JavaScript heap, DOM-node, and event-listener counts at the title screen
 - fresh-save size plus stringify and localStorage write latency
+- largest JavaScript chunk, raw per-navigation samples and median absolute deviation
+- before/after host load averages and three 120-frame title workload samples
+
+`hacks/lib/frameWorkload.ts` observes mutations and browser performance metrics
+without changing RNG, clocks, input, animation or campaign state. Failed browser
+work-budget assertions retain their JSON evidence.
 
 Record the command output in the owning issue or pull request together with the
 commit and environment. Compare regressions against a like-for-like machine and
 browser baseline; these local measurements are evidence for budgets, not a
 portable timing threshold by themselves.
+
+PR CI runs the same head-owned harness against exact clean base/head revisions
+on one runner in **base/head/head/base** order. `PERFORMANCE_ROOT` selects the
+checkout being measured; source and harness commits are recorded independently.
+The comparison pools every sample and rejects mismatched environments, revisions
+or harnesses. Its artifacts retain all four receipts, including noisy or slower
+runs. This avoids comparing unrelated busy developer-host runs, but does not
+claim that wall-clock timing is universally deterministic.
 
 To exercise the local root base explicitly:
 
@@ -240,6 +273,9 @@ PLAYWRIGHT_BASE_PATH=/ npm run test:browser
 - Do not target fixed canvas coordinates when a registered layout ID exists.
 - Do not depend on fixed sleeps alone.
 - Wait for fade-complete-driven scene state, not the nominal fade duration.
+- Use `pressGameKey()` for ordinary discrete controls; it observes Cutscene,
+  Ending and Defeat readiness and preserves both input edges across game frames.
+  Explicit long holds remain available for tests of held input.
 - Setup commands that queue a scene restart must let the new input handlers
   mount across rendered frames and confirm the saved location/handoff state
   before sending the gameplay action.
@@ -333,15 +369,23 @@ for them before release.
 
 ## CI
 
-`.github/workflows/pr.yml` runs Node 24, `npm ci`, typecheck, full Vitest,
-Chromium installation, full Playwright, and the production build for pull
-requests to `main`. Its `pr-${{ github.ref }}` concurrency group is scoped to
+`.github/workflows/pr.yml` runs Node 24, `npm ci`, audit, typecheck, full Vitest
+and the production build, then the complete Playwright suite across four
+single-worker shards and the paired production benchmark. No tests or slow-test
+warnings are disabled. Shard artifacts have unique names; the existing `build`
+check aggregates every required job, including failures/skips. Manual dispatch
+runs the full release gate without the PR-only comparison.
+Its `pr-${{ github.ref }}` concurrency group is scoped to
 the Git ref, matching the desktop workflow: independent pull requests and
 manually dispatched branches cannot replace one another's pending checks.
 Runs for the same ref remain serialized; `cancel-in-progress` remains false.
 
 Desktop uses `desktop-${{ github.ref }}` with the same serialization policy.
 Preserve all release-gate steps, existing permissions, and triggers.
+
+Official checkout/setup/artifact actions are pinned to verified Node-24-compatible
+releases. Do not suppress `punycode`, `url.parse()` or obsolete action-runtime
+warnings with environment flags; update the owning action.
 
 `.github/workflows/codeql.yml` analyzes Actions and JavaScript/TypeScript.
 GitHub Pages deployment separately runs `npm ci`, Vitest, and the multi-page

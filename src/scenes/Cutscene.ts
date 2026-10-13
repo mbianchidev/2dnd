@@ -11,6 +11,7 @@ import { createSoloEncounter } from "../data/monsterGroups";
 import { getMonster } from "../data/monsters";
 import { CutsceneDirector, type CutscenePresentationAdapter } from "../managers/cutscene";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { installSceneLayoutAudit } from "../managers/layout";
 import { CutsceneRenderer } from "../renderers/cutscene";
 import {
   gamePreferences,
@@ -84,7 +85,7 @@ export class CutsceneScene extends Phaser.Scene {
 
   create(): void {
     this.sceneTransitions.prepare(350);
-    installSceneAccessibility(this);
+    installSceneAccessibility(this, installSceneLayoutAudit);
     installDicePresentation(this);
     this.cutsceneRenderer = new CutsceneRenderer(
       this,
@@ -303,10 +304,13 @@ export class CutsceneScene extends Phaser.Scene {
     if (!this.director) {
       return;
     }
+    const gateReady = this.time.now >= this.inputReadyAt && !this.sceneTransitions.isPending;
     debugPanelState(
       `CUTSCENE | ${this.sceneData.cutsceneId} | Step ${this.director.currentStepIndex + 1}/${this.director.definition.steps.length} | ${this.sceneData.replay ? "Replay" : "Story"}`
       + ` | Anim: ${this.cutsceneRenderer.debugState}`
-      + ` | Hero: ${this.cutsceneRenderer.heroInspectionReport}`,
+      + ` | Hero: ${this.cutsceneRenderer.heroInspectionReport}`
+      + ` | Input: ${gateReady && !this.director.inputLocked ? "ready" : "locked"}`
+      + ` | Skip: ${gateReady ? "ready" : "locked"}`,
     );
   }
 }

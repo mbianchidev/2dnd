@@ -601,6 +601,14 @@ recipes/achievements control quests, Codex, access, or rewards.
 
 ## Validation
 
+Production uses Phaser's supported modular no-physics entry, keeping Canvas/WebGL
+and the sound API. Keep Phaser's unused sound manager disabled; `audioEngine`
+owns all Web Audio contexts/cues. Keep entry-aware Rolldown chunks below the unchanged warning
+limit; never preload the game graph on the showcase. Scenes inject the layout
+audit into accessibility installation. Stable preferences/text/debug reports
+must not rewrite DOM every frame; new/replaced/removed layout groups audit at the
+next frame, preserving periodic dynamic checks and stale-callback cleanup.
+
 ```bash
 npm run typecheck
 npm test

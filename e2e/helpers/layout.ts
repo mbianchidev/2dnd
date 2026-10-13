@@ -73,21 +73,25 @@ export async function layoutItemCenter(
   page: Page,
   id: string,
 ): Promise<{ x: number; y: number }> {
-  await expect.poll(async () => {
-    const report = await readLayoutReport(page);
-    return Object.values(report.groups)
+  const handle = await page.waitForFunction((layoutId) => {
+    const content = document.getElementById("layout-report")?.textContent;
+    if (!content) return null;
+    const report = JSON.parse(content) as LayoutReport;
+    const item = Object.values(report.groups)
       .flatMap((group) => group.items)
-      .map((item) => item.id);
-  }).toContain(id);
-  const report = await readLayoutReport(page);
-  const item = Object.values(report.groups)
-    .flatMap((group) => group.items)
-    .find((candidate) => candidate.id === id);
-  if (!item) throw new Error(`Missing layout item: ${id}`);
-  return {
-    x: item.bounds.x + item.bounds.width / 2,
-    y: item.bounds.y + item.bounds.height / 2,
-  };
+      .find((candidate) => candidate.id === layoutId);
+    return item ? {
+      x: item.bounds.x + item.bounds.width / 2,
+      y: item.bounds.y + item.bounds.height / 2,
+    } : null;
+  }, id);
+  try {
+    const point = await handle.jsonValue();
+    if (!point) throw new Error(`Missing layout item: ${id}`);
+    return point;
+  } finally {
+    await handle.dispose();
+  }
 }
 
 export async function clickLayoutItem(page: Page, id: string): Promise<void> {
@@ -107,7 +111,7 @@ export async function clickLayoutItem(page: Page, id: string): Promise<void> {
     bounds.x + (point.x / GAME_WIDTH) * bounds.width,
     bounds.y + (point.y / GAME_HEIGHT) * bounds.height,
   );
-  await page.waitForTimeout(120);
+  await waitForGameInputFrame(page);
 }
 
 export async function tapLayoutItem(page: Page, id: string): Promise<void> {
@@ -119,7 +123,7 @@ export async function tapLayoutItem(page: Page, id: string): Promise<void> {
     bounds.x + (point.x / GAME_WIDTH) * bounds.width,
     bounds.y + (point.y / GAME_HEIGHT) * bounds.height,
   );
-  await page.waitForTimeout(120);
+  await waitForGameInputFrame(page);
 }
 
 export async function expectCleanLayout(page: Page): Promise<void> {

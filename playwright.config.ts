@@ -29,7 +29,7 @@ const serverUrl = `http://127.0.0.1:${port}${basePath}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: false,
+  fullyParallel: true,
   workers: 1,
   timeout: 300_000,
   expect: {

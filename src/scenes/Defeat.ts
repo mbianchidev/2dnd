@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import { installDicePresentation } from "../managers/dicePresentation";
 import { debugPanelState, setDebugCommandHandler } from "../config";
 import { SceneTransitionManager } from "../managers/sceneTransition";
+import { installSceneLayoutAudit } from "../managers/layout";
 import {
   ResultRenderer,
   type DefeatResultPresentation,
@@ -65,7 +66,7 @@ export class DefeatScene extends Phaser.Scene {
 
   create(): void {
     this.sceneTransitions.prepare(500, 24, 0, 8);
-    installSceneAccessibility(this);
+    installSceneAccessibility(this, installSceneLayoutAudit);
     installDicePresentation(this);
     setDebugCommandHandler(null);
     this.resultRenderer = new ResultRenderer(this, "defeat");
@@ -85,14 +86,13 @@ export class DefeatScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.resultRenderer.destroy();
     });
-    debugPanelState(
-      `DEFEAT | Intro | ${this.encounterTypeLabel}: ${this.sceneData.encounterName}`,
-    );
+    this.updateDebugPanel();
     audioEngine.playWeatherSFX(WeatherType.Clear);
     audioEngine.playDefeatMusic();
   }
 
   update(time: number): void {
+    this.updateDebugPanel();
     if (time < this.inputReadyAt || this.sceneTransitions.isPending) return;
     if (
       Phaser.Input.Keyboard.JustDown(this.keys.SPACE)
@@ -122,14 +122,23 @@ export class DefeatScene extends Phaser.Scene {
         this.presentation,
         () => this.continueRecovery(),
       );
-      debugPanelState(
-        `DEFEAT | Results | ${this.encounterTypeLabel}`
-          + ` | Gold -${this.sceneData.defeatResult.goldLost}`
-          + ` | Recovery ${this.sceneData.defeatResult.recoveryLocation.name}`,
-      );
+      this.updateDebugPanel();
       return;
     }
     this.continueRecovery();
+  }
+
+  private updateDebugPanel(): void {
+    if (this.sceneTransitions.isPending) {
+      debugPanelState("DEFEAT | Continuing");
+      return;
+    }
+    const state = this.showingSummary
+      ? `DEFEAT | Results | ${this.encounterTypeLabel}`
+        + ` | Gold -${this.sceneData.defeatResult.goldLost}`
+        + ` | Recovery ${this.sceneData.defeatResult.recoveryLocation.name}`
+      : `DEFEAT | Intro | ${this.encounterTypeLabel}: ${this.sceneData.encounterName}`;
+    debugPanelState(`${state} | Input: ${this.time.now >= this.inputReadyAt ? "ready" : "locked"}`);
   }
 
   private continueRecovery(): void {

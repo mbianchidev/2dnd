@@ -5,17 +5,21 @@ import { createServer as createNetServer } from "node:net";
 import {
   arch,
   cpus,
+  loadavg,
   platform,
   release,
   totalmem,
 } from "node:os";
-import { dirname, extname, join, relative } from "node:path";
+import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { chromium } from "@playwright/test";
 import { getGitProvenance } from "./lib/git-provenance.mjs";
+import { measureFrameWorkload } from "./lib/frameWorkload.ts";
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const HARNESS_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const ROOT = process.env.PERFORMANCE_ROOT
+  ? resolve(process.env.PERFORMANCE_ROOT) : HARNESS_ROOT;
 const DIST = join(ROOT, "dist");
 const BASE_PATH = "/2dnd/";
 const SAVE_KEY = "2dnd_save";
@@ -35,7 +39,7 @@ async function readCanonicalSaveVersion() {
 
 function readSampleCount(value) {
   if (value === undefined) return DEFAULT_SAMPLE_COUNT;
-  const parsed = Number.parseInt(value, 10);
+  const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 3 || parsed > 30) {
     throw new Error(
       `PERFORMANCE_SAMPLES must be an integer from 3 to 30, received: ${value}`,
@@ -62,9 +66,11 @@ function summarize(values, digits = 2) {
   if (values.some((value) => !Number.isFinite(value))) {
     throw new Error("Metric samples must contain only finite numbers");
   }
+  const median = percentile(values, 0.5);
   return {
     min: round(Math.min(...values), digits),
-    median: round(percentile(values, 0.5), digits),
+    median: round(median, digits),
+    medianAbsoluteDeviation: round(percentile(values.map((value) => Math.abs(value - median)), 0.5), digits),
     p95: round(percentile(values, 0.95), digits),
     max: round(Math.max(...values), digits),
   };
@@ -243,6 +249,7 @@ async function measureBundle() {
       0,
     ),
     scriptBytes: scripts.reduce((total, file) => total + file.bytes, 0),
+    largestScriptBytes: Math.max(...scripts.map((file) => file.bytes)),
     scriptGzipBytes: scripts.reduce(
       (total, file) => total + file.gzipBytes,
       0,
@@ -393,6 +400,21 @@ async function measureStartup(browser, url, rawSave) {
     await client.send("Network.setCacheDisabled", { cacheDisabled: true });
     await page.goto(url, { waitUntil: "domcontentloaded" });
     return await readStartupMetrics(page, client);
+  } finally {
+    await context.close();
+  }
+}
+
+async function measureIdleFrames(browser, url, rawSave) {
+  const context = await prepareContext(browser, url, rawSave);
+  try {
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => document.getElementById("layout-report")
+      ?.textContent?.includes("title-new-game"));
+    const samples = [];
+    for (let index = 0; index < 3; index++) samples.push(await measureFrameWorkload(page));
+    return samples;
   } finally {
     await context.close();
   }
@@ -564,6 +586,7 @@ function printReport(result) {
     + `${result.environment.cpu}, Node ${result.environment.node}, `
     + `Chromium ${result.environment.chromium}`,
   );
+  console.log(`- Host load (1/5/15 minutes): ${result.environment.loadBefore.join("/")} before, ${result.environment.loadAfter.join("/")} after; ${result.environment.logicalCpus} logical CPUs.`);
   console.log(
     `- Method: ${result.startup.sampleCount} cache-disabled production `
     + `navigations per startup case; fresh schema-v${result.save.schemaVersion} `
@@ -603,7 +626,8 @@ function printReport(result) {
     + `${formatBytes(result.bundle.deployedGzipBytes)} gzip; JavaScript `
     + `${formatBytes(result.bundle.scriptBytes)} raw / `
     + `${formatBytes(result.bundle.scriptGzipBytes)} gzip; source maps `
-    + `${formatBytes(result.bundle.sourceMapBytes)}.`,
+    + `${formatBytes(result.bundle.sourceMapBytes)}; largest JavaScript chunk `
+    + `${formatBytes(result.bundle.largestScriptBytes)}.`,
   );
   console.log(
     `- Fresh schema-v${result.save.schemaVersion} save: `
@@ -611,6 +635,7 @@ function printReport(result) {
     + `${result.save.combinedWriteMs.median} ms median / `
     + `${result.save.combinedWriteMs.p95} ms p95.`,
   );
+  console.log("- Idle workload: 3 x 120 frames per title case; deterministic DOM-write counts and raw frame/startup samples are retained below. Timing comparisons require repeated like-for-like runs; shared-host load is not controlled.");
   console.log("\nBaseline JSON:");
   console.log(JSON.stringify(result, null, 2));
 }
@@ -626,6 +651,8 @@ async function main() {
     );
   }
   const initialProvenance = await getGitProvenance(ROOT);
+  const harnessProvenance = await getGitProvenance(HARNESS_ROOT);
+  const loadBefore = loadavg();
   await runCommand(process.execPath, [npmCli, "run", "build"], {
     env: {
       ...process.env,
@@ -681,10 +708,19 @@ async function main() {
         url,
         freshSave.raw,
       );
+      const idleFrames = {
+        emptySave: await measureIdleFrames(browser, url, null),
+        freshSave: await measureIdleFrames(browser, url, freshSave.raw),
+      };
 
       const result = {
         timestamp: new Date().toISOString(),
         commit: initialProvenance.commit,
+        harnessCommit: harnessProvenance.commit,
+        harnessWorkingTree: {
+          dirty: harnessProvenance.dirty,
+          diffHash: harnessProvenance.diffHash,
+        },
         workingTree: {
           dirty: initialProvenance.dirty,
           diffHash: initialProvenance.diffHash,
@@ -697,13 +733,17 @@ async function main() {
           totalMemoryBytes: totalmem(),
           node: process.version,
           chromium: browser.version(),
+          loadBefore,
+          loadAfter: loadavg(),
         },
         bundle,
         startup: {
           sampleCount,
           emptySave: summarizeStartup(emptySaveSamples),
           freshSave: summarizeStartup(freshSaveSamples),
+          samples: { emptySave: emptySaveSamples, freshSave: freshSaveSamples },
         },
+        idleFrames,
         save: {
           schemaVersion: freshSave.schemaVersion,
           bytes: freshSave.bytes,
@@ -716,6 +756,7 @@ async function main() {
       };
       const finalProvenance = await getGitProvenance(ROOT);
       assertMatchingProvenance(initialProvenance, finalProvenance);
+      assertMatchingProvenance(harnessProvenance, await getGitProvenance(HARNESS_ROOT));
       printReport(result);
     } finally {
       await browser.close();

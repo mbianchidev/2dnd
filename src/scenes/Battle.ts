@@ -4,7 +4,7 @@
 
 import * as Phaser from "phaser";
 import { getNextLevelXP } from "../systems/classProgression";
-import { registerLayoutGroup } from "../managers/layout";
+import { installSceneLayoutAudit, registerLayoutGroup } from "../managers/layout";
 import type { Monster, MonsterAbility } from "../data/monsters";
 import { getMonsterTextureKey } from "../data/monsterFamilies";
 import {
@@ -514,7 +514,7 @@ export class BattleScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(0x0a0a1a);
     this.sceneTransitions.prepare(300);
-    installSceneAccessibility(this);
+    installSceneAccessibility(this, installSceneLayoutAudit);
     this.battlePresentation = new BattlePresentationDirector(this);
     this.codexDiscovery = new CodexDiscoveryManager(this);
     this.battleBackdrop = new BattleBackdropRenderer(this);

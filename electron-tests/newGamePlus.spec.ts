@@ -47,64 +47,6 @@ test("compiled app imports a completed source and plays the full independent NG+
       }));
     });
 
-    test("compiled app lands on the NG+ secret island and preserves its interior and source across relaunch", async () => {
-      test.setTimeout(120_000);
-      const directory = await mkdtemp(join(tmpdir(), "2dnd-ng-island-test-"));
-      let desktop: ElectronApplication | undefined;
-      try {
-        const fixture = createIslandVoyage();
-        desktop = await launchDesktop(directory);
-        const page = await desktop.firstWindow();
-        const errors = monitorRendererErrors(page);
-        await waitForState(page, "BOOT | Screen: title");
-        expect(await page.evaluate(() => location.origin)).toBe("app://2dnd");
-        await clickLayoutItem(page, "title-save-slots");
-        await importNativeFixture(page, "manual-1", "Mock protected source", fixture.source);
-        const source = await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"));
-        await importNativeFixture(page, "manual-2", "Mock NG island voyage", fixture.voyage);
-        await page.addInitScript(() => {
-          let seed = 0x172a;
-          Math.random = () => {
-            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-            return 0.8 + seed / 0x1_0000_0000 * 0.19;
-          };
-        });
-        await page.evaluate(() => localStorage.setItem("2dnd_preferences", JSON.stringify({
-          version: 3, accessibility: { textScale: 1.5, highContrast: true, reducedMotion: true },
-        })));
-        await page.reload({ waitUntil: "networkidle" });
-        await clickLayoutItem(page, "title-save-slots");
-        await clickLayoutItem(page, "save-slot-row-manual-2");
-        await clickLayoutItem(page, "save-slot-action-load");
-        await drainJourneyScenes(page);
-        await holdJourneyKey(page, "s");
-        await holdJourneyKey(page, "Space");
-        await waitForState(page, "[CITY:starfall_atoll:0]");
-        const landed = await readJourneySave(page);
-        expect(landed.player.progression.nautical.discoveredIslandIds).toContain("starfallAtoll");
-        expect(landed.codex.unlockedEntryIds).toContain("locationStarfallAtoll");
-        expect(landed.player.progression.nautical.ownedBoats[0]?.condition).toBe(47);
-        expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(source);
-        await expectCleanLayout(page);
-        expect(errors).toEqual([]);
-        await closeDesktop(desktop);
-        desktop = await launchDesktop(directory);
-        const continued = await desktop.firstWindow();
-        const reloadErrors = monitorRendererErrors(continued);
-        await waitForState(continued, "BOOT | Screen: title");
-        await clickLayoutItem(continued, "title-continue");
-        await waitForState(continued, "[CITY:starfall_atoll:0]");
-        expect((await readJourneySave(continued)).player.progression.nautical.ownedBoats[0]?.condition).toBe(47);
-        expect(await continued.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(source);
-        expect(reloadErrors).toEqual([]);
-      } finally {
-        try {
-          if (desktop) await closeDesktop(desktop);
-        } finally {
-          await rm(directory, { recursive: true, force: true });
-        }
-      }
-    });
     await page.reload({ waitUntil: "networkidle" });
     await clickLayoutItem(page, "title-new-game-plus");
     await clickLayoutItem(page, "save-slot-row-manual-1");
@@ -136,6 +78,65 @@ test("compiled app imports a completed source and plays the full independent NG+
     await clickLayoutItem(continued, "title-continue");
     await waitForState(continued, "OVERWORLD");
     expect((await readJourneySave(continued)).player.newGamePlus?.cycle).toBe(1);
+    expect(await continued.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(source);
+    expect(reloadErrors).toEqual([]);
+  } finally {
+    try {
+      if (desktop) await closeDesktop(desktop);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+});
+
+test("compiled app lands on the NG+ secret island and preserves its interior and source across relaunch", async () => {
+  test.setTimeout(120_000);
+  const directory = await mkdtemp(join(tmpdir(), "2dnd-ng-island-test-"));
+  let desktop: ElectronApplication | undefined;
+  try {
+    const fixture = createIslandVoyage();
+    desktop = await launchDesktop(directory);
+    const page = await desktop.firstWindow();
+    const errors = monitorRendererErrors(page);
+    await waitForState(page, "BOOT | Screen: title");
+    expect(await page.evaluate(() => location.origin)).toBe("app://2dnd");
+    await clickLayoutItem(page, "title-save-slots");
+    await importNativeFixture(page, "manual-1", "Mock protected source", fixture.source);
+    const source = await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"));
+    await importNativeFixture(page, "manual-2", "Mock NG island voyage", fixture.voyage);
+    await page.addInitScript(() => {
+      let seed = 0x172a;
+      Math.random = () => {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        return 0.8 + seed / 0x1_0000_0000 * 0.19;
+      };
+    });
+    await page.evaluate(() => localStorage.setItem("2dnd_preferences", JSON.stringify({
+      version: 3, accessibility: { textScale: 1.5, highContrast: true, reducedMotion: true },
+    })));
+    await page.reload({ waitUntil: "networkidle" });
+    await clickLayoutItem(page, "title-save-slots");
+    await clickLayoutItem(page, "save-slot-row-manual-2");
+    await clickLayoutItem(page, "save-slot-action-load");
+    await drainJourneyScenes(page);
+    await holdJourneyKey(page, "s");
+    await holdJourneyKey(page, "Space");
+    await waitForState(page, "[CITY:starfall_atoll:0]");
+    const landed = await readJourneySave(page);
+    expect(landed.player.progression.nautical.discoveredIslandIds).toContain("starfallAtoll");
+    expect(landed.codex.unlockedEntryIds).toContain("locationStarfallAtoll");
+    expect(landed.player.progression.nautical.ownedBoats[0]?.condition).toBe(47);
+    expect(await page.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(source);
+    await expectCleanLayout(page);
+    expect(errors).toEqual([]);
+    await closeDesktop(desktop);
+    desktop = await launchDesktop(directory);
+    const continued = await desktop.firstWindow();
+    const reloadErrors = monitorRendererErrors(continued);
+    await waitForState(continued, "BOOT | Screen: title");
+    await clickLayoutItem(continued, "title-continue");
+    await waitForState(continued, "[CITY:starfall_atoll:0]");
+    expect((await readJourneySave(continued)).player.progression.nautical.ownedBoats[0]?.condition).toBe(47);
     expect(await continued.evaluate(() => localStorage.getItem("2dnd_save_slot_manual-1"))).toBe(source);
     expect(reloadErrors).toEqual([]);
   } finally {

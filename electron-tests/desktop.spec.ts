@@ -401,12 +401,14 @@ test("secure desktop shell persists a campaign across launches", async () => {
       localStorage.getItem("2dnd_save_slot_manual-1")
     )).toBe(manualSnapshot);
 
-    await page.evaluate((raw) => {
+    const malformedSecondSnapshot = await page.evaluate((raw) => {
       localStorage.setItem("2dnd_save_slot_manual-2:staging", raw);
-      localStorage.setItem("2dnd_save_slot_manual-2", JSON.stringify({
+      const malformed = JSON.stringify({
         version: 18,
         player: { inventory: [] },
-      }));
+      });
+      localStorage.setItem("2dnd_save_slot_manual-2", malformed);
+      return malformed;
     }, secondSnapshot);
     expect(relaunchedRendererErrors).toEqual([]);
     await desktop.close();
@@ -426,10 +428,10 @@ test("secure desktop shell persists a campaign across launches", async () => {
     );
     expect(await page.evaluate(() =>
       localStorage.getItem("2dnd_save_slot_manual-2")
-    )).toBe(secondSnapshot);
+    )).toBe(malformedSecondSnapshot);
     expect(await page.evaluate(() =>
       localStorage.getItem("2dnd_save_slot_manual-2:staging")
-    )).toBeNull();
+    )).toBe(secondSnapshot);
     expect(await page.evaluate(() =>
       localStorage.getItem("2dnd_save_slot_manual-1")
     )).toBe(manualSnapshot);
@@ -453,6 +455,9 @@ test("secure desktop shell persists a campaign across launches", async () => {
     expect(await page.evaluate(() =>
       localStorage.getItem("2dnd_save_slot_manual-2")
     )).toBe(secondSnapshot);
+    expect(await page.evaluate(() =>
+      localStorage.getItem("2dnd_save_slot_manual-2:staging")
+    )).toBeNull();
     await returnToTitle(page);
     expect(recoveredRendererErrors).toEqual([]);
 

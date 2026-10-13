@@ -38,6 +38,7 @@ import type {
 } from "../data/quests";
 import type { PlayerState } from "./player";
 import { describeRewardAdjustment, getCampaignDifficultyRules, scaleReward } from "./difficulty";
+import { NEW_GAME_PLUS_LIFETIME_REWARD_IDS } from "../data/newGamePlus";
 
 export { createQuestLog, normalizeQuestLog, objectiveRequired };
 
@@ -208,6 +209,16 @@ function applyRewards(
     }
 
     let message = reward.message;
+    const lifetimeId = `${quest.id}/${reward.id}`;
+    const cycle = player.newGamePlus;
+    if (cycle && NEW_GAME_PLUS_LIFETIME_REWARD_IDS.includes(lifetimeId)) {
+      if (cycle.lifetimeRewardIds.includes(lifetimeId)) {
+        progress.claimedRewards.push(reward.id);
+        changed = true;
+        continue;
+      }
+      cycle.lifetimeRewardIds.push(lifetimeId);
+    }
     if (reward.type === "gold") {
       const amount = scaleReward(reward.amount, "gold", rules);
       player.gold += amount;

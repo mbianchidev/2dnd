@@ -50,6 +50,7 @@ export type SaveSlotState = "empty" | "valid" | "corrupt" | "unavailable";
 export type SaveCampaignStatus = "Prologue" | "In progress" | "Complete" | "Post-game";
 
 export interface SaveSlotMetadata {
+  cycle: number;
   slotId: SaveSlotId;
   slotName: string;
   characterName: string;
@@ -145,6 +146,7 @@ function deriveSlotMetadata(
   data: SaveData,
 ): SaveSlotMetadata {
   return {
+    cycle: data.player.newGamePlus?.cycle ?? 0,
     slotId,
     slotName,
     characterName: data.player.name,
@@ -167,9 +169,10 @@ function deriveSlotMetadata(
 function getSlotInfo(
   slotId: SaveSlotId,
   adapter: SaveSlotStorageAdapter,
+  readOnly = false,
 ): SaveSlotInfo {
   const displayName = slotDisplayName(slotId, adapter.getName(slotId));
-  const result = adapter.read(slotId, decodeStoredSave);
+  const result = readOnly ? adapter.inspect(slotId, decodeStoredSave) : adapter.read(slotId, decodeStoredSave);
   if (!result.ok) {
     return {
       slotId,
@@ -261,7 +264,7 @@ export function saveGameToSlot(
 }
 
 /** List autosave and every manual slot without changing the active campaign. */
-export function listSaveSlots(): SaveSlotInfo[] {
+export function listSaveSlots(readOnly = false): SaveSlotInfo[] {
   const storage = getSaveStorage();
   if (!storage) {
     return SAVE_SLOT_IDS.map((slotId) => ({
@@ -273,8 +276,8 @@ export function listSaveSlots(): SaveSlotInfo[] {
     }));
   }
   const adapter = new SaveSlotStorageAdapter(storage);
-  ensureSaveStorageMigrated(storage, adapter);
-  return SAVE_SLOT_IDS.map((slotId) => getSlotInfo(slotId, adapter));
+  if (!readOnly) ensureSaveStorageMigrated(storage, adapter);
+  return SAVE_SLOT_IDS.map((slotId) => getSlotInfo(slotId, adapter, readOnly));
 }
 
 /** Rename one manual slot without rewriting its campaign payload. */

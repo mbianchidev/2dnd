@@ -15,6 +15,7 @@ import type {
 } from "./reputation";
 import type { MinigameVenueId } from "./minigames";
 import { MINIGAME_WORLD_EVENTS } from "./minigameEvents";
+import { NEW_GAME_PLUS_WORLD_EVENTS } from "./newGamePlusContent";
 
 export const WORLD_EVENT_FAMILIES = [
   "shrine",
@@ -67,6 +68,7 @@ export interface WorldEventQuestCondition {
 }
 
 export interface WorldEventEligibility {
+  readonly minimumNewGamePlusCycle?: number;
   readonly terrains?: readonly Terrain[];
   readonly areaPrefixes?: readonly string[];
   readonly periods?: readonly TimePeriod[];
@@ -154,6 +156,7 @@ export const WORLD_EVENT_TRIGGER_RULES = {
 } as const;
 
 export const WORLD_EVENT_DEFINITIONS: readonly WorldEventDefinition[] = [
+  ...NEW_GAME_PLUS_WORLD_EVENTS,
   ...DEVOTION_WORLD_EVENTS,
   {
     id: "adriftChartCase",

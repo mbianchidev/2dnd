@@ -460,6 +460,7 @@ export function getCodexKnowledgeList(
     CODEX_KNOWLEDGE_CATEGORIES.map((category, index) => [category, index]),
   );
   const entries = CODEX_KNOWLEDGE_ENTRIES.filter((entry) => {
+    if (entry.hiddenUntilUnlocked && !isCodexKnowledgeUnlocked(codex, entry.id)) return false;
     if (query.category && entry.category !== query.category) return false;
     if (!normalizedSearch) return true;
     return [
@@ -619,9 +620,11 @@ export function getCodexEntries(bestiary: CodexData): CodexEntry[] {
 export function getCodexFamilyProgress(
   bestiary: CodexData,
   familyId: MonsterFamilyId,
+  cycle = Number.POSITIVE_INFINITY,
 ): CodexFamilyProgress {
   const family = getMonsterFamily(familyId);
-  const members = ALL_MONSTERS.filter((monster) => monster.family === familyId);
+  const members = ALL_MONSTERS.filter((monster) => monster.family === familyId
+    && (monster.minimumNewGamePlusCycle ?? 0) <= cycle);
   const discovered = members.filter(
     (monster) => monster.id in bestiary.entries,
   ).length;
@@ -635,9 +638,10 @@ export function getCodexFamilyProgress(
 
 export function getCodexFamilyProgressList(
   bestiary: CodexData,
+  cycle = Number.POSITIVE_INFINITY,
 ): CodexFamilyProgress[] {
   return MONSTER_FAMILIES.map((family) =>
-    getCodexFamilyProgress(bestiary, family.id)
+    getCodexFamilyProgress(bestiary, family.id, cycle)
   );
 }
 

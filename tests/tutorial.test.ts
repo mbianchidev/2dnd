@@ -87,6 +87,7 @@ describe("tutorial and tips", () => {
       hasTrapExperience: true,
       discoveredFeatureIds: new Set(FEATURE_IDS),
       difficultyProfileId: "standard",
+      newGamePlusCycle: 1,
     }).map((tip) => tip.id))
       .toEqual(TIPS.filter((tip) => tip.unlock.type !== "difficulty").map((tip) => tip.id));
   });

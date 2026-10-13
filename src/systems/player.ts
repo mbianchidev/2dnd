@@ -85,6 +85,7 @@ import {
 import { STANDARD_DIFFICULTY_SELECTION } from "../data/difficulty";
 import { createBattleTimingSettings } from "./battleTimingSettings";
 import type { BattleTimingSettings } from "../data/battleTiming";
+import type { NewGamePlusState } from "./newGamePlusState";
 
 export interface PlayerStats {
   strength: number;
@@ -162,6 +163,7 @@ export function isValidPointBuy(stats: PlayerStats): boolean {
 }
 
 export interface PlayerState {
+  newGamePlus: NewGamePlusState | null;
   name: string;
   level: number;
   classProgression: HeroClassProgression;
@@ -220,7 +222,7 @@ export type CombatActorState = Pick<
   | "equippedShield"
   | "appearanceId"
   | "activeEffects"
-> & { classProgression?: HeroClassProgression };
+> & { classProgression?: HeroClassProgression; newGamePlus?: NewGamePlusState | null };
 
 export type ProgressingActorState = CombatActorState & Pick<
   PlayerState,
@@ -286,6 +288,7 @@ export function createPlayer(
   const featureDiscovery = createFeatureDiscoveryProgress();
   const trapSeed = createTrapSeed();
   return {
+    newGamePlus: null,
     name,
     level: 1,
     classProgression: createHeroClassProgression(playerClass.id),

@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v26; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v27; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -52,7 +52,20 @@ relinking and preserves well-formed serialized item ownership.
 
 ## Current schema
 
-`SAVE_VERSION` is **26**. Schema v26 adds canonical `player.difficulty`: selected
+`SAVE_VERSION` is **27**. Schema v27 adds nullable validated NG+ cycle authority
+and registered epic ownership through total 30. Ordinary campaigns retain cap
+20. Older campaigns gain `newGamePlus: null`, without ranks, bonuses or history.
+Malformed/missing modern cycle metadata and illegal normal/epic rank aggregates
+reject the candidate. Frozen/rest/deferred grants, inventory links and all
+earlier domains remain unchanged. See [New Game+](new-game-plus.md) for every
+carry/reset rule and strictly non-writing source inspection.
+
+Starfall Atoll uses existing city-interior, nautical discovery, and fog fields;
+it adds no second cycle/access flag. The normalizer validates its required NG+
+authority and serviceable boat, removes ineligible discovery, and recovers
+unusable interiors to Willowdale without a refund or repair.
+
+Schema v26 adds canonical `player.difficulty`: selected
 profile, bounded Custom overrides, initial profile, lifetime change count, and
 at most 20 canonical causes. It stores no derived modifiers. Campaigns through
 v25 without difficulty retain Standard; valid v19 difficulty previews preserve

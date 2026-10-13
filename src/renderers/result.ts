@@ -16,6 +16,7 @@ import {
   type HeroTextureLease,
 } from "./heroTextures";
 import { getAccessibilityPreferences } from "../systems/accessibility";
+import { EndingSummaryRenderer } from "./endingSummary";
 
 export interface CampaignEndingChoiceCallbacks {
   continuePostGame: () => void;
@@ -42,6 +43,7 @@ export class ResultRenderer {
   private heroTextureLease: HeroTextureLease | null = null;
   private readonly heroDescriptor: HeroVisualDescriptor | null;
   private heroInspection = "";
+  private summaryRenderer: EndingSummaryRenderer | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -70,6 +72,7 @@ export class ResultRenderer {
   renderStep(
     step: CutsceneStep,
     summary: CampaignEndingSummary,
+    advance: () => void,
   ): void {
     this.clearContent();
     this.content = this.scene.add.container(0, 0).setDepth(2);
@@ -81,7 +84,7 @@ export class ResultRenderer {
       this.renderDialogue(step.speaker, step.text);
     } else if (step.type === "summary") {
       if (step.section === "devotion") this.renderDevotionSummary(step.heading, summary.devotion);
-      else this.renderSummary(step.heading, summary);
+      else this.renderSummary(step.heading, summary, advance);
     } else {
       this.renderCredits(step.lines);
     }
@@ -500,72 +503,25 @@ export class ResultRenderer {
   private renderSummary(
     heading: string,
     summary: CampaignEndingSummary,
+    advance: () => void,
   ): void {
-    const title = this.scene.add.text(
-      GAME_WIDTH / 2,
-      52,
-      heading.toUpperCase(),
-      {
-        fontSize: "21px",
-        fontFamily: "monospace",
-        color: "#ffe38a",
-        fontStyle: "bold",
-      },
-    ).setOrigin(0.5);
-    this.content!.add(title);
+    this.summaryRenderer = new EndingSummaryRenderer(this.scene, this.content!, heading, summary, advance);
+  }
 
-    const panels = this.scene.add.graphics();
-    panels.fillStyle(0x0d1229, 0.88);
-    panels.fillRoundedRect(28, 88, 282, 350, 10);
-    panels.fillRoundedRect(328, 88, 284, 350, 10);
-    panels.lineStyle(1, 0x8f96ba, 0.35);
-    panels.strokeRoundedRect(28, 88, 282, 350, 10);
-    panels.strokeRoundedRect(328, 88, 284, 350, 10);
-    this.content!.add(panels);
+  navigateSummary(direction: -1 | 1): boolean {
+    if (!this.summaryRenderer) return false;
+    this.summaryRenderer.navigate(direction);
+    return true;
+  }
 
-    const leftLines = [
-      "HERO",
-      summary.hero,
-      "",
-      "PARTY",
-      ...(summary.party.length > 1
-        ? summary.party.slice(1).map((member) => `- ${member}`)
-        : ["- No companions recruited"]),
-      "",
-      `CITIES: ${summary.discoveredCities.current}/${summary.discoveredCities.total}`,
-      `CODEX ENTRIES: ${summary.codexEntries}`,
-      `ALIGNMENT: ${summary.alignment}`,
-      `ROADWARDENS: ${summary.roadwardenStanding}`,
-      ...summary.pendingProgression.map((line) => `- ${line}`),
-    ];
-    const rightLines = [
-      "REWARDS",
-      ...summary.rewards.map((reward) => `- ${reward}`),
-      ...(summary.optionalBonuses.length > 0
-        ? ["", "OPTIONAL FEATS", ...summary.optionalBonuses.map((reward) => `- ${reward}`)]
-        : []),
-      "",
-      "KEYSTONE GUARDIANS",
-      ...summary.campaignBosses.map((boss) => `- ${boss}`),
-      "",
-      "LEGACY",
-      summary.epilogueVariant,
-    ];
-    const left = this.scene.add.text(52, 98, leftLines.join("\n"), {
-      fontSize: "11px",
-      fontFamily: "monospace",
-      color: "#dfe4ff",
-      lineSpacing: 4,
-      wordWrap: { width: 250, useAdvancedWrap: true },
-    });
-    const right = this.scene.add.text(340, 98, rightLines.join("\n"), {
-      fontSize: "11px",
-      fontFamily: "monospace",
-      color: "#dfe4ff",
-      lineSpacing: 4,
-      wordWrap: { width: 250, useAdvancedWrap: true },
-    });
-    this.content!.add([left, right]);
+  isSummaryOpen(): boolean {
+    return this.summaryRenderer !== null;
+  }
+
+  confirmSummary(): boolean {
+    if (!this.summaryRenderer) return false;
+    this.summaryRenderer.confirm();
+    return true;
   }
 
   private renderCredits(lines: readonly string[]): void {
@@ -622,6 +578,8 @@ export class ResultRenderer {
   }
 
   private clearContent(): void {
+    this.summaryRenderer?.destroy();
+    this.summaryRenderer = null;
     this.hintTween?.remove();
     this.hintTween = null;
     this.content?.destroy();

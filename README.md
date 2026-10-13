@@ -33,6 +33,11 @@ and campaign saves stay in your browser's local storage.
 - **Multiclass the hero:** choose qualified class levels at rest, preview frozen
   HP/MP and feature gains, and combine the existing classes within a total-level
   cap of 20. Starting identity stays fixed; companions remain single-class.
+- **Begin New Game+:** protect a completed manual snapshot, create a separate
+  replayable cycle, and advance to level 30 through shared-engine epic ranks.
+  Gear and character knowledge carry; the world resets. The completed source
+  stays unchanged. Discover the secret Starfall Atoll, reachable only in NG+.
+  See [New Game+](docs/new-game-plus.md) for the full policy.
 - **Choose an optional prestige path:** six original five-rank traditions build
   on class, score and world entry conditions without increasing the total cap,
   requiring affiliation, or taking away earned ranks after social changes.

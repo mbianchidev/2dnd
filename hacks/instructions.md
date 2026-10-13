@@ -16,6 +16,8 @@
   `npm run benchmark:baseline`. The harness reads canonical `SAVE_VERSION`
   from the campaign owner and asserts the generated save matches it; schema
   updates must never bypass or hardcode this measurement guard.
+  Character-creation actions use the registered layout IDs, not fixed stat/
+  appearance coordinates, so the receipt measures the current real UI.
 - `lib/git-provenance.mjs` shares commit/clean-tree/diff-hash collection between
   the performance harness and Steam receipts without following untracked
   symlinks outside the worktree.

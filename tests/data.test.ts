@@ -27,6 +27,7 @@ import {
   getCityShopAt,
 } from "../src/data/map";
 import { createPlayer } from "../src/systems/player";
+import { getIslandForCity } from "../src/data/nautical";
 import { useDungeonConnection } from "../src/systems/movement";
 import {
   MONSTERS,
@@ -956,6 +957,12 @@ describe("game data", () => {
     it("cities correspond to existing town locations", () => {
       const towns = getAllTowns();
       for (const city of CITIES) {
+        const island = getIslandForCity(city.id);
+        if (island?.minimumNewGamePlusCycle !== undefined) {
+          expect(island.cityId).toBe(city.id);
+          expect(getTerrainAt(city.chunkX, city.chunkY, city.tileX, city.tileY)).toBe(Terrain.Water);
+          continue;
+        }
         const town = towns.find(
           (t) => t.chunkX === city.chunkX && t.chunkY === city.chunkY && t.x === city.tileX && t.y === city.tileY
         );

@@ -182,7 +182,7 @@ export function normalizeGatheringState(
   value: unknown,
   sourceVersion: number,
 ): GatheringState {
-  if (sourceVersion < 14 || !isRecord(value)) return createGatheringState();
+  if (sourceVersion < 14 || !isRecord(value)) return createGatheringState(LEGACY_GATHERING_SEED);
   const seedValid = typeof value["seed"] === "number"
     && Number.isSafeInteger(value["seed"])
     && value["seed"] > 0;

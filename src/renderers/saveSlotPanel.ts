@@ -28,6 +28,7 @@ export interface SaveSlotPanelContent {
   statusColor: string;
   hint: string;
   confirmation: boolean;
+  pageLabel?: string;
   onBack(): void;
   onSelectRow(index: number): void;
 }
@@ -73,7 +74,8 @@ export function renderSaveSlotPanel(
   status.setAlign("center").setOrigin(0.5, 0);
   status.setPosition(px + panelW / 2, hint.y - 8 - status.displayHeight);
 
-  const actionColumns = content.confirmation ? 2 : Math.min(5, Math.max(1, Math.floor((width + 6) / 94)));
+  const actionColumns = content.confirmation ? 2
+    : Math.min(5, content.actions.length, Math.max(1, Math.floor((width + 6) / 94)));
   const cellWidth = (width - 6 * (actionColumns - 1)) / actionColumns;
   const actions = content.actions.map((action) => {
     const button = scene.add.text(0, 0, `${action.selected ? "▶ " : ""}${action.label}`, {
@@ -155,8 +157,9 @@ export function renderSaveSlotPanel(
       syncInteractiveHitArea(button);
       container.add(button);
     };
-    pager(-1, `‹ Slots ${pageIndex + 1}/${pages.length}`, 0);
-    pager(1, "More slots ›", width / 2);
+    const pageLabel = content.pageLabel ?? "Slots";
+    pager(-1, `‹ ${pageLabel} ${pageIndex + 1}/${pages.length}`, 0);
+    pager(1, `More ${pageLabel.toLowerCase()} ›`, width / 2);
   }
   return container;
 }

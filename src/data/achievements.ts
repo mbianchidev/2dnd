@@ -19,6 +19,7 @@ export const ACHIEVEMENT_CATEGORIES = [
 export type AchievementCategory = (typeof ACHIEVEMENT_CATEGORIES)[number];
 
 export const ACHIEVEMENT_IDS = [
+  "anotherCovenant", "epicRoadwarden", "echoTrial",
   "firstSealComplete",
   "stoneAndRootComplete",
   "winterWitnessComplete",
@@ -76,6 +77,7 @@ export const ACHIEVEMENT_IDS = [
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
 
 export const TITLE_IDS = [
+  "echoRoadwarden",
   "covenantRoadwarden",
   "unbroken",
   "deepdelver",
@@ -106,6 +108,9 @@ export type AchievementCounterKey =
   | "oneHitDefeats";
 
 export type AchievementCriteria =
+  | { readonly type: "newGamePlusEchoVictory" }
+  | { readonly type: "newGamePlusCompleted" }
+  | { readonly type: "epicTotal"; readonly minimum: number }
   | { readonly type: "prestigeRank"; readonly minimum: number }
   | {
     readonly type: "questStageCompleted";
@@ -279,6 +284,21 @@ export interface TitleDefinition {
 const MAIN_QUEST = "twelvefoldCovenant" as const;
 
 export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
+  {
+    id: "anotherCovenant", name: "Another Covenant", description: "Complete a natural New Game+ covenant through Elowen.",
+    category: "campaign", points: 30, criteria: { type: "newGamePlusCompleted" }, rewardTitleId: "echoRoadwarden",
+    source: { kind: "progression", authoritativeState: "Natural cycle and main quest completion" },
+  },
+  {
+    id: "epicRoadwarden", name: "Thirty Roads", description: "Reach applied total level 30 in natural New Game+.",
+    category: "collection", points: 30, criteria: { type: "epicTotal", minimum: 30 },
+    source: { kind: "progression", authoritativeState: "Owned total epic ranks" },
+  },
+  {
+    id: "echoTrial", name: "Unfinished Reflection", description: "Defeat the optional Covenant Echo in New Game+ post-game.",
+    category: "combat", points: 20, criteria: { type: "newGamePlusEchoVictory" },
+    source: { kind: "combat", authoritativeState: "Optional canonical elite defeat", targetIds: ["covenantEcho"] },
+  },
   {
     id: "constellationVisitor", name: "Room for Another Road",
     description: "Visit three Unfinished Constellation sites; no affiliation is required.",
@@ -626,7 +646,8 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     description: "Resolve every kind of World Event.",
     category: "world",
     points: 35,
-    criteria: { type: "worldEventsResolved", threshold: WORLD_EVENT_DEFINITIONS.length, unique: true },
+    criteria: { type: "worldEventsResolved",
+      threshold: WORLD_EVENT_DEFINITIONS.filter((event) => !event.eligibility.minimumNewGamePlusCycle).length, unique: true },
     rewardTitleId: "eventWitness",
     source: { kind: "worldEvent", authoritativeState: "World Event repeat counters" },
   },
@@ -777,6 +798,8 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
 ] as const;
 
 export const TITLES: readonly TitleDefinition[] = [
+  { id: "echoRoadwarden", name: "Echo Roadwarden", description: "A presentation-only title for another covenant.",
+    achievementId: "anotherCovenant" },
   {
     id: "threadkeeper", name: "Threadkeeper",
     description: "A cosmetic title for a freely kept thread.",

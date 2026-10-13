@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v26, slots, migration, normalization, and recovery
+description: Manage 2D&D save schema v27, slots, NG+ isolation, migration, normalization, and recovery
 license: MIT
 ---
 
@@ -52,7 +52,26 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 26.
+`SAVE_VERSION` is 27.
+
+Schema v27 adds nullable validated NG+ cycle metadata and the one registered
+epic rank map, total cap 30 only in NG+. Keep base/prestige allocation at most
+20. Missing/malformed modern cycle authority rejects a candidate; older saves
+gain null without ranks or historical grants. Preserve exact resources,
+frozen/rest/deferred credits, custom items and all prior domains.
+
+`newGamePlusSlots.ts` uses strictly non-writing detached primary/staging/backup/
+name inspection through the canonical decoder. Require snapshot-first manual
+protection, a distinct manual destination, exact source/target revalidation and
+once-only creation receipts. Autosave remains the active run; never route
+campaign writes to a protected source. Retire pending activities without
+refund/reroll/reward/wear restoration. See `docs/new-game-plus.md` for every
+carry/reset rule.
+
+Starfall Atoll stores no separate access flag. Validate its NG+ cycle and
+serviceable boat through existing city/nautical fields; remove ineligible
+island/city/fog discovery and recover unusable interiors to Willowdale without
+repairing hull condition or granting resources.
 
 Schema v26 owns `player.difficulty`: canonical selection, bounded Custom
 overrides, initial profile, lifetime change count, and at most 20 validated
@@ -465,7 +484,7 @@ to browsing before closing the manager.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v26 difficulty, battle timing, armor metadata, physical discovery, minigame authority, devotion,
+- Current schema-v27 NG+/epic, difficulty, battle timing, armor metadata, physical discovery, minigame authority, devotion,
   hero/base/prestige progression, playtime,
   position, objective/reward/warning quest state,
   skill checks,
@@ -494,7 +513,7 @@ to browsing before closing the manager.
 
 `e2e/save-slots.spec.ts` covers keyboard and touch slot management at 150% text;
 semantic-control coverage includes gamepad save creation.
-`electron-tests/desktop.spec.ts` creates a real schema-v26 campaign and manual
+`electron-tests/desktop.spec.ts` creates a real current-schema campaign and manual
 snapshot, relaunches with the same Electron user-data directory, and continues
 it from `app://2dnd`.
 

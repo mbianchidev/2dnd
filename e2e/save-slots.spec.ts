@@ -193,7 +193,7 @@ test("invalid imports preserve exact slot bytes and malformed cores recover afte
   await expect(page.locator("#save-slot-live-region")).toContainText("Manual Hero");
   expect(await page.evaluate(() =>
     localStorage.getItem("2dnd_save_slot_manual-1")
-  )).toBe(original);
+  )).toBe(malformed);
   expect(await page.evaluate(() =>
     localStorage.getItem("2dnd_save_slot_manual-2")
   )).toBe("{broken");

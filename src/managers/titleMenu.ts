@@ -1,7 +1,9 @@
 import * as Phaser from "phaser";
 import { createOverlayContainer } from "../utils/ui";
+import { layoutVerticalStack } from "../systems/layout";
 
 export type TitleMenuActionId =
+  | "newGamePlus"
   | "continue"
   | "newGame"
   | "saveSlots"
@@ -27,9 +29,12 @@ interface TitleMenuButton {
   action: TitleMenuAction;
   background: Phaser.GameObjects.Rectangle;
   label: Phaser.GameObjects.Text;
+  detail?: Phaser.GameObjects.Text;
+  hitZone: Phaser.GameObjects.Zone;
 }
 
 const ACTION_LAYOUT_IDS: Readonly<Record<TitleMenuActionId, string>> = {
+  newGamePlus: "title-new-game-plus",
   continue: "title-continue",
   newGame: "title-new-game",
   saveSlots: "title-save-slots",
@@ -42,6 +47,8 @@ const MENU_BOTTOM = 520;
 const BUTTON_WIDTH = 360;
 const MAX_BUTTON_HEIGHT = 64;
 const BUTTON_GAP = 4;
+const DETAIL_GAP = 2;
+const BUTTON_CONTENT_INSET = 1;
 
 export class TitleMenuManager {
   private container: Phaser.GameObjects.Container | null = null;
@@ -62,16 +69,27 @@ export class TitleMenuManager {
 
     const camera = this.scene.cameras.main;
     const availableHeight = MENU_BOTTOM - MENU_TOP;
-    const buttonHeight = Math.min(
-      MAX_BUTTON_HEIGHT,
-      (
-        availableHeight
-        - BUTTON_GAP * (this.options.actions.length - 1)
-      ) / this.options.actions.length,
+    this.buttons = this.options.actions.map((action, index) =>
+      this.createButton(action, index, camera.centerX),
     );
-    const menuHeight = buttonHeight * this.options.actions.length
-      + BUTTON_GAP * (this.options.actions.length - 1);
-    const startY = MENU_TOP + (availableHeight - menuHeight) / 2;
+    const contentHeights = this.buttons.map(({ label, detail }) =>
+      label.displayHeight + (detail ? DETAIL_GAP + detail.displayHeight : 0),
+    );
+    const minimumHeights = contentHeights.map((height) => height + BUTTON_CONTENT_INSET * 2);
+    const contentHeight = minimumHeights.reduce((total, height) => total + height, 0);
+    const gap = this.buttons.length > 1
+      ? Math.min(BUTTON_GAP, Math.max(0, (availableHeight - contentHeight) / (this.buttons.length - 1)))
+      : 0;
+    const spareHeight = Math.max(0, availableHeight - contentHeight - gap * (this.buttons.length - 1));
+    const rows = layoutVerticalStack(this.buttons.map(({ action }, index) => ({
+      id: action.id,
+      width: BUTTON_WIDTH,
+      height: Math.min(
+        Math.max(MAX_BUTTON_HEIGHT, minimumHeights[index]!),
+        minimumHeights[index]! + spareHeight / this.buttons.length,
+      ),
+    })), { x: camera.centerX - BUTTON_WIDTH / 2, gap });
+    const startY = MENU_TOP + (availableHeight - rows.height) / 2;
     const container = createOverlayContainer(
       this.scene,
       "title-menu",
@@ -80,14 +98,27 @@ export class TitleMenuManager {
         x: camera.centerX - BUTTON_WIDTH / 2,
         y: startY,
         width: BUTTON_WIDTH,
-        height: menuHeight,
+        height: rows.height,
       },
     );
     this.container = container;
-    this.buttons = this.options.actions.map((action, index) => {
-      const centerY = startY + buttonHeight / 2
-        + index * (buttonHeight + BUTTON_GAP);
-      return this.createButton(action, index, camera.centerX, centerY, buttonHeight);
+    this.buttons.forEach((button, index) => {
+      const row = rows.items[index]!;
+      const top = startY + row.y;
+      const centerY = top + row.height / 2;
+      const contentTop = top + (row.height - contentHeights[index]!) / 2;
+      button.background.setPosition(camera.centerX, centerY).setSize(BUTTON_WIDTH, row.height);
+      button.label.setY(contentTop + button.label.displayHeight / 2);
+      button.detail?.setY(contentTop + button.label.displayHeight + DETAIL_GAP + button.detail.displayHeight / 2);
+      button.hitZone.setPosition(camera.centerX, centerY).setSize(BUTTON_WIDTH, row.height);
+      if (button.hitZone.input) {
+        button.hitZone.input.hitArea = new Phaser.Geom.Rectangle(0, 0, BUTTON_WIDTH, row.height);
+        button.hitZone.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
+      }
+      container.add([
+        button.background, button.label,
+        ...(button.detail ? [button.detail] : []), button.hitZone,
+      ]);
     });
     this.selectedIndex = 0;
     this.updateSelection();
@@ -110,20 +141,18 @@ export class TitleMenuManager {
     action: TitleMenuAction,
     index: number,
     x: number,
-    y: number,
-    height: number,
   ): TitleMenuButton {
     const background = this.scene.add.rectangle(
       x,
-      y,
+      0,
       BUTTON_WIDTH,
-      height,
+      1,
       0x171c32,
       0.94,
     ).setStrokeStyle(1, 0x59627c, 1);
     const label = this.scene.add.text(
       x,
-      action.detail ? y - 9 : y,
+      0,
       action.label,
       {
         fontSize: action.detail ? "18px" : "17px",
@@ -135,32 +164,26 @@ export class TitleMenuManager {
     label.setData("layoutId", ACTION_LAYOUT_IDS[action.id]);
     label.setData("testId", ACTION_LAYOUT_IDS[action.id]);
 
-    const objects: Phaser.GameObjects.GameObject[] = [background, label];
-    if (action.detail) {
-      const detail = this.scene.add.text(x, y + 15, action.detail, {
-        fontSize: "9px",
-        fontFamily: "monospace",
-        color: "#8d96ac",
-        align: "center",
-      }).setOrigin(0.5);
-      detail.setData("layoutAuditIgnore", true);
-      objects.push(detail);
-    }
+    const detail = action.detail ? this.scene.add.text(x, 0, action.detail, {
+      fontSize: "9px",
+      fontFamily: "monospace",
+      color: "#8d96ac",
+      align: "center",
+      wordWrap: { width: BUTTON_WIDTH - 12, useAdvancedWrap: true },
+    }).setOrigin(0.5).setData("layoutId", `${ACTION_LAYOUT_IDS[action.id]}-detail`) : undefined;
 
     const hitZone = this.scene.add.zone(
       x,
-      y,
+      0,
       BUTTON_WIDTH,
-      height,
+      1,
     ).setInteractive({ useHandCursor: true });
     hitZone.on("pointerover", () => this.select(index));
     hitZone.on("pointerdown", () => {
       this.select(index);
       this.activateSelected();
     });
-    objects.push(hitZone);
-    this.container?.add(objects);
-    return { action, background, label };
+    return { action, background, label, detail, hitZone };
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {

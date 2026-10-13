@@ -312,6 +312,18 @@ export function getAchievementProgress(
   let target = 1;
 
   switch (criteria.type) {
+    case "newGamePlusEchoVictory":
+      current = player.newGamePlus && !player.newGamePlus.debug
+        && (codex.entries.covenantEcho?.timesDefeated ?? 0) > 0 ? 1 : 0;
+      break;
+    case "newGamePlusCompleted":
+      current = player.newGamePlus && !player.newGamePlus.debug
+        && isQuestCompleted(player.progression.quests, "twelvefoldCovenant") ? 1 : 0;
+      break;
+    case "epicTotal":
+      target = criteria.minimum;
+      current = player.newGamePlus && !player.newGamePlus.debug ? player.level : 0;
+      break;
     case "prestigeRank":
       target = criteria.minimum;
       current = Math.max(0, ...PRESTIGE_PATHS
@@ -385,7 +397,7 @@ export function getAchievementProgress(
       break;
     case "codexFamiliesCompleted":
       target = criteria.threshold;
-      current = getCodexFamilyProgressList(codex).filter(
+      current = getCodexFamilyProgressList(codex, player.newGamePlus?.cycle ?? 0).filter(
         (family) => family.complete,
       ).length;
       break;

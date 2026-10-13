@@ -305,7 +305,7 @@ interface PlayerProgression {
 Access fields through `player.position` and `player.progression`.
 `player.activeEffects` stores normalized combat effects.
 `player.classProgression` owns the fixed starting class, base-class ranks,
-reserved empty external ranks, rest-ready levels, one frozen HP/MP receipt, and
+registered prestige/NG+-epic ranks, rest-ready levels, one frozen HP/MP receipt, and
 canonical legacy grant metadata. The flat `level` mirrors the owned-rank sum.
 Normalize through `classProgressionState.ts`; qualify/preview/commit through
 `classProgression.ts`. Never infer class identity from later appearance changes.
@@ -517,8 +517,40 @@ Flow:
 - `E` then `Tab` and the visible equipment/hero-party links open progression.
   Support semantic multi-input, measured pagination, 150% text, high contrast,
   reduced motion, cleanup, and keyup confirmation before exploration resumes.
-- Static external-profile hooks are not shipped prestige, epic or NG+ content.
-  Future domains must use the merged engine, not copy XP/rest/grant logic.
+- Static registered prestige and NG+-epic profiles use the merged engine.
+  Future domains must not copy XP/rest/grant logic.
+
+### New Game+ and epic progression
+
+- `newGamePlus.ts` owns deterministic detached carry/reset, `newGamePlusState.ts`
+  validates schema-v27 cycle authority, `newGamePlusSlots.ts` owns exact-byte
+  source/target transactions and `newGamePlusScaling.ts` supplies one bounded
+  immutable difficulty layer. See `docs/new-game-plus.md`.
+- Require a completed manual snapshot and distinct manual destination.
+  Completed Autosave needs an explicit snapshot-first step. Inspect detached
+  canonical candidates without restoration/migration/name/playtime writes;
+  recheck exact tokens, never evict a slot or rewind an idempotent played child.
+  Autosave remains the normal active-run owner, not campaign-specific routing.
+- Carry character/rank/XP/resource maxima, frozen/rest/deferred/legacy grants,
+  gear/equipment links, companions, permanent knowledge and claim ledgers.
+  Reset the world and canonical main quest; retire pending activities without
+  refund, reroll, payout or hull repair. Carry alignment and permanent devotion;
+  reset town/faction standing. Preserve debug provenance and difficulty history.
+- Base/prestige ownership stays at most 20. NG+-only `epic:roadwarden` adds ten
+  ranks through the existing engine to total 30, d8/CON HP and shared INT MP.
+  ASIs occur at 22/26/30; scoped boons apply once at 21/25/29. No extra action,
+  starter grant, equipment permission or quest access. Rebind companion policy
+  to the new campaign at load/clone; serialize no duplicate cap.
+- Cycles cap at 99 and scaling saturates at five. Apply the difficulty layer
+  once through canonical enemy/reward/cost/encounter helpers, preserve original
+  Codex definitions and final rate/party limits. Optional echoes never replace
+  a required boss or canonical final Elowen interaction.
+- Starfall Atoll is NG+-only. Immutable island/dock metadata and its procedural
+  interior reuse existing world IDs and city state; `islandAccess.ts` validates
+  cycle authority and `systems/islands.ts` owns fresh boat/dock entry and exit.
+  Ordinary terrain stays Water, hidden markers have no extra hit target, and
+  no merchant/fast-travel route enters it. Recover ineligible saved interiors
+  and discovery without repairing boats or replaying rewards.
 
 ## Combat
 
@@ -968,7 +1000,14 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 26.
+Save schema version is 27.
+
+Schema v27 adds nullable validated `player.newGamePlus`, bounded cycle/parent,
+stable request/cycle identity, fingerprint/timestamp/policy, finite lifetime
+reward IDs and debug provenance. Older saves gain null without invented ranks
+or history. Malformed/missing modern authority and overcap normal/epic rank
+aggregates reject for isolated recovery. Preserve frozen/rest/deferred grants,
+custom gear, exact equipment links and every earlier domain.
 
 Schema v26 adds `player.difficulty`: canonical selected profile, bounded Custom
 overrides, initial profile ID, lifetime change count, and up to 20 canonical
@@ -1211,7 +1250,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v26
+  visibility, handedness, and prompt source only; they never enter schema-v27
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

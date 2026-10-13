@@ -25,6 +25,7 @@ export interface MonsterAbility {
 }
 
 export interface Monster {
+  minimumNewGamePlusCycle?: number;
   id: string;
   name: string;
   family: MonsterFamilyId;

@@ -39,8 +39,12 @@ interface EndingKeys {
   ESC: Phaser.Input.Keyboard.Key;
   UP: Phaser.Input.Keyboard.Key;
   DOWN: Phaser.Input.Keyboard.Key;
+  LEFT: Phaser.Input.Keyboard.Key;
+  RIGHT: Phaser.Input.Keyboard.Key;
   W: Phaser.Input.Keyboard.Key;
   S: Phaser.Input.Keyboard.Key;
+  A: Phaser.Input.Keyboard.Key;
+  D: Phaser.Input.Keyboard.Key;
 }
 
 export class EndingScene extends Phaser.Scene {
@@ -102,14 +106,20 @@ export class EndingScene extends Phaser.Scene {
       ESC: Phaser.Input.Keyboard.KeyCodes.ESC,
       UP: Phaser.Input.Keyboard.KeyCodes.UP,
       DOWN: Phaser.Input.Keyboard.KeyCodes.DOWN,
+      LEFT: Phaser.Input.Keyboard.KeyCodes.LEFT,
+      RIGHT: Phaser.Input.Keyboard.KeyCodes.RIGHT,
       W: Phaser.Input.Keyboard.KeyCodes.W,
       S: Phaser.Input.Keyboard.KeyCodes.S,
+      A: Phaser.Input.Keyboard.KeyCodes.A,
+      D: Phaser.Input.Keyboard.KeyCodes.D,
     }) as EndingKeys;
     this.endingRenderer.createAdvanceZone().on("pointerdown", () => {
-      if (this.time.now >= this.inputReadyAt) this.advanceCutscene(summary);
+      if (this.time.now >= this.inputReadyAt && !this.endingRenderer.isSummaryOpen()) {
+        this.advanceCutscene(summary);
+      }
     });
     this.inputReadyAt = this.time.now + INPUT_GRACE_MS;
-    this.endingRenderer.renderStep(this.director.currentStep, summary);
+    this.endingRenderer.renderStep(this.director.currentStep, summary, () => this.advanceCutscene(summary));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.director.destroy();
       this.endingRenderer.destroy();
@@ -126,6 +136,14 @@ export class EndingScene extends Phaser.Scene {
       return;
     }
 
+    if (Phaser.Input.Keyboard.JustDown(this.keys.LEFT) || Phaser.Input.Keyboard.JustDown(this.keys.A)) {
+      this.endingRenderer.navigateSummary(-1);
+      return;
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.RIGHT) || Phaser.Input.Keyboard.JustDown(this.keys.D)) {
+      this.endingRenderer.navigateSummary(1);
+      return;
+    }
     if (Phaser.Input.Keyboard.JustDown(this.keys.ESC)) {
       this.director.skip();
       return;
@@ -134,6 +152,7 @@ export class EndingScene extends Phaser.Scene {
       Phaser.Input.Keyboard.JustDown(this.keys.SPACE)
       || Phaser.Input.Keyboard.JustDown(this.keys.ENTER)
     ) {
+      if (this.endingRenderer.confirmSummary()) return;
       const summary = buildCampaignEndingSummary(
         this.sceneData.player,
         this.sceneData.defeatedBosses,
@@ -149,7 +168,7 @@ export class EndingScene extends Phaser.Scene {
     if (this.showingChoices || this.director.completed) return;
     const completed = this.director.advance();
     if (!completed) {
-      this.endingRenderer.renderStep(this.director.currentStep, summary);
+      this.endingRenderer.renderStep(this.director.currentStep, summary, () => this.advanceCutscene(summary));
       this.updateDebugPanel();
     }
   }
@@ -222,6 +241,9 @@ export class EndingScene extends Phaser.Scene {
         this.sceneData.defeatedBosses,
         this.sceneData.codex,
       ),
+      () => this.advanceCutscene(buildCampaignEndingSummary(
+        this.sceneData.player, this.sceneData.defeatedBosses, this.sceneData.codex,
+      )),
     );
     this.updateDebugPanel();
   }

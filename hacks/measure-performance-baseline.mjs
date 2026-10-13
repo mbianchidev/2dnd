@@ -398,14 +398,26 @@ async function measureStartup(browser, url, rawSave) {
   }
 }
 
-async function clickGame(page, gameX, gameY) {
+async function clickLayoutItem(page, id) {
+  await page.waitForFunction((layoutId) => {
+    const report = document.getElementById("layout-report")?.textContent;
+    if (!report) return false;
+    return Object.values(JSON.parse(report).groups)
+      .some((group) => group.items.some((item) => item.id === layoutId));
+  }, id);
+  const point = await page.evaluate((layoutId) => {
+    const report = JSON.parse(document.getElementById("layout-report").textContent);
+    const item = Object.values(report.groups).flatMap((group) => group.items)
+      .find((candidate) => candidate.id === layoutId);
+    return { x: item.bounds.x + item.bounds.width / 2, y: item.bounds.y + item.bounds.height / 2 };
+  }, id);
   const canvas = page.locator("#game-container canvas");
   await canvas.waitFor({ state: "visible" });
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Game canvas has no rendered bounds");
   await page.mouse.click(
-    bounds.x + (gameX / 640) * bounds.width,
-    bounds.y + (gameY / 528) * bounds.height,
+    bounds.x + (point.x / 640) * bounds.width,
+    bounds.y + (point.y / 528) * bounds.height,
   );
 }
 
@@ -427,15 +439,15 @@ async function createFreshSave(browser, url) {
     await client.send("Network.setCacheDisabled", { cacheDisabled: true });
     await page.goto(url, { waitUntil: "domcontentloaded" });
     await waitForState(page, "BOOT | Screen: title");
-    await clickGame(page, 320, 324);
+    await clickLayoutItem(page, "title-new-game");
     await waitForState(page, "BOOT | Screen: character");
     await page.waitForTimeout(100);
     await page.keyboard.press("Enter");
     await waitForState(page, "BOOT | Screen: stats");
-    await clickGame(page, 390, 64);
-    await clickGame(page, 400, 460);
+    await clickLayoutItem(page, "creation-stat-mode-random");
+    await clickLayoutItem(page, "creation-stats-next");
     await waitForState(page, "BOOT | Screen: appearance");
-    await clickGame(page, 420, 312);
+    await clickLayoutItem(page, "appearance-start");
     await waitForState(page, "CUTSCENE | campaign.opening");
 
     return await page.evaluate(

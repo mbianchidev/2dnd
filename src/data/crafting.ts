@@ -1,5 +1,6 @@
 import type { MaterialCategory } from "./gathering";
 import type { QuestId } from "./quests";
+import { NEW_GAME_PLUS_RECIPE } from "./newGamePlusContent";
 
 export const CRAFTING_CATEGORIES = [
   "consumable",
@@ -16,6 +17,7 @@ export const CRAFTING_STATIONS = ["forge"] as const;
 export type CraftingStation = (typeof CRAFTING_STATIONS)[number];
 
 export const CRAFTING_RECIPE_IDS = [
+  "echoDawnforgedBlade",
   "fieldPotion",
   "antidotePoultice",
   "battleSalves",
@@ -107,6 +109,7 @@ export interface CraftingRecipe {
 }
 
 export const CRAFTING_RECIPES: readonly CraftingRecipe[] = [
+  NEW_GAME_PLUS_RECIPE,
   {
     id: "navigationSupplies",
     name: "Navigation Supplies",

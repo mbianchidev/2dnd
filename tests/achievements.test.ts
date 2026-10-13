@@ -84,7 +84,9 @@ describe("achievement definitions", () => {
     ).toMatchObject({ threshold: MONSTER_FAMILIES.length });
     expect(
       getAchievement("worldEventMaster").criteria,
-    ).toMatchObject({ threshold: WORLD_EVENT_DEFINITIONS.length });
+    ).toMatchObject({
+      threshold: WORLD_EVENT_DEFINITIONS.filter((event) => !event.eligibility.minimumNewGamePlusCycle).length,
+    });
   });
 });
 

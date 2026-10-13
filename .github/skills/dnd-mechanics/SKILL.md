@@ -322,6 +322,11 @@ victory/flee/defeat autosave, so result-delay reload cannot resurrect statuses.
 
 ## Leveling
 
+- NG+-only Epic Roadwarden ranks use the same frozen/rest/grant engine for
+  totals 21-30; normal base/prestige ownership still totals at most 20.
+  HP uses d8/CON, MP the existing INT pool; proficiency reaches 7/8/9 at
+  21/25/29. Two ASI points at 22/26/30 and scoped once-only HP/MP/damage boons
+  at 21/25/29 create no extra action or starting grant. See `docs/new-game-plus.md`.
 - Proficiency increases at levels 5, 9, 13, and 17.
 - Ability score improvements occur once at total levels 4, 8, 12, 16, and 19.
 - Common talents/proficiency use total level; restricted actions/talents use

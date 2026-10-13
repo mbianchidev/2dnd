@@ -14,6 +14,8 @@ import {
   hasSave,
   loadGame,
   saveGame,
+  reportSaveFailure,
+  type SaveActionResult,
   type SaveSlotId,
 } from "../systems/save";
 import { createCodex } from "../systems/codex";
@@ -41,6 +43,8 @@ import {
 import { openMobileTextInput } from "../managers/input";
 import { FACE_BUTTON_ICONS, getInputPromptSource } from "../systems/input";
 import { SaveSlotManager } from "../managers/saveSlots";
+import { NewGamePlusManager } from "../managers/newGamePlus";
+import { listSaveSlots } from "../systems/saveSlots";
 import {
   TitleMenuManager,
   type TitleMenuAction,
@@ -75,6 +79,7 @@ interface CharacterStatSelection {
 export class BootScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
   private saveSlotManager!: SaveSlotManager;
+  private newGamePlusManager!: NewGamePlusManager;
   private titleMenuManager: TitleMenuManager | null = null;
   private titleSettingsContainer: Phaser.GameObjects.Container | null = null;
   private difficultyManager!: DifficultyOverlayManager;
@@ -108,7 +113,13 @@ export class BootScene extends Phaser.Scene {
     );
     performance.clearMarks(BOOT_TEXTURE_START_MARK);
     performance.clearMarks(BOOT_TEXTURE_END_MARK);
+    this.newGamePlusManager = new NewGamePlusManager(this,
+      (slotId) => this.continueGame(slotId), () => this.updateTitleDebugState());
     this.saveSlotManager = new SaveSlotManager(this, {
+      newGamePlus: (slotId) => {
+        this.saveSlotManager.close();
+        this.newGamePlusManager.open(slotId);
+      },
       load: (slotId) => this.continueGame(slotId),
       save: () => ({
         ok: false,
@@ -120,6 +131,7 @@ export class BootScene extends Phaser.Scene {
     this.events.once("shutdown", () => {
       this.titleMenuManager?.destroy();
       this.saveSlotManager.destroy();
+      this.newGamePlusManager.close();
       this.characterAppearanceManager?.destroy();
       this.characterAppearanceManager = null;
       this.unsubscribeCreationReflow?.();
@@ -282,6 +294,13 @@ export class BootScene extends Phaser.Scene {
         activate: () => this.showTitleSettings(),
       },
     );
+    if (listSaveSlots(true).some((slot) => slot.metadata?.campaignStatus === "Complete"
+      || slot.metadata?.campaignStatus === "Post-game")) {
+      actions.splice(saveExists ? 2 : 1, 0, {
+        id: "newGamePlus", label: "New Game+", color: "#ffcc80",
+        activate: () => this.newGamePlusManager.open(),
+      });
+    }
 
     if (window.desktop) {
       actions.push({
@@ -297,6 +316,7 @@ export class BootScene extends Phaser.Scene {
       actions,
       canActivate: () =>
         !this.saveSlotManager.isOpen()
+        && !this.newGamePlusManager.isOpen()
         && !this.titleSettingsContainer
         && !this.sceneTransitions.isPending,
       onSelectionChange: () => this.updateTitleDebugState(),
@@ -309,7 +329,8 @@ export class BootScene extends Phaser.Scene {
     debugPanelState(
       `BOOT | Screen: title`
       + `${selectedAction ? ` [TITLE_ACTION:${selectedAction}]` : ""}`
-      + `${this.saveSlotManager?.getDebugState() ?? ""}`,
+      + `${this.saveSlotManager?.getDebugState() ?? ""}`
+      + `${this.newGamePlusManager?.getDebugState() ?? ""}`,
     );
   }
 
@@ -372,15 +393,15 @@ export class BootScene extends Phaser.Scene {
     container.add(hint);
   }
 
-  private continueGame(slotId: SaveSlotId = "autosave"): void {
-    if (this.sceneTransitions.isPending) return;
+  private continueGame(slotId: SaveSlotId = "autosave"): SaveActionResult {
+    if (this.sceneTransitions.isPending) return { ok: false, code: "invalid", message: "A handoff is already pending." };
     const save = loadGame(slotId);
-    if (!save) return;
+    if (!save) return reportSaveFailure("not-found", "The selected campaign has no valid recovery copy.");
     const defeatedBosses = new Set(save.defeatedBosses);
     const weatherState = save.weatherState ?? createWeatherState();
     const timeStep = save.timeStep ?? 0;
     const pendingCutsceneId = getNextPendingCutscene(save.player.progression);
-    saveGame(
+    const saved = saveGame(
       save.player,
       defeatedBosses,
       save.codex,
@@ -388,6 +409,7 @@ export class BootScene extends Phaser.Scene {
       timeStep,
       weatherState,
     );
+    if (!saved.ok) return saved;
     this.sceneTransitions.startWithFade(() => {
       const state = {
         player: save.player,
@@ -416,6 +438,7 @@ export class BootScene extends Phaser.Scene {
       duration: 500,
       label: "continue game",
     });
+    return saved;
   }
 
   private showCharacterCreation(

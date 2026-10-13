@@ -20,7 +20,7 @@ displays, not the user's host.
 
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
-schema-v26 autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
+current-schema autosave/manual-slot creation/relaunch/continue, Save & Return to Title, title-screen
 quit, bounded lifecycle logs, and renderer error cleanliness.
 `electron-tests/saveParity.spec.ts` additionally downloads a real browser slot
 export and imports it through the native renderer's file picker. Assert the same
@@ -45,6 +45,14 @@ actual depot payload inspection belongs to the native packaging matrix.
 Keep preview generation separate from protected upload and public release.
 
 ## Testing Philosophy
+
+NG+ coverage owns the complete carry/reset matrix, exact source sidecars,
+snapshot-first selection, stale/occupied/quota/retry cases, activity retirement,
+legacy/corrupt cycle metadata, all 21-30 thresholds and six prestige/multiclass
+compositions. Browser/compiled Electron journeys must use actual NPC dialogue,
+all three keystone battles and final Elowen interaction, not final-stage setters
+or instant victory. Disclose checkpoint travel acceleration, preserve source
+bytes and validate supported controls/text scales. See `docs/new-game-plus.md`.
 
 Difficulty coverage must retain the pre-change Standard golden matrix, validate
 every bounded Custom field, prove neutral/future-scale odd-value rounding with
@@ -728,7 +736,7 @@ npx vitest run tests/dice.test.ts
 - Assert `location.origin === "app://2dnd"`, the `game.html` entry, and the
   fullscreen bridge shape.
 - Create a character through production controls, then close and relaunch the
-  shell, create a manual snapshot, and continue the same schema-v26 campaign.
+  shell, create a manual snapshot, and continue the same current-schema campaign.
 - Return to title through the keyboard menu, quit through the visible title
   action, and verify lifecycle/quit logs without save-content leakage.
 - Run on macOS, Windows, and Linux CI; use Xvfb only on Linux.

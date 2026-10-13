@@ -3,6 +3,7 @@
  */
 
 import * as Phaser from "phaser";
+import { getNextLevelXP } from "../systems/classProgression";
 import { registerLayoutGroup } from "../managers/layout";
 import type { Monster, MonsterAbility } from "../data/monsters";
 import { getMonsterTextureKey } from "../data/monsterFamilies";
@@ -2173,7 +2174,7 @@ export class BattleScene extends Phaser.Scene {
       `Aim: ${this.bodyTargetManager.isOpen ? this.bodyTargetManager.selectedPart?.id ?? "whole" : "-"} | ` +
       `Monsters: ${monsters} | ` +
       `Player: HP ${p.hp}/${p.maxHp} MP ${p.mp}/${p.maxMp} AC ${getArmorClass(p)}${defInfo} | ` +
-      `Lv.${p.level} XP ${p.xp}/${xpForLevel(p.level + 1)} Gold ${p.gold}\n` +
+      `Lv.${p.level} XP ${p.xp}/${getNextLevelXP(p) ?? "MAX"} Gold ${p.gold}\n` +
       `Cheats: K=Kill H=Heal P=MP G=+100Gold L=LvUp X=MaxXP`
     );
   }

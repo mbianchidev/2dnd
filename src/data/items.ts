@@ -3,6 +3,7 @@
  */
 
 import { Element } from "./elements";
+import { NEW_GAME_PLUS_ITEMS } from "./newGamePlusContent";
 import { PhysicalDamageType } from "./damageTypes";
 export { getArmorPhysicalProfile, getItemDescription, getWeaponPhysicalDamageType } from "./itemCombat";
 import type {
@@ -63,6 +64,7 @@ export interface Item {
 }
 
 export const ITEMS: Item[] = [
+  ...NEW_GAME_PLUS_ITEMS,
   {
     id: "potion",
     name: "Healing Potion",

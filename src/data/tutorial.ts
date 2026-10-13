@@ -51,6 +51,7 @@ export interface TutorialStep {
 }
 
 export type TipUnlock =
+  | { type: "newGamePlus" }
   | { type: "always" }
   | { type: "level"; minimum: number }
   | { type: "companion" }
@@ -273,6 +274,22 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
 ];
 
 export const TIPS: readonly TipDefinition[] = [
+  {
+    id: "newGamePlusCycle", category: "advanced", title: "An independent New Game+ road",
+    body: "Carry your hero, gear, party and learned records; replay the seven chapters and real Elowen return. "
+      + "The completed manual source stays safe while Autosave tracks this run. Cycle scaling saturates at cycle 5; "
+      + "NG+ supports 99 cycles. Unique permanent grants never repeat. Echo events and post-game trial are optional. "
+      + "A serviceable boat can find secret Starfall Atoll; its shore never opens a campaign gate.",
+    unlock: { type: "newGamePlus" },
+  },
+  {
+    id: "epicRanks", category: "advanced", title: "Epic Roadwarden ranks",
+    body: "After applied total 20 in NG+, rested XP advances ten shared-engine epic ranks, not base or prestige ranks. "
+      + "Each gives d8/CON HP and normal shared INT MP. ASIs give two points at 22, 26 and 30; scores cap at 30. "
+      + "Resolve, Focus and Edge grant once at ranks 1, 5 and 9. Frozen rolls/rest credits survive reload. "
+      + "Total cap 30; proficiency uses total level once. No extra action or starting boosts.",
+    controls: ["equipment"], unlock: { type: "newGamePlus" },
+  },
   {
     id: "exploration.minigames", category: "exploration",
     title: "Tavern and festival games",

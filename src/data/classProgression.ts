@@ -6,6 +6,7 @@ import type { CombatActorState, PlayerStats } from "../systems/player";
 import type { QuestId } from "./quests";
 import type { AlignmentAxis, AlignmentName, FactionId, TownId } from "./reputation";
 import { PRESTIGE_PATHS } from "./prestige";
+import { EPIC_PROFILE, EPIC_TRACK_ID } from "./epicProgression";
 
 export const BASE_CLASS_IDS = [
   "knight", "ranger", "wizard", "sorcerer", "rogue", "paladin",
@@ -13,7 +14,7 @@ export const BASE_CLASS_IDS = [
 ] as const;
 
 export type BaseClassId = typeof BASE_CLASS_IDS[number];
-export type ExternalProgressionTrackId = `prestige:${string}`;
+export type ExternalProgressionTrackId = `prestige:${string}` | typeof EPIC_TRACK_ID;
 export type ProgressionTrackId = BaseClassId | ExternalProgressionTrackId;
 export type ProgressionFeatureKind = "spell" | "ability" | "talent";
 export type EquipmentPermission = "weapon" | "armor" | "shield";
@@ -56,7 +57,7 @@ export interface ProgressionFeatureGrant {
 
 export interface ProgressionTrackProfile {
   readonly id: ProgressionTrackId;
-  readonly kind: "base" | "prestige";
+  readonly kind: "base" | "prestige" | "epic";
   readonly label: string;
   readonly maxRank: number;
   readonly primaryStat: keyof PlayerStats;
@@ -150,7 +151,7 @@ export const BASE_CLASS_PROFILES: readonly ProgressionTrackProfile[] = Object.fr
 
 /** Canonical static profiles share one level, grant and resource engine. */
 export const PROGRESSION_PROFILES: readonly ProgressionTrackProfile[] = Object.freeze([
-  ...BASE_CLASS_PROFILES, ...PRESTIGE_PATHS,
+  ...BASE_CLASS_PROFILES, ...PRESTIGE_PATHS, EPIC_PROFILE,
 ]);
 export const DEFAULT_PROGRESSION_CONTEXT: HeroProgressionContext = {
   profiles: PROGRESSION_PROFILES,
@@ -161,7 +162,8 @@ export function isBaseClassId(value: unknown): value is BaseClassId {
 }
 
 export function isExternalProgressionTrackId(value: unknown): value is ExternalProgressionTrackId {
-  return typeof value === "string" && /^prestige:[a-z][a-zA-Z0-9]*$/.test(value);
+  return value === EPIC_TRACK_ID
+    || (typeof value === "string" && /^prestige:[a-z][a-zA-Z0-9]*$/.test(value));
 }
 
 export function getProgressionProfile(

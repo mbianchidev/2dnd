@@ -62,7 +62,7 @@ afterEach(() => vi.restoreAllMocks());
 describe("Standard baseline captured from main 183954b", () => {
   it("preserves every canonical enemy attack, ability, reward and group value", () => {
     const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
-    const matrix = ALL_MONSTERS.map((monster) => {
+    const matrix = ALL_MONSTERS.filter((monster) => !monster.minimumNewGamePlusCycle).map((monster) => {
       const outcomes = [0, 0.45, 0.95].map((roll) => {
         random.mockReturnValue(roll);
         const player = makePlayer();

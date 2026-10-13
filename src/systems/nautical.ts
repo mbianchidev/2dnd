@@ -44,6 +44,8 @@ import { getEncounterMultiplier, getTimePeriod, isNightTime } from "./daynight";
 import { applyNonlethalDamage, resolveSkillCheck } from "./skillChecks";
 import { WeatherType, getWeatherEncounterMultiplier } from "./weather";
 import type { PlayerPosition, PlayerStats } from "./player";
+import type { NewGamePlusState } from "./newGamePlusState";
+import { getNewGamePlusScale } from "./newGamePlusScaling";
 import {
   NAUTICAL_ID_HISTORY_LIMIT,
   NAUTICAL_SEA_TILE_LIMIT,
@@ -120,6 +122,7 @@ export interface WeightedSeaMonster {
 }
 
 export interface SeaEncounterContext {
+  newGamePlus?: NewGamePlusState | null;
   zoneId: SeaZoneId;
   depth: SeaDepth;
   timeStep: number;
@@ -579,7 +582,7 @@ export function getSeaEncounterRate(context: SeaEncounterContext): number {
     : 1;
   return getDifficultyEncounterRate(
     baseRate,
-    resolveDifficultyRules(context.difficulty),
+    resolveDifficultyRules(context.difficulty, getNewGamePlusScale(context.newGamePlus)),
     getEncounterMultiplier(context.timeStep),
     getWeatherEncounterMultiplier(context.weather),
     getSeaZone(context.zoneId).encounterMultiplier,

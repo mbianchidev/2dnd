@@ -1,4 +1,4 @@
-import { Terrain } from "./mapTypes";
+import { MAP_HEIGHT, MAP_WIDTH, Terrain } from "./mapTypes";
 import type { CityData, DungeonData } from "./mapTypes";
 
 const W = Terrain.CityWall;
@@ -156,6 +156,43 @@ export const TIDEHAVEN_CITY: CityData = {
       toY: 1,
     },
   ],
+};
+
+function createStarfallMap(): Terrain[][] {
+  return Array.from({ length: MAP_HEIGHT }, (_, y) =>
+    Array.from({ length: MAP_WIDTH }, (_, x) => {
+      if (x === 10 && y === 14) return Terrain.CityExit;
+      if (x === 0 || x === MAP_WIDTH - 1 || y === 0 || y === MAP_HEIGHT - 1) {
+        return Terrain.Water;
+      }
+      if (x === 10 && y === 4) return Terrain.Statue;
+      if (x >= 3 && x <= 5 && y >= 8 && y <= 10) return Terrain.ShopFloor;
+      if (x === 10 || y === 9) return Terrain.CityPath;
+      if ((x === 3 || x === 16) && y >= 2 && y <= 5) return Terrain.Forest;
+      if (x >= 14 && x <= 16 && y >= 10 && y <= 11) return Terrain.Water;
+      if (x === 6 && y === 3) return Terrain.Flower;
+      return Terrain.Grass;
+    }));
+}
+
+export const STARFALL_ATOLL: CityData = {
+  id: "starfall_atoll",
+  name: "Starfall Atoll",
+  chunkX: 4,
+  chunkY: 2,
+  tileX: 12,
+  tileY: 1,
+  mapData: createStarfallMap(),
+  spawnX: 10,
+  spawnY: 13,
+  shops: [{
+    type: "inn",
+    name: "The Remembered Lantern",
+    x: 4,
+    y: 9,
+    shopItems: [],
+  }],
+  connections: [],
 };
 
 export const TIDEGLASS_GROTTO: DungeonData = {

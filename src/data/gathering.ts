@@ -79,7 +79,10 @@ export interface GatheringDisciplineDefinition {
   readonly attemptsBeforeDepletion: number;
 }
 
+import { ECHO_CRYSTAL_RESOURCE } from "./newGamePlusContent";
+
 export const GATHERING_RESOURCES: readonly GatheringResourceDefinition[] = [
+  ECHO_CRYSTAL_RESOURCE,
   {
     id: "brookTrout",
     discipline: "fishing",

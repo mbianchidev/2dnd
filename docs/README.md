@@ -26,6 +26,7 @@ on discovering and playing the game.
 - [Timed battle decisions](battle-timing.md)
 - [Hero multiclass progression](hero-progression.md)
 - [Optional prestige paths](prestige.md)
+- [New Game+ and epic progression](new-game-plus.md)
 - [Desktop application](desktop.md)
 - [Steam preparation](steam.md)
 - [Inventory presentation](inventory.md)

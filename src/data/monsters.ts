@@ -5,6 +5,7 @@
 import { Element } from "./elements";
 import { MONSTER_PHYSICAL_PROFILES } from "./anatomy";
 import type { Monster } from "./monsterTypes";
+import { NEW_GAME_PLUS_MONSTERS } from "./newGamePlusContent";
 
 export type { Monster, MonsterAbility, MonsterDrop } from "./monsterTypes";
 import {
@@ -978,6 +979,7 @@ export const ALL_MONSTERS: Monster[] = (() => {
   const seen = new Set<string>();
   const list: Monster[] = [];
   const pools = [
+    NEW_GAME_PLUS_MONSTERS,
     MONSTERS,
     DUNGEON_MONSTERS,
     HEARTLANDS_CRYPT_MONSTERS,

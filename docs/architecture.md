@@ -15,7 +15,7 @@
 | happy-dom | 20.14.6 |
 | Electron | 44.7.0 |
 | electron-builder | 26.17.0 |
-| Campaign save schema | 26 |
+| Campaign save schema | 27 |
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser
@@ -294,8 +294,8 @@ not gameplay/save data or a portable performance budget.
 
 ## Hero progression authority
 
-`data/classProgression.ts` registers immutable twelve-class and six prestige
-profiles. Original path, action and lore content lives in focused
+`data/classProgression.ts` registers twelve immutable base profiles, six prestige
+profiles, and one NG+-epic profile. Original path, action and lore content lives in focused
 `data/prestige.ts`, `prestigeActions.ts` and `prestigeLore.ts`.
 `systems/classProgression.ts` owns qualification, rank/
 total queries, grant provenance, frozen previews, rest-ready queues and atomic
@@ -307,8 +307,10 @@ appearance; the existing `level` mirrors total owned ranks. Companions do not
 own hero progression. Proficiency/ASIs/common talents use total level,
 restricted grants use source rank, and shared IDs/bonuses apply once.
 `managers/heroProgression.ts` owns measured, accessible presentation rather
-than another leveling or action engine. Normal total level remains 20; the
-static profiles install five-rank prestige content, not epic or NG+ progression.
+than another leveling or action engine. Normal total level remains 20.
+Validated NG+ metadata authorizes total 30 through the ten-rank Epic Roadwarden
+profile; base/prestige ownership still totals at most 20. Runtime companion
+policy binds to the owning campaign rather than serializing another cap.
 `classProgressionContext.ts` binds completed quest stages, discovered cities and
 inclusive social ranges to the live owner for preview and fresh commit. Grouped
 requirements fail closed; earned ranks never recheck mutable joining evidence.
@@ -321,6 +323,21 @@ intact; companion-only canonical loadout restrictions do not cross this boundary
 before the progression normalizer relinks equipment; it never reapplies grants.
 
 See [Hero progression](hero-progression.md).
+
+`newGamePlus.ts`, `newGamePlusState.ts`, `newGamePlusSlots.ts`, and
+`newGamePlusScaling.ts` own detached carry/reset, strict cycle authority,
+protected manual-source transactions, and once-composed difficulty scaling.
+The canonical decoder inspects fresh detached candidates without source
+restoration/migration/name/playtime writes. Existing Autosave becomes active.
+See [New Game+](new-game-plus.md).
+
+Starfall Atoll reuses the existing city-interior contract. Immutable island
+metadata lives in `data/nautical.ts` and its procedural map in `data/islands.ts`;
+`islandAccess.ts` owns validated cycle eligibility and `systems/islands.ts`
+shares exact dock/boat entry and exit with Tidehaven. Normal terrain remains
+Water. Renderers show eligible explored markers only; merchant routes and
+fast travel do not enter the secret island. Save recovery removes ineligible
+location/discovery rather than trusting lore or achievement evidence.
 
 ## Content and campaign flow
 

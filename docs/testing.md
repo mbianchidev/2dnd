@@ -39,6 +39,10 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
   bypass, status/critical/shield ordering, exact HP/RNG receipts and v23/custom
   armor migration with rejected-import byte preservation
 - player and companion progression, gambits, inventories, transfers
+- complete NG+ carry/reset and source-sidecar isolation, schema-v27 corruption,
+  repeated creation/99 cycles, paid-pending retirement, all epic thresholds and
+  shared multiclass/prestige/frozen/rest/legacy ownership, plus secret-island
+  access, boat/dock validation, ordinary/legacy location repair and cycle reset
 - quests, cutscene triggers/queues, Codex, events, social state, achievements
 - gathering, crafting, nautical state, world/map/trap/fog helpers
 - all three tavern/festival activities, every ordered 2d6 outcome and optimal
@@ -67,6 +71,11 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 
 - landing-page content, responsive layout, screenshots, and browser/download links
 - new game through campaign completion, ending, post-game, and reload
+- protected-manual NG+ selection and explicit Autosave snapshot-first creation,
+  all control sources, paginated 150% carry policy, epic rest/reload, and a
+  complete actual-NPC/three-keystone/final-Elowen NG+ journey
+- ordinary-versus-NG+ Starfall visibility, actual sailing/landing, interior
+  reload and touch departure at 150% text with protected-source bytes unchanged
 - interrupted opening/ending/cutscene recovery and corrupt-save fallback
 - random and boss defeat recovery
 - tutorial, Tips, Codex, inventory, achievements, events, gathering, crafting,
@@ -132,7 +141,7 @@ the relative `game.html` renderer. The smoke flow verifies:
 
 - the stable `app://2dnd` origin and typed sandboxed preload bridge
 - fullscreen button and F11 behavior
-- real character creation, schema-v26 autosave/manual-slot persistence,
+- real character creation, current-schema autosave/manual-slot persistence,
   relaunch, and continue
 - independent desktop copy/import, exact source-slot bytes, interrupted
   staging/core-corruption recovery, and loading a second campaign after relaunch
@@ -143,6 +152,25 @@ the relative `game.html` renderer. The smoke flow verifies:
 - renderer/page error cleanliness
 - all three optional activities with keyboard, emulated touch, and gamepad,
   including exact pending/result recovery and once-only payouts
+- completed JSON import through the native file picker, independent NG+ source
+  protection, all canonical chapter dialogue/bosses, real ending and relaunch
+
+NG+ journey fixtures use synthetic completed campaigns and canonical owners
+for every saved rank/reward. They accelerate **travel only** by relocating a
+validated checkpoint beside each canonical NPC or onto the actual dungeon boss
+tile; quest counters, boss HP, actor resources, rewards and ending state are
+never edited during the journey. Actual city-oath and boss-interaction receipts
+prove coverage rather than treating checkpoint relocation as natural city
+discovery. Compiled Electron journeys use no development-module imports and
+do not broaden preload/security.
+The native island flow imports a canonical voyage, sails to the actual dock,
+lands through Interact, and relaunches into the same interior with unchanged
+source bytes and hull condition. Local runs remain headless Chromium only;
+the compiled shell flow runs on the isolated native CI matrix.
+The island fixture keeps both keyboard edges in the renderer's consecutive
+animation frames and asserts the exact dock/exit tile before interacting.
+Host-time sleeps and separate CDP round trips can keep a direction held through
+repeated movement on a loaded runner.
 
 `electron-tests/deck.spec.ts` adds a production-like 1280x800 controller
 equivalent: hero naming/creation, exploration/Battle, Codex search, manual

@@ -26,6 +26,9 @@ import { abilityModifier } from "./dice";
 import { getPlayerClass } from "./classes";
 import type { Item } from "../data/items";
 import type { CombatActorState, PlayerStats, ProgressingActorState } from "./player";
+import { EPIC_ASI_LEVELS, EPIC_LEVEL_CAP, EPIC_TRACK_ID } from "../data/epicProgression";
+import { getActorLevelCap } from "./epicProgressionPolicy";
+export { getActorLevelCap } from "./epicProgressionPolicy";
 
 export interface ProgressionKnownGrants {
   spells: string[];
@@ -138,10 +141,13 @@ export function getTotalLevel(actor: CombatActorState): number {
 export function getClassLevel(actor: CombatActorState, id: BaseClassId): number {
   return actor.classProgression
     ? actor.classProgression.classLevels[id] ?? 0
-    : getPlayerClass(actor.appearanceId).id === id ? actor.level : 0;
+    : getPlayerClass(actor.appearanceId).id === id ? Math.min(NORMAL_LEVEL_CAP, actor.level) : 0;
 }
 
 export function getTrackLevel(actor: CombatActorState, id: ProgressionTrackId): number {
+  if (id === EPIC_TRACK_ID && !actor.classProgression) {
+    return getActorLevelCap(actor) === EPIC_LEVEL_CAP ? Math.max(0, actor.level - NORMAL_LEVEL_CAP) : 0;
+  }
   return isBaseClassId(id)
     ? getClassLevel(actor, id)
     : actor.classProgression?.trackLevels[id] ?? 0;
@@ -185,10 +191,14 @@ export function getProficiencyBonus(actor: CombatActorState): number {
   return Math.floor((getTotalLevel(actor) - 1) / 4) + 2;
 }
 
+export function getNextLevelXP(actor: CombatActorState): number | null {
+  return getTotalLevel(actor) >= getActorLevelCap(actor) ? null : xpForLevel(getTotalLevel(actor) + 1);
+}
+
 export function getEarnedPendingLevels(actor: ProgressingActorState): number {
   const total = getTotalLevel(actor);
   let level = total;
-  while (level < NORMAL_LEVEL_CAP && actor.xp >= xpForLevel(level + 1)) level++;
+  while (level < getActorLevelCap(actor) && actor.xp >= xpForLevel(level + 1)) level++;
   return level - total;
 }
 
@@ -322,9 +332,9 @@ export function isValidProgressionRequirement(value: unknown): value is Progress
     case "abilityScore":
       return STAT_KEYS.some((stat) => stat === record["stat"]) && positive && minimum <= MAX_ABILITY_SCORE;
     case "totalLevel":
+      return positive && minimum <= EPIC_LEVEL_CAP;
     case "classLevel":
-      return positive && minimum <= NORMAL_LEVEL_CAP
-        && (record["type"] === "totalLevel" || isBaseClassId(record["classId"]));
+      return positive && minimum <= NORMAL_LEVEL_CAP && isBaseClassId(record["classId"]);
     case "feature": {
       const id = record["id"];
       return typeof id === "string" && (record["kind"] === "spell" ? getSpell(id) !== undefined
@@ -441,10 +451,23 @@ export function qualifyNextClass(
   if (error) return { qualified: false, message: error, unmetRequirements: [] };
   if (actor.classProgression && Object.entries(actor.classProgression.trackLevels).some(([trackId, level]) => {
     const track = getProgressionProfile(trackId, context);
-    return !track || track.kind !== "prestige" || (level ?? 0) > track.maxRank;
+    return !track || track.kind === "base" || (level ?? 0) > track.maxRank;
   })) return { qualified: false, message: "Unknown or invalid owned prestige rank; reload a normalized campaign.", unmetRequirements: [] };
+  const cap = getActorLevelCap(actor);
+  if (getTotalLevel(actor) >= cap) {
+    return { qualified: false, message: `Progression ends at total level ${cap}.`, unmetRequirements: [] };
+  }
+  if (profile.kind === "epic") {
+    const qualified = cap === EPIC_LEVEL_CAP && getTotalLevel(actor) >= NORMAL_LEVEL_CAP;
+    return {
+      qualified,
+      message: qualified ? "Advance one rested Epic Roadwarden rank."
+        : "Epic ranks require New Game+ and applied total level 20.",
+      unmetRequirements: qualified ? [] : ["New Game+; applied total level 20"],
+    };
+  }
   if (getTotalLevel(actor) >= NORMAL_LEVEL_CAP) {
-    return { qualified: false, message: "Normal progression ends at total level 20.", unmetRequirements: [] };
+    return { qualified: false, message: "After total 20, advance Epic Roadwarden ranks only.", unmetRequirements: [] };
   }
   const rank = getTrackLevel(actor, profile.id);
   if (rank >= profile.maxRank) {
@@ -510,7 +533,15 @@ function validateActorProgression(actor: CombatActorState): string | undefined {
       || !Number.isInteger(rank) || rank < 1 || rank > NORMAL_LEVEL_CAP
     ))) return "Invalid class-level ownership; reload a normalized campaign.";
   const total = getTotalLevel(actor);
-  if (!Number.isInteger(total) || total < 1 || total > NORMAL_LEVEL_CAP || total !== actor.level) {
+  const epicRank = getTrackLevel(actor, EPIC_TRACK_ID);
+  if (total - epicRank > NORMAL_LEVEL_CAP) {
+    return "Base and prestige ownership cannot exceed total 20; reload a normalized campaign.";
+  }
+  if (epicRank > 0 && (epicRank > 10 || getActorLevelCap(actor) !== EPIC_LEVEL_CAP
+    || total - epicRank !== NORMAL_LEVEL_CAP)) {
+    return "Invalid epic ownership; reload a normalized New Game+ campaign.";
+  }
+  if (!Number.isInteger(total) || total < 1 || total > getActorLevelCap(actor) || total !== actor.level) {
     return "Invalid class-level ownership; reload a normalized campaign.";
   }
   if (STAT_KEYS.some((stat) => !Number.isInteger(actor.stats[stat])
@@ -531,10 +562,11 @@ function validatePreparedLevel(player: HeroProgressingActorState): string | unde
   if (error) return error;
   const progression = player.classProgression;
   const total = getTotalLevel(player);
-  if (total >= NORMAL_LEVEL_CAP) return "Normal progression ends at total level 20.";
+  const cap = getActorLevelCap(player);
+  if (total >= cap) return `Progression ends at total level ${cap}.`;
   if (!Number.isFinite(player.xp) || player.xp < 0) return "Invalid XP; reload a normalized campaign.";
   if (!Number.isInteger(player.pendingLevelUps) || player.pendingLevelUps <= 0
-    || player.pendingLevelUps > NORMAL_LEVEL_CAP - total
+    || player.pendingLevelUps > cap - total
     || getEarnedPendingLevels(player) <= 0
     || player.pendingLevelUps > getEarnedPendingLevels(player)) return "No valid earned level is waiting for rest.";
   if (!Number.isInteger(progression.readyLevelUps) || progression.readyLevelUps < 0
@@ -657,7 +689,8 @@ function buildLevelPreview(
     hpGain: resources.hpGain + grants.newTalents.reduce((sum, talent) => sum + (talent.maxHpBonus ?? 0), 0),
     mpGain: resources.mpGain + grants.newTalents.reduce((sum, talent) => sum + (talent.maxMpBonus ?? 0), 0),
     proficiencyBonus: Math.floor((total - 1) / 4) + 2,
-    asiGained: ASI_LEVELS.includes(total) ? ASI_POINTS : 0,
+    asiGained: ASI_LEVELS.includes(total)
+      || (getActorLevelCap(actor) === EPIC_LEVEL_CAP && EPIC_ASI_LEVELS.includes(total)) ? ASI_POINTS : 0,
     ...grants,
   };
 }
@@ -752,8 +785,9 @@ export function processActorPendingLevelUps(actor: ProgressingActorState): Pendi
     newSpells: [], newAbilities: [], newTalents: [], asiGained: 0,
   };
   const pending = actor.pendingLevelUps;
-  for (let index = 0; index < pending && getTotalLevel(actor) < NORMAL_LEVEL_CAP; index++) {
-    const profile = getProgressionProfile(getActorStartingClass(actor));
+  for (let index = 0; index < pending && getTotalLevel(actor) < getActorLevelCap(actor); index++) {
+    const profile = getProgressionProfile(getTotalLevel(actor) >= NORMAL_LEVEL_CAP
+      ? EPIC_TRACK_ID : getActorStartingClass(actor));
     if (!profile) throw new Error("[progression] Missing starting-class profile.");
     let receipt: HeroLevelUpPreview;
     if (hasHeroClassProgression(actor)) {
@@ -780,7 +814,7 @@ export function processActorPendingLevelUps(actor: ProgressingActorState): Pendi
     result.newTalents.push(...receipt.newTalents);
     result.asiGained += receipt.asiGained;
   }
-  if (getTotalLevel(actor) >= NORMAL_LEVEL_CAP) actor.pendingLevelUps = 0;
+  if (getTotalLevel(actor) >= getActorLevelCap(actor)) actor.pendingLevelUps = 0;
   return result;
 }
 

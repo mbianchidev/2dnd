@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isIslandCityAvailable } from "../src/systems/islandAccess";
 import {
   FROST_SILK_QUEST_ID,
   IRON_DISPATCH_QUEST_ID,
@@ -671,6 +672,7 @@ describe("quest data integrity", () => {
 
     expect(main.stages).toHaveLength(7);
     const campaignCityIds = CITIES
+      .filter((city) => isIslandCityAvailable(city.id, null))
       .map((city) => city.id)
       .filter((cityId) => cityId !== "tidehaven_city");
     expect(new Set(cityNpcCounts.keys())).toEqual(
@@ -806,7 +808,8 @@ describe("quest data integrity", () => {
         ]);
       }
     }
-    expect(CITIES).toHaveLength(13);
+    expect(CITIES.filter((city) => isIslandCityAvailable(city.id, null))).toHaveLength(13);
+    expect(CITIES).toHaveLength(14);
     expect(DUNGEONS).toHaveLength(4);
     expect(QUEST_DANGER_RULES.length).toBeGreaterThan(0);
   });

@@ -68,10 +68,12 @@ import {
 import { normalizeGatheringState } from "./gatheringState";
 import { normalizeCraftingState } from "./craftingState";
 import { reconcileCraftingRecipes } from "./crafting";
-import { normalizeNauticalState } from "./nauticalState";
+import { findBoat, normalizeNauticalState } from "./nauticalState";
+import { isIslandCityAvailable } from "./islandAccess";
 import { normalizeMinigameState, validateMinigameRecovery } from "./minigameState";
 import {
   getBoat,
+  getIslandForCity,
   getPort,
   getSeaZoneAt,
 } from "../data/nautical";
@@ -93,7 +95,7 @@ import {
 } from "./saveStorage";
 import { normalizeCampaignDifficulty } from "./difficulty";
 
-export const SAVE_VERSION = 26;
+export const SAVE_VERSION = 27;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -451,6 +453,19 @@ function normalizePlayerLocation(player: PlayerState): void {
   }
 
   if (position.inCity) {
+    const island = getIslandForCity(position.cityId);
+    const boat = findBoat(player.progression.nautical);
+    const requiresBoat = island?.minimumNewGamePlusCycle !== undefined;
+    if (!isIslandCityAvailable(position.cityId, player.newGamePlus)
+      || (requiresBoat && (!boat || boat.condition <= 0))) {
+      debugLog("[save] Recovering an island location without its required NG+ cycle or serviceable boat.");
+      Object.assign(position, {
+        inCity: false, cityId: "", cityChunkIndex: 0,
+        inDungeon: false, dungeonId: "", dungeonLevel: 0,
+        chunkX: 4, chunkY: 2, x: 3, y: 3,
+      });
+      player.progression.nautical.sailing = false;
+    }
     const city = getCity(position.cityId);
     if (city) {
       position.inDungeon = false;
@@ -722,6 +737,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     data.player.progression.nautical = normalizeNauticalState(
       data.player.progression.nautical,
       sourceVersion,
+      data.player.newGamePlus,
     );
     data.player.progression.minigames = normalizeMinigameState(
       data.player.progression.minigames,
@@ -731,7 +747,7 @@ export function normalizeSaveData(value: unknown): SaveData | null {
       ? normalizeFeatureDiscoveryProgress({})
       : normalizeFeatureDiscoveryProgress(data.player.progression);
     Object.assign(data.player.progression, featureDiscovery);
-    data.player.party = normalizePartyState(playerRecord["party"]);
+    data.player.party = normalizePartyState(playerRecord["party"], data.player);
     synchronizeCompanionRecruitment(data.player);
     synchronizeNauticalQuestRewards(data.player);
     ensureLegacyCampaignEpilogueQueued(data.player);
@@ -760,7 +776,14 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     data.player.activeEffects = normalizeActiveEffects(savedEffects);
     normalizeDevotionBlessing(data.player, savedEffects);
 
-    const validCityIds = new Set(CITIES.map((city) => city.id));
+    const validCityIds = new Set(CITIES.filter((city) =>
+      isIslandCityAvailable(city.id, data.player.newGamePlus),
+    ).map((city) => city.id));
+    for (const key of Object.keys(data.player.progression.exploredTiles)) {
+      if (key.startsWith("c:") && !isIslandCityAvailable(key.slice(2).split(",")[0], data.player.newGamePlus)) {
+        delete data.player.progression.exploredTiles[key];
+      }
+    }
     if (!Array.isArray(data.player.progression.discoveredCities)) {
       const ids = new Set<string>();
       for (const key of Object.keys(data.player.progression.exploredTiles)) {

@@ -5,6 +5,7 @@
  */
 
 import { PRESTIGE_TALENTS } from "./prestigeActions";
+import { EPIC_TALENTS } from "./epicProgression";
 
 export interface Talent {
   id: string;
@@ -34,6 +35,7 @@ export interface Talent {
 }
 
 export const TALENTS: Talent[] = [
+  ...EPIC_TALENTS,
   ...PRESTIGE_TALENTS,
   {
     id: "toughness", name: "Toughness",

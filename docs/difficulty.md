@@ -168,8 +168,10 @@ derive their profile label, continuity count, and current eligibility.
 Damage receipts keep their exact rolled faces/modifiers and record campaign
 scaling before armor, elements, shields and HP caps. Standard adds no adjustment.
 
-These APIs are extension points for future New Game+ work. They do not implement
-cycles, carry/reset policy, epic progression, or timed-round execution.
+`getCampaignDifficultyRules()` now derives the one bounded NG+ scale layer from
+validated cycle metadata. Cycle creation/reset and epic ranks remain owned by
+their focused systems, not difficulty; see [New Game+](new-game-plus.md).
+Difficulty still does not execute timed-round decisions.
 
 ## Persistence and coverage
 

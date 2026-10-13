@@ -36,10 +36,14 @@ import {
   type ProgressionKnownGrants,
 } from "./classProgression";
 import type { CombatActorState, PlayerState, PlayerStats } from "./player";
+import { EPIC_ASI_LEVELS, EPIC_LEVEL_CAP, EPIC_TRACK_ID } from "../data/epicProgression";
+import { getActorLevelCap } from "./epicProgressionPolicy";
+import { normalizeNewGamePlusState, type NewGamePlusState } from "./newGamePlusState";
 
 export const CLASS_PROGRESSION_SAVE_VERSION = 19;
 
 export type NormalizedHeroProgressionFields = Pick<PlayerState,
+  | "newGamePlus"
   | "name" | "appearanceId" | "level" | "classProgression" | "xp"
   | "stats" | "hp" | "maxHp" | "mp" | "maxMp"
   | "pendingStatPoints" | "pendingLevelUps"
@@ -72,10 +76,10 @@ function normalizeGrants(value: unknown): ProgressionKnownGrants {
   };
 }
 
-function normalizePendingLevel(value: unknown, total: number): PendingHeroLevelUp | null {
+function normalizePendingLevel(value: unknown, total: number, cap: number): PendingHeroLevelUp | null {
   if (!isRecord(value)) return null;
   const { expectedTotalLevel, resourceRoll, constitution, intelligence } = value;
-  if (expectedTotalLevel !== total || total >= NORMAL_LEVEL_CAP
+  if (expectedTotalLevel !== total || total >= cap
     || typeof resourceRoll !== "number" || !Number.isFinite(resourceRoll)
     || resourceRoll < 0 || resourceRoll >= 1
     || typeof constitution !== "number" || !Number.isInteger(constitution)
@@ -88,9 +92,10 @@ function normalizePendingLevel(value: unknown, total: number): PendingHeroLevelU
 /** Recover ownership from unknown data; earned ranks never recheck mutable entry scores. */
 export function normalizeHeroClassProgression(
   value: unknown,
-  fallback: { appearanceId: unknown; level: unknown },
+  fallback: { appearanceId: unknown; level: unknown; newGamePlus?: NewGamePlusState | null },
   context: HeroProgressionContext = DEFAULT_PROGRESSION_CONTEXT,
 ): HeroClassProgression {
+  const cap = getActorLevelCap(fallback);
   const fallbackClass = getPlayerClass(typeof fallback.appearanceId === "string" ? fallback.appearanceId : "knight").id;
   const fallbackLevel = integer(fallback.level, 1, 1, NORMAL_LEVEL_CAP);
   const record = isRecord(value) ? value : {};
@@ -102,37 +107,43 @@ export function normalizeHeroClassProgression(
     typeof rawLevels[id] === "number" && Number.isSafeInteger(rawLevels[id]) && rawLevels[id] > 0
   ) || context.profiles.some((profile) => {
     const rank = rawTracks[profile.id];
-    return profile.kind === "prestige" && typeof rank === "number"
+    return profile.kind !== "base" && typeof rank === "number"
       && Number.isSafeInteger(rank) && rank > 0;
   });
   if (!hasUsableOwnership) return createHeroClassProgression(startingClassId, fallbackLevel);
   const progression = createHeroClassProgression(startingClassId);
-  let remaining = NORMAL_LEVEL_CAP;
+  let remaining = cap;
+  let normalRemaining = NORMAL_LEVEL_CAP;
   const orderedIds = [startingClassId, ...BASE_CLASS_IDS.filter((id) => id !== startingClassId)];
   for (const id of orderedIds) {
     const minimum = id === startingClassId ? 1 : 0;
-    const rank = integer(rawLevels[id], minimum, minimum, remaining);
+    const rank = integer(rawLevels[id], minimum, minimum, normalRemaining);
     if (rank > 0) progression.classLevels[id] = rank;
     remaining -= rank;
+    normalRemaining -= rank;
   }
   for (const profile of context.profiles) {
-    if (profile.kind !== "prestige" || !isExternalProgressionTrackId(profile.id)) continue;
-    const rank = integer(rawTracks[profile.id], 0, 0, Math.min(profile.maxRank, remaining));
+    if (profile.kind === "base" || !isExternalProgressionTrackId(profile.id)) continue;
+    if (profile.kind === "epic" && cap !== EPIC_LEVEL_CAP) continue;
+    if (profile.kind === "epic" && normalRemaining !== 0) continue;
+    const rank = integer(rawTracks[profile.id], 0, 0,
+      Math.min(profile.maxRank, remaining, profile.kind === "epic" ? remaining : normalRemaining));
     if (rank > 0) progression.trackLevels[profile.id] = rank;
     remaining -= rank;
+    if (profile.kind !== "epic") normalRemaining -= rank;
   }
   progression.legacyGrants = normalizeGrants(record["legacyGrants"]);
   progression.debugTrackIds = knownIds(record["debugTrackIds"], (id) =>
-    isExternalProgressionTrackId(id) && (progression.trackLevels[id] ?? 0) > 0,
+    id.startsWith("prestige:") && isExternalProgressionTrackId(id) && (progression.trackLevels[id] ?? 0) > 0,
   ).filter(isExternalProgressionTrackId);
   const deferred = normalizeGrants(record["deferredLegacyGrants"]);
   if (deferred.spells.length + deferred.abilities.length + deferred.talents.length > 0) {
     progression.deferredLegacyGrants = deferred;
   }
-  const total = NORMAL_LEVEL_CAP - remaining;
-  progression.pendingLevel = normalizePendingLevel(record["pendingLevel"], total);
+  const total = cap - remaining;
+  progression.pendingLevel = normalizePendingLevel(record["pendingLevel"], total, cap);
   progression.readyLevelUps = integer(record["readyLevelUps"],
-    progression.pendingLevel ? 1 : 0, 0, NORMAL_LEVEL_CAP - total);
+    progression.pendingLevel ? 1 : 0, 0, cap - total);
   return progression;
 }
 
@@ -221,6 +232,10 @@ export function normalizeHeroProgressionState(
 ): NormalizedHeroProgressionFields | null {
   if (!isRecord(value) || typeof value["name"] !== "string" || !value["name"].trim()
     || !isRecord(value["stats"]) || !Array.isArray(value["inventory"])) return null;
+  const ngResult = normalizeNewGamePlusState(value["newGamePlus"], sourceVersion);
+  if (!ngResult.ok) return null;
+  const newGamePlus = ngResult.state;
+  const cap = getActorLevelCap({ newGamePlus });
   const legacy = sourceVersion < CLASS_PROGRESSION_SAVE_VERSION;
   const appearanceId = typeof value["appearanceId"] === "string" ? value["appearanceId"] : "knight";
   const rawProgression = isRecord(value["classProgression"]) ? value["classProgression"] : {};
@@ -230,20 +245,25 @@ export function normalizeHeroProgressionState(
     return null;
   }
   const rawTracks = isRecord(rawProgression["trackLevels"]) ? rawProgression["trackLevels"] : {};
-  if (sourceVersion >= PRESTIGE_SAVE_VERSION && Object.keys(rawTracks).length > 0) {
+  if (sourceVersion >= PRESTIGE_SAVE_VERSION && (newGamePlus || Object.keys(rawTracks).length > 0)) {
     const invalid = Object.entries(rawTracks).some(([id, rank]) => {
       const profile = getProgressionProfile(id, context);
-      return !profile || profile.kind !== "prestige" || typeof rank !== "number"
+      return !profile || profile.kind === "base" || (profile.kind === "epic" && cap !== EPIC_LEVEL_CAP)
+        || typeof rank !== "number"
         || !Number.isSafeInteger(rank) || rank < 1 || rank > profile.maxRank;
     });
     const rawClasses = isRecord(rawProgression["classLevels"]) ? rawProgression["classLevels"] : {};
     const starting = rawProgression["startingClassId"];
     const ranks = [...Object.values(rawClasses), ...Object.values(rawTracks)];
+    const total = ranks.reduce<number>((sum, rank) => sum + (typeof rank === "number" ? rank : 0), 0);
+    const epicRank = typeof rawTracks[EPIC_TRACK_ID] === "number" ? rawTracks[EPIC_TRACK_ID] : 0;
     if (invalid || !isBaseClassId(starting) || !(typeof rawClasses[starting] === "number" && rawClasses[starting] >= 1)
       || Object.keys(rawClasses).some((id) => !isBaseClassId(id))
       || ranks.some((rank) => typeof rank !== "number" || !Number.isSafeInteger(rank) || rank < 1)
-      || ranks.reduce<number>((sum, rank) => sum + (typeof rank === "number" ? rank : 0), 0) > NORMAL_LEVEL_CAP) {
-      debugLog("[prestige] Rejected invalid registered rank ownership; slot recovery is required.");
+      || Object.values(rawClasses).some((rank) => typeof rank !== "number" || rank > NORMAL_LEVEL_CAP)
+      || total > cap || total - epicRank > NORMAL_LEVEL_CAP
+      || (epicRank > 0 && total - epicRank !== NORMAL_LEVEL_CAP)) {
+      debugLog("[progression] Rejected invalid registered rank ownership; slot recovery is required.");
       return null;
     }
   }
@@ -257,12 +277,13 @@ export function normalizeHeroProgressionState(
     : rawProgression;
   const classProgression = normalizeHeroClassProgression(
     legacy ? undefined : progressionInput,
-    { appearanceId, level: value["level"] }, context,
+    { appearanceId, level: value["level"], newGamePlus }, context,
   );
   const stats = normalizeStats(value["stats"]);
   const inventory = normalizeSavedHeroInventory(value["inventory"]);
   if (!inventory) return null;
   const fields: NormalizedHeroProgressionFields = {
+    newGamePlus,
     name: value["name"],
     appearanceId,
     level: 1,
@@ -300,7 +321,7 @@ export function normalizeHeroProgressionState(
       classProgression.deferredLegacyGrants = deferred;
     }
   }
-  const ownedOnly = context.profiles.filter((profile) => profile.kind === "prestige")
+  const ownedOnly = context.profiles.filter((profile) => profile.kind !== "base")
     .flatMap((profile) => profile.grants).filter((grant) =>
       (grant.kind === "spell" ? getSpell(grant.id)?.progressionScope
         : grant.kind === "ability" ? getAbility(grant.id)?.progressionScope
@@ -338,7 +359,8 @@ export function normalizeHeroProgressionState(
   fields.pendingLevelUps = integer(value["pendingLevelUps"], getEarnedPendingLevels(actor),
     0, getEarnedPendingLevels(actor));
   fields.pendingStatPoints = integer(value["pendingStatPoints"], 0, 0,
-    ASI_LEVELS.filter((level) => level <= fields.level).length * ASI_POINTS);
+    [...ASI_LEVELS, ...(newGamePlus ? EPIC_ASI_LEVELS : [])]
+      .filter((level) => level <= fields.level).length * ASI_POINTS);
   classProgression.readyLevelUps = Math.min(classProgression.readyLevelUps, fields.pendingLevelUps);
   if (classProgression.readyLevelUps === 0) classProgression.pendingLevel = null;
   if (fields.equippedWeapon?.twoHanded) {

@@ -582,7 +582,6 @@ export function installSceneAccessibility(
 ): void {
   if (installedScenes.has(scene)) return;
   installedScenes.add(scene);
-  installLayoutAudit(scene);
   const originalAddText = scene.add.text;
   scene.add.text = (
     x: number,
@@ -604,4 +603,5 @@ export function installSceneAccessibility(
     installedScenes.delete(scene);
   });
   apply();
+  installLayoutAudit(scene);
 }

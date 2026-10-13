@@ -116,4 +116,14 @@ describe("scene accessibility performance", () => {
     events.emit("postupdate", 1);
     expect(canvas.dataset.textScale).toBe(originalScale);
   });
+
+  it("runs the frame accessibility pass before the injected layout audit", () => {
+    const { scene, events, text } = context();
+    const audit = vi.fn(() => expect(text.style.fontSize).toBe("12px"));
+    installSceneAccessibility(scene, () => events.on("postupdate", audit));
+    text.style.fontSize = "1px";
+    events.emit("postupdate", 16);
+    expect(audit).toHaveBeenCalledOnce();
+    events.emit("shutdown");
+  });
 });

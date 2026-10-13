@@ -120,10 +120,12 @@ export function getMinigameGamePresentation(
   };
 }
 
+export const MINIGAME_ACTION_INPUT_GAP_MS = 90;
+
 export class MinigameInputGate {
   private readonly acceptedAt = new Map<string, number>();
 
-  accept(actionId: string, timestamp: number, gapMs = 90): boolean {
+  accept(actionId: string, timestamp: number, gapMs = MINIGAME_ACTION_INPUT_GAP_MS): boolean {
     const previous = this.acceptedAt.get(actionId);
     if (previous !== undefined && timestamp - previous < gapMs) return false;
     this.acceptedAt.set(actionId, timestamp);

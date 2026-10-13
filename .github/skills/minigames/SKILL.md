@@ -89,6 +89,8 @@ natural bests/counters, milestone claims, social credit, or lore.
 - Confirm on release; preserve stable intent across held/delayed input.
 - Debounce with monotonic input time, never a stalled render-frame clock.
   Keep animation time separate from accepted controls and authoritative score.
+  Test fixtures must honor `MINIGAME_ACTION_INPUT_GAP_MS` as well as complete
+  pressed/released frames; fast frames alone do not satisfy the 90-ms action gate.
 - Defer source/viewport relayout until post-input; never destroy pressed targets
   while their gesture is still being dispatched or held. Cancel queued reflow
   on close.

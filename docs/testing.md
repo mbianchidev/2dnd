@@ -143,6 +143,8 @@ disables server reuse so tests cannot silently attach to stale code.
 
 The shared input/layout helpers observe actual scene readiness and complete
 pressed/released browser frames rather than adding sleeps after every action.
+Minigame fixture inputs also honor the unchanged canonical 90-ms action gate;
+waiting only for frames can dispatch too early on a fast renderer.
 Cutscene/result diagnostics expose their existing input gates; no deadline,
 animation or game clock is accelerated. Use `domcontentloaded` plus the
 authoritative title/scene assertion for game navigation, not an unrelated

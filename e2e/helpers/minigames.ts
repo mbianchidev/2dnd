@@ -3,6 +3,7 @@ import { createCurrentSaveData } from "../../src/systems/save";
 import { createCodex } from "../../src/systems/codex";
 import { createMinigameChallenge } from "../../src/systems/minigameRules";
 import { getMinigameRunId } from "../../src/systems/minigameState";
+import { MINIGAME_ACTION_INPUT_GAP_MS } from "../../src/systems/minigamePresentation";
 import { createWeatherState, WeatherType } from "../../src/systems/weather";
 import { playerAt } from "../../tests/helpers/minigames";
 import { clickPointerAt, enableNativeCanvasTouch, tapLayoutItem, tapPointerAt, waitForGameInputFrame } from "./layout";
@@ -14,6 +15,14 @@ import type { InputSource } from "../../src/systems/input";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
+const lastInputFinished = new WeakMap<Page, number>();
+
+async function waitForMinigameInputGap(page: Page): Promise<void> {
+  const previous = lastInputFinished.get(page);
+  if (previous === undefined) return;
+  const remaining = MINIGAME_ACTION_INPUT_GAP_MS - (performance.now() - previous);
+  if (remaining > 0) await page.waitForTimeout(remaining);
+}
 
 export type MinigameTestSource = Extract<InputSource, "keyboard" | "touch" | "gamepad">;
 
@@ -68,10 +77,13 @@ export async function waitMinigameState(page: Page, text: string): Promise<void>
 }
 
 export async function minigameKey(page: Page, key: string, duration = 0): Promise<void> {
+  await waitForMinigameInputGap(page);
   await pressGameKey(page, key, duration);
+  lastInputFinished.set(page, performance.now());
 }
 
 export async function minigamePad(page: Page, index: number): Promise<void> {
+  await waitForMinigameInputGap(page);
   await page.evaluate((button) => new Promise<void>((resolve) => {
     const setButton = (pressed: boolean): void => {
       (window as typeof window & {
@@ -84,9 +96,16 @@ export async function minigamePad(page: Page, index: number): Promise<void> {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     }));
   }), index);
+  lastInputFinished.set(page, performance.now());
 }
 
 export async function minigameTouchControl(page: Page, action: string): Promise<void> {
+  await waitForMinigameInputGap(page);
+  await activateMinigameTouchControl(page, action);
+  lastInputFinished.set(page, performance.now());
+}
+
+async function activateMinigameTouchControl(page: Page, action: string): Promise<void> {
   if (await page.evaluate(() => window.desktop !== undefined)) {
     await expect(page.locator("#touch-controls")).toHaveCount(0);
     const save = await readMinigameSave(page);
@@ -210,6 +229,7 @@ export async function openMinigameFixture(page: Page, source: MinigameTestSource
 }
 
 export async function aimMinigamePointer(page: Page, aim: number, touch = false): Promise<void> {
+  await waitForMinigameInputGap(page);
   const canvas = page.locator("#game-container canvas");
   const raw = await canvas.getAttribute("data-minigame-meter");
   if (!raw) throw new Error("The rendered archery meter has no bounds");
@@ -221,6 +241,7 @@ export async function aimMinigamePointer(page: Page, aim: number, touch = false)
   if (touch) await tapPointerAt(page, x, y);
   else await clickPointerAt(page, x, y);
   await waitForGameInputFrame(page);
+  lastInputFinished.set(page, performance.now());
 }
 
 export async function minigameDirection(

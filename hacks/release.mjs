@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
@@ -19,6 +21,10 @@ let mayRollback = false;
 let runUrl = "";
 let repository = "";
 let hostname = "";
+let versionCommit = "";
+let versionPrepared = false;
+const versionFiles = ["package.json", "package-lock.json", "README.md", "AGENTS.md"];
+const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function log(message) {
   process.stdout.write(`[release] ${message}\n`);
@@ -73,15 +79,118 @@ function api(endpoint) {
   return json(checked("gh", ["api", "--hostname", hostname, endpoint]), endpoint);
 }
 
-function remoteOid() {
-  const output = checked("git", ["ls-remote", "--refs", "origin", `refs/tags/${tag}`]);
+function remoteRefOid(reference) {
+  const output = checked("git", ["ls-remote", "--refs", "origin", reference]);
   if (!output) return "";
   const entries = output.split("\n");
   const [oid, ref] = entries[0].split(/\s+/);
-  if (entries.length !== 1 || ref !== `refs/tags/${tag}` || !/^[a-f0-9]{40,64}$/.test(oid)) {
-    throw new Error("Cannot verify the remote tag identity.");
+  if (entries.length !== 1 || ref !== reference || !/^[a-f0-9]{40,64}$/.test(oid)) {
+    throw new Error(`Cannot verify the remote ref identity: ${reference}.`);
   }
   return oid;
+}
+
+function remoteOid() {
+  return remoteRefOid(`refs/tags/${tag}`);
+}
+
+function packageVersion(manifest, lock) {
+  if (typeof manifest.version !== "string" || !versionPattern.test(manifest.version)) {
+    throw new Error("package.json must contain a valid release version.");
+  }
+  if (lock.version !== manifest.version
+    || object(object(lock.packages, "lock packages")[""], "lock root").version !== manifest.version) {
+    throw new Error("package.json and both lockfile version fields must match.");
+  }
+  return manifest.version;
+}
+
+function committedVersion(commit) {
+  return packageVersion(
+    json(checked("git", ["show", `${commit}:package.json`]), "committed package.json"),
+    json(checked("git", ["show", `${commit}:package-lock.json`]), "committed package-lock.json"),
+  );
+}
+
+function assertMainCheckout(commit) {
+  if (checked("git", ["symbolic-ref", "--quiet", "--short", "HEAD"]) !== "main") {
+    throw new Error("Run the release command from a clean main checkout, not a feature branch or detached HEAD.");
+  }
+  if (checked("git", ["rev-parse", "--verify", "HEAD"]) !== commit) {
+    throw new Error("The release commit changed during preparation; inspect the checkout before retrying.");
+  }
+}
+
+function changedPaths(staged = false) {
+  const output = checked("git", ["diff", ...(staged ? ["--cached"] : []), "--name-only", "--"]);
+  return output ? output.split("\n").sort() : [];
+}
+
+function matchesVersionFiles(paths) {
+  const expected = [...versionFiles].sort();
+  return paths.length === versionFiles.length
+    && paths.every((path, index) => path === expected[index]);
+}
+
+async function bumpPatch(commit, currentVersion, targetVersion) {
+  const references = [
+    ["README.md", `Current release: **v${currentVersion}**`, `Current release: **v${targetVersion}**`],
+    ["AGENTS.md", `| Product | Browser/Electron JRPG, release v${currentVersion} |`,
+      `| Product | Browser/Electron JRPG, release v${targetVersion} |`],
+  ];
+  const updates = await Promise.all(references.map(async ([path, before, after]) => {
+    const content = await readFile(join(root, path), "utf8");
+    if (content.split(before).length !== 2) {
+      throw new Error(`Cannot identify the owned current-release reference in ${path}; no version bump was started.`);
+    }
+    return { path, before: content, after: content.replace(before, after) };
+  }));
+  assertMainCheckout(commit);
+  if (checked("git", ["status", "--porcelain=v1", "--untracked-files=normal"])) {
+    throw new Error("The worktree changed before npm version; no version bump was started.");
+  }
+  versionPrepared = true;
+  log(`Bumping npm patch: ${currentVersion} -> ${targetVersion}.`);
+  checked("npm", ["version", "patch", "--no-git-tag-version"]);
+  const actualVersion = packageVersion(
+    json(await readFile(join(root, "package.json"), "utf8"), "updated package.json"),
+    json(await readFile(join(root, "package-lock.json"), "utf8"), "updated package-lock.json"),
+  );
+  if (actualVersion !== targetVersion) throw new Error(`npm produced ${actualVersion}, expected ${targetVersion}.`);
+  for (const update of updates) {
+    if (await readFile(join(root, update.path), "utf8") !== update.before) {
+      throw new Error(`${update.path} changed during npm version; it was not overwritten.`);
+    }
+    await writeFile(join(root, update.path), update.after);
+  }
+  assertMainCheckout(commit);
+  if (!matchesVersionFiles(changedPaths()) || changedPaths(true).length > 0
+    || checked("git", ["ls-files", "--others", "--exclude-standard"])) {
+    throw new Error("Unexpected file/index changes during the version bump; nothing was committed or pushed.");
+  }
+  checked("git", ["add", "--", ...versionFiles]);
+  if (!matchesVersionFiles(changedPaths(true)) || changedPaths().length > 0) {
+    throw new Error("Version files changed while staging; inspect the index before retrying.");
+  }
+  checked("git", ["commit", "--no-gpg-sign", "-m", `Bump version to ${targetVersion}`]);
+  versionCommit = checked("git", ["rev-parse", "--verify", "HEAD"]);
+  const committedPaths = checked("git", ["diff", "--name-only", commit, versionCommit, "--"]).split("\n").sort();
+  if (!/^[a-f0-9]{40,64}$/.test(versionCommit)
+    || checked("git", ["rev-parse", "--verify", "HEAD^"]) !== commit
+    || !matchesVersionFiles(committedPaths)
+    || committedVersion(versionCommit) !== targetVersion
+    || checked("git", ["status", "--porcelain=v1", "--untracked-files=normal"])) {
+    throw new Error("The version commit/worktree is not the expected single clean bump; no branch was pushed.");
+  }
+  assertMainCheckout(versionCommit);
+  log(`Created version commit ${versionCommit}.`);
+  const push = command("git", ["push", "origin", `${versionCommit}:refs/heads/main`]);
+  if (remoteRefOid("refs/heads/main") !== versionCommit) {
+    throw new Error(`Cannot confirm the version commit on origin/main; no tag was created. ${push.stderr}`);
+  }
+  if (push.status !== 0) report("Main push reported an error, but the exact version commit is confirmed remotely.");
+  log("Pushed the version commit to origin/main.");
+  return versionCommit;
 }
 
 function assertRun(run, commit, workflowId) {
@@ -114,29 +223,30 @@ function rollback() {
 async function release() {
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
     log("Usage: scripts/release.sh [vVERSION]");
-    log("Publish the already-committed package version from main. Requires git, gh and Node.js 24+.");
-    log("Creates one unsigned annotated tag, pushes only that tag, and waits for release.yml.");
+    log("Default: npm patch, synchronize release references, commit unsigned, push main, then tag and wait for release.yml.");
+    log("Requires clean up-to-date main, git, gh and Node.js 24+. Explicit current VERSION retries without another bump.");
     log("Confirmed failed CI removes only this invocation's unchanged local/remote tags.");
+    log("The version commit is retained on main; no branch history is rolled back.");
     return;
   }
   if (args.length > 1 || args[0]?.startsWith("-")) throw new Error("Usage: scripts/release.sh [vVERSION]");
   if (checked("git", ["status", "--porcelain=v1", "--untracked-files=normal"])) {
-    throw new Error("The working tree must be clean. Commit the version and release changes first.");
+    throw new Error("The working tree must be clean before automatically preparing a release.");
   }
-  const commit = checked("git", ["rev-parse", "--verify", "HEAD"]);
+  let commit = checked("git", ["rev-parse", "--verify", "HEAD"]);
   if (!/^[a-f0-9]{40,64}$/.test(commit)) throw new Error("Cannot resolve the release commit.");
-  const manifest = json(checked("git", ["show", `${commit}:package.json`]), "committed package.json");
-  const lock = json(checked("git", ["show", `${commit}:package-lock.json`]), "committed package-lock.json");
-  const version = manifest.version;
-  if (typeof version !== "string"
-    || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
-    throw new Error("package.json must contain a valid release version.");
+  assertMainCheckout(commit);
+  const version = committedVersion(commit);
+  const parts = versionPattern.exec(version);
+  // npm patch promotes an existing prerelease without incrementing its patch.
+  const nextVersion = `${parts[1]}.${parts[2]}.${BigInt(parts[3]) + (parts[4] ? 0n : 1n)}`;
+  const requested = args[0]?.replace(/^v/, "");
+  if (requested && requested !== version && requested !== nextVersion) {
+    throw new Error(`Expected next patch ${nextVersion}, or current ${version} for an explicit retry.`);
   }
-  if (lock.version !== version || object(object(lock.packages, "lock packages")[""], "lock root").version !== version) {
-    throw new Error("package.json and both lockfile version fields must match.");
-  }
-  tag = args[0] ? args[0].startsWith("v") ? args[0] : `v${args[0]}` : `v${version}`;
-  if (tag !== `v${version}`) throw new Error(`Tag ${tag} must match the committed package version v${version}.`);
+  const shouldBump = requested !== version;
+  const targetVersion = shouldBump ? nextVersion : version;
+  tag = `v${targetVersion}`;
   checked("git", ["check-ref-format", `refs/tags/${tag}`]);
   const fetchUrl = checked("git", ["remote", "get-url", "origin"]);
   const pushUrl = checked("git", ["remote", "get-url", "--push", "--all", "origin"]);
@@ -155,9 +265,9 @@ async function release() {
   checked("git", ["fetch", "--no-tags", "--quiet", "origin", "refs/heads/main"]);
   const mainCommit = checked("git", ["rev-parse", "--verify", "FETCH_HEAD"]);
   if (!/^[a-f0-9]{40,64}$/.test(mainCommit)) throw new Error("Cannot resolve the fetched main commit.");
-  const ancestry = command("git", ["merge-base", "--is-ancestor", commit, mainCommit]);
-  if (ancestry.status === 1) throw new Error("The release commit must already be merged into origin/main.");
-  if (ancestry.status !== 0) throw new Error(`Cannot verify main ancestry: ${ancestry.stderr}`);
+  if (commit !== mainCommit) {
+    throw new Error("Local main must match origin/main exactly. Update it with a fast-forward before releasing.");
+  }
   const local = command("git", ["show-ref", "--verify", "--quiet", `refs/tags/${tag}`]);
   if (local.status === 0 || remoteOid()) throw new Error(`Tag ${tag} already exists; no refs were changed.`);
   if (local.status !== 1) throw new Error("Cannot verify whether the local tag exists.");
@@ -173,7 +283,7 @@ async function release() {
     throw new Error("The release workflow must be active before creating a tag.");
   }
   const endpoint = `repos/${repository}/actions/workflows/${workflow.id}/runs`
-    + `?event=push&branch=${encodeURIComponent(tag)}&head_sha=${commit}&per_page=100`;
+    + `?event=push&branch=${encodeURIComponent(tag)}&per_page=100`;
   const before = api(endpoint).workflow_runs;
   if (!Array.isArray(before)) throw new Error("Cannot read existing release workflow runs.");
   const oldRuns = new Set(before.map((run) => object(run, "workflow run").id));
@@ -181,6 +291,9 @@ async function release() {
     || checked("git", ["status", "--porcelain=v1", "--untracked-files=normal"])) {
     throw new Error("The release commit or worktree changed during preflight; no tag was created.");
   }
+  if (shouldBump) commit = await bumpPatch(commit, version, targetVersion);
+  else log(`Retrying committed version ${version} without another bump or main push.`);
+  assertMainCheckout(commit);
   checked("git", ["-c", "tag.gpgSign=false", "tag", "--annotate",
     "--message", `2D&D release ${tag}`, tag, commit]);
   created = true;
@@ -197,7 +310,7 @@ async function release() {
   }
   if (pushedOid !== tagOid) throw new Error("Remote tag does not match the created tag; it will not be deleted.");
   if (push.status !== 0) report("Push reported an error, but the exact owned tag exists remotely; monitoring CI.");
-  log(`Pushed only ${tag}; waiting for ${workflowPath}.`);
+  log(`Pushed tag ${tag}; waiting for ${workflowPath}.`);
   let run;
   for (let attempt = 0; attempt < 30; attempt++) {
     const runs = api(endpoint).workflow_runs;
@@ -241,6 +354,11 @@ release().catch((error) => {
     }
   } else if (created) {
     report(`Tags were retained because publication status or ownership is uncertain. ${runUrl}`);
+  }
+  if (versionCommit) {
+    report(`The version commit ${versionCommit} is retained; main history is never rolled back. Reconcile main before retrying ${tag}.`);
+  } else if (versionPrepared) {
+    report("Inspect the prepared version files and local HEAD before retrying; no release tag was created.");
   }
   report("Release failed. Existing releases, unrelated tags and branches were not changed.");
   process.exitCode = 1;

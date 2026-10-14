@@ -7,9 +7,13 @@ persistent data changes.
 
 If a utility script is required, place it in `hacks/`, document it in
 `hacks/instructions.md`, and remove temporary utilities when the task is done.
-The public `scripts/release.sh` entry delegates to `hacks/release.mjs`; it tags
-only a clean committed version on main, watches the exact new release run,
-and rolls back only its unchanged local/remote tags on confirmed CI failure.
+The public `scripts/release.sh` entry delegates to `hacks/release.mjs`. A maintainer
+invocation from clean, up-to-date main bumps npm patch, synchronizes release
+references, commits with `--no-gpg-sign`, pushes main, tags, and watches the exact
+new release run. Confirmed CI failure rolls back only its unchanged local/remote
+tags, never the version commit. Explicit current-version retries skip the bump.
+Implementing/testing this command does not authorize an agent to release or push
+main; use isolated mocked release tests and a review branch.
 Do not add planning or summary Markdown files to the repository.
 
 No source file should exceed 1,000 lines without considering extraction into a

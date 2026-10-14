@@ -99,27 +99,32 @@ operating system may challenge these builds.
 
 ### Release command
 
-After merging and committing the matching version in `package.json` and both
-lockfile version fields, run:
+After merging the release changes, use a clean `main` checkout that exactly
+matches `origin/main`, then run:
 
 ```bash
 ./scripts/release.sh
-# Or require an explicit match to the already-committed version:
+# Optional guard: require this to be the next patch version:
 ./scripts/release.sh v1.2.3
 ./scripts/release.sh --help
 ```
 
 The shell entry point delegates to `hacks/release.mjs`. It requires Node.js 24+,
-Git, and authenticated GitHub CLI access to read Actions and push tags.
-It does not bump versions, commit changes, push branches, merge a PR, or run
-local desktop windows. A dirty tree, version mismatch, non-main ancestry,
-pre-existing local/remote tag or GitHub release, or disabled release workflow
-rejects before tag creation.
+Git, configured Git author identity, and authenticated GitHub CLI access to read
+Actions and push main/tags. The maintainer must have permission to push the version
+commit directly to main; the command never bypasses branch protection.
+A dirty/ahead/behind/non-main checkout, mismatched package/lock metadata, existing
+target tag/release, or disabled release workflow rejects before the bump.
 
-The command creates one unsigned annotated `v<version>` tag, pushes only that
-tag to the explicit `origin`, and waits for the new `release.yml` push run bound
-to that exact tag and commit. Previous runs and unrelated workflows cannot
-provide a passing result.
+By default, the command runs `npm version patch --no-git-tag-version`,
+synchronizes the current-release references in `README.md` and `AGENTS.md`,
+stages only those four owned files, and commits with `--no-gpg-sign`. Unexpected
+file/index or commit changes stop before a branch push. It pushes that exact
+version commit normally to `origin/main` and verifies the remote identity before
+creating an unsigned annotated `v<new-version>` tag at that commit.
+It then pushes the tag and waits for the new `release.yml` push run bound to that
+exact tag and commit. Previous runs and unrelated workflows cannot provide a
+passing result. It never merges a PR or opens local desktop windows.
 
 A confirmed failed/cancelled/timed-out release run deletes this invocation's
 unchanged remote and local tags and exits nonzero with the workflow URL.
@@ -129,6 +134,21 @@ force-pushes or deletes another tag/branch. Monitoring/network uncertainty
 retains both tags because CI may still publish; inspect the reported run
 instead of treating a failed watcher as failed CI. A GitHub release or uploaded
 assets are not deleted automatically.
+
+The version commit and any prepared local version files are **not rolled back**.
+An npm, commit, or main-push failure leaves them available for inspection and
+never tags an unconfirmed version commit. Reconcile local/remote main before
+retrying. After failed CI removes the tags, pass the **current committed version**
+explicitly to retry without another npm bump, commit, or main push:
+
+```bash
+# If the failed release already bumped main to 1.2.3:
+./scripts/release.sh v1.2.3
+```
+
+An explicit version must match either the next patch (normal bump) or the current
+version (tag-only retry). The latter also supports a major/minor version already
+prepared and merged separately. No argument always selects a new patch release.
 
 ## Steam preparation
 
@@ -148,8 +168,8 @@ desktop-equivalent tests do not close the real Steam-client or hardware gates.
 
 1. Confirm all claimed features are merged into current `main`; do not use open
    issue or pull-request behavior in release notes.
-2. Update the version in `package.json` and lockfile when publishing a new
-   release.
+2. Check that package/lock versions agree. The release command prepares the
+   next patch after merge; prepare a major/minor bump separately when needed.
 3. Synchronize `README.md`, `docs/`, `AGENTS.md`,
    `.github/copilot-instructions.md`, and relevant skills.
 4. Verify Phaser, TypeScript, Vite, Vitest, Playwright, happy-dom, and save-schema
@@ -167,8 +187,10 @@ desktop-equivalent tests do not close the real Steam-client or hardware gates.
 15. Resolve every failure and review comment before merge.
 16. After merge, verify the Pages workflow, showcase, Play action, and deployed
     `game.html`.
-17. For a desktop release, run `./scripts/release.sh` from the verified `main`
-    commit to create/push the matching tag and watch the complete release.
+17. For a desktop release, run `./scripts/release.sh` from clean, up-to-date
+    `main` to bump/commit/push its patch version, tag, and watch the complete
+    release. Pass an already-prepared current version explicitly for a retry
+    or major/minor release.
 18. Wait for the release workflow and verify every expected desktop package is
     attached to the generated GitHub release.
 19. When signing credentials exist, sign/notarize in the protected release

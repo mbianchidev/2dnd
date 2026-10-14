@@ -165,9 +165,11 @@ isolated workers and five browser shards. See [Testing](docs/testing.md).
 Use `npm run dev:desktop` for Electron development and
 `npm run package:desktop` for unsigned artifacts on the current host.
 
-Maintainers can run `./scripts/release.sh [vVERSION]` to tag the committed
-version, push only that tag and wait for release CI, with owned-tag rollback on
-failure. See the [release guide](docs/release.md) before publishing.
+From clean, up-to-date `main`, maintainers can run `./scripts/release.sh` to
+automatically bump the npm patch version, commit/push the version and release
+references, then tag and wait for release CI. Failed CI rolls back only the tags,
+not the version commit. An explicit current version retries without another bump.
+See the [release guide](docs/release.md) before publishing.
 
 ## Documentation
 

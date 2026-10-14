@@ -59,7 +59,9 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - pure layout, wrapping, pagination, safe-area, and focus math
 - complete per-city district reveal with legacy fog-key isolation, canonical
   NPC palettes shared between city/story actors, and mocked release command
-  preflight/tag/push/CI/rollback behavior without real network or tag writes
+  patch/version-reference/commit/main-push/tag/CI/rollback behavior, explicit
+  retry, failed preparation and uncertain acknowledgements without real
+  network, release or repository-ref writes
 - original Standard golden mechanics, every Custom bound, once-only scale
   composition, and per-mode campaign/boss/economy/sea/defeat/save/eligibility
 - transition contracts with mocked camera/time adapters

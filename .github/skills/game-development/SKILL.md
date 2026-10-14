@@ -28,6 +28,11 @@ and changes spanning scenes, systems, data, renderers, or managers.
 5. Use `debugLog()` and debug-panel APIs instead of `console.log`.
 6. Add deterministic Vitest coverage for game logic.
 
+City interiors and all connected districts reveal on entry/load through
+`FogOfWar.revealCity()`, without changing wilderness/dungeon fog.
+Named story NPCs share canonical `npcVisuals.ts` / `npcTextures.ts` appearance
+with their city actors; bosses use monster-family textures, not generic bodies.
+
 ## Current architecture
 
 - Hero progression: immutable `data/classProgression.ts`, authoritative

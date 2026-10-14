@@ -1,6 +1,10 @@
 import * as Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../config";
 import { audioEngine } from "../systems/audio";
+import { getMonster } from "../data/monsters";
+import { getMonsterTextureKey } from "../data/monsterFamilies";
+import { resolveNamedNpcVisual } from "../systems/npcVisuals";
+import { getOrCreateNpcTexture } from "./npcTextures";
 
 import type {
   CutsceneActorCue,
@@ -28,7 +32,7 @@ import {
 
 interface RenderedActor {
   container: Phaser.GameObjects.Container;
-  body: Phaser.GameObjects.GameObject;
+  body: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
   textureKey: string;
   heroSprite?: Phaser.GameObjects.Sprite;
@@ -56,15 +60,6 @@ const BACKDROP_COLORS: Record<CutsceneBackdrop, number> = {
   crypt: 0x1d2028,
   forge: 0x3e241e,
 };
-
-function actorColor(id: string): number {
-  let hash = 0;
-  for (const char of id) {
-    hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
-  }
-  const colors = [0x6b8bc4, 0xc4875d, 0x7eb07a, 0xa884c3, 0xd1b65c];
-  return colors[Math.abs(hash) % colors.length];
-}
 
 function displayName(actor: CutsceneActorCue, player: PlayerState): string {
   return actor.label.replace("{hero}", player.name);
@@ -115,9 +110,11 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   }
 
   get debugState(): string {
-    return this.lastEvent === "idle"
+    const state = this.lastEvent === "idle"
       ? this.actorAnimations.state
       : this.lastEvent;
+    return `${state} | Actors: ${[...this.actors.entries()]
+      .map(([id, actor]) => `${id}=${actor.textureKey}`).join(",")}`;
   }
 
   get heroInspectionReport(): string {
@@ -319,7 +316,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
         .setOrigin(0.5, 1)
         .setScale(3)
       : undefined;
-    const body = heroSprite ?? this.createGenericActorBody(placement);
+    const body = heroSprite ?? this.createCharacterBody(placement);
     const label = this.scene.add.text(0, 20, "", {
       fontSize: "12px",
       color: "#ffffff",
@@ -332,7 +329,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       container,
       body,
       label,
-      textureKey: heroTextureLease?.key ?? `cutscene.actor.${placement.id}`,
+      textureKey: body.texture.key,
       heroSprite,
       heroTextureLease,
     };
@@ -341,20 +338,23 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     return rendered;
   }
 
-  private createGenericActorBody(
+  private createCharacterBody(
     placement: CutsceneActorCue,
-  ): Phaser.GameObjects.Graphics {
-    const body = this.scene.add.graphics();
-    const color = placement.role === "hero"
-      ? actorColor(placement.id)
-      : placement.color;
-    body.fillStyle(color, 1);
-    body.fillCircle(0, -86, 21);
-    body.fillRoundedRect(-30, -64, 60, 76, 12);
-    body.fillStyle(0xe6d2b5, 1);
-    body.fillCircle(-7, -90, 3);
-    body.fillCircle(7, -90, 3);
-    return body;
+  ): Phaser.GameObjects.Sprite {
+    if (placement.role === "character") {
+      const visual = resolveNamedNpcVisual(placement.npcId);
+      const key = getOrCreateNpcTexture(
+        this.scene, visual.template, visual.skinColor, visual.hairColor, visual.dressColor,
+      );
+      return this.scene.add.sprite(0, 12, key).setOrigin(0.5, 1)
+        .setScale(3 * visual.template.heightScale);
+    }
+    if (placement.role === "boss") {
+      const monster = getMonster(placement.id);
+      if (!monster) throw new Error(`[cutscene] Unknown boss visual ${placement.id}.`);
+      return this.scene.add.sprite(0, 12, getMonsterTextureKey(monster)).setOrigin(0.5, 1).setScale(1.25);
+    }
+    throw new Error("[cutscene] Hero visuals must use their live texture lease.");
   }
 
   private updateActorVisual(

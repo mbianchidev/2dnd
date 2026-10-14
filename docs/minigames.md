@@ -9,14 +9,16 @@ real-world money, or campaign quest completion.
 
 ## Finding a venue
 
-City markers show **D** for dice, **A** for archery, and **R** for a regatta.
-Explore nearby to discover the venue; stand on its marker and interact to open
-its entry panel. A nearby marker can also be selected directly. After
+Cities contain **archery targets** and **a seated dice player at a table**,
+not letter flags for those activities. Harbor Regatta retains its **R** flag.
+City interiors and connected districts are fully revealed on entry. Approach
+the venue to discover it; stand at the prop and interact to open
+its entry panel. A nearby prop can also be selected directly. After
 discovery, **Esc -> Tavern & Festival Games** keeps instructions and personal
 boards available from safe exploration. Hidden activities leave no empty tab
 or menu row.
 
-| Activity | Venue | District and marker |
+| Activity | Venue | District and location |
 | --- | --- | --- |
 | Crown & Bones | Willow Inn Dice Table | Willowdale primary district, `(13,12)` |
 | Crown & Bones | Desert Rose Dice Table | Sandport primary district, `(13,8)` |
@@ -218,7 +220,7 @@ Debug commands are local-only:
 
 Debug play is persistently marked, charges/pays nothing, causes no hull wear,
 and never advances natural bests, counters, milestone claims, reputation, lore,
-or achievements. The marker remains after reload.
+or achievements. The venue prop remains after reload.
 
 ## Coverage
 

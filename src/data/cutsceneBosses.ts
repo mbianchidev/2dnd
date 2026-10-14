@@ -36,7 +36,6 @@ interface BossStory {
   readonly name: string;
   readonly pre: BossCutsceneId;
   readonly post: BossCutsceneId;
-  readonly color: number;
   readonly backdrop: CutsceneBackdrop;
   readonly effect: CutsceneEffect;
   readonly biome: string;
@@ -50,7 +49,6 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Cave Troll",
     pre: "boss.troll.pre",
     post: "boss.troll.post",
-    color: 0x447744,
     backdrop: "forest",
     effect: "shake",
     biome: "forest",
@@ -62,7 +60,6 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Young Red Dragon",
     pre: "boss.dragon.pre",
     post: "boss.dragon.post",
-    color: 0xcc2222,
     backdrop: "forge",
     effect: "embers",
     biome: "volcanic",
@@ -74,7 +71,6 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Frost Giant",
     pre: "boss.frostGiant.pre",
     post: "boss.frostGiant.post",
-    color: 0x90caf9,
     backdrop: "frost",
     effect: "snow",
     biome: "tundra",
@@ -86,7 +82,6 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Swamp Hydra",
     pre: "boss.swampHydra.pre",
     post: "boss.swampHydra.post",
-    color: 0x558b2f,
     backdrop: "marsh",
     effect: "mist",
     biome: "swamp",
@@ -98,7 +93,6 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Volcanic Wyrm",
     pre: "boss.volcanicWyrm.pre",
     post: "boss.volcanicWyrm.post",
-    color: 0xbf360c,
     backdrop: "forge",
     effect: "embers",
     biome: "volcanic",
@@ -110,7 +104,6 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Canyon Drake",
     pre: "boss.canyonDrake.pre",
     post: "boss.canyonDrake.post",
-    color: 0xa1887f,
     backdrop: "canyon",
     effect: "sand",
     biome: "canyon",
@@ -122,7 +115,6 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Crypt Lich",
     pre: "boss.cryptLich.pre",
     post: "boss.cryptLich.post",
-    color: 0x4a148c,
     backdrop: "crypt",
     effect: "runes",
     biome: "dungeon",
@@ -134,7 +126,6 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Frost Warden",
     pre: "boss.frostWarden.pre",
     post: "boss.frostWarden.post",
-    color: 0x80deea,
     backdrop: "frost",
     effect: "snow",
     biome: "dungeon",
@@ -146,7 +137,6 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Inferno Forgemaster",
     pre: "boss.infernoForgemaster.pre",
     post: "boss.infernoForgemaster.post",
-    color: 0xbf360c,
     backdrop: "forge",
     effect: "embers",
     biome: "dungeon",
@@ -158,7 +148,6 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Deepwake Kraken",
     pre: "boss.kraken.pre",
     post: "boss.kraken.post",
-    color: 0x311b92,
     backdrop: "marsh",
     effect: "mist",
     biome: "sea",
@@ -182,7 +171,6 @@ function boss(story: BossStory): CutsceneActorCue {
     role: "boss",
     id: story.id,
     label: story.name,
-    color: story.color,
     slot: "right",
     scale: 1.35,
     entrance: "right",

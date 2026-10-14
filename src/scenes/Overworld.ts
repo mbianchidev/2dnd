@@ -654,8 +654,10 @@ export class OverworldScene extends Phaser.Scene {
       this.weatherState.current = WeatherType.Clear;
     }
 
-    // Reveal tiles around player on creation (fog of war)
-    this.fogOfWar.revealAround(this.player.position.x, this.player.position.y, 2, this.player);
+    const currentCity = this.player.position.inCity ? getCity(this.player.position.cityId) : undefined;
+    if (currentCity) this.fogOfWar.revealCity(currentCity);
+    else this.fogOfWar.revealAround(this.player.position.x, this.player.position.y, 2, this.player);
+    this.player.progression.exploredTiles = this.fogOfWar.getExploredTiles();
 
     // Special NPC generation during map rendering may publish a HUD message.
     this.createHUD();
@@ -3001,11 +3003,7 @@ export class OverworldScene extends Phaser.Scene {
         this.player.position.x = city.spawnX;
         this.player.position.y = city.spawnY;
         this.weatherState.current = WeatherType.Clear;
-        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
-          for (let tx = 0; tx < MAP_WIDTH; tx++) {
-            this.player.progression.exploredTiles[`c:${city.id},${tx},${ty}`] = true;
-          }
-        }
+        this.fogOfWar.revealCity(city);
         if (!this.player.progression.discoveredCities.includes(city.id)) {
           this.player.progression.discoveredCities.push(city.id);
         }

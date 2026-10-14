@@ -48,6 +48,7 @@ future work until merged.
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
 | Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
 | Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | `hacks/prepare-steam.mjs`, protected upload utility | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck-equivalent Electron |
+| Release command | committed manifest/lock version, `release.yml` | `hacks/release.mjs` | `scripts/release.sh` entry point | mocked tag/push/CI/rollback integration |
 
 ## Required workflow
 
@@ -205,6 +206,10 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   D-pad/confirm activation; keep overwrite confirmation usable in landscape.
 - Own and clean up listeners, timers, tweens, emitters, DOM controls, texture
   leases, and transient containers.
+- Reveal the current city's complete interior/districts through
+  `FogOfWar.revealCity()` on entry and recovery, without revealing other places.
+  Archery/dice venues are tangible props, not letter flags. Named cutscene NPCs
+  share canonical city palettes/textures; bosses use monster-family art.
 - Install accessibility in every scene; support text scales, high contrast,
   reduced motion, non-color cues, touch, and gamepad cursor flows.
 - Inject `installSceneLayoutAudit` into `installSceneAccessibility`. Keep pure

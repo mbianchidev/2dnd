@@ -1,5 +1,12 @@
 # Utility scripts
 
+- `release.mjs`, exposed by the executable `scripts/release.sh`, validates the
+  clean committed version and main ancestry, creates/pushes one unsigned
+  annotated tag, and waits for the exact new tagged release workflow. Confirmed
+  CI failure rolls back only its unchanged local/remote tags. Unknown CI status
+  or changed ownership preserves refs and reports an actionable failure.
+  It never bumps/commits versions, pushes branches, force-pushes, or deletes
+  releases/assets. See `docs/release.md`; tests use fully mocked Git/GitHub.
 - `run-browser-tests.mjs` allocates an unused localhost port, passes it to the
   Playwright config, and runs the browser suite without reusing stale Vite
   servers. Invoke it through `npm run test:browser`.

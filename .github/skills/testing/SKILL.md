@@ -83,6 +83,10 @@ normalization/migration, search/sort/group behavior, and future-hook isolation
 ✅ Full world/city/dungeon music coverage, distinct deterministic motifs,
 day/night shifts, unchanged RNG and deduplicated track selection
 ✅ Seeded layouts and persistent state machines
+✅ Complete city/district reveal with isolated legacy fog keys, canonical
+city/story NPC palettes, tangible venue interactions, and fully mocked release
+tag ownership, exact workflow selection, failure rollback and uncertain-status
+preservation without real release/tag/network writes
 ✅ Non-combat skill-check math, outcomes, and save normalization
 ✅ Scene-transition event ordering, duplicate guards, and watchdog recovery with
 mocked camera/time adapters

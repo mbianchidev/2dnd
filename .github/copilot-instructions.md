@@ -7,6 +7,9 @@ persistent data changes.
 
 If a utility script is required, place it in `hacks/`, document it in
 `hacks/instructions.md`, and remove temporary utilities when the task is done.
+The public `scripts/release.sh` entry delegates to `hacks/release.mjs`; it tags
+only a clean committed version on main, watches the exact new release run,
+and rolls back only its unchanged local/remote tags on confirmed CI failure.
 Do not add planning or summary Markdown files to the repository.
 
 No source file should exceed 1,000 lines without considering extraction into a
@@ -233,6 +236,10 @@ loads from `app://2dnd` in packaged builds.
   `src/renderers/heroTextures.ts`. Overworld, Battle, Cutscene, and hero-bearing
   Ending steps share this pipeline. Cutscene data stores stable hero roles and
   staging only; never store generic hero colors or appearance snapshots.
+- Named cutscene NPC cues use canonical `npcId` references and share city
+  instance palettes through `systems/npcVisuals.ts` / `renderers/npcTextures.ts`.
+  Keep skin, hair and clothing separate; never substitute monochrome humanoids.
+  Boss cues use their canonical monster-family textures.
 - Battle backdrop geometry is scene-sized procedural rendering owned by
   `src/renderers/battleBackdrop.ts`. Use the typed bands in `battleDepth.ts`;
   never bake sky and scenery into one opaque layer or introduce scene-local
@@ -779,6 +786,9 @@ There are 12 campaign cities plus the optional island port Tidehaven. Logical ci
 `city.chunks` stores additional districts beginning at logical index 1.
 Use `getCityChunk*()` and `getCityConnectionAt()` helpers. Connections update
 `player.position.cityChunkIndex` and destination coordinates.
+Entering or loading a city reveals every tile of all its districts through
+`FogOfWar.revealCity()`. Preserve existing city fog keys and other locations'
+fog; do not use the debug world reveal or discover unrelated cities.
 
 ### Dungeons
 
@@ -900,6 +910,9 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
   mechanics, transactions, unknown normalization, and pure layout/presentation.
   Scene-owned controls, instructions, personal boards, and cleanup live in
   `src/managers/minigames.ts` and procedural renderers.
+- City archery venues are physical targets; dice venues show a seated player
+  and table, not A/D flags. Preserve canonical proximity/entry checks, stable
+  pointer/touch targets and activity transactions; Regatta retains its flag.
 - Crown & Bones resolves exact 2d6 before presentation, exposes all 36 ordered
   odds, caps stakes at 5/10/20g and total payout at twice the stake, and has no
   positive optimal pre-entry expected return. Crowns affect score, not payout.

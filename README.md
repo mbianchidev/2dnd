@@ -71,6 +71,8 @@ outdoors and in towns.
 - **Explore a changing world:** travel through connected city districts,
   multi-level dungeons, seeded traps, fog of war, weather, day and night,
   non-combat skill checks, World Events, and optional danger zones.
+  Entering a city reveals its complete interior and every connected district;
+  wilderness and dungeon fog still clear through exploration.
 - **Discover more than monsters:** expand the Codex with lore, make alignment
   and reputation choices, earn achievements and cosmetic titles, and replay
   unlocked story scenes in the Chronicle.
@@ -162,6 +164,10 @@ isolated workers and five browser shards. See [Testing](docs/testing.md).
 
 Use `npm run dev:desktop` for Electron development and
 `npm run package:desktop` for unsigned artifacts on the current host.
+
+Maintainers can run `./scripts/release.sh [vVERSION]` to tag the committed
+version, push only that tag and wait for release CI, with owned-tag rollback on
+failure. See the [release guide](docs/release.md) before publishing.
 
 ## Documentation
 

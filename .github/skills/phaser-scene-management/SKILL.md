@@ -127,8 +127,9 @@ on close/shutdown. Hold confirms until keyup, capture stable session/revision
 intent, coalesce duplicates, and never leave held input for Overworld.
 Archery preview updates are runtime-only; accepted shots save before results.
 Resume exact pending/result state before exploration and block other
-state-changing inputs while the activity is open. Fog-hidden venue flags must
-have no hit target and become visible as exploration advances.
+state-changing inputs while the activity is open. Hidden venue props must
+have no hit target. City interiors and all districts reveal on entry/reload;
+venue discovery still follows canonical live proximity rather than fog.
 
 ## Devotion presentation
 
@@ -267,6 +268,12 @@ acquire them through `heroTextures.ts`, and release the lease only after the
 owning sprite/container is destroyed or has switched textures. This keeps
 cutscene recovery and Chronicle replay current without generic-frame flashes or
 texture leaks.
+
+Named cutscene characters carry a typed canonical `npcId` and share
+`systems/npcVisuals.ts` / `renderers/npcTextures.ts` with their city instances.
+Preserve separate skin, hair and clothing colors; do not replace NPCs with
+monochrome humanoids or tint the complete sprite. Boss cues resolve the
+existing canonical monster-family textures. Keep all visuals presentation-only.
 
 ## Scene-owned subsystems
 

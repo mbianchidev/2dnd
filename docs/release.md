@@ -97,6 +97,39 @@ The workflow publishes unsigned packages. Signing and notarization remain a
 separate protected release concern; the landing page warns players that their
 operating system may challenge these builds.
 
+### Release command
+
+After merging and committing the matching version in `package.json` and both
+lockfile version fields, run:
+
+```bash
+./scripts/release.sh
+# Or require an explicit match to the already-committed version:
+./scripts/release.sh v1.2.3
+./scripts/release.sh --help
+```
+
+The shell entry point delegates to `hacks/release.mjs`. It requires Node.js 24+,
+Git, and authenticated GitHub CLI access to read Actions and push tags.
+It does not bump versions, commit changes, push branches, merge a PR, or run
+local desktop windows. A dirty tree, version mismatch, non-main ancestry,
+pre-existing local/remote tag or GitHub release, or disabled release workflow
+rejects before tag creation.
+
+The command creates one unsigned annotated `v<version>` tag, pushes only that
+tag to the explicit `origin`, and waits for the new `release.yml` push run bound
+to that exact tag and commit. Previous runs and unrelated workflows cannot
+provide a passing result.
+
+A confirmed failed/cancelled/timed-out release run deletes this invocation's
+unchanged remote and local tags and exits nonzero with the workflow URL.
+Ownership changes or failed remote deletion are reported as **rollback
+incomplete**; the local receipt is retained for investigation. It never
+force-pushes or deletes another tag/branch. Monitoring/network uncertainty
+retains both tags because CI may still publish; inspect the reported run
+instead of treating a failed watcher as failed CI. A GitHub release or uploaded
+assets are not deleted automatically.
+
 ## Steam preparation
 
 PR desktop CI produces public placeholder depot previews without credentials
@@ -134,8 +167,8 @@ desktop-equivalent tests do not close the real Steam-client or hardware gates.
 15. Resolve every failure and review comment before merge.
 16. After merge, verify the Pages workflow, showcase, Play action, and deployed
     `game.html`.
-17. For a desktop release, create and push the version tag from the verified
-    `main` commit.
+17. For a desktop release, run `./scripts/release.sh` from the verified `main`
+    commit to create/push the matching tag and watch the complete release.
 18. Wait for the release workflow and verify every expected desktop package is
     attached to the generated GitHub release.
 19. When signing credentials exist, sign/notarize in the protected release

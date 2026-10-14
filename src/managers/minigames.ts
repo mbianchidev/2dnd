@@ -169,7 +169,7 @@ export class MinigameManager {
   ): void {
     const venue = getMinigameVenue(venueId);
     if (!isAtMinigameVenue(player, venue)) {
-      this.callbacks.showMessage(`Visit ${venue.name}, district ${venue.cityChunkIndex + 1}, marker (${venue.x},${venue.y}).`, "#ffe38a");
+      this.callbacks.showMessage(`Visit ${venue.name}, district ${venue.cityChunkIndex + 1}, venue (${venue.x},${venue.y}).`, "#ffe38a");
       return;
     }
     this.venueId = venueId;

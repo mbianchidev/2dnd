@@ -223,7 +223,8 @@ dice game; **Archery Challenge**, five class-neutral precision targets; and
 **Harbor Regatta**, an owned-boat buoy course with a fixed forecast and bounded
 hull wear. None is required for a quest, route, campaign ending, or post-game.
 
-Stand on a D/A/R venue marker and interact. After discovery, the Esc menu opens
+Find an archery target, a dice player at a table, or a harbor regatta flag.
+Stand at the venue and interact. After discovery, the Esc menu opens
 instructions and personal boards. Setup selects difficulty, capped stakes, or
 free archery/regatta practice. Reduced-motion archery uses explicit aiming with
 the same targets and scores. Leaving first opens a pause/abandon confirmation;

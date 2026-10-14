@@ -60,6 +60,18 @@ Development retains Phaser's published ESM entry.
 nautical metadata, monsters, quests, cutscenes, crafting, gathering, and other
 large domains live in focused modules rather than one monolithic data file.
 
+`FogOfWar.revealCity()` reveals every district of only the entered city using
+the existing legacy-compatible keys. Overworld applies it before rendering,
+including loaded/returned city states. Overworld and dungeon fog remain
+exploration-based. Archery targets and seated dice players are non-blocking
+world props with the same canonical activity IDs and interaction transactions.
+
+City and cutscene NPCs share `systems/npcVisuals.ts` and
+`renderers/npcTextures.ts`: canonical named NPC IDs resolve their actual template,
+skin, hair and clothes without whole-body tinting. Cutscene bosses use their
+existing monster-family textures. Actor cues retain stable staging IDs, with
+typed NPC references rather than presentation-only placeholder colors.
+
 ## Scenes and shared state
 
 `game.html` loads `src/main.ts`, which registers:

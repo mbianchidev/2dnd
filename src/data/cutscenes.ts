@@ -26,6 +26,7 @@ export {
 export type {
   CutsceneActorCue,
   CutsceneCharacterActorCue,
+  CutsceneBossActorCue,
   CutsceneHeroActorCue,
   CutsceneAudioCue,
   CutsceneBackdrop,

@@ -26,7 +26,8 @@ scene-management, weather, and testing skills before changing these contracts.
 - `minigamePresentation.ts`, `minigameLayout.ts`: truthful view models,
   runtime-only meter preview, duplicate suppression, measured geometry/pages
 - `src/managers/minigames.ts`: scene-owned accessible input/records/recovery
-- `src/renderers/minigame*.ts`: procedural panels, boards, and fog-aware flags
+- `src/renderers/minigame*.ts`: procedural panels, boards, tangible archery/
+  dice-player venue props, and the harbor regatta flag
 
 ## Mechanics and balance
 
@@ -99,7 +100,10 @@ natural bests/counters, milestone claims, social credit, or lore.
   synchronized hit areas, non-color state, and all three text scales.
 - Announce instructions, selections, and results through an owned live region.
 - Clear key/focus/update/pref/source listeners, containers, and held input on
-  close and shutdown. Hidden fog flags have no active pointer target.
+  close and shutdown. Hidden venue props have no active pointer target.
+  Register their actual tile-sized hit bounds; decorative regatta text is not
+  a second audit/control target. City districts reveal on entry, but venue
+  discovery/entry still require the canonical live proximity checks.
 - Expose only already-resolved dice; `ResolvedCrownRoll` carries sides 6,
   natural values, modifier 0, total, outcome, and stable roll ID.
 - Integrate a shared component presenter only after its owning code is merged.

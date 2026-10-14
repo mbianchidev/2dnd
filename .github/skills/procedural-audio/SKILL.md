@@ -7,8 +7,10 @@ license: MIT
 # Procedural Audio System
 
 All audio in 2D&D is synthesized at runtime via the Web Audio API — no external audio files.
-The main engine lives in `src/systems/audio.ts`; focused trap synthesis lives in
-`src/systems/trapAudio.ts`.
+The main engine lives in `src/systems/audio.ts`; immutable scores and motifs
+live in `src/data/music.ts`, pure resolution in `src/systems/music.ts`, and
+focused trap synthesis in `src/systems/trapAudio.ts`. See
+[`docs/audio.md`](../../../docs/audio.md).
 
 ## Architecture
 
@@ -65,25 +67,30 @@ Every music track is driven by a `BiomeProfile`:
 ```typescript
 interface BiomeProfile {
   baseNote: number;       // Semitone offset from A4 (440Hz)
-  scale: Scale;           // Array of semitone intervals
+  scale: Scale;           // Readonly semitone intervals
   bpm: number;            // Beats per minute
   wave: OscillatorType;   // Lead oscillator: "sine" | "square" | "sawtooth" | "triangle"
   padWave: OscillatorType; // Bass/pad oscillator type
+  motif?: readonly number[]; // Fixed scale degrees across octaves
 }
 ```
 
 ### Adding a New Biome Profile
-Add to `BIOME_PROFILES` record. The key must match the first word of chunk names:
+Add to `BIOME_PROFILES` in `data/music.ts`. The key matches the first word of
+chunk names; `BIOME_ALIASES` resolves the original named regions:
 
 ```typescript
 export const BIOME_PROFILES: Record<string, BiomeProfile> = {
   // ...existing entries...
-  Mystic: { baseNote: 3, scale: HARMONIC_MINOR, bpm: 74, wave: "triangle", padWave: "sine" },
+  Mystic: {
+    baseNote: 3, scale: HARMONIC_MINOR, bpm: 74, wave: "triangle", padWave: "sine",
+    motif: [0, 2, 4, 1, 3, 2, 0, 1, 7, 5, 6, 3, 4, 2, 1, 0],
+  },
 };
 ```
 
 ### Adding a New Boss Music Override
-Add to `BOSS_OVERRIDES` with the boss monster's ID as key:
+Add to `BOSS_OVERRIDES` in `data/music.ts` with the boss monster's ID as key:
 
 ```typescript
 const BOSS_OVERRIDES: Record<string, Partial<BiomeProfile>> = {
@@ -93,14 +100,31 @@ const BOSS_OVERRIDES: Record<string, Partial<BiomeProfile>> = {
 ```
 
 ### Adding a New City Music Override
-Add to `CITY_OVERRIDES` with the city name as key:
+Add to `CITY_OVERRIDES` in `data/music.ts` with the canonical city name as key.
+Give it a distinct 16-note motif as well as tempo/timbre:
 
 ```typescript
 const CITY_OVERRIDES: Record<string, Partial<BiomeProfile>> = {
   // ...existing entries...
-  Starhaven: { baseNote: 7, bpm: 110, scale: MAJOR_PENTA, wave: "sine", padWave: "triangle" },
+  Starhaven: {
+    baseNote: 7, bpm: 110, scale: MAJOR_PENTA, wave: "sine", padWave: "triangle",
+    motif: [0, 3, 2, 4, 1, 3, 5, 2, 7, 4, 6, 3, 2, 4, 1, 0],
+  },
 };
 ```
+
+### Area routing
+
+Overworld prioritizes dungeon, city, sailing, then the outdoor region.
+`playDungeonMusic(dungeonId)` uses `DUNGEON_PROFILES` keyed by canonical dungeon
+ID, including Tideglass Grotto. `playCityMusic(cityName, period)` supports the
+same dusk/night shift as outdoor music. Shop resolves the canonical `cityId`;
+never select a score from a title containing district/shop names.
+
+Always refresh music at a chunk boundary, even if `changeZoneWeather()` returns
+false. The engine deduplicates kind/ID/day-night, so updates within an unchanged
+area do not restart the phrase. Return from Battle or Shop restores area music
+through normal Overworld creation. Music selection never mutates campaign state.
 
 ## Orchestral Layers
 
@@ -114,8 +138,9 @@ Every track automatically layers these instruments via `playNote()`:
 6. **Hihat** — filtered noise burst on odd beats
 
 ### Night Mode
-Major scales automatically shift to their relative minor at night.
-Already-minor scales drop the root by 2–3 semitones for a darker feel.
+Major scales automatically shift to their relative minor at dusk/night.
+Already-minor scales drop the root by two semitones. Dungeon themes ignore
+outdoor time. `buildMusicPhrase()` is deterministic and consumes no shared RNG.
 
 ## Campaign ending music
 
@@ -207,7 +232,11 @@ Weather SFX use looping noise buffers routed through `sfxGain`:
 
 ## Testing
 
-Audio tests verify the API surface and state (no actual audio output in test env):
+Audio tests verify the API surface and state (no actual audio output in test env).
+`music.test.ts` covers every canonical chunk/city/dungeon, distinct melodies,
+day/night, unchanged definitions/RNG and track deduplication.
+`e2e/area-music.spec.ts` drives actual travel, interiors and returns in muted
+headless Chromium:
 ```typescript
 expect(typeof audioEngine.playAttackSFX).toBe("function");
 expect(() => audioEngine.playAttackSFX()).not.toThrow(); // no-op without AudioContext

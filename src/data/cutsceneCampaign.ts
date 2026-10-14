@@ -1,4 +1,4 @@
-import { MAIN_QUEST_ID } from "./quests";
+import { MAIN_QUEST_ID, QUEST_NPCS, type QuestNpcId } from "./quests";
 import type {
   CutsceneActorCue,
   CutsceneBackdrop,
@@ -61,14 +61,14 @@ const HERO: CutsceneActorCue = {
 function npc(
   id: string,
   label: string,
-  color: number,
+  npcId: QuestNpcId,
   slot: CutsceneActorCue["slot"] = "right",
 ): CutsceneActorCue {
   return {
     role: "character",
     id,
     label,
-    color,
+    npcId,
     slot,
     entrance: "right",
   };
@@ -173,8 +173,8 @@ interface OathStory {
   readonly city: string;
   readonly speaker: string;
   readonly speakerId: string;
+  readonly npcId: QuestNpcId;
   readonly line: string;
-  readonly color: number;
   readonly backdrop: CutsceneBackdrop;
   readonly effect: CutsceneEffect;
 }
@@ -186,8 +186,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Willowdale",
     speaker: "Archivist Elowen",
     speakerId: "elowen",
+    npcId: "willowdaleArchivist",
     line: "Carry the sigil openly. Let every city choose whether the old promise still deserves a voice.",
-    color: 0x9575cd,
     backdrop: "city",
     effect: "runes",
   },
@@ -197,8 +197,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Ironhold",
     speaker: "Warden Brann",
     speakerId: "brann",
+    npcId: "ironholdWarden",
     line: "Ironhold gives its word in iron: we endure together, or not at all.",
-    color: 0x90a4ae,
     backdrop: "city",
     effect: "flash",
   },
@@ -208,8 +208,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Deeproot",
     speaker: "Rootspeaker Neris",
     speakerId: "neris",
+    npcId: "deeprootRootspeaker",
     line: "Deeproot gives its word in living wood. May the covenant grow without becoming a chain.",
-    color: 0x66bb6a,
     backdrop: "forest",
     effect: "leaves",
   },
@@ -219,8 +219,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Frostheim",
     speaker: "Seer Yrsa",
     speakerId: "yrsa",
+    npcId: "frostheimSeer",
     line: "Frostheim bears witness. What survives the winter must shelter those who follow.",
-    color: 0x80deea,
     backdrop: "frost",
     effect: "snow",
   },
@@ -230,8 +230,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Thornvale",
     speaker: "Greenwarden Rowan",
     speakerId: "rowan",
+    npcId: "thornvaleGreenwarden",
     line: "Thornvale gives its living word. Root, river, and road will answer together.",
-    color: 0x43a047,
     backdrop: "forest",
     effect: "leaves",
   },
@@ -241,8 +241,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Sandport",
     speaker: "Harbormaster Sable",
     speakerId: "sable",
+    npcId: "sandportHarbormaster",
     line: "Sandport marks your sigil. Trade and truth both fail when every gate is closed.",
-    color: 0xffb74d,
     backdrop: "desert",
     effect: "sand",
   },
@@ -252,8 +252,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Canyonwatch",
     speaker: "Marshal Tarek",
     speakerId: "tarek",
+    npcId: "canyonwatchMarshal",
     line: "Canyonwatch gives its word. No traveler under covenant law stands alone.",
-    color: 0xbcaaa4,
     backdrop: "canyon",
     effect: "flash",
   },
@@ -263,8 +263,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Dunerest",
     speaker: "Lorekeeper Zahra",
     speakerId: "zahra",
+    npcId: "dunerestLorekeeper",
     line: "Dunerest renews its promise freely, as our ancestors intended.",
-    color: 0xffcc80,
     backdrop: "desert",
     effect: "runes",
   },
@@ -274,8 +274,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Bogtown",
     speaker: "Apothecary Mirel",
     speakerId: "mirel",
+    npcId: "bogtownApothecary",
     line: "Bogtown gives its word: every poison has a cure, and every city owes the search.",
-    color: 0x8bc34a,
     backdrop: "marsh",
     effect: "mist",
   },
@@ -285,8 +285,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Shadowfen",
     speaker: "Ferryman Vey",
     speakerId: "vey",
+    npcId: "shadowfenFerryman",
     line: "Shadowfen gives its word. Even hidden roads must lead somewhere worth reaching.",
-    color: 0x7e57c2,
     backdrop: "marsh",
     effect: "mist",
   },
@@ -296,8 +296,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Ashfall",
     speaker: "Smith Kael",
     speakerId: "kael",
+    npcId: "ashfallSmith",
     line: "Ashfall gives its word in tempered steel. Fire should shape a future, not consume it.",
-    color: 0xef6c00,
     backdrop: "forge",
     effect: "embers",
   },
@@ -307,8 +307,8 @@ const OATH_STORIES: readonly OathStory[] = [
     city: "Ridgewatch",
     speaker: "Sentinel Mira",
     speakerId: "mira",
+    npcId: "ridgewatchSentinel",
     line: "Ridgewatch gives the twelfth word. The road to the forge is yours.",
-    color: 0xffd54f,
     backdrop: "mountain",
     effect: "stars",
   },
@@ -324,6 +324,7 @@ interface MilestoneStory {
   readonly trigger: CutsceneTriggerDefinition<CampaignCutsceneId>["condition"];
   readonly priority: number;
   readonly cue: NonNullable<CutscenePresentation["audioCue"]>;
+  readonly npcId?: QuestNpcId;
 }
 
 const MILESTONE_STORIES: readonly MilestoneStory[] = [
@@ -395,6 +396,7 @@ const MILESTONE_STORIES: readonly MilestoneStory[] = [
   },
   {
     cutsceneId: "campaign.companion.guardian",
+    npcId: "guardian",
     title: "The Ironward Oath",
     heading: "A Shield Joins the Road",
     text: "Bram Ironward sets his shield beside yours. The party gains a guardian who will not yield the line.",
@@ -406,6 +408,7 @@ const MILESTONE_STORIES: readonly MilestoneStory[] = [
   },
   {
     cutsceneId: "campaign.companion.scout",
+    npcId: "scout",
     title: "The Swiftstep Trail",
     heading: "Eyes on the Horizon",
     text: "Kaia Swiftstep takes the forward path. The party gains a scout who reads danger before it arrives.",
@@ -417,6 +420,7 @@ const MILESTONE_STORIES: readonly MilestoneStory[] = [
   },
   {
     cutsceneId: "campaign.companion.mystic",
+    npcId: "mystic",
     title: "The Veiled Flame",
     heading: "A Ward Beside You",
     text: "Selene Vey binds the quiet flame to her staff. The party gains a mystic who walks between omen and spell.",
@@ -534,7 +538,7 @@ const OATH_DEFINITIONS = OATH_STORIES.map(
     const witness = npc(
       story.speakerId,
       story.speaker,
-      story.color,
+      story.npcId,
     );
     return {
       id: story.cutsceneId,
@@ -594,7 +598,9 @@ const MILESTONE_DEFINITIONS = MILESTONE_STORIES.map(
         presentation: presentation(
           story.backdrop,
           story.effect,
-          [{ ...HERO, slot: "center" }],
+          story.npcId
+            ? [HERO, npc(story.npcId, QUEST_NPCS[story.npcId].name, story.npcId)]
+            : [{ ...HERO, slot: "center" }],
           story.cue,
           "center",
         ),
@@ -616,7 +622,7 @@ const FINAL_RETURN: CutsceneDefinition<CampaignCutsceneId> = {
       presentation: presentation(
         "city",
         "runes",
-        [HERO, npc("elowen", "Archivist Elowen", 0x9575cd)],
+        [HERO, npc("elowen", "Archivist Elowen", "willowdaleArchivist")],
         "finale",
         "right",
       ),
@@ -659,6 +665,10 @@ CutsceneDefinition<CampaignCutsceneId> = {
       type: "dialogue",
       speaker: "Archivist Elowen",
       text: "The covenant names you its roadwarden. Its promise is restored, but its roads still need a guardian. Go freely - the world you saved remains yours to explore.",
+      presentation: presentation(
+        "city", "runes", [HERO, npc("elowen", "Archivist Elowen", "willowdaleArchivist")],
+        "finale", "right",
+      ),
     },
     {
       type: "narration",

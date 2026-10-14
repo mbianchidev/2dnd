@@ -24,6 +24,12 @@ The game loads no external image or audio assets and makes no gameplay network
 calls. Textures are generated procedurally; music and sound effects use Web
 Audio synthesis.
 
+Immutable area scores and motifs live in `data/music.ts`; `systems/music.ts`
+resolves named regions and deterministic day/night phrases. `systems/audio.ts`
+owns synthesis and deduplicated crossfades. Overworld selects city, dungeon,
+sailing or region music from live location state, and shops retain the canonical
+city score rather than using their decorated display title. See [Area music](audio.md).
+
 Production builds use Phaser's supported modular `phaser-no-physics.js` entry:
 2D&D uses neither Arcade nor Matter. Both Canvas/WebGL renderers and Phaser's
 normal sound API remain available; GPU inspection is disabled. The game disables
@@ -53,6 +59,18 @@ Development retains Phaser's published ESM entry.
 `src/data/map.ts` is the map hub. World chunks, cities, dungeons, islands,
 nautical metadata, monsters, quests, cutscenes, crafting, gathering, and other
 large domains live in focused modules rather than one monolithic data file.
+
+`FogOfWar.revealCity()` reveals every district of only the entered city using
+the existing legacy-compatible keys. Overworld applies it before rendering,
+including loaded/returned city states. Overworld and dungeon fog remain
+exploration-based. Archery targets and seated dice players are non-blocking
+world props with the same canonical activity IDs and interaction transactions.
+
+City and cutscene NPCs share `systems/npcVisuals.ts` and
+`renderers/npcTextures.ts`: canonical named NPC IDs resolve their actual template,
+skin, hair and clothes without whole-body tinting. Cutscene bosses use their
+existing monster-family textures. Actor cues retain stable staging IDs, with
+typed NPC references rather than presentation-only placeholder colors.
 
 ## Scenes and shared state
 
@@ -298,8 +316,8 @@ projects only permitted information and owns scene-local evidence. The
 scene-owned dice manager and pointer-transparent procedural SVG game
 throw layer consume those results without
 RNG, resource mutations, input-block reasons, or gameplay completion callbacks.
-Battle routes redacted detail into its existing bounded log and accessible
-counterpart. Non-battle results expire after three seconds with an optional
+Battle routes redacted detail only into its existing lower bounded log and accessible
+counterpart; its pixel-dice layer adds no duplicate caption strip. Non-battle results expire after three seconds with an optional
 250-ms fade. No history or latest result crosses a scene handoff; event reset,
 blur and shutdown cancel visuals, cues and owned timers.
 See [Dice presentation](dice-presentation.md).

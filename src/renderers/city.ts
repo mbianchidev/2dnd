@@ -13,13 +13,15 @@ import {
   getCityChunk,
 } from "../data/map";
 import {
-  CITY_NPCS, getNpcTemplate, getNpcColors,
+  CITY_NPCS,
   type NpcInstance, type NpcTemplate,
 } from "../data/npcs";
 import { getTimePeriod, TimePeriod } from "../systems/daynight";
 import { isReducedMotionEnabled } from "../systems/accessibility";
 import type { PlayerState } from "../systems/player";
 import { TILE_SIZE } from "../config";
+import { resolveNpcVisual } from "../systems/npcVisuals";
+import { getOrCreateNpcTexture } from "./npcTextures";
 
 export class CityRenderer {
   private scene: Phaser.Scene;
@@ -420,53 +422,7 @@ export class CityRenderer {
     hairColor: number,
     dressColor: number,
   ): string {
-    const key = `npc_${tpl.id}_${skinColor.toString(16)}_${hairColor.toString(16)}_${dressColor.toString(16)}`;
-    if (this.scene.textures.exists(key)) return key;
-
-    const S = TILE_SIZE;
-    const gfx = this.scene.add.graphics();
-    const isChild = tpl.ageGroup === "child";
-    const bodyW = isChild ? 10 : 14;
-    const bodyH = isChild ? 10 : 14;
-    const headR = isChild ? 5 : 6;
-    const legW = isChild ? 3 : 4;
-    const legH = isChild ? 4 : 5;
-    const bx = Math.floor((S - bodyW) / 2);
-    const by = isChild ? 14 : 10;
-
-    // Body / dress — uses the per-instance dress colour
-    gfx.fillStyle(dressColor, 1);
-    gfx.fillRect(bx, by, bodyW, bodyH);
-
-    // Head — real skin colour
-    gfx.fillStyle(skinColor, 1);
-    gfx.fillCircle(S / 2, by - headR + 2, headR);
-
-    // Hair
-    gfx.fillStyle(hairColor, 1);
-    if (tpl.ageGroup === "child") {
-      gfx.fillRect(S / 2 - headR + 1, by - headR * 2 + 3, headR * 2 - 2, 3);
-    } else if (tpl.ageGroup === "female") {
-      gfx.fillRect(S / 2 - headR, by - headR * 2 + 2, headR * 2, 4);
-      gfx.fillRect(S / 2 - headR, by - headR + 4, 2, headR);
-      gfx.fillRect(S / 2 + headR - 2, by - headR + 4, 2, headR);
-    } else {
-      gfx.fillRect(S / 2 - headR + 1, by - headR * 2 + 2, headR * 2 - 2, 4);
-    }
-
-    // Eyes
-    gfx.fillStyle(0x111111, 1);
-    gfx.fillRect(S / 2 - 2, by - headR + 3, 1, 1);
-    gfx.fillRect(S / 2 + 2, by - headR + 3, 1, 1);
-
-    // Legs — neutral brown
-    gfx.fillStyle(0x6d4c41, 1);
-    gfx.fillRect(bx + 1, by + bodyH, legW, legH);
-    gfx.fillRect(bx + bodyW - legW - 1, by + bodyH, legW, legH);
-
-    gfx.generateTexture(key, S, S);
-    gfx.destroy();
-    return key;
+    return getOrCreateNpcTexture(this.scene, tpl, skinColor, hairColor, dressColor);
   }
 
   // ── City NPCs ────────────────────────────────────────────────────────
@@ -517,8 +473,8 @@ export class CityRenderer {
 
     for (let i = 0; i < npcs.length; i++) {
       const def = npcs[i];
-      const tpl = getNpcTemplate(def.templateId);
-      if (!tpl) continue;
+      const visual = resolveNpcVisual(city.id, i);
+      const tpl = visual.template;
 
       // At night, skip most non-essential NPCs (children always go, most villagers too)
       if (isNight && def.shopIndex === undefined && !def.questNpcId) {
@@ -560,10 +516,9 @@ export class CityRenderer {
       if (!isExplored(spawnX, spawnY) && !def.questNpcId) continue;
 
       // Generate a per-instance texture with proper skin/hair/dress colours
-      const colors = getNpcColors(city.id, i);
-      // Elders always have grey hair
-      const hairColor = def.templateId.includes("elder") ? 0xaaaaaa : colors.hairColor;
-      const texKey = this.getOrCreateNpcTexture(tpl, colors.skinColor, hairColor, colors.dressColor);
+      const texKey = this.getOrCreateNpcTexture(
+        tpl, visual.skinColor, visual.hairColor, visual.dressColor,
+      );
       const sprite = this.scene.add.sprite(
         spawnX * TILE_SIZE + TILE_SIZE / 2,
         spawnY * TILE_SIZE + TILE_SIZE / 2,

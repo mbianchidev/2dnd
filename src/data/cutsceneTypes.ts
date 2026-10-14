@@ -1,3 +1,5 @@
+import type { QuestNpcId } from "./quests";
+
 export type CutsceneCategory =
   | "opening"
   | "questStage"
@@ -70,13 +72,18 @@ export interface CutsceneHeroActorCue extends CutsceneActorCueBase {
 }
 
 export interface CutsceneCharacterActorCue extends CutsceneActorCueBase {
-  readonly role: "character" | "boss";
-  readonly color: number;
+  readonly role: "character";
+  readonly npcId: QuestNpcId;
+}
+
+export interface CutsceneBossActorCue extends CutsceneActorCueBase {
+  readonly role: "boss";
 }
 
 export type CutsceneActorCue =
   | CutsceneHeroActorCue
-  | CutsceneCharacterActorCue;
+  | CutsceneCharacterActorCue
+  | CutsceneBossActorCue;
 
 export interface CutsceneCameraCue {
   readonly focus: CutsceneStageSlot;

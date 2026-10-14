@@ -4,6 +4,7 @@
  */
 
 import { MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, DUNGEONS, CITIES, getCityChunkCount } from "../data/map";
+import type { CityData } from "../data/map";
 import type { PlayerState } from "../systems/player";
 import { getSeaZoneAt } from "../data/nautical";
 import { seaFogKey } from "../systems/nautical";
@@ -25,11 +26,7 @@ export class FogOfWar {
       return `d:${player.position.dungeonId},${x},${y}`;
     }
     if (player.position.inCity) {
-      const ci = player.position.cityChunkIndex;
-      if (ci > 0) {
-        return `c:${player.position.cityId},${ci},${x},${y}`;
-      }
-      return `c:${player.position.cityId},${x},${y}`;
+      return this.cityKey(player.position.cityId, player.position.cityChunkIndex, x, y);
     }
     if (player.progression.nautical.sailing) {
       const sea = getSeaZoneAt(
@@ -73,6 +70,21 @@ export class FogOfWar {
       }
     }
   }
+
+  /** City interiors, including connected districts, are fully visible on entry. */
+  revealCity(city: CityData): void {
+    for (let district = 0; district < getCityChunkCount(city); district++) {
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          this.exploredTiles[this.cityKey(city.id, district, x, y)] = true;
+        }
+      }
+    }
+  }
+
+  private cityKey(cityId: string, district: number, x: number, y: number): string {
+    return district === 0 ? `c:${cityId},${x},${y}` : `c:${cityId},${district},${x},${y}`;
+  }
   
   /**
    * Reveal every tile in every overworld chunk, dungeon, and city (debug command).
@@ -104,18 +116,7 @@ export class FogOfWar {
     }
     // Reveal all city chunks (primary + extra districts)
     for (const city of CITIES) {
-      const chunkCount = getCityChunkCount(city);
-      for (let ci = 0; ci < chunkCount; ci++) {
-        for (let ty = 0; ty < MAP_HEIGHT; ty++) {
-          for (let tx = 0; tx < MAP_WIDTH; tx++) {
-            if (ci === 0) {
-              this.exploredTiles[`c:${city.id},${tx},${ty}`] = true;
-            } else {
-              this.exploredTiles[`c:${city.id},${ci},${tx},${ty}`] = true;
-            }
-          }
-        }
-      }
+      this.revealCity(city);
     }
   }
   

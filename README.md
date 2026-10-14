@@ -23,7 +23,9 @@ Current release: **v1.1.0**
 
 2D&D runs entirely in the browser. Its pixel-art textures are generated at
 runtime, its music and sound effects are synthesized with the Web Audio API,
-and campaign saves stay in your browser's local storage.
+and campaign saves stay in your browser's local storage. Regions, cities,
+islands and dungeons have distinct procedural scores, with night variations
+outdoors and in towns.
 
 ## Highlights
 
@@ -57,18 +59,20 @@ and campaign saves stay in your browser's local storage.
   shared HP and temporary limb effects.
   Match armor to incoming physical types too: padded hides soften blows,
   mail resists cuts, and plate protects against cuts and piercing strikes.
-- **See the real rolls:** procedural dice display natural attack/save rolls,
+- **See the real rolls:** pixel-art dice display natural attack/save rolls,
   modifiers, totals, exact damage/healing pools, and actual HP changes.
   Dice travel, tumble and bounce over the game before settling on those exact
   faces. Advantage/disadvantage selection and shared area rolls stay truthful without
   delaying mechanics or revealing hidden enemy stats. Skip motion or consult
-  the normal Battle log. Non-combat results fade after a short reading interval;
+  the single lower Battle log. Non-combat results fade after a short reading interval;
   rolls and their log never carry into another scene.
   Rolls start enabled and ordinary displays are easy to disable; attack
   natural20 crits and natural1 fumbles always show (static with reduced motion).
 - **Explore a changing world:** travel through connected city districts,
   multi-level dungeons, seeded traps, fog of war, weather, day and night,
   non-combat skill checks, World Events, and optional danger zones.
+  Entering a city reveals its complete interior and every connected district;
+  wilderness and dungeon fog still clear through exploration.
 - **Discover more than monsters:** expand the Codex with lore, make alignment
   and reputation choices, earn achievements and cosmetic titles, and replay
   unlocked story scenes in the Chronicle.
@@ -160,6 +164,10 @@ isolated workers and five browser shards. See [Testing](docs/testing.md).
 
 Use `npm run dev:desktop` for Electron development and
 `npm run package:desktop` for unsigned artifacts on the current host.
+
+Maintainers can run `./scripts/release.sh [vVERSION]` to tag the committed
+version, push only that tag and wait for release CI, with owned-tag rollback on
+failure. See the [release guide](docs/release.md) before publishing.
 
 ## Documentation
 

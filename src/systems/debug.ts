@@ -643,6 +643,7 @@ export class DebugCommandSystem {
         this.timeStep = step;
         this.callbacks.applyDayNightTint();
         this.callbacks.updateHUD();
+        this.callbacks.updateAudio();
         debugPanelLog(`[CMD] Time set to ${timeArg} (step ${step})`, true);
       } else {
         debugPanelLog(`Usage: /time <dawn|day|dusk|night>`, true);

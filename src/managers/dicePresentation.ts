@@ -8,6 +8,7 @@ import {
   createSkillDicePresentation,
   type DicePresentation,
   type DicePresentationEvent,
+  type DicePresentationScope,
 } from "../systems/dicePresentation";
 import { inputPromptSource } from "../systems/input";
 import { audioEngine } from "../systems/audio";
@@ -46,7 +47,8 @@ export class DicePresentationManager {
     private readonly scene: DicePresentationScene,
     addLog?: (message: string, event: DicePresentationEvent) => void,
   ) {
-    this.renderer = new DiceRollRenderer(() => this.fastForward());
+    const scope: DicePresentationScope = scene.scene.key === "BattleScene" ? "battle" : "transient";
+    this.renderer = new DiceRollRenderer(() => this.fastForward(), scope);
     this.controller = new DicePresentationController({
       record: (event) => {
         if (addLog) addLog(event.text, event);
@@ -72,7 +74,7 @@ export class DicePresentationManager {
         const timer = this.scene.time.delayedCall(duration, complete);
         return () => timer.remove(false);
       },
-    }, scene.scene.key === "BattleScene" ? "battle" : "transient");
+    }, scope);
     this.renderer.applyPreferences(gamePreferences.get());
     this.unsubscribePreferences = gamePreferences.subscribe((preferences) => {
       this.controller.fastForward();

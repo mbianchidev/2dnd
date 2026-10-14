@@ -57,6 +57,9 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - active decision-time boundaries, overlapping pauses, stale/once-only timeouts,
   hero/manual/gambit economy, configuration migration, and checkpoint recovery
 - pure layout, wrapping, pagination, safe-area, and focus math
+- complete per-city district reveal with legacy fog-key isolation, canonical
+  NPC palettes shared between city/story actors, and mocked release command
+  preflight/tag/push/CI/rollback behavior without real network or tag writes
 - original Standard golden mechanics, every Custom bound, once-only scale
   composition, and per-mode campaign/boss/economy/sea/defeat/save/eligibility
 - transition contracts with mocked camera/time adapters
@@ -95,6 +98,10 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   companions, safe timeout, configuration reload, and pending-encounter recovery
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
+- area music on actual region crossings with unchanged weather, city/dungeon
+  entry, canonical named-shop music, day/night and battle/interior return
+- whole-city visibility on real entry/reload, direct archery-target/dice-player
+  interaction, and recognizable canonical NPC/boss cutscene art
 - exact resolved dice, hidden-information redaction, disadvantage/auto-hit,
   combined hit/damage and saving-throw evidence, actual healing/trap HP caps,
   one shared area pool with per-target results,

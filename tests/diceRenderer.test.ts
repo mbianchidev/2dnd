@@ -53,6 +53,43 @@ describe("procedural resolved-dice renderer", () => {
     expect(document.getElementById("dice-announcement")).toBeNull();
   });
 
+  it("keeps battle details only in the lower log while retaining faces, announcements and skip", () => {
+    const skip = vi.fn();
+    const renderer = new DiceRollRenderer(skip, "battle");
+    const result = event();
+    renderer.show(result, normalizeGamePreferences(undefined));
+    expect(document.getElementById("dice-result")).toBeNull();
+    expect(renderer.root.dataset.scope).toBe("battle");
+    expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(2);
+    expect(document.getElementById("dice-announcement")?.textContent).toBe(result.text);
+    renderer.root.querySelector<HTMLButtonElement>("button")!.click();
+    expect(skip).toHaveBeenCalledOnce();
+    renderer.applyPreferences(normalizeGamePreferences({
+      accessibility: { textScale: 1.5, highContrast: true },
+    }));
+    expect(document.getElementById("dice-result")).toBeNull();
+    expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(2);
+    renderer.hide();
+    expect(document.getElementById("dice-announcement")?.textContent).toBe("");
+    renderer.destroy();
+  });
+
+  it("draws exact faces with crisp pixel numerals rather than smooth system-font text", () => {
+    const renderer = new DiceRollRenderer(vi.fn());
+    renderer.show(event(), normalizeGamePreferences(undefined));
+    const dice = [...renderer.root.querySelectorAll<HTMLElement>(".resolved-die")];
+    for (const die of dice) {
+      const svg = die.querySelector("svg")!;
+      expect(svg.getAttribute("viewBox")).toBe("0 0 32 32");
+      expect(svg.getAttribute("shape-rendering")).toBe("crispEdges");
+      expect(svg.querySelector("text")).toBeNull();
+      expect(svg.querySelector("[data-pixel-number]")?.getAttribute("data-pixel-number"))
+        .toBe(die.dataset.natural);
+      expect(svg.querySelector(".die-number path")?.getAttribute("d")).toMatch(/h2v2h-2z/);
+    }
+    renderer.destroy();
+  });
+
   it("does not display or announce an ordinary disabled roll or create separate history", () => {
     const renderer = new DiceRollRenderer(vi.fn());
     const presentation = createD20Presentation({
@@ -212,6 +249,8 @@ describe("procedural resolved-dice renderer", () => {
     }, preferences);
     expect([...renderer.root.querySelectorAll<HTMLElement>(".resolved-die")].map((die) =>
       die.dataset.sides)).toEqual(["4", "6", "8", "10", "12", "20", "100"]);
+    expect([...renderer.root.querySelectorAll("[data-pixel-number]")].map((number) =>
+      number.getAttribute("data-pixel-number"))).toEqual(["4", "6", "8", "10", "12", "20", "100"]);
     expect(renderer.root.dataset.phase).toBe("ready");
     expect(renderer.root.querySelector<HTMLButtonElement>("button")?.disabled).toBe(true);
     expect(renderer.root.classList.contains("high-contrast")).toBe(true);

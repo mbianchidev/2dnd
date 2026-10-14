@@ -379,13 +379,20 @@ async function expectDiceBounds(page: Page, textScale: TextScale): Promise<void>
   const bounds = await page.locator("#dice-presentation").evaluate((root) => {
     const rect = root.getBoundingClientRect();
     const glyphs = root.querySelector<HTMLElement>(".resolved-dice")!;
-    const result = root.querySelector<HTMLElement>("#dice-result")!;
+    const result = root.querySelector<HTMLElement>("#dice-result");
     const canvas = document.querySelector<HTMLCanvasElement>("#game-container canvas")!.getBoundingClientRect();
     return {
       left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, height: rect.height,
       width: root.clientWidth, scrollWidth: root.scrollWidth,
       glyphWidth: glyphs.clientWidth, glyphScrollWidth: glyphs.scrollWidth,
-      resultWidth: result.clientWidth, resultScrollWidth: result.scrollWidth,
+      result: result ? { width: result.clientWidth, scrollWidth: result.scrollWidth } : null,
+      scope: (root as HTMLElement).dataset.scope,
+      hasBattleLog: document.querySelectorAll("#battle-log").length === 1,
+      pixelFaces: [...root.querySelectorAll<HTMLElement>(".resolved-die")].every((die) =>
+        die.querySelector("svg")?.getAttribute("shape-rendering") === "crispEdges"
+        && die.querySelector("[data-pixel-number]")?.getAttribute("data-pixel-number") === die.dataset.natural
+        && die.querySelector("svg text") === null
+      ),
       viewportWidth: window.innerWidth, viewportHeight: window.innerHeight,
       canvas: { left: canvas.left, right: canvas.right, top: canvas.top, bottom: canvas.bottom, height: canvas.height },
       textScale: Number(root.style.getPropertyValue("--dice-text-scale")),
@@ -401,7 +408,14 @@ async function expectDiceBounds(page: Page, textScale: TextScale): Promise<void>
   expect(bounds.textScale).toBe(textScale);
   expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.width);
   expect(bounds.glyphScrollWidth).toBeLessThanOrEqual(bounds.glyphWidth);
-  expect(bounds.resultScrollWidth).toBeLessThanOrEqual(bounds.resultWidth);
+  expect(bounds.pixelFaces).toBe(true);
+  if (bounds.result) {
+    expect(bounds.scope).toBe("transient");
+    expect(bounds.result.scrollWidth).toBeLessThanOrEqual(bounds.result.width);
+  } else {
+    expect(bounds.scope).toBe("battle");
+    expect(bounds.hasBattleLog).toBe(true);
+  }
 }
 
 async function captureDiceScreenshot(page: Page, name: string): Promise<void> {
@@ -436,7 +450,8 @@ async function captureDisplayedDice(
       const sequence = boundary === "skip"
         ? root.dataset.lastSkippedSequence : root.dataset.sequence;
       if (sequence === previousSequence) return false;
-      const text = root.querySelector("#dice-result")?.textContent ?? "";
+      const entries = document.querySelectorAll("#battle-log [data-category]");
+      const text = (root.querySelector("#dice-result") ?? entries[entries.length - 1])?.textContent ?? "";
       if (!text.startsWith(expected)) return false;
       observer.disconnect();
       window.clearTimeout(timeout);
@@ -609,6 +624,8 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
     const log = page.locator("#battle-log");
     await expect(page.locator("#dice-history, #dice-log")).toHaveCount(0);
+    await expect(page.locator("#dice-result")).toHaveCount(0);
+    await expect(page.locator("#dice-presentation")).toHaveAttribute("data-scope", "battle");
     await expect(log.locator('[data-category="initiative"]')).toHaveCount(2);
     await expect.poll(() => evidence.packets.some((packet) =>
       packet.kind === "initiative" && packet.actorId?.includes(":enemy:")
@@ -773,7 +790,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
       await page.setViewportSize({ width: 1440, height: 900 });
       await holdKey(page, "Enter");
       await holdKey(page, "Enter");
-      await expect(page.locator("#dice-result")).toContainText("Dice Tester attack");
+      await expect(page.locator("#battle-log")).toContainText("Dice Tester attack");
       const attack = await evidence.find("attack", "party:hero");
       if (!attack.attack?.rollResult || !attack.attack.damageRoll?.roll) {
         throw new Error("Screenshot attack did not expose canonical hit/damage dice");

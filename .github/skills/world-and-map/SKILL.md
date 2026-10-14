@@ -91,7 +91,8 @@ ineligible or boatless saved interiors to Willowdale without a refund/repair.
 ## Harbor courses and activity venues
 
 Activity venues are stable non-blocking metadata on existing walkable city
-districts. Show D/A/R flags only when their tiles are explored, remove hidden
+districts. Show archery targets and a seated dice player/table rather than A/D
+flags; Regatta retains its R flag. Remove hidden
 hit targets, and reveal instructions/personal boards from authoritative venue
 evidence rather than quest or achievement authority.
 
@@ -251,6 +252,9 @@ Always generate keys through `FogOfWar.exploredKey()`.
 
 The level-zero and chunk-zero formats intentionally preserve existing saves.
 `revealEntireWorld()` must cover every dungeon level and city district.
+City entry/reload calls `revealCity(city)` before rendering to reveal all
+districts of only that city. Wilderness/dungeon exploration stays incremental;
+do not use the global debug reveal or mark other cities discovered.
 
 Achievement exploration progress reads `discoveredCities`, persistent
 skill-check/trap state, and `FogOfWar.exploredKey()` values. It may derive unique

@@ -21,10 +21,17 @@ and changes spanning scenes, systems, data, renderers, or managers.
    `src/systems/`.
 3. Generate reusable textures in `src/renderers/textures.ts`; scene-sized
    procedural Battle scenery belongs in `battleBackdrop.ts`. Synthesize audio
-   in `src/systems/audio.ts`; do not add external assets.
+   in `src/systems/audio.ts`; keep area scores/motifs in `data/music.ts` and
+   deterministic phrase/profile resolution in `systems/music.ts`.
+   Do not add external assets.
 4. Preserve shared scene state across transitions.
 5. Use `debugLog()` and debug-panel APIs instead of `console.log`.
 6. Add deterministic Vitest coverage for game logic.
+
+City interiors and all connected districts reveal on entry/load through
+`FogOfWar.revealCity()`, without changing wilderness/dungeon fog.
+Named story NPCs share canonical `npcVisuals.ts` / `npcTextures.ts` appearance
+with their city actors; bosses use monster-family textures, not generic bodies.
 
 ## Current architecture
 
@@ -129,6 +136,8 @@ owns cleanup. Never pass actors/outcomes/RNG/completion callbacks to its geometr
 Roll displays default enabled and ordinary notices may be Off; canonical
 attack crit/fumble feedback always remains visible, without overriding
 Instant/reduced motion or reclassifying non-attack outcomes.
+Dice use stepped pixel silhouettes and bitmap numerals. Battle retains only
+its lower visible log; result captions belong to transient non-battle views.
 
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a

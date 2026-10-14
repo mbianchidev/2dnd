@@ -44,10 +44,11 @@ future work until merged.
 | Tavern/festival games | `minigames.ts`, focused lore/event data | `minigame*.ts`, nautical/weather helpers | minigame manager/renderers | rules/economy/recovery/layout + web/Electron multi-input |
 | Saves | owning interfaces/defaults | `save.ts`, `saveActor.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/validation/availability/domain migration suites |
 | Accessibility/input | tutorial/feature definitions | `accessibility.ts`, `input.ts`, `featureDiscovery.ts` | input/tutorial/layout managers | accessibility/input/layout/feature E2E |
-| Audio | typed data cues | `audio.ts`, `trapAudio.ts` | callers only | audio + representative browser flows |
+| Audio | `music.ts`, typed data cues | `music.ts`, `audio.ts`, `trapAudio.ts` | location-aware scene callers | audio/music + representative browser flows |
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
 | Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
 | Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | `hacks/prepare-steam.mjs`, protected upload utility | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck-equivalent Electron |
+| Release command | committed manifest/lock version, `release.yml` | `hacks/release.mjs` | `scripts/release.sh` entry point | mocked tag/push/CI/rollback integration |
 
 ## Required workflow
 
@@ -152,6 +153,8 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   result/reward hooks and before outgoing Battle autosave, not only at handoff.
 - Dice views consume exact immutable receipts, redact hidden AC/DC and enemy
   modifiers/totals, never use shared RNG, and never create an input-block reason.
+  Match pixel-art faces and bitmap numerals to the game. Battle has only its
+  lower visible log; do not add a second dice result-caption strip.
   Dice use the measured game viewport, not a dock. Battle details join its
   existing log; no history survives exit. Non-battle results expire after a
   short reading interval. Event reset and scene cleanup clear views/cues/timers.
@@ -203,6 +206,10 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   D-pad/confirm activation; keep overwrite confirmation usable in landscape.
 - Own and clean up listeners, timers, tweens, emitters, DOM controls, texture
   leases, and transient containers.
+- Reveal the current city's complete interior/districts through
+  `FogOfWar.revealCity()` on entry and recovery, without revealing other places.
+  Archery/dice venues are tangible props, not letter flags. Named cutscene NPCs
+  share canonical city palettes/textures; bosses use monster-family art.
 - Install accessibility in every scene; support text scales, high contrast,
   reduced motion, non-color cues, touch, and gamepad cursor flows.
 - Inject `installSceneLayoutAudit` into `installSceneAccessibility`. Keep pure
@@ -297,6 +304,7 @@ headless mode; native release gates belong on isolated CI/virtual displays.
 - [Prestige paths](docs/prestige.md)
 - [Companions and gambits](docs/companions.md)
 - [Inventory presentation](docs/inventory.md)
+- [Procedural area music](docs/audio.md)
 - [Timed battle decisions](docs/battle-timing.md)
 - [Tavern and festival activities](docs/minigames.md)
 - [Fictional devotion](docs/devotion.md)

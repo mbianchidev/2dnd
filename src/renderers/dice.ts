@@ -1,4 +1,9 @@
-import { isDicePresentationVisible, type DicePresentation, type DicePresentationEvent } from "../systems/dicePresentation";
+import {
+  isDicePresentationVisible,
+  type DicePresentation,
+  type DicePresentationEvent,
+  type DicePresentationScope,
+} from "../systems/dicePresentation";
 import type { GamePreferences } from "../systems/accessibility";
 import { getInputPromptSource } from "../systems/input";
 import { debugLog } from "../config";
@@ -7,14 +12,74 @@ import { createDiceThrowMotion } from "../systems/diceMotion";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 const DIE_ART: Readonly<Record<number, { outline: string; facets: string }>> = {
-  4: { outline: "32,3 61,57 3,57", facets: "M32 3L32 40M3 57L32 40L61 57" },
-  6: { outline: "17,5 58,5 58,46 46,59 5,59 5,18", facets: "M5 18H46V59M46 18L58 5" },
-  8: { outline: "32,3 61,32 32,61 3,32", facets: "M32 3L13 45H51L32 3M3 32H61M13 45L32 61L51 45" },
-  10: { outline: "32,3 60,23 50,57 14,57 4,23", facets: "M32 3V16L14 57M32 16L50 57M4 23L32 16L60 23" },
-  12: { outline: "32,3 59,18 59,46 32,61 5,46 5,18", facets: "M32 12L51 26L44 48H20L13 26ZM32 3V12M59 18L51 26M59 46L44 48M5 46L20 48M5 18L13 26" },
-  20: { outline: "32,3 59,18 59,46 32,61 5,46 5,18", facets: "M5 18L32 9L59 18M5 46L32 55L59 46M32 9L9 46M32 9L55 46M9 46H55" },
-  100: { outline: "32,3 60,23 50,57 14,57 4,23", facets: "M32 3L32 16L14 57M32 16L50 57M4 23L32 16L60 23" },
+  4: {
+    outline: "15,2 17,2 17,6 19,6 19,10 21,10 21,14 23,14 23,18 25,18 25,22 27,22 27,26 29,26 29,29 3,29 3,26 5,26 5,22 7,22 7,18 9,18 9,14 11,14 11,10 13,10 13,6 15,6",
+    facets: "M16 6V25H6M16 25H26",
+  },
+  6: {
+    outline: "9,2 29,2 29,22 27,22 27,24 25,24 25,26 23,26 23,28 3,28 3,8 5,8 5,6 7,6 7,4 9,4",
+    facets: "M3 8H23V28M23 8H25V6H27V4H29",
+  },
+  8: {
+    outline: "14,2 18,2 18,6 22,6 22,10 26,10 26,14 30,14 30,18 26,18 26,22 22,22 22,26 18,26 18,30 14,30 14,26 10,26 10,22 6,22 6,18 2,18 2,14 6,14 6,10 10,10 10,6 14,6",
+    facets: "M16 4V8H14V12H12V16H10V24H22V16H20V12H18V8H16M4 16H28M16 24V28",
+  },
+  10: {
+    outline: "14,2 18,2 18,4 22,4 22,6 26,6 26,8 30,8 30,16 28,16 28,22 26,22 26,28 6,28 6,22 4,22 4,16 2,16 2,8 6,8 6,6 10,6 10,4 14,4",
+    facets: "M16 4V8H14V14H12V20H10V26M16 8H18V14H20V20H22V26M4 10H28",
+  },
+  12: {
+    outline: "12,2 20,2 20,4 24,4 24,6 28,6 28,10 30,10 30,22 28,22 28,26 24,26 24,28 20,28 20,30 12,30 12,28 8,28 8,26 4,26 4,22 2,22 2,10 4,10 4,6 8,6 8,4 12,4",
+    facets: "M12 8H20V10H24V22H20V26H12V22H8V10H12V8M16 4V8M4 12H8M24 12H28M4 24H8M24 24H28",
+  },
+  20: {
+    outline: "14,2 18,2 18,4 22,4 22,6 26,6 26,8 29,8 29,24 26,24 26,26 22,26 22,28 18,28 18,30 14,30 14,28 10,28 10,26 6,26 6,24 3,24 3,8 6,8 6,6 10,6 10,4 14,4",
+    facets: "M4 10H8V8H12V6H20V8H24V10H28M16 6V10H14V14H12V18H10V22H8V24H24V22H22V18H20V14H18V10H16M8 24V26H12V28H20V26H24",
+  },
+  100: {
+    outline: "14,2 18,2 18,4 22,4 22,6 26,6 26,8 30,8 30,16 28,16 28,22 26,22 26,28 6,28 6,22 4,22 4,16 2,16 2,8 6,8 6,6 10,6 10,4 14,4",
+    facets: "M16 4V8H14V14H12V20H10V26M16 8H18V14H20V20H22V26M4 10H28",
+  },
 };
+
+const DIGITS: Readonly<Record<string, readonly string[]>> = {
+  "0": ["111", "101", "101", "101", "111"],
+  "1": ["010", "110", "010", "010", "111"],
+  "2": ["111", "001", "111", "100", "111"],
+  "3": ["111", "001", "111", "001", "111"],
+  "4": ["101", "101", "111", "001", "001"],
+  "5": ["111", "100", "111", "001", "111"],
+  "6": ["111", "100", "111", "101", "111"],
+  "7": ["111", "001", "010", "010", "010"],
+  "8": ["111", "101", "111", "101", "111"],
+  "9": ["111", "101", "111", "001", "111"],
+};
+
+function createPixelNumber(natural: number): SVGGElement {
+  const face = document.createElementNS(SVG_NAMESPACE, "g");
+  face.classList.add("die-number");
+  face.setAttribute("data-pixel-number", String(natural));
+  const title = document.createElementNS(SVG_NAMESPACE, "title");
+  title.textContent = String(natural);
+  const digits = [...String(natural)];
+  const startX = 16 - (digits.length * 8 - 2) / 2;
+  const cells: string[] = [];
+  digits.forEach((digit, index) => {
+    DIGITS[digit].forEach((row, y) => {
+      [...row].forEach((cell, x) => {
+        if (cell === "1") cells.push(`M${startX + index * 8 + x * 2} ${12 + y * 2}h2v2h-2z`);
+      });
+    });
+  });
+  const shadow = document.createElementNS(SVG_NAMESPACE, "path");
+  shadow.setAttribute("d", cells.join(""));
+  shadow.setAttribute("class", "die-number-shadow");
+  shadow.setAttribute("transform", "translate(1 1)");
+  const pixels = document.createElementNS(SVG_NAMESPACE, "path");
+  pixels.setAttribute("d", cells.join(""));
+  face.append(title, shadow, pixels);
+  return face;
+}
 
 function createDie(sides: number, natural: number, selected: boolean): HTMLDivElement {
   const die = document.createElement("div");
@@ -23,31 +88,20 @@ function createDie(sides: number, natural: number, selected: boolean): HTMLDivEl
   die.dataset.sides = String(sides);
   die.dataset.selected = String(selected);
   const svg = document.createElementNS(SVG_NAMESPACE, "svg");
-  svg.setAttribute("viewBox", "0 0 64 64");
+  svg.setAttribute("viewBox", "0 0 32 32");
   svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("shape-rendering", "crispEdges");
   const outline = document.createElementNS(SVG_NAMESPACE, "polygon");
   const art = DIE_ART[sides] ?? DIE_ART[20];
   outline.setAttribute("points", art.outline);
-  outline.setAttribute("fill", "#182842");
-  outline.setAttribute("stroke", "#f4f1e8");
-  outline.setAttribute("stroke-width", selected ? "4" : "2");
+  outline.setAttribute("class", "die-outline");
+  outline.setAttribute("stroke-width", selected ? "2" : "1");
   const facets = document.createElementNS(SVG_NAMESPACE, "path");
   facets.setAttribute("d", art.facets);
   facets.setAttribute("fill", "none");
-  facets.setAttribute("stroke", "#a9bedb");
+  facets.setAttribute("class", "die-facets");
   facets.setAttribute("stroke-width", "1");
-  const face = document.createElementNS(SVG_NAMESPACE, "text");
-  face.setAttribute("x", "32");
-  face.setAttribute("y", "39");
-  face.setAttribute("text-anchor", "middle");
-  face.setAttribute("fill", "#ffffff");
-  face.setAttribute("font-family", "monospace");
-  face.setAttribute("font-size", natural >= 100 ? "17" : "23");
-  face.setAttribute("font-weight", "bold");
-  face.setAttribute("stroke", "#182842");
-  face.setAttribute("stroke-width", "1");
-  face.setAttribute("paint-order", "stroke");
-  face.textContent = String(natural);
+  const face = createPixelNumber(natural);
   const caption = document.createElement("span");
   caption.textContent = `d${sides}${selected ? " selected" : ""}`;
   svg.append(outline, facets, face);
@@ -58,7 +112,7 @@ function createDie(sides: number, natural: number, selected: boolean): HTMLDivEl
 export class DiceRollRenderer {
   readonly root: HTMLElement;
   private readonly glyphs: HTMLDivElement;
-  private readonly result: HTMLParagraphElement;
+  private readonly result: HTMLParagraphElement | null;
   private readonly announcement: HTMLDivElement;
   private readonly fastForwardButton: HTMLButtonElement;
   private readonly animations = new Set<Animation>();
@@ -67,7 +121,7 @@ export class DiceRollRenderer {
   private readonly resizeObserver: ResizeObserver;
   private currentEvent: DicePresentationEvent | null = null;
 
-  constructor(onFastForward: () => void) {
+  constructor(onFastForward: () => void, scope: DicePresentationScope = "transient") {
     const host = document.getElementById("game-inner");
     const canvasHost = document.getElementById("game-container");
     if (!host || !canvasHost) {
@@ -88,10 +142,11 @@ export class DiceRollRenderer {
     this.root.className = "dice-presentation";
     this.root.hidden = true;
     this.root.dataset.phase = "ready";
+    this.root.dataset.scope = scope;
     this.root.setAttribute("aria-label", "Resolved dice");
     this.glyphs = this.stage;
-    this.result = document.createElement("p");
-    this.result.id = "dice-result";
+    this.result = scope === "transient" ? document.createElement("p") : null;
+    if (this.result) this.result.id = "dice-result";
     this.announcement = document.createElement("div");
     this.announcement.id = "dice-announcement";
     this.announcement.className = "dice-announcement";
@@ -103,7 +158,9 @@ export class DiceRollRenderer {
     this.fastForwardButton.id = "dice-fast-forward";
     this.fastForwardButton.dataset.action = "fastForwardDice";
     this.fastForwardButton.addEventListener("click", onFastForward);
-    this.root.append(this.stage, this.result, this.fastForwardButton);
+    this.root.append(this.stage);
+    if (this.result) this.root.append(this.result);
+    this.root.append(this.fastForwardButton);
     const stopGameKeys = (event: KeyboardEvent): void => {
       if (event.code === "Escape") {
         this.restoreCanvasFocus();
@@ -127,7 +184,7 @@ export class DiceRollRenderer {
     this.root.dataset.sequence = String(event.sequence);
     this.root.dataset.category = event.presentation.category;
     this.root.dataset.skipped = "false";
-    this.result.textContent = event.text;
+    if (this.result) this.result.textContent = event.text;
     this.applyPreferences(preferences);
     const visible = isDicePresentationVisible(event.presentation, preferences.dice);
     if (announce && visible) this.announcement.textContent = event.text;
@@ -135,7 +192,7 @@ export class DiceRollRenderer {
     this.fastForwardButton.disabled = !visible || event.duration === 0;
     this.fastForwardButton.hidden = this.fastForwardButton.disabled;
     this.updatePrompt();
-    this.result.scrollTop = 0;
+    if (this.result) this.result.scrollTop = 0;
   }
 
   applyPreferences(preferences: Readonly<GamePreferences>): void {
@@ -317,7 +374,7 @@ export class DiceRollRenderer {
     this.root.hidden = true;
     this.stage.hidden = true;
     this.stage.replaceChildren();
-    this.result.textContent = "";
+    if (this.result) this.result.textContent = "";
     this.announcement.textContent = "";
   }
 

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { CUTSCENE_IDS } from "../src/data/cutscenes";
-import { getCity, getCityChunkCount, MAP_HEIGHT, MAP_WIDTH } from "../src/data/map";
+import { getCity, getCityChunkCount, getCityChunkMap, isWalkable, MAP_HEIGHT, MAP_WIDTH } from "../src/data/map";
+import { getMinigameVenue } from "../src/data/minigames";
 import { getMonster } from "../src/data/monsters";
 import { getMonsterTextureKey } from "../src/data/monsterFamilies";
 import { reconcileFeatureDiscovery } from "../src/systems/featureDiscovery";
@@ -81,6 +82,17 @@ for (const venueId of ["willowdaleRange", "willowInnTable"] as const) {
     const errors = minigameBrowserErrors(page);
     await page.goto("game.html", { waitUntil: "domcontentloaded" });
     const fixture = minigameFixture(venueId);
+    const venue = getMinigameVenue(venueId);
+    const map = getCityChunkMap(getCity(venue.cityId)!, venue.cityChunkIndex);
+    const approach = [
+      { x: venue.x - 1, y: venue.y }, { x: venue.x + 1, y: venue.y },
+      { x: venue.x, y: venue.y - 1 }, { x: venue.x, y: venue.y + 1 },
+    ].find(({ x, y }) => {
+      const terrain = map[y]?.[x];
+      return terrain !== undefined && isWalkable(terrain);
+    });
+    if (!approach) throw new Error("No walkable activity-prop approach.");
+    Object.assign(fixture.player.position, approach);
     fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
     fixture.player.progression.exploredTiles = {};
     fixture.player.progression.minigames.discoveredVenueIds = [venueId];

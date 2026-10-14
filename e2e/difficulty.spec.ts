@@ -93,7 +93,11 @@ async function opening(page: Page): Promise<void> {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const current = await page.locator("#debug-state").textContent() ?? "";
     if (current.includes("OVERWORLD")) {
-      if (current.includes("[TUTORIAL]")) await key(page, "Escape");
+      if (!(await readCampaign(page)).player.progression.tutorial.completed) {
+        await state(page, "[TUTORIAL]");
+        await key(page, "Escape");
+        await expect(page.locator("#debug-state")).not.toContainText("[TUTORIAL]");
+      }
       return;
     }
     await key(page, "Escape");

@@ -19,7 +19,7 @@ the seven-chapter Twelvefold Covenant campaign.
 **[Play 2D&D now](https://mbianchidev.github.io/2dnd/game.html)** |
 **[Download desktop builds](https://github.com/mbianchidev/2dnd/releases/latest)**
 
-Current release: **v1.1.0**
+Current release: **v1.2.0**
 
 2D&D runs entirely in the browser. Its pixel-art textures are generated at
 runtime, its music and sound effects are synthesized with the Web Audio API,

@@ -263,7 +263,10 @@ directories as its working directory, removes/replaces/reinstalls the runtime,
 and reuses only the isolated profile. It compares all campaign/preference
 documents byte-for-byte at each relaunch, creates a real controller-driven
 manual snapshot, loads isolated staging recovery, and exits through the
-controller title action. Its JSON receipt explicitly labels the offline
+controller title action. Both native flows apply offline conditions directly to
+the renderer's CDP session and require its real `navigator.onLine` to be false;
+Electron's browser-context flag alone is not offline evidence.
+Its JSON receipt explicitly labels the offline
 renderer and **same-version installation replacement**. It does not prove a
 Steam client install/uninstall, an older-to-newer upgrade, schema downgrade,
 signing or physical Deck behavior; those remain the manual gates below.

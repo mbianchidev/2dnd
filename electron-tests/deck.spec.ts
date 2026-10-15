@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { expectCleanLayout } from "../e2e/helpers/layout";
 import { SAVE_WRITE_MEASURE } from "../src/systems/saveStorage";
 import {
-  launchDesktop, monitorRendererErrors, resizeDesktop, waitForState,
+  launchDesktop, monitorRendererErrors, resizeDesktop, setDesktopOffline, waitForState,
 } from "./helpers/desktop";
 import {
   clickControllerLayoutItem,
@@ -138,7 +138,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     await waitForState(page, "BOOT | Screen: title");
     const startupMs = performance.now() - launchStarted;
     await installController(page);
-    await page.context().setOffline(true);
+    await setDesktopOffline(page);
     await page.reload({ waitUntil: "domcontentloaded" });
     await waitForState(page, "BOOT | Screen: title");
     await resizeDesktop(desktop);
@@ -216,7 +216,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     page = await desktop.firstWindow();
     const reloadErrors = monitorRendererErrors(page);
     await installController(page, 1.5, false);
-    await page.context().setOffline(true);
+    await setDesktopOffline(page);
     await resizeDesktop(desktop);
     await selectControllerAction(page, "[TITLE_ACTION:continue]");
     await waitForState(page, "OVERWORLD");

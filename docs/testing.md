@@ -222,6 +222,9 @@ hours-long endurance or portable performance-budget evidence.
 
 `ELECTRON_TEST_EXECUTABLE` optionally selects an explicitly supplied packaged
 binary for the same suite. It does not alter production preload/security.
+Native offline cases use the shared renderer CDP session through
+`setDesktopOffline()` and assert the real online state. Electron's
+`BrowserContext.setOffline()` alone does not propagate that condition.
 `electron-tests/installLifecycle.spec.ts` requires that packaged executable.
 It copies the actual depot into separate temporary install directories and
 launches from there, retaining the same isolated profile through replacement,

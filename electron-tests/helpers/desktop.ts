@@ -9,11 +9,33 @@ import { access } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 export const APP_ROOT = resolve(import.meta.dirname, "../..");
-const viewportSessions = new WeakMap<Page, CDPSession>();
+const rendererSessions = new WeakMap<Page, CDPSession>();
 
 export interface DesktopLaunchOptions {
   readonly executablePath?: string;
   readonly workingDirectory?: string;
+}
+
+async function getRendererSession(page: Page): Promise<CDPSession> {
+  let session = rendererSessions.get(page);
+  if (!session) {
+    session = await page.context().newCDPSession(page);
+    rendererSessions.set(page, session);
+  }
+  return session;
+}
+
+export async function setDesktopOffline(page: Page): Promise<void> {
+  // Electron's BrowserContext offline flag does not update its renderer network state.
+  const session = await getRendererSession(page);
+  await session.send("Network.enable");
+  await session.send("Network.emulateNetworkConditions", {
+    offline: true,
+    latency: 0,
+    downloadThroughput: 0,
+    uploadThroughput: 0,
+  });
+  await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
 }
 
 function createLaunchEnvironment(userDataDirectory: string): Record<string, string> {
@@ -97,11 +119,7 @@ export async function resizeDesktop(
     if (!window) throw new Error("Missing equivalent desktop window");
     window.setContentSize(viewport.width, viewport.height);
   }, { width, height });
-  let session = viewportSessions.get(page);
-  if (!session) {
-    session = await page.context().newCDPSession(page);
-    viewportSessions.set(page, session);
-  }
+  const session = await getRendererSession(page);
   await session.send("Emulation.setDeviceMetricsOverride", {
     width,
     height,

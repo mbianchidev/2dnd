@@ -8,7 +8,7 @@ import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createCurrentSaveData, normalizeSaveData, SAVE_VERSION } from "../src/systems/save";
 import {
-  closeDesktop, launchDesktop, monitorRendererErrors, resizeDesktop, waitForState,
+  closeDesktop, launchDesktop, monitorRendererErrors, resizeDesktop, setDesktopOffline, waitForState,
 } from "./helpers/desktop";
 import {
   clickControllerLayoutItem, installController, pressController, selectControllerAction,
@@ -78,7 +78,7 @@ test("packaged install replacement, removal and offline reinstall preserve isola
       errors.push(rendererErrors);
       await waitForState(page, "BOOT | Screen: title");
       await installController(page, 1.5, phase === "original");
-      await page.context().setOffline(true);
+      await setDesktopOffline(page);
       if (phase === "original") {
         await page.evaluate((raw) => localStorage.setItem("2dnd_save", raw),
           campaignFixture("Install fixture"));

@@ -67,6 +67,10 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - transition contracts with mocked camera/time adapters
 - Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
 
+Native icon tests execute the actual generator in an owned temporary directory
+and validate PNG/ICO/ICNS headers. They do not rely on committed compressed build
+products or mutate the checkout; the packaging entries generate those products.
+
 Random mechanics must accept deterministic values or seeded state. Test the
 authoritative helper rather than reproducing formulas in assertions.
 
@@ -75,6 +79,11 @@ parallelism, with `fsModuleCache` enabled. The content-aware transform cache
 accelerates reruns without sharing test globals, mocks or campaign state.
 Steam fixtures reuse one immutable, genuinely generated source notice;
 subprocess assertions and all platform/archive/security cases remain intact.
+Clean-source upload fixtures use a temporary Git repository, synthetic native
+headers and real ASAR/source archives. They exercise prepare, archive assembly,
+verification, private rendering and a mock SDK success/failure; changed versions,
+source notices/archives, private files/VDFs and workflow commits must stop before
+SDK invocation. No partner IDs, login or real upload is involved.
 
 ## Playwright responsibilities
 
@@ -217,17 +226,40 @@ hours-long endurance or portable performance-budget evidence.
 
 `ELECTRON_TEST_EXECUTABLE` optionally selects an explicitly supplied packaged
 binary for the same suite. It does not alter production preload/security.
+Native offline cases use `setDesktopOffline()` to configure an outage through
+the actual game window's Electron session before reload and play. The native
+session, not a browser-context flag or `navigator.onLine`, owns this condition.
+The heuristic navigator indicator is retained only as diagnostic evidence.
+`electron-tests/installLifecycle.spec.ts` requires that packaged executable.
+It copies the actual depot into separate temporary install directories and
+launches from there, retaining the same isolated profile through replacement,
+runtime removal and offline reinstall. Assertions preserve all slot/preference
+bytes at relaunch, the actual manual snapshot and independent staging recovery.
+Its attached receipt distinguishes same-version replacement/offline renderer
+equivalence from untested Steam-client and cross-version upgrade/rollback cases.
 Packaged smoke runs use `electron-test-results/packaged` so a later invocation
 cannot erase native first-attempt traces. Save-parity artifacts include ordered
 phase timings to distinguish gameplay/import waits from browser/server cleanup.
 
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
 Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
+Its final credential-free job assembles all three native depot archives on
+Linux and verifies their exact receipts and corresponding source against the
+same checkout. The manual Steam workflow uses the same gate before any
+protected upload, without substituting synthetic platform fixtures.
 Native onboarding holds pointer/semantic confirmation across frames and observes each
 screen/mode through debug state before the next action; fixed sleeps and rapid
 pointer/keyboard source switches are not transition evidence.
 Quit is a pointer-down action: observe application closure without sending a
 release to a destroyed page.
+Opening the title slot manager leaves its outer title-selection marker visible.
+The nested `[SAVE_SLOTS:*]` state means confirmation was accepted; controller
+helpers must stop retrying rather than accidentally load its default slot.
+Windows native tests explicitly select Chromium's software D3D11 WARP ANGLE
+backend to avoid the hosted virtual GPU's intermittent shader compilation
+failures. WebGL and every renderer-error assertion remain enabled; production
+launch options and sandbox/security are unchanged. Install-directory cleanup
+retries only transient filesystem locks with bounded backoff after process exit.
 
 ## Performance baseline
 

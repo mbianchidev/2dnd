@@ -29,6 +29,9 @@
 - `generate-desktop-icons.mjs` creates the original pixel-d20 PNG, ICO, ICNS,
   and Linux icon set without external assets or image dependencies. Invoke it
   through `npm run generate:desktop-icons`; packaging runs it automatically.
+  Generated icon PNG/ICO/ICNS resources are ignored build products, not source
+  inputs. Tests execute the generator in an owned temporary directory;
+  Node/zlib compression differences must not dirty a reviewed checkout.
 - `measure-performance-baseline.mjs` builds the production `/2dnd/` target,
   launches it on an unused local port, and prints reproducible bundle, startup,
   Boot texture, memory, DOM/listener, and fresh-save metrics. Run
@@ -59,13 +62,25 @@
   Chromium notices; staging never edits a signed bundle. Explicit `--output`
   writes only a notice, so synthetic unit fixtures need no binary or network.
 - `prepare-steam.mjs` inspects unpacked platform architecture, game ASAR,
-  licenses/source notice, exclusions, symlinks, hashes and permissions. It
+  current package version, licenses/source notice, exclusions, symlinks, hashes
+  and permissions. Format-v2 receipts bind distinct platform-qualified
+  corresponding-source archives, included inside each clean depot archive. It
   normalizes archive API paths for the host OS and rejects ASAR links without
   following them; manifest paths remain portable forward-slash paths. It
   creates credential-free previews by default, verifies complete preview sets
   and renders private VDFs only from validated environment IDs. Run
   `npm run steam:prepare` for syntax and read `docs/steam.md`.
+- `lib/steam-payload.mjs` shares payload/source inspection, complete-set
+  verification and exact private-template checks between preparation and
+  upload. It validates source archive commit headers and hashes, and never
+  treats a self-consistent receipt as authority for the current version or
+  source notice.
+  Mode comparison preserves POSIX permissions and Windows read/write flags;
+  Windows archive-synthesized execute bits are not native permissions. Git
+  attributes pin the license/source template's LF encoding before packaging.
 - `upload-steam.mjs` is only for an explicitly authorized main-branch dispatch
   on a protected, preauthenticated ephemeral upload runner. It emits no
   account/partner details or raw SteamCMD output, fails closed and never sets
-  a branch live. Do not run it for PR or local preview validation.
+  a branch live. It revalidates the private depot copies, source receipts and
+  all canonical VDFs, and binds them to the approved workflow commit before
+  invoking SteamCMD. Do not run it for PR or local preview validation.

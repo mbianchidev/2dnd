@@ -1,7 +1,8 @@
 import { createPackage } from "@electron/asar";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
-  cp, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile,
+  chmod, cp, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -13,6 +14,7 @@ import {
   STEAM_LICENSE_FILES,
   type SteamPlatform,
 } from "../steam/config";
+import packageMetadata from "../package.json";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const temporaryDirectories: string[] = [];
@@ -24,18 +26,20 @@ async function temporaryDirectory(): Promise<string> {
   return path;
 }
 
-function sourceNoticeFixture(): Promise<string> {
-  sourceNotice ??= (async () => {
+function sourceNoticeFixture(projectRoot = ROOT): Promise<string> {
+  const generate = async (): Promise<string> => {
     const root = await temporaryDirectory();
     const output = join(root, "SOURCE.2dnd.txt");
     const result = spawnSync(process.execPath, [
       "hacks/generate-desktop-notice.mjs", "--output", output,
-    ], { cwd: ROOT, encoding: "utf8" });
+    ], { cwd: projectRoot, encoding: "utf8" });
     if (result.status !== 0 || result.stderr) {
       throw new Error(result.stderr || result.error?.message || "Source notice generation failed");
     }
     return readFile(output, "utf8");
-  })();
+  };
+  if (projectRoot !== ROOT) return generate();
+  sourceNotice ??= generate();
   return sourceNotice;
 }
 
@@ -58,14 +62,18 @@ function mockBinary(platform: SteamPlatform): Buffer {
   return bytes;
 }
 
-async function mockPayload(root: string, platform: SteamPlatform): Promise<string> {
+async function mockPayload(
+  root: string,
+  platform: SteamPlatform,
+  projectRoot = ROOT,
+): Promise<string> {
   const depot = getSteamDepot(platform);
   const payload = join(root, `payload-${platform}`);
   const application = join(root, `app-${platform}`);
   await mkdir(join(application, "dist", "assets"), { recursive: true });
   await mkdir(join(application, "dist-electron"));
   await writeFile(join(application, "package.json"), JSON.stringify({
-    name: "2dnd", version: "1.1.0", main: "dist-electron/main.js",
+    name: "2dnd", version: packageMetadata.version, main: "dist-electron/main.js",
   }));
   await writeFile(join(application, "dist", "game.html"),
     '<!doctype html><title>Mock game</title><link rel="stylesheet" href="./assets/game-mock.css">'
@@ -76,6 +84,9 @@ async function mockPayload(root: string, platform: SteamPlatform): Promise<strin
   await writeFile(join(application, "dist-electron", "preload.cjs"), '"use strict";');
   await mkdir(dirname(join(payload, depot.binary)), { recursive: true });
   await writeFile(join(payload, depot.binary), mockBinary(platform), { mode: 0o755 });
+  if (platform === "windows-x64" && process.platform !== "win32") {
+    await chmod(join(payload, depot.binary), 0o666);
+  }
   await mkdir(dirname(join(payload, depot.appArchive)), { recursive: true });
   await createPackage(application, join(payload, depot.appArchive));
   const licenseRoot = join(payload, depot.licenseDirectory);
@@ -84,9 +95,9 @@ async function mockPayload(root: string, platform: SteamPlatform): Promise<strin
     "LICENSE", "node_modules/phaser/LICENSE.md", "node_modules/eventemitter3/LICENSE",
   ];
   for (const [index, file] of STEAM_LICENSE_FILES.entries()) {
-    await cp(join(ROOT, licenses[index]!), join(licenseRoot, file));
+    await cp(join(projectRoot, licenses[index]!), join(licenseRoot, file));
   }
-  await writeFile(join(licenseRoot, "SOURCE.2dnd.txt"), await sourceNoticeFixture());
+  await writeFile(join(licenseRoot, "SOURCE.2dnd.txt"), await sourceNoticeFixture(projectRoot));
   const electronLicenses = platform === "macos-universal"
     ? join(payload, "2D-and-D.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources")
     : payload;
@@ -99,10 +110,83 @@ async function mockPayload(root: string, platform: SteamPlatform): Promise<strin
 function prepare(
   args: string[],
   environment: Record<string, string | undefined> = {},
+  projectRoot = ROOT,
 ): SpawnSyncReturns<string> {
   return spawnSync(process.execPath, ["hacks/prepare-steam.mjs", ...args], {
-    cwd: ROOT, encoding: "utf8", env: { ...process.env, ...environment },
+    cwd: projectRoot, encoding: "utf8", env: { ...process.env, ...environment },
   });
+}
+
+async function preparePreviewSet(root: string, projectRoot = ROOT): Promise<string> {
+  const assembled = join(root, "assembled");
+  await mkdir(join(assembled, "content"), { recursive: true });
+  for (const depot of STEAM_DEPOTS) {
+    const payload = await mockPayload(root, depot.platform, projectRoot);
+    const output = join(root, `preview-${depot.platform}`);
+    const result = prepare([
+      "prepare", "--platform", depot.platform, "--input", payload, "--output", output,
+    ], {}, projectRoot);
+    if (result.status !== 0) throw new Error(result.stderr);
+    const extracted = spawnSync("tar", [
+      "-xpzf", join(output, `${depot.platform}.tar.gz`), "-C", assembled,
+    ], { encoding: "utf8" });
+    if (extracted.status !== 0) throw new Error(extracted.stderr);
+  }
+  return assembled;
+}
+
+function fixtureGit(projectRoot: string, args: string[]): string {
+  const result = spawnSync("git", args, { cwd: projectRoot, encoding: "utf8" });
+  if (result.status !== 0) throw new Error(result.stderr);
+  return result.stdout.trim();
+}
+
+async function reviewedProject(root: string, unsafeLiveSetting = false): Promise<string> {
+  const project = join(root, "project");
+  await mkdir(project);
+  for (const path of [
+    ".gitignore", "LICENSE", "package.json", "docs/source-notice.txt",
+    "steam", "hacks/prepare-steam.mjs", "hacks/upload-steam.mjs",
+    "hacks/generate-desktop-notice.mjs", "hacks/lib/git-provenance.mjs",
+    "hacks/lib/steam-payload.mjs",
+  ]) {
+    await mkdir(dirname(join(project, path)), { recursive: true });
+    await cp(join(ROOT, path), join(project, path), { recursive: true });
+  }
+  await symlink(join(ROOT, "node_modules"), join(project, "node_modules"),
+    process.platform === "win32" ? "junction" : "dir");
+  if (unsafeLiveSetting) {
+    const path = join(project, "steam/templates/app_build.vdf.in");
+    await writeFile(path, (await readFile(path, "utf8"))
+      .replace('"SetLive" ""', '"SetLive" "" "setlive" "mock-beta"'));
+  }
+  fixtureGit(project, ["init", "--quiet", "--initial-branch=main"]);
+  fixtureGit(project, ["config", "core.autocrlf", "false"]);
+  fixtureGit(project, ["add", "."]);
+  fixtureGit(project, [
+    "-c", "user.name=Mock Maintainer", "-c", "user.email=mock@example.invalid",
+    "commit", "--quiet", "--no-gpg-sign", "-m", "Mock reviewed Steam source",
+  ]);
+  return project;
+}
+
+const MOCK_UPLOAD_ENVIRONMENT = {
+  GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
+  STEAM_UPLOAD_AUTHORIZED: "1",
+  STEAM_APP_ID: "123450", STEAM_DEPOT_WINDOWS_ID: "123451",
+  STEAM_DEPOT_MACOS_ID: "123452", STEAM_DEPOT_LINUX_ID: "123453",
+  STEAM_BUILD_ACCOUNT: "mock_build",
+};
+
+async function privateBuild(root: string): Promise<{ project: string; directory: string }> {
+  const project = await reviewedProject(root);
+  const assembled = await preparePreviewSet(root, project);
+  const directory = join(root, "private");
+  const result = prepare([
+    "render", "--upload", "--input", assembled, "--output", directory,
+  ], MOCK_UPLOAD_ENVIRONMENT, project);
+  if (result.status !== 0) throw new Error(result.stderr);
+  return { project, directory };
 }
 
 afterEach(async () => {
@@ -128,25 +212,47 @@ describe("Steam payload preparation without Steamworks", () => {
     expect(() => assertSteamBinary(bytes, "macos-universal")).toThrow(/architecture/);
   });
 
+  it("rejects a stale packaged version even with a current source notice", async () => {
+    const root = await temporaryDirectory();
+    const payload = await mockPayload(root, "linux-x64");
+    const application = join(root, "app-linux-x64");
+    await writeFile(join(application, "package.json"), JSON.stringify({
+      name: "2dnd", version: "0.0.0", main: "dist-electron/main.js",
+    }));
+    await createPackage(application, join(payload, getSteamDepot("linux-x64").appArchive));
+    const result = prepare([
+      "prepare", "--platform", "linux-x64", "--input", payload, "--output", join(root, "preview"),
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("version");
+  });
+
+  it("rechecks the source notice instead of trusting a self-consistent file receipt", async () => {
+    const root = await temporaryDirectory();
+    const assembled = await preparePreviewSet(root);
+    const depot = getSteamDepot("linux-x64");
+    const noticePath = join(depot.licenseDirectory, "SOURCE.2dnd.txt");
+    const notice = "Mock receipt for an unrelated source commit\n";
+    await writeFile(join(assembled, "content", depot.platform, noticePath), notice);
+    const manifestPath = join(assembled, `manifest-${depot.platform}.json`);
+    const receipt = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      files: { path: string; bytes: number; sha256: string }[];
+    };
+    const file = receipt.files.find((entry) => entry.path === noticePath);
+    if (!file) throw new Error("Missing source notice receipt");
+    file.bytes = Buffer.byteLength(notice);
+    file.sha256 = createHash("sha256").update(notice).digest("hex");
+    await writeFile(manifestPath, JSON.stringify(receipt));
+    const result = prepare(["verify", "--input", assembled]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("source notice");
+  }, 30_000);
+
   it("prepares all public depots and validates private preview rendering with mock IDs", async () => {
     const root = await temporaryDirectory();
-    const assembled = join(root, "assembled");
-    await mkdir(join(assembled, "content"), { recursive: true });
+    const assembled = await preparePreviewSet(root);
     for (const depot of STEAM_DEPOTS) {
-      const payload = await mockPayload(root, depot.platform);
       const output = join(root, `preview-${depot.platform}`);
-      const result = prepare([
-        "prepare", "--platform", depot.platform, "--input", payload, "--output", output,
-      ]);
-      expect(result.stderr).toBe("");
-      expect(result.status).toBe(0);
-      await cp(join(output, "content", depot.platform), join(assembled, "content", depot.platform), {
-        recursive: true, verbatimSymlinks: true,
-      });
-      await cp(
-        join(output, `manifest-${depot.platform}.json`),
-        join(assembled, `manifest-${depot.platform}.json`),
-      );
       const template = await readFile(join(output, "scripts/app_build.vdf.in"), "utf8");
       expect(template).toContain("{{STEAM_APP_ID}}");
     }
@@ -229,21 +335,11 @@ describe("Steam payload preparation without Steamworks", () => {
     "confines mock SDK output to private logs and distinguishes success from failure",
     async () => {
       const root = await temporaryDirectory();
-      const environment = {
-        ...process.env,
-        GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-        STEAM_UPLOAD_AUTHORIZED: "1",
-        STEAM_APP_ID: "123450", STEAM_DEPOT_WINDOWS_ID: "123451",
-        STEAM_DEPOT_MACOS_ID: "123452", STEAM_DEPOT_LINUX_ID: "123453",
-        STEAM_BUILD_ACCOUNT: "mock_build",
-      };
+      const { project, directory } = await privateBuild(root);
       for (const successful of [false, true]) {
         const privateRoot = join(root, successful ? "success" : "failure");
-        await mkdir(join(privateRoot, "scripts"), { recursive: true });
-        await mkdir(join(privateRoot, "output"));
-        await writeFile(join(privateRoot, "scripts/app_build.vdf"),
-          '"AppBuild" { "AppID" "123450" "Preview" "0" "SetLive" "" }\n');
-        const executable = join(privateRoot, "mock-steamcmd");
+        await cp(directory, privateRoot, { recursive: true, verbatimSymlinks: true });
+        const executable = join(root, successful ? "mock-success-steamcmd" : "mock-failure-steamcmd");
         await writeFile(executable,
           `#!${process.execPath}\n`
           + 'process.stdout.write("mock_build MOCK_PRIVATE_TOKEN_NOT_REAL\\n");\n'
@@ -252,8 +348,10 @@ describe("Steam payload preparation without Steamworks", () => {
             : 'process.stdout.write("Mock SDK failure\\n");\nprocess.exitCode = 1;\n'),
           { mode: 0o700 });
         const result = spawnSync(process.execPath, ["hacks/upload-steam.mjs"], {
-          cwd: ROOT, encoding: "utf8", env: {
-            ...environment, STEAMCMD_PATH: executable, STEAM_PRIVATE_BUILD_DIR: privateRoot,
+          cwd: project, encoding: "utf8", env: {
+            ...process.env, ...MOCK_UPLOAD_ENVIRONMENT,
+            GITHUB_SHA: fixtureGit(project, ["rev-parse", "HEAD"]),
+            STEAMCMD_PATH: executable, STEAM_PRIVATE_BUILD_DIR: privateRoot,
           },
         });
         expect(result.status).toBe(successful ? 0 : 1);
@@ -262,7 +360,7 @@ describe("Steam payload preparation without Steamworks", () => {
         expect((await stat(log)).mode & 0o777).toBe(0o600);
         expect(await readFile(log, "utf8")).toContain("MOCK_PRIVATE_TOKEN_NOT_REAL");
       }
-    },
+    }, 30_000,
   );
 
   it.skipIf(process.platform === "win32")(
@@ -291,4 +389,81 @@ describe("Steam payload preparation without Steamworks", () => {
       expect(result.stdout).toBe("");
     },
   );
+
+  it("retains distinct corresponding-source archives and rejects missing or modified source", async () => {
+    const root = await temporaryDirectory();
+    const project = await reviewedProject(root);
+    const assembled = await preparePreviewSet(root, project);
+    const sources: string[] = [];
+    for (const depot of STEAM_DEPOTS) {
+      const receipt = JSON.parse(await readFile(
+        join(assembled, `manifest-${depot.platform}.json`), "utf8",
+      )) as { format: number; source: { archive: string; sha256: string } };
+      expect(receipt.format).toBe(2);
+      expect(receipt.source.archive).toContain(depot.platform);
+      const source = join(assembled, receipt.source.archive);
+      expect(createHash("sha256").update(await readFile(source)).digest("hex"))
+        .toBe(receipt.source.sha256);
+      sources.push(source);
+    }
+    expect(new Set(sources).size).toBe(3);
+    expect(prepare(["verify", "--input", assembled], {}, project).status).toBe(0);
+    const original = await readFile(sources[0]!);
+    await rm(sources[0]!);
+    expect(prepare(["verify", "--input", assembled], {}, project).status).toBe(1);
+    await writeFile(sources[0]!, Buffer.concat([original, Buffer.from("mock corruption")]));
+    expect(prepare(["verify", "--input", assembled], {}, project).status).toBe(1);
+  }, 30_000);
+
+  it("refuses auto-publishing settings even when they match a committed template", async () => {
+    const root = await temporaryDirectory();
+    const project = await reviewedProject(root, true);
+    const assembled = await preparePreviewSet(root, project);
+    const result = prepare([
+      "render", "--upload", "--input", assembled, "--output", join(root, "private"),
+    ], MOCK_UPLOAD_ENVIRONMENT, project);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("auto-publishing");
+    expect(`${result.stdout}${result.stderr}`).not.toMatch(/12345[0-3]|mock_build|mock-beta/);
+  }, 30_000);
+
+  it.skipIf(process.platform === "win32").each([
+    "payload", "depot", "app", "receipt", "source", "workflow",
+  ])("rejects changed private %s before invoking a mock SDK", async (mutation) => {
+    const root = await temporaryDirectory();
+    const { project, directory } = await privateBuild(root);
+    const receiptPath = join(directory, "manifest-linux-x64.json");
+    const receipt = JSON.parse(await readFile(receiptPath, "utf8")) as {
+      source: { archive: string };
+    };
+    if (mutation === "payload") {
+      await writeFile(join(directory, "content/linux-x64/2D-and-D"), mockBinary("windows-x64"));
+    } else if (mutation === "depot") {
+      const path = join(directory, "scripts/depot_linux.vdf");
+      await writeFile(path, (await readFile(path, "utf8")).replace('"DepotPath" "."', '"DepotPath" "mock"'));
+    } else if (mutation === "app") {
+      const path = join(directory, "scripts/app_build.vdf");
+      await writeFile(path, (await readFile(path, "utf8")).replace('"SetLive" ""', '"SetLive" "mock-beta"'));
+    } else if (mutation === "receipt") {
+      await writeFile(receiptPath, "null");
+    } else if (mutation === "source") {
+      await rm(join(directory, receipt.source.archive));
+    }
+    const invoked = join(root, "mock-invoked");
+    const executable = join(root, "mock-steamcmd");
+    await writeFile(executable, `#!${process.execPath}\n`
+      + `require("node:fs").writeFileSync(${JSON.stringify(invoked)}, "mock");\n`, { mode: 0o700 });
+    const result = spawnSync(process.execPath, ["hacks/upload-steam.mjs"], {
+      cwd: project, encoding: "utf8", env: {
+        ...process.env, ...MOCK_UPLOAD_ENVIRONMENT,
+        GITHUB_SHA: mutation === "workflow" ? "0".repeat(40) : fixtureGit(project, ["rev-parse", "HEAD"]),
+        STEAMCMD_PATH: executable, STEAM_PRIVATE_BUILD_DIR: directory,
+      },
+    });
+    expect(result.status).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).not.toMatch(/12345[0-3]|mock_build|mock-beta/);
+    await expect(stat(invoked)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(join(directory, "output/steamcmd-private.log")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  }, 30_000);
 });

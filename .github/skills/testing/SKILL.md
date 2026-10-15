@@ -43,6 +43,25 @@ claimed. `ELECTRON_TEST_EXECUTABLE` selects an explicit packaged test binary.
 Steam contract/CLI tests use mock IDs and synthetic architecture/ASAR fixtures;
 actual depot payload inspection belongs to the native packaging matrix.
 Keep preview generation separate from protected upload and public release.
+Clean reviewed-source fixtures use an isolated Git repository and run the
+complete prepare/archive/verify/private-render/mock-upload chain. Require
+current versions/notices, source archive commit/hash receipts and rejection of
+mutated private files/VDFs or stale workflow commits before SDK invocation.
+Actual mixed-OS archive verification must preserve LF legal/source text and
+Windows native read/write flags while retaining full POSIX execute-bit checks
+and exact hashes; same-host synthetic archives cannot prove that portability.
+Generate native icons in an owned temporary test directory. Their compressed
+PNG/ICO/ICNS products are ignored and produced at packaging time, not committed
+inputs whose bytes must match another Node/zlib toolchain.
+`electron-tests/installLifecycle.spec.ts` runs only with the actual packaged
+depot: copied same-version install directories, unchanged isolated profile,
+offline renderer relaunch, exact independent slot/preferences bytes, staging
+recovery and controller title exit. It never proves Steam-client install,
+cross-version upgrade/rollback or physical Deck readiness.
+Apply native outages through `setDesktopOffline()` on the actual game window's
+Electron session before reload and play. The native session owns persistent
+network emulation; `navigator.onLine` is heuristic diagnostic data, never the
+offline oracle or a property to mock.
 
 ## Testing Philosophy
 

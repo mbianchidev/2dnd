@@ -47,7 +47,7 @@ future work until merged.
 | Audio | `music.ts`, typed data cues | `music.ts`, `audio.ts`, `trapAudio.ts` | location-aware scene callers | audio/music + representative browser flows |
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
 | Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
-| Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | `hacks/prepare-steam.mjs`, protected upload utility | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck-equivalent Electron |
+| Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | preparation/upload utilities, `hacks/lib/steam-payload.mjs` | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck/install-lifecycle equivalents |
 | Release command | npm patch or explicit SemVer, manifest/lock/release references, `release.yml` | `hacks/release.mjs` | `scripts/release.sh` entry point | mocked version/commit/main-push/tag/CI/rollback integration |
 
 ## Required workflow
@@ -199,7 +199,15 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   A pulse never releases another held owner or reaches a replacement scene.
 - Steam SDK, Steam achievements, Cloud and native Steam Input API are disabled.
   Stage native Linux x64, Windows x64 and inspected macOS universal payloads;
-  never sync Chromium profiles or claim Proton/Deck/partner validation from
+  bind format-v2 receipts to current versions/notices and platform-qualified
+  corresponding source. Reverify private copies/VDFs and the approved workflow
+  commit before SDK invocation. Packaged same-version reinstall is equivalent
+  evidence, not a Steam-client or cross-version update claim.
+  Keep legal/source text LF-stable across checkouts; compare Windows native
+  read/write flags without relaxing POSIX execute bits or any file hashes.
+  Native icon PNG/ICO/ICNS files are ignored generated outputs; packaging
+  regenerates them before source notices, and tests use owned temp directories.
+  Never sync Chromium profiles or claim Proton/Deck/partner validation from
   equivalent tests. Upload requires explicit protected human authorization;
   `SetLive` stays empty.
 - `TitleMenuManager` owns title selection, large pointer targets, and semantic

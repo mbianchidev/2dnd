@@ -133,7 +133,7 @@ export async function selectControllerAction(
       if (activate && marker.startsWith("[TITLE_ACTION:")) {
         for (let retry = 0; retry < 3; retry += 1) {
           const selected = await page.locator("#debug-state").textContent() ?? "";
-          if (!selected.includes(marker)) break;
+          if (!selected.includes(marker) || selected.includes("[SAVE_SLOTS:")) break;
           await pressController(page, 0);
         }
       }

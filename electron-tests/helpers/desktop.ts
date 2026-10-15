@@ -9,7 +9,22 @@ import { access } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 export const APP_ROOT = resolve(import.meta.dirname, "../..");
+export const DESKTOP_TEST_ANGLE_BACKEND = process.platform === "win32" ? "d3d11-warp" : null;
 const viewportSessions = new WeakMap<Page, CDPSession>();
+
+export interface DesktopLaunchOptions {
+  readonly executablePath?: string;
+  readonly workingDirectory?: string;
+}
+
+export async function setDesktopOffline(desktop: ElectronApplication): Promise<void> {
+  // Session-level outage emulation survives renderer reloads; navigator.onLine is not authority.
+  await desktop.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    if (!window) throw new Error("Missing offline test window");
+    window.webContents.session.enableNetworkEmulation({ offline: true });
+  });
+}
 
 function createLaunchEnvironment(userDataDirectory: string): Record<string, string> {
   const environment: Record<string, string> = {};
@@ -28,13 +43,17 @@ function createLaunchEnvironment(userDataDirectory: string): Record<string, stri
 
 export async function launchDesktop(
   userDataDirectory: string,
+  options: DesktopLaunchOptions = {},
 ): Promise<ElectronApplication> {
-  const executablePath = process.env.ELECTRON_TEST_EXECUTABLE;
+  const executablePath = options.executablePath ?? process.env.ELECTRON_TEST_EXECUTABLE;
   await access(executablePath ?? join(APP_ROOT, "dist-electron", "main.js"));
   return electron.launch({
     ...(executablePath ? { executablePath } : {}),
-    args: executablePath ? [] : [APP_ROOT],
-    cwd: APP_ROOT,
+    args: [
+      ...(executablePath ? [] : [APP_ROOT]),
+      ...(DESKTOP_TEST_ANGLE_BACKEND ? [`--use-angle=${DESKTOP_TEST_ANGLE_BACKEND}`] : []),
+    ],
+    cwd: options.workingDirectory ?? APP_ROOT,
     env: createLaunchEnvironment(userDataDirectory),
   });
 }

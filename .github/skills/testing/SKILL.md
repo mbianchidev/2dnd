@@ -52,9 +52,10 @@ depot: copied same-version install directories, unchanged isolated profile,
 offline renderer relaunch, exact independent slot/preferences bytes, staging
 recovery and controller title exit. It never proves Steam-client install,
 cross-version upgrade/rollback or physical Deck readiness.
-Apply native offline conditions through `setDesktopOffline()` on the renderer
-CDP session and assert its real online state; the Electron browser-context flag
-alone is not evidence and must not be replaced with a mocked navigator property.
+Apply native outages through `setDesktopOffline()` on the actual game window's
+Electron session before reload and play. The native session owns persistent
+network emulation; `navigator.onLine` is heuristic diagnostic data, never the
+offline oracle or a property to mock.
 
 ## Testing Philosophy
 

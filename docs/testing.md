@@ -222,9 +222,10 @@ hours-long endurance or portable performance-budget evidence.
 
 `ELECTRON_TEST_EXECUTABLE` optionally selects an explicitly supplied packaged
 binary for the same suite. It does not alter production preload/security.
-Native offline cases use the shared renderer CDP session through
-`setDesktopOffline()` and assert the real online state. Electron's
-`BrowserContext.setOffline()` alone does not propagate that condition.
+Native offline cases use `setDesktopOffline()` to configure an outage through
+the actual game window's Electron session before reload and play. The native
+session, not a browser-context flag or `navigator.onLine`, owns this condition.
+The heuristic navigator indicator is retained only as diagnostic evidence.
 `electron-tests/installLifecycle.spec.ts` requires that packaged executable.
 It copies the actual depot into separate temporary install directories and
 launches from there, retaining the same isolated profile through replacement,

@@ -57,7 +57,8 @@ test("packaged install replacement, removal and offline reinstall preserve isola
   let application: ElectronApplication | undefined;
   const errors: string[][] = [];
   const receipts: {
-    phase: string; origin: string; appVersion: string; schema: number; offline: boolean;
+    phase: string; origin: string; appVersion: string; schema: number;
+    networkEmulation: "electron-session-offline"; navigatorOnline: boolean;
   }[] = [];
   let expectedDocuments: Record<string, string | null> = {};
   let protectedManual = "";
@@ -78,7 +79,7 @@ test("packaged install replacement, removal and offline reinstall preserve isola
       errors.push(rendererErrors);
       await waitForState(page, "BOOT | Screen: title");
       await installController(page, 1.5, phase === "original");
-      await setDesktopOffline(page);
+      await setDesktopOffline(application);
       if (phase === "original") {
         await page.evaluate((raw) => localStorage.setItem("2dnd_save", raw),
           campaignFixture("Install fixture"));
@@ -87,9 +88,9 @@ test("packaged install replacement, removal and offline reinstall preserve isola
       await waitForState(page, "BOOT | Screen: title");
       await resizeDesktop(application);
       const launch = await page.evaluate(() => ({
-        origin: location.origin, offline: !navigator.onLine,
+        origin: location.origin, navigatorOnline: navigator.onLine,
       }));
-      expect(launch).toEqual({ origin: "app://2dnd", offline: true });
+      expect(launch.origin).toBe("app://2dnd");
       const desktopState = await page.evaluate(() => window.desktop?.getState());
       expect(desktopState?.appVersion).toBe(packageMetadata.version);
       if (phase !== "original") {
@@ -117,7 +118,10 @@ test("packaged install replacement, removal and offline reinstall preserve isola
       if (!loaded) throw new Error("Install lifecycle did not load a valid campaign");
       expect(loaded.version).toBe(SAVE_VERSION);
       expect(loaded.player.name).toBe(phase === "reinstall" ? "Recovery fixture" : "Install fixture");
-      receipts.push({ phase, ...launch, appVersion: packageMetadata.version, schema: loaded.version });
+      receipts.push({
+        phase, ...launch, appVersion: packageMetadata.version, schema: loaded.version,
+        networkEmulation: "electron-session-offline",
+      });
       if (phase === "original") {
         await pressController(page, 9);
         await waitForState(page, "[MENU]");

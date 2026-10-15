@@ -138,7 +138,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     await waitForState(page, "BOOT | Screen: title");
     const startupMs = performance.now() - launchStarted;
     await installController(page);
-    await setDesktopOffline(page);
+    await setDesktopOffline(desktop);
     await page.reload({ waitUntil: "domcontentloaded" });
     await waitForState(page, "BOOT | Screen: title");
     await resizeDesktop(desktop);
@@ -216,7 +216,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     page = await desktop.firstWindow();
     const reloadErrors = monitorRendererErrors(page);
     await installController(page, 1.5, false);
-    await setDesktopOffline(page);
+    await setDesktopOffline(desktop);
     await resizeDesktop(desktop);
     await selectControllerAction(page, "[TITLE_ACTION:continue]");
     await waitForState(page, "OVERWORLD");

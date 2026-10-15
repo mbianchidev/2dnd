@@ -126,14 +126,15 @@ if (binary === "git") {
 if (binary === "npm" && args[0] === "version") {
   if (config.npmFailure) finish(1, "", "mock npm version failed");
   state.bumped = true;
+  const nextVersion = args[1] === "patch" ? "1.2.4" : args[1];
   for (const file of ["package.json", "package-lock.json"]) {
     const filePath = path.join(process.cwd(), file);
     const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    data.version = config.badBump ? "7.7.7" : "1.2.4";
+    data.version = config.badBump ? "7.7.7" : nextVersion;
     if (file === "package-lock.json") data.packages[""].version = data.version;
     fs.writeFileSync(filePath, JSON.stringify(data));
   }
-  finish(0, "v1.2.4");
+  finish(0, "v" + nextVersion);
 }
 if (binary === "gh") {
   if (args[0] === "repo") finish(0, {
@@ -259,7 +260,45 @@ describe.skipIf(process.platform === "win32")("release entry point with fully mo
     const result = await invoke({}, ["v1.2.4"]);
     expect(result.code, result.stderr).toBe(0);
     expect(result.state.versionCommit).toBe("9".repeat(40));
+    expect(result.state.calls).toContainEqual({
+      binary: "npm", args: ["version", "1.2.4", "--no-git-tag-version"],
+    });
   }, 30_000);
+
+  it.each(["v1.3.0", "v2.0.0"])(
+    "updates all release version references for an explicit target %s",
+    async (targetVersion) => {
+      const version = targetVersion.slice(1);
+      const result = await invoke({}, [targetVersion]);
+      expect(result.code, result.stderr).toBe(0);
+      expect(result.files.manifest.version).toBe(version);
+      expect(result.files.lock.version).toBe(version);
+      expect(result.files.lock.packages[""].version).toBe(version);
+      expect(result.files.readme).toContain(`Current release: **${targetVersion}**`);
+      expect(result.files.agents).toContain(`release ${targetVersion}`);
+      expect(result.state.main).toBe("9".repeat(40));
+      expect(result.state.tag).toBe(targetVersion);
+      expect(result.state.calls).toContainEqual({
+        binary: "npm", args: ["version", version, "--no-git-tag-version"],
+      });
+    },
+    30_000,
+  );
+
+  it.each(["v1.2.2", "not-a-version"])(
+    "rejects a downgrade or invalid explicit version without mutation: %s",
+    async (targetVersion) => {
+      const result = await invoke({}, [targetVersion]);
+      expect(result.code).toBe(1);
+      expect(result.files.manifest.version).toBe("1.2.3");
+      expect(result.files.lock.version).toBe("1.2.3");
+      expect(result.state.local).toBe("");
+      expect(result.state.remote).toBe("");
+      expect(result.state.calls.some((call) => call.binary === "npm")).toBe(false);
+      expect(result.state.calls.some((call) => call.args[0] === "push")).toBe(false);
+    },
+    30_000,
+  );
 
   it.each<Scenario>([
     { npmFailure: true }, { badBump: true }, { unexpectedChange: true },
@@ -392,12 +431,12 @@ describe.skipIf(process.platform === "win32")("release entry point with fully mo
     expect(result.state.calls.some((call) => call.args[0] === "update-ref")).toBe(false);
   }, 30_000);
 
-  it("shows help without contacting Git/GitHub, and rejects a mismatched version", async () => {
+  it("shows help without contacting Git/GitHub, and rejects a downgrade", async () => {
     const help = await invoke({}, ["--help"]);
     expect(help.code).toBe(0);
     expect(help.state.calls).toHaveLength(0);
-    const mismatch = await invoke({}, ["v9.9.9"]);
-    expect(mismatch.code).toBe(1);
-    expect(mismatch.state.calls.some((call) => ["push", "-c", "update-ref"].includes(call.args[0]))).toBe(false);
+    const downgrade = await invoke({}, ["v1.2.2"]);
+    expect(downgrade.code).toBe(1);
+    expect(downgrade.state.calls.some((call) => ["push", "-c", "update-ref"].includes(call.args[0]))).toBe(false);
   }, 30_000);
 });

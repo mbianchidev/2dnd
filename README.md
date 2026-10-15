@@ -168,7 +168,10 @@ Use `npm run dev:desktop` for Electron development and
 From clean, up-to-date `main`, maintainers can run `./scripts/release.sh` to
 automatically bump the npm patch version, commit/push the version and release
 references, then tag and wait for release CI. Failed CI rolls back only the tags,
-not the version commit. An explicit current version retries without another bump.
+not the version commit. Pass a specific higher version, such as
+`./scripts/release.sh v1.2.0`, to prepare a minor or major release; the command
+updates the package manifest, lockfile, README, and `AGENTS.md` before committing.
+An explicit current version retries without another version update.
 See the [release guide](docs/release.md) before publishing.
 
 ## Documentation

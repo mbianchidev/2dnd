@@ -104,8 +104,8 @@ matches `origin/main`, then run:
 
 ```bash
 ./scripts/release.sh
-# Optional guard: require this to be the next patch version:
-./scripts/release.sh v1.2.3
+# Prepare a specific higher version, including minor/major releases:
+./scripts/release.sh v1.2.0
 ./scripts/release.sh --help
 ```
 
@@ -116,12 +116,16 @@ commit directly to main; the command never bypasses branch protection.
 A dirty/ahead/behind/non-main checkout, mismatched package/lock metadata, existing
 target tag/release, or disabled release workflow rejects before the bump.
 
-By default, the command runs `npm version patch --no-git-tag-version`,
-synchronizes the current-release references in `README.md` and `AGENTS.md`,
-stages only those four owned files, and commits with `--no-gpg-sign`. Unexpected
-file/index or commit changes stop before a branch push. It pushes that exact
-version commit normally to `origin/main` and verifies the remote identity before
-creating an unsigned annotated `v<new-version>` tag at that commit.
+Without a version argument, the command runs
+`npm version patch --no-git-tag-version`. An explicit higher SemVer version
+selects that exact version instead, so minor and major releases do not need a
+separate manual version commit. Both paths update `package.json`,
+`package-lock.json`, and the current-release references in `README.md` and
+`AGENTS.md`, stage only those four owned files, and commit with `--no-gpg-sign`.
+Unexpected file/index or commit changes stop before a branch push. The command
+pushes that exact version commit normally to `origin/main` and verifies the
+remote identity before creating an unsigned annotated `v<version>` tag at that
+commit.
 It then pushes the tag and waits for the new `release.yml` push run bound to that
 exact tag and commit. Previous runs and unrelated workflows cannot provide a
 passing result. It never merges a PR or opens local desktop windows.
@@ -146,9 +150,9 @@ explicitly to retry without another npm bump, commit, or main push:
 ./scripts/release.sh v1.2.3
 ```
 
-An explicit version must match either the next patch (normal bump) or the current
-version (tag-only retry). The latter also supports a major/minor version already
-prepared and merged separately. No argument always selects a new patch release.
+An explicit version must be valid SemVer and greater than the committed version,
+or exactly match the current version for a tag-only retry. No argument always
+selects a new patch release.
 
 ## Steam preparation
 
@@ -169,7 +173,7 @@ desktop-equivalent tests do not close the real Steam-client or hardware gates.
 1. Confirm all claimed features are merged into current `main`; do not use open
    issue or pull-request behavior in release notes.
 2. Check that package/lock versions agree. The release command prepares the
-   next patch after merge; prepare a major/minor bump separately when needed.
+   next patch by default; pass the exact higher version for a major/minor release.
 3. Synchronize `README.md`, `docs/`, `AGENTS.md`,
    `.github/copilot-instructions.md`, and relevant skills.
 4. Verify Phaser, TypeScript, Vite, Vitest, Playwright, happy-dom, and save-schema
@@ -189,8 +193,8 @@ desktop-equivalent tests do not close the real Steam-client or hardware gates.
     `game.html`.
 17. For a desktop release, run `./scripts/release.sh` from clean, up-to-date
     `main` to bump/commit/push its patch version, tag, and watch the complete
-    release. Pass an already-prepared current version explicitly for a retry
-    or major/minor release.
+    release. Pass a specific higher version for a minor/major release, or the
+    current version explicitly to retry without another version update.
 18. Wait for the release workflow and verify every expected desktop package is
     attached to the generated GitHub release.
 19. When signing credentials exist, sign/notarize in the protected release

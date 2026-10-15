@@ -105,6 +105,39 @@ function packageVersion(manifest, lock) {
   return manifest.version;
 }
 
+function compareVersions(left, right) {
+  const leftParts = versionPattern.exec(left);
+  const rightParts = versionPattern.exec(right);
+  if (!leftParts || !rightParts) throw new Error("Cannot compare invalid release versions.");
+  for (const index of [1, 2, 3]) {
+    const leftNumber = BigInt(leftParts[index]);
+    const rightNumber = BigInt(rightParts[index]);
+    if (leftNumber !== rightNumber) return leftNumber > rightNumber ? 1 : -1;
+  }
+  const leftPrerelease = leftParts[4]?.split(".") ?? [];
+  const rightPrerelease = rightParts[4]?.split(".") ?? [];
+  if (leftPrerelease.length === 0 || rightPrerelease.length === 0) {
+    if (leftPrerelease.length === rightPrerelease.length) return 0;
+    return leftPrerelease.length === 0 ? 1 : -1;
+  }
+  for (let index = 0; index < Math.max(leftPrerelease.length, rightPrerelease.length); index++) {
+    const leftIdentifier = leftPrerelease[index];
+    const rightIdentifier = rightPrerelease[index];
+    if (leftIdentifier === undefined || rightIdentifier === undefined) {
+      return leftIdentifier === undefined ? -1 : 1;
+    }
+    if (leftIdentifier === rightIdentifier) continue;
+    const leftNumeric = /^\d+$/.test(leftIdentifier);
+    const rightNumeric = /^\d+$/.test(rightIdentifier);
+    if (leftNumeric && rightNumeric) {
+      return BigInt(leftIdentifier) > BigInt(rightIdentifier) ? 1 : -1;
+    }
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    return leftIdentifier > rightIdentifier ? 1 : -1;
+  }
+  return 0;
+}
+
 function committedVersion(commit) {
   return packageVersion(
     json(checked("git", ["show", `${commit}:package.json`]), "committed package.json"),
@@ -132,7 +165,7 @@ function matchesVersionFiles(paths) {
     && paths.every((path, index) => path === expected[index]);
 }
 
-async function bumpPatch(commit, currentVersion, targetVersion) {
+async function prepareVersion(commit, currentVersion, targetVersion, requestedVersion) {
   const references = [
     ["README.md", `Current release: **v${currentVersion}**`, `Current release: **v${targetVersion}**`],
     ["AGENTS.md", `| Product | Browser/Electron JRPG, release v${currentVersion} |`,
@@ -147,11 +180,11 @@ async function bumpPatch(commit, currentVersion, targetVersion) {
   }));
   assertMainCheckout(commit);
   if (checked("git", ["status", "--porcelain=v1", "--untracked-files=normal"])) {
-    throw new Error("The worktree changed before npm version; no version bump was started.");
+    throw new Error("The worktree changed before npm version; no version update was started.");
   }
   versionPrepared = true;
-  log(`Bumping npm patch: ${currentVersion} -> ${targetVersion}.`);
-  checked("npm", ["version", "patch", "--no-git-tag-version"]);
+  log(`Preparing npm version: ${currentVersion} -> ${targetVersion}.`);
+  checked("npm", ["version", requestedVersion ?? "patch", "--no-git-tag-version"]);
   const actualVersion = packageVersion(
     json(await readFile(join(root, "package.json"), "utf8"), "updated package.json"),
     json(await readFile(join(root, "package-lock.json"), "utf8"), "updated package-lock.json"),
@@ -223,8 +256,8 @@ function rollback() {
 async function release() {
   if (args.length === 1 && ["--help", "-h"].includes(args[0])) {
     log("Usage: scripts/release.sh [vVERSION]");
-    log("Default: npm patch, synchronize release references, commit unsigned, push main, then tag and wait for release.yml.");
-    log("Requires clean up-to-date main, git, gh and Node.js 24+. Explicit current VERSION retries without another bump.");
+    log("Default: npm patch. An explicit higher VERSION prepares that version; both sync references, commit unsigned, push main, tag and wait for release.yml.");
+    log("Requires clean up-to-date main, git, gh and Node.js 24+. Explicit current VERSION retries without another version update.");
     log("Confirmed failed CI removes only this invocation's unchanged local/remote tags.");
     log("The version commit is retained on main; no branch history is rolled back.");
     return;
@@ -240,12 +273,13 @@ async function release() {
   const parts = versionPattern.exec(version);
   // npm patch promotes an existing prerelease without incrementing its patch.
   const nextVersion = `${parts[1]}.${parts[2]}.${BigInt(parts[3]) + (parts[4] ? 0n : 1n)}`;
-  const requested = args[0]?.replace(/^v/, "");
-  if (requested && requested !== version && requested !== nextVersion) {
-    throw new Error(`Expected next patch ${nextVersion}, or current ${version} for an explicit retry.`);
+  const requested = args.length > 0 ? args[0].replace(/^v/, "") : undefined;
+  if (requested !== undefined && requested !== version
+    && (!versionPattern.test(requested) || compareVersions(requested, version) <= 0)) {
+    throw new Error(`Expected a valid version greater than ${version}, or current ${version} for an explicit retry.`);
   }
   const shouldBump = requested !== version;
-  const targetVersion = shouldBump ? nextVersion : version;
+  const targetVersion = requested ?? nextVersion;
   tag = `v${targetVersion}`;
   checked("git", ["check-ref-format", `refs/tags/${tag}`]);
   const fetchUrl = checked("git", ["remote", "get-url", "origin"]);
@@ -291,7 +325,7 @@ async function release() {
     || checked("git", ["status", "--porcelain=v1", "--untracked-files=normal"])) {
     throw new Error("The release commit or worktree changed during preflight; no tag was created.");
   }
-  if (shouldBump) commit = await bumpPatch(commit, version, targetVersion);
+  if (shouldBump) commit = await prepareVersion(commit, version, targetVersion, requested);
   else log(`Retrying committed version ${version} without another bump or main push.`);
   assertMainCheckout(commit);
   checked("git", ["-c", "tag.gpgSign=false", "tag", "--annotate",

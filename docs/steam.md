@@ -116,10 +116,14 @@ implied by passing a packaging test.
 it builds and inspects the three unpacked Steam payloads and uploads
 credential-free previews. **No PR job receives partner IDs, account tokens,
 signing credentials or publishing rights.**
+After all native builds pass, a credential-free Linux job downloads that same
+run's three depot archives, extracts them together and verifies the complete
+set against the checkout. This catches cross-OS archive/receipt differences
+that an individual platform's preparation cannot prove.
 
 `Steam depot preparation` is manual and main-only. Its default `preview`
 operation runs the browser/unit/audit gate, Electron platform matrix and
-depot inspection. Selecting `upload` also requires the explicit confirmation
+complete cross-platform depot inspection. Selecting `upload` also requires the explicit confirmation
 input and the protected `steam-upload` environment.
 
 Before enabling that environment, a human must:
@@ -143,7 +147,8 @@ Before enabling that environment, a human must:
    artifacts; destroy ephemeral private work areas after diagnosis. Persistent
    authentication, if used, needs a separately secured lifecycle.
 
-The upload job downloads only its own reviewed build's archives, rechecks
+Upload cannot start until complete-set verification passes. The upload job
+downloads only its own reviewed build's archives, rechecks
 every receipt and corresponding-source archive, privately renders the VDFs and
 runs preauthenticated SteamCMD. Private rendering revalidates its copied
 payloads; immediately before starting SteamCMD, the uploader rechecks every

@@ -235,6 +235,10 @@ phase timings to distinguish gameplay/import waits from browser/server cleanup.
 
 `.github/workflows/desktop.yml` repeats the smoke test on macOS, Windows, and
 Linux, then builds unsigned platform artifacts. Linux runs under Xvfb.
+Its final credential-free job assembles all three native depot archives on
+Linux and verifies their exact receipts and corresponding source against the
+same checkout. The manual Steam workflow uses the same gate before any
+protected upload, without substituting synthetic platform fixtures.
 Native onboarding holds pointer/semantic confirmation across frames and observes each
 screen/mode through debug state before the next action; fixed sleeps and rapid
 pointer/keyboard source switches are not transition evidence.

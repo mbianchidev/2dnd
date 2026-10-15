@@ -10,7 +10,7 @@ describe("tagged desktop release workflow", () => {
       await readFile("package-lock.json", "utf8"),
     ) as { version: string; packages: Record<string, { version: string }> };
 
-    expect(manifest.version).toBe("1.1.0");
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/);
     expect(lockfile.version).toBe(manifest.version);
     expect(lockfile.packages[""].version).toBe(manifest.version);
   });

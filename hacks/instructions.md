@@ -1,12 +1,15 @@
 # Utility scripts
 
 - `release.mjs`, exposed by the executable `scripts/release.sh`, validates the
-  clean committed version and main ancestry, creates/pushes one unsigned
-  annotated tag, and waits for the exact new tagged release workflow. Confirmed
-  CI failure rolls back only its unchanged local/remote tags. Unknown CI status
-  or changed ownership preserves refs and reports an actionable failure.
-  It never bumps/commits versions, pushes branches, force-pushes, or deletes
-  releases/assets. See `docs/release.md`; tests use fully mocked Git/GitHub.
+  clean, up-to-date main checkout and release preflight, runs npm patch, updates
+  manifest/lock and README/AGENTS release references, commits with
+  `--no-gpg-sign`, pushes that exact commit to main, then creates/pushes one
+  unsigned annotated tag and waits for the exact new release workflow.
+  An explicit current version retries without another bump or main push.
+  Confirmed CI failure rolls back only its unchanged local/remote tags; the
+  version commit stays. Unknown CI status or changed ownership preserves refs
+  and reports an actionable failure. It never force-pushes, rewrites main, or
+  deletes releases/assets. See `docs/release.md`; tests mock npm, Git and GitHub.
 - `run-browser-tests.mjs` allocates an unused localhost port, passes it to the
   Playwright config, and runs the browser suite without reusing stale Vite
   servers. Invoke it through `npm run test:browser`.

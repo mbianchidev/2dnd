@@ -8,10 +8,11 @@ persistent data changes.
 If a utility script is required, place it in `hacks/`, document it in
 `hacks/instructions.md`, and remove temporary utilities when the task is done.
 The public `scripts/release.sh` entry delegates to `hacks/release.mjs`. A maintainer
-invocation from clean, up-to-date main bumps npm patch, synchronizes release
-references, commits with `--no-gpg-sign`, pushes main, tags, and watches the exact
-new release run. Confirmed CI failure rolls back only its unchanged local/remote
-tags, never the version commit. Explicit current-version retries skip the bump.
+invocation from clean, up-to-date main bumps npm patch by default, or prepares an
+explicit higher SemVer version, synchronizes release references, commits with
+`--no-gpg-sign`, pushes main, tags, and watches the exact new release run.
+Confirmed CI failure rolls back only its unchanged local/remote tags, never the
+version commit. Explicit current-version retries skip the version update.
 Implementing/testing this command does not authorize an agent to release or push
 main; use isolated mocked release tests and a review branch.
 Do not add planning or summary Markdown files to the repository.

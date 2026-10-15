@@ -48,7 +48,7 @@ future work until merged.
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
 | Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
 | Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | `hacks/prepare-steam.mjs`, protected upload utility | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck-equivalent Electron |
-| Release command | npm patch, manifest/lock/release references, `release.yml` | `hacks/release.mjs` | `scripts/release.sh` entry point | mocked bump/commit/main-push/tag/CI/rollback integration |
+| Release command | npm patch or explicit SemVer, manifest/lock/release references, `release.yml` | `hacks/release.mjs` | `scripts/release.sh` entry point | mocked version/commit/main-push/tag/CI/rollback integration |
 
 ## Required workflow
 

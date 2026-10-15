@@ -3,6 +3,10 @@ dist/
 dist-electron/
 release/
 build/SOURCE.2dnd.txt
+/build/icon.png
+/build/icon.ico
+/build/icon.icns
+/build/icons/
 playwright-report/
 test-results/
 electron-test-results/

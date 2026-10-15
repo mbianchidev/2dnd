@@ -109,6 +109,9 @@ synthesizes by filename extension; PE architecture and all bytes still verify.
 CI requires a clean reviewed tree after generation/build and again before
 packaging. Changed inputs are reported and rejected, never silently reset or
 relabelled as clean source.
+Procedural native icons are generated, ignored build products rather than
+tracked compressed binaries. Both packaging entries regenerate them before the
+source notice; the editable generator remains in corresponding source.
 
 The package includes AGPL, Phaser/EventEmitter3 MIT and Electron/Chromium
 notices. `SOURCE.2dnd.txt` identifies its source commit and is generated

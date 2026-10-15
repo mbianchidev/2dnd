@@ -29,6 +29,9 @@
 - `generate-desktop-icons.mjs` creates the original pixel-d20 PNG, ICO, ICNS,
   and Linux icon set without external assets or image dependencies. Invoke it
   through `npm run generate:desktop-icons`; packaging runs it automatically.
+  Generated icon PNG/ICO/ICNS resources are ignored build products, not source
+  inputs. Tests execute the generator in an owned temporary directory;
+  Node/zlib compression differences must not dirty a reviewed checkout.
 - `measure-performance-baseline.mjs` builds the production `/2dnd/` target,
   launches it on an unused local port, and prints reproducible bundle, startup,
   Boot texture, memory, DOM/listener, and fresh-save metrics. Run

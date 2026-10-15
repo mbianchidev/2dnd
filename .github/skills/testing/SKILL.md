@@ -50,6 +50,9 @@ mutated private files/VDFs or stale workflow commits before SDK invocation.
 Actual mixed-OS archive verification must preserve LF legal/source text and
 Windows native read/write flags while retaining full POSIX execute-bit checks
 and exact hashes; same-host synthetic archives cannot prove that portability.
+Generate native icons in an owned temporary test directory. Their compressed
+PNG/ICO/ICNS products are ignored and produced at packaging time, not committed
+inputs whose bytes must match another Node/zlib toolchain.
 `electron-tests/installLifecycle.spec.ts` runs only with the actual packaged
 depot: copied same-version install directories, unchanged isolated profile,
 offline renderer relaunch, exact independent slot/preferences bytes, staging

@@ -67,6 +67,10 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - transition contracts with mocked camera/time adapters
 - Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
 
+Native icon tests execute the actual generator in an owned temporary directory
+and validate PNG/ICO/ICNS headers. They do not rely on committed compressed build
+products or mutate the checkout; the packaging entries generate those products.
+
 Random mechanics must accept deterministic values or seeded state. Test the
 authoritative helper rather than reproducing formulas in assertions.
 

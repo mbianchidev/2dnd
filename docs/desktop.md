@@ -99,6 +99,10 @@ keyboard shortcut. Browser builds do not display an application-quit action.
 `electron-builder` reads the `build` configuration in `package.json`.
 `npm run generate:desktop-icons` creates repository-owned PNG, ICO, ICNS, and
 Linux icons from procedural pixel art without external assets.
+The generator is their authoritative source. PNG/ICO/ICNS outputs are ignored
+build products, generated automatically by both packaging entries before the
+source notice and signing. Compression bytes can vary by Node/zlib version
+without changing the pixels; regenerating them must not dirty reviewed source.
 
 Pinned `allowScripts` entries approve only Electron's requested `fsevents`
 versions and the reviewed `electron-winstaller` setup script. `.npmrc` omits

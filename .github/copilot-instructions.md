@@ -1432,6 +1432,9 @@ npm run benchmark:baseline
   signing/store approval from equivalent tests. Protected upload requires
   explicit human authorization and never sets a branch live. See
   `docs/steam.md`; keep #183 incomplete until external evidence exists.
+  Keep generated native icon PNG/ICO/ICNS outputs untracked; both packaging
+  entries generate them before provenance notices. Test the actual generator
+  in an owned temporary directory rather than relying on compressed binaries.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run `npm run benchmark:baseline` on the current base commit before

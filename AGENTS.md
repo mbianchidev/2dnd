@@ -203,6 +203,8 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   corresponding source. Reverify private copies/VDFs and the approved workflow
   commit before SDK invocation. Packaged same-version reinstall is equivalent
   evidence, not a Steam-client or cross-version update claim.
+  Keep legal/source text LF-stable across checkouts; compare Windows native
+  read/write flags without relaxing POSIX execute bits or any file hashes.
   Never sync Chromium profiles or claim Proton/Deck/partner validation from
   equivalent tests. Upload requires explicit protected human authorization;
   `SetLive` stays empty.

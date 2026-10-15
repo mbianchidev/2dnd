@@ -101,6 +101,11 @@ receipt alone. Clean receipts also require their corresponding-source archive,
 its Git commit header and compressed SHA-256. Platform-qualified source names
 prevent the three matrix artifacts from overwriting one another during assembly.
 Format-v1 previews must be rebuilt; do not edit an old receipt to bypass the gate.
+Git attributes keep the game license and source-notice template LF-encoded on
+every checkout, so Windows packaging preserves the same exact legal bytes.
+Mode receipts retain all POSIX permission bits for macOS/Linux. Windows retains
+its native read/write flags, ignoring only the execute bits Windows tar
+synthesizes by filename extension; PE architecture and all bytes still verify.
 
 The package includes AGPL, Phaser/EventEmitter3 MIT and Electron/Chromium
 notices. `SOURCE.2dnd.txt` identifies its source commit and is generated

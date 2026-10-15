@@ -47,6 +47,9 @@ Clean reviewed-source fixtures use an isolated Git repository and run the
 complete prepare/archive/verify/private-render/mock-upload chain. Require
 current versions/notices, source archive commit/hash receipts and rejection of
 mutated private files/VDFs or stale workflow commits before SDK invocation.
+Actual mixed-OS archive verification must preserve LF legal/source text and
+Windows native read/write flags while retaining full POSIX execute-bit checks
+and exact hashes; same-host synthetic archives cannot prove that portability.
 `electron-tests/installLifecycle.spec.ts` runs only with the actual packaged
 depot: copied same-version install directories, unchanged isolated profile,
 offline renderer relaunch, exact independent slot/preferences bytes, staging

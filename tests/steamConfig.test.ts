@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import {
   getSteamDepot,
+  getSteamFileMode,
   isAllowedSteamAppEntry,
   isAllowedSteamRuntimeEntry,
   isForbiddenSteamPath,
@@ -80,6 +81,19 @@ describe("Steam distribution contract", () => {
     expect(() => parseSteamBuildIds({
       ...MOCK_IDS, STEAM_DEPOT_LINUX_ID: MOCK_IDS.STEAM_APP_ID,
     })).toThrow(/unique/i);
+  });
+
+  it("compares Windows native flags without accepting POSIX executable-mode changes", () => {
+    const windows = getSteamDepot("windows-x64");
+    expect(getSteamFileMode(0o100666, windows)).toBe(0o666);
+    expect(getSteamFileMode(0o100777, windows)).toBe(0o666);
+    expect(getSteamFileMode(0o100555, windows)).toBe(0o444);
+    for (const platform of ["linux-x64", "macos-universal"]) {
+      const depot = getSteamDepot(platform);
+      expect(getSteamFileMode(0o100755, depot)).toBe(0o755);
+      expect(getSteamFileMode(0o100644, depot)).toBe(0o644);
+      expect(getSteamFileMode(0o100755, depot)).not.toBe(getSteamFileMode(0o100644, depot));
+    }
   });
 
   it("renders approved placeholders without allowing VDF injection or missing values", () => {

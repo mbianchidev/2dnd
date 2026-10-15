@@ -14,6 +14,7 @@ import {
   assertSteamBinary,
   createSteamTemplateValues,
   formatSteamSourceNotice,
+  getSteamFileMode,
   isAllowedSteamAppEntry,
   isAllowedSteamRuntimeEntry,
   isForbiddenSteamPath,
@@ -49,7 +50,7 @@ export async function readSteamSourceContext() {
   };
 }
 
-async function scanPayload(root, directory = root) {
+async function scanPayload(root, depot, directory = root) {
   const files = [];
   const entries = await readdir(directory, { withFileTypes: true });
   entries.sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0);
@@ -60,7 +61,7 @@ async function scanPayload(root, directory = root) {
       throw new Error(`Forbidden content in Steam payload: ${name}`);
     }
     if (entry.isDirectory()) {
-      files.push(...await scanPayload(root, path));
+      files.push(...await scanPayload(root, depot, path));
     } else if (entry.isSymbolicLink()) {
       const target = await readlink(path);
       if (isAbsolute(target) || !withinSteamDirectory(root, await realpath(path))) {
@@ -72,7 +73,7 @@ async function scanPayload(root, directory = root) {
       files.push({
         path: name,
         bytes: info.size,
-        mode: info.mode & 0o777,
+        mode: getSteamFileMode(info.mode, depot),
         sha256: await hashFile(path),
       });
     } else {
@@ -113,7 +114,7 @@ function inspectAppArchive(path, expectedVersion) {
 }
 
 export async function inspectSteamPayload(root, depot, source) {
-  const files = await scanPayload(root);
+  const files = await scanPayload(root, depot);
   for (const file of files) {
     if (!isAllowedSteamRuntimeEntry(file.path, depot)) {
       throw new Error(`Unexpected native runtime content: ${file.path}`);

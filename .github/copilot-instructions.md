@@ -1426,7 +1426,9 @@ npm run benchmark:baseline
   invocation; same-version packaged reinstall tests are not Steam-client or
   cross-version upgrade evidence. SDK, native Steam Input
   API, Steam achievements and Cloud remain disabled. Never sync Chromium
-  profiles, expose partner IDs/credentials to PRs, or infer Proton/Deck/client/
+  profiles or relax POSIX permissions/file hashes for portability. Keep legal/
+  source text LF-stable and compare Windows native read/write flags, not tar's
+  extension-synthesized execute bits. Never expose partner IDs/credentials to PRs or infer Proton/Deck/client/
   signing/store approval from equivalent tests. Protected upload requires
   explicit human authorization and never sets a branch live. See
   `docs/steam.md`; keep #183 incomplete until external evidence exists.

@@ -117,6 +117,11 @@ export function getSteamDepot(platform: string): SteamDepot {
   return depot;
 }
 
+/** Windows tar synthesizes execute bits by extension; its read/write flags remain authoritative. */
+export function getSteamFileMode(mode: number, depot: SteamDepot): number {
+  return mode & (depot.os === "windows" ? 0o666 : 0o777);
+}
+
 export function isSteamId(value: unknown): value is string {
   return typeof value === "string"
     && /^[1-9][0-9]{0,9}$/.test(value)

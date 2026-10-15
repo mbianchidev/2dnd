@@ -72,6 +72,9 @@
   upload. It validates source archive commit headers and hashes, and never
   treats a self-consistent receipt as authority for the current version or
   source notice.
+  Mode comparison preserves POSIX permissions and Windows read/write flags;
+  Windows archive-synthesized execute bits are not native permissions. Git
+  attributes pin the license/source template's LF encoding before packaging.
 - `upload-steam.mjs` is only for an explicitly authorized main-branch dispatch
   on a protected, preauthenticated ephemeral upload runner. It emits no
   account/partner details or raw SteamCMD output, fails closed and never sets

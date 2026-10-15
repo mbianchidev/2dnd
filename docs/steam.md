@@ -106,6 +106,9 @@ every checkout, so Windows packaging preserves the same exact legal bytes.
 Mode receipts retain all POSIX permission bits for macOS/Linux. Windows retains
 its native read/write flags, ignoring only the execute bits Windows tar
 synthesizes by filename extension; PE architecture and all bytes still verify.
+CI requires a clean reviewed tree after generation/build and again before
+packaging. Changed inputs are reported and rejected, never silently reset or
+relabelled as clean source.
 
 The package includes AGPL, Phaser/EventEmitter3 MIT and Electron/Chromium
 notices. `SOURCE.2dnd.txt` identifies its source commit and is generated

@@ -9,6 +9,7 @@ import { access } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 export const APP_ROOT = resolve(import.meta.dirname, "../..");
+export const DESKTOP_TEST_ANGLE_BACKEND = process.platform === "win32" ? "d3d11-warp" : null;
 const viewportSessions = new WeakMap<Page, CDPSession>();
 
 export interface DesktopLaunchOptions {
@@ -48,7 +49,10 @@ export async function launchDesktop(
   await access(executablePath ?? join(APP_ROOT, "dist-electron", "main.js"));
   return electron.launch({
     ...(executablePath ? { executablePath } : {}),
-    args: executablePath ? [] : [APP_ROOT],
+    args: [
+      ...(executablePath ? [] : [APP_ROOT]),
+      ...(DESKTOP_TEST_ANGLE_BACKEND ? [`--use-angle=${DESKTOP_TEST_ANGLE_BACKEND}`] : []),
+    ],
     cwd: options.workingDirectory ?? APP_ROOT,
     env: createLaunchEnvironment(userDataDirectory),
   });

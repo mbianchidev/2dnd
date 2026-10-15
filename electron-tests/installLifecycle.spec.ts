@@ -8,7 +8,8 @@ import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { createCurrentSaveData, normalizeSaveData, SAVE_VERSION } from "../src/systems/save";
 import {
-  closeDesktop, launchDesktop, monitorRendererErrors, resizeDesktop, setDesktopOffline, waitForState,
+  closeDesktop, DESKTOP_TEST_ANGLE_BACKEND, launchDesktop, monitorRendererErrors,
+  resizeDesktop, setDesktopOffline, waitForState,
 } from "./helpers/desktop";
 import {
   clickControllerLayoutItem, installController, pressController, selectControllerAction,
@@ -162,7 +163,7 @@ test("packaged install replacement, removal and offline reinstall preserve isola
       await page.evaluate(() => window.__mockController.button(0, true));
       await closing;
       application = undefined;
-      await rm(install, { recursive: true });
+      await rm(install, { recursive: true, maxRetries: 10, retryDelay: 100 });
       expect((await stat(profile)).isDirectory()).toBe(true);
     }
     expect(errors.every((messages) => messages.length === 0)).toBe(true);
@@ -172,6 +173,7 @@ test("packaged install replacement, removal and offline reinstall preserve isola
       steamClient: false,
       sameVersionReplacement: true,
       physicalDeck: false,
+      graphicsBackend: DESKTOP_TEST_ANGLE_BACKEND ?? "platform-default",
       phases: receipts,
       protectedManualPreserved: true,
       isolatedStagingRecovery: true,
@@ -179,6 +181,6 @@ test("packaged install replacement, removal and offline reinstall preserve isola
     await test.info().attach("install-lifecycle-equivalent", { path, contentType: "application/json" });
   } finally {
     if (application) await closeDesktop(application);
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });

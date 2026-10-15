@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { expectCleanLayout } from "../e2e/helpers/layout";
 import { SAVE_WRITE_MEASURE } from "../src/systems/saveStorage";
 import {
-  launchDesktop, monitorRendererErrors, resizeDesktop, setDesktopOffline, waitForState,
+  DESKTOP_TEST_ANGLE_BACKEND, launchDesktop, monitorRendererErrors,
+  resizeDesktop, setDesktopOffline, waitForState,
 } from "./helpers/desktop";
 import {
   clickControllerLayoutItem,
@@ -299,7 +300,10 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     ));
     const sortedFrames = [...frameIntervals].sort((left, right) => left - right);
     const metrics = JSON.stringify({
-        environment: { platform: `${platform()} ${release()}`, arch: arch(), cpu: cpus()[0]?.model },
+        environment: {
+          platform: `${platform()} ${release()}`, arch: arch(), cpu: cpus()[0]?.model,
+          graphicsBackend: DESKTOP_TEST_ANGLE_BACKEND ?? "platform-default",
+        },
         resolution: "1280x800",
         physicalDeck: false,
         steamClient: false,

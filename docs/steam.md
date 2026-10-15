@@ -273,6 +273,9 @@ Its JSON receipt explicitly labels the offline
 renderer and **same-version installation replacement**. It does not prove a
 Steam client install/uninstall, an older-to-newer upgrade, schema downgrade,
 signing or physical Deck behavior; those remain the manual gates below.
+Windows native CI selects software D3D11 WARP for stable WebGL coverage of its
+virtual display, without disabling renderer-error assertions or the sandbox.
+That test-only backend is not evidence for a physical GPU or minimum-spec claim.
 
 The test attaches startup, **actual validated atomic slot-write** duration,
 180-frame interval samples, JS/native memory and post-GC DOM/listener counts

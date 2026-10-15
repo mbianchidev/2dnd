@@ -251,6 +251,11 @@ release to a destroyed page.
 Opening the title slot manager leaves its outer title-selection marker visible.
 The nested `[SAVE_SLOTS:*]` state means confirmation was accepted; controller
 helpers must stop retrying rather than accidentally load its default slot.
+Windows native tests explicitly select Chromium's software D3D11 WARP ANGLE
+backend to avoid the hosted virtual GPU's intermittent shader compilation
+failures. WebGL and every renderer-error assertion remain enabled; production
+launch options and sandbox/security are unchanged. Install-directory cleanup
+retries only transient filesystem locks with bounded backoff after process exit.
 
 ## Performance baseline
 

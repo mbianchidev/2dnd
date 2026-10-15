@@ -196,19 +196,28 @@ export async function verifySteamPreviewSet(input, requireClean = false) {
     ));
     const inspected = await inspectSteamPayload(join(input, "content", depot.platform), depot, source);
     const correspondingSource = await readSteamSourceReceipt(input, source, depot);
-    if (
-      !manifest || typeof manifest !== "object" || Array.isArray(manifest)
-      || manifest.format !== STEAM_MANIFEST_FORMAT || manifest.commit !== source.commit
-      || manifest.dirty !== source.dirty || manifest.diffHash !== source.diffHash
-      || manifest.platform !== depot.platform || manifest.executable !== depot.executable
-      || JSON.stringify(manifest.architectures) !== JSON.stringify(depot.architectures)
-      || JSON.stringify(manifest.integrations) !== JSON.stringify(STEAM_INTEGRATIONS)
-      || manifest.version !== inspected.version
-      || JSON.stringify(manifest.appEntries) !== JSON.stringify(inspected.appEntries)
-      || JSON.stringify(manifest.files) !== JSON.stringify(inspected.files)
-      || JSON.stringify(manifest.source) !== JSON.stringify(correspondingSource)
-    ) {
-      throw new Error("Steam preview receipt does not match reviewed source or payload");
+    if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+      throw new Error(`Invalid Steam preview receipt (${depot.platform})`);
+    }
+    const expected = {
+      format: STEAM_MANIFEST_FORMAT,
+      commit: source.commit,
+      dirty: source.dirty,
+      diffHash: source.diffHash,
+      platform: depot.platform,
+      executable: depot.executable,
+      architectures: depot.architectures,
+      integrations: STEAM_INTEGRATIONS,
+      ...inspected,
+      source: correspondingSource,
+    };
+    const mismatched = Object.keys(expected).filter((key) =>
+      JSON.stringify(manifest[key]) !== JSON.stringify(expected[key])
+    );
+    if (mismatched.length > 0) {
+      throw new Error(
+        `Steam preview receipt does not match reviewed source or payload (${depot.platform}: ${mismatched.join(", ")})`,
+      );
     }
     manifests.push(manifest);
   }

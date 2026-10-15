@@ -106,6 +106,8 @@ every checkout, so Windows packaging preserves the same exact legal bytes.
 Mode receipts retain all POSIX permission bits for macOS/Linux. Windows retains
 its native read/write flags, ignoring only the execute bits Windows tar
 synthesizes by filename extension; PE architecture and all bytes still verify.
+Assembly extracts depot archives with permission preservation (`tar -xpzf`);
+the upload host's umask must not rewrite recorded native read/write flags.
 CI requires a clean reviewed tree after generation/build and again before
 packaging. Changed inputs are reported and rejected, never silently reset or
 relabelled as clean source.

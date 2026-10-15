@@ -154,7 +154,7 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/steam-assembled"
           for platform in linux-x64 windows-x64 macos-universal; do
-            tar -xzf "$RUNNER_TEMP/steam-previews/$platform.tar.gz" -C "$RUNNER_TEMP/steam-assembled"
+            tar -xpzf "$RUNNER_TEMP/steam-previews/$platform.tar.gz" -C "$RUNNER_TEMP/steam-assembled"
           done
           npm run steam:prepare -- verify --input "$RUNNER_TEMP/steam-assembled"
 
@@ -187,7 +187,7 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/steam-assembled"
           for platform in linux-x64 windows-x64 macos-universal; do
-            tar -xzf "$RUNNER_TEMP/steam-previews/$platform.tar.gz" -C "$RUNNER_TEMP/steam-assembled"
+            tar -xpzf "$RUNNER_TEMP/steam-previews/$platform.tar.gz" -C "$RUNNER_TEMP/steam-assembled"
           done
           npm run steam:prepare -- verify --input "$RUNNER_TEMP/steam-assembled"
       - name: Render private config and upload without setting a branch live

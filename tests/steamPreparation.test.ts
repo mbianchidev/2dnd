@@ -2,7 +2,7 @@ import { createPackage } from "@electron/asar";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-  cp, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile,
+  chmod, cp, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -84,6 +84,9 @@ async function mockPayload(
   await writeFile(join(application, "dist-electron", "preload.cjs"), '"use strict";');
   await mkdir(dirname(join(payload, depot.binary)), { recursive: true });
   await writeFile(join(payload, depot.binary), mockBinary(platform), { mode: 0o755 });
+  if (platform === "windows-x64" && process.platform !== "win32") {
+    await chmod(join(payload, depot.binary), 0o666);
+  }
   await mkdir(dirname(join(payload, depot.appArchive)), { recursive: true });
   await createPackage(application, join(payload, depot.appArchive));
   const licenseRoot = join(payload, depot.licenseDirectory);
@@ -125,7 +128,7 @@ async function preparePreviewSet(root: string, projectRoot = ROOT): Promise<stri
     ], {}, projectRoot);
     if (result.status !== 0) throw new Error(result.stderr);
     const extracted = spawnSync("tar", [
-      "-xzf", join(output, `${depot.platform}.tar.gz`), "-C", assembled,
+      "-xpzf", join(output, `${depot.platform}.tar.gz`), "-C", assembled,
     ], { encoding: "utf8" });
     if (extracted.status !== 0) throw new Error(extracted.stderr);
   }

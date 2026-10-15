@@ -11,6 +11,11 @@ import { join, resolve } from "node:path";
 export const APP_ROOT = resolve(import.meta.dirname, "../..");
 const viewportSessions = new WeakMap<Page, CDPSession>();
 
+export interface DesktopLaunchOptions {
+  readonly executablePath?: string;
+  readonly workingDirectory?: string;
+}
+
 function createLaunchEnvironment(userDataDirectory: string): Record<string, string> {
   const environment: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
@@ -28,13 +33,14 @@ function createLaunchEnvironment(userDataDirectory: string): Record<string, stri
 
 export async function launchDesktop(
   userDataDirectory: string,
+  options: DesktopLaunchOptions = {},
 ): Promise<ElectronApplication> {
-  const executablePath = process.env.ELECTRON_TEST_EXECUTABLE;
+  const executablePath = options.executablePath ?? process.env.ELECTRON_TEST_EXECUTABLE;
   await access(executablePath ?? join(APP_ROOT, "dist-electron", "main.js"));
   return electron.launch({
     ...(executablePath ? { executablePath } : {}),
     args: executablePath ? [] : [APP_ROOT],
-    cwd: APP_ROOT,
+    cwd: options.workingDirectory ?? APP_ROOT,
     env: createLaunchEnvironment(userDataDirectory),
   });
 }

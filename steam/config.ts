@@ -26,6 +26,21 @@ export interface SourceProvenance {
   readonly diffHash: string | null;
 }
 
+export function createSteamTemplateValues(
+  ids: SteamBuildIds,
+  build: { readonly version: string; readonly commit: string },
+  upload: boolean,
+): Readonly<Record<string, string>> {
+  return {
+    STEAM_APP_ID: ids.appId,
+    STEAM_DEPOT_WINDOWS_ID: ids.depots["windows-x64"],
+    STEAM_DEPOT_MACOS_ID: ids.depots["macos-universal"],
+    STEAM_DEPOT_LINUX_ID: ids.depots["linux-x64"],
+    STEAM_PREVIEW: upload ? "0" : "1",
+    BUILD_DESCRIPTION: `2D-and-D ${build.version} ${build.commit}`,
+  };
+}
+
 export function formatSteamSourceNotice(
   template: string,
   provenance: SourceProvenance,

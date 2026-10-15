@@ -59,13 +59,22 @@
   Chromium notices; staging never edits a signed bundle. Explicit `--output`
   writes only a notice, so synthetic unit fixtures need no binary or network.
 - `prepare-steam.mjs` inspects unpacked platform architecture, game ASAR,
-  licenses/source notice, exclusions, symlinks, hashes and permissions. It
+  current package version, licenses/source notice, exclusions, symlinks, hashes
+  and permissions. Format-v2 receipts bind distinct platform-qualified
+  corresponding-source archives, included inside each clean depot archive. It
   normalizes archive API paths for the host OS and rejects ASAR links without
   following them; manifest paths remain portable forward-slash paths. It
   creates credential-free previews by default, verifies complete preview sets
   and renders private VDFs only from validated environment IDs. Run
   `npm run steam:prepare` for syntax and read `docs/steam.md`.
+- `lib/steam-payload.mjs` shares payload/source inspection, complete-set
+  verification and exact private-template checks between preparation and
+  upload. It validates source archive commit headers and hashes, and never
+  treats a self-consistent receipt as authority for the current version or
+  source notice.
 - `upload-steam.mjs` is only for an explicitly authorized main-branch dispatch
   on a protected, preauthenticated ephemeral upload runner. It emits no
   account/partner details or raw SteamCMD output, fails closed and never sets
-  a branch live. Do not run it for PR or local preview validation.
+  a branch live. It revalidates the private depot copies, source receipts and
+  all canonical VDFs, and binds them to the approved workflow commit before
+  invoking SteamCMD. Do not run it for PR or local preview validation.

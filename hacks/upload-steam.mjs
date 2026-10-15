@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { closeSync, openSync, readFileSync, readSync, statSync } from "node:fs";
+import { closeSync, openSync, readSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { parseSteamBuildIds } from "../steam/config.ts";
+import { verifyPrivateSteamBuild } from "./lib/steam-payload.mjs";
 
 class PublicUploadError extends Error {}
 
@@ -37,15 +38,18 @@ try {
   if (!directory || !isAbsolute(directory)) {
     throw new PublicUploadError("Missing protected private build directory");
   }
+  let manifests;
+  try {
+    manifests = await verifyPrivateSteamBuild(resolve(directory), ids);
+  } catch {
+    throw new PublicUploadError(
+      "Refusing a modified, stale or auto-publishing private build; regenerate reviewed previews",
+    );
+  }
+  if (manifests[0].commit !== process.env.GITHUB_SHA) {
+    throw new PublicUploadError("Reviewed source does not match the approved workflow commit");
+  }
   const build = join(resolve(directory), "scripts", "app_build.vdf");
-  const config = readFileSync(build, "utf8");
-  const liveSettings = [...config.matchAll(/"SetLive"\s+"([^"]*)"/gi)];
-  if (
-    !config.includes(`"AppID" "${ids.appId}"`)
-    || !config.includes('"Preview" "0"')
-    || liveSettings.length !== 1 || liveSettings[0][1] !== ""
-    || config.includes("{{")
-  ) throw new PublicUploadError("Refusing an unresolved, preview or auto-publishing build config");
   const logPath = join(directory, "output", "steamcmd-private.log");
   const log = openSync(logPath, "wx", 0o600);
   let result;

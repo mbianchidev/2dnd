@@ -74,6 +74,8 @@ jobs:
       - run: npm audit
       - run: npm run generate:desktop-icons
       - run: npm run build:desktop
+      - name: Install Chromium for browser-to-desktop save parity
+        run: npx playwright install chromium
       - if: runner.os == 'Linux'
         run: npx playwright install-deps chromium
       - if: runner.os == 'Linux'
@@ -90,14 +92,22 @@ jobs:
           --output release/steam-preview/${{ matrix.platform }}
       - name: Run packaged Electron controller and persistence suites
         if: runner.os != 'Linux'
-        run: npm run test:desktop:built
+        run: npm run test:desktop:built -- --output electron-test-results/packaged
         env:
           ELECTRON_TEST_EXECUTABLE: ${{ github.workspace }}/release/steam-build/${{ matrix.directory }}/${{ matrix.binary }}
       - name: Run packaged Electron controller and persistence suites under Xvfb
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:desktop:built
+        run: xvfb-run -a npm run test:desktop:built -- --output electron-test-results/packaged
         env:
           ELECTRON_TEST_EXECUTABLE: ${{ github.workspace }}/release/steam-build/${{ matrix.directory }}/${{ matrix.binary }}
+      - name: Preserve native preparation and packaged lifecycle evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: steam-electron-results-${{ matrix.platform }}-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: electron-test-results/
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: steam-preview-${{ matrix.platform }}-${{ github.sha }}

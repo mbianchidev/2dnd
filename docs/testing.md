@@ -75,6 +75,11 @@ parallelism, with `fsModuleCache` enabled. The content-aware transform cache
 accelerates reruns without sharing test globals, mocks or campaign state.
 Steam fixtures reuse one immutable, genuinely generated source notice;
 subprocess assertions and all platform/archive/security cases remain intact.
+Clean-source upload fixtures use a temporary Git repository, synthetic native
+headers and real ASAR/source archives. They exercise prepare, archive assembly,
+verification, private rendering and a mock SDK success/failure; changed versions,
+source notices/archives, private files/VDFs and workflow commits must stop before
+SDK invocation. No partner IDs, login or real upload is involved.
 
 ## Playwright responsibilities
 
@@ -217,6 +222,13 @@ hours-long endurance or portable performance-budget evidence.
 
 `ELECTRON_TEST_EXECUTABLE` optionally selects an explicitly supplied packaged
 binary for the same suite. It does not alter production preload/security.
+`electron-tests/installLifecycle.spec.ts` requires that packaged executable.
+It copies the actual depot into separate temporary install directories and
+launches from there, retaining the same isolated profile through replacement,
+runtime removal and offline reinstall. Assertions preserve all slot/preference
+bytes at relaunch, the actual manual snapshot and independent staging recovery.
+Its attached receipt distinguishes same-version replacement/offline renderer
+equivalence from untested Steam-client and cross-version upgrade/rollback cases.
 Packaged smoke runs use `electron-test-results/packaged` so a later invocation
 cannot erase native first-attempt traces. Save-parity artifacts include ordered
 phase timings to distinguish gameplay/import waits from browser/server cleanup.

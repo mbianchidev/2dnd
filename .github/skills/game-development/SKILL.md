@@ -165,10 +165,16 @@ canvas-touch activity controls without recreating a hidden mobile pad.
 
 Steam tooling is separate from game authority: `steam/config.ts` and
 `hacks/prepare-steam.mjs` own inspected native Linux x64, Windows x64 and macOS
-universal depot previews. SDK, Steam achievements/Cloud and native Steam Input
+universal depot previews. Shared inspection in `hacks/lib/steam-payload.mjs`
+binds current versions/source notices and platform-qualified corresponding
+source in format-v2 receipts. Reverify every private payload and exact VDF plus
+the approved workflow commit before invoking the SDK. SDK, Steam
+achievements/Cloud and native Steam Input
 API remain disabled. Protected upload never sets a branch live. Read
 [`docs/steam.md`](../../../docs/steam.md); equivalent tests are not Steam/Deck,
-signing or store approval.
+signing or store approval. Native install-lifecycle tests exercise same-version
+replacement/reinstall with isolated profiles, not Steam-client or cross-version
+update/rollback behavior.
 
 Cutscene contracts live in `src/data/cutsceneTypes.ts`, focused campaign and
 boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and

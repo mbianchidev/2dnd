@@ -43,6 +43,15 @@ claimed. `ELECTRON_TEST_EXECUTABLE` selects an explicit packaged test binary.
 Steam contract/CLI tests use mock IDs and synthetic architecture/ASAR fixtures;
 actual depot payload inspection belongs to the native packaging matrix.
 Keep preview generation separate from protected upload and public release.
+Clean reviewed-source fixtures use an isolated Git repository and run the
+complete prepare/archive/verify/private-render/mock-upload chain. Require
+current versions/notices, source archive commit/hash receipts and rejection of
+mutated private files/VDFs or stale workflow commits before SDK invocation.
+`electron-tests/installLifecycle.spec.ts` runs only with the actual packaged
+depot: copied same-version install directories, unchanged isolated profile,
+offline renderer relaunch, exact independent slot/preferences bytes, staging
+recovery and controller title exit. It never proves Steam-client install,
+cross-version upgrade/rollback or physical Deck readiness.
 
 ## Testing Philosophy
 

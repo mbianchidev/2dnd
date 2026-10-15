@@ -50,7 +50,7 @@ generic IPC APIs through preload.
 
 ## Persistence
 
-The desktop shell uses the same schema-v26 autosave, manual-slot, staging, and
+The desktop shell uses the same schema-v27 autosave, manual-slot, staging, and
 backup `localStorage` documents as the web game. The stable `app://2dnd` origin
 keeps them available across launches and upgrades:
 
@@ -138,6 +138,12 @@ or a Steam/Deck certification. See [Steam preparation](steam.md) for launch
 paths, licenses/source receipts, protected upload prerequisites and manual
 client/hardware gates. Steam SDK, achievements and Cloud remain disabled;
 preload, `app://2dnd` and renderer-owned local storage are unchanged.
+
+The native packaging matrix also exercises offline same-version replacement
+and reinstall from copied depot directories with an unchanged isolated
+user-data profile. It verifies exact independent slot/preferences bytes and
+staging recovery. This is not a Steam client installer or cross-version
+rollback test; public update/reinstall claims still require the human checklist.
 
 Desktop builds never show mobile movement/action rails, even when a migrated
 preference says Touch On. Keyboard movement uses WASD; a focused name, slot label

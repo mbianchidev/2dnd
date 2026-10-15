@@ -248,6 +248,9 @@ screen/mode through debug state before the next action; fixed sleeps and rapid
 pointer/keyboard source switches are not transition evidence.
 Quit is a pointer-down action: observe application closure without sending a
 release to a destroyed page.
+Opening the title slot manager leaves its outer title-selection marker visible.
+The nested `[SAVE_SLOTS:*]` state means confirmation was accepted; controller
+helpers must stop retrying rather than accidentally load its default slot.
 
 ## Performance baseline
 

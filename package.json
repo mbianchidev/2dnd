@@ -45,15 +45,15 @@
   },
   "homepage": "https://github.com/mbianchidev/2dnd#readme",
   "devDependencies": {
-    "@playwright/test": "^1.64.0",
-    "@types/node": "^26.6.4",
-    "electron": "^44.7.0",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
+    "electron": "^44.7.2",
     "electron-builder": "26.17.0",
-    "happy-dom": "^20.14.6",
+    "happy-dom": "^21.0.3",
     "phaser": "^4.2.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   },
   "build": {
     "appId": "dev.mbianchidev.2dnd",

@@ -9,6 +9,26 @@ load the same `game.html` Phaser renderer. The v1.0.0 public release predates
 tagged desktop publishing; pull requests still produce short-lived
 unsigned artifacts for review.
 
+## Install and open on macOS
+
+Use the [official GitHub Releases page](https://github.com/mbianchidev/2dnd/releases/latest)
+to download the macOS **arm64** build for Apple silicon or **x64** for Intel.
+Open the DMG or extract the ZIP, then drag `2D-and-D.app` into `/Applications`
+before launching. The bundle name comes from `build.executableName` in
+`package.json`; the display name is 2D&D.
+
+The builds are unsigned and not notarized, so macOS may block the first launch.
+Only proceed if you **trust the download** and have verified it came from the
+official release page. Open Terminal and run:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/2D-and-D.app"
+```
+
+This removes quarantine recursively from that app bundle only; it does not
+verify the app's safety. Reopen `2D-and-D.app` from Applications afterward.
+Keep Gatekeeper enabled; do not disable it globally.
+
 ## Commands
 
 ```bash

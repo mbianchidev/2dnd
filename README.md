@@ -131,6 +131,24 @@ remain disabled; no Steam release, Proton support or Deck Verified status is
 claimed. See [Steam preparation](docs/steam.md) for the protected delivery
 template and outstanding client/hardware/human release gates.
 
+### macOS installation and launch help
+
+Download the macOS **arm64** build for Apple silicon or **x64** for Intel from
+the [official GitHub Releases page](https://github.com/mbianchidev/2dnd/releases/latest).
+Open the DMG or extract the ZIP, then drag `2D-and-D.app` into `/Applications`.
+
+If macOS blocks this unsigned app, only proceed if you **trust the download**
+and have verified it came from that official release page. Open Terminal and run:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/2D-and-D.app"
+```
+
+This removes quarantine recursively from this app bundle only; it does not
+verify its safety. Reopen `2D-and-D.app` from Applications afterward.
+Keep Gatekeeper enabled; do not disable it globally. See the
+[desktop installation guide](docs/desktop.md#install-and-open-on-macos) for details.
+
 ## Run locally
 
 The CI baseline is Node.js 24 with npm.
@@ -190,7 +208,7 @@ See the [release guide](docs/release.md) before publishing.
 | [Difficulty and Custom rules](docs/difficulty.md) | Profiles, bounds, economy, recovery, eligibility, extension APIs |
 | [Physical combat](docs/physical-combat.md) | Weapon types, monster sizes, aimed parts, local defenses and discovery |
 | [Fictional devotion](docs/devotion.md) | Original pantheon, temples, rites, independent scores, optional stories |
-| [Desktop application](docs/desktop.md) | Electron security, storage, development, packaging |
+| [Desktop application](docs/desktop.md) | macOS installation, Electron security, storage, development, packaging |
 | [Steam preparation](docs/steam.md) | Depot previews, controller equivalent, disabled services, store/human release gates |
 | [Release](docs/release.md) | GitHub Pages and release checklist |
 | [Companions and gambits](docs/companions.md) | Party state, recruitment, AI, combat integration |

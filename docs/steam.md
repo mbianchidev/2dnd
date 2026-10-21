@@ -7,7 +7,7 @@ This is a preparation and human release guide, **not a Steam release, a Deck
 Verified claim, or evidence of a successful partner upload**. Steam SDK,
 Steam achievements, Steam Cloud and the native Steam Input API are disabled.
 The game remains a local, offline-capable Electron application with the
-existing sandboxed bridge and schema-v26 slots.
+existing sandboxed bridge and schema-v27 slots.
 
 ## Platform and depot contract
 
@@ -76,9 +76,9 @@ It produces:
 | --- | --- |
 | `content/<platform>/` | Inspected unpacked runtime, ready for that depot's file mapping |
 | `<platform>.tar.gz` | Payload and receipt with executable modes and relative bundle symlinks preserved |
-| `manifest-<platform>.json` | Source commit/dirty hash, version, launch path, architectures, ASAR entries and SHA-256 file/mode receipt |
+| `manifest-<platform>.json` | Format-v2 source commit/dirty hash, current version, launch path, architectures, ASAR entries, corresponding-source hash and SHA-256 file/mode receipt |
 | `scripts/*.vdf.in` | Public templates with unresolved, approved placeholder names |
-| `source-<commit>.tar.gz` | Matching committed source, emitted only for a clean worktree |
+| `source-<commit>-<platform>.tar.gz` | Matching committed source, emitted only for a clean worktree and included inside that platform's payload archive |
 
 Dirty-worktree previews are explicitly marked and cannot be uploaded through
 the authorized path. Source and dependency provenance make composition and
@@ -94,6 +94,27 @@ gate rather than being silently copied or silently removed.
 The application archive permits only game-prefixed Vite JavaScript/CSS assets;
 showcase styles and asset source maps remain excluded.
 
+Preparation rejects a packaged version that differs from the checked-out
+manifest, even if its source notice is current. Complete-set verification
+rechecks each source notice against the checkout rather than trusting the
+receipt alone. Clean receipts also require their corresponding-source archive,
+its Git commit header and compressed SHA-256. Platform-qualified source names
+prevent the three matrix artifacts from overwriting one another during assembly.
+Format-v1 previews must be rebuilt; do not edit an old receipt to bypass the gate.
+Git attributes keep the game license and source-notice template LF-encoded on
+every checkout, so Windows packaging preserves the same exact legal bytes.
+Mode receipts retain all POSIX permission bits for macOS/Linux. Windows retains
+its native read/write flags, ignoring only the execute bits Windows tar
+synthesizes by filename extension; PE architecture and all bytes still verify.
+Assembly extracts depot archives with permission preservation (`tar -xpzf`);
+the upload host's umask must not rewrite recorded native read/write flags.
+CI requires a clean reviewed tree after generation/build and again before
+packaging. Changed inputs are reported and rejected, never silently reset or
+relabelled as clean source.
+Procedural native icons are generated, ignored build products rather than
+tracked compressed binaries. Both packaging entries regenerate them before the
+source notice; the editable generator remains in corresponding source.
+
 The package includes AGPL, Phaser/EventEmitter3 MIT and Electron/Chromium
 notices. `SOURCE.2dnd.txt` identifies its source commit and is generated
 **before packaging/signing**. Staging never modifies a signed app bundle.
@@ -108,10 +129,14 @@ implied by passing a packaging test.
 it builds and inspects the three unpacked Steam payloads and uploads
 credential-free previews. **No PR job receives partner IDs, account tokens,
 signing credentials or publishing rights.**
+After all native builds pass, a credential-free Linux job downloads that same
+run's three depot archives, extracts them together and verifies the complete
+set against the checkout. This catches cross-OS archive/receipt differences
+that an individual platform's preparation cannot prove.
 
 `Steam depot preparation` is manual and main-only. Its default `preview`
 operation runs the browser/unit/audit gate, Electron platform matrix and
-depot inspection. Selecting `upload` also requires the explicit confirmation
+complete cross-platform depot inspection. Selecting `upload` also requires the explicit confirmation
 input and the protected `steam-upload` environment.
 
 Before enabling that environment, a human must:
@@ -135,8 +160,15 @@ Before enabling that environment, a human must:
    artifacts; destroy ephemeral private work areas after diagnosis. Persistent
    authentication, if used, needs a separately secured lifecycle.
 
-The upload job downloads only its own reviewed build's archives, rechecks
-every receipt, privately renders the VDFs and runs preauthenticated SteamCMD.
+Upload cannot start until complete-set verification passes. The upload job
+downloads only its own reviewed build's archives, rechecks
+every receipt and corresponding-source archive, privately renders the VDFs and
+runs preauthenticated SteamCMD. Private rendering revalidates its copied
+payloads; immediately before starting SteamCMD, the uploader rechecks every
+private payload/receipt/source archive and requires every VDF to match the
+canonical template with the authorized IDs. Changed depot mappings, extra
+settings, altered files or a commit differing from the approved `GITHUB_SHA`
+are rejected before the SDK is invoked.
 It does not print IDs/account details or relay SteamCMD output into Actions.
 Private files use owner-restricted permissions; failure reports point the
 operator to restricted host logs. Missing authorization, incomplete platform
@@ -148,6 +180,11 @@ workflow cannot promote a beta/default branch, publish a store page or release
 the game. A successful upload is only an uploaded build awaiting human review.
 The SDK/login runner and actual SteamCMD success response still require a
 partner dry run; mock configuration tests do not prove a real upload.
+
+The manual preparation matrix installs Chromium for browser-to-desktop save
+parity on every OS. Compiled and packaged native test evidence is retained
+separately, including failures. Upload-runner private VDFs and SDK logs are
+never part of those public test artifacts.
 
 The preview builds are unsigned. Signing/notarization must be performed and
 verified in a separately protected process before a public distribution claim.
@@ -232,6 +269,26 @@ relaunch/recovery, controller-only title exit, cursor fullscreen, reconnect,
 focus loss and 1920x1080-to-1280x800 resizing. No test cheats are enabled in the
 packaged renderer. Preference/RNG/corruption fixtures are test setup, not
 proof of a physical controller or a Steam service.
+
+`electron-tests/installLifecycle.spec.ts` additionally copies the inspected
+native depot into temporary installation directories, launches it with those
+directories as its working directory, removes/replaces/reinstalls the runtime,
+and reuses only the isolated profile. It compares all campaign/preference
+documents byte-for-byte at each relaunch, creates a real controller-driven
+manual snapshot, loads isolated staging recovery, and exits through the
+controller title action. Both native flows configure an outage through the
+actual game window's Electron `Session.enableNetworkEmulation()` before reload
+and play. This session-owned condition survives document reloads.
+The receipt records that configuration and the observed `navigator.onLine`
+separately: the browser's heuristic online indicator is not network authority,
+and no navigator property is mocked.
+Its JSON receipt explicitly labels the offline
+renderer and **same-version installation replacement**. It does not prove a
+Steam client install/uninstall, an older-to-newer upgrade, schema downgrade,
+signing or physical Deck behavior; those remain the manual gates below.
+Windows native CI selects software D3D11 WARP for stable WebGL coverage of its
+virtual display, without disabling renderer-error assertions or the sandbox.
+That test-only backend is not evidence for a physical GPU or minimum-spec claim.
 
 The test attaches startup, **actual validated atomic slot-write** duration,
 180-frame interval samples, JS/native memory and post-GC DOM/listener counts

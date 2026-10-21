@@ -1420,12 +1420,21 @@ npm run benchmark:baseline
   macOS, Windows, and Linux artifacts. Matching version tags rerun the full gate
   and attach those packages to a GitHub release without signing credentials.
 - Steam preparation stages native Linux x64, Windows x64 and inspected macOS
-  universal runtimes with source/license/hash receipts. SDK, native Steam Input
+  universal runtimes with current-version/source/license/hash receipts.
+  Format-v2 manifests require distinct corresponding-source archives. Reverify
+  private payloads, canonical VDFs and the approved workflow commit before SDK
+  invocation; same-version packaged reinstall tests are not Steam-client or
+  cross-version upgrade evidence. SDK, native Steam Input
   API, Steam achievements and Cloud remain disabled. Never sync Chromium
-  profiles, expose partner IDs/credentials to PRs, or infer Proton/Deck/client/
+  profiles or relax POSIX permissions/file hashes for portability. Keep legal/
+  source text LF-stable and compare Windows native read/write flags, not tar's
+  extension-synthesized execute bits. Never expose partner IDs/credentials to PRs or infer Proton/Deck/client/
   signing/store approval from equivalent tests. Protected upload requires
   explicit human authorization and never sets a branch live. See
   `docs/steam.md`; keep #183 incomplete until external evidence exists.
+  Keep generated native icon PNG/ICO/ICNS outputs untracked; both packaging
+  entries generate them before provenance notices. Test the actual generator
+  in an owned temporary directory rather than relying on compressed binaries.
 - Hold frame-polled Phaser keys across animation frames and synchronize on
   debug-state transitions rather than fixed sleeps alone.
 - Run `npm run benchmark:baseline` on the current base commit before

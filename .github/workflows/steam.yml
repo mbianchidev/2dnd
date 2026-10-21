@@ -74,13 +74,27 @@ jobs:
       - run: npm audit
       - run: npm run generate:desktop-icons
       - run: npm run build:desktop
+      - name: Require clean reviewed build inputs
+        shell: bash
+        run: |
+          git status --short
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
+      - name: Install Chromium for browser-to-desktop save parity
+        run: npx playwright install chromium
       - if: runner.os == 'Linux'
         run: npx playwright install-deps chromium
       - if: runner.os == 'Linux'
         run: xvfb-run -a npm run test:desktop:built
       - if: runner.os != 'Linux'
         run: npm run test:desktop:built
-      - run: npm run package:steam:ci -- ${{ matrix.arguments }}
+      - name: Package only unchanged reviewed inputs
+        shell: bash
+        run: |
+          git status --short
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
+          npm run package:steam:ci -- ${{ matrix.arguments }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
       - run: >-
@@ -90,14 +104,22 @@ jobs:
           --output release/steam-preview/${{ matrix.platform }}
       - name: Run packaged Electron controller and persistence suites
         if: runner.os != 'Linux'
-        run: npm run test:desktop:built
+        run: npm run test:desktop:built -- --output electron-test-results/packaged
         env:
           ELECTRON_TEST_EXECUTABLE: ${{ github.workspace }}/release/steam-build/${{ matrix.directory }}/${{ matrix.binary }}
       - name: Run packaged Electron controller and persistence suites under Xvfb
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:desktop:built
+        run: xvfb-run -a npm run test:desktop:built -- --output electron-test-results/packaged
         env:
           ELECTRON_TEST_EXECUTABLE: ${{ github.workspace }}/release/steam-build/${{ matrix.directory }}/${{ matrix.binary }}
+      - name: Preserve native preparation and packaged lifecycle evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: steam-electron-results-${{ matrix.platform }}-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: electron-test-results/
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: steam-preview-${{ matrix.platform }}-${{ github.sha }}
@@ -108,8 +130,36 @@ jobs:
             release/steam-preview/${{ matrix.platform }}/*.json
             release/steam-preview/${{ matrix.platform }}/scripts/*.vdf.in
 
-  upload:
+  verify-depots:
+    name: Verify complete Steam depot set
     needs: [gate, prepare]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm audit
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: steam-preview-*-${{ github.sha }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/steam-previews
+      - name: Assemble and verify native cross-platform archives
+        shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/steam-assembled"
+          for platform in linux-x64 windows-x64 macos-universal; do
+            tar -xpzf "$RUNNER_TEMP/steam-previews/$platform.tar.gz" -C "$RUNNER_TEMP/steam-assembled"
+          done
+          npm run steam:prepare -- verify --input "$RUNNER_TEMP/steam-assembled"
+
+  upload:
+    needs: [gate, prepare, verify-depots]
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
@@ -137,7 +187,7 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/steam-assembled"
           for platform in linux-x64 windows-x64 macos-universal; do
-            tar -xzf "$RUNNER_TEMP/steam-previews/$platform.tar.gz" -C "$RUNNER_TEMP/steam-assembled"
+            tar -xpzf "$RUNNER_TEMP/steam-previews/$platform.tar.gz" -C "$RUNNER_TEMP/steam-assembled"
           done
           npm run steam:prepare -- verify --input "$RUNNER_TEMP/steam-assembled"
       - name: Render private config and upload without setting a branch live

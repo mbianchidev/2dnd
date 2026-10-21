@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { expectCleanLayout } from "../e2e/helpers/layout";
 import { SAVE_WRITE_MEASURE } from "../src/systems/saveStorage";
 import {
-  launchDesktop, monitorRendererErrors, resizeDesktop, waitForState,
+  DESKTOP_TEST_ANGLE_BACKEND, launchDesktop, monitorRendererErrors,
+  resizeDesktop, setDesktopOffline, waitForState,
 } from "./helpers/desktop";
 import {
   clickControllerLayoutItem,
@@ -138,7 +139,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     await waitForState(page, "BOOT | Screen: title");
     const startupMs = performance.now() - launchStarted;
     await installController(page);
-    await page.context().setOffline(true);
+    await setDesktopOffline(desktop);
     await page.reload({ waitUntil: "domcontentloaded" });
     await waitForState(page, "BOOT | Screen: title");
     await resizeDesktop(desktop);
@@ -216,7 +217,7 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     page = await desktop.firstWindow();
     const reloadErrors = monitorRendererErrors(page);
     await installController(page, 1.5, false);
-    await page.context().setOffline(true);
+    await setDesktopOffline(desktop);
     await resizeDesktop(desktop);
     await selectControllerAction(page, "[TITLE_ACTION:continue]");
     await waitForState(page, "OVERWORLD");
@@ -299,7 +300,10 @@ test("1280x800 offline controller campaign, reload, exit and cleanup (desktop eq
     ));
     const sortedFrames = [...frameIntervals].sort((left, right) => left - right);
     const metrics = JSON.stringify({
-        environment: { platform: `${platform()} ${release()}`, arch: arch(), cpu: cpus()[0]?.model },
+        environment: {
+          platform: `${platform()} ${release()}`, arch: arch(), cpu: cpus()[0]?.model,
+          graphicsBackend: DESKTOP_TEST_ANGLE_BACKEND ?? "platform-default",
+        },
         resolution: "1280x800",
         physicalDeck: false,
         steamClient: false,

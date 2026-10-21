@@ -125,9 +125,10 @@ Unusable campaign imports cannot replace valid saves. If browser privacy
 settings block local storage, the game remains usable but clearly reports that
 campaigns cannot be saved.
 
-Maintainers can prepare credential-free Steam depot previews and exercise a
-1280x800 controller equivalent. Steam SDK, Steam achievements and Steam Cloud
-remain disabled; no Steam release, Proton support or Deck Verified status is
+Maintainers can prepare source/hash-bound, current-version Steam depot previews
+and exercise a 1280x800 controller and packaged reinstall equivalent. Steam SDK,
+Steam achievements and Steam Cloud remain disabled; no Steam release, Proton
+support or Deck Verified status is
 claimed. See [Steam preparation](docs/steam.md) for the protected delivery
 template and outstanding client/hardware/human release gates.
 

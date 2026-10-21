@@ -95,7 +95,12 @@ is contained in `main`.
 
 The workflow publishes unsigned packages. Signing and notarization remain a
 separate protected release concern; the landing page warns players that their
-operating system may challenge these builds.
+operating system may challenge these builds. Keep the README, showcase download
+help, and [macOS installation instructions](desktop.md#install-and-open-on-macos)
+aligned with the packaged `2D-and-D.app` bundle name. The app-scoped quarantine
+workaround is only for trusted downloads verified as coming from the official
+release page, after copying the app into Applications; never recommend disabling
+Gatekeeper globally.
 
 ### Release command
 

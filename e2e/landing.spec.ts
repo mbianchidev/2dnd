@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import manifest from "../package.json" with { type: "json" };
 
 test("showcase leads players to browser and desktop builds", async ({ page }) => {
   const browserErrors: string[] = [];
@@ -17,6 +18,26 @@ test("showcase leads players to browser and desktop builds", async ({ page }) =>
     "https://github.com/mbianchidev/2dnd/releases/latest",
   );
 
+  const macosHelp = page.locator("#macos-launch-help");
+  const macosCommand = macosHelp.locator("pre code");
+  await expect(macosHelp).toHaveJSProperty("open", false);
+  await expect(macosCommand).toBeHidden();
+  await macosHelp.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  await expect(macosHelp).toHaveJSProperty("open", true);
+  await expect(macosHelp.getByRole("link", { name: "official GitHub Releases page" }))
+    .toHaveAttribute("href", "https://github.com/mbianchidev/2dnd/releases/latest");
+  await expect(macosHelp).toContainText("trust the download");
+  await expect(macosHelp).toContainText("Applications");
+  await expect(macosCommand).toHaveText(
+    `xattr -dr com.apple.quarantine "/Applications/${manifest.build.executableName}.app"`,
+  );
+  await expect(macosHelp).toContainText("removes quarantine");
+  await expect(macosHelp).toContainText("Reopen");
+  await expect(macosHelp).toContainText("Keep Gatekeeper enabled");
+  await macosHelp.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath("macos-help-desktop.png") });
+
   const screenshots = page.locator("main img");
   await expect(screenshots).toHaveCount(3);
   for (let index = 0; index < await screenshots.count(); index += 1) {
@@ -30,6 +51,14 @@ test("showcase leads players to browser and desktop builds", async ({ page }) =>
   await expect.poll(() => page.evaluate(
     () => document.documentElement.scrollWidth <= window.innerWidth,
   )).toBe(true);
+  await macosHelp.scrollIntoViewIfNeeded();
+  await expect(macosCommand).toBeVisible();
+  await expect.poll(() => macosHelp.locator("pre").evaluate(
+    (element) => element.scrollWidth <= element.clientWidth,
+  )).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("macos-help-mobile.png") });
+  await macosHelp.locator("summary").click();
+  await expect(macosHelp).toHaveJSProperty("open", false);
   await page.locator("#play-browser").scrollIntoViewIfNeeded();
   await page.locator("#play-browser").click();
   await expect(page).toHaveURL(/game\.html$/);

@@ -81,6 +81,31 @@
             </a>
           </div>
 
+          <details id="macos-launch-help" class="hero__summary macos-help">
+            <summary>macOS app blocked? Show launch instructions</summary>
+            <p>
+              Only proceed if you trust the download and have verified it came
+              from the
+              <a href="https://github.com/mbianchidev/2dnd/releases/latest">official GitHub Releases page</a>.
+            </p>
+            <ol>
+              <li>
+                Open the DMG or extract the ZIP, then drag
+                <code>2D-and-D.app</code> into <code>/Applications</code>.
+              </li>
+              <li>
+                If macOS blocks this unsigned app, open Terminal and run:
+                <pre><code>xattr -dr com.apple.quarantine "/Applications/2D-and-D.app"</code></pre>
+                This removes quarantine recursively from this app bundle only;
+                it does not verify its safety.
+              </li>
+              <li>
+                Reopen <code>2D-and-D.app</code> from Applications.
+                Keep Gatekeeper enabled; do not disable it globally.
+              </li>
+            </ol>
+          </details>
+
           <ul class="campaign-facts" aria-label="Campaign scale">
             <li>
               <span>World map</span>

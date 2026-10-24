@@ -36,6 +36,8 @@ v1.0.0 release predates that publishing workflow.
 The workflow does not hardcode a project or root base. GitHub Pages metadata
 supplies `/2dnd` for the project site and an empty base path for the custom
 domain, so the Vite build receives `/2dnd/` or `/` respectively.
+The `pages` concurrency group serializes runs without cancelling an active
+build or publication when a newer commit arrives.
 
 Outside Pages deployment, `vite.config.ts` keeps `/` for normal local
 development. Playwright checks the `/2dnd/` showcase and opens
@@ -83,15 +85,26 @@ documented package signing.
 the release unless the tag is exactly `v<package.json version>` and its commit
 is contained in `main`.
 
-1. Run `npm ci`, `npm audit`, typecheck, full Vitest, Chromium Playwright, and
-   the production web build.
-2. Generate the procedural desktop icons.
-3. Build and smoke-test the secure Electron shell on macOS, Windows, and Linux.
-4. Package the configured DMG/ZIP, NSIS/portable EXE, and AppImage/tarball
+1. Run `npm ci`, `npm audit`, typecheck, full Vitest, and the production web
+   build, after validating the tag.
+2. Run the complete Chromium Playwright suite across five single-worker
+   `--balanced-shard=N/5` jobs. Every shard must pass before packaging starts.
+   Shard plans and results use distinct seven-day evidence artifacts, including
+   on failure; a failed shard stops remaining browser work, never permits
+   publication.
+3. Generate the procedural desktop icons.
+4. Build and smoke-test the secure Electron shell on macOS, Windows, and Linux.
+5. Package the configured DMG/ZIP, NSIS/portable EXE, and AppImage/tarball
    outputs.
-5. Download the matrix artifacts into one release job.
-6. Create the matching GitHub release with generated notes and attach every
+6. Download the matrix artifacts into one release job.
+7. Create the matching GitHub release with generated notes and attach every
    desktop package. A rerun repairs an existing release with `--clobber`.
+
+Sharding reduces the browser critical path, not the test inventory. It adds
+four Linux job setups and dependency/browser installs per release. The existing
+tag validation, non-cancelling release concurrency, platform matrix and final
+publication gate remain unchanged. Do not push a tag or dispatch a deployment
+or Steam upload merely to measure workflow performance.
 
 The workflow publishes unsigned packages. Signing and notarization remain a
 separate protected release concern; the landing page warns players that their
@@ -218,7 +231,10 @@ Pull requests to `main` use `.github/workflows/pr.yml`:
 - production build
 
 `.github/workflows/codeql.yml` analyzes GitHub Actions and
-JavaScript/TypeScript. The release is not ready while any required PR, browser,
+JavaScript/TypeScript on every existing PR, main-push and weekly event.
+Only superseded runs of the same PR may be cancelled; main-push and scheduled
+scans have unique concurrency groups and retain both language analyses.
+The release is not ready while any required PR, browser,
 desktop, build, audit, deployment, packaging, signing, or CodeQL check is
 unresolved.
 

@@ -1419,6 +1419,10 @@ npm run benchmark:baseline
 - Desktop CI audits, smoke-tests `app://2dnd/game.html`, and creates unsigned
   macOS, Windows, and Linux artifacts. Matching version tags rerun the full gate
   and attach those packages to a GitHub release without signing credentials.
+  Tagged releases and main-only Steam preparation use five balanced browser
+  shards after preliminary verification; every shard must pass before native
+  packaging. Only superseded PR CodeQL scans may be cancelled, never main-push/
+  scheduled scans or active Pages publications.
 - Steam preparation stages native Linux x64, Windows x64 and inspected macOS
   universal runtimes with current-version/source/license/hash receipts.
   Format-v2 manifests require distinct corresponding-source archives. Reverify

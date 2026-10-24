@@ -70,6 +70,11 @@ PR/desktop CI concurrency is ref-scoped (`pr-${{ github.ref }}` and
 complete gate, existing permissions, and triggers; never weaken checks to
 accelerate an independent feature branch.
 
+Tagged release and main-only Steam preparation use five balanced browser shards
+after preliminary verification; every shard must pass before native packaging.
+Only superseded PR CodeQL runs may be cancelled. Main-push/scheduled scans and
+active Pages publications must not be cancelled by newer runs.
+
 ```bash
 npm ci
 npm audit

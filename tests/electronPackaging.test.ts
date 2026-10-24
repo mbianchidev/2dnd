@@ -28,7 +28,7 @@ describe("Electron packaging configuration", () => {
     expect(manifest.overrides).toEqual({
       "@electron/asar": "4.2.1",
       "@electron/get": "5.1.0",
-      "fast-uri": "3.1.8",
+      "fast-uri": "3.1.9",
       "minimatch@10": { "brace-expansion": "5.0.12" },
     });
     expect(manifest.allowScripts).toEqual({

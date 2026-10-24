@@ -38,8 +38,8 @@ class-neutral archery, and Harbor Regatta minigames.
 - Vite 8.3.4
 - Vitest 5.0.3
 - Playwright 1.64.0
-- happy-dom 20.14.6
-- Electron 44.7.0
+- happy-dom 21.0.4
+- Electron 44.9.3
 - electron-builder 26.17.0
 - Modern browsers, ES2020 target
 
@@ -1441,6 +1441,8 @@ npm run benchmark:baseline
   performance-affecting work and record the environment and output in the
   owning issue or pull request.
 - Keep all performance receipts, raw samples, host load and frame-work evidence.
+  PR verification, browser shards and paired measurements run independently;
+  the aggregate `build` check still requires every applicable job to succeed.
   PR CI compares clean base/head builds on one runner in base/head/head/base
   order and runs every browser case through five single-worker shards. Preserve
   the aggregate `build` check, complete gates, ref-scoped concurrency and warnings.

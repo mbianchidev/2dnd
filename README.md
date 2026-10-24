@@ -167,8 +167,9 @@ Install Chromium once before the browser or desktop suites with
 `npm run test:browser:install`.
 
 Performance receipts retain raw samples and host load; PR CI compares clean base
-and head builds on one runner. Tests retain full coverage while using bounded
-isolated workers and five browser shards. See [Testing](docs/testing.md).
+and head builds on one runner. Independent PR checks overlap behind one complete
+gate, retaining full coverage, bounded isolated workers and five browser shards.
+See [Testing](docs/testing.md).
 
 ## Controls and settings
 

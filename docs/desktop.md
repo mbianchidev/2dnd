@@ -130,8 +130,8 @@ the unused Squirrel peer from installation, while exact ASAR, URI, and
 brace-expansion overrides pin reviewed transitive releases.
 
 The `@electron/get` 5.1.0 override shares Electron's native fetch-based
-downloader with the builder on Node 24, removing the legacy `got` /
-`http-cache-semantics` chain affected by GHSA-ch52-4w7c-c8xp. Keep this override
+downloader with the builder on the selected Node.js toolchain, removing the
+legacy `got` / `http-cache-semantics` chain affected by GHSA-ch52-4w7c-c8xp. Keep this override
 until the builder adopts the fetch-based downloader directly; do not
 disable the audit or downgrade the builder. Keep these policies version-pinned
 and rerun `npm install-scripts ls`, `npm audit`, and the complete platform matrix

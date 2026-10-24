@@ -46,8 +46,8 @@ shader libraries; this is not a separate Steam SDK or DirectX installer.
 
 ## Local, credential-free preparation
 
-Use Node 24 and the committed lockfile. Build on the matching OS, selecting the
-explicit architecture. Example for Linux:
+Use the Node.js version in [`.nvmrc`](../.nvmrc) and the committed lockfile.
+Build on the matching OS, selecting the explicit architecture. Example for Linux:
 
 ```bash
 npm ci

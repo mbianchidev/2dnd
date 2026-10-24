@@ -24,7 +24,7 @@ v1.0.0 release predates that publishing workflow.
 `.github/workflows/deploy.yml` runs on pushes to `main`:
 
 1. Check out the repository.
-2. Use Node.js 24.
+2. Use the Node.js version pinned in [`.nvmrc`](../.nvmrc).
 3. Run `npm ci`.
 4. Run full Vitest.
 5. Read the active Pages URL and base path with `actions/configure-pages`.
@@ -65,7 +65,7 @@ automatically to the custom domain.
 
 `.github/workflows/desktop.yml` runs on pull requests and manual dispatch:
 
-1. Install with Node.js 24 and run `npm audit`.
+1. Install with the Node.js version in `.nvmrc` and run `npm audit`.
 2. Generate procedural repository-owned icons.
 3. Type-check and build the Electron main/preload process and relative Vite
    renderer.
@@ -223,7 +223,7 @@ desktop-equivalent tests do not close the real Steam-client or hardware gates.
 
 Pull requests to `main` use `.github/workflows/pr.yml`:
 
-- Node.js 24 and reproducible `npm ci`
+- Node.js from `.nvmrc` and reproducible `npm ci`
 - strict TypeScript
 - full Vitest
 - Playwright Chromium installation

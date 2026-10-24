@@ -50,7 +50,13 @@ Read the matching `.github/skills/*/SKILL.md` before implementing domain work.
 
 ## Dependency and build workflow
 
-CI uses Node.js 24.
+Local development and every Node-based CI job use Node.js 26.12.1, the stable
+Current release pinned in [`.nvmrc`](../.nvmrc). With nvm installed, run
+`nvm install` and `nvm use` before the commands below. GitHub Actions reads the
+same file through `node-version-file`; do not add separate version literals.
+Existing release and Steam helper minimums remain Node.js 24+.
+This tooling selection does not replace Electron's embedded Node.js, which is
+controlled by the Electron dependency.
 
 ```bash
 npm ci

@@ -16,9 +16,14 @@ from the `/2dnd/` base path. No account is required.
 ## Local prerequisites
 
 - A current desktop operating system supported by Node.js
-- Node.js 24 and npm, matching the CI baseline
+- Node.js 26.12.1 and npm, matching [`.nvmrc`](../.nvmrc) and the CI baseline
 - A current browser; Chromium is the automated release target
 - A supported macOS, Windows, or Linux desktop for Electron packaging
+
+With nvm installed, run `nvm install` and `nvm use` from the checkout to select
+the pinned version. Otherwise install that Node.js release directly.
+This selects the development/build runtime; Electron supplies its own embedded
+Node.js independently.
 
 ## Install and run
 

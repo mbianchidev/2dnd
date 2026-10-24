@@ -14,6 +14,9 @@ Write comprehensive game-mechanics tests with Vitest. Use the committed
 Playwright suite only for high-value Phaser browser flows that cannot be proven
 through pure logic tests.
 
+Run tooling with the Node.js version in `.nvmrc`, shared by local development and
+every Node-based CI job. Electron's embedded Node.js follows Electron instead.
+
 Local validation is headless only; never launch visible native windows or
 control the developer's desktop. Native gates run on isolated CI/virtual
 displays, not the user's host.

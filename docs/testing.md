@@ -418,12 +418,15 @@ for them before release.
 
 ## CI
 
-`.github/workflows/pr.yml` runs Node 24, `npm ci`, audit, typecheck, full Vitest
-and the production build, then the complete Playwright suite across five
-single-worker shards and the paired production benchmark. No tests or slow-test
-warnings are disabled. Shard artifacts have unique names; the existing `build`
-check aggregates every required job, including failures/skips. Manual dispatch
-runs the full release gate without the PR-only comparison.
+`.github/workflows/pr.yml` runs Node 24 verification (`npm ci`, audit, typecheck,
+full Vitest and the production build), the complete Playwright suite across five
+single-worker shards, and the paired production benchmark as independent jobs.
+The browser and benchmark jobs consume no verification artifacts, so they need
+not wait for it. This improves successful-run latency, not test execution cost;
+expensive jobs can now start even when verification will fail. No tests or
+slow-test warnings are disabled. Shard artifacts have unique names; the existing
+`build` check aggregates every required job, including failures/skips. Manual
+dispatch runs the full release gate without the PR-only comparison.
 CI uses `--balanced-shard=N/5`: native contiguous sharding put all five long
 NG+ journeys in one job. The browser wrapper interleaves individually discovered
 cases, uses Playwright's native `--test-list`, and rechecks the exact selection
@@ -454,6 +457,12 @@ full browser gate, smoke-tests and packages all desktop targets, then attaches
 the unsigned installers to the generated GitHub release.
 Desktop artifact CI also installs Chromium so its browser-to-Electron save
 parity test does not depend on a pre-populated browser cache.
+
+Desktop, release and Steam package uploads use `compression-level: 0`: installers
+and depot/source archives are already packaged, so recompressing the artifact
+wrapper adds CPU work for little size reduction. Artifact names, payloads,
+retention and downstream receipt verification are unchanged. Test evidence and
+benchmark logs retain their normal compression.
 
 `tests/steamConfig.test.ts` and `tests/steamPreparation.test.ts` check approved
 placeholders, IDs, architecture headers, emulation/catalog completeness,

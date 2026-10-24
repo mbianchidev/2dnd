@@ -12,8 +12,8 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Product | Browser/Electron JRPG, release v1.2.0 |
 | Runtime | Phaser 4.2.1 |
 | Language | TypeScript 7.0.2, strict, ES2020 |
-| Build/test | Vite 8.3.4, Electron 44.7.0, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.64.0 |
-| DOM tests | happy-dom 20.14.6 |
+| Build/test | Vite 8.3.4, Electron 44.9.3, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.64.0 |
+| DOM tests | happy-dom 21.0.4 |
 | Save schema | 27 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
@@ -92,6 +92,8 @@ Run `npm run benchmark:baseline` on the current base commit before
 performance-affecting work and record its commit, environment, and output in the
 owning issue or pull request.
 
+PR verification, browser shards and paired measurements run independently;
+`build` still requires every applicable job to succeed.
 Performance validation retains raw samples, host load and deterministic frame-work
 counts. PR CI compares exact clean base/head builds with one harness in
 base/head/head/base order and runs all browser cases across five single-worker

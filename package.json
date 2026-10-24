@@ -47,9 +47,9 @@
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.5",
-    "electron": "^44.7.2",
+    "electron": "^44.9.3",
     "electron-builder": "26.17.0",
-    "happy-dom": "^21.0.3",
+    "happy-dom": "^21.0.4",
     "phaser": "^4.2.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
@@ -168,7 +168,7 @@
   "overrides": {
     "@electron/asar": "4.2.1",
     "@electron/get": "5.1.0",
-    "fast-uri": "3.1.8",
+    "fast-uri": "3.1.9",
     "minimatch@10": {
       "brace-expansion": "5.0.12"
     }

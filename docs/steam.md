@@ -135,9 +135,15 @@ set against the checkout. This catches cross-OS archive/receipt differences
 that an individual platform's preparation cannot prove.
 
 `Steam depot preparation` is manual and main-only. Its default `preview`
-operation runs the browser/unit/audit gate, Electron platform matrix and
-complete cross-platform depot inspection. Selecting `upload` also requires the explicit confirmation
-input and the protected `steam-upload` environment.
+operation runs the unit/audit/typecheck/build gate, then the full browser suite
+through five single-worker `--balanced-shard=N/5` jobs before the Electron
+platform matrix and complete cross-platform depot inspection. Every browser
+shard must pass before native preparation starts. Distinct seven-day artifacts
+retain shard plans and results, including failures; browser fail-fast cannot
+authorize preparation or upload after a failed/cancelled shard.
+This trades four additional Linux job setups and installs for a shorter browser
+critical path without removing any tests. Selecting `upload` still requires
+the explicit confirmation input and the protected `steam-upload` environment.
 
 Before enabling that environment, a human must:
 

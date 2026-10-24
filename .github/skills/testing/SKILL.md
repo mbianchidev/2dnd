@@ -683,6 +683,9 @@ Use the wrapper's `--balanced-shard=N/5` in CI; native contiguous shards can
 concentrate every long campaign case in one job. Preserve exact discovered and
 native-selected case parity, full plan/results artifacts and slow-test reporting.
 The five adjacent campaign journeys each run on a different shard.
+Tagged release and main-only Steam gates use the same five balanced shards
+after preliminary verification. Native packaging depends on every shard;
+failures/cancellations never authorize publication or protected upload.
 Shared input helpers await actual scene gates and complete pressed/released
 frames, not unconditional settling sleeps or network idle. Preserve waits that
 exercise real timing.

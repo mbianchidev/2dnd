@@ -10,6 +10,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Contract | Current value |
 | --- | --- |
 | Product | Browser/Electron JRPG, release v1.2.0 |
+| Development/CI Node | 26.12.1, pinned in `.nvmrc`; embedded Node remains Electron-owned |
 | Runtime | Phaser 4.2.1 |
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.4, Electron 44.9.3, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.64.0 |

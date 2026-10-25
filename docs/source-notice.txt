@@ -9,7 +9,8 @@ later main branch or a different release. A public distributor must make that
 exact corresponding source and its build scripts available with the binary.
 Desktop packaging adds the immutable source URL before any code signing.
 
-Build prerequisites: Node.js 24 and npm. From the matching source checkout:
+Build prerequisites: the Node.js version in .nvmrc and npm.
+From the matching source checkout:
   npm ci
   npm run build:desktop
   npm run generate:desktop-icons

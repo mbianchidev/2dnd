@@ -616,6 +616,9 @@ recipes/achievements control quests, Codex, access, or rewards.
 
 ## Validation
 
+Use the Node.js version in `.nvmrc` for development/build/CI commands.
+Electron's embedded Node.js remains controlled by Electron, not this tooling pin.
+
 Production uses Phaser's supported modular no-physics entry, keeping Canvas/WebGL
 and the sound API. Keep Phaser's unused sound manager disabled; `audioEngine`
 owns all Web Audio contexts/cues. Keep entry-aware Rolldown chunks below the unchanged warning

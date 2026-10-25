@@ -7,6 +7,7 @@
 
 | Component | Current version or contract |
 | --- | --- |
+| Development/CI Node.js | 26.12.1, pinned in `.nvmrc` |
 | Phaser | 4.2.1 |
 | TypeScript | 7.0.2, strict, ES2020 target |
 | Vite | 8.3.4 |
@@ -16,6 +17,9 @@
 | Electron | 44.9.3 |
 | electron-builder | 26.17.0 |
 | Campaign save schema | 27 |
+
+The development/build Node.js pin is separate from Electron's embedded Node.js,
+which follows the Electron dependency rather than `.nvmrc`.
 
 The web build is a static Vite multi-page application with an optional Electron
 shell. `index.html` is the public showcase, while `game.html` starts the Phaser

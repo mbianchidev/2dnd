@@ -418,8 +418,9 @@ for them before release.
 
 ## CI
 
-`.github/workflows/pr.yml` runs Node 24 verification (`npm ci`, audit, typecheck,
-full Vitest and the production build), the complete Playwright suite across five
+`.github/workflows/pr.yml` selects Node.js through [`.nvmrc`](../.nvmrc) for
+verification (`npm ci`, audit, typecheck, full Vitest and the production build),
+the complete Playwright suite across five
 single-worker shards, and the paired production benchmark as independent jobs.
 The browser and benchmark jobs consume no verification artifacts, so they need
 not wait for it. This improves successful-run latency, not test execution cost;

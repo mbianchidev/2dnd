@@ -109,9 +109,9 @@ Keep Gatekeeper enabled; do not disable it globally. See the
 
 ### Prerequisites
 
-Install **Git**, **Node.js 24 with npm** (the CI baseline), and a current
-browser. No database, API keys, or application server are needed. Desktop
-development additionally requires an operating system supported by Electron;
+Install **Git**, **Node.js 26.12.1 with npm** ([`.nvmrc`](.nvmrc), the CI baseline),
+and a current browser. No database, API keys, or application server are needed.
+Desktop development additionally requires an operating system supported by Electron;
 packaging is documented in the [desktop guide](docs/desktop.md#packaging).
 
 ### Install and start

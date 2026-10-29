@@ -401,6 +401,7 @@ location/discovery rather than trusting lore or achievement evidence.
   `src/systems/questDebug.ts`
 - Cutscene contracts/content: `src/data/cutsceneTypes.ts`,
   `src/data/cutsceneCampaign.ts`, `src/data/cutsceneBosses.ts`
+- Per-story scenery definitions: `src/data/cutsceneScenery.ts`
 - Cutscene trigger/queue/recovery: `src/systems/cutscenes.ts`
 - Cutscene progression/presentation: `src/managers/cutscene.ts`,
   `src/scenes/Cutscene.ts`, `src/renderers/cutscene.ts`
@@ -414,6 +415,23 @@ Boot invokes `src/renderers/textures.ts`. Focused renderers own monster
 silhouettes, hero textures, items, traps, maps, cities, result screens, and
 Battle scenery. `src/renderers/battleDepth.ts` defines the shared depth order;
 `src/renderers/battleBackdrop.ts` owns scene-sized backdrop layers and cleanup.
+
+Every stable cutscene ID has an explicit, distinct scenery definition, including
+boss challenges/aftermaths and the epilogue. `systems/cutsceneScenery.ts` builds
+a deterministic five-layer paint plan with sky, distant setting, ground,
+story landmark and foreground. Color gradients, architecture, harbor water,
+cavern walls, vegetation, firelight and celestial motifs replace flat
+backgrounds. Aftermaths change geometry as well as light; the Kraken uses an
+open sea, not a marsh.
+
+`renderers/cutsceneBackdrop.ts` draws the bounded plan into one existing
+Graphics buffer. Cutscene and Ending share it; unchanged backdrops do not
+rebuild per frame. Overscan covers the existing camera framing, and ending
+copy has a measured contrast-preserving dim layer. Scenery uses an isolated
+seeded stream, never gameplay RNG, actors, location ownership or save fields.
+Replay reconstructs the same setting without changing story progress.
+Cutscene reset/shutdown also clears actor animation subscriptions, sprites
+and texture leases.
 
 Current hero visuals resolve from live `PlayerState` through
 `src/systems/heroVisuals.ts` and cleanup-safe leases from

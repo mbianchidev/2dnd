@@ -69,6 +69,9 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
   bounded voices, crossfade/ambient/trap cleanup and isolated audio randomness
 - movement/facing ownership, live reduced-motion settlement, bounded procedural
   impact geometry and one-object/one-tween burst lifecycle with stale callbacks
+- complete cutscene scenery coverage, non-color geometry uniqueness, structural
+  boss aftermaths, bounded five-layer paint plans, RNG/replay immutability,
+  single-buffer graphics transport and ending-text contrast
 - Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
 
 Native icon tests execute the actual generator in an owned temporary directory
@@ -113,6 +116,8 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   companions, safe timeout, configuration reload, and pending-encounter recovery
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
+- every cutscene's actual colored backdrop, a complete captured scenery catalog,
+  unique background-only image samples and unchanged quest/seen/pending state
 - area music on actual region crossings with unchanged weather, city/dungeon
   entry, canonical named-shop music, day/night and battle/interior return,
   phrase development, weather adaptation and real damage-driven battle pressure
@@ -181,6 +186,18 @@ Observe the real startup reveal/achievement queues and transient HUD messages fi
 before the idle sample; their legitimate presentation changes are not redundant
 work. Persistent location hints may remain visible. Live-preference samples
 require a fresh changed layout report first.
+
+`e2e/cutscene-scenery.spec.ts` visits every stable story/boss cutscene through
+the production replay path, including Ending. It captures every first frame
+and a JSON catalog, samples scenery away from actors/text, requires at least
+eight visible color bins and a distinct image per cutscene, and preserves
+quest/seen/pending state. Pure tests additionally compare geometry with colors
+removed so palette swaps cannot masquerade as unique settings. Keep the
+512-primitive, five-layer budget and one scene-owned Graphics buffer.
+Opening, crypt, sea and epilogue scenes additionally retain 120-frame samples
+and require zero redundant canvas-attribute, debug-state or layout-report writes.
+Save each raw sample before asserting its work budget; timings remain evidence,
+not portable FPS thresholds.
 
 ## Electron responsibilities
 

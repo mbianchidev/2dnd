@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../config";
-import type { CutsceneStep } from "../data/cutscenes";
+import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../data/cutscenes";
+import type { CutsceneBackdrop, CutsceneId, CutsceneStep } from "../data/cutscenes";
 import type { CampaignEndingSummary } from "../systems/cutscenes";
 import type { PartyDefeatResult } from "../systems/party";
 import { isReducedMotionEnabled } from "../systems/accessibility";
@@ -17,6 +18,8 @@ import {
 } from "./heroTextures";
 import { getAccessibilityPreferences } from "../systems/accessibility";
 import { EndingSummaryRenderer } from "./endingSummary";
+import { buildCutsceneScenery } from "../systems/cutsceneScenery";
+import { CUTSCENE_RESULT_DIM, drawCutsceneScenery } from "./cutsceneBackdrop";
 
 export interface CampaignEndingChoiceCallbacks {
   continuePostGame: () => void;
@@ -44,12 +47,16 @@ export class ResultRenderer {
   private readonly heroDescriptor: HeroVisualDescriptor | null;
   private heroInspection = "";
   private summaryRenderer: EndingSummaryRenderer | null = null;
+  private sceneryBackground: Phaser.GameObjects.Graphics | null = null;
+  private currentBackdrop: CutsceneBackdrop | null = null;
+  private sceneryReport = "";
 
   constructor(
     private readonly scene: Phaser.Scene,
     theme: ResultTheme = "ending",
     player?: PlayerState,
     heroDescriptor?: HeroVisualDescriptor,
+    private readonly cutsceneId: CutsceneId = CAMPAIGN_EPILOGUE_CUTSCENE_ID,
   ) {
     this.heroDescriptor = heroDescriptor
       ?? (player ? resolveHeroVisualDescriptor(player) : null);
@@ -58,6 +65,10 @@ export class ResultRenderer {
 
   get heroInspectionReport(): string {
     return this.heroInspection;
+  }
+
+  get sceneryInspectionReport(): string {
+    return this.sceneryReport;
   }
 
   createAdvanceZone(): Phaser.GameObjects.Zone {
@@ -75,6 +86,7 @@ export class ResultRenderer {
     advance: () => void,
   ): void {
     this.clearContent();
+    this.drawScenery(step.presentation?.backdrop ?? (step.type === "credits" ? "stars" : "heartlands"));
     this.content = this.scene.add.container(0, 0).setDepth(2);
     this.registerContentLayout("ending-step");
 
@@ -368,6 +380,8 @@ export class ResultRenderer {
 
   destroy(): void {
     this.clearContent();
+    this.sceneryBackground?.destroy();
+    this.sceneryBackground = null;
     for (const tween of this.ambientTweens) tween.remove();
     this.ambientTweens = [];
   }
@@ -403,36 +417,16 @@ export class ResultRenderer {
       }
       return;
     }
-    background.fillStyle(0x080b1d, 1);
-    background.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    background.fillStyle(0x171c3f, 0.9);
-    background.fillCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 25, 205);
-    background.lineStyle(2, 0xd9b95b, 0.55);
-    background.strokeCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 25, 152);
+    this.sceneryBackground = background;
+    this.drawScenery("stars");
+  }
 
-    for (let index = 0; index < 48; index++) {
-      const x = (index * 137 + 43) % GAME_WIDTH;
-      const y = (index * 83 + 29) % GAME_HEIGHT;
-      const radius = index % 7 === 0 ? 1.5 : 0.8;
-      background.fillStyle(index % 3 === 0 ? 0xffe8a3 : 0xaebcff, 0.7);
-      background.fillCircle(x, y, radius);
-    }
-
-    const centerX = GAME_WIDTH / 2;
-    const centerY = GAME_HEIGHT / 2 - 25;
-    for (let index = 0; index < 12; index++) {
-      const angle = (Math.PI * 2 * index) / 12 - Math.PI / 2;
-      const x = centerX + Math.cos(angle) * 152;
-      const y = centerY + Math.sin(angle) * 152;
-      background.fillStyle(0xffd96b, 0.9);
-      background.fillCircle(x, y, 4);
-    }
-    background.fillStyle(0x9bdcff, 0.8);
-    background.fillTriangle(centerX, centerY - 36, centerX - 18, centerY, centerX + 18, centerY);
-    background.fillStyle(0xff9b6b, 0.8);
-    background.fillTriangle(centerX - 34, centerY + 28, centerX - 2, centerY + 12, centerX - 12, centerY + 48);
-    background.fillStyle(0xc5a3ff, 0.8);
-    background.fillTriangle(centerX + 34, centerY + 28, centerX + 2, centerY + 12, centerX + 12, centerY + 48);
+  private drawScenery(backdrop: CutsceneBackdrop): void {
+    if (!this.sceneryBackground || backdrop === this.currentBackdrop) return;
+    this.currentBackdrop = backdrop;
+    const plan = buildCutsceneScenery(this.cutsceneId, backdrop);
+    drawCutsceneScenery(this.sceneryBackground, plan, CUTSCENE_RESULT_DIM);
+    this.sceneryReport = `${plan.landmark}/${backdrop} layers=5 shapes=${plan.primitives.length}`;
   }
 
   private renderNarration(heading: string | undefined, text: string): void {

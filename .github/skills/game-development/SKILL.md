@@ -184,6 +184,12 @@ boss definitions live in `cutsceneCampaign.ts` and `cutsceneBosses.ts`, and
 ordering, queue lifecycle, recovery, Chronicle selection, and summary logic live
 in `src/systems/cutscenes.ts`; `src/managers/cutscene.ts` owns step progression;
 scenes and renderers own input and presentation.
+Every stable ID has an explicit `data/cutsceneScenery.ts` definition.
+`systems/cutsceneScenery.ts` produces replay-stable, colored five-layer scenery;
+`renderers/cutsceneBackdrop.ts` shares one bounded Graphics-buffer painter
+between Cutscene and Ending. Keep unique landmarks/geometry, changed boss
+aftermaths, sea-correct Kraken, camera overscan and readable ending copy.
+Scenery never consumes gameplay RNG or changes saved story/location state.
 Hero-role actors remain immutable staging cues and resolve at presentation time
 from the current `PlayerState`. Build the canonical descriptor with
 `src/systems/heroVisuals.ts` and acquire cleanup-safe procedural textures through

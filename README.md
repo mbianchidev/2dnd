@@ -27,7 +27,9 @@ Web Audio synthesis rather than external assets. Regions, cities, islands,
 and dungeons have distinct procedural scores, with night variations outdoors
 and in towns, evolving arrangements, and weather- and battle-responsive layers.
 Pixel-art combat impacts accompany resolved actions without delaying their
-outcomes. Campaigns are stored locally; no account is required.
+outcomes. Story and boss cutscenes have distinct illustrated settings, including
+changed aftermaths and the epilogue. Campaigns are stored locally; no account
+is required.
 
 ## Highlights
 

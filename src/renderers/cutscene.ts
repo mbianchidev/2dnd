@@ -11,6 +11,7 @@ import type {
   CutsceneBackdrop,
   CutsceneCameraCue,
   CutsceneEffect,
+  CutsceneId,
   CutscenePresentation,
   CutsceneStep,
 } from "../data/cutscenes";
@@ -29,6 +30,8 @@ import {
   acquireHeroTexture,
   type HeroTextureLease,
 } from "./heroTextures";
+import { buildCutsceneScenery } from "../systems/cutsceneScenery";
+import { drawCutsceneScenery } from "./cutsceneBackdrop";
 
 interface RenderedActor {
   container: Phaser.GameObjects.Container;
@@ -47,20 +50,6 @@ const ACTOR_X: Record<CutsceneActorCue["slot"], number> = {
   farRight: 570,
 };
 
-const BACKDROP_COLORS: Record<CutsceneBackdrop, number> = {
-  heartlands: 0x314735,
-  stars: 0x0b1026,
-  forest: 0x17382b,
-  city: 0x343447,
-  canyon: 0x5e3c2c,
-  desert: 0x6b4a28,
-  marsh: 0x243d36,
-  frost: 0x273e5c,
-  mountain: 0x3a3540,
-  crypt: 0x1d2028,
-  forge: 0x3e241e,
-};
-
 function displayName(actor: CutsceneActorCue, player: PlayerState): string {
   return actor.label.replace("{hero}", player.name);
 }
@@ -74,11 +63,14 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   private readonly textLayer: Phaser.GameObjects.Container;
   private readonly fade: Phaser.GameObjects.Rectangle;
   private readonly actors = new Map<string, RenderedActor>();
-  private readonly actorAnimations: ActorAnimationDirector;
+  private actorAnimations: ActorAnimationDirector;
   private readonly pendingEntranceIds = new Set<string>();
   private readonly timers: Phaser.Time.TimerEvent[] = [];
   private readonly tweens: Phaser.Tweens.Tween[] = [];
   private currentBackdrop: CutsceneBackdrop | null = null;
+  private sceneryReport = "";
+  private presentationVersion = 0;
+  private disposed = false;
   private lastEvent = "idle";
   private heroInspection = "";
   private readonly heroDescriptor: HeroVisualDescriptor;
@@ -86,6 +78,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly player: PlayerState,
+    private readonly cutsceneId: CutsceneId,
     heroDescriptor?: HeroVisualDescriptor,
   ) {
     this.heroDescriptor = heroDescriptor ?? resolveHeroVisualDescriptor(player);
@@ -113,7 +106,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     const state = this.lastEvent === "idle"
       ? this.actorAnimations.state
       : this.lastEvent;
-    return `${state} | Actors: ${[...this.actors.entries()]
+    return `${state} | Scenery: ${this.sceneryReport} | Actors: ${[...this.actors.entries()]
       .map(([id, actor]) => `${id}=${actor.textureKey}`).join(",")}`;
   }
 
@@ -122,7 +115,9 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   }
 
   present(step: CutsceneStep, index: number, onReady: () => void): void {
+    if (this.disposed) return;
     this.clearTransientPresentation();
+    const version = this.presentationVersion;
     const presentation: CutscenePresentation = step.presentation ?? {
       backdrop: "stars",
       actors: [],
@@ -154,25 +149,40 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     } else {
       this.fade.setAlpha(0);
     }
-    this.trackTimer(this.scene.time.delayedCall(transitionMs, onReady));
+    this.trackTimer(this.scene.time.delayedCall(transitionMs, () => {
+      if (!this.disposed && version === this.presentationVersion) onReady();
+    }));
   }
 
   reset(): void {
+    if (this.disposed) return;
     this.clearTransientPresentation();
-    this.actorAnimations.cleanup();
+    this.clearActors();
+    this.actorAnimations = new ActorAnimationDirector(this.scene);
+    this.currentBackdrop = null;
+    this.sceneryReport = "";
     this.worldRoot.setPosition(0, 0).setScale(1);
   }
 
   cleanup(): void {
+    if (this.disposed) return;
+    this.disposed = true;
     this.clearTransientPresentation();
+    this.clearActors();
     this.root.destroy(true);
+  }
+
+  private clearActors(): void {
+    this.actorAnimations.cleanup();
     for (const actor of this.actors.values()) {
+      actor.container.destroy(true);
       actor.heroTextureLease?.release();
     }
     this.actors.clear();
   }
 
   private clearTransientPresentation(): void {
+    this.presentationVersion++;
     for (const timer of this.timers.splice(0)) {
       timer.remove(false);
     }
@@ -198,51 +208,16 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       return;
     }
     this.currentBackdrop = backdrop;
-    const color = BACKDROP_COLORS[backdrop];
-    this.background.clear();
-    this.background.fillStyle(color, 1).fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    this.background.fillStyle(0x000000, 0.18)
-      .fillRect(0, GAME_HEIGHT * 0.58, GAME_WIDTH, GAME_HEIGHT * 0.42);
-
-    if (backdrop === "stars") {
-      this.background.fillStyle(0xf5edc8, 0.8);
-      for (let index = 0; index < 36; index += 1) {
-        const x = (index * 83 + 29) % GAME_WIDTH;
-        const y = (index * 47 + 17) % 235;
-        this.background.fillCircle(x, y, index % 5 === 0 ? 2 : 1);
-      }
-    } else if (["forest", "marsh", "heartlands"].includes(backdrop)) {
-      this.background.fillStyle(0x101c18, 1);
-      for (let x = 0; x < GAME_WIDTH; x += 52) {
-        this.background.fillTriangle(x, 270, x + 26, 145, x + 52, 270);
-      }
-    } else if (backdrop === "city") {
-      this.background.fillStyle(0x191923, 1);
-      for (let x = 0; x < GAME_WIDTH; x += 88) {
-        const height = 55 + (x % 3) * 18;
-        this.background.fillRect(x, 270 - height, 70, height);
-      }
-    } else if (["mountain", "frost", "canyon"].includes(backdrop)) {
-      this.background.fillStyle(0x17171e, 0.9);
-      this.background.fillTriangle(0, 285, 190, 85, 360, 285);
-      this.background.fillTriangle(230, 285, 455, 55, 640, 285);
-    } else if (["crypt", "forge"].includes(backdrop)) {
-      this.background.fillStyle(0x0e0f13, 0.8);
-      for (let x = 42; x < GAME_WIDTH; x += 110) {
-        this.background.fillRect(x, 110, 32, 175);
-        this.background.fillCircle(x + 16, 110, 16);
-      }
-    } else {
-      this.background.fillStyle(0x241b16, 0.45);
-      this.background.fillCircle(90, 70, 42);
-      this.background.fillCircle(530, 78, 34);
-    }
+    const plan = buildCutsceneScenery(this.cutsceneId, backdrop);
+    drawCutsceneScenery(this.background, plan);
+    this.sceneryReport = `${plan.landmark}/${backdrop} layers=5 shapes=${plan.primitives.length}`;
   }
 
   private syncActors(
     placements: readonly CutsceneActorCue[],
     effect: CutsceneEffect,
   ): void {
+    const version = this.presentationVersion;
     const activeIds = new Set(placements.map((placement) => placement.id));
     for (const [id, actor] of this.actors) {
       if (!activeIds.has(id)) {
@@ -284,6 +259,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
           duration: 320,
           ease: "Sine.Out",
           onComplete: () => {
+            if (this.disposed || version !== this.presentationVersion || this.actors.get(placement.id) !== actor) return;
             this.pendingEntranceIds.delete(placement.id);
             actor.container.setPosition(targetX, targetY).setAlpha(1);
             this.actorAnimations.refreshBase(placement.id);
@@ -485,6 +461,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   }
 
   private applyEffect(effect: CutsceneEffect): void {
+    const version = this.presentationVersion;
     if (effect === "none" || getAccessibilityPreferences().reducedMotion) {
       return;
     }
@@ -496,7 +473,9 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
         duration: 45,
         repeat: 5,
         yoyo: true,
-        onComplete: () => this.worldRoot.setPosition(0, 0),
+        onComplete: () => {
+          if (!this.disposed && version === this.presentationVersion) this.worldRoot.setPosition(0, 0);
+        },
       }));
       return;
     }
@@ -521,7 +500,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       : effect === "snow"
         ? 0xeaf7ff
         : effect === "mist"
-          ? 0x80ba55
+          ? this.currentBackdrop === "sea" ? 0x9dcbdc : 0x80ba55
           : effect === "runes"
             ? 0x74b8ff
             : effect === "leaves"

@@ -246,6 +246,14 @@ loads from `app://2dnd` in packaged builds.
   instance palettes through `systems/npcVisuals.ts` / `renderers/npcTextures.ts`.
   Keep skin, hair and clothing separate; never substitute monochrome humanoids.
   Boss cues use their canonical monster-family textures.
+- Every stable cutscene ID has distinct illustrated scenery in
+  `data/cutsceneScenery.ts`; pure bounded five-layer plans live in
+  `systems/cutsceneScenery.ts`, drawn through the shared
+  `renderers/cutsceneBackdrop.ts` into one Graphics buffer. Preserve structural
+  boss aftermaths, sea-correct Kraken staging, replay/ending coverage, camera
+  overscan and ending-copy contrast. Never use flat-color fallbacks, shared RNG
+  or persisted presentation fields. Reset/shutdown release actor subscriptions,
+  sprites and texture leases.
 - Battle backdrop geometry is scene-sized procedural rendering owned by
   `src/renderers/battleBackdrop.ts`. Use the typed bands in `battleDepth.ts`;
   never bake sky and scenery into one opaque layer or introduce scene-local

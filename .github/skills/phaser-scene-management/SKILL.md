@@ -281,6 +281,14 @@ Preserve separate skin, hair and clothing colors; do not replace NPCs with
 monochrome humanoids or tint the complete sprite. Boss cues resolve the
 existing canonical monster-family textures. Keep all visuals presentation-only.
 
+Every cutscene has its own illustrated setting, including replays and Ending.
+Keep profiles exhaustive in `data/cutsceneScenery.ts`, deterministic five-layer
+geometry in `systems/cutsceneScenery.ts` and shared single-buffer drawing in
+`renderers/cutsceneBackdrop.ts`. Do not replace different scenes with palette
+swaps. Preserve camera overscan, structural aftermath changes, open-sea Kraken
+staging and ending-text contrast. Reset/shutdown clears actors, animation
+subscriptions, pending callbacks and texture leases without changing story state.
+
 ## Scene-owned subsystems
 
 Overworld delegates to renderers and managers. Instantiate these in `init()` so

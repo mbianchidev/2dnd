@@ -36,6 +36,7 @@ future work until merged.
 | NG+/epic | `newGamePlus.ts`, `newGamePlusContent.ts`, `epicProgression.ts` | NG+ factory/state/slots/scaling; existing progression engine and runtime companion owner policy | title/save-slot NG+ manager, existing progression/result UI | carry/slots/save/scaling/epic suites and NG+ browser/Electron paths |
 | Party/gambits/inventory | `src/data/companions.ts` | `party.ts`, `gambits.ts`, `inventory.ts` | `partyOverlay.ts`, `battleParty.ts`, followers/renderers | party/companion/gambit/inventory suites |
 | Quests/cutscenes | `quests.ts`, focused `cutscene*.ts` | `quests.ts`, `questState.ts`, `cutscenes.ts` | quest/cutscene managers, `Cutscene.ts`, `Ending.ts` | quest/cutscene/campaign E2E |
+| Cutscene scenery | exhaustive `cutsceneScenery.ts` profiles | deterministic five-layer `systems/cutsceneScenery.ts` | shared `renderers/cutsceneBackdrop.ts`, Cutscene/Ending | geometry/contrast/transport + every-scene replay catalog |
 | World/map/traps | `map*.ts`, `chunks.ts`, `cities.ts`, `dungeons.ts`, `traps.ts` | `movement.ts`, `traps.ts` | map/city/trap/fog managers/renderers | map, city, trap, fog, movement |
 | Sea navigation | `nautical.ts`, `islands.ts`, `seaMonsters.ts` | `nautical*.ts` | Overworld/map/audio | nautical unit and E2E |
 | NG+ secret island | nautical island metadata, `islands.ts`, Codex lore | `islandAccess.ts`, `systems/islands.ts`, nautical/save normalization | existing sailing, city, map, inn and lore adapters | island access/recovery/carry and actual sailing/reload flows |
@@ -153,6 +154,10 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   entries, keep base terrain Water, and recover ineligible interiors safely.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
+- Every cutscene has distinct illustrated scenery, not a flat-color fallback.
+  Keep the exhaustive ID registry, changed boss aftermaths, sea-correct Kraken,
+  five bounded layers and one Graphics buffer. Replay/ending share the painter;
+  no scene-owned art state enters saves or consumes gameplay RNG.
 - World animation preserves externally owned positions and facing textures.
   Remove idle tweens on unbind and settle live reduced motion immediately.
   Pixel impacts use one owned Graphics/tween per actor, at most eight active.

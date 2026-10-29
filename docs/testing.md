@@ -274,6 +274,10 @@ target, launches it on an unused local port, and samples cache-disabled
 headless Chromium startup with both empty storage and a fresh current-schema save.
 The harness validates that save against the canonical `SAVE_VERSION` declaration
 in `src/systems/save.ts`, rather than a separate hardcoded benchmark version.
+Fresh-save creation shares the browser suite's measured pointer helper and
+holds keyboard edges across complete game frames. Stat-mode reflow must settle
+before measuring the next target; never bypass character creation or extend
+timeouts to hide a missed input.
 It reports:
 
 - deployed and JavaScript raw/gzip sizes plus source-map size

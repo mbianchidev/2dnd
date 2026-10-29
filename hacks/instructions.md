@@ -39,8 +39,10 @@
   `npm run benchmark:baseline`. The harness reads canonical `SAVE_VERSION`
   from the campaign owner and asserts the generated save matches it; schema
   updates must never bypass or hardcode this measurement guard.
-  Character-creation actions use the registered layout IDs, not fixed stat/
-  appearance coordinates, so the receipt measures the current real UI.
+  Character-creation actions reuse the browser suite's measured pointer helper,
+  registered layout IDs and complete input frames, not stale coordinates or
+  instantaneous key pulses. Reflow after changing stat mode must settle before
+  the next target is measured; the receipt still exercises the current real UI.
   Receipts include raw samples, deviations, host load and 120-frame work counts.
   `PERFORMANCE_ROOT=/absolute/checkout npm run benchmark:baseline` measures that
   checkout with the current harness and records both commits; PR CI uses this

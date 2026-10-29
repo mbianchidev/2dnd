@@ -13,7 +13,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Development/CI Node | 26.12.1, pinned in `.nvmrc`; embedded Node remains Electron-owned |
 | Runtime | Phaser 4.2.1 |
 | Language | TypeScript 7.0.2, strict, ES2020 |
-| Build/test | Vite 8.3.4, Electron 44.9.3, electron-builder 26.17.0, Vitest 5.0.3, Playwright 1.64.0 |
+| Build/test | Vite 8.3.5, Electron 45.0.0, electron-builder 26.18.0, Vitest 5.0.5, Playwright 1.64.1 |
 | DOM tests | happy-dom 21.0.4 |
 | Save schema | 27 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |

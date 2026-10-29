@@ -150,10 +150,10 @@ describe("Steam distribution contract", () => {
     ]) expect(isAllowedSteamAppEntry(path)).toBe(false);
   });
 
-  it("retains Electron Windows shader libraries without allowing arbitrary DLLs", () => {
+  it("retains Electron Windows runtime libraries without allowing arbitrary DLLs", () => {
     const windows = getSteamDepot("windows-x64");
     const linux = getSteamDepot("linux-x64");
-    for (const path of ["dxcompiler.dll", "dxil.dll"]) {
+    for (const path of ["dxcompiler.dll", "dxil.dll", "electron_wer.dll"]) {
       expect(isAllowedSteamRuntimeEntry(path, windows)).toBe(true);
       expect(isAllowedSteamRuntimeEntry(path, linux)).toBe(false);
       expect(isAllowedSteamRuntimeEntry(`resources/${path}`, windows)).toBe(false);

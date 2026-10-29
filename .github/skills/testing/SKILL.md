@@ -45,6 +45,8 @@ claimed. `ELECTRON_TEST_EXECUTABLE` selects an explicit packaged test binary.
 
 Steam contract/CLI tests use mock IDs and synthetic architecture/ASAR fixtures;
 actual depot payload inspection belongs to the native packaging matrix.
+Keep Electron's Windows shader/error-reporting DLLs covered without allowing
+unknown DLLs or copies outside the runtime root.
 Keep preview generation separate from protected upload and public release.
 Clean reviewed-source fixtures use an isolated Git repository and run the
 complete prepare/archive/verify/private-render/mock-upload chain. Require

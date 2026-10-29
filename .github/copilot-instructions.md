@@ -36,12 +36,12 @@ class-neutral archery, and Harbor Regatta minigames.
 - Development/CI Node.js 26.12.1 from `.nvmrc`; Electron controls its embedded Node.js
 - Phaser 4.2.1
 - TypeScript 7.0.2 in strict mode
-- Vite 8.3.4
-- Vitest 5.0.3
-- Playwright 1.64.0
+- Vite 8.3.5
+- Vitest 5.0.5
+- Playwright 1.64.1
 - happy-dom 21.0.4
-- Electron 44.9.3
-- electron-builder 26.17.0
+- Electron 45.0.0
+- electron-builder 26.18.0
 - Modern browsers, ES2020 target
 
 ## Structure

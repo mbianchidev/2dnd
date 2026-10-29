@@ -84,8 +84,11 @@ async function mockPayload(
   await writeFile(join(application, "dist-electron", "preload.cjs"), '"use strict";');
   await mkdir(dirname(join(payload, depot.binary)), { recursive: true });
   await writeFile(join(payload, depot.binary), mockBinary(platform), { mode: 0o755 });
-  if (platform === "windows-x64" && process.platform !== "win32") {
-    await chmod(join(payload, depot.binary), 0o666);
+  if (platform === "windows-x64") {
+    await writeFile(join(payload, "electron_wer.dll"), mockBinary(platform));
+    if (process.platform !== "win32") {
+      await chmod(join(payload, depot.binary), 0o666);
+    }
   }
   await mkdir(dirname(join(payload, depot.appArchive)), { recursive: true });
   await createPackage(application, join(payload, depot.appArchive));
@@ -256,6 +259,9 @@ describe("Steam payload preparation without Steamworks", () => {
       const template = await readFile(join(output, "scripts/app_build.vdf.in"), "utf8");
       expect(template).toContain("{{STEAM_APP_ID}}");
     }
+    expect(await readFile(join(assembled, "content/windows-x64/electron_wer.dll"))).toEqual(
+      mockBinary("windows-x64"),
+    );
     const verification = prepare(["verify", "--input", assembled]);
     expect(verification.stderr).toBe("");
     expect(verification.status).toBe(0);

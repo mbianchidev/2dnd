@@ -42,7 +42,9 @@ game launcher. Electron and Chromium are included. Native OS/runtime libraries
 remain prerequisites; do not work around unsupported configurations by
 disabling Electron's sandbox or adding privileged installation scripts.
 The Windows payload retains Electron's bundled `dxcompiler.dll`/`dxil.dll`
-shader libraries; this is not a separate Steam SDK or DirectX installer.
+shader libraries and Electron 45's `electron_wer.dll` error-reporting module.
+These entries are allowed only at the runtime root; unknown DLLs and copies in
+other directories remain rejected. These are not a separate Steam SDK or DirectX installer.
 
 ## Local, credential-free preparation
 

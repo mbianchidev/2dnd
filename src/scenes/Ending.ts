@@ -90,6 +90,7 @@ export class EndingScene extends Phaser.Scene {
       "ending",
       this.sceneData.player,
       this.sceneData.debugHeroVisual,
+      this.sceneData.cutsceneId ?? CAMPAIGN_EPILOGUE_CUTSCENE_ID,
     );
     const summary = buildCampaignEndingSummary(
       this.sceneData.player,
@@ -254,12 +255,13 @@ export class EndingScene extends Phaser.Scene {
     const readiness = this.time.now >= this.inputReadyAt && !this.sceneTransitions.isPending
       ? "ready" : "locked";
     if (this.showingChoices) {
-      debugPanelState(`ENDING | Choices | Input: ${readiness}`);
+      debugPanelState(`ENDING | Choices | Scenery: ${this.endingRenderer.sceneryInspectionReport} | Input: ${readiness}`);
       return;
     }
     const step = this.director.currentStep;
     debugPanelState(
       `ENDING | Step: ${this.director.currentStepIndex + 1}/${this.director.definition.steps.length} | Type: ${step.type}`
+      + ` | Scenery: ${this.endingRenderer.sceneryInspectionReport}`
       + ` | Hero: ${this.endingRenderer.heroInspectionReport} | Input: ${readiness}`,
     );
   }

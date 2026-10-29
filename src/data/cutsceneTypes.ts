@@ -24,6 +24,7 @@ export type CutsceneBackdrop =
   | "frost"
   | "forge"
   | "mountain"
+  | "sea"
   | "stars";
 
 export type CutsceneEffect =

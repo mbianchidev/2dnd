@@ -729,6 +729,14 @@ npx vitest run tests/dice.test.ts
 
 ## Browser Golden Path
 
+`tests/cutsceneScenery.test.ts` requires explicit coverage for every stable ID,
+geometry uniqueness with colors removed, structural boss aftermaths, five
+layers, bounded primitives, replay determinism and no gameplay RNG.
+`cutsceneBackdrop.test.ts` verifies one-buffer transport and ending-text
+contrast. `e2e/cutscene-scenery.spec.ts` captures every actual setting and a
+JSON catalog, checks colored background-only image samples and preserves
+quest/seen/pending state through replays. Keep these assertions and budgets.
+
 - `playwright.config.ts` starts Vite on an unused strict localhost port.
 - Browser tests default to `/2dnd/`; the showcase test opens that root and
   Phaser tests open `game.html`. Set `PLAYWRIGHT_BASE_PATH=/` to reproduce the

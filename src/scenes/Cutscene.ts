@@ -90,6 +90,7 @@ export class CutsceneScene extends Phaser.Scene {
     this.cutsceneRenderer = new CutsceneRenderer(
       this,
       this.sceneData.player,
+      this.sceneData.cutsceneId,
       this.sceneData.debugHeroVisual,
     );
     const presentation: CutscenePresentationAdapter = {

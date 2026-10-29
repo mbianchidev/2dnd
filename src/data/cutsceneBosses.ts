@@ -148,7 +148,7 @@ const BOSS_STORIES: readonly BossStory[] = [
     name: "Deepwake Kraken",
     pre: "boss.kraken.pre",
     post: "boss.kraken.post",
-    backdrop: "marsh",
+    backdrop: "sea",
     effect: "mist",
     biome: "sea",
     challenge: "The sea folds inward. Tentacles rise around the boat as an ancient eye opens beneath the wake.",

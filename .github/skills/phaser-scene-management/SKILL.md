@@ -243,6 +243,12 @@ battle/world directors register sprites by stable actor ID, use explicit
 `ActorTextureFamily` frame keys with fallback textures, and expose deterministic
 debug state for browser synchronization. Kill owned tweens/timers on shutdown;
 never wait for actor animation before an authoritative fade-complete handoff.
+World bindings mark positions and textures externally owned so walking/idle
+cannot snap travel or overwrite facing/equipment. Unbind idle tweens, deduplicate
+unchanged idle reconciliation and settle live reduced-motion changes once.
+`BattleImpactRenderer` owns bounded resolved-outcome pixel effects: one
+Graphics/tween per actor, at most eight active, watchdog/stale-callback cleanup,
+and no moving impacts with reduced motion. Existing textual cues remain readable.
 
 Overworld restarts use one shared payload that includes a fresh
 `savedSpecialNpcs` snapshot. Block movement and other state-changing actions
@@ -274,6 +280,14 @@ Named cutscene characters carry a typed canonical `npcId` and share
 Preserve separate skin, hair and clothing colors; do not replace NPCs with
 monochrome humanoids or tint the complete sprite. Boss cues resolve the
 existing canonical monster-family textures. Keep all visuals presentation-only.
+
+Every cutscene has its own illustrated setting, including replays and Ending.
+Keep profiles exhaustive in `data/cutsceneScenery.ts`, deterministic five-layer
+geometry in `systems/cutsceneScenery.ts` and shared single-buffer drawing in
+`renderers/cutsceneBackdrop.ts`. Do not replace different scenes with palette
+swaps. Preserve camera overscan, structural aftermath changes, open-sea Kraken
+staging and ending-text contrast. Reset/shutdown clears actors, animation
+subscriptions, pending callbacks and texture leases without changing story state.
 
 ## Scene-owned subsystems
 

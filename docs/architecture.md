@@ -28,9 +28,11 @@ The game loads no external image or audio assets and makes no gameplay network
 calls. Textures are generated procedurally; music and sound effects use Web
 Audio synthesis.
 
-Immutable area scores and motifs live in `data/music.ts`; `systems/music.ts`
-resolves named regions and deterministic day/night phrases. `systems/audio.ts`
-owns synthesis and deduplicated crossfades. Overworld selects city, dungeon,
+Immutable area scores, motifs and phrase rhythms live in `data/music.ts`;
+`systems/music.ts` resolves deterministic arrangements and read-only battle
+pressure. `systems/musicPlayback.ts` owns audio-clock scheduling, bounded
+voices and independent track crossfades; `systems/audio.ts` routes synthesis
+through shared channels and isolated audio randomness. Overworld selects city, dungeon,
 sailing or region music from live location state, and shops retain the canonical
 city score rather than using their decorated display title. See [Area music](audio.md).
 
@@ -227,6 +229,16 @@ Every scene installs shared accessibility. New motion must use the reduced-motio
 accessors and complete callbacks exactly once even when animation duration is
 zero.
 
+World actor presentation never restores externally owned movement coordinates
+or replaces live facing/equipment textures. Idle breathing uses scale rather
+than competing with travel tweens. Unbinding removes idle motion; live reduced
+motion settles active actor presentations immediately.
+`systems/battleEffects.ts` supplies deterministic pixel-impact geometry;
+`renderers/battleEffects.ts` owns one Graphics object/tween per affected actor,
+at most eight concurrent impacts, recovery timers and stale-callback guards.
+Strike, critical, spell, healing and guard silhouettes consume resolved outcomes
+only. Reduced motion retains the existing readable result cues without impacts.
+
 ## Desktop shell
 
 Electron production builds load `dist/game.html` from the standard, secure
@@ -389,6 +401,7 @@ location/discovery rather than trusting lore or achievement evidence.
   `src/systems/questDebug.ts`
 - Cutscene contracts/content: `src/data/cutsceneTypes.ts`,
   `src/data/cutsceneCampaign.ts`, `src/data/cutsceneBosses.ts`
+- Per-story scenery definitions: `src/data/cutsceneScenery.ts`
 - Cutscene trigger/queue/recovery: `src/systems/cutscenes.ts`
 - Cutscene progression/presentation: `src/managers/cutscene.ts`,
   `src/scenes/Cutscene.ts`, `src/renderers/cutscene.ts`
@@ -402,6 +415,23 @@ Boot invokes `src/renderers/textures.ts`. Focused renderers own monster
 silhouettes, hero textures, items, traps, maps, cities, result screens, and
 Battle scenery. `src/renderers/battleDepth.ts` defines the shared depth order;
 `src/renderers/battleBackdrop.ts` owns scene-sized backdrop layers and cleanup.
+
+Every stable cutscene ID has an explicit, distinct scenery definition, including
+boss challenges/aftermaths and the epilogue. `systems/cutsceneScenery.ts` builds
+a deterministic five-layer paint plan with sky, distant setting, ground,
+story landmark and foreground. Color gradients, architecture, harbor water,
+cavern walls, vegetation, firelight and celestial motifs replace flat
+backgrounds. Aftermaths change geometry as well as light; the Kraken uses an
+open sea, not a marsh.
+
+`renderers/cutsceneBackdrop.ts` draws the bounded plan into one existing
+Graphics buffer. Cutscene and Ending share it; unchanged backdrops do not
+rebuild per frame. Overscan covers the existing camera framing, and ending
+copy has a measured contrast-preserving dim layer. Scenery uses an isolated
+seeded stream, never gameplay RNG, actors, location ownership or save fields.
+Replay reconstructs the same setting without changing story progress.
+Cutscene reset/shutdown also clears actor animation subscriptions, sprites
+and texture leases.
 
 Current hero visuals resolve from live `PlayerState` through
 `src/systems/heroVisuals.ts` and cleanup-safe leases from

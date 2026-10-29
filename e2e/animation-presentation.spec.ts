@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clickLayoutItem } from "./helpers/layout";
+import type { BattleImpactKind } from "../src/systems/battleEffects";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -46,6 +47,16 @@ async function waitForPresentation(
     text,
     { timeout, polling: "raf" },
   );
+}
+
+async function captureActiveImpact(page: Page, name: string, kind: BattleImpactKind): Promise<void> {
+  await page.waitForFunction((expectedKind) => {
+    const state = document.getElementById("debug-state")?.textContent ?? "";
+    return state.match(/Impacts: \d+ \[([^\]]*)\]/)?.[1].split(",").includes(expectedKind);
+  }, kind, { polling: "raf", timeout: 10_000 });
+  const path = test.info().outputPath(name);
+  await page.locator("#game-container canvas").screenshot({ path });
+  await test.info().attach(name, { path, contentType: "image/png" });
 }
 
 async function enableDebug(page: Page): Promise<void> {
@@ -188,7 +199,8 @@ test("battle, world, mount, companion, boss, and cutscene presentation animate",
     let seed = 0x72_2026;
     Math.random = () => {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-      return seed / 0x1_0000_0000;
+      // Guarantee real hit reactions while retaining unique Phaser text textures.
+      return 0.6 + seed / 0x1_0000_0000 * 0.399;
     };
     if (!sessionStorage.getItem("animationPresentationInitialized")) {
       localStorage.clear();
@@ -211,14 +223,20 @@ test("battle, world, mount, companion, boss, and cutscene presentation animate",
   await startEncounter(page, "orc");
   await waitForState(page, "Phase: playerTurn");
   await clickGame(page, 360, 435);
-  await holdKey(page, "Enter", 100);
+  await Promise.all([
+    captureActiveImpact(page, "resolved-strike.png", "strike"),
+    holdKey(page, "Enter", 100),
+  ]);
   await waitForPresentation(page, "party:hero:attack:attack");
   await waitForPresentation(page, "party:companion:guardian:");
   await waitForPresentation(page, ":enemy:orc:");
   await finishBattle(page);
 
   await startEncounter(page, "orc");
-  await useBattleMenuAction(page, 510, 468, "battle-spell-huntersMark");
+  await Promise.all([
+    captureActiveImpact(page, "resolved-spell.png", "spell"),
+    useBattleMenuAction(page, 510, 468, "battle-spell-huntersMark"),
+  ]);
   await waitForPresentation(page, "party:hero:cast:spell");
   await finishBattle(page);
 
@@ -286,6 +304,7 @@ test("reduced motion makes presentation immediate and readable", async ({
   await clickGame(page, 360, 435);
   await holdKey(page, "Enter", 100);
   await waitForPresentation(page, "party:hero:attack:attack:immediate");
+  await waitForPresentation(page, "Impacts: 0");
   await Promise.all([
     waitForPresentation(page, ":faint:immediate"),
     submitDebug(page, "/kill"),

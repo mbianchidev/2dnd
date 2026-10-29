@@ -107,16 +107,10 @@ function playNoiseBurst(
   context: AudioContext,
   destination: AudioNode,
   profile: TrapSoundProfile,
+  buffer: AudioBuffer,
 ): void {
   if (profile.noiseGain <= 0) return;
   const duration = Math.max(0.08, profile.duration);
-  const bufferSize = Math.max(1, Math.floor(context.sampleRate * duration));
-  const buffer = context.createBuffer(1, bufferSize, context.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let index = 0; index < data.length; index++) {
-    data[index] = Math.random() * 2 - 1;
-  }
-
   const source = context.createBufferSource();
   source.buffer = buffer;
   const filter = context.createBiquadFilter();
@@ -131,6 +125,12 @@ function playNoiseBurst(
   source.connect(filter);
   filter.connect(gain);
   gain.connect(destination);
+  source.onended = () => {
+    source.onended = null;
+    source.disconnect();
+    filter.disconnect();
+    gain.disconnect();
+  };
   source.start(context.currentTime);
   source.stop(context.currentTime + duration);
 }
@@ -140,6 +140,7 @@ export function playTrapSound(
   context: AudioContext,
   destination: AudioNode,
   type: TrapType,
+  noiseBuffer: AudioBuffer,
 ): void {
   const profile = TRAP_SOUND_PROFILES[type];
   const pulseGap = Math.max(0.06, profile.duration * 0.55);
@@ -160,8 +161,13 @@ export function playTrapSound(
     );
     oscillator.connect(gain);
     gain.connect(destination);
+    oscillator.onended = () => {
+      oscillator.onended = null;
+      oscillator.disconnect();
+      gain.disconnect();
+    };
     oscillator.start(startTime);
     oscillator.stop(startTime + profile.duration);
   }
-  playNoiseBurst(context, destination, profile);
+  playNoiseBurst(context, destination, profile, noiseBuffer);
 }

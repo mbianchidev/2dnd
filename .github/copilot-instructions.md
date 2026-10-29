@@ -246,6 +246,14 @@ loads from `app://2dnd` in packaged builds.
   instance palettes through `systems/npcVisuals.ts` / `renderers/npcTextures.ts`.
   Keep skin, hair and clothing separate; never substitute monochrome humanoids.
   Boss cues use their canonical monster-family textures.
+- Every stable cutscene ID has distinct illustrated scenery in
+  `data/cutsceneScenery.ts`; pure bounded five-layer plans live in
+  `systems/cutsceneScenery.ts`, drawn through the shared
+  `renderers/cutsceneBackdrop.ts` into one Graphics buffer. Preserve structural
+  boss aftermaths, sea-correct Kraken staging, replay/ending coverage, camera
+  overscan and ending-copy contrast. Never use flat-color fallbacks, shared RNG
+  or persisted presentation fields. Reset/shutdown release actor subscriptions,
+  sprites and texture leases.
 - Battle backdrop geometry is scene-sized procedural rendering owned by
   `src/renderers/battleBackdrop.ts`. Use the typed bands in `battleDepth.ts`;
   never bake sky and scenery into one opaque layer or introduce scene-local
@@ -254,6 +262,10 @@ loads from `app://2dnd` in packaged builds.
   pose/tween ownership in `src/managers/actorAnimation.ts`, and scene-specific
   orchestration in focused battle/world directors. Presentation reads stable
   actor IDs and resolved outcomes; it never mutates combat or quest state.
+- Preserve world-owned movement/facing; idle breathing cannot tween travel
+  coordinates. Unbind idle tweens and settle live reduced motion immediately.
+  Procedural battle impacts use bounded `battleEffects.ts` geometry/rendering,
+  one Graphics/tween per affected actor and no more than eight active impacts.
 - Build `ActorTextureFamily` metadata with explicit frame keys. Optional
   monster-family art supplies stable `monster-<id>-<normal|boss>-<state>` frames;
   existing idle textures retain a transform-based fallback without hardcoded
@@ -1240,7 +1252,13 @@ When persistent data changes:
 
 All music and SFX use Web Audio synthesis. Initialize from a user gesture.
 Immutable scores, scale-degree motifs and area aliases live in `data/music.ts`;
-pure profile/phrase resolution lives in `systems/music.ts`. Route city,
+pure profile/bar/pressure resolution lives in `systems/music.ts`.
+`musicPlayback.ts` owns audio-clock lookahead, bounded voices, independent
+crossfades and hidden/suspended cleanup. Develop deterministic statement,
+answer, breath and lift phrases; adapt weather/party-pressure layers at bar
+boundaries without changing tempo. Reuse noise buffers and isolated audio RNG.
+Retire music voices on the existing clock without per-note EventTarget listeners.
+No arrangement, pressure, voice or clock state enters a save. Route city,
 dungeon, sailing and region music from authoritative location state, refresh
 on every region boundary even with unchanged weather, and resolve shop music
 from canonical city identity rather than the decorated display title.

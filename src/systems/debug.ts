@@ -624,6 +624,7 @@ export class DebugCommandSystem {
         this.callbacks.applyDayNightTint();
         this.callbacks.updateWeatherParticles();
         this.callbacks.updateHUD();
+        this.callbacks.updateAudio();
         debugPanelLog(`[CMD] Weather set to ${wt}`, true);
       } else {
         debugPanelLog(`Usage: /weather <clear|rain|snow|sandstorm|storm|fog>`, true);

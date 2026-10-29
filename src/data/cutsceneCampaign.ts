@@ -674,15 +674,18 @@ CutsceneDefinition<CampaignCutsceneId> = {
       type: "narration",
       heading: "A New Road",
       text: "Across the realm, sealed gates open, old bells ring, and the twelve cities renew the promises that bound them together.",
+      presentation: { backdrop: "heartlands" },
     },
     {
       type: "summary",
       heading: "Your Chronicle",
+      presentation: { backdrop: "heartlands" },
     },
     {
       type: "summary",
       heading: "The Road You Chose",
       section: "devotion",
+      presentation: { backdrop: "heartlands" },
     },
     {
       type: "credits",
@@ -693,6 +696,7 @@ CutsceneDefinition<CampaignCutsceneId> = {
         "Procedural art and synthesized audio",
         "Thank you for playing",
       ],
+      presentation: { backdrop: "stars" },
     },
   ],
 };

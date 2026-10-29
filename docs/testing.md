@@ -65,6 +65,13 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - original Standard golden mechanics, every Custom bound, once-only scale
   composition, and per-mode campaign/boss/economy/sea/defeat/save/eligibility
 - transition contracts with mocked camera/time adapters
+- audio-clock scheduling, evolving arrangements, weather/party-pressure layers,
+  bounded voices, crossfade/ambient/trap cleanup and isolated audio randomness
+- movement/facing ownership, live reduced-motion settlement, bounded procedural
+  impact geometry and one-object/one-tween burst lifecycle with stale callbacks
+- complete cutscene scenery coverage, non-color geometry uniqueness, structural
+  boss aftermaths, bounded five-layer paint plans, RNG/replay immutability,
+  single-buffer graphics transport and ending-text contrast
 - Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
 
 Native icon tests execute the actual generator in an owned temporary directory
@@ -109,8 +116,11 @@ The `e2e/*.spec.ts` suites own real browser behavior:
   companions, safe timeout, configuration reload, and pending-encounter recovery
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
+- every cutscene's actual colored backdrop, a complete captured scenery catalog,
+  unique background-only image samples and unchanged quest/seen/pending state
 - area music on actual region crossings with unchanged weather, city/dungeon
-  entry, canonical named-shop music, day/night and battle/interior return
+  entry, canonical named-shop music, day/night and battle/interior return,
+  phrase development, weather adaptation and real damage-driven battle pressure
 - whole-city visibility on real entry/reload, direct archery-target/dice-player
   interaction, and recognizable canonical NPC/boss cutscene art
 - exact resolved dice, hidden-information redaction, disadvantage/auto-hit,
@@ -176,6 +186,18 @@ Observe the real startup reveal/achievement queues and transient HUD messages fi
 before the idle sample; their legitimate presentation changes are not redundant
 work. Persistent location hints may remain visible. Live-preference samples
 require a fresh changed layout report first.
+
+`e2e/cutscene-scenery.spec.ts` visits every stable story/boss cutscene through
+the production replay path, including Ending. It captures every first frame
+and a JSON catalog, samples scenery away from actors/text, requires at least
+eight visible color bins and a distinct image per cutscene, and preserves
+quest/seen/pending state. Pure tests additionally compare geometry with colors
+removed so palette swaps cannot masquerade as unique settings. Keep the
+512-primitive, five-layer budget and one scene-owned Graphics buffer.
+Opening, crypt, sea and epilogue scenes additionally retain 120-frame samples
+and require zero redundant canvas-attribute, debug-state or layout-report writes.
+Save each raw sample before asserting its work budget; timings remain evidence,
+not portable FPS thresholds.
 
 ## Electron responsibilities
 
@@ -269,6 +291,10 @@ target, launches it on an unused local port, and samples cache-disabled
 headless Chromium startup with both empty storage and a fresh current-schema save.
 The harness validates that save against the canonical `SAVE_VERSION` declaration
 in `src/systems/save.ts`, rather than a separate hardcoded benchmark version.
+Fresh-save creation shares the browser suite's measured pointer helper and
+holds keyboard edges across complete game frames. Stat-mode reflow must settle
+before measuring the next target; never bypass character creation or extend
+timeouts to hide a missed input.
 It reports:
 
 - deployed and JavaScript raw/gzip sizes plus source-map size

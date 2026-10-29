@@ -31,14 +31,16 @@ import {
   TITLE_PROFILE,
 } from "../data/music";
 import {
-  buildMusicPhrase,
   getProfileForBiome,
   getProfileForCity,
   getProfileForDungeon,
+  getMusicPressure,
   noteFreq,
   resolveBiomePrefix,
 } from "./music";
-import type { BiomeProfile } from "../data/music";
+import { ProceduralMusicPlayer, type MusicPlaybackSnapshot } from "./musicPlayback";
+import { createSeededRandom } from "../utils/seededRandom";
+import type { BiomeProfile, MusicTrackKind } from "../data/music";
 
 export { BIOME_PROFILES, type BiomeProfile } from "../data/music";
 export { getProfileForBiome, resolveBiomePrefix } from "./music";
@@ -46,10 +48,7 @@ export { getProfileForBiome, resolveBiomePrefix } from "./music";
 // ── Audio Engine ──────────────────────────────────────────────
 
 /** Current track identifier so we avoid restarting the same music. */
-export type TrackKind = "biome" | "dungeon" | "battle" | "boss" | "city" | "title" | "ending" | "defeat" | "victory" | "none";
-
-/** Duration in seconds for crossfade between tracks. */
-const CROSSFADE_DURATION = 1.0;
+export type TrackKind = MusicTrackKind | "victory" | "none";
 
 export interface AudioState {
   trackKind: TrackKind;
@@ -93,15 +92,14 @@ class AudioEngine {
   /** Pre-allocated 1-second white noise buffer, reused for hihat, footsteps, etc. */
   private noiseBuffer: AudioBuffer | null = null;
 
-  // Currently playing music nodes
-  private musicNodes: AudioNode[] = [];
-  private musicTimer: ReturnType<typeof setInterval> | null = null;
-  private musicFadeTimer: ReturnType<typeof setTimeout> | null = null;
-  private musicStartTimer: ReturnType<typeof setTimeout> | null = null;
+  private musicPlayer: ProceduralMusicPlayer | null = null;
+  private battleMusicPressure = 0;
+  private readonly audioRandom = createSeededRandom(0x2d0d, "audio");
 
   // Weather ambient nodes
-  private weatherNodes: AudioNode[] = [];
+  private readonly weatherVoices = new Map<AudioScheduledSourceNode, readonly AudioNode[]>();
   private weatherTimer: ReturnType<typeof setInterval> | null = null;
+  private currentWeather: WeatherType | null = null;
 
   // State
   state: AudioState = createAudioState();
@@ -144,11 +142,31 @@ class AudioEngine {
     const noiseBufSize = Math.floor(this.ctx.sampleRate * noiseDuration);
     this.noiseBuffer = this.ctx.createBuffer(1, noiseBufSize, this.ctx.sampleRate);
     const noiseData = this.noiseBuffer.getChannelData(0);
-    for (let i = 0; i < noiseBufSize; i++) noiseData[i] = Math.random() * 2 - 1;
+    for (let i = 0; i < noiseBufSize; i++) noiseData[i] = this.audioRandom() * 2 - 1;
+    this.musicPlayer = new ProceduralMusicPlayer(this.ctx, this.musicGain, this.noiseBuffer);
+    if (typeof document !== "undefined") {
+      const updateVisibility = (): void => this.musicPlayer?.setPaused(document.hidden);
+      document.addEventListener("visibilitychange", updateVisibility);
+      updateVisibility();
+    }
   }
 
   get initialized(): boolean {
     return this.ctx !== null;
+  }
+
+  /** Read-only runtime evidence; voices, clocks and arrangements are never saved. */
+  get musicPlaybackState(): MusicPlaybackSnapshot | null {
+    return this.musicPlayer?.snapshot ?? null;
+  }
+
+  setBattleMusicPressure(
+    party: readonly { readonly currentHp: number; readonly maxHp: number }[],
+  ): void {
+    this.battleMusicPressure = getMusicPressure(party);
+    if (this.state.trackKind === "battle" || this.state.trackKind === "boss") {
+      this.musicPlayer?.setPressure(this.battleMusicPressure);
+    }
   }
 
   // ─── Volume / mute ────────────────────────────────────────
@@ -224,47 +242,8 @@ class AudioEngine {
 
   // ─── Stop helpers ─────────────────────────────────────────
 
-  /**
-   * Fade out and stop the currently playing music track.
-   * If `immediate` is true, stops instantly with no fade.
-   */
-  private stopMusic(immediate = false): void {
-    if (this.musicTimer) {
-      clearInterval(this.musicTimer);
-      this.musicTimer = null;
-    }
-    // Cancel any pending fade-cleanup or delayed start
-    if (this.musicFadeTimer) {
-      clearTimeout(this.musicFadeTimer);
-      this.musicFadeTimer = null;
-    }
-    if (this.musicStartTimer) {
-      clearTimeout(this.musicStartTimer);
-      this.musicStartTimer = null;
-    }
-    if (!immediate && this.musicGain && this.ctx) {
-      // Smooth fade-out
-      try {
-        this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, this.ctx.currentTime);
-        this.musicGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + CROSSFADE_DURATION);
-      } catch { /* context may be closed */ }
-      // Schedule node cleanup after fade completes
-      const staleNodes = [...this.musicNodes];
-      this.musicNodes = [];
-      this.musicFadeTimer = setTimeout(() => {
-        this.musicFadeTimer = null;
-        for (const n of staleNodes) {
-          try { (n as OscillatorNode).stop?.(); } catch { /* ok */ }
-          try { n.disconnect(); } catch { /* ok */ }
-        }
-      }, CROSSFADE_DURATION * 1000 + 50);
-    } else {
-      for (const n of this.musicNodes) {
-        try { (n as OscillatorNode).stop?.(); } catch { /* already stopped */ }
-        try { n.disconnect(); } catch { /* ok */ }
-      }
-      this.musicNodes = [];
-    }
+  private stopMusic(): void {
+    this.musicPlayer?.stop();
   }
 
   private stopWeather(): void {
@@ -272,162 +251,43 @@ class AudioEngine {
       clearInterval(this.weatherTimer);
       this.weatherTimer = null;
     }
-    for (const n of this.weatherNodes) {
-      try { (n as OscillatorNode).stop?.(); } catch { /* already stopped */ }
-      try { n.disconnect(); } catch { /* ok */ }
+    for (const [source, nodes] of this.weatherVoices) {
+      source.onended = null;
+      if (this.ctx?.state !== "closed") source.stop();
+      source.disconnect();
+      for (const node of nodes) node.disconnect();
     }
-    this.weatherNodes = [];
+    this.weatherVoices.clear();
+    this.currentWeather = null;
+  }
+
+  private trackWeatherVoice(source: AudioScheduledSourceNode, nodes: readonly AudioNode[]): void {
+    this.weatherVoices.set(source, nodes);
+    source.onended = () => {
+      if (!this.weatherVoices.delete(source)) return;
+      source.onended = null;
+      source.disconnect();
+      for (const node of nodes) node.disconnect();
+    };
   }
 
   stopAll(): void {
-    this.stopMusic(true);
+    this.stopMusic();
     this.stopWeather();
     this.state.trackKind = "none";
     this.state.trackId = "";
+    this.state.nightMode = false;
   }
 
   // ─── Music playback ───────────────────────────────────────
 
-  /**
-   * Start a looping procedural melody from the given profile.
-   * Crossfades out the previous track, then fades in the new one.
-   */
-  private playProfile(profile: BiomeProfile, isNight: boolean): void {
-    if (!this.ctx || !this.musicGain) return;
-
-    // Crossfade: fade out old track, then start new one
-    this.stopMusic(); // initiates fade-out
-
-    const secPerBeat = 60 / profile.bpm;
-    const ctx = this.ctx;
-    const dest = this.musicGain;
-
-    // Build a 16-note phrase for a longer, less repetitive loop
-    const phrase = buildMusicPhrase(profile, isNight);
-
-    const startPlayback = () => {
-      if (!this.ctx || this.ctx.state === "closed") return;
-
-      // Fade music gain back in
-      try {
-        dest.gain.setValueAtTime(0, ctx.currentTime);
-        dest.gain.linearRampToValueAtTime(this.state.musicVolume, ctx.currentTime + CROSSFADE_DURATION);
-      } catch { /* ok */ }
-
-      let step = 0;
-      const playNote = () => {
-        if (!this.ctx || this.ctx.state === "closed") return;
-        const freq = phrase[step % phrase.length];
-
-        // Lead note
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = profile.wave;
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.18, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + secPerBeat * 0.9);
-        osc.connect(gain);
-        gain.connect(dest);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + secPerBeat);
-
-        // Soft pad / bass every other beat
-        if (step % 2 === 0) {
-          const pad = ctx.createOscillator();
-          const pGain = ctx.createGain();
-          pad.type = profile.padWave;
-          pad.frequency.value = freq / 2;
-          pGain.gain.setValueAtTime(0.08, ctx.currentTime);
-          pGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + secPerBeat * 1.8);
-          pad.connect(pGain);
-          pGain.connect(dest);
-          pad.start(ctx.currentTime);
-          pad.stop(ctx.currentTime + secPerBeat * 2);
-        }
-
-        // ── Orchestral layers ─────────────────────────────────
-
-        // Strings: sustained sine + vibrato, every 4 beats
-        if (step % 4 === 0) {
-          const strOsc = ctx.createOscillator();
-          const strGain = ctx.createGain();
-          const vibrato = ctx.createOscillator();
-          const vibratoGain = ctx.createGain();
-          strOsc.type = "sine";
-          strOsc.frequency.value = freq * 2; // an octave above
-          vibrato.type = "sine";
-          vibrato.frequency.value = 5; // 5 Hz vibrato
-          vibratoGain.gain.value = 3; // subtle depth
-          vibrato.connect(vibratoGain);
-          vibratoGain.connect(strOsc.frequency);
-          strGain.gain.setValueAtTime(0.06, ctx.currentTime);
-          strGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + secPerBeat * 3.5);
-          strOsc.connect(strGain);
-          strGain.connect(dest);
-          strOsc.start(ctx.currentTime);
-          strOsc.stop(ctx.currentTime + secPerBeat * 4);
-          vibrato.start(ctx.currentTime);
-          vibrato.stop(ctx.currentTime + secPerBeat * 4);
-        }
-
-        // Brass / horn stab: sawtooth a 5th above, every 4 beats offset by 2
-        if (step % 4 === 2) {
-          const horn = ctx.createOscillator();
-          const hGain = ctx.createGain();
-          horn.type = "sawtooth";
-          horn.frequency.value = freq * 1.5; // a fifth above
-          hGain.gain.setValueAtTime(0.05, ctx.currentTime);
-          hGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + secPerBeat * 0.6);
-          horn.connect(hGain);
-          hGain.connect(dest);
-          horn.start(ctx.currentTime);
-          horn.stop(ctx.currentTime + secPerBeat * 0.8);
-        }
-
-        // Percussion: kick on even beats, hihat on odd beats
-        if (step % 2 === 0) {
-          // Kick drum — pitched-down sine
-          const kick = ctx.createOscillator();
-          const kGain = ctx.createGain();
-          kick.type = "sine";
-          kick.frequency.setValueAtTime(150, ctx.currentTime);
-          kick.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.1);
-          kGain.gain.setValueAtTime(0.08, ctx.currentTime);
-          kGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-          kick.connect(kGain);
-          kGain.connect(dest);
-          kick.start(ctx.currentTime);
-          kick.stop(ctx.currentTime + 0.2);
-        } else {
-          // Hihat — short filtered noise burst (reuses pre-allocated buffer)
-          const hhSrc = this.createNoiseSource();
-          if (hhSrc) {
-          const hhFilter = ctx.createBiquadFilter();
-          hhFilter.type = "highpass";
-          hhFilter.frequency.value = 7000;
-          const hhGain = ctx.createGain();
-          hhGain.gain.setValueAtTime(0.04, ctx.currentTime);
-          hhGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
-          hhSrc.connect(hhFilter);
-          hhFilter.connect(hhGain);
-          hhGain.connect(dest);
-          hhSrc.start(ctx.currentTime);
-          }
-        }
-
-        step++;
-      };
-
-      // Play the first note immediately, then loop
-      playNote();
-      this.musicTimer = setInterval(playNote, secPerBeat * 1000);
-    };
-
-    // Delay new track start by the crossfade duration so the old one fades out
-    this.musicStartTimer = setTimeout(() => {
-      this.musicStartTimer = null;
-      startPlayback();
-    }, CROSSFADE_DURATION * 1000);
+  private playProfile(profile: BiomeProfile, isNight: boolean, kind: MusicTrackKind): void {
+    this.musicPlayer?.play(profile, {
+      kind,
+      isNight,
+      weather: kind === "dungeon" ? WeatherType.Clear : this.currentWeather ?? WeatherType.Clear,
+      pressure: kind === "battle" || kind === "boss" ? this.battleMusicPressure : 0,
+    });
   }
 
   // ─── Public music API ─────────────────────────────────────
@@ -445,7 +305,7 @@ class AudioEngine {
     this.state.trackKind = "biome";
     this.state.trackId = trackId;
     this.state.nightMode = isNight;
-    this.playProfile(profile, isNight);
+    this.playProfile(profile, isNight, "biome");
   }
 
   playSailingMusic(period: TimePeriod): void {
@@ -477,7 +337,7 @@ class AudioEngine {
     this.state.trackKind = "battle";
     this.state.trackId = "battle";
     this.state.nightMode = false;
-    this.playProfile(BATTLE_PROFILE, false);
+    this.playProfile(BATTLE_PROFILE, false, "battle");
   }
 
   /** Play boss-specific battle music. */
@@ -489,7 +349,7 @@ class AudioEngine {
     this.state.trackKind = "boss";
     this.state.trackId = bossId;
     this.state.nightMode = false;
-    this.playProfile(profile, false);
+    this.playProfile(profile, false, "boss");
   }
 
   /** Play city / shop music. */
@@ -501,7 +361,7 @@ class AudioEngine {
     this.state.trackKind = "city";
     this.state.trackId = trackId;
     this.state.nightMode = isNight;
-    this.playProfile(getProfileForCity(cityName), isNight);
+    this.playProfile(getProfileForCity(cityName), isNight, "city");
   }
 
   /** Dungeon scores are independent of the outdoor biome and time of day. */
@@ -511,27 +371,29 @@ class AudioEngine {
     this.state.trackKind = "dungeon";
     this.state.trackId = dungeonId;
     this.state.nightMode = false;
-    this.playProfile(getProfileForDungeon(dungeonId), false);
+    this.playProfile(getProfileForDungeon(dungeonId), false, "dungeon");
   }
 
   /** Play title screen music. */
   playTitleMusic(): void {
     if (!this.ctx) return;
+    this.playWeatherSFX(WeatherType.Clear);
     if (this.state.trackKind === "title") return;
     this.state.trackKind = "title";
     this.state.trackId = "title";
     this.state.nightMode = false;
-    this.playProfile(TITLE_PROFILE, false);
+    this.playProfile(TITLE_PROFILE, false, "title");
   }
 
   /** Play the campaign ending theme. */
   playEndingMusic(): void {
     if (!this.ctx) return;
+    this.playWeatherSFX(WeatherType.Clear);
     if (this.state.trackKind === "ending") return;
     this.state.trackKind = "ending";
     this.state.trackId = "campaign-ending";
     this.state.nightMode = false;
-    this.playProfile(ENDING_PROFILE, false);
+    this.playProfile(ENDING_PROFILE, false, "ending");
   }
 
   /** Play defeat / game-over music. */
@@ -541,7 +403,7 @@ class AudioEngine {
     this.state.trackKind = "defeat";
     this.state.trackId = "defeat";
     this.state.nightMode = false;
-    this.playProfile(DEFEAT_PROFILE, false);
+    this.playProfile(DEFEAT_PROFILE, false, "defeat");
   }
 
   /**
@@ -550,61 +412,21 @@ class AudioEngine {
    */
   playVictoryJingle(): void {
     if (!this.ctx || !this.musicGain) return;
-    this.stopMusic(true);
     this.state.trackKind = "victory";
     this.state.trackId = "victory";
-
-    const ctx = this.ctx;
-    const dest = this.musicGain;
-    // Restore gain immediately for the jingle
-    try {
-      dest.gain.setValueAtTime(this.state.musicVolume, ctx.currentTime);
-    } catch { /* ok */ }
-
-    // Ascending major arpeggio: root, 3rd, 5th, octave, high 3rd, high 5th
-    const jingleNotes = [0, 4, 7, 12, 16, 19];
-    const noteDuration = 0.15;
-    const holdDuration = 0.6;
-
-    for (let i = 0; i < jingleNotes.length; i++) {
-      const freq = noteFreq(jingleNotes[i]);
-      const startTime = ctx.currentTime + i * noteDuration;
-      const isLast = i === jingleNotes.length - 1;
-      const dur = isLast ? holdDuration : noteDuration * 0.95;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "triangle";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.22, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
-      osc.connect(gain);
-      gain.connect(dest);
-      osc.start(startTime);
-      osc.stop(startTime + dur + 0.05);
-
-      // Harmony on even notes
-      if (i % 2 === 0) {
-        const harm = ctx.createOscillator();
-        const hGain = ctx.createGain();
-        harm.type = "sine";
-        harm.frequency.value = freq / 2;
-        hGain.gain.setValueAtTime(0.10, startTime);
-        hGain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
-        harm.connect(hGain);
-        hGain.connect(dest);
-        harm.start(startTime);
-        harm.stop(startTime + dur + 0.05);
-      }
-    }
+    this.state.nightMode = false;
+    this.musicPlayer?.playVictory();
   }
 
   // ─── Weather SFX ──────────────────────────────────────────
 
   /** Start weather ambient sound effect overlay. */
   playWeatherSFX(weather: WeatherType): void {
+    this.musicPlayer?.setWeather(weather);
     if (!this.ctx || !this.sfxGain) return;
+    if (this.currentWeather === weather) return;
     this.stopWeather();
+    this.currentWeather = weather;
     if (weather === WeatherType.Clear) return;
 
     const ctx = this.ctx;
@@ -613,12 +435,8 @@ class AudioEngine {
     switch (weather) {
       case WeatherType.Rain: {
         // Filtered white noise — gentle rain patter
-        const bufSize = ctx.sampleRate * 2;
-        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
         const src = ctx.createBufferSource();
-        src.buffer = buf;
+        src.buffer = this.noiseBuffer;
         src.loop = true;
         const filter = ctx.createBiquadFilter();
         filter.type = "lowpass";
@@ -629,17 +447,13 @@ class AudioEngine {
         filter.connect(gain);
         gain.connect(dest);
         src.start();
-        this.weatherNodes.push(src, filter, gain);
+        this.trackWeatherVoice(src, [filter, gain]);
         break;
       }
       case WeatherType.Snow: {
         // Very soft high-filtered noise
-        const bufSize = ctx.sampleRate * 2;
-        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
         const src = ctx.createBufferSource();
-        src.buffer = buf;
+        src.buffer = this.noiseBuffer;
         src.loop = true;
         const filter = ctx.createBiquadFilter();
         filter.type = "highpass";
@@ -650,17 +464,13 @@ class AudioEngine {
         filter.connect(gain);
         gain.connect(dest);
         src.start();
-        this.weatherNodes.push(src, filter, gain);
+        this.trackWeatherVoice(src, [filter, gain]);
         break;
       }
       case WeatherType.Sandstorm: {
         // Harsh midrange noise
-        const bufSize = ctx.sampleRate * 2;
-        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
         const src = ctx.createBufferSource();
-        src.buffer = buf;
+        src.buffer = this.noiseBuffer;
         src.loop = true;
         const bp = ctx.createBiquadFilter();
         bp.type = "bandpass";
@@ -672,17 +482,13 @@ class AudioEngine {
         bp.connect(gain);
         gain.connect(dest);
         src.start();
-        this.weatherNodes.push(src, bp, gain);
+        this.trackWeatherVoice(src, [bp, gain]);
         break;
       }
       case WeatherType.Storm: {
         // Heavy rain + periodic low rumble
-        const bufSize = ctx.sampleRate * 2;
-        const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
         const src = ctx.createBufferSource();
-        src.buffer = buf;
+        src.buffer = this.noiseBuffer;
         src.loop = true;
         const filter = ctx.createBiquadFilter();
         filter.type = "lowpass";
@@ -693,7 +499,7 @@ class AudioEngine {
         filter.connect(gain);
         gain.connect(dest);
         src.start();
-        this.weatherNodes.push(src, filter, gain);
+        this.trackWeatherVoice(src, [filter, gain]);
 
         // Thunder rumble — periodic low osc
         const rumble = () => {
@@ -701,16 +507,17 @@ class AudioEngine {
           const osc = ctx.createOscillator();
           const rGain = ctx.createGain();
           osc.type = "sine";
-          osc.frequency.value = 40 + Math.random() * 30;
+          osc.frequency.value = 40 + this.audioRandom() * 30;
           rGain.gain.setValueAtTime(0.12, ctx.currentTime);
           rGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
           osc.connect(rGain);
           rGain.connect(dest);
+          this.trackWeatherVoice(osc, [rGain]);
           osc.start(ctx.currentTime);
           osc.stop(ctx.currentTime + 1.5);
         };
         rumble();
-        this.weatherTimer = setInterval(rumble, 3000 + Math.random() * 5000);
+        this.weatherTimer = setInterval(rumble, 3000 + this.audioRandom() * 5000);
         break;
       }
       case WeatherType.Fog: {
@@ -723,7 +530,7 @@ class AudioEngine {
         osc.connect(gain);
         gain.connect(dest);
         osc.start();
-        this.weatherNodes.push(osc, gain);
+        this.trackWeatherVoice(osc, [gain]);
         break;
       }
     }
@@ -765,7 +572,7 @@ class AudioEngine {
     const interval = 70; // ms between blips
     for (let i = 0; i < count; i++) {
       // Vary pitch ±4 semitones for natural cadence; last blip goes up (like a question)
-      const pitchVar = i === count - 1 ? 3 : Math.floor(Math.random() * 9) - 4;
+      const pitchVar = i === count - 1 ? 3 : Math.floor(this.audioRandom() * 9) - 4;
       setTimeout(() => this.playDialogueBlip(basePitch + pitchVar), i * interval);
     }
   }
@@ -774,8 +581,8 @@ class AudioEngine {
 
   /** Play the distinct synthesized trigger sound for a dungeon trap. */
   playTrapSFX(type: TrapType): void {
-    if (!this.ctx || !this.sfxGain) return;
-    playTrapSound(this.ctx, this.sfxGain, type);
+    if (!this.ctx || !this.sfxGain || !this.noiseBuffer) return;
+    playTrapSound(this.ctx, this.sfxGain, type, this.noiseBuffer);
   }
 
   /** Play a weapon attack swoosh + impact (normal hit). */
@@ -1272,15 +1079,15 @@ class AudioEngine {
 
     // Crackling pops — short bursts of filtered noise (reuses pre-allocated buffer)
     for (let i = 0; i < 6; i++) {
-      const t = ctx.currentTime + i * 0.15 + Math.random() * 0.05;
+      const t = ctx.currentTime + i * 0.15 + this.audioRandom() * 0.05;
       const src = this.createNoiseSource();
       if (!src) continue;
       const filter = ctx.createBiquadFilter();
       filter.type = "bandpass";
-      filter.frequency.value = 800 + Math.random() * 1200;
+      filter.frequency.value = 800 + this.audioRandom() * 1200;
       filter.Q.value = 5;
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.08 + Math.random() * 0.04, t);
+      gain.gain.setValueAtTime(0.08 + this.audioRandom() * 0.04, t);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
       src.connect(filter);
       filter.connect(gain);
@@ -1524,7 +1331,7 @@ class AudioEngine {
       { label: "Dungeon: Forge", fn: () => this.playDungeonMusic("volcanic_forge") },
       { label: "Dungeon: Grotto", fn: () => this.playDungeonMusic("tideglass_grotto") },
       { label: "Defeat",         fn: () => this.playDefeatMusic() },
-      { label: "SFX: Attack",    fn: () => { this.stopMusic(true); this.playAttackSFX(); } },
+      { label: "SFX: Attack",    fn: () => { this.stopMusic(); this.playAttackSFX(); } },
       { label: "SFX: Miss",      fn: () => this.playMissSFX() },
       { label: "SFX: Crit Hit",  fn: () => this.playCriticalHitSFX() },
       { label: "SFX: Chest",     fn: () => this.playChestOpenSFX() },

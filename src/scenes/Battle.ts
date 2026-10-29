@@ -649,6 +649,7 @@ export class BattleScene extends Phaser.Scene {
       } else {
         audioEngine.playBattleMusic();
       }
+      audioEngine.setBattleMusicPressure(this.partyCombatants);
     }
   }
 
@@ -1724,6 +1725,9 @@ export class BattleScene extends Phaser.Scene {
             damage: 0,
             healing: healingResult.healing,
           })),
+          ...(ability.type === "buff" && result.hit ? [{
+            targetId: this.heroCombatant.id, hit: true, damage: 0, healing: 0,
+          }] : []),
         ],
       });
       this.updatePlayerStats();
@@ -1986,6 +1990,7 @@ export class BattleScene extends Phaser.Scene {
 
   private updatePlayerStats(): void {
     const p = this.player;
+    audioEngine.setBattleMusicPressure(this.partyCombatants);
     const defendTag = this.playerDefending ? " [DEF]" : "";
     const effectLine = p.activeEffects.length > 0
       ? `\nEffects: ${this.getStatusSummary(p.activeEffects)}`
@@ -2727,6 +2732,9 @@ export class BattleScene extends Phaser.Scene {
             hit: true,
             damage: 0,
             healing: healingResult.healing,
+          })),
+          ...(result.effectResults ?? []).map((effectResult) => ({
+            targetId: effectResult.targetId, hit: true, damage: 0, healing: 0,
           })),
         ],
       });

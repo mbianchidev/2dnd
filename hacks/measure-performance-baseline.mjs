@@ -16,6 +16,7 @@ import { gzipSync } from "node:zlib";
 import { chromium } from "@playwright/test";
 import { getGitProvenance } from "./lib/git-provenance.mjs";
 import { measureFrameWorkload } from "./lib/frameWorkload.ts";
+import { clickLayoutItem, waitForGameInputFrame } from "../e2e/helpers/layout.ts";
 
 const HARNESS_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ROOT = process.env.PERFORMANCE_ROOT
@@ -424,29 +425,6 @@ async function measureIdleFrames(browser, url, rawSave) {
   }
 }
 
-async function clickLayoutItem(page, id) {
-  await page.waitForFunction((layoutId) => {
-    const report = document.getElementById("layout-report")?.textContent;
-    if (!report) return false;
-    return Object.values(JSON.parse(report).groups)
-      .some((group) => group.items.some((item) => item.id === layoutId));
-  }, id);
-  const point = await page.evaluate((layoutId) => {
-    const report = JSON.parse(document.getElementById("layout-report").textContent);
-    const item = Object.values(report.groups).flatMap((group) => group.items)
-      .find((candidate) => candidate.id === layoutId);
-    return { x: item.bounds.x + item.bounds.width / 2, y: item.bounds.y + item.bounds.height / 2 };
-  }, id);
-  const canvas = page.locator("#game-container canvas");
-  await canvas.waitFor({ state: "visible" });
-  const bounds = await canvas.boundingBox();
-  if (!bounds) throw new Error("Game canvas has no rendered bounds");
-  await page.mouse.click(
-    bounds.x + (point.x / 640) * bounds.width,
-    bounds.y + (point.y / 528) * bounds.height,
-  );
-}
-
 async function waitForState(page, text) {
   await page.waitForFunction(
     (expected) => document.getElementById("debug-state")
@@ -468,7 +446,13 @@ async function createFreshSave(browser, url) {
     await clickLayoutItem(page, "title-new-game");
     await waitForState(page, "BOOT | Screen: character");
     await page.waitForTimeout(100);
-    await page.keyboard.press("Enter");
+    await page.keyboard.down("Enter");
+    try {
+      await waitForGameInputFrame(page);
+    } finally {
+      await page.keyboard.up("Enter");
+    }
+    await waitForGameInputFrame(page);
     await waitForState(page, "BOOT | Screen: stats");
     await clickLayoutItem(page, "creation-stat-mode-random");
     await clickLayoutItem(page, "creation-stats-next");

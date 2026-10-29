@@ -10,6 +10,7 @@ const CROSSFADE_SECONDS = 0.6;
 interface MusicVoice {
   readonly source: AudioScheduledSourceNode;
   readonly nodes: readonly AudioNode[];
+  readonly endTime: number;
 }
 
 interface MusicTrack {
@@ -161,6 +162,7 @@ export class ProceduralMusicPlayer {
     const loop = this.loop;
     if (!loop || this.paused || this.context.state !== "running") return;
     const now = this.context.currentTime;
+    this.releaseFinishedVoices(now);
     const halfBeat = 30 / loop.profile.bpm;
     // A throttled/background tab skips missed beats instead of allocating a catch-up burst.
     if (loop.nextTime < now - 0.05) {
@@ -246,16 +248,24 @@ export class ProceduralMusicPlayer {
       oscillator.connect(gain);
       source = oscillator;
     }
-    const voice: MusicVoice = { source, nodes };
+    const endTime = time + duration + 0.015;
+    const voice: MusicVoice = { source, nodes, endTime };
     track.voices.add(voice);
-    source.onended = () => this.releaseVoice(track, voice, false);
     source.start(time);
-    source.stop(time + duration + 0.015);
+    source.stop(endTime);
+  }
+
+  private releaseFinishedVoices(now: number): void {
+    // The existing audio clock retires voices without transient per-note EventTarget listeners.
+    for (const track of this.tracks) {
+      for (const voice of track.voices) {
+        if (voice.endTime <= now) this.releaseVoice(track, voice, false);
+      }
+    }
   }
 
   private releaseVoice(track: MusicTrack, voice: MusicVoice, stop: boolean): void {
     if (!track.voices.delete(voice)) return;
-    voice.source.onended = null;
     if (stop && this.context.state !== "closed") voice.source.stop(this.context.currentTime);
     voice.source.disconnect();
     for (const node of voice.nodes) node.disconnect();

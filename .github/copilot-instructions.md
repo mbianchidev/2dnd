@@ -1249,6 +1249,7 @@ pure profile/bar/pressure resolution lives in `systems/music.ts`.
 crossfades and hidden/suspended cleanup. Develop deterministic statement,
 answer, breath and lift phrases; adapt weather/party-pressure layers at bar
 boundaries without changing tempo. Reuse noise buffers and isolated audio RNG.
+Retire music voices on the existing clock without per-note EventTarget listeners.
 No arrangement, pressure, voice or clock state enters a save. Route city,
 dungeon, sailing and region music from authoritative location state, refresh
 on every region boundary even with unchanged weather, and resolve shop music

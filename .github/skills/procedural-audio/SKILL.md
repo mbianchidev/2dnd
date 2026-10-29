@@ -150,6 +150,8 @@ and resume only one scheduler. Own every voice/envelope/filter and independently
 gained crossfade; disconnect ended/cancelled nodes, cap outgoing tracks at one,
 and cancel fanfare voices too. Reuse the engine noise buffer for hats, weather
 and traps. Audio variation uses the existing seeded helper with its own stream.
+Retire music voices on the existing audio-clock tick, not per-note EventTarget
+handlers, so strict DOM-listener cleanup assertions do not depend on musical phase.
 Do not persist any arrangement/clock/voice/pressure state.
 
 ### Night Mode

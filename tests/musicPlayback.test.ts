@@ -49,6 +49,7 @@ describe("audio-clock music playback", () => {
       expect(player.snapshot.activeVoices).toBeLessThanOrEqual(24);
       expect(player.snapshot.activeTracks).toBe(1);
     }
+    expect(context.started.every((note) => note.source.onended === null)).toBe(true);
     player.stop();
     expect(player.snapshot).toMatchObject({ activeVoices: 0, activeTracks: 0, scheduling: false });
     expect(context.nodes.slice(1).every((node) => node.disconnect.mock.calls.length === 1)).toBe(true);

@@ -60,6 +60,9 @@ without duplicating a scheduler.
 
 Independent track gains overlap for a short crossfade. Every oscillator, noise
 source, filter and envelope disconnects after playback or cancellation.
+Finished music voices retire on the existing audio-clock tick without per-note
+EventTarget listeners, keeping DOM-listener cleanup budgets independent of the
+musical phase. The bounded victory phrase releases its voices together.
 Rapid travel retains at most one outgoing track; stop also cancels fanfare
 voices and delayed cleanup. Weather refreshes reuse an unchanged overlay.
 Ambience, percussion and traps share one noise buffer, and audio variation uses

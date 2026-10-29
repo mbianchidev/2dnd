@@ -159,6 +159,7 @@ headless mode; native release gates belong on isolated CI/virtual displays.
 - Music uses deterministic evolving bars, audio-clock lookahead, isolated audio
   RNG and owned voices/track gains. Weather and party pressure adapt layers at
   bar boundaries without restarting tempo or serializing presentation state.
+  Retire voices on that clock without per-note EventTarget listeners.
 - Standard is unlimited. Timed mode persists only bounded per-campaign settings,
   counts accepted hero/manual decision time, and validates Defend once at timeout.
   Pause real input/presentation blockers, not normal logs or non-blocking notices.

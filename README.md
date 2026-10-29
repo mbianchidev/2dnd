@@ -25,7 +25,9 @@ The browser game and Electron desktop app share the same Phaser game.
 Pixel-art textures are generated at runtime, and music and sound effects use
 Web Audio synthesis rather than external assets. Regions, cities, islands,
 and dungeons have distinct procedural scores, with night variations outdoors
-and in towns. Campaigns are stored locally; no account is required.
+and in towns, evolving arrangements, and weather- and battle-responsive layers.
+Pixel-art combat impacts accompany resolved actions without delaying their
+outcomes. Campaigns are stored locally; no account is required.
 
 ## Highlights
 

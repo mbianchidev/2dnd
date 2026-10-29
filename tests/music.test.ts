@@ -15,6 +15,7 @@ import {
 } from "../src/systems/music";
 import { audioEngine } from "../src/systems/audio";
 import { TimePeriod } from "../src/systems/daynight";
+import { MockAudioContext } from "./helpers/audioContext";
 
 describe("area music definitions", () => {
   it("covers every world chunk, including named regions outside the regular biome prefixes", () => {
@@ -87,53 +88,15 @@ describe("area music playback selection", () => {
 
   it("preserves a playing area track, switches interiors and restores day/night exploration", () => {
     vi.useFakeTimers();
-    const notes: Array<{ frequency: number; wave: string }> = [];
-    vi.stubGlobal("AudioContext", class {
-      readonly destination = {};
-      readonly sampleRate = 16;
-      readonly currentTime = 0;
-      readonly state = "running";
-
-      createGain() {
-        return {
-          gain: {
-            value: 0,
-            setValueAtTime: vi.fn(),
-            linearRampToValueAtTime: vi.fn(),
-            exponentialRampToValueAtTime: vi.fn(),
-          },
-          connect: vi.fn(),
-        };
-      }
-
-      createOscillator() {
-        const oscillator = {
-          type: "sine",
-          frequency: {
-            value: 0,
-            setValueAtTime: vi.fn(),
-            exponentialRampToValueAtTime: vi.fn(),
-          },
-          connect: vi.fn(),
-          start: vi.fn((): void => {
-            notes.push({ frequency: oscillator.frequency.value, wave: oscillator.type });
-          }),
-          stop: vi.fn(),
-        };
-        return oscillator;
-      }
-
-      createBuffer() {
-        return { getChannelData: () => new Float32Array(this.sampleRate) };
-      }
-    });
+    vi.stubGlobal("AudioContext", MockAudioContext);
     audioEngine.init();
+    const notes = MockAudioContext.instances[MockAudioContext.instances.length - 1]!.started;
     audioEngine.playBiomeMusic("Heartlands", TimePeriod.Day);
     expect(audioEngine.state).toMatchObject({
       trackKind: "biome", trackId: "Rolling_day", nightMode: false,
     });
     vi.advanceTimersByTime(1000);
-    expect(notes[0]).toEqual({
+    expect(notes[0]).toMatchObject({
       frequency: buildMusicPhrase(BIOME_PROFILES.Rolling, false)[0], wave: "sine",
     });
     const schedule = vi.spyOn(globalThis, "setTimeout");
@@ -145,7 +108,7 @@ describe("area music playback selection", () => {
       trackKind: "city", trackId: "Willowdale_day", nightMode: false,
     });
     vi.advanceTimersByTime(1000);
-    expect(notes[noteOffset]).toEqual({
+    expect(notes[noteOffset]).toMatchObject({
       frequency: buildMusicPhrase(getProfileForCity("Willowdale"), false)[0], wave: "sine",
     });
     schedule.mockClear();
@@ -157,7 +120,7 @@ describe("area music playback selection", () => {
       trackKind: "city", trackId: "Willowdale_night", nightMode: true,
     });
     vi.advanceTimersByTime(1000);
-    expect(notes[noteOffset]).toEqual({
+    expect(notes[noteOffset]).toMatchObject({
       frequency: buildMusicPhrase(getProfileForCity("Willowdale"), true)[0], wave: "sine",
     });
     noteOffset = notes.length;
@@ -166,7 +129,7 @@ describe("area music playback selection", () => {
       trackKind: "dungeon", trackId: "heartlands_dungeon", nightMode: false,
     });
     vi.advanceTimersByTime(1000);
-    expect(notes[noteOffset]).toEqual({
+    expect(notes[noteOffset]).toMatchObject({
       frequency: buildMusicPhrase(DUNGEON_PROFILES.heartlands_dungeon, false)[0], wave: "triangle",
     });
     schedule.mockClear();

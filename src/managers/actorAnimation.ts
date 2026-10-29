@@ -8,7 +8,7 @@ import {
   type ActorTextureFamily,
   type PresentationActorRef,
 } from "../systems/animation";
-import { isReducedMotionEnabled } from "../systems/accessibility";
+import { gamePreferences, isReducedMotionEnabled } from "../systems/accessibility";
 
 type AnimationTarget =
   | Phaser.GameObjects.Sprite
@@ -28,6 +28,7 @@ interface ActiveActorAnimation {
   lifecycle: OncePresentation;
   tweens: Phaser.Tweens.Tween[];
   timers: Phaser.Time.TimerEvent[];
+  settle: () => void;
 }
 
 interface ActorRecord extends PresentationActorRef {
@@ -35,6 +36,8 @@ interface ActorRecord extends PresentationActorRef {
   textureFamily: ActorTextureFamily;
   snapshot: ActorSnapshot;
   currentState: ActorAnimationState;
+  readonly externalPosition: boolean;
+  readonly externalTexture: boolean;
   active?: ActiveActorAnimation;
   idleTween?: Phaser.Tweens.Tween;
 }
@@ -44,6 +47,9 @@ export interface ActorAnimationBinding {
   readonly role: ActorAnimationRole;
   readonly target: AnimationTarget;
   readonly textureFamily: ActorTextureFamily;
+  /** Movement/facing renderers remain authoritative for world actors. */
+  readonly externalPosition?: boolean;
+  readonly externalTexture?: boolean;
 }
 
 export interface ActorAnimationOptions {
@@ -57,9 +63,26 @@ export interface ActorAnimationOptions {
 export class ActorAnimationDirector {
   private readonly actors = new Map<string, ActorRecord>();
   private isCleaningUp = false;
+  private disposed = false;
+  private readonly unsubscribePreferences: () => void;
   private lastEvent = "idle";
 
-  public constructor(private readonly scene: Phaser.Scene) {}
+  public constructor(private readonly scene: Phaser.Scene) {
+    let reducedMotion = isReducedMotionEnabled();
+    this.unsubscribePreferences = gamePreferences.subscribe(() => {
+      if (this.disposed || reducedMotion === isReducedMotionEnabled()) return;
+      reducedMotion = isReducedMotionEnabled();
+      for (const record of this.actors.values()) {
+        this.stopIdle(record);
+        if (reducedMotion) {
+          record.active?.settle();
+          if (record.currentState === "idle") this.restoreActor(record);
+        } else if (record.currentState === "idle") {
+          this.startIdle(record);
+        }
+      }
+    });
+  }
 
   public bind(binding: ActorAnimationBinding): void {
     this.unbind(binding.id);
@@ -71,6 +94,8 @@ export class ActorAnimationDirector {
       textureFamily: binding.textureFamily,
       snapshot: captureSnapshot(binding.target),
       currentState: "idle",
+      externalPosition: binding.externalPosition === true,
+      externalTexture: binding.externalTexture === true,
     };
     this.actors.set(binding.id, record);
     this.applyTexture(record, "idle", 0);
@@ -80,8 +105,9 @@ export class ActorAnimationDirector {
   public unbind(actorId: string): void {
     const record = this.actors.get(actorId);
     if (!record) return;
-    this.stopActor(record, false);
     this.actors.delete(actorId);
+    this.stopActor(record, false);
+    this.stopIdle(record);
   }
 
   public has(actorId: string): boolean {
@@ -97,15 +123,21 @@ export class ActorAnimationDirector {
   }
 
   public get isBusy(): boolean {
-    return [...this.actors.values()].some(
-      (actor) => actor.active?.lifecycle.status === "pending",
-    );
+    for (const actor of this.actors.values()) {
+      if (actor.active?.lifecycle.status === "pending") return true;
+    }
+    return false;
   }
 
   public refreshBase(actorId: string): void {
     const record = this.actors.get(actorId);
-    if (!record || this.isAnimating(actorId)) return;
-    record.snapshot = captureSnapshot(record.target);
+    if (!record) return;
+    if (record.externalPosition) {
+      record.snapshot.x = record.target.x;
+      record.snapshot.y = record.target.y;
+    } else if (!this.isAnimating(actorId)) {
+      record.snapshot = captureSnapshot(record.target);
+    }
   }
 
   public play(
@@ -125,7 +157,7 @@ export class ActorAnimationDirector {
 
     this.stopActor(record, true);
     this.stopIdle(record);
-    restoreSnapshot(record.target, record.snapshot);
+    this.restoreActor(record);
     record.currentState = state;
     this.lastEvent = `${actorId}:${state}`;
     this.applyTexture(record, state, options.frameIndex ?? 0);
@@ -146,14 +178,15 @@ export class ActorAnimationDirector {
           for (const timer of active.timers.splice(0)) {
             timer.remove(false);
           }
-          record.active = undefined;
-          if (!persistent && !this.isCleaningUp && record.target.active) {
-            if (restorePosition) {
-              restoreSnapshot(record.target, record.snapshot);
-            } else {
-              restorePresentationSnapshot(record.target, record.snapshot);
-              record.snapshot = captureSnapshot(record.target);
-            }
+          const ownsActor = record.active === active;
+          if (ownsActor) record.active = undefined;
+          if (
+            ownsActor && active.lifecycle.status === "completed" && !persistent
+            && !this.isCleaningUp && record.target.active && this.actors.get(actorId) === record
+          ) {
+            this.restoreActor(record, restorePosition);
+            record.snapshot.x = record.target.x;
+            record.snapshot.y = record.target.y;
             record.currentState = "idle";
             this.applyTexture(record, "idle", 0);
             this.startIdle(record);
@@ -162,12 +195,15 @@ export class ActorAnimationDirector {
       }),
       tweens: [],
       timers: [],
+      settle: () => {
+        this.applyImmediatePose(record, state, options.direction ?? 1, persistent);
+        active.lifecycle.complete();
+      },
     };
     record.active = active;
 
     if (timing.immediate) {
-      this.applyImmediatePose(record, state, options.direction ?? 1, persistent);
-      active.lifecycle.complete();
+      active.settle();
       return true;
     }
 
@@ -178,6 +214,7 @@ export class ActorAnimationDirector {
       options.direction ?? 1,
       persistent,
       () => {
+        if (this.disposed || record.active !== active || active.lifecycle.status !== "pending") return;
         if (timing.holdMs > 0) {
           active.timers.push(this.scene.time.delayedCall(
             timing.holdMs,
@@ -205,9 +242,9 @@ export class ActorAnimationDirector {
     const record = this.actors.get(actorId);
     if (!record || !record.target.active) return;
     if (state === "idle") {
-      if (this.isAnimating(actorId)) return;
+      if (this.isAnimating(actorId) || record.currentState === "idle") return;
       this.stopActor(record, true);
-      restoreSnapshot(record.target, record.snapshot);
+      this.restoreActor(record);
       record.currentState = "idle";
       this.applyTexture(record, "idle", 0);
       this.startIdle(record);
@@ -218,6 +255,8 @@ export class ActorAnimationDirector {
   }
 
   public cleanup(): void {
+    this.disposed = true;
+    this.unsubscribePreferences();
     this.isCleaningUp = true;
     for (const record of this.actors.values()) {
       this.stopActor(record, false);
@@ -364,7 +403,7 @@ export class ActorAnimationDirector {
     state: ActorAnimationState,
     frameIndex: number,
   ): void {
-    if (!(record.target instanceof Phaser.GameObjects.Sprite)) return;
+    if (record.externalTexture || !(record.target instanceof Phaser.GameObjects.Sprite)) return;
     const resolution = resolveActorTextureFrame(
       record.textureFamily,
       state,
@@ -382,7 +421,9 @@ export class ActorAnimationDirector {
     const timing = resolveAnimationTiming("idle", false);
     record.idleTween = this.scene.tweens.add({
       targets: record.target,
-      y: record.snapshot.y - (record.role === "boss" ? 3 : 2),
+      ...(record.externalPosition
+        ? { scaleY: record.snapshot.scaleY * 1.025 }
+        : { y: record.snapshot.y - (record.role === "boss" ? 3 : 2) }),
       duration: timing.durationMs,
       ease: "Sine.InOut",
       yoyo: true,
@@ -394,7 +435,7 @@ export class ActorAnimationDirector {
     record.active?.lifecycle.cancel();
     record.active = undefined;
     if (restore && record.target.active) {
-      restoreSnapshot(record.target, record.snapshot);
+      this.restoreActor(record);
     }
   }
 
@@ -402,6 +443,14 @@ export class ActorAnimationDirector {
     record.idleTween?.stop();
     record.idleTween?.remove();
     record.idleTween = undefined;
+  }
+
+  private restoreActor(record: ActorRecord, restorePosition = true): void {
+    if (record.externalPosition || !restorePosition) {
+      restorePresentationSnapshot(record.target, record.snapshot);
+    } else {
+      restoreSnapshot(record.target, record.snapshot);
+    }
   }
 }
 

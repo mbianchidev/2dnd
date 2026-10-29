@@ -28,9 +28,11 @@ The game loads no external image or audio assets and makes no gameplay network
 calls. Textures are generated procedurally; music and sound effects use Web
 Audio synthesis.
 
-Immutable area scores and motifs live in `data/music.ts`; `systems/music.ts`
-resolves named regions and deterministic day/night phrases. `systems/audio.ts`
-owns synthesis and deduplicated crossfades. Overworld selects city, dungeon,
+Immutable area scores, motifs and phrase rhythms live in `data/music.ts`;
+`systems/music.ts` resolves deterministic arrangements and read-only battle
+pressure. `systems/musicPlayback.ts` owns audio-clock scheduling, bounded
+voices and independent track crossfades; `systems/audio.ts` routes synthesis
+through shared channels and isolated audio randomness. Overworld selects city, dungeon,
 sailing or region music from live location state, and shops retain the canonical
 city score rather than using their decorated display title. See [Area music](audio.md).
 
@@ -226,6 +228,16 @@ the canvas without changing its host dimensions.
 Every scene installs shared accessibility. New motion must use the reduced-motion
 accessors and complete callbacks exactly once even when animation duration is
 zero.
+
+World actor presentation never restores externally owned movement coordinates
+or replaces live facing/equipment textures. Idle breathing uses scale rather
+than competing with travel tweens. Unbinding removes idle motion; live reduced
+motion settles active actor presentations immediately.
+`systems/battleEffects.ts` supplies deterministic pixel-impact geometry;
+`renderers/battleEffects.ts` owns one Graphics object/tween per affected actor,
+at most eight concurrent impacts, recovery timers and stale-callback guards.
+Strike, critical, spell, healing and guard silhouettes consume resolved outcomes
+only. Reduced motion retains the existing readable result cues without impacts.
 
 ## Desktop shell
 

@@ -45,7 +45,7 @@ future work until merged.
 | Tavern/festival games | `minigames.ts`, focused lore/event data | `minigame*.ts`, nautical/weather helpers | minigame manager/renderers | rules/economy/recovery/layout + web/Electron multi-input |
 | Saves | owning interfaces/defaults | `save.ts`, `saveActor.ts`, `saveSlots.ts`, `saveStorage.ts`, plus focused state normalizers | `managers/saveSlots.ts`, Boot/load/recovery callers | save/slot/validation/availability/domain migration suites |
 | Accessibility/input | tutorial/feature definitions | `accessibility.ts`, `input.ts`, `featureDiscovery.ts` | input/tutorial/layout managers | accessibility/input/layout/feature E2E |
-| Audio | `music.ts`, typed data cues | `music.ts`, `audio.ts`, `trapAudio.ts` | location-aware scene callers | audio/music + representative browser flows |
+| Audio | `music.ts`, typed data cues | `music.ts`, `musicPlayback.ts`, `audio.ts`, `trapAudio.ts` | location-aware callers, read-only party pressure | audio/music/arrangement/playback/lifecycle + browser flows |
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
 | Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
 | Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | preparation/upload utilities, `hacks/lib/steam-payload.mjs` | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck/install-lifecycle equivalents |
@@ -153,6 +153,12 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   entries, keep base terrain Water, and recover ineligible interiors safely.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
+- World animation preserves externally owned positions and facing textures.
+  Remove idle tweens on unbind and settle live reduced motion immediately.
+  Pixel impacts use one owned Graphics/tween per actor, at most eight active.
+- Music uses deterministic evolving bars, audio-clock lookahead, isolated audio
+  RNG and owned voices/track gains. Weather and party pressure adapt layers at
+  bar boundaries without restarting tempo or serializing presentation state.
 - Standard is unlimited. Timed mode persists only bounded per-campaign settings,
   counts accepted hero/manual decision time, and validates Defend once at timeout.
   Pause real input/presentation blockers, not normal logs or non-blocking notices.

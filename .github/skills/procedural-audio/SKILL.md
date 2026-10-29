@@ -9,7 +9,8 @@ license: MIT
 All audio in 2D&D is synthesized at runtime via the Web Audio API — no external audio files.
 The main engine lives in `src/systems/audio.ts`; immutable scores and motifs
 live in `src/data/music.ts`, pure resolution in `src/systems/music.ts`, and
-focused trap synthesis in `src/systems/trapAudio.ts`. See
+audio-clock scheduling/owned voices in `src/systems/musicPlayback.ts`.
+Focused trap synthesis lives in `src/systems/trapAudio.ts`. See
 [`docs/audio.md`](../../../docs/audio.md).
 
 ## Architecture
@@ -128,14 +129,28 @@ through normal Overworld creation. Music selection never mutates campaign state.
 
 ## Orchestral Layers
 
-Every track automatically layers these instruments via `playNote()`:
+`buildMusicBar()` develops four four-bar phrases: statement, answer, breath
+and lift. Preserve the recognizable opening motif, then use an octave answer,
+rests and a countermelody. Layers are deterministic and never consume gameplay RNG:
 
-1. **Lead** — profile's `wave` type at the melody frequency
-2. **Pad/Bass** — profile's `padWave` at half frequency, every other beat
-3. **Strings** — sine with 5Hz vibrato, sustained every 4 beats
-4. **Brass** — sawtooth stab a fifth above, offset every 4 beats
-5. **Kick drum** — pitched-down sine (150→40Hz) on even beats
-6. **Hihat** — filtered noise burst on odd beats
+1. **Lead**: the profile waveform and phrase rhythm
+2. **Bass**: low scale-degree anchors on alternate beats
+3. **Harmony**: quiet sustained sine voicings
+4. **Bell**: offbeat countermelody in lift/danger phrases
+5. **Kick/hihat**: bounded percussion, denser in combat and outdoor storms
+
+Night/snow/fog reduce layers. Title, ending and defeat stay drum-free.
+Battle derives pressure from the actual combined party HP, including KO actors;
+damage/healing refresh context, and 35% HP or less adds urgency at the next bar.
+Never restart the track or change tempo for an arrangement update.
+
+`ProceduralMusicPlayer` uses 120-ms lookahead against the audio clock.
+Skip missed beats after stalls, pause scheduling for hidden/suspended audio,
+and resume only one scheduler. Own every voice/envelope/filter and independently
+gained crossfade; disconnect ended/cancelled nodes, cap outgoing tracks at one,
+and cancel fanfare voices too. Reuse the engine noise buffer for hats, weather
+and traps. Audio variation uses the existing seeded helper with its own stream.
+Do not persist any arrangement/clock/voice/pressure state.
 
 ### Night Mode
 Major scales automatically shift to their relative minor at dusk/night.

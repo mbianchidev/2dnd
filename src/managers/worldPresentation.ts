@@ -28,6 +28,8 @@ export class WorldPresentationDirector {
       id: HERO_ACTOR_ID,
       role: "hero",
       target: sprite,
+      externalPosition: true,
+      externalTexture: true,
       textureFamily: createActorTextureFamily({
         id: `hero.${appearanceId}`,
         role: "hero",
@@ -50,6 +52,8 @@ export class WorldPresentationDirector {
       id: actorId,
       role: "mount",
       target: sprite,
+      externalPosition: true,
+      externalTexture: true,
       textureFamily: createActorTextureFamily({
         id: `mount.${mountId}`,
         role: "mount",
@@ -72,6 +76,8 @@ export class WorldPresentationDirector {
       id: actorId,
       role: "mount",
       target: sprite,
+      externalPosition: true,
+      externalTexture: true,
       textureFamily: createActorTextureFamily({
         id: `boat.${boatId}`,
         role: "mount",
@@ -92,6 +98,8 @@ export class WorldPresentationDirector {
       id: actorId,
       role: "companion",
       target: sprite,
+      externalPosition: true,
+      externalTexture: true,
       textureFamily: createActorTextureFamily({
         id: `companion.${companionId}`,
         role: "companion",

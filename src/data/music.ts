@@ -1,5 +1,19 @@
 export type Scale = readonly number[];
 
+export type MusicTrackKind =
+  | "biome" | "dungeon" | "battle" | "boss" | "city" | "title" | "ending" | "defeat";
+
+export const MUSIC_SECTIONS = ["statement", "answer", "breath", "lift"] as const;
+export type MusicSection = typeof MUSIC_SECTIONS[number];
+export const MUSIC_MELODY_VARIATIONS = [0, -1, 1] as const;
+
+export const MUSIC_LEAD_RHYTHMS: Readonly<Record<MusicSection, readonly number[]>> = {
+  statement: [0, 1, 2, 3],
+  answer: [0, 1, 2.5, 3],
+  breath: [0, 2],
+  lift: [0, 1, 2, 3],
+};
+
 export interface BiomeProfile {
   readonly baseNote: number;
   readonly scale: Scale;

@@ -19,6 +19,8 @@ import {
   type ActorAnimationBinding,
 } from "./actorAnimation";
 import { BATTLE_DEPTH } from "../renderers/battleDepth";
+import { BattleImpactRenderer } from "../renderers/battleEffects";
+import type { BattleImpactKind } from "../systems/battleEffects";
 
 export interface BattlePresentationTarget {
   readonly targetId: BattleCombatantId;
@@ -44,6 +46,7 @@ export interface BattleActorPresentationBinding {
 
 export class BattlePresentationDirector {
   private readonly actors: ActorAnimationDirector;
+  private readonly impacts: BattleImpactRenderer;
   private readonly roles = new Map<BattleCombatantId, ActorAnimationRole>();
   private readonly sprites = new Map<
     BattleCombatantId,
@@ -58,6 +61,7 @@ export class BattlePresentationDirector {
 
   public constructor(private readonly scene: Phaser.Scene) {
     this.actors = new ActorAnimationDirector(scene);
+    this.impacts = new BattleImpactRenderer(scene);
   }
 
   public registerActor(binding: BattleActorPresentationBinding): void {
@@ -73,14 +77,16 @@ export class BattlePresentationDirector {
   }
 
   public get debugState(): string {
-    if (this.eventHistory.length > 0) return this.eventHistory.join(">");
+    if (this.eventHistory.length > 0) {
+      return `${this.eventHistory.join(">")} | Impacts: ${this.impacts.activeCount} [${this.impacts.debugState}]`;
+    }
     return this.lastEvent === "idle" ? this.actors.state : this.lastEvent;
   }
 
   public get isBusy(): boolean {
     return this.actors.isBusy
       || (!isReducedMotionEnabled()
-        && (this.transientTweens.size > 0 || this.transientTimers.size > 0));
+        && (this.transientTweens.size > 0 || this.transientTimers.size > 0 || this.impacts.activeCount > 0));
   }
 
   public presentAction(presentation: BattleActionPresentation): void {
@@ -109,6 +115,7 @@ export class BattlePresentationDirector {
 
     if (presentation.kind === "defend") {
       this.spawnCue(presentation.actorId, "[DEFEND]", 0x80c8ff);
+      this.spawnImpact(presentation.actorId, "guard", direction, false);
       return;
     }
     if (presentation.kind === "flee") {
@@ -139,12 +146,13 @@ export class BattlePresentationDirector {
       } else {
         this.spawnCue(target.targetId, "[EFFECT]", 0xb69cff);
       }
-      if (
-        presentation.kind === "spell"
-        || presentation.kind === "ability"
-        || presentation.kind === "item"
-      ) {
-        this.spawnParticles(target.targetId, presentation.kind);
+      if (target.hit || target.healing > 0) {
+        const kind: BattleImpactKind = target.healing > 0 || presentation.kind === "item" ? "heal"
+          : presentation.kind === "attack" ? "strike"
+            : presentation.kind === "ability" ? "ability" : "spell";
+        this.spawnImpact(
+          target.targetId, kind, direction, presentation.critical === true && target.damage > 0,
+        );
       }
     }
   }
@@ -196,6 +204,7 @@ export class BattlePresentationDirector {
   }
 
   public cleanup(): void {
+    this.impacts.destroy();
     for (const timer of this.transientTimers) timer.remove(false);
     for (const tween of this.transientTweens) {
       tween.stop();
@@ -253,44 +262,15 @@ export class BattlePresentationDirector {
     this.transientTweens.add(tween);
   }
 
-  private spawnParticles(
+  private spawnImpact(
     actorId: BattleCombatantId,
-    kind: "spell" | "ability" | "item",
+    kind: BattleImpactKind,
+    direction: -1 | 1,
+    critical: boolean,
   ): void {
-    if (isReducedMotionEnabled()) return;
     const sprite = this.getActorSprite(actorId);
     if (!sprite) return;
-    const color = kind === "spell"
-      ? 0x78b7ff
-      : kind === "ability"
-        ? 0xffc65a
-        : 0x8ff0a4;
-    for (let index = 0; index < 8; index += 1) {
-      const angle = (Math.PI * 2 * index) / 8;
-      const particle = this.scene.add.circle(
-        sprite.x,
-        sprite.y,
-        index % 2 === 0 ? 3 : 2,
-        color,
-        0.9,
-      ).setDepth(BATTLE_DEPTH.actionParticles);
-      this.transientObjects.add(particle);
-      const tween = this.scene.tweens.add({
-        targets: particle,
-        x: sprite.x + Math.cos(angle) * 30,
-        y: sprite.y + Math.sin(angle) * 24,
-        alpha: 0,
-        scale: 0.25,
-        duration: 360 + index * 18,
-        ease: "Quad.Out",
-        onComplete: () => {
-          this.transientTweens.delete(tween);
-          this.transientObjects.delete(particle);
-          particle.destroy();
-        },
-      });
-      this.transientTweens.add(tween);
-    }
+    this.impacts.show(actorId, sprite.x, sprite.y, { kind, direction, critical });
   }
 
   private playActionAudio(presentation: BattleActionPresentation): void {

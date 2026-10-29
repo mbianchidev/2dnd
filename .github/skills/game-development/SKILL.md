@@ -22,7 +22,9 @@ and changes spanning scenes, systems, data, renderers, or managers.
 3. Generate reusable textures in `src/renderers/textures.ts`; scene-sized
    procedural Battle scenery belongs in `battleBackdrop.ts`. Synthesize audio
    in `src/systems/audio.ts`; keep area scores/motifs in `data/music.ts` and
-   deterministic phrase/profile resolution in `systems/music.ts`.
+   deterministic bar/profile/party-pressure resolution in `systems/music.ts`.
+   `systems/musicPlayback.ts` owns audio-clock lookahead, bounded voices and
+   independent crossfades; audio variation never consumes gameplay RNG.
    Do not add external assets.
 4. Preserve shared scene state across transitions.
 5. Use `debugLog()` and debug-panel APIs instead of `console.log`.
@@ -217,6 +219,11 @@ and explicit family/frame texture metadata. `src/managers/actorAnimation.ts`
 owns reusable Phaser poses and cleanup; battle/world directors consume resolved
 state without changing mechanics. `src/renderers/actorTextures.ts` supports
 optional family frames from #49 and a generic existing-texture fallback.
+World bindings preserve renderer-owned movement coordinates and facing textures;
+idle breathing uses scale, unbind removes idle tweens, and live reduced motion
+settles pending presentation once. Pixel strike/spell/heal/guard impacts use
+`systems/battleEffects.ts` geometry and `renderers/battleEffects.ts` ownership:
+one Graphics/tween per actor, no more than eight active and no mechanics callbacks.
 
 Tutorial and Tips content lives in `src/data/tutorial.ts` as immutable steps,
 semantic control actions, categories, and unlock requirements.

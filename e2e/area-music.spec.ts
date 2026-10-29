@@ -7,16 +7,25 @@ import { createCurrentSaveData, normalizeSaveData } from "../src/systems/save";
 import { normalizeGamePreferences } from "../src/systems/accessibility";
 import { createWeatherState, WeatherType } from "../src/systems/weather";
 import type { AudioState } from "../src/systems/audio";
+import type { MusicPlaybackSnapshot } from "../src/systems/musicPlayback";
 import { clickLayoutItem, waitForGameInputFrame } from "./helpers/layout";
 import { pressGameKey } from "./helpers/input";
 
 const pageErrors = new WeakMap<Page, string[]>();
 
-async function seedCampaign(page: Page, position: Partial<PlayerPosition> = {}): Promise<void> {
+async function seedCampaign(
+  page: Page,
+  position: Partial<PlayerPosition> = {},
+  health?: { hp: number; maxHp: number },
+): Promise<void> {
   const player = createPlayer("Music Tester", {
     strength: 12, dexterity: 12, constitution: 12, intelligence: 10, wisdom: 10, charisma: 10,
   }, "knight");
   Object.assign(player.position, position);
+  if (health) {
+    player.hp = health.hp;
+    player.maxHp = health.maxHp;
+  }
   player.progression.tutorial.completed = true;
   player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
   player.progression.worldEvents.cooldownRemaining = 100;
@@ -53,6 +62,16 @@ async function readAudio(page: Page): Promise<Pick<AudioState, "trackKind" | "tr
       await import(new URL("src/systems/audio.ts", document.baseURI).href);
     const { trackKind, trackId, nightMode } = audioEngine.state;
     return { trackKind, trackId, nightMode };
+  });
+}
+
+async function readPlayback(page: Page): Promise<MusicPlaybackSnapshot> {
+  return page.evaluate(async () => {
+    const { audioEngine }: typeof import("../src/systems/audio") =
+      await import(new URL("src/systems/audio.ts", document.baseURI).href);
+    const snapshot = audioEngine.musicPlaybackState;
+    if (!snapshot) throw new Error("Music playback was not initialized by the title gesture.");
+    return snapshot;
   });
 }
 
@@ -159,4 +178,45 @@ test("a named city shop retains its canonical city score and restores it on retu
   await pressGameKey(page, "Escape");
   await expect(page.locator("#game-container canvas")).toHaveAttribute("data-layout-scene", "OverworldScene");
   await expect.poll(() => readAudio(page)).toMatchObject({ trackId: "Willowdale_day" });
+});
+
+test("the area motif develops while weather changes without restarting or leaking voices", async ({ page }) => {
+  await seedCampaign(page);
+  await expect.poll(async () => (await readPlayback(page)).bar).toBeGreaterThanOrEqual(1);
+  const before = await readPlayback(page);
+  await debugCommand(page, "/weather storm");
+  await expect.poll(() => readAudio(page)).toMatchObject({ trackId: "Rolling_day" });
+  const storm = await readPlayback(page);
+  expect(storm.weather).toBe(WeatherType.Storm);
+  expect(storm.bar).toBeGreaterThanOrEqual(before.bar);
+  await expect.poll(async () => (await readPlayback(page)).section, { timeout: 20_000 })
+    .toBe("answer");
+  for (let sample = 0; sample < 8; sample++) {
+    const playback = await readPlayback(page);
+    expect(playback.activeTracks).toBe(1);
+    expect(playback.activeVoices).toBeLessThanOrEqual(24);
+    expect(playback.scheduling).toBe(true);
+    await waitForGameInputFrame(page);
+  }
+  await debugCommand(page, "/audio stop");
+  await expect.poll(() => readPlayback(page)).toMatchObject({
+    activeVoices: 0, activeTracks: 0, scheduling: false,
+  });
+  await waitForGameInputFrame(page);
+  expect((await readPlayback(page)).activeVoices).toBe(0);
+});
+
+test("battle orchestration follows actual party damage and resets on exploration return", async ({ page }) => {
+  await seedCampaign(page, {}, { hp: 25, maxHp: 100 });
+  await debugCommand(page, "/spawn slime");
+  await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+  const before = await readPlayback(page);
+  expect(before.pressure).toBeGreaterThanOrEqual(0.75);
+  await clickLayoutItem(page, "battle-action-defend");
+  await expect.poll(async () => (await readPlayback(page)).pressure)
+    .toBeGreaterThan(before.pressure);
+  await debugCommand(page, "/kill");
+  await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+  await expect.poll(() => readAudio(page)).toMatchObject({ trackId: "Rolling_day" });
+  await expect.poll(() => readPlayback(page)).toMatchObject({ pressure: 0, activeTracks: 1 });
 });

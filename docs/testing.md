@@ -65,6 +65,10 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - original Standard golden mechanics, every Custom bound, once-only scale
   composition, and per-mode campaign/boss/economy/sea/defeat/save/eligibility
 - transition contracts with mocked camera/time adapters
+- audio-clock scheduling, evolving arrangements, weather/party-pressure layers,
+  bounded voices, crossfade/ambient/trap cleanup and isolated audio randomness
+- movement/facing ownership, live reduced-motion settlement, bounded procedural
+  impact geometry and one-object/one-tween burst lifecycle with stale callbacks
 - Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
 
 Native icon tests execute the actual generator in an owned temporary directory
@@ -110,7 +114,8 @@ The `e2e/*.spec.ts` suites own real browser behavior:
 - actor animation, current-player cutscene visuals, Battle backdrops, cleanup,
   screenshots, and page/console errors
 - area music on actual region crossings with unchanged weather, city/dungeon
-  entry, canonical named-shop music, day/night and battle/interior return
+  entry, canonical named-shop music, day/night and battle/interior return,
+  phrase development, weather adaptation and real damage-driven battle pressure
 - whole-city visibility on real entry/reload, direct archery-target/dice-player
   interaction, and recognizable canonical NPC/boss cutscene art
 - exact resolved dice, hidden-information redaction, disadvantage/auto-hit,

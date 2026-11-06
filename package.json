@@ -169,7 +169,9 @@
     "@electron/asar": "4.2.1",
     "@electron/get": "5.1.0",
     "fast-uri": "3.1.9",
-    "minimatch@10": {
+    "glob@>=9.0.0 <14.0.2": "14.0.2",
+    "minimatch@>=7.0.0 <11.0.1": {
+      ".": "11.0.1",
       "brace-expansion": "5.0.12"
     }
   },

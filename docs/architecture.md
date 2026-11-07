@@ -14,7 +14,7 @@
 | Vitest | 5.0.5 |
 | Playwright | 1.64.1 |
 | happy-dom | 21.0.4 |
-| Electron | 45.0.0 |
+| Electron | 45.1.0 |
 | electron-builder | 26.18.0 |
 | Campaign save schema | 27 |
 

@@ -127,7 +127,13 @@ without changing the pixels; regenerating them must not dirty reviewed source.
 Pinned `allowScripts` entries approve only Electron's requested `fsevents`
 versions and the reviewed `electron-winstaller` setup script. `.npmrc` omits
 the unused Squirrel peer from installation, while exact ASAR, URI, and
-brace-expansion overrides pin reviewed transitive releases.
+glob/minimatch/brace-expansion overrides pin reviewed transitive releases.
+
+Scoped glob 14.0.2 and minimatch 11.0.1 overrides address
+GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249 without downgrading the builder.
+Only affected modern ranges are replaced; legacy glob 7 and minimatch 3/5
+consumers retain their existing APIs. Keep the brace-expansion 5.0.12 pin
+for the modern matcher and verify ASAR/archive behavior in the platform matrix.
 
 The `@electron/get` 5.1.0 override shares Electron's native fetch-based
 downloader with the builder on the selected Node.js toolchain, removing the

@@ -75,6 +75,8 @@ task. Change dependencies only when the feature requires it, keep
 Review install scripts with `npm install-scripts ls`. Keep approvals pinned to
 the exact reviewed versions, omit unused packaging peers, and do not suppress
 deprecation warnings with incompatible major-version overrides.
+Scope security overrides to affected dependency ranges so older API consumers
+remain compatible; see [Desktop packaging](desktop.md#packaging).
 
 Electron development uses `npm run dev:desktop`. Keep preload single-file for
 Chromium sandbox compatibility, expose only narrow typed IPC, and load

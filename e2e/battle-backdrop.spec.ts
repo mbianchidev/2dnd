@@ -156,24 +156,24 @@ async function expectCanvasSnapshot(
   name: string,
 ): Promise<void> {
   const canvas = page.locator("#game-container canvas");
-  const originalStyle = await canvas.getAttribute("style");
-  await canvas.evaluate((element, dimensions) => {
-    for (const [property, value] of Object.entries({
-      position: "fixed", left: "0px", top: "0px", right: "auto", bottom: "auto", margin: "0",
-      width: `${dimensions.width}px`, height: `${dimensions.height}px`,
-      transform: "none", "max-width": "none", "max-height": "none", "z-index": "2147483647",
-    })) element.style.setProperty(property, value, "important");
-  }, { width: GAME_WIDTH, height: GAME_HEIGHT });
+  const captureStyle = await page.addStyleTag({ content: `
+    #game-container canvas {
+      position: fixed !important;
+      left: 0 !important; top: 0 !important; right: auto !important; bottom: auto !important;
+      width: ${GAME_WIDTH}px !important; height: ${GAME_HEIGHT}px !important;
+      margin: 0 !important; transform: none !important;
+      max-width: none !important; max-height: none !important; z-index: 2147483647 !important;
+    }
+  ` });
   try {
+    await expect(canvas).toHaveCSS("width", `${GAME_WIDTH}px`);
+    await expect(canvas).toHaveCSS("height", `${GAME_HEIGHT}px`);
     await expect(canvas).toHaveScreenshot(name, {
       animations: "disabled",
       maxDiffPixelRatio: 0.05,
     });
   } finally {
-    await canvas.evaluate((element, style) => {
-      if (style === null) element.removeAttribute("style");
-      else element.setAttribute("style", style);
-    }, originalStyle);
+    await captureStyle.evaluate((element) => element.remove());
   }
 }
 

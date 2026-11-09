@@ -155,10 +155,26 @@ async function expectCanvasSnapshot(
   page: Page,
   name: string,
 ): Promise<void> {
-  await expect(page.locator("#game-container canvas")).toHaveScreenshot(name, {
-    animations: "disabled",
-    maxDiffPixelRatio: 0.05,
-  });
+  const canvas = page.locator("#game-container canvas");
+  const originalStyle = await canvas.getAttribute("style");
+  await canvas.evaluate((element, dimensions) => {
+    for (const [property, value] of Object.entries({
+      position: "fixed", left: "0px", top: "0px", right: "auto", bottom: "auto", margin: "0",
+      width: `${dimensions.width}px`, height: `${dimensions.height}px`,
+      transform: "none", "max-width": "none", "max-height": "none", "z-index": "2147483647",
+    })) element.style.setProperty(property, value, "important");
+  }, { width: GAME_WIDTH, height: GAME_HEIGHT });
+  try {
+    await expect(canvas).toHaveScreenshot(name, {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.05,
+    });
+  } finally {
+    await canvas.evaluate((element, style) => {
+      if (style === null) element.removeAttribute("style");
+      else element.setAttribute("style", style);
+    }, originalStyle);
+  }
 }
 
 async function finishBattle(page: Page): Promise<void> {

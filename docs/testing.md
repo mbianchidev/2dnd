@@ -102,6 +102,9 @@ Pure raster, footprint, guarded claim/study and minimap-redaction suites keep
 Phaser and gameplay RNG out of the corresponding mechanics.
 Battle canvas references use compositor screenshots rather than WebGL
 `toDataURL()` reads, which can return a discarded, entirely black back buffer.
+Capture those references at the intrinsic 640x528 size with an integer viewport
+anchor, then restore FIT styles. Fractional platform-specific FIT bounds must
+not change the snapshot dimensions or be hidden by looser pixel tolerances.
 NG+ journeys enter the real inn doorway, walk to its counter and pay for normal
 party recovery. `stepGameTile()` holds through movement cooldowns and releases
 inside the renderer on the accepted tile, then waits for movement to settle.

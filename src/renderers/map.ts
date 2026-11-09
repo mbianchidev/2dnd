@@ -911,7 +911,8 @@ export class MapRenderer {
 
   private renderWorldCityLandmarks(player: PlayerState, isExplored: (x: number, y: number) => boolean): void {
     for (const city of this.worldCities.render(player, isExplored)) {
-      const id = `world-city-name-${city.id}`;
+      const island = getSecretIslands(player.newGamePlus).find((candidate) => candidate.cityId === city.id);
+      const id = island ? `island-name-${island.id}` : `town-name-${city.tileX}-${city.tileY}`;
       if (this.labelRows.some((row) => row.id === id)) continue;
       const top = city.tileY - getWorldCityArtProfile(city.id).rows + 1;
       const label = this.scene.add.text(

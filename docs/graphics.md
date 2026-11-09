@@ -63,6 +63,7 @@ beacons, causeways, a lighthouse and an observatory.
 `renderers/worldCities.ts` shares those textures between exploration and both
 atlas zoom levels. It draws only explored footprint cells after the canonical
 gate is explored. Movement reveals use the same path as initial rendering.
+Existing town and secret-island label IDs remain stable for discovery inspection.
 These are cartographic extents, not extra entrances or building collision:
 the existing gate tile, route, quest barrier, walkability and boat/dock checks
 remain authoritative. Starfall keeps its ordinary Water terrain and does not

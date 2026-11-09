@@ -3,6 +3,7 @@ import { CUTSCENE_PALETTES, CUTSCENE_SCENERY } from "../data/cutsceneScenery";
 import { createSeededRandom, hashString } from "../utils/seededRandom";
 import type { CutsceneBackdrop, CutsceneId } from "../data/cutscenes";
 import type { CutsceneSceneryDefinition, CutsceneSceneryPalette } from "../data/cutsceneScenery";
+import { artNoise, mixPixelColors as mixColor, shadePixelColor } from "./pixelArt";
 
 export type SceneryLayer = "sky" | "distant" | "ground" | "landmark" | "foreground";
 
@@ -230,6 +231,14 @@ class SceneryBuilder {
       }
     }
     this.rect(mixColor(c.ground, 0x111a26, 0.5), LEFT, 337, RIGHT - LEFT, GAME_HEIGHT - 273);
+    for (let index = 0; index < 112; index++) {
+      const x = LEFT + artNoise(index, 41) % (RIGHT - LEFT);
+      const y = 242 + artNoise(19, index) % 90;
+      const color = water ? c.water : c.ground;
+      const width = water ? 8 + index % 20 : 2 + index % 5;
+      this.rect(shadePixelColor(color, index % 2 ? 18 : -16), x, y, width, 2, 0.65);
+      if (!water && !this.indoor && index % 5 === 0) this.rect(c.foliage, x + 2, y - 2, 2, 4, 0.7);
+    }
   }
 
   private drawLandmark(): void {
@@ -575,10 +584,4 @@ class SceneryBuilder {
     const dy = (x2 - x1) / length * width / 2;
     this.polygon(color, [[x1 - dx, y1 + dy], [x2 - dx, y2 + dy], [x2 + dx, y2 - dy], [x1 + dx, y1 - dy]], alpha);
   }
-}
-
-function mixColor(from: number, to: number, amount: number): number {
-  const channel = (shift: number): number =>
-    Math.round(((from >> shift) & 255) * (1 - amount) + ((to >> shift) & 255) * amount);
-  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
 }

@@ -14,6 +14,13 @@ Write comprehensive game-mechanics tests with Vitest. Use the committed
 Playwright suite only for high-value Phaser browser flows that cannot be proven
 through pure logic tests.
 
+`appearance.test.ts` covers each visible cosmetic axis, distinct hair silhouettes,
+texture identities and schema-v28/v27 round trips. `uiTheme.test.ts` verifies
+local typography, contrast, original icons and shared raster geometry.
+`visual-overhaul.spec.ts` exercises all appearance categories at every text scale
+on desktop/mobile, real facade entry/exit, closed residences and spatial menus.
+Keep the 512-primitive Cutscene plan budget and one-buffer/depth invariants.
+
 Battle grounding tests cover every family/boss and all pose frames. Use
 `data-battle-grounding` to sample actual visible foot/shadow contact during real
 actions, not just sprite centers. Grounded actors never hover, lift or tilt;

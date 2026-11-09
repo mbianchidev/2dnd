@@ -84,8 +84,11 @@ import { createBattleTimingSettingsOverlay } from "./battleTimingSettings";
 import { subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
 import {
   layoutResponsiveGrid,
+  moveGridSelection,
   restoreLayoutFocus,
+  type GridNavigationDirection,
 } from "../systems/layout";
+import { UI_COLORS, UI_CSS } from "../systems/uiTheme";
 import { TILE_SIZE, debugLog } from "../config";
 import {
   getQuestAccessDecision,
@@ -1222,25 +1225,13 @@ export class OverlayManager {
 
   private readonly handleMenuKeyDown = (event: KeyboardEvent): void => {
     if (!this.menuOverlay || this.menuEntries.length === 0) return;
-    if (
-      event.key === "ArrowUp"
-      || event.key === "w"
-      || event.key === "W"
-    ) {
-      this.menuSelectedIndex = (
-        this.menuSelectedIndex - 1 + this.menuEntries.length
-      ) % this.menuEntries.length;
-      this.updateMenuSelection();
-      event.preventDefault();
-      return;
-    }
-    if (
-      event.key === "ArrowDown"
-      || event.key === "s"
-      || event.key === "S"
-    ) {
-      this.menuSelectedIndex =
-        (this.menuSelectedIndex + 1) % this.menuEntries.length;
+    const directions: Readonly<Record<string, GridNavigationDirection | undefined>> = {
+      ArrowUp: "up", w: "up", W: "up", ArrowDown: "down", s: "down", S: "down",
+      ArrowLeft: "left", a: "left", A: "left", ArrowRight: "right", d: "right", D: "right",
+    };
+    const direction = directions[event.key];
+    if (direction) {
+      this.menuSelectedIndex = moveGridSelection(this.menuSelectedIndex, this.menuEntries.length, 2, direction);
       this.updateMenuSelection();
       event.preventDefault();
       return;
@@ -1277,8 +1268,9 @@ export class OverlayManager {
         `${index === this.menuSelectedIndex ? "▶ " : "  "}${entry.label}`,
       );
       button.setColor(
-        index === this.menuSelectedIndex ? "#ffffff" : entry.color,
+        index === this.menuSelectedIndex ? UI_CSS.gold : UI_CSS.text,
       );
+      button.setBackgroundColor(index === this.menuSelectedIndex ? UI_CSS.selected : UI_CSS.raised);
     });
     this.reflowMenu?.();
   }
@@ -1480,7 +1472,7 @@ export class OverlayManager {
     const boxY = (MAP_HEIGHT * TILE_SIZE - boxH) / 2;
 
     const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillStyle(UI_COLORS.panel, 0.94);
     bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
     bg.lineStyle(2, 0xc0a060, 1);
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
@@ -1620,7 +1612,7 @@ export class OverlayManager {
     const py = (h - panelH) / 2;
 
     const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a3e, 0.95);
+    bg.fillStyle(UI_COLORS.panel, 0.94);
     bg.fillRoundedRect(px, py, panelW, panelH, 8);
     bg.lineStyle(2, 0xffd700, 1);
     bg.strokeRoundedRect(px, py, panelW, panelH, 8);
@@ -1746,7 +1738,7 @@ export class OverlayManager {
     const boxY = (MAP_HEIGHT * TILE_SIZE - boxH) / 2;
 
     const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillStyle(UI_COLORS.panel, 0.94);
     bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
     bg.lineStyle(2, 0xc0a060, 1);
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
@@ -1967,10 +1959,10 @@ export class OverlayManager {
         chunkBg.fillStyle(0x2a4a2e, 0.9);
         chunkBg.lineStyle(2, 0x88ff88, 1);
       } else if (discovered) {
-        chunkBg.fillStyle(0x2a2a4e, 0.8);
+        chunkBg.fillStyle(UI_COLORS.raised, 0.8);
         chunkBg.lineStyle(1, 0x6666aa, 0.8);
       } else {
-        chunkBg.fillStyle(0x1a1a2e, 0.6);
+        chunkBg.fillStyle(UI_COLORS.panel, 0.6);
         chunkBg.lineStyle(1, 0x444444, 0.6);
       }
       chunkBg.fillRoundedRect(boxX, cy, boxW, boxH, 6);
@@ -2014,7 +2006,7 @@ export class OverlayManager {
         });
         chunkBg.on("pointerout", () => {
           chunkBg.clear();
-          chunkBg.fillStyle(0x2a2a4e, 0.8);
+          chunkBg.fillStyle(UI_COLORS.raised, 0.8);
           chunkBg.lineStyle(1, 0x6666aa, 0.8);
           chunkBg.fillRoundedRect(boxX, cy, boxW, boxH, 6);
           chunkBg.strokeRoundedRect(boxX, cy, boxW, boxH, 6);

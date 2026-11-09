@@ -43,6 +43,7 @@ import { BattleBodyTargetManager } from "./battleBodyTarget";
 import { paginateMeasuredItems } from "../systems/layout";
 import { createOverlayContainer, setOverlayViewport } from "../utils/ui";
 import { layoutTextStack, syncInteractiveHitArea } from "./layout";
+import { UI_COLORS } from "../systems/uiTheme";
 
 interface BattlePartyCallbacks {
   present(result: ResolvedBattleAction): void;
@@ -585,7 +586,7 @@ export class BattlePartyManager {
     const x = this.scene.cameras.main.width - width - 10;
     const y = Math.max(10, this.scene.cameras.main.height - height - 10);
     container.setPosition(x, y);
-    background.fillStyle(0x121a2e, 0.97).fillRoundedRect(0, 0, width, height, 6);
+    background.fillStyle(UI_COLORS.panel, 0.94).fillRoundedRect(0, 0, width, height, 6);
     background.lineStyle(1, 0xc0a060, 1).strokeRoundedRect(0, 0, width, height, 6);
     setOverlayViewport(this.scene, "battle-companion-menu", { x, y, width, height });
     this.menu = container;

@@ -149,7 +149,19 @@ export interface CityShopData {
 
 export type InteriorPropKind =
   | "bookshelf" | "book" | "sack" | "pantry" | "table" | "bed"
-  | "hearth" | "counter" | "rack" | "plant" | "rug";
+  | "hearth" | "counter" | "rack" | "plant" | "rug"
+  | "window" | "painting" | "candle" | "chair" | "barrel";
+
+export interface CityBuildingData {
+  readonly id: string;
+  readonly kind: "library" | "home" | "residence";
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  /** Closed residences have no connection, interaction or pointer target. */
+  readonly door?: { readonly x: number; readonly y: number };
+}
 
 export interface InteriorPropData {
   readonly id: string;
@@ -190,6 +202,7 @@ export interface CityChunk {
   spawnY: number;
   /** Shops within this chunk. */
   shops: CityShopData[];
+  buildings?: readonly CityBuildingData[];
   /** Immutable room metadata; position still uses the existing city chunk contract. */
   interior?: CityInteriorData;
 }
@@ -217,6 +230,7 @@ export interface CityData {
   spawnY: number;
   /** Shops in the primary chunk (chunk index 0). */
   shops: CityShopData[];
+  buildings?: readonly CityBuildingData[];
   /**
    * Additional city chunks (districts). Index 0 is always the primary chunk
    * derived from mapData/spawnX/spawnY/shops above. Extra chunks start at

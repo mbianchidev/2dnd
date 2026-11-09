@@ -2,6 +2,7 @@ import type { HeroFacing, HeroPose, HeroVisualDescriptor } from "./heroVisuals";
 import type { WeaponSpriteType } from "../data/items";
 import type { PlayerClass } from "./classes";
 import { PixelSurface, shadePixelColor as shade } from "./pixelArt";
+import type { AppearanceAccessory, BodyBuild } from "./appearance";
 
 export const CHARACTER_ART_WIDTH = 32;
 export const CHARACTER_ART_HEIGHT = 40;
@@ -20,6 +21,12 @@ export interface HumanoidArtOptions {
   readonly facing?: HeroFacing;
   readonly pose?: CharacterArtPose;
   readonly broad?: boolean;
+  readonly bodyBuild?: BodyBuild;
+  readonly eyeColor?: number;
+  readonly facialHair?: number;
+  readonly accentColor?: number;
+  readonly accessory?: AppearanceAccessory;
+  readonly headwear?: boolean;
 }
 
 function drawWeapon(art: PixelSurface, family: string, color: number, accent: number, pose: CharacterArtPose, left = false): void {
@@ -71,9 +78,12 @@ export function createHumanoidArt(options: HumanoidArtOptions): PixelSurface {
   const outline = 0x283039;
   const body = options.bodyColor;
   const skin = options.skinColor;
+  const accent = options.accentColor ?? 0xe5c781;
   const side = facing === "side";
-  const left = options.broad ? 7 : side ? 11 : 9;
-  const right = options.broad ? 24 : side ? 21 : 22;
+  const broad = options.bodyBuild === "broad" || options.broad;
+  const light = options.bodyBuild === "light";
+  const left = broad ? 7 : side ? 11 : light ? 10 : 9;
+  const right = broad ? 24 : side ? 21 : light ? 21 : 22;
   const stride = pose === "strideLeft" ? -2 : pose === "strideRight" ? 2 : 0;
   const cloak = options.clothingStyle === "robe" || options.clothingStyle === "vestment" || options.clothingStyle === "performer";
   if (cloak) {
@@ -105,7 +115,7 @@ export function createHumanoidArt(options: HumanoidArtOptions): PixelSurface {
   art.volume(left - 1, handY + stride, 2, 2, skin, outline);
   art.volume(right + 1, handY - stride, 2, 2, skin, outline);
   art.rect(left + 1, 26, right - left - 1, 2, 0x69513d);
-  art.rect(15, 26, 3, 2, 0xe5c781);
+  art.rect(15, 26, 3, 2, accent);
   if (options.clothingStyle === "heavy") {
     art.volume(left, 18, 4, 3, shade(body, 40), outline);
     art.volume(right, 18, 4, 3, shade(body, 20), outline);
@@ -136,16 +146,16 @@ export function createHumanoidArt(options: HumanoidArtOptions): PixelSurface {
       if (!side) art.line(18, 10, 20, 10, outline);
     } else {
       art.rect(side ? 19 : 12, 9, 2, 3, 0xf0e4c8);
-      art.pixel(side ? 20 : 13, 10, outline);
+      art.pixel(side ? 20 : 13, 10, options.eyeColor ?? outline);
       if (!side) {
         art.rect(18, 9, 2, 3, 0xf0e4c8);
-        art.pixel(18, 10, outline);
+        art.pixel(18, 10, options.eyeColor ?? outline);
       }
     }
     art.pixel(side ? 22 : 16, 12, shade(skin, -40));
     art.line(side ? 19 : 14, 14, side ? 21 : 17, 14, 0x80594e);
   }
-  if (options.hairStyle > 0 || facing === "back") {
+  if ((options.hairStyle > 0 && options.hairStyle < 4) || facing === "back") {
     const hair = options.hairStyle === 0 ? shade(skin, -24) : options.hairColor;
     art.polygon([{ x: side ? 12 : 9, y: 7 }, { x: 12, y: 3 }, { x: 20, y: 3 },
       { x: 23, y: 7 }, { x: 21, y: facing === "back" ? 14 : 8 },
@@ -154,18 +164,60 @@ export function createHumanoidArt(options: HumanoidArtOptions): PixelSurface {
     if (options.hairStyle > 1) art.rect(9, 7, 3, options.hairStyle === 3 ? 13 : 6, shade(hair, -16));
     if (options.hairStyle === 3 && !side) art.rect(21, 7, 3, 13, hair);
   }
-  if (options.classId === "wizard") {
+  const hair = options.hairColor;
+  if (options.hairStyle === 4) {
+    for (const [x, y] of [[10, 7], [13, 4], [18, 4], [22, 7]]) art.volume(x!, y!, 3, 3, hair, shade(hair, -25));
+  } else if (options.hairStyle === 5) {
+    art.rect(10, 4, 13, 4, hair);
+    for (const x of [9, 22]) for (let y = 8; y < 22; y += 3) {
+      art.rect(x, y, 3, 3, shade(hair, y % 2 ? 18 : -16));
+      art.pixel(x + 1, y + 2, accent);
+    }
+  } else if (options.hairStyle === 6) {
+    art.rect(10, 4, 13, 4, hair);
+    art.rect(side ? 10 : 22, 8, 4, 12, shade(hair, -12));
+    art.rect(side ? 9 : 22, 8, 5, 2, accent);
+  } else if (options.hairStyle === 7) {
+    art.rect(14, 1, 5, 7, hair);
+    art.rect(15, 0, 3, 2, shade(hair, 29));
+    art.rect(14, 7, 4, 2, shade(hair, -20));
+  } else if (options.hairStyle === 8) {
+    art.rect(11, 4, 11, 3, hair);
+    art.line(12, 4, 20, 4, shade(hair, 26));
+  }
+  if (facing !== "back" && options.facialHair) {
+    const x = side ? 18 : 12;
+    if (options.facialHair === 2) {
+      art.polygon([{ x, y: 13 }, { x: x + 8, y: 13 }, { x: x + 6, y: 19 }, { x: x + 2, y: 18 }], hair);
+      art.line(x + 1, 15, x + 6, 15, shade(hair, 25));
+    } else if (options.facialHair === 3) {
+      art.rect(x, 13, 8, 2, hair);
+      art.pixel(x - 1, 14, hair);
+    } else {
+      for (let index = 0; index < 5; index++) art.pixel(x + index * 2, 15 + index % 2, shade(hair, 20));
+    }
+  }
+  if (facing !== "back" && options.accessory === "spectacles") {
+    for (const x of side ? [18] : [11, 18]) {
+      art.rect(x, 8, 5, 5, accent);
+      art.rect(x + 1, 9, 3, 3, 0x9caeaa);
+    }
+    if (!side) art.rect(15, 9, 3, 1, accent);
+  } else if (facing !== "back" && options.accessory === "earring") {
+    art.rect(side ? 12 : 22, 12, 2, 3, accent);
+  }
+  if (options.headwear !== false && options.classId === "wizard") {
     art.polygon([{ x: 8, y: 7 }, { x: 16, y: 0 }, { x: 22, y: 7 }], shade(body, -20));
     art.rect(7, 7, 18, 2, body);
     art.rect(12, 5, 7, 1, 0xdac183);
-  } else if (options.classId === "warlock" || options.classId === "rogue") {
+  } else if (options.headwear !== false && (options.classId === "warlock" || options.classId === "rogue")) {
     art.line(9, 6, 12, 2, shade(body, -16), 2);
     art.line(12, 2, 20, 2, body, 2);
     art.line(21, 3, 23, 8, shade(body, -26), 2);
-  } else if (options.classId === "ranger" || options.classId === "bard") {
+  } else if (options.headwear !== false && (options.classId === "ranger" || options.classId === "bard")) {
     art.rect(9, 4, 13, 3, shade(body, -20));
     art.line(21, 4, 25, 0, 0xdcc79d, 2);
-  } else if (options.classId === "monk") {
+  } else if (options.headwear !== false && options.classId === "monk") {
     art.rect(10, 6, 13, 2, 0xe5c581);
     art.line(21, 7, 26, 12, body, 2);
   }
@@ -193,7 +245,10 @@ export function createHeroArt(descriptor: HeroVisualDescriptor, facing: HeroFaci
     bodyColor: descriptor.bodyColor, legColor: descriptor.legColor,
     skinColor: descriptor.appearance.skinColor, hairColor: descriptor.appearance.hairColor,
     hairStyle: descriptor.appearance.hairStyle, clothingStyle: descriptor.clothingStyle,
-    classId: descriptor.classId, facing, pose, broad: descriptor.bodyBuild === "broad",
+    classId: descriptor.classId, facing, pose, bodyBuild: descriptor.bodyBuild,
+    eyeColor: descriptor.appearance.eyeColor, facialHair: descriptor.appearance.facialHair,
+    accentColor: descriptor.appearance.accentColor, accessory: descriptor.appearance.accessory,
+    headwear: descriptor.appearance.headwear,
   });
   const art = new PixelSurface(32, 40);
   const back = descriptor.equipmentLayers.find((layer) => layer.slot === "back");

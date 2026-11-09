@@ -6,8 +6,10 @@ import {
   type PlayerClass,
 } from "./classes";
 import type { PlayerState } from "./player";
+import { getClassBodyBuild, HAIR_STYLE_OPTIONS } from "./appearance";
+import type { AppearanceAccessory, BodyBuild, CustomAppearance } from "./appearance";
 
-export type HeroBodyBuild = "light" | "standard" | "broad";
+export type HeroBodyBuild = BodyBuild;
 export type HeroFacing = "front" | "back" | "side";
 export type HeroPose = "standard" | "mounted" | "strideLeft" | "strideRight";
 export type HeroEquipmentVisualSlot =
@@ -35,6 +37,11 @@ export interface HeroAppearanceVisual {
   readonly skinColor: number;
   readonly hairStyle: number;
   readonly hairColor: number;
+  readonly eyeColor: number;
+  readonly facialHair: number;
+  readonly accentColor: number;
+  readonly accessory: AppearanceAccessory;
+  readonly headwear: boolean;
 }
 
 export interface HeroEquipmentVisualLayer {
@@ -63,11 +70,7 @@ export interface HeroVisualDescriptor {
 
 export interface HeroVisualSource {
   readonly appearanceId: string;
-  readonly customAppearance?: {
-    readonly skinColor: number;
-    readonly hairStyle: number;
-    readonly hairColor: number;
-  };
+  readonly customAppearance?: Readonly<CustomAppearance>;
   readonly equippedWeapon: Item | null;
   readonly equippedOffHand: Item | null;
   readonly equippedArmor: Item | null;
@@ -142,7 +145,7 @@ function clampColor(value: number, fallback: number): number {
 }
 
 function clampHairStyle(value: number): number {
-  return Number.isInteger(value) ? Math.max(0, Math.min(3, value)) : 0;
+  return Number.isInteger(value) ? Math.max(0, Math.min(HAIR_STYLE_OPTIONS.length - 1, value)) : 0;
 }
 
 function shade(color: number, amount: number): number {
@@ -170,23 +173,6 @@ function stableItemColor(item: Item): number {
     hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
   }
   return ITEM_PALETTE[Math.abs(hash) % ITEM_PALETTE.length]!;
-}
-
-function resolveBodyBuild(playerClass: PlayerClass): HeroBodyBuild {
-  if (
-    playerClass.clothingStyle === "heavy"
-    || playerClass.clothingStyle === "bare"
-  ) {
-    return "broad";
-  }
-  if (
-    playerClass.clothingStyle === "leather"
-    || playerClass.clothingStyle === "wrap"
-    || playerClass.clothingStyle === "performer"
-  ) {
-    return "light";
-  }
-  return "standard";
 }
 
 function resolveArmorFamily(item: Item): {
@@ -331,9 +317,10 @@ export function resolveHeroVisualDescriptor(
     classId: playerClass.id,
     classLabel: playerClass.label,
     clothingStyle: playerClass.clothingStyle,
-    bodyBuild: resolveBodyBuild(playerClass),
-    bodyColor: clampColor(playerClass.bodyColor, 0x3f51b5),
-    legColor: clampColor(playerClass.legColor, 0x1a237e),
+    bodyBuild: customAppearance?.bodyBuild === "light" || customAppearance?.bodyBuild === "broad"
+      || customAppearance?.bodyBuild === "standard" ? customAppearance.bodyBuild : getClassBodyBuild(playerClass),
+    bodyColor: clampColor(customAppearance?.outfitColor ?? playerClass.bodyColor, playerClass.bodyColor),
+    legColor: clampColor(customAppearance?.legColor ?? playerClass.legColor, playerClass.legColor),
     appearance: {
       skinColor: clampColor(
         customAppearance?.skinColor ?? playerClass.skinColor,
@@ -344,6 +331,13 @@ export function resolveHeroVisualDescriptor(
         customAppearance?.hairColor ?? shade(playerClass.skinColor, -80),
         shade(playerClass.skinColor, -80),
       ),
+      eyeColor: clampColor(customAppearance?.eyeColor ?? 0x283039, 0x283039),
+      facialHair: Number.isInteger(customAppearance?.facialHair)
+        ? Math.max(0, Math.min(3, customAppearance?.facialHair ?? 0)) : 0,
+      accentColor: clampColor(customAppearance?.accentColor ?? 0xe5c781, 0xe5c781),
+      accessory: customAppearance?.accessory === "earring" || customAppearance?.accessory === "spectacles"
+        ? customAppearance.accessory : "none",
+      headwear: customAppearance?.headwear !== false,
     },
     equipmentLayers,
   };
@@ -385,6 +379,11 @@ export function getHeroVisualTextureKey(
     colorKey(appearance.skinColor),
     String(appearance.hairStyle),
     colorKey(appearance.hairColor),
+    colorKey(appearance.eyeColor),
+    String(appearance.facialHair),
+    colorKey(appearance.accentColor),
+    appearance.accessory,
+    appearance.headwear ? "headwear" : "uncovered",
     layerKey,
   ].join(":");
 }

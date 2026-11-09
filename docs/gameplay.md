@@ -70,6 +70,11 @@ Character creation follows:
 
 **Name -> Class -> Stats -> Appearance -> Adventure**
 
+- Appearance offers hair/skin, facial features, clothing colors and accessories
+  in four categories. Use Tab or the category controls to switch; up/down
+  selects a row and left/right changes its option. The portrait previews front,
+  side and back views. All appearance choices are cosmetic, including build and
+  class headwear; they never change your class or statistics.
 - **Campaign Rules** on Appearance chooses Story, Standard, Veteran, Legendary,
   or constrained Custom. Standard is the original mechanics. Settings and the
   character sheet show all effects and eligibility; see

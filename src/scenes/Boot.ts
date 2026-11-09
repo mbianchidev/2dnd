@@ -6,6 +6,8 @@ import * as Phaser from "phaser";
 import { installDicePresentation } from "../managers/dicePresentation";
 import { generateAllTextures } from "../renderers/textures";
 import { renderCharacterStatsPanel } from "../renderers/characterStats";
+import { createCreationBackdrop } from "../renderers/creationChrome";
+import { UI_COLORS } from "../systems/uiTheme";
 import { PLAYER_CLASSES, type PlayerClass } from "../systems/classes";
 import type { CustomAppearance } from "../systems/appearance";
 import { CharacterAppearanceManager, type CharacterCreationControlHandlers } from "../managers/characterAppearance";
@@ -54,6 +56,7 @@ import {
   createDimGraphics,
   createOverlayContainer,
   createPanelGraphics,
+  paintPanel,
 } from "../utils/ui";
 import {
   moveGridSelection,
@@ -168,11 +171,13 @@ export class BootScene extends Phaser.Scene {
       ["keydown-RIGHT", handlers.right, true],
       ["keydown-ENTER", handlers.confirm, false],
       ["keydown-ESC", handlers.cancel, false],
+      ["keydown-TAB", () => handlers.tab?.(), false],
     ];
     for (const [eventName, handler, repeatable] of bindings) {
       keyboard.on(eventName, (event: KeyboardEvent) => {
         if (this.difficultyManager?.isOpen()) return;
         if (event.timeStamp <= boundAt || (!repeatable && event.repeat)) return;
+        if (eventName === "keydown-TAB") event.preventDefault();
         handler();
       });
     }
@@ -186,13 +191,14 @@ export class BootScene extends Phaser.Scene {
     this.titleMenuManager = null;
     this.saveSlotManager.close();
     this.children.removeAll(true);
+    createCreationBackdrop(this);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();
     this.updateTitleDebugState();
     const cx = this.cameras.main.centerX;
     const cy = this.cameras.main.centerY;
 
-    this.cameras.main.setBackgroundColor(0x0a0a1a);
+    this.cameras.main.setBackgroundColor(UI_COLORS.backdrop);
 
     // Initialize audio on first pointer interaction (browsers require user gesture)
     this.input.once("pointerdown", () => {
@@ -451,6 +457,7 @@ export class BootScene extends Phaser.Scene {
     debugPanelState("BOOT | Screen: character");
     // Clear the title screen
     this.children.removeAll(true);
+    createCreationBackdrop(this);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();
 
@@ -563,19 +570,8 @@ export class BootScene extends Phaser.Scene {
 
     const renderClassSelection = (): void => {
       selectedAppearance = PLAYER_CLASSES[selectedClassIndex]!;
-      optionHighlights.forEach((highlight, index) => {
-        const selected = index === selectedClassIndex;
-        const x = startX + (index % cols) * (optW + 8);
-        const y = startY + Math.floor(index / cols) * optH;
-        highlight.clear();
-        highlight.lineStyle(selected ? 3 : 1, selected ? 0xffd700 : 0x777777, 1);
-        if (selected) {
-          highlight.fillStyle(0xffd700, 0.1);
-          highlight.fillRect(x - optW / 2 + 2, y - 22, optW - 4, optH - 8);
-        }
-        highlight.strokeRect(x - optW / 2 + 2, y - 22, optW - 4, optH - 8);
-        classTexts[index]!.setText(`${selected ? "> " : ""}${PLAYER_CLASSES[index]!.label}`);
-      });
+      classTexts.forEach((label, index) =>
+        label.setText(`${index === selectedClassIndex ? "> " : ""}${PLAYER_CLASSES[index]!.label}`));
       updateInfoPanel(selectedAppearance);
       reflowClassForm();
       debugPanelState(
@@ -654,8 +650,9 @@ export class BootScene extends Phaser.Scene {
         if (zone.input) zone.input.hitArea = new Phaser.Geom.Rectangle(0, 0, zone.width, zone.height);
         const selected = index === selectedClassIndex;
         const highlight = optionHighlights[index]!;
-        highlight.clear().lineStyle(selected ? 3 : 1, selected ? 0xffd700 : 0x777777, 1);
-        highlight.strokeRect(x - optW / 2 + 2, y - spriteHeight / 2 - 2, optW - 4, optH - 8);
+        highlight.clear();
+        paintPanel(highlight, x - optW / 2 + 2, y - spriteHeight / 2 - 2, optW - 4, optH - 8,
+          selected ? 0.94 : 0.82, selected ? UI_COLORS.gold : UI_COLORS.border);
       });
       const gridBottom = startY - spriteHeight / 2 - 2 + Math.ceil(PLAYER_CLASSES.length / cols) * optH - 8;
       classDescText.setPosition(cx, gridBottom + 6);
@@ -711,6 +708,7 @@ export class BootScene extends Phaser.Scene {
     this.unsubscribeCreationReflow?.();
     this.unsubscribeCreationReflow = null;
     this.children.removeAll(true);
+    createCreationBackdrop(this);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();
     const boostParts = Object.entries(selectedClass.statBoosts)
@@ -839,6 +837,7 @@ export class BootScene extends Phaser.Scene {
     debugPanelState("BOOT | Screen: appearance");
     this.characterAppearanceManager?.destroy();
     this.children.removeAll(true);
+    createCreationBackdrop(this);
     this.tweens.killAll();
     this.input.keyboard!.removeAllListeners();
     this.characterAppearanceManager = new CharacterAppearanceManager(this, selectedClass, {

@@ -1053,7 +1053,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 27.
+Save schema version is 28.
+
+Schema v28 adds optional validated eye color, facial hair, body build, outfit/
+trouser/trim colors, accessories and class headwear to `customAppearance`.
+`systems/appearance.ts` owns choices/defaults/unknown normalization. Preserve
+valid legacy skin/hair values and absent legacy overrides. Every visible input
+belongs in the canonical hero descriptor and cache key; creation uses the same
+texture leases. Cosmetics never alter class ownership, statistics or equipment.
+Preview angle/category and all menu theme state remain runtime-only.
 
 Schema v27 adds nullable validated `player.newGamePlus`, bounded cycle/parent,
 stable request/cycle identity, fingerprint/timestamp/policy, finite lifetime
@@ -1318,7 +1326,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v27
+  visibility, handedness, and prompt source only; they never enter schema-v28
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

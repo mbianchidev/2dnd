@@ -1,4 +1,6 @@
 import type { CutsceneBackdrop, CutsceneId } from "./cutscenes";
+import { Terrain } from "./mapTypes";
+import { WORLD_ART_COLORS } from "../systems/terrainArt";
 
 export type CutsceneStructure =
   | "road" | "bells" | "rootBridge" | "iceRoad" | "sunArch" | "reedRoad"
@@ -35,57 +37,57 @@ export interface CutsceneSceneryPalette {
 export const CUTSCENE_PALETTES: Readonly<Record<CutsceneBackdrop, CutsceneSceneryPalette>> = {
   heartlands: {
     sky: [0x426b91, 0x9eb8b2, 0xf3d4a0], far: 0x667c79, near: 0x3e6650,
-    ground: 0x50724b, path: 0xb9a282, foliage: 0x355d3f,
+    ground: WORLD_ART_COLORS[Terrain.Grass], path: WORLD_ART_COLORS[Terrain.Path], foliage: 0x477d43,
     stone: 0x929183, wood: 0x73553e, water: 0x5c929c, roof: 0x995f48,
   },
   city: {
     sky: [0x42698e, 0x9dbdc3, 0xf0dcb4], far: 0x788c94, near: 0x596f6d,
-    ground: 0x626e65, path: 0xb1a38b, foliage: 0x456b49,
+    ground: WORLD_ART_COLORS[Terrain.CityPath], path: 0xb1a38b, foliage: 0x477d43,
     stone: 0xb5aa92, wood: 0x735039, water: 0x568b9b, roof: 0x995f50,
   },
   forest: {
     sky: [0x264958, 0x668d83, 0xb6c59c], far: 0x4c7066, near: 0x2d5947,
-    ground: 0x395b3c, path: 0x9d8e6e, foliage: 0x3f754a,
+    ground: WORLD_ART_COLORS[Terrain.Forest], path: 0x9d8e6e, foliage: 0x477d43,
     stone: 0x899487, wood: 0x705038, water: 0x497e7f, roof: 0x6d6c44,
   },
   canyon: {
     sky: [0x496b95, 0xc49b8a, 0xf3ce9d], far: 0xae857b, near: 0x975e46,
-    ground: 0xa57954, path: 0xd3b78e, foliage: 0x6e7c48,
+    ground: WORLD_ART_COLORS[Terrain.Canyon], path: 0xd3b78e, foliage: 0x6e7c48,
     stone: 0xb78560, wood: 0x79523a, water: 0x538c9c, roof: 0x8c4f44,
   },
   desert: {
     sky: [0x4d729e, 0xbcc9c0, 0xf2da9c], far: 0xc1aa83, near: 0xbb925b,
-    ground: 0xd2b479, path: 0xe7d2a4, foliage: 0x577a50,
+    ground: WORLD_ART_COLORS[Terrain.Sand], path: 0xe7d2a4, foliage: 0x577a50,
     stone: 0xd0b18a, wood: 0x805a3b, water: 0x4b9ca1, roof: 0xa66e55,
   },
   marsh: {
     sky: [0x3c526a, 0x839d9e, 0xc5c5a3], far: 0x667f7b, near: 0x3d645a,
-    ground: 0x36554b, path: 0x8f9779, foliage: 0x597950,
+    ground: WORLD_ART_COLORS[Terrain.Swamp], path: 0x8f9779, foliage: 0x597950,
     stone: 0x85918a, wood: 0x705647, water: 0x426f76, roof: 0x76634e,
   },
   frost: {
     sky: [0x395b87, 0x95b5ce, 0xe1e7de], far: 0x829bb5, near: 0x577f9b,
-    ground: 0xb3cad5, path: 0xe3e9df, foliage: 0x3e666b,
+    ground: WORLD_ART_COLORS[Terrain.Tundra], path: 0xe3e9df, foliage: 0x3e666b,
     stone: 0x90b9cc, wood: 0x6c6561, water: 0x4e8fa6, roof: 0x54758b,
   },
   mountain: {
     sky: [0x425478, 0xa79caa, 0xe7c6a5], far: 0x85859c, near: 0x555e72,
-    ground: 0x6b7068, path: 0xa6a08b, foliage: 0x4c6654,
+    ground: WORLD_ART_COLORS[Terrain.Mountain], path: 0xa6a08b, foliage: 0x4c6654,
     stone: 0x969184, wood: 0x735747, water: 0x5a899c, roof: 0x795d5b,
   },
   crypt: {
     sky: [0x151f32, 0x303b4b, 0x596368], far: 0x33444b, near: 0x28383e,
-    ground: 0x37484a, path: 0x697374, foliage: 0x4b7866,
+    ground: WORLD_ART_COLORS[Terrain.DungeonFloor], path: 0x697374, foliage: 0x4b7866,
     stone: 0x737f7d, wood: 0x645249, water: 0x426a75, roof: 0x576871,
   },
   forge: {
     sky: [0x28223c, 0x864348, 0xd68d59], far: 0x755b65, near: 0x443b48,
-    ground: 0x51474a, path: 0x96877c, foliage: 0x61715c,
+    ground: WORLD_ART_COLORS[Terrain.Volcanic], path: 0x96877c, foliage: 0x61715c,
     stone: 0x827678, wood: 0x735043, water: 0xd66c3d, roof: 0x695261,
   },
   sea: {
     sky: [0x2a466f, 0x839eaf, 0xe3d3b4], far: 0x6e8b9b, near: 0x436a80,
-    ground: 0x2e667a, path: 0x91bdc0, foliage: 0x4d7964,
+    ground: WORLD_ART_COLORS[Terrain.Water], path: 0x91bdc0, foliage: 0x4d7964,
     stone: 0x879a9b, wood: 0x8c654a, water: 0x367f97, roof: 0x7e5b55,
   },
   stars: {

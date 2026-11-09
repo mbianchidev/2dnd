@@ -17,8 +17,8 @@ function createRoom(
   const props: InteriorPropData[] = [];
   const prop = (kind: InteriorPropData["kind"], label: string, x: number, y: number,
     reward?: InteriorPropData["reward"], text?: readonly string[]): void => {
-    const width = kind === "rug" ? 3 : kind === "sack" || kind === "plant" ? 1 : 2;
-    const height = ["bookshelf", "rack", "pantry", "bed", "hearth", "rug"].includes(kind) ? 2 : 1;
+    const width = kind === "rug" ? 3 : ["sack", "plant", "window", "candle", "chair", "barrel"].includes(kind) ? 1 : 2;
+    const height = ["bookshelf", "rack", "pantry", "bed", "hearth", "rug", "window"].includes(kind) ? 2 : 1;
     props.push({ id: `interior:${city.id}:${interior.id}:${kind}:${x},${y}`, kind, label, x, y, width, height, reward, text });
     if (kind !== "rug") {
       for (let row = y; row < y + height; row++) for (let column = x; column < x + width; column++) {
@@ -32,6 +32,9 @@ function createRoom(
     prop("book", `${city.name} travel journal`, 6, 7, { knowledgeId: INTERIOR_PRIMER_ID }, INTERIOR_PRIMER_TEXT);
     prop("table", "Reading table", 10, 8);
     prop("plant", "Potted fern", 15, 11);
+    prop("chair", "Reading chair", 8, 8);
+    prop("chair", "Reading chair", 13, 9);
+    prop("barrel", "Scroll case", 3, 10);
     const study = INTERIOR_STUDIES.find((entry) => entry.cityId === city.id);
     if (study) prop("book", study.label, 14, 7, { studyId: study.id }, [
       `A carefully annotated manuscript explains ${study.label.toLowerCase()}.`,
@@ -44,6 +47,10 @@ function createRoom(
     prop("pantry", "Offered pantry supplies", 4, 9, { itemId: "wildHerbs" });
     prop("sack", "Traveler's purse", 15, 10, { gold: 4 });
     prop("bookshelf", "Household journal", 4, 6);
+    prop("chair", "Kitchen chair", 9, 8);
+    prop("chair", "Kitchen chair", 13, 8);
+    prop("plant", "Kitchen herbs", 8, 4);
+    prop("barrel", "Water barrel", 16, 8);
   } else {
     prop("counter", shop?.name ?? "Shop counter", 10, 5);
     prop("rack", shop?.type === "weapon" ? "Weapon rack" : shop?.type === "armor" ? "Armor display" : "Stock shelves", 4, 4);
@@ -56,10 +63,18 @@ function createRoom(
       prop("bed", "Resting alcove", 5, 7);
     } else prop("plant", "Potted fern", 4, 7);
     prop("bookshelf", "Shopkeeper's journal", 8, 3);
+    prop("chair", "Workshop stool", 14, 9);
+    prop("plant", "Counter flowers", 8, 6);
     map[6]![10] = Terrain.Carpet;
   }
   for (let y = 3; y < 10; y++) if (y !== 7 && y !== 8) map[y]![12] = Terrain.CityWall;
   prop("rug", library ? "Reading-room rug" : "Woven rug", 9, 10);
+  prop("window", "Leadlight window", 2, 4);
+  prop("window", "Leadlight window", 17, 4);
+  prop("painting", library ? "Map of the Twelve Cities" : "Framed landscape", 6, 2);
+  prop("painting", "Woven wall hanging", 13, 2);
+  prop("candle", "Brass candle stand", 3, 12);
+  prop("candle", "Brass candle stand", 16, 12);
   const name = shop?.name ?? (library ? "Library" : "Guesthouse");
   return {
     name, mapData: map, spawnX: 10, spawnY: 12,
@@ -102,21 +117,44 @@ export function addCityInteriors(source: CityData): CityData {
   const districtIndex = streets.length > 1 ? 1 : 0;
   const district = streets[districtIndex]!;
   const candidates: Array<{ x: number; y: number }> = [];
-  for (let y = 12; y >= 8; y--) {
-    for (const x of [4, 15, 6, 13, 8, 11]) {
+  const isBuildingGround = (terrain: Terrain | undefined): boolean => terrain === Terrain.CityFloor || terrain === Terrain.Grass;
+  for (let y = 12; y >= 5; y--) {
+    for (const x of [4, 15, 6, 13, 8, 11, 7, 12, 3, 16, 5, 14, 9, 17]) {
       const terrain = district.mapData[y]?.[x];
-      if ((terrain === Terrain.CityFloor || terrain === Terrain.CityPath)
+      if ((isBuildingGround(terrain) || terrain === Terrain.CityPath)
         && !district.shops.some((shop) => Math.abs(shop.x - x) + Math.abs(shop.y - y) < 3)
         && !connections.some((entry) => entry.fromChunkIndex === districtIndex
           && entry.fromX === x && entry.fromY === y)) candidates.push({ x, y });
     }
   }
-  const library = candidates[0];
-  const home = candidates.find((point) => library && Math.abs(point.x - library.x) >= 5);
-  if (!library || !home) throw new Error(`[interiors] ${source.id} needs two reachable room entrances.`);
-  appendRoom(districtIndex, library.x, library.y, "library");
-  appendRoom(districtIndex, home.x, home.y, "home");
-  return { ...source, mapData: primary.mapData, chunks: [...streets.slice(1), ...rooms], connections };
+  const placeBuilding = (kind: "library" | "home" | "residence"): void => {
+    const width = kind === "library" ? 4 : 3;
+    const site = candidates.find(({ x, y }) => {
+      if (!isBuildingGround(district.mapData[y + 1]?.[x])) return false;
+      for (let row = y - 2; row <= y; row++) {
+        for (let column = x - 1; column < x - 1 + width; column++) {
+          if (!isBuildingGround(district.mapData[row]?.[column])) return false;
+          if (column === district.spawnX && row === district.spawnY) return false;
+        }
+      }
+      return true;
+    });
+    if (!site) throw new Error(`[interiors] ${source.id} needs a safe ${width}x3 ${kind} footprint.`);
+    const { x, y } = site;
+    for (let row = y - 2; row <= y; row++) {
+      for (let column = x - 1; column < x - 1 + width; column++) district.mapData[row]![column] = Terrain.House;
+    }
+    district.buildings = [...(district.buildings ?? []), {
+      id: `${source.id}:${kind}`, kind, x: x - 1, y: y - 2, width, height: 3,
+      ...(kind === "residence" ? {} : { door: { x, y } }),
+    }];
+    if (kind !== "residence") appendRoom(districtIndex, x, y, kind);
+  };
+  placeBuilding("library");
+  placeBuilding("home");
+  placeBuilding("residence");
+  return { ...source, mapData: primary.mapData, buildings: primary.buildings,
+    chunks: [...streets.slice(1), ...rooms], connections };
 }
 
 export function getInteriorForShop(city: CityData, chunkIndex: number, shop: CityShopData): CityChunk | undefined {

@@ -6,11 +6,16 @@ import {
   TimePeriod,
 } from "../systems/daynight";
 import { isReducedMotionEnabled } from "../systems/accessibility";
-import { artNoise, shadePixelColor } from "../systems/pixelArt";
+import { artNoise, mixPixelColors, shadePixelColor } from "../systems/pixelArt";
 import { WeatherType } from "../systems/weather";
 import { isLocalDev } from "../config";
 import { drawBattleTerrainDetail } from "./battleTerrain";
 import { drawBuildingExterior } from "./buildings";
+import { PixelSceneryGraphics } from "./pixelScenery";
+import { WORLD_ART_COLORS } from "../systems/terrainArt";
+import { Terrain } from "../data/mapTypes";
+import { CUTSCENE_PALETTES } from "../data/cutsceneScenery";
+import type { CutsceneBackdrop } from "../data/cutscenes";
 import {
   BATTLE_BACKDROP_LAYER_IDS,
   BATTLE_DEPTH,
@@ -32,6 +37,7 @@ export interface BattleBackdropConfig {
 interface BackdropLayer {
   readonly container: Phaser.GameObjects.Container;
   readonly graphics: Phaser.GameObjects.Graphics;
+  readonly painter: PixelSceneryGraphics;
 }
 
 const ENCLOSED_BOSS_IDS = new Set([
@@ -207,7 +213,7 @@ export class BattleBackdropRenderer {
     const graphics = this.scene.add.graphics();
     graphics.setName(`battle-layer-graphics:${id}`).setScrollFactor(0);
     container.add(graphics);
-    return { container, graphics };
+    return { container, graphics, painter: new PixelSceneryGraphics(graphics) };
   }
 
   private requireLayer(id: BattleBackdropLayerId): BackdropLayer {
@@ -237,7 +243,7 @@ export class BattleBackdropRenderer {
     timeStep: number,
     skyVisible: boolean,
   ): void {
-    const graphics = this.requireLayer("farSky").graphics;
+    const graphics = this.requireLayer("farSky").painter;
     const period = getTimePeriod(timeStep);
     if (!skyVisible) {
       const top = biome === "dungeon"
@@ -255,14 +261,10 @@ export class BattleBackdropRenderer {
     const palette = this.getSkyPalette(period, biome);
     graphics.fillStyle(palette.bottom, 1);
     graphics.fillRect(0, 0, layout.width, layout.height);
-    graphics.fillGradientStyle(
-      palette.top,
-      palette.top,
-      palette.bottom,
-      palette.bottom,
-      1,
-    );
-    graphics.fillRect(0, 0, layout.width, layout.skyBottom + 2);
+    for (let band = 0; band < 12; band++) {
+      graphics.fillStyle(mixPixelColors(palette.top, palette.bottom, band / 11));
+      graphics.fillRect(0, band * layout.skyBottom / 12, layout.width, layout.skyBottom / 12 + 2);
+    }
   }
 
   private getSkyPalette(
@@ -278,14 +280,13 @@ export class BattleBackdropRenderer {
     if (period === TimePeriod.Dusk) {
       return { top: 0x29264f, bottom: biome === "volcanic" ? 0xa73722 : 0xf06b49 };
     }
-    if (biome === "tundra") return { top: 0x7895b4, bottom: 0xb8d1df };
-    if (biome === "sand" || biome === "canyon") {
-      return { top: 0x5f91c5, bottom: 0xf2bd72 };
-    }
-    if (biome === "swamp") return { top: 0x45665d, bottom: 0x7e8b69 };
-    if (biome === "volcanic") return { top: 0x49212a, bottom: 0x9b4a35 };
-    if (biome === "sea") return { top: 0x3f78b5, bottom: 0x8dcde1 };
-    return { top: 0x4f83c4, bottom: 0x91d4ec };
+    const backdrops: Readonly<Record<BattleBiome, CutsceneBackdrop>> = {
+      grass: "heartlands", forest: "forest", deep_forest: "forest", sand: "desert",
+      tundra: "frost", swamp: "marsh", volcanic: "forge", canyon: "canyon",
+      dungeon: "crypt", city: "city", sea: "sea",
+    };
+    const palette = CUTSCENE_PALETTES[backdrops[biome]];
+    return { top: palette.sky[0], bottom: palette.sky[2] };
   }
 
   private drawCelestial(
@@ -295,8 +296,8 @@ export class BattleBackdropRenderer {
   ): void {
     if (!skyVisible) return;
     const period = getTimePeriod(timeStep);
-    const stars = this.requireLayer("stars").graphics;
-    const celestial = this.requireLayer("celestial").graphics;
+    const stars = this.requireLayer("stars").painter;
+    const celestial = this.requireLayer("celestial").painter;
 
     if (period === TimePeriod.Night) {
       stars.fillStyle(0xffffff, 0.82);
@@ -326,7 +327,7 @@ export class BattleBackdropRenderer {
         : { x: 0.16, y: 0.68 };
     const x = layout.width * sunPosition.x;
     const y = layout.skyBottom * sunPosition.y;
-    const core = period === TimePeriod.Dusk ? 0xff6d36 : 0xffe56c;
+    const core = period === TimePeriod.Dusk ? 0xe59a6b : 0xf3d4a0;
     celestial.fillStyle(core, 0.14);
     celestial.fillCircle(x, y, 48);
     celestial.fillStyle(core, 0.24);
@@ -342,7 +343,7 @@ export class BattleBackdropRenderer {
     skyVisible: boolean,
   ): void {
     if (!skyVisible) return;
-    const graphics = this.requireLayer("clouds").graphics;
+    const graphics = this.requireLayer("clouds").painter;
     const stormy = weather === WeatherType.Storm || weather === WeatherType.Rain;
     const alpha = stormy ? 0.72 : biome === "sand" ? 0.18 : 0.34;
     const color = stormy ? 0x37455d : 0xe9f2f5;
@@ -372,7 +373,7 @@ export class BattleBackdropRenderer {
     biome: BattleBiome,
     bossId: string,
   ): void {
-    const graphics = this.requireLayer("distantScenery").graphics;
+    const graphics = this.requireLayer("distantScenery").painter;
     const horizon = layout.horizonY;
     if (biome === "sea") {
       graphics.fillStyle(0x214f72, 1);
@@ -393,7 +394,7 @@ export class BattleBackdropRenderer {
       return;
     }
     if (biome === "dungeon") {
-      graphics.fillStyle(0x292a36, 1);
+      graphics.fillStyle(WORLD_ART_COLORS[Terrain.DungeonWall], 1);
       graphics.fillRect(0, 0, layout.width, layout.height);
       graphics.lineStyle(2, 0x14151d, 0.8);
       for (let y = 10; y < layout.groundTop; y += 38) {
@@ -445,20 +446,13 @@ export class BattleBackdropRenderer {
     layout: BattleBackdropLayout,
     biome: BattleBiome,
   ): void {
-    const graphics = this.requireLayer("ground").graphics;
-    const color = {
-      grass: 0x77954e,
-      forest: 0x536d43,
-      deep_forest: 0x3e5741,
-      sand: 0xd6ae67,
-      tundra: 0xdce7ee,
-      swamp: 0x465b38,
-      volcanic: 0x65524c,
-      canyon: 0xa37d60,
-      dungeon: 0x615f57,
-      city: 0x8e8171,
-      sea: 0x214f72,
+    const graphics = this.requireLayer("ground").painter;
+    const terrain = {
+      grass: Terrain.Grass, forest: Terrain.Forest, deep_forest: Terrain.DeepForest,
+      sand: Terrain.Sand, tundra: Terrain.Tundra, swamp: Terrain.Swamp, volcanic: Terrain.Volcanic,
+      canyon: Terrain.Canyon, dungeon: Terrain.DungeonFloor, city: Terrain.CityPath, sea: Terrain.Water,
     }[biome];
+    const color = WORLD_ART_COLORS[terrain];
     graphics.fillStyle(color, 1);
     graphics.fillRect(
       0,
@@ -479,11 +473,11 @@ export class BattleBackdropRenderer {
     biome: BattleBiome,
     bossId: string,
   ): void {
-    const graphics = this.requireLayer("midgroundProps").graphics;
+    const graphics = this.requireLayer("midgroundProps").painter;
     const baseY = layout.groundTop + 10;
     if (biome === "forest" || biome === "deep_forest" || biome === "swamp") {
       const trunk = biome === "swamp" ? 0x27341f : 0x332519;
-      const leaves = biome === "deep_forest" ? 0x123411 : 0x22601f;
+      const leaves = biome === "deep_forest" ? 0x386a44 : 0x477d43;
       for (let index = 0; index < 7; index += 1) {
         const x = 36 + index * (layout.width - 72) / 6;
         graphics.fillStyle(trunk, 1);
@@ -603,7 +597,7 @@ export class BattleBackdropRenderer {
     biome: BattleBiome,
     bossId: string,
   ): void {
-    const graphics = this.requireLayer("foregroundProps").graphics;
+    const graphics = this.requireLayer("foregroundProps").painter;
     if (biome === "forest" || biome === "deep_forest") {
       const trunk = biome === "deep_forest" ? 0x17110d : 0x362318;
       const leaves = biome === "deep_forest" ? 0x0d2d0c : 0x1e551c;
@@ -656,7 +650,7 @@ export class BattleBackdropRenderer {
     layout: BattleBackdropLayout,
     weather: WeatherType,
   ): void {
-    const rear = this.requireLayer("rearWeather").graphics;
+    const rear = this.requireLayer("rearWeather").painter;
     if (weather === WeatherType.Clear) return;
 
     if (weather === WeatherType.Fog) {
@@ -685,7 +679,7 @@ export class BattleBackdropRenderer {
   }
 
   private drawStaticWeather(
-    graphics: Phaser.GameObjects.Graphics,
+    graphics: PixelSceneryGraphics,
     layout: BattleBackdropLayout,
     weather: WeatherType,
   ): void {

@@ -59,6 +59,42 @@ describe("explorable city rooms", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("gives enterable buildings real blocked footprints and keeps residences closed", () => {
+    for (const city of CITIES) {
+      const buildings = [getCityChunk(city, 0)!, ...(city.chunks ?? [])].flatMap((chunk) =>
+        (chunk.buildings ?? []).map((building) => ({ chunk, building })));
+      expect(buildings.filter(({ building }) => building.door).length, city.id).toBeGreaterThanOrEqual(2);
+      expect(buildings.some(({ building }) => !building.door), city.id).toBe(true);
+      for (const { chunk, building } of buildings) {
+        expect(building.width, building.id).toBeGreaterThanOrEqual(3);
+        expect(building.height, building.id).toBeGreaterThanOrEqual(3);
+        for (let y = building.y; y < building.y + building.height; y++) {
+          for (let x = building.x; x < building.x + building.width; x++) {
+            const door = building.door?.x === x && building.door?.y === y;
+            expect(isWalkable(chunk.mapData[y]![x]!), `${building.id}:${x},${y}`).toBe(door);
+          }
+        }
+        if (!building.door) expect(chunk.mapData.flat().filter((tile) => tile === Terrain.House).length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("decorates rooms without blocking their original rewards, counters or exit approaches", () => {
+    for (const city of CITIES) {
+      for (const room of city.chunks?.filter((chunk) => chunk.interior) ?? []) {
+        const kinds = new Set(room.interior!.props.map((prop) => prop.kind));
+        expect(room.interior!.props.length, `${city.id}:${room.name}`).toBeGreaterThanOrEqual(14);
+        expect(kinds.has("window")).toBe(true);
+        expect(kinds.has("painting")).toBe(true);
+        expect(kinds.has("candle")).toBe(true);
+        const reached = reachable(room.mapData, room.spawnX, room.spawnY);
+        expect(reached.has("10,12")).toBe(true);
+        expect(reached.has("10,13")).toBe(true);
+        if (room.shops.length) expect(reached.has("10,6")).toBe(true);
+      }
+    }
+  });
+
   it("makes rare spell books finite, modest and independent from prestige grants", () => {
     expect(INTERIOR_STUDIES).toHaveLength(3);
     for (const study of INTERIOR_STUDIES) {

@@ -863,6 +863,7 @@ export function getCityChunk(city: CityData, chunkIndex: number): CityChunk | un
       spawnX: city.spawnX,
       spawnY: city.spawnY,
       shops: city.shops,
+      buildings: city.buildings,
     };
   }
   return city.chunks?.[chunkIndex - 1];

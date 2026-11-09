@@ -17,6 +17,13 @@ irregular silhouettes rather than colored tile boxes. Connected fountain tiles
 are painted as one transparent landmark. Building exteriors have pitched tiled
 roofs, shaded facades, doors and windows.
 
+Battle and Cutscene scenery share the integer scan conversion in `pixelArt.ts`
+through `renderers/pixelScenery.ts`. Curves and diagonals use two-pixel raster
+steps instead of smooth vector edges. Sky bands, ground grain and scenery
+reuse the world's terrain palette. Battle retains its separate depth/weather
+bands; Cutscene and Ending still use one static Graphics buffer, distinct
+landmarks, bounded plans, and camera overscan.
+
 Dungeon definitions declare a presentation-only `visualTheme`: crypt, ice,
 forge or grotto. The existing map, level, trap and encounter owners remain
 authoritative. The painter supplies the corresponding stone, frost or warm
@@ -66,11 +73,21 @@ animation and normal combat feedback still convey gameplay state.
 
 ## Buildings and rewards
 
+Libraries and guesthouses now occupy three- or four-tile-wide, three-tile-deep
+street footprints rather than a miniature one-tile house marker.
+`CityChunk.buildings` binds their facade to the same blocked map cells and real
+door connection. Boarded residences are scenery only: they have neither a
+connection nor an invisible interaction target. Existing shop identities and
+street district indexes remain stable.
+
 Use the existing interact control on a building door to enter its room.
 Move around counters, stock shelves, reading tables, beds and hearths. Interact
 beside a counter to trade, or beside marked sacks, pantries and books to search
 or read. Pointer, touch and the gamepad cursor activate the same guarded
 interaction. Supplies are explicitly offered rather than treated as theft.
+Windows, framed pictures, candle stands, chairs, barrels, woven rugs and table
+settings complement the shelves, beds and hearths. Decoration never adds
+repeatable rewards or blocks the established counter, book or exit approaches.
 
 `data/cityInteriors.ts` appends immutable rooms after the existing city
 districts. It never renumbers street districts, changes an island's dock, or
@@ -126,3 +143,31 @@ die markers, detailed roll feedback, announcements and outcome cues reveal
 after the throw stops or is skipped. Instant and reduced motion reveal
 immediately. Mechanics do not wait for the presentation; see
 [Dice presentation](dice-presentation.md).
+
+## Menus and character customization
+
+Menus use a shared dark blue-green folio palette, translucent panels, restrained
+warm borders and visible selection ribbons. `systems/uiTheme.ts` resolves serif
+Palatino/Georgia headings and Trebuchet/Lucida body text before measurement;
+tabular scores use the system monospace stack. Fonts are local system fallbacks,
+not downloaded assets. Native name/search/slot dialogs use the matching CSS
+tokens in `game.html`. Their 20/16/13-pixel heading/input/hint hierarchy is
+separate from the deliberately compact debug and application-header utility text.
+`menuIcons.ts` generates original two-tone symbols rather than platform emoji.
+The Adventure menu follows its actual two-column grid with all four directions,
+including the last partial row; hidden features create no empty action or icon.
+
+Appearance has four categories: **Hair & skin**, **Features**, **Clothing** and
+**Details**. Tab or the visible category controls switch pages; up/down chooses
+a row and left/right cycles its named choices. Pointer/touch and the gamepad
+cursor use the same arrows. The live portrait can turn front, side or back.
+Nine hairstyles, nine skin tones, twelve hair colors, eye color, facial hair,
+body build, outfit/trouser/trim colors, accessories and optional class headwear
+are cosmetic only. Equipment remains visibly layered over clothing.
+
+`systems/appearance.ts` owns choices, creation defaults and unknown
+normalization; `heroVisuals.ts` includes every visible override in the shared
+descriptor/cache key. Creation leases the same textures as gameplay scenes and
+releases them after destroying its sprites. Reflow never randomizes or resets
+choices. Schema v28 carries the added optional overrides without changing
+legacy appearance, class ranks, stats, equipment or campaign ownership.

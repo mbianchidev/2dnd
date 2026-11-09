@@ -184,6 +184,10 @@ Building rooms append after existing street districts through
 shop coordinates for negotiation and recipe IDs. Furniture dimensions drive
 collision, adjacent interactions, pointer bounds and minimap markers.
 Room visibility is derived rather than stored in campaign fog.
+Library/home/residential `CityChunk.buildings` metadata binds full-size facades
+to blocked three-tile-deep footprints. Validate safe door approaches and
+district reachability; closed residences have no door connection or hit target.
+Never enlarge the picture alone while leaving walkable cells underneath it.
 See [`docs/graphics.md`](../../../docs/graphics.md).
 
 When adding a district:

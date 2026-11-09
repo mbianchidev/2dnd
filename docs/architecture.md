@@ -16,7 +16,7 @@
 | happy-dom | 21.0.4 |
 | Electron | 45.1.0 |
 | electron-builder | 26.18.0 |
-| Campaign save schema | 27 |
+| Campaign save schema | 28 |
 
 The development/build Node.js pin is separate from Electron's embedded Node.js,
 which follows the Electron dependency rather than `.nvmrc`.
@@ -84,6 +84,13 @@ Shared raster art lives in `systems/pixelArt.ts`, `terrainArt.ts`,
 bounded nearest-scaled textures. Actor frames, trails and impacts consume
 resolved outcomes without gameplay RNG or mutation. Minimap output redacts
 unknown terrain and marks only known local information.
+Scene-sized Battle and Cutscene scenery reuse the same integer scan converters
+through `renderers/pixelScenery.ts`, without flattening Battle depth layers.
+Shared menu tokens/type resolution live in `systems/uiTheme.ts`; the existing
+scene text factory resolves fonts before accessible sizing and layout.
+Appearance choices and normalization live in `systems/appearance.ts`.
+Every optional cosmetic override passes through the canonical hero descriptor,
+texture key and lease pipeline, including creation previews.
 
 City and cutscene NPCs share `systems/npcVisuals.ts` and
 `renderers/npcTextures.ts`: canonical named NPC IDs resolve their actual template,

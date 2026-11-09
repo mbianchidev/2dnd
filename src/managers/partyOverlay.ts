@@ -42,6 +42,7 @@ import { subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
 import { getPartyDiscoveryPages, isFeatureAvailable } from "../systems/featureDiscovery";
 import type { PartyMemberView, PartyOverlayCallbacks, PartyOverlayPage } from "./partyOverlayTypes";
 import { getDifficultyProfile } from "../data/difficulty";
+import { UI_COLORS, UI_FONT_DISPLAY } from "../systems/uiTheme";
 
 export class PartyOverlayManager {
   private readonly scene: Phaser.Scene;
@@ -179,13 +180,17 @@ export class PartyOverlayManager {
       hasParty ? "Party & Inventory" : "Inventory",
       {
         fontSize: "16px",
-        fontFamily: "monospace",
+        fontFamily: UI_FONT_DISPLAY,
         color: "#ffd700",
       },
     ).setOrigin(0.5, 0));
     this.overlay = container;
 
     if (hasParty) {
+      const roster = this.scene.add.graphics();
+      roster.lineStyle(1, UI_COLORS.border, 0.25)
+        .lineBetween(panelX + 166, panelY + 42, panelX + 166, panelY + panelHeight - 16);
+      container.add(roster);
       this.renderMemberList(panelX + 12, panelY + 42, 150);
     }
     const contentX = hasParty ? panelX + 176 : panelX + 16;

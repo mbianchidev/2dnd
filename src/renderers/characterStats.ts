@@ -1,7 +1,8 @@
 import * as Phaser from "phaser";
 import { layoutVerticalStack } from "../systems/layout";
 import { syncInteractiveHitArea } from "../managers/layout";
-import { createOverlayContainer } from "../utils/ui";
+import { createOverlayContainer, createPanelGraphics } from "../utils/ui";
+import { UI_CSS, UI_FONT_DATA } from "../systems/uiTheme";
 import type { PlayerStats } from "../systems/player";
 
 export interface CharacterStatRow {
@@ -43,6 +44,7 @@ export function renderCharacterStatsPanel(
   const container = createOverlayContainer(scene, "character-stats", 0, {
     x: 8, y: 8, width: camera.width - 16, height: camera.height - 16,
   });
+  container.add(createPanelGraphics(scene, 12, 12, camera.width - 24, camera.height - 24, 0.9));
   const text = (id: string, value: string, size: number, color: string): Phaser.GameObjects.Text => {
     const label = scene.add.text(0, 0, value, {
       fontFamily: "monospace", fontSize: `${size}px`, color,
@@ -61,23 +63,23 @@ export function renderCharacterStatsPanel(
     }
     return label;
   };
-  const title = text("creation-stats-title", "Allocate Stats", 22, "#ffd700").setOrigin(0.5, 0);
+  const title = text("creation-stats-title", "Shape your strengths", 22, UI_CSS.gold).setOrigin(0.5, 0);
   const classLabel = text("creation-stats-class", content.classLabel, 11, "#b0bec5").setOrigin(0.5, 0);
   const modeButtons = [
-    button("creation-stat-mode-pointbuy", "[ Point Buy ]", 13, content.mode === "pointbuy" ? "#ffd700" : "#b0bec5",
+    button("creation-stat-mode-pointbuy", "Point buy", 13, content.mode === "pointbuy" ? UI_CSS.gold : UI_CSS.muted,
       () => content.changeMode("pointbuy")).setOrigin(0.5, 0),
-    button("creation-stat-mode-random", "[ 🎲 Random ]", 13, content.mode === "random" ? "#ffd700" : "#b0bec5",
+    button("creation-stat-mode-random", "Roll 4d6", 13, content.mode === "random" ? UI_CSS.gold : UI_CSS.muted,
       () => content.changeMode("random")).setOrigin(0.5, 0),
   ];
   const modeHeight = Math.max(...modeButtons.map((label) => label.displayHeight));
   const budget = (content.mode === "pointbuy"
     ? text("creation-stat-budget", content.points, 13, content.nextEnabled ? "#88ff88" : "#ffd700")
-    : button("creation-stat-reroll", "[ 🎲 Re-Roll ]", 14, "#aaddff", content.reroll)).setOrigin(0.5, 0);
+    : button("creation-stat-reroll", "Roll again", 14, UI_CSS.accent, content.reroll)).setOrigin(0.5, 0);
   const rows = content.rows.map((row) => {
     const cells = [
       text(`creation-stat-${row.id}-label`, `${row.selected ? ">" : " "} ${row.primary ? "★ " : ""}${row.label}:`, 14,
         row.selected ? "#ffffff" : row.primary ? "#ffd700" : "#c0a060"),
-      text(`creation-stat-${row.id}-value`, row.value, 14, "#ffffff"),
+      text(`creation-stat-${row.id}-value`, row.value, 14, "#ffffff").setFontFamily(UI_FONT_DATA),
       text(`creation-stat-${row.id}-boost`, row.boost, 11, "#88ff88"),
       text(`creation-stat-${row.id}-modifier`, row.modifier, 13, "#b0bec5"),
     ];
@@ -99,8 +101,8 @@ export function renderCharacterStatsPanel(
   const summary = text("creation-stats-summary", content.summary, 11, "#b0bec5")
     .setAlign("center").setOrigin(0.5, 0);
   const footer = [
-    button("creation-stats-back", "[ < Back ]", 16, "#b0bec5", content.back).setOrigin(0.5, 0),
-    button("creation-stats-next", "[ Next > ]", 18, "#88ff88", content.next, content.nextEnabled).setOrigin(0.5, 0),
+    button("creation-stats-back", "< Back", 16, UI_CSS.muted, content.back).setOrigin(0.5, 0),
+    button("creation-stats-next", "Appearance >", 18, UI_CSS.accent, content.next, content.nextEnabled).setOrigin(0.5, 0),
   ];
   footer[1]!.setColor("#88ff88").setAlpha(content.nextEnabled ? 1 : 0.4);
   const footerHeight = Math.max(...footer.map((label) => label.displayHeight));

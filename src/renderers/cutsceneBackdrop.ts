@@ -1,6 +1,7 @@
 import type * as Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../config";
 import type { CutsceneSceneryPlan } from "../systems/cutsceneScenery";
+import { PixelSceneryGraphics } from "./pixelScenery";
 
 export const CUTSCENE_RESULT_DIM = 0.62;
 
@@ -11,22 +12,23 @@ export function drawCutsceneScenery(
   dim = 0,
 ): void {
   graphics.clear();
+  const raster = new PixelSceneryGraphics(graphics);
   for (const shape of plan.primitives) {
-    graphics.fillStyle(shape.color, shape.alpha);
+    raster.fillStyle(shape.color, shape.alpha);
     if (shape.kind === "polygon") {
       if (shape.points.length < 3) throw new Error("[cutscene] A scenery polygon needs three points.");
-      graphics.beginPath();
+      raster.beginPath();
       for (let index = 0; index < shape.points.length; index++) {
         const point = shape.points[index];
-        if (index === 0) graphics.moveTo(point.x, point.y);
-        else graphics.lineTo(point.x, point.y);
+        if (index === 0) raster.moveTo(point.x, point.y);
+        else raster.lineTo(point.x, point.y);
       }
-      graphics.closePath();
-      graphics.fillPath();
+      raster.closePath();
+      raster.fillPath();
     } else if (shape.kind === "rect") {
-      graphics.fillRect(shape.x, shape.y, shape.width, shape.height);
+      raster.fillRect(shape.x, shape.y, shape.width, shape.height);
     } else {
-      graphics.fillEllipse(shape.x, shape.y, shape.width, shape.height);
+      raster.fillEllipse(shape.x, shape.y, shape.width, shape.height);
     }
   }
   if (dim > 0) graphics.fillStyle(0x000000, dim).fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);

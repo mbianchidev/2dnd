@@ -39,6 +39,18 @@ shop identities, atomic fixed rewards and canonical permanent study sources.
 Named story NPCs share canonical `npcVisuals.ts` / `npcTextures.ts` appearance
 with their city actors; bosses use monster-family textures, not generic bodies.
 
+Menus share `systems/uiTheme.ts` typography/palette tokens. Resolve fonts in the
+existing scene text factory before measuring; retain every supported text scale.
+Original procedural `menuIcons.ts` symbols replace platform-dependent menu icons.
+Creation cosmetics/defaults/unknown normalization live in `appearance.ts`;
+schema-v28 optional overrides share the canonical hero descriptor and leases.
+They never change class identity, statistics or owned equipment.
+
+Library/home/residential exteriors have blocked multi-tile `buildings`
+footprints. Only explicit doors create connections. Battle and Cutscene use
+`pixelScenery.ts` with the shared `pixelArt.ts` integer scan converters and
+terrain palettes, preserving depth bands, one-buffer cutscenes and RNG isolation.
+
 ## Current architecture
 
 - Hero progression: immutable `data/classProgression.ts`, authoritative

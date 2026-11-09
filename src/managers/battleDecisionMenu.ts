@@ -3,6 +3,7 @@ import { BATTLE_DEPTH } from "../renderers/battleDepth";
 import { restoreLayoutFocus, type GridNavigationDirection } from "../systems/layout";
 import { createOverlayContainer, setOverlayViewport } from "../utils/ui";
 import { layoutTextStack, syncInteractiveHitArea } from "./layout";
+import { UI_COLORS } from "../systems/uiTheme";
 
 export interface BattleDecisionMenuRow {
   id: string;
@@ -175,7 +176,7 @@ export class BattleDecisionMenu {
       const x = this.scene.cameras.main.width - width - 10;
       const y = Math.max(10, this.scene.cameras.main.height - height - 10);
       background.clear();
-      background.fillStyle(0x080c16, 0.98).fillRoundedRect(0, 0, width, height, 6);
+      background.fillStyle(UI_COLORS.panel, 0.94).fillRoundedRect(0, 0, width, height, 6);
       background.lineStyle(2, 0xffffff, 1).strokeRoundedRect(0, 0, width, height, 6);
       background.setInteractive(
         new Phaser.Geom.Rectangle(0, 0, width, height), Phaser.Geom.Rectangle.Contains,

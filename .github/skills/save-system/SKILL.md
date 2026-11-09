@@ -1,6 +1,6 @@
 ---
 name: save-system
-description: Manage 2D&D save schema v27, slots, NG+ isolation, migration, normalization, and recovery
+description: Manage 2D&D save schema v28, slots, cosmetic migration, NG+ isolation, normalization, and recovery
 license: MIT
 ---
 
@@ -52,7 +52,13 @@ campaign schema for these preferences.
 
 ## Current schema
 
-`SAVE_VERSION` is 27.
+`SAVE_VERSION` is 28.
+
+Schema v28 adds optional eye/facial-hair/build/clothing/trim/accessory/headwear
+overrides to `customAppearance`. Normalize unknown data through `appearance.ts`,
+preserve valid legacy colors/styles and omit absent legacy overrides. New
+creation owns full defaults; cosmetics never mutate class identity, stats or
+equipment. Preview angle and appearance page remain runtime-only.
 
 Building rooms reuse city chunk positions and do not change this schema.
 Furnishing claims use `collectedTreasures`; only canonical `study:<id>` tokens
@@ -491,7 +497,7 @@ to browsing before closing the manager.
 - Seen/pending cutscene round trips, malformed queue repair, and legacy epilogue
   recovery
 - Legacy flat-state migration
-- Current schema-v27 NG+/epic, difficulty, battle timing, armor metadata, physical discovery, minigame authority, devotion,
+- Current schema-v28 cosmetics, NG+/epic, difficulty, battle timing, armor metadata, physical discovery, minigame authority, devotion,
   hero/base/prestige progression, playtime,
   position, objective/reward/warning quest state,
   skill checks,

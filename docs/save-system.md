@@ -7,7 +7,7 @@
 
 | Key | Ownership |
 | --- | --- |
-| `2dnd_save` | Dedicated autosave campaign, schema v27; also the legacy-compatible default-slot key |
+| `2dnd_save` | Dedicated autosave campaign, schema v28; also the legacy-compatible default-slot key |
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
@@ -52,7 +52,7 @@ relinking and preserves well-formed serialized item ownership.
 
 ## Current schema
 
-The graphics and building update keeps schema 27. Rooms reuse existing city
+Building layouts do not add save fields. Rooms reuse existing city
 chunk positions; their immutable metadata never enters a campaign document.
 Furnishing claims use `collectedTreasures`, and canonical permanent study tokens
 authorize only the declared base spells during normalization and NG+ carry.
@@ -60,7 +60,17 @@ Building fog is derived without redundant stored tiles. Claim transactions
 save before feedback and roll back every affected ownership domain on failure;
 see [Graphics and buildings](graphics.md).
 
-`SAVE_VERSION` is **27**. Schema v27 adds nullable validated NG+ cycle authority
+`SAVE_VERSION` is **28**. Schema v28 extends `player.customAppearance` with
+optional `eyeColor`, `facialHair`, `bodyBuild`, `outfitColor`, `legColor`,
+`accentColor`, `accessory` and `headwear`. `normalizeCustomAppearance()` treats
+input as unknown, validates colors and enumerated choices, and removes malformed
+optional overrides. Existing valid skin/hair colors and hairstyles 0-3 remain
+unchanged; absent legacy overrides retain the class's original presentation.
+Only new creation initializes the complete customization defaults. These fields
+change neither starting class, statistics, resources nor equipment links.
+Preview angle, selected appearance page, fonts and menu state are never saved.
+
+Schema v27 adds nullable validated NG+ cycle authority
 and registered epic ownership through total 30. Ordinary campaigns retain cap
 20. Older campaigns gain `newGamePlus: null`, without ranks, bonuses or history.
 Malformed/missing modern cycle metadata and illegal normal/epic rank aggregates

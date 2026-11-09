@@ -326,6 +326,12 @@ state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.
 
 ## UI layout
 
+- Resolve shared `uiTheme.ts` fonts before measuring text. Use shared panel
+  tokens and procedural menu icons, with spatial focus matching the visible
+  grid. Native text-entry dialogs follow the same theme without changing input.
+- Appearance categories retain source-owned choices across reflow. Preview
+  angles are runtime-only; schema-v28 cosmetic overrides use `appearance.ts`
+  normalization and the shared hero descriptor/texture leases.
 - Use `src/systems/layout.ts` for pure measured stacks, grids, wrapping,
   pagination, safe-area clamping, and focus restoration.
 - Use `src/managers/layout.ts` for actual scaled Phaser bounds, text-stack

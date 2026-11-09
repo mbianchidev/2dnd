@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { debugLog } from "../config";
+import { getGameTextStyle } from "./uiTheme";
 
 export const GAME_PREFERENCES_STORAGE_KEY = "2dnd_preferences";
 export const LEGACY_AUDIO_PREFERENCES_STORAGE_KEY = "2dnd_audio_prefs";
@@ -589,7 +590,7 @@ export function installSceneAccessibility(
     text: string | string[],
     style?: Phaser.Types.GameObjects.Text.TextStyle,
   ): Phaser.GameObjects.Text => {
-    const gameText = originalAddText.call(scene.add, x, y, text, style);
+    const gameText = originalAddText.call(scene.add, x, y, text, getGameTextStyle(style));
     applyTextPresentation(gameText, gamePreferences.getAccessibility());
     return gameText;
   };

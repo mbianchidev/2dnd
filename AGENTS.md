@@ -15,7 +15,7 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Language | TypeScript 7.0.2, strict, ES2020 |
 | Build/test | Vite 8.3.5, Electron 45.1.0, electron-builder 26.18.0, Vitest 5.0.5, Playwright 1.64.1 |
 | DOM tests | happy-dom 21.0.4 |
-| Save schema | 27 |
+| Save schema | 28 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -247,6 +247,13 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   claims and canonical study tokens, not redundant room fog or presentation.
   Keep original shop identities for negotiations and crafting. See
   [Graphics and buildings](docs/graphics.md).
+- Library/home facades use blocked, at-least-three-tile street footprints;
+  closed residences have no connection or hit target. Scene scenery shares
+  `pixelArt.ts` scan conversion through `pixelScenery.ts`, retaining depth bands.
+- `uiTheme.ts` resolves local heading/body/data fonts before measurement.
+  Appearance choices/normalization live in `appearance.ts`; schema-v28 optional
+  cosmetics share the hero descriptor, cache key and texture leases without
+  changing class identity, equipment or mechanics.
 - Reveal the current city's complete interior/districts through
   `FogOfWar.revealCity()` on entry and recovery, without revealing other places.
   Archery/dice venues are tangible props, not letter flags. Named cutscene NPCs

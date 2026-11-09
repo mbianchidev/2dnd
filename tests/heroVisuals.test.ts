@@ -60,11 +60,11 @@ describe("hero visual descriptors", () => {
 
     const descriptor = resolveHeroVisualDescriptor(hero);
 
-    expect(descriptor.appearance).toEqual({
+    expect(descriptor.appearance).toEqual(expect.objectContaining({
       skinColor: 0xffffff,
-      hairStyle: 3,
+      hairStyle: 8,
       hairColor: 0,
-    });
+    }));
   });
 
   it("creates collision-free keys from every visible input", () => {

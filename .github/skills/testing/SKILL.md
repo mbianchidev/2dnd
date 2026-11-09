@@ -38,6 +38,10 @@ every Node-based CI job. Electron's embedded Node.js follows Electron instead.
 Local validation is headless only; never launch visible native windows or
 control the developer's desktop. Native gates run on isolated CI/virtual
 displays, not the user's host.
+Native test launches select D3D11 WARP on Windows and SwiftShader on Linux/Xvfb.
+Keep real WebGL, renderer-error checks and sandbox/security enabled; these
+test-only backends avoid virtual-GPU shader failures and change no production
+launch policy or physical-hardware claims.
 
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,

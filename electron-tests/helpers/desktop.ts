@@ -9,7 +9,8 @@ import { access } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 export const APP_ROOT = resolve(import.meta.dirname, "../..");
-export const DESKTOP_TEST_ANGLE_BACKEND = process.platform === "win32" ? "d3d11-warp" : null;
+export const DESKTOP_TEST_ANGLE_BACKEND = process.platform === "win32" ? "d3d11-warp"
+  : process.platform === "linux" ? "swiftshader" : null;
 const viewportSessions = new WeakMap<Page, CDPSession>();
 
 export interface DesktopLaunchOptions {

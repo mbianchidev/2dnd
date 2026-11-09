@@ -68,6 +68,8 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await expect(unknown.locator("meter")).toHaveCount(0);
     const enemies = page.locator("#battle-vitals [data-side='enemy']");
     await expect(enemies).toHaveCount(3);
+    await expect(page.locator("#battle-turn-order li")).toHaveCount(7);
+    await expect(page.locator("#battle-turn-order [aria-current='step']")).toHaveText(`Now: ${save.player.name}`);
     await expect(enemies.filter({ hasText: "Goblin A" }).locator("meter")).toHaveCount(1);
     await expect(enemies.filter({ hasText: "Goblin B" }).locator("meter")).toHaveCount(1);
     for (const action of BATTLE_HUD_ACTION_IDS) {
@@ -135,6 +137,7 @@ test("the largest known enemy group and full party fit at enlarged high-contrast
   await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
   await expect(page.locator("#battle-vitals [data-side='enemy'] meter")).toHaveCount(group.members.length);
   await expect(page.locator("#battle-vitals [data-side='party'] meter")).toHaveCount(8);
+  await expect(page.locator("#battle-turn-order li")).toHaveCount(4 + group.members.length);
   await expectCleanLayout(page);
   const path = test.info().outputPath("full-battle-hud-150.png");
   await page.locator("#game-inner").screenshot({ path });

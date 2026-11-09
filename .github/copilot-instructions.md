@@ -249,6 +249,9 @@ loads from `app://2dnd` in packaged builds.
   instance palettes through `systems/npcVisuals.ts` / `renderers/npcTextures.ts`.
   Keep skin, hair and clothing separate; never substitute monochrome humanoids.
   Boss cues use their canonical monster-family textures.
+- Dialogue binds an explicit staged `speakerActorId`. Cutscene and Ending share
+  measured speaker/listener portraits from the current hero descriptor and
+  canonical NPC/boss art; release portrait leases on replacement/reset/shutdown.
 - Every stable cutscene ID has distinct illustrated scenery in
   `data/cutsceneScenery.ts`; pure bounded five-layer plans live in
   `systems/cutsceneScenery.ts`, drawn through the shared
@@ -666,6 +669,9 @@ Flow:
 - Initiative interleaves the player with every living monster. Player Defend
   lasts until the next player turn and protects against all intervening turns.
 - Initiative entries store `combatantId`, never player/monster array indices.
+- The visible turn chain projects those IDs and the remaining surprise queue.
+  Remove inactive actors immediately without changing the scheduling array or
+  current index. Never reveal initiative arithmetic, roll or persist UI state.
 - Target scopes include enemy single/all/rows, self, single/all allies, and the
   whole party. Healing entries declare scope explicitly; do not infer every
   heal as self-only.
@@ -801,6 +807,10 @@ use combat turns rather than overworld time.
 - Chunk/interior dimensions: 20x15
 - Tile size: 32x32
 - Map access is row-major: `[y][x]`
+- Multi-tile world-city cartography shares `worldCityArt.ts` / `worldCities.ts`
+  across exploration and atlas views. Draw only explored cells after the real
+  gate is known; never change entry/collision/quest/boat authority or expose an
+  ineligible island. Atlas masks and listeners remain scene-owned.
 - Terrain additions:
   - `CityGate = 41`
   - `DungeonStairs = 42`

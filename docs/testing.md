@@ -36,6 +36,13 @@ because system-font fallbacks and the surrounding HTML/FIT bounds differ from
 macOS. Both references are real game captures and retain the same 8% threshold;
 update the matching platform image rather than widening comparison tolerances.
 
+`visual-followup.spec.ts` verifies a real killing attack removes its monster
+from the live turn chain, portrait recovery/replay with exact current hero
+cosmetics and canonical NPC colors, boss/Ending portrait coverage, and distinct
+exploration/atlas city landmarks without leaking Starfall. The HUD suite checks
+party/enemy chain counts alongside vitals at every supported text scale.
+Keep the failed captures/traces before rerunning a corrected fixture.
+
 ## Vitest responsibilities
 
 Tests in `tests/*.test.ts` own Phaser-free behavior:
@@ -79,6 +86,11 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - complete cutscene scenery coverage, non-color geometry uniqueness, structural
   boss aftermaths, bounded five-layer paint plans, RNG/replay immutability,
   single-buffer graphics transport and ending-text contrast
+- stable-ID upcoming/surprise initiative projections, immediate KO/death
+  exclusion, unchanged authoritative order/RNG and all eight actors
+- complete city landmark coverage, unique geometry, explored-only frame
+  projection and unchanged gate/terrain authority; canonical portrait bindings
+  and live hero/NPC art without gameplay mutation or RNG
 - Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
 
 Native icon tests execute the actual generator in an owned temporary directory

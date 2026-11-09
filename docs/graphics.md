@@ -51,6 +51,31 @@ that anchor planted; horizontal motion carries the contact shadow with it.
 Body targeting and effects use actual sprite bounds rather than assuming a
 center-origin sprite.
 
+## World city cartography
+
+Every mainland city, Tidehaven and the eligible Starfall Atoll has a distinct
+procedural landmark in `data/worldCityArt.ts`. The pure painter in
+`systems/worldCityArt.ts` uses three- or four-column, two- or three-row
+silhouettes: willow cottages, iron ramparts, harbor sails, snow longhouses,
+root platforms, canyon bridges, marsh stilts, orchards, furnaces, oasis domes,
+beacons, causeways, a lighthouse and an observatory.
+
+`renderers/worldCities.ts` shares those textures between exploration and both
+atlas zoom levels. It draws only explored footprint cells after the canonical
+gate is explored. Movement reveals use the same path as initial rendering.
+These are cartographic extents, not extra entrances or building collision:
+the existing gate tile, route, quest barrier, walkability and boat/dock checks
+remain authoritative. Starfall keeps its ordinary Water terrain and does not
+appear without validated NG+ authority, even after a debug world reveal.
+
+The atlas uses the terrain art palette, a measured header/legend and a
+Phaser 4 WebGL mask filter, with the supported geometry mask on Canvas.
+Panned map content is intentionally clipped; chrome and detail labels remain
+measured and auditable. Region hit areas are clipped to the map viewport, so
+hidden portions cannot intercept a control. Drag and click are distinguished
+on release. Preference reflow preserves zoom, pan and the selected region;
+closing the atlas releases its mask, reflow subscription and owned listeners.
+
 ## Battle HUD
 
 Attack, Defend, Abilities, Spells, Items and Flee have separate procedural
@@ -70,6 +95,32 @@ bar is added only when `GroupCombatant.hpRevealed` is true under the existing
 Codex rule. Unknown HP has no placeholder, bar, native meter or hidden value.
 Formation/defend/status tags are not appended to enemy names; formation,
 animation and normal combat feedback still convey gameplay state.
+
+The turn-order chain shows the current actor followed by upcoming turns.
+Killed monsters and KO party actors disappear immediately; remaining surprise
+turns use the actual ambush queue. It is a read-only projection of stable
+combatant IDs, never a second initiative scheduler. It does not expose
+initiative totals/modifiers, consume RNG, advance a turn or persist state.
+The native ordered list retains full actor names and marks the current turn.
+Visible companion first names and the Hero label keep compact cards readable;
+monster names and duplicate letters wrap rather than being truncated.
+
+## Dialogue portraits
+
+Every dialogue step names a staged `speakerActorId`. Portraits resolve that
+stable actor, not a display-name match. The speaking character and listening
+hero receive separate framed busts with explicit Speaking/Listening labels.
+Hero portraits use the same live descriptor as the stage, including cosmetics
+and equipment; named NPCs use their canonical city palette through
+`npcVisuals.ts` and the shared `npcArt.ts` painter. Boss portraits retain their
+actual monster-family art.
+
+`renderers/cutsceneDialogue.ts` owns the shared Cutscene/Ending dialogue layout,
+native announcement, portrait texture leases and preference reflow. Text wraps
+at its supported size, and the panel grows from measured copy and captions.
+Stage actors move above that measured panel. Reset, replay, step replacement
+and shutdown release the previous portraits without changing quests, rewards,
+seen/pending IDs or character ownership.
 
 ## Buildings and rewards
 

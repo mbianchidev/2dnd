@@ -207,6 +207,7 @@ readonly CutsceneDefinition<BossCutsceneId>[] = BOSS_STORIES.flatMap(
         {
           type: "dialogue",
           speaker: story.name,
+          speakerActorId: story.id,
           text: "Turn back, or be broken here.",
           presentation: {
             backdrop: story.backdrop,

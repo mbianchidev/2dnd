@@ -66,6 +66,17 @@ getTownBiome(chunkX, chunkY, tileX, tileY);
 Chunk names drive biome music, weather probabilities, and presentation. New
 names must retain a recognized biome prefix.
 
+Distinct multi-tile city symbols live in `data/worldCityArt.ts` and the pure
+`systems/worldCityArt.ts` painter. `renderers/worldCities.ts` shares explored
+texture frames across walking, movement reveals and atlas views. The canonical
+gate must be explored before any footprint cell appears, and each cell still
+requires its own fog evidence. Cartographic size never changes entry,
+collision, quest barriers or boat/dock authority. Retain Starfall secrecy and
+ordinary Water terrain even after debug reveal.
+The atlas uses a Phaser 4 WebGL mask filter, Canvas geometry-mask compatibility,
+clipped region hit areas and measured chrome/detail labels. Preserve zoom/pan/
+selection during reflow and remove only owned listeners and mask resources.
+
 ## Nautical world
 
 `src/data/nautical.ts` overlays four stable landmasses, five sea zones, ports,

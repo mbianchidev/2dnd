@@ -53,6 +53,9 @@ export class BattleHudRenderer {
   private unsubscribe: (() => void) | null = null;
   private partyKey = "";
   private enemyKey = "";
+  private enemyPanelBottom = 6;
+
+  getEnemyPanelBottom(): number { return this.enemyPanelBottom; }
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -267,6 +270,7 @@ export class BattleHudRenderer {
         .strokeRect(enemyX, top - 2, rowWidth, rowHeight + 4);
       y += rowHeight + 9;
     }
+    this.enemyPanelBottom = y;
     setOverlayViewport(this.scene, "battle-enemy-vitals", { x: enemyX - 2, y: 0, width: enemyWidth + 4, height: height * 0.43 });
   }
 

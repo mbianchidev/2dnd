@@ -97,6 +97,19 @@ City and cutscene NPCs share `systems/npcVisuals.ts` and
 skin, hair and clothes without whole-body tinting. Cutscene bosses use their
 existing monster-family textures. Actor cues retain stable staging IDs, with
 typed NPC references rather than presentation-only placeholder colors.
+Dialogue adds an explicit `speakerActorId`; `systems/cutscenePortraits.ts`
+resolves the speaker and listener using those staged identities.
+`systems/portraitArt.ts` crops the existing hero/NPC art into busts, while
+`renderers/portraitTextures.ts` reuses reference-counted lease ownership.
+Cutscene and Ending share the measured `renderers/cutsceneDialogue.ts` view.
+
+`data/worldCityArt.ts` and `systems/worldCityArt.ts` define distinct multi-tile
+cartographic city landmarks. `renderers/worldCities.ts` shares explored-only
+texture frames with the walking map and atlas. Their larger visual extent never
+changes the canonical entry tile, collision, quest gate or island authority.
+`systems/battleTurnOrder.ts` projects live initiative and the remaining surprise
+queue; its focused renderer owns a measured strip and native ordered list,
+without changing Battle's turn scheduling or exposing enemy initiative values.
 
 ## Scenes and shared state
 

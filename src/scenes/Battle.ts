@@ -103,6 +103,7 @@ import {
 } from "../renderers/heroTextures";
 import { BattlePartyRenderer } from "../renderers/battleParty";
 import { BattleHudRenderer, getBattleActionIconKey } from "../renderers/battleHud";
+import { BattleTurnOrderRenderer } from "../renderers/battleTurnOrder";
 import { createEnemyHudView, type BattleHudActionId, type BattleHudAlly } from "../systems/battleHud";
 import { BattlePartyManager } from "../managers/battleParty";
 import { BattleBodyTargetManager } from "../managers/battleBodyTarget";
@@ -249,6 +250,7 @@ export class BattleScene extends Phaser.Scene {
   private bodyTargetManager!: BattleBodyTargetManager;
   private battlePartyRenderer!: BattlePartyRenderer;
   private battleHud!: BattleHudRenderer;
+  private battleOrder: BattleTurnOrderRenderer | null = null;
   private battlePresentation!: BattlePresentationDirector;
   private battleTiming: BattleTimingManager | null = null;
   private heroDecisions: BattleHeroDecisionManager | null = null;
@@ -475,6 +477,7 @@ export class BattleScene extends Phaser.Scene {
       const index = this.combatants.findIndex((combatant) => combatant.id === id);
       if (index >= 0) this.handleMonsterPointer(index);
     });
+    this.battleOrder = null;
     this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
     this.battleHooks = data.battleHooks;
     this.battleResultReported = false;
@@ -664,6 +667,7 @@ export class BattleScene extends Phaser.Scene {
 
   update(_time = 0, delta = 0): void {
     this.battleTiming?.update(delta);
+    this.updateBattleOrder();
     this.updateDebugPanel();
     this.updateButtonStates();
   }
@@ -672,6 +676,7 @@ export class BattleScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     this.battleHud.create();
+    this.battleOrder = new BattleTurnOrderRenderer(this, () => this.battleHud.getEnemyPanelBottom());
 
     // --- Monsters in front/back formation ---
     this.monsterSprites = [];
@@ -1944,6 +1949,7 @@ export class BattleScene extends Phaser.Scene {
   private updateMonsterDisplay(): void {
     this.battleHud?.setEnemies(this.combatants.map((combatant, index) =>
       createEnemyHudView(combatant, index === this.selectedTargetIndex)));
+    this.updateBattleOrder();
 
     const synergy = this.encounter.synergy;
     if (!synergy) {
@@ -1993,9 +1999,22 @@ export class BattleScene extends Phaser.Scene {
       });
     }
     this.battleHud?.setParty(allies);
+    this.updateBattleOrder();
     this.battlePartyRenderer?.update(
       this.partyCombatants,
       this.partyActionSources,
+    );
+  }
+
+  private updateBattleOrder(): void {
+    this.battleOrder?.update(
+      this.turnOrder, this.allCombatants, this.currentTurnIndex,
+      this.inSurpriseRound ? this.surpriseQueue.slice(this.surpriseCursor).map((index) => {
+        const combatant = this.combatants[index];
+        if (!combatant) throw new Error(`[battle-order] Missing surprise actor ${index}.`);
+        return combatant.id;
+      }) : undefined,
+      this.isReturningToOverworld || this.phase === "victory" || this.phase === "defeat" || this.phase === "fled",
     );
   }
 

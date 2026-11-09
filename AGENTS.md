@@ -162,6 +162,15 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   states. Use real HP/MP bars and native meter counterparts. Enemy rows contain
   only names/letters and health bars authorized by `hpRevealed`, never unknown
   placeholders or hidden resource values.
+- The turn chain is a read-only stable-ID initiative/surprise projection.
+  Remove inactive actors immediately without splicing or advancing scheduling;
+  never expose initiative arithmetic or persist presentation state.
+- Dialogue portraits use explicit staged `speakerActorId` references and the
+  same live hero/NPC/boss art as the scene. Cutscene/Ending share measured copy,
+  Speaking/Listening labels, reflow and cleanup-safe portrait texture leases.
+- World city landmarks span multiple cartographic tiles but preserve the exact
+  existing gate, collision and route authority. Share fog-redacted frames across
+  initial/reveal/atlas rendering; retain NG+ secrecy and ordinary island Water.
 - Every cutscene has distinct illustrated scenery, not a flat-color fallback.
   Keep the exhaustive ID registry, changed boss aftermaths, sea-correct Kraken,
   five bounded layers and one Graphics buffer. Replay/ending share the painter;

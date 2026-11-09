@@ -114,6 +114,7 @@ export interface CutsceneNarrationStep extends CutsceneStepBase {
 export interface CutsceneDialogueStep extends CutsceneStepBase {
   readonly type: "dialogue";
   readonly speaker: string;
+  readonly speakerActorId: string;
   readonly text: string;
 }
 

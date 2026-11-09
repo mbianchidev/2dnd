@@ -21,6 +21,14 @@ local typography, contrast, original icons and shared raster geometry.
 on desktop/mobile, real facade entry/exit, closed residences and spatial menus.
 Keep the 512-primitive Cutscene plan budget and one-buffer/depth invariants.
 
+`battleTurnOrder.test.ts`, `worldCityArt.test.ts` and
+`cutscenePortraits.test.ts` cover read-only scheduling, all eight actors,
+unique/fog-redacted city geometry and canonical live portrait binding without
+RNG or authority mutation. `visual-followup.spec.ts` exercises a real killing
+attack, portrait recovery/replay at every text scale, boss/Ending dialogue and
+actual walking/atlas landmarks. Preserve full names/letters and exact hero/NPC
+palettes; do not substitute instant victory for the kill under test.
+
 Battle grounding tests cover every family/boss and all pose frames. Use
 `data-battle-grounding` to sample actual visible foot/shadow contact during real
 actions, not just sprite centers. Grounded actors never hover, lift or tilt;

@@ -12,11 +12,11 @@ import {
   MAP_HEIGHT,
   WORLD_WIDTH,
   WORLD_HEIGHT,
-  TERRAIN_COLORS,
   CITIES,
   Terrain,
   getChunk,
   getCity,
+  getCityForTown,
   getInnCost,
   hasSparkleAt,
   getCityChunkCount,
@@ -72,6 +72,8 @@ import {
 } from "../renderers/settings";
 import { layoutEquipmentColumn } from "../renderers/equipmentLayout";
 import { renderEscapeMenu } from "../renderers/escapeMenu";
+import { drawWorldCityLandmark } from "../renderers/worldCities";
+import { getWorldCityArtProfile } from "../systems/worldCityArt";
 import type { CodexData } from "../systems/codex";
 import type { Item } from "../data/items";
 import {
@@ -81,8 +83,11 @@ import {
   createPanelGraphics,
 } from "../utils/ui";
 import { createBattleTimingSettingsOverlay } from "./battleTimingSettings";
-import { subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
+import { getScaledBounds, subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
+import { WORLD_ART_COLORS } from "../systems/terrainArt";
 import {
+  intersectRects,
+  layoutAnchoredLabels,
   layoutResponsiveGrid,
   moveGridSelection,
   restoreLayoutFocus,
@@ -2044,9 +2049,6 @@ export class OverlayManager {
     if (this.worldMapOverlay) {
       this.worldMapOverlay.destroy();
       this.worldMapOverlay = null;
-      this.scene.input.off("wheel");
-      this.scene.input.off("pointermove");
-      this.scene.input.off("pointerup");
       return;
     }
     this.showWorldMap(player, defeatedBosses);
@@ -2057,9 +2059,6 @@ export class OverlayManager {
     if (!this.worldMapOverlay) return;
     this.worldMapOverlay.destroy();
     this.worldMapOverlay = null;
-    this.scene.input.off("wheel");
-    this.scene.input.off("pointermove");
-    this.scene.input.off("pointerup");
     this.showWorldMap(player, defeatedBosses);
   }
 
@@ -2070,7 +2069,9 @@ export class OverlayManager {
     const w = this.scene.cameras.main.width;
     const h = this.scene.cameras.main.height;
 
-    this.worldMapOverlay = this.scene.add.container(0, 0).setDepth(80);
+    this.worldMapOverlay = createOverlayContainer(this.scene, "world-map", 80,
+      { x: 10, y: 10, width: w - 20, height: h - 20 });
+    const overlay = this.worldMapOverlay;
 
     const dim = createDimGraphics(this.scene, w, h);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
@@ -2078,8 +2079,6 @@ export class OverlayManager {
     this.worldMapOverlay.add(dim);
 
     const panelPad = 12;
-    const titleH = 46;
-    const legendH = 36;
     const panelW = w - 20;
     const panelH = h - 20;
     const px = 10;
@@ -2089,8 +2088,8 @@ export class OverlayManager {
     bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
     this.worldMapOverlay.add(bg);
 
-    const title = this.scene.add.text(px + panelW / 2, py + 6, "🗺 World Map", {
-      fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
+    const title = this.scene.add.text(px + panelW / 2, py + 6, "World Map", {
+      fontSize: "16px", color: "#efd594", fontStyle: "bold",
     }).setOrigin(0.5, 0);
     this.worldMapOverlay.add(title);
     const boat = player.progression.nautical.ownedBoats.find(
@@ -2119,8 +2118,9 @@ export class OverlayManager {
         + (routeLabels.length > 2 ? ` +${routeLabels.length - 2}` : ""),
       );
     }
+    let nauticalStatus: Phaser.GameObjects.Text | null = null;
     if (nauticalParts.length > 0) {
-      const nauticalStatus = this.scene.add.text(
+      nauticalStatus = this.scene.add.text(
         px + panelW / 2,
         py + 23,
         nauticalParts.join(" · "),
@@ -2136,9 +2136,9 @@ export class OverlayManager {
     }
 
     const contentX = px + panelPad;
-    const contentY = py + titleH + panelPad;
+    let contentY = py + 60;
     const contentW = panelW - panelPad * 2;
-    const contentH = panelH - titleH - panelPad * 2 - legendH;
+    let contentH = panelH - 120;
 
     const mapContainer = this.scene.add.container(0, 0);
     this.worldMapOverlay.add(mapContainer);
@@ -2146,8 +2146,17 @@ export class OverlayManager {
     const maskShape = this.scene.make.graphics({ x: 0, y: 0 });
     maskShape.fillStyle(0xffffff);
     maskShape.fillRect(contentX, contentY, contentW, contentH);
-    const mask = maskShape.createGeometryMask();
-    mapContainer.setMask(mask);
+    let maskFilter: Phaser.Filters.Mask | null = null;
+    let canvasMask: Phaser.Display.Masks.GeometryMask | null = null;
+    if (this.scene.renderer.type === Phaser.WEBGL) {
+      mapContainer.enableFilters();
+      if (!mapContainer.filters) throw new Error("[world-map] Mask filters are unavailable.");
+      maskFilter = mapContainer.filters.external.addMask(maskShape, false, this.scene.cameras.main);
+      maskFilter.autoUpdate = false;
+    } else {
+      canvasMask = maskShape.createGeometryMask();
+      mapContainer.setMask(canvasMask);
+    }
 
     let zoomLevel = 1;
     const minZoom = 0.5;
@@ -2160,12 +2169,25 @@ export class OverlayManager {
     let panStartX = 0;
     let panStartY = 0;
     let detailChunk: { cx: number; cy: number } | null = null;
+    let pressedChunk: { cx: number; cy: number } | null = null;
+    const back = this.scene.add.text(px + panelPad, py + 9, "Back to World", {
+      fontSize: "11px", color: "#c5e0c3", backgroundColor: "#182b31", padding: { x: 6, y: 3 },
+    }).setData("layoutId", "world-map-back").setInteractive({ useHandCursor: true }).setVisible(false);
+    back.on("pointerover", () => back.setColor("#ffd700"));
+    back.on("pointerout", () => back.setColor("#c5e0c3"));
+    back.on("pointerdown", () => { detailChunk = null; redraw(); });
+    overlay.add(back);
 
     const baseTilePixel = 4;
     const gap = 3;
 
     const redraw = (): void => {
       mapContainer.removeAll(true);
+      back.setVisible(detailChunk !== null);
+      zoomIn.setAlpha(detailChunk ? 0.35 : 1);
+      zoomOut.setAlpha(detailChunk ? 0.35 : 1);
+      if (detailChunk) { zoomIn.disableInteractive(); zoomOut.disableInteractive(); }
+      else { zoomIn.setInteractive({ useHandCursor: true }); zoomOut.setInteractive({ useHandCursor: true }); }
       const islands = getSecretIslands(player.newGamePlus);
 
       if (detailChunk) {
@@ -2191,7 +2213,7 @@ export class OverlayManager {
             ) ? Terrain.Town : chunk.mapData[ty][tx];
             const exploredKey = `${dcx},${dcy},${tx},${ty}`;
             const explored = !!player.progression.exploredTiles[exploredKey];
-            const color = explored ? TERRAIN_COLORS[terrain] : 0x0a0a0a;
+            const color = explored ? WORLD_ART_COLORS[terrain] : 0x0a0a0a;
             gfx.fillStyle(color, 1);
             gfx.fillRect(ox + tx * detailTile, oy + ty * detailTile, detailTile, detailTile);
             if (detailTile >= 6) {
@@ -2210,11 +2232,11 @@ export class OverlayManager {
           if (!player.progression.exploredTiles[eKey]) continue;
           const mx = ox + town.x * detailTile + detailTile / 2;
           const my = oy + town.y * detailTile + detailTile / 2;
-          const marker = this.scene.add.graphics();
-          marker.fillStyle(0xab47bc, 1);
-          marker.fillCircle(mx, my, Math.max(4, detailTile / 3));
-          mapContainer.add(marker);
-          const label = this.scene.add.text(mx, my - detailTile / 2 - 2, town.name, {
+          const city = getCityForTown(dcx, dcy, town.x, town.y);
+          if (!city) throw new Error(`[world-map] Missing city landmark ${town.name}.`);
+          drawWorldCityLandmark(this.scene, mapContainer, city,
+            (x, y) => Boolean(player.progression.exploredTiles[`${dcx},${dcy},${x},${y}`]), detailTile, ox, oy);
+          const label = this.scene.add.text(mx, my - (getWorldCityArtProfile(city.id).rows - 0.5) * detailTile - 2, town.name, {
             fontSize: "9px", fontFamily: "monospace", color: "#fff",
             stroke: "#000", strokeThickness: 2,
           }).setOrigin(0.5, 1);
@@ -2251,15 +2273,16 @@ export class OverlayManager {
           mapContainer.add(pm);
         }
 
-        const back = this.scene.add.text(contentX + 4, contentY + 4, "◀ Back to World", {
-          fontSize: "11px", fontFamily: "monospace", color: "#88ff88",
-          backgroundColor: "#1a1a2e", padding: { x: 6, y: 3 },
-        }).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-        back.on("pointerover", () => back.setColor("#ffd700"));
-        back.on("pointerout", () => back.setColor("#88ff88"));
-        back.on("pointerdown", () => { detailChunk = null; redraw(); });
-        mapContainer.add(back);
-
+        const labels = mapContainer.list.filter((object): object is Phaser.GameObjects.Text =>
+          object instanceof Phaser.GameObjects.Text);
+        const layout = layoutAnchoredLabels(labels.map((label, index) => ({
+          id: `world-map-landmark-${index}`, bounds: getScaledBounds(label),
+        })), { x: contentX, y: contentY, width: contentW, height: contentH });
+        layout.forEach((item, index) => {
+          const label = labels[index]!;
+          const before = getScaledBounds(label);
+          label.setPosition(label.x + item.bounds.x - before.x, label.y + item.bounds.y - before.y);
+        });
         return;
       }
 
@@ -2297,9 +2320,9 @@ export class OverlayManager {
               if (!explored) {
                 color = 0x0a0a0a;
               } else if (hasSparkleAt(cx, cy, tx, ty) && !player.progression.collectedTreasures.includes(exploredKey)) {
-                color = TERRAIN_COLORS[Terrain.MinorTreasure];
+                color = 0xe5c781;
               } else {
-                color = TERRAIN_COLORS[terrain];
+                color = WORLD_ART_COLORS[terrain];
               }
               miniGfx.fillStyle(color, 1);
               miniGfx.fillRect(ox + tx * tp, oy + ty * tp, tp, tp);
@@ -2313,15 +2336,19 @@ export class OverlayManager {
           border.strokeRect(ox, oy, chunkW, chunkH);
           mapContainer.add(border);
 
-          const clickZone = this.scene.add.zone(ox + chunkW / 2, oy + chunkH / 2, chunkW, chunkH)
-            .setInteractive({ useHandCursor: true });
-          clickZone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-            if (pointer.getDistance() < 5) {
-              detailChunk = { cx, cy };
-              redraw();
-            }
-          });
-          mapContainer.add(clickZone);
+          const visibleChunk = intersectRects({ x: ox, y: oy, width: chunkW, height: chunkH },
+            { x: contentX, y: contentY, width: contentW, height: contentH });
+          if (visibleChunk) {
+            const clickZone = this.scene.add.zone(visibleChunk.x + visibleChunk.width / 2,
+              visibleChunk.y + visibleChunk.height / 2, visibleChunk.width, visibleChunk.height)
+              .setData("layoutId", `world-map-chunk-${cx}-${cy}`).setData("layoutBounds", visibleChunk)
+              .setInteractive({ useHandCursor: true });
+            clickZone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+              pressedChunk = { cx, cy };
+              startPan(pointer);
+            });
+            mapContainer.add(clickZone);
+          }
 
           const landmarks = [...chunk.towns, ...islands.filter((island) =>
             island.location.chunkX === cx && island.location.chunkY === cy,
@@ -2329,12 +2356,10 @@ export class OverlayManager {
           for (const town of landmarks) {
             const tKey = `${cx},${cy},${town.x},${town.y}`;
             if (!player.progression.exploredTiles[tKey]) continue;
-            const mx = ox + town.x * tp + tp / 2;
-            const my = oy + town.y * tp + tp / 2;
-            const m = this.scene.add.graphics();
-            m.fillStyle(0xab47bc, 1);
-            m.fillCircle(mx, my, Math.max(2, 3 * zoomLevel));
-            mapContainer.add(m);
+            const city = getCityForTown(cx, cy, town.x, town.y);
+            if (!city) throw new Error(`[world-map] Missing city landmark ${town.name}.`);
+            drawWorldCityLandmark(this.scene, mapContainer, city,
+              (x, y) => Boolean(player.progression.exploredTiles[`${cx},${cy},${x},${y}`]), tp, ox, oy);
           }
 
           for (const boss of chunk.bosses) {
@@ -2446,7 +2471,11 @@ export class OverlayManager {
             )
           )
           : undefined;
-        if (route && currentPort && port.id !== currentPort.id) {
+        const portBounds = getScaledBounds(marker);
+        const visiblePort = portBounds.x >= contentX && portBounds.y >= contentY
+          && portBounds.x + portBounds.width <= contentX + contentW
+          && portBounds.y + portBounds.height <= contentY + contentH;
+        if (route && currentPort && port.id !== currentPort.id && visiblePort) {
           marker.setInteractive({ useHandCursor: true });
           marker.on("pointerdown", () => {
             this.callbacks.travelMerchantRoute(route.id, currentPort.id);
@@ -2454,12 +2483,13 @@ export class OverlayManager {
         }
         mapContainer.add(marker);
       }
+      for (const object of mapContainer.list) {
+        if (object instanceof Phaser.GameObjects.Text) object.setData("layoutAuditIgnore", true);
+      }
     };
 
-    redraw();
-
     // Mouse wheel zoom
-    this.scene.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
+    const onWheel = (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number): void => {
       if (!this.worldMapOverlay || detailChunk) return;
       const oldZoom = zoomLevel;
       zoomLevel = Phaser.Math.Clamp(zoomLevel - deltaY * 0.001, minZoom, maxZoom);
@@ -2468,36 +2498,49 @@ export class OverlayManager {
         panY = panY * (zoomLevel / oldZoom);
         redraw();
       }
-    });
+    };
+    this.scene.input.on("wheel", onWheel);
 
     // Drag to pan
-    bg.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+    const startPan = (pointer: Phaser.Input.Pointer): void => {
       if (detailChunk) return;
       isDragging = true;
       dragStartX = pointer.x;
       dragStartY = pointer.y;
       panStartX = panX;
       panStartY = panY;
+    };
+    bg.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      pressedChunk = null;
+      startPan(pointer);
     });
-    this.scene.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+    const onPointerMove = (pointer: Phaser.Input.Pointer): void => {
       if (!isDragging || !this.worldMapOverlay) return;
       panX = panStartX + (pointer.x - dragStartX);
       panY = panStartY + (pointer.y - dragStartY);
       redraw();
-    });
-    this.scene.input.on("pointerup", () => { isDragging = false; });
+    };
+    const onPointerUp = (pointer: Phaser.Input.Pointer): void => {
+      isDragging = false;
+      const chunk = pressedChunk;
+      pressedChunk = null;
+      if (chunk && this.worldMapOverlay && !detailChunk && pointer.getDistance() < 5) {
+        detailChunk = chunk;
+        redraw();
+      }
+    };
+    this.scene.input.on("pointermove", onPointerMove);
+    this.scene.input.on("pointerup", onPointerUp);
 
     // Legend
-    const legendY = py + panelH - legendH + 4;
     const legendParts: { text: string; color: string }[] = [
       { text: "● ", color: "#00ff00" }, { text: "You  ", color: "#aaa" },
       { text: "● ", color: "#ff4444" }, { text: "Boss  ", color: "#aaa" },
-      { text: "● ", color: "#ab47bc" }, { text: "Town  ", color: "#aaa" },
+      { text: "⌂ ", color: "#efd594" }, { text: "City  ", color: "#aaa" },
       { text: "⚓ ", color: "#80cbc4" }, { text: "Known port/route  ", color: "#aaa" },
-      { text: "|  Scroll to zoom · Drag to pan · Click chunk for detail  |  N to close", color: "#aaa" },
     ];
     let legendCursorX = 0;
-    const legendContainer = this.scene.add.container(0, legendY);
+    const legendContainer = this.scene.add.container(0, 0);
     for (const part of legendParts) {
       const t = this.scene.add.text(legendCursorX, 0, part.text, {
         fontSize: "10px", fontFamily: "monospace", color: part.color,
@@ -2507,11 +2550,16 @@ export class OverlayManager {
     }
     legendContainer.setX(px + panelW / 2 - legendCursorX / 2);
     this.worldMapOverlay.add(legendContainer);
+    const legendHint = this.scene.add.text(contentX, 0,
+      "Scroll / +/- zoom · Drag to pan · Click a region for detail · M / Esc close", {
+        fontSize: "9px", color: "#b7c8c3", wordWrap: { width: contentW, useAdvancedWrap: true },
+      });
+    this.worldMapOverlay.add(legendHint);
 
     // Zoom controls
-    const zoomIn = this.scene.add.text(px + panelW - panelPad - 40, legendY,
+    const zoomIn = this.scene.add.text(0, 0,
       "[+]", { fontSize: "12px", fontFamily: "monospace", color: "#88ff88" })
-      .setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      .setOrigin(1, 0).setData("layoutId", "world-map-zoom-in").setInteractive({ useHandCursor: true });
     zoomIn.on("pointerdown", () => {
       if (detailChunk) return;
       zoomLevel = Phaser.Math.Clamp(zoomLevel + 0.3, minZoom, maxZoom);
@@ -2519,14 +2567,51 @@ export class OverlayManager {
     });
     this.worldMapOverlay.add(zoomIn);
 
-    const zoomOut = this.scene.add.text(px + panelW - panelPad - 20, legendY,
+    const zoomOut = this.scene.add.text(0, 0,
       "[-]", { fontSize: "12px", fontFamily: "monospace", color: "#88ff88" })
-      .setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      .setOrigin(1, 0).setData("layoutId", "world-map-zoom-out").setInteractive({ useHandCursor: true });
     zoomOut.on("pointerdown", () => {
       if (detailChunk) return;
       zoomLevel = Phaser.Math.Clamp(zoomLevel - 0.3, minZoom, maxZoom);
       redraw();
     });
     this.worldMapOverlay.add(zoomOut);
+    const reflow = (): void => {
+      let headerBottom = title.y + getScaledBounds(title).height;
+      if (nauticalStatus) {
+        nauticalStatus.setY(headerBottom + 5);
+        headerBottom = nauticalStatus.y + getScaledBounds(nauticalStatus).height;
+      }
+      let legendX = contentX;
+      for (const object of legendContainer.list) {
+        if (!(object instanceof Phaser.GameObjects.Text)) continue;
+        object.setX(legendX - contentX);
+        legendX += getScaledBounds(object).width;
+      }
+      const rowHeight = Math.max(legendContainer.getBounds().height, getScaledBounds(zoomIn).height);
+      const legendY = py + panelH - panelPad - rowHeight - 6 - getScaledBounds(legendHint).height;
+      legendContainer.setPosition(contentX, legendY);
+      legendHint.setY(legendY + rowHeight + 6);
+      zoomOut.setPosition(contentX + contentW, legendY);
+      zoomIn.setPosition(zoomOut.x - getScaledBounds(zoomOut).width - 10, legendY);
+      syncInteractiveHitArea(zoomIn);
+      syncInteractiveHitArea(zoomOut);
+      syncInteractiveHitArea(back);
+      contentY = headerBottom + panelPad;
+      contentH = legendY - contentY - panelPad;
+      maskShape.clear().fillStyle(0xffffff).fillRect(contentX, contentY, contentW, contentH);
+      if (maskFilter) maskFilter.needsUpdate = true;
+      redraw();
+    };
+    const unsubscribe = subscribeOverlayReflow(this.scene, reflow);
+    overlay.once(Phaser.GameObjects.Events.DESTROY, () => {
+      unsubscribe();
+      this.scene.input.off("wheel", onWheel);
+      this.scene.input.off("pointermove", onPointerMove);
+      this.scene.input.off("pointerup", onPointerUp);
+      canvasMask?.destroy();
+      maskShape.destroy();
+    });
+    reflow();
   }
 }

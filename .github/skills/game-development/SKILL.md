@@ -46,6 +46,13 @@ Creation cosmetics/defaults/unknown normalization live in `appearance.ts`;
 schema-v28 optional overrides share the canonical hero descriptor and leases.
 They never change class identity, statistics or owned equipment.
 
+World-city cartography uses distinct `worldCityArt.ts` profiles and fog-redacted
+frames shared by exploration and the atlas. Larger symbols never add entrances
+or collision. Cutscene/Ending dialogue shares `cutsceneDialogue.ts`, stable
+speaker actor IDs and leased live hero/canonical NPC/boss portraits.
+The Battle turn chain projects initiative/surprise IDs read-only, removes
+inactive actors immediately and never changes scheduling or leaks roll totals.
+
 Library/home/residential exteriors have blocked multi-tile `buildings`
 footprints. Only explicit doors create connections. Cities use
 separate facade/roof layers around actor depth so doorways do not hide the hero.

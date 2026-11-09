@@ -13,10 +13,12 @@ import { generateTerrainTextures } from "./terrainTextures";
 import { createPixelTexture } from "./pixelTexture";
 import { generateInteriorTextures } from "./interiorTextures";
 import { generateBattleHudTextures } from "./battleHud";
+import { generateWorldCityTextures } from "./worldCities";
 
 /** Boot owns static procedural assets; live equipment art uses cleanup-safe hero leases. */
 export function generateAllTextures(scene: Phaser.Scene): void {
   generateTerrainTextures(scene);
+  generateWorldCityTextures(scene);
   generateInteriorTextures(scene);
   generatePlayerTextureWithColors(scene, "player", 0x567998, 0xd6a079, 0x47505b);
   for (const profile of PLAYER_CLASSES) {

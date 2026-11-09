@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { GAME_HEIGHT, GAME_WIDTH } from "../config";
 import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../data/cutscenes";
-import type { CutsceneBackdrop, CutsceneId, CutsceneStep } from "../data/cutscenes";
+import type { CutsceneBackdrop, CutsceneDialogueStep, CutsceneId, CutsceneStep } from "../data/cutscenes";
 import type { CampaignEndingSummary } from "../systems/cutscenes";
 import type { PartyDefeatResult } from "../systems/party";
 import { isReducedMotionEnabled } from "../systems/accessibility";
@@ -20,6 +20,7 @@ import { getAccessibilityPreferences } from "../systems/accessibility";
 import { EndingSummaryRenderer } from "./endingSummary";
 import { buildCutsceneScenery } from "../systems/cutsceneScenery";
 import { CUTSCENE_RESULT_DIM, drawCutsceneScenery } from "./cutsceneBackdrop";
+import { CutsceneDialogueRenderer } from "./cutsceneDialogue";
 
 export interface CampaignEndingChoiceCallbacks {
   continuePostGame: () => void;
@@ -44,6 +45,8 @@ export class ResultRenderer {
   private hintTween: Phaser.Tweens.Tween | null = null;
   private ambientTweens: Phaser.Tweens.Tween[] = [];
   private heroTextureLease: HeroTextureLease | null = null;
+  private heroSprite: Phaser.GameObjects.Sprite | null = null;
+  private dialogue: CutsceneDialogueRenderer | null = null;
   private readonly heroDescriptor: HeroVisualDescriptor | null;
   private heroInspection = "";
   private summaryRenderer: EndingSummaryRenderer | null = null;
@@ -54,7 +57,7 @@ export class ResultRenderer {
   constructor(
     private readonly scene: Phaser.Scene,
     theme: ResultTheme = "ending",
-    player?: PlayerState,
+    private readonly player?: PlayerState,
     heroDescriptor?: HeroVisualDescriptor,
     private readonly cutsceneId: CutsceneId = CAMPAIGN_EPILOGUE_CUTSCENE_ID,
   ) {
@@ -93,7 +96,7 @@ export class ResultRenderer {
     if (step.type === "narration") {
       this.renderNarration(step.heading, step.text);
     } else if (step.type === "dialogue") {
-      this.renderDialogue(step.speaker, step.text);
+      this.renderDialogue(step);
     } else if (step.type === "summary") {
       if (step.section === "devotion") this.renderDevotionSummary(step.heading, summary.devotion);
       else this.renderSummary(step.heading, summary, advance);
@@ -106,6 +109,7 @@ export class ResultRenderer {
     ) {
       this.renderHero();
     }
+    if (step.type === "dialogue") return;
 
     const hint = this.scene.add.text(
       GAME_WIDTH / 2,
@@ -141,9 +145,10 @@ export class ResultRenderer {
     );
     const sprite = this.scene.add.sprite(
       GAME_WIDTH / 2,
-      405,
+      this.dialogue ? this.dialogue.panelTop - 12 : 405,
       this.heroTextureLease.key,
     ).setScale(3).setOrigin(0.5, 1);
+    this.heroSprite = sprite;
     this.content.add(sprite);
     const fallbacks = this.heroDescriptor.equipmentLayers
       .filter((layer) => layer.fallbackUsed)
@@ -472,26 +477,15 @@ export class ResultRenderer {
     });
   }
 
-  private renderDialogue(speaker: string, text: string): void {
-    const panel = this.scene.add.graphics();
-    panel.fillStyle(0x11162f, 0.94);
-    panel.fillRoundedRect(62, 128, GAME_WIDTH - 124, 245, 12);
-    panel.lineStyle(2, 0xd9b95b, 0.7);
-    panel.strokeRoundedRect(62, 128, GAME_WIDTH - 124, 245, 12);
-    const speakerText = this.scene.add.text(92, 155, speaker, {
-      fontSize: "17px",
-      fontFamily: "monospace",
-      color: "#ffe38a",
-      fontStyle: "bold",
-    });
-    const body = this.scene.add.text(92, 205, text, {
-      fontSize: "15px",
-      fontFamily: "monospace",
-      color: "#eef0ff",
-      lineSpacing: 7,
-      wordWrap: { width: GAME_WIDTH - 184, useAdvancedWrap: true },
-    });
-    this.content!.add([panel, speakerText, body]);
+  private renderDialogue(step: CutsceneDialogueStep): void {
+    if (!this.content || !this.player || !this.heroDescriptor) {
+      throw new Error("[ending] Dialogue portraits require the current player.");
+    }
+    this.dialogue = new CutsceneDialogueRenderer(this.scene, this.player, this.heroDescriptor, this.content,
+      () => {
+        if (this.dialogue && this.heroSprite) this.heroSprite.setY(this.dialogue.panelTop - 12);
+      });
+    this.dialogue.present(step);
   }
 
   private renderSummary(
@@ -572,6 +566,8 @@ export class ResultRenderer {
   }
 
   private clearContent(): void {
+    this.dialogue?.destroy();
+    this.dialogue = null;
     this.summaryRenderer?.destroy();
     this.summaryRenderer = null;
     this.hintTween?.remove();
@@ -579,6 +575,7 @@ export class ResultRenderer {
     this.content?.destroy();
     this.heroTextureLease?.release();
     this.heroTextureLease = null;
+    this.heroSprite = null;
     this.heroInspection = "";
     this.content = null;
     this.choiceButtons = [];

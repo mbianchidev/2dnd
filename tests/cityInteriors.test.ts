@@ -92,6 +92,11 @@ describe("explorable city rooms", () => {
         expect(reached.has("10,12")).toBe(true);
         expect(reached.has("10,13")).toBe(true);
         if (room.shops.length) expect(reached.has("10,6")).toBe(true);
+        if (room.interior!.kind === "library") {
+          for (const [x, y] of [[6, 8], [7, 8], [8, 8], [9, 8], [9, 7], [10, 7], [11, 7], [12, 7], [13, 7]]) {
+            expect(reached.has(`${x},${y}`), `${city.id}:library-aisle:${x},${y}`).toBe(true);
+          }
+        }
       }
     }
   });

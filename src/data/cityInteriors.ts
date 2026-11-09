@@ -32,7 +32,7 @@ function createRoom(
     prop("book", `${city.name} travel journal`, 6, 7, { knowledgeId: INTERIOR_PRIMER_ID }, INTERIOR_PRIMER_TEXT);
     prop("table", "Reading table", 10, 8);
     prop("plant", "Potted fern", 15, 11);
-    prop("chair", "Reading chair", 8, 8);
+    prop("chair", "Reading chair", 8, 9);
     prop("chair", "Reading chair", 13, 9);
     prop("barrel", "Scroll case", 3, 10);
     const study = INTERIOR_STUDIES.find((entry) => entry.cityId === city.id);

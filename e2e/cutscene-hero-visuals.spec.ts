@@ -263,7 +263,10 @@ test("hero screenshots change with PlayerState-derived fixtures and remain acces
     "bardBlue",
     "lateGame",
   );
-  await expect(page).toHaveScreenshot("cutscene-kraken-lategame-landscape.png", {
+  const krakenSnapshot = process.platform === "linux"
+    ? "cutscene-kraken-lategame-landscape-linux.png"
+    : "cutscene-kraken-lategame-landscape.png";
+  await expect(page).toHaveScreenshot(krakenSnapshot, {
     animations: "disabled",
     maxDiffPixelRatio: 0.08,
   });

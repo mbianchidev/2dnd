@@ -29,6 +29,13 @@ Local checks are headless only. `playwright.config.ts` explicitly selects
 headless Chromium; never run visible native windows or take control of the
 developer's desktop. Native release checks run on isolated CI/virtual displays.
 
+Controller helpers read the filtered Adventure menu's live entry/selection IDs
+and follow its two-column grid; pressing Down alone cannot reach both columns.
+The compact Kraken landscape hero capture has a separate Linux reference
+because system-font fallbacks and the surrounding HTML/FIT bounds differ from
+macOS. Both references are real game captures and retain the same 8% threshold;
+update the matching platform image rather than widening comparison tolerances.
+
 ## Vitest responsibilities
 
 Tests in `tests/*.test.ts` own Phaser-free behavior:

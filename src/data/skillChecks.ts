@@ -56,17 +56,18 @@ export function getShopNegotiationOption(
 export function getCityShopSkillCheckId(
   cityId: string,
   chunkIndex: number,
-  shop: Pick<CityShopData, "type" | "x" | "y">,
+  shop: Pick<CityShopData, "type" | "x" | "y" | "source">,
 ): string {
+  const identity = shop.source ?? { chunkIndex, x: shop.x, y: shop.y };
   if (
     !cityId
-    || !Number.isInteger(chunkIndex)
-    || !Number.isInteger(shop.x)
-    || !Number.isInteger(shop.y)
+    || !Number.isInteger(identity.chunkIndex)
+    || !Number.isInteger(identity.x)
+    || !Number.isInteger(identity.y)
   ) {
     throw new Error("[skillChecks] Invalid city shop identity");
   }
-  return `shop:city:${cityId}:${chunkIndex}:${shop.type}:${shop.x},${shop.y}`;
+  return `shop:city:${cityId}:${identity.chunkIndex}:${shop.type}:${identity.x},${identity.y}`;
 }
 
 export function getTownShopSkillCheckId(

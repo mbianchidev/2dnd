@@ -207,6 +207,13 @@ export class ActorAnimationDirector {
       return true;
     }
 
+    if (!record.externalTexture && (record.textureFamily.frames[state]?.length ?? 0) > 1) {
+      active.timers.push(this.scene.time.delayedCall(Math.round(timing.durationMs * 0.45), () => {
+        if (!this.disposed && record.active === active && active.lifecycle.status === "pending") {
+          this.applyTexture(record, state, 1);
+        }
+      }));
+    }
     const tween = this.createStateTween(
       record,
       state,
@@ -297,8 +304,9 @@ export class ActorAnimationDirector {
       case "attack":
         return this.scene.tweens.add({
           ...common,
-          x: record.snapshot.x + 18 * direction,
-          scaleX: record.snapshot.scaleX * 1.08,
+          x: record.snapshot.x + 34 * direction,
+          y: record.snapshot.y - 3,
+          angle: -5 * direction,
           duration: halfDuration,
           yoyo: true,
         });
@@ -360,7 +368,7 @@ export class ActorAnimationDirector {
         return this.scene.tweens.add({
           ...common,
           y: record.snapshot.y + 12,
-          angle: 88 * direction,
+          angle: this.hasStateFrame(record, "faint") ? 0 : 88 * direction,
           alpha: 0.28,
           duration: durationMs,
           ease: "Quad.In",
@@ -385,7 +393,7 @@ export class ActorAnimationDirector {
   ): void {
     if (state === "faint") {
       record.target
-        .setAngle(88 * direction)
+        .setAngle(this.hasStateFrame(record, "faint") ? 0 : 88 * direction)
         .setAlpha(0.35)
         .setY(record.snapshot.y + 8);
     } else if (state === "defend") {
@@ -403,7 +411,8 @@ export class ActorAnimationDirector {
     state: ActorAnimationState,
     frameIndex: number,
   ): void {
-    if (record.externalTexture || !(record.target instanceof Phaser.GameObjects.Sprite)) return;
+    if (this.disposed || !record.target.active || this.actors.get(record.id) !== record
+      || record.externalTexture || !(record.target instanceof Phaser.GameObjects.Sprite)) return;
     const resolution = resolveActorTextureFrame(
       record.textureFamily,
       state,
@@ -428,7 +437,14 @@ export class ActorAnimationDirector {
       ease: "Sine.InOut",
       yoyo: true,
       repeat: -1,
+      onYoyo: () => this.applyTexture(record, "idle", 1),
+      onRepeat: () => this.applyTexture(record, "idle", 0),
     });
+  }
+
+  private hasStateFrame(record: ActorRecord, state: ActorAnimationState): boolean {
+    return (record.textureFamily.frames[state] ?? []).some((frame) =>
+      this.scene.textures.exists(frame.textureKey));
   }
 
   private stopActor(record: ActorRecord, restore: boolean): void {

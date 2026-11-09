@@ -363,13 +363,13 @@ describe("non-blocking dice presentation lifecycle", () => {
     return { controller, adapter, scheduled, cancelTimer };
   }
 
-  it("records and shows immediately, deduplicates one receipt, and fast-forwards only visuals", () => {
+  it("shows an unresolved throw and records its exact result only after settling once", () => {
     const { controller, adapter, scheduled, cancelTimer } = setup();
     const source = {};
     const view = presentation();
     controller.present(view, { frequency: "all", speed: "normal" }, false, source);
     controller.present(view, { frequency: "all", speed: "normal" }, false, source);
-    expect(adapter.record).toHaveBeenCalledTimes(1);
+    expect(adapter.record).not.toHaveBeenCalled();
     expect(adapter.show).toHaveBeenCalledTimes(1);
     expect(controller.history).toHaveLength(1);
     expect(controller.phase).toBe("animating");
@@ -378,6 +378,9 @@ describe("non-blocking dice presentation lifecycle", () => {
     scheduled[0]!();
     expect(cancelTimer).toHaveBeenCalledTimes(1);
     expect(adapter.settle).toHaveBeenCalledTimes(1);
+    expect(adapter.record).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(adapter.record).mock.invocationCallOrder[0])
+      .toBeGreaterThan(vi.mocked(adapter.settle).mock.invocationCallOrder[0]!);
     expect(controller.phase).toBe("ready");
     expect(controller.history[0]?.text).toBe(formatDicePresentation(view));
   });
@@ -390,6 +393,8 @@ describe("non-blocking dice presentation lifecycle", () => {
       }, { id: "table:round:4", category: "other", label: "Crown & Bones", outcome: "rolled", detail: "Safe" });
       controller.present(view, { frequency: "all", speed: "normal" }, false);
     }
+    expect(adapter.record).not.toHaveBeenCalled();
+    controller.fastForward();
     expect(adapter.record).toHaveBeenCalledTimes(1);
     expect(controller.history[0]?.text).toContain("Safe");
   });
@@ -422,7 +427,7 @@ describe("non-blocking dice presentation lifecycle", () => {
     controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
     expect(cancelTimer).toHaveBeenCalledTimes(1);
     expect(adapter.clear).toHaveBeenCalledTimes(1);
-    expect(adapter.record).toHaveBeenCalledTimes(1);
+    expect(adapter.record).not.toHaveBeenCalled();
     expect(controller.phase).toBe("clean");
     expect(controller.history).toEqual([]);
   });

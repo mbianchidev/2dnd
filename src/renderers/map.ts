@@ -13,6 +13,7 @@ import {
   getDungeonLevelMap,
   getCity,
   getCityChunk,
+  getCityConnectionAt,
   getChestAt,
   getTownBiome,
   hasSparkleAt,
@@ -31,6 +32,9 @@ import { TILE_SIZE } from "../config";
 import { layoutAnchoredLabels } from "../systems/layout";
 import { getScaledBounds, subscribeOverlayReflow } from "../managers/layout";
 import { createOverlayContainer } from "../utils/ui";
+import { getOrCreateTerrainTexture } from "./terrainTextures";
+import { InteriorRenderer } from "./interior";
+import { DungeonLightingRenderer } from "./dungeonLighting";
 
 /** Biome wall texture overrides for city rendering. */
 const BIOME_WALL_MAP: Record<number, string> = {
@@ -144,9 +148,14 @@ export class MapRenderer {
   biomeDecoEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
   private labelLayer: Phaser.GameObjects.Container | null = null;
   private labelRows: Array<{ text: Phaser.GameObjects.Text; id: string; x: number; y: number; maxWidth: number }> = [];
+  private readonly interiors: InteriorRenderer;
+  private readonly dungeonLighting: DungeonLightingRenderer;
+  private insideRoom = false;
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, private readonly interactInterior: (id: string) => void) {
     this.scene = scene;
+    this.interiors = new InteriorRenderer(scene);
+    this.dungeonLighting = new DungeonLightingRenderer(scene);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -162,6 +171,9 @@ export class MapRenderer {
     cityRenderer: CityRenderer,
     timeStep: number = 0,
   ): void {
+    this.interiors.clear();
+    this.dungeonLighting.clear();
+    this.insideRoom = false;
     this.labelLayer?.destroy(true);
     this.labelLayer = null;
     this.labelRows = [];
@@ -244,7 +256,7 @@ export class MapRenderer {
     const period = player.position.inDungeon ? TimePeriod.Dungeon : getTimePeriod(timeStep);
     const dayTint = PERIOD_TINT[period];
     const weatherTint = WEATHER_TINT[weatherState.current];
-    const tint = blendTints(dayTint, weatherTint);
+    const tint = this.insideRoom ? 0xffefd2 : blendTints(dayTint, weatherTint);
     for (const row of this.tileSprites) {
       for (const sprite of row) {
         sprite.setTint(tint);
@@ -267,7 +279,7 @@ export class MapRenderer {
 
     const w = MAP_WIDTH * TILE_SIZE;
     const h = MAP_HEIGHT * TILE_SIZE;
-    const weather = weatherState.current;
+    const weather = this.insideRoom ? WeatherType.Clear : weatherState.current;
 
     if (weather === WeatherType.Clear) return;
 
@@ -391,7 +403,7 @@ export class MapRenderer {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const explored = isExplored(x, y);
         const terrain = levelMap[y][x];
-        let texKey = explored ? `tile_${terrain}` : "tile_fog";
+        let texKey = explored ? getOrCreateTerrainTexture(this.scene, levelMap, x, y) : "tile_fog";
         if (explored && terrain === Terrain.Chest) {
           const chest = getChestAt(x, y, {
             type: "dungeon",
@@ -410,6 +422,8 @@ export class MapRenderer {
         this.tileSprites[y][x] = sprite;
       }
     }
+
+    this.dungeonLighting.render(levelMap, player.position.dungeonLevel, isExplored);
 
     // Dungeon name label
     const levelLabel = (dungeon.levels?.length ?? 0) > 0 ? ` (Level ${player.position.dungeonLevel + 1})` : "";
@@ -486,6 +500,7 @@ export class MapRenderer {
     const chunk = getCityChunk(city, player.position.cityChunkIndex);
     if (!chunk) return;
     const cityMap = chunk.mapData;
+    this.insideRoom = !!chunk.interior;
     const cityTitle = this.scene.add.text(MAP_WIDTH * TILE_SIZE / 2, 4,
       city.name === chunk.name ? city.name : `${city.name}: ${chunk.name}`, {
         fontFamily: "monospace", fontSize: "10px", color: "#ffd700",
@@ -513,7 +528,7 @@ export class MapRenderer {
       const shop: CityShopData = shops[si];
       const queue: { x: number; y: number }[] = [];
       const visited = new Set<string>();
-      for (let dy = -3; dy <= 0; dy++) {
+      for (let dy = -3; dy < 0; dy++) {
         for (let dx = -2; dx <= 2; dx++) {
           const tx = shop.x + dx;
           const ty = shop.y + dy;
@@ -531,6 +546,7 @@ export class MapRenderer {
         for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
           const nx = cur.x + ddx;
           const ny = cur.y + ddy;
+          if (Math.abs(nx - shop.x) > 2 || ny < shop.y - 3 || ny >= shop.y) continue;
           const key = `${nx},${ny}`;
           if (visited.has(key)) continue;
           if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
@@ -554,15 +570,23 @@ export class MapRenderer {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const explored = isExplored(x, y);
         const terrain = cityMap[y][x];
-        let texKey = explored ? `tile_${terrain}` : "tile_fog";
-        if (explored && terrain === Terrain.CityFloor) texKey = biomeFloorTex;
-        if (explored && terrain === Terrain.CityWall) texKey = biomeWallTex;
+        let texKey = explored ? getOrCreateTerrainTexture(this.scene, cityMap, x, y, cityBiome) : "tile_fog";
+        if (chunk.interior) {
+          const bounds = chunk.interior.bounds;
+          if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) texKey = "tile_fog";
+          else if (chunk.interior.props.some((prop) => prop.x === x && prop.y === y)) texKey = `tile_${Terrain.ShopFloor}`;
+        }
         if (explored && terrain === Terrain.Carpet) {
           const carpetOverride = shopCarpetMap.get(`${x},${y}`);
           if (carpetOverride) texKey = carpetOverride;
         }
         if (explored && terrain === Terrain.CityPath) texKey = biomePathTex;
-        if (terrain === Terrain.ShopFloor) {
+        if (explored && terrain === Terrain.CityGate && !chunk.interior) {
+          const connection = getCityConnectionAt(city, player.position.cityChunkIndex, x, y);
+          const destination = connection ? getCityChunk(city, connection.toChunkIndex)?.interior : undefined;
+          if (destination && destination.kind !== "shop") texKey = `tile_building_${destination.kind}`;
+        }
+        if (terrain === Terrain.ShopFloor && !chunk.interior) {
           const tileShopIdx = cityRenderer.shopFloorMap.get(`${x},${y}`) ?? -1;
           if (tileShopIdx !== activeShopIdx) texKey = biomeWallTex;
         }
@@ -589,9 +613,10 @@ export class MapRenderer {
             })
             .setOrigin(0.5, 1);
         }
-        if (cityMap[y][x] === Terrain.CityGate && isExplored(x, y)) {
+        if (!chunk.interior && cityMap[y][x] === Terrain.CityGate && isExplored(x, y)
+          && Math.abs(player.position.x - x) + Math.abs(player.position.y - y) <= 3) {
           this.scene.add
-            .text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE + 4, "DISTRICT", {
+            .text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE + 4, "ENTER", {
               fontSize: "8px",
               fontFamily: "monospace",
               color: "#ffd966",
@@ -603,7 +628,7 @@ export class MapRenderer {
       }
     }
     for (const shop of shops) {
-      if (isExplored(shop.x, shop.y)) {
+      if (isExplored(shop.x, shop.y) && Math.abs(player.position.x - shop.x) + Math.abs(player.position.y - shop.y) <= 5) {
         const icon = shop.type === "weapon" ? "⚔" : shop.type === "armor" ? "🛡" : shop.type === "inn" ? "🏨" : shop.type === "bank" ? "🏦" : shop.type === "stable" ? "🐴" : "🏪";
         const label = this.scene.add
           .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 6, `${icon} ${shop.name}`, {
@@ -619,6 +644,12 @@ export class MapRenderer {
           .setDepth(15);
         this.addMapLabel(label, `city-shop-${shop.x}-${shop.y}`);
       }
+    }
+
+    if (chunk.interior) {
+      this.interiors.render(player, chunk, this.interactInterior);
+      cityRenderer.spawnInteriorShopkeeper(city, chunk, this.interactInterior);
+      return;
     }
 
     // City animals, NPCs, and shop roofs
@@ -664,7 +695,7 @@ export class MapRenderer {
         const explored = isExplored(x, y);
         const terrain = islands.some((island) => island.location.tileX === x && island.location.tileY === y)
           ? Terrain.Town : chunk.mapData[y][x];
-        let texKey = explored ? `tile_${terrain}` : "tile_fog";
+        let texKey = explored ? getOrCreateTerrainTexture(this.scene, chunk.mapData, x, y) : "tile_fog";
         if (explored && terrain === Terrain.Town) {
           const biome = getTownBiome(player.position.chunkX, player.position.chunkY, x, y);
           texKey = `tile_town_${biome}`;
@@ -753,7 +784,7 @@ export class MapRenderer {
       for (let x = 0; x < MAP_WIDTH; x++) {
         if (isExplored(x, y) && this.tileSprites[y]?.[x]) {
           const terrain = levelMap[y][x];
-          let texKey = `tile_${terrain}`;
+          let texKey = getOrCreateTerrainTexture(this.scene, levelMap, x, y);
           if (terrain === Terrain.Chest) {
             const chest = getChestAt(x, y, {
               type: "dungeon",
@@ -767,6 +798,7 @@ export class MapRenderer {
           this.tileSprites[y][x].setTexture(texKey);
         }
       }
+      this.dungeonLighting.render(levelMap, player.position.dungeonLevel, isExplored);
     }
   }
 
@@ -803,15 +835,23 @@ export class MapRenderer {
       for (let x = 0; x < MAP_WIDTH; x++) {
         if (isExplored(x, y) && this.tileSprites[y]?.[x]) {
           const terrain = cityMap[y][x];
-          let texKey = `tile_${terrain}`;
-          if (terrain === Terrain.CityFloor) texKey = biomeFloorTex;
-          if (terrain === Terrain.CityWall) texKey = biomeWallTex;
+          let texKey = getOrCreateTerrainTexture(this.scene, cityMap, x, y, cityBiome);
           if (terrain === Terrain.Carpet) {
             const override = shopCarpetMap.get(`${x},${y}`);
             if (override) texKey = override;
           }
           if (terrain === Terrain.CityPath) texKey = biomePathTex;
-          if (terrain === Terrain.ShopFloor) {
+          if (terrain === Terrain.CityGate && !chunk.interior) {
+            const connection = getCityConnectionAt(city, player.position.cityChunkIndex, x, y);
+            const destination = connection ? getCityChunk(city, connection.toChunkIndex)?.interior : undefined;
+            if (destination && destination.kind !== "shop") texKey = `tile_building_${destination.kind}`;
+          }
+          if (chunk.interior) {
+            const bounds = chunk.interior.bounds;
+            if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) texKey = "tile_fog";
+            else if (chunk.interior.props.some((prop) => prop.x === x && prop.y === y)) texKey = `tile_${Terrain.ShopFloor}`;
+          }
+          if (terrain === Terrain.ShopFloor && !chunk.interior) {
             const tileShopIdx = cityRenderer.shopFloorMap.get(`${x},${y}`) ?? -1;
             if (tileShopIdx !== activeShopIdx) texKey = biomeWallTex;
           }
@@ -833,7 +873,7 @@ export class MapRenderer {
         if (isExplored(x, y) && this.tileSprites[y]?.[x]) {
           const terrain = islands.some((island) => island.location.tileX === x && island.location.tileY === y)
             ? Terrain.Town : chunk.mapData[y][x];
-          let texKey = `tile_${terrain}`;
+          let texKey = getOrCreateTerrainTexture(this.scene, chunk.mapData, x, y);
           if (terrain === Terrain.Town) {
             const biome = getTownBiome(player.position.chunkX, player.position.chunkY, x, y);
             texKey = `tile_town_${biome}`;

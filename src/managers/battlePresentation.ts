@@ -21,6 +21,9 @@ import {
 import { BATTLE_DEPTH } from "../renderers/battleDepth";
 import { BattleImpactRenderer } from "../renderers/battleEffects";
 import type { BattleImpactKind } from "../systems/battleEffects";
+import type { Element } from "../data/elements";
+import { getActionEffectColor } from "../systems/battleChoreography";
+import { BattleChoreographyRenderer } from "../renderers/battleChoreography";
 
 export interface BattlePresentationTarget {
   readonly targetId: BattleCombatantId;
@@ -35,6 +38,8 @@ export interface BattleActionPresentation {
   readonly targets: readonly BattlePresentationTarget[];
   readonly critical?: boolean;
   readonly successful?: boolean;
+  readonly element?: Element;
+  readonly ranged?: boolean;
 }
 
 export interface BattleActorPresentationBinding {
@@ -47,6 +52,7 @@ export interface BattleActorPresentationBinding {
 export class BattlePresentationDirector {
   private readonly actors: ActorAnimationDirector;
   private readonly impacts: BattleImpactRenderer;
+  private readonly choreography: BattleChoreographyRenderer;
   private readonly roles = new Map<BattleCombatantId, ActorAnimationRole>();
   private readonly sprites = new Map<
     BattleCombatantId,
@@ -62,6 +68,7 @@ export class BattlePresentationDirector {
   public constructor(private readonly scene: Phaser.Scene) {
     this.actors = new ActorAnimationDirector(scene);
     this.impacts = new BattleImpactRenderer(scene);
+    this.choreography = new BattleChoreographyRenderer(scene);
   }
 
   public registerActor(binding: BattleActorPresentationBinding): void {
@@ -78,13 +85,13 @@ export class BattlePresentationDirector {
 
   public get debugState(): string {
     if (this.eventHistory.length > 0) {
-      return `${this.eventHistory.join(">")} | Impacts: ${this.impacts.activeCount} [${this.impacts.debugState}]`;
+      return `${this.eventHistory.join(">")} | Impacts: ${this.impacts.activeCount} [${this.impacts.debugState}] | Trails: ${this.choreography.activeCount}`;
     }
     return this.lastEvent === "idle" ? this.actors.state : this.lastEvent;
   }
 
   public get isBusy(): boolean {
-    return this.actors.isBusy
+    return this.actors.isBusy || this.choreography.activeCount > 0
       || (!isReducedMotionEnabled()
         && (this.transientTweens.size > 0 || this.transientTimers.size > 0 || this.impacts.activeCount > 0));
   }
@@ -127,6 +134,29 @@ export class BattlePresentationDirector {
       return;
     }
 
+    const actor = this.getActorSprite(presentation.actorId);
+    if (actor) {
+      const kind = presentation.targets.some((target) => target.healing > 0) ? "heal"
+        : presentation.kind === "spell" || presentation.kind === "ability" ? "spell"
+          : presentation.ranged ? "ranged" : "melee";
+      this.choreography.show(presentation.actorId, kind, { x: actor.x, y: actor.y - 8 },
+        presentation.targets.flatMap((target) => {
+          const sprite = this.getActorSprite(target.targetId);
+          return sprite ? [{ x: sprite.x, y: sprite.y - (target.hit ? 8 : 28) }] : [];
+        }), kind === "heal" ? 0x98cba1 : getActionEffectColor(presentation.element));
+    }
+    const react = (): void => this.presentReactions(presentation, direction);
+    if (isReducedMotionEnabled()) react();
+    else {
+      const timer = this.scene.time.delayedCall(presentation.kind === "spell" ? 140 : 105, () => {
+        this.transientTimers.delete(timer);
+        react();
+      });
+      this.transientTimers.add(timer);
+    }
+  }
+
+  private presentReactions(presentation: BattleActionPresentation, direction: -1 | 1): void {
     for (const target of presentation.targets) {
       if (target.damage > 0 && target.hit) {
         this.actors.play(target.targetId, "damage", {
@@ -161,7 +191,7 @@ export class BattlePresentationDirector {
     if (this.faintedActors.has(actorId)) return;
     this.faintedActors.add(actorId);
     const timer = this.scene.time.delayedCall(
-      isReducedMotionEnabled() ? 0 : delayMs,
+      isReducedMotionEnabled() ? 0 : Math.max(180, delayMs),
       () => {
         this.transientTimers.delete(timer);
         this.recordEvent(
@@ -204,6 +234,7 @@ export class BattlePresentationDirector {
   }
 
   public cleanup(): void {
+    this.choreography.destroy();
     this.impacts.destroy();
     for (const timer of this.transientTimers) timer.remove(false);
     for (const tween of this.transientTweens) {

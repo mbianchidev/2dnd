@@ -9,6 +9,7 @@ import type { PlayerState } from "../systems/player";
 import { TILE_SIZE } from "../config";
 import {
   resolveHeroVisualDescriptor,
+  getHeroVisualTextureKey,
   type HeroFacing,
   type HeroPose,
 } from "../systems/heroVisuals";
@@ -39,6 +40,7 @@ export class PlayerRenderer {
   /** Current facing direction: front (down), back (up), or side (left/right). */
   private facing: "front" | "back" | "side" = "front";
   private heroTextureLease: HeroTextureLease | null = null;
+  private readonly gaitTextureLeases = new Map<string, HeroTextureLease>();
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -46,6 +48,7 @@ export class PlayerRenderer {
       this.playerSprite?.destroy();
       this.heroTextureLease?.release();
       this.heroTextureLease = null;
+      this.clearGaitTextures();
     });
   }
 
@@ -61,6 +64,7 @@ export class PlayerRenderer {
     }
     this.heroTextureLease?.release();
     this.heroTextureLease = null;
+    this.clearGaitTextures();
     if (this.mountSprite) {
       this.mountSprite.destroy();
       this.mountSprite = null;
@@ -234,5 +238,29 @@ export class PlayerRenderer {
     this.playerSprite.setTexture(nextLease.key);
     this.heroTextureLease?.release();
     this.heroTextureLease = nextLease;
+    this.clearGaitTextures();
+  }
+
+  /** Gait changes only the image; travel coordinates remain owned by the movement tween. */
+  setWalkingFrame(player: PlayerState, progress: number): void {
+    if (!this.playerSprite?.active || isMountedInOverworld(player) || player.progression.nautical.sailing) return;
+    if (progress >= 1) {
+      if (this.heroTextureLease) this.playerSprite.setTexture(this.heroTextureLease.key);
+      return;
+    }
+    const pose: HeroPose = progress < 0.5 ? "strideLeft" : "strideRight";
+    const descriptor = resolveHeroVisualDescriptor(player);
+    const key = getHeroVisualTextureKey(descriptor, this.facing, pose, false);
+    let lease = this.gaitTextureLeases.get(key);
+    if (!lease) {
+      lease = acquireHeroTexture(this.scene, descriptor, this.facing, pose);
+      this.gaitTextureLeases.set(key, lease);
+    }
+    if (this.playerSprite.texture.key !== key) this.playerSprite.setTexture(key);
+  }
+
+  private clearGaitTextures(): void {
+    for (const lease of this.gaitTextureLeases.values()) lease.release();
+    this.gaitTextureLeases.clear();
   }
 }

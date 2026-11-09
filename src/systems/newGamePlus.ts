@@ -12,6 +12,7 @@ import { createNauticalState } from "./nauticalState";
 import { createSocialState } from "./reputation";
 import { createWeatherState } from "./weather";
 import { getEarnedPendingLevels } from "./classProgression";
+import { getPermanentStudyLedger } from "./interiorStudy";
 import { bindPartyProgression } from "./party";
 import { normalizeSaveData, SAVE_VERSION, type SaveData } from "./save";
 import {
@@ -90,7 +91,7 @@ export function buildNewGamePlus(
   old.minigames.pending = null;
   old.minigames.settledSequence = old.minigames.sequence;
   player.progression = {
-    openedChests: [], collectedTreasures: [], exploredTiles: {}, discoveredCities: [],
+    openedChests: [], collectedTreasures: getPermanentStudyLedger(old.collectedTreasures), exploredTiles: {}, discoveredCities: [],
     quests: createQuestLog(), seenCutsceneIds: [], pendingCutsceneIds: [], skillChecks: {},
     trapSeed: newGamePlusSeed(`${state.cycleId}:traps`), trapStates: {},
     trapGuidance: old.trapGuidance, tutorial: old.tutorial,

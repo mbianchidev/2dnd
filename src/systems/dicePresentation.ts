@@ -441,6 +441,7 @@ export class DicePresentationController {
   private cancelFade: (() => void) | null = null;
   private sequence = 0;
   private state: "ready" | "animating" | "clean" = "ready";
+  private pendingRecord: DicePresentationEvent | null = null;
 
   constructor(
     private readonly adapter: DicePresentationAdapter,
@@ -490,15 +491,17 @@ export class DicePresentationController {
       sequence,
     });
     this.events = Object.freeze(this.scope === "battle" ? [...this.events.slice(-39), event] : [event]);
-    this.adapter.record(event);
     this.state = event.duration > 0 ? "animating" : "ready";
+    this.pendingRecord = event.duration > 0 ? event : null;
     this.adapter.show(event);
+    if (event.duration === 0) this.adapter.record(event);
     if (event.duration > 0) {
       this.cancelTimer = this.adapter.schedule(event.duration, () => {
         if (this.state !== "animating" || sequence !== this.sequence) return;
         this.cancelTimer = null;
         this.state = "ready";
         this.adapter.settle();
+        this.recordSettled();
       });
     }
     if (this.scope === "transient") {
@@ -526,6 +529,13 @@ export class DicePresentationController {
     this.cancelTimer = null;
     this.state = "ready";
     this.adapter.settle();
+    this.recordSettled();
+  }
+
+  private recordSettled(): void {
+    const event = this.pendingRecord;
+    this.pendingRecord = null;
+    if (event) this.adapter.record(event);
   }
 
   reset(): void {
@@ -549,6 +559,7 @@ export class DicePresentationController {
     this.cancelFade?.();
     this.cancelFade = null;
     this.state = "clean";
+    this.pendingRecord = null;
     this.events = [];
     this.seenIds.clear();
     this.adapter.clear();

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { CUTSCENE_IDS } from "../src/data/cutscenes";
-import { getCity, getCityChunkCount, getCityChunkMap, isWalkable, MAP_HEIGHT, MAP_WIDTH } from "../src/data/map";
+import { getCity, getCityChunk, getCityChunkCount, getCityChunkMap, isWalkable, MAP_HEIGHT, MAP_WIDTH } from "../src/data/map";
 import { getMinigameVenue } from "../src/data/minigames";
 import { getMonster } from "../src/data/monsters";
 import { getMonsterTextureKey } from "../src/data/monsterFamilies";
@@ -57,10 +57,11 @@ test("entering and reloading a city reveals all districts without changing other
   await expect(page.locator("#debug-state")).toContainText("[CITY:willowdale_city:0]");
   const saved = await readMinigameSave(page);
   for (let district = 0; district < getCityChunkCount(city); district++) {
+    const building = !!getCityChunk(city, district)?.interior;
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const key = district === 0 ? `c:${city.id},${x},${y}` : `c:${city.id},${district},${x},${y}`;
-        expect(saved.player.progression.exploredTiles[key], key).toBe(true);
+        expect(saved.player.progression.exploredTiles[key], key).toBe(building ? undefined : true);
       }
     }
   }

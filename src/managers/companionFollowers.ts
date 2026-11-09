@@ -115,8 +115,15 @@ export class CompanionFollowerManager {
         x,
         y,
         duration: motionDuration,
-        onComplete: () =>
-          this.presentation.completeFollowerStep(companionId),
+        onUpdate: (tween: Phaser.Tweens.Tween) => {
+          if (!sprite.active) return;
+          const key = `companion_${companionId}_walk_${tween.progress < 0.5 ? 0 : 1}`;
+          if (sprite.texture.key !== key) sprite.setTexture(key);
+        },
+        onComplete: () => {
+          if (sprite.active) sprite.setTexture(`companion_${companionId}`);
+          this.presentation.completeFollowerStep(companionId);
+        },
       });
     });
   }

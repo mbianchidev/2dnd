@@ -75,7 +75,8 @@ describe("fog of war location separation", () => {
       }
     }
     expect(fog.getExploredTiles()).toBe(original);
-    expect(Object.keys(original)).toHaveLength(1 + getCityChunkCount(city) * MAP_WIDTH * MAP_HEIGHT);
+    const streets = 1 + (city.chunks ?? []).filter((chunk) => !chunk.interior).length;
+    expect(Object.keys(original)).toHaveLength(1 + streets * MAP_WIDTH * MAP_HEIGHT);
     expect(original["4,2,1,1"]).toBe(true);
     expect(fog.isFogDisabled()).toBe(false);
     const count = Object.keys(original).length;
@@ -92,5 +93,21 @@ describe("fog of war location separation", () => {
     expect(tiles["d:heartlands_dungeon,1,2,3"]).toBe(true);
     expect(Object.keys(tiles).filter((key) => key.startsWith("d:"))).toHaveLength(1);
     expect(Object.keys(tiles).some((key) => key.startsWith("c:ironhold_city"))).toBe(false);
+  });
+
+  it("derives complete building visibility without increasing campaign fog storage", () => {
+    const fog = new FogOfWar();
+    const player = createPlayer("Explorer", stats);
+    const city = getCity("willowdale_city")!;
+    const roomIndex = city.chunks!.findIndex((chunk) => chunk.interior?.kind === "library") + 1;
+    Object.assign(player.position, { inCity: true, cityId: city.id, cityChunkIndex: roomIndex });
+    fog.revealCity(city);
+    const before = JSON.stringify(fog.getExploredTiles());
+    fog.revealAround(10, 12, 5, player);
+    expect(fog.isExplored(0, 0, player)).toBe(true);
+    expect(fog.isExplored(19, 14, player)).toBe(true);
+    expect(fog.isExplored(-1, 0, player)).toBe(false);
+    expect(JSON.stringify(fog.getExploredTiles())).toBe(before);
+    expect(Object.keys(fog.getExploredTiles()).some((key) => key.startsWith(`c:${city.id},${roomIndex},`))).toBe(false);
   });
 });

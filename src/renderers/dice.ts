@@ -189,6 +189,7 @@ export class DiceRollRenderer {
     const visible = isDicePresentationVisible(event.presentation, preferences.dice);
     if (announce && visible) this.announcement.textContent = event.text;
     if (visible) this.placeDice(event.duration, preferences);
+    this.setResultVisibility(event.duration === 0, announce && visible);
     this.fastForwardButton.disabled = !visible || event.duration === 0;
     this.fastForwardButton.hidden = this.fastForwardButton.disabled;
     this.updatePrompt();
@@ -333,9 +334,29 @@ export class DiceRollRenderer {
   settle(): void {
     this.cancelAnimations();
     this.root.dataset.phase = "ready";
+    this.setResultVisibility(true, !this.root.hidden);
     if (document.activeElement === this.fastForwardButton) this.restoreCanvasFocus();
     this.fastForwardButton.disabled = true;
     this.fastForwardButton.hidden = true;
+  }
+
+  private setResultVisibility(revealed: boolean, announce: boolean): void {
+    this.root.dataset.resultsRevealed = String(revealed);
+    for (const die of this.glyphs.querySelectorAll<HTMLElement>(".resolved-die")) {
+      die.dataset.revealed = String(revealed);
+      die.querySelector(".die-number")?.setAttribute("visibility", revealed ? "visible" : "hidden");
+      const selected = revealed && die.dataset.selected === "true";
+      die.classList.toggle("selected", selected);
+      die.querySelector(".die-outline")?.setAttribute("stroke-width", selected ? "2" : "1");
+      const caption = die.querySelector("span");
+      if (caption) caption.textContent = `d${die.dataset.sides}${selected ? "*" : ""}`;
+    }
+    if (this.currentEvent) {
+      if (this.result) this.result.textContent = revealed ? this.currentEvent.text : "Rolling...";
+      this.announcement.textContent = announce
+        ? revealed ? this.currentEvent.text : "Rolling dice."
+        : "";
+    }
   }
 
   private cancelAnimations(): void {

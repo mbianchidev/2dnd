@@ -6,6 +6,7 @@
  */
 
 import * as Phaser from "phaser";
+import { claimCityInteriorProp, getCityInteriorProp } from "../systems/interiorExploration";
 import { selectNewGamePlusVariant } from "../systems/newGamePlusScaling";
 import { enterIsland, getSailingIsland, leaveIsland } from "../systems/islands";
 import {
@@ -383,7 +384,7 @@ export class OverworldScene extends Phaser.Scene {
     this.encounterSystem = new EncounterSystem();
     this.encounterSystem.setEncountersEnabled(encountersEnabled);
     this.hudRenderer = new HUDRenderer(this);
-    this.mapRenderer = new MapRenderer(this);
+    this.mapRenderer = new MapRenderer(this, (id) => this.interactInterior(id));
     this.cityRenderer = new CityRenderer(this);
     this.playerRenderer = new PlayerRenderer(this);
     this.worldPresentation = new WorldPresentationDirector(this);
@@ -1238,6 +1239,8 @@ export class OverworldScene extends Phaser.Scene {
     const unsubscribeReflow = subscribeOverlayReflow(this, () =>
       layoutHudMessages(this, this.hudBg, this.hudText, this.locationText));
     group.once(Phaser.GameObjects.Events.DESTROY, unsubscribeReflow);
+    this.hudRenderer.createHUD();
+    this.updateHUD();
     const pending = this.pendingHudMessage;
     this.pendingHudMessage = null;
     if (pending) {
@@ -1366,7 +1369,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private updateHUD(): void {
-    // HUD is now event-driven — no persistent display
+    this.hudRenderer.updateHUD(this.player, (x, y) => this.fogOfWar.isExplored(x, y, this.player), this.defeatedBosses);
   }
 
   private updateLocationText(): void {
@@ -1449,9 +1452,11 @@ export class OverworldScene extends Phaser.Scene {
           ? getCityChunk(city, connection.toChunkIndex)
           : undefined;
         return destination
-          ? `${destination.name}  [SPACE] Enter District`
+          ? `${destination.name}  [SPACE] ${chunk.interior ? "Leave" : destination.interior ? "Enter" : "Enter District"}`
           : city.name;
       }
+      const furnishing = getCityInteriorProp(this.player);
+      if (furnishing) return `${furnishing.label}  [SPACE] ${furnishing.kind === "counter" ? "Browse" : furnishing.text ? "Read" : "Search"}`;
       const shop = getCityChunkShopNearby(
         city,
         chunkIndex,
@@ -1689,6 +1694,7 @@ export class OverworldScene extends Phaser.Scene {
       destX < this.playerRenderer.playerSprite.x ? -1 : 1,
     );
     const finishPresentation = (): void => {
+      this.playerRenderer.setWalkingFrame(this.player, 1);
       this.worldPresentation.completePlayerStep();
       onComplete();
     };
@@ -1705,6 +1711,7 @@ export class OverworldScene extends Phaser.Scene {
       x: playerX,
       y: playerY,
       duration: motionDuration,
+      onUpdate: (tween: Phaser.Tweens.Tween) => this.playerRenderer.setWalkingFrame(this.player, tween.progress),
       onComplete: finishPresentation,
     });
 
@@ -2522,6 +2529,38 @@ export class OverworldScene extends Phaser.Scene {
     this.autoSave();
   }
 
+  private interactInterior(id: string): void {
+    if (this.sceneTransitions.isPending || this.isMoving || this.isOverlayOpen() || this.dialogueSystem.isDialogueOpen()) return;
+    const prop = getCityInteriorProp(this.player, id);
+    if (!prop) {
+      this.showMessage("Move next to the furnishing before interacting.", "#ffab91");
+      return;
+    }
+    if (prop.kind === "counter") {
+      const city = getCity(this.player.position.cityId);
+      const chunk = city ? getCityChunk(city, this.player.position.cityChunkIndex) : undefined;
+      if (city && chunk?.shops[0]) this.openCityShop(city, chunk.name, chunk.shops[0], this.player.position.cityChunkIndex);
+      return;
+    }
+    const claim = (): void => {
+      const result = claimCityInteriorProp(this.player, this.codex, id, () => saveGame(
+        this.player, this.defeatedBosses, this.codex, this.player.appearanceId, this.timeStep, this.weatherState,
+      ).ok);
+      if (result.changed) {
+        this.preparePersistentState(`interior:${id}`);
+        this.scheduleFeatureRevealFeedback();
+        this.codexDiscovery.show(result.unlockedIds.map(getCodexKnowledgeEntry)
+          .filter((entry): entry is CodexKnowledgeEntry => entry !== undefined));
+        this.renderMap();
+        this.applyDayNightTint();
+        this.updateHUD();
+      }
+      this.showMessage(result.message, result.ok ? "#d6c38c" : "#ffab91");
+    };
+    if (prop.text) this.dialogueSystem.showQuestDialogue(prop.label, [...prop.text], claim);
+    else claim();
+  }
+
   private tryInteractCompanion(): boolean {
     const companion = this.companionFollowerManager.findAdjacentCompanion(
       this.player.party,
@@ -2705,6 +2744,11 @@ export class OverworldScene extends Phaser.Scene {
         return;
       }
 
+      const furnishing = getCityInteriorProp(this.player);
+      if (furnishing) {
+        this.interactInterior(furnishing.id);
+        return;
+      }
       const readable = getAdjacentCodexReadable(
         city.id,
         chunkIndex,
@@ -3695,6 +3739,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private updateNotifications(): void {
     const safeToShow = this.canShowNotifications();
+    this.hudRenderer.setVisible(!this.sceneTransitions.isPending && !this.isOverlayOpen() && !this.dialogueSystem.isDialogueOpen());
     this.codexDiscovery.update(safeToShow);
     this.achievementNotifications.update(safeToShow && !this.codexDiscovery.isShowing());
   }

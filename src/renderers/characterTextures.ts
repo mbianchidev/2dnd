@@ -5,6 +5,8 @@ import {
   getPlayerClass,
 } from "../systems/classes";
 import { generatePlayerTextureWithHair } from "./textures";
+import { createHumanoidArt } from "../systems/humanoidArt";
+import { createPixelTexture } from "./pixelTexture";
 
 export function getCompanionTextureKey(companionId: string): string {
   return `companion_${companionId}`;
@@ -34,5 +36,16 @@ export function generateCompanionTexture(
       && !companion.equippedWeapon?.twoHanded
       && !companion.equippedOffHand,
   );
+  for (const [index, pose] of ["strideLeft", "strideRight"].entries()) {
+    const frameKey = `${key}_walk_${index}`;
+    if (scene.textures.exists(frameKey)) scene.textures.remove(frameKey);
+    createPixelTexture(scene, frameKey, createHumanoidArt({
+      bodyColor: playerClass.bodyColor, legColor: playerClass.legColor,
+      skinColor: companion.customAppearance.skinColor, hairColor: companion.customAppearance.hairColor,
+      hairStyle: companion.customAppearance.hairStyle, clothingStyle: playerClass.clothingStyle,
+      classId: playerClass.id, pose: pose === "strideLeft" ? "strideLeft" : "strideRight",
+      weapon: getActiveWeaponSprite(companion.appearanceId, companion.equippedWeapon),
+    }));
+  }
   return key;
 }

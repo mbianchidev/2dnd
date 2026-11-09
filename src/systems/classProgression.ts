@@ -28,6 +28,7 @@ import type { Item } from "../data/items";
 import type { CombatActorState, PlayerStats, ProgressingActorState } from "./player";
 import { EPIC_ASI_LEVELS, EPIC_LEVEL_CAP, EPIC_TRACK_ID } from "../data/epicProgression";
 import { getActorLevelCap } from "./epicProgressionPolicy";
+import { getActorStudyGrants } from "./interiorStudy";
 export { getActorLevelCap } from "./epicProgressionPolicy";
 
 export interface ProgressionKnownGrants {
@@ -59,10 +60,11 @@ export type HeroProgressingActorState = ProgressingActorState & {
 };
 
 export interface ProgressionGrantSource {
-  kind: "track" | "totalLevel" | "legacy";
+  kind: "track" | "totalLevel" | "legacy" | "study";
   trackId: ProgressionTrackId;
   rank: number;
   stat?: keyof PlayerStats;
+  studyId?: string;
 }
 
 export interface ProgressionTrackEntry {
@@ -246,6 +248,14 @@ export function getFeatureSources(
     sources.push({
       kind: "totalLevel", trackId: getActorStartingClass(actor), rank: talent.levelRequired,
     });
+  }
+  if (kind === "spell") {
+    for (const study of getActorStudyGrants(actor).filter((entry) => entry.spellId === id)) {
+      const track = getProgressionTracks(actor, context).find((entry) => study.classIds.some((id) => id === entry.id));
+      if (track) sources.push({
+        kind: "study", trackId: track.id, rank: study.minimumRank, stat: study.stat, studyId: study.id,
+      });
+    }
   }
   if (legacyGrants(actor, kind).includes(id) && sources.length === 0) {
     sources.push({ kind: "legacy", trackId: getActorStartingClass(actor), rank: 0 });

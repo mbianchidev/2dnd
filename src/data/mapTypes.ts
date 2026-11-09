@@ -142,6 +142,38 @@ export interface CityShopData {
   x: number;
   y: number;
   shopItems: string[];
+  /** Preserve the original negotiation identity when commerce moves indoors. */
+  source?: { chunkIndex: number; x: number; y: number };
+}
+
+export type InteriorPropKind =
+  | "bookshelf" | "book" | "sack" | "pantry" | "table" | "bed"
+  | "hearth" | "counter" | "rack" | "plant" | "rug";
+
+export interface InteriorPropData {
+  readonly id: string;
+  readonly kind: InteriorPropKind;
+  readonly label: string;
+  readonly x: number;
+  readonly y: number;
+  readonly text?: readonly string[];
+  readonly reward?: {
+    readonly gold?: number;
+    readonly itemId?: string;
+    readonly knowledgeId?: string;
+    readonly studyId?: string;
+  };
+}
+
+export interface CityInteriorData {
+  readonly id: string;
+  readonly kind: "shop" | "library" | "home";
+  readonly sourceChunkIndex: number;
+  readonly sourceShopIndex?: number;
+  readonly sourceX: number;
+  readonly sourceY: number;
+  readonly bounds: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+  readonly props: readonly InteriorPropData[];
 }
 
 /** A single chunk/district within a multi-chunk city. */
@@ -155,6 +187,8 @@ export interface CityChunk {
   spawnY: number;
   /** Shops within this chunk. */
   shops: CityShopData[];
+  /** Immutable room metadata; position still uses the existing city chunk contract. */
+  interior?: CityInteriorData;
 }
 
 /** Explicit connection between two chunks within a city. */

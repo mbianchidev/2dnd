@@ -8,6 +8,7 @@ import {
 import { isReducedMotionEnabled } from "../systems/accessibility";
 import { WeatherType } from "../systems/weather";
 import { isLocalDev } from "../config";
+import { drawBattleTerrainDetail } from "./battleTerrain";
 import {
   BATTLE_BACKDROP_LAYER_IDS,
   BATTLE_DEPTH,
@@ -444,15 +445,15 @@ export class BattleBackdropRenderer {
   ): void {
     const graphics = this.requireLayer("ground").graphics;
     const color = {
-      grass: 0x4b8741,
-      forest: 0x294521,
-      deep_forest: 0x172416,
+      grass: 0x77954e,
+      forest: 0x536d43,
+      deep_forest: 0x3e5741,
       sand: 0xd6ae67,
       tundra: 0xdce7ee,
       swamp: 0x465b38,
-      volcanic: 0x291d1d,
-      canyon: 0xa45d3d,
-      dungeon: 0x30313b,
+      volcanic: 0x65524c,
+      canyon: 0xa37d60,
+      dungeon: 0x615f57,
       city: 0x8e8171,
       sea: 0x214f72,
     }[biome];
@@ -468,6 +469,7 @@ export class BattleBackdropRenderer {
       const y = layout.groundTop + 12 + index * 24;
       graphics.fillRect((index * 47) % 110, y, layout.width * 0.38, 2);
     }
+    drawBattleTerrainDetail(graphics, layout, biome, color);
   }
 
   private drawMidgroundProps(

@@ -1,0 +1,63 @@
+import type * as Phaser from "phaser";
+import { Terrain } from "../data/mapTypes";
+import { PixelSurface } from "../systems/pixelArt";
+import {
+  createTerrainArt, getTerrainArtKey, getTerrainArtSpec,
+  type TerrainArtSpec,
+} from "../systems/terrainArt";
+import { createPixelTexture } from "./pixelTexture";
+
+export function getOrCreateTerrainTexture(scene: Phaser.Scene, map: Terrain[][], x: number, y: number, ground?: Terrain): string {
+  const original = getTerrainArtSpec(map, x, y);
+  const spec = ground === undefined ? original : { ...original, ground };
+  const key = getTerrainArtKey(spec);
+  if (!scene.textures.exists(key)) createPixelTexture(scene, key, createTerrainArt(spec));
+  return key;
+}
+
+export function generateTerrainTextures(scene: Phaser.Scene): void {
+  const terrains = Object.values(Terrain).filter((value): value is Terrain => typeof value === "number");
+  for (const terrain of terrains) {
+    const spec = getTerrainArtSpec([[terrain]], 0, 0);
+    createPixelTexture(scene, `tile_${terrain}`, createTerrainArt(spec));
+  }
+  const fog = new PixelSurface(32, 32);
+  fog.rect(0, 0, 32, 32, 0x202b30);
+  createPixelTexture(scene, "tile_fog", fog);
+  const openChest = createTerrainArt(getTerrainArtSpec([[Terrain.Chest]], 0, 0));
+  openChest.rect(8, 14, 16, 7, 0x3e3830);
+  openChest.rect(8, 8, 16, 5, 0xc49a62);
+  createPixelTexture(scene, "tile_chest_open", openChest);
+  const barrier = createTerrainArt(getTerrainArtSpec([[Terrain.Path]], 0, 0));
+  barrier.rect(3, 12, 26, 4, 0x765941);
+  barrier.rect(3, 22, 26, 4, 0x765941);
+  barrier.rect(6, 8, 3, 22, 0xc4a16a);
+  barrier.rect(23, 8, 3, 22, 0xc4a16a);
+  createPixelTexture(scene, "tile_quest_barrier", barrier);
+  for (const ground of [Terrain.Grass, Terrain.Forest, Terrain.DeepForest, Terrain.Sand,
+    Terrain.Tundra, Terrain.Swamp, Terrain.Volcanic, Terrain.Canyon]) {
+    const spec: TerrainArtSpec = { terrain: Terrain.Town, ground, variant: 0, edges: 0 };
+    createPixelTexture(scene, `tile_town_${ground}`, createTerrainArt(spec));
+  }
+  for (const material of ["wood", "sand", "moss", "ice", "dark", "volcanic"]) {
+    createPixelTexture(scene, `tile_citywall_${material}`,
+      createTerrainArt({ terrain: Terrain.CityWall, ground: Terrain.Grass, variant: 0, edges: 4 }));
+  }
+  for (const material of ["cobble", "wood", "sand", "gravel", "moss", "dark", "lava"]) {
+    const terrain = material === "wood" ? Terrain.ShopFloor : material === "sand" ? Terrain.Sand : Terrain.CityPath;
+    createPixelTexture(scene, `tile_path_${material}`, createTerrainArt(getTerrainArtSpec([[terrain]], 0, 0)));
+  }
+  for (const type of ["weapon", "armor", "general", "magic", "bank", "inn"]) {
+    createPixelTexture(scene, `tile_carpet_${type}`, createTerrainArt(getTerrainArtSpec([[Terrain.Carpet]], 0, 0)));
+  }
+  for (const kind of ["library", "home"]) {
+    const art = createTerrainArt({ terrain: Terrain.Town, ground: Terrain.Grass, variant: 0, edges: 0 });
+    if (kind === "library") {
+      art.rect(10, 12, 11, 5, 0xd5cbaa);
+      art.rect(15, 12, 1, 5, 0x6a634d);
+      art.line(11, 14, 14, 14, 0x6a634d);
+      art.line(17, 14, 19, 14, 0x6a634d);
+    }
+    createPixelTexture(scene, `tile_building_${kind}`, art);
+  }
+}

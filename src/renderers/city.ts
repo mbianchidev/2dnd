@@ -22,6 +22,9 @@ import type { PlayerState } from "../systems/player";
 import { TILE_SIZE } from "../config";
 import { resolveNpcVisual } from "../systems/npcVisuals";
 import { getOrCreateNpcTexture } from "./npcTextures";
+import { getInteriorForShop } from "../data/cityInteriors";
+import { NPC_TEMPLATES } from "../data/npcs";
+import { drawBuildingExterior } from "./buildings";
 
 export class CityRenderer {
   private scene: Phaser.Scene;
@@ -177,6 +180,7 @@ export class CityRenderer {
               duration: 600 + Math.random() * 400,
               ease: "Sine.easeInOut",
               onUpdate: () => {
+                if (!sprite.active) return;
                 if (pick.dx !== 0) sprite.setFlipX(pick.dx < 0);
               },
             });
@@ -232,7 +236,7 @@ export class CityRenderer {
       const queue: { x: number; y: number }[] = [];
 
       // Seed: scan a small area around the shop entrance for ShopFloor tiles
-      for (let dy = -3; dy <= 0; dy++) {
+      for (let dy = -3; dy < 0; dy++) {
         for (let dx = -2; dx <= 2; dx++) {
           const tx = shop.x + dx;
           const ty = shop.y + dy;
@@ -257,6 +261,7 @@ export class CityRenderer {
         for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
           const nx = cur.x + ddx;
           const ny = cur.y + ddy;
+          if (Math.abs(nx - shop.x) > 2 || ny < shop.y - 3 || ny >= shop.y) continue;
           const key = `${nx},${ny}`;
           if (globalVisited.has(key)) continue;
           if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
@@ -293,22 +298,9 @@ export class CityRenderer {
       // Main roof colour — vary slightly by shop type
       const typeShift = shop.type === "inn" ? 0x101010 : shop.type === "weapon" ? -0x080808 : 0;
       const roofColor = Math.max(0, palette.base + typeShift);
-      gfx.fillStyle(roofColor, 1);
-      gfx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
-
-      // Ridge lines for a tiled-roof look
-      gfx.lineStyle(1, palette.ridge, 0.6);
-      for (let ry = by; ry < by + bh; ry += 6) {
-        gfx.lineBetween(bx - 2, ry, bx + bw + 2, ry);
-      }
-
-      // Roof border
-      gfx.lineStyle(2, palette.border, 0.9);
-      gfx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
-
-      // Ridge cap (center horizontal line)
-      gfx.lineStyle(2, palette.ridge, 0.8);
-      gfx.lineBetween(bx - 2, by + bh / 2, bx + bw + 2, by + bh / 2);
+      drawBuildingExterior(gfx, {
+        x: bx, y: by, width: bw, height: bh, doorX: shop.x * TILE_SIZE + TILE_SIZE / 2,
+      }, roofColor);
 
       this.shopRoofGraphics.push(gfx);
       this.shopRoofBounds.push({
@@ -377,6 +369,8 @@ export class CityRenderer {
     playerX: number,
     playerY: number,
   ): number {
+    const door = shops.findIndex((shop) => shop.x === playerX && shop.y === playerY);
+    if (door >= 0) return door;
     const terrain = cityMap[playerY]?.[playerX];
     if (terrain === Terrain.ShopFloor) {
       return this.shopFloorMap.get(`${playerX},${playerY}`) ?? -1;
@@ -405,7 +399,7 @@ export class CityRenderer {
       const roofShopIdx = this.shopRoofBounds[i].shopIdx;
       const roofGroup = this.shopGroupMap.get(roofShopIdx) ?? -1;
       const isActive = roofShopIdx === activeShopIdx || (activeGroup >= 0 && roofGroup === activeGroup);
-      gfx.setAlpha(isActive ? 0.1 : 1);
+      gfx.setAlpha(isActive ? 0 : 1);
     }
   }
 
@@ -473,6 +467,8 @@ export class CityRenderer {
 
     for (let i = 0; i < npcs.length; i++) {
       const def = npcs[i];
+      if (def.shopIndex !== undefined && chunk.shops[def.shopIndex]
+        && getInteriorForShop(city, chunkIndex, chunk.shops[def.shopIndex]!)) continue;
       const visual = resolveNpcVisual(city.id, i);
       const tpl = visual.template;
 
@@ -484,6 +480,7 @@ export class CityRenderer {
           // Children are never out at night
           continue;
         }
+
         if (!isGuard) {
           // Keep only ~30% of regular villagers at night
           nonEssentialCount++;
@@ -557,9 +554,12 @@ export class CityRenderer {
               y: ny * TILE_SIZE + TILE_SIZE / 2,
               duration: 800 + Math.random() * 400,
               ease: "Sine.easeInOut",
-              onUpdate: () => {
+              onUpdate: (tween: Phaser.Tweens.Tween) => {
+                if (!sprite.active) return;
                 if (pick.dx !== 0) sprite.setFlipX(pick.dx < 0);
+                sprite.setTexture(`${texKey}_walk_${tween.progress < 0.5 ? 0 : 1}`);
               },
+              onComplete: () => { if (sprite.active) sprite.setTexture(texKey); },
             });
           }
         };
@@ -570,7 +570,7 @@ export class CityRenderer {
           loop: true,
         });
         this.cityNpcTimers.push(timer);
-      } else {
+      } else if (!isReducedMotionEnabled()) {
         // Idle breathing for stationary NPCs
         this.scene.tweens.add({
           targets: sprite,
@@ -579,6 +579,8 @@ export class CityRenderer {
           yoyo: true,
           repeat: -1,
           ease: "Sine.easeInOut",
+          onYoyo: () => { if (sprite.active) sprite.setTexture(`${texKey}_idle_1`); },
+          onRepeat: () => { if (sprite.active) sprite.setTexture(texKey); },
         });
       }
     }
@@ -614,16 +616,39 @@ export class CityRenderer {
     }
   }
 
+  spawnInteriorShopkeeper(city: CityData, chunk: CityChunk, interact: (id: string) => void): void {
+    const interior = chunk.interior;
+    if (!interior || interior.kind !== "shop") return;
+    const definitions = CITY_NPCS[city.id] ?? [];
+    const sourceIndex = interior.sourceChunkIndex === 0
+      ? definitions.findIndex((definition) => definition.shopIndex === interior.sourceShopIndex) : -1;
+    const visual = sourceIndex >= 0 ? resolveNpcVisual(city.id, sourceIndex) : undefined;
+    const template = visual?.template ?? NPC_TEMPLATES.find((entry) => entry.id.startsWith("merchant")) ?? NPC_TEMPLATES[0];
+    if (!template) throw new Error("[interiors] No canonical merchant template.");
+    const texture = this.getOrCreateNpcTexture(template,
+      visual?.skinColor ?? 0xd6a079, visual?.hairColor ?? 0x695440, visual?.dressColor ?? 0x7e9281);
+    const sprite = this.scene.add.sprite(10 * TILE_SIZE + TILE_SIZE / 2, 4 * TILE_SIZE + TILE_SIZE / 2, texture).setDepth(11);
+    const counter = interior.props.find((prop) => prop.kind === "counter");
+    if (counter) sprite.setInteractive({ useHandCursor: true }).on("pointerdown", () => interact(counter.id));
+    this.cityNpcSprites.push(sprite);
+  }
+
   // ── Cleanup ──────────────────────────────────────────────────────────
 
   /** Destroy all sprites, timers, and graphics and reset arrays. */
   clearAll(): void {
-    for (const a of this.cityAnimals) a.destroy();
+    for (const a of this.cityAnimals) {
+      this.scene.tweens.killTweensOf(a);
+      a.destroy();
+    }
     this.cityAnimals = [];
     for (const t of this.cityAnimalTimers) t.destroy();
     this.cityAnimalTimers = [];
 
-    for (const s of this.cityNpcSprites) s.destroy();
+    for (const s of this.cityNpcSprites) {
+      this.scene.tweens.killTweensOf(s);
+      s.destroy();
+    }
     this.cityNpcSprites = [];
     for (const marker of this.questNpcMarkers) marker?.destroy();
     this.questNpcMarkers = [];

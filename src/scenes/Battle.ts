@@ -1659,10 +1659,8 @@ export class BattleScene extends Phaser.Scene {
           false, "roll-detail"
         );
       }
-      const rollSuffix = result.roll !== undefined
-        ? this.formatPlayerRoll(result.roll, result.attackMod ?? 0, result.totalRoll ?? 0, result.hit, result.critical, targetIndex, result.targetAC)
-        : "";
-      this.addLog(result.message + rollSuffix);
+      this.recordPlayerAttackEvidence(result.roll, result.totalRoll ?? 0, result.hit, targetIndex, result.targetAC);
+      this.addLog(result.message);
       for (const healingResult of result.healingResults ?? []) {
         const target = getCombatantById(
           this.partyCombatants,
@@ -2406,7 +2404,8 @@ export class BattleScene extends Phaser.Scene {
         `  ↳ [Player Attack → ${this.targetCombatant.label}] d20=${result.roll} +${result.attackMod} = ${result.totalRoll} vs AC ${result.targetAC} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage}`,
         false, "roll-detail"
       );
-      this.addLog(result.message + this.formatPlayerRoll(result.roll, result.attackMod, result.totalRoll, result.hit, result.critical, targetIndex, result.targetAC));
+      this.recordPlayerAttackEvidence(result.roll, result.totalRoll, result.hit, targetIndex, result.targetAC);
+      this.addLog(result.message);
       this.recordElementalDiscovery(
         result.elementalLabel,
         this.player.equippedWeapon?.element,
@@ -2421,6 +2420,8 @@ export class BattleScene extends Phaser.Scene {
       this.battlePresentation.presentAction({
         actorId: this.heroCombatant.id,
         kind: "attack",
+        element: this.player.equippedWeapon?.element,
+        ranged: getAttackRangeForWeapon(this.player.equippedWeapon) === "ranged",
         successful: true,
         critical: result.critical,
         targets: [{
@@ -2475,7 +2476,8 @@ export class BattleScene extends Phaser.Scene {
           `  ↳ [Off-Hand → ${this.targetCombatant.label}] d20=${offResult.roll} +${offResult.attackMod} = ${offResult.totalRoll} vs AC ${offResult.targetAC} → ${offResult.hit ? (offResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${offResult.damage}`,
           false, "roll-detail"
         );
-        this.addLog(offResult.message + this.formatPlayerRoll(offResult.roll, offResult.attackMod, offResult.totalRoll, offResult.hit, offResult.critical, offHandTarget, offResult.targetAC));
+        this.recordPlayerAttackEvidence(offResult.roll, offResult.totalRoll, offResult.hit, offHandTarget, offResult.targetAC);
+        this.addLog(offResult.message);
         this.recordElementalDiscovery(
           offResult.elementalLabel,
           this.player.equippedOffHand?.element,
@@ -2664,23 +2666,14 @@ export class BattleScene extends Phaser.Scene {
         if (!target) continue;
         const combatantIndex = target.index;
         const combatant = target.combatant;
-        const rollSuffix = targetResult.roll !== undefined
-          && !targetResult.autoHit
-          ? this.formatPlayerRoll(
-              targetResult.roll,
-              targetResult.spellMod ?? 0,
-              targetResult.totalRoll ?? 0,
-              targetResult.hit,
-              false,
-              combatantIndex,
-              targetResult.targetAC,
-            )
-          : "";
+        if (!targetResult.autoHit) this.recordPlayerAttackEvidence(
+          targetResult.roll, targetResult.totalRoll ?? 0, targetResult.hit, combatantIndex, targetResult.targetAC,
+        );
         this.addLog(
           targetResult.message.replace(
             combatant.monster.name,
             combatant.label,
-          ) + rollSuffix,
+          ),
         );
         debugPanelLog(
           `  ↳ [Player Spell ${spellId} → ${combatant.label}] ${targetResult.autoHit ? "AUTO-HIT" : targetResult.hit ? "HIT" : "MISS"} dmg=${targetResult.damage} mp=${result.mpUsed}`,
@@ -2714,6 +2707,7 @@ export class BattleScene extends Phaser.Scene {
       this.battlePresentation.presentAction({
         actorId: this.heroCombatant.id,
         kind: "spell",
+        element: spell.element,
         successful: result.mpUsed > 0,
         targets: [
           ...result.results.flatMap((targetResult) => {
@@ -3448,21 +3442,19 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * Format a player roll string and track AC discovery.
+   * Keep authoritative AC evidence immediate; visible dice arithmetic is revealed after settling.
    * Crits (nat 20) and fumbles (nat 1) don't reveal AC info.
    */
-  private formatPlayerRoll(
+  private recordPlayerAttackEvidence(
     naturalRoll: number | undefined,
-    mod: number,
     total: number,
     hit: boolean,
-    critical: boolean | undefined,
     targetIndex: number = this.selectedTargetIndex,
     effectiveTargetAC?: number,
-  ): string {
-    if (naturalRoll === undefined || naturalRoll === 20 || naturalRoll === 1) return "";
+  ): void {
+    if (naturalRoll === undefined || naturalRoll === 20 || naturalRoll === 1) return;
     const combatant = this.combatants[targetIndex];
-    if (!combatant) return "";
+    if (!combatant) return;
 
     // Track AC discovery
     const evidenceTotal = total - ((effectiveTargetAC ?? combatant.monster.ac) - combatant.monster.ac);
@@ -3482,11 +3474,6 @@ export class BattleScene extends Phaser.Scene {
       this.addLog(`🔍 You deduce ${combatant.label}'s AC is ${combatant.acLowestHit}!`);
     }
 
-    const acSuffix = combatant.acDiscovered
-      ? ` vs AC ${combatant.monster.ac}`
-      : "";
-    const modifier = mod >= 0 ? `+${mod}` : String(mod);
-    return ` (d20: ${naturalRoll} ${modifier} = ${total}${acSuffix})`;
   }
 
   private handleError(context: string, err: unknown): void {
@@ -3794,6 +3781,9 @@ export class BattleScene extends Phaser.Scene {
       actorId: result.plan.actorId,
       kind: result.plan.kind,
       successful: result.executed,
+      ranged: result.plan.descriptor.range === "ranged",
+      element: result.plan.kind === "spell" ? getSpell(result.plan.actionId ?? "")?.element
+        : result.plan.kind === "ability" ? getAbility(result.plan.actionId ?? "")?.element : undefined,
       targets: result.targets,
     });
   }

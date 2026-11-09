@@ -36,10 +36,8 @@ describe("battle HUD presentation", () => {
     expect(hidden.name).toBe(enemy!.label);
     expect(hidden).not.toHaveProperty("health");
     expect(JSON.stringify(hidden)).not.toMatch(/HP|maximum|current|FRONT|BACK|\?\?\?/);
-    enemy!.hpRevealed = true;
-    enemy!.currentHp = 3;
-    enemy!.maxHp = 37;
-    expect(createEnemyHudView(enemy!, false).health).toEqual({ current: 3, maximum: 37 });
+    const revealed = { ...enemy!, hpRevealed: true, currentHp: 3, maxHp: 37 };
+    expect(createEnemyHudView(revealed, false).health).toEqual({ current: 3, maximum: 37 });
   });
 
   it("keeps resource labels readable against both the empty track and filled bars", () => {

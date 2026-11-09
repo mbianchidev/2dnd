@@ -155,6 +155,9 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   entries, keep base terrain Water, and recover ineligible interiors safely.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
+- Battle monsters never fly or hover. Place every formation footpoint on the
+  ground, use visible per-frame foot anchors, preserve planted poses and contact
+  shadows, and derive aiming/effect positions from actual sprite bounds.
 - Every cutscene has distinct illustrated scenery, not a flat-color fallback.
   Keep the exhaustive ID registry, changed boss aftermaths, sea-correct Kraken,
   five bounded layers and one Graphics buffer. Replay/ending share the painter;

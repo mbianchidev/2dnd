@@ -16,6 +16,16 @@ export function artNoise(x: number, y: number, seed = 0): number {
   return (value ^ (value >>> 16)) >>> 0;
 }
 
+/** Normalized bottom edge of visible art, excluding transparent frame padding. */
+export function getPixelArtGroundOrigin(art: PixelSurface): number {
+  for (let y = art.height - 1; y >= 0; y--) {
+    for (let x = 0; x < art.width; x++) {
+      if (art.pixels[(y * art.width + x) * 4 + 3]! > 0) return (y + 1) / art.height;
+    }
+  }
+  throw new Error("[art] Cannot ground an empty pixel surface.");
+}
+
 /** Small integer-raster painter shared by procedural terrain, people and creatures. */
 export class PixelSurface {
   readonly pixels: Uint8ClampedArray;

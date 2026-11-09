@@ -261,6 +261,10 @@ loads from `app://2dnd` in packaged builds.
   `src/renderers/battleBackdrop.ts`. Use the typed bands in `battleDepth.ts`;
   never bake sky and scenery into one opaque layer or introduce scene-local
   magic depths.
+- Every battle monster remains grounded, including winged and spectral forms.
+  Formation footpoints belong to the ground plane. Use per-frame visible foot
+  anchors, grounded poses and following contact shadows; targeting and effects
+  must read actual bounds rather than assume center-origin sprites.
 - Keep actor animation contracts in `src/systems/animation.ts`, generic Phaser
   pose/tween ownership in `src/managers/actorAnimation.ts`, and scene-specific
   orchestration in focused battle/world directors. Presentation reads stable

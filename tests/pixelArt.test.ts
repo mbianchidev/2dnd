@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { artNoise, PixelSurface, shadePixelColor } from "../src/systems/pixelArt";
+import { artNoise, getPixelArtGroundOrigin, PixelSurface, shadePixelColor } from "../src/systems/pixelArt";
 
 describe("procedural pixel-art raster", () => {
   it("clips organic silhouettes without filling their transparent corners", () => {
@@ -32,5 +32,14 @@ describe("procedural pixel-art raster", () => {
 
   it.each([[0, 32], [32, -1], [2.5, 8], [513, 8]])("rejects invalid dimensions %s x %s", (width, height) => {
     expect(() => new PixelSurface(width, height)).toThrow(/dimensions/);
+  });
+
+  it("anchors the last visible pixel edge rather than transparent frame padding", () => {
+    const art = new PixelSurface(8, 10);
+    art.rect(2, 1, 4, 6, 0x458844);
+    expect(getPixelArtGroundOrigin(art)).toBe(0.7);
+    art.pixel(7, 9, 0xffffff);
+    expect(getPixelArtGroundOrigin(art)).toBe(1);
+    expect(() => getPixelArtGroundOrigin(new PixelSurface(4, 4))).toThrow(/empty/);
   });
 });

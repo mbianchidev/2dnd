@@ -305,6 +305,13 @@ Mechanics resolve before presentation. Actor animation receives stable IDs and
 immutable outcomes; tweens never apply damage, spend resources, or control
 authoritative turn/result transitions.
 
+Battle monsters are foot-anchored to front/back contact points within the
+ground plane. Generated frame metadata records the actual visible bottom edge,
+so transparent padding and different poses cannot make an actor hover.
+Grounded bindings use planted scaling and horizontal motion, update their
+contact shadows, and leave hero/world animation behavior unchanged. Effects and
+body-part cursors read sprite bounds rather than assume center origins.
+
 ## Difficulty composition
 
 `src/data/difficulty.ts` owns immutable profiles and constrained Custom bounds.

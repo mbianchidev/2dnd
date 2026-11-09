@@ -8,9 +8,11 @@ const harness = vi.hoisted(() => {
   interface TweenOptions {
     targets: object;
     y?: number;
+    angle?: number;
     scaleY?: number;
     repeat?: number;
     onComplete?: () => void;
+    onUpdate?: () => void;
   }
   class Tween {
     stopped = false;
@@ -33,6 +35,8 @@ const harness = vi.hoisted(() => {
     alpha = 1;
     angle = 0;
     visible = true;
+    originX = 0.5;
+    originY = 0.5;
     texture = { key: "hero-front" };
     setPosition(x: number, y: number): this { this.x = x; this.y = y; return this; }
     setScale(x: number, y = x): this { this.scaleX = x; this.scaleY = y; return this; }
@@ -41,6 +45,7 @@ const harness = vi.hoisted(() => {
     setVisible(visible: boolean): this { this.visible = visible; return this; }
     setY(y: number): this { this.y = y; return this; }
     setTexture(key: string): this { this.texture.key = key; return this; }
+    setOrigin(x: number, y = x): this { this.originX = x; this.originY = y; return this; }
   }
   class Scene {
     readonly createdTweens: Tween[] = [];
@@ -65,7 +70,7 @@ const harness = vi.hoisted(() => {
 });
 
 vi.mock("phaser", () => ({
-  GameObjects: { Sprite: harness.Sprite },
+  GameObjects: { Sprite: harness.Sprite, Ellipse: harness.Sprite },
   Scene: harness.Scene,
 }));
 
@@ -73,10 +78,10 @@ beforeEach(() => {
   gamePreferences.setReducedMotion(false);
 });
 
-function createActor(): {
+function createActor(grounded = false): {
   director: ActorAnimationDirector;
-  scene: InstanceType<typeof harness.Scene>;
-  sprite: InstanceType<typeof harness.Sprite>;
+  scene: Phaser.Scene & InstanceType<typeof harness.Scene>;
+  sprite: Phaser.GameObjects.Sprite & InstanceType<typeof harness.Sprite>;
 } {
   const scene = Object.assign(new Phaser.Scene(), new harness.Scene());
   const sprite = Object.assign(new Phaser.GameObjects.Sprite(scene, 16, 16, "hero-front"), new harness.Sprite());
@@ -85,12 +90,55 @@ function createActor(): {
     id: "hero",
     role: "hero",
     target: sprite,
-    textureFamily: { id: "hero", role: "hero", fallbackTextureKey: "hero-front", frames: {} },
+    grounded,
+    textureFamily: {
+      id: "hero", role: "hero", fallbackTextureKey: "hero-front", frames: {},
+      groundOrigins: { "hero-front": 0.9 },
+    },
   });
   return { director, scene, sprite };
 }
 
 describe("actor presentation ownership", () => {
+  it("breathes from planted feet instead of hovering when grounded", () => {
+    const { director, scene, sprite } = createActor(true);
+    expect(sprite.originY).toBe(0.9);
+    expect(scene.createdTweens[0]!.options.y).toBeUndefined();
+    expect(scene.createdTweens[0]!.options.scaleY).toBeGreaterThan(1);
+    director.cleanup();
+  });
+
+  it("keeps the contact shadow under horizontal action motion and restores it on interruption", () => {
+    const { director, scene, sprite } = createActor(true);
+    const shadow = Object.assign(new Phaser.GameObjects.Ellipse(scene, 16, 16, 20, 6), new harness.Sprite());
+    director.bind({
+      id: "hero", role: "monster", target: sprite, grounded: true, groundShadow: shadow,
+      textureFamily: { id: "monster", role: "monster", fallbackTextureKey: "hero-front", frames: {} },
+    });
+    director.play("hero", "attack");
+    sprite.x = 50;
+    scene.createdTweens[scene.createdTweens.length - 1]!.options.onUpdate!();
+    expect({ x: shadow.x, y: shadow.y }).toEqual({ x: 50, y: 16 });
+    director.play("hero", "defend");
+    expect({ x: shadow.x, y: shadow.y }).toEqual({ x: 16, y: 16 });
+    director.cleanup();
+  });
+
+  it.each(["walk", "attack", "cast", "ability", "item", "defend", "damage", "victory", "faint", "flee"] as const)(
+    "keeps the ground anchor and upright contact during %s",
+    (state) => {
+      const { director, scene, sprite } = createActor(true);
+      director.play("hero", state);
+      const pose = scene.createdTweens[1]!.options;
+      expect(pose.y ?? sprite.y).toBe(16);
+      expect(Math.abs(pose.angle ?? sprite.angle)).toBe(0);
+      gamePreferences.setReducedMotion(true);
+      expect(sprite.y).toBe(16);
+      expect(sprite.angle).toBe(0);
+      director.cleanup();
+    },
+  );
+
   it("removes idle tweens when unbinding an actor", () => {
     const { director, scene } = createActor();
     director.unbind("hero");

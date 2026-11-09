@@ -1,5 +1,6 @@
 import type { Monster } from "../data/monsters";
 import { getMonsterTextureKey } from "../data/monsterFamilies";
+import { getMonsterTextureGroundOrigins } from "./monsterTextures";
 import type {
   ActorAnimationRole,
   ActorAnimationState,
@@ -66,6 +67,7 @@ export function resolveMonsterTextureFamily(
   });
   return {
     ...family,
+    groundOrigins: getMonsterTextureGroundOrigins(),
     frames: Object.fromEntries(FRAME_STATES.map((state) => [
       state,
       [

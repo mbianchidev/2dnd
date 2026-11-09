@@ -158,3 +158,18 @@ export function getBattleDepthOrder(): readonly number[] {
     BATTLE_DEPTH.inspection,
   ];
 }
+
+/** Formation depth changes the contact point within the ground, never into sky. */
+export function getBattleMonsterPosition(
+  layout: BattleBackdropLayout,
+  position: "front" | "back",
+  rowIndex: number,
+  rowCount: number,
+): { x: number; y: number } {
+  const front = position === "front";
+  return {
+    x: layout.width * ((front ? 0.66 : 0.7)
+      + (rowIndex - (rowCount - 1) / 2) * (front ? 0.19 : 0.17)),
+    y: layout.groundTop + (layout.actorBaseline - layout.groundTop) * (front ? 1 : 0.35),
+  };
+}

@@ -6,6 +6,7 @@ import {
   type ActorAnimationRole,
   type ActorAnimationState,
   type ActorTextureFamily,
+  type GroundedActorInspection,
   type PresentationActorRef,
 } from "../systems/animation";
 import { gamePreferences, isReducedMotionEnabled } from "../systems/accessibility";
@@ -38,6 +39,8 @@ interface ActorRecord extends PresentationActorRef {
   currentState: ActorAnimationState;
   readonly externalPosition: boolean;
   readonly externalTexture: boolean;
+  readonly grounded: boolean;
+  readonly groundShadow?: Phaser.GameObjects.Ellipse;
   active?: ActiveActorAnimation;
   idleTween?: Phaser.Tweens.Tween;
 }
@@ -50,6 +53,9 @@ export interface ActorAnimationBinding {
   /** Movement/facing renderers remain authoritative for world actors. */
   readonly externalPosition?: boolean;
   readonly externalTexture?: boolean;
+  /** Keep visible feet planted during every pose, including idle and faint. */
+  readonly grounded?: boolean;
+  readonly groundShadow?: Phaser.GameObjects.Ellipse;
 }
 
 export interface ActorAnimationOptions {
@@ -96,6 +102,8 @@ export class ActorAnimationDirector {
       currentState: "idle",
       externalPosition: binding.externalPosition === true,
       externalTexture: binding.externalTexture === true,
+      grounded: binding.grounded === true,
+      groundShadow: binding.groundShadow,
     };
     this.actors.set(binding.id, record);
     this.applyTexture(record, "idle", 0);
@@ -116,6 +124,20 @@ export class ActorAnimationDirector {
 
   public get state(): string {
     return this.lastEvent;
+  }
+
+  public get grounding(): readonly GroundedActorInspection[] {
+    return [...this.actors.values()].flatMap((record) => {
+      if (!record.grounded || !(record.target instanceof Phaser.GameObjects.Sprite)) return [];
+      const sprite = record.target;
+      const origin = record.textureFamily.groundOrigins?.[sprite.texture.key] ?? 1;
+      return [{
+        id: record.id, state: record.currentState, x: sprite.x,
+        footY: sprite.y + (origin - sprite.originY) * sprite.displayHeight,
+        groundY: record.snapshot.y, angle: sprite.angle,
+        shadowX: record.groundShadow?.x, shadowY: record.groundShadow?.y,
+      }];
+    });
   }
 
   public isAnimating(actorId: string): boolean {
@@ -284,10 +306,13 @@ export class ActorAnimationDirector {
   ): Phaser.Tweens.Tween | null {
     const target = record.target;
     const halfDuration = Math.max(1, Math.round(durationMs / 2));
+    const verticalMotion = record.grounded ? 0 : 1;
+    const tilt = record.grounded ? 0 : direction;
     const common = {
       targets: target,
       ease: "Sine.InOut",
       onComplete,
+      ...(record.grounded ? { onUpdate: () => this.syncGroundShadow(record) } : {}),
     };
 
     switch (state) {
@@ -297,7 +322,7 @@ export class ActorAnimationDirector {
         return this.scene.tweens.add({
           ...common,
           scaleY: record.snapshot.scaleY * 0.9,
-          angle: 2 * direction,
+          angle: 2 * tilt,
           duration: halfDuration,
           yoyo: true,
         });
@@ -305,26 +330,26 @@ export class ActorAnimationDirector {
         return this.scene.tweens.add({
           ...common,
           x: record.snapshot.x + 34 * direction,
-          y: record.snapshot.y - 3,
-          angle: -5 * direction,
+          y: record.snapshot.y - 3 * verticalMotion,
+          angle: -5 * tilt,
           duration: halfDuration,
           yoyo: true,
         });
       case "cast":
         return this.scene.tweens.add({
           ...common,
-          y: record.snapshot.y - 7,
+          y: record.snapshot.y - 7 * verticalMotion,
           scaleX: record.snapshot.scaleX * 1.08,
           scaleY: record.snapshot.scaleY * 1.08,
-          angle: -3 * direction,
+          angle: -3 * tilt,
           duration: halfDuration,
           yoyo: true,
         });
       case "ability":
         return this.scene.tweens.add({
           ...common,
-          y: record.snapshot.y - 5,
-          angle: 8 * direction,
+          y: record.snapshot.y - 5 * verticalMotion,
+          angle: 8 * tilt,
           scaleX: record.snapshot.scaleX * 1.1,
           scaleY: record.snapshot.scaleY * 0.92,
           duration: halfDuration,
@@ -333,7 +358,7 @@ export class ActorAnimationDirector {
       case "item":
         return this.scene.tweens.add({
           ...common,
-          y: record.snapshot.y - 10,
+          y: record.snapshot.y - 10 * verticalMotion,
           scaleX: record.snapshot.scaleX * 1.05,
           scaleY: record.snapshot.scaleY * 1.05,
           duration: halfDuration,
@@ -351,7 +376,7 @@ export class ActorAnimationDirector {
         return this.scene.tweens.add({
           ...common,
           x: record.snapshot.x - 7 * direction,
-          angle: -6 * direction,
+          angle: -6 * tilt,
           duration: Math.max(1, Math.round(durationMs / 6)),
           repeat: 2,
           yoyo: true,
@@ -359,16 +384,16 @@ export class ActorAnimationDirector {
       case "victory":
         return this.scene.tweens.add({
           ...common,
-          y: record.snapshot.y - 14,
-          angle: 4 * direction,
+          y: record.snapshot.y - 14 * verticalMotion,
+          angle: 4 * tilt,
           duration: halfDuration,
           yoyo: true,
         });
       case "faint":
         return this.scene.tweens.add({
           ...common,
-          y: record.snapshot.y + 12,
-          angle: this.hasStateFrame(record, "faint") ? 0 : 88 * direction,
+          y: record.snapshot.y + 12 * verticalMotion,
+          angle: record.grounded || this.hasStateFrame(record, "faint") ? 0 : 88 * direction,
           alpha: 0.28,
           duration: durationMs,
           ease: "Quad.In",
@@ -393,9 +418,9 @@ export class ActorAnimationDirector {
   ): void {
     if (state === "faint") {
       record.target
-        .setAngle(this.hasStateFrame(record, "faint") ? 0 : 88 * direction)
+        .setAngle(record.grounded || this.hasStateFrame(record, "faint") ? 0 : 88 * direction)
         .setAlpha(0.35)
-        .setY(record.snapshot.y + 8);
+        .setY(record.snapshot.y + (record.grounded ? 0 : 8));
     } else if (state === "defend") {
       record.target.setScale(
         record.snapshot.scaleX * 1.08,
@@ -421,6 +446,9 @@ export class ActorAnimationDirector {
     );
     if (resolution.textureKey) {
       record.target.setTexture(resolution.textureKey);
+      if (record.grounded) {
+        record.target.setOrigin(0.5, record.textureFamily.groundOrigins?.[resolution.textureKey] ?? 1);
+      }
     }
   }
 
@@ -430,7 +458,7 @@ export class ActorAnimationDirector {
     const timing = resolveAnimationTiming("idle", false);
     record.idleTween = this.scene.tweens.add({
       targets: record.target,
-      ...(record.externalPosition
+      ...(record.externalPosition || record.grounded
         ? { scaleY: record.snapshot.scaleY * 1.025 }
         : { y: record.snapshot.y - (record.role === "boss" ? 3 : 2) }),
       duration: timing.durationMs,
@@ -466,6 +494,14 @@ export class ActorAnimationDirector {
       restorePresentationSnapshot(record.target, record.snapshot);
     } else {
       restoreSnapshot(record.target, record.snapshot);
+    }
+    this.syncGroundShadow(record);
+  }
+
+  private syncGroundShadow(record: ActorRecord): void {
+    if (record.grounded && record.groundShadow?.active
+      && (record.groundShadow.x !== record.target.x || record.groundShadow.y !== record.snapshot.y)) {
+      record.groundShadow.setPosition(record.target.x, record.snapshot.y);
     }
   }
 }

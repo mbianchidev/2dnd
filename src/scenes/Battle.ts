@@ -95,7 +95,7 @@ import {
   applyBattleActorTint,
   BattleBackdropRenderer,
 } from "../renderers/battleBackdrop";
-import { BATTLE_DEPTH } from "../renderers/battleDepth";
+import { BATTLE_DEPTH, getBattleBackdropLayout, getBattleMonsterPosition } from "../renderers/battleDepth";
 import { resolveHeroVisualDescriptor } from "../systems/heroVisuals";
 import {
   acquireHeroTexture,
@@ -275,6 +275,7 @@ export class BattleScene extends Phaser.Scene {
   private logAreaH = 0;
   private monsterTexts: Phaser.GameObjects.Text[] = [];
   private monsterSprites: Phaser.GameObjects.Sprite[] = [];
+  private monsterShadows: Phaser.GameObjects.Ellipse[] = [];
   private synergyText!: Phaser.GameObjects.Text;
   private targetCursor!: Phaser.GameObjects.Text;
   private targetHint!: Phaser.GameObjects.Text;
@@ -665,6 +666,8 @@ export class BattleScene extends Phaser.Scene {
 
     // --- Monsters in front/back formation ---
     this.monsterSprites = [];
+    this.monsterShadows = [];
+    const battlefield = getBattleBackdropLayout(w, h);
     this.monsterTexts = [];
     const frontIndices = this.combatants.flatMap((combatant, index) =>
       combatant.position === "front" ? [index] : []
@@ -676,12 +679,9 @@ export class BattleScene extends Phaser.Scene {
     for (const [index, combatant] of this.combatants.entries()) {
       const row = combatant.position === "front" ? frontIndices : backIndices;
       const rowIndex = row.indexOf(index);
-      const centerX = combatant.position === "front" ? 0.66 : 0.7;
-      const spacing = combatant.position === "front" ? 0.19 : 0.17;
-      const x = w * (centerX + (rowIndex - (row.length - 1) / 2) * spacing);
-      const y = h * (combatant.position === "front" ? 0.39 : 0.23);
+      const { x, y } = getBattleMonsterPosition(battlefield, combatant.position, rowIndex, row.length);
       const textureKey = getMonsterTextureKey(combatant.monster);
-      const sprite = this.add.sprite(x, y, textureKey);
+      const sprite = this.add.sprite(x, y, textureKey).setOrigin(0.5, 1);
       sprite.setScale(
         combatant.monster.isBoss
           ? 1.7
@@ -695,13 +695,13 @@ export class BattleScene extends Phaser.Scene {
       sprite.setInteractive({ useHandCursor: true });
       sprite.on("pointerdown", () => this.handleMonsterPointer(index));
       this.monsterSprites.push(sprite);
-      this.battleBackdrop.addActorShadow(
+      this.monsterShadows.push(this.battleBackdrop.addActorShadow(
         combatant.id,
         x,
-        y + (combatant.position === "front" ? 28 : 22),
+        y,
         combatant.monster.isBoss ? 28 : 20,
         combatant.monster.isBoss ? 8 : 6,
-      );
+      ));
 
       const text = this.add
         .text(w * 0.47, 6 + index * 38, "", {
@@ -1440,9 +1440,10 @@ export class BattleScene extends Phaser.Scene {
     if (!sprite) return;
     const x = part?.anchor.x ?? 0.5;
     const y = part?.anchor.y ?? 0;
+    const bounds = sprite.getBounds();
     this.targetCursor.setPosition(
-      sprite.x + ((sprite.flipX ? 1 - x : x) - 0.5) * sprite.displayWidth,
-      sprite.y + (y - 0.5) * sprite.displayHeight - 2,
+      bounds.x + (sprite.flipX ? 1 - x : x) * bounds.width,
+      bounds.y + y * bounds.height - 2,
     ).setVisible(true);
     const marker = this.targetCursor.getBounds();
     this.game.canvas.dataset.bodyTargetMarker = JSON.stringify({
@@ -3731,6 +3732,7 @@ export class BattleScene extends Phaser.Scene {
         id: combatant.id,
         role: combatant.monster.isBoss ? "boss" : "monster",
         sprite,
+        groundShadow: this.monsterShadows[index],
         textureFamily: resolveMonsterTextureFamily(
           combatant.monster,
           (textureKey) => this.textures.exists(textureKey),

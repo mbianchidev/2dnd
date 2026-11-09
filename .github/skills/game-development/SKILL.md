@@ -235,6 +235,12 @@ settles pending presentation once. Pixel strike/spell/heal/guard impacts use
 `systems/battleEffects.ts` geometry and `renderers/battleEffects.ts` ownership:
 one Graphics/tween per actor, no more than eight active and no mechanics callbacks.
 
+Battle monsters never fly or hover. `battleDepth.ts` places front/back contact
+points inside the ground plane. Monster-frame metadata records the visible
+foot edge, and grounded bindings keep every pose on that anchor while moving
+the shadow horizontally. Use real bounds for effects and body-part cursors;
+do not alter combat formation rules or grant flight from winged artwork.
+
 Tutorial and Tips content lives in `src/data/tutorial.ts` as immutable steps,
 semantic control actions, categories, and unlock requirements.
 `src/systems/tutorial.ts` owns completion normalization and progression-aware

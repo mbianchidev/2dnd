@@ -24,6 +24,7 @@ import type { BattleImpactKind } from "../systems/battleEffects";
 import type { Element } from "../data/elements";
 import { getActionEffectColor } from "../systems/battleChoreography";
 import { BattleChoreographyRenderer } from "../renderers/battleChoreography";
+import { isLocalDev } from "../config";
 
 export interface BattlePresentationTarget {
   readonly targetId: BattleCombatantId;
@@ -47,6 +48,7 @@ export interface BattleActorPresentationBinding {
   readonly role: ActorAnimationRole;
   readonly sprite: Phaser.GameObjects.Sprite;
   readonly textureFamily: ActorTextureFamily;
+  readonly groundShadow?: Phaser.GameObjects.Ellipse;
 }
 
 export class BattlePresentationDirector {
@@ -64,6 +66,7 @@ export class BattlePresentationDirector {
   private readonly faintedActors = new Set<BattleCombatantId>();
   private readonly eventHistory: string[] = [];
   private lastEvent = "idle";
+  private lastGrounding = "";
 
   public constructor(private readonly scene: Phaser.Scene) {
     this.actors = new ActorAnimationDirector(scene);
@@ -77,6 +80,8 @@ export class BattlePresentationDirector {
       role: binding.role,
       target: binding.sprite,
       textureFamily: binding.textureFamily,
+      grounded: binding.role === "monster" || binding.role === "boss",
+      groundShadow: binding.groundShadow,
     };
     this.roles.set(binding.id, binding.role);
     this.sprites.set(binding.id, binding.sprite);
@@ -84,6 +89,13 @@ export class BattlePresentationDirector {
   }
 
   public get debugState(): string {
+    if (this.lastEvent !== "clean" && isLocalDev()) {
+      const grounding = JSON.stringify(this.actors.grounding);
+      if (grounding !== this.lastGrounding) {
+        this.lastGrounding = grounding;
+        this.scene.game.canvas.dataset.battleGrounding = grounding;
+      }
+    }
     if (this.eventHistory.length > 0) {
       return `${this.eventHistory.join(">")} | Impacts: ${this.impacts.activeCount} [${this.impacts.debugState}] | Trails: ${this.choreography.activeCount}`;
     }
@@ -136,13 +148,16 @@ export class BattlePresentationDirector {
 
     const actor = this.getActorSprite(presentation.actorId);
     if (actor) {
+      const bounds = actor.getBounds();
       const kind = presentation.targets.some((target) => target.healing > 0) ? "heal"
         : presentation.kind === "spell" || presentation.kind === "ability" ? "spell"
           : presentation.ranged ? "ranged" : "melee";
-      this.choreography.show(presentation.actorId, kind, { x: actor.x, y: actor.y - 8 },
+      this.choreography.show(presentation.actorId, kind, { x: bounds.centerX, y: bounds.centerY - 8 },
         presentation.targets.flatMap((target) => {
           const sprite = this.getActorSprite(target.targetId);
-          return sprite ? [{ x: sprite.x, y: sprite.y - (target.hit ? 8 : 28) }] : [];
+          if (!sprite) return [];
+          const targetBounds = sprite.getBounds();
+          return [{ x: targetBounds.centerX, y: targetBounds.centerY - (target.hit ? 8 : 28) }];
         }), kind === "heal" ? 0x98cba1 : getActionEffectColor(presentation.element));
     }
     const react = (): void => this.presentReactions(presentation, direction);
@@ -234,6 +249,7 @@ export class BattlePresentationDirector {
   }
 
   public cleanup(): void {
+    if (this.lastEvent === "clean") return;
     this.choreography.destroy();
     this.impacts.destroy();
     for (const timer of this.transientTimers) timer.remove(false);
@@ -250,6 +266,9 @@ export class BattlePresentationDirector {
     this.roles.clear();
     this.sprites.clear();
     this.actors.cleanup();
+    if (this.scene.game.canvas.dataset.battleGrounding === this.lastGrounding) {
+      delete this.scene.game.canvas.dataset.battleGrounding;
+    }
     this.lastEvent = "clean";
   }
 
@@ -261,7 +280,8 @@ export class BattlePresentationDirector {
     const sprite = this.getActorSprite(actorId);
     if (!sprite) return;
     const preferences = getAccessibilityPreferences();
-    const text = this.scene.add.text(sprite.x, sprite.y - 34, label, {
+    const bounds = sprite.getBounds();
+    const text = this.scene.add.text(bounds.centerX, bounds.centerY - 34, label, {
       fontSize: "10px",
       fontFamily: "monospace",
       fontStyle: "bold",
@@ -301,7 +321,8 @@ export class BattlePresentationDirector {
   ): void {
     const sprite = this.getActorSprite(actorId);
     if (!sprite) return;
-    this.impacts.show(actorId, sprite.x, sprite.y, { kind, direction, critical });
+    const bounds = sprite.getBounds();
+    this.impacts.show(actorId, bounds.centerX, bounds.centerY, { kind, direction, critical });
   }
 
   private playActionAudio(presentation: BattleActionPresentation): void {

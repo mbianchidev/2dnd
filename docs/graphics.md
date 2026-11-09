@@ -36,6 +36,14 @@ cleanup. Blade arcs, arrows, elemental spell travel and healing effects consume
 resolved scalar outcomes only. Reduced motion removes travel and settles poses
 immediately; animation never spends resources or decides an outcome.
 
+Every battle monster stays on the ground, including winged, spectral and boss
+forms. Formation rows choose contact points inside the battlefield ground
+plane, not above its horizon. Per-frame visible foot anchors exclude transparent
+texture padding. Idle breathing, attacks, casting, reactions and fainting keep
+that anchor planted; horizontal motion carries the contact shadow with it.
+Body targeting and effects use actual sprite bounds rather than assuming a
+center-origin sprite.
+
 ## Buildings and rewards
 
 Use the existing interact control on a building door to enter its room.

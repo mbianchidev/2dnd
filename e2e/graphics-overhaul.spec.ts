@@ -9,6 +9,8 @@ import { MONSTER_FAMILY_IDS } from "../src/data/monsterFamilies";
 import { createHeroClassProgression, getAvailableProgressionGrants } from "../src/systems/classProgression";
 import { xpForLevel } from "../src/systems/player";
 import type { SaveData } from "../src/systems/save";
+import type { GroundedActorInspection } from "../src/systems/animation";
+import { getBattleBackdropLayout } from "../src/renderers/battleDepth";
 import { pressGameKey, stepGameTile as step } from "./helpers/input";
 import { clickLayoutItem, expectCleanLayout, tapLayoutItem, waitForGameInputFrame } from "./helpers/layout";
 import { continueMinigameFixture, minigameBrowserErrors, minigameFixture, readMinigameSave, seedMinigamePage } from "./helpers/minigames";
@@ -39,6 +41,27 @@ async function debugCommand(page: Page, command: string): Promise<void> {
     element.blur();
   }, command);
   await waitForGameInputFrame(page);
+}
+
+async function expectGroundedMonsters(page: Page): Promise<void> {
+  const canvas = page.locator("#game-container canvas");
+  await expect(canvas).toHaveAttribute("data-battle-grounding", /"groundY"/);
+  const snapshot = await canvas.evaluate((element) => {
+    if (!(element instanceof HTMLCanvasElement)) throw new Error("Missing battle canvas.");
+    return {
+      width: element.width, height: element.height,
+      actors: JSON.parse(element.dataset.battleGrounding!) as GroundedActorInspection[],
+    };
+  });
+  const layout = getBattleBackdropLayout(snapshot.width, snapshot.height);
+  expect(snapshot.actors.length).toBeGreaterThan(0);
+  for (const actor of snapshot.actors) {
+    expect(actor.footY, actor.id).toBeGreaterThan(layout.groundTop);
+    expect(actor.footY, actor.id).toBeCloseTo(actor.groundY, 6);
+    expect(Math.abs(actor.angle), actor.id).toBe(0);
+    expect(actor.shadowX, actor.id).toBeCloseTo(actor.x, 6);
+    expect(actor.shadowY, actor.id).toBeCloseTo(actor.groundY, 6);
+  }
 }
 
 for (const textScale of [1, 1.25, 1.5] as const) {
@@ -246,9 +269,63 @@ test("every monster family uses its defined in-game silhouette and action textur
       ?? ALL_MONSTERS.find((entry) => entry.family === family)!;
     await debugCommand(page, `/spawn ${monster.id}`);
     await expect(page.locator("#debug-state")).toContainText("BATTLE");
+    await expectGroundedMonsters(page);
     await capture(page, `family-${family}`);
+    await debugCommand(page, "/kill");
+    await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+  }
+  for (const monster of ALL_MONSTERS.filter((entry) => entry.isBoss)) {
+    await debugCommand(page, `/spawn ${monster.id}`);
+    await expect(page.locator("#debug-state")).toContainText("BATTLE");
+    await expectGroundedMonsters(page);
     await debugCommand(page, "/kill");
     await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
   }
   expect(errors).toEqual([]);
 });
+
+for (const reducedMotion of [false, true]) {
+  test(`front and back monsters stay planted throughout real combat with reduced motion ${reducedMotion}`, async ({ page }) => {
+    const errors = minigameBrowserErrors(page);
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
+    await seedMinigamePage(page, campaign(), "keyboard", { reducedMotion, highContrast: false });
+    await debugCommand(page, "/battleview goblinRaidingParty forest day clear");
+    await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+    await expectGroundedMonsters(page);
+    const measured = page.evaluate(() => new Promise<{
+      frames: number; footDrift: number; shadowDrift: number; angle: number; states: string[];
+    }>((resolve) => {
+      const start = performance.now();
+      const result = { frames: 0, footDrift: 0, shadowDrift: 0, angle: 0, states: new Set<string>() };
+      const sample = (): void => {
+        const canvas = document.querySelector<HTMLCanvasElement>("#game-container canvas")!;
+        const actors = JSON.parse(canvas.dataset.battleGrounding!) as GroundedActorInspection[];
+        result.frames++;
+        for (const actor of actors) {
+          result.states.add(actor.state);
+          result.footDrift = Math.max(result.footDrift, Math.abs(actor.footY - actor.groundY));
+          result.shadowDrift = Math.max(result.shadowDrift, Math.abs(actor.shadowX! - actor.x),
+            Math.abs(actor.shadowY! - actor.groundY));
+          result.angle = Math.max(result.angle, Math.abs(actor.angle));
+        }
+        if (performance.now() - start < 2_000) requestAnimationFrame(sample);
+        else resolve({ ...result, states: [...result.states] });
+      };
+      requestAnimationFrame(sample);
+    }));
+    await clickLayoutItem(page, "battle-action-attack");
+    await pressGameKey(page, "Enter");
+    const result = await measured;
+    expect(result.frames).toBeGreaterThan(15);
+    expect(result.footDrift).toBeLessThan(0.000001);
+    expect(result.shadowDrift).toBeLessThan(0.000001);
+    expect(result.angle).toBe(0);
+    if (!reducedMotion) expect(result.states.some((state) => state === "attack" || state === "damage")).toBe(true);
+    await expectGroundedMonsters(page);
+    await capture(page, `grounded-formation-${reducedMotion ? "reduced" : "animated"}`);
+    await debugCommand(page, "/kill");
+    await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+    await expect(page.locator("#game-container canvas")).not.toHaveAttribute("data-battle-grounding", /./);
+    expect(errors).toEqual([]);
+  });
+}

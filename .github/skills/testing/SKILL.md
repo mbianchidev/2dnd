@@ -14,6 +14,11 @@ Write comprehensive game-mechanics tests with Vitest. Use the committed
 Playwright suite only for high-value Phaser browser flows that cannot be proven
 through pure logic tests.
 
+Battle grounding tests cover every family/boss and all pose frames. Use
+`data-battle-grounding` to sample actual visible foot/shadow contact during real
+actions, not just sprite centers. Grounded actors never hover, lift or tilt;
+keep front/back contact points inside the backdrop ground plane.
+
 Run tooling with the Node.js version in `.nvmrc`, shared by local development and
 every Node-based CI job. Electron's embedded Node.js follows Electron instead.
 

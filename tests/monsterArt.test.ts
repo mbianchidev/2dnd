@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ALL_MONSTERS } from "../src/data/monsters";
 import { MONSTER_FAMILY_IDS } from "../src/data/monsterFamilies";
 import { createMonsterArt } from "../src/systems/monsterArt";
+import { getPixelArtGroundOrigin } from "../src/systems/pixelArt";
 
 describe("defined procedural creature families", () => {
   it("has a distinct, shaded, transparent anatomical silhouette for every family", () => {
@@ -34,5 +35,23 @@ describe("defined procedural creature families", () => {
     const monster = ALL_MONSTERS.find((entry) => entry.anatomy === "tentacled")!;
     expect(createMonsterArt(monster, "strike").pixels).not.toEqual(createMonsterArt(monster, "idle").pixels);
     expect(createMonsterArt(monster, "cast").pixels).not.toEqual(createMonsterArt(monster, "idle").pixels);
+  });
+
+  it("finds a real visible contact edge for every creature, boss and action frame", () => {
+    for (const monster of ALL_MONSTERS) {
+      for (const pose of ["idle", "blink", "ready", "strike", "cast", "hurt", "fallen"] as const) {
+        const art = createMonsterArt(monster, pose);
+        const origin = getPixelArtGroundOrigin(art);
+        expect(origin, `${monster.id}:${pose}`).toBeGreaterThan(0);
+        expect(origin).toBeLessThanOrEqual(1);
+        const contactRow = Math.round(origin * art.height) - 1;
+        expect(Array.from({ length: art.width }, (_, x) => art.pixels[(contactRow * art.width + x) * 4 + 3])
+          .some((alpha) => alpha! > 0)).toBe(true);
+        for (let y = contactRow + 1; y < art.height; y++) {
+          expect(Array.from({ length: art.width }, (_, x) => art.pixels[(y * art.width + x) * 4 + 3])
+            .every((alpha) => alpha === 0)).toBe(true);
+        }
+      }
+    }
   });
 });

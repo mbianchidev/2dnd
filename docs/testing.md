@@ -110,6 +110,10 @@ party recovery. `stepGameTile()` holds through movement cooldowns and releases
 inside the renderer on the accepted tile, then waits for movement to settle.
 Dice evidence follows the presentation label while numbers are concealed;
 canonical result text is compared only after the throw stops or is skipped.
+Grounding coverage verifies every monster family and boss at rest, samples real
+front/back combat frames in normal and reduced motion, and requires visible
+feet and following shadows to stay on their ground anchors. Pure tests cover
+transparent foot padding and every grounded action/reaction pose.
 
 The `e2e/*.spec.ts` suites own real browser behavior:
 

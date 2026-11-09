@@ -188,6 +188,9 @@ Library/home/residential `CityChunk.buildings` metadata binds full-size facades
 to blocked three-tile-deep footprints. Validate safe door approaches and
 district reachability; closed residences have no door connection or hit target.
 Never enlarge the picture alone while leaving walkable cells underneath it.
+Initial rendering and movement reveals share `citySurface.ts` /
+`getOrCreateCityTerrainTexture()`, never restore miniature building tiles or
+wall textures beneath scene-owned furniture during a reveal.
 See [`docs/graphics.md`](../../../docs/graphics.md).
 
 When adding a district:

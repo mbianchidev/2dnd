@@ -1,6 +1,7 @@
 import type * as Phaser from "phaser";
-import { Terrain, type DungeonData } from "../data/mapTypes";
+import { Terrain, type CityChunk, type DungeonData } from "../data/mapTypes";
 import { PixelSurface } from "../systems/pixelArt";
+import { getCitySurfaceTerrainOverride } from "../systems/citySurface";
 import {
   createTerrainArt, createFountainPropArt, getTerrainArtKey, getTerrainArtSpec,
   type TerrainArtSpec,
@@ -15,9 +16,20 @@ export function getDungeonArtGround(dungeon: DungeonData): Terrain {
 export function getOrCreateTerrainTexture(scene: Phaser.Scene, map: Terrain[][], x: number, y: number, ground?: Terrain): string {
   const original = getTerrainArtSpec(map, x, y);
   const spec = ground === undefined ? original : { ...original, ground };
+  return getOrCreateArtTexture(scene, spec);
+}
+
+function getOrCreateArtTexture(scene: Phaser.Scene, spec: TerrainArtSpec): string {
   const key = getTerrainArtKey(spec);
   if (!scene.textures.exists(key)) createPixelTexture(scene, key, createTerrainArt(spec));
   return key;
+}
+
+export function getOrCreateCityTerrainTexture(scene: Phaser.Scene, chunk: CityChunk, x: number, y: number, ground: Terrain): string {
+  const override = getCitySurfaceTerrainOverride(chunk, x, y);
+  if (override === "fog") return "tile_fog";
+  const original = getTerrainArtSpec(chunk.mapData, x, y);
+  return getOrCreateArtTexture(scene, { ...original, ground, terrain: override ?? original.terrain });
 }
 
 export function generateTerrainTextures(scene: Phaser.Scene): void {
@@ -55,15 +67,5 @@ export function generateTerrainTextures(scene: Phaser.Scene): void {
   }
   for (const type of ["weapon", "armor", "general", "magic", "bank", "inn"]) {
     createPixelTexture(scene, `tile_carpet_${type}`, createTerrainArt(getTerrainArtSpec([[Terrain.Carpet]], 0, 0)));
-  }
-  for (const kind of ["library", "home"]) {
-    const art = createTerrainArt({ terrain: Terrain.Town, ground: Terrain.Grass, variant: 0, edges: 0 });
-    if (kind === "library") {
-      art.rect(10, 12, 11, 5, 0xd5cbaa);
-      art.rect(15, 12, 1, 5, 0x6a634d);
-      art.line(11, 14, 14, 14, 0x6a634d);
-      art.line(17, 14, 19, 14, 0x6a634d);
-    }
-    createPixelTexture(scene, `tile_building_${kind}`, art);
   }
 }

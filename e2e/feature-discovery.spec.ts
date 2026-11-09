@@ -126,7 +126,7 @@ test("progressively grows menus, tabs, shortcuts, and touch actions", async ({
     "[MENU_ENTRIES:resume,inventory,questJournal,chronicle,codex,gathering,tips,save,settings,quit]",
   );
   await waitForState(page, "[MENU_SELECTION:resume]");
-  await holdKey(page, "ArrowDown");
+  await holdKey(page, "ArrowRight");
   await waitForState(page, "[MENU_SELECTION:inventory]");
   await holdKey(page, "Enter");
   await waitForState(page, "[PARTY:items");

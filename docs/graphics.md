@@ -82,6 +82,10 @@ street district indexes remain stable.
 Facades sit below actors while roofs stay above them, keeping the hero visible
 when standing in a doorway. Both static graphics layers are owned and released
 by the map renderer.
+Initial rendering and every movement reveal share `citySurface.ts` and
+`getOrCreateCityTerrainTexture()`: facade footprints retain bare biome ground,
+furniture retains wooden floors and wall decorations retain masonry. Movement
+cannot restore the obsolete miniature house tiles behind a full-size facade.
 
 Use the existing interact control on a building door to enter its room.
 Move around counters, stock shelves, reading tables, beds and hearths. Interact

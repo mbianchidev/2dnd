@@ -32,10 +32,9 @@ import { TILE_SIZE } from "../config";
 import { layoutAnchoredLabels } from "../systems/layout";
 import { getScaledBounds, subscribeOverlayReflow } from "../managers/layout";
 import { createOverlayContainer } from "../utils/ui";
-import { getOrCreateTerrainTexture, getDungeonArtGround } from "./terrainTextures";
+import { getOrCreateCityTerrainTexture, getOrCreateTerrainTexture, getDungeonArtGround } from "./terrainTextures";
 import { InteriorRenderer } from "./interior";
 import { DungeonLightingRenderer } from "./dungeonLighting";
-import { containsInteriorPropTile } from "../systems/interiorLayout";
 import { renderCityLandmarks } from "./cityLandmarks";
 import { renderCityBuildings } from "./buildings";
 
@@ -590,25 +589,16 @@ export class MapRenderer {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const explored = isExplored(x, y);
         const terrain = cityMap[y][x];
-        let texKey = explored ? getOrCreateTerrainTexture(this.scene, cityMap, x, y, cityBiome) : "tile_fog";
-        if (chunk.interior) {
-          const bounds = chunk.interior.bounds;
-          if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) texKey = "tile_fog";
-          else if (chunk.interior.props.some((prop) => prop.kind !== "window" && prop.kind !== "painting"
-            && containsInteriorPropTile(prop, x, y))) texKey = `tile_${Terrain.ShopFloor}`;
-        }
+        let texKey = explored ? getOrCreateCityTerrainTexture(this.scene, chunk, x, y, cityBiome) : "tile_fog";
         if (explored && terrain === Terrain.Carpet) {
           const carpetOverride = shopCarpetMap.get(`${x},${y}`);
           if (carpetOverride) texKey = carpetOverride;
         }
         if (explored && terrain === Terrain.CityPath) texKey = biomePathTex;
-        if (explored && terrain === Terrain.Fountain && !chunk.interior) texKey = biomeFloorTex;
-        if (explored && chunk.buildings?.some((building) => x >= building.x && y >= building.y
-          && x < building.x + building.width && y < building.y + building.height)) texKey = biomeFloorTex;
         if (explored && terrain === Terrain.CityGate && !chunk.interior) {
           const connection = getCityConnectionAt(city, player.position.cityChunkIndex, x, y);
           const destination = connection ? getCityChunk(city, connection.toChunkIndex)?.interior : undefined;
-          if (destination) texKey = destination.kind === "shop" ? `tile_${Terrain.ShopFloor}` : biomeFloorTex;
+          if (destination?.kind === "shop") texKey = `tile_${Terrain.ShopFloor}`;
         }
         if (terrain === Terrain.ShopFloor && !chunk.interior) {
           const tileShopIdx = cityRenderer.shopFloorMap.get(`${x},${y}`) ?? -1;
@@ -861,22 +851,16 @@ export class MapRenderer {
       for (let x = 0; x < MAP_WIDTH; x++) {
         if (isExplored(x, y) && this.tileSprites[y]?.[x]) {
           const terrain = cityMap[y][x];
-          let texKey = getOrCreateTerrainTexture(this.scene, cityMap, x, y, cityBiome);
+          let texKey = getOrCreateCityTerrainTexture(this.scene, chunk, x, y, cityBiome);
           if (terrain === Terrain.Carpet) {
             const override = shopCarpetMap.get(`${x},${y}`);
             if (override) texKey = override;
           }
           if (terrain === Terrain.CityPath) texKey = biomePathTex;
-          if (terrain === Terrain.Fountain && !chunk.interior) texKey = biomeFloorTex;
           if (terrain === Terrain.CityGate && !chunk.interior) {
             const connection = getCityConnectionAt(city, player.position.cityChunkIndex, x, y);
             const destination = connection ? getCityChunk(city, connection.toChunkIndex)?.interior : undefined;
-            if (destination) texKey = destination.kind === "shop" ? `tile_${Terrain.ShopFloor}` : `tile_building_${destination.kind}`;
-          }
-          if (chunk.interior) {
-            const bounds = chunk.interior.bounds;
-            if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) texKey = "tile_fog";
-            else if (chunk.interior.props.some((prop) => containsInteriorPropTile(prop, x, y))) texKey = `tile_${Terrain.ShopFloor}`;
+            if (destination?.kind === "shop") texKey = `tile_${Terrain.ShopFloor}`;
           }
           if (terrain === Terrain.ShopFloor && !chunk.interior) {
             const tileShopIdx = cityRenderer.shopFloorMap.get(`${x},${y}`) ?? -1;

@@ -1,6 +1,8 @@
 import type { InteriorPropData } from "../data/mapTypes";
 
-export function containsInteriorPropTile(prop: InteriorPropData, x: number, y: number): boolean {
+export function containsTileFootprint(
+  prop: Pick<InteriorPropData, "x" | "y" | "width" | "height">, x: number, y: number,
+): boolean {
   return x >= prop.x && y >= prop.y && x < prop.x + (prop.width ?? 1) && y < prop.y + (prop.height ?? 1);
 }
 

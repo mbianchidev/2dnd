@@ -53,4 +53,5 @@ export async function stepGameTile(
     });
   }), { direction: key, position: `Pos: (${x},${y})` });
   await waitForGameInputFrame(page);
+  await page.waitForFunction(() => document.getElementById("debug-state")?.textContent?.includes("Move: ready"));
 }

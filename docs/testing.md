@@ -102,6 +102,11 @@ Pure raster, footprint, guarded claim/study and minimap-redaction suites keep
 Phaser and gameplay RNG out of the corresponding mechanics.
 Battle canvas references use compositor screenshots rather than WebGL
 `toDataURL()` reads, which can return a discarded, entirely black back buffer.
+NG+ journeys enter the real inn doorway, walk to its counter and pay for normal
+party recovery. `stepGameTile()` holds through movement cooldowns and releases
+inside the renderer on the accepted tile, then waits for movement to settle.
+Dice evidence follows the presentation label while numbers are concealed;
+canonical result text is compared only after the throw stops or is skipped.
 
 The `e2e/*.spec.ts` suites own real browser behavior:
 

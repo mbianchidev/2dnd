@@ -173,7 +173,7 @@ async function expectCanvasSnapshot(
       maxDiffPixelRatio: 0.05,
     });
   } finally {
-    await captureStyle.evaluate((element) => element.remove());
+    await captureStyle.evaluate((element) => element.parentNode?.removeChild(element));
   }
 }
 

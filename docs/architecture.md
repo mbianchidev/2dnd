@@ -312,6 +312,13 @@ Grounded bindings use planted scaling and horizontal motion, update their
 contact shadows, and leave hero/world animation behavior unchanged. Effects and
 body-part cursors read sprite bounds rather than assume center origins.
 
+`systems/battleHud.ts` owns pure resource ratios, the six action-icon painters
+and a knowledge-redacted enemy view. `renderers/battleHud.ts` draws the measured
+party/enemy HUD, owns native meters/command counterparts and releases its
+containers, reflow subscription and DOM on shutdown. Scene adapters read hero
+and companion resources from their existing owners. Enemy bars depend only on
+the established `hpRevealed` authority, never presentation or inferred damage.
+
 ## Difficulty composition
 
 `src/data/difficulty.ts` owns immutable profiles and constrained Custom bounds.

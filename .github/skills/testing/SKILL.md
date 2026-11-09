@@ -19,6 +19,12 @@ Battle grounding tests cover every family/boss and all pose frames. Use
 actions, not just sprite centers. Grounded actors never hover, lift or tilt;
 keep front/back contact points inside the backdrop ground plane.
 
+Battle HUD tests assert six distinct action silhouettes, graphical/native
+HP/MP updates, all text scales and knowledge privacy. Unknown enemy HP must be
+absent from both graphics and accessible meters; known bars use live max HP,
+including campaign scaling. Do not rely on an enemy attack happening to hit:
+use canonical deterministic status damage for resource-update fixtures.
+
 Run tooling with the Node.js version in `.nvmrc`, shared by local development and
 every Node-based CI job. Electron's embedded Node.js follows Electron instead.
 

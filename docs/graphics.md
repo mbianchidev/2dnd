@@ -44,6 +44,26 @@ that anchor planted; horizontal motion carries the contact shadow with it.
 Body targeting and effects use actual sprite bounds rather than assuming a
 center-origin sprite.
 
+## Battle HUD
+
+Attack, Defend, Abilities, Spells, Items and Flee have separate procedural
+pixel-art icons: sword, shield, fist, spellbook, potion and fleeing boot.
+Selection borders and unavailable markers are separate from those icons, so
+their identity does not disappear during enemy turns.
+
+Hero and companion HP/MP use filled health and mana bars with numeric values
+and explicit labels, not character-based meters. The measured party panel
+supports every text scale and high contrast. Native labeled meters expose the
+same accepted values without adding a live announcement on every change.
+Resource updates read the existing actor owners and never interpolate or alter
+combat values.
+
+Enemy HUD rows contain only the canonical name/duplicate letter. A real health
+bar is added only when `GroupCombatant.hpRevealed` is true under the existing
+Codex rule. Unknown HP has no placeholder, bar, native meter or hidden value.
+Formation/defend/status tags are not appended to enemy names; formation,
+animation and normal combat feedback still convey gameplay state.
+
 ## Buildings and rewards
 
 Use the existing interact control on a building door to enter its room.

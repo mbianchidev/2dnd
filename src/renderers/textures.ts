@@ -12,6 +12,7 @@ import { generateMonsterTextures } from "./monsterTextures";
 import { generateTerrainTextures } from "./terrainTextures";
 import { createPixelTexture } from "./pixelTexture";
 import { generateInteriorTextures } from "./interiorTextures";
+import { generateBattleHudTextures } from "./battleHud";
 
 /** Boot owns static procedural assets; live equipment art uses cleanup-safe hero leases. */
 export function generateAllTextures(scene: Phaser.Scene): void {
@@ -25,6 +26,7 @@ export function generateAllTextures(scene: Phaser.Scene): void {
   generateMountTextures(scene);
   generateBoatTextures(scene);
   generateMonsterTextures(scene);
+  generateBattleHudTextures(scene);
   generateUITextures(scene);
   for (const template of NPC_TEMPLATES) {
     createPixelTexture(scene, `npc_${template.id}`, createHumanoidArt({

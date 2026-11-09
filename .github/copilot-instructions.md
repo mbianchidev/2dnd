@@ -627,6 +627,11 @@ Flow:
 - Initiative is d20 + Dexterity modifier.
 - Spells use MP.
 - Disabled actions are visibly dimmed outside the player turn.
+- Attack, Defend, Abilities, Spells, Items and Flee retain distinct procedural
+  icons independently of selection/unavailable markers. Hero/companion HP/MP
+  use graphical bars and native meter semantics. Enemy HUD rows show only
+  canonical names/letters and HP bars when `hpRevealed` authorizes them;
+  never draw unknown placeholders or expose hidden HP through accessible nodes.
 - Items and designated bonus-action abilities do not end the player turn when
   the bonus action is still available.
 - Validate actions before consuming MP, inventory, or turn state.

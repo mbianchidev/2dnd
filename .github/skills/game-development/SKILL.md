@@ -241,6 +241,13 @@ foot edge, and grounded bindings keep every pose on that anchor while moving
 the shadow horizontally. Use real bounds for effects and body-part cursors;
 do not alter combat formation rules or grant flight from winged artwork.
 
+The battle HUD uses `systems/battleHud.ts` for pure icon/resource/redaction
+contracts and `renderers/battleHud.ts` for measured graphics/native semantics.
+Keep six distinct command icons separate from selection/disabled markers.
+Read HP/MP from their actor owners; enemy rows contain only names/letters and
+health bars allowed by canonical `hpRevealed`, with no unknown placeholder or
+hidden numeric/accessibility leak.
+
 Tutorial and Tips content lives in `src/data/tutorial.ts` as immutable steps,
 semantic control actions, categories, and unlock requirements.
 `src/systems/tutorial.ts` owns completion normalization and progression-aware

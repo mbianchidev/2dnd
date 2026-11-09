@@ -27,8 +27,9 @@ Web Audio synthesis rather than external assets. Regions, cities, islands,
 and dungeons have distinct procedural scores, with night variations outdoors
 and in towns, evolving arrangements, and weather- and battle-responsive layers.
 Pixel-art combat impacts accompany resolved actions without delaying their
-outcomes. Grounded monsters, shaded actors and terrain, furnished building
-interiors, small one-time discoveries, and a fog-aware exploration minimap share the
+outcomes. Distinct action icons, HP/MP bars, grounded monsters, shaded terrain,
+furnished building interiors, small one-time discoveries, and a fog-aware
+exploration minimap share the
 [procedural graphics pipeline](docs/graphics.md). Story and boss cutscenes have distinct illustrated settings, including
 changed aftermaths and the epilogue. Campaigns are stored locally; no account
 is required.

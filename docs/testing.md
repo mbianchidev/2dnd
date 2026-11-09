@@ -114,6 +114,10 @@ Grounding coverage verifies every monster family and boss at rest, samples real
 front/back combat frames in normal and reduced motion, and requires visible
 feet and following shadows to stay on their ground anchors. Pure tests cover
 transparent foot padding and every grounded action/reaction pose.
+`battleHud.test.ts` checks distinct deterministic command art, fractional/empty
+resource ratios, contrast and unknown-HP redaction. `e2e/battle-hud.spec.ts`
+verifies all action icons, real HP/MP changes, native meters, known/unknown
+enemy rows and full-party layouts through 150% high-contrast text.
 
 The `e2e/*.spec.ts` suites own real browser behavior:
 

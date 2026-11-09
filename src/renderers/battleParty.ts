@@ -3,11 +3,13 @@ import type { BattleActionSource } from "../systems/battleActions";
 import type { PartyCombatant } from "../systems/groupCombat";
 import { getActiveEffectNames } from "../systems/statusEffects";
 import { BATTLE_DEPTH } from "./battleDepth";
+import { createOverlayContainer } from "../utils/ui";
 
 export class BattlePartyRenderer {
   private readonly scene: Phaser.Scene;
   private sprites = new Map<string, Phaser.GameObjects.Sprite>();
   private labels = new Map<string, Phaser.GameObjects.Text>();
+  private statusGroup: Phaser.GameObjects.Container | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -23,6 +25,10 @@ export class BattlePartyRenderer {
     );
     const width = this.scene.cameras.main.width;
     const height = this.scene.cameras.main.height;
+    const statusGroup = createOverlayContainer(this.scene, "battle-companion-effects", BATTLE_DEPTH.ui, {
+      x: 0, y: 0, width: width * 0.45, height: height * 0.78 - 4,
+    });
+    this.statusGroup = statusGroup;
     companions.forEach((combatant, index) => {
       const source = sources.find(
         (candidate) => candidate.combatant.id === combatant.id,
@@ -42,7 +48,10 @@ export class BattlePartyRenderer {
         align: "center",
         backgroundColor: "#0a0a1acc",
         padding: { x: 3, y: 2 },
-      }).setOrigin(0.5, 0).setDepth(BATTLE_DEPTH.ui);
+        wordWrap: { width: width * 0.13 - 6, useAdvancedWrap: true },
+      }).setOrigin(0.5, 0).setData("layoutId", `battle-companion-${combatant.sourceId}-effects`)
+        .setVisible(false);
+      statusGroup.add(label);
       this.sprites.set(combatant.id, sprite);
       this.labels.set(combatant.id, label);
     });
@@ -62,12 +71,9 @@ export class BattlePartyRenderer {
       );
       if (!sprite || !label || !source) continue;
       const effects = getActiveEffectNames(combatant.effects);
-      label.setText([
-        combatant.label,
-        `HP ${combatant.currentHp}/${combatant.maxHp}`,
-        `MP ${source.state.mp}/${source.state.maxMp}`,
-        effects.length > 0 ? effects.join(", ") : "",
-      ].filter(Boolean).join("\n"));
+      label.setText(effects.length > 0
+        ? `${effects[0]}${effects.length > 1 ? ` +${effects.length - 1}` : ""}` : "");
+      label.setVisible(effects.length > 0);
       sprite.setAlpha(isFinite(combatant.currentHp) && combatant.currentHp > 0
         ? 1
         : 0.35);
@@ -82,6 +88,8 @@ export class BattlePartyRenderer {
   clear(): void {
     for (const sprite of this.sprites.values()) sprite.destroy();
     for (const label of this.labels.values()) label.destroy();
+    this.statusGroup?.destroy(true);
+    this.statusGroup = null;
     this.sprites.clear();
     this.labels.clear();
   }

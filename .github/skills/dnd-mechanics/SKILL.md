@@ -52,6 +52,12 @@ starting-class/registry-order ties; appearance is not progression authority.
 Abilities use their explicit stat key. Main weapon attacks retain STR/finesse
 rules; the compatible off-hand fallback uses the fixed starting primary stat.
 
+Rare interior manuscripts use canonical study sources with declared base-class
+ranks and a casting stat. Persist their finite study tokens, not a legacy
+exception or unrestricted spell grant. Recognized study knowledge survives
+normalization and NG+; prestige/epic-only grants still require owned profiles.
+See [`docs/graphics.md`](../../../docs/graphics.md).
+
 Hero multiclass rules live in `src/data/classProgression.ts` and
 `src/systems/classProgression.ts`; normalization is in `classProgressionState.ts`.
 Keep normal total level at 20, creation one-class and companions single-class.

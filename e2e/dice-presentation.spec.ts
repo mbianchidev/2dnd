@@ -96,6 +96,8 @@ interface DisplayedDiceSnapshot {
   rollingFaces: { sides: string | undefined; natural: string | undefined }[];
   phase: string | undefined;
   motionCount: number;
+  resultsRevealed: boolean;
+  facesVisible: boolean;
 }
 
 function captureDice(page: Page): {
@@ -450,9 +452,11 @@ async function captureDisplayedDice(
       const sequence = boundary === "skip"
         ? root.dataset.lastSkippedSequence : root.dataset.sequence;
       if (sequence === previousSequence) return false;
+      if (!root.dataset.label?.startsWith(expected)) return false;
       const entries = document.querySelectorAll("#battle-log [data-category]");
-      const text = (root.querySelector("#dice-result") ?? entries[entries.length - 1])?.textContent ?? "";
-      if (!text.startsWith(expected)) return false;
+      const text = root.dataset.resultsRevealed === "true"
+        ? (root.querySelector("#dice-result") ?? entries[entries.length - 1])?.textContent ?? ""
+        : "";
       observer.disconnect();
       window.clearTimeout(timeout);
       resolve({
@@ -460,6 +464,9 @@ async function captureDisplayedDice(
         phase: root.dataset.phase,
         motionCount: root.getAnimations({ subtree: true }).length,
         hidden: root.hidden === true,
+        resultsRevealed: root.dataset.resultsRevealed === "true",
+        facesVisible: [...root.querySelectorAll(".die-number")]
+          .some((face) => face.getAttribute("visibility") === "visible"),
         faces: [...root.querySelectorAll<HTMLElement>(".resolved-die")].map((die) => ({
           sides: die.dataset.sides, natural: die.dataset.natural,
         })),
@@ -669,6 +676,8 @@ for (const textScale of [1, 1.25, 1.5] as const) {
       await page.locator('#touch-controls [data-action="confirm"]').tap();
     }
     const visibleAttack = await displayedAttack;
+    expect(visibleAttack.resultsRevealed).toBe(false);
+    expect(visibleAttack.facesVisible).toBe(false);
     const dock = page.locator("#dice-presentation");
     await expect(dock).toHaveAttribute("data-phase", "animating");
     const beforeSkip = await dock.getAttribute("data-last-skipped-sequence");
@@ -698,7 +707,9 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     await expect(attack).toContainText(formatDicePresentation(createCombatDicePresentation(
       attackPacket.attack!, { label: `Dice Tester attack -> ${getMonster("orc")!.name}` },
     )!));
-    expect(visibleAttack.text).toBe(formatDicePresentation(createCombatDicePresentation(
+    expect(visibleAttack.text).toBe("");
+    expect(skipped.resultsRevealed).toBe(true);
+    expect(skipped.text).toBe(formatDicePresentation(createCombatDicePresentation(
       attackPacket.attack!, { label: `Dice Tester attack -> ${getMonster("orc")!.name}` },
     )!));
     if (textScale === 1) await captureDiceScreenshot(page, "disadvantage-desktop");
@@ -726,9 +737,9 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     const visibleMissile = await displayedMissile;
     expect(visibleMissile.faces.map((die) => [die.sides, die.natural]))
       .toEqual(missilePacket.attack.damageRoll.roll.naturalRolls.map((natural) => ["4", String(natural)]));
-    expect(visibleMissile.text).toBe(formatDicePresentation(createCombatDicePresentation(
-      missilePacket.attack, { label: `Dice Tester Magic Missile -> ${getMonster("orc")!.name}` },
-    )!));
+    expect(visibleMissile.text).toBe("");
+    expect(visibleMissile.resultsRevealed).toBe(false);
+    expect(visibleMissile.facesVisible).toBe(false);
     await expectDiceBounds(page, textScale);
     await captureDiceScreenshot(page, `magic-missile-mobile-${textScale}`);
     if (textScale === 1) {
@@ -979,21 +990,27 @@ test("rolls default on, disable easily, and actual positive/negative crits remai
     if (!result?.rollResult) throw new Error("No canonical resolved attack");
     expect(result.rollResult.naturalRoll).toBe(natural);
     const visible = await displayed;
-    expect(visible.text).toContain(`d20 ${natural}`);
     if (natural === 12) {
+      expect(visible.text).toContain(`d20 ${natural}`);
       expect(result.critical ?? false).toBe(false);
       expect(result.fumble ?? false).toBe(false);
       expect(visible.hidden).toBe(true);
       expect(visible.faces).toEqual([]);
       expect(visible.rollingFaces).toEqual([]);
     } else {
+      expect(visible.text).toBe("");
+      expect(visible.resultsRevealed).toBe(false);
+      expect(visible.facesVisible).toBe(false);
       expect(natural === 20 ? result.critical : result.fumble).toBe(true);
       expect(visible.hidden).toBe(false);
       expect(visible.faces[0]).toEqual({ sides: "20", natural: String(natural) });
       expect(visible.rollingFaces[0]).toEqual({ sides: "20", natural: String(natural) });
-      expect(visible.text).toContain(natural === 20 ? "Critical hit" : "Fumble / critical miss");
     }
-    await expect(page.locator("#battle-log")).toContainText(visible.text);
+    const resolved = formatDicePresentation(createCombatDicePresentation(
+      result, { label: `Dice Tester attack -> ${getMonster("orc")!.name}` },
+    )!);
+    await expect(page.locator("#battle-log")).toContainText(resolved);
+    if (natural !== 12) expect(resolved).toContain(natural === 20 ? "Critical hit" : "Fumble / critical miss");
     await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
   }
   await debugCommand(page, "/kill");
@@ -1018,11 +1035,11 @@ test("real trap detection and disarm use the exact canonical checks and never re
   await holdKey(page, "Space");
   const disarm = await packets.find("trapDisarm");
   if (!disarm.trap || disarm.trapId !== evidence.id) throw new Error("Wrong canonical disarm target");
+  await page.locator("#dice-fast-forward").click();
+  await expect(page.locator("#dice-presentation")).toHaveAttribute("data-skipped", "true");
   await expect(page.locator("#dice-result")).toContainText(
     formatDicePresentation(createTrapDicePresentation(disarm.trap, evidence.name, false)!),
   );
-  await page.locator("#dice-fast-forward").click();
-  await expect(page.locator("#dice-presentation")).toHaveAttribute("data-skipped", "true");
   const saved = await readSave(page);
   expect(saved.player.progression.trapStates[evidence.id]).toBe("disarmed");
   const xp = saved.player.xp;

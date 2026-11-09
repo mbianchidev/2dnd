@@ -38,6 +38,11 @@ describe("procedural resolved-dice renderer", () => {
     renderer.show(result, normalizeGamePreferences(undefined));
     expect([...renderer.root.querySelectorAll(".resolved-die")].map((die) =>
       (die as HTMLElement).dataset.natural)).toEqual(["20", "1"]);
+    expect(renderer.root.querySelector(".selected")).toBeNull();
+    expect(renderer.root.querySelector(".die-number")?.getAttribute("visibility")).toBe("hidden");
+    expect(document.getElementById("dice-announcement")?.textContent).toBe("Rolling dice.");
+    expect(renderer.root.querySelector("p")?.textContent).toBe("Rolling...");
+    renderer.settle();
     expect(renderer.root.querySelector(".selected")?.textContent).toContain("1d20*");
     expect(document.querySelector('[role="status"]')?.textContent).toBe(result.text);
     expect(document.getElementById("dice-announcement")?.hidden).toBe(false);
@@ -61,9 +66,11 @@ describe("procedural resolved-dice renderer", () => {
     expect(document.getElementById("dice-result")).toBeNull();
     expect(renderer.root.dataset.scope).toBe("battle");
     expect(renderer.root.querySelectorAll(".resolved-die")).toHaveLength(2);
-    expect(document.getElementById("dice-announcement")?.textContent).toBe(result.text);
+    expect(document.getElementById("dice-announcement")?.textContent).toBe("Rolling dice.");
     renderer.root.querySelector<HTMLButtonElement>("button")!.click();
     expect(skip).toHaveBeenCalledOnce();
+    renderer.settle();
+    expect(document.getElementById("dice-announcement")?.textContent).toBe(result.text);
     renderer.applyPreferences(normalizeGamePreferences({
       accessibility: { textScale: 1.5, highContrast: true },
     }));

@@ -5,6 +5,7 @@ import {
 } from "../systems/accessibility";
 import {
   DicePresentationController,
+  isDicePresentationVisible,
   createSkillDicePresentation,
   type DicePresentation,
   type DicePresentationEvent,
@@ -51,14 +52,15 @@ export class DicePresentationManager {
     this.renderer = new DiceRollRenderer(() => this.fastForward(), scope);
     this.controller = new DicePresentationController({
       record: (event) => {
+        if (event.duration > 0 && isDicePresentationVisible(event.presentation, gamePreferences.getDice())) {
+          this.stopCue?.();
+          this.stopCue = audioEngine.playDiceCue(event.presentation.outcome);
+        }
         if (addLog) addLog(event.text, event);
         debugPanelLog(`[ROLL] ${event.text}`, false, "roll-detail");
       },
       show: (event) => {
         this.renderer.show(event, gamePreferences.get());
-        if (event.duration > 0) {
-          this.stopCue = audioEngine.playDiceCue(event.presentation.outcome);
-        }
       },
       settle: () => this.settle(),
       hide: () => this.renderer.hide(),

@@ -52,6 +52,14 @@ relinking and preserves well-formed serialized item ownership.
 
 ## Current schema
 
+The graphics and building update keeps schema 27. Rooms reuse existing city
+chunk positions; their immutable metadata never enters a campaign document.
+Furnishing claims use `collectedTreasures`, and canonical permanent study tokens
+authorize only the declared base spells during normalization and NG+ carry.
+Building fog is derived without redundant stored tiles. Claim transactions
+save before feedback and roll back every affected ownership domain on failure;
+see [Graphics and buildings](graphics.md).
+
 `SAVE_VERSION` is **27**. Schema v27 adds nullable validated NG+ cycle authority
 and registered epic ownership through total 30. Ordinary campaigns retain cap
 20. Older campaigns gain `newGamePlus: null`, without ranks, bonuses or history.

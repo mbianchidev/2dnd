@@ -21,7 +21,6 @@ import {
   type ShopNegotiationOption,
 } from "../data/skillChecks";
 import {
-  formatSkillCheckResult,
   getShopNegotiationDiscount,
   rollSkillCheck,
 } from "../systems/skillChecks";
@@ -29,7 +28,7 @@ import { saveGame } from "../systems/save";
 import { restPartyAtInn } from "../systems/party";
 import { prepareHeroLevelUp } from "../systems/classProgression";
 import { SceneTransitionManager } from "../managers/sceneTransition";
-import { installSceneLayoutAudit } from "../managers/layout";
+import { installSceneLayoutAudit, layoutTextStack, registerLayoutGroup, subscribeOverlayReflow } from "../managers/layout";
 import { installSceneAccessibility } from "../systems/accessibility";
 import {
   installDicePresentation,
@@ -41,6 +40,9 @@ import {
   getTownShopAdjustment,
 } from "../systems/reputation";
 import { getCampaignDifficultyRules, scaleCost, scaleSaleValue } from "../systems/difficulty";
+import { debugPanelState } from "../config";
+import { ShopLayoutRenderer } from "../renderers/shopLayout";
+import { createItemVisual } from "../renderers/itemVisuals";
 
 export class ShopScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
@@ -53,9 +55,8 @@ export class ShopScene extends Phaser.Scene {
   private shopItems!: Item[];
   private messageText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
-  private statsText!: Phaser.GameObjects.Text;
+  private shopLayout!: ShopLayoutRenderer;
   private itemListContainer!: Phaser.GameObjects.Container;
-  private scrollMask!: Phaser.GameObjects.Graphics;
   private scrollY = 0;
   private maxScrollY = 0;
   private listVisibleH = 0;
@@ -71,7 +72,11 @@ export class ShopScene extends Phaser.Scene {
   private sellTabButton!: Phaser.GameObjects.Text;
   private negotiateButton?: Phaser.GameObjects.Text;
   private negotiationOverlay: Phaser.GameObjects.Container | null = null;
+  private confirmationOverlay: Phaser.GameObjects.Container | null = null;
   private pendingCodexDiscoveryIds: string[] = [];
+  private selectedItem: Item | null = null;
+  private selectedItemAction: (() => void) | null = null;
+  private inputReadyAt = 0;
 
   constructor() {
     super({ key: "ShopScene" });
@@ -117,7 +122,10 @@ export class ShopScene extends Phaser.Scene {
     );
     this.savedSpecialNpcs = data.savedSpecialNpcs ?? [];
     this.negotiationOverlay = null;
+    this.confirmationOverlay = null;
     this.pendingCodexDiscoveryIds = [];
+    this.mode = "buy";
+    this.scrollY = 0;
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -128,10 +136,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   create(): void {
-    const w = this.cameras.main.width;
-    const h = this.cameras.main.height;
-
-    this.cameras.main.setBackgroundColor(0x1a1a2e);
+    this.cameras.main.setBackgroundColor(0x25353d);
     this.sceneTransitions.prepare(300);
     installSceneAccessibility(this, installSceneLayoutAudit);
     installDicePresentation(this);
@@ -144,189 +149,53 @@ export class ShopScene extends Phaser.Scene {
       );
     }
 
-    // Title
     const titleText = this.fromCity ? this.townName : `${this.townName} - General Store`;
-    this.add
-      .text(w / 2, 20, titleText, {
-        fontSize: "22px",
-        fontFamily: "monospace",
-        color: "#ffd700",
-        stroke: "#000",
-        strokeThickness: 2,
-      })
-      .setOrigin(0.5, 0);
-
-    // Gold display — prominent bar below title
-    const goldBg = this.add.graphics();
-    goldBg.fillStyle(0x2a2a1a, 0.95);
-    goldBg.fillRect(0, 42, w, 22);
-    goldBg.lineStyle(1, 0xc0a060, 0.6);
-    goldBg.strokeRect(0, 42, w, 22);
-
-    this.goldText = this.add
-      .text(w / 2, 44, "", {
-        fontSize: "16px",
-        fontFamily: "monospace",
-        color: "#ffd700",
-        stroke: "#000",
-        strokeThickness: 1,
-      })
-      .setOrigin(0.5, 0);
-
-    // Player stats panel (left)
-    const statsBg = this.add.graphics();
-    statsBg.fillStyle(0x222244, 0.9);
-    statsBg.fillRect(10, 68, w * 0.35, h - 132);
-    statsBg.lineStyle(1, 0xc0a060, 1);
-    statsBg.strokeRect(10, 68, w * 0.35, h - 132);
-
-    this.add.text(20, 72, "Your Equipment", {
-      fontSize: "14px",
-      fontFamily: "monospace",
-      color: "#ffd700",
+    this.shopLayout = new ShopLayoutRenderer(this, {
+      title: titleText, negotiate: !!this.shopSkillCheckId,
+      innLabel: this.fromCity ? undefined : `Rest at Inn (${this.getInnPrice()}g)`,
+      buy: () => this.switchMode("buy"), sell: () => this.switchMode("sell"),
+      leave: () => this.leaveShop(), rest: () => this.restAtInn(),
+      reflow: () => this.renderItems(),
     });
-
-    this.statsText = this.add.text(20, 94, "", {
-      fontSize: "12px",
-      fontFamily: "monospace",
-      color: "#aaa",
-      lineSpacing: 5,
-      wordWrap: { width: w * 0.35 - 20 },
-    });
-
-    // Shop items panel (right)
-    const shopBg = this.add.graphics();
-    shopBg.fillStyle(0x222244, 0.9);
-    shopBg.fillRect(w * 0.38, 68, w * 0.6, h - 132);
-    shopBg.lineStyle(1, 0xc0a060, 1);
-    shopBg.strokeRect(w * 0.38, 68, w * 0.6, h - 132);
-
-    // Tab buttons for Buy/Sell
-    const tabY = 72;
-    this.buyTabButton = this.add
-      .text(w * 0.39 + 10, tabY, "🛒 Buy", {
-        fontSize: "14px",
-        fontFamily: "monospace",
-        color: "#ffd700",
-        backgroundColor: "#3a3a5a",
-        padding: { x: 8, y: 4 },
-      })
-      .setInteractive({ useHandCursor: true });
-
-    this.sellTabButton = this.add
-      .text(w * 0.39 + 90, tabY, "💰 Sell", {
-        fontSize: "14px",
-        fontFamily: "monospace",
-        color: "#aaaaaa",
-        backgroundColor: "#2a2a4a",
-        padding: { x: 8, y: 4 },
-      })
-      .setInteractive({ useHandCursor: true });
-
-    if (this.shopSkillCheckId) {
-      this.negotiateButton = this.add
-        .text(w * 0.39 + 178, tabY, "", {
-          fontSize: "12px",
-          fontFamily: "monospace",
-          color: "#88ddff",
-          backgroundColor: "#2a2a4a",
-          padding: { x: 8, y: 5 },
-        });
-      this.refreshNegotiationButton();
-    }
-
-    this.buyTabButton.on("pointerdown", () => this.switchMode("buy"));
-    this.sellTabButton.on("pointerdown", () => this.switchMode("sell"));
-
-    const listTop = 100;
-    const listBottom = h - 64;
-    this.listVisibleH = listBottom - listTop;
-
-    this.itemListContainer = this.add.container(w * 0.39 + 10, listTop);
-
-    // Mask to clip items to visible area
-    this.scrollMask = this.make.graphics({});
-    this.scrollMask.fillStyle(0xffffff);
-    this.scrollMask.fillRect(w * 0.38, listTop, w * 0.6, this.listVisibleH);
-    this.itemListContainer.setMask(
-      new Phaser.Display.Masks.GeometryMask(this, this.scrollMask)
-    );
-
-    this.scrollY = 0;
-    this.renderItems();
-
-    // Scroll with mouse wheel
+    this.goldText = this.shopLayout.gold;
+    this.messageText = this.shopLayout.message;
+    this.buyTabButton = this.shopLayout.buy;
+    this.sellTabButton = this.shopLayout.sell;
+    this.negotiateButton = this.shopLayout.negotiate;
+    this.itemListContainer = this.shopLayout.list;
+    this.refreshNegotiationButton();
     this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
       this.scrollList(deltaY > 0 ? 30 : -30);
     });
-
-    // Scroll with arrow keys
     this.input.keyboard!.on("keydown-DOWN", () => this.scrollList(30));
     this.input.keyboard!.on("keydown-UP", () => this.scrollList(-30));
-
-    // Bottom bar background
-    const bottomBarY = h - 56;
-    const barBg = this.add.graphics();
-    barBg.fillStyle(0x111122, 0.95);
-    barBg.fillRect(0, bottomBarY, w, 56);
-    barBg.lineStyle(1, 0xc0a060, 0.5);
-    barBg.strokeRect(0, bottomBarY, w, 56);
-
-    // Message area (top of bottom bar)
-    this.messageText = this.add
-      .text(w / 2, bottomBarY + 4, "Welcome! Click an item to purchase.", {
-        fontSize: "12px",
-        fontFamily: "monospace",
-        color: "#88ff88",
-      })
-      .setOrigin(0.5, 0);
-
-    // Rest at Inn button (only in standalone shop mode, not from city)
-    if (!this.fromCity) {
-      const innCost = this.getInnPrice();
-      const restBtn = this.add
-        .text(20, bottomBarY + 28, `🏨 Rest at Inn (${innCost}g)`, {
-          fontSize: "13px",
-          fontFamily: "monospace",
-          color: "#aaddff",
-          backgroundColor: "#2a2a4e",
-          padding: { x: 8, y: 4 },
-        })
-        .setInteractive({ useHandCursor: true });
-
-      restBtn.on("pointerover", () => restBtn.setColor("#ffd700"));
-      restBtn.on("pointerout", () => restBtn.setColor("#aaddff"));
-      restBtn.on("pointerdown", () => this.restAtInn());
-    }
-
-    // Leave button
-    const leaveBtn = this.add
-      .text(w - 20, bottomBarY + 28, "← Leave (ESC)", {
-        fontSize: "13px",
-        fontFamily: "monospace",
-        color: "#ff8888",
-        backgroundColor: "#2a2a4e",
-        padding: { x: 8, y: 4 },
-      })
-      .setOrigin(1, 0)
-      .setInteractive({ useHandCursor: true });
-
-    leaveBtn.on("pointerdown", () => this.leaveShop());
-
-    // ESC to leave
     this.input.keyboard!.on("keydown-ESC", () => this.leaveShop());
-
+    this.inputReadyAt = this.time.now + 150;
+    this.input.keyboard!.on("keyup-ENTER", () => {
+      if (this.time.now >= this.inputReadyAt && !this.shopLayout.hasItemDetails && !this.negotiationOverlay && !this.confirmationOverlay) this.selectedItemAction?.();
+    });
+    this.input.keyboard!.on("keydown-I", () => {
+      if (this.selectedItem && !this.negotiationOverlay) this.shopLayout.showItemDetails(this.selectedItem.name, getItemDescription(this.selectedItem));
+    });
     this.updateDisplay();
+    this.renderItems();
+  }
+
+  update(): void {
+    debugPanelState(`SHOP | ${this.townName} | Mode: ${this.mode} | Row: ${this.scrollY} | Gold: ${this.player.gold}`);
   }
 
   private scrollList(delta: number): void {
-    this.scrollY = Phaser.Math.Clamp(this.scrollY + delta, 0, this.maxScrollY);
-    this.itemListContainer.y = 100 - this.scrollY; // listTop = 100
+    if (this.shopLayout.hasItemDetails || this.negotiationOverlay || this.confirmationOverlay) return;
+    this.scrollY = Phaser.Math.Clamp(this.scrollY + Math.sign(delta), 0, this.maxScrollY);
+    this.renderItems();
   }
 
   private switchMode(mode: "buy" | "sell"): void {
+    if (this.negotiationOverlay || this.confirmationOverlay || this.shopLayout.hasItemDetails) return;
     if (this.mode === mode) return;
     this.mode = mode;
+    this.scrollY = 0;
     
     // Update tab button styles
     if (mode === "buy") {
@@ -461,6 +330,7 @@ export class ShopScene extends Phaser.Scene {
       this.negotiationOverlay = null;
     });
     container.add(cancelButton);
+    this.installModalLayout(container, bg, "shop-negotiation");
   }
 
   private resolveNegotiation(option: ShopNegotiationOption): void {
@@ -496,7 +366,7 @@ export class ShopScene extends Phaser.Scene {
       ? `${option.label} succeeded. Prices are ${Math.round(option.discount * 100)}% lower.`
       : `${option.label} failed. The shopkeeper will not renegotiate.`;
     this.setMessage(
-      `Charisma check (${formatSkillCheckResult(result)}): ${outcome}`,
+      `Charisma check: ${outcome}`,
       result.success ? "#88ff88" : "#ff8888",
     );
     presentSkillDiceResult(this, result, `Charisma negotiation: ${option.label}`);
@@ -510,20 +380,10 @@ export class ShopScene extends Phaser.Scene {
     );
   }
 
-  /** Get the icon for an item type. */
-  private getItemTypeIcon(item: Item): string {
-    switch (item.type) {
-      case "consumable": return "🧪";
-      case "weapon": return "⚔";
-      case "armor": return "🛡";
-      case "shield": return "🛡";
-      case "mount": return "🐴";
-      case "key": return "🔑";
-      default: return "📦";
-    }
-  }
-
   private renderItems(): void {
+    this.listVisibleH = this.shopLayout.listBounds.height;
+    this.selectedItem = null;
+    this.selectedItemAction = null;
     if (this.mode === "buy") {
       this.renderShopItems();
     } else {
@@ -531,14 +391,46 @@ export class ShopScene extends Phaser.Scene {
     }
   }
 
+  private renderItemRow(item: Item, label: string, color: string, y: number, id: string, action?: () => void): number | null {
+    const bounds = this.shopLayout.listBounds;
+    const text = this.add.text(30, y, label, {
+      fontSize: "12px", fontFamily: "monospace", color, lineSpacing: 3,
+      wordWrap: { width: bounds.width - 86 },
+    }).setData("layoutId", id);
+    const info = this.add.text(bounds.width - 50, y, "Info", {
+      fontSize: "10px", fontFamily: "monospace", color: "#a9ced0",
+      backgroundColor: "#334351", padding: { x: 5, y: 4 },
+    }).setData("layoutId", `${id}-info`);
+    const height = Math.max(text.displayHeight, info.displayHeight, 22) + 10;
+    if (y + height > this.listVisibleH) {
+      text.destroy();
+      info.destroy();
+      return null;
+    }
+    const icon = createItemVisual(this, item, 0, y, 22);
+    icon.setData("layoutId", `${id}-icon`).setData("layoutBounds", {
+      x: bounds.x, y: bounds.y + y, width: 22, height: 22,
+    });
+    if (!this.selectedItem) {
+      this.selectedItem = item;
+      this.selectedItemAction = action ?? null;
+    }
+    if (action) {
+      text.setInteractive({ useHandCursor: true }).on("pointerup", () => {
+        if (!this.shopLayout.hasItemDetails && !this.negotiationOverlay && !this.confirmationOverlay && !this.sceneTransitions.isPending) action();
+      });
+    }
+    info.setInteractive({ useHandCursor: true }).on("pointerup", () => this.shopLayout.showItemDetails(item.name, getItemDescription(item)));
+    this.itemListContainer.add([icon, text, info]);
+    return height;
+  }
+
   private renderShopItems(): void {
     this.itemListContainer.removeAll(true);
-
-    const w = this.cameras.main.width;
-    const maxTextW = w * 0.6 - 20;
     let yOffset = 0;
 
-    this.shopItems.forEach((item) => {
+    for (const [index, item] of this.shopItems.entries()) {
+      if (index < this.scrollY) continue;
       const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield" || item.type === "mount";
       const alreadyOwned = isEquipment && ownsEquipment(this.player, item.id);
       const levelLocked = (item.levelReq ?? 0) > this.player.level;
@@ -546,7 +438,6 @@ export class ShopScene extends Phaser.Scene {
       const canBuy = !alreadyOwned && !levelLocked && this.player.gold >= discountedCost;
       const color = alreadyOwned ? "#555555" : levelLocked ? "#884444" : canBuy ? "#cccccc" : "#666666";
 
-      const typeIcon = this.getItemTypeIcon(item);
 
       // Show owned count for consumables
       let ownedCount = 0;
@@ -560,41 +451,17 @@ export class ShopScene extends Phaser.Scene {
         ? `${discountedCost}g (${this.discount > 0 ? "discount" : "surcharge"})`
         : `${discountedCost}g`;
 
-      const text = this.add
-        .text(
-          0,
-          yOffset,
-          `${typeIcon} ${item.name} ${getItemDescription(item)} ${priceLabel}${tag}`,
-          {
-            fontSize: "12px",
-            fontFamily: "monospace",
-            color,
-            wordWrap: { width: maxTextW },
-          }
-        )
-        .setInteractive({ useHandCursor: canBuy });
-
-      if (canBuy) {
-        text.on("pointerover", () => text.setColor("#ffd700"));
-        text.on("pointerout", () => text.setColor(color));
-        text.on("pointerdown", () => this.purchaseItem(item));
-      }
-
-      this.itemListContainer.add(text);
-      yOffset += text.height + 6;
-    });
-
-    const totalContentH = yOffset;
-    this.maxScrollY = Math.max(0, totalContentH - this.listVisibleH);
-    this.scrollY = 0;
-    this.itemListContainer.y = 100;
+      const height = this.renderItemRow(item, `${item.name}${tag}\n${priceLabel}`, color, yOffset, `shop-item-${item.id}`,
+        canBuy ? () => this.purchaseItem(item) : undefined);
+      if (height === null) break;
+      yOffset += height;
+    }
+    this.maxScrollY = Math.max(0, this.shopItems.length - 1);
   }
 
   private renderInventoryForSelling(): void {
     this.itemListContainer.removeAll(true);
 
-    const w = this.cameras.main.width;
-    const maxTextW = w * 0.6 - 20;
     let yOffset = 0;
 
     if (this.player.inventory.length === 0) {
@@ -606,7 +473,6 @@ export class ShopScene extends Phaser.Scene {
       this.itemListContainer.add(emptyText);
       this.maxScrollY = 0;
       this.scrollY = 0;
-      this.itemListContainer.y = 100;
       return;
     }
 
@@ -634,7 +500,9 @@ export class ShopScene extends Phaser.Scene {
       }
     });
 
-    groups.forEach((group) => {
+    this.scrollY = Math.min(this.scrollY, Math.max(0, groups.length - 1));
+    for (const [index, group] of groups.entries()) {
+      if (index < this.scrollY) continue;
       const { item, indices, sellableIndices, equippedCount } = group;
       const totalCount = indices.length;
       const sellValue = scaleSaleValue(getSellValue(item), getCampaignDifficultyRules(this.player));
@@ -654,44 +522,47 @@ export class ShopScene extends Phaser.Scene {
       }
 
       const color = sellable ? "#cccccc" : "#666666";
-      const typeIcon = this.getItemTypeIcon(item);
       const priceLabel = sellable ? `${sellValue}g each` : "";
       const countLabel = totalCount > 1 ? ` x${totalCount}` : "";
       const equippedLabel = equippedCount > 0 ? ` (${equippedCount} equipped)` : "";
 
-      const text = this.add
-        .text(
-          0,
-          yOffset,
-          `${typeIcon} ${item.name}${countLabel} ${getItemDescription(item)} ${priceLabel}${equippedLabel}${reason}`,
-          {
-            fontSize: "12px",
-            fontFamily: "monospace",
-            color,
-            wordWrap: { width: maxTextW },
-          }
-        )
-        .setInteractive({ useHandCursor: sellable });
+      const height = this.renderItemRow(item, `${item.name}${countLabel}${equippedLabel}${reason}\n${priceLabel}`, color, yOffset,
+        `shop-sell-${item.id}`, sellable ? () => this.showSellConfirmation(item, sellableIndices, sellValue) : undefined);
+      if (height === null) break;
+      yOffset += height;
+    }
+    this.maxScrollY = Math.max(0, groups.length - 1);
+  }
 
-      if (sellable) {
-        text.on("pointerover", () => text.setColor("#ffd700"));
-        text.on("pointerout", () => text.setColor(color));
-        text.on("pointerdown", () => {
-          this.showSellConfirmation(item, sellableIndices, sellValue);
-        });
-      }
-
-      this.itemListContainer.add(text);
-      yOffset += text.height + 6;
+  private installModalLayout(container: Phaser.GameObjects.Container, background: Phaser.GameObjects.Graphics, id: string): void {
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    const dim = this.add.graphics().fillStyle(0x000000, 0.7).fillRect(0, 0, w, h)
+      .setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
+    dim.on("pointerup", () => container.destroy(true));
+    container.addAt(dim, 0);
+    registerLayoutGroup(this, id, container, { x: 0, y: 0, width: w, height: h });
+    const texts = container.list.filter((object): object is Phaser.GameObjects.Text => object instanceof Phaser.GameObjects.Text);
+    const reflow = (): void => {
+      const width = Math.min(460, w - 40);
+      texts.forEach((text, index) => text.setWordWrapWidth(width - 32, true).setData("layoutId", `${id}-${index}`));
+      const height = layoutTextStack(texts, { x: (w - width) / 2 + 16, y: 0, width: width - 32, gap: 10, align: "center" }) + 24;
+      const top = (h - height) / 2;
+      layoutTextStack(texts, { x: (w - width) / 2 + 16, y: top + 12, width: width - 32, gap: 10, align: "center" });
+      background.clear().fillStyle(0x202c37, 0.98).fillRoundedRect((w - width) / 2, top, width, height, 6);
+      background.lineStyle(2, 0xc4ad7c).strokeRoundedRect((w - width) / 2, top, width, height, 6);
+    };
+    const unsubscribe = subscribeOverlayReflow(this, reflow);
+    container.once(Phaser.GameObjects.Events.DESTROY, () => {
+      unsubscribe();
+      if (this.negotiationOverlay === container) this.negotiationOverlay = null;
+      if (this.confirmationOverlay === container) this.confirmationOverlay = null;
     });
-
-    const totalContentH = yOffset;
-    this.maxScrollY = Math.max(0, totalContentH - this.listVisibleH);
-    this.scrollY = 0;
-    this.itemListContainer.y = 100;
+    reflow();
   }
 
   private showSellConfirmation(item: Item, sellableIndices: number[], sellValue: number): void {
+    if (this.confirmationOverlay || this.negotiationOverlay) return;
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const count = sellableIndices.length;
@@ -701,6 +572,7 @@ export class ShopScene extends Phaser.Scene {
     const boxY = (h - boxH) / 2;
 
     const container = this.add.container(0, 0).setDepth(50);
+    this.confirmationOverlay = container;
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a2e, 0.97);
@@ -767,6 +639,7 @@ export class ShopScene extends Phaser.Scene {
     cancelBtn.on("pointerout", () => cancelBtn.setColor("#ff8888"));
     cancelBtn.on("pointerdown", () => container.destroy());
     container.add(cancelBtn);
+    this.installModalLayout(container, bg, "shop-sale");
   }
 
   private executeSell(sellableIndices: number[], count: number, sellValue: number): void {
@@ -795,10 +668,11 @@ export class ShopScene extends Phaser.Scene {
       this.setMessage("Could not sell item!", "#ff6666");
     }
     this.updateDisplay();
-    this.renderInventoryForSelling();
+    this.renderItems();
   }
 
   private purchaseItem(item: Item): void {
+    if (this.confirmationOverlay || this.negotiationOverlay || this.sceneTransitions.isPending) return;
     const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield" || item.type === "mount";
     if (isEquipment && ownsEquipment(this.player, item.id)) {
       this.setMessage(`You already own ${item.name}!`, "#ff6666");
@@ -872,6 +746,7 @@ export class ShopScene extends Phaser.Scene {
 
   /** Show a prompt with two rest options: sleep until morning or wait until night. */
   private showInnConfirmation(): void {
+    if (this.confirmationOverlay || this.negotiationOverlay) return;
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const boxW = 300;
@@ -880,6 +755,7 @@ export class ShopScene extends Phaser.Scene {
     const boxY = (h - boxH) / 2;
 
     const container = this.add.container(0, 0).setDepth(50);
+    this.confirmationOverlay = container;
 
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a2e, 0.97);
@@ -951,6 +827,7 @@ export class ShopScene extends Phaser.Scene {
     cancelBtn.on("pointerout", () => cancelBtn.setColor("#ff8888"));
     cancelBtn.on("pointerdown", () => container.destroy());
     container.add(cancelBtn);
+    this.installModalLayout(container, bg, "shop-inn");
   }
 
   /** Execute the inn rest: heal the player and advance time to the target step. */
@@ -975,6 +852,7 @@ export class ShopScene extends Phaser.Scene {
 
   private setMessage(msg: string, color: string): void {
     this.messageText.setText(msg).setColor(color);
+    this.shopLayout.reflow();
   }
 
   private updateDisplay(): void {
@@ -997,7 +875,7 @@ export class ShopScene extends Phaser.Scene {
       (i) => i.id === "greaterPotion"
     ).length;
 
-    this.statsText.setText(
+    this.shopLayout.setSummary(
       `Weapon: ${weapon}\n` +
         `Armor: ${armor}\n` +
         `Shield: ${shield}\n\n` +
@@ -1010,6 +888,15 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private leaveShop(): void {
+    if (this.shopLayout?.closeItemDetails()) return;
+    if (this.negotiationOverlay) {
+      this.negotiationOverlay.destroy(true);
+      return;
+    }
+    if (this.confirmationOverlay) {
+      this.confirmationOverlay.destroy(true);
+      return;
+    }
     this.sceneTransitions.startWithFade(() => {
       this.scene.start("OverworldScene", createSharedSceneState({
         player: this.player,

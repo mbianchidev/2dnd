@@ -13,6 +13,8 @@ import type { DeityId, TempleId } from "./devotion";
 import type { PrestigeTrackId } from "./prestige";
 import { PRESTIGE_LORE } from "./prestigeLore";
 import { NEW_GAME_PLUS_LORE } from "./newGamePlusContent";
+import { CITIES } from "./cities";
+import { INTERIOR_PRIMER_ID, INTERIOR_PRIMER_TEXT } from "./interiorBooks";
 
 export const CODEX_KNOWLEDGE_CATEGORIES = [
   "location",
@@ -132,7 +134,7 @@ export interface CodexReadableDefinition {
   readonly cityChunkIndex: number;
   readonly x: number;
   readonly y: number;
-  readonly terrain: Terrain.Temple | Terrain.Statue;
+  readonly terrain: Terrain.Temple | Terrain.Statue | Terrain.CityWall;
   readonly title: string;
   readonly text: readonly string[];
 }
@@ -866,6 +868,11 @@ const WORLD_EVENT_ENTRIES: readonly CodexKnowledgeEntry[] = [
 ];
 
 export const CODEX_READABLES: readonly CodexReadableDefinition[] = [
+  ...CITIES.flatMap((city) => (city.chunks ?? []).flatMap((chunk, index) =>
+    (chunk.interior?.props ?? []).filter((prop) => prop.reward?.knowledgeId).map((prop) => ({
+      id: prop.id, cityId: city.id, cityChunkIndex: index + 1, x: prop.x, y: prop.y,
+      terrain: Terrain.CityWall as const, title: prop.label, text: prop.text ?? INTERIOR_PRIMER_TEXT,
+    })))),
   {
     id: "starfallRememberedChart",
     cityId: "starfall_atoll",
@@ -922,6 +929,14 @@ export const CODEX_READABLES: readonly CodexReadableDefinition[] = [
 ];
 
 export const CODEX_KNOWLEDGE_ENTRIES: readonly CodexKnowledgeEntry[] = [
+  {
+    id: INTERIOR_PRIMER_ID, category: "history", name: "Roads and Rest",
+    summary: "The everyday hospitality that connects the campaign's towns.",
+    details: INTERIOR_PRIMER_TEXT, tags: ["library", "travel", "hospitality"], sortOrder: 989,
+    sources: CODEX_READABLES.filter((readable) => readable.id.startsWith("interior:")).map((readable) => ({
+      type: "readable", readableId: readable.id, label: readable.title, hint: "Explore a town library and read its travel journal.",
+    })),
+  },
   ...NEW_GAME_PLUS_LORE,
   ...PRESTIGE_LORE,
   ...LOCATION_ENTRIES,

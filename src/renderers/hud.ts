@@ -1,23 +1,19 @@
-/**
- * HUD renderer: manages the heads-up display (HP/MP/XP bars, location text, gold, etc.).
- */
-
 import * as Phaser from "phaser";
-import { getNextLevelXP } from "../systems/classProgression";
 import type { PlayerState } from "../systems/player";
-import { xpForLevel } from "../systems/player";
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map";
-import { TILE_SIZE } from "../config";
-import { isReducedMotionEnabled } from "../systems/accessibility";
+import {
+  getChunk, getCity, getCityChunk, getDungeon, getDungeonLevelMap, getChestAt, Terrain,
+} from "../data/map";
+import { getAccessibilityPreferences } from "../systems/accessibility";
 import { layoutVerticalStack } from "../systems/layout";
-import { getScaledBounds } from "../managers/layout";
+import { createMinimapPlan, getMinimapBounds, type MinimapMarker } from "../systems/minimap";
+import { getScaledBounds, subscribeOverlayReflow } from "../managers/layout";
+import { createOverlayContainer } from "../utils/ui";
+import { isLocalDev } from "../config";
 
-/** Expand the bottom message surface upward and keep concurrent prompts in separate rows. */
+/** Keep event-driven messages separate from location prompts and the persistent minimap. */
 export function layoutHudMessages(
-  scene: Phaser.Scene,
-  background: Phaser.GameObjects.Graphics,
-  message: Phaser.GameObjects.Text,
-  location: Phaser.GameObjects.Text,
+  scene: Phaser.Scene, background: Phaser.GameObjects.Graphics,
+  message: Phaser.GameObjects.Text, location: Phaser.GameObjects.Text,
 ): void {
   const width = scene.cameras.main.width;
   const height = scene.cameras.main.height;
@@ -32,144 +28,138 @@ export function layoutHudMessages(
     const bounds = getScaledBounds(text);
     text.setPosition(text.x + item.x - bounds.x, text.y + top + 8 + item.y - bounds.y);
   });
-  background.clear().fillStyle(0x1a1a2e, 0.95).fillRect(0, top, width, height - top);
-  background.lineStyle(2, 0xc0a060, 1).strokeRect(1, top + 1, width - 2, height - top - 2);
+  background.clear().fillStyle(0x202c37, 0.95).fillRect(0, top, width, height - top);
+  background.lineStyle(2, 0xc4ad7c, 1).strokeRect(1, top + 1, width - 2, height - top - 2);
 }
 
 export class HUDRenderer {
-  private scene: Phaser.Scene;
-  private hudText!: Phaser.GameObjects.Text;
-  private locationText!: Phaser.GameObjects.Text;
-  private messageText: Phaser.GameObjects.Text | null = null;
-  
-  constructor(scene: Phaser.Scene) {
-    this.scene = scene;
-  }
-  
-  /**
-   * Create the HUD elements (HP/MP/XP bars, location text).
-   */
+  private group: Phaser.GameObjects.Container | null = null;
+  private graphics: Phaser.GameObjects.Graphics | null = null;
+  private title: Phaser.GameObjects.Text | null = null;
+  private summary: HTMLElement | null = null;
+  private player: PlayerState | null = null;
+  private isExplored: ((x: number, y: number) => boolean) | null = null;
+  private bosses: ReadonlySet<string> = new Set();
+  private lastKey = "";
+  private visible = false;
+  private dataset = "";
+
+  constructor(private readonly scene: Phaser.Scene) {}
+
   createHUD(): void {
-    const barX = 10;
-    const barY = 10;
-    
-    this.hudText = this.scene.add.text(barX, barY, "", {
-      fontSize: "14px",
-      fontFamily: "monospace",
-      color: "#fff",
-      backgroundColor: "#000",
-      padding: { x: 4, y: 4 },
-    }).setDepth(100).setScrollFactor(0);
-    
-    this.locationText = this.scene.add.text(MAP_WIDTH * TILE_SIZE - 10, 10, "", {
-      fontSize: "13px",
-      fontFamily: "monospace",
-      color: "#ffd700",
-      backgroundColor: "#000",
-      padding: { x: 4, y: 4 },
-    }).setOrigin(1, 0).setDepth(100).setScrollFactor(0);
+    this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clear());
+    this.group = createOverlayContainer(this.scene, "exploration-minimap", 19, {
+      x: 0, y: 0, width: this.scene.cameras.main.width, height: this.scene.cameras.main.height,
+    }).setVisible(false);
+    this.graphics = this.scene.add.graphics()
+      .setData("layoutId", "minimap-panel")
+      .setData("layoutAllowOverlapWith", ["minimap-caption"]);
+    this.title = this.scene.add.text(0, 0, "MINIMAP", {
+      fontFamily: "monospace", fontSize: "9px", color: "#e7d7af",
+    }).setOrigin(0.5, 0).setData("layoutId", "minimap-caption");
+    this.group.add([this.graphics, this.title]);
+    this.summary = document.createElement("div");
+    this.summary.id = "exploration-minimap-summary";
+    this.summary.setAttribute("role", "img");
+    this.summary.hidden = true;
+    this.summary.style.cssText = "position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap";
+    const host = document.getElementById("game-inner");
+    if (!host) throw new Error("[minimap] Game container is unavailable.");
+    host.append(this.summary);
+    const unsubscribe = subscribeOverlayReflow(this.scene, () => this.redraw());
+    this.group.once(Phaser.GameObjects.Events.DESTROY, unsubscribe);
   }
-  
-  /**
-   * Update HUD with current player stats.
-   */
-  updateHUD(player: PlayerState): void {
-    if (!this.hudText) return;
-    
-    const nextXP = getNextLevelXP(player);
-    const xpNeeded = nextXP ?? Math.max(1, player.xp);
-    const hpBar = this.makeBar(player.hp, player.maxHp, 10, "█");
-    const mpBar = this.makeBar(player.mp, player.maxMp, 10, "█");
-    const xpBar = this.makeBar(player.xp, xpNeeded, 10, "▓");
-    
-    const lines = [
-      `HP ${hpBar} ${player.hp}/${player.maxHp}`,
-      `MP ${mpBar} ${player.mp}/${player.maxMp}`,
-      `XP ${xpBar} ${player.xp}/${nextXP ?? "MAX"}`,
-      `Gold: ${player.gold}g  Lv.${player.level}${player.newGamePlus ? ` NG+${player.newGamePlus.cycle}` : ""}`,
-    ];
-    
-    this.hudText.setText(lines.join("\n"));
+
+  updateHUD(player: PlayerState, isExplored: (x: number, y: number) => boolean, defeatedBosses: ReadonlySet<string>): void {
+    this.player = player;
+    this.isExplored = isExplored;
+    this.bosses = defeatedBosses;
+    this.redraw();
   }
-  
-  /**
-   * Update location text with current biome/city.
-   */
-  updateLocationText(text: string): void {
-    if (!this.locationText) return;
-    this.locationText.setText(text);
+
+  setVisible(visible: boolean): void {
+    if (this.visible === visible) return;
+    this.visible = visible;
+    this.group?.setVisible(visible);
+    if (this.summary) this.summary.hidden = !visible;
   }
-  
-  /**
-   * Show a temporary message on screen.
-   */
-  showMessage(text: string, color = "#ffd700"): void {
-    if (this.messageText) {
-      this.messageText.destroy();
-    }
-    
-    const x = (MAP_WIDTH * TILE_SIZE) / 2;
-    const y = (MAP_HEIGHT * TILE_SIZE) / 2 - 60;
-    
-    this.messageText = this.scene.add.text(x, y, text, {
-      fontSize: "16px",
-      fontFamily: "monospace",
-      color: color,
-      backgroundColor: "#000",
-      padding: { x: 8, y: 4 },
-    }).setOrigin(0.5).setDepth(150).setScrollFactor(0);
-    
-    const clearMessage = (): void => {
-      if (this.messageText) {
-        this.messageText.destroy();
-        this.messageText = null;
+
+  private redraw(): void {
+    const player = this.player;
+    if (!player || !this.isExplored || !this.graphics || !this.title) return;
+    const position = player.position;
+    const city = position.inCity ? getCity(position.cityId) : undefined;
+    const room = city ? getCityChunk(city, position.cityChunkIndex) : undefined;
+    const dungeon = position.inDungeon ? getDungeon(position.dungeonId) : undefined;
+    const chunk = !position.inCity && !position.inDungeon ? getChunk(position.chunkX, position.chunkY) : undefined;
+    const map = room?.mapData ?? (dungeon ? getDungeonLevelMap(dungeon, position.dungeonLevel) : chunk?.mapData);
+    if (!map) throw new Error("[minimap] The current location has no canonical map.");
+    const markers = new Map<string, MinimapMarker | undefined>();
+    for (const prop of room?.interior?.props ?? []) {
+      if (prop.reward && !player.progression.collectedTreasures.includes(prop.id)) {
+        markers.set(`${prop.x},${prop.y}`, prop.kind === "book" ? "book" : "supplies");
       }
-    };
-    if (isReducedMotionEnabled()) {
-      this.scene.time.delayedCall(3000, clearMessage);
-      return;
     }
-    this.scene.tweens.add({
-      targets: this.messageText,
-      alpha: 0,
-      duration: 2000,
-      delay: 1000,
-      onComplete: clearMessage,
-    });
+    for (const boss of chunk?.bosses ?? []) if (this.bosses.has(boss.monsterId)) markers.set(`${boss.x},${boss.y}`, undefined);
+    for (let y = Math.max(0, position.y - 5); y <= Math.min(map.length - 1, position.y + 5); y++) {
+      for (let x = Math.max(0, position.x - 5); x <= Math.min(map[y]!.length - 1, position.x + 5); x++) {
+        if (map[y]![x] !== Terrain.Chest) continue;
+        const location = position.inDungeon
+          ? { type: "dungeon" as const, dungeonId: position.dungeonId, dungeonLevel: position.dungeonLevel }
+          : { type: "overworld" as const, chunkX: position.chunkX, chunkY: position.chunkY };
+        const chest = getChestAt(x, y, location);
+        if (chest && player.progression.openedChests.includes(chest.id)) markers.set(`${x},${y}`, undefined);
+      }
+    }
+    const plan = createMinimapPlan(map, position.x, position.y, this.isExplored, markers);
+    const bounds = getMinimapBounds({ x: 0, y: 0, width: this.scene.cameras.main.width,
+      height: this.scene.cameras.main.height }, position.x, position.y);
+    const contrast = getAccessibilityPreferences().highContrast;
+    const key = JSON.stringify([plan, bounds, contrast]);
+    if (key === this.lastKey) return;
+    this.lastKey = key;
+    this.graphics.setData("layoutBounds", bounds);
+    const graphics = this.graphics.clear();
+    const cx = bounds.x + bounds.width / 2;
+    const radius = Math.min(41, (bounds.height - 33) / 2, (bounds.width - 10) / 2);
+    const cy = bounds.y + bounds.height * 0.59;
+    const cellSize = radius / 5.85;
+    graphics.fillStyle(contrast ? 0x000000 : 0x25353d, 0.92).fillRoundedRect(bounds.x, bounds.y, bounds.width, bounds.height, 6);
+    graphics.lineStyle(1, contrast ? 0xffffff : 0xc4ad7c).strokeRoundedRect(bounds.x, bounds.y, bounds.width, bounds.height, 6);
+    graphics.fillStyle(0x202d34).fillCircle(cx, cy, radius - 1);
+    for (const cell of plan.cells) {
+      const x = cx + cell.dx * cellSize - cellSize / 2;
+      const y = cy + cell.dy * cellSize - cellSize / 2;
+      graphics.fillStyle(contrast && cell.explored ? 0xbfc5bb : cell.color).fillRect(x, y, cellSize, cellSize);
+      if (cell.marker) {
+        const color = cell.marker === "boss" ? 0xdd8b7b : cell.marker === "book" ? 0xbdc9df : 0xf1d49a;
+        graphics.lineStyle(1, contrast ? 0xffffff : color).strokeRect(x + 1, y + 1, 5, 5);
+        if (cell.marker === "treasure" || cell.marker === "supplies") {
+          graphics.fillStyle(color).fillRect(x + 2, y + 3, 3, 1).fillRect(x + 3, y + 2, 1, 3);
+        } else if (cell.marker === "stairs") {
+          graphics.fillStyle(color).fillRect(x + 2, y + 2, 3, 1).fillRect(x + 3, y + 3, 2, 1).fillRect(x + 4, y + 4, 1, 1);
+        }
+      }
+    }
+    graphics.lineStyle(2, contrast ? 0xffffff : 0xc4ad7c).strokeCircle(cx, cy, radius);
+    graphics.fillStyle(0x202c37).fillTriangle(cx, cy - 6, cx - 5, cy + 5, cx + 5, cy + 5);
+    graphics.fillStyle(0xffffff).fillTriangle(cx, cy - 4, cx - 3, cy + 3, cx + 3, cy + 3);
+    graphics.fillStyle(0xe7d7af).fillRect(cx - 1, bounds.y + 23, 2, 4);
+    this.title.setPosition(cx, bounds.y + 6);
+    if (this.summary) this.summary.setAttribute("aria-label", plan.description);
+    if (isLocalDev()) {
+      this.dataset = JSON.stringify({ bounds, cells: plan.cells.length, explored: plan.cells.filter((cell) => cell.explored).length });
+      this.scene.game.canvas.dataset.explorationMinimap = this.dataset;
+    }
   }
-  
-  /**
-   * Get the HUD text object.
-   */
-  getHudText(): Phaser.GameObjects.Text {
-    return this.hudText;
-  }
-  
-  /**
-   * Get the location text object.
-   */
-  getLocationText(): Phaser.GameObjects.Text {
-    return this.locationText;
-  }
-  
-  /**
-   * Helper to draw a progress bar.
-   */
-  private makeBar(current: number, max: number, length: number, char: string): string {
-    const filled = Math.floor((current / max) * length);
-    return char.repeat(filled) + "·".repeat(length - filled);
-  }
-  
-  /**
-   * Draw shield icon inline in HUD graphics.
-   */
-  drawShieldInline(gfx: Phaser.GameObjects.Graphics, hasShield: boolean): void {
-    if (!hasShield) return;
-    
-    // Draw a small shield icon
-    gfx.fillStyle(0x888888, 1);
-    gfx.fillRect(0, 0, 4, 6);
-    gfx.fillStyle(0xaaaaaa, 1);
-    gfx.fillTriangle(0, 0, 4, 0, 2, -2);
+
+  clear(): void {
+    this.group?.destroy(true);
+    this.group = null;
+    this.graphics = null;
+    this.title = null;
+    this.summary?.remove();
+    this.summary = null;
+    if (this.scene.game.canvas.dataset.explorationMinimap === this.dataset) delete this.scene.game.canvas.dataset.explorationMinimap;
   }
 }

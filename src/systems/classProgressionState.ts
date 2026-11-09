@@ -39,6 +39,7 @@ import type { CombatActorState, PlayerState, PlayerStats } from "./player";
 import { EPIC_ASI_LEVELS, EPIC_LEVEL_CAP, EPIC_TRACK_ID } from "../data/epicProgression";
 import { getActorLevelCap } from "./epicProgressionPolicy";
 import { normalizeNewGamePlusState, type NewGamePlusState } from "./newGamePlusState";
+import { getInteriorStudyGrants } from "./interiorStudy";
 
 export const CLASS_PROGRESSION_SAVE_VERSION = 19;
 
@@ -345,8 +346,10 @@ export function normalizeHeroProgressionState(
       delete classProgression.deferredLegacyGrants;
     }
   }
+  const rawLedger = isRecord(value["progression"]) ? value["progression"]["collectedTreasures"] : undefined;
+  const studiedSpells = getInteriorStudyGrants(rawLedger, classProgression.classLevels).map((study) => study.spellId);
   fields.knownSpells = mergeKnownIds(fields.knownSpells,
-    earned.spells.filter((id) => !deferred?.spells.includes(id)), classProgression.legacyGrants.spells);
+    [...earned.spells.filter((id) => !deferred?.spells.includes(id)), ...studiedSpells], classProgression.legacyGrants.spells);
   fields.knownAbilities = mergeKnownIds(fields.knownAbilities,
     earned.abilities.filter((id) => !deferred?.abilities.includes(id)), classProgression.legacyGrants.abilities);
   fields.knownTalents = mergeKnownIds(fields.knownTalents,

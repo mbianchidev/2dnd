@@ -155,13 +155,26 @@ async function expectCanvasSnapshot(
   page: Page,
   name: string,
 ): Promise<void> {
-  const base64 = await page.locator("#game-container canvas").evaluate(
-    (canvas) => (canvas as HTMLCanvasElement).toDataURL("image/png").split(",")[1],
-  );
-  if (!base64) throw new Error("Battle canvas did not produce a PNG");
-  expect(Buffer.from(base64, "base64")).toMatchSnapshot(name, {
-    maxDiffPixelRatio: 0.05,
-  });
+  const canvas = page.locator("#game-container canvas");
+  const captureStyle = await page.addStyleTag({ content: `
+    #game-container canvas {
+      position: fixed !important;
+      left: 0 !important; top: 0 !important; right: auto !important; bottom: auto !important;
+      width: ${GAME_WIDTH}px !important; height: ${GAME_HEIGHT}px !important;
+      margin: 0 !important; transform: none !important;
+      max-width: none !important; max-height: none !important; z-index: 2147483647 !important;
+    }
+  ` });
+  try {
+    await expect(canvas).toHaveCSS("width", `${GAME_WIDTH}px`);
+    await expect(canvas).toHaveCSS("height", `${GAME_HEIGHT}px`);
+    await expect(canvas).toHaveScreenshot(name, {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.05,
+    });
+  } finally {
+    await captureStyle.evaluate((element) => element.parentNode?.removeChild(element));
+  }
 }
 
 async function finishBattle(page: Page): Promise<void> {

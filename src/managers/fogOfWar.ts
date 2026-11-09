@@ -3,7 +3,10 @@
  * Handles dungeon, city, and overworld exploration separately.
  */
 
-import { MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, DUNGEONS, CITIES, getCityChunkCount } from "../data/map";
+import {
+  MAP_WIDTH, MAP_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, DUNGEONS, CITIES,
+  getCity, getCityChunk, getCityChunkCount,
+} from "../data/map";
 import type { CityData } from "../data/map";
 import type { PlayerState } from "../systems/player";
 import { getSeaZoneAt } from "../data/nautical";
@@ -53,6 +56,7 @@ export class FogOfWar {
    */
   isExplored(x: number, y: number, player: PlayerState): boolean {
     if (this.debugFogDisabled) return true;
+    if (this.isBuildingInterior(player)) return x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT;
     return !!this.exploredTiles[this.exploredKey(x, y, player)];
   }
   
@@ -60,6 +64,7 @@ export class FogOfWar {
    * Reveal tiles in a radius around a given position.
    */
   revealAround(centerX: number, centerY: number, radius: number, player: PlayerState): void {
+    if (this.isBuildingInterior(player)) return;
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         const nx = centerX + dx;
@@ -71,15 +76,23 @@ export class FogOfWar {
     }
   }
 
-  /** City interiors, including connected districts, are fully visible on entry. */
+  /** Preserve street fog keys; fully visible building rooms need no redundant saved tile map. */
   revealCity(city: CityData): void {
     for (let district = 0; district < getCityChunkCount(city); district++) {
+      if (getCityChunk(city, district)?.interior) continue;
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
           this.exploredTiles[this.cityKey(city.id, district, x, y)] = true;
         }
+
       }
     }
+  }
+
+  private isBuildingInterior(player: PlayerState): boolean {
+    if (!player.position.inCity || player.position.inDungeon) return false;
+    const city = getCity(player.position.cityId);
+    return !!city && !!getCityChunk(city, player.position.cityChunkIndex)?.interior;
   }
 
   private cityKey(cityId: string, district: number, x: number, y: number): string {

@@ -7,8 +7,11 @@
 
 Pixel-art dice appear directly over the active game's measured viewport, showing the actual numbered faces, the selected
 advantage/disadvantage die, permitted modifiers/totals, known AC/DC, and the
-canonical outcome. Results are readable from the first frame; the short settling
-motion never delays an action, resource update, turn, or scene transition.
+canonical outcome. While dice tumble, exact numbers, selected-die markers,
+result captions, detailed log entries and outcome announcements stay concealed.
+Stopping or skipping the throw reveals the original immutable receipt. Instant
+and reduced motion reveal immediately. The settling motion never delays an
+action, resource update, turn, or scene transition.
 Dice are visibly thrown across the game viewport, tumble on multiple axes,
 bounce with floor shadows, and settle on their exact resolved faces. The
 pointer-transparent animation layer never covers input with a hit area; the
@@ -132,14 +135,14 @@ existing-record adapter. `BattleDicePresenter` binds stable actor/target IDs and
 reads current discovery flags without changing them.
 `createEffectDicePresentation()` redacts exact effect receipts;
 `createCombatDicePresentation()` combines attack and damage evidence.
-`combineDicePresentations()` preserves per-target results within one immediate
+`combineDicePresentations()` preserves per-target results within one settled
 notice/log entry; it neither combines mechanics nor derives another outcome.
 
 The procedural SVG renderer lives in `src/renderers/dice.ts`. Its overlay
 tracks the actual canvas bounds without changing the canvas size, pointer
-geometry or touch-control positions. The exact same numbered dice animate and
-remain at rest, including Instant/reduced-motion results; no dock copies are
-rendered. Outside Battle, long result captions wrap in a bounded in-scene reading
+geometry or touch-control positions. The same dice animate with concealed
+numbers, then reveal exact faces at rest, including Instant/reduced-motion
+results; no dock copies are rendered. Outside Battle, long result captions wrap in a bounded in-scene reading
 area; Battle sends that text exclusively to its existing lower log.
 `src/managers/input.ts` routes the existing skip action and native skip control
 without adding a blocking input context.

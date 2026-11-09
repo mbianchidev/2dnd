@@ -20,6 +20,7 @@ import {
   getInnCost,
   hasSparkleAt,
   getCityChunkCount,
+  getCityChunk,
   getCityChunkNames,
   getCityChunkSpawn,
   getCityChunkShops,
@@ -1900,7 +1901,7 @@ export class OverlayManager {
     const w = MAP_WIDTH * TILE_SIZE;
     const h = MAP_HEIGHT * TILE_SIZE;
 
-    const container = this.scene.add.container(0, 0).setDepth(70);
+    const container = createOverlayContainer(this.scene, "city-map", 70, { x: 0, y: 0, width: w, height: h });
 
     const dim = createDimGraphics(this.scene, w, h);
     dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
@@ -1908,10 +1909,12 @@ export class OverlayManager {
     container.add(dim);
 
     const chunkNames = getCityChunkNames(city);
-    const chunkCount = getCityChunkCount(city);
+    const chunkIndices = Array.from({ length: getCityChunkCount(city) }, (_, index) => index)
+      .filter((index) => !getCityChunk(city, index)?.interior || index === player.position.cityChunkIndex);
+    const chunkCount = chunkIndices.length;
 
-    const panelW = 260;
-    const panelH = Math.min(80 + chunkCount * 44, h - 40);
+    const panelW = 400;
+    const panelH = Math.min(112 + chunkCount * 70, h - 40);
     const px = (w - panelW) / 2;
     const py = (h - panelH) / 2;
 
@@ -1919,18 +1922,18 @@ export class OverlayManager {
     bg.setInteractive(new Phaser.Geom.Rectangle(px, py, panelW, panelH), Phaser.Geom.Rectangle.Contains);
     container.add(bg);
 
-    const title = this.scene.add.text(px + panelW / 2, py + 10, `🏘 ${city.name}`, {
+    const title = this.scene.add.text(px + panelW / 2, py + 12, `🏘 ${city.name}`, {
       fontSize: "14px", fontFamily: "monospace", color: "#ffd700",
     }).setOrigin(0.5, 0);
     container.add(title);
 
-    const subtitle = this.scene.add.text(px + panelW / 2, py + 28, "City Districts", {
+    const subtitle = this.scene.add.text(px + panelW / 2, py + 42, "Districts and current building", {
       fontSize: "10px", fontFamily: "monospace", color: "#aaa",
     }).setOrigin(0.5, 0);
     container.add(subtitle);
 
-    let cy = py + 48;
-    for (let i = 0; i < chunkCount; i++) {
+    for (const [rowIndex, i] of chunkIndices.entries()) {
+      const cy = py + 72 + rowIndex * 70;
       const name = chunkNames[i];
       const isCurrent = player.position.cityChunkIndex === i;
 
@@ -1957,7 +1960,7 @@ export class OverlayManager {
       // Chunk box
       const boxX = px + 12;
       const boxW = panelW - 24;
-      const boxH = 36;
+      const boxH = 64;
 
       const chunkBg = this.scene.add.graphics();
       if (isCurrent) {
@@ -1978,22 +1981,26 @@ export class OverlayManager {
       const displayName = isCurrent ? `${icon} ${name} (here)` : discovered ? `${icon} ${name}` : "??? Unknown";
       const color = isCurrent ? "#88ff88" : discovered ? "#ccccff" : "#666666";
 
-      const label = this.scene.add.text(boxX + boxW / 2, cy + 10, displayName, {
+      const label = this.scene.add.text(boxX + boxW / 2, cy + 8, displayName, {
         fontSize: "12px", fontFamily: "monospace", color,
-      }).setOrigin(0.5, 0);
+        wordWrap: { width: boxW - 20 },
+      }).setOrigin(0.5, 0).setData("layoutId", `city-map-${i}-name`);
       container.add(label);
 
       // Shop count info (uses getCityChunkShops helper for consistent indexing)
       if (discovered) {
         const shops = getCityChunkShops(city, i);
-        const shopInfo = this.scene.add.text(boxX + boxW / 2, cy + 24, `${shops.length} shop${shops.length !== 1 ? "s" : ""}`, {
+        const shopInfo = this.scene.add.text(boxX + boxW / 2, cy + 40, `${shops.length} shop${shops.length !== 1 ? "s" : ""}`, {
           fontSize: "9px", fontFamily: "monospace", color: "#888",
-        }).setOrigin(0.5, 0);
+        }).setOrigin(0.5, 0).setData("layoutId", `city-map-${i}-shops`);
         container.add(shopInfo);
       }
 
       // Make clickable for discovered chunks that aren't current
       if (discovered && !isCurrent) {
+        chunkBg.setData("layoutId", `city-map-${i}`);
+        chunkBg.setData("layoutBounds", { x: boxX, y: cy, width: boxW, height: boxH });
+        chunkBg.setData("layoutAllowOverlapWith", [`city-map-${i}-name`, `city-map-${i}-shops`]);
         chunkBg.setInteractive(
           new Phaser.Geom.Rectangle(boxX, cy, boxW, boxH),
           Phaser.Geom.Rectangle.Contains,
@@ -2028,7 +2035,6 @@ export class OverlayManager {
         });
       }
 
-      cy += boxH + 6;
     }
 
     const hint = this.scene.add.text(px + panelW / 2, py + panelH - 14, "M to close · Click district to travel", {

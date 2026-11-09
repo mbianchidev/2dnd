@@ -96,6 +96,13 @@ scores.
 - Stat allocation retains the existing per-score-point retroactive HP/MP
   behavior for CON/INT, uses total level and stops at score 30.
 
+Three rare library manuscripts can grant declared extra base spells after
+the listed owned caster rank and permanent-score checks. They use canonical
+study sources and casting stats rather than legacy exceptions; path-only
+grants remain restricted to owned profiles. Save normalization recognizes
+their permanent tokens, and NG+ carries the knowledge without replaying
+ordinary room supplies. See [Graphics and buildings](graphics.md).
+
 Companions remain independently leveling, single-class actors. Hero/companion
 manual turns and gambits still validate targets, known actions, MP, inventories
 and economy through `battleActions.ts`. Each actor retains one main action and

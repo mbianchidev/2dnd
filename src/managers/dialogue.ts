@@ -13,6 +13,10 @@ import { getTimePeriod, TimePeriod } from "../systems/daynight";
 import { TILE_SIZE } from "../config";
 import type { PlayerState } from "../systems/player";
 import { getNpcSocialReaction } from "../systems/reputation";
+import { getAccessibilityPreferences } from "../systems/accessibility";
+import { layoutVerticalStack } from "../systems/layout";
+import { getScaledBounds, subscribeOverlayReflow } from "./layout";
+import { createOverlayContainer } from "../utils/ui";
 
 /**
  * Manages NPC dialogue boxes — regular city NPCs, animals, and special overworld NPCs.
@@ -26,6 +30,7 @@ export class DialogueSystem {
     lineText: Phaser.GameObjects.Text;
     pageText: Phaser.GameObjects.Text;
     onComplete: () => void;
+    reflow: () => void;
   } | null = null;
 
   constructor(scene: Phaser.Scene) {
@@ -208,48 +213,64 @@ export class DialogueSystem {
     }
     this.dismissDialogue();
 
-    const container = this.scene.add.container(0, 0)
-      .setDepth(50)
+    const container = createOverlayContainer(this.scene, "quest-dialogue", 50, {
+      x: 0, y: 0, width: this.scene.cameras.main.width, height: this.scene.cameras.main.height,
+    })
       .setScrollFactor(0);
-    const boxW = MAP_WIDTH * TILE_SIZE - 20;
-    const boxH = 58;
+    const boxW = this.scene.cameras.main.width - 20;
     const boxX = 10;
-    const boxY = MAP_HEIGHT * TILE_SIZE - 12;
     const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.97);
-    bg.fillRoundedRect(boxX, boxY, boxW, boxH, 4);
-    bg.lineStyle(2, 0x9575cd, 1);
-    bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 4);
     container.add(bg);
 
-    container.add(this.scene.add.text(
-      boxX + 8,
-      boxY + 4,
+    const speakerText = this.scene.add.text(
+      0,
+      0,
       speakerName,
       {
         fontSize: "10px",
         fontFamily: "monospace",
         color: "#d1c4e9",
       },
-    ));
-    const lineText = this.scene.add.text(boxX + 8, boxY + 18, pages[0], {
+    ).setData("layoutId", "dialogue-speaker");
+    container.add(speakerText);
+    const lineText = this.scene.add.text(0, 0, pages[0], {
       fontSize: "11px",
       fontFamily: "monospace",
       color: "#ffffff",
       wordWrap: { width: boxW - 16 },
-    });
+    }).setData("layoutId", "dialogue-body");
     container.add(lineText);
     const pageText = this.scene.add.text(
-      boxX + boxW - 8,
-      boxY + boxH - 10,
+      0,
+      0,
       this.questPageLabel(0, pages.length),
       {
         fontSize: "8px",
         fontFamily: "monospace",
         color: "#b39ddb",
       },
-    ).setOrigin(1, 0.5);
+    ).setOrigin(1, 0.5).setData("layoutId", "dialogue-page");
     container.add(pageText);
+    const reflow = (): void => {
+      lineText.setWordWrapWidth(boxW - 16, true);
+      const texts = [speakerText, lineText, pageText];
+      const stack = layoutVerticalStack(texts.map((text, index) => ({
+        id: String(index), width: text.displayWidth, height: text.displayHeight,
+      })), { x: boxX + 8, width: boxW - 16, gap: 5 });
+      const height = stack.height + 18;
+      const top = this.scene.cameras.main.height - height - 2;
+      stack.items.forEach((item, index) => {
+        const text = texts[index]!;
+        const bounds = getScaledBounds(text);
+        text.setPosition(text.x + item.x - bounds.x, text.y + top + 8 + item.y - bounds.y);
+      });
+      pageText.setX(boxX + boxW - 8);
+      bg.clear().fillStyle(getAccessibilityPreferences().highContrast ? 0x000000 : 0x202c37, 0.97)
+        .fillRoundedRect(boxX, top, boxW, height, 4);
+      bg.lineStyle(2, 0xc4ad7c).strokeRoundedRect(boxX, top, boxW, height, 4);
+    };
+    const unsubscribe = subscribeOverlayReflow(this.scene, reflow);
+    container.once("destroy", unsubscribe);
 
     this.dialogueOverlay = container;
     this.questSequence = {
@@ -258,7 +279,9 @@ export class DialogueSystem {
       lineText,
       pageText,
       onComplete,
+      reflow,
     };
+    reflow();
     if (audioEngine.initialized) audioEngine.playDialogueBlips(pages[0]);
   }
 
@@ -273,6 +296,7 @@ export class DialogueSystem {
       sequence.pageText.setText(
         this.questPageLabel(sequence.pageIndex, sequence.pages.length),
       );
+      sequence.reflow();
       if (audioEngine.initialized) audioEngine.playDialogueBlips(page);
       return true;
     }

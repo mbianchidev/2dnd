@@ -38,7 +38,7 @@ export {
 export { DUNGEONS } from "./dungeons";
 export {
   CITIES, INN_COSTS, getInnCost, getCity, getCityForTown, getCityShopAt, getCityShopNearby,
-  getCityChunkCount, getCityChunk, getCityChunkMap, getCityChunkSpawn, getCityChunkShops,
+  getCityChunkCount, getCityDistrictCount, getCityChunk, getCityChunkMap, getCityChunkSpawn, getCityChunkShops,
   getCityChunkShopAt, getCityChunkShopNearby, getCityChunkNames, getCityConnectionAt,
 } from "./cities";
 export { WORLD_CHUNKS, REGION_COLORS, getChunk, getTerrainAt, getAllTowns, getAllBosses } from "./chunks";

@@ -94,6 +94,33 @@ SDK invocation. No partner IDs, login or real upload is involved.
 
 ## Playwright responsibilities
 
+`e2e/graphics-overhaul.spec.ts` captures actual world, city, library and dungeon
+scenes at every supported text scale, exercises physical shop doors, offered
+supplies and repeat/reload recovery, and visits every monster family. It
+asserts that exact die faces stay hidden until a real throw stops or is skipped.
+Pure raster, footprint, guarded claim/study and minimap-redaction suites keep
+Phaser and gameplay RNG out of the corresponding mechanics.
+Battle canvas references use compositor screenshots rather than WebGL
+`toDataURL()` reads, which can return a discarded, entirely black back buffer.
+Capture those references at the intrinsic 640x528 size with an integer viewport
+anchor, then restore FIT styles. Fractional platform-specific FIT bounds must
+not change the snapshot dimensions or be hidden by looser pixel tolerances.
+NG+ journeys enter the real inn doorway, walk to its counter and pay for normal
+party recovery. `stepGameTile()` holds through movement cooldowns and releases
+inside the renderer on the accepted tile, then waits for movement to settle.
+Dice evidence follows the presentation label while numbers are concealed;
+canonical result text is compared only after the throw stops or is skipped.
+Grounding coverage verifies every monster family and boss at rest, samples real
+front/back combat frames in normal and reduced motion, and requires visible
+feet and following shadows to stay on their ground anchors. Pure tests cover
+transparent foot padding and every grounded action/reaction pose.
+`battleHud.test.ts` checks distinct deterministic command art, fractional/empty
+resource ratios, contrast and unknown-HP redaction. `e2e/battle-hud.spec.ts`
+verifies all action icons, real HP/MP changes, native meters, known/unknown
+enemy rows and full-party layouts through 150% high-contrast text.
+Retain a removed native action node across battle replacement and prove its
+queued click cannot start an action or targeting in the new scene.
+
 The `e2e/*.spec.ts` suites own real browser behavior:
 
 - landing-page content, responsive layout, screenshots, and browser/download links

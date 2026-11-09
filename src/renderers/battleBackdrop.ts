@@ -6,8 +6,11 @@ import {
   TimePeriod,
 } from "../systems/daynight";
 import { isReducedMotionEnabled } from "../systems/accessibility";
+import { artNoise, shadePixelColor } from "../systems/pixelArt";
 import { WeatherType } from "../systems/weather";
 import { isLocalDev } from "../config";
+import { drawBattleTerrainDetail } from "./battleTerrain";
+import { drawBuildingExterior } from "./buildings";
 import {
   BATTLE_BACKDROP_LAYER_IDS,
   BATTLE_DEPTH,
@@ -444,15 +447,15 @@ export class BattleBackdropRenderer {
   ): void {
     const graphics = this.requireLayer("ground").graphics;
     const color = {
-      grass: 0x4b8741,
-      forest: 0x294521,
-      deep_forest: 0x172416,
+      grass: 0x77954e,
+      forest: 0x536d43,
+      deep_forest: 0x3e5741,
       sand: 0xd6ae67,
       tundra: 0xdce7ee,
       swamp: 0x465b38,
-      volcanic: 0x291d1d,
-      canyon: 0xa45d3d,
-      dungeon: 0x30313b,
+      volcanic: 0x65524c,
+      canyon: 0xa37d60,
+      dungeon: 0x615f57,
       city: 0x8e8171,
       sea: 0x214f72,
     }[biome];
@@ -468,6 +471,7 @@ export class BattleBackdropRenderer {
       const y = layout.groundTop + 12 + index * 24;
       graphics.fillRect((index * 47) % 110, y, layout.width * 0.38, 2);
     }
+    drawBattleTerrainDetail(graphics, layout, biome, color);
   }
 
   private drawMidgroundProps(
@@ -484,11 +488,27 @@ export class BattleBackdropRenderer {
         const x = 36 + index * (layout.width - 72) / 6;
         graphics.fillStyle(trunk, 1);
         graphics.fillRect(x - 5, layout.horizonY - 72, 10, 84);
+        graphics.fillStyle(0x6a5132, 1);
+        graphics.fillRect(x - 3, layout.horizonY - 68, 3, 77);
         if (biome !== "swamp") {
-          graphics.fillStyle(leaves, 0.95);
-          graphics.fillCircle(x, layout.horizonY - 76, 28);
-          graphics.fillCircle(x - 17, layout.horizonY - 58, 20);
-          graphics.fillCircle(x + 17, layout.horizonY - 58, 20);
+          const canopies = [
+            [x, layout.horizonY - 76, 28],
+            [x - 17, layout.horizonY - 58, 20],
+            [x + 17, layout.horizonY - 58, 20],
+          ] as const;
+          for (const [cx, cy, radius] of canopies) {
+            graphics.fillStyle(shadePixelColor(leaves, -15), 1).fillCircle(cx, cy, radius);
+            graphics.fillStyle(leaves, 1).fillCircle(cx - 2, cy - 3, radius - 3);
+            graphics.fillStyle(shadePixelColor(leaves, 20), 1)
+              .fillEllipse(cx - radius / 4, cy - radius / 3, radius, radius * 0.65);
+            for (let leaf = 0; leaf < 14; leaf++) {
+              const dx = artNoise(index, leaf) % (radius * 2 - 6) - radius + 3;
+              const dy = artNoise(leaf, index) % (radius * 2 - 6) - radius + 3;
+              if (dx * dx + dy * dy > (radius - 3) ** 2) continue;
+              graphics.fillStyle(shadePixelColor(leaves, leaf % 2 ? 32 : -7), 1)
+                .fillRect(cx + dx, cy + dy, 4, 2);
+            }
+          }
         } else {
           graphics.lineStyle(4, trunk, 1);
           graphics.lineBetween(x, layout.horizonY - 52, x - 18, layout.horizonY - 72);
@@ -496,14 +516,14 @@ export class BattleBackdropRenderer {
         }
       }
     } else if (biome === "city") {
-      graphics.fillStyle(0x5f554c, 1);
-      for (let index = 0; index < 5; index += 1) {
-        const x = index * 140 - 10;
-        graphics.fillRect(x, layout.horizonY - 70 - index % 2 * 20, 112, 82);
-        graphics.fillStyle(0xc69a51, 0.82);
-        graphics.fillRect(x + 18, layout.horizonY - 42, 14, 18);
-        graphics.fillRect(x + 70, layout.horizonY - 42, 14, 18);
-        graphics.fillStyle(0x5f554c, 1);
+      const roofs = [0x815345, 0x616d77, 0x9a704a];
+      for (let index = 0; index < Math.ceil(layout.width / 128) + 1; index += 1) {
+        const x = index * 128 - 26;
+        const height = 94 + index % 2 * 20;
+        drawBuildingExterior(graphics, {
+          x, y: layout.horizonY - height + 12,
+          width: 112, height, doorX: x + 56,
+        }, roofs[index % roofs.length]!);
       }
     } else if (biome === "dungeon") {
       graphics.fillStyle(0x3b3b48, 1);

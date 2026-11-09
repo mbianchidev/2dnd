@@ -4,6 +4,7 @@ import {
   BATTLE_DEPTH,
   getBattleBackdropLayout,
   getBattleDepthOrder,
+  getBattleMonsterPosition,
   normalizeBattleBiome,
 } from "../src/renderers/battleDepth";
 
@@ -72,6 +73,25 @@ describe("Battle backdrop environment normalization", () => {
       expect(layout.horizonY).toBeLessThan(layout.groundTop);
       expect(layout.actorBaseline).toBeGreaterThan(layout.groundTop);
       expect(layout.groundTop).toBeLessThan(height);
+    }
+  });
+
+  it("places every front/back formation footpoint on the ground, never in the sky", () => {
+    for (const [width, height] of [[640, 528], [528, 640], [1280, 720]] as const) {
+      const layout = getBattleBackdropLayout(width, height);
+      for (let count = 1; count <= 4; count++) {
+        for (let index = 0; index < count; index++) {
+          const front = getBattleMonsterPosition(layout, "front", index, count);
+          const back = getBattleMonsterPosition(layout, "back", index, count);
+          expect(front.y).toBe(layout.actorBaseline);
+          expect(back.y).toBeGreaterThan(layout.groundTop);
+          expect(back.y).toBeLessThan(front.y);
+          expect(front.x).toBeGreaterThan(0);
+          expect(front.x).toBeLessThan(width);
+          expect(back.x).toBeGreaterThan(0);
+          expect(back.x).toBeLessThan(width);
+        }
+      }
     }
   });
 });

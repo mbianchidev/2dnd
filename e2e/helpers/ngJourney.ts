@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { CITY_NPCS } from "../../src/data/npcs";
 import { MAIN_QUEST_ID, QUESTS, QUEST_NPCS } from "../../src/data/quests";
-import { DUNGEONS, Terrain, getCity, getDungeonLevelMap, isWalkable } from "../../src/data/map";
+import { DUNGEONS, Terrain, getCity, getCityConnectionAt, getDungeonLevelMap, isWalkable } from "../../src/data/map";
 import { getItem } from "../../src/data/items";
 import { getSpell } from "../../src/data/spells";
 import { EPIC_TRACK_ID } from "../../src/data/epicProgression";
@@ -17,7 +17,7 @@ import { createCompletedCampaign, completeCampaignThroughOwners } from "../../te
 import type { PlayerPosition } from "../../src/systems/player";
 import type { SaveData } from "../../src/systems/save";
 import { clickLayoutItem, readLayoutReport } from "./layout";
-import { pressGameKey } from "./input";
+import { pressGameKey, stepGameTile } from "./input";
 
 const checkpointPages = new WeakSet<Page>();
 
@@ -200,11 +200,20 @@ async function restAtActualInn(page: Page): Promise<void> {
   const city = getCity("willowdale_city");
   const inn = city?.shops.find((shop) => shop.type === "inn");
   if (!city || !inn) throw new Error("Missing canonical recovery inn");
-  const adjacent = [[inn.x, inn.y + 1], [inn.x + 1, inn.y], [inn.x - 1, inn.y], [inn.x, inn.y - 1]]
-    .find(([x, y]) => isWalkable(city.mapData[y!]?.[x!] ?? Terrain.CityWall));
-  if (!adjacent) throw new Error("No safe inn approach");
+  const door = getCityConnectionAt(city, 0, inn.x, inn.y);
+  if (!door) throw new Error("Missing actual inn doorway");
   await relocateCheckpoint(page, { ...emptyInterior(save.player.position), inCity: true,
-    cityId: city.id, chunkX: city.chunkX, chunkY: city.chunkY, x: adjacent[0]!, y: adjacent[1]! });
+    cityId: city.id, chunkX: city.chunkX, chunkY: city.chunkY, x: inn.x, y: inn.y });
+  await expect(page.locator("#debug-state")).toContainText("Fade: ready");
+  await holdJourneyKey(page, "Space");
+  await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:${door.toChunkIndex}]`);
+  await expect(page.locator("#debug-state")).toContainText("Fade: ready");
+  await stepGameTile(page, "A", 9, 12);
+  for (let y = 11; y >= 6; y--) {
+    await stepGameTile(page, "W", 9, y);
+  }
+  await stepGameTile(page, "D", 10, 6);
+  await expect(page.locator("#debug-state")).toContainText("Move: ready");
   await holdJourneyKey(page, "Space");
   await page.waitForTimeout(400);
   const bounds = await page.locator("#game-container canvas").boundingBox();

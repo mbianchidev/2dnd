@@ -5,6 +5,7 @@ import { getCompanionDefinition } from "../data/companions";
 import type { CompanionId } from "../data/companions";
 import {
   generateCompanionTexture,
+  getCompanionFacingTextureKey,
 } from "../renderers/characterTextures";
 import {
   getCompanion,
@@ -103,10 +104,12 @@ export class CompanionFollowerManager {
       if (dx !== 0) sprite.setFlipX(dx < 0);
       const x = target.x * TILE_SIZE + TILE_SIZE / 2;
       const y = target.y * TILE_SIZE + TILE_SIZE / 2;
+      const facing = y < sprite.y - 1 ? "back" : y > sprite.y + 1 ? "front" : "side";
+      const textureKey = getCompanionFacingTextureKey(companionId, facing);
       const motionDuration = getMotionDuration(duration);
       this.presentation.presentFollowerStep(companionId, dx);
       if (motionDuration === 0) {
-        sprite.setPosition(x, y);
+        sprite.setPosition(x, y).setTexture(textureKey);
         this.presentation.completeFollowerStep(companionId);
         return;
       }
@@ -115,8 +118,15 @@ export class CompanionFollowerManager {
         x,
         y,
         duration: motionDuration,
-        onComplete: () =>
-          this.presentation.completeFollowerStep(companionId),
+        onUpdate: (tween: Phaser.Tweens.Tween) => {
+          if (!sprite.active) return;
+          const key = `${textureKey}_walk_${tween.progress < 0.5 ? 0 : 1}`;
+          if (sprite.texture.key !== key) sprite.setTexture(key);
+        },
+        onComplete: () => {
+          if (sprite.active) sprite.setTexture(textureKey);
+          this.presentation.completeFollowerStep(companionId);
+        },
       });
     });
   }

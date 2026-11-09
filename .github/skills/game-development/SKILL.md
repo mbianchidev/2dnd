@@ -32,6 +32,10 @@ and changes spanning scenes, systems, data, renderers, or managers.
 
 City interiors and all connected districts reveal on entry/load through
 `FogOfWar.revealCity()`, without changing wilderness/dungeon fog.
+Appended building rooms derive full visibility without storing redundant fog
+tiles. Shared raster art and room ownership are documented in
+[`docs/graphics.md`](../../../docs/graphics.md): preserve footprints, original
+shop identities, atomic fixed rewards and canonical permanent study sources.
 Named story NPCs share canonical `npcVisuals.ts` / `npcTextures.ts` appearance
 with their city actors; bosses use monster-family textures, not generic bodies.
 
@@ -230,6 +234,19 @@ idle breathing uses scale, unbind removes idle tweens, and live reduced motion
 settles pending presentation once. Pixel strike/spell/heal/guard impacts use
 `systems/battleEffects.ts` geometry and `renderers/battleEffects.ts` ownership:
 one Graphics/tween per actor, no more than eight active and no mechanics callbacks.
+
+Battle monsters never fly or hover. `battleDepth.ts` places front/back contact
+points inside the ground plane. Monster-frame metadata records the visible
+foot edge, and grounded bindings keep every pose on that anchor while moving
+the shadow horizontally. Use real bounds for effects and body-part cursors;
+do not alter combat formation rules or grant flight from winged artwork.
+
+The battle HUD uses `systems/battleHud.ts` for pure icon/resource/redaction
+contracts and `renderers/battleHud.ts` for measured graphics/native semantics.
+Keep six distinct command icons separate from selection/disabled markers.
+Read HP/MP from their actor owners; enemy rows contain only names/letters and
+health bars allowed by canonical `hpRevealed`, with no unknown placeholder or
+hidden numeric/accessibility leak.
 
 Tutorial and Tips content lives in `src/data/tutorial.ts` as immutable steps,
 semantic control actions, categories, and unlock requirements.

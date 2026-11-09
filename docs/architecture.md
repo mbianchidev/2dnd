@@ -72,6 +72,19 @@ including loaded/returned city states. Overworld and dungeon fog remain
 exploration-based. Archery targets and seated dice players are non-blocking
 world props with the same canonical activity IDs and interaction transactions.
 
+Building rooms append to the existing district registry through
+`data/cityInteriors.ts`. Their static footprints drive collision, visible props
+and fresh adjacent interactions. Rooms use the existing city position and
+connection contract, while original shop IDs remain authoritative for prices,
+negotiations and crafting discovery. Room visibility is derived rather than
+adding redundant persistent fog keys. See [Graphics](graphics.md).
+
+Shared raster art lives in `systems/pixelArt.ts`, `terrainArt.ts`,
+`humanoidArt.ts` and `monsterArt.ts`; `renderers/pixelTexture.ts` uploads
+bounded nearest-scaled textures. Actor frames, trails and impacts consume
+resolved outcomes without gameplay RNG or mutation. Minimap output redacts
+unknown terrain and marks only known local information.
+
 City and cutscene NPCs share `systems/npcVisuals.ts` and
 `renderers/npcTextures.ts`: canonical named NPC IDs resolve their actual template,
 skin, hair and clothes without whole-body tinting. Cutscene bosses use their
@@ -291,6 +304,20 @@ target, formation, status, element, or economy rules.
 Mechanics resolve before presentation. Actor animation receives stable IDs and
 immutable outcomes; tweens never apply damage, spend resources, or control
 authoritative turn/result transitions.
+
+Battle monsters are foot-anchored to front/back contact points within the
+ground plane. Generated frame metadata records the actual visible bottom edge,
+so transparent padding and different poses cannot make an actor hover.
+Grounded bindings use planted scaling and horizontal motion, update their
+contact shadows, and leave hero/world animation behavior unchanged. Effects and
+body-part cursors read sprite bounds rather than assume center origins.
+
+`systems/battleHud.ts` owns pure resource ratios, the six action-icon painters
+and a knowledge-redacted enemy view. `renderers/battleHud.ts` draws the measured
+party/enemy HUD, owns native meters/command counterparts and releases its
+containers, reflow subscription and DOM on shutdown. Scene adapters read hero
+and companion resources from their existing owners. Enemy bars depend only on
+the established `hpRevealed` authority, never presentation or inferred damage.
 
 ## Difficulty composition
 

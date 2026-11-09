@@ -95,13 +95,15 @@ import {
   applyBattleActorTint,
   BattleBackdropRenderer,
 } from "../renderers/battleBackdrop";
-import { BATTLE_DEPTH } from "../renderers/battleDepth";
+import { BATTLE_DEPTH, getBattleBackdropLayout, getBattleMonsterPosition } from "../renderers/battleDepth";
 import { resolveHeroVisualDescriptor } from "../systems/heroVisuals";
 import {
   acquireHeroTexture,
   type HeroTextureLease,
 } from "../renderers/heroTextures";
 import { BattlePartyRenderer } from "../renderers/battleParty";
+import { BattleHudRenderer, getBattleActionIconKey } from "../renderers/battleHud";
+import { createEnemyHudView, type BattleHudActionId, type BattleHudAlly } from "../systems/battleHud";
 import { BattlePartyManager } from "../managers/battleParty";
 import { BattleBodyTargetManager } from "../managers/battleBodyTarget";
 import { BattlePresentationDirector } from "../managers/battlePresentation";
@@ -121,6 +123,7 @@ import {
 import { SceneTransitionManager } from "../managers/sceneTransition";
 import {
   installSceneAccessibility,
+  getAccessibilityPreferences,
 } from "../systems/accessibility";
 import {
   moveGridSelection,
@@ -245,6 +248,7 @@ export class BattleScene extends Phaser.Scene {
   private battlePartyManager!: BattlePartyManager;
   private bodyTargetManager!: BattleBodyTargetManager;
   private battlePartyRenderer!: BattlePartyRenderer;
+  private battleHud!: BattleHudRenderer;
   private battlePresentation!: BattlePresentationDirector;
   private battleTiming: BattleTimingManager | null = null;
   private heroDecisions: BattleHeroDecisionManager | null = null;
@@ -273,20 +277,21 @@ export class BattleScene extends Phaser.Scene {
   private logScrollOffset = 0;
   private logAreaY = 0;
   private logAreaH = 0;
-  private monsterTexts: Phaser.GameObjects.Text[] = [];
   private monsterSprites: Phaser.GameObjects.Sprite[] = [];
+  private monsterShadows: Phaser.GameObjects.Ellipse[] = [];
   private synergyText!: Phaser.GameObjects.Text;
   private targetCursor!: Phaser.GameObjects.Text;
   private targetHint!: Phaser.GameObjects.Text;
   private bodyAimButton!: Phaser.GameObjects.Text;
   private playerSprite!: Phaser.GameObjects.Sprite;
   private heroTextureLease: HeroTextureLease | null = null;
-  private playerStatsText!: Phaser.GameObjects.Text;
   private actionButtons: Phaser.GameObjects.Container[] = [];
   private actionButtonLabels: Array<{
     text: Phaser.GameObjects.Text;
     label: string;
+    state: Phaser.GameObjects.Graphics;
   }> = [];
+  private actionButtonStateKey = "";
   private actionButtonActions: Array<() => void> = [];
   private selectedActionIndex = 0;
   private spellMenu: Phaser.GameObjects.Container | null = null;
@@ -466,6 +471,10 @@ export class BattleScene extends Phaser.Scene {
       this.bodyTargetManager,
     );
     this.battlePartyRenderer = new BattlePartyRenderer(this);
+    this.battleHud = new BattleHudRenderer(this, (id) => {
+      const index = this.combatants.findIndex((combatant) => combatant.id === id);
+      if (index >= 0) this.handleMonsterPointer(index);
+    });
     this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
     this.battleHooks = data.battleHooks;
     this.battleResultReported = false;
@@ -662,10 +671,12 @@ export class BattleScene extends Phaser.Scene {
   private drawBattleUI(): void {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
+    this.battleHud.create();
 
     // --- Monsters in front/back formation ---
     this.monsterSprites = [];
-    this.monsterTexts = [];
+    this.monsterShadows = [];
+    const battlefield = getBattleBackdropLayout(w, h);
     const frontIndices = this.combatants.flatMap((combatant, index) =>
       combatant.position === "front" ? [index] : []
     );
@@ -676,12 +687,9 @@ export class BattleScene extends Phaser.Scene {
     for (const [index, combatant] of this.combatants.entries()) {
       const row = combatant.position === "front" ? frontIndices : backIndices;
       const rowIndex = row.indexOf(index);
-      const centerX = combatant.position === "front" ? 0.66 : 0.7;
-      const spacing = combatant.position === "front" ? 0.19 : 0.17;
-      const x = w * (centerX + (rowIndex - (row.length - 1) / 2) * spacing);
-      const y = h * (combatant.position === "front" ? 0.39 : 0.23);
+      const { x, y } = getBattleMonsterPosition(battlefield, combatant.position, rowIndex, row.length);
       const textureKey = getMonsterTextureKey(combatant.monster);
-      const sprite = this.add.sprite(x, y, textureKey);
+      const sprite = this.add.sprite(x, y, textureKey).setOrigin(0.5, 1);
       sprite.setScale(
         combatant.monster.isBoss
           ? 1.7
@@ -695,27 +703,14 @@ export class BattleScene extends Phaser.Scene {
       sprite.setInteractive({ useHandCursor: true });
       sprite.on("pointerdown", () => this.handleMonsterPointer(index));
       this.monsterSprites.push(sprite);
-      this.battleBackdrop.addActorShadow(
+      this.monsterShadows.push(this.battleBackdrop.addActorShadow(
         combatant.id,
         x,
-        y + (combatant.position === "front" ? 28 : 22),
+        y,
         combatant.monster.isBoss ? 28 : 20,
         combatant.monster.isBoss ? 8 : 6,
-      );
+      ));
 
-      const text = this.add
-        .text(w * 0.47, 6 + index * 38, "", {
-          fontSize: "9px",
-          fontFamily: "monospace",
-          color: "#ff8888",
-          backgroundColor: "#0a0a1acc",
-          padding: { x: 4, y: 2 },
-          wordWrap: { width: w * 0.5 },
-        })
-        .setDepth(BATTLE_DEPTH.ui)
-        .setInteractive({ useHandCursor: true });
-      text.on("pointerdown", () => this.handleMonsterPointer(index));
-      this.monsterTexts.push(text);
     }
 
     this.synergyText = this.add
@@ -784,20 +779,6 @@ export class BattleScene extends Phaser.Scene {
       7,
     );
 
-    // Player name + HP/MP bar (right below player sprite)
-    this.playerStatsText = this.add
-      .text(w * 0.22, h * 0.60, "", {
-        fontSize: "13px",
-        fontFamily: "monospace",
-        color: "#88ccff",
-        align: "center",
-        lineSpacing: 3,
-        backgroundColor: "#0a0a1a80",
-        padding: { x: 6, y: 4 },
-        wordWrap: { width: w * 0.4 },
-      })
-      .setOrigin(0.5, 0)
-      .setDepth(BATTLE_DEPTH.ui);
     this.updatePlayerStats();
 
     // Battle log (bottom strip) — scrollable
@@ -851,6 +832,8 @@ export class BattleScene extends Phaser.Scene {
     this.actionButtons.forEach((b) => b.destroy());
     this.actionButtons = [];
     this.actionButtonLabels = [];
+    this.actionButtonActions = [];
+    this.actionButtonStateKey = "";
     if (this.spellMenu) {
       this.spellMenu.destroy();
       this.spellMenu = null;
@@ -873,17 +856,17 @@ export class BattleScene extends Phaser.Scene {
     const btnH = 28;
     const gap = 5;
 
-    const actions: { label: string; action: () => void }[] = [
-      { label: "Attack", action: () => this.doPlayerAttack() },
+    const actions: { id: BattleHudActionId; label: string; action: () => void }[] = [
+      { id: "attack", label: "Attack", action: () => this.doPlayerAttack() },
     ];
-    actions.push({ label: "Defend", action: () => this.doDefend() });
+    actions.push({ id: "defend", label: "Defend", action: () => this.doDefend() });
     if (hasAbilities) {
-      actions.push({ label: "Abilities", action: () => this.showAbilityMenu() });
+      actions.push({ id: "abilities", label: "Abilities", action: () => this.showAbilityMenu() });
     }
     actions.push(
-      { label: "Spells", action: () => this.showSpellMenu() },
-      { label: "Items", action: () => this.showItemMenu() },
-      { label: "Flee", action: () => this.doFlee() },
+      { id: "spells", label: "Spells", action: () => this.showSpellMenu() },
+      { id: "items", label: "Items", action: () => this.showItemMenu() },
+      { id: "flee", label: "Flee", action: () => this.doFlee() },
     );
 
     actions.forEach((act, i) => {
@@ -896,39 +879,44 @@ export class BattleScene extends Phaser.Scene {
         .setDisplaySize(btnW, btnH)
         .setInteractive({ useHandCursor: true });
 
+      const icon = this.add.image(14, btnH / 2, getBattleActionIconKey(act.id))
+        .setDisplaySize(16, 16).setName(`battle-action-icon:${act.id}`)
+        .setData("layoutId", `battle-action-${act.id}-icon`);
+      const state = this.add.graphics();
       const label = this.add
-        .text(btnW / 2, btnH / 2, act.label, {
+        .text(26 + (btnW - 34) / 2, btnH / 2, act.label, {
           fontSize: "13px",
           fontFamily: "monospace",
           color: "#ddd",
         })
         .setOrigin(0.5)
         .setData("layoutId", `battle-action-${act.label.toLowerCase()}`)
-        .setData("accessibilityMaxWidth", btnW - 12);
+        .setData("accessibilityMaxWidth", btnW - 34);
 
       bg.on("pointerover", () => {
         this.selectedActionIndex = i;
         this.updateButtonStates();
-        bg.setTexture("buttonHover");
-        label.setColor("#ffd700");
       });
       bg.on("pointerout", () => {
-        bg.setTexture("button");
-        label.setColor("#ddd");
+        this.updateButtonStates();
       });
-      bg.on("pointerdown", () => {
+      const activate = (): void => {
         if (
           this.phase === "playerTurn" && !this.pendingTargetAction
           && !this.heroDecisions?.isOpen && this.acceptsBattleDecisionInput()
         ) {
           act.action();
         }
-      });
+      };
+      bg.on("pointerdown", activate);
+      this.battleHud.bindCommand(act.id, act.label, activate);
 
-      container.add([bg, label]);
+      container.add([bg, state, icon, label]);
+      const iconBounds = icon.getBounds();
+      icon.setData("layoutBounds", { x: iconBounds.x, y: iconBounds.y, width: iconBounds.width, height: iconBounds.height });
       registerLayoutGroup(this, `battle-action-${act.label.toLowerCase()}`, container);
       this.actionButtons.push(container);
-      this.actionButtonLabels.push({ text: label, label: act.label });
+      this.actionButtonLabels.push({ text: label, label: act.label, state });
       this.actionButtonActions.push(act.action);
     });
 
@@ -941,14 +929,23 @@ export class BattleScene extends Phaser.Scene {
     const enabled = this.phase === "playerTurn" && !this.pendingTargetAction
       && !this.bodyTargetManager.isOpen
       && !this.heroDecisions?.isOpen && this.acceptsBattleDecisionInput();
+    const contrast = getAccessibilityPreferences().highContrast;
+    const key = `${enabled}:${this.selectedActionIndex}:${contrast}`;
+    if (key === this.actionButtonStateKey) return;
+    this.actionButtonStateKey = key;
+    this.battleHud?.setCommandsEnabled(enabled);
     for (const btn of this.actionButtons) {
       btn.setAlpha(enabled ? 1 : 0.4);
     }
     for (const [index, action] of this.actionButtonLabels.entries()) {
       const selected = enabled && index === this.selectedActionIndex;
-      action.text
-        .setText(`${enabled ? selected ? "▶" : "✓" : "×"} ${action.label}`)
-        .setColor(selected ? "#ffd700" : "#dddddd");
+      action.text.setColor(selected ? "#ffd700" : "#dddddd");
+      action.state.clear();
+      const outline = contrast ? 0xffffff : 0xe7d59b;
+      if (selected) action.state.lineStyle(2, outline).strokeRect(1, 1, 143, 26)
+        .fillStyle(outline).fillTriangle(1, 10, 5, 14, 1, 18);
+      if (!enabled) action.state.lineStyle(1, outline)
+        .lineBetween(137, 3, 141, 7).lineBetween(141, 3, 137, 7);
     }
   }
 
@@ -1440,9 +1437,10 @@ export class BattleScene extends Phaser.Scene {
     if (!sprite) return;
     const x = part?.anchor.x ?? 0.5;
     const y = part?.anchor.y ?? 0;
+    const bounds = sprite.getBounds();
     this.targetCursor.setPosition(
-      sprite.x + ((sprite.flipX ? 1 - x : x) - 0.5) * sprite.displayWidth,
-      sprite.y + (y - 0.5) * sprite.displayHeight - 2,
+      bounds.x + (sprite.flipX ? 1 - x : x) * bounds.width,
+      bounds.y + y * bounds.height - 2,
     ).setVisible(true);
     const marker = this.targetCursor.getBounds();
     this.game.canvas.dataset.bodyTargetMarker = JSON.stringify({
@@ -1659,10 +1657,8 @@ export class BattleScene extends Phaser.Scene {
           false, "roll-detail"
         );
       }
-      const rollSuffix = result.roll !== undefined
-        ? this.formatPlayerRoll(result.roll, result.attackMod ?? 0, result.totalRoll ?? 0, result.hit, result.critical, targetIndex, result.targetAC)
-        : "";
-      this.addLog(result.message + rollSuffix);
+      this.recordPlayerAttackEvidence(result.roll, result.totalRoll ?? 0, result.hit, targetIndex, result.targetAC);
+      this.addLog(result.message);
       for (const healingResult of result.healingResults ?? []) {
         const target = getCombatantById(
           this.partyCombatants,
@@ -1946,23 +1942,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private updateMonsterDisplay(): void {
-    for (const [index, combatant] of this.combatants.entries()) {
-      const text = this.monsterTexts[index];
-      if (!text) continue;
-      const defendTag = combatant.isDefending ? " [DEF]" : "";
-      const selectedTag = index === this.selectedTargetIndex ? "▶ " : "  ";
-      const positionTag = combatant.position.toUpperCase();
-      const effectLine = combatant.effects.length > 0
-        ? ` | ${this.getStatusSummary(combatant.effects)}`
-        : "";
-      const hpLine = combatant.hpRevealed
-        ? `${combatant.currentHp}/${combatant.monster.hp} ${this.getHpBar(combatant.currentHp, combatant.monster.hp, 8)}`
-        : "???";
-      text.setText(
-        `${selectedTag}${combatant.label}${defendTag} [${positionTag}]\n`
-        + `  HP ${hpLine}${effectLine}`,
-      );
-    }
+    this.battleHud?.setEnemies(this.combatants.map((combatant, index) =>
+      createEnemyHudView(combatant, index === this.selectedTargetIndex)));
 
     const synergy = this.encounter.synergy;
     if (!synergy) {
@@ -1993,14 +1974,25 @@ export class BattleScene extends Phaser.Scene {
     audioEngine.setBattleMusicPressure(this.partyCombatants);
     const defendTag = this.playerDefending ? " [DEF]" : "";
     const effectLine = p.activeEffects.length > 0
-      ? `\nEffects: ${this.getStatusSummary(p.activeEffects)}`
+      ? ` | ${this.getStatusSummary(p.activeEffects)}`
       : "";
-    this.playerStatsText.setText(
-      `${p.name} Lv.${p.level}${defendTag}\n` +
-        `HP: ${p.hp}/${p.maxHp} ${this.getHpBar(p.hp, p.maxHp, 8)}\n` +
-        `MP: ${p.mp}/${p.maxMp} ${this.getMpBar(p.mp, p.maxMp, 8)}\n` +
-        `AC: ${getArmorClass(p)}${this.playerDefending ? "+2" : ""}${effectLine}`
-    );
+    const allies: BattleHudAlly[] = [{
+      id: this.heroCombatant.id, name: `${p.name} Lv.${p.level}`,
+      details: `AC ${getArmorClass(p)}${this.playerDefending ? "+2" : ""}${defendTag}${effectLine}`,
+      health: { current: p.hp, maximum: p.maxHp }, mana: { current: p.mp, maximum: p.maxMp },
+    }];
+    for (const combatant of this.partyCombatants) {
+      if (combatant.actorKind !== "companion") continue;
+      const source = this.partyActionSources.find((candidate) => candidate.combatant.id === combatant.id);
+      if (!source) throw new Error(`[battle-hud] Missing party source ${combatant.id}.`);
+      allies.push({
+        id: combatant.id, name: combatant.label,
+        accessibleDetails: getActiveEffectNames(combatant.effects).join(", "),
+        health: { current: combatant.currentHp, maximum: combatant.maxHp },
+        mana: { current: source.state.mp, maximum: source.state.maxMp },
+      });
+    }
+    this.battleHud?.setParty(allies);
     this.battlePartyRenderer?.update(
       this.partyCombatants,
       this.partyActionSources,
@@ -2014,16 +2006,6 @@ export class BattleScene extends Phaser.Scene {
       visibleNames.push(`+${names.length - visibleNames.length} more`);
     }
     return visibleNames.join(", ");
-  }
-
-  private getHpBar(current: number, max: number, length: number): string {
-    const filled = Math.max(0, Math.min(length, Math.round((current / max) * length)));
-    return "[" + "=".repeat(filled) + "-".repeat(length - filled) + "]";
-  }
-
-  private getMpBar(current: number, max: number, length: number): string {
-    const filled = Math.max(0, Math.min(length, Math.round((current / max) * length)));
-    return "[" + "#".repeat(filled) + "-".repeat(length - filled) + "]";
   }
 
   private addLog(msg: string, category?: DiceRollCategory): void {
@@ -2406,7 +2388,8 @@ export class BattleScene extends Phaser.Scene {
         `  ↳ [Player Attack → ${this.targetCombatant.label}] d20=${result.roll} +${result.attackMod} = ${result.totalRoll} vs AC ${result.targetAC} → ${result.hit ? (result.critical ? "CRIT" : "HIT") : "MISS"} dmg=${result.damage}`,
         false, "roll-detail"
       );
-      this.addLog(result.message + this.formatPlayerRoll(result.roll, result.attackMod, result.totalRoll, result.hit, result.critical, targetIndex, result.targetAC));
+      this.recordPlayerAttackEvidence(result.roll, result.totalRoll, result.hit, targetIndex, result.targetAC);
+      this.addLog(result.message);
       this.recordElementalDiscovery(
         result.elementalLabel,
         this.player.equippedWeapon?.element,
@@ -2421,6 +2404,8 @@ export class BattleScene extends Phaser.Scene {
       this.battlePresentation.presentAction({
         actorId: this.heroCombatant.id,
         kind: "attack",
+        element: this.player.equippedWeapon?.element,
+        ranged: getAttackRangeForWeapon(this.player.equippedWeapon) === "ranged",
         successful: true,
         critical: result.critical,
         targets: [{
@@ -2475,7 +2460,8 @@ export class BattleScene extends Phaser.Scene {
           `  ↳ [Off-Hand → ${this.targetCombatant.label}] d20=${offResult.roll} +${offResult.attackMod} = ${offResult.totalRoll} vs AC ${offResult.targetAC} → ${offResult.hit ? (offResult.critical ? "CRIT" : "HIT") : "MISS"} dmg=${offResult.damage}`,
           false, "roll-detail"
         );
-        this.addLog(offResult.message + this.formatPlayerRoll(offResult.roll, offResult.attackMod, offResult.totalRoll, offResult.hit, offResult.critical, offHandTarget, offResult.targetAC));
+        this.recordPlayerAttackEvidence(offResult.roll, offResult.totalRoll, offResult.hit, offHandTarget, offResult.targetAC);
+        this.addLog(offResult.message);
         this.recordElementalDiscovery(
           offResult.elementalLabel,
           this.player.equippedOffHand?.element,
@@ -2664,23 +2650,14 @@ export class BattleScene extends Phaser.Scene {
         if (!target) continue;
         const combatantIndex = target.index;
         const combatant = target.combatant;
-        const rollSuffix = targetResult.roll !== undefined
-          && !targetResult.autoHit
-          ? this.formatPlayerRoll(
-              targetResult.roll,
-              targetResult.spellMod ?? 0,
-              targetResult.totalRoll ?? 0,
-              targetResult.hit,
-              false,
-              combatantIndex,
-              targetResult.targetAC,
-            )
-          : "";
+        if (!targetResult.autoHit) this.recordPlayerAttackEvidence(
+          targetResult.roll, targetResult.totalRoll ?? 0, targetResult.hit, combatantIndex, targetResult.targetAC,
+        );
         this.addLog(
           targetResult.message.replace(
             combatant.monster.name,
             combatant.label,
-          ) + rollSuffix,
+          ),
         );
         debugPanelLog(
           `  ↳ [Player Spell ${spellId} → ${combatant.label}] ${targetResult.autoHit ? "AUTO-HIT" : targetResult.hit ? "HIT" : "MISS"} dmg=${targetResult.damage} mp=${result.mpUsed}`,
@@ -2714,6 +2691,7 @@ export class BattleScene extends Phaser.Scene {
       this.battlePresentation.presentAction({
         actorId: this.heroCombatant.id,
         kind: "spell",
+        element: spell.element,
         successful: result.mpUsed > 0,
         targets: [
           ...result.results.flatMap((targetResult) => {
@@ -3448,21 +3426,19 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * Format a player roll string and track AC discovery.
+   * Keep authoritative AC evidence immediate; visible dice arithmetic is revealed after settling.
    * Crits (nat 20) and fumbles (nat 1) don't reveal AC info.
    */
-  private formatPlayerRoll(
+  private recordPlayerAttackEvidence(
     naturalRoll: number | undefined,
-    mod: number,
     total: number,
     hit: boolean,
-    critical: boolean | undefined,
     targetIndex: number = this.selectedTargetIndex,
     effectiveTargetAC?: number,
-  ): string {
-    if (naturalRoll === undefined || naturalRoll === 20 || naturalRoll === 1) return "";
+  ): void {
+    if (naturalRoll === undefined || naturalRoll === 20 || naturalRoll === 1) return;
     const combatant = this.combatants[targetIndex];
-    if (!combatant) return "";
+    if (!combatant) return;
 
     // Track AC discovery
     const evidenceTotal = total - ((effectiveTargetAC ?? combatant.monster.ac) - combatant.monster.ac);
@@ -3482,11 +3458,6 @@ export class BattleScene extends Phaser.Scene {
       this.addLog(`🔍 You deduce ${combatant.label}'s AC is ${combatant.acLowestHit}!`);
     }
 
-    const acSuffix = combatant.acDiscovered
-      ? ` vs AC ${combatant.monster.ac}`
-      : "";
-    const modifier = mod >= 0 ? `+${mod}` : String(mod);
-    return ` (d20: ${naturalRoll} ${modifier} = ${total}${acSuffix})`;
   }
 
   private handleError(context: string, err: unknown): void {
@@ -3744,6 +3715,7 @@ export class BattleScene extends Phaser.Scene {
         id: combatant.id,
         role: combatant.monster.isBoss ? "boss" : "monster",
         sprite,
+        groundShadow: this.monsterShadows[index],
         textureFamily: resolveMonsterTextureFamily(
           combatant.monster,
           (textureKey) => this.textures.exists(textureKey),
@@ -3794,6 +3766,9 @@ export class BattleScene extends Phaser.Scene {
       actorId: result.plan.actorId,
       kind: result.plan.kind,
       successful: result.executed,
+      ranged: result.plan.descriptor.range === "ranged",
+      element: result.plan.kind === "spell" ? getSpell(result.plan.actionId ?? "")?.element
+        : result.plan.kind === "ability" ? getAbility(result.plan.actionId ?? "")?.element : undefined,
       targets: result.targets,
     });
   }

@@ -230,8 +230,10 @@ shutdown/destroy cleanup, so stale pulses cannot enter a replacement scene.
 Physical dice throws are a pointer-transparent procedural layer over the game.
 Own Web Animations, stage objects, resize/visibility listeners and synthesized
 cues and expiry/fade timers; stop them on reset, replacement and handoff. Skip
-settles exact numbered faces, while blur/visibility loss clears the view. Keep exact
-faces visible and never block input/turns or wait for a tumble to finish.
+settles and reveals exact numbered faces, while blur/visibility loss clears
+the view. Conceal numbers, selected-die markers and result feedback while
+tumbling. Reveal only after stopping or skipping; Instant/reduced motion
+reveals immediately. Never block input/turns or await a tumble.
 
 Overworld chooses city/dungeon/sailing/biome music from live location state and
 refreshes it at every chunk boundary, even when weather does not change.

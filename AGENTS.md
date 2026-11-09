@@ -48,6 +48,7 @@ future work until merged.
 | Accessibility/input | tutorial/feature definitions | `accessibility.ts`, `input.ts`, `featureDiscovery.ts` | input/tutorial/layout managers | accessibility/input/layout/feature E2E |
 | Audio | `music.ts`, typed data cues | `music.ts`, `musicPlayback.ts`, `audio.ts`, `trapAudio.ts` | location-aware callers, read-only party pressure | audio/music/arrangement/playback/lifecycle + browser flows |
 | UI/layout | stable IDs/content definitions | `systems/layout.ts` | `managers/layout.ts`, owning manager/renderer | layout unit + clean-layout E2E |
+| Raster art/buildings | `cityInteriors.ts`, `interiorBooks.ts`, dungeon visual themes | `pixelArt.ts`, `terrainArt.ts`, `humanoidArt.ts`, `monsterArt.ts`, guarded interior claims/study | focused texture, room, landmark, minimap and shop renderers | raster/footprint/recovery suites and actual graphics journeys |
 | Desktop shell | typed preload contracts | `electron/security.ts` | `electron/main.ts`, `preload.cts` | security Vitest + Electron Playwright |
 | Steam preparation | `steam/config.ts`, placeholder VDFs, emulation recipe | preparation/upload utilities, `hacks/lib/steam-payload.mjs` | existing Electron shell, shared `textEntry.ts` | Steam contracts + Deck/install-lifecycle equivalents |
 | Release command | npm patch or explicit SemVer, manifest/lock/release references, `release.yml` | `hacks/release.mjs` | `scripts/release.sh` entry point | mocked version/commit/main-push/tag/CI/rollback integration |
@@ -154,6 +155,13 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   entries, keep base terrain Water, and recover ineligible interiors safely.
 - Resolve mechanics before animation; presentation never spends resources or
   controls authoritative outcomes.
+- Battle monsters never fly or hover. Place every formation footpoint on the
+  ground, use visible per-frame foot anchors, preserve planted poses and contact
+  shadows, and derive aiming/effect positions from actual sprite bounds.
+- Battle commands keep distinct procedural icons through enabled/disabled
+  states. Use real HP/MP bars and native meter counterparts. Enemy rows contain
+  only names/letters and health bars authorized by `hpRevealed`, never unknown
+  placeholders or hidden resource values.
 - Every cutscene has distinct illustrated scenery, not a flat-color fallback.
   Keep the exhaustive ID registry, changed boss aftermaths, sea-correct Kraken,
   five bounded layers and one Graphics buffer. Replay/ending share the painter;
@@ -234,6 +242,11 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   D-pad/confirm activation; keep overwrite confirmation usable in landscape.
 - Own and clean up listeners, timers, tweens, emitters, DOM controls, texture
   leases, and transient containers.
+- Keep art RNG-independent and preserve explicit actor frames and anatomy
+  anchors. Building rooms append after street districts; persist furnishing
+  claims and canonical study tokens, not redundant room fog or presentation.
+  Keep original shop identities for negotiations and crafting. See
+  [Graphics and buildings](docs/graphics.md).
 - Reveal the current city's complete interior/districts through
   `FogOfWar.revealCity()` on entry and recovery, without revealing other places.
   Archery/dice venues are tangible props, not letter flags. Named cutscene NPCs

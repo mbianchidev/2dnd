@@ -74,6 +74,8 @@ describe("scene-scoped dice ownership", () => {
     const log = vi.fn();
     const manager = installDicePresentation(battle.scene, log);
     manager.present(roll());
+    expect(log).not.toHaveBeenCalled();
+    manager.fastForward();
     expect(log).toHaveBeenCalledOnce();
     expect(document.getElementById("dice-result")).toBeNull();
     expect(document.getElementById("dice-presentation")?.dataset.scope).toBe("battle");
@@ -101,6 +103,8 @@ describe("scene-scoped dice ownership", () => {
     expect(document.getElementById("dice-presentation")?.hidden).toBe(true);
     expect(document.querySelectorAll(".resolved-die")).toHaveLength(0);
     replacement.present(roll());
+    expect(log).not.toHaveBeenCalled();
+    replacement.fastForward();
     expect(log).toHaveBeenCalledOnce();
     expect(document.querySelectorAll(".resolved-die")).toHaveLength(1);
   });
@@ -110,12 +114,13 @@ describe("scene-scoped dice ownership", () => {
     scenes.push(overworld.scene);
     const manager = installDicePresentation(overworld.scene);
     manager.present(roll());
-    const duration = overworld.timers[0]!.duration;
-    expect(overworld.timers[1]?.duration).toBe(duration + TRANSIENT_DICE_HOLD_MS);
-    const cancelCue = vi.mocked(audioEngine.playDiceCue).mock.results.slice(-1)[0]?.value;
+    expect(overworld.timers).toHaveLength(1);
     overworld.timers[0]!.complete();
-    expect(cancelCue).toHaveBeenCalledOnce();
+    expect(overworld.timers[1]?.duration).toBe(TRANSIENT_DICE_HOLD_MS);
+    const cancelCue = vi.mocked(audioEngine.playDiceCue).mock.results.slice(-1)[0]?.value;
+    expect(cancelCue).not.toHaveBeenCalled();
     overworld.timers[1]!.complete();
+    expect(cancelCue).toHaveBeenCalledOnce();
     expect(document.getElementById("dice-presentation")?.dataset.phase).toBe("fading");
     overworld.timers[2]!.complete();
     expect(document.getElementById("dice-presentation")?.hidden).toBe(true);

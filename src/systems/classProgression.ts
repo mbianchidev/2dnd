@@ -28,6 +28,7 @@ import type { Item } from "../data/items";
 import type { CombatActorState, PlayerStats, ProgressingActorState } from "./player";
 import { EPIC_ASI_LEVELS, EPIC_LEVEL_CAP, EPIC_TRACK_ID } from "../data/epicProgression";
 import { getActorLevelCap } from "./epicProgressionPolicy";
+import { getActorStudyGrants } from "./interiorStudy";
 export { getActorLevelCap } from "./epicProgressionPolicy";
 
 export interface ProgressionKnownGrants {
@@ -59,10 +60,11 @@ export type HeroProgressingActorState = ProgressingActorState & {
 };
 
 export interface ProgressionGrantSource {
-  kind: "track" | "totalLevel" | "legacy";
+  kind: "track" | "totalLevel" | "legacy" | "study";
   trackId: ProgressionTrackId;
   rank: number;
   stat?: keyof PlayerStats;
+  studyId?: string;
 }
 
 export interface ProgressionTrackEntry {
@@ -230,7 +232,8 @@ export function getFeatureSources(
 ): ProgressionGrantSource[] {
   if (!knownGrants(actor, kind).includes(id)) return [];
   const sources: ProgressionGrantSource[] = [];
-  for (const track of getProgressionTracks(actor, context)) {
+  const tracks = getProgressionTracks(actor, context);
+  for (const track of tracks) {
     const profile = getProgressionProfile(track.id, context);
     for (const grant of profile?.grants ?? []) {
       if (grant.kind === kind && grant.id === id && grant.rank <= track.level) {
@@ -246,6 +249,15 @@ export function getFeatureSources(
     sources.push({
       kind: "totalLevel", trackId: getActorStartingClass(actor), rank: talent.levelRequired,
     });
+  }
+  if (kind === "spell") {
+    for (const study of getActorStudyGrants(actor).filter((entry) => entry.spellId === id)) {
+      const track = tracks.find((entry) => entry.level >= study.minimumRank
+        && study.classIds.some((id) => id === entry.id));
+      if (track) sources.push({
+        kind: "study", trackId: track.id, rank: study.minimumRank, stat: study.stat, studyId: study.id,
+      });
+    }
   }
   if (legacyGrants(actor, kind).includes(id) && sources.length === 0) {
     sources.push({ kind: "legacy", trackId: getActorStartingClass(actor), rank: 0 });

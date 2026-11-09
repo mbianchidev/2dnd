@@ -9,7 +9,7 @@ import type { PlayerState } from "./player";
 
 export type HeroBodyBuild = "light" | "standard" | "broad";
 export type HeroFacing = "front" | "back" | "side";
-export type HeroPose = "standard" | "mounted";
+export type HeroPose = "standard" | "mounted" | "strideLeft" | "strideRight";
 export type HeroEquipmentVisualSlot =
   | "back"
   | "body"

@@ -53,7 +53,7 @@ const ARMS: BodyPart = {
 const LEGS: BodyPart = {
   id: "legs", label: "Legs", aimPenalty: 2,
   physicalProfile: { weaknesses: [Bludgeoning] },
-  effectId: "slow", anchor: { x: 0.5, y: 0.8 },
+  effectId: "slow", anchor: { x: 0.37, y: 0.87 },
 };
 const WINGS: BodyPart = {
   id: "wings", label: "Wings", aimPenalty: 2,
@@ -73,7 +73,10 @@ const CORE: BodyPart = {
 
 export const MONSTER_ANATOMIES: Readonly<Record<MonsterAnatomyId, readonly BodyPart[]>> = {
   humanoid: [HEAD, BODY, ARMS, LEGS],
-  quadruped: [HEAD, BODY, LEGS],
+  quadruped: [
+    { ...HEAD, anchor: { x: 0.23, y: 0.34 } },
+    { ...BODY, anchor: { x: 0.54, y: 0.57 } }, LEGS,
+  ],
   winged: [HEAD, BODY, WINGS, LEGS, TAIL],
   hydra: [
     { ...HEAD, id: "headOne", label: "First head", anchor: { x: 0.15, y: 0.3 } },
@@ -93,13 +96,13 @@ export const MONSTER_ANATOMIES: Readonly<Record<MonsterAnatomyId, readonly BodyP
     },
   ],
   arthropod: [
-    HEAD,
+    { ...HEAD, anchor: { x: 0.42, y: 0.6 } },
     {
       id: "shell", label: "Shell", aimPenalty: 0,
       physicalProfile: MONSTER_PHYSICAL_PROFILES.stone, anchor: { x: 0.5, y: 0.45 },
     },
     {
-      ...ARMS, id: "claws", label: "Claws", anchor: { x: 0.2, y: 0.6 },
+      ...ARMS, id: "claws", label: "Claws", anchor: { x: 0.36, y: 0.77 },
     },
     LEGS,
   ],

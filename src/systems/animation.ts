@@ -38,6 +38,17 @@ export interface PresentationActorRef {
   readonly textureFamilyId: string;
 }
 
+export interface GroundedActorInspection {
+  readonly id: string;
+  readonly state: ActorAnimationState;
+  readonly x: number;
+  readonly footY: number;
+  readonly groundY: number;
+  readonly angle: number;
+  readonly shadowX?: number;
+  readonly shadowY?: number;
+}
+
 export interface AnimationStateFacts {
   readonly alive: boolean;
   readonly knockedOut: boolean;
@@ -99,6 +110,8 @@ export interface ActorTextureFamily {
     >
   >;
   readonly fallbackTextureKey: string;
+  /** Optional per-frame foot anchors for grounded presentation only. */
+  readonly groundOrigins?: Readonly<Record<string, number>>;
 }
 
 export interface ActorTextureResolution {

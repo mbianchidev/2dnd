@@ -21,6 +21,7 @@ on discovering and playing the game.
 
 ## Focused references
 
+- [Procedural graphics and building exploration](graphics.md)
 - [Physical damage and aimed strikes](physical-combat.md)
 - [Companions and gambits](companions.md)
 - [Timed battle decisions](battle-timing.md)

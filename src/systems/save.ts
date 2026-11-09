@@ -472,10 +472,9 @@ function normalizePlayerLocation(player: PlayerState): void {
       position.dungeonId = "";
       position.dungeonLevel = 0;
       const maxChunkIndex = city.chunks?.length ?? 0;
-      position.cityChunkIndex = Math.min(
-        Math.max(position.cityChunkIndex, 0),
-        maxChunkIndex,
-      );
+      position.cityChunkIndex = position.cityChunkIndex > maxChunkIndex
+        ? (city.chunks ?? []).filter((chunk) => !chunk.interior).length
+        : Math.max(position.cityChunkIndex, 0);
       const chunk = getCityChunk(city, position.cityChunkIndex);
       if (chunk && !isValidMapPosition(chunk.mapData, position.x, position.y)) {
         position.x = chunk.spawnX;

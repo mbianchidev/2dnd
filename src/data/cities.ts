@@ -6,6 +6,7 @@
 import { Terrain } from "./mapTypes";
 import { STARFALL_ATOLL, TIDEHAVEN_CITY } from "./islands";
 import type { CityConnection, CityData, CityShopData, CityChunk } from "./mapTypes";
+import { addCityInteriors } from "./cityInteriors";
 
 // ─── City Interior Maps ─────────────────────────────────────────
 const cW = Terrain.CityWall;
@@ -522,7 +523,7 @@ const SHADOWFEN_HOLLOW: Terrain[][] = [
   [cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW,cW],
 ];
 
-export const CITIES: CityData[] = [
+const CITY_DEFINITIONS: CityData[] = [
   TIDEHAVEN_CITY,
   STARFALL_ATOLL,
   {
@@ -752,6 +753,8 @@ export const CITIES: CityData[] = [
   },
 ];
 
+export const CITIES: CityData[] = CITY_DEFINITIONS.map(addCityInteriors);
+
 /** Inn costs per city — increasing with city progression/difficulty. */
 export const INN_COSTS: Record<string, number> = {
   willowdale_city:  10,
@@ -841,6 +844,10 @@ function getShopNearby(
 /** Get the total number of chunks in a city (primary + extra districts). */
 export function getCityChunkCount(city: CityData): number {
   return 1 + (city.chunks?.length ?? 0);
+}
+
+export function getCityDistrictCount(city: CityData): number {
+  return 1 + (city.chunks ?? []).filter((chunk) => !chunk.interior).length;
 }
 
 /**

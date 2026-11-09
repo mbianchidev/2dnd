@@ -441,6 +441,7 @@ export class DicePresentationController {
   private cancelFade: (() => void) | null = null;
   private sequence = 0;
   private state: "ready" | "animating" | "clean" = "ready";
+  private pendingRecord: { event: DicePresentationEvent; reducedMotion: boolean } | null = null;
 
   constructor(
     private readonly adapter: DicePresentationAdapter,
@@ -490,19 +491,28 @@ export class DicePresentationController {
       sequence,
     });
     this.events = Object.freeze(this.scope === "battle" ? [...this.events.slice(-39), event] : [event]);
-    this.adapter.record(event);
     this.state = event.duration > 0 ? "animating" : "ready";
+    this.pendingRecord = event.duration > 0 ? { event, reducedMotion } : null;
     this.adapter.show(event);
+    if (event.duration === 0) {
+      this.adapter.record(event);
+      this.scheduleExpiry(event, reducedMotion);
+    }
     if (event.duration > 0) {
       this.cancelTimer = this.adapter.schedule(event.duration, () => {
         if (this.state !== "animating" || sequence !== this.sequence) return;
         this.cancelTimer = null;
         this.state = "ready";
         this.adapter.settle();
+        this.recordSettled();
       });
     }
-    if (this.scope === "transient") {
-      this.cancelExpiry = this.adapter.schedule(event.duration + TRANSIENT_DICE_HOLD_MS, () => {
+  }
+
+  private scheduleExpiry(event: DicePresentationEvent, reducedMotion: boolean): void {
+    const sequence = event.sequence;
+    if (this.scope === "transient" && this.state !== "clean" && sequence === this.sequence) {
+      this.cancelExpiry = this.adapter.schedule(TRANSIENT_DICE_HOLD_MS, () => {
         if (this.state === "clean" || sequence !== this.sequence) return;
         this.cancelExpiry = null;
         this.fastForward();
@@ -526,6 +536,16 @@ export class DicePresentationController {
     this.cancelTimer = null;
     this.state = "ready";
     this.adapter.settle();
+    this.recordSettled();
+  }
+
+  private recordSettled(): void {
+    const pending = this.pendingRecord;
+    this.pendingRecord = null;
+    if (pending) {
+      this.adapter.record(pending.event);
+      this.scheduleExpiry(pending.event, pending.reducedMotion);
+    }
   }
 
   reset(): void {
@@ -549,6 +569,7 @@ export class DicePresentationController {
     this.cancelFade?.();
     this.cancelFade = null;
     this.state = "clean";
+    this.pendingRecord = null;
     this.events = [];
     this.seenIds.clear();
     this.adapter.clear();

@@ -31,13 +31,16 @@ developer's desktop. Native release checks run on isolated CI/virtual displays.
 
 Controller helpers read the filtered Adventure menu's live entry/selection IDs
 and follow its two-column grid; pressing Down alone cannot reach both columns.
-The measured opening dialogue and compact Kraken landscape hero captures have
-separate Linux references
+The measured opening/recruitment dialogue and compact Kraken landscape hero
+captures have separate Linux references
 because system-font fallbacks and the surrounding HTML/FIT bounds differ from
 macOS. These are real game captures and retain their original 3%/8% thresholds;
 update the matching platform image rather than widening comparison tolerances.
 Snapshot comparisons are soft assertions so one mismatch still fails the test
 while retaining evidence for every remaining independent reference.
+When reseeding a second campaign in one browser test, return to a fresh title
+document first. An outgoing exploration autosave must not overwrite the next
+fixture during reload.
 
 `visual-followup.spec.ts` verifies a real killing attack removes its monster
 from the live turn chain, portrait recovery/replay with exact current hero

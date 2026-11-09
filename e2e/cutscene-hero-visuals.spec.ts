@@ -252,7 +252,10 @@ test("hero screenshots change with PlayerState-derived fixtures and remain acces
     "barbarianTan",
     "dualWield",
   );
-  await expect.soft(page).toHaveScreenshot("cutscene-recruitment-dual-mobile.png", {
+  const recruitmentSnapshot = process.platform === "linux"
+    ? "cutscene-recruitment-dual-mobile-linux.png"
+    : "cutscene-recruitment-dual-mobile.png";
+  await expect.soft(page).toHaveScreenshot(recruitmentSnapshot, {
     animations: "disabled",
     maxDiffPixelRatio: 0.03,
   });

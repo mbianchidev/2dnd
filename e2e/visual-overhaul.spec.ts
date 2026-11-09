@@ -90,6 +90,8 @@ test("full-size street facades have real doors, while boarded residences cannot 
   await pressGameKey(page, "Space");
   await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:1]`);
   Object.assign(fixture.player.position, { x: closed.x + 1, y: closed.y + closed.height });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#debug-state")).toContainText("BOOT | Screen: title");
   await seedMinigamePage(page, fixture, "keyboard", { textScale: 1.5, reducedMotion: true });
   await pressGameKey(page, "W");
   await expect(page.locator("#debug-state")).toContainText(`Pos: (${closed.x + 1},${closed.y + closed.height})`);

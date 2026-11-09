@@ -60,6 +60,18 @@ describe("expanded cosmetic appearance", () => {
     });
   });
 
+  it("keeps eye color visible through spectacles in front and side views", () => {
+    const player = createPlayer("Fixture", stats, "knight", {
+      ...createCustomAppearance(knight), accessory: "spectacles", eyeColor: 0x335577,
+    });
+    for (const facing of ["front", "side"] as const) {
+      const before = createHeroArt(resolveHeroVisualDescriptor(player), facing, "standard").pixels;
+      player.customAppearance!.eyeColor = 0x997744;
+      expect(createHeroArt(resolveHeroVisualDescriptor(player), facing, "standard").pixels).not.toEqual(before);
+      player.customAppearance!.eyeColor = 0x335577;
+    }
+  });
+
   it("round-trips full customization and migrates v27 without changing mechanics or old appearance", () => {
     const appearance = {
       ...createCustomAppearance(knight), hairStyle: 7, facialHair: 3,

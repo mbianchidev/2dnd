@@ -201,6 +201,7 @@ export function createHumanoidArt(options: HumanoidArtOptions): PixelSurface {
     for (const x of side ? [18] : [11, 18]) {
       art.rect(x, 8, 5, 5, accent);
       art.rect(x + 1, 9, 3, 3, 0x9caeaa);
+      art.pixel(x + 2, 10, options.eyeColor ?? outline);
     }
     if (!side) art.rect(15, 9, 3, 1, accent);
   } else if (facing !== "back" && options.accessory === "earring") {

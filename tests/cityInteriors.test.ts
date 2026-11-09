@@ -68,6 +68,7 @@ describe("explorable city rooms", () => {
       for (const { chunk, building } of buildings) {
         expect(building.width, building.id).toBeGreaterThanOrEqual(3);
         expect(building.height, building.id).toBeGreaterThanOrEqual(3);
+        if (building.door) expect(isWalkable(chunk.mapData[building.door.y + 1]![building.door.x]!)).toBe(true);
         for (let y = building.y; y < building.y + building.height; y++) {
           for (let x = building.x; x < building.x + building.width; x++) {
             const door = building.door?.x === x && building.door?.y === y;

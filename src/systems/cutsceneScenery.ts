@@ -232,7 +232,7 @@ class SceneryBuilder {
     }
     this.rect(mixColor(c.ground, 0x111a26, 0.5), LEFT, 337, RIGHT - LEFT, GAME_HEIGHT - 273);
     for (let index = 0; index < 112; index++) {
-      const x = LEFT + artNoise(index, 41) % (RIGHT - LEFT);
+      const x = LEFT + artNoise(index, 41) % (RIGHT - LEFT - 32);
       const y = 242 + artNoise(19, index) % 90;
       const color = water ? c.water : c.ground;
       const width = water ? 8 + index % 20 : 2 + index % 5;

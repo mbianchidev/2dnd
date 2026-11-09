@@ -68,13 +68,16 @@ export function createMenuIconArt(id: MenuIconId): PixelSurface {
     line(3, 2, 3, 18); line(3, 2, 12, 2); line(12, 2, 12, 6); line(3, 18, 12, 18);
     line(7, 10, 18, 10); line(14, 6, 18, 10); line(18, 10, 14, 14);
     art.rect(5, 4, 2, 12, gold);
-  } else {
+  } else if (id === "resume" || id === "continue" || id === "newGame" || id === "newGamePlus") {
     art.polygon([{ x: 4, y: 3 }, { x: 16, y: 10 }, { x: 4, y: 17 }], ink);
     if (id === "continue") art.rect(2, 3, 1, 14, gold);
     if (id === "newGame" || id === "newGamePlus") {
       art.rect(12, 12, 7, 2, gold); art.rect(15, 9, 2, 8, gold);
       if (id === "newGamePlus") art.rect(2, 2, 2, 2, gold);
     }
+  } else {
+    const unsupported: never = id;
+    throw new Error(`[menu] Unsupported icon: ${unsupported}`);
   }
   return art;
 }

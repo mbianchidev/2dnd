@@ -135,6 +135,9 @@ export function addCityInteriors(source: CityData): CityData {
         for (let column = x - 1; column < x - 1 + width; column++) {
           if (!isBuildingGround(district.mapData[row]?.[column])) return false;
           if (column === district.spawnX && row === district.spawnY) return false;
+          if (district.buildings?.some((building) => building.door?.x === column && building.door.y + 1 === row)) return false;
+          if (connections.some((connection) => connection.toChunkIndex === districtIndex
+            && connection.toX === column && connection.toY === row)) return false;
         }
       }
       return true;

@@ -39,72 +39,6 @@ for (const textScale of [1, 1.25, 1.5] as const) {
           await waitForGameInputFrame(page);
           await expectCleanLayout(page);
         }
-
-        test("full-size street facades have real doors, while boarded residences cannot be entered", async ({ page }) => {
-          const errors = minigameBrowserErrors(page);
-          const city = getCity("willowdale_city")!;
-          const street = getCityChunk(city, 1)!;
-          const library = street.buildings!.find((building) => building.kind === "library")!;
-          const closed = street.buildings!.find((building) => building.kind === "residence")!;
-          const fixture = minigameFixture("willowdaleRange");
-          fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
-          fixture.player.progression.pendingCutsceneIds = [];
-          Object.assign(fixture.player.position, {
-            cityId: city.id, inCity: true, cityChunkIndex: 1, x: library.door!.x, y: library.door!.y + 1,
-          });
-          await page.goto("game.html", { waitUntil: "domcontentloaded" });
-          await seedMinigamePage(page, fixture, "keyboard", { textScale: 1.5, reducedMotion: true });
-          await expectCleanLayout(page);
-          const streetPath = test.info().outputPath("city-facades-150.png");
-          await page.locator("#game-container").screenshot({ path: streetPath });
-          await test.info().attach("City facades", { path: streetPath, contentType: "image/png" });
-          await stepGameTile(page, "W", library.door!.x, library.door!.y);
-          await pressGameKey(page, "Space");
-          const connection = getCityConnectionAt(city, 1, library.door!.x, library.door!.y)!;
-          await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:${connection.toChunkIndex}]`);
-          await expectCleanLayout(page);
-          await stepGameTile(page, "S", 10, 13);
-          await pressGameKey(page, "Space");
-          await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:1]`);
-          Object.assign(fixture.player.position, { x: closed.x + 1, y: closed.y + closed.height });
-          await seedMinigamePage(page, fixture, "keyboard", { textScale: 1.5, reducedMotion: true });
-          await pressGameKey(page, "W");
-          await expect(page.locator("#debug-state")).toContainText(`Pos: (${closed.x + 1},${closed.y + closed.height})`);
-          await pressGameKey(page, "Space");
-          await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:1]`);
-          expect(errors).toEqual([]);
-        });
-
-        for (const textScale of [1, 1.25, 1.5] as const) {
-          test(`menu icons, spatial navigation and inventory use clean ${textScale * 100}% panels`, async ({ page }) => {
-            const errors = minigameBrowserErrors(page);
-            const fixture = minigameFixture("willowdaleRange");
-            fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
-            fixture.player.progression.pendingCutsceneIds = [];
-            fixture.player.progression.debugDiscoveredFeatureIds = [...FEATURE_IDS];
-            await page.goto("game.html", { waitUntil: "domcontentloaded" });
-            await seedMinigamePage(page, fixture, "keyboard", { textScale, reducedMotion: true });
-            await pressGameKey(page, "Escape");
-            await expect(page.locator("#layout-report")).toContainText("escape-menu-icon-inventory");
-            await expectCleanLayout(page);
-            const path = test.info().outputPath(`adventure-menu-${textScale * 100}.png`);
-            await page.locator("#game-container").screenshot({ path });
-            await test.info().attach("Adventure menu", { path, contentType: "image/png" });
-            await pressGameKey(page, "ArrowRight");
-            await pressGameKey(page, "Enter");
-            await expect(page.locator("#debug-state")).toContainText("[PARTY:items");
-            await expectCleanLayout(page);
-            await pressGameKey(page, "Escape");
-            await pressGameKey(page, "Escape");
-            await clickLayoutItem(page, "escape-menu-resume");
-            await pressGameKey(page, "Escape");
-            await pressGameKey(page, "ArrowDown");
-            await pressGameKey(page, "Enter");
-            await expect(page.locator("#debug-state")).toContainText("[PARTY:status]");
-            await expectCleanLayout(page);
-            expect(errors).toEqual([]);
-          });
-        }
         const path = test.info().outputPath(`appearance-${index}.png`);
         await page.locator("#game-container").screenshot({ path });
         await test.info().attach(`appearance-${index}`, { path, contentType: "image/png" });
@@ -122,4 +56,70 @@ for (const textScale of [1, 1.25, 1.5] as const) {
       expect(errors).toEqual([]);
     });
   }
+}
+
+test("full-size street facades have real doors, while boarded residences cannot be entered", async ({ page }) => {
+  const errors = minigameBrowserErrors(page);
+  const city = getCity("willowdale_city")!;
+  const street = getCityChunk(city, 1)!;
+  const library = street.buildings!.find((building) => building.kind === "library")!;
+  const closed = street.buildings!.find((building) => building.kind === "residence")!;
+  const fixture = minigameFixture("willowdaleRange");
+  fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
+  fixture.player.progression.pendingCutsceneIds = [];
+  Object.assign(fixture.player.position, {
+    cityId: city.id, inCity: true, cityChunkIndex: 1, x: library.door!.x, y: library.door!.y + 1,
+  });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
+  await seedMinigamePage(page, fixture, "keyboard", { textScale: 1.5, reducedMotion: true });
+  await expectCleanLayout(page);
+  const streetPath = test.info().outputPath("city-facades-150.png");
+  await page.locator("#game-container").screenshot({ path: streetPath });
+  await test.info().attach("City facades", { path: streetPath, contentType: "image/png" });
+  await stepGameTile(page, "W", library.door!.x, library.door!.y);
+  await pressGameKey(page, "Space");
+  const connection = getCityConnectionAt(city, 1, library.door!.x, library.door!.y)!;
+  await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:${connection.toChunkIndex}]`);
+  await expectCleanLayout(page);
+  await stepGameTile(page, "S", 10, 13);
+  await pressGameKey(page, "Space");
+  await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:1]`);
+  Object.assign(fixture.player.position, { x: closed.x + 1, y: closed.y + closed.height });
+  await seedMinigamePage(page, fixture, "keyboard", { textScale: 1.5, reducedMotion: true });
+  await pressGameKey(page, "W");
+  await expect(page.locator("#debug-state")).toContainText(`Pos: (${closed.x + 1},${closed.y + closed.height})`);
+  await pressGameKey(page, "Space");
+  await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:1]`);
+  expect(errors).toEqual([]);
+});
+
+for (const textScale of [1, 1.25, 1.5] as const) {
+  test(`menu icons, spatial navigation and inventory use clean ${textScale * 100}% panels`, async ({ page }) => {
+    const errors = minigameBrowserErrors(page);
+    const fixture = minigameFixture("willowdaleRange");
+    fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
+    fixture.player.progression.pendingCutsceneIds = [];
+    fixture.player.progression.debugDiscoveredFeatureIds = [...FEATURE_IDS];
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
+    await seedMinigamePage(page, fixture, "keyboard", { textScale, reducedMotion: true });
+    await pressGameKey(page, "Escape");
+    await expect(page.locator("#layout-report")).toContainText("escape-menu-icon-inventory");
+    await expectCleanLayout(page);
+    const path = test.info().outputPath(`adventure-menu-${textScale * 100}.png`);
+    await page.locator("#game-container").screenshot({ path });
+    await test.info().attach("Adventure menu", { path, contentType: "image/png" });
+    await pressGameKey(page, "ArrowRight");
+    await pressGameKey(page, "Enter");
+    await expect(page.locator("#debug-state")).toContainText("[PARTY:items");
+    await expectCleanLayout(page);
+    await pressGameKey(page, "Escape");
+    await pressGameKey(page, "Escape");
+    await clickLayoutItem(page, "escape-menu-resume");
+    await pressGameKey(page, "Escape");
+    await pressGameKey(page, "ArrowDown");
+    await pressGameKey(page, "Enter");
+    await expect(page.locator("#debug-state")).toContainText("[PARTY:status]");
+    await expectCleanLayout(page);
+    expect(errors).toEqual([]);
+  });
 }

@@ -143,3 +143,27 @@ test("the largest known enemy group and full party fit at enlarged high-contrast
   await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
   expect(errors).toEqual([]);
 });
+
+test("a detached native command cannot act in a replacement battle", async ({ page }) => {
+  const errors = minigameBrowserErrors(page);
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
+  await seedMinigamePage(page, fixture(false), "keyboard", { reducedMotion: true, highContrast: false });
+  await command(page, "/spawn orc");
+  await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+  const oldAttack = await page.locator("#battle-vitals button[data-battle-action='attack']").elementHandle();
+  if (!oldAttack) throw new Error("Missing native attack counterpart.");
+  await command(page, "/kill");
+  await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+  expect(await oldAttack.evaluate((button) => button.isConnected)).toBe(false);
+  await command(page, "/battleview goblinRaidingParty forest day clear");
+  await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
+  await oldAttack.evaluate((button) => button.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await waitForGameInputFrame(page);
+  const state = await page.locator("#debug-state").textContent() ?? "";
+  expect(state).toContain("[TARGET:-]");
+  expect(state).toContain("main-ready");
+  await command(page, "/kill");
+  await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+  await oldAttack.dispose();
+  expect(errors).toEqual([]);
+});

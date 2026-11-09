@@ -111,7 +111,10 @@ export class BattleHudRenderer {
     button.tabIndex = -1;
     button.textContent = label;
     button.dataset.battleAction = action;
-    button.addEventListener("click", activate);
+    const root = this.native;
+    button.addEventListener("click", () => {
+      if (this.native === root && button.isConnected && !button.disabled) activate();
+    });
     this.native.append(button);
     this.commands.set(action, button);
   }
@@ -283,6 +286,7 @@ export class BattleHudRenderer {
     this.enemyGroup?.destroy(true);
     this.partyGroup = this.enemyGroup = null;
     this.background = null;
+    for (const button of this.commands.values()) button.disabled = true;
     this.native?.remove();
     this.native = null;
     this.partyRows.clear();

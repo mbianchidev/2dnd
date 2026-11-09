@@ -118,6 +118,8 @@ transparent foot padding and every grounded action/reaction pose.
 resource ratios, contrast and unknown-HP redaction. `e2e/battle-hud.spec.ts`
 verifies all action icons, real HP/MP changes, native meters, known/unknown
 enemy rows and full-party layouts through 150% high-contrast text.
+Retain a removed native action node across battle replacement and prove its
+queued click cannot start an action or targeting in the new scene.
 
 The `e2e/*.spec.ts` suites own real browser behavior:
 

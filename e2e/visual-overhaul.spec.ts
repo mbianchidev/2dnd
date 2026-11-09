@@ -3,6 +3,8 @@ import { SAVE_VERSION } from "../src/systems/save";
 import { getCity, getCityChunk, getCityConnectionAt } from "../src/data/map";
 import { CUTSCENE_IDS } from "../src/data/cutscenes";
 import { FEATURE_IDS } from "../src/data/featureDiscovery";
+import { revealFeature } from "../src/systems/featureDiscovery";
+import { recruitCompanion } from "../src/systems/party";
 import { pressGameKey, stepGameTile } from "./helpers/input";
 import { clickLayoutItem, expectCleanLayout, waitForGameInputFrame } from "./helpers/layout";
 import { minigameBrowserErrors, minigameFixture, seedMinigamePage } from "./helpers/minigames";
@@ -99,7 +101,8 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     const fixture = minigameFixture("willowdaleRange");
     fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
     fixture.player.progression.pendingCutsceneIds = [];
-    fixture.player.progression.debugDiscoveredFeatureIds = [...FEATURE_IDS];
+    recruitCompanion(fixture.player, "guardian");
+    for (const id of FEATURE_IDS) revealFeature(fixture.player, id, { debug: true, notify: false });
     await page.goto("game.html", { waitUntil: "domcontentloaded" });
     await seedMinigamePage(page, fixture, "keyboard", { textScale, reducedMotion: true });
     await pressGameKey(page, "Escape");

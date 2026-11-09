@@ -19,6 +19,7 @@ export {
   type DungeonData, type DungeonLevel, type DungeonConnection,
   type ChestData, type ChestLocation,
   type CityShopData, type CityData, type CityChunk, type CityConnection,
+  type CityBuildingData,
 } from "./mapTypes";
 export {
   LEGACY_TRAP_SEED,

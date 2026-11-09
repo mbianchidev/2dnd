@@ -12,6 +12,8 @@ describe("shared menu art direction", () => {
     expect(getGameTextStyle(body)).toEqual({ ...body, fontFamily: UI_FONT_BODY, backgroundColor: UI_CSS.raised });
     expect(body.backgroundColor).toBe("#2a2a4e");
     expect(getGameTextStyle({ fontSize: "24px" }).fontFamily).toBe(UI_FONT_DISPLAY);
+    expect(getGameTextStyle({ fontFamily: "monospace", fontSize: "16px" }).fontFamily).toBe(UI_FONT_DISPLAY);
+    expect(getGameTextStyle({ backgroundColor: "#4a3f6b" }).backgroundColor).toBe(UI_CSS.selected);
     expect(getGameTextStyle({ fontFamily: "Specialty", fontSize: "12px" }).fontFamily).toBe("Specialty");
   });
 

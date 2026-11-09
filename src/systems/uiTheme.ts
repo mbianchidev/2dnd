@@ -22,8 +22,9 @@ export const UI_CSS = {
 } as const;
 
 const LEGACY_BACKGROUNDS: ReadonlySet<string> = new Set([
-  "#1a1a2e", "#2a2a4e", "#20273a", "#29324a", "#334351", "#333355", "#222244",
+  "#1a1a2e", "#2a2a4e", "#20273a", "#29324a", "#334351", "#333355", "#222244", "#242238",
 ]);
+const LEGACY_SELECTED_BACKGROUNDS: ReadonlySet<string> = new Set(["#4a3f6b", "#302a46", "#3a3a6e"]);
 
 /** Resolve typography before text is measured; explicit specialty fonts remain untouched. */
 export function getGameTextStyle(
@@ -31,10 +32,12 @@ export function getGameTextStyle(
 ): Phaser.Types.GameObjects.Text.TextStyle {
   const size = Number.parseFloat(String(style.fontSize ?? 16));
   const fontFamily = !style.fontFamily || style.fontFamily === "monospace"
-    ? size >= 18 ? UI_FONT_DISPLAY : UI_FONT_BODY : style.fontFamily;
+    ? size >= 16 ? UI_FONT_DISPLAY : UI_FONT_BODY : style.fontFamily;
   return {
     ...style, fontFamily,
     ...(style.backgroundColor && LEGACY_BACKGROUNDS.has(style.backgroundColor.toLowerCase())
       ? { backgroundColor: UI_CSS.raised } : {}),
+    ...(style.backgroundColor && LEGACY_SELECTED_BACKGROUNDS.has(style.backgroundColor.toLowerCase())
+      ? { backgroundColor: UI_CSS.selected } : {}),
   };
 }

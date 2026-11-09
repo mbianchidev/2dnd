@@ -5,12 +5,15 @@ import { artNoise } from "../systems/pixelArt";
 
 export class DungeonLightingRenderer {
   private graphics: Phaser.GameObjects.Graphics | null = null;
+  private lifecycleBound = false;
 
-  constructor(private readonly scene: Phaser.Scene) {
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clear());
-  }
+  constructor(private readonly scene: Phaser.Scene) {}
 
   render(map: Terrain[][], level: number, isExplored: (x: number, y: number) => boolean): void {
+    if (!this.lifecycleBound) {
+      this.lifecycleBound = true;
+      this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clear());
+    }
     if (!this.graphics) this.graphics = this.scene.add.graphics().setDepth(6);
     const graphics = this.graphics.clear();
     let count = 0;

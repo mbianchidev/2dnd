@@ -85,13 +85,14 @@ export class FogOfWar {
           this.exploredTiles[this.cityKey(city.id, district, x, y)] = true;
         }
 
-        private isBuildingInterior(player: PlayerState): boolean {
-          if (!player.position.inCity || player.position.inDungeon) return false;
-          const city = getCity(player.position.cityId);
-          return !!city && !!getCityChunk(city, player.position.cityChunkIndex)?.interior;
-        }
       }
     }
+  }
+
+  private isBuildingInterior(player: PlayerState): boolean {
+    if (!player.position.inCity || player.position.inDungeon) return false;
+    const city = getCity(player.position.cityId);
+    return !!city && !!getCityChunk(city, player.position.cityChunkIndex)?.interior;
   }
 
   private cityKey(cityId: string, district: number, x: number, y: number): string {

@@ -17,8 +17,14 @@ function createRoom(
   const props: InteriorPropData[] = [];
   const prop = (kind: InteriorPropData["kind"], label: string, x: number, y: number,
     reward?: InteriorPropData["reward"], text?: readonly string[]): void => {
-    props.push({ id: `interior:${city.id}:${interior.id}:${kind}:${x},${y}`, kind, label, x, y, reward, text });
-    if (kind !== "rug") map[y]![x] = Terrain.CityWall;
+    const width = kind === "rug" ? 3 : kind === "sack" || kind === "plant" ? 1 : 2;
+    const height = ["bookshelf", "rack", "pantry", "bed", "hearth", "rug"].includes(kind) ? 2 : 1;
+    props.push({ id: `interior:${city.id}:${interior.id}:${kind}:${x},${y}`, kind, label, x, y, width, height, reward, text });
+    if (kind !== "rug") {
+      for (let row = y; row < y + height; row++) for (let column = x; column < x + width; column++) {
+        map[row]![column] = Terrain.CityWall;
+      }
+    }
   };
   const library = interior.kind === "library";
   if (library) {
@@ -34,7 +40,6 @@ function createRoom(
   } else if (interior.kind === "home") {
     prop("hearth", "Warm hearth", 4, 4);
     prop("bed", "Guest bed", 14, 4);
-    prop("bed", "Guest bed", 15, 4);
     prop("table", "Kitchen table", 10, 8);
     prop("pantry", "Offered pantry supplies", 4, 9, { itemId: "wildHerbs" });
     prop("sack", "Traveler's purse", 15, 10, { gold: 4 });
@@ -50,7 +55,7 @@ function createRoom(
       prop("pantry", "Offered pantry supplies", 15, 10, { itemId: "wildHerbs" });
       prop("bed", "Resting alcove", 5, 7);
     } else prop("plant", "Potted fern", 4, 7);
-    prop("bookshelf", "Shopkeeper's journal", 6, 8);
+    prop("bookshelf", "Shopkeeper's journal", 8, 3);
     map[6]![10] = Terrain.Carpet;
   }
   for (let y = 3; y < 10; y++) if (y !== 7 && y !== 8) map[y]![12] = Terrain.CityWall;

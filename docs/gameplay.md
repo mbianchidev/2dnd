@@ -162,7 +162,8 @@ Use Z, L3, or the visible skip button. Details join the normal Battle log,
 which resets when the battle ends; there is no second visible result strip or
 separate roll log.
 With animation enabled, dice travel and tumble across the game with bouncing
-shadows, then settle on those exact faces. They never intercept controls or
+shadows, then reveal those exact faces and detailed results only after stopping.
+They never intercept controls or
 hold a turn; skip, Instant and reduced motion retain static readable results.
 Roll displays start enabled. Settings can turn ordinary displays Off; natural20
 attack crits and natural1 fumbles always appear. Instant/reduced motion still
@@ -181,6 +182,14 @@ time. Esc/B or Pause reads the log; Enter/A or Resume continues without acting.
 See [Timed battle decisions](battle-timing.md) for reload and control details.
 
 ## Exploration
+
+The HUD shows a north-up local minimap with known doors, stairs and landmarks.
+Unexplored terrain and hidden markers stay concealed. Enter building doors
+with the normal interact action, explore furnished shop rooms, libraries and
+guesthouses, and search offered sacks and pantries for small one-time supplies.
+Read library books for history and, with the required caster ranks and scores,
+rare extra spells. Trading uses the shop counter; see
+[Graphics and building exploration](graphics.md) for controls and persistence.
 
 The world contains 90 legacy-compatible chunks, 13 cities including optional
 Tidehaven, and four multi-level dungeons including Tideglass Grotto. Exploration

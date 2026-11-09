@@ -62,8 +62,8 @@ export function getTerrainArtKey(spec: TerrainArtSpec): string {
   return `terrain-${spec.terrain}-${spec.ground}-${spec.edges}-${spec.variant}`;
 }
 
-function paintGround(art: PixelSurface, terrain: Terrain, variant: number): void {
-  const color = WORLD_ART_COLORS[terrain];
+function paintGround(art: PixelSurface, terrain: Terrain, variant: number, overrideColor?: number): void {
+  const color = overrideColor ?? WORLD_ART_COLORS[terrain];
   art.rect(0, 0, 32, 32, color);
   for (let y = 0; y < 32; y++) {
     for (let x = 0; x < 32; x++) {
@@ -149,7 +149,8 @@ function drawWater(art: PixelSurface, spec: TerrainArtSpec): void {
 
 function drawWall(art: PixelSurface, spec: TerrainArtSpec): void {
   const dungeon = spec.terrain === Terrain.DungeonWall;
-  const color = dungeon ? 0x737467
+  const color = dungeon ? spec.ground === Terrain.Tundra ? 0x91b7bb
+    : spec.ground === Terrain.Volcanic ? 0x946953 : spec.ground === Terrain.Water ? 0x738f91 : 0x737467
     : spec.ground === Terrain.Sand || spec.ground === Terrain.Canyon ? 0xc3aa7a
       : spec.ground === Terrain.Tundra ? 0xabbcc0
         : spec.ground === Terrain.Swamp ? 0x888672
@@ -269,17 +270,35 @@ function drawProp(art: PixelSurface, terrain: Terrain, variant: number): void {
   }
 }
 
+export function createFountainPropArt(): PixelSurface {
+  const art = new PixelSurface(32, 32);
+  drawProp(art, Terrain.Fountain, 0);
+  return art;
+}
+
 export function createTerrainArt(spec: TerrainArtSpec): PixelSurface {
   const art = new PixelSurface(32, 32);
   const terrain = spec.terrain;
   const object = groundFor(terrain) !== terrain;
-  paintGround(art, object ? spec.ground : terrain, spec.variant);
+  const dungeonFloor = [Terrain.DungeonFloor, Terrain.DungeonExit, Terrain.DungeonStairs, Terrain.DungeonBoss, Terrain.Chest].includes(terrain);
+  const floorColor = dungeonFloor ? spec.ground === Terrain.Tundra ? 0x788f9b
+    : spec.ground === Terrain.Volcanic ? 0x78614f : spec.ground === Terrain.Water ? 0x637e81 : undefined : undefined;
+  paintGround(art, object ? spec.ground : terrain, spec.variant, floorColor);
   if (terrain === Terrain.Water || terrain === Terrain.River) drawWater(art, spec);
   else if (terrain === Terrain.Forest || terrain === Terrain.DeepForest) drawTree(art, spec.variant, terrain === Terrain.DeepForest);
   else if (terrain === Terrain.Mountain) drawMountain(art, spec.variant, spec.ground === Terrain.Tundra);
   else if (terrain === Terrain.CityWall || terrain === Terrain.DungeonWall) drawWall(art, spec);
   else if (terrain === Terrain.Path || terrain === Terrain.CityPath || terrain === Terrain.DungeonFloor) {
-    drawPath(art, WORLD_ART_COLORS[terrain], spec.variant);
+    drawPath(art, floorColor ?? WORLD_ART_COLORS[terrain], spec.variant);
+    if (terrain === Terrain.DungeonFloor && spec.ground === Terrain.Tundra) {
+      art.line(4, 3, 13, 9, 0xb4ced1);
+      art.line(13, 9, 11, 17, 0x95b9c3);
+      art.line(22, 23, 28, 28, 0xb4ced1);
+    } else if (terrain === Terrain.DungeonFloor && spec.ground === Terrain.Volcanic) {
+      art.line(3, 7, 12, 12, 0xa77e55);
+      art.line(12, 12, 9, 26, 0x846647);
+      art.line(12, 12, 27, 21, 0xb18b59);
+    }
   } else if (terrain === Terrain.Town || terrain === Terrain.House || terrain === Terrain.Temple || terrain === Terrain.Mill || terrain === Terrain.Casino) {
     drawWorldBuilding(art, terrain === Terrain.Temple ? 0x4d7890 : terrain === Terrain.Casino ? 0x826a97 : 0xb07449, terrain === Terrain.Temple);
     if (terrain === Terrain.Mill) {

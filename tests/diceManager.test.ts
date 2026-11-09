@@ -114,9 +114,9 @@ describe("scene-scoped dice ownership", () => {
     scenes.push(overworld.scene);
     const manager = installDicePresentation(overworld.scene);
     manager.present(roll());
-    const duration = overworld.timers[0]!.duration;
-    expect(overworld.timers[1]?.duration).toBe(duration + TRANSIENT_DICE_HOLD_MS);
+    expect(overworld.timers).toHaveLength(1);
     overworld.timers[0]!.complete();
+    expect(overworld.timers[1]?.duration).toBe(TRANSIENT_DICE_HOLD_MS);
     const cancelCue = vi.mocked(audioEngine.playDiceCue).mock.results.slice(-1)[0]?.value;
     expect(cancelCue).not.toHaveBeenCalled();
     overworld.timers[1]!.complete();

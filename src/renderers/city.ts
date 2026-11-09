@@ -216,7 +216,7 @@ export class CityRenderer {
   ): void {
     // Biome-based roof colour palettes
     const BIOME_ROOF_COLORS: Record<number, { base: number; ridge: number; border: number }> = {
-      [Terrain.Grass]:      { base: 0x8d6e63, ridge: 0x6d4c41, border: 0x4e342e },
+      [Terrain.Grass]:      { base: 0xa56c48, ridge: 0x714731, border: 0x473928 },
       [Terrain.Forest]:     { base: 0x5d7a4f, ridge: 0x3e5a30, border: 0x2e4420 },
       [Terrain.DeepForest]: { base: 0x4a6040, ridge: 0x334830, border: 0x223420 },
       [Terrain.Sand]:       { base: 0xc8a864, ridge: 0xa08844, border: 0x806830 },
@@ -299,7 +299,7 @@ export class CityRenderer {
       const typeShift = shop.type === "inn" ? 0x101010 : shop.type === "weapon" ? -0x080808 : 0;
       const roofColor = Math.max(0, palette.base + typeShift);
       drawBuildingExterior(gfx, {
-        x: bx, y: by, width: bw, height: bh, doorX: shop.x * TILE_SIZE + TILE_SIZE / 2,
+        x: bx, y: by, width: bw, height: bh + TILE_SIZE, doorX: shop.x * TILE_SIZE + TILE_SIZE / 2,
       }, roofColor);
 
       this.shopRoofGraphics.push(gfx);

@@ -54,6 +54,13 @@ campaign schema for these preferences.
 
 `SAVE_VERSION` is 27.
 
+Building rooms reuse city chunk positions and do not change this schema.
+Furnishing claims use `collectedTreasures`; only canonical `study:<id>` tokens
+carry permanent manuscript spell authority across normalization and NG+.
+Validate owned base ranks, keep studies out of legacy/path grants, preserve
+exact equipment links and roll back failed claims. Room fog is derived.
+See [`docs/graphics.md`](../../../docs/graphics.md).
+
 Schema v27 adds nullable validated NG+ cycle metadata and the one registered
 epic rank map, total cap 30 only in NG+. Keep base/prestige allocation at most
 20. Missing/malformed modern cycle authority rejects a candidate; older saves

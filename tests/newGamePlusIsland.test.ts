@@ -50,8 +50,8 @@ describe("NG+ secret Starfall Atoll", () => {
     const city = getCity(island.cityId!);
     expect(city).toBeDefined();
     expect(CITIES).toContain(city);
-    expect(city!.chunks).toBeUndefined();
-    expect(city!.connections).toEqual([]);
+    expect((city!.chunks ?? []).every((chunk) => chunk.interior !== undefined)).toBe(true);
+    expect(city!.connections.every((connection) => connection.fromChunkIndex === 0 || connection.toChunkIndex === 0)).toBe(true);
     expect(isWalkable(city!.mapData[city!.spawnY]![city!.spawnX]!)).toBe(true);
     expect(city!.mapData[14]![10]).toBe(Terrain.CityExit);
     expect(getAdjacentCodexReadable(city!.id, 0, 10, 5)?.id).toBe("starfallRememberedChart");

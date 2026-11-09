@@ -72,6 +72,19 @@ including loaded/returned city states. Overworld and dungeon fog remain
 exploration-based. Archery targets and seated dice players are non-blocking
 world props with the same canonical activity IDs and interaction transactions.
 
+Building rooms append to the existing district registry through
+`data/cityInteriors.ts`. Their static footprints drive collision, visible props
+and fresh adjacent interactions. Rooms use the existing city position and
+connection contract, while original shop IDs remain authoritative for prices,
+negotiations and crafting discovery. Room visibility is derived rather than
+adding redundant persistent fog keys. See [Graphics](graphics.md).
+
+Shared raster art lives in `systems/pixelArt.ts`, `terrainArt.ts`,
+`humanoidArt.ts` and `monsterArt.ts`; `renderers/pixelTexture.ts` uploads
+bounded nearest-scaled textures. Actor frames, trails and impacts consume
+resolved outcomes without gameplay RNG or mutation. Minimap output redacts
+unknown terrain and marks only known local information.
+
 City and cutscene NPCs share `systems/npcVisuals.ts` and
 `renderers/npcTextures.ts`: canonical named NPC IDs resolve their actual template,
 skin, hair and clothes without whole-body tinting. Cutscene bosses use their

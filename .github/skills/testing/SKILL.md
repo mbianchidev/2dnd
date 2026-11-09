@@ -89,6 +89,11 @@ no-op application, one saved cause, storage failure rollback, manual-source
 immutability, Custom/preset round trips, and bounded-history continuity.
 
 ### What TO Test
+✅ Deterministic bounded raster art, all creature families/poses, stable body
+anchors, room footprints/doors, fixed reward rollback and repeat/reload
+protection, canonical study recovery, shop identity continuity, fog-redacted
+minimaps and exact dice concealment until settling. Real screenshots, all text
+scales, actual room input and mask-free trading belong in Playwright.
 ✅ Dice probability distributions
 ✅ Combat calculation accuracy  
 ✅ Group initiative, formation, targeting, synergies, rewards, and encounter budgets

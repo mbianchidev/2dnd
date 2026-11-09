@@ -483,13 +483,28 @@ describe("non-blocking dice presentation lifecycle", () => {
     const { controller, adapter, scheduled } = setup("transient");
     controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
     expect(adapter.schedule).toHaveBeenNthCalledWith(1, 900, expect.any(Function));
-    expect(adapter.schedule).toHaveBeenNthCalledWith(2, 900 + TRANSIENT_DICE_HOLD_MS, expect.any(Function));
+    expect(adapter.schedule).toHaveBeenCalledOnce();
     scheduled[0]!();
+    expect(adapter.schedule).toHaveBeenNthCalledWith(2, TRANSIENT_DICE_HOLD_MS, expect.any(Function));
     expect(controller.phase).toBe("ready");
     expect(adapter.dismiss).not.toHaveBeenCalled();
     scheduled[1]!();
     expect(adapter.dismiss).toHaveBeenCalledWith(DICE_FADE_MS);
     expect(controller.history).toEqual([]);
+  });
+
+  it("starts the full reading interval when a transient throw is skipped, not when it started", () => {
+    const { controller, adapter, scheduled } = setup("transient");
+    controller.present(presentation(), { frequency: "all", speed: "normal" }, false);
+    expect(adapter.schedule).toHaveBeenCalledOnce();
+    controller.fastForward();
+    expect(adapter.record).toHaveBeenCalledOnce();
+    expect(adapter.schedule).toHaveBeenLastCalledWith(TRANSIENT_DICE_HOLD_MS, expect.any(Function));
+    scheduled[0]!();
+    expect(adapter.record).toHaveBeenCalledOnce();
+    expect(adapter.dismiss).not.toHaveBeenCalled();
+    scheduled[1]!();
+    expect(adapter.dismiss).toHaveBeenCalledWith(DICE_FADE_MS);
   });
 
   it("expires static reduced-motion results without a fade or outcome callback", () => {

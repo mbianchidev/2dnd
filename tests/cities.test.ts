@@ -11,6 +11,7 @@ import {
   getCityForTown,
   getCityShopAt,
   getCityChunkCount,
+  getCityDistrictCount,
   getCityChunk,
   getCityChunkMap,
   getCityChunkSpawn,
@@ -130,10 +131,10 @@ describe("multi-chunk city helpers", () => {
       expect(getCityChunkCount(city)).toBe(1);
     });
 
-    it("returns 2 for all cities with one extra chunk", () => {
-      for (const city of CITIES.filter((candidate) => candidate.chunks?.length === 1)) {
-        expect(getCityChunkCount(city)).toBe(2);
-      }
+    it("counts only street districts separately from appended building rooms", () => {
+      const cities = CITIES.filter((city) => city.id !== "starfall_atoll");
+      expect(cities).toHaveLength(13);
+      for (const city of cities) expect(getCityDistrictCount(city)).toBe(2);
     });
 
     it("returns correct count for multiple extra chunks", () => {
@@ -166,8 +167,7 @@ describe("multi-chunk city helpers", () => {
 
     it("returns undefined for out-of-range index", () => {
       const city = getCity("willowdale_city")!;
-      // Willowdale has chunks[0] at index 1, so index 2+ should be undefined
-      expect(getCityChunk(city, 2)).toBeUndefined();
+      expect(getCityChunk(city, getCityChunkCount(city))).toBeUndefined();
       expect(getCityChunk(city, 99)).toBeUndefined();
     });
 
@@ -194,7 +194,7 @@ describe("multi-chunk city helpers", () => {
 
     it("falls back to primary map for invalid index", () => {
       const city = getCity("willowdale_city")!;
-      const map = getCityChunkMap(city, 5);
+      const map = getCityChunkMap(city, getCityChunkCount(city));
       expect(map).toBe(city.mapData);
     });
   });
@@ -263,7 +263,8 @@ describe("multi-chunk city helpers", () => {
     it("returns city name plus district names for all cities", () => {
       const city = getCity("willowdale_city")!;
       const names = getCityChunkNames(city);
-      expect(names).toEqual(["Willowdale", "Riverside"]);
+      expect(names.slice(0, 2)).toEqual(["Willowdale", "Riverside"]);
+      expect(names).toHaveLength(getCityChunkCount(city));
     });
 
     it("returns all chunk names for multi-chunk city", () => {
@@ -484,12 +485,13 @@ describe("multi-chunk city save/load", () => {
 });
 
 describe("existing city data integrity", () => {
-  const districtCities = CITIES.filter((city) => city.chunks?.length === 1);
+  const districtCities = CITIES.filter((city) => getCityDistrictCount(city) === 2);
 
-  it("all thirteen ordinary cities retain 2 chunks (primary + 1 district)", () => {
+  it("all thirteen ordinary cities retain their primary and street district before building rooms", () => {
     expect(districtCities).toHaveLength(13);
     for (const city of districtCities) {
-      expect(getCityChunkCount(city), `${city.name} should have 2 chunks`).toBe(2);
+      expect(getCityDistrictCount(city), `${city.name} should retain 2 street districts`).toBe(2);
+      expect(getCityChunkCount(city)).toBeGreaterThan(2);
     }
   });
 

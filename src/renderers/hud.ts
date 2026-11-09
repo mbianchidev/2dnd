@@ -44,11 +44,10 @@ export class HUDRenderer {
   private visible = false;
   private dataset = "";
 
-  constructor(private readonly scene: Phaser.Scene) {
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clear());
-  }
+  constructor(private readonly scene: Phaser.Scene) {}
 
   createHUD(): void {
+    this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clear());
     this.group = createOverlayContainer(this.scene, "exploration-minimap", 19, {
       x: 0, y: 0, width: this.scene.cameras.main.width, height: this.scene.cameras.main.height,
     }).setVisible(false);

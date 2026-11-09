@@ -846,6 +846,10 @@ export function getCityChunkCount(city: CityData): number {
   return 1 + (city.chunks?.length ?? 0);
 }
 
+export function getCityDistrictCount(city: CityData): number {
+  return 1 + (city.chunks ?? []).filter((chunk) => !chunk.interior).length;
+}
+
 /**
  * Get a specific city chunk by index.
  * Index 0 returns the primary chunk built from the city's top-level fields.

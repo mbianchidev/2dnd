@@ -198,6 +198,7 @@ export const STARFALL_ATOLL: CityData = {
 export const TIDEGLASS_GROTTO: DungeonData = {
   id: "tideglass_grotto",
   name: "Tideglass Grotto",
+  visualTheme: "grotto",
   entranceChunkX: 4,
   entranceChunkY: 2,
   entranceTileX: 7,

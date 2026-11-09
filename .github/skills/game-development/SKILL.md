@@ -32,6 +32,10 @@ and changes spanning scenes, systems, data, renderers, or managers.
 
 City interiors and all connected districts reveal on entry/load through
 `FogOfWar.revealCity()`, without changing wilderness/dungeon fog.
+Appended building rooms derive full visibility without storing redundant fog
+tiles. Shared raster art and room ownership are documented in
+[`docs/graphics.md`](../../../docs/graphics.md): preserve footprints, original
+shop identities, atomic fixed rewards and canonical permanent study sources.
 Named story NPCs share canonical `npcVisuals.ts` / `npcTextures.ts` appearance
 with their city actors; bosses use monster-family textures, not generic bodies.
 

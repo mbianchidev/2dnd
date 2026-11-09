@@ -94,6 +94,13 @@ SDK invocation. No partner IDs, login or real upload is involved.
 
 ## Playwright responsibilities
 
+`e2e/graphics-overhaul.spec.ts` captures actual world, city, library and dungeon
+scenes at every supported text scale, exercises physical shop doors, offered
+supplies and repeat/reload recovery, and visits every monster family. It
+asserts that exact die faces stay hidden until a real throw stops or is skipped.
+Pure raster, footprint, guarded claim/study and minimap-redaction suites keep
+Phaser and gameplay RNG out of the corresponding mechanics.
+
 The `e2e/*.spec.ts` suites own real browser behavior:
 
 - landing-page content, responsive layout, screenshots, and browser/download links

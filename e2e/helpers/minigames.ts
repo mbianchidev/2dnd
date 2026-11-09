@@ -181,7 +181,7 @@ export async function seedMinigamePage(
   page: Page,
   save: SaveData,
   source: MinigameTestSource,
-  options: { reducedMotion?: boolean; textScale?: 1 | 1.25 | 1.5; touchControls?: "on" | "off" } = {},
+  options: { reducedMotion?: boolean; textScale?: 1 | 1.25 | 1.5; touchControls?: "on" | "off"; highContrast?: boolean } = {},
 ): Promise<void> {
   if (source === "touch" && await page.evaluate(() => window.desktop !== undefined)) {
     await enableNativeCanvasTouch(page);
@@ -198,7 +198,7 @@ export async function seedMinigamePage(
       accessibility: {
         reducedMotion: options.reducedMotion ?? true,
         textScale: options.textScale ?? (source === "touch" ? 1.5 : source === "gamepad" ? 1.25 : 1),
-        highContrast: true, advanceMode: "manual",
+        highContrast: options.highContrast ?? true, advanceMode: "manual",
       },
       controls: { touchControls: options.touchControls ?? (source === "touch" ? "on" : "off"), handedness: "right", promptSource: "auto" },
     },

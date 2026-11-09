@@ -76,7 +76,7 @@ export const PERIOD_TINT: Record<TimePeriod, number> = {
   [TimePeriod.Day]: 0xffffff,
   [TimePeriod.Dusk]: 0xffa570,
   [TimePeriod.Night]: 0x6688cc,
-  [TimePeriod.Dungeon]: 0x556688,
+  [TimePeriod.Dungeon]: 0xc0c8d0,
 };
 
 /** Human-readable emoji + label for the HUD. */

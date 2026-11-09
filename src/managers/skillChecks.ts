@@ -7,7 +7,6 @@ import {
 import { getNpcTemplate } from "../data/npcs";
 import {
   applyNonlethalDamage,
-  formatSkillCheckResult,
   getMinorTreasureGold,
   getMinorTreasureMaterialId,
   rollSkillCheck,
@@ -69,7 +68,7 @@ export class SkillCheckManager {
       : `You miss the cache but recover ${goldAmount} loose gold.`;
     this.callbacks.presentRoll?.(result, "Hidden cache Wisdom check");
     this.callbacks.showMessage(
-      `Wisdom check (${formatSkillCheckResult(result)}): ${outcome}`,
+      `Wisdom check: ${outcome}`,
       result.success ? "#4fc3f7" : "#ffcc80",
     );
     this.callbacks.updateHUD();
@@ -105,7 +104,7 @@ export class SkillCheckManager {
     }
 
     this.callbacks.showMessage(
-      `${abilityLabel} check (${formatSkillCheckResult(result)}): ${consequence}`,
+      `${abilityLabel} check: ${consequence}`,
       result.success ? "#88ff88" : "#ff8888",
     );
     this.callbacks.presentRoll?.(result, `${abilityLabel} exploration check`);
@@ -156,7 +155,7 @@ export class SkillCheckManager {
     this.callbacks.presentRoll?.(result, `${speaker}: ${approach}`);
     dialogueSystem.showSpecialDialogue(
       speaker,
-      `${approach} (${formatSkillCheckResult(result)}): ${consequence}`,
+      `${approach}: ${consequence}`,
     );
     debugPanelLog(
       `[CHECK] ${challenge.id}: ${result.success ? "success" : "failure"} (${result.total}/${result.dc})`,
@@ -184,11 +183,11 @@ export class SkillCheckManager {
           const previousHp = player.hp;
           player.hp = applyNonlethalDamage(player.hp, chest.trapDamage);
           feedback.push(
-            `Dexterity check (${formatSkillCheckResult(result)}): the trap fires for ${previousHp - player.hp} HP.`,
+            `Dexterity check: the trap fires for ${previousHp - player.hp} HP.`,
           );
         } else {
           feedback.push(
-            `Dexterity check (${formatSkillCheckResult(result)}): lock and trap defeated.`,
+            `Dexterity check: lock and trap defeated.`,
           );
         }
         this.callbacks.presentRoll?.(result, "Chest Dexterity check");
@@ -209,11 +208,11 @@ export class SkillCheckManager {
           const gold = scaleReward(chest.secretGold, "gold", rules);
           player.gold += gold;
           feedback.push(
-            `Wisdom check (${formatSkillCheckResult(result)}): found ${gold} hidden gold.`,
+            `Wisdom check: found ${gold} hidden gold.`,
           );
         } else {
           feedback.push(
-            `Wisdom check (${formatSkillCheckResult(result)}): no hidden compartment found.`,
+            `Wisdom check: no hidden compartment found.`,
           );
         }
         this.callbacks.presentRoll?.(result, "Chest Wisdom check");

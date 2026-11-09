@@ -1,11 +1,16 @@
 import type * as Phaser from "phaser";
-import { Terrain } from "../data/mapTypes";
+import { Terrain, type DungeonData } from "../data/mapTypes";
 import { PixelSurface } from "../systems/pixelArt";
 import {
-  createTerrainArt, getTerrainArtKey, getTerrainArtSpec,
+  createTerrainArt, createFountainPropArt, getTerrainArtKey, getTerrainArtSpec,
   type TerrainArtSpec,
 } from "../systems/terrainArt";
 import { createPixelTexture } from "./pixelTexture";
+
+export function getDungeonArtGround(dungeon: DungeonData): Terrain {
+  return dungeon.visualTheme === "ice" ? Terrain.Tundra : dungeon.visualTheme === "forge" ? Terrain.Volcanic
+    : dungeon.visualTheme === "grotto" ? Terrain.Water : Terrain.DungeonFloor;
+}
 
 export function getOrCreateTerrainTexture(scene: Phaser.Scene, map: Terrain[][], x: number, y: number, ground?: Terrain): string {
   const original = getTerrainArtSpec(map, x, y);
@@ -16,6 +21,7 @@ export function getOrCreateTerrainTexture(scene: Phaser.Scene, map: Terrain[][],
 }
 
 export function generateTerrainTextures(scene: Phaser.Scene): void {
+  createPixelTexture(scene, "prop_fountain", createFountainPropArt());
   const terrains = Object.values(Terrain).filter((value): value is Terrain => typeof value === "number");
   for (const terrain of terrains) {
     const spec = getTerrainArtSpec([[terrain]], 0, 0);

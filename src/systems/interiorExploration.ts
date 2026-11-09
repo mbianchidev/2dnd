@@ -7,6 +7,7 @@ import { debugLog } from "../config";
 import { unlockCodexEntries, type CodexData } from "./codex";
 import { getCampaignDifficultyRules, scaleReward } from "./difficulty";
 import type { PlayerState } from "./player";
+import { getInteriorPropDistance } from "./interiorLayout";
 
 export interface InteriorExplorationResult {
   readonly ok: boolean;
@@ -22,7 +23,7 @@ export function getCityInteriorProp(player: PlayerState, id?: string): InteriorP
   const room = city ? getCityChunk(city, position.cityChunkIndex) : undefined;
   return room?.interior?.props.find((prop) => (!id || prop.id === id)
     && (prop.reward || prop.kind === "counter")
-    && Math.abs(prop.x - position.x) + Math.abs(prop.y - position.y) <= 1);
+    && getInteriorPropDistance(prop, position.x, position.y) <= 1);
 }
 
 /** Claim fixed offered supplies or reading knowledge once, with save-before-feedback rollback. */

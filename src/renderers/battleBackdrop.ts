@@ -9,6 +9,7 @@ import { isReducedMotionEnabled } from "../systems/accessibility";
 import { WeatherType } from "../systems/weather";
 import { isLocalDev } from "../config";
 import { drawBattleTerrainDetail } from "./battleTerrain";
+import { drawBuildingExterior } from "./buildings";
 import {
   BATTLE_BACKDROP_LAYER_IDS,
   BATTLE_DEPTH,
@@ -498,14 +499,14 @@ export class BattleBackdropRenderer {
         }
       }
     } else if (biome === "city") {
-      graphics.fillStyle(0x5f554c, 1);
-      for (let index = 0; index < 5; index += 1) {
-        const x = index * 140 - 10;
-        graphics.fillRect(x, layout.horizonY - 70 - index % 2 * 20, 112, 82);
-        graphics.fillStyle(0xc69a51, 0.82);
-        graphics.fillRect(x + 18, layout.horizonY - 42, 14, 18);
-        graphics.fillRect(x + 70, layout.horizonY - 42, 14, 18);
-        graphics.fillStyle(0x5f554c, 1);
+      const roofs = [0x815345, 0x616d77, 0x9a704a];
+      for (let index = 0; index < Math.ceil(layout.width / 128) + 1; index += 1) {
+        const x = index * 128 - 26;
+        const height = 94 + index % 2 * 20;
+        drawBuildingExterior(graphics, {
+          x, y: layout.horizonY - height + 12,
+          width: 112, height, doorX: x + 56,
+        }, roofs[index % roofs.length]!);
       }
     } else if (biome === "dungeon") {
       graphics.fillStyle(0x3b3b48, 1);

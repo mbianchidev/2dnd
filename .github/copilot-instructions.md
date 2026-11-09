@@ -237,6 +237,9 @@ loads from `app://2dnd` in packaged builds.
   restarts on the shared full-state payload including `savedSpecialNpcs`.
 - Generate textures through `src/renderers/textures.ts`, invoked by Boot.
   Monster silhouettes live in the focused `monsterTextures.ts` renderer.
+  Shared integer raster art lives in `pixelArt.ts`, `terrainArt.ts`,
+  `humanoidArt.ts` and `monsterArt.ts`. Preserve anatomy anchors, defined actor
+  poses, explicit frame keys and cleanup; art never consumes gameplay RNG.
 - Resolve hero visuals from live `PlayerState` through
   `src/systems/heroVisuals.ts` and lease generated textures through
   `src/renderers/heroTextures.ts`. Overworld, Battle, Cutscene, and hero-bearing
@@ -807,6 +810,14 @@ Use `getCityChunk*()` and `getCityConnectionAt()` helpers. Connections update
 Entering or loading a city reveals every tile of all its districts through
 `FogOfWar.revealCity()`. Preserve existing city fog keys and other locations'
 fog; do not use the debug world reveal or discover unrelated cities.
+
+Building rooms append after existing street districts through
+`data/cityInteriors.ts`, with footprint-driven collision and interaction bounds.
+Their visibility is derived rather than adding saved fog entries.
+Fixed offered rewards save before feedback and roll back on failure;
+`collectedTreasures` owns furnishing claims and finite permanent study tokens.
+Keep original shop identities for negotiations and recipe discovery.
+See `docs/graphics.md`.
 
 ### Dungeons
 

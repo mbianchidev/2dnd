@@ -113,9 +113,9 @@ function wings(painter: CreaturePainter, feathered: boolean): void {
   }
 }
 
-function dragon(painter: CreaturePainter, blink: boolean): void {
+function dragon(painter: CreaturePainter, blink: boolean, winged = true): void {
   const { art, palette: p, x, y, attacking } = painter;
-  wings(painter, false);
+  if (winged) wings(painter, false);
   art.volume(x, y - 13, 11, 12, p.primary, p.outline);
   art.volume(x - 2, y - 11, 6, 8, p.secondary, p.outline);
   for (let row = 0; row < 4; row++) art.line(x - 6, y - 16 + row * 3, x + 2, y - 15 + row * 3, shade(p.secondary, -20));
@@ -133,7 +133,7 @@ function dragon(painter: CreaturePainter, blink: boolean): void {
   claw(art, x + 8, y, p.primary);
 }
 
-function manymaws(painter: CreaturePainter, blink: boolean, tentacles: boolean): void {
+function manymaws(painter: CreaturePainter, blink: boolean, tentacles: boolean, headCount: 3 | 5): void {
   const { art, palette: p, x, y, attacking } = painter;
   if (tentacles) {
     for (let i = 0; i < 8; i++) {
@@ -149,13 +149,15 @@ function manymaws(painter: CreaturePainter, blink: boolean, tentacles: boolean):
     art.volume(x, y - 14, 3, 3, p.outline, p.secondary);
     return;
   }
+  art.line(x + 10, y - 8, x + 20, y - 14, p.outline, 5);
+  art.line(x + 10, y - 8, x + 20, y - 14, p.primary, 3);
   art.volume(x + 2, y - 10, 15, 7, p.primary, p.outline);
-  for (let i = -1; i <= 1; i++) {
-    const headX = x + i * 11;
-    const headY = y - 28 + (i === 0 ? -3 : 2);
+  for (const offset of headCount === 5 ? [-16, -8, 0, 8, 16] : [-11, 0, 11]) {
+    const headX = x + offset;
+    const headY = y - 31 + Math.abs(offset) / 4;
     art.line(headX + 4, y - 12, headX, headY, p.outline, 6);
     art.line(headX + 4, y - 12, headX, headY, p.primary, 4);
-    art.volume(headX, headY, 6, 5, i === 0 ? p.secondary : p.primary, p.outline);
+    art.volume(headX, headY, 5, 5, offset === 0 ? p.secondary : p.primary, p.outline);
     horn(art, headX + 2, headY - 4, 1);
     art.rect(headX - 4, headY + 2, 7, attacking ? 4 : 2, p.outline);
     for (let tooth = 0; tooth < 3; tooth++) art.pixel(headX - 3 + tooth * 2, headY + 2, 0xe5d7b6);
@@ -187,7 +189,7 @@ function spider(painter: CreaturePainter, blink: boolean): void {
 
 export function createMonsterArt(monster: Monster, pose: MonsterArtPose = "idle"): PixelSurface {
   const boss = monster.isBoss;
-  const art = new PixelSurface(boss ? 64 : 48, boss ? 56 : 44);
+  const art = new PixelSurface(48, 44);
   const palette = getMonsterPalette(monster);
   const x = art.width / 2;
   const y = art.height - 5 - (pose === "blink" ? 1 : 0);
@@ -199,8 +201,8 @@ export function createMonsterArt(monster: Monster, pose: MonsterArtPose = "idle"
     case "skeletal": humanoid(painter, true, false, blink); break;
     case "colossus": humanoid(painter, false, true, blink); break;
     case "lupine": wolf(painter, blink); break;
-    case "drake": dragon(painter, blink); break;
-    case "chimaera": manymaws(painter, blink, monster.id === "kraken"); break;
+    case "drake": dragon(painter, blink, monster.anatomy !== "serpent"); break;
+    case "chimaera": manymaws(painter, blink, monster.anatomy === "tentacled", monster.anatomy === "hydra" ? 5 : 3); break;
     case "stalker": spider(painter, blink); break;
     case "slime":
       art.volume(x, y - 8, 17, painter.attacking ? 15 : 11, p.primary, p.outline);
@@ -304,7 +306,21 @@ export function createMonsterArt(monster: Monster, pose: MonsterArtPose = "idle"
           (art.pixels[index]! << 16) | (art.pixels[index + 1]! << 8) | art.pixels[index + 2]!);
       }
     }
-    return fallen;
+    return finishMonsterForm(fallen, boss);
   }
-  return art;
+  return finishMonsterForm(art, boss);
+}
+
+function finishMonsterForm(art: PixelSurface, boss: boolean): PixelSurface {
+  if (!boss) return art;
+  const scaled = new PixelSurface(64, 56);
+  for (let y = 0; y < scaled.height; y++) {
+    for (let x = 0; x < scaled.width; x++) {
+      const index = (Math.floor(y * art.height / scaled.height) * art.width
+        + Math.floor(x * art.width / scaled.width)) * 4;
+      scaled.pixel(x, y, (art.pixels[index]! << 16) | (art.pixels[index + 1]! << 8) | art.pixels[index + 2]!,
+        art.pixels[index + 3]!);
+    }
+  }
+  return scaled;
 }

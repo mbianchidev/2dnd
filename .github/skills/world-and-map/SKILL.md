@@ -178,6 +178,14 @@ getCityConnectionAt(city, chunkIndex, x, y);
 tile. Movement through a connection updates `player.position.cityChunkIndex`,
 `x`, and `y`.
 
+Building rooms append after existing street districts through
+`data/cityInteriors.ts`. Resolve their maps through the same helpers. Use
+`getCityDistrictCount()` for street-only counts, and preserve original source
+shop coordinates for negotiation and recipe IDs. Furniture dimensions drive
+collision, adjacent interactions, pointer bounds and minimap markers.
+Room visibility is derived rather than stored in campaign fog.
+See [`docs/graphics.md`](../../../docs/graphics.md).
+
 When adding a district:
 
 1. Add a 20x15 `CityChunk`.

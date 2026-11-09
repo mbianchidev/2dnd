@@ -94,6 +94,7 @@ export interface DungeonConnection {
 export interface DungeonData {
   id: string;
   name: string;
+  visualTheme?: "crypt" | "ice" | "forge" | "grotto";
   entranceChunkX: number;
   entranceChunkY: number;
   entranceTileX: number;
@@ -156,6 +157,8 @@ export interface InteriorPropData {
   readonly label: string;
   readonly x: number;
   readonly y: number;
+  readonly width?: number;
+  readonly height?: number;
   readonly text?: readonly string[];
   readonly reward?: {
     readonly gold?: number;

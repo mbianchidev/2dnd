@@ -148,7 +148,7 @@ const VOLCANIC_FORGE_LEVEL2: Terrain[][] = [
 export const DUNGEONS: DungeonData[] = [
   TIDEGLASS_GROTTO,
   {
-    id: "heartlands_dungeon", name: "Heartlands Crypt",
+    id: "heartlands_dungeon", name: "Heartlands Crypt", visualTheme: "crypt",
     entranceChunkX: 4, entranceChunkY: 2, entranceTileX: 16, entranceTileY: 2,
     mapData: HEARTLANDS_CRYPT_INTERIOR, spawnX: 1, spawnY: 13,
     bossId: "cryptLich",
@@ -162,7 +162,7 @@ export const DUNGEONS: DungeonData[] = [
     },
   },
   {
-    id: "frost_cavern", name: "Frost Cavern",
+    id: "frost_cavern", name: "Frost Cavern", visualTheme: "ice",
     entranceChunkX: 2, entranceChunkY: 0, entranceTileX: 14, entranceTileY: 5,
     mapData: FROST_CAVERN_INTERIOR, spawnX: 1, spawnY: 13,
     bossId: "frostWarden",
@@ -176,7 +176,7 @@ export const DUNGEONS: DungeonData[] = [
     },
   },
   {
-    id: "volcanic_forge", name: "Volcanic Forge",
+    id: "volcanic_forge", name: "Volcanic Forge", visualTheme: "forge",
     entranceChunkX: 6, entranceChunkY: 5, entranceTileX: 14, entranceTileY: 5,
     mapData: VOLCANIC_FORGE_INTERIOR, spawnX: 1, spawnY: 13,
     bossId: "infernoForgemaster",

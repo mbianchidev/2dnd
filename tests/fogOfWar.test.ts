@@ -108,6 +108,7 @@ describe("fog of war location separation", () => {
     expect(fog.isExplored(19, 14, player)).toBe(true);
     expect(fog.isExplored(-1, 0, player)).toBe(false);
     expect(JSON.stringify(fog.getExploredTiles())).toBe(before);
-    expect(Object.keys(fog.getExploredTiles()).some((key) => key.startsWith(`c:${city.id},${roomIndex},`))).toBe(false);
+    expect(Object.keys(fog.getExploredTiles()).some((key) =>
+      key.startsWith(`c:${city.id},${roomIndex},`) && key.split(",").length === 4)).toBe(false);
   });
 });

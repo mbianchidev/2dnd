@@ -91,6 +91,7 @@ import {
 } from "../data/codexKnowledge";
 import {
   getCityShopSkillCheckId,
+  getCityShopId,
   getNpcSkillChallenge,
   getTownShopSkillCheckId,
 } from "../data/skillChecks";
@@ -1635,6 +1636,7 @@ export class OverworldScene extends Phaser.Scene {
       `Anim: ${this.worldPresentation.debugState} | ` +
       `Move: ${this.isMoving ? "locked" : "ready"} `
       + `Handoff: ${this.sceneTransitions.isPending ? "pending" : "ready"} | ` +
+      `Fade: ${this.sceneTransitions.isFading ? "running" : "ready"} | ` +
       `Time: ${timePeriod} (step ${this.timeStep}) | Weather: ${this.weatherState.current} (${this.weatherState.stepsUntilChange} steps) | ` +
       `Enc: ${(effectiveRate * 100).toFixed(0)}% (×${encMult}×${weatherEncMult}${mountEncMult !== 1 ? `×${mountEncMult}` : ""}${dangerEncMult !== 1 ? `×${dangerEncMult}` : ""})${this.encounterSystem.areEncountersEnabled() ? "" : " [OFF]"}${this.fogOfWar.isFogDisabled() ? " Fog[OFF]" : ""} | ` +
       `Bosses: ${this.defeatedBosses.size} | Chests: ${p.progression.openedChests.length} | Checks: ${Object.keys(p.progression.skillChecks).length}`,
@@ -2273,28 +2275,30 @@ export class OverworldScene extends Phaser.Scene {
       if (!isWalkable(targetTerrain)) return;
 
       // Block entry to shops at night (except inn)
-      if ((targetTerrain === Terrain.Carpet || targetTerrain === Terrain.ShopFloor) && getTimePeriod(this.timeStep) === TimePeriod.Night) {
+      if (!chunk.interior && (targetTerrain === Terrain.Carpet || targetTerrain === Terrain.ShopFloor || targetTerrain === Terrain.CityGate)
+        && getTimePeriod(this.timeStep) === TimePeriod.Night) {
         const nearbyShop = getCityChunkShopNearby(
           city,
           this.player.position.cityChunkIndex,
           targetX,
           targetY,
         );
-        if (nearbyShop && nearbyShop.type !== "inn") {
+        if (nearbyShop && nearbyShop.type !== "inn" && nearbyShop.name !== "Tidehaven Shipwright") {
           this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
           return;
         }
       }
 
       // Shop interior only accessible via carpet entrance
-      if (targetTerrain === Terrain.ShopFloor) {
+      if (!chunk.interior && targetTerrain === Terrain.ShopFloor) {
         const curTerrain = cityMap[this.player.position.y]?.[this.player.position.x];
-        if (curTerrain !== Terrain.Carpet && curTerrain !== Terrain.ShopFloor) return;
+        if (curTerrain !== Terrain.Carpet && curTerrain !== Terrain.CityGate && curTerrain !== Terrain.ShopFloor) return;
       }
 
       // Shop exit only through carpet (door)
       const curTerrain = cityMap[this.player.position.y]?.[this.player.position.x];
-      if (curTerrain === Terrain.ShopFloor && targetTerrain !== Terrain.ShopFloor && targetTerrain !== Terrain.Carpet) return;
+      if (!chunk.interior && curTerrain === Terrain.ShopFloor && targetTerrain !== Terrain.ShopFloor
+        && targetTerrain !== Terrain.Carpet && targetTerrain !== Terrain.CityGate) return;
 
       this.lastMoveTime = time;
       this.isMoving = true;
@@ -2547,6 +2551,8 @@ export class OverworldScene extends Phaser.Scene {
         this.player, this.defeatedBosses, this.codex, this.player.appearanceId, this.timeStep, this.weatherState,
       ).ok);
       if (result.changed) {
+        if (prop.reward?.itemId) this.showCraftingUnlocks(discoverCraftingRecipes(this.player, { type: "item", itemId: prop.reward.itemId }));
+        if (prop.text) this.showCraftingUnlocks(discoverCraftingRecipes(this.player, { type: "readable", readableId: prop.id }));
         this.preparePersistentState(`interior:${id}`);
         this.scheduleFeatureRevealFeedback();
         this.codexDiscovery.show(result.unlockedIds.map(getCodexKnowledgeEntry)
@@ -2737,6 +2743,14 @@ export class OverworldScene extends Phaser.Scene {
       }
 
       if (terrain === Terrain.CityGate) {
+        const connection = getCityConnectionAt(city, chunkIndex, this.player.position.x, this.player.position.y);
+        const destination = connection ? getCityChunk(city, connection.toChunkIndex) : undefined;
+        const destinationShop = destination?.interior?.kind === "shop" ? destination.shops[0] : undefined;
+        if (destinationShop && destinationShop.type !== "inn" && destinationShop.name !== "Tidehaven Shipwright"
+          && getTimePeriod(this.timeStep) === TimePeriod.Night) {
+          this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
+          return;
+        }
         if (!useCityConnection(this.player)) return;
         this.revealAround();
         this.autoSave();
@@ -3189,6 +3203,7 @@ export class OverworldScene extends Phaser.Scene {
     shop: CityShopData,
     chunkIndex: number,
   ): void {
+    if (city.id === "tidehaven_city" && shop.name === "Tidehaven Shipwright" && this.serviceTidehavenShipwright()) return;
     if (shop.type === "inn") {
       this.overlayManager.showInnConfirmation(this.player);
       return;
@@ -3204,10 +3219,10 @@ export class OverworldScene extends Phaser.Scene {
 
     this.showCraftingUnlocks(discoverCraftingRecipes(this.player, {
       type: "shop",
-      shopId: `${city.id}:${chunkIndex}:${shop.type}:${shop.x},${shop.y}`,
+      shopId: getCityShopId(city.id, chunkIndex, shop),
     }));
     this.autoSave();
-    const locationName = districtName === city.name
+    const locationName = districtName === city.name || districtName === shop.name
       ? city.name
       : `${city.name} - ${districtName}`;
     this.sceneTransitions.startImmediately(() => {

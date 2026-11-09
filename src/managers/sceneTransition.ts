@@ -32,6 +32,10 @@ export class SceneTransitionManager {
     return this.pending;
   }
 
+  get isFading(): boolean {
+    return this.cameraWait !== null;
+  }
+
   prepare(
     fadeInDuration = 0,
     red = 0,

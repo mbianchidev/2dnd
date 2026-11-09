@@ -32,9 +32,11 @@ import { TILE_SIZE } from "../config";
 import { layoutAnchoredLabels } from "../systems/layout";
 import { getScaledBounds, subscribeOverlayReflow } from "../managers/layout";
 import { createOverlayContainer } from "../utils/ui";
-import { getOrCreateTerrainTexture } from "./terrainTextures";
+import { getOrCreateTerrainTexture, getDungeonArtGround } from "./terrainTextures";
 import { InteriorRenderer } from "./interior";
 import { DungeonLightingRenderer } from "./dungeonLighting";
+import { containsInteriorPropTile } from "../systems/interiorLayout";
+import { renderCityLandmarks } from "./cityLandmarks";
 
 /** Biome wall texture overrides for city rendering. */
 const BIOME_WALL_MAP: Record<number, string> = {
@@ -151,6 +153,8 @@ export class MapRenderer {
   private readonly interiors: InteriorRenderer;
   private readonly dungeonLighting: DungeonLightingRenderer;
   private insideRoom = false;
+  private surfaceSprites: Phaser.GameObjects.Sprite[] = [];
+  private lifecycleBound = false;
 
   constructor(scene: Phaser.Scene, private readonly interactInterior: (id: string) => void) {
     this.scene = scene;
@@ -171,6 +175,15 @@ export class MapRenderer {
     cityRenderer: CityRenderer,
     timeStep: number = 0,
   ): void {
+    if (!this.lifecycleBound) {
+      this.lifecycleBound = true;
+      this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        for (const sprite of this.surfaceSprites) sprite.destroy();
+        this.surfaceSprites = [];
+      });
+    }
+    for (const sprite of this.surfaceSprites) sprite.destroy();
+    this.surfaceSprites = [];
     this.interiors.clear();
     this.dungeonLighting.clear();
     this.insideRoom = false;
@@ -262,6 +275,7 @@ export class MapRenderer {
         sprite.setTint(tint);
       }
     }
+    for (const sprite of this.surfaceSprites) sprite.setTint(tint);
   }
 
   /** Create or update weather particle effects based on current weather. */
@@ -403,7 +417,7 @@ export class MapRenderer {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const explored = isExplored(x, y);
         const terrain = levelMap[y][x];
-        let texKey = explored ? getOrCreateTerrainTexture(this.scene, levelMap, x, y) : "tile_fog";
+        let texKey = explored ? getOrCreateTerrainTexture(this.scene, levelMap, x, y, getDungeonArtGround(dungeon)) : "tile_fog";
         if (explored && terrain === Terrain.Chest) {
           const chest = getChestAt(x, y, {
             type: "dungeon",
@@ -574,17 +588,18 @@ export class MapRenderer {
         if (chunk.interior) {
           const bounds = chunk.interior.bounds;
           if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) texKey = "tile_fog";
-          else if (chunk.interior.props.some((prop) => prop.x === x && prop.y === y)) texKey = `tile_${Terrain.ShopFloor}`;
+          else if (chunk.interior.props.some((prop) => containsInteriorPropTile(prop, x, y))) texKey = `tile_${Terrain.ShopFloor}`;
         }
         if (explored && terrain === Terrain.Carpet) {
           const carpetOverride = shopCarpetMap.get(`${x},${y}`);
           if (carpetOverride) texKey = carpetOverride;
         }
         if (explored && terrain === Terrain.CityPath) texKey = biomePathTex;
+        if (explored && terrain === Terrain.Fountain && !chunk.interior) texKey = biomeFloorTex;
         if (explored && terrain === Terrain.CityGate && !chunk.interior) {
           const connection = getCityConnectionAt(city, player.position.cityChunkIndex, x, y);
           const destination = connection ? getCityChunk(city, connection.toChunkIndex)?.interior : undefined;
-          if (destination && destination.kind !== "shop") texKey = `tile_building_${destination.kind}`;
+          if (destination) texKey = destination.kind === "shop" ? `tile_${Terrain.ShopFloor}` : `tile_building_${destination.kind}`;
         }
         if (terrain === Terrain.ShopFloor && !chunk.interior) {
           const tileShopIdx = cityRenderer.shopFloorMap.get(`${x},${y}`) ?? -1;
@@ -653,6 +668,7 @@ export class MapRenderer {
     }
 
     // City animals, NPCs, and shop roofs
+    this.surfaceSprites = renderCityLandmarks(this.scene, cityMap, isExplored);
     cityRenderer.spawnCityAnimals(
       city,
       cityMap,
@@ -784,7 +800,7 @@ export class MapRenderer {
       for (let x = 0; x < MAP_WIDTH; x++) {
         if (isExplored(x, y) && this.tileSprites[y]?.[x]) {
           const terrain = levelMap[y][x];
-          let texKey = getOrCreateTerrainTexture(this.scene, levelMap, x, y);
+          let texKey = getOrCreateTerrainTexture(this.scene, levelMap, x, y, getDungeonArtGround(dungeon));
           if (terrain === Terrain.Chest) {
             const chest = getChestAt(x, y, {
               type: "dungeon",
@@ -841,15 +857,16 @@ export class MapRenderer {
             if (override) texKey = override;
           }
           if (terrain === Terrain.CityPath) texKey = biomePathTex;
+          if (terrain === Terrain.Fountain && !chunk.interior) texKey = biomeFloorTex;
           if (terrain === Terrain.CityGate && !chunk.interior) {
             const connection = getCityConnectionAt(city, player.position.cityChunkIndex, x, y);
             const destination = connection ? getCityChunk(city, connection.toChunkIndex)?.interior : undefined;
-            if (destination && destination.kind !== "shop") texKey = `tile_building_${destination.kind}`;
+            if (destination) texKey = destination.kind === "shop" ? `tile_${Terrain.ShopFloor}` : `tile_building_${destination.kind}`;
           }
           if (chunk.interior) {
             const bounds = chunk.interior.bounds;
             if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) texKey = "tile_fog";
-            else if (chunk.interior.props.some((prop) => prop.x === x && prop.y === y)) texKey = `tile_${Terrain.ShopFloor}`;
+            else if (chunk.interior.props.some((prop) => containsInteriorPropTile(prop, x, y))) texKey = `tile_${Terrain.ShopFloor}`;
           }
           if (terrain === Terrain.ShopFloor && !chunk.interior) {
             const tileShopIdx = cityRenderer.shopFloorMap.get(`${x},${y}`) ?? -1;

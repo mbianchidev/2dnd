@@ -29,6 +29,10 @@ attack, portrait recovery/replay at every text scale, boss/Ending dialogue and
 actual walking/atlas landmarks. Preserve full names/letters and exact hero/NPC
 palettes; do not substitute instant victory for the kill under test.
 
+Opening dialogue and compact Kraken captures retain platform-specific Linux
+references from actual CI images, with unchanged 3%/8% tolerances. Soft snapshot
+assertions retain every independent reference while still failing on a mismatch.
+
 Battle grounding tests cover every family/boss and all pose frames. Use
 `data-battle-grounding` to sample actual visible foot/shadow contact during real
 actions, not just sprite centers. Grounded actors never hover, lift or tilt;

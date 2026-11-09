@@ -38,6 +38,8 @@ macOS. These are real game captures and retain their original 3%/8% thresholds;
 update the matching platform image rather than widening comparison tolerances.
 Snapshot comparisons are soft assertions so one mismatch still fails the test
 while retaining evidence for every remaining independent reference.
+Battle goldens wait for the accepted player turn and its live initiative entry,
+not merely Battle scene creation, before capturing commands and the turn chain.
 When reseeding a second campaign in one browser test, return to a fresh title
 document first. An outgoing exploration autosave must not overwrite the next
 fixture during reload.

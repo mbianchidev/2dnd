@@ -155,6 +155,9 @@ async function expectCanvasSnapshot(
   page: Page,
   name: string,
 ): Promise<void> {
+  await waitForState(page, "Phase: playerTurn");
+  await expect(page.locator("#battle-turn-order [aria-current='step']"))
+    .toHaveAttribute("data-combatant-id", "party:hero");
   const canvas = page.locator("#game-container canvas");
   const captureStyle = await page.addStyleTag({ content: `
     #game-container canvas {
@@ -168,7 +171,7 @@ async function expectCanvasSnapshot(
   try {
     await expect(canvas).toHaveCSS("width", `${GAME_WIDTH}px`);
     await expect(canvas).toHaveCSS("height", `${GAME_HEIGHT}px`);
-    await expect(canvas).toHaveScreenshot(name, {
+    await expect.soft(canvas).toHaveScreenshot(name, {
       animations: "disabled",
       maxDiffPixelRatio: 0.05,
     });

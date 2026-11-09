@@ -32,6 +32,8 @@ palettes; do not substitute instant victory for the kill under test.
 Opening/recruitment dialogue and compact Kraken captures retain platform-specific Linux
 references from actual CI images, with unchanged 3%/8% tolerances. Soft snapshot
 assertions retain every independent reference while still failing on a mismatch.
+Battle goldens wait for `playerTurn` and the current hero initiative entry;
+scene creation alone can capture disabled commands before initiative dispatch.
 Reseed a second fixture only from a fresh title document, not a live exploration
 scene whose outgoing autosave can overwrite that fixture during reload.
 

@@ -155,7 +155,7 @@ export class MapRenderer {
   private readonly dungeonLighting: DungeonLightingRenderer;
   private insideRoom = false;
   private surfaceSprites: Phaser.GameObjects.Sprite[] = [];
-  private buildingGraphics: Phaser.GameObjects.Graphics | null = null;
+  private buildingGraphics: Phaser.GameObjects.Graphics[] = [];
   private lifecycleBound = false;
 
   constructor(scene: Phaser.Scene, private readonly interactInterior: (id: string) => void) {
@@ -182,14 +182,14 @@ export class MapRenderer {
       this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
         for (const sprite of this.surfaceSprites) sprite.destroy();
         this.surfaceSprites = [];
-        this.buildingGraphics?.destroy();
-        this.buildingGraphics = null;
+        for (const graphics of this.buildingGraphics) graphics.destroy();
+        this.buildingGraphics = [];
       });
     }
     for (const sprite of this.surfaceSprites) sprite.destroy();
     this.surfaceSprites = [];
-    this.buildingGraphics?.destroy();
-    this.buildingGraphics = null;
+    for (const graphics of this.buildingGraphics) graphics.destroy();
+    this.buildingGraphics = [];
     this.interiors.clear();
     this.dungeonLighting.clear();
     this.insideRoom = false;

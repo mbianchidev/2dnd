@@ -47,7 +47,9 @@ schema-v28 optional overrides share the canonical hero descriptor and leases.
 They never change class identity, statistics or owned equipment.
 
 Library/home/residential exteriors have blocked multi-tile `buildings`
-footprints. Only explicit doors create connections. Battle and Cutscene use
+footprints. Only explicit doors create connections. Cities use
+separate facade/roof layers around actor depth so doorways do not hide the hero.
+Battle and Cutscene use
 `pixelScenery.ts` with the shared `pixelArt.ts` integer scan converters and
 terrain palettes, preserving depth bands, one-buffer cutscenes and RNG isolation.
 

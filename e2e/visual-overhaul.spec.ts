@@ -79,6 +79,9 @@ test("full-size street facades have real doors, while boarded residences cannot 
   await page.locator("#game-container").screenshot({ path: streetPath });
   await test.info().attach("City facades", { path: streetPath, contentType: "image/png" });
   await stepGameTile(page, "W", library.door!.x, library.door!.y);
+  const doorPath = test.info().outputPath("city-door-visible-150.png");
+  await page.locator("#game-container").screenshot({ path: doorPath });
+  await test.info().attach("Hero at the doorway", { path: doorPath, contentType: "image/png" });
   await pressGameKey(page, "Space");
   const connection = getCityConnectionAt(city, 1, library.door!.x, library.door!.y)!;
   await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:${connection.toChunkIndex}]`);

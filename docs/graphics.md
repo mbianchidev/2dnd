@@ -79,6 +79,9 @@ street footprints rather than a miniature one-tile house marker.
 door connection. Boarded residences are scenery only: they have neither a
 connection nor an invisible interaction target. Existing shop identities and
 street district indexes remain stable.
+Facades sit below actors while roofs stay above them, keeping the hero visible
+when standing in a doorway. Both static graphics layers are owned and released
+by the map renderer.
 
 Use the existing interact control on a building door to enter its room.
 Move around counters, stock shelves, reading tables, beds and hearths. Interact

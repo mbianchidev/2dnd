@@ -100,6 +100,8 @@ supplies and repeat/reload recovery, and visits every monster family. It
 asserts that exact die faces stay hidden until a real throw stops or is skipped.
 Pure raster, footprint, guarded claim/study and minimap-redaction suites keep
 Phaser and gameplay RNG out of the corresponding mechanics.
+Battle canvas references use compositor screenshots rather than WebGL
+`toDataURL()` reads, which can return a discarded, entirely black back buffer.
 
 The `e2e/*.spec.ts` suites own real browser behavior:
 

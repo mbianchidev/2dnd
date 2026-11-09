@@ -6,6 +6,7 @@ import {
   TimePeriod,
 } from "../systems/daynight";
 import { isReducedMotionEnabled } from "../systems/accessibility";
+import { artNoise, shadePixelColor } from "../systems/pixelArt";
 import { WeatherType } from "../systems/weather";
 import { isLocalDev } from "../config";
 import { drawBattleTerrainDetail } from "./battleTerrain";
@@ -487,11 +488,27 @@ export class BattleBackdropRenderer {
         const x = 36 + index * (layout.width - 72) / 6;
         graphics.fillStyle(trunk, 1);
         graphics.fillRect(x - 5, layout.horizonY - 72, 10, 84);
+        graphics.fillStyle(0x6a5132, 1);
+        graphics.fillRect(x - 3, layout.horizonY - 68, 3, 77);
         if (biome !== "swamp") {
-          graphics.fillStyle(leaves, 0.95);
-          graphics.fillCircle(x, layout.horizonY - 76, 28);
-          graphics.fillCircle(x - 17, layout.horizonY - 58, 20);
-          graphics.fillCircle(x + 17, layout.horizonY - 58, 20);
+          const canopies = [
+            [x, layout.horizonY - 76, 28],
+            [x - 17, layout.horizonY - 58, 20],
+            [x + 17, layout.horizonY - 58, 20],
+          ] as const;
+          for (const [cx, cy, radius] of canopies) {
+            graphics.fillStyle(shadePixelColor(leaves, -15), 1).fillCircle(cx, cy, radius);
+            graphics.fillStyle(leaves, 1).fillCircle(cx - 2, cy - 3, radius - 3);
+            graphics.fillStyle(shadePixelColor(leaves, 20), 1)
+              .fillEllipse(cx - radius / 4, cy - radius / 3, radius, radius * 0.65);
+            for (let leaf = 0; leaf < 14; leaf++) {
+              const dx = artNoise(index, leaf) % (radius * 2 - 6) - radius + 3;
+              const dy = artNoise(leaf, index) % (radius * 2 - 6) - radius + 3;
+              if (dx * dx + dy * dy > (radius - 3) ** 2) continue;
+              graphics.fillStyle(shadePixelColor(leaves, leaf % 2 ? 32 : -7), 1)
+                .fillRect(cx + dx, cy + dy, 4, 2);
+            }
+          }
         } else {
           graphics.lineStyle(4, trunk, 1);
           graphics.lineBetween(x, layout.horizonY - 52, x - 18, layout.horizonY - 72);

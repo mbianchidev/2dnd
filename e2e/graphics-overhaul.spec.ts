@@ -94,6 +94,7 @@ for (const textScale of [1, 1.25, 1.5] as const) {
         await expect(page.locator("#debug-state")).toContainText("Fade: ready");
         await expect(page.locator("#exploration-minimap-summary")).toHaveAttribute("aria-label", /North-up exploration minimap/);
         await expect(page.locator("#exploration-minimap-summary")).not.toHaveAttribute("hidden", "");
+        await expect(page.locator("#layout-report")).toContainText("minimap-panel");
         await expectCleanLayout(page);
         await capture(page, `${scene.name}-${textScale * 100}`);
         errors.push(...sceneErrors);

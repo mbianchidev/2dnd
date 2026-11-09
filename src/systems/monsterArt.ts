@@ -138,15 +138,32 @@ function manymaws(painter: CreaturePainter, blink: boolean, tentacles: boolean, 
   if (tentacles) {
     for (let i = 0; i < 8; i++) {
       const direction = i % 2 ? 1 : -1;
-      const endX = x + direction * (10 + i);
-      art.line(x, y - 12, endX, y - 4 - (i % 3) * 4, p.outline, 5);
-      art.line(endX, y - 4 - (i % 3) * 4, endX + direction * 5, y - 10 - i * 2, p.primary, 3);
-      art.line(x, y - 12, endX, y - 4 - (i % 3) * 4, p.primary, 3);
-      for (let dot = 0; dot < 4; dot++) art.pixel(x + direction * (4 + dot * 3), y - 11 + dot, p.secondary);
+      const row = Math.floor(i / 2);
+      const lift = attacking ? 5 + row : 0;
+      const points = [
+        { x: x + direction * 3, y: y - 12 },
+        { x: x + direction * (10 + row), y: y - 5 + row % 2 * 2 },
+        { x: x + direction * (19 - row), y: y - 3 - row * 4 - lift },
+        { x: x + direction * (21 - row), y: y - 11 - row * 4 - lift },
+        { x: x + direction * (17 - row), y: y - 14 - row * 4 - lift },
+      ];
+      for (let segment = 0; segment < points.length - 1; segment++) {
+        const from = points[segment]!;
+        const to = points[segment + 1]!;
+        const width = Math.max(2, 5 - segment);
+        art.line(from.x - 1, from.y - 1, to.x - 1, to.y - 1, p.outline, width + 2);
+        art.line(from.x, from.y, to.x, to.y, p.primary, width);
+        art.line(from.x, from.y, to.x, to.y, shade(p.primary, 38), 1);
+        if (segment > 0) art.rect(to.x, to.y + 2, 2, 1, p.secondary);
+      }
     }
     art.volume(x, y - 24, 11, 14, p.primary, p.outline);
+    for (const offset of [-5, 0, 5]) {
+      art.line(x + offset, y - 35, x + offset - 1, y - 26, shade(p.primary, 35));
+      art.pixel(x + offset - 2, y - 33, shade(p.primary, 55));
+    }
     eyes(painter, x, y - 20, blink, 7);
-    art.volume(x, y - 14, 3, 3, p.outline, p.secondary);
+    art.volume(x, y - 14, attacking ? 4 : 3, attacking ? 5 : 3, p.outline, p.secondary);
     return;
   }
   art.line(x + 10, y - 8, x + 20, y - 14, p.outline, 5);

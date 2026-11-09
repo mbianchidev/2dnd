@@ -155,11 +155,8 @@ async function expectCanvasSnapshot(
   page: Page,
   name: string,
 ): Promise<void> {
-  const base64 = await page.locator("#game-container canvas").evaluate(
-    (canvas) => (canvas as HTMLCanvasElement).toDataURL("image/png").split(",")[1],
-  );
-  if (!base64) throw new Error("Battle canvas did not produce a PNG");
-  expect(Buffer.from(base64, "base64")).toMatchSnapshot(name, {
+  await expect(page.locator("#game-container canvas")).toHaveScreenshot(name, {
+    animations: "disabled",
     maxDiffPixelRatio: 0.05,
   });
 }

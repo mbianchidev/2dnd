@@ -29,4 +29,10 @@ describe("defined procedural creature families", () => {
     expect(rng).not.toHaveBeenCalled();
     rng.mockRestore();
   });
+
+  it("raises curved tentacles and opens the beak for a Kraken strike", () => {
+    const monster = ALL_MONSTERS.find((entry) => entry.anatomy === "tentacled")!;
+    expect(createMonsterArt(monster, "strike").pixels).not.toEqual(createMonsterArt(monster, "idle").pixels);
+    expect(createMonsterArt(monster, "cast").pixels).not.toEqual(createMonsterArt(monster, "idle").pixels);
+  });
 });

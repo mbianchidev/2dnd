@@ -51,7 +51,9 @@ export class HUDRenderer {
     this.group = createOverlayContainer(this.scene, "exploration-minimap", 19, {
       x: 0, y: 0, width: this.scene.cameras.main.width, height: this.scene.cameras.main.height,
     }).setVisible(false);
-    this.graphics = this.scene.add.graphics();
+    this.graphics = this.scene.add.graphics()
+      .setData("layoutId", "minimap-panel")
+      .setData("layoutAllowOverlapWith", ["minimap-caption"]);
     this.title = this.scene.add.text(0, 0, "MINIMAP", {
       fontFamily: "monospace", fontSize: "9px", color: "#e7d7af",
     }).setOrigin(0.5, 0).setData("layoutId", "minimap-caption");
@@ -116,6 +118,7 @@ export class HUDRenderer {
     const key = JSON.stringify([plan, bounds, contrast]);
     if (key === this.lastKey) return;
     this.lastKey = key;
+    this.graphics.setData("layoutBounds", bounds);
     const graphics = this.graphics.clear();
     const cx = bounds.x + bounds.width / 2;
     const radius = Math.min(41, (bounds.height - 33) / 2, (bounds.width - 10) / 2);

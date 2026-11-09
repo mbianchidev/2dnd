@@ -183,6 +183,7 @@ export class DiceRollRenderer {
     this.root.dataset.phase = event.duration > 0 ? "animating" : "ready";
     this.root.dataset.sequence = String(event.sequence);
     this.root.dataset.category = event.presentation.category;
+    this.root.dataset.label = event.presentation.label;
     this.root.dataset.skipped = "false";
     if (this.result) this.result.textContent = event.text;
     this.applyPreferences(preferences);

@@ -9,7 +9,7 @@ import { MONSTER_FAMILY_IDS } from "../src/data/monsterFamilies";
 import { createHeroClassProgression, getAvailableProgressionGrants } from "../src/systems/classProgression";
 import { xpForLevel } from "../src/systems/player";
 import type { SaveData } from "../src/systems/save";
-import { pressGameKey } from "./helpers/input";
+import { pressGameKey, stepGameTile as step } from "./helpers/input";
 import { clickLayoutItem, expectCleanLayout, tapLayoutItem, waitForGameInputFrame } from "./helpers/layout";
 import { continueMinigameFixture, minigameBrowserErrors, minigameFixture, readMinigameSave, seedMinigamePage } from "./helpers/minigames";
 
@@ -39,19 +39,6 @@ async function debugCommand(page: Page, command: string): Promise<void> {
     element.blur();
   }, command);
   await waitForGameInputFrame(page);
-}
-
-async function step(page: Page, key: string, x: number, y: number): Promise<void> {
-  await expect(page.locator("#debug-state")).toContainText("Move: ready");
-  await page.keyboard.down(key);
-  try {
-    await page.waitForFunction((position) =>
-      document.getElementById("debug-state")?.textContent?.includes(position),
-    `Pos: (${x},${y})`, { polling: "raf", timeout: 5_000 });
-  } finally {
-    await page.keyboard.up(key);
-  }
-  await expect(page.locator("#debug-state")).toContainText("Move: ready");
 }
 
 for (const textScale of [1, 1.25, 1.5] as const) {

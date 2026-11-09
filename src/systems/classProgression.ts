@@ -232,7 +232,8 @@ export function getFeatureSources(
 ): ProgressionGrantSource[] {
   if (!knownGrants(actor, kind).includes(id)) return [];
   const sources: ProgressionGrantSource[] = [];
-  for (const track of getProgressionTracks(actor, context)) {
+  const tracks = getProgressionTracks(actor, context);
+  for (const track of tracks) {
     const profile = getProgressionProfile(track.id, context);
     for (const grant of profile?.grants ?? []) {
       if (grant.kind === kind && grant.id === id && grant.rank <= track.level) {
@@ -251,7 +252,8 @@ export function getFeatureSources(
   }
   if (kind === "spell") {
     for (const study of getActorStudyGrants(actor).filter((entry) => entry.spellId === id)) {
-      const track = getProgressionTracks(actor, context).find((entry) => study.classIds.some((id) => id === entry.id));
+      const track = tracks.find((entry) => entry.level >= study.minimumRank
+        && study.classIds.some((id) => id === entry.id));
       if (track) sources.push({
         kind: "study", trackId: track.id, rank: study.minimumRank, stat: study.stat, studyId: study.id,
       });

@@ -26,3 +26,31 @@ export async function pressGameKey(page: Page, key: string, minimumHoldMs = 0): 
   }
   await waitForGameInputFrame(page);
 }
+
+/** Hold through the movement cooldown and release in the renderer on the accepted tile. */
+export async function stepGameTile(
+  page: Page, key: "W" | "A" | "S" | "D", x: number, y: number,
+): Promise<void> {
+  await page.waitForFunction(() => document.getElementById("debug-state")?.textContent?.includes("Move: ready"));
+  await page.evaluate(({ direction, position }) => new Promise<void>((resolve, reject) => {
+    const event = { key: direction.toLowerCase(), code: `Key${direction}`,
+      keyCode: direction.charCodeAt(0), which: direction.charCodeAt(0), bubbles: true };
+    const deadline = performance.now() + 5_000;
+    const finish = (error?: Error): void => {
+      window.dispatchEvent(new KeyboardEvent("keyup", event));
+      if (error) reject(error);
+      else resolve();
+    };
+    const observe = (): void => {
+      const state = document.getElementById("debug-state")?.textContent ?? "";
+      if (state.includes(position)) finish();
+      else if (performance.now() > deadline) finish(new Error(`Movement did not reach ${position}: ${state}`));
+      else requestAnimationFrame(observe);
+    };
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", event));
+      requestAnimationFrame(observe);
+    });
+  }), { direction: key, position: `Pos: (${x},${y})` });
+  await waitForGameInputFrame(page);
+}

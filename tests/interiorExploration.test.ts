@@ -4,7 +4,7 @@ import { getCityShopSkillCheckId } from "../src/data/skillChecks";
 import { createPlayer, xpForLevel } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
 import { claimCityInteriorProp } from "../src/systems/interiorExploration";
-import { createHeroClassProgression, getAvailableProgressionGrants, getSpellCastingStat } from "../src/systems/classProgression";
+import { createHeroClassProgression, getAvailableProgressionGrants, getFeatureSources, getSpellCastingStat } from "../src/systems/classProgression";
 import { normalizeSaveData, SAVE_VERSION } from "../src/systems/save";
 import { getPermanentStudyLedger } from "../src/systems/interiorStudy";
 import type { CityChunk } from "../src/data/mapTypes";
@@ -113,5 +113,19 @@ describe("offered interior discoveries", () => {
     const source = city.shops[f.room.interior!.sourceShopIndex!]!;
     expect(getCityShopSkillCheckId(city.id, f.player.position.cityChunkIndex, f.room.shops[0]!))
       .toBe(getCityShopSkillCheckId(city.id, 0, source));
+  });
+
+  it("binds a study spell to its qualifying owned class rather than a lower-ranked matching class", () => {
+    const f = fixture("frostheim_city", "library");
+    const book = f.room.interior!.props.find((prop) => prop.reward?.studyId)!;
+    f.player.classProgression = createHeroClassProgression("sorcerer", 1);
+    f.player.classProgression.classLevels = { sorcerer: 1, warlock: 4 };
+    f.player.level = 5;
+    f.player.xp = xpForLevel(5);
+    f.player.knownSpells = [...getAvailableProgressionGrants(f.player).spells];
+    approach(f, book.id);
+    expect(claimCityInteriorProp(f.player, f.codex, book.id, () => true).changed).toBe(true);
+    expect(getFeatureSources(f.player, "spell", "rayOfFrost").filter((source) => source.kind === "study"))
+      .toEqual([expect.objectContaining({ trackId: "warlock", rank: 4, studyId: "winterPrimer" })]);
   });
 });

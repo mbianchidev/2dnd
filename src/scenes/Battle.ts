@@ -120,7 +120,7 @@ import {
   type ResolvedAttackDiceTarget,
   type ResolvedHealingDiceTarget,
 } from "../managers/battleDice";
-import { clearDicePresentation } from "../managers/dicePresentation";
+import { clearDicePresentation, resetDicePresentation } from "../managers/dicePresentation";
 import { redactSavingThrowMessage, type DiceRollCategory } from "../systems/dicePresentation";
 import {
   createActorTextureFamily,
@@ -707,10 +707,11 @@ export class BattleScene extends Phaser.Scene {
       () => this.battleHud.portraitRevision);
     this.battleLog = new BattleLogManager(this, {
       canOpen: () => !this.isReturningToOverworld && !this.sceneTransitions.isPending
-        && !this.battlePresentation?.isBusy,
+        && this.controlledTimingActorId !== null && !this.battlePresentation?.isBusy,
       openChanged: (open) => {
         this.battleTiming?.setLogReading(open);
         this.bodyTargetManager.setSuspended(open);
+        if (open) resetDicePresentation(this);
         this.updateButtonStates();
         this.updateTargetSelectionDisplay();
         this.updateTargetHealth();

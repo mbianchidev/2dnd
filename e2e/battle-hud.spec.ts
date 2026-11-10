@@ -241,10 +241,13 @@ test("latest action feedback fades while the complete log remains available with
   expect(await page.locator("#battle-log li").count()).toBeGreaterThanOrEqual(count);
   await pressGameKey(page, "J");
   await expect(page.getByRole("dialog", { name: "Battle log history" })).toHaveCount(1);
+  await expect(page.locator("#dice-roll-stage")).toBeHidden();
   await expect(page.locator("#debug-state")).toContainText("[TIMING:paused:");
   const remaining = await canvas.getAttribute("data-battle-timing-remaining-ms");
   await waitForGameInputFrame(page);
   expect(await canvas.getAttribute("data-battle-timing-remaining-ms")).toBe(remaining);
+  await clickLayoutItem(page, "battle-vitals-toggle");
+  await expect(canvas).toHaveAttribute("data-battle-vitals-mode", "expanded");
   await expectCleanLayout(page);
   const historyPath = test.info().outputPath("battle-history-150.png");
   await page.locator("#game-inner").screenshot({ path: historyPath });

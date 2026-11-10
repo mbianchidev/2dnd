@@ -91,6 +91,10 @@ export class BattleLogManager {
 
   update(elapsedMs: number): void {
     if (this.destroyed) return;
+    const enabled = this.isOpen || this.callbacks.canOpen();
+    if (this.nativeButton.disabled === enabled) this.nativeButton.disabled = !enabled;
+    if (this.button.input) this.button.input.enabled = enabled;
+    if (this.button.alpha !== (enabled ? 1 : 0.45)) this.button.setAlpha(enabled ? 1 : 0.45);
     this.model.advance(elapsedMs);
     if (this.model.commitNotice()) {
       if (this.isOpen) this.model.clearNotice();

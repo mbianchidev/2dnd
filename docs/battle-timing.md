@@ -61,6 +61,8 @@ notices do not create a permanent pause.
 scrolling opens the full history and deliberately pauses a decision.
 **Esc/B** also opens it from the root; targeting and menus cancel first.
 The history preserves pending menu/aim choices without accepting their input.
+It clears overlaid dice art/cues, not recorded receipts, and blocks clicks
+through to the covered battlefield and vitals controls.
 **Enter/Space/A/B** or the visible **Close/Resume** control resumes without
 also executing the selected action. Disconnecting the active gamepad pauses the
 budget until that same acknowledgment; a keyboard, pointer, touch device, or

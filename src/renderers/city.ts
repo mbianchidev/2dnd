@@ -20,11 +20,12 @@ import { getTimePeriod, TimePeriod } from "../systems/daynight";
 import { isReducedMotionEnabled } from "../systems/accessibility";
 import type { PlayerState } from "../systems/player";
 import { TILE_SIZE } from "../config";
-import { resolveNpcVisual } from "../systems/npcVisuals";
+import { resolveCityShopkeeperVisual, resolveNpcVisual } from "../systems/npcVisuals";
 import { getOrCreateNpcTexture } from "./npcTextures";
 import { getInteriorForShop } from "../data/cityInteriors";
-import { NPC_TEMPLATES } from "../data/npcs";
 import { drawBuildingExterior } from "./buildings";
+import { getScaledBounds } from "../managers/layout";
+import { createOverlayContainer } from "../utils/ui";
 
 export class CityRenderer {
   private scene: Phaser.Scene;
@@ -49,6 +50,7 @@ export class CityRenderer {
   shopFloorMap: Map<string, number> = new Map();
   /** Maps shop index → group id for merged shops sharing the same roof area. */
   shopGroupMap: Map<number, number> = new Map();
+  private shopkeeperContainer: Phaser.GameObjects.Container | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -422,20 +424,32 @@ export class CityRenderer {
   // ── City NPCs ────────────────────────────────────────────────────────
 
   /** Clear existing city NPCs and re-spawn them (used after inn rest to reflect time change). */
-  respawnCityNpcs(player: PlayerState, timeStep: number, isExplored: (x: number, y: number) => boolean): void {
+  respawnCityNpcs(
+    player: PlayerState, timeStep: number, isExplored: (x: number, y: number) => boolean,
+    interactInterior: (id: string) => void,
+  ): void {
     if (!player.position.inCity) return;
     const city = getCity(player.position.cityId);
     if (!city) return;
     const chunk = getCityChunk(city, player.position.cityChunkIndex);
     if (!chunk) return;
     // Destroy existing NPC sprites and timers
-    for (const s of this.cityNpcSprites) s.destroy();
+    for (const s of this.cityNpcSprites) {
+      this.scene.tweens.killTweensOf(s);
+      s.destroy();
+    }
     this.cityNpcSprites = [];
+    this.shopkeeperContainer?.destroy(true);
+    this.shopkeeperContainer = null;
     for (const marker of this.questNpcMarkers) marker?.destroy();
     this.questNpcMarkers = [];
     for (const t of this.cityNpcTimers) t.destroy();
     this.cityNpcTimers = [];
     this.cityNpcData = [];
+    if (chunk.interior) {
+      this.spawnInteriorShopkeeper(city, chunk, interactInterior);
+      return;
+    }
     // Re-spawn
     this.spawnCityNpcs(
       city,
@@ -619,18 +633,27 @@ export class CityRenderer {
   spawnInteriorShopkeeper(city: CityData, chunk: CityChunk, interact: (id: string) => void): void {
     const interior = chunk.interior;
     if (!interior || interior.kind !== "shop") return;
-    const definitions = CITY_NPCS[city.id] ?? [];
-    const sourceIndex = interior.sourceChunkIndex === 0
-      ? definitions.findIndex((definition) => definition.shopIndex === interior.sourceShopIndex) : -1;
-    const visual = sourceIndex >= 0 ? resolveNpcVisual(city.id, sourceIndex) : undefined;
-    const template = visual?.template ?? NPC_TEMPLATES.find((entry) => entry.id.startsWith("merchant")) ?? NPC_TEMPLATES[0];
-    if (!template) throw new Error("[interiors] No canonical merchant template.");
-    const texture = this.getOrCreateNpcTexture(template,
-      visual?.skinColor ?? 0xd6a079, visual?.hairColor ?? 0x695440, visual?.dressColor ?? 0x7e9281);
-    const sprite = this.scene.add.sprite(10 * TILE_SIZE + TILE_SIZE / 2, 4 * TILE_SIZE + TILE_SIZE / 2, texture).setDepth(11);
+    const shop = chunk.shops[0];
     const counter = interior.props.find((prop) => prop.kind === "counter");
-    if (counter) sprite.setInteractive({ useHandCursor: true }).on("pointerdown", () => interact(counter.id));
+    if (!shop || !counter) throw new Error(`[interiors] Missing service counter in ${city.id}:${interior.id}.`);
+    const visual = resolveCityShopkeeperVisual(city, interior.sourceChunkIndex, shop);
+    const template = visual.template;
+    const texture = this.getOrCreateNpcTexture(template,
+      visual.skinColor, visual.hairColor, visual.dressColor);
+    this.shopkeeperContainer = createOverlayContainer(this.scene, "city-shopkeeper", 11, {
+      x: 0, y: 0, width: MAP_WIDTH * TILE_SIZE, height: MAP_HEIGHT * TILE_SIZE,
+    });
+    const sprite = this.scene.add.sprite(
+      (counter.x + 0.5) * TILE_SIZE, (counter.y - 0.5) * TILE_SIZE, texture,
+    ).setData("layoutId", "city-shopkeeper").setData("label", `${shop.name} clerk`);
+    sprite.setData("layoutBounds", getScaledBounds(sprite));
+    sprite.setInteractive({ useHandCursor: true }).on("pointerdown", () => interact(counter.id));
+    this.shopkeeperContainer.add(sprite);
     this.cityNpcSprites.push(sprite);
+    this.cityNpcData.push({
+      templateId: template.id, job: shop.type === "inn" ? "innkeeper" : "merchant",
+      x: counter.x, y: counter.y - 1, moves: false, shopIndex: 0,
+    });
   }
 
   // ── Cleanup ──────────────────────────────────────────────────────────
@@ -650,6 +673,8 @@ export class CityRenderer {
       s.destroy();
     }
     this.cityNpcSprites = [];
+    this.shopkeeperContainer?.destroy(true);
+    this.shopkeeperContainer = null;
     for (const marker of this.questNpcMarkers) marker?.destroy();
     this.questNpcMarkers = [];
     for (const t of this.cityNpcTimers) t.destroy();

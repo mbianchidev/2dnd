@@ -25,15 +25,20 @@ import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { getBlockedQuestEntranceAt } from "../systems/quests";
 import { getSecretIslands } from "../systems/islandAccess";
 import { WeatherType, WEATHER_TINT, type WeatherState } from "../systems/weather";
-import { isReducedMotionEnabled } from "../systems/accessibility";
+import { getAccessibilityPreferences, isReducedMotionEnabled } from "../systems/accessibility";
+import { getCityShopSignLabel } from "../systems/cityServices";
+import { getWalkthroughRugTiles } from "../systems/citySurface";
+import { getMinimapBounds } from "../systems/minimap";
 import type { PlayerState } from "../systems/player";
 import type { CityRenderer } from "./city";
 import { TILE_SIZE } from "../config";
 import { layoutAnchoredLabels } from "../systems/layout";
+import type { LayoutRect } from "../systems/layout";
 import { getScaledBounds, subscribeOverlayReflow } from "../managers/layout";
 import { createOverlayContainer } from "../utils/ui";
 import { getOrCreateCityTerrainTexture, getOrCreateTerrainTexture, getDungeonArtGround } from "./terrainTextures";
 import { InteriorRenderer } from "./interior";
+import { getInteriorPropTexture } from "./interiorTextures";
 import { DungeonLightingRenderer } from "./dungeonLighting";
 import { renderCityLandmarks } from "./cityLandmarks";
 import { renderCityBuildings } from "./buildings";
@@ -151,7 +156,11 @@ export class MapRenderer {
   private stormLightningTimer: Phaser.Time.TimerEvent | null = null;
   biomeDecoEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
   private labelLayer: Phaser.GameObjects.Container | null = null;
-  private labelRows: Array<{ text: Phaser.GameObjects.Text; id: string; x: number; y: number; maxWidth: number }> = [];
+  private labelRows: Array<{
+    text: Phaser.GameObjects.Text; id: string; x: number; y: number; maxWidth: number;
+    banner: Phaser.GameObjects.Graphics | null;
+  }> = [];
+  private labelObstructions: readonly LayoutRect[] = [];
   private readonly interiors: InteriorRenderer;
   private readonly dungeonLighting: DungeonLightingRenderer;
   private readonly worldCities: WorldCityRenderer;
@@ -200,6 +209,7 @@ export class MapRenderer {
     this.labelLayer?.destroy(true);
     this.labelLayer = null;
     this.labelRows = [];
+    this.labelObstructions = player.position.inCity ? [this.getMinimapBounds(player)] : [];
     // Clear old tile sprites
     for (const row of this.tileSprites) {
       for (const sprite of row) sprite.destroy();
@@ -226,7 +236,7 @@ export class MapRenderer {
     this.renderOverworld(player, defeatedBosses, isExplored);
   }
 
-  private addMapLabel(text: Phaser.GameObjects.Text, id: string, maxWidth = 160): void {
+  private addMapLabel(text: Phaser.GameObjects.Text, id: string, maxWidth = 160, serviceBanner = false): void {
     if (!this.labelLayer) {
       this.labelLayer = createOverlayContainer(this.scene, "map-labels", 15, {
         x: 0, y: 0, width: MAP_WIDTH * TILE_SIZE, height: MAP_HEIGHT * TILE_SIZE,
@@ -235,7 +245,13 @@ export class MapRenderer {
       this.labelLayer.once(Phaser.GameObjects.Events.DESTROY, unsubscribe);
     }
     text.setData("layoutId", id);
-    this.labelRows.push({ text, id, x: text.x, y: text.y, maxWidth });
+    const banner = serviceBanner ? this.scene.add.graphics()
+      .setData("layoutId", `${id}-banner`).setData("layoutAllowOverlapWith", [id]) : null;
+    if (banner) {
+      text.setData("layoutAllowOverlapWith", [`${id}-banner`]);
+      this.labelLayer.add(banner);
+    }
+    this.labelRows.push({ text, id, x: text.x, y: text.y, maxWidth, banner });
     this.labelLayer.add(text);
     this.reflowMapLabels();
   }
@@ -249,12 +265,29 @@ export class MapRenderer {
     });
     const layout = layoutAnchoredLabels(this.labelRows.map(({ text, id }) => ({
       id, bounds: getScaledBounds(text),
-    })), viewport);
+    })), viewport, 4, this.labelObstructions);
     layout.forEach((item, index) => {
       const text = this.labelRows[index]!.text;
       const bounds = getScaledBounds(text);
       text.setPosition(text.x + item.bounds.x - bounds.x, text.y + item.bounds.y - bounds.y);
+      const banner = this.labelRows[index]!.banner;
+      if (banner) {
+        const placed = getScaledBounds(text);
+        const contrast = getAccessibilityPreferences().highContrast;
+        banner.setData("layoutBounds", placed).clear()
+          .fillStyle(contrast ? 0x000000 : 0x253d3b).fillRect(placed.x, placed.y, placed.width, placed.height)
+          .lineStyle(1, contrast ? 0xffffff : 0xd1b780)
+          .strokeRect(placed.x + 1, placed.y + 1, placed.width - 2, placed.height - 2)
+          .fillStyle(0xd1b780).fillRect(placed.x + 4, placed.y + 2, 2, 2)
+          .fillRect(placed.x + placed.width - 6, placed.y + 2, 2, 2);
+      }
     });
+  }
+
+  private getMinimapBounds(player: PlayerState): LayoutRect {
+    return getMinimapBounds({
+      x: 0, y: 0, width: this.scene.cameras.main.width, height: this.scene.cameras.main.height,
+    }, player.position.x, player.position.y);
   }
 
   /**
@@ -268,6 +301,11 @@ export class MapRenderer {
     if (player.position.inDungeon) {
       this.revealDungeonTiles(player, isExplored);
     } else if (player.position.inCity) {
+      const bounds = this.getMinimapBounds(player);
+      if (bounds.x !== this.labelObstructions[0]?.x) {
+        this.labelObstructions = [bounds];
+        this.reflowMapLabels();
+      }
       this.revealCityTiles(player, isExplored, cityRenderer);
     } else {
       this.revealOverworldTiles(player, isExplored);
@@ -646,22 +684,20 @@ export class MapRenderer {
         }
       }
     }
-    for (const shop of shops) {
-      if (isExplored(shop.x, shop.y) && Math.abs(player.position.x - shop.x) + Math.abs(player.position.y - shop.y) <= 5) {
-        const icon = shop.type === "weapon" ? "⚔" : shop.type === "armor" ? "🛡" : shop.type === "inn" ? "🏨" : shop.type === "bank" ? "🏦" : shop.type === "stable" ? "🐴" : "🏪";
+    for (const shop of chunk.interior ? [] : shops) {
+      if (isExplored(shop.x, shop.y)) {
         const label = this.scene.add
-          .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 6, `${icon} ${shop.name}`, {
-            fontSize: "9px",
+          .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 6, getCityShopSignLabel(shop), {
+            fontSize: "8px",
             fontFamily: "monospace",
             color: "#ffffff",
             stroke: "#000000",
             strokeThickness: 3,
-            backgroundColor: "#00000088",
-            padding: { x: 3, y: 1 },
+            padding: { x: 7, y: 4 },
           })
           .setOrigin(0.5, 1)
           .setDepth(15);
-        this.addMapLabel(label, `city-shop-${shop.x}-${shop.y}`);
+        this.addMapLabel(label, `city-shop-${shop.x}-${shop.y}`, 144, true);
       }
     }
 
@@ -672,7 +708,12 @@ export class MapRenderer {
     }
 
     // City animals, NPCs, and shop roofs
-    this.surfaceSprites = renderCityLandmarks(this.scene, cityMap, isExplored);
+    this.surfaceSprites = getWalkthroughRugTiles(cityMap)
+      .filter(({ x, y }) => isExplored(x, y))
+      .map(({ x, y }) => this.scene.add.sprite(
+        (x + 0.5) * TILE_SIZE, (y + 0.5) * TILE_SIZE, getInteriorPropTexture("rug"),
+      ).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1).setName("city-walkthrough-rug"));
+    this.surfaceSprites.push(...renderCityLandmarks(this.scene, cityMap, isExplored));
     this.buildingGraphics = renderCityBuildings(this.scene, chunk.buildings ?? [], isExplored);
     cityRenderer.spawnCityAnimals(
       city,

@@ -62,6 +62,13 @@ terrain palettes, preserving depth bands, one-buffer cutscenes and RNG isolation
 
 ## Current architecture
 
+- City services use `systems/cityServices.ts` for true doorway identity and
+  shared Night closure. Inns stay open all day; shipwright work has no bypass.
+  Exterior category banners remain visible without proximity checks. Clerks use
+  canonical/deterministic NPC palettes and respawn in their room after inn rest.
+  Street rugs never change collision. Optional loot/books have no plus signs,
+  automatic Search/Read hints, hand cursor or minimap marker; preserve their
+  guarded interactions and existing story guidance.
 - Hero progression: immutable `data/classProgression.ts`, authoritative
   `systems/classProgression.ts`, focused `classProgressionState.ts` and
   `managers/heroProgression.ts`. Preserve normal cap 20, stable starting class,
@@ -167,7 +174,11 @@ Dice use stepped pixel silhouettes and bitmap numerals. Battle retains only
 its fading narrative notice and on-demand history; do not add another dice
 caption strip. Result captions belong to transient non-battle views.
 
-All release input routes through the semantic action layer. Standard gamepads
+All release input routes through the semantic action layer. Release-driven
+Phaser controls use `bindPointerRelease()` from `utils/ui.ts` unless they
+already capture stable intent. A newly opened control cannot inherit a release
+from its opener; modal panel interiors shield outside-dismiss backdrops.
+Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a
 visible right-stick cursor clicked by pressing the stick. Responsive touch
 controls use safe areas, pointer capture for held directions, pointer-release
@@ -266,7 +277,10 @@ do not alter combat formation rules or grant flight from winged artwork.
 The battle HUD uses `systems/battleHud.ts` for pure icon/resource/redaction
 contracts and `renderers/battleHud.ts` for measured graphics/native semantics.
 Keep six distinct command icons and hide their folio/hit targets during action
-presentation and outside accepted controlled decisions. Small portrait icons
+presentation and outside accepted controlled decisions. Keep the selected folio
+visible during enemy selection, but disable its command inputs until cancel or
+commit. Command-readiness waits use `data-battle-commands-enabled`, not visibility.
+Small portrait icons
 form the timeline; live portrait HP/MP cards can compact through preference v4.
 Enemy HP appears only for an actively hovered/focused valid target when
 `hpRevealed` allows it, never as permanent rows or hidden numeric nodes.

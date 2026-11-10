@@ -126,10 +126,6 @@ export function generateInteriorTextures(scene: Phaser.Scene): void {
             { x: x + 2, y: 19 }], 0xb5ad85);
         }
       }
-      if (!searched && (kind === "book" || kind === "pantry" || kind === "sack")) {
-        art.line(26, 2, 26, 7, 0xf2dda0);
-        art.line(24, 4, 28, 4, 0xf2dda0);
-      }
       createPixelTexture(scene, getInteriorPropTexture(kind, searched), art);
     }
   }

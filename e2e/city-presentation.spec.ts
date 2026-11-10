@@ -1,12 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
 import { CUTSCENE_IDS } from "../src/data/cutscenes";
-import { getCity, getCityChunk, getCityChunkCount, getCityChunkMap, isWalkable, MAP_HEIGHT, MAP_WIDTH } from "../src/data/map";
+import {
+  getCity, getCityChunk, getCityChunkCount, getCityChunkMap, getCityConnectionAt,
+  getInnCost, isWalkable, MAP_HEIGHT, MAP_WIDTH,
+} from "../src/data/map";
 import { getMinigameVenue } from "../src/data/minigames";
 import { getMonster } from "../src/data/monsters";
 import { getMonsterTextureKey } from "../src/data/monsterFamilies";
+import { auditLayout } from "../src/systems/layout";
+import { acquireBoat } from "../src/systems/nauticalOwnership";
+import { getItem } from "../src/data/items";
 import { reconcileFeatureDiscovery } from "../src/systems/featureDiscovery";
-import { expectCleanLayout, tapLayoutItem, waitForGameInputFrame } from "./helpers/layout";
-import { pressGameKey } from "./helpers/input";
+import { clickPointerAt, expectCleanLayout, readLayoutReport, tapLayoutItem, waitForGameInputFrame } from "./helpers/layout";
+import { pressGameKey, stepGameTile } from "./helpers/input";
 import {
   continueMinigameFixture, minigameBrowserErrors, minigameFixture,
   readMinigameSave, seedMinigamePage,
@@ -38,6 +44,163 @@ async function capture(page: Page, name: string): Promise<void> {
   await page.screenshot({ path });
   await test.info().attach(name, { path, contentType: "image/png" });
 }
+
+for (const textScale of [1, 1.25, 1.5] as const) {
+  test(`all shop banners remain visible from across the district at ${textScale * 100}% text`, async ({ page }) => {
+    const errors = minigameBrowserErrors(page);
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
+    const fixture = minigameFixture("willowdaleRange");
+    const city = getCity("willowdale_city")!;
+    fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
+    Object.assign(fixture.player.position, { x: 10, y: 13 });
+    await seedMinigamePage(page, fixture, "keyboard", { textScale, highContrast: textScale === 1.5 });
+    await expect(page.locator("#layout-report")).toContainText("city-shop-3-4");
+    const report = await readLayoutReport(page);
+    const ids = report.groups["map-labels"]!.items.map(({ id }) => id);
+    for (const shop of city.shops) {
+      expect(ids).toContain(`city-shop-${shop.x}-${shop.y}`);
+      expect(ids).toContain(`city-shop-${shop.x}-${shop.y}-banner`);
+    }
+    const minimap = report.groups["exploration-minimap"]!.items.find(({ id }) => id === "minimap-panel");
+    if (!minimap) throw new Error("Missing actual minimap bounds.");
+    const signs = report.groups["map-labels"]!.items
+      .filter(({ id }) => id.startsWith("city-shop-") && !id.endsWith("-banner"));
+    expect(auditLayout([...signs, minimap], { x: 0, y: 0, width: 640, height: 480 }))
+      .toEqual({ overlaps: [], clipping: [] });
+    await expectCleanLayout(page);
+    await capture(page, `all-service-banners-${textScale * 100}`);
+    if (textScale === 1.5) {
+      await stepGameTile(page, "D", 11, 13);
+      for (let y = 12; y >= 5; y--) await stepGameTile(page, "W", 11, y);
+      for (let x = 12; x <= 16; x++) await stepGameTile(page, "D", x, 5);
+      await stepGameTile(page, "W", 16, 4);
+      await expect.poll(async () => (await readLayoutReport(page))
+        .groups["exploration-minimap"]!.items.find(({ id }) => id === "minimap-panel")?.bounds.x).toBe(8);
+      const moved = await readLayoutReport(page);
+      const movedMinimap = moved.groups["exploration-minimap"]!.items.find(({ id }) => id === "minimap-panel")!;
+      expect(movedMinimap.bounds.x).toBe(8);
+      const movedSigns = moved.groups["map-labels"]!.items
+        .filter(({ id }) => id.startsWith("city-shop-") && !id.endsWith("-banner"));
+      expect(auditLayout([...movedSigns, movedMinimap], { x: 0, y: 0, width: 640, height: 480 }))
+        .toEqual({ overlaps: [], clipping: [] });
+      await capture(page, "service-banners-clear-relocated-minimap-150");
+    }
+    expect(errors).toEqual([]);
+  });
+}
+
+for (const [cityId, shopName] of [
+  ["willowdale_city", "General Store"], ["tidehaven_city", "Tidehaven Shipwright"],
+] as const) {
+  test(`${shopName} blocks night entry and leaves its existing room safely escapable`, async ({ page }) => {
+    const errors = minigameBrowserErrors(page);
+    const city = getCity(cityId)!;
+    const shop = city.shops.find((entry) => entry.name === shopName)!;
+    const door = getCityConnectionAt(city, 0, shop.x, shop.y)!;
+    const room = getCityChunk(city, door.toChunkIndex)!;
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
+    const fixture = minigameFixture("willowdaleRange");
+    fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
+    fixture.timeStep = 300;
+    if (shopName === "Tidehaven Shipwright") {
+      acquireBoat(fixture.player.progression.nautical, "merchantSloop").boat.condition = 60;
+      fixture.player.inventory.push({ ...getItem("reinforcedHullKit")! });
+    }
+    Object.assign(fixture.player.position, {
+      cityId, cityChunkIndex: 0, x: shop.x, y: shop.y,
+    });
+    await seedMinigamePage(page, fixture, "keyboard");
+    await pressGameKey(page, "Space");
+    await expect(page.locator("#debug-state")).toContainText(`[CITY:${cityId}:0]`);
+    expect((await readMinigameSave(page)).player.gold).toBe(fixture.player.gold);
+
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
+    Object.assign(fixture.player.position, { cityChunkIndex: door.toChunkIndex, x: 10, y: 6 });
+    await seedMinigamePage(page, fixture, "touch");
+    await expect(page.locator("#layout-report")).toContainText("city-shopkeeper");
+    await tapLayoutItem(page, "city-shopkeeper");
+    await expect(page.locator("#debug-state")).toContainText(`[CITY:${cityId}:${door.toChunkIndex}]`);
+    await expect(page.locator("#debug-state")).not.toContainText("SHOP |");
+    expect((await readMinigameSave(page)).player.gold).toBe(fixture.player.gold);
+    if (shopName === "Tidehaven Shipwright") {
+      const saved = await readMinigameSave(page);
+      expect(saved.player.progression.nautical.ownedBoats[0]!.condition).toBe(60);
+      expect(saved.player.progression.nautical.ownedBoats[0]!.upgradeIds).toEqual([]);
+      expect(saved.player.inventory.some((item) => item.id === "reinforcedHullKit")).toBe(true);
+    }
+    await stepGameTile(page, "A", 9, 6);
+    for (let y = 7; y <= 12; y++) await stepGameTile(page, "S", 9, y);
+    await stepGameTile(page, "D", 10, 12);
+    await stepGameTile(page, "S", 10, 13);
+    await pressGameKey(page, "Space");
+    await expect(page.locator("#debug-state")).toContainText(`[CITY:${cityId}:0]`);
+    expect(room.interior?.kind).toBe("shop");
+    expect(errors).toEqual([]);
+  });
+}
+
+for (const [cityId, district] of [["willowdale_city", 0], ["tidehaven_city", 1]] as const) {
+  test(`${cityId} district ${district} inn admits night visitors and retains its clerk after resting`, async ({ page }) => {
+    const errors = minigameBrowserErrors(page);
+    const city = getCity(cityId)!;
+    const street = getCityChunk(city, district)!;
+    const inn = street.shops.find((shop) => shop.type === "inn")!;
+    const door = getCityConnectionAt(city, district, inn.x, inn.y)!;
+    const fixture = minigameFixture("willowdaleRange");
+    fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
+    fixture.player.hp = 1;
+    fixture.player.mp = 0;
+    fixture.timeStep = 300;
+    Object.assign(fixture.player.position, {
+      cityId, cityChunkIndex: district, x: inn.x, y: inn.y,
+    });
+    await page.goto("game.html", { waitUntil: "domcontentloaded" });
+    await seedMinigamePage(page, fixture, "touch", { textScale: 1 });
+    await pressGameKey(page, "Space");
+    await expect(page.locator("#debug-state")).toContainText(`[CITY:${cityId}:${door.toChunkIndex}]`);
+    await expect(page.locator("#debug-state")).toContainText("Fade: ready");
+    await stepGameTile(page, "A", 9, 12);
+    for (let y = 11; y >= 6; y--) await stepGameTile(page, "W", 9, y);
+    await stepGameTile(page, "D", 10, 6);
+    await tapLayoutItem(page, "city-shopkeeper");
+    await waitForGameInputFrame(page);
+    const canvas = await page.locator("#game-container canvas").boundingBox();
+    if (!canvas) throw new Error("Missing inn canvas.");
+    await clickPointerAt(page, canvas.x + 320 / 640 * canvas.width, canvas.y + 224 / 528 * canvas.height);
+    await expect.poll(async () => (await readMinigameSave(page)).player.gold).toBe(fixture.player.gold - getInnCost(cityId));
+    await expect(page.locator("#debug-state")).toContainText("Fade: ready");
+    await expect(page.locator("#layout-report")).toContainText("city-shopkeeper");
+    const saved = await readMinigameSave(page);
+    expect(saved.player.hp).toBe(saved.player.maxHp);
+    expect(saved.player.mp).toBe(saved.player.maxMp);
+    await expectCleanLayout(page);
+    await capture(page, `${cityId}-${district}-clerk-after-rest`);
+    await tapLayoutItem(page, "city-shopkeeper");
+    await expect(page.locator("#exploration-minimap-summary")).toHaveAttribute("hidden", "");
+    expect(errors).toEqual([]);
+  });
+}
+
+test("optional room discoveries have no minimap marker or automatic search hint", async ({ page }) => {
+  const errors = minigameBrowserErrors(page);
+  const city = getCity("willowdale_city")!;
+  const index = Array.from({ length: getCityChunkCount(city) }, (_, i) => i)
+    .find((i) => getCityChunk(city, i)?.interior?.kind === "home")!;
+  const room = getCityChunk(city, index)!;
+  const coins = room.interior!.props.find((prop) => prop.reward?.gold)!;
+  const fixture = minigameFixture("willowdaleRange");
+  fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
+  Object.assign(fixture.player.position, { cityChunkIndex: index, x: coins.x - 1, y: coins.y });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
+  await seedMinigamePage(page, fixture, "touch", { textScale: 1.5 });
+  await expect(page.locator("#exploration-minimap-summary")).not.toHaveAttribute("aria-label", /book|supplies|treasure/);
+  await expect(page.locator("#debug-state")).not.toContainText(coins.label);
+  await expectCleanLayout(page);
+  await capture(page, "unmarked-interior-discoveries");
+  await tapLayoutItem(page, coins.id);
+  await expect.poll(async () => (await readMinigameSave(page)).player.gold).toBe(fixture.player.gold + coins.reward!.gold!);
+  expect(errors).toEqual([]);
+});
 
 test("entering and reloading a city reveals all districts without changing other location fog", async ({ page }) => {
   const errors = minigameBrowserErrors(page);

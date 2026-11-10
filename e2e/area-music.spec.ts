@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { CUTSCENE_IDS } from "../src/data/cutscenes";
-import { getChunk, getCity, getDungeon, isWalkable, Terrain } from "../src/data/map";
+import { getChunk, getCity, getCityConnectionAt, getDungeon, isWalkable, Terrain } from "../src/data/map";
 import { createCodex } from "../src/systems/codex";
 import { createPlayer, type PlayerPosition } from "../src/systems/player";
 import { createCurrentSaveData, normalizeSaveData } from "../src/systems/save";
@@ -9,7 +9,7 @@ import { createWeatherState, WeatherType } from "../src/systems/weather";
 import type { AudioState } from "../src/systems/audio";
 import type { MusicPlaybackSnapshot } from "../src/systems/musicPlayback";
 import { clickLayoutItem, waitForGameInputFrame } from "./helpers/layout";
-import { pressGameKey } from "./helpers/input";
+import { pressGameKey, stepGameTile } from "./helpers/input";
 
 const pageErrors = new WeakMap<Page, string[]>();
 
@@ -160,16 +160,19 @@ test("city, night, dungeon, battle and real dungeon exit select their own music"
 test("a named city shop retains its canonical city score and restores it on return", async ({ page }) => {
   const city = getCity("willowdale_city")!;
   const shop = city.shops.find((candidate) => candidate.type === "general")!;
-  const approach = [
-    { x: shop.x + 1, y: shop.y }, { x: shop.x - 1, y: shop.y },
-    { x: shop.x, y: shop.y + 1 }, { x: shop.x, y: shop.y - 1 },
-  ].find(({ x, y }) => isWalkable(city.mapData[y][x]));
-  if (!approach) throw new Error("No walkable shop approach.");
+  const door = getCityConnectionAt(city, 0, shop.x, shop.y);
+  if (!door) throw new Error("Missing canonical shop doorway.");
   await seedCampaign(page, {
     inCity: true, cityId: city.id, cityChunkIndex: 0,
-    chunkX: city.chunkX, chunkY: city.chunkY, ...approach,
+    chunkX: city.chunkX, chunkY: city.chunkY, x: shop.x, y: shop.y,
   });
   await expect.poll(() => readAudio(page)).toMatchObject({ trackId: "Willowdale_day" });
+  await pressGameKey(page, "Space");
+  await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:${door.toChunkIndex}]`);
+  await expect.poll(() => readAudio(page)).toMatchObject({ trackId: "Willowdale_day" });
+  await stepGameTile(page, "A", 9, 12);
+  for (let y = 11; y >= 6; y--) await stepGameTile(page, "W", 9, y);
+  await stepGameTile(page, "D", 10, 6);
   await pressGameKey(page, "Space");
   await expect(page.locator("#game-container canvas")).toHaveAttribute("data-layout-scene", "ShopScene");
   await expect.poll(() => readAudio(page)).toEqual({
@@ -177,6 +180,7 @@ test("a named city shop retains its canonical city score and restores it on retu
   });
   await pressGameKey(page, "Escape");
   await expect(page.locator("#game-container canvas")).toHaveAttribute("data-layout-scene", "OverworldScene");
+  await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:${door.toChunkIndex}]`);
   await expect.poll(() => readAudio(page)).toMatchObject({ trackId: "Willowdale_day" });
 });
 

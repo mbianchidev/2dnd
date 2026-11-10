@@ -43,7 +43,7 @@ export class InteriorRenderer {
         width: (prop.width ?? 1) * TILE_SIZE, height: (prop.height ?? 1) * TILE_SIZE,
       });
       if (prop.reward || prop.kind === "counter") {
-        sprite.setInteractive({ useHandCursor: true }).on("pointerdown", () => interact(prop.id));
+        sprite.setInteractive({ useHandCursor: prop.kind === "counter" }).on("pointerdown", () => interact(prop.id));
       }
       this.container.add(sprite);
     }

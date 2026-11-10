@@ -333,8 +333,6 @@ export function createTerrainArt(spec: TerrainArtSpec): PixelSurface {
   } else if (terrain === Terrain.MinorTreasure) {
     art.rect(12, 19, 9, 7, 0xa18455);
     art.rect(14, 16, 5, 5, 0xd3bc7c);
-    art.line(16, 8, 16, 14, 0xf5e7b2);
-    art.line(13, 11, 19, 11, 0xf5e7b2);
   } else if (terrain === Terrain.Carpet) {
     art.rect(3, 5, 26, 23, 0x854e45);
     art.rect(5, 7, 22, 19, 0xa7735b);

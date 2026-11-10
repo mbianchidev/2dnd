@@ -2,7 +2,7 @@ import * as Phaser from "phaser";
 import { getAccessibilityPreferences } from "../systems/accessibility";
 import type { LayoutRect } from "../systems/layout";
 import { getTextContentSize, subscribeOverlayReflow } from "../managers/layout";
-import { createOverlayContainer, paintPanel, setOverlayViewport } from "../utils/ui";
+import { bindPointerRelease, createOverlayContainer, paintPanel, setOverlayViewport } from "../utils/ui";
 import { UI_COLORS } from "../systems/uiTheme";
 
 export interface ShopLayoutOptions {
@@ -53,7 +53,7 @@ export class ShopLayoutRenderer {
     const button = (label: string, id: string, activate: () => void): Phaser.GameObjects.Text => {
       const object = text(label, 12, id).setPadding(8, 4).setBackgroundColor("#334351")
         .setInteractive({ useHandCursor: true });
-      object.on("pointerup", activate);
+      bindPointerRelease(object, activate);
       return object;
     };
     this.title = text(options.title, 22, "shop-title").setOrigin(0.5, 0);
@@ -111,9 +111,13 @@ export class ShopLayoutRenderer {
     const body = this.scene.add.text(24, 0, "", { fontFamily: "monospace", fontSize: "12px", color: "#ffffff",
       wordWrap: { width: w - 48 }, lineSpacing: 3 }).setData("layoutId", "shop-item-details-body");
     let page = 0;
-    const button = (label: string, id: string, action: () => void): Phaser.GameObjects.Text => this.scene.add.text(0, 0, label, {
-      fontFamily: "monospace", fontSize: "12px", color: "#e7d7af", backgroundColor: "#334351", padding: { x: 8, y: 5 },
-    }).setData("layoutId", id).setInteractive({ useHandCursor: true }).on("pointerup", action);
+    const button = (label: string, id: string, action: () => void): Phaser.GameObjects.Text => {
+      const control = this.scene.add.text(0, 0, label, {
+        fontFamily: "monospace", fontSize: "12px", color: "#e7d7af", backgroundColor: "#334351", padding: { x: 8, y: 5 },
+      }).setData("layoutId", id).setInteractive({ useHandCursor: true });
+      bindPointerRelease(control, action);
+      return control;
+    };
     const previous = button("Previous", "shop-item-details-previous", () => { page = Math.max(0, page - 1); render(); });
     const next = button("Next", "shop-item-details-next", () => { page++; render(); });
     const close = button("Close [Esc]", "shop-item-details-close", () => this.closeItemDetails()).setOrigin(1, 0);

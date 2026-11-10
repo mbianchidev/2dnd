@@ -3,7 +3,7 @@ import { getCity, getCityChunk, getCityChunkCount } from "../src/data/cities";
 import { getCityShopSkillCheckId } from "../src/data/skillChecks";
 import { createPlayer, xpForLevel } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
-import { claimCityInteriorProp } from "../src/systems/interiorExploration";
+import { claimCityInteriorProp, getCityInteriorProp } from "../src/systems/interiorExploration";
 import { createHeroClassProgression, getAvailableProgressionGrants, getFeatureSources, getSpellCastingStat } from "../src/systems/classProgression";
 import { normalizeSaveData, SAVE_VERSION } from "../src/systems/save";
 import { getPermanentStudyLedger } from "../src/systems/interiorStudy";
@@ -29,6 +29,17 @@ function approach(f: ReturnType<typeof fixture>, id: string): void {
 }
 
 describe("offered interior discoveries", () => {
+  it("can address the clerk from beside the clerk or across the counter, but not remotely", () => {
+    const f = fixture("willowdale_city", "shop");
+    const counter = f.room.interior!.props.find((prop) => prop.kind === "counter")!;
+    Object.assign(f.player.position, { x: counter.x, y: counter.y + 1 });
+    expect(getCityInteriorProp(f.player, counter.id)).toBe(counter);
+    Object.assign(f.player.position, { x: counter.x, y: counter.y - 2 });
+    expect(getCityInteriorProp(f.player, counter.id)).toBe(counter);
+    Object.assign(f.player.position, { x: counter.x - 3, y: counter.y - 2 });
+    expect(getCityInteriorProp(f.player, counter.id)).toBeUndefined();
+  });
+
   it("claims fixed coins and herbs once and keeps their ownership through normalization", () => {
     const f = fixture();
     const coins = f.room.interior!.props.find((prop) => prop.reward?.gold)!;

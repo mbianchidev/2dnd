@@ -88,6 +88,9 @@ natural bests/counters, milestone claims, social credit, or lore.
 - Lease and restore the scene-owned `semanticInputContext` override.
 - Use shared semantic keyboard/pointer/touch/gamepad routing, not new adapters.
 - Confirm on release; preserve stable intent across held/delayed input.
+  Bind release-driven Phaser controls through `bindPointerRelease()` so venue,
+  panel, backdrop and aiming releases require their own live control's press.
+  Opening/replacing a menu cannot trigger the newly exposed action or spend entry.
 - Debounce with monotonic input time, never a stalled render-frame clock.
   Keep animation time separate from accepted controls and authoritative score.
   Test fixtures must honor `MINIGAME_ACTION_INPUT_GAP_MS` as well as complete

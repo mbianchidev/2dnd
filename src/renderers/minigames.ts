@@ -5,7 +5,7 @@ import { inputSource, isInputAction, isTouchActionAvailable } from "../systems/i
 import { layoutMinigamePanel, paginateMinigameLines } from "../systems/minigameLayout";
 import { wrapMeasuredText } from "../systems/layout";
 import { getTextContentSize, syncInteractiveHitArea } from "../managers/layout";
-import { createDimGraphics, createOverlayContainer, createPanelGraphics, setOverlayViewport } from "../utils/ui";
+import { bindPointerRelease, createDimGraphics, createOverlayContainer, createPanelGraphics, setOverlayViewport } from "../utils/ui";
 import type { MinigameBoard } from "../systems/minigamePresentation";
 import type { LayoutRect } from "../systems/layout";
 
@@ -154,7 +154,7 @@ export class MinigamePanelRenderer {
     this.container = container;
     const dim = createDimGraphics(this.scene, GAME_WIDTH, GAME_HEIGHT, 0.82)
       .setInteractive(new Phaser.Geom.Rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT), Phaser.Geom.Rectangle.Contains);
-    dim.on("pointerup", content.onBack);
+    bindPointerRelease(dim, content.onBack);
     container.add(dim);
     const title = this.text("minigame-title", content.title, 15, "#ffe38a");
     const status = this.text("minigame-status", content.status, 12);
@@ -202,7 +202,7 @@ export class MinigamePanelRenderer {
       this.publishBoard(content.board, layout.body);
       if (content.board.kind === "archery" && content.onAim) {
         graphics.setInteractive(new Phaser.Geom.Rectangle(layout.body.x, layout.body.y, layout.body.width, layout.body.height), Phaser.Geom.Rectangle.Contains);
-        graphics.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+        bindPointerRelease(graphics, (pointer: Phaser.Input.Pointer) => {
           const aim = Math.round((pointer.x - layout.body.x - 14) / (layout.body.width - 28) * 100);
           content.onAim?.(Math.max(0, Math.min(100, aim)));
         });
@@ -234,7 +234,7 @@ export class MinigamePanelRenderer {
         if (source === "pointer" || source === "touch") content.onSelect(action.id);
       });
       button.on("pointerdown", () => content.onSelect(action.id));
-      button.on("pointerup", action.execute);
+      bindPointerRelease(button, action.execute);
       syncInteractiveHitArea(button);
       container.add(button);
       return button;

@@ -7,6 +7,7 @@
 
 import * as Phaser from "phaser";
 import { claimCityInteriorProp, getCityInteriorProp } from "../systems/interiorExploration";
+import { getCityShopForEntrance, isCityShopOpen } from "../systems/cityServices";
 import { selectNewGamePlusVariant } from "../systems/newGamePlusScaling";
 import { enterIsland, getSailingIsland, leaveIsland } from "../systems/islands";
 import {
@@ -501,6 +502,7 @@ export class OverworldScene extends Phaser.Scene {
           this.timeStep,
           (x: number, y: number) =>
             this.fogOfWar.isExplored(x, y, this.player),
+          (id) => this.interactInterior(id),
         );
         this.questFlow?.refreshMarkers();
       },
@@ -1452,12 +1454,14 @@ export class OverworldScene extends Phaser.Scene {
         const destination = connection
           ? getCityChunk(city, connection.toChunkIndex)
           : undefined;
+        const service = getCityShopForEntrance(city, chunkIndex, this.player.position.x, this.player.position.y);
+        if (service && !isCityShopOpen(service, this.timeStep)) return `${service.name}  Closed until dawn`;
         return destination
           ? `${destination.name}  [SPACE] ${chunk.interior ? "Leave" : destination.interior ? "Enter" : "Enter District"}`
           : city.name;
       }
       const furnishing = getCityInteriorProp(this.player);
-      if (furnishing) return `${furnishing.label}  [SPACE] ${furnishing.kind === "counter" ? "Browse" : furnishing.text ? "Read" : "Search"}`;
+      if (furnishing?.kind === "counter") return `${furnishing.label} clerk  [SPACE] Talk`;
       const shop = getCityChunkShopNearby(
         city,
         chunkIndex,
@@ -1466,7 +1470,9 @@ export class OverworldScene extends Phaser.Scene {
       );
       const temple = getAdjacentDevotionTemple(this.player.position);
       if (temple) return `${temple.name}  [SPACE] Visit`;
-      if (shop) return `${shop.name}  [SPACE] Enter`;
+      if (shop && !chunk.interior) return isCityShopOpen(shop, this.timeStep)
+        ? `${shop.name}  [SPACE] ${shop.type === "stable" ? "Talk" : "Enter"}`
+        : `${shop.name}  Closed until dawn`;
       const minigamePrompt = this.minigameManager.getPrompt(this.player);
       if (minigamePrompt) return `${city.name}: ${chunk.name}  ${minigamePrompt}`;
       const gatheringPrompt = this.gatheringManager.getPrompt(this.player);
@@ -2275,15 +2281,10 @@ export class OverworldScene extends Phaser.Scene {
       if (!isWalkable(targetTerrain)) return;
 
       // Block entry to shops at night (except inn)
-      if (!chunk.interior && (targetTerrain === Terrain.Carpet || targetTerrain === Terrain.ShopFloor || targetTerrain === Terrain.CityGate)
-        && getTimePeriod(this.timeStep) === TimePeriod.Night) {
-        const nearbyShop = getCityChunkShopNearby(
-          city,
-          this.player.position.cityChunkIndex,
-          targetX,
-          targetY,
-        );
-        if (nearbyShop && nearbyShop.type !== "inn" && nearbyShop.name !== "Tidehaven Shipwright") {
+      if (!chunk.interior && (targetTerrain === Terrain.Carpet || targetTerrain === Terrain.ShopFloor || targetTerrain === Terrain.CityGate)) {
+        const nearbyShop = getCityShopForEntrance(city, this.player.position.cityChunkIndex, targetX, targetY)
+          ?? chunk.shops.find((shop) => shop.x === targetX && shop.y === targetY);
+        if (nearbyShop && !isCityShopOpen(nearbyShop, this.timeStep)) {
           this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
           return;
         }
@@ -2743,11 +2744,8 @@ export class OverworldScene extends Phaser.Scene {
       }
 
       if (terrain === Terrain.CityGate) {
-        const connection = getCityConnectionAt(city, chunkIndex, this.player.position.x, this.player.position.y);
-        const destination = connection ? getCityChunk(city, connection.toChunkIndex) : undefined;
-        const destinationShop = destination?.interior?.kind === "shop" ? destination.shops[0] : undefined;
-        if (destinationShop && destinationShop.type !== "inn" && destinationShop.name !== "Tidehaven Shipwright"
-          && getTimePeriod(this.timeStep) === TimePeriod.Night) {
+        const destinationShop = getCityShopForEntrance(city, chunkIndex, this.player.position.x, this.player.position.y);
+        if (destinationShop && !isCityShopOpen(destinationShop, this.timeStep)) {
           this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
           return;
         }
@@ -2892,51 +2890,9 @@ export class OverworldScene extends Phaser.Scene {
           return;
         }
         if (npcDef.shopIndex !== undefined) {
-          const npcShopIndex = npcDef.shopIndex;
-          const shop = chunk.shops[npcShopIndex];
+          const shop = chunk.shops[npcDef.shopIndex];
           if (shop) {
-            if (shop.type === "inn") {
-              this.dialogueSystem.showNpcDialogue(this.player, npcDef, npcIndex, city, this.timeStep);
-              this.time.delayedCall(300, () => {
-                this.dialogueSystem.dismissDialogue();
-                this.overlayManager.showInnConfirmation(this.player);
-              });
-              return;
-            }
-            if (getTimePeriod(this.timeStep) === TimePeriod.Night) {
-              this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
-              return;
-            }
-            if (shop.type === "bank") {
-              this.dialogueSystem.showNpcDialogue(this.player, npcDef, npcIndex, city, this.timeStep);
-              this.time.delayedCall(800, () => {
-                this.dialogueSystem.dismissDialogue();
-                this.overlayManager.showBankOverlay(this.player);
-              });
-              return;
-            }
-            this.dialogueSystem.showNpcDialogue(this.player, npcDef, npcIndex, city, this.timeStep);
-            this.sceneTransitions.startAfter(800, () => {
-              this.dialogueSystem.dismissDialogue();
-              this.autoSave();
-              this.scene.start("ShopScene", {
-                player: this.player,
-                townName: `${city.name} - ${shop.name}`,
-                defeatedBosses: this.defeatedBosses,
-                codex: this.codex,
-                shopItemIds: shop.shopItems,
-                timeStep: this.timeStep,
-                weatherState: this.weatherState,
-                fromCity: true,
-                cityId: city.id,
-                savedSpecialNpcs: this.specialNpcManager.snapshotSpecialNpcs(),
-                shopSkillCheckId: getCityShopSkillCheckId(
-                  city.id,
-                  chunkIndex,
-                  shop,
-                ),
-              });
-            }, "open city shop");
+            this.openCityShop(city, chunk.name, shop, chunkIndex);
             return;
           }
         }
@@ -2950,14 +2906,7 @@ export class OverworldScene extends Phaser.Scene {
         this.player.position.x,
         this.player.position.y,
       );
-      if (nearbyShop) {
-        if (
-          city.id === "tidehaven_city"
-          && nearbyShop.name === "Tidehaven Shipwright"
-          && this.serviceTidehavenShipwright()
-        ) {
-          return;
-        }
+      if (nearbyShop?.type === "stable" && !chunk.interior) {
         this.openCityShop(city, chunk.name, nearbyShop, chunkIndex);
         return;
       }
@@ -3203,13 +3152,13 @@ export class OverworldScene extends Phaser.Scene {
     shop: CityShopData,
     chunkIndex: number,
   ): void {
+    if (!isCityShopOpen(shop, this.timeStep)) {
+      this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
+      return;
+    }
     if (city.id === "tidehaven_city" && shop.name === "Tidehaven Shipwright" && this.serviceTidehavenShipwright()) return;
     if (shop.type === "inn") {
       this.overlayManager.showInnConfirmation(this.player);
-      return;
-    }
-    if (getTimePeriod(this.timeStep) === TimePeriod.Night) {
-      this.showMessage("The shop is closed for the night. Come back in the morning!", "#ff8888");
       return;
     }
     if (shop.type === "bank") {

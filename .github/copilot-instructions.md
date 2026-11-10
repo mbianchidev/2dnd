@@ -632,6 +632,10 @@ Flow:
 - Commands and their hit targets disappear outside accepted controlled
   decisions and during action animation; unavailable choices remain explicit
   within a decision menu.
+- Selecting Attack keeps its folio visible through enemy selection. Disable
+  command hit targets/native buttons while targeting, restore them on cancel,
+  and hide the folio only after confirmation starts action presentation.
+  `data-battle-commands-enabled` is the readiness marker, separate from visibility.
 - Attack, Defend, Abilities, Spells, Items and Flee retain distinct procedural
   icons independently of selection/unavailable markers. Hero/companion HP/MP
   use portrait bars and native meters, with a preference-v4 compact/full toggle.
@@ -840,6 +844,14 @@ Fixed offered rewards save before feedback and roll back on failure;
 `collectedTreasures` owns furnishing claims and finite permanent study tokens.
 Keep original shop identities for negotiations and recipe discovery.
 See `docs/graphics.md`.
+
+Every explored shop/inn has an exterior category banner and a clerk. Resolve
+Night closure through `systems/cityServices.ts` at doors and all service paths,
+including shipwright upgrades/repairs; inns alone remain open 24/7. Inn rest must
+respawn the current interior clerk, not only street NPCs. Walk-through floor rugs
+are deterministic, non-interactive art and never change collision. Optional loot
+and books retain interactions but have no plus signs, automatic Search/Read
+prompts, hand-cursor hints or minimap loot markers. Preserve story guidance.
 
 ### Dungeons
 
@@ -1395,6 +1407,11 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Match D-pad navigation to visual grid rows and columns. Character creation
   must support directional selection plus A/confirm and B/cancel. Show MENU and
   TIPS touch actions only during safe exploration.
+- Use `bindPointerRelease()` from `utils/ui.ts` for release-based Phaser UI,
+  unless the surface already captures stable intent. A release must match the
+  same live control's press. Clear held gestures on blur, visibility loss,
+  control replacement and scene shutdown. Modal interiors shield their backdrop;
+  opening or closing a panel must never activate a newly exposed control.
 - Route title selection and direct pointer targets through
   `src/managers/titleMenu.ts`. Keep the new-game overwrite confirmation compact,
   centered, and directly tappable in mobile landscape.

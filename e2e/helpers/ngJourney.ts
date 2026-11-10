@@ -246,7 +246,7 @@ async function winActualKeystoneBattle(page: Page, bossId: string): Promise<void
     }
     if (state.includes("Phase: playerTurn")) {
       if (wizard && state.includes("[TARGET:-]")) {
-        if (await page.locator("#game-container canvas").getAttribute("data-battle-commands-visible") !== "true") {
+        if (await page.locator("#game-container canvas").getAttribute("data-battle-commands-enabled") !== "true") {
           await page.waitForTimeout(100);
           continue;
         }

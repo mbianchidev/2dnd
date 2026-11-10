@@ -100,6 +100,22 @@ describe("measured UI layout", () => {
     expect(auditLayout(labels, viewport)).toEqual({ overlaps: [], clipping: [] });
     expect(labels.map((item) => item.id)).toEqual(["city", "shop", "port"]);
   });
+
+  it("keeps city service banners clear of either minimap corner without shrinking text", () => {
+    const viewport = { x: 0, y: 0, width: 640, height: 480 };
+    for (const obstruction of [
+      { x: 512, y: 8, width: 120, height: 124 },
+      { x: 8, y: 8, width: 120, height: 124 },
+    ]) {
+      const labels = layoutAnchoredLabels([
+        { id: "weapons", bounds: { x: 70, y: 100, width: 76, height: 24 } },
+        { id: "armor", bounds: { x: 490, y: 100, width: 76, height: 24 } },
+      ], viewport, 4, [obstruction]);
+      expect(auditLayout([...labels, { id: "minimap", bounds: obstruction }], viewport))
+        .toEqual({ overlaps: [], clipping: [] });
+      expect(labels.every(({ bounds }) => bounds.width === 76 && bounds.height === 24)).toBe(true);
+    }
+  });
   it("stacks variable-height rows from measured bounds", () => {
     const result = layoutVerticalStack([
       { id: "short", width: 40, height: 12 },

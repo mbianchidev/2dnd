@@ -17,11 +17,13 @@ export interface BattleDecisionVisibilityInput {
 export interface BattleDecisionVisibility {
   readonly decision: boolean;
   readonly commands: boolean;
+  readonly commandsEnabled: boolean;
 }
 
 export function getBattleDecisionVisibility(input: BattleDecisionVisibilityInput): BattleDecisionVisibility {
   const decision = input.controlledDecision && !input.animationActive && !input.blocked;
-  return { decision, commands: decision && !input.submenuOpen && !input.targeting };
+  const commands = decision && !input.submenuOpen;
+  return { decision, commands, commandsEnabled: commands && !input.targeting };
 }
 
 export interface EnemyHealthFocus {

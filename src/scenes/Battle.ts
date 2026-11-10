@@ -674,6 +674,7 @@ export class BattleScene extends Phaser.Scene {
       this.heroTextureLease?.release();
       this.heroTextureLease = null;
       delete this.game.canvas.dataset.battleCommandsVisible;
+      delete this.game.canvas.dataset.battleCommandsEnabled;
       delete this.game.canvas.dataset.battlePresentationActive;
     });
 
@@ -888,15 +889,19 @@ export class BattleScene extends Phaser.Scene {
     this.battlePartyManager?.setPresentationVisible(visibility.decision);
     this.heroDecisions?.setPresentationVisible(visibility.decision);
     for (const menu of [this.spellMenu, this.itemMenu, this.abilityMenu]) menu?.setPresentationVisible(visibility.decision);
-    const enabled = this.phase === "playerTurn" && visibility.commands;
+    const visible = this.phase === "playerTurn" && visibility.commands;
+    const enabled = this.phase === "playerTurn" && visibility.commandsEnabled;
     const contrast = getAccessibilityPreferences().highContrast;
-    const key = `${enabled}:${this.selectedActionIndex}:${contrast}`;
+    const key = `${visible}:${enabled}:${this.selectedActionIndex}:${contrast}`;
     if (key === this.actionButtonStateKey) return;
     this.actionButtonStateKey = key;
-    this.battleHud?.setCommandsEnabled(enabled);
-    this.battleCommands?.setState(enabled, this.selectedActionIndex);
-    if (canvas && canvas.dataset.battleCommandsVisible !== String(enabled)) {
-      canvas.dataset.battleCommandsVisible = String(enabled);
+    this.battleHud?.setCommandsEnabled(enabled, visible);
+    this.battleCommands?.setState(visible, this.selectedActionIndex, enabled);
+    if (canvas && canvas.dataset.battleCommandsVisible !== String(visible)) {
+      canvas.dataset.battleCommandsVisible = String(visible);
+    }
+    if (canvas && canvas.dataset.battleCommandsEnabled !== String(enabled)) {
+      canvas.dataset.battleCommandsEnabled = String(enabled);
     }
   }
 

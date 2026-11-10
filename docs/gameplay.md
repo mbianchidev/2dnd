@@ -203,7 +203,11 @@ Unexplored terrain and hidden markers stay concealed. Enter building doors
 with the normal interact action, explore furnished shop rooms, libraries and
 guesthouses, and search offered sacks and pantries for small one-time supplies.
 Read library books for history and, with the required caster ranks and scores,
-rare extra spells. Trading uses the shop counter; see
+rare extra spells. Talk to the clerk at a shop counter to trade or rest.
+Exterior banners identify each service. Shops close at night, including the
+shipwright; inns stay open 24/7. Ordinary supplies and optional books have no
+plus-sign, automatic search prompt or minimap marker. Walk-through buildings
+have decorative rugs without changing movement. See
 [Graphics and building exploration](graphics.md) for controls and persistence.
 
 The world contains 90 legacy-compatible chunks, 13 cities including optional

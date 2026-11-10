@@ -2,7 +2,7 @@ import { Terrain } from "../data/mapTypes";
 import { WORLD_ART_COLORS } from "./terrainArt";
 import type { LayoutRect } from "./layout";
 
-export type MinimapMarker = "exit" | "door" | "stairs" | "treasure" | "town" | "boss" | "book" | "supplies";
+export type MinimapMarker = "exit" | "door" | "stairs" | "town" | "boss" | "story";
 export interface MinimapCell {
   readonly dx: number;
   readonly dy: number;
@@ -19,7 +19,6 @@ function terrainMarker(terrain: Terrain): MinimapMarker | undefined {
   if (terrain === Terrain.CityGate) return "door";
   if (terrain === Terrain.CityExit || terrain === Terrain.DungeonExit) return "exit";
   if (terrain === Terrain.DungeonStairs) return "stairs";
-  if (terrain === Terrain.Chest || terrain === Terrain.MinorTreasure) return "treasure";
   if (terrain === Terrain.Town || terrain === Terrain.Dungeon) return "town";
   if (terrain === Terrain.Boss || terrain === Terrain.DungeonBoss) return "boss";
   return undefined;

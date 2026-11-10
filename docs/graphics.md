@@ -84,8 +84,11 @@ pixel-art icons: sword, shield, fist, spellbook, potion and fleeing boot.
 Selection borders and unavailable markers are separate from those icons, so
 their identity never depends on selection. A quiet bottom-left command folio
 appears only for an accepted hero decision. Commands and their native hit
-targets disappear during action presentation, enemy/gambit turns, targeting,
-and blocking history views. Manual companion choices follow the same input gate.
+targets disappear during action presentation, enemy/gambit turns and blocking
+history views. Selecting Attack keeps the folio and selected command visible
+until an enemy is confirmed. Its command hit targets and native buttons remain
+disabled while choosing that target; cancelling restores the same selection.
+Manual companion choices follow the same accepted-decision input gate.
 
 Hero and companion HP/MP share live procedural portraits in a right-hand stack:
 green health, blue mana, explicit values and native labeled meters. **U**, the
@@ -153,14 +156,33 @@ Initial rendering and every movement reveal share `citySurface.ts` and
 furniture retains wooden floors and wall decorations retain masonry. Movement
 cannot restore the obsolete miniature house tiles behind a full-size facade.
 
+Every explored shop or inn displays a small exterior category banner, even
+from the far side of the district. Weapons, armor, magic/potions, general
+supplies, banks, mounts and the shipwright have explicit labels; inns say
+**INN 24H**. The banner is scenery, not another entrance or interaction target.
+Measured placement keeps every banner clear of the minimap, including when
+walking moves that HUD to the opposite corner.
+
 Use the existing interact control on a building door to enter its room.
 Move around counters, stock shelves, reading tables, beds and hearths. Interact
-beside a counter to trade, or beside marked sacks, pantries and books to search
-or read. Pointer, touch and the gamepad cursor activate the same guarded
-interaction. Supplies are explicitly offered rather than treated as theft.
+with the clerk across the counter or from beside them to trade or request an
+inn rest. Primary merchants retain their canonical appearance, district clerks
+have stable palettes, and resting never removes the innkeeper. Doorways and
+clerks share `systems/cityServices.ts` hours: all non-inn services, including
+shipwright repairs and upgrades, close during Night and reopen at Dawn. A
+visitor already indoors may still leave.
+
+Sacks, pantries and books can be searched or read without floating plus signs,
+hand-cursor hints, automatic Search/Read prompts or minimap loot markers.
+Existing story guidance remains; ordinary supplies and optional study are
+discoveries rather than highlighted objectives. Pointer, touch and the gamepad
+cursor still activate the same guarded interactions. Supplies are explicitly
+offered rather than treated as theft.
 Windows, framed pictures, candle stands, chairs, barrels, woven rugs and table
 settings complement the shelves, beds and hearths. Decoration never adds
 repeatable rewards or blocks the established counter, book or exit approaches.
+Walk-through street buildings also have a woven rug in every connected floor
+area. Those rugs are presentation-only and change neither tiles nor collision.
 
 `data/cityInteriors.ts` appends immutable rooms after the existing city
 districts. It never renumbers street districts, changes an island's dock, or
@@ -199,8 +221,8 @@ and the current building, without adding shortcuts into unvisited rooms.
 
 The exploration HUD includes a north-up, circular local minimap. It follows the
 hero, moves away from the upper-right map edge when needed, and marks known
-doors, stairs, towns, supplies and books. Fogged terrain and markers are absent
-from its output. Its accessible description exposes the same known information
+doors, stairs and landmarks, not ordinary loot or optional books. Fogged terrain
+and markers are absent from its output. Its accessible description exposes the same known information
 without announcing every movement step. Menus and dialogue hide the minimap.
 
 Trade menus measure their title, balance, controls, equipment summary and
@@ -210,6 +232,13 @@ available row, and Info or `I` opens a paged description. Equipment details page
 with their visible control or Tab. Escape closes item details or confirmations
 before leaving the shop. These views preserve inventory indexes and the
 existing buy/sell, price, protection and action owners.
+Negotiate, sale confirmations and item details stay open after their opening
+click or tap. Blank panel space does not dismiss a confirmation. Release-based
+controls require a matching press on that same live control, so opening,
+closing or replacing a menu cannot trigger a control beneath it. Blur and
+visibility loss cancel a held choice without spending the negotiation attempt.
+Shop keyboard confirms also require a fresh accepted press; holding Enter
+through a dialog cancellation cannot buy an item underneath it.
 
 Dice keep the exact resolved receipt hidden while tumbling. Numbers, selected
 die markers, detailed roll feedback, announcements and outcome cues reveal

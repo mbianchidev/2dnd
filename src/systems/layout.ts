@@ -10,6 +10,9 @@ export interface LayoutPoint {
 
 export interface LayoutRect extends LayoutPoint, LayoutSize {}
 
+export const BATTLE_VITALS_WIDTH = 182;
+export const BATTLE_SIDEBAR_WIDTH = BATTLE_VITALS_WIDTH + 16;
+
 export interface LayoutInsets {
   top: number;
   right: number;
@@ -156,6 +159,33 @@ export function centeredRect(
     width,
     height,
   };
+}
+
+/** Find the nearest unoccluded position without shrinking measured content. */
+export function findUnobscuredRect(
+  rect: LayoutRect,
+  viewport: LayoutRect,
+  obstructions: readonly LayoutRect[],
+  gap = 6,
+): LayoutRect | undefined {
+  if (rect.width > viewport.width || rect.height > viewport.height) return undefined;
+  const preferred = clampRectToViewport(rect, viewport);
+  const padding = finiteNonNegative(gap);
+  const blockers = obstructions.map((bounds) => ({
+    x: bounds.x - padding, y: bounds.y - padding,
+    width: bounds.width + padding * 2, height: bounds.height + padding * 2,
+  }));
+  const xs = [preferred.x, viewport.x, viewport.x + viewport.width - rect.width];
+  const ys = [preferred.y, viewport.y, viewport.y + viewport.height - rect.height];
+  for (const bounds of blockers) {
+    xs.push(bounds.x - rect.width, bounds.x + bounds.width);
+    ys.push(bounds.y - rect.height, bounds.y + bounds.height);
+  }
+  const candidates = ys.flatMap((y) => xs.map((x) => ({ ...preferred, x, y })));
+  return candidates.filter((candidate) => containsRect(viewport, candidate)
+    && blockers.every((bounds) => !intersectRects(candidate, bounds)))
+    .sort((a, b) => (a.x - preferred.x) ** 2 + (a.y - preferred.y) ** 2
+      - (b.x - preferred.x) ** 2 - (b.y - preferred.y) ** 2)[0];
 }
 
 /** Keep map labels near their anchor while avoiding already placed labels and map edges. */

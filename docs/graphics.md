@@ -82,29 +82,43 @@ closing the atlas releases its mask, reflow subscription and owned listeners.
 Attack, Defend, Abilities, Spells, Items and Flee have separate procedural
 pixel-art icons: sword, shield, fist, spellbook, potion and fleeing boot.
 Selection borders and unavailable markers are separate from those icons, so
-their identity does not disappear during enemy turns.
+their identity never depends on selection. A quiet bottom-left command folio
+appears only for an accepted hero decision. Commands and their native hit
+targets disappear during action presentation, enemy/gambit turns, targeting,
+and blocking history views. Manual companion choices follow the same input gate.
 
-Hero and companion HP/MP use filled health and mana bars with numeric values
-and explicit labels, not character-based meters. The measured party panel
-supports every text scale and high contrast. Native labeled meters expose the
-same accepted values without adding a live announcement on every change.
-Resource updates read the existing actor owners and never interpolate or alter
-combat values.
+Hero and companion HP/MP share live procedural portraits in a right-hand stack:
+green health, blue mana, explicit values and native labeled meters. **U**, the
+visible Compact/Expand control, the controller View button, or the touch HUD
+control switches to a small portrait-and-gauge row. Preference v4 stores only
+that display choice under `2dnd_preferences`; campaigns are untouched.
+Companion scene actors and portraits reuse the same hero descriptor and leased
+frames, including owned gear. Both layouts retain supported text scales,
+high contrast, current resources and cleanup ownership.
 
-Enemy HUD rows contain only the canonical name/duplicate letter. A real health
-bar is added only when `GroupCombatant.hpRevealed` is true under the existing
-Codex rule. Unknown HP has no placeholder, bar, native meter or hidden value.
-Formation/defend/status tags are not appended to enemy names; formation,
-animation and normal combat feedback still convey gameplay state.
+There is no permanent enemy vitals dashboard. A health tooltip appears over
+an actively targeted monster only while it is hovered or equivalently focused,
+and only when `GroupCombatant.hpRevealed` authorizes its HP. Moving away,
+cancelling targeting, action presentation and defeat remove the tooltip and
+its native meter. Unknown HP has no placeholder or hidden value. Manual
+companion target rows never print enemy HP directly.
 
-The turn-order chain shows the current actor followed by upcoming turns.
+The initiative timeline is a thin brass thread of small canonical actor icons,
+not a text table. Its current portrait has a larger rim and an arrow; duplicate
+monsters keep their letters, and hover/native labels retain full names.
 Killed monsters and KO party actors disappear immediately; remaining surprise
 turns use the actual ambush queue. It is a read-only projection of stable
 combatant IDs, never a second initiative scheduler. It does not expose
 initiative totals/modifiers, consume RNG, advance a turn or persist state.
-The native ordered list retains full actor names and marks the current turn.
-Visible companion first names and the Hero label keep compact cards readable;
-monster names and duplicate letters wrap rather than being truncated.
+
+The latest action appears briefly in a light scene-local receipt, then fades.
+Reduced motion keeps it static before removal. Dice arithmetic remains in the
+same bounded Battle history rather than becoming another permanent caption.
+**J**, the Log control, controller Menu/north button, or touch LOG opens the
+full history; arrows, wheel or triggers scroll it. Closing it restores the
+decision without confirming an action. Reading history pauses a timed budget;
+ordinary action notices do not. Handoff, blur and shutdown clear transient
+feedback, and no history survives the battle.
 
 ## Dialogue portraits
 

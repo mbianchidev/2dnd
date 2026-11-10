@@ -2,7 +2,7 @@ import * as Phaser from "phaser";
 import { BATTLE_DEPTH } from "../renderers/battleDepth";
 import { restoreLayoutFocus, type GridNavigationDirection } from "../systems/layout";
 import { createOverlayContainer, setOverlayViewport } from "../utils/ui";
-import { layoutTextStack, syncInteractiveHitArea } from "./layout";
+import { layoutTextStack, placeBattleDecisionPanel, subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
 import { UI_COLORS } from "../systems/uiTheme";
 
 export interface BattleDecisionMenuRow {
@@ -10,6 +10,7 @@ export interface BattleDecisionMenuRow {
   label: string;
   enabled: boolean;
   action(): void;
+  informational?: boolean;
 }
 
 interface FocusedMenuRow extends BattleDecisionMenuRow {
@@ -17,7 +18,7 @@ interface FocusedMenuRow extends BattleDecisionMenuRow {
   text: Phaser.GameObjects.Text;
 }
 
-/** A bounded, measured decision list shared by timed hero and manual companion input. */
+/** A bounded, measured decision list shared by Standard and Timed hero input. */
 export class BattleDecisionMenu {
   private container: Phaser.GameObjects.Container | null = null;
   private title = "";
@@ -27,20 +28,41 @@ export class BattleDecisionMenu {
   private page = 0;
   private pageSize = 6;
   private back: (() => void) | undefined;
+  private footerRows: readonly BattleDecisionMenuRow[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly id: string,
     private readonly acceptsInput: () => boolean,
+    private readonly rowPrefix = id,
   ) {}
 
   get isOpen(): boolean {
     return this.container !== null;
   }
 
+  get focusedRowId(): string | undefined { return this.selectedId; }
+
+  focus(id: string): void {
+    if (!this.acceptsInput() || !this.visibleRows.some((row) => row.id === id && row.enabled)) return;
+    this.selectedId = id;
+    this.updateSelection();
+  }
+
+  changePage(direction: number): void {
+    if (!this.isOpen || !this.acceptsInput()) return;
+    this.page = Math.max(0, Math.min(this.page + direction, Math.max(0, Math.ceil(this.rows.length / this.pageSize) - 1)));
+    this.render();
+  }
+
+  setPresentationVisible(visible: boolean): void {
+    this.container?.setVisible(visible);
+    for (const row of this.visibleRows) if (row.text.input) row.text.input.enabled = visible && row.enabled;
+  }
+
   get debugState(): string {
     if (!this.isOpen) return "";
-    const unavailable = this.visibleRows.filter((row) => !row.enabled).map((row) => row.id);
+    const unavailable = this.visibleRows.filter((row) => !row.enabled && !row.informational).map((row) => row.id);
     return ` [DECISION_MENU:${this.title}:${this.selectedId ?? "-"}]`
       + ` [UNAVAILABLE_ACTIONS:${unavailable.join(",")}]`;
   }
@@ -49,6 +71,7 @@ export class BattleDecisionMenu {
     title: string,
     rows: readonly BattleDecisionMenuRow[],
     back?: () => void,
+    footerRows: readonly BattleDecisionMenuRow[] = [],
   ): void {
     if (title !== this.title) {
       this.page = 0;
@@ -58,6 +81,7 @@ export class BattleDecisionMenu {
     this.title = title;
     this.rows = rows;
     this.back = back;
+    this.footerRows = footerRows;
     this.render();
   }
 
@@ -114,6 +138,7 @@ export class BattleDecisionMenu {
         action: () => { this.page++; this.render(); },
       });
     }
+    entries.push(...this.footerRows);
     if (this.back) {
       entries.push({ id: "back", label: "Back", enabled: true, action: this.back });
     }
@@ -136,10 +161,10 @@ export class BattleDecisionMenu {
         backgroundColor: "#121a2e",
         padding: { x: 6, y: 4 },
         wordWrap: { width: contentWidth - 16 },
-      }).setData("layoutId", `${this.id}-${row.id}`);
+      }).setData("layoutId", `${this.rowPrefix}-${row.id}`);
       if (row.enabled) {
         text.setInteractive({ useHandCursor: true });
-        text.on("pointerover", () => {
+        text.on("pointermove", () => {
           this.selectedId = row.id;
           this.updateSelection();
         });
@@ -173,8 +198,9 @@ export class BattleDecisionMenu {
         this.render();
         return;
       }
-      const x = this.scene.cameras.main.width - width - 10;
-      const y = Math.max(10, this.scene.cameras.main.height - height - 10);
+      const { x, y } = placeBattleDecisionPanel(this.scene, {
+        x: 12, y: Math.max(10, this.scene.cameras.main.height - height - 10), width, height,
+      });
       background.clear();
       background.fillStyle(UI_COLORS.panel, 0.94).fillRoundedRect(0, 0, width, height, 6);
       background.lineStyle(2, 0xffffff, 1).strokeRoundedRect(0, 0, width, height, 6);
@@ -184,8 +210,13 @@ export class BattleDecisionMenu {
       container.setPosition(x, y);
       setOverlayViewport(this.scene, this.id, { x, y, width, height });
     };
+    const unsubscribe = subscribeOverlayReflow(this.scene, () => {
+      previousMeasurements = "";
+      reflow();
+    });
     this.scene.events.on("postupdate", reflow);
     container.once(Phaser.GameObjects.Events.DESTROY, () => {
+      unsubscribe();
       this.scene.events.off("postupdate", reflow);
     });
     reflow();
@@ -194,7 +225,7 @@ export class BattleDecisionMenu {
   private updateSelection(): void {
     for (const row of this.visibleRows) {
       const selected = row.enabled && row.id === this.selectedId;
-      row.text.setText(`${row.enabled ? selected ? "> " : "  " : "[Unavailable] "}${row.label}`);
+      row.text.setText(`${row.enabled ? selected ? "> " : "  " : row.informational ? "" : "[Unavailable] "}${row.label}`);
       row.text.setBackgroundColor(selected ? "#34416b" : "#121a2e");
       syncInteractiveHitArea(row.text, 2);
     }

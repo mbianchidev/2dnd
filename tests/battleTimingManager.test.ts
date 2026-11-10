@@ -39,12 +39,20 @@ const doubles = vi.hoisted(() => {
 
   class TextDouble extends ObjectDouble {
     input: { enabled: boolean; hitArea: RectangleDouble; hitAreaCallback?: () => boolean } | null = null;
+    readonly padding = { left: 6, right: 6, top: 4, bottom: 4 };
+    readonly style = { fontFamily: "mock", fontSize: "10px", fontStyle: "" };
+    private fixedWidth = 0;
+    private fixedHeight = 0;
     constructor(public x: number, public y: number, public text: string) { super(); }
-    get width(): number { return Math.max(...this.text.split("\n").map((line) => line.length), 0) * 6 + 12; }
-    get height(): number { return this.text.split("\n").length * 16 + 8; }
+    get width(): number { return this.fixedWidth || Math.max(...this.text.split("\n").map((line) => line.length), 0) * 6 + 12; }
+    get height(): number { return this.fixedHeight || this.text.split("\n").length * 16 + 8; }
     get displayWidth(): number { return this.width; }
     get displayHeight(): number { return this.height; }
     setText(text: string): this { this.text = text; return this; }
+    setFixedSize(width: number, height: number): this { this.fixedWidth = width; this.fixedHeight = height; return this; }
+    getWrappedText(text: string): string[] { return text.split("\n"); }
+    getTextMetrics(): object { return {}; }
+    setWordWrapWidth(_width: number, _advanced?: boolean): this { return this; }
     setVisible(visible: boolean): this { this.visible = visible; return this; }
     setPosition(x: number, y: number): this { this.x = x; this.y = y; return this; }
     setInteractive(): this {
@@ -62,7 +70,12 @@ const doubles = vi.hoisted(() => {
 });
 
 vi.mock("phaser", () => ({
-  GameObjects: { Text: doubles.TextDouble, Events: { DESTROY: "destroy" } },
+  GameObjects: {
+    Text: doubles.TextDouble, Events: { DESTROY: "destroy" },
+    GetTextSize: (_text: unknown, _metrics: unknown, lines: string[]) => ({
+      width: Math.max(...lines.map((line) => line.length), 0) * 6, height: lines.length * 16,
+    }),
+  },
   Geom: { Rectangle: doubles.RectangleDouble },
   Scenes: { Events: {
     SHUTDOWN: "shutdown", PAUSE: "pause", RESUME: "resume", SLEEP: "sleep", WAKE: "wake",
@@ -77,6 +90,7 @@ const owned: BattleTimingManager[] = [];
 
 function fixture() {
   const events = new EventEmitter();
+  const texts: InstanceType<typeof doubles.TextDouble>[] = [];
   const canvas = document.createElement("canvas");
   document.body.appendChild(canvas);
   const state = {
@@ -86,10 +100,15 @@ function fixture() {
   const scene = {
     events,
     game: { canvas },
+    cameras: { main: { width: 640, height: 528 } },
     scene: { isActive: () => state.active },
     add: {
       container: () => new doubles.ContainerDouble(),
-      text: (x: number, y: number, text: string) => new doubles.TextDouble(x, y, text),
+      text: (x: number, y: number, text: string) => {
+        const object = new doubles.TextDouble(x, y, text);
+        texts.push(object);
+        return object;
+      },
     },
   } as unknown as Phaser.Scene;
   let manager: BattleTimingManager;
@@ -108,7 +127,7 @@ function fixture() {
   owned.push(manager);
   manager.beginTurn("party:hero", "Mock Hero");
   manager.update(0);
-  return { manager, timeout, events, canvas, state };
+  return { manager, timeout, events, canvas, state, texts };
 }
 
 beforeEach(() => {
@@ -122,6 +141,18 @@ afterEach(() => {
 });
 
 describe("scene-owned battle timing lifecycle", () => {
+  it("keeps the recovery target stationary when pause reasons change", () => {
+    const { manager, texts } = fixture();
+    const control = texts.find((text) => text.getData("layoutId") === "battle-timing-pause")!;
+    const before = control.y;
+    inputAvailability.update({ controllerRecovery: true });
+    expect(control.y).toBe(before);
+    expect(control.text).toContain("Resume");
+    manager.resumeIfPaused();
+    manager.pauseForLogReading();
+    expect(control.y).toBe(before);
+  });
+
   it.each([
     ["pause", "resume"],
     ["sleep", "wake"],

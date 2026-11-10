@@ -629,12 +629,14 @@ Flow:
 - Natural 20 on an attack is a critical hit; natural 1 automatically misses.
 - Initiative is d20 + Dexterity modifier.
 - Spells use MP.
-- Disabled actions are visibly dimmed outside the player turn.
+- Commands and their hit targets disappear outside accepted controlled
+  decisions and during action animation; unavailable choices remain explicit
+  within a decision menu.
 - Attack, Defend, Abilities, Spells, Items and Flee retain distinct procedural
   icons independently of selection/unavailable markers. Hero/companion HP/MP
-  use graphical bars and native meter semantics. Enemy HUD rows show only
-  canonical names/letters and HP bars when `hpRevealed` authorizes them;
-  never draw unknown placeholders or expose hidden HP through accessible nodes.
+  use portrait bars and native meters, with a preference-v4 compact/full toggle.
+  Enemy HP appears only while hovering/focusing an actively targeted known-HP
+  monster, never in permanent HUD rows, unknown placeholders or hidden nodes.
 - Items and designated bonus-action abilities do not end the player turn when
   the bonus action is still available.
 - Validate actions before consuming MP, inventory, or turn state.
@@ -711,8 +713,9 @@ Flow:
   and scene shutdown remove motion immediately without focus/input blocking.
   Numbered dice render over the active scene, never in a dock. Use stepped
   pixel-art silhouettes, bitmap numerals and the shared game palette.
-  Roll details belong to the existing lower Battle log and reset on battle
-  exit; Battle never displays a duplicate result strip. Non-battle
+  Roll details belong to the existing on-demand Battle history and reset on
+  battle exit. Its brief narrative notice fades; there is no duplicate dice
+  result strip. Non-battle
   results expire after three seconds and a 250-ms fade (no fade with reduced
   motion); event reset, blur and handoff clear views/cues/timers. Never restore
   another scene's latest result or keep a separate cross-scene roll log.
@@ -1265,6 +1268,10 @@ title/in-game settings consumers immediately.
 Preference v3 adds `dice.frequency` (all/important/off) and `dice.speed`
 (normal/fast/instant), with All/Normal legacy/corruption defaults. Campaign
 schema is independent. Dice receipts and presentation logs never enter a save.
+Preference v4 adds normalized `battleHud.vitals` (expanded/compact), with
+expanded legacy defaults. U/View/touch HUD controls share that setter; J,
+Menu/north and touch LOG open history. H/L remain debug shortcuts, never
+production display actions. Preserve the earlier audio/dice/control settings.
 
 When persistent data changes:
 

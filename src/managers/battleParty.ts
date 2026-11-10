@@ -42,13 +42,14 @@ import { getTargetableBodyParts, type BodyPart } from "../data/anatomy";
 import { BattleBodyTargetManager } from "./battleBodyTarget";
 import { paginateMeasuredItems } from "../systems/layout";
 import { createOverlayContainer, setOverlayViewport } from "../utils/ui";
-import { layoutTextStack, syncInteractiveHitArea } from "./layout";
+import { layoutTextStack, placeBattleDecisionPanel, syncInteractiveHitArea } from "./layout";
 import { UI_COLORS } from "../systems/uiTheme";
 
 interface BattlePartyCallbacks {
   present(result: ResolvedBattleAction): void;
   refresh(): void;
   afterAction(previouslyAliveEnemyIds: ReadonlySet<string>): boolean;
+  acceptsInput(): boolean;
   timing?: {
     acceptsInput(): boolean;
     beginTurn(combatant: PartyCombatant): void;
@@ -61,6 +62,7 @@ interface MenuRow {
   label: string;
   enabled: boolean;
   action(): void;
+  targetId?: string;
 }
 
 const MENU_PAGE_SIZE = 8;
@@ -82,6 +84,8 @@ export class BattlePartyManager {
   private selectedRow = 0;
   private pendingActivation: (() => void) | null = null;
   private readonly bodyTargets: BattleBodyTargetManager;
+  private targetRows: readonly MenuRow[] = [];
+  private aimedTargetId: string | null = null;
 
   constructor(
     scene: Phaser.Scene,
@@ -109,6 +113,45 @@ export class BattlePartyManager {
 
   get debugState(): string {
     return this.decisionMenu?.debugState ?? "";
+  }
+
+  get targetFocus(): { ids: readonly string[]; focusedId: string | null } {
+    if (this.bodyTargets.isOpen && this.aimedTargetId) return { ids: [this.aimedTargetId], focusedId: this.aimedTargetId };
+    if (!this.menu && !this.decisionMenu?.isOpen) return { ids: [], focusedId: null };
+    const row = this.decisionMenu?.isOpen
+      ? this.targetRows.find(({ id }) => id === this.decisionMenu?.focusedRowId)
+      : this.menuRows[this.selectedRow];
+    return {
+      ids: [...new Set(this.targetRows.flatMap(({ targetId }) => targetId ? [targetId] : []))],
+      focusedId: row?.targetId ?? null,
+    };
+  }
+
+  confirmEnemyTarget(id: string): boolean {
+    const confirm = this.captureEnemyTarget(id);
+    if (!confirm) return false;
+    confirm();
+    return true;
+  }
+
+  captureEnemyTarget(id: string): (() => void) | null {
+    if (!this.callbacks.acceptsInput() || !this.targetFocus.ids.includes(id)) return null;
+    const row = this.targetRows.find((candidate) => candidate.id === `target-${id}`);
+    if (!row?.enabled) return null;
+    const rows = this.targetRows;
+    const actorId = this.manualActorId;
+    return () => {
+      if (this.targetRows === rows && this.manualActorId === actorId && this.callbacks.acceptsInput()) row.action();
+    };
+  }
+
+  setPresentationVisible(visible: boolean): void {
+    this.menu?.setVisible(visible);
+    this.decisionMenu?.setPresentationVisible(visible);
+    this.menuTexts.forEach((text, index) => {
+      if (text.input) text.input.enabled = visible && this.menuRows[index]?.enabled === true;
+    });
+    if (!visible) this.pendingActivation = null;
   }
 
   navigate(direction: GridNavigationDirection): boolean {
@@ -180,6 +223,8 @@ export class BattlePartyManager {
     this.currentCombatant = null;
     this.currentCompanion = null;
     this.currentContext = null;
+    this.targetRows = [];
+    this.aimedTargetId = null;
     this.economy = null;
     this.page = 0;
     this.menuRows = [];
@@ -417,7 +462,8 @@ export class BattlePartyManager {
       if (!validation.plan) return [];
       const rows: MenuRow[] = [{
         id: `target-${actor.id}`,
-        label: `${actor.label}  HP ${actor.currentHp}/${actor.maxHp}`,
+        label: actor.side === "party" ? `${actor.label}  HP ${actor.currentHp}/${actor.maxHp}` : actor.label,
+        ...(actor.side === "enemy" ? { targetId: actor.id } : {}),
         enabled: true,
         action: () => this.validateAndExecute({ ...request, preferredTargetId: actor.id }),
       }];
@@ -426,10 +472,12 @@ export class BattlePartyManager {
       if (enemy && type && getTargetableBodyParts(enemy.monster).length > 0) {
         rows.push({
           id: `aim-${actor.id}`,
+          targetId: actor.id,
           label: `Aim parts: ${actor.label}`,
           enabled: true,
           action: () => {
             this.clearMenu();
+            this.aimedTargetId = actor.id;
             this.bodyTargets.open({
               monster: enemy.monster, targetId: enemy.id, targetLabel: enemy.label,
               label: "Aim", damageType: type, discoveries: enemy.physicalDiscoveries,
@@ -502,6 +550,7 @@ export class BattlePartyManager {
 
   private renderPagedMenu(title: string, rows: MenuRow[]): void {
     if (this.decisionMenu) {
+      this.targetRows = rows;
       this.decisionMenu.show(title, rows, () => this.showMainMenu());
       return;
     }
@@ -545,10 +594,12 @@ export class BattlePartyManager {
 
   private renderMenu(title: string, rows: MenuRow[]): void {
     if (this.decisionMenu) {
+      this.targetRows = rows;
       this.decisionMenu.show(title, rows);
       return;
     }
     this.clearMenu();
+    this.targetRows = rows;
     this.menuRows = rows;
     this.selectedRow = Math.max(0, rows.findIndex((row) => row.enabled));
     const width = 300;
@@ -572,22 +623,26 @@ export class BattlePartyManager {
       this.menuTexts.push(text);
       if (row.enabled) {
         text.setInteractive({ useHandCursor: true });
-        text.on("pointerover", () => {
+        text.on("pointermove", () => {
           this.selectedRow = index;
           this.updateSelection();
         });
-        text.on("pointerdown", row.action);
+        text.on("pointerdown", () => { if (this.callbacks.acceptsInput()) row.action(); });
       }
       container.add(text);
     });
     const height = layoutTextStack([heading, ...this.menuTexts], {
       x: 14, y: 10, width: width - 28, gap: 9,
     }) + 20;
-    const x = this.scene.cameras.main.width - width - 10;
-    const y = Math.max(10, this.scene.cameras.main.height - height - 10);
+    const { x, y } = placeBattleDecisionPanel(this.scene, {
+      x: 12, y: Math.max(10, this.scene.cameras.main.height - height - 10), width, height,
+    });
     container.setPosition(x, y);
     background.fillStyle(UI_COLORS.panel, 0.94).fillRoundedRect(0, 0, width, height, 6);
     background.lineStyle(1, 0xc0a060, 1).strokeRoundedRect(0, 0, width, height, 6);
+    background.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, width, height), Phaser.Geom.Rectangle.Contains,
+    );
     setOverlayViewport(this.scene, "battle-companion-menu", { x, y, width, height });
     this.menu = container;
     this.scene.game.canvas.dataset.companionMenu = title;
@@ -601,6 +656,8 @@ export class BattlePartyManager {
     this.menuRows = [];
     this.menuTexts = [];
     this.pendingActivation = null;
+    this.targetRows = [];
+    this.aimedTargetId = null;
     if (this.scene.game?.canvas) delete this.scene.game.canvas.dataset.companionMenu;
     if (this.scene.game?.canvas) delete this.scene.game.canvas.dataset.companionSelection;
   }
@@ -620,6 +677,7 @@ export class BattlePartyManager {
 
   private handleKeyDown(event: KeyboardEvent): void {
     if (!this.menu || this.bodyTargets.isOpen || this.bodyTargets.ownsKey(event)) return;
+    if (!this.callbacks.acceptsInput()) return;
     if (event.key === "Escape") {
       this.showMainMenu();
       return;
@@ -644,7 +702,7 @@ export class BattlePartyManager {
     if (this.bodyTargets.ownsKey(event)) return;
     const activate = this.pendingActivation;
     this.pendingActivation = null;
-    if (activate) {
+    if (activate && this.callbacks.acceptsInput()) {
       event.preventDefault();
       activate();
     }

@@ -143,8 +143,10 @@ feet and following shadows to stay on their ground anchors. Pure tests cover
 transparent foot padding and every grounded action/reaction pose.
 `battleHud.test.ts` checks distinct deterministic command art, fractional/empty
 resource ratios, contrast and unknown-HP redaction. `e2e/battle-hud.spec.ts`
-verifies all action icons, real HP/MP changes, native meters, known/unknown
-enemy rows and full-party layouts through 150% high-contrast text.
+verifies all action icons, real HP/MP changes, portrait meters, target-only
+known-HP tooltips, decision-only commands and full-party layouts through 150%
+high-contrast text. Touch/gamepad display controls, held target previews,
+fading feedback, complete history and paused timed budgets use actual inputs.
 Retain a removed native action node across battle replacement and prove its
 queued click cannot start an action or targeting in the new scene.
 

@@ -158,11 +158,11 @@ headless mode; native release gates belong on isolated CI/virtual displays.
 - Battle monsters never fly or hover. Place every formation footpoint on the
   ground, use visible per-frame foot anchors, preserve planted poses and contact
   shadows, and derive aiming/effect positions from actual sprite bounds.
-- Battle commands keep distinct procedural icons through enabled/disabled
-  states. Use real HP/MP bars and native meter counterparts. Enemy rows contain
-  only names/letters and health bars authorized by `hpRevealed`, never unknown
-  placeholders or hidden resource values.
-- The turn chain is a read-only stable-ID initiative/surprise projection.
+- Battle commands keep distinct procedural icons and appear only for accepted
+  controlled decisions, never during action presentation. Portrait HP/MP cards
+  can compact through preference v4. Enemy HP appears only on a hovered/focused
+  valid target with `hpRevealed`, never as persistent rows or hidden values.
+- The small portrait timeline is a read-only stable-ID initiative/surprise projection.
   Remove inactive actors immediately without splicing or advancing scheduling;
   never expose initiative arithmetic or persist presentation state.
 - Dialogue portraits use explicit staged `speakerActorId` references and the
@@ -190,8 +190,8 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   result/reward hooks and before outgoing Battle autosave, not only at handoff.
 - Dice views consume exact immutable receipts, redact hidden AC/DC and enemy
   modifiers/totals, never use shared RNG, and never create an input-block reason.
-  Match pixel-art faces and bitmap numerals to the game. Battle has only its
-  lower visible log; do not add a second dice result-caption strip.
+  Match pixel-art faces and bitmap numerals to the game. Battle has a fading
+  action notice and one on-demand history; do not add a duplicate dice strip.
   Dice use the measured game viewport, not a dock. Battle details join its
   existing log; no history survives exit. Non-battle results expire after a
   short reading interval. Event reset and scene cleanup clear views/cues/timers.

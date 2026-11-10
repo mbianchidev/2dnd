@@ -177,10 +177,9 @@ export function addSettingsControls(
       container.add(control.text);
       controls.push(control.text);
     });
-    const readyAt = scene.time.now + 150;
     let pending: (() => void) | null = null;
     const keyDown = (event: KeyboardEvent): void => {
-      if (!container.active || scene.time.now < readyAt) return;
+      if (!container.active) return;
       if (["ArrowLeft", "ArrowRight", "a", "d"].includes(event.key)) {
         const direction = event.key === "ArrowLeft" || event.key === "a" ? -1 : 1;
         selectLauncher((selected + direction + campaignLaunchers.length) % campaignLaunchers.length);

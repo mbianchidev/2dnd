@@ -164,7 +164,8 @@ Roll displays default enabled and ordinary notices may be Off; canonical
 attack crit/fumble feedback always remains visible, without overriding
 Instant/reduced motion or reclassifying non-attack outcomes.
 Dice use stepped pixel silhouettes and bitmap numerals. Battle retains only
-its lower visible log; result captions belong to transient non-battle views.
+its fading narrative notice and on-demand history; do not add another dice
+caption strip. Result captions belong to transient non-battle views.
 
 All release input routes through the semantic action layer. Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a
@@ -264,10 +265,15 @@ do not alter combat formation rules or grant flight from winged artwork.
 
 The battle HUD uses `systems/battleHud.ts` for pure icon/resource/redaction
 contracts and `renderers/battleHud.ts` for measured graphics/native semantics.
-Keep six distinct command icons separate from selection/disabled markers.
-Read HP/MP from their actor owners; enemy rows contain only names/letters and
-health bars allowed by canonical `hpRevealed`, with no unknown placeholder or
-hidden numeric/accessibility leak.
+Keep six distinct command icons and hide their folio/hit targets during action
+presentation and outside accepted controlled decisions. Small portrait icons
+form the timeline; live portrait HP/MP cards can compact through preference v4.
+Enemy HP appears only for an actively hovered/focused valid target when
+`hpRevealed` allows it, never as permanent rows or hidden numeric nodes.
+The brief action notice fades; J/Menu/north/touch LOG opens the same bounded
+history, pausing a timed decision without consuming it. U/View/touch HUD toggles
+vitals; never reuse H/L debug keys. Capture a target on pointer-down and confirm
+its still-current request on release so touch can preview without spending.
 
 Tutorial and Tips content lives in `src/data/tutorial.ts` as immutable steps,
 semantic control actions, categories, and unlock requirements.

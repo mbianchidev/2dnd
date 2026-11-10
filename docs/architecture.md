@@ -108,8 +108,16 @@ cartographic city landmarks. `renderers/worldCities.ts` shares explored-only
 texture frames with the walking map and atlas. Their larger visual extent never
 changes the canonical entry tile, collision, quest gate or island authority.
 `systems/battleTurnOrder.ts` projects live initiative and the remaining surprise
-queue; its focused renderer owns a measured strip and native ordered list,
+queue; its focused renderer owns small leased portrait icons and a native ordered list,
 without changing Battle's turn scheduling or exposing enemy initiative values.
+`systems/battleCinematic.ts` owns pure decision visibility, target-only known-HP
+projection and runtime feedback/history timing. `renderers/battleCommands.ts`
+owns the decision-only folio; `managers/battleLog.ts` owns brief action receipts
+and on-demand history, without controlling outcomes or saving partial combat.
+The existing measured `BattleDecisionMenu` now presents Standard and Timed
+choices while each mode retains its original validated action callbacks.
+Party sprites, portrait cards and timeline icons share the live hero descriptor
+and lease pipeline. Preference v4 stores only expanded/compact portrait vitals.
 
 ## Scenes and shared state
 
@@ -379,8 +387,9 @@ projects only permitted information and owns scene-local evidence. The
 scene-owned dice manager and pointer-transparent procedural SVG game
 throw layer consume those results without
 RNG, resource mutations, input-block reasons, or gameplay completion callbacks.
-Battle routes redacted detail only into its existing lower bounded log and accessible
-counterpart; its pixel-dice layer adds no duplicate caption strip. Non-battle results expire after three seconds with an optional
+Battle routes redacted detail only into its bounded on-demand history and accessible
+counterpart; its brief narrative receipt and pixel dice add no duplicate result
+caption strip. Non-battle results expire after three seconds with an optional
 250-ms fade. No history or latest result crosses a scene handoff; event reset,
 blur and shutdown cancel visuals, cues and owned timers.
 See [Dice presentation](dice-presentation.md).

@@ -6,6 +6,11 @@ import type { NpcVisualDescriptor } from "./npcVisuals";
 import { createMonsterArt } from "./monsterArt";
 import type { Monster } from "../data/monsters";
 
+export type PortraitVisual =
+  | { readonly kind: "hero"; readonly visual: HeroVisualDescriptor }
+  | { readonly kind: "npc"; readonly visual: NpcVisualDescriptor }
+  | { readonly kind: "monster"; readonly monster: Monster };
+
 function createBust(source: PixelSurface): PixelSurface {
   const art = new PixelSurface(48, 48);
   for (let y = 0; y < 48; y++) {

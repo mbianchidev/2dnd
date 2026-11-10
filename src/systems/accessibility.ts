@@ -52,14 +52,21 @@ export interface ControlPreferences {
   promptSource: PromptSourcePreference;
 }
 
+export type BattleVitalsMode = "expanded" | "compact";
+
+export interface BattleHudPreferences {
+  vitals: BattleVitalsMode;
+}
+
 export type CutsceneAccessibilityPreferences = AccessibilityPreferences;
 
 export interface GamePreferences {
-  version: 3;
+  version: 4;
   audio: AudioPreferences;
   accessibility: AccessibilityPreferences;
   controls: ControlPreferences;
   dice: DicePreferences;
+  battleHud: BattleHudPreferences;
 }
 
 type GamePreferencesListener = (preferences: Readonly<GamePreferences>) => void;
@@ -187,12 +194,18 @@ export function normalizeControlPreferences(
 export function normalizeGamePreferences(value: unknown): GamePreferences {
   const source = isRecord(value) ? value : {};
   return {
-    version: 3,
+    version: 4,
     audio: normalizeAudioPreferences(source.audio),
     accessibility: normalizeAccessibilityPreferences(source.accessibility),
     controls: normalizeControlPreferences(source.controls),
     dice: normalizeDicePreferences(source.dice),
+    battleHud: normalizeBattleHudPreferences(source.battleHud),
   };
+}
+
+export function normalizeBattleHudPreferences(value: unknown): BattleHudPreferences {
+  const source = isRecord(value) ? value : {};
+  return { vitals: source.vitals === "compact" ? "compact" : "expanded" };
 }
 
 export function normalizeDicePreferences(value: unknown): DicePreferences {
@@ -259,6 +272,14 @@ export class GamePreferencesStore {
 
   getDice(): Readonly<DicePreferences> {
     return this.preferences.dice;
+  }
+
+  getBattleHud(): Readonly<BattleHudPreferences> {
+    return this.preferences.battleHud;
+  }
+
+  toggleBattleVitals(): void {
+    this.update({ battleHud: { vitals: this.preferences.battleHud.vitals === "expanded" ? "compact" : "expanded" } });
   }
 
   setDice(changes: Partial<DicePreferences>): void {

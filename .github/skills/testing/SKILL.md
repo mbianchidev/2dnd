@@ -43,9 +43,13 @@ actions, not just sprite centers. Grounded actors never hover, lift or tilt;
 keep front/back contact points inside the backdrop ground plane.
 
 Battle HUD tests assert six distinct action silhouettes, graphical/native
-HP/MP updates, all text scales and knowledge privacy. Unknown enemy HP must be
+portrait HP/MP updates, small timeline icons, full/compact persistence, all text
+scales, decision-only commands, pointer-release previews and knowledge privacy.
+Unknown enemy HP must be
 absent from both graphics and accessible meters; known bars use live max HP,
-including campaign scaling. Do not rely on an enemy attack happening to hit:
+including campaign scaling, and exist only for a hovered/focused valid target.
+History stays available after the brief notice fades and pauses a timed budget.
+Do not rely on an enemy attack happening to hit:
 use canonical deterministic status damage for resource-update fixtures.
 
 Run tooling with the Node.js version in `.nvmrc`, shared by local development and
@@ -380,7 +384,7 @@ and `diceRenderer.test.ts`
 cover exact natural/component receipts, hidden-stat redaction, selected
 advantage/disadvantage dice, critical/fumble/auto-hit, unchanged RNG/resources,
 native control propagation, scene-local evidence, expiry/reset, stale-callback
-rejection and cancellation. Preference v3
+rejection and cancellation. Preference v3/v4
 migration/corruption belongs in `accessibility.test.ts`. Real battle,
 damage/healing pools and HP caps, shared area rolls,
 event/trap/gathering/flee, skip, reload, and transition controls belong in

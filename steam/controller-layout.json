@@ -67,6 +67,8 @@
     "battleTargetNext": "right bumper",
     "battleLogUp": "left trigger",
     "battleLogDown": "right trigger",
+    "battleToggleLog": "Battle north/menu button or Log control; keyboard J",
+    "battleToggleVitals": "Battle view button or portrait vitals toggle; keyboard U",
     "fastForwardDice": "left-stick press or dice Skip animation control",
     "settingsDiceFrequency": "Settings > Dice control via right-stick cursor",
     "settingsDiceSpeed": "Settings > Speed control via right-stick cursor",

@@ -11,7 +11,7 @@
 | `2dnd_save_slot_manual-1` through `manual-3` | Independent manual campaign slots |
 | slot `:staging`, `:backup`, and `:name` keys | Atomic-write recovery copies and manual display names |
 | `2dnd_save_slots_migrated_v1` | Verified one-time legacy autosave migration marker |
-| `2dnd_preferences` | Version-3 audio, accessibility, cutscene, touch, prompt, and dice settings |
+| `2dnd_preferences` | Version-4 audio, accessibility, cutscene, touch, prompt, dice, and Battle-vitals display settings |
 | `2dnd_inventory_prefs` | Inventory sort, filter, and search presentation |
 
 Legacy `2dnd_audio_prefs` and `2dnd_cutscene_accessibility` values migrate into
@@ -22,6 +22,11 @@ Preference v3 adds normalized dice animation frequency/speed, defaulting missing
 or corrupt v1/v2 values to All/Normal. Exact roll receipts, transient scene dice
 and the current Battle log are runtime-only and clear on exit. Dice preferences never alter campaign or
 slot documents or increment their schema.
+
+Preference v4 adds `battleHud.vitals` (`expanded`/`compact`), defaulting older
+v1/v2/v3 and malformed choices to expanded. It preserves all audio, dice,
+accessibility and control settings. The Battle display toggle never writes a
+campaign or slot, changes difficulty, or serializes a live action or log.
 
 Browser deployments store these documents under their HTTP/HTTPS origin.
 Packaged Electron builds use the stable secure `app://2dnd` origin and the same

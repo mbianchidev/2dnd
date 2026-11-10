@@ -172,6 +172,8 @@ item details, activity records and difficulty remain open after their opening
 mouse/touch gesture. It checks all text scales for negotiation, inert panel
 interiors, releases that began on another control, fresh outside dismissal,
 Escape ownership and blur without a spent negotiation attempt.
+Hold Enter across cancellation to prove no underlying purchase, then require a
+fresh press to buy exactly one item.
 `pointerRelease.test.ts` covers matching pointer IDs, once-only release,
 disabled controls and complete blur/visibility/destruction/shutdown cleanup,
 including an already-captured stale callback.

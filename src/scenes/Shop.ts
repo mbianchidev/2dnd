@@ -79,6 +79,7 @@ export class ShopScene extends Phaser.Scene {
   private selectedItem: Item | null = null;
   private selectedItemAction: (() => void) | null = null;
   private inputReadyAt = 0;
+  private confirmPressed = false;
 
   constructor() {
     super({ key: "ShopScene" });
@@ -128,6 +129,7 @@ export class ShopScene extends Phaser.Scene {
     this.pendingCodexDiscoveryIds = [];
     this.mode = "buy";
     this.scrollY = 0;
+    this.confirmPressed = false;
     this.shopItems = data.shopItemIds
       ? getShopItemsForTown(data.shopItemIds)
       : getShopItems();
@@ -183,14 +185,28 @@ export class ShopScene extends Phaser.Scene {
     this.input.keyboard!.on("keydown-UP", () => this.scrollList(-30));
     this.input.keyboard!.on("keydown-ESC", () => this.leaveShop());
     this.inputReadyAt = this.time.now + 150;
+    this.input.keyboard!.on("keydown-ENTER", (event: KeyboardEvent) => {
+      if (!event.repeat) this.confirmPressed = this.canConfirmItem();
+    });
     this.input.keyboard!.on("keyup-ENTER", () => {
-      if (this.time.now >= this.inputReadyAt && !this.shopLayout.hasItemDetails && !this.negotiationOverlay && !this.confirmationOverlay) this.selectedItemAction?.();
+      const pressed = this.confirmPressed;
+      this.confirmPressed = false;
+      if (pressed && this.canConfirmItem()) this.selectedItemAction?.();
     });
     this.input.keyboard!.on("keydown-I", () => {
       if (this.selectedItem && !this.negotiationOverlay && !this.confirmationOverlay
         && !this.sceneTransitions.isPending) {
+        this.confirmPressed = false;
         this.shopLayout.showItemDetails(this.selectedItem.name, getItemDescription(this.selectedItem));
       }
+    });
+    const clearConfirm = (): void => { this.confirmPressed = false; };
+    this.game.events.on(Phaser.Core.Events.BLUR, clearConfirm);
+    this.game.events.on(Phaser.Core.Events.HIDDEN, clearConfirm);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      clearConfirm();
+      this.game.events.off(Phaser.Core.Events.BLUR, clearConfirm);
+      this.game.events.off(Phaser.Core.Events.HIDDEN, clearConfirm);
     });
     this.updateDisplay();
     this.renderItems();
@@ -200,8 +216,14 @@ export class ShopScene extends Phaser.Scene {
     debugPanelState(`SHOP | ${this.townName} | Mode: ${this.mode} | Row: ${this.scrollY} | Gold: ${this.player.gold}`);
   }
 
+  private canConfirmItem(): boolean {
+    return this.time.now >= this.inputReadyAt && !this.shopLayout.hasItemDetails
+      && !this.negotiationOverlay && !this.confirmationOverlay && !this.sceneTransitions.isPending;
+  }
+
   private scrollList(delta: number): void {
     if (this.shopLayout.hasItemDetails || this.negotiationOverlay || this.confirmationOverlay) return;
+    this.confirmPressed = false;
     this.scrollY = Phaser.Math.Clamp(this.scrollY + Math.sign(delta), 0, this.maxScrollY);
     this.renderItems();
   }
@@ -209,6 +231,7 @@ export class ShopScene extends Phaser.Scene {
   private switchMode(mode: "buy" | "sell"): void {
     if (this.negotiationOverlay || this.confirmationOverlay || this.shopLayout.hasItemDetails) return;
     if (this.mode === mode) return;
+    this.confirmPressed = false;
     this.mode = mode;
     this.scrollY = 0;
     
@@ -432,6 +455,7 @@ export class ShopScene extends Phaser.Scene {
     bindPointerRelease(info, () => {
       if (!this.shopLayout.hasItemDetails && !this.negotiationOverlay && !this.confirmationOverlay
         && !this.sceneTransitions.isPending) {
+        this.confirmPressed = false;
         this.shopLayout.showItemDetails(item.name, getItemDescription(item));
       }
     });
@@ -549,6 +573,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private installModalLayout(container: Phaser.GameObjects.Container, background: Phaser.GameObjects.Graphics, id: string): void {
+    this.confirmPressed = false;
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     const dim = this.add.graphics().fillStyle(0x000000, 0.7).fillRect(0, 0, w, h)
@@ -690,6 +715,7 @@ export class ShopScene extends Phaser.Scene {
 
   private purchaseItem(item: Item): void {
     if (this.confirmationOverlay || this.negotiationOverlay || this.sceneTransitions.isPending) return;
+    this.confirmPressed = false;
     const isEquipment = item.type === "weapon" || item.type === "armor" || item.type === "shield" || item.type === "mount";
     if (isEquipment && ownsEquipment(this.player, item.id)) {
       this.setMessage(`You already own ${item.name}!`, "#ff6666");
@@ -753,6 +779,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private restAtInn(): void {
+    this.confirmPressed = false;
     const innCost = this.getInnPrice();
     if (this.player.gold < innCost) {
       this.setMessage(`Not enough gold to rest! (Need ${innCost}g)`, "#ff6666");
@@ -905,6 +932,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private leaveShop(): void {
+    this.confirmPressed = false;
     if (this.shopLayout?.closeItemDetails()) return;
     if (this.negotiationOverlay) {
       this.negotiationOverlay.destroy(true);

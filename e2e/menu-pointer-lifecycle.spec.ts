@@ -71,9 +71,14 @@ for (const source of ["mouse", "touch"] as const) {
       await expectMenu(page, "shop-negotiation");
       await expectCleanLayout(page);
       expect((await readMinigameSave(page)).player.progression.skillChecks[fixture.shopCheckId]).toBeUndefined();
-      await pressGameKey(page, "Escape");
-      await expectMenu(page, "shop-negotiation", false);
+      await page.keyboard.down("Enter");
+      try {
+        await waitForGameInputFrame(page);
+        await pressGameKey(page, "Escape");
+        await expectMenu(page, "shop-negotiation", false);
+      } finally { await page.keyboard.up("Enter"); }
       await expect(page.locator("#debug-state")).toContainText("SHOP |");
+      await expect(page.locator("#debug-state")).toContainText(`Gold: ${fixture.gold}`);
       await activate(page, source, "shop-negotiate");
       await expectMenu(page, "shop-negotiation");
       await activate(page, source, "shop-negotiation-1");
@@ -81,6 +86,19 @@ for (const source of ["mouse", "touch"] as const) {
       const saved = await readMinigameSave(page);
       expect(saved.player.progression.skillChecks[fixture.shopCheckId]?.optionId).toBe(SHOP_NEGOTIATION_OPTIONS[0]!.id);
       expect(saved.player.gold).toBe(fixture.gold);
+      if (source === "mouse" && textScale === 1) {
+        const potions = saved.player.inventory.filter((item) => item.id === "potion").length;
+        await pressGameKey(page, "Enter");
+        await expect(page.locator("#debug-state")).not.toContainText(`Gold: ${fixture.gold}`);
+        await pressGameKey(page, "Escape");
+        await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+        await pressGameKey(page, "Escape");
+        await clickLayoutItem(page, "escape-menu-quit");
+        await expect(page.locator("#debug-state")).toContainText("BOOT | Screen: title");
+        const purchased = await readMinigameSave(page);
+        expect(purchased.player.inventory.filter((item) => item.id === "potion")).toHaveLength(potions + 1);
+        expect(purchased.player.gold).toBeLessThan(fixture.gold);
+      }
       expect(errors).toEqual([]);
     });
   }

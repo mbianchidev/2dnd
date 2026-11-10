@@ -1,6 +1,9 @@
 import * as Phaser from "phaser";
 import { createOverlayContainer } from "../utils/ui";
 import { layoutVerticalStack } from "../systems/layout";
+import { UI_COLORS, UI_CSS, UI_FONT_DISPLAY } from "../systems/uiTheme";
+import { createMenuIcon } from "../renderers/menuIcon";
+import { getScaledBounds } from "./layout";
 
 export type TitleMenuActionId =
   | "newGamePlus"
@@ -31,6 +34,7 @@ interface TitleMenuButton {
   label: Phaser.GameObjects.Text;
   detail?: Phaser.GameObjects.Text;
   hitZone: Phaser.GameObjects.Zone;
+  icon: Phaser.GameObjects.Image;
 }
 
 const ACTION_LAYOUT_IDS: Readonly<Record<TitleMenuActionId, string>> = {
@@ -111,12 +115,14 @@ export class TitleMenuManager {
       button.label.setY(contentTop + button.label.displayHeight / 2);
       button.detail?.setY(contentTop + button.label.displayHeight + DETAIL_GAP + button.detail.displayHeight / 2);
       button.hitZone.setPosition(camera.centerX, centerY).setSize(BUTTON_WIDTH, row.height);
+      button.icon.setPosition(camera.centerX - BUTTON_WIDTH / 2 + 22, centerY);
+      button.icon.setData("layoutBounds", getScaledBounds(button.icon));
       if (button.hitZone.input) {
         button.hitZone.input.hitArea = new Phaser.Geom.Rectangle(0, 0, BUTTON_WIDTH, row.height);
         button.hitZone.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
       }
       container.add([
-        button.background, button.label,
+        button.background, button.icon, button.label,
         ...(button.detail ? [button.detail] : []), button.hitZone,
       ]);
     });
@@ -147,16 +153,16 @@ export class TitleMenuManager {
       0,
       BUTTON_WIDTH,
       1,
-      0x171c32,
+      UI_COLORS.panel,
       0.94,
-    ).setStrokeStyle(1, 0x59627c, 1);
+    ).setStrokeStyle(1, UI_COLORS.border, 0.6);
     const label = this.scene.add.text(
       x,
       0,
       action.label,
       {
         fontSize: action.detail ? "18px" : "17px",
-        fontFamily: "monospace",
+        fontFamily: UI_FONT_DISPLAY,
         color: action.color,
         align: "center",
       },
@@ -164,12 +170,12 @@ export class TitleMenuManager {
     label.setData("layoutId", ACTION_LAYOUT_IDS[action.id]);
     label.setData("testId", ACTION_LAYOUT_IDS[action.id]);
 
-    const detail = action.detail ? this.scene.add.text(x, 0, action.detail, {
+    const detail = action.detail ? this.scene.add.text(x + 12, 0, action.detail, {
       fontSize: "9px",
       fontFamily: "monospace",
-      color: "#8d96ac",
+      color: UI_CSS.muted,
       align: "center",
-      wordWrap: { width: BUTTON_WIDTH - 12, useAdvancedWrap: true },
+      wordWrap: { width: BUTTON_WIDTH - 64, useAdvancedWrap: true },
     }).setOrigin(0.5).setData("layoutId", `${ACTION_LAYOUT_IDS[action.id]}-detail`) : undefined;
 
     const hitZone = this.scene.add.zone(
@@ -183,7 +189,8 @@ export class TitleMenuManager {
       this.select(index);
       this.activateSelected();
     });
-    return { action, background, label, detail, hitZone };
+    const icon = createMenuIcon(this.scene, action.id).setData("layoutId", `title-icon-${action.id}`);
+    return { action, background, label, detail, hitZone, icon };
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
@@ -243,9 +250,9 @@ export class TitleMenuManager {
     this.buttons.forEach(({ action, background, label }, index) => {
       const selected = index === this.selectedIndex;
       background
-        .setFillStyle(selected ? 0x344365 : 0x171c32, 0.96)
-        .setStrokeStyle(selected ? 2 : 1, selected ? 0xffd700 : 0x59627c, 1);
-      label.setColor(selected ? "#ffd700" : action.color);
+        .setFillStyle(selected ? UI_COLORS.selected : UI_COLORS.panel, 0.94)
+        .setStrokeStyle(selected ? 2 : 1, selected ? UI_COLORS.gold : UI_COLORS.border, selected ? 1 : 0.5);
+      label.setColor(selected ? UI_CSS.gold : UI_CSS.text);
     });
     this.options.onSelectionChange();
   }

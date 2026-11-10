@@ -35,6 +35,8 @@ system has been discovered. The Escape menu remains the reliable entry point.
 | `V` | Open Crafting after learning a non-starting recipe |
 | `T` | Mount or dismount after acquiring a mount |
 | `Z` | Skip resolved-dice animation without changing the result |
+| `U` in Battle | Expand or minimize portrait health/mana cards |
+| `J` in Battle | Open or close the full Battle log |
 
 Pointer and touch users can select visible buttons directly. Touch layouts use
 safe-area-aware movement and action controls. Standard gamepads use the left
@@ -44,6 +46,14 @@ triggers for Battle-log scrolling. The right stick moves a visible cursor;
 press the stick to click pointer-first controls and the desktop fullscreen
 button. Xbox positions are A/B/X/Y; prompts use positions so they do not guess
 PlayStation or Nintendo labels.
+
+In Battle, View toggles portrait vitals and Menu/`◉↑` opens the full log.
+The touch HUD and LOG controls provide the same actions. Commands disappear
+while attacks are being presented and return only when a controlled actor
+needs a decision. The small portrait timeline shows upcoming turns and removes
+defeated actors. Monster health is never a permanent dashboard: target and
+hover/focus a monster to inspect its bar, and only previously learned HP is
+shown. Action feedback fades; the full history remains available on demand.
 
 During hero creation, `◉←` or unmodified `Tab` edits the name. Names, manual
 slot labels and searches share a controller keyboard: arrows select, `◉↓`
@@ -70,6 +80,11 @@ Character creation follows:
 
 **Name -> Class -> Stats -> Appearance -> Adventure**
 
+- Appearance offers hair/skin, facial features, clothing colors and accessories
+  in four categories. Use Tab or the category controls to switch; up/down
+  selects a row and left/right changes its option. The portrait previews front,
+  side and back views. All appearance choices are cosmetic, including build and
+  class headwear; they never change your class or statistics.
 - **Campaign Rules** on Appearance chooses Story, Standard, Veteran, Legendary,
   or constrained Custom. Standard is the original mechanics. Settings and the
   character sheet show all effects and eligibility; see

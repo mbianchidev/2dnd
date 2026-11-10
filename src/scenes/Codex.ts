@@ -247,22 +247,26 @@ export class CodexScene extends Phaser.Scene {
       fontSize: "9px",
       fontFamily: "monospace",
       color: "#d7b96e",
-    }).setInteractive({ useHandCursor: true });
+    }).setInteractive({ useHandCursor: true }).setData("layoutId", "codex-filter");
     this.filterText.on("pointerdown", () => this.cycleFilter());
 
     this.searchText = this.add.text(width / 2, 48, "", {
       fontSize: "9px",
       fontFamily: "monospace",
       color: "#fff3a6",
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true }).setData("layoutId", "codex-search");
     this.searchText.on("pointerdown", () => this.openSearch());
 
     this.sortText = this.add.text(width - 12, 48, "", {
       fontSize: "9px",
       fontFamily: "monospace",
       color: "#d7b96e",
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+    }).setOrigin(1, 0).setInteractive({ useHandCursor: true }).setData("layoutId", "codex-sort");
     this.sortText.on("pointerdown", () => this.cycleSort());
+    const controls = createOverlayContainer(this, "codex-controls", 0, {
+      x: 8, y: 44, width: width - 16, height: 28,
+    });
+    controls.add([this.filterText, this.searchText, this.sortText]);
 
     this.discoveredLabel = this.add.text(width / 2, 66, "", {
       fontSize: "9px",

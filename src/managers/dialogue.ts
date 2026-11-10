@@ -17,6 +17,7 @@ import { getAccessibilityPreferences } from "../systems/accessibility";
 import { layoutVerticalStack } from "../systems/layout";
 import { getScaledBounds, subscribeOverlayReflow } from "./layout";
 import { createOverlayContainer } from "../utils/ui";
+import { UI_COLORS } from "../systems/uiTheme";
 
 /**
  * Manages NPC dialogue boxes — regular city NPCs, animals, and special overworld NPCs.
@@ -50,7 +51,7 @@ export class DialogueSystem {
     const boxY = MAP_HEIGHT * TILE_SIZE;
 
     const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillStyle(UI_COLORS.panel, 0.95);
     bg.fillRoundedRect(boxX, boxY, boxW, boxH, 4);
     bg.lineStyle(2, 0x4dd0e1, 1);
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 4);
@@ -123,7 +124,7 @@ export class DialogueSystem {
     const boxY = MAP_HEIGHT * TILE_SIZE;
 
     const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillStyle(UI_COLORS.panel, 0.95);
     bg.fillRoundedRect(boxX, boxY, boxW, boxH, 4);
     bg.lineStyle(2, 0xc0a060, 1);
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 4);
@@ -174,7 +175,7 @@ export class DialogueSystem {
     const boxY = MAP_HEIGHT * TILE_SIZE;
 
     const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillStyle(UI_COLORS.panel, 0.95);
     bg.fillRoundedRect(boxX, boxY, boxW, boxH, 4);
     bg.lineStyle(2, 0xc0a060, 1);
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 4);

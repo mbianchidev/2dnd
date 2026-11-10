@@ -4,12 +4,16 @@ import type { PartyCombatant } from "../systems/groupCombat";
 import { getActiveEffectNames } from "../systems/statusEffects";
 import { BATTLE_DEPTH } from "./battleDepth";
 import { createOverlayContainer } from "../utils/ui";
+import { BATTLE_SIDEBAR_WIDTH } from "../systems/layout";
+import { getHeroVisualTextureKey, resolveHeroVisualDescriptor } from "../systems/heroVisuals";
+import { acquireHeroTexture, type HeroTextureLease } from "./heroTextures";
 
 export class BattlePartyRenderer {
   private readonly scene: Phaser.Scene;
   private sprites = new Map<string, Phaser.GameObjects.Sprite>();
   private labels = new Map<string, Phaser.GameObjects.Text>();
   private statusGroup: Phaser.GameObjects.Container | null = null;
+  private readonly leases = new Map<string, HeroTextureLease>();
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -33,12 +37,12 @@ export class BattlePartyRenderer {
       const source = sources.find(
         (candidate) => candidate.combatant.id === combatant.id,
       );
-      const textureKey = source
-        ? `player_${source.state.appearanceId}`
-        : "player";
-      const x = width * (0.08 + index * 0.13);
+      if (!source) throw new Error(`[battle-party] Missing visual source ${combatant.id}.`);
+      const lease = acquireHeroTexture(this.scene, resolveHeroVisualDescriptor(source.state));
+      this.leases.set(combatant.id, lease);
+      const x = (width - BATTLE_SIDEBAR_WIDTH) * (0.08 + index * 0.13);
       const y = height * 0.65;
-      const sprite = this.scene.add.sprite(x, y, textureKey)
+      const sprite = this.scene.add.sprite(x, y, lease.key)
         .setScale(1.35)
         .setDepth(BATTLE_DEPTH.frontActors);
       const label = this.scene.add.text(x, y + 22, "", {
@@ -70,6 +74,13 @@ export class BattlePartyRenderer {
         (candidate) => candidate.combatant.id === combatant.id,
       );
       if (!sprite || !label || !source) continue;
+      const descriptor = resolveHeroVisualDescriptor(source.state);
+      if (this.leases.get(combatant.id)?.key !== getHeroVisualTextureKey(descriptor, "front")) {
+        const lease = acquireHeroTexture(this.scene, descriptor);
+        sprite.setTexture(lease.key);
+        this.leases.get(combatant.id)?.release();
+        this.leases.set(combatant.id, lease);
+      }
       const effects = getActiveEffectNames(combatant.effects);
       label.setText(effects.length > 0
         ? `${effects[0]}${effects.length > 1 ? ` +${effects.length - 1}` : ""}` : "");
@@ -85,6 +96,10 @@ export class BattlePartyRenderer {
     return this.sprites.get(combatantId);
   }
 
+  getTextureKey(combatantId: string): string | undefined {
+    return this.leases.get(combatantId)?.key;
+  }
+
   clear(): void {
     for (const sprite of this.sprites.values()) sprite.destroy();
     for (const label of this.labels.values()) label.destroy();
@@ -92,5 +107,7 @@ export class BattlePartyRenderer {
     this.statusGroup = null;
     this.sprites.clear();
     this.labels.clear();
+    for (const lease of this.leases.values()) lease.release();
+    this.leases.clear();
   }
 }

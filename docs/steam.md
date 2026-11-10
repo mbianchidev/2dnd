@@ -7,7 +7,7 @@ This is a preparation and human release guide, **not a Steam release, a Deck
 Verified claim, or evidence of a successful partner upload**. Steam SDK,
 Steam achievements, Steam Cloud and the native Steam Input API are disabled.
 The game remains a local, offline-capable Electron application with the
-existing sandboxed bridge and schema-v27 slots.
+existing sandboxed bridge and schema-v28 slots.
 
 ## Platform and depot contract
 
@@ -294,9 +294,10 @@ Its JSON receipt explicitly labels the offline
 renderer and **same-version installation replacement**. It does not prove a
 Steam client install/uninstall, an older-to-newer upgrade, schema downgrade,
 signing or physical Deck behavior; those remain the manual gates below.
-Windows native CI selects software D3D11 WARP for stable WebGL coverage of its
-virtual display, without disabling renderer-error assertions or the sandbox.
-That test-only backend is not evidence for a physical GPU or minimum-spec claim.
+Native CI selects software D3D11 WARP on Windows and SwiftShader on Linux/Xvfb
+for stable WebGL coverage of virtual displays, without disabling renderer-error
+assertions or the sandbox. These test-only backends are not evidence for a
+physical GPU or minimum-spec claim.
 
 The test attaches startup, **actual validated atomic slot-write** duration,
 180-frame interval samples, JS/native memory and post-GC DOM/listener counts

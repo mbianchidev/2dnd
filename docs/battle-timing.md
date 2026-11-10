@@ -57,8 +57,13 @@ scene fades/handoffs, paused scenes, hidden pages, window focus loss, and active
 controller recovery. Normal log append operations and independent non-blocking
 notices do not create a permanent pause.
 
-**Esc/B**, **Pause / read log**, or log scrolling opens a deliberate log-reading
-pause. **Enter/Space/A/B** or the visible **Resume** control resumes without
+**J**, controller **Menu/north**, touch **LOG**, **Pause / read log**, or log
+scrolling opens the full history and deliberately pauses a decision.
+**Esc/B** also opens it from the root; targeting and menus cancel first.
+The history preserves pending menu/aim choices without accepting their input.
+It clears overlaid dice art/cues, not recorded receipts, and blocks clicks
+through to the covered battlefield and vitals controls.
+**Enter/Space/A/B** or the visible **Close/Resume** control resumes without
 also executing the selected action. Disconnecting the active gamepad pauses the
 budget until that same acknowledgment; a keyboard, pointer, touch device, or
 reconnected gamepad can resume it. Visibility/focus restoration continues the
@@ -70,6 +75,9 @@ value; a polite status region announces new turns, pauses, and the last five
 seconds without per-frame announcements. It has no flashing, shaking, or
 countdown tweens. Reduced motion changes presentation, not the decision duration.
 The timing controls and menus support 100%, 125%, and 150% text.
+The countdown reserves its measured pause-label height, keeping Resume stationary
+when controller, focus, or history reasons change. Choice panels avoid the actual
+native touch rails after canvas scaling rather than assuming fixed screen margins.
 
 ## Reload and integration boundaries
 

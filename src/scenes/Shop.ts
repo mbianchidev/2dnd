@@ -43,6 +43,7 @@ import { getCampaignDifficultyRules, scaleCost, scaleSaleValue } from "../system
 import { debugPanelState } from "../config";
 import { ShopLayoutRenderer } from "../renderers/shopLayout";
 import { createItemVisual } from "../renderers/itemVisuals";
+import { UI_COLORS } from "../systems/uiTheme";
 
 export class ShopScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
@@ -266,7 +267,7 @@ export class ShopScene extends Phaser.Scene {
     this.negotiationOverlay = container;
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.98);
+    bg.fillStyle(UI_COLORS.panel, 0.94);
     bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
     bg.lineStyle(2, 0xc0a060, 1);
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
@@ -575,7 +576,7 @@ export class ShopScene extends Phaser.Scene {
     this.confirmationOverlay = container;
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillStyle(UI_COLORS.panel, 0.94);
     bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
     bg.lineStyle(2, 0xc0a060, 1);
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
@@ -758,7 +759,7 @@ export class ShopScene extends Phaser.Scene {
     this.confirmationOverlay = container;
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.97);
+    bg.fillStyle(UI_COLORS.panel, 0.94);
     bg.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
     bg.lineStyle(2, 0xc0a060, 1);
     bg.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);

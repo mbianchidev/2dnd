@@ -47,16 +47,6 @@ async function clickGame(
   await page.waitForTimeout(100);
 }
 
-async function tapGame(
-  page: Page,
-  gameX: number,
-  gameY: number,
-): Promise<void> {
-  const point = await gamePoint(page, gameX, gameY);
-  await page.touchscreen.tap(point.x, point.y);
-  await page.waitForTimeout(100);
-}
-
 async function holdKey(
   page: Page,
   key: string,
@@ -282,12 +272,12 @@ test.describe("touch Codex controls", () => {
     await waitForState(page, "CODEX | Category: Locations");
     await holdKey(page, "e");
     await waitForState(page, "Category: Items");
-    await tapGame(page, 320, 50);
+    await tapLayoutItem(page, "codex-search");
     await expect(page.locator("#mobile-text-input")).toBeVisible();
     await page.locator("#mobile-text-input input").fill("crypt");
     await page.locator('[data-action="confirm"]').tap();
     await waitForState(page, "Search: crypt");
-    await tapGame(page, 560, 50);
+    await tapLayoutItem(page, "codex-sort");
     await waitForState(page, "Sort: name");
     await page.locator('[data-action="cancel"]').tap();
     await waitForState(page, "OVERWORLD");

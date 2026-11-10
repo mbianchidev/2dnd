@@ -50,7 +50,20 @@ describe("semantic input mappings", () => {
   it("keeps debug keys outside production semantic mappings", () => {
     expect(mapKeyboardCode("KeyG", "exploration")).toBeUndefined();
     expect(mapKeyboardCode("KeyH", "battle")).toBeUndefined();
+    expect(mapKeyboardCode("KeyL", "battle")).toBeUndefined();
     expect(mapKeyboardCode("KeyO", "inventory")).toBeUndefined();
+  });
+
+  it("routes Battle display controls without debug shortcuts or changes to exploration", () => {
+    expect(mapKeyboardCode("KeyU", "battle")).toBe("battleToggleVitals");
+    expect(mapKeyboardCode("KeyJ", "battle")).toBe("battleToggleLog");
+    expect(mapKeyboardCode("KeyU", "exploration")).toBeUndefined();
+    expect(mapKeyboardCode("KeyJ", "exploration")).toBeUndefined();
+    expect(resolveGamepadAction({ button: 8, action: "openTips" }, "battle")).toBe("battleToggleVitals");
+    expect(resolveGamepadAction({ button: 9, action: "openMenu" }, "battle")).toBe("battleToggleLog");
+    expect(isTouchActionAvailable("battleToggleVitals", "battle")).toBe(true);
+    expect(isTouchActionAvailable("battleToggleLog", "battle")).toBe(true);
+    expect(isTouchActionAvailable("battleToggleVitals", "exploration")).toBe(false);
   });
 
   it("maps non-conflicting dice skip and settings controls without taking input context", () => {

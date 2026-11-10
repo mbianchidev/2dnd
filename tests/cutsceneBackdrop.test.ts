@@ -31,9 +31,13 @@ describe("cutscene scenery graphics adapter", () => {
     drawCutsceneScenery(graphics, plan);
     expect(graphics.clear).toHaveBeenCalledTimes(1);
     expect(graphics.fillStyle).toHaveBeenCalledTimes(plan.primitives.length);
-    expect(
-      graphics.fillRect.mock.calls.length + graphics.fillEllipse.mock.calls.length + graphics.fillPath.mock.calls.length,
-    ).toBe(plan.primitives.length);
+    expect(graphics.fillRect.mock.calls.length).toBeGreaterThan(plan.primitives.length);
+    expect(graphics.fillRect.mock.calls.length).toBeLessThan(8000);
+    expect(graphics.fillEllipse).not.toHaveBeenCalled();
+    expect(graphics.fillPath).not.toHaveBeenCalled();
+    for (const rectangle of graphics.fillRect.mock.calls) {
+      expect(rectangle.every((coordinate: number) => coordinate % 2 === 0)).toBe(true);
+    }
     expect(JSON.stringify(plan)).toBe(before);
   });
 
@@ -43,7 +47,7 @@ describe("cutscene scenery graphics adapter", () => {
     drawCutsceneScenery(graphics, plan, CUTSCENE_RESULT_DIM);
     expect(graphics.fillStyle).toHaveBeenLastCalledWith(0x000000, CUTSCENE_RESULT_DIM);
     expect(graphics.fillRect).toHaveBeenLastCalledWith(0, 0, 640, 528);
-    expect(graphics.fillPath.mock.calls.length).toBeGreaterThan(0);
+    expect(graphics.fillRect.mock.calls.length).toBeGreaterThan(plan.primitives.length);
     expect(graphics.fillStyle).toHaveBeenCalledTimes(plan.primitives.length + 1);
   });
 

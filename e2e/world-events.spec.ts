@@ -297,7 +297,7 @@ test("resolves, recovers, battles, and records accessible World Events", async (
   expect((await readSave(page)).player.progression.social.appliedSourceIds)
     .toHaveLength(sourceCount);
   await holdKey(page, "Escape");
-  await holdKey(page, "ArrowDown");
+  await holdKey(page, "ArrowRight");
   await holdKey(page, "Enter");
   await waitForState(page, "[PARTY:items");
   await holdKey(page, "1");

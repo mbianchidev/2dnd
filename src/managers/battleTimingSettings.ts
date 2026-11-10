@@ -3,6 +3,7 @@ import { TIMED_ROUND_DURATIONS } from "../data/battleTiming";
 import type { PlayerState } from "../systems/player";
 import { calcPanelLayout, createOverlayContainer, setOverlayViewport } from "../utils/ui";
 import { layoutTextStack, syncInteractiveHitArea } from "./layout";
+import { UI_COLORS, UI_CSS } from "../systems/uiTheme";
 
 interface TimingSettingControl {
   id: string;
@@ -70,7 +71,7 @@ export function createBattleTimingSettingsOverlay(
       control.text.setVisible(visible);
       if (control.text.input) control.text.input.enabled = visible;
       control.text.setText(`${selected === index ? "> " : "  "}${control.label()}`);
-      control.text.setBackgroundColor(selected === index ? "#34416b" : "#121a2e");
+      control.text.setBackgroundColor(selected === index ? UI_CSS.selected : UI_CSS.raised);
       syncInteractiveHitArea(control.text, 2);
     });
     title.setText(showHelp ? "Timing Help" : "Battle Timing");
@@ -85,7 +86,9 @@ export function createBattleTimingSettingsOverlay(
       padding: { x: 8, y: 5 }, wordWrap: { width: 464 },
     }).setData("layoutId", id).setInteractive({ useHandCursor: true });
     const index = controls.length;
-    text.on("pointerover", () => { selected = index; update(); });
+    // Reflow can move a control under a stationary pointer; hover must not steal keyboard selection.
+    text.on("pointerover", () => text.setColor(UI_CSS.gold));
+    text.on("pointerout", () => text.setColor("#ffffff"));
     text.on("pointerdown", () => {
       selected = index;
       activate();
@@ -142,7 +145,7 @@ export function createBattleTimingSettingsOverlay(
       gap: 8, hitAreaPadding: 2,
     });
     background.clear();
-    background.fillStyle(0x080c16, 1)
+    background.fillStyle(UI_COLORS.panel, 1)
       .fillRect(bounds.px, bounds.py, bounds.panelW, bounds.panelH);
     background.lineStyle(2, 0xffffff, 1)
       .strokeRect(bounds.px, bounds.py, bounds.panelW, bounds.panelH);

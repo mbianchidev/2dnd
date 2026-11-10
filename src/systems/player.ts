@@ -15,6 +15,7 @@ import { getMount } from "../data/mounts";
 import type { SkillCheckRecord } from "../data/skillChecks";
 import { createTrapSeed, type TrapState } from "../data/traps";
 import { getPlayerClass } from "./classes";
+import { normalizeCustomAppearance, type CustomAppearance } from "./appearance";
 import { STARTING_RESOURCE_RULES } from "../data/classProgression";
 import {
   allocateProgressionStatPoint,
@@ -184,7 +185,7 @@ export interface PlayerState {
   equippedArmor: Item | null;
   equippedShield: Item | null;
   appearanceId: string; // visual customization
-  customAppearance?: { skinColor: number; hairStyle: number; hairColor: number };
+  customAppearance?: CustomAppearance;
   position: PlayerPosition; // player location tracking
   progression: PlayerProgression; // progression tracking (chests, treasures, fog of war)
   difficulty: CampaignDifficultyState;
@@ -241,7 +242,7 @@ export function createPlayer(
   name: string,
   baseStats: PlayerStats,
   appearanceId: string = "knight",
-  customAppearance?: { skinColor: number; hairStyle: number; hairColor: number },
+  customAppearance?: CustomAppearance,
   options: PlayerCreationOptions = {},
 ): PlayerState {
   const playerClass = getPlayerClass(appearanceId);
@@ -309,7 +310,7 @@ export function createPlayer(
     equippedArmor: null,
     equippedShield: null,
     appearanceId,
-    customAppearance,
+    customAppearance: normalizeCustomAppearance(customAppearance, playerClass),
     difficulty: createCampaignDifficulty(options.difficulty ?? STANDARD_DIFFICULTY_SELECTION),
     position: {
       x: 3,

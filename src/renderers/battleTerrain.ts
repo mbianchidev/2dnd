@@ -1,10 +1,10 @@
-import type * as Phaser from "phaser";
 import { artNoise, shadePixelColor as shade } from "../systems/pixelArt";
 import type { BattleBackdropLayout, BattleBiome } from "./battleDepth";
+import type { SceneryPainter } from "./pixelScenery";
 
 /** Perspective-scaled grain, grass and stone break up flat arena bands without per-frame work. */
 export function drawBattleTerrainDetail(
-  graphics: Phaser.GameObjects.Graphics, layout: BattleBackdropLayout, biome: BattleBiome, color: number,
+  graphics: SceneryPainter, layout: BattleBackdropLayout, biome: BattleBiome, color: number,
 ): void {
   const groundHeight = layout.height - layout.groundTop;
   for (let index = 0; index < 260; index++) {

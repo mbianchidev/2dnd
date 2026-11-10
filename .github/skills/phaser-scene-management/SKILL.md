@@ -104,9 +104,11 @@ and six optional prestige paths. Bind its live owner context on open, show
 entry-only qualification and complete rank tables, preserve frozen/rest-ready
 credits on close, and activate Enter/Space and the Equipment Tab handoff on
 release. Filter hidden paths before pagination; never replay resource grants.
-`BattleActionMenu` owns shared measured spell/ability rows and registered
-`battle-<spell|ability>-<id>` layout items. Gear/ownership rejection still goes
-through canonical action validation/execution, not presentation.
+`BattleDecisionMenu` owns measured Standard/Timed spell, ability and item choices;
+`BattleActionMenu` paints the shared optional body-aiming page. Preserve stable
+`battle-<spell|ability>-<id>` layout items and place choices outside actual touch
+rails. Gear/ownership rejection still goes through canonical action
+validation/execution, not presentation.
 
 `AchievementOverlayManager` owns the accessible Achievements/profile surface and
 presentation-only title selection. `AchievementNotificationManager` reads
@@ -326,6 +328,12 @@ state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.
 
 ## UI layout
 
+- Resolve shared `uiTheme.ts` fonts before measuring text. Use shared panel
+  tokens and procedural menu icons, with spatial focus matching the visible
+  grid. Native text-entry dialogs follow the same theme without changing input.
+- Appearance categories retain source-owned choices across reflow. Preview
+  angles are runtime-only; schema-v28 cosmetic overrides use `appearance.ts`
+  normalization and the shared hero descriptor/texture leases.
 - Use `src/systems/layout.ts` for pure measured stacks, grids, wrapping,
   pagination, safe-area clamping, and focus restoration.
 - Use `src/managers/layout.ts` for actual scaled Phaser bounds, text-stack
@@ -338,13 +346,19 @@ state so Battle, Shop, and Codex round trips do not re-enable fog or encounters.
   content viewport. Give interactive rows stable `layoutId` values.
 - Filter hidden or disabled entries before layout; variable-length menus must
   not retain fixed indexes, blank rows, or invisible hit targets.
-- Keep action buttons visibly disabled outside the player turn.
+- Show command controls only for accepted hero/manual decisions; hide their
+  graphics, hit targets and native actions during action presentation.
 - Destroy or replace transient menus before opening another.
 - For scrollable text, bound what is rendered to the visible area.
 
 Phaser 4 geometry masks do not reliably clip the Battle log in this project.
-The Battle scene renders only messages that fit and changes the message offset
-on mouse-wheel input.
+Battle shows brief fading narrative feedback and opens its bounded full history
+only on request. Render only messages that fit; scroll by offset without masks.
+History pauses a timed budget, never stores partial combat, and closing it must
+not also execute the selected action. Enemy HP tooltips require active target
+hover/focus and `hpRevealed`; unknown or inactive HP has no native meter.
+Preserve keyboard focus across reflow: pointer-over alone must not select a
+different row under a stationary mouse; use actual pointer movement.
 
 ## Battle lifecycle
 

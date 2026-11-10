@@ -29,6 +29,28 @@ Local checks are headless only. `playwright.config.ts` explicitly selects
 headless Chromium; never run visible native windows or take control of the
 developer's desktop. Native release checks run on isolated CI/virtual displays.
 
+Controller helpers read the filtered Adventure menu's live entry/selection IDs
+and follow its two-column grid; pressing Down alone cannot reach both columns.
+The measured opening/recruitment dialogue and compact Kraken landscape hero
+captures have separate Linux references
+because system-font fallbacks and the surrounding HTML/FIT bounds differ from
+macOS. These are real game captures and retain their original 3%/8% thresholds;
+update the matching platform image rather than widening comparison tolerances.
+Snapshot comparisons are soft assertions so one mismatch still fails the test
+while retaining evidence for every remaining independent reference.
+Battle goldens wait for the accepted player turn and its live initiative entry,
+not merely Battle scene creation, before capturing commands and the turn chain.
+When reseeding a second campaign in one browser test, return to a fresh title
+document first. An outgoing exploration autosave must not overwrite the next
+fixture during reload.
+
+`visual-followup.spec.ts` verifies a real killing attack removes its monster
+from the live turn chain, portrait recovery/replay with exact current hero
+cosmetics and canonical NPC colors, boss/Ending portrait coverage, and distinct
+exploration/atlas city landmarks without leaking Starfall. The HUD suite checks
+party/enemy chain counts alongside vitals at every supported text scale.
+Keep the failed captures/traces before rerunning a corrected fixture.
+
 ## Vitest responsibilities
 
 Tests in `tests/*.test.ts` own Phaser-free behavior:
@@ -72,6 +94,11 @@ Tests in `tests/*.test.ts` own Phaser-free behavior:
 - complete cutscene scenery coverage, non-color geometry uniqueness, structural
   boss aftermaths, bounded five-layer paint plans, RNG/replay immutability,
   single-buffer graphics transport and ending-text contrast
+- stable-ID upcoming/surprise initiative projections, immediate KO/death
+  exclusion, unchanged authoritative order/RNG and all eight actors
+- complete city landmark coverage, unique geometry, explored-only frame
+  projection and unchanged gate/terrain authority; canonical portrait bindings
+  and live hero/NPC art without gameplay mutation or RNG
 - Electron URL/protocol, CSP, IPC, BrowserWindow, and icon contracts
 
 Native icon tests execute the actual generator in an owned temporary directory
@@ -116,8 +143,10 @@ feet and following shadows to stay on their ground anchors. Pure tests cover
 transparent foot padding and every grounded action/reaction pose.
 `battleHud.test.ts` checks distinct deterministic command art, fractional/empty
 resource ratios, contrast and unknown-HP redaction. `e2e/battle-hud.spec.ts`
-verifies all action icons, real HP/MP changes, native meters, known/unknown
-enemy rows and full-party layouts through 150% high-contrast text.
+verifies all action icons, real HP/MP changes, portrait meters, target-only
+known-HP tooltips, decision-only commands and full-party layouts through 150%
+high-contrast text. Touch/gamepad display controls, held target previews,
+fading feedback, complete history and paused timed budgets use actual inputs.
 Retain a removed native action node across battle replacement and prove its
 queued click cannot start an action or targeting in the new scene.
 
@@ -304,9 +333,11 @@ release to a destroyed page.
 Opening the title slot manager leaves its outer title-selection marker visible.
 The nested `[SAVE_SLOTS:*]` state means confirmation was accepted; controller
 helpers must stop retrying rather than accidentally load its default slot.
-Windows native tests explicitly select Chromium's software D3D11 WARP ANGLE
-backend to avoid the hosted virtual GPU's intermittent shader compilation
-failures. WebGL and every renderer-error assertion remain enabled; production
+Native tests explicitly select software ANGLE backends on virtual displays:
+Windows uses D3D11 WARP and Linux/Xvfb uses SwiftShader. This avoids hosted
+GPU shader compilation failures, including the default Linux backend's
+reload failures with Electron 45.2.3. WebGL and every renderer-error assertion
+remain enabled; production
 launch options and sandbox/security are unchanged. Install-directory cleanup
 retries only transient filesystem locks with bounded backoff after process exit.
 

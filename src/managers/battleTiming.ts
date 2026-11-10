@@ -8,7 +8,8 @@ import {
 import { inputAvailability } from "../systems/input";
 import { BATTLE_DEPTH } from "../renderers/battleDepth";
 import { createOverlayContainer, setOverlayViewport } from "../utils/ui";
-import { layoutTextStack, syncInteractiveHitArea } from "./layout";
+import { getTextContentSize, layoutTextStack, syncInteractiveHitArea } from "./layout";
+import { BATTLE_VITALS_WIDTH } from "../systems/layout";
 
 interface BattleTimingCallbacks {
   controlledActorId(): string | null;
@@ -16,6 +17,7 @@ interface BattleTimingCallbacks {
   animationActive(): boolean;
   transitionActive(): boolean;
   timeout(decision: Readonly<BattleTimedDecision>): boolean;
+  toggleHistory?(): void;
 }
 
 const PAUSE_LABELS: Record<BattleTimingPauseReason, string> = {
@@ -46,6 +48,7 @@ export class BattleTimingManager {
   private destroyed = false;
   private timeoutCount = 0;
   private lastAnnouncement = "";
+  private countdownLayoutKey = "";
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -65,7 +68,11 @@ export class BattleTimingManager {
       padding: { x: 6, y: 5 }, wordWrap: { width: 266 },
     }).setData("layoutId", "battle-timing-pause")
       .setInteractive({ useHandCursor: true });
-    this.pauseControl.on("pointerdown", () => this.toggleLogPause());
+    this.pauseControl.on("pointerdown", () => {
+      if (inputAvailability.get().controllerRecovery && !this.readingLog && this.resumeIfPaused()) return;
+      if (this.callbacks.toggleHistory) this.callbacks.toggleHistory();
+      else this.toggleLogPause();
+    });
     this.container.add([this.countdown, this.pauseControl]);
     this.timerRegion = this.createScreenReaderRegion("battle-countdown-status", "timer");
     this.timerRegion.setAttribute("aria-live", "off");
@@ -171,6 +178,13 @@ export class BattleTimingManager {
     }
   }
 
+  setLogReading(reading: boolean): void {
+    if (this.destroyed) return;
+    this.readingLog = reading;
+    this.clock.setPaused("log", reading);
+    this.render();
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -229,17 +243,32 @@ export class BattleTimingManager {
     const text = state.decision
       ? `${this.actorLabel} | ${seconds}s\n${status}`
       : `Timed battles | ${this.settings.durationSeconds}s\nWaiting for a controlled turn`;
+    const x = this.scene.cameras.main.width - BATTLE_VITALS_WIDTH - 6;
+    this.countdown.setWordWrapWidth(BATTLE_VITALS_WIDTH - 16, true);
+    const style = this.countdown.style;
+    const layoutKey = JSON.stringify([this.actorLabel, style.fontFamily, style.fontSize, style.fontStyle]);
+    if (layoutKey !== this.countdownLayoutKey) {
+      this.countdownLayoutKey = layoutKey;
+      const heading = `${this.actorLabel} | ${this.settings.durationSeconds}s`;
+      const candidates = [
+        `Timed battles | ${this.settings.durationSeconds}s\nWaiting for a controlled turn`,
+        `${heading}\nTimed - Defend at 0`,
+        ...Object.values(PAUSE_LABELS).map((label) => `${heading}\nPAUSED: ${label}`),
+      ];
+      const height = Math.max(...candidates.map((candidate) => getTextContentSize(this.countdown, candidate).height));
+      this.countdown.setFixedSize(BATTLE_VITALS_WIDTH - 4, height);
+    }
     this.countdown.setText(text);
     const resume = this.readingLog || inputAvailability.get().controllerRecovery;
-    this.pauseControl.setText(resume ? "> Resume (Enter / A)" : "Pause / read log (Esc / B)");
+    this.pauseControl.setWordWrapWidth(BATTLE_VITALS_WIDTH - 16, true).setText(resume ? "> Resume" : "Pause / read log");
     this.pauseControl.setVisible(state.decision !== null);
     const height = layoutTextStack([
       this.countdown,
       ...(state.decision ? [this.pauseControl] : []),
-    ], { x: 8, y: 8, width: 282, gap: 5, hitAreaPadding: 2 });
+    ], { x, y: 8, width: BATTLE_VITALS_WIDTH - 6, gap: 5, hitAreaPadding: 2 });
     syncInteractiveHitArea(this.pauseControl, 2);
-    setOverlayViewport(this.scene, "battle-timing", { x: 6, y: 6, width: 286, height: height + 4 });
-    this.timerRegion.textContent = text;
+    setOverlayViewport(this.scene, "battle-timing", { x: x - 2, y: 6, width: BATTLE_VITALS_WIDTH, height: height + 4 });
+    if (this.timerRegion.textContent !== text) this.timerRegion.textContent = text;
     const announcement = state.decision
       ? reason ? `${this.actorLabel}: ${status}. Countdown ${seconds} seconds.`
         : seconds <= 5 ? `${this.actorLabel}: ${seconds} seconds. Timeout Defend.`

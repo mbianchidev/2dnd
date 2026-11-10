@@ -3,6 +3,49 @@ export interface PixelPoint {
   readonly y: number;
 }
 
+type RasterSpanPainter = (x: number, y: number, width: number, height: number) => void;
+
+/** Shared scan conversion keeps world textures and scene-sized scenery on the same integer grid. */
+export function forEachEllipseSpan(
+  cx: number, cy: number, rx: number, ry: number, paint: RasterSpanPainter,
+): void {
+  if (rx <= 0 || ry <= 0) return;
+  for (let y = Math.ceil(cy - ry); y <= Math.floor(cy + ry); y++) {
+    const span = Math.floor(rx * Math.sqrt(Math.max(0, 1 - ((y - cy) / ry) ** 2)));
+    paint(Math.ceil(cx - span), y, span * 2 + 1, 1);
+  }
+}
+
+export function forEachPolygonSpan(
+  points: readonly PixelPoint[], paint: RasterSpanPainter, minY = -Infinity, maxY = Infinity,
+): void {
+  if (points.length < 3) return;
+  const top = Math.max(minY, Math.ceil(Math.min(...points.map((point) => point.y))));
+  const bottom = Math.min(maxY, Math.floor(Math.max(...points.map((point) => point.y))));
+  for (let y = top; y <= bottom; y++) {
+    const crossings: number[] = [];
+    for (let index = 0; index < points.length; index++) {
+      const a = points[index]!;
+      const b = points[(index + 1) % points.length]!;
+      if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+        crossings.push(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
+      }
+    }
+    crossings.sort((a, b) => a - b);
+    for (let index = 0; index + 1 < crossings.length; index += 2) {
+      const left = Math.ceil(crossings[index]!);
+      const width = Math.floor(crossings[index + 1]!) - left + 1;
+      if (width > 0) paint(left, y, width, 1);
+    }
+  }
+}
+
+export function mixPixelColors(from: number, to: number, amount: number): number {
+  const channel = (shift: number): number =>
+    Math.round(((from >> shift) & 255) * (1 - amount) + ((to >> shift) & 255) * amount);
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
+}
+
 export function shadePixelColor(color: number, amount: number): number {
   const channel = (value: number): number => Math.max(0, Math.min(255, value + amount));
   return (channel((color >> 16) & 255) << 16)
@@ -60,32 +103,11 @@ export class PixelSurface {
   }
 
   ellipse(cx: number, cy: number, rx: number, ry: number, color: number, alpha = 255): void {
-    if (rx <= 0 || ry <= 0) return;
-    for (let y = Math.ceil(cy - ry); y <= Math.floor(cy + ry); y++) {
-      const span = Math.floor(rx * Math.sqrt(Math.max(0, 1 - ((y - cy) / ry) ** 2)));
-      this.rect(Math.ceil(cx - span), y, span * 2 + 1, 1, color, alpha);
-    }
+    forEachEllipseSpan(cx, cy, rx, ry, (x, y, width, height) => this.rect(x, y, width, height, color, alpha));
   }
 
   polygon(points: readonly PixelPoint[], color: number, alpha = 255): void {
-    if (points.length < 3) return;
-    const top = Math.max(0, Math.ceil(Math.min(...points.map((point) => point.y))));
-    const bottom = Math.min(this.height - 1, Math.floor(Math.max(...points.map((point) => point.y))));
-    for (let y = top; y <= bottom; y++) {
-      const crossings: number[] = [];
-      for (let index = 0; index < points.length; index++) {
-        const a = points[index]!;
-        const b = points[(index + 1) % points.length]!;
-        if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
-          crossings.push(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
-        }
-      }
-      crossings.sort((a, b) => a - b);
-      for (let index = 0; index + 1 < crossings.length; index += 2) {
-        const left = Math.ceil(crossings[index]!);
-        this.rect(left, y, Math.floor(crossings[index + 1]!) - left + 1, 1, color, alpha);
-      }
-    }
+    forEachPolygonSpan(points, (x, y, width, height) => this.rect(x, y, width, height, color, alpha), 0, this.height - 1);
   }
 
   line(x1: number, y1: number, x2: number, y2: number, color: number, thickness = 1): void {

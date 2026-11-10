@@ -62,11 +62,20 @@ const harness = vi.hoisted(() => {
     readonly cleanup = vi.fn();
     constructor() { directors.push(this); }
   }
-  return { Object, Scene, ActorDirector, directors };
+  const dialogues: DialogueRenderer[] = [];
+  class DialogueRenderer {
+    readonly panelTop = 396;
+    readonly present = vi.fn();
+    readonly clear = vi.fn();
+    readonly destroy = vi.fn();
+    constructor() { dialogues.push(this); }
+  }
+  return { Object, Scene, ActorDirector, directors, DialogueRenderer, dialogues };
 });
 
 vi.mock("phaser", () => ({ Scene: harness.Scene, GameObjects: { Sprite: harness.Object } }));
 vi.mock("../src/managers/actorAnimation", () => ({ ActorAnimationDirector: harness.ActorDirector }));
+vi.mock("../src/renderers/cutsceneDialogue", () => ({ CutsceneDialogueRenderer: harness.DialogueRenderer }));
 
 const STEP: CutsceneStep = {
   type: "narration", text: "Synthetic renderer fixture.",
@@ -75,6 +84,7 @@ const STEP: CutsceneStep = {
 
 beforeEach(() => {
   harness.directors.length = 0;
+  harness.dialogues.length = 0;
   gamePreferences.setReducedMotion(true);
 });
 
@@ -122,11 +132,14 @@ describe("cutscene scenery and presentation ownership", () => {
     const { renderer } = createRenderer();
     renderer.reset();
     expect(harness.directors).toHaveLength(2);
+    expect(harness.dialogues).toHaveLength(1);
+    expect(harness.dialogues[0]!.destroy).not.toHaveBeenCalled();
     expect(harness.directors[0]!.cleanup).toHaveBeenCalledTimes(1);
     renderer.cleanup();
     renderer.cleanup();
     renderer.reset();
     expect(harness.directors[1]!.cleanup).toHaveBeenCalledTimes(1);
     expect(harness.directors).toHaveLength(2);
+    expect(harness.dialogues[0]!.destroy).toHaveBeenCalledTimes(1);
   });
 });

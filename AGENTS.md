@@ -13,9 +13,9 @@ authoritative in [`.github/copilot-instructions.md`](.github/copilot-instruction
 | Development/CI Node | 26.12.1, pinned in `.nvmrc`; embedded Node remains Electron-owned |
 | Runtime | Phaser 4.2.1 |
 | Language | TypeScript 7.0.2, strict, ES2020 |
-| Build/test | Vite 8.3.5, Electron 45.1.0, electron-builder 26.18.0, Vitest 5.0.5, Playwright 1.64.1 |
+| Build/test | Vite 8.3.6, Electron 45.2.3, electron-builder 26.18.0, Vitest 5.1.0, Playwright 1.65.0 |
 | DOM tests | happy-dom 21.0.4 |
-| Save schema | 27 |
+| Save schema | 28 |
 | Deployment | Pages showcase at `/2dnd/`, game at `game.html`; tagged unsigned desktop releases |
 | Assets | Procedural graphics and Web Audio only |
 
@@ -158,10 +158,19 @@ headless mode; native release gates belong on isolated CI/virtual displays.
 - Battle monsters never fly or hover. Place every formation footpoint on the
   ground, use visible per-frame foot anchors, preserve planted poses and contact
   shadows, and derive aiming/effect positions from actual sprite bounds.
-- Battle commands keep distinct procedural icons through enabled/disabled
-  states. Use real HP/MP bars and native meter counterparts. Enemy rows contain
-  only names/letters and health bars authorized by `hpRevealed`, never unknown
-  placeholders or hidden resource values.
+- Battle commands keep distinct procedural icons and appear only for accepted
+  controlled decisions, never during action presentation. Portrait HP/MP cards
+  can compact through preference v4. Enemy HP appears only on a hovered/focused
+  valid target with `hpRevealed`, never as persistent rows or hidden values.
+- The small portrait timeline is a read-only stable-ID initiative/surprise projection.
+  Remove inactive actors immediately without splicing or advancing scheduling;
+  never expose initiative arithmetic or persist presentation state.
+- Dialogue portraits use explicit staged `speakerActorId` references and the
+  same live hero/NPC/boss art as the scene. Cutscene/Ending share measured copy,
+  Speaking/Listening labels, reflow and cleanup-safe portrait texture leases.
+- World city landmarks span multiple cartographic tiles but preserve the exact
+  existing gate, collision and route authority. Share fog-redacted frames across
+  initial/reveal/atlas rendering; retain NG+ secrecy and ordinary island Water.
 - Every cutscene has distinct illustrated scenery, not a flat-color fallback.
   Keep the exhaustive ID registry, changed boss aftermaths, sea-correct Kraken,
   five bounded layers and one Graphics buffer. Replay/ending share the painter;
@@ -181,8 +190,8 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   result/reward hooks and before outgoing Battle autosave, not only at handoff.
 - Dice views consume exact immutable receipts, redact hidden AC/DC and enemy
   modifiers/totals, never use shared RNG, and never create an input-block reason.
-  Match pixel-art faces and bitmap numerals to the game. Battle has only its
-  lower visible log; do not add a second dice result-caption strip.
+  Match pixel-art faces and bitmap numerals to the game. Battle has a fading
+  action notice and one on-demand history; do not add a duplicate dice strip.
   Dice use the measured game viewport, not a dock. Battle details join its
   existing log; no history survives exit. Non-battle results expire after a
   short reading interval. Event reset and scene cleanup clear views/cues/timers.
@@ -247,6 +256,13 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   claims and canonical study tokens, not redundant room fog or presentation.
   Keep original shop identities for negotiations and crafting. See
   [Graphics and buildings](docs/graphics.md).
+- Library/home facades use blocked, at-least-three-tile street footprints;
+  closed residences have no connection or hit target. Scene scenery shares
+  `pixelArt.ts` scan conversion through `pixelScenery.ts`, retaining depth bands.
+- `uiTheme.ts` resolves local heading/body/data fonts before measurement.
+  Appearance choices/normalization live in `appearance.ts`; schema-v28 optional
+  cosmetics share the hero descriptor, cache key and texture leases without
+  changing class identity, equipment or mechanics.
 - Reveal the current city's complete interior/districts through
   `FogOfWar.revealCity()` on entry and recovery, without revealing other places.
   Archery/dice venues are tangible props, not letter flags. Named cutscene NPCs

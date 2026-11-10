@@ -3,6 +3,7 @@ import { paginateMeasuredItems } from "../systems/layout";
 import { createOverlayContainer, setOverlayViewport } from "../utils/ui";
 import { BATTLE_DEPTH } from "../renderers/battleDepth";
 import { syncInteractiveHitArea } from "./layout";
+import { UI_COLORS } from "../systems/uiTheme";
 
 export interface BattleMenuEntry {
   id: string;
@@ -75,7 +76,7 @@ export function createBattleActionMenu(
       syncInteractiveHitArea(text);
       text.on("pointerdown", entry.activate);
       text.on("pointerover", () => text.setColor("#ffd700"));
-      text.on("pointerover", () => options.onSelect?.(entry.id));
+      text.on("pointermove", () => options.onSelect?.(entry.id));
       text.on("pointerout", () => text.setColor(color));
     }
     container.add([text, details]);
@@ -106,11 +107,10 @@ export function createBattleActionMenu(
     y += footerHeight;
   }
   const height = y + 6;
-  const x = options.kind === "body" ? 12
-    : Math.min(scene.cameras.main.width - width - 6, scene.cameras.main.width * 0.52);
+  const x = 12;
   const top = Math.max(6, bottom - height);
   container.setPosition(x, top);
-  background.fillStyle(0x1a1a3e, 0.97).fillRect(-5, -5, width, height + 5);
+  background.fillStyle(UI_COLORS.panel, 0.94).fillRect(-5, -5, width, height + 5);
   background.lineStyle(1, 0xc0a060, 1).strokeRect(-5, -5, width, height + 5);
   setOverlayViewport(scene, groupId, { x: x - 5, y: top - 5, width, height: height + 5 });
   return { container, page, pages: pages.map((indices) => indices.map((index) => options.entries[index]!.id)) };

@@ -4,6 +4,8 @@ import { gamePreferences } from "../systems/accessibility";
 import { inputPromptSource } from "../systems/input";
 import {
   auditLayout,
+  BATTLE_SIDEBAR_WIDTH,
+  findUnobscuredRect,
   layoutVerticalStack,
   type LayoutAuditItem,
   type LayoutAuditResult,
@@ -92,6 +94,34 @@ export function getScaledBounds(
     width: bounds.width,
     height: bounds.height,
   };
+}
+
+/** Project actual native touch rails into the logical game viewport. */
+export function getTouchControlBounds(scene: Phaser.Scene): LayoutRect[] {
+  const canvas = scene.game.canvas.getBoundingClientRect();
+  if (canvas.width === 0 || canvas.height === 0) return [];
+  const scaleX = scene.cameras.main.width / canvas.width;
+  const scaleY = scene.cameras.main.height / canvas.height;
+  return [...document.querySelectorAll<HTMLElement>("#touch-controls button")]
+    .filter((button) => !button.hidden)
+    .map((button) => button.getBoundingClientRect())
+    .filter((bounds) => bounds.width > 0 && bounds.height > 0)
+    .map((bounds) => ({
+      x: (bounds.x - canvas.x) * scaleX,
+      y: (bounds.y - canvas.y) * scaleY,
+      width: bounds.width * scaleX, height: bounds.height * scaleY,
+    }));
+}
+
+/** Keep Battle choices outside touch rails, preferring the open battlefield. */
+export function placeBattleDecisionPanel(scene: Phaser.Scene, bounds: LayoutRect): LayoutRect {
+  const { width, height } = scene.cameras.main;
+  const viewport = { x: 6, y: 6, width: width - 12, height: height - 12 };
+  const obstructions = getTouchControlBounds(scene);
+  const placed = findUnobscuredRect(bounds, { ...viewport, width: width - BATTLE_SIDEBAR_WIDTH - 12 }, obstructions)
+    ?? findUnobscuredRect(bounds, viewport, obstructions);
+  if (!placed) throw new RangeError("[battle-layout] Decision panel cannot fit outside visible touch controls.");
+  return placed;
 }
 
 /** Natural glyph bounds include padding/stroke even when a fixed text surface crops them. */

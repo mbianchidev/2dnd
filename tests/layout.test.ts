@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   auditLayout,
   centeredRect,
+  findUnobscuredRect,
   getFocusableLayoutItems,
   getVisibleMeasuredRange,
   insetRect,
@@ -16,6 +17,28 @@ import {
 } from "../src/systems/layout";
 
 describe("measured UI layout", () => {
+  it("keeps measured command folios clear of native touch controls without shrinking", () => {
+    const panel = { x: 12, y: 404, width: 282, height: 112 };
+    const viewport = { x: 6, y: 6, width: 430, height: 516 };
+    const controls = [{ x: -18, y: 418, width: 100, height: 104 }];
+    const placed = findUnobscuredRect(panel, viewport, controls);
+    expect(placed).toEqual({ ...panel, x: 88 });
+    expect(auditLayout([
+      { id: "commands", bounds: placed! }, { id: "touch", bounds: controls[0]! },
+    ]).overlaps).toEqual([]);
+    expect(findUnobscuredRect(panel, viewport, [])).toEqual(panel);
+  });
+
+  it("raises choices above a wide touch rail and rejects impossible viewports explicitly", () => {
+    const panel = { x: 12, y: 404, width: 310, height: 112 };
+    const viewport = { x: 6, y: 6, width: 430, height: 516 };
+    expect(findUnobscuredRect(panel, viewport, [{ x: 0, y: 300, width: 300, height: 228 }]))
+      .toEqual({ ...panel, y: 182 });
+    expect(findUnobscuredRect(panel, viewport, [{ x: 0, y: 0, width: 640, height: 528 }]))
+      .toBeUndefined();
+    expect(findUnobscuredRect({ ...panel, height: 600 }, viewport, [])).toBeUndefined();
+  });
+
   it.each([
     { title: 176, replay: 131, close: 61 },
     { title: 220, replay: 158, close: 70 },

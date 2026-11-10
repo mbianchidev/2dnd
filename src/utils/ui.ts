@@ -10,13 +10,14 @@ import {
   updateLayoutGroupViewport,
 } from "../managers/layout";
 import { centeredRect, type LayoutInsets } from "../systems/layout";
+import { UI_COLORS } from "../systems/uiTheme";
 
 /** Standard panel background color. */
-export const PANEL_BG_COLOR = 0x1a1a2e;
+export const PANEL_BG_COLOR = UI_COLORS.panel;
 /** Standard gold border color. */
-export const BORDER_GOLD = 0xffd700;
+export const BORDER_GOLD = UI_COLORS.gold;
 /** Alternate warm border color. */
-export const BORDER_WARM = 0xc0a060;
+export const BORDER_WARM = UI_COLORS.border;
 
 interface PanelLayout {
   w: number;
@@ -94,14 +95,25 @@ export function createPanelGraphics(
   panelW: number,
   panelH: number,
   bgAlpha = 0.95,
-  borderColor = BORDER_GOLD,
+  borderColor: number = BORDER_GOLD,
 ): Phaser.GameObjects.Graphics {
   const bg = scene.add.graphics();
-  bg.fillStyle(PANEL_BG_COLOR, bgAlpha);
-  bg.fillRect(px, py, panelW, panelH);
-  bg.lineStyle(2, borderColor, 1);
-  bg.strokeRect(px, py, panelW, panelH);
+  paintPanel(bg, px, py, panelW, panelH, bgAlpha, borderColor);
   return bg;
+}
+
+export function paintPanel(
+  graphics: Phaser.GameObjects.Graphics, x: number, y: number, width: number, height: number,
+  alpha = 0.94, borderColor: number = BORDER_GOLD,
+): void {
+  graphics.fillStyle(PANEL_BG_COLOR, alpha).fillRect(x, y, width, height);
+  graphics.lineStyle(1, borderColor, 0.95).strokeRect(x, y, width, height);
+  if (width < 24 || height < 24) return;
+  graphics.lineStyle(1, UI_COLORS.border, 0.18).strokeRect(x + 3, y + 3, width - 6, height - 6);
+  graphics.fillStyle(borderColor, 0.95);
+  for (const cornerX of [x, x + width - 5]) {
+    for (const cornerY of [y, y + height - 2]) graphics.fillRect(cornerX, cornerY, 5, 2);
+  }
 }
 
 /** Scene-owned polite status region; the owner removes it when its modal closes. */

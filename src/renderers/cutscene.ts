@@ -32,6 +32,7 @@ import {
 } from "./heroTextures";
 import { buildCutsceneScenery } from "../systems/cutsceneScenery";
 import { drawCutsceneScenery } from "./cutsceneBackdrop";
+import { CutsceneDialogueRenderer } from "./cutsceneDialogue";
 
 interface RenderedActor {
   container: Phaser.GameObjects.Container;
@@ -74,6 +75,8 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
   private lastEvent = "idle";
   private heroInspection = "";
   private readonly heroDescriptor: HeroVisualDescriptor;
+  private readonly dialogue: CutsceneDialogueRenderer;
+  private currentPresentation: CutscenePresentation | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -86,6 +89,8 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     this.effects = scene.add.container(0, 0);
     this.actorsLayer = scene.add.container(0, 0);
     this.textLayer = scene.add.container(0, 0);
+    this.dialogue = new CutsceneDialogueRenderer(scene, player, this.heroDescriptor, this.textLayer,
+      () => this.reflowActors());
     this.fade = scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000)
       .setOrigin(0)
       .setAlpha(0);
@@ -124,6 +129,8 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       camera: { focus: "center" },
       effect: "none",
     };
+    this.currentPresentation = presentation;
+    this.dialogue.present(step);
     this.drawBackdrop(presentation.backdrop);
     const effect = presentation.effect ?? "none";
     this.lastEvent = `step-${index}:${effect}`
@@ -133,7 +140,6 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     this.applyCamera(presentation.camera ?? { focus: "center" });
     this.applyEffect(effect);
     this.presentActorStates(presentation.actors ?? [], effect);
-    this.drawText(step);
     if (presentation.audioCue) {
       audioEngine.playCutsceneCue(presentation.audioCue);
     }
@@ -169,6 +175,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     this.disposed = true;
     this.clearTransientPresentation();
     this.clearActors();
+    this.dialogue.destroy();
     this.root.destroy(true);
   }
 
@@ -192,7 +199,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     }
     this.pendingEntranceIds.clear();
     this.effects.removeAll(true);
-    this.textLayer.removeAll(true);
+    this.dialogue.clear();
   }
 
   private trackTimer(timer: Phaser.Time.TimerEvent): void {
@@ -232,8 +239,8 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       const existingActor = this.actors.get(placement.id);
       const actor = existingActor ?? this.createActor(placement);
       const targetX = ACTOR_X[placement.slot];
-      const targetY = 292;
       actor.label.setText(displayName(placement, this.player));
+      const targetY = this.actorY(placement, actor);
       this.updateActorVisual(placement, actor);
       actor.container.setAlpha(1).setScale(placement.scale ?? 1);
       if (!existingActor) {
@@ -261,7 +268,7 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
           onComplete: () => {
             if (this.disposed || version !== this.presentationVersion || this.actors.get(placement.id) !== actor) return;
             this.pendingEntranceIds.delete(placement.id);
-            actor.container.setPosition(targetX, targetY).setAlpha(1);
+            actor.container.setPosition(targetX, this.actorY(placement, actor)).setAlpha(1);
             this.actorAnimations.refreshBase(placement.id);
             this.presentActorState(placement, effect);
           },
@@ -273,6 +280,21 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
       if (isBossPlacement(placement)) {
         this.drawBossPresence(placement, targetX, targetY);
       }
+    }
+  }
+
+  private actorY(placement: CutsceneActorCue, actor: RenderedActor): number {
+    const zoom = getAccessibilityPreferences().reducedMotion ? 1 : this.currentPresentation?.camera?.zoom ?? 1;
+    return Math.min(292, (this.dialogue.panelTop - 12) / Math.max(1, zoom)
+      - (actor.label.y + actor.label.height) * (placement.scale ?? 1));
+  }
+
+  private reflowActors(): void {
+    for (const placement of this.currentPresentation?.actors ?? []) {
+      const actor = this.actors.get(placement.id);
+      if (!actor) continue;
+      actor.container.setY(this.actorY(placement, actor));
+      if (!this.pendingEntranceIds.has(placement.id)) this.actorAnimations.refreshBase(placement.id);
     }
   }
 
@@ -526,57 +548,6 @@ export class CutsceneRenderer implements CutscenePresentationAdapter {
     }
   }
 
-  private drawText(step: CutsceneStep): void {
-    const preferences = getAccessibilityPreferences();
-    const speaker = step.type === "dialogue"
-      ? step.speaker
-      : step.type === "narration"
-        ? step.heading
-        : step.type === "summary"
-          ? step.heading
-          : "Credits";
-    const text = (step.type === "credits"
-      ? step.lines.join("\n")
-      : step.type === "summary"
-        ? step.heading
-        : step.text).split("{hero}").join(this.player.name);
-    const panel = this.scene.add.rectangle(
-      GAME_WIDTH / 2,
-      GAME_HEIGHT - 76,
-      GAME_WIDTH - 36,
-      132,
-      0x080a10,
-      0.92,
-    ).setStrokeStyle(2, 0xc9a84c);
-    this.textLayer.add(panel);
-    if (speaker) {
-      const speakerText = this.scene.add.text(38, GAME_HEIGHT - 134, speaker, {
-        fontSize: "15px",
-        color: "#ffdd66",
-        fontStyle: "bold",
-      });
-      this.textLayer.add(speakerText);
-    }
-    const body = this.scene.add.text(38, GAME_HEIGHT - 108, text, {
-      fontSize: "14px",
-      color: "#f4f1e8",
-      wordWrap: { width: GAME_WIDTH - 76 },
-      lineSpacing: 4,
-    });
-    this.textLayer.add(body);
-    const hint = this.scene.add.text(
-      GAME_WIDTH - 38,
-      GAME_HEIGHT - 24,
-      preferences.advanceMode === "automatic"
-        ? "Automatic  |  Esc skip"
-        : "Space / Enter / click  |  Esc skip",
-      {
-        fontSize: "10px",
-        color: "#a9adba",
-      },
-    ).setOrigin(1, 0.5);
-    this.textLayer.add(hint);
-  }
 }
 
 function isBossPlacement(placement: CutsceneActorCue): boolean {

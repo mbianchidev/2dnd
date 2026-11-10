@@ -549,6 +549,7 @@ const OATH_DEFINITIONS = OATH_STORIES.map(
         {
           type: "dialogue",
           speaker: story.speaker,
+          speakerActorId: story.speakerId,
           text: story.line,
           presentation: presentation(
             story.backdrop,
@@ -618,6 +619,7 @@ const FINAL_RETURN: CutsceneDefinition<CampaignCutsceneId> = {
     {
       type: "dialogue",
       speaker: "Archivist Elowen",
+      speakerActorId: "elowen",
       text: "The sigil is whole. Every city chose its promise again, and you carried each voice home.",
       presentation: presentation(
         "city",
@@ -664,6 +666,7 @@ CutsceneDefinition<CampaignCutsceneId> = {
     {
       type: "dialogue",
       speaker: "Archivist Elowen",
+      speakerActorId: "elowen",
       text: "The covenant names you its roadwarden. Its promise is restored, but its roads still need a guardian. Go freely - the world you saved remains yours to explore.",
       presentation: presentation(
         "city", "runes", [HERO, npc("elowen", "Archivist Elowen", "willowdaleArchivist")],

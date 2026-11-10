@@ -216,7 +216,10 @@ test("hero screenshots change with PlayerState-derived fixtures and remain acces
     "unarmored",
   );
   const unarmored = await canvas.screenshot();
-  await expect(page).toHaveScreenshot("cutscene-opening-knight-unarmored.png", {
+  const openingSnapshot = process.platform === "linux"
+    ? "cutscene-opening-knight-unarmored-linux.png"
+    : "cutscene-opening-knight-unarmored.png";
+  await expect.soft(page).toHaveScreenshot(openingSnapshot, {
     animations: "disabled",
     maxDiffPixelRatio: 0.03,
   });
@@ -249,7 +252,10 @@ test("hero screenshots change with PlayerState-derived fixtures and remain acces
     "barbarianTan",
     "dualWield",
   );
-  await expect(page).toHaveScreenshot("cutscene-recruitment-dual-mobile.png", {
+  const recruitmentSnapshot = process.platform === "linux"
+    ? "cutscene-recruitment-dual-mobile-linux.png"
+    : "cutscene-recruitment-dual-mobile.png";
+  await expect.soft(page).toHaveScreenshot(recruitmentSnapshot, {
     animations: "disabled",
     maxDiffPixelRatio: 0.03,
   });
@@ -263,7 +269,10 @@ test("hero screenshots change with PlayerState-derived fixtures and remain acces
     "bardBlue",
     "lateGame",
   );
-  await expect(page).toHaveScreenshot("cutscene-kraken-lategame-landscape.png", {
+  const krakenSnapshot = process.platform === "linux"
+    ? "cutscene-kraken-lategame-landscape-linux.png"
+    : "cutscene-kraken-lategame-landscape.png";
+  await expect.soft(page).toHaveScreenshot(krakenSnapshot, {
     animations: "disabled",
     maxDiffPixelRatio: 0.08,
   });

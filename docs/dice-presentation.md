@@ -31,10 +31,12 @@ a casting-stat damage/healing bonus the resolver never applied.
 
 Use **Z**, **L3** (left-stick press), or the pointer/touch **Skip animation**
 button to fast-forward motion. Roll details belong to the existing **Battle
-log**, alongside attacks and other combat messages; use its normal wheel or
-controller scrolling. Its accessible counterpart mirrors those same messages.
-Battle has only that lower visible log: the dice layer contains faces and the
-skip control, not another result-caption strip. Screen-reader roll announcements
+log**, alongside attacks and other combat messages; open it with **J**, the Log
+control, controller Menu/north, or touch LOG. Wheel, arrows and triggers scroll
+its bounded history. A brief action notice fades instead of occupying a
+permanent bottom strip; exact dice details stay in that same history.
+Its accessible counterpart mirrors the messages. The dice layer contains faces
+and the skip control, not another result-caption strip. Screen-reader roll announcements
 remain available. There is no second roll-log panel or history carried into another scene.
 The skip button appears only while motion is active, supports native keyboard,
 touch and the gamepad cursor, and never activates the game underneath.
@@ -143,7 +145,7 @@ tracks the actual canvas bounds without changing the canvas size, pointer
 geometry or touch-control positions. The same dice animate with concealed
 numbers, then reveal exact faces at rest, including Instant/reduced-motion
 results; no dock copies are rendered. Outside Battle, long result captions wrap in a bounded in-scene reading
-area; Battle sends that text exclusively to its existing lower log.
+area; Battle sends that text exclusively to its bounded on-demand history.
 `src/managers/input.ts` routes the existing skip action and native skip control
 without adding a blocking input context.
 

@@ -14,15 +14,51 @@ Write comprehensive game-mechanics tests with Vitest. Use the committed
 Playwright suite only for high-value Phaser browser flows that cannot be proven
 through pure logic tests.
 
+`appearance.test.ts` covers each visible cosmetic axis, distinct hair silhouettes,
+texture identities and schema-v28/v27 round trips. `uiTheme.test.ts` verifies
+local typography, contrast, original icons and shared raster geometry.
+`visual-overhaul.spec.ts` exercises all appearance categories at every text scale
+on desktop/mobile, real facade entry/exit, closed residences and spatial menus.
+Keep the 512-primitive Cutscene plan budget and one-buffer/depth invariants.
+
+`battleTurnOrder.test.ts`, `worldCityArt.test.ts` and
+`cutscenePortraits.test.ts` cover read-only scheduling, all eight actors,
+unique/fog-redacted city geometry and canonical live portrait binding without
+RNG or authority mutation. `visual-followup.spec.ts` exercises a real killing
+attack, portrait recovery/replay at every text scale, boss/Ending dialogue and
+actual walking/atlas landmarks. Preserve full names/letters and exact hero/NPC
+palettes; do not substitute instant victory for the kill under test.
+
+Opening/recruitment dialogue and compact Kraken captures retain platform-specific Linux
+references from actual CI images, with unchanged 3%/8% tolerances. Soft snapshot
+assertions retain every independent reference while still failing on a mismatch.
+Battle goldens wait for `playerTurn` and the current hero initiative entry;
+scene creation alone can capture disabled commands before initiative dispatch.
+Action journeys wait for `data-battle-commands-visible="true"` and use stable
+`battle-action-*` layout IDs, not the former right-side coordinates. A mechanical
+`playerTurn` can coexist with outgoing presentation and is not an input-ready gate.
+Battle-owned display markers clear on shutdown; assert the new encounter is
+accepting decisions before checking a restored display preference. Standard
+spell/ability pagers retain `battle-<kind>-next/previous` IDs and reopen on the
+canonical first page; paging/reflow within an open menu preserves its selection.
+Arm a live dice DOM capture with an awaited handle before dispatching its input;
+starting an unawaited evaluation promise does not confirm observer installation.
+Reseed a second fixture only from a fresh title document, not a live exploration
+scene whose outgoing autosave can overwrite that fixture during reload.
+
 Battle grounding tests cover every family/boss and all pose frames. Use
 `data-battle-grounding` to sample actual visible foot/shadow contact during real
 actions, not just sprite centers. Grounded actors never hover, lift or tilt;
 keep front/back contact points inside the backdrop ground plane.
 
 Battle HUD tests assert six distinct action silhouettes, graphical/native
-HP/MP updates, all text scales and knowledge privacy. Unknown enemy HP must be
+portrait HP/MP updates, small timeline icons, full/compact persistence, all text
+scales, decision-only commands, pointer-release previews and knowledge privacy.
+Unknown enemy HP must be
 absent from both graphics and accessible meters; known bars use live max HP,
-including campaign scaling. Do not rely on an enemy attack happening to hit:
+including campaign scaling, and exist only for a hovered/focused valid target.
+History stays available after the brief notice fades and pauses a timed budget.
+Do not rely on an enemy attack happening to hit:
 use canonical deterministic status damage for resource-update fixtures.
 
 Run tooling with the Node.js version in `.nvmrc`, shared by local development and
@@ -31,6 +67,10 @@ every Node-based CI job. Electron's embedded Node.js follows Electron instead.
 Local validation is headless only; never launch visible native windows or
 control the developer's desktop. Native gates run on isolated CI/virtual
 displays, not the user's host.
+Native test launches select D3D11 WARP on Windows and SwiftShader on Linux/Xvfb.
+Keep real WebGL, renderer-error checks and sandbox/security enabled; these
+test-only backends avoid virtual-GPU shader failures and change no production
+launch policy or physical-hardware claims.
 
 Use `playwright.desktop.config.ts` for the production-like Electron flow. It
 must verify the `app://2dnd` origin, sandboxed preload API, fullscreen control,
@@ -353,7 +393,7 @@ and `diceRenderer.test.ts`
 cover exact natural/component receipts, hidden-stat redaction, selected
 advantage/disadvantage dice, critical/fumble/auto-hit, unchanged RNG/resources,
 native control propagation, scene-local evidence, expiry/reset, stale-callback
-rejection and cancellation. Preference v3
+rejection and cancellation. Preference v3/v4
 migration/corruption belongs in `accessibility.test.ts`. Real battle,
 damage/healing pools and HP caps, shared area rolls,
 event/trap/gathering/flee, skip, reload, and transition controls belong in

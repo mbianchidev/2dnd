@@ -110,6 +110,9 @@ thresholds and rewards.
 - Group initiative rolls once for the player and once per monster, then
   interleaves all actors by total using stable combatant IDs. Companion actors
   use the same initiative contract.
+- `battleTurnOrder.ts` projects upcoming stable IDs and the remaining ambush
+  queue read-only. Exclude inactive actors immediately without editing the
+  initiative chain, advancing its index, consuming RNG or exposing totals.
 - Melee must clear the front row before attacking the back row. Once exposed,
   back-row melee targets impose -2 to the attack roll; ranged attacks and
   spells ignore this formation penalty.

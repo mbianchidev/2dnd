@@ -1,5 +1,6 @@
 import type { GroupCombatant } from "./groupCombat";
 import { PixelSurface } from "./pixelArt";
+import type { HeroVisualDescriptor } from "./heroVisuals";
 
 export const BATTLE_HUD_ACTION_IDS = ["attack", "defend", "abilities", "spells", "items", "flee"] as const;
 export type BattleHudActionId = typeof BATTLE_HUD_ACTION_IDS[number];
@@ -16,6 +17,8 @@ export interface BattleHudAlly {
   readonly accessibleDetails?: string;
   readonly health: BattleHudResource;
   readonly mana: BattleHudResource;
+  readonly portrait: HeroVisualDescriptor;
+  readonly level: number;
 }
 
 export interface BattleHudEnemy {
@@ -54,7 +57,7 @@ export function getBattleHudPalette(highContrast: boolean): BattleHudPalette {
   return {
     panel: highContrast ? 0x000000 : 0x152330,
     track: highContrast ? 0x000000 : 0x101925,
-    health: 0xb94356,
+    health: 0x39734b,
     mana: 0x2874a5,
     text: highContrast ? 0xffffff : 0xf6f2e6,
     outline: highContrast ? 0xffffff : 0xd8cba4,

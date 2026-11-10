@@ -32,11 +32,13 @@ import { TILE_SIZE } from "../config";
 import { layoutAnchoredLabels } from "../systems/layout";
 import { getScaledBounds, subscribeOverlayReflow } from "../managers/layout";
 import { createOverlayContainer } from "../utils/ui";
-import { getOrCreateTerrainTexture, getDungeonArtGround } from "./terrainTextures";
+import { getOrCreateCityTerrainTexture, getOrCreateTerrainTexture, getDungeonArtGround } from "./terrainTextures";
 import { InteriorRenderer } from "./interior";
 import { DungeonLightingRenderer } from "./dungeonLighting";
-import { containsInteriorPropTile } from "../systems/interiorLayout";
 import { renderCityLandmarks } from "./cityLandmarks";
+import { renderCityBuildings } from "./buildings";
+import { getWorldCityArtProfile } from "../systems/worldCityArt";
+import { WorldCityRenderer, getWorldCityGroundTexture } from "./worldCities";
 
 /** Biome wall texture overrides for city rendering. */
 const BIOME_WALL_MAP: Record<number, string> = {
@@ -152,14 +154,17 @@ export class MapRenderer {
   private labelRows: Array<{ text: Phaser.GameObjects.Text; id: string; x: number; y: number; maxWidth: number }> = [];
   private readonly interiors: InteriorRenderer;
   private readonly dungeonLighting: DungeonLightingRenderer;
+  private readonly worldCities: WorldCityRenderer;
   private insideRoom = false;
   private surfaceSprites: Phaser.GameObjects.Sprite[] = [];
+  private buildingGraphics: Phaser.GameObjects.Graphics[] = [];
   private lifecycleBound = false;
 
   constructor(scene: Phaser.Scene, private readonly interactInterior: (id: string) => void) {
     this.scene = scene;
     this.interiors = new InteriorRenderer(scene);
     this.dungeonLighting = new DungeonLightingRenderer(scene);
+    this.worldCities = new WorldCityRenderer(scene);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -180,12 +185,17 @@ export class MapRenderer {
       this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
         for (const sprite of this.surfaceSprites) sprite.destroy();
         this.surfaceSprites = [];
+        for (const graphics of this.buildingGraphics) graphics.destroy();
+        this.buildingGraphics = [];
       });
     }
     for (const sprite of this.surfaceSprites) sprite.destroy();
     this.surfaceSprites = [];
+    for (const graphics of this.buildingGraphics) graphics.destroy();
+    this.buildingGraphics = [];
     this.interiors.clear();
     this.dungeonLighting.clear();
+    this.worldCities.clear();
     this.insideRoom = false;
     this.labelLayer?.destroy(true);
     this.labelLayer = null;
@@ -584,22 +594,16 @@ export class MapRenderer {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const explored = isExplored(x, y);
         const terrain = cityMap[y][x];
-        let texKey = explored ? getOrCreateTerrainTexture(this.scene, cityMap, x, y, cityBiome) : "tile_fog";
-        if (chunk.interior) {
-          const bounds = chunk.interior.bounds;
-          if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) texKey = "tile_fog";
-          else if (chunk.interior.props.some((prop) => containsInteriorPropTile(prop, x, y))) texKey = `tile_${Terrain.ShopFloor}`;
-        }
+        let texKey = explored ? getOrCreateCityTerrainTexture(this.scene, chunk, x, y, cityBiome) : "tile_fog";
         if (explored && terrain === Terrain.Carpet) {
           const carpetOverride = shopCarpetMap.get(`${x},${y}`);
           if (carpetOverride) texKey = carpetOverride;
         }
         if (explored && terrain === Terrain.CityPath) texKey = biomePathTex;
-        if (explored && terrain === Terrain.Fountain && !chunk.interior) texKey = biomeFloorTex;
         if (explored && terrain === Terrain.CityGate && !chunk.interior) {
           const connection = getCityConnectionAt(city, player.position.cityChunkIndex, x, y);
           const destination = connection ? getCityChunk(city, connection.toChunkIndex)?.interior : undefined;
-          if (destination) texKey = destination.kind === "shop" ? `tile_${Terrain.ShopFloor}` : `tile_building_${destination.kind}`;
+          if (destination?.kind === "shop") texKey = `tile_${Terrain.ShopFloor}`;
         }
         if (terrain === Terrain.ShopFloor && !chunk.interior) {
           const tileShopIdx = cityRenderer.shopFloorMap.get(`${x},${y}`) ?? -1;
@@ -669,6 +673,7 @@ export class MapRenderer {
 
     // City animals, NPCs, and shop roofs
     this.surfaceSprites = renderCityLandmarks(this.scene, cityMap, isExplored);
+    this.buildingGraphics = renderCityBuildings(this.scene, chunk.buildings ?? [], isExplored);
     cityRenderer.spawnCityAnimals(
       city,
       cityMap,
@@ -712,9 +717,9 @@ export class MapRenderer {
         const terrain = islands.some((island) => island.location.tileX === x && island.location.tileY === y)
           ? Terrain.Town : chunk.mapData[y][x];
         let texKey = explored ? getOrCreateTerrainTexture(this.scene, chunk.mapData, x, y) : "tile_fog";
-        if (explored && terrain === Terrain.Town) {
+        if (explored && terrain === Terrain.Town && chunk.mapData[y][x] !== Terrain.Water) {
           const biome = getTownBiome(player.position.chunkX, player.position.chunkY, x, y);
-          texKey = `tile_town_${biome}`;
+          texKey = getWorldCityGroundTexture(this.scene, biome);
         }
         if (explored && terrain === Terrain.Chest) {
           const chest = getChestAt(x, y, { type: "overworld", chunkX: player.position.chunkX, chunkY: player.position.chunkY });
@@ -749,22 +754,7 @@ export class MapRenderer {
       }
     }
 
-    // Town labels
-    for (const town of chunk.towns) {
-      if (isExplored(town.x, town.y)) {
-        const label = this.scene.add
-          .text(town.x * TILE_SIZE + TILE_SIZE / 2, town.y * TILE_SIZE - 4, town.name, {
-            fontSize: "9px",
-            fontFamily: "monospace",
-            color: "#fff",
-            stroke: "#000",
-            strokeThickness: 2,
-          })
-          .setOrigin(0.5, 1);
-        this.addMapLabel(label, `town-name-${town.x}-${town.y}`);
-      }
-    }
-    this.renderSecretIslandLabels(player, isExplored);
+    this.renderWorldCityLandmarks(player, isExplored);
 
     // Boss markers (if not defeated)
     for (const boss of chunk.bosses) {
@@ -851,22 +841,16 @@ export class MapRenderer {
       for (let x = 0; x < MAP_WIDTH; x++) {
         if (isExplored(x, y) && this.tileSprites[y]?.[x]) {
           const terrain = cityMap[y][x];
-          let texKey = getOrCreateTerrainTexture(this.scene, cityMap, x, y, cityBiome);
+          let texKey = getOrCreateCityTerrainTexture(this.scene, chunk, x, y, cityBiome);
           if (terrain === Terrain.Carpet) {
             const override = shopCarpetMap.get(`${x},${y}`);
             if (override) texKey = override;
           }
           if (terrain === Terrain.CityPath) texKey = biomePathTex;
-          if (terrain === Terrain.Fountain && !chunk.interior) texKey = biomeFloorTex;
           if (terrain === Terrain.CityGate && !chunk.interior) {
             const connection = getCityConnectionAt(city, player.position.cityChunkIndex, x, y);
             const destination = connection ? getCityChunk(city, connection.toChunkIndex)?.interior : undefined;
-            if (destination) texKey = destination.kind === "shop" ? `tile_${Terrain.ShopFloor}` : `tile_building_${destination.kind}`;
-          }
-          if (chunk.interior) {
-            const bounds = chunk.interior.bounds;
-            if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) texKey = "tile_fog";
-            else if (chunk.interior.props.some((prop) => containsInteriorPropTile(prop, x, y))) texKey = `tile_${Terrain.ShopFloor}`;
+            if (destination?.kind === "shop") texKey = `tile_${Terrain.ShopFloor}`;
           }
           if (terrain === Terrain.ShopFloor && !chunk.interior) {
             const tileShopIdx = cityRenderer.shopFloorMap.get(`${x},${y}`) ?? -1;
@@ -891,9 +875,9 @@ export class MapRenderer {
           const terrain = islands.some((island) => island.location.tileX === x && island.location.tileY === y)
             ? Terrain.Town : chunk.mapData[y][x];
           let texKey = getOrCreateTerrainTexture(this.scene, chunk.mapData, x, y);
-          if (terrain === Terrain.Town) {
+          if (terrain === Terrain.Town && chunk.mapData[y][x] !== Terrain.Water) {
             const biome = getTownBiome(player.position.chunkX, player.position.chunkY, x, y);
-            texKey = `tile_town_${biome}`;
+            texKey = getWorldCityGroundTexture(this.scene, biome);
           }
           if (terrain === Terrain.Chest) {
             const chest = getChestAt(x, y, { type: "overworld", chunkX: player.position.chunkX, chunkY: player.position.chunkY });
@@ -922,17 +906,17 @@ export class MapRenderer {
         }
       }
     }
-    this.renderSecretIslandLabels(player, isExplored);
+    this.renderWorldCityLandmarks(player, isExplored);
   }
 
-  private renderSecretIslandLabels(player: PlayerState, isExplored: (x: number, y: number) => boolean): void {
-    for (const island of getSecretIslands(player.newGamePlus)) {
-      const location = island.location;
-      const id = `island-name-${island.id}`;
-      if (location.chunkX !== player.position.chunkX || location.chunkY !== player.position.chunkY
-        || !isExplored(location.tileX, location.tileY) || this.labelRows.some((row) => row.id === id)) continue;
+  private renderWorldCityLandmarks(player: PlayerState, isExplored: (x: number, y: number) => boolean): void {
+    for (const city of this.worldCities.render(player, isExplored)) {
+      const island = getSecretIslands(player.newGamePlus).find((candidate) => candidate.cityId === city.id);
+      const id = island ? `island-name-${island.id}` : `town-name-${city.tileX}-${city.tileY}`;
+      if (this.labelRows.some((row) => row.id === id)) continue;
+      const top = city.tileY - getWorldCityArtProfile(city.id).rows + 1;
       const label = this.scene.add.text(
-        location.tileX * TILE_SIZE + TILE_SIZE / 2, location.tileY * TILE_SIZE - 4, island.name,
+        city.tileX * TILE_SIZE + TILE_SIZE / 2, Math.max(12, top * TILE_SIZE - 4), city.name,
         { fontSize: "9px", fontFamily: "monospace", color: "#fff", stroke: "#000", strokeThickness: 2 },
       ).setOrigin(0.5, 1);
       this.addMapLabel(label, id);

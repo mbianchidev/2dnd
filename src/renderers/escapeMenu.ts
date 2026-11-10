@@ -1,8 +1,10 @@
 import * as Phaser from "phaser";
-import { getTextContentSize, subscribeOverlayReflow, syncInteractiveHitArea, updateLayoutGroupViewport } from "../managers/layout";
+import { getScaledBounds, getTextContentSize, subscribeOverlayReflow, syncInteractiveHitArea, updateLayoutGroupViewport } from "../managers/layout";
 import { paginateMeasuredItems } from "../systems/layout";
-import { createDimGraphics, createOverlayContainer, createPanelGraphics } from "../utils/ui";
+import { createDimGraphics, createOverlayContainer, createPanelGraphics, paintPanel } from "../utils/ui";
 import type { EscapeMenuEntry } from "../systems/featureDiscovery";
+import { UI_CSS, UI_FONT_DISPLAY } from "../systems/uiTheme";
+import { createMenuIcon } from "./menuIcon";
 
 /** Lay out menu rows from wrapped captions, paging without leaving hidden hit targets. */
 export function renderEscapeMenu(
@@ -31,24 +33,30 @@ export function renderEscapeMenu(
   );
   dim.on("pointerdown", callbacks.close);
   const background = createPanelGraphics(scene, 0, 0, 1, 1);
-  const title = scene.add.text(0, 0, "⚙ Menu", {
-    fontFamily: "monospace", fontSize: "16px", color: "#ffd700",
+  const title = scene.add.text(0, 0, "Adventure", {
+    fontFamily: UI_FONT_DISPLAY, fontSize: "20px", color: UI_CSS.gold,
   }).setOrigin(0.5, 0).setData("layoutId", "escape-menu-title");
-  const hint = scene.add.text(0, 0, "Press ESC to close", {
-    fontFamily: "monospace", fontSize: "10px", color: "#999999",
+  const hint = scene.add.text(0, 0, "Select an action / Cancel to return", {
+    fontFamily: "monospace", fontSize: "10px", color: UI_CSS.muted,
   }).setOrigin(0.5, 1).setData("layoutId", "escape-menu-hint");
   container.add([dim, background, title, hint]);
   const buttons = entries.map((entry, index) => {
     const button = scene.add.text(0, 0, entry.label, {
       fontFamily: "monospace", fontSize: "13px", color: entry.color,
-      backgroundColor: "#2a2a4e", padding: { x: 10, y: 6 }, align: "center",
-      fixedWidth: cellWidth, wordWrap: { width: cellWidth - 22, useAdvancedWrap: true },
+      backgroundColor: UI_CSS.raised, padding: { left: 36, right: 8, top: 8, bottom: 8 }, align: "left",
+      fixedWidth: cellWidth, wordWrap: { width: cellWidth - 46, useAdvancedWrap: true },
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     button.setData("testId", entry.testId).setData("layoutId", `escape-menu-${entry.action}`);
     button.on("pointerover", () => callbacks.select(index));
     button.on("pointerdown", () => callbacks.activate(entry));
     container.add(button);
     return button;
+  });
+  const icons = entries.map((entry) => {
+    const icon = createMenuIcon(scene, entry.action).setData("layoutId", `escape-menu-icon-${entry.action}`)
+      .setData("layoutAllowOverlapWith", [`escape-menu-${entry.action}`]);
+    container.add(icon);
+    return icon;
   });
   let pages: number[][] = [];
   let page = 0;
@@ -90,11 +98,14 @@ export function renderEscapeMenu(
     buttons.forEach((button, index) => {
       const row = Math.floor(index / columns);
       const visible = visibleRows.has(row);
+      icons[index]!.setVisible(visible).setActive(visible);
       button.setVisible(visible).setActive(visible);
       if (button.input) button.input.enabled = visible;
       if (!visible) return;
       button.setFixedSize(cellWidth, rowHeights[row]!)
         .setPosition(panelX + 20 + index % columns * (cellWidth + 12) + cellWidth / 2, cursor);
+      icons[index]!.setPosition(button.x - cellWidth / 2 + 17, cursor + rowHeights[row]! / 2);
+      icons[index]!.setData("layoutBounds", getScaledBounds(icons[index]!));
       syncInteractiveHitArea(button);
       if (index % columns === columns - 1 || index === buttons.length - 1) cursor += rowHeights[row]! + 4;
     });
@@ -106,8 +117,8 @@ export function renderEscapeMenu(
       if (button.input) button.input.enabled = pages.length > 1;
       syncInteractiveHitArea(button);
     }
-    background.clear().fillStyle(0x1a1a2e, 0.98).fillRect(panelX, panelY, panelWidth, panelHeight)
-      .lineStyle(2, 0xc0a060, 1).strokeRect(panelX, panelY, panelWidth, panelHeight);
+    background.clear();
+    paintPanel(background, panelX, panelY, panelWidth, panelHeight, 0.94);
     updateLayoutGroupViewport(scene, "escape-menu", { x: panelX, y: panelY, width: panelWidth, height: panelHeight });
   };
   const unsubscribe = subscribeOverlayReflow(scene, reflow);

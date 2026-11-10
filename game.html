@@ -15,6 +15,14 @@
     <title>2D&amp;D - Play the browser JRPG</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
+      :root {
+        --game-font-display: "Palatino Linotype", Palatino, Georgia, serif;
+        --game-font-body: "Trebuchet MS", "Lucida Grande", sans-serif;
+        --game-panel: #17232b;
+        --game-raised: #263942;
+        --game-gold: #d9c38f;
+        --game-text: #f3eddd;
+      }
       html,
       body {
         width: 100%;
@@ -301,15 +309,19 @@
         max-height: calc(100dvh - 40px);
         overflow: auto;
         padding: 12px;
-        background: #151a2d;
-        border: 2px solid #ffdf66;
-        border-radius: 10px;
+        background: var(--game-panel);
+        border: 1px solid var(--game-gold);
+        border-radius: 4px;
         box-shadow: 0 8px 32px #000;
       }
       #mobile-text-input label,
       #mobile-text-input p {
-        color: #fff;
-        font: calc(13px * var(--text-entry-scale, 1)) monospace;
+        color: var(--game-text);
+        font: calc(13px * var(--text-entry-scale, 1)) var(--game-font-body);
+      }
+      #mobile-text-input > label {
+        font: calc(20px * var(--text-entry-scale, 1)) var(--game-font-display);
+        color: var(--game-gold);
       }
       .text-entry-field {
         display: flex;
@@ -324,10 +336,10 @@
       #mobile-text-input button {
         min-height: 44px;
         padding: 8px 10px;
-        border: 2px solid #dce8ff;
-        background: #252b45;
-        color: #fff;
-        font: calc(16px * var(--text-entry-scale, 1)) monospace;
+        border: 1px solid #c3b99e;
+        background: var(--game-raised);
+        color: var(--game-text);
+        font: calc(16px * var(--text-entry-scale, 1)) var(--game-font-body);
       }
       #controller-keyboard[hidden] { display: none; }
       .text-entry-keys { overflow: auto; padding: 3px; }
@@ -347,7 +359,7 @@
       }
       #mobile-text-input button[data-selected="true"],
       #mobile-text-input :focus-visible {
-        outline: 3px solid #ffdf66;
+        outline: 3px solid var(--game-gold);
         outline-offset: -3px;
       }
       #mobile-text-input[data-high-contrast="true"] {

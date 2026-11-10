@@ -88,6 +88,8 @@ const ACTION_KEYS: Partial<Record<InputAction, KeyDescriptor>> = {
   battleTargetNext: { code: "KeyD", key: "d" },
   battleLogUp: { code: "PageUp", key: "PageUp" },
   battleLogDown: { code: "PageDown", key: "PageDown" },
+  battleToggleLog: { code: "KeyJ", key: "j" },
+  battleToggleVitals: { code: "KeyU", key: "u" },
   fastForwardDice: { code: "KeyZ", key: "z" },
   settingsDiceFrequency: { code: "BracketLeft", key: "[" },
   settingsDiceSpeed: { code: "BracketRight", key: "]" },
@@ -125,6 +127,8 @@ const TOUCH_BUTTONS: ReadonlyArray<{
   { action: "openMenu", label: "MENU", className: "touch-menu" },
   { action: "openParty", label: "PARTY", className: "touch-party" },
   { action: "openTips", label: "TIPS", className: "touch-tips" },
+  { action: "battleToggleLog", label: "LOG", className: "touch-menu" },
+  { action: "battleToggleVitals", label: "HUD", className: "touch-tips" },
 ];
 
 const HELD_TOUCH_ACTIONS = new Set<InputAction>([

@@ -115,6 +115,7 @@ export function renderSaveSlotPanel(
       padding: { x: 8, y: 5 }, lineSpacing: 2,
       fixedWidth: width, wordWrap: { width: width - 16 },
     }).setInteractive({ useHandCursor: true });
+    label.setWordWrapWidth(width - (label.padding.left ?? 0) - (label.padding.right ?? 0) - label.style.strokeThickness - 2, true);
     label.setFixedSize(width, Math.max(54, Math.ceil(label.displayHeight) + 2));
     label.setData("layoutId", `save-slot-row-${row.id}`);
     label.setData("testId", `save-slot-${row.id}`);

@@ -27,11 +27,14 @@ Web Audio synthesis rather than external assets. Regions, cities, islands,
 and dungeons have distinct procedural scores, with night variations outdoors
 and in towns, evolving arrangements, and weather- and battle-responsive layers.
 Pixel-art combat impacts accompany resolved actions without delaying their
-outcomes. Distinct action icons, HP/MP bars, grounded monsters, shaded terrain,
-furnished building interiors, small one-time discoveries, and a fog-aware
+outcomes. A small portrait turn timeline, decision-only commands, fading action
+feedback, collapsible portrait HP/MP cards, grounded monsters, shaded terrain,
+full-size enterable buildings, furnished interiors, small one-time discoveries, and a fog-aware
 exploration minimap share the
 [procedural graphics pipeline](docs/graphics.md). Story and boss cutscenes have distinct illustrated settings, including
-changed aftermaths and the epilogue. Campaigns are stored locally; no account
+changed aftermaths, live character portraits, and the epilogue. Distinct
+multi-tile city landmarks appear in exploration and the world atlas.
+Campaigns are stored locally; no account
 is required.
 
 ## Highlights
@@ -42,7 +45,8 @@ is required.
   multi-level dungeons, fog of war, seeded traps, weather, day/night changes,
   non-combat skill checks, and World Events.
 - **Build a hero and party:** choose from 12 classes, use 27-point buy or
-  4d6-drop-lowest stats, customize appearance, and collect equipment, talents,
+  4d6-drop-lowest stats, customize hair, eyes, build, clothing and accessories,
+  and collect equipment, talents,
   spells, abilities, and mounts. Qualified multiclass choices and six optional
   five-rank prestige paths share the normal level-20 cap. Recruit the Guardian,
   Scout, and Mystic, manage separate equipment and inventories, and control
@@ -240,7 +244,7 @@ release gates.
 | [Architecture](docs/architecture.md) | Scene flow, domain ownership, input, transitions, procedural assets |
 | [Development](docs/development.md) | Conventions, feature placement, debug tools, dependencies |
 | [Testing](docs/testing.md) | Vitest, Playwright, layout/accessibility checks, CI gates |
-| [Save system](docs/save-system.md) | Schema v27, slots, migration, recovery, persistence rules |
+| [Save system](docs/save-system.md) | Schema v28, slots, migration, recovery, persistence rules |
 | [Difficulty and Custom rules](docs/difficulty.md) | Profiles, bounds, economy, recovery, eligibility, extension APIs |
 | [Physical combat](docs/physical-combat.md) | Weapon types, monster sizes, aimed parts, local defenses and discovery |
 | [Fictional devotion](docs/devotion.md) | Original pantheon, temples, rites, independent scores, optional stories |

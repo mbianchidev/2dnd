@@ -10,13 +10,13 @@
 | Development/CI Node.js | 26.12.1, pinned in `.nvmrc` |
 | Phaser | 4.2.1 |
 | TypeScript | 7.0.2, strict, ES2020 target |
-| Vite | 8.3.5 |
-| Vitest | 5.0.5 |
-| Playwright | 1.64.1 |
+| Vite | 8.3.6 |
+| Vitest | 5.1.0 |
+| Playwright | 1.65.0 |
 | happy-dom | 21.0.4 |
-| Electron | 45.1.0 |
+| Electron | 45.2.3 |
 | electron-builder | 26.18.0 |
-| Campaign save schema | 27 |
+| Campaign save schema | 28 |
 
 The development/build Node.js pin is separate from Electron's embedded Node.js,
 which follows the Electron dependency rather than `.nvmrc`.
@@ -84,12 +84,40 @@ Shared raster art lives in `systems/pixelArt.ts`, `terrainArt.ts`,
 bounded nearest-scaled textures. Actor frames, trails and impacts consume
 resolved outcomes without gameplay RNG or mutation. Minimap output redacts
 unknown terrain and marks only known local information.
+Scene-sized Battle and Cutscene scenery reuse the same integer scan converters
+through `renderers/pixelScenery.ts`, without flattening Battle depth layers.
+Shared menu tokens/type resolution live in `systems/uiTheme.ts`; the existing
+scene text factory resolves fonts before accessible sizing and layout.
+Appearance choices and normalization live in `systems/appearance.ts`.
+Every optional cosmetic override passes through the canonical hero descriptor,
+texture key and lease pipeline, including creation previews.
 
 City and cutscene NPCs share `systems/npcVisuals.ts` and
 `renderers/npcTextures.ts`: canonical named NPC IDs resolve their actual template,
 skin, hair and clothes without whole-body tinting. Cutscene bosses use their
 existing monster-family textures. Actor cues retain stable staging IDs, with
 typed NPC references rather than presentation-only placeholder colors.
+Dialogue adds an explicit `speakerActorId`; `systems/cutscenePortraits.ts`
+resolves the speaker and listener using those staged identities.
+`systems/portraitArt.ts` crops the existing hero/NPC art into busts, while
+`renderers/portraitTextures.ts` reuses reference-counted lease ownership.
+Cutscene and Ending share the measured `renderers/cutsceneDialogue.ts` view.
+
+`data/worldCityArt.ts` and `systems/worldCityArt.ts` define distinct multi-tile
+cartographic city landmarks. `renderers/worldCities.ts` shares explored-only
+texture frames with the walking map and atlas. Their larger visual extent never
+changes the canonical entry tile, collision, quest gate or island authority.
+`systems/battleTurnOrder.ts` projects live initiative and the remaining surprise
+queue; its focused renderer owns small leased portrait icons and a native ordered list,
+without changing Battle's turn scheduling or exposing enemy initiative values.
+`systems/battleCinematic.ts` owns pure decision visibility, target-only known-HP
+projection and runtime feedback/history timing. `renderers/battleCommands.ts`
+owns the decision-only folio; `managers/battleLog.ts` owns brief action receipts
+and on-demand history, without controlling outcomes or saving partial combat.
+The existing measured `BattleDecisionMenu` now presents Standard and Timed
+choices while each mode retains its original validated action callbacks.
+Party sprites, portrait cards and timeline icons share the live hero descriptor
+and lease pipeline. Preference v4 stores only expanded/compact portrait vitals.
 
 ## Scenes and shared state
 
@@ -359,8 +387,9 @@ projects only permitted information and owns scene-local evidence. The
 scene-owned dice manager and pointer-transparent procedural SVG game
 throw layer consume those results without
 RNG, resource mutations, input-block reasons, or gameplay completion callbacks.
-Battle routes redacted detail only into its existing lower bounded log and accessible
-counterpart; its pixel-dice layer adds no duplicate caption strip. Non-battle results expire after three seconds with an optional
+Battle routes redacted detail only into its bounded on-demand history and accessible
+counterpart; its brief narrative receipt and pixel dice add no duplicate result
+caption strip. Non-battle results expire after three seconds with an optional
 250-ms fade. No history or latest result crosses a scene handoff; event reset,
 blur and shutdown cancel visuals, cues and owned timers.
 See [Dice presentation](dice-presentation.md).

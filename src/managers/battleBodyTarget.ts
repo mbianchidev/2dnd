@@ -4,6 +4,7 @@ import type { Monster } from "../data/monsters";
 import type { PhysicalDamageType } from "../data/damageTypes";
 import { getBodyTargetChoices, type BodyTargetChoice } from "../systems/physicalCombat";
 import { getInputPromptSource, type InputSource } from "../systems/input";
+import type { LayoutRect } from "../systems/layout";
 import { createBattleActionMenu } from "./battleActionMenu";
 import { publishSceneLayoutReport, subscribeOverlayReflow, syncInteractiveHitArea } from "./layout";
 
@@ -38,6 +39,7 @@ export class BattleBodyTargetManager {
   private previousFocus: HTMLElement | null = null;
   private unsubscribeReflow: (() => void) | null = null;
   private pendingActivation: string | null = null;
+  private suspended = false;
   private readonly consumedKeys = new WeakSet<KeyboardEvent>();
 
   constructor(
@@ -46,6 +48,18 @@ export class BattleBodyTargetManager {
   ) {}
 
   get isOpen(): boolean { return this.options !== null; }
+
+  setSuspended(suspended: boolean): void {
+    this.suspended = suspended;
+    this.container?.setVisible(!suspended);
+    if (this.root) this.root.inert = suspended;
+    this.pendingActivation = null;
+  }
+
+  get panelBounds(): LayoutRect | null {
+    const bounds = this.container?.getBounds();
+    return bounds ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } : null;
+  }
 
   ownsKey(event: KeyboardEvent): boolean { return this.consumedKeys.has(event); }
 
@@ -56,6 +70,7 @@ export class BattleBodyTargetManager {
 
   open(options: BodyTargetOptions): void {
     this.close();
+    this.suspended = false;
     this.options = options;
     this.choices = getBodyTargetChoices(options.monster, options.damageType, options.discoveries);
     this.selectedId = "whole";
@@ -129,6 +144,7 @@ export class BattleBodyTargetManager {
       },
     });
     this.container = result.container;
+    this.container.setVisible(!this.suspended);
     this.page = result.page;
     this.pages = result.pages;
     const root = this.root;
@@ -177,7 +193,7 @@ export class BattleBodyTargetManager {
       syncInteractiveHitArea(child);
     }
     const focused = this.root?.querySelector<HTMLButtonElement>(`[data-body-part="${id}"]`);
-    if (focused && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    if (!this.suspended && focused && document.activeElement !== focused) focused.focus({ preventScroll: true });
     this.options?.select(this.selectedPart);
     const pane = this.container?.getBounds();
     this.scene.game.canvas.dataset.bodyTarget = JSON.stringify({
@@ -188,6 +204,7 @@ export class BattleBodyTargetManager {
   }
 
   private activate(id: string): void {
+    if (this.suspended) return;
     if (this.input?.resume() || this.input?.accepts() === false) return;
     const options = this.options;
     if (!options) return;
@@ -204,7 +221,7 @@ export class BattleBodyTargetManager {
   };
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (!this.isOpen || event.target instanceof HTMLInputElement
+    if (!this.isOpen || this.suspended || event.target instanceof HTMLInputElement
       || event.target instanceof HTMLTextAreaElement) return;
     const ids = [...this.choices.map((choice) => choice.id), "cancel"];
     const backward = ["ArrowUp", "ArrowLeft", "w", "W", "a", "A"].includes(event.key)
@@ -234,6 +251,7 @@ export class BattleBodyTargetManager {
   };
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
+    if (this.suspended) return;
     if (event.key !== "Enter" && event.key !== " ") return;
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
     this.consumedKeys.add(event);

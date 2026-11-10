@@ -56,6 +56,10 @@ export class BattleHeroDecisionManager {
     return this.menu.debugState;
   }
 
+  setPresentationVisible(visible: boolean): void {
+    this.menu.setPresentationVisible(visible);
+  }
+
   navigate(direction: GridNavigationDirection): boolean {
     return this.menu.navigate(direction);
   }

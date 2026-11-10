@@ -70,7 +70,7 @@ generic IPC APIs through preload.
 
 ## Persistence
 
-The desktop shell uses the same schema-v27 autosave, manual-slot, staging, and
+The desktop shell uses the same schema-v28 autosave, manual-slot, staging, and
 backup `localStorage` documents as the web game. The stable `app://2dnd` origin
 keeps them available across launches and upgrades:
 

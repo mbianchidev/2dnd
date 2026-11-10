@@ -139,7 +139,21 @@ export async function selectControllerAction(
       }
       return;
     }
-    await pressController(page, 13);
+    const requestedMenuAction = marker.match(/^\[MENU_SELECTION:([^\]]+)\]$/)?.[1];
+    const menuEntries = state.match(/\[MENU_ENTRIES:([^\]]+)\]/)?.[1]?.split(",");
+    if (requestedMenuAction && menuEntries) {
+      const currentAction = state.match(/\[MENU_SELECTION:([^\]]+)\]/)?.[1];
+      const current = menuEntries.indexOf(currentAction ?? "");
+      const target = menuEntries.indexOf(requestedMenuAction);
+      if (current < 0 || target < 0) throw new Error(`Cannot navigate ${marker}: ${state}`);
+      if (Math.floor(current / 2) !== Math.floor(target / 2)) {
+        await pressController(page, current < target ? 13 : 12);
+      } else {
+        await pressController(page, current < target ? 15 : 14);
+      }
+    } else {
+      await pressController(page, 13);
+    }
   }
   throw new Error(`Controller could not select ${marker}`);
 }

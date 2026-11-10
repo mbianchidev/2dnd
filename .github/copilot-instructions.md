@@ -36,11 +36,11 @@ class-neutral archery, and Harbor Regatta minigames.
 - Development/CI Node.js 26.12.1 from `.nvmrc`; Electron controls its embedded Node.js
 - Phaser 4.2.1
 - TypeScript 7.0.2 in strict mode
-- Vite 8.3.5
-- Vitest 5.0.5
-- Playwright 1.64.1
+- Vite 8.3.6
+- Vitest 5.1.0
+- Playwright 1.65.0
 - happy-dom 21.0.4
-- Electron 45.1.0
+- Electron 45.2.3
 - electron-builder 26.18.0
 - Modern browsers, ES2020 target
 
@@ -249,6 +249,9 @@ loads from `app://2dnd` in packaged builds.
   instance palettes through `systems/npcVisuals.ts` / `renderers/npcTextures.ts`.
   Keep skin, hair and clothing separate; never substitute monochrome humanoids.
   Boss cues use their canonical monster-family textures.
+- Dialogue binds an explicit staged `speakerActorId`. Cutscene and Ending share
+  measured speaker/listener portraits from the current hero descriptor and
+  canonical NPC/boss art; release portrait leases on replacement/reset/shutdown.
 - Every stable cutscene ID has distinct illustrated scenery in
   `data/cutsceneScenery.ts`; pure bounded five-layer plans live in
   `systems/cutsceneScenery.ts`, drawn through the shared
@@ -626,12 +629,14 @@ Flow:
 - Natural 20 on an attack is a critical hit; natural 1 automatically misses.
 - Initiative is d20 + Dexterity modifier.
 - Spells use MP.
-- Disabled actions are visibly dimmed outside the player turn.
+- Commands and their hit targets disappear outside accepted controlled
+  decisions and during action animation; unavailable choices remain explicit
+  within a decision menu.
 - Attack, Defend, Abilities, Spells, Items and Flee retain distinct procedural
   icons independently of selection/unavailable markers. Hero/companion HP/MP
-  use graphical bars and native meter semantics. Enemy HUD rows show only
-  canonical names/letters and HP bars when `hpRevealed` authorizes them;
-  never draw unknown placeholders or expose hidden HP through accessible nodes.
+  use portrait bars and native meters, with a preference-v4 compact/full toggle.
+  Enemy HP appears only while hovering/focusing an actively targeted known-HP
+  monster, never in permanent HUD rows, unknown placeholders or hidden nodes.
 - Items and designated bonus-action abilities do not end the player turn when
   the bonus action is still available.
 - Validate actions before consuming MP, inventory, or turn state.
@@ -666,6 +671,9 @@ Flow:
 - Initiative interleaves the player with every living monster. Player Defend
   lasts until the next player turn and protects against all intervening turns.
 - Initiative entries store `combatantId`, never player/monster array indices.
+- The visible turn chain projects those IDs and the remaining surprise queue.
+  Remove inactive actors immediately without changing the scheduling array or
+  current index. Never reveal initiative arithmetic, roll or persist UI state.
 - Target scopes include enemy single/all/rows, self, single/all allies, and the
   whole party. Healing entries declare scope explicitly; do not infer every
   heal as self-only.
@@ -705,8 +713,9 @@ Flow:
   and scene shutdown remove motion immediately without focus/input blocking.
   Numbered dice render over the active scene, never in a dock. Use stepped
   pixel-art silhouettes, bitmap numerals and the shared game palette.
-  Roll details belong to the existing lower Battle log and reset on battle
-  exit; Battle never displays a duplicate result strip. Non-battle
+  Roll details belong to the existing on-demand Battle history and reset on
+  battle exit. Its brief narrative notice fades; there is no duplicate dice
+  result strip. Non-battle
   results expire after three seconds and a 250-ms fade (no fade with reduced
   motion); event reset, blur and handoff clear views/cues/timers. Never restore
   another scene's latest result or keep a separate cross-scene roll log.
@@ -801,6 +810,10 @@ use combat turns rather than overworld time.
 - Chunk/interior dimensions: 20x15
 - Tile size: 32x32
 - Map access is row-major: `[y][x]`
+- Multi-tile world-city cartography shares `worldCityArt.ts` / `worldCities.ts`
+  across exploration and atlas views. Draw only explored cells after the real
+  gate is known; never change entry/collision/quest/boat authority or expose an
+  ineligible island. Atlas masks and listeners remain scene-owned.
 - Terrain additions:
   - `CityGate = 41`
   - `DungeonStairs = 42`
@@ -1053,7 +1066,15 @@ Use `FogOfWar.exploredKey()`; level/chunk zero formats preserve existing saves.
 
 ## Save system
 
-Save schema version is 27.
+Save schema version is 28.
+
+Schema v28 adds optional validated eye color, facial hair, body build, outfit/
+trouser/trim colors, accessories and class headwear to `customAppearance`.
+`systems/appearance.ts` owns choices/defaults/unknown normalization. Preserve
+valid legacy skin/hair values and absent legacy overrides. Every visible input
+belongs in the canonical hero descriptor and cache key; creation uses the same
+texture leases. Cosmetics never alter class ownership, statistics or equipment.
+Preview angle/category and all menu theme state remain runtime-only.
 
 Schema v27 adds nullable validated `player.newGamePlus`, bounded cycle/parent,
 stable request/cycle identity, fingerprint/timestamp/policy, finite lifetime
@@ -1247,6 +1268,10 @@ title/in-game settings consumers immediately.
 Preference v3 adds `dice.frequency` (all/important/off) and `dice.speed`
 (normal/fast/instant), with All/Normal legacy/corruption defaults. Campaign
 schema is independent. Dice receipts and presentation logs never enter a save.
+Preference v4 adds normalized `battleHud.vitals` (expanded/compact), with
+expanded legacy defaults. U/View/touch HUD controls share that setter; J,
+Menu/north and touch LOG open history. H/L remain debug shortcuts, never
+production display actions. Preserve the earlier audio/dice/control settings.
 
 When persistent data changes:
 
@@ -1318,7 +1343,7 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
   handoffs waiting on animation time.
 - Preferences persist under `2dnd_preferences`, separately from `2dnd_save`.
 - Control presentation preferences in the same versioned document cover touch
-  visibility, handedness, and prompt source only; they never enter schema-v27
+  visibility, handedness, and prompt source only; they never enter schema-v28
   campaign saves.
 - Codex search uses the shared accessible mobile text input, pointer-first
   category/filter/sort controls work with touch and the gamepad cursor, and the

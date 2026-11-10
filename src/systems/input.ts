@@ -32,6 +32,8 @@ export const INPUT_ACTIONS = [
   "battleTargetNext",
   "battleLogUp",
   "battleLogDown",
+  "battleToggleLog",
+  "battleToggleVitals",
   "fastForwardDice",
   "settingsDiceFrequency",
   "settingsDiceSpeed",
@@ -221,6 +223,8 @@ export function mapKeyboardCode(
   code: string,
   context: InputContext,
 ): InputAction | undefined {
+  if (context === "battle" && code === "KeyU") return "battleToggleVitals";
+  if (context === "battle" && code === "KeyJ") return "battleToggleLog";
   if (code === "Tab" && context === "characterCreation") return "interact";
   if (code === "Enter" || code === "Space") {
     return context === "exploration" ? "interact" : "confirm";
@@ -262,6 +266,8 @@ export function resolveGamepadAction(
   binding: StandardGamepadBinding,
   context: InputContext,
 ): InputAction {
+  if (context === "battle" && binding.button === 8) return "battleToggleVitals";
+  if (context === "battle" && (binding.button === 3 || binding.button === 9)) return "battleToggleLog";
   if (!binding.action.startsWith("navigate") || context !== "exploration") {
     return binding.action;
   }
@@ -277,6 +283,8 @@ export function isTouchActionAvailable(
   context: InputContext,
   featureAvailable = true,
 ): boolean {
+  if (action === "battleToggleLog" || action === "battleToggleVitals") return featureAvailable && context === "battle";
+  if (context === "battle" && action === "openParty") return false;
   if (context === "minigame") {
     return featureAvailable && (action.startsWith("navigate") || action === "confirm" || action === "cancel");
   }

@@ -67,7 +67,6 @@ import type { BattleTimingAdjustment, BattleTimingSettings } from "../data/battl
 import { abilityModifier } from "../systems/dice";
 import { captureDamageApplication, captureEffectAdjustment, captureEffectApplication } from "../systems/effectRolls";
 import { getActorAbilityRejection } from "../systems/classProgression";
-import { createBattleActionMenu } from "../managers/battleActionMenu";
 import {
   isDebug,
   debugLog,
@@ -102,7 +101,14 @@ import {
   type HeroTextureLease,
 } from "../renderers/heroTextures";
 import { BattlePartyRenderer } from "../renderers/battleParty";
-import { BattleHudRenderer, getBattleActionIconKey } from "../renderers/battleHud";
+import { BattleHudRenderer } from "../renderers/battleHud";
+import { BattleCommandRenderer, type BattleCommand } from "../renderers/battleCommands";
+import { BattleTurnOrderRenderer } from "../renderers/battleTurnOrder";
+import { BattleLogManager } from "../managers/battleLog";
+import { BattleDecisionMenu, type BattleDecisionMenuRow } from "../managers/battleDecisionMenu";
+import { getBattleDecisionVisibility, getTargetHealthView } from "../systems/battleCinematic";
+import { inputAvailability, inputSource } from "../systems/input";
+import type { PortraitVisual } from "../systems/portraitArt";
 import { createEnemyHudView, type BattleHudActionId, type BattleHudAlly } from "../systems/battleHud";
 import { BattlePartyManager } from "../managers/battleParty";
 import { BattleBodyTargetManager } from "../managers/battleBodyTarget";
@@ -114,7 +120,7 @@ import {
   type ResolvedAttackDiceTarget,
   type ResolvedHealingDiceTarget,
 } from "../managers/battleDice";
-import { clearDicePresentation } from "../managers/dicePresentation";
+import { clearDicePresentation, resetDicePresentation } from "../managers/dicePresentation";
 import { redactSavingThrowMessage, type DiceRollCategory } from "../systems/dicePresentation";
 import {
   createActorTextureFamily,
@@ -127,6 +133,7 @@ import {
 } from "../systems/accessibility";
 import {
   moveGridSelection,
+  BATTLE_SIDEBAR_WIDTH,
   type GridNavigationDirection,
 } from "../systems/layout";
 import { CAMPAIGN_EPILOGUE_CUTSCENE_ID } from "../data/cutscenes";
@@ -249,6 +256,9 @@ export class BattleScene extends Phaser.Scene {
   private bodyTargetManager!: BattleBodyTargetManager;
   private battlePartyRenderer!: BattlePartyRenderer;
   private battleHud!: BattleHudRenderer;
+  private battleOrder: BattleTurnOrderRenderer | null = null;
+  private battleCommands: BattleCommandRenderer | null = null;
+  private battleLog: BattleLogManager | null = null;
   private battlePresentation!: BattlePresentationDirector;
   private battleTiming: BattleTimingManager | null = null;
   private heroDecisions: BattleHeroDecisionManager | null = null;
@@ -271,34 +281,25 @@ export class BattleScene extends Phaser.Scene {
   private achievementBattleDebug = false;
   private oneHitDefeatIds = new Set<string>();
   private phase: BattlePhase = "init";
-  private logLines: string[] = [];
-  private logText!: Phaser.GameObjects.Text;
-  private accessibleLog: HTMLOListElement | null = null;
-  private logScrollOffset = 0;
-  private logAreaY = 0;
-  private logAreaH = 0;
   private monsterSprites: Phaser.GameObjects.Sprite[] = [];
   private monsterShadows: Phaser.GameObjects.Ellipse[] = [];
-  private synergyText!: Phaser.GameObjects.Text;
+  private synergyStatus = "";
+  private hoveredEnemyId: string | null = null;
+  private focusedEnemyId: string | null = null;
+  private pointerSelection: { id: string; confirm(): void } | null = null;
   private targetCursor!: Phaser.GameObjects.Text;
   private targetHint!: Phaser.GameObjects.Text;
   private bodyAimButton!: Phaser.GameObjects.Text;
   private playerSprite!: Phaser.GameObjects.Sprite;
   private heroTextureLease: HeroTextureLease | null = null;
-  private actionButtons: Phaser.GameObjects.Container[] = [];
-  private actionButtonLabels: Array<{
-    text: Phaser.GameObjects.Text;
-    label: string;
-    state: Phaser.GameObjects.Graphics;
-  }> = [];
+  private readonly partyPresentationKeys = new Map<string, string>();
+  private actionDefinitions: BattleCommand[] = [];
   private actionButtonStateKey = "";
   private actionButtonActions: Array<() => void> = [];
   private selectedActionIndex = 0;
-  private spellMenu: Phaser.GameObjects.Container | null = null;
-  private itemMenu: Phaser.GameObjects.Container | null = null;
-  private abilityMenu: Phaser.GameObjects.Container | null = null;
-  private battleSpellPage = 0;
-  private battleAbilityPage = 0;
+  private spellMenu: BattleDecisionMenu | null = null;
+  private itemMenu: BattleDecisionMenu | null = null;
+  private abilityMenu: BattleDecisionMenu | null = null;
   private battleItemPage = 0;
   private pendingTargetAction: PendingTargetAction | null = null;
   private selectedTargetIndex = 0;
@@ -399,6 +400,14 @@ export class BattleScene extends Phaser.Scene {
 
   init(data: BattleSceneData): void {
     this.player = data.player;
+    this.battleLog?.destroy();
+    this.battleLog = null;
+    this.battleCommands = null;
+    this.hoveredEnemyId = null;
+    this.focusedEnemyId = null;
+    this.pointerSelection = null;
+    this.synergyStatus = "";
+    this.partyPresentationKeys.clear();
     this.difficultyRules = getCampaignDifficultyRules(this.player);
     this.battleTiming?.destroy();
     this.battleTiming = null;
@@ -456,6 +465,7 @@ export class BattleScene extends Phaser.Scene {
         present: (result) => this.presentResolvedBattleAction(result),
         afterAction: (previouslyAliveEnemyIds) =>
           this.afterPartyAction(previouslyAliveEnemyIds),
+        acceptsInput: () => this.acceptsBattleDecisionInput(),
         ...(this.timingSettings.mode === "timed" ? {
           timing: {
             acceptsInput: () => this.acceptsBattleDecisionInput(),
@@ -474,7 +484,11 @@ export class BattleScene extends Phaser.Scene {
     this.battleHud = new BattleHudRenderer(this, (id) => {
       const index = this.combatants.findIndex((combatant) => combatant.id === id);
       if (index >= 0) this.handleMonsterPointer(index);
+    }, (id) => {
+      this.focusedEnemyId = id;
+      this.updateTargetHealth();
     });
+    this.battleOrder = null;
     this.playerEconomy = createBattleActionEconomy(this.heroCombatant.id);
     this.battleHooks = data.battleHooks;
     this.battleResultReported = false;
@@ -489,10 +503,7 @@ export class BattleScene extends Phaser.Scene {
     this.battleHookCodexEntries = [];
     this.questUpdates = [];
     this.phase = "init";
-    this.logLines = [];
-    this.logScrollOffset = 0;
-    this.actionButtons = [];
-    this.actionButtonLabels = [];
+    this.actionDefinitions = [];
     this.actionButtonActions = [];
     this.selectedActionIndex = 0;
     this.spellMenu = null;
@@ -560,11 +571,12 @@ export class BattleScene extends Phaser.Scene {
       this.battleTiming = new BattleTimingManager(this, this.timingSettings, {
         controlledActorId: () => this.controlledTimingActorId,
         acceptsInput: () => this.controlledTimingActorId !== null
-          && this.input.enabled && this.input.keyboard?.enabled !== false,
+          && !this.battleLog?.isOpen && this.input.enabled && this.input.keyboard?.enabled !== false,
         animationActive: () => this.battlePresentation.isBusy,
         transitionActive: () => this.sceneTransitions.isPending
           || this.cameras.main.fadeEffect.isRunning,
         timeout: (decision) => this.handleTimedBattleTimeout(decision),
+        toggleHistory: () => this.battleLog?.toggle(),
       });
       this.heroDecisions = new BattleHeroDecisionManager(
         this,
@@ -593,13 +605,21 @@ export class BattleScene extends Phaser.Scene {
       });
     };
     bind(Phaser.Input.Keyboard.KeyCodes.ESC, () => {
+      if (this.battleLog?.close()) return;
       if (this.bodyTargetManager.isOpen) return;
       if (this.battleTiming?.resumeIfPaused()) return;
       if (!this.acceptsBattleDecisionInput()) return;
-      if (this.battlePartyManager.cancel() || this.heroDecisions?.cancel()) return;
+      if (this.battlePartyManager.cancel() || this.heroDecisions?.cancel() || this.itemMenu?.cancel()
+        || this.spellMenu?.cancel() || this.abilityMenu?.cancel()) return;
       if (this.pendingTargetAction) this.cancelTargetSelection();
-      else if (this.battleTiming && !this.hasOpenBattleSubMenu()) this.battleTiming.toggleLogPause();
+      else if (!this.hasOpenBattleSubMenu()) this.battleLog?.toggle();
       else this.closeAllSubMenus();
+    });
+    bind(Phaser.Input.Keyboard.KeyCodes.J, () => {
+      if (!inputAvailability.get().textEntryActive) this.battleLog?.toggle();
+    });
+    bind(Phaser.Input.Keyboard.KeyCodes.U, () => {
+      if (!inputAvailability.get().textEntryActive && !this.battleLog?.isOpen) this.battleHud?.toggleVitals();
     });
     const navigateHorizontal = (direction: -1 | 1): void => {
       if (this.bodyTargetManager.isOpen) return;
@@ -615,7 +635,9 @@ export class BattleScene extends Phaser.Scene {
       if (this.bodyTargetManager.isOpen) return;
       if (!this.acceptsBattleDecisionInput()) return;
       const navigation = direction < 0 ? "up" : "down";
-      if (this.battlePartyManager.navigate(navigation) || this.heroDecisions?.navigate(navigation)) return;
+      if (this.battlePartyManager.navigate(navigation) || this.heroDecisions?.navigate(navigation)
+        || this.itemMenu?.navigate(navigation) || this.spellMenu?.navigate(navigation)
+        || this.abilityMenu?.navigate(navigation)) return;
       if (this.pendingTargetAction) {
         if (!this.openBodyTargetSelection()) this.cycleTarget(direction);
       }
@@ -633,22 +655,30 @@ export class BattleScene extends Phaser.Scene {
     bind(Phaser.Input.Keyboard.KeyCodes.S, () => navigateVertical(1));
     bind(Phaser.Input.Keyboard.KeyCodes.ENTER, () => this.confirmBattleSelection());
     bind(Phaser.Input.Keyboard.KeyCodes.SPACE, () => this.confirmBattleSelection());
+    const unsubscribePointerGuard = inputAvailability.subscribe((state) => {
+      if (!state.windowFocused || !state.pageVisible || state.textEntryActive) this.pointerSelection = null;
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      unsubscribePointerGuard();
+      this.pointerSelection = null;
       this.battleTiming?.destroy();
       this.heroDecisions?.clear();
-      this.accessibleLog?.remove();
-      this.accessibleLog = null;
+      this.battleLog?.destroy();
       this.bodyTargetManager?.close();
       this.battlePartyManager?.clear();
       this.battlePresentation?.cleanup();
+      this.battlePartyRenderer?.clear();
       this.battleBackdrop?.destroy();
       this.codexDiscovery.clear();
       this.playerSprite?.destroy();
       this.heroTextureLease?.release();
       this.heroTextureLease = null;
+      delete this.game.canvas.dataset.battleCommandsVisible;
+      delete this.game.canvas.dataset.battlePresentationActive;
     });
 
     this.rollForInitiative();
+    this.battleLog?.clearNotice();
 
     // Start battle or boss music
     if (audioEngine.initialized) {
@@ -664,19 +694,36 @@ export class BattleScene extends Phaser.Scene {
 
   update(_time = 0, delta = 0): void {
     this.battleTiming?.update(delta);
+    this.battleLog?.update(delta);
+    this.updateBattleOrder();
     this.updateDebugPanel();
     this.updateButtonStates();
+    this.updateTargetHealth();
   }
 
   private drawBattleUI(): void {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     this.battleHud.create();
+    this.battleOrder = new BattleTurnOrderRenderer(this, (id) => this.getBattlePortrait(id),
+      () => this.battleHud.portraitRevision);
+    this.battleLog = new BattleLogManager(this, {
+      canOpen: () => !this.isReturningToOverworld && !this.sceneTransitions.isPending
+        && this.controlledTimingActorId !== null && !this.battlePresentation?.isBusy,
+      openChanged: (open) => {
+        this.battleTiming?.setLogReading(open);
+        this.bodyTargetManager.setSuspended(open);
+        if (open) resetDicePresentation(this);
+        this.updateButtonStates();
+        this.updateTargetSelectionDisplay();
+        this.updateTargetHealth();
+      },
+    });
 
     // --- Monsters in front/back formation ---
     this.monsterSprites = [];
     this.monsterShadows = [];
-    const battlefield = getBattleBackdropLayout(w, h);
+    const battlefield = getBattleBackdropLayout(w - BATTLE_SIDEBAR_WIDTH, h);
     const frontIndices = this.combatants.flatMap((combatant, index) =>
       combatant.position === "front" ? [index] : []
     );
@@ -701,7 +748,18 @@ export class BattleScene extends Phaser.Scene {
           : BATTLE_DEPTH.backActors,
       );
       sprite.setInteractive({ useHandCursor: true });
-      sprite.on("pointerdown", () => this.handleMonsterPointer(index));
+      sprite.on("pointerdown", () => this.beginMonsterPointer(index));
+      sprite.on("pointerup", () => {
+        const pressed = this.pointerSelection;
+        this.pointerSelection = null;
+        if (pressed?.id === combatant.id && this.acceptsBattleDecisionInput()) pressed.confirm();
+      });
+      sprite.on("pointerover", () => { this.hoveredEnemyId = combatant.id; this.updateTargetHealth(); });
+      sprite.on("pointerout", () => {
+        if (this.pointerSelection?.id === combatant.id) this.pointerSelection = null;
+        if (this.hoveredEnemyId === combatant.id) this.hoveredEnemyId = null;
+        this.updateTargetHealth();
+      });
       this.monsterSprites.push(sprite);
       this.monsterShadows.push(this.battleBackdrop.addActorShadow(
         combatant.id,
@@ -713,18 +771,6 @@ export class BattleScene extends Phaser.Scene {
 
     }
 
-    this.synergyText = this.add
-      .text(w * 0.72, h * 0.69, "", {
-        fontSize: "10px",
-        fontFamily: "monospace",
-        color: "#ffd166",
-        align: "center",
-        backgroundColor: "#0a0a1acc",
-        padding: { x: 5, y: 3 },
-        wordWrap: { width: w * 0.48 },
-      })
-      .setOrigin(0.5, 0)
-      .setDepth(BATTLE_DEPTH.ui);
     this.targetCursor = this.add
       .text(0, 0, "▼", {
         fontSize: "18px",
@@ -734,19 +780,19 @@ export class BattleScene extends Phaser.Scene {
       .setDepth(BATTLE_DEPTH.uiOverlay)
       .setVisible(false);
     this.targetHint = this.add
-      .text(w * 0.52, h * 0.72, "", {
+      .text(14, 82, "", {
         fontSize: "9px",
         fontFamily: "monospace",
         color: "#ffd700",
-        wordWrap: { width: w * 0.27 },
+        wordWrap: { width: 270 },
       })
       .setData("layoutId", "battle-target-hint")
       .setDepth(BATTLE_DEPTH.uiOverlay)
       .setVisible(false);
-    this.bodyAimButton = this.add.text(w * 0.80, h * 0.72, "Aim parts", {
+    this.bodyAimButton = this.add.text(14, 116, "Aim parts", {
       fontSize: "9px", fontFamily: "monospace", color: "#ffd700",
       backgroundColor: "#25304a", padding: { x: 3, y: 3 },
-      wordWrap: { width: w * 0.18 },
+      wordWrap: { width: 160 },
     }).setData("layoutId", "battle-aim-parts")
       .setDepth(BATTLE_DEPTH.uiOverlay).setVisible(false)
       .setInteractive({ useHandCursor: true });
@@ -754,7 +800,7 @@ export class BattleScene extends Phaser.Scene {
     const targetingUi = this.add.container(0, 0).setDepth(BATTLE_DEPTH.uiOverlay);
     targetingUi.add([this.targetHint, this.bodyAimButton]);
     registerLayoutGroup(this, "battle-targeting", targetingUi, {
-      x: w * 0.52, y: h * 0.72, width: w * 0.48 - 5, height: h * 0.08,
+      x: 8, y: 76, width: 286, height: 120,
     });
     this.updateMonsterDisplay();
 
@@ -764,7 +810,7 @@ export class BattleScene extends Phaser.Scene {
       resolveHeroVisualDescriptor(this.player),
     );
     this.playerSprite = this.add.sprite(
-      w * 0.22,
+      (w - BATTLE_SIDEBAR_WIDTH) * 0.22,
       h * 0.50,
       this.heroTextureLease.key,
     );
@@ -781,80 +827,15 @@ export class BattleScene extends Phaser.Scene {
 
     this.updatePlayerStats();
 
-    // Battle log (bottom strip) — scrollable
-    this.logAreaY = h * 0.78;
-    this.logAreaH = h * 0.22;
-    const logBg = this.add.graphics();
-    logBg.fillStyle(0x1a1a2e, 0.95);
-    logBg.fillRect(0, this.logAreaY, w, this.logAreaH);
-    logBg.lineStyle(1, 0xc0a060, 0.5);
-    logBg.strokeRect(0, this.logAreaY, w, this.logAreaH);
-    logBg.setDepth(BATTLE_DEPTH.uiBackdrop);
-
-    this.logText = this.add.text(10, this.logAreaY + 4, "", {
-      fontSize: "12px",
-      fontFamily: "monospace",
-      color: "#ccc",
-      wordWrap: { width: w * 0.5 - 20 },
-      lineSpacing: 5,
-    }).setDepth(BATTLE_DEPTH.ui);
-    this.accessibleLog = document.createElement("ol");
-    this.accessibleLog.id = "battle-log";
-    this.accessibleLog.className = "battle-log-accessible";
-    this.accessibleLog.setAttribute("role", "log");
-    this.accessibleLog.setAttribute("aria-label", "Battle log");
-    this.accessibleLog.setAttribute("aria-live", "off");
-    const logHost = document.getElementById("game-inner");
-    if (!logHost) throw new Error("[battle] Game container is unavailable for the battle log.");
-    logHost.append(this.accessibleLog);
-
-    // Mouse wheel scrolling on the log area
-    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gos: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
-      const maxOffset = Math.max(0, this.logLines.length - 1);
-      const direction = dy < 0 ? 1 : -1;
-      const nextOffset = Phaser.Math.Clamp(
-        this.logScrollOffset + direction,
-        0,
-        maxOffset,
-      );
-      if (nextOffset === this.logScrollOffset) return;
-      this.logScrollOffset = nextOffset;
-      this.battleTiming?.pauseForLogReading();
-      this.renderBattleLog();
-    });
-
-    // Action buttons (bottom-right area)
     this.createActionButtons();
   }
 
   private createActionButtons(): void {
-    // Clear existing
-    this.actionButtons.forEach((b) => b.destroy());
-    this.actionButtons = [];
-    this.actionButtonLabels = [];
+    this.battleCommands?.destroy();
     this.actionButtonActions = [];
     this.actionButtonStateKey = "";
-    if (this.spellMenu) {
-      this.spellMenu.destroy();
-      this.spellMenu = null;
-    }
-    if (this.itemMenu) {
-      this.itemMenu.destroy();
-      this.itemMenu = null;
-    }
-    if (this.abilityMenu) {
-      this.abilityMenu.destroy();
-      this.abilityMenu = null;
-    }
-
-    const w = this.cameras.main.width;
-    const h = this.cameras.main.height;
+    this.closeAllSubMenus();
     const hasAbilities = (this.player.knownAbilities ?? []).length > 0;
-    const btnX = w * 0.52;
-    const btnY = h * 0.80;
-    const btnW = 145;
-    const btnH = 28;
-    const gap = 5;
 
     const actions: { id: BattleHudActionId; label: string; action: () => void }[] = [
       { id: "attack", label: "Attack", action: () => this.doPlayerAttack() },
@@ -869,83 +850,53 @@ export class BattleScene extends Phaser.Scene {
       { id: "flee", label: "Flee", action: () => this.doFlee() },
     );
 
-    actions.forEach((act, i) => {
-      const container = this.add.container(btnX + (i % 2) * (btnW + gap), btnY + Math.floor(i / 2) * (btnH + gap));
-      container.setDepth(BATTLE_DEPTH.ui);
-
-      const bg = this.add
-        .image(0, 0, "button")
-        .setOrigin(0, 0)
-        .setDisplaySize(btnW, btnH)
-        .setInteractive({ useHandCursor: true });
-
-      const icon = this.add.image(14, btnH / 2, getBattleActionIconKey(act.id))
-        .setDisplaySize(16, 16).setName(`battle-action-icon:${act.id}`)
-        .setData("layoutId", `battle-action-${act.id}-icon`);
-      const state = this.add.graphics();
-      const label = this.add
-        .text(26 + (btnW - 34) / 2, btnH / 2, act.label, {
-          fontSize: "13px",
-          fontFamily: "monospace",
-          color: "#ddd",
-        })
-        .setOrigin(0.5)
-        .setData("layoutId", `battle-action-${act.label.toLowerCase()}`)
-        .setData("accessibilityMaxWidth", btnW - 34);
-
-      bg.on("pointerover", () => {
-        this.selectedActionIndex = i;
-        this.updateButtonStates();
-      });
-      bg.on("pointerout", () => {
-        this.updateButtonStates();
-      });
+    this.actionDefinitions = actions.map((act) => {
       const activate = (): void => {
         if (
           this.phase === "playerTurn" && !this.pendingTargetAction
-          && !this.heroDecisions?.isOpen && this.acceptsBattleDecisionInput()
+          && !this.hasOpenBattleSubMenu() && this.acceptsBattleDecisionInput()
         ) {
           act.action();
         }
       };
-      bg.on("pointerdown", activate);
       this.battleHud.bindCommand(act.id, act.label, activate);
-
-      container.add([bg, state, icon, label]);
-      const iconBounds = icon.getBounds();
-      icon.setData("layoutBounds", { x: iconBounds.x, y: iconBounds.y, width: iconBounds.width, height: iconBounds.height });
-      registerLayoutGroup(this, `battle-action-${act.label.toLowerCase()}`, container);
-      this.actionButtons.push(container);
-      this.actionButtonLabels.push({ text: label, label: act.label, state });
       this.actionButtonActions.push(act.action);
+      return { id: act.id, label: act.label, activate };
     });
-
-    // Set initial visual state
+    this.battleCommands = new BattleCommandRenderer(this, this.actionDefinitions, (index) => {
+      this.selectedActionIndex = index;
+      this.updateButtonStates();
+    });
     this.updateButtonStates();
   }
 
-  /** Dim or enable action buttons based on current phase. */
+  /** Presentation never offers an action while another action is still being shown. */
   private updateButtonStates(): void {
-    const enabled = this.phase === "playerTurn" && !this.pendingTargetAction
-      && !this.bodyTargetManager.isOpen
-      && !this.heroDecisions?.isOpen && this.acceptsBattleDecisionInput();
+    if (!this.battleHud) return;
+    const presentationActive = this.battlePresentation?.isBusy ?? false;
+    const canvas = this.game?.canvas;
+    if (canvas && canvas.dataset.battlePresentationActive !== String(presentationActive)) {
+      canvas.dataset.battlePresentationActive = String(presentationActive);
+    }
+    const visibility = getBattleDecisionVisibility({
+      controlledDecision: this.controlledTimingActorId !== null,
+      animationActive: presentationActive,
+      blocked: !this.acceptsBattleDecisionInput(),
+      submenuOpen: this.hasOpenBattleSubMenu() || this.bodyTargetManager.isOpen,
+      targeting: this.pendingTargetAction !== null,
+    });
+    this.battlePartyManager?.setPresentationVisible(visibility.decision);
+    this.heroDecisions?.setPresentationVisible(visibility.decision);
+    for (const menu of [this.spellMenu, this.itemMenu, this.abilityMenu]) menu?.setPresentationVisible(visibility.decision);
+    const enabled = this.phase === "playerTurn" && visibility.commands;
     const contrast = getAccessibilityPreferences().highContrast;
     const key = `${enabled}:${this.selectedActionIndex}:${contrast}`;
     if (key === this.actionButtonStateKey) return;
     this.actionButtonStateKey = key;
     this.battleHud?.setCommandsEnabled(enabled);
-    for (const btn of this.actionButtons) {
-      btn.setAlpha(enabled ? 1 : 0.4);
-    }
-    for (const [index, action] of this.actionButtonLabels.entries()) {
-      const selected = enabled && index === this.selectedActionIndex;
-      action.text.setColor(selected ? "#ffd700" : "#dddddd");
-      action.state.clear();
-      const outline = contrast ? 0xffffff : 0xe7d59b;
-      if (selected) action.state.lineStyle(2, outline).strokeRect(1, 1, 143, 26)
-        .fillStyle(outline).fillTriangle(1, 10, 5, 14, 1, 18);
-      if (!enabled) action.state.lineStyle(1, outline)
-        .lineBetween(137, 3, 141, 7).lineBetween(141, 3, 137, 7);
+    this.battleCommands?.setState(enabled, this.selectedActionIndex);
+    if (canvas && canvas.dataset.battleCommandsVisible !== String(enabled)) {
+      canvas.dataset.battleCommandsVisible = String(enabled);
     }
   }
 
@@ -968,10 +919,12 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private confirmBattleSelection(): void {
+    if (this.battleLog?.close()) return;
     if (this.bodyTargetManager.isOpen) return;
     if (this.battleTiming?.resumeIfPaused()) return;
     if (!this.acceptsBattleDecisionInput()) return;
-    if (this.battlePartyManager.confirm() || this.heroDecisions?.confirm()) return;
+    if (this.battlePartyManager.confirm() || this.heroDecisions?.confirm() || this.itemMenu?.confirm()
+      || this.spellMenu?.confirm() || this.abilityMenu?.confirm()) return;
     if (this.pendingTargetAction) {
       this.confirmTargetSelection();
       return;
@@ -1277,15 +1230,16 @@ export class BattleScene extends Phaser.Scene {
 
   private closeAllSubMenus(): void {
     this.heroDecisions?.clear();
-    if (this.spellMenu) { this.spellMenu.destroy(); this.spellMenu = null; }
-    if (this.itemMenu) { this.itemMenu.destroy(); this.itemMenu = null; }
-    if (this.abilityMenu) { this.abilityMenu.destroy(); this.abilityMenu = null; }
+    this.spellMenu?.clear();
+    this.itemMenu?.clear();
+    this.abilityMenu?.clear();
   }
 
   private handleMonsterPointer(targetIndex: number): void {
-    if (this.battleTiming && !this.acceptsBattleDecisionInput()) return;
+    if (!this.acceptsBattleDecisionInput()) return;
     const combatant = this.combatants[targetIndex];
     if (!combatant?.isAlive) return;
+    if (this.battlePartyManager.confirmEnemyTarget(combatant.id)) return;
     if (this.pendingTargetAction) {
       if (!this.pendingTargetAction.validIndices.includes(targetIndex)) {
         this.addLog(`${combatant.label} is protected by the front row!`);
@@ -1299,6 +1253,32 @@ export class BattleScene extends Phaser.Scene {
     this.updateMonsterDisplay();
   }
 
+  private beginMonsterPointer(targetIndex: number): void {
+    this.pointerSelection = null;
+    if (!this.acceptsBattleDecisionInput()) return;
+    const enemy = this.combatants[targetIndex];
+    if (!enemy || !isCombatantActive(enemy)) return;
+    const pending = this.pendingTargetAction;
+    const manual = this.battlePartyManager.captureEnemyTarget(enemy.id);
+    if (pending && !pending.validIndices.includes(targetIndex)) {
+      this.handleMonsterPointer(targetIndex);
+      return;
+    }
+    if (!pending && !manual) {
+      this.handleMonsterPointer(targetIndex);
+      return;
+    }
+    this.selectedTargetIndex = targetIndex;
+    this.hoveredEnemyId = enemy.id;
+    this.pointerSelection = {
+      id: enemy.id,
+      confirm: manual ?? (() => {
+        if (this.pendingTargetAction === pending) this.handleMonsterPointer(targetIndex);
+      }),
+    };
+    this.updateMonsterDisplay();
+  }
+
   private beginTargetSelection(
     label: string,
     range: AttackRange,
@@ -1306,6 +1286,7 @@ export class BattleScene extends Phaser.Scene {
     physicalType?: PhysicalDamageType,
   ): void {
     if (!this.acceptsBattleDecisionInput()) return;
+    this.pointerSelection = null;
     const validIndices = getSelectableTargetIndices(this.combatants, range);
     if (validIndices.length === 0) {
       this.addLog("No valid targets!");
@@ -1322,11 +1303,13 @@ export class BattleScene extends Phaser.Scene {
       execute,
       physicalType,
     };
+    this.battleLog?.clearNotice();
     this.updateButtonStates();
     this.updateMonsterDisplay();
   }
 
   private cycleTarget(direction: number): void {
+    this.pointerSelection = null;
     const pending = this.pendingTargetAction;
     if (!pending || pending.validIndices.length === 0) return;
     const current = pending.validIndices.indexOf(this.selectedTargetIndex);
@@ -1343,6 +1326,7 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
     const targetIndex = this.selectedTargetIndex;
+    this.pointerSelection = null;
     this.pendingTargetAction = null;
     this.updateButtonStates();
     this.updateMonsterDisplay();
@@ -1381,6 +1365,7 @@ export class BattleScene extends Phaser.Scene {
 
   private cancelTargetSelection(): void {
     if (!this.pendingTargetAction) return;
+    this.pointerSelection = null;
     this.pendingTargetAction = null;
     this.addLog("Targeting cancelled.");
     this.updateButtonStates();
@@ -1406,7 +1391,7 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
-    if (!pending) {
+    if (!pending || this.battleLog?.isOpen || !this.acceptsBattleDecisionInput()) {
       this.targetCursor.setVisible(false);
       this.targetHint.setVisible(false);
       this.bodyAimButton.setVisible(false);
@@ -1421,15 +1406,21 @@ export class BattleScene extends Phaser.Scene {
       pending.range,
     );
     this.showPartCursor(this.selectedTargetIndex, this.bodyTargetManager.selectedPart);
+    if (this.bodyTargetManager.isOpen) {
+      this.targetHint.setVisible(false);
+      this.bodyAimButton.setVisible(false);
+      return;
+    }
     this.bodyAimButton.setVisible(Boolean(pending.physicalType)
       && getTargetableBodyParts(combatant.monster).length > 0 && !this.bodyTargetManager.isOpen);
     this.targetHint
       .setText(
-        `${pending.label}: whole`
+        `${combatant.label} | ${pending.label}: whole`
         + (penalty > 0 ? ` (-${penalty} melee penalty)` : "")
         + " | Confirm",
       )
       .setVisible(true);
+    this.bodyAimButton.setY(this.targetHint.y + this.targetHint.displayHeight + 8);
   }
 
   private showPartCursor(targetIndex: number, part?: BodyPart): void {
@@ -1450,20 +1441,18 @@ export class BattleScene extends Phaser.Scene {
 
   private hasOpenBattleSubMenu(): boolean {
     return this.heroDecisions?.isOpen === true
-      || this.spellMenu !== null
-      || this.abilityMenu !== null
-      || this.itemMenu !== null;
+      || this.spellMenu?.isOpen === true
+      || this.abilityMenu?.isOpen === true
+      || this.itemMenu?.isOpen === true;
   }
 
   /** Handle A/D or Left/Right paging in open battle sub-menus. */
   private battleMenuPageChange(dir: number): boolean {
-    if (this.spellMenu) {
-      this.battleSpellPage += dir;
-      this.showSpellMenu(true);
-    } else if (this.abilityMenu) {
-      this.battleAbilityPage += dir;
-      this.showAbilityMenu(true);
-    } else if (this.itemMenu) {
+    if (this.spellMenu?.isOpen) {
+      this.spellMenu.changePage(dir);
+    } else if (this.abilityMenu?.isOpen) {
+      this.abilityMenu.changePage(dir);
+    } else if (this.itemMenu?.isOpen) {
       this.battleItemPage += dir;
       this.showItemMenu(true);
     } else {
@@ -1477,13 +1466,11 @@ export class BattleScene extends Phaser.Scene {
       this.heroDecisions.show("spells");
       return;
     }
-    if (this.spellMenu && !keepPage) {
-      this.spellMenu.destroy();
-      this.spellMenu = null;
+    if (this.spellMenu?.isOpen && !keepPage) {
+      this.spellMenu.clear();
       return;
     }
     this.closeAllSubMenus();
-    if (!keepPage) this.battleSpellPage = 0;
 
     const spells = this.player.knownSpells
       .map((id) => getSpell(id))
@@ -1491,17 +1478,13 @@ export class BattleScene extends Phaser.Scene {
 
     if (spells.length === 0) { this.addLog("No spells known!"); return; }
 
-    const menu = createBattleActionMenu(this, {
-      kind: "spell", page: this.battleSpellPage,
-      entries: spells.map((spell) => ({
-        id: spell.id, label: `${spell.name} (${spell.mpCost} MP)`, description: spell.description,
+    this.spellMenu ??= new BattleDecisionMenu(this, "battle-spell-menu",
+      () => this.acceptsBattleDecisionInput(), "battle-spell");
+    this.spellMenu.show("Spells", spells.map((spell) => ({
+        id: spell.id, label: `${spell.name} (${spell.mpCost} MP)\n${spell.description}`,
         enabled: this.player.mp >= spell.mpCost,
-        activate: () => { this.closeAllSubMenus(); this.doPlayerSpell(spell.id); },
-      })),
-      onPageChange: (page) => { this.battleSpellPage = page; this.showSpellMenu(true); },
-    });
-    this.battleSpellPage = menu.page;
-    this.spellMenu = menu.container;
+        action: () => { this.closeAllSubMenus(); this.doPlayerSpell(spell.id); },
+      })), () => this.closeAllSubMenus());
   }
 
   private showAbilityMenu(keepPage = false): void {
@@ -1509,13 +1492,11 @@ export class BattleScene extends Phaser.Scene {
       this.heroDecisions.show("abilities");
       return;
     }
-    if (this.abilityMenu && !keepPage) {
-      this.abilityMenu.destroy();
-      this.abilityMenu = null;
+    if (this.abilityMenu?.isOpen && !keepPage) {
+      this.abilityMenu.clear();
       return;
     }
     this.closeAllSubMenus();
-    if (!keepPage) this.battleAbilityPage = 0;
 
     const abilities = (this.player.knownAbilities ?? [])
       .map((id) => getAbility(id))
@@ -1523,19 +1504,15 @@ export class BattleScene extends Phaser.Scene {
 
     if (abilities.length === 0) { this.addLog("No abilities known!"); return; }
 
-    const menu = createBattleActionMenu(this, {
-      kind: "ability", page: this.battleAbilityPage,
-      entries: abilities.map((ability) => ({
+    this.abilityMenu ??= new BattleDecisionMenu(this, "battle-ability-menu",
+      () => this.acceptsBattleDecisionInput(), "battle-ability");
+    this.abilityMenu.show("Abilities", abilities.map((ability) => ({
         id: ability.id,
-        label: `${ability.name}${ability.bonusAction ? " [BA]" : ""} (${ability.mpCost} MP)`,
-        description: getActorAbilityRejection(this.player, ability.id) ?? ability.description,
+        label: `${ability.name}${ability.bonusAction ? " [BA]" : ""} (${ability.mpCost} MP)\n`
+          + (getActorAbilityRejection(this.player, ability.id) ?? ability.description),
         enabled: this.player.mp >= ability.mpCost && !getActorAbilityRejection(this.player, ability.id),
-        activate: () => { this.closeAllSubMenus(); this.doPlayerAbility(ability.id); },
-      })),
-      onPageChange: (page) => { this.battleAbilityPage = page; this.showAbilityMenu(true); },
-    });
-    this.battleAbilityPage = menu.page;
-    this.abilityMenu = menu.container;
+        action: () => { this.closeAllSubMenus(); this.doPlayerAbility(ability.id); },
+      })), () => this.closeAllSubMenus());
   }
 
   private doPlayerAbility(abilityId: string): void {
@@ -1745,21 +1722,19 @@ export class BattleScene extends Phaser.Scene {
       this.heroDecisions.show("items");
       return;
     }
-    if (this.itemMenu && !keepPage) {
-      this.itemMenu.destroy();
-      this.itemMenu = null;
+    if (this.itemMenu?.isOpen && !keepPage) {
+      this.itemMenu.clear();
       return;
     }
     this.closeAllSubMenus();
     if (!keepPage) this.battleItemPage = 0;
 
-    const w = this.cameras.main.width;
     const TOTAL_PAGES = 3;
     const PAGE_LABELS = ["Consumables", "Weapons", "Defense"];
     this.battleItemPage = Math.max(0, Math.min(this.battleItemPage, TOTAL_PAGES - 1));
 
     // Build rows for current page
-    type MenuRow = { label: string; color: string; interactive: boolean; action?: () => void };
+    interface MenuRow { id?: string; label: string; interactive: boolean; action?: () => void }
     const rows: MenuRow[] = [];
 
     if (this.battleItemPage === 0) {
@@ -1774,17 +1749,18 @@ export class BattleScene extends Phaser.Scene {
         else { seen.set(item.id, stacks.length); stacks.push({ item, count: 1 }); }
       }
       if (stacks.length === 0) {
-        rows.push({ label: "  No consumables", color: "#666", interactive: false });
+        rows.push({ label: "No consumables", interactive: false });
       }
       for (const stack of stacks) {
         const countLabel = stack.count > 1 ? ` x${stack.count}` : "";
         rows.push({
-          label: `  ${stack.item.name}${countLabel} — ${getItemDescription(stack.item)}`,
-          color: "#aaffaa", interactive: true,
+          id: `use-${stack.item.id}`, label: `${stack.item.name}${countLabel}\n${getItemDescription(stack.item)}`,
+          interactive: true,
           action: () => {
             const realIndex = this.player.inventory.findIndex(it => it.id === stack.item.id && it.type === "consumable");
             this.closeAllSubMenus();
             if (realIndex >= 0) this.doUseItem(realIndex);
+            else this.addLog("That item is no longer available.");
           },
         });
       }
@@ -1793,11 +1769,11 @@ export class BattleScene extends Phaser.Scene {
       const inventoryWeapons = this.player.inventory.filter((item) => item.type === "weapon");
       if (this.player.equippedWeapon) {
         const eq = this.player.equippedWeapon;
-        rows.push({ label: `  ► ${eq.name} (+${eq.effect} dmg) [main]`, color: "#88ff88", interactive: false });
+        rows.push({ label: `${eq.name} (+${eq.effect} dmg) [main]`, interactive: false });
       }
       if (this.player.equippedOffHand) {
         const oh = this.player.equippedOffHand;
-        rows.push({ label: `  ► ${oh.name} (+${oh.effect} dmg) [off]`, color: "#88ff88", interactive: false });
+        rows.push({ label: `${oh.name} (+${oh.effect} dmg) [off]`, interactive: false });
       }
       let hasUnequipped = false;
       for (const wpn of inventoryWeapons) {
@@ -1805,93 +1781,45 @@ export class BattleScene extends Phaser.Scene {
         if (wpn.id === this.player.equippedOffHand?.id) continue;
         hasUnequipped = true;
         rows.push({
-          label: `  ${wpn.name} (+${wpn.effect} dmg) [equip]`,
-          color: "#aaddff", interactive: true,
+          id: `equip-${wpn.id}`, label: `${wpn.name} (+${wpn.effect} dmg) [equip]`,
+          interactive: true,
           action: () => { this.doBattleWeaponSwap(wpn); },
         });
       }
       if (rows.length === 0 && !hasUnequipped) {
-        rows.push({ label: "  No weapons", color: "#666", interactive: false });
+        rows.push({ label: "No weapons", interactive: false });
       }
     } else {
       // --- Page 3: Defense ---
       if (this.player.equippedArmor) {
         const arm = this.player.equippedArmor;
-        rows.push({ label: `  ${arm.name} (+${arm.effect} AC) [eq]`, color: "#88ff88", interactive: false });
+        rows.push({ label: `${arm.name} (+${arm.effect} AC) [eq]`, interactive: false });
       }
       if (this.player.equippedShield) {
         const sh = this.player.equippedShield;
-        rows.push({ label: `  ${sh.name} (+${sh.effect} AC) [eq]`, color: "#88ff88", interactive: false });
+        rows.push({ label: `${sh.name} (+${sh.effect} AC) [eq]`, interactive: false });
       }
       if (rows.length === 0) {
-        rows.push({ label: "  No armor or shield", color: "#666", interactive: false });
+        rows.push({ label: "No armor or shield", interactive: false });
       }
     }
 
-    const rowH = 24;
-    const headerH = 20;
-    const navH = 22;
-    const menuH = headerH + rows.length * rowH + navH + 10;
-    const container = this.add.container(w * 0.52, this.cameras.main.height * 0.78 - menuH - 10);
-    container.setDepth(BATTLE_DEPTH.uiOverlay);
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a3e, 0.95);
-    bg.fillRect(-5, -5, 280, menuH);
-    bg.lineStyle(1, 0xc0a060, 1);
-    bg.strokeRect(-5, -5, 280, menuH);
-    container.add(bg);
-
-    // Page header
-    const header = this.add.text(130, 0, `― ${PAGE_LABELS[this.battleItemPage]} ―`, {
-      fontSize: "11px", fontFamily: "monospace", color: "#c0a060",
-    }).setOrigin(0.5, 0);
-    container.add(header);
-
-    // Rows
-    rows.forEach((row, i) => {
-      const text = this.add.text(0, headerH + i * rowH, row.label, {
-        fontSize: "11px", fontFamily: "monospace", color: row.color,
-        wordWrap: { width: 270 },
-      });
-      if (row.interactive && row.action) {
-        text.setInteractive({ useHandCursor: true });
-        const baseColor = row.color;
-        text.on("pointerover", () => text.setColor("#ffd700"));
-        text.on("pointerout", () => text.setColor(baseColor));
-        text.on("pointerdown", () => row.action!());
-      }
-      container.add(text);
+    this.itemMenu ??= new BattleDecisionMenu(this, "battle-item-menu",
+      () => this.acceptsBattleDecisionInput(), "battle-item");
+    const categories: BattleDecisionMenuRow[] = [];
+    if (this.battleItemPage > 0) categories.push({
+      id: "category-previous", label: `Previous: ${PAGE_LABELS[this.battleItemPage - 1]}`, enabled: true,
+      action: () => { this.battleItemPage--; this.showItemMenu(true); },
     });
-
-    // Navigation: ◄ A   page/total   D ►
-    const navY = headerH + rows.length * rowH + 4;
-    const prevBtn = this.add.text(10, navY, "◄ A", {
-      fontSize: "10px", fontFamily: "monospace", color: this.battleItemPage > 0 ? "#aaa" : "#444",
-    }).setInteractive({ useHandCursor: this.battleItemPage > 0 });
-    if (this.battleItemPage > 0) {
-      prevBtn.on("pointerover", () => prevBtn.setColor("#ffd700"));
-      prevBtn.on("pointerout", () => prevBtn.setColor("#aaa"));
-      prevBtn.on("pointerdown", () => { this.battleItemPage--; this.showItemMenu(true); });
-    }
-    container.add(prevBtn);
-
-    const pageLabel = this.add.text(130, navY, `${this.battleItemPage + 1}/${TOTAL_PAGES}`, {
-      fontSize: "10px", fontFamily: "monospace", color: "#888",
-    }).setOrigin(0.5, 0);
-    container.add(pageLabel);
-
-    const nextBtn = this.add.text(230, navY, "D ►", {
-      fontSize: "10px", fontFamily: "monospace", color: this.battleItemPage < TOTAL_PAGES - 1 ? "#aaa" : "#444",
-    }).setInteractive({ useHandCursor: this.battleItemPage < TOTAL_PAGES - 1 });
-    if (this.battleItemPage < TOTAL_PAGES - 1) {
-      nextBtn.on("pointerover", () => nextBtn.setColor("#ffd700"));
-      nextBtn.on("pointerout", () => nextBtn.setColor("#aaa"));
-      nextBtn.on("pointerdown", () => { this.battleItemPage++; this.showItemMenu(true); });
-    }
-    container.add(nextBtn);
-
-    this.itemMenu = container;
+    if (this.battleItemPage < TOTAL_PAGES - 1) categories.push({
+      id: "category-next", label: `Next: ${PAGE_LABELS[this.battleItemPage + 1]}`, enabled: true,
+      action: () => { this.battleItemPage++; this.showItemMenu(true); },
+    });
+    this.itemMenu.show(PAGE_LABELS[this.battleItemPage]!, rows.map((row, index) => ({
+      id: row.id ?? `info-${this.battleItemPage}-${index}`, label: row.label,
+      enabled: row.interactive && row.action !== undefined, informational: !row.interactive,
+      action: () => { if (row.action && this.acceptsBattleDecisionInput()) row.action(); },
+    })), () => this.closeAllSubMenus(), categories);
   }
 
   /** Swap main-hand weapon during battle (bonus action). */
@@ -1939,16 +1867,15 @@ export class BattleScene extends Phaser.Scene {
     this.playerSprite.setTexture(nextLease.key);
     this.heroTextureLease?.release();
     this.heroTextureLease = nextLease;
+    this.registerPartyPresentationActor(this.heroCombatant);
   }
 
   private updateMonsterDisplay(): void {
-    this.battleHud?.setEnemies(this.combatants.map((combatant, index) =>
-      createEnemyHudView(combatant, index === this.selectedTargetIndex)));
+    this.battleHud?.setEnemies(this.combatants.map((combatant) => createEnemyHudView(combatant, false)));
+    this.updateBattleOrder();
 
     const synergy = this.encounter.synergy;
-    if (!synergy) {
-      this.synergyText.setText("");
-    } else {
+    if (synergy) {
       const names: Record<typeof synergy.type, string> = {
         pack_tactics: "Pack Tactics",
         shield_wall: "Shield Wall",
@@ -1960,13 +1887,14 @@ export class BattleScene extends Phaser.Scene {
       const warCry = this.warCryCombatants.size > 0
         ? ` | ${this.warCryCombatants.size} enraged`
         : "";
-      this.synergyText.setText(
-        `${names[synergy.type]} ${active ? "ACTIVE" : "BROKEN"}${warCry}\n`
-        + synergy.description,
-      );
-      this.synergyText.setColor(active ? "#ffd166" : "#777777");
+      const state = `${names[synergy.type]} ${active ? "active" : "broken"}${warCry}`;
+      if (state !== this.synergyStatus) {
+        this.synergyStatus = state;
+        this.addLog(`${state}. ${active ? synergy.description : ""}`.trim());
+      }
     }
     this.updateTargetSelectionDisplay();
+    this.updateTargetHealth();
   }
 
   private updatePlayerStats(): void {
@@ -1977,7 +1905,7 @@ export class BattleScene extends Phaser.Scene {
       ? ` | ${this.getStatusSummary(p.activeEffects)}`
       : "";
     const allies: BattleHudAlly[] = [{
-      id: this.heroCombatant.id, name: `${p.name} Lv.${p.level}`,
+      id: this.heroCombatant.id, name: p.name, level: p.level, portrait: resolveHeroVisualDescriptor(p),
       details: `AC ${getArmorClass(p)}${this.playerDefending ? "+2" : ""}${defendTag}${effectLine}`,
       health: { current: p.hp, maximum: p.maxHp }, mana: { current: p.mp, maximum: p.maxMp },
     }];
@@ -1986,17 +1914,61 @@ export class BattleScene extends Phaser.Scene {
       const source = this.partyActionSources.find((candidate) => candidate.combatant.id === combatant.id);
       if (!source) throw new Error(`[battle-hud] Missing party source ${combatant.id}.`);
       allies.push({
-        id: combatant.id, name: combatant.label,
+        id: combatant.id, name: combatant.label, level: source.state.level,
+        portrait: resolveHeroVisualDescriptor(source.state),
         accessibleDetails: getActiveEffectNames(combatant.effects).join(", "),
         health: { current: combatant.currentHp, maximum: combatant.maxHp },
         mana: { current: source.state.mp, maximum: source.state.maxMp },
       });
     }
     this.battleHud?.setParty(allies);
+    this.updateBattleOrder();
     this.battlePartyRenderer?.update(
       this.partyCombatants,
       this.partyActionSources,
     );
+  }
+
+  private updateBattleOrder(): void {
+    this.battleOrder?.update(
+      this.turnOrder, this.allCombatants, this.currentTurnIndex,
+      this.inSurpriseRound ? this.surpriseQueue.slice(this.surpriseCursor).map((index) => {
+        const combatant = this.combatants[index];
+        if (!combatant) throw new Error(`[battle-order] Missing surprise actor ${index}.`);
+        return combatant.id;
+      }) : undefined,
+      this.isReturningToOverworld || this.phase === "victory" || this.phase === "defeat" || this.phase === "fled",
+    );
+  }
+
+  private getBattlePortrait(id: string): PortraitVisual {
+    const party = this.battleHud.getPartyPortrait(id);
+    if (party) return party;
+    const enemy = this.combatants.find((candidate) => candidate.id === id);
+    if (enemy) return { kind: "monster", monster: enemy.baseMonster };
+    throw new Error(`[battle-order] Missing portrait for ${id}.`);
+  }
+
+  private updateTargetHealth(): void {
+    if (!this.battleHud) return;
+    const companion = this.battlePartyManager.targetFocus;
+    const ids = this.pendingTargetAction
+      ? this.pendingTargetAction.validIndices.map((index) => this.combatants[index]!.id)
+      : companion.ids;
+    const targeting = ids.length > 0 && this.acceptsBattleDecisionInput();
+    this.battleHud.setTargets(targeting ? ids : []);
+    const source = inputSource.get();
+    const focusedId = source === "keyboard" || source === "gamepad" || source === "touch"
+      ? this.focusedEnemyId ?? companion.focusedId ?? this.combatants[this.selectedTargetIndex]?.id ?? null
+      : null;
+    const view = getTargetHealthView(this.combatants, {
+      targeting, targetIds: ids, hoveredId: this.hoveredEnemyId, focusedId,
+    });
+    const index = view ? this.combatants.findIndex(({ id }) => id === view.id) : -1;
+    const bounds = index >= 0 ? this.monsterSprites[index]?.getBounds() : undefined;
+    this.battleHud.setTargetHealth(view, bounds
+      ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } : null,
+    this.bodyTargetManager.panelBounds);
   }
 
   private getStatusSummary(effects: ActiveStatusEffect[]): string {
@@ -2009,50 +1981,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private addLog(msg: string, category?: DiceRollCategory): void {
-    this.logLines.push(...this.logText.getWrappedText(msg));
-    if (this.logLines.length > 400) this.logLines.splice(0, this.logLines.length - 400);
-    if (this.accessibleLog) {
-      const item = document.createElement("li");
-      item.textContent = msg;
-      if (category) item.dataset.category = category;
-      this.accessibleLog.append(item);
-      if (this.accessibleLog.children.length > 200) this.accessibleLog.firstElementChild?.remove();
-    }
-    this.logScrollOffset = 0;
-    this.renderBattleLog();
-    // Also push to the HTML debug panel (always, panel visibility is toggled separately)
+    if (!this.battleLog) throw new Error("[battle] Log feedback was requested before presentation creation.");
+    this.battleLog.append(msg, category);
     debugPanelLog(msg, msg.startsWith("[DEBUG]"));
-  }
-
-  private renderBattleLog(): void {
-    if (this.logLines.length === 0) {
-      this.logText?.setText("");
-      return;
-    }
-
-    const visibleHeight = this.logAreaH - 8;
-    const endIndex = Math.max(
-      1,
-      this.logLines.length - this.logScrollOffset,
-    );
-    let startIndex = endIndex - 1;
-    let visibleText = `${this.logLines[startIndex]}\n `;
-    this.logText.setText(visibleText);
-
-    while (startIndex > 0) {
-      const candidate = `${this.logLines
-        .slice(startIndex - 1, endIndex)
-        .join("\n")}\n `;
-      this.logText.setText(candidate);
-      if (this.logText.height > visibleHeight) {
-        this.logText.setText(visibleText);
-        break;
-      }
-      startIndex--;
-      visibleText = candidate;
-    }
-
-    this.logText.setY(this.logAreaY + 4);
   }
 
   // --- Debug ---
@@ -2138,7 +2069,7 @@ export class BattleScene extends Phaser.Scene {
   private updateDebugPanel(): void {
     const p = this.player;
     const defInfo = this.playerDefending ? " [DEF+2]" : "";
-    const selectedAction = this.actionButtonLabels[
+    const selectedAction = this.actionDefinitions[
       this.selectedActionIndex
     ]?.label ?? "-";
     const monsters = this.combatants
@@ -3578,10 +3509,8 @@ export class BattleScene extends Phaser.Scene {
     this.battlePartyRenderer.clear();
     this.battlePresentation?.cleanup();
     clearDicePresentation(this);
-    this.accessibleLog?.remove();
-    this.accessibleLog = null;
-    this.logLines = [];
-    this.logText?.setText("");
+    this.battleLog?.destroy();
+    this.battleCommands?.destroy();
     this.battleBackdrop?.stopDynamicEffects();
     this.input?.keyboard?.removeAllKeys(true, false);
     setDebugCommandHandler(null);
@@ -3606,11 +3535,15 @@ export class BattleScene extends Phaser.Scene {
     if (this.phase === "playerTurn" && isCombatantActive(this.heroCombatant)) {
       return this.heroCombatant.id;
     }
-    return this.phase === "monsterTurn" ? this.battlePartyManager.manualActorId : null;
+    return this.phase === "monsterTurn" ? this.battlePartyManager?.manualActorId ?? null : null;
   }
 
   private acceptsBattleDecisionInput(): boolean {
-    return this.battleTiming?.acceptsInput() ?? true;
+    const availability = inputAvailability.get();
+    return !this.isReturningToOverworld && !this.sceneTransitions.isPending
+      && !this.battleLog?.isOpen && !this.battlePresentation?.isBusy
+      && availability.pageVisible && availability.windowFocused && !availability.textEntryActive
+      && (this.battleTiming?.acceptsInput() ?? true);
   }
 
   private get heroExecutionContext(): BattleActionExecutionContext {
@@ -3693,19 +3626,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private registerBattlePresentationActors(): void {
-    const heroTexture = this.playerSprite.texture.key;
-    this.playerSprite.setData("presentationActorId", this.heroCombatant.id);
-    this.battlePresentation.registerActor({
-      id: this.heroCombatant.id,
-      role: "hero",
-      sprite: this.playerSprite,
-      textureFamily: createActorTextureFamily({
-        id: `hero.${this.player.appearanceId}`,
-        role: "hero",
-        fallbackTextureKey: heroTexture,
-        framePrefix: `player_${this.player.appearanceId}_battle`,
-      }),
-    });
+    this.registerPartyPresentationActor(this.heroCombatant);
 
     for (const [index, combatant] of this.combatants.entries()) {
       const sprite = this.monsterSprites[index];
@@ -3725,24 +3646,31 @@ export class BattleScene extends Phaser.Scene {
 
     for (const combatant of this.partyCombatants) {
       if (combatant.actorKind !== "companion") continue;
-      const sprite = this.battlePartyRenderer.getSprite(combatant.id);
-      if (!sprite) continue;
-      sprite.setData("presentationActorId", combatant.id);
-      this.battlePresentation.registerActor({
-        id: combatant.id,
-        role: "companion",
-        sprite,
-        textureFamily: createActorTextureFamily({
-          id: `companion.${combatant.sourceId}`,
-          role: "companion",
-          fallbackTextureKey: sprite.texture.key,
-          framePrefix: `companion_${combatant.sourceId}_battle`,
-        }),
-      });
+      this.registerPartyPresentationActor(combatant);
     }
   }
 
+  private registerPartyPresentationActor(combatant: PartyCombatant): void {
+    const hero = combatant.actorKind === "hero";
+    const sprite = hero ? this.playerSprite : this.battlePartyRenderer.getSprite(combatant.id);
+    const key = hero ? this.heroTextureLease?.key : this.battlePartyRenderer.getTextureKey(combatant.id);
+    if (!sprite || !key || this.partyPresentationKeys.get(combatant.id) === key) return;
+    this.partyPresentationKeys.set(combatant.id, key);
+    sprite.setData("presentationActorId", combatant.id);
+    this.battlePresentation.registerActor({
+      id: combatant.id, role: hero ? "hero" : "companion", sprite,
+      textureFamily: createActorTextureFamily({
+        id: `${combatant.actorKind}.${combatant.sourceId}`, role: hero ? "hero" : "companion",
+        fallbackTextureKey: key, framePrefix: key,
+      }),
+    });
+  }
+
   private presentResolvedBattleAction(result: ResolvedBattleAction): void {
+    if (this.playerSprite) {
+      this.battlePartyRenderer.update(this.partyCombatants, this.partyActionSources);
+      for (const combatant of this.partyCombatants) this.registerPartyPresentationActor(combatant);
+    }
     this.battleDice.presentResolvedAction(result, this.allCombatants);
     for (const targetResult of result.targets) {
       if (targetResult.hpBefore === undefined) {

@@ -5,6 +5,7 @@ import { createPixelTexture } from "./pixelTexture";
 
 const PROP_KINDS: readonly InteriorPropKind[] = [
   "bookshelf", "book", "sack", "pantry", "table", "bed", "hearth", "counter", "rack", "plant", "rug",
+  "window", "painting", "candle", "chair", "barrel",
 ];
 
 export function getInteriorPropTexture(kind: InteriorPropKind, searched = false): string {
@@ -48,6 +49,12 @@ export function generateInteriorTextures(scene: Phaser.Scene): void {
         } else if (kind === "counter") {
           art.volume(21, 12, 3, 3, 0xc9b478);
           art.rect(8, 11, 6, 5, 0xe5d4a5);
+        } else {
+          art.ellipse(12, 14, 4, 2, 0xe1d7b4);
+          art.ellipse(12, 14, 2, 1, 0x9b7955);
+          art.rect(21, 11, 3, 4, 0x668d83);
+          art.rect(20, 10, 5, 1, 0xb5c9b9);
+          art.rect(6, 12, 2, 3, 0x544e45);
         }
       } else if (kind === "bed") {
         art.rect(3, 3, 26, 27, 0x70543b);
@@ -74,11 +81,50 @@ export function generateInteriorTextures(scene: Phaser.Scene): void {
         art.volume(16, 25, 6, 4, 0xb18a62);
         art.line(16, 23, 16, 10, 0x53734b, 2);
         for (const [x, y] of [[10, 17], [22, 15], [12, 10], [19, 8]]) art.volume(x!, y!, 4, 2, 0x7f9759);
+      } else if (kind === "window") {
+        art.rect(5, 2, 22, 28, 0x4a4034);
+        art.rect(7, 4, 18, 24, 0x8aa8a6);
+        art.rect(8, 5, 7, 10, 0xc1cfb5);
+        art.rect(17, 5, 6, 10, 0xafd2cf);
+        art.line(16, 4, 16, 27, 0x6f6045, 2);
+        art.line(7, 16, 24, 16, 0x6f6045, 2);
+        art.rect(3, 28, 26, 3, 0xb8a17b);
+      } else if (kind === "painting") {
+        art.rect(2, 5, 28, 22, 0x493e32);
+        art.rect(3, 6, 26, 19, 0xbd9b62);
+        art.rect(5, 8, 22, 15, 0x86a8b0);
+        art.polygon([{ x: 5, y: 22 }, { x: 12, y: 13 }, { x: 20, y: 22 }], 0x627d69);
+        art.polygon([{ x: 13, y: 22 }, { x: 22, y: 12 }, { x: 27, y: 22 }], 0x415e50);
+        art.rect(8, 10, 3, 3, 0xe2c992);
+      } else if (kind === "candle") {
+        art.ellipse(16, 28, 9, 3, 0x383c35);
+        art.rect(14, 15, 4, 13, 0xac8c53);
+        art.rect(10, 26, 12, 3, 0xd3b878);
+        art.rect(11, 12, 10, 3, 0xd3b878);
+        art.rect(14, 6, 4, 7, 0xe0d5b3);
+        art.volume(16, 4, 2, 3, 0xefbd73, 0xa56c48);
+      } else if (kind === "chair") {
+        art.rect(6, 4, 20, 15, 0x5b4534);
+        art.rect(8, 6, 16, 10, 0xae8555);
+        art.rect(7, 20, 3, 10, 0x5b4534);
+        art.rect(23, 20, 3, 10, 0x5b4534);
+        art.rect(5, 17, 23, 6, 0xba925e);
+        art.line(7, 18, 25, 18, 0xd8b981);
+      } else if (kind === "barrel") {
+        art.volume(16, 18, 11, 12, 0x9e784b, 0x514638);
+        for (const x of [10, 15, 20]) art.line(x, 8, x, 28, 0x71583c);
+        art.rect(6, 11, 20, 3, 0x757b73);
+        art.rect(6, 23, 20, 3, 0x757b73);
+        art.ellipse(16, 7, 9, 3, 0xbc9b68);
       } else {
         art.polygon([{ x: 2, y: 8 }, { x: 29, y: 8 }, { x: 30, y: 27 }, { x: 3, y: 27 }], 0x96745c);
         art.rect(5, 11, 22, 13, 0x667d76);
         art.line(5, 12, 26, 12, 0xd0bd88);
         art.line(5, 22, 26, 22, 0xd0bd88);
+        for (let x = 7; x < 26; x += 5) {
+          art.polygon([{ x, y: 15 }, { x: x + 2, y: 13 }, { x: x + 4, y: 16 },
+            { x: x + 2, y: 19 }], 0xb5ad85);
+        }
       }
       if (!searched && (kind === "book" || kind === "pantry" || kind === "sack")) {
         art.line(26, 2, 26, 7, 0xf2dda0);

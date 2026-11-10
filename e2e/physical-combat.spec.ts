@@ -442,7 +442,7 @@ for (const [armorId, damage] of [["chainMail", 5], ["leatherArmor", 10]] as cons
     expect(saved.player.equippedArmor?.id).toBe(armorId);
     await holdKey(page, "Escape");
     await expect(page.locator("#debug-state")).toContainText("[MENU]");
-    await holdKey(page, "ArrowDown");
+    await holdKey(page, "ArrowRight");
     await holdKey(page, "Enter");
     await expect(page.locator("#debug-state")).toContainText("[PARTY:items");
     await expectCleanLayout(page);

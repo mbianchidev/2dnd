@@ -2,7 +2,8 @@ import * as Phaser from "phaser";
 import { getAccessibilityPreferences } from "../systems/accessibility";
 import type { LayoutRect } from "../systems/layout";
 import { getTextContentSize, subscribeOverlayReflow } from "../managers/layout";
-import { createOverlayContainer, setOverlayViewport } from "../utils/ui";
+import { createOverlayContainer, paintPanel, setOverlayViewport } from "../utils/ui";
+import { UI_COLORS } from "../systems/uiTheme";
 
 export interface ShopLayoutOptions {
   readonly title: string;
@@ -193,10 +194,9 @@ export class ShopLayoutRenderer {
     this.list.setPosition(this.listBounds.x, this.listBounds.y);
     setOverlayViewport(this.scene, "shop-items", this.listBounds);
     const contrast = getAccessibilityPreferences().highContrast;
-    this.chrome.clear().fillStyle(contrast ? 0x000000 : 0x25353d, 0.98).fillRect(0, 0, w, h);
-    this.chrome.lineStyle(1, contrast ? 0xffffff : 0xc4ad7c);
-    this.chrome.strokeRect(10, top, leftW, Math.max(1, bottom - top));
-    this.chrome.strokeRect(rightX, top, rightW, Math.max(1, bottom - top));
+    this.chrome.clear().fillStyle(contrast ? 0x000000 : UI_COLORS.backdrop, 1).fillRect(0, 0, w, h);
+    paintPanel(this.chrome, 10, top, leftW, Math.max(1, bottom - top), 0.94, contrast ? 0xffffff : UI_COLORS.border);
+    paintPanel(this.chrome, rightX, top, rightW, Math.max(1, bottom - top), 0.94, contrast ? 0xffffff : UI_COLORS.border);
     this.chrome.lineBetween(0, bottom, w, bottom);
   }
 }

@@ -246,6 +246,10 @@ async function winActualKeystoneBattle(page: Page, bossId: string): Promise<void
     }
     if (state.includes("Phase: playerTurn")) {
       if (wizard && state.includes("[TARGET:-]")) {
+        if (await page.locator("#game-container canvas").getAttribute("data-battle-commands-visible") !== "true") {
+          await page.waitForTimeout(100);
+          continue;
+        }
         await clickLayoutItem(page, "battle-action-spells");
         const spellId = bossId === "frostWarden" ? "fireball"
           : bossId === "infernoForgemaster" ? "coneOfCold" : "disintegrate";

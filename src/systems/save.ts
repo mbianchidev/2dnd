@@ -94,8 +94,10 @@ import {
   type SaveStorageErrorCode,
 } from "./saveStorage";
 import { normalizeCampaignDifficulty } from "./difficulty";
+import { normalizeCustomAppearance } from "./appearance";
+import { getPlayerClass } from "./classes";
 
-export const SAVE_VERSION = 27;
+export const SAVE_VERSION = 28;
 const TUTORIAL_SAVE_VERSION = 9;
 const SAVE_ALERT_ID = "save-storage-alert";
 
@@ -579,6 +581,9 @@ export function normalizeSaveData(value: unknown): SaveData | null {
     if (!heroFields) return null;
     const data = parsed as unknown as SaveData;
     Object.assign(data.player, heroFields);
+    const appearance = normalizeCustomAppearance(parsed["player"]["customAppearance"], getPlayerClass(data.player.appearanceId));
+    if (appearance) data.player.customAppearance = appearance;
+    else delete data.player.customAppearance;
 
     // Migration: old saves stored this field as "bestiary" — map to "codex"
     if (!data.codex && parsed["bestiary"]) {

@@ -44,6 +44,7 @@ import { debugPanelState } from "../config";
 import { ShopLayoutRenderer } from "../renderers/shopLayout";
 import { createItemVisual } from "../renderers/itemVisuals";
 import { UI_COLORS } from "../systems/uiTheme";
+import { bindPointerRelease } from "../utils/ui";
 
 export class ShopScene extends Phaser.Scene {
   private readonly sceneTransitions = new SceneTransitionManager(this);
@@ -164,6 +165,16 @@ export class ShopScene extends Phaser.Scene {
     this.sellTabButton = this.shopLayout.sell;
     this.negotiateButton = this.shopLayout.negotiate;
     this.itemListContainer = this.shopLayout.list;
+    const negotiateButton = this.negotiateButton;
+    if (negotiateButton) {
+      negotiateButton.on("pointerover", () => {
+        if (negotiateButton.input?.enabled) negotiateButton.setColor("#ffd700");
+      });
+      negotiateButton.on("pointerout", () => {
+        if (negotiateButton.input?.enabled) negotiateButton.setColor("#88ddff");
+      });
+      bindPointerRelease(negotiateButton, () => this.showNegotiationOptions());
+    }
     this.refreshNegotiationButton();
     this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
       this.scrollList(deltaY > 0 ? 30 : -30);
@@ -176,7 +187,10 @@ export class ShopScene extends Phaser.Scene {
       if (this.time.now >= this.inputReadyAt && !this.shopLayout.hasItemDetails && !this.negotiationOverlay && !this.confirmationOverlay) this.selectedItemAction?.();
     });
     this.input.keyboard!.on("keydown-I", () => {
-      if (this.selectedItem && !this.negotiationOverlay) this.shopLayout.showItemDetails(this.selectedItem.name, getItemDescription(this.selectedItem));
+      if (this.selectedItem && !this.negotiationOverlay && !this.confirmationOverlay
+        && !this.sceneTransitions.isPending) {
+        this.shopLayout.showItemDetails(this.selectedItem.name, getItemDescription(this.selectedItem));
+      }
     });
     this.updateDisplay();
     this.renderItems();
@@ -221,20 +235,9 @@ export class ShopScene extends Phaser.Scene {
         .setText("💬 Negotiate")
         .setColor("#88ddff")
         .setInteractive({ useHandCursor: true });
-      this.negotiateButton.removeAllListeners();
-      this.negotiateButton.on("pointerover", () => {
-        this.negotiateButton?.setColor("#ffd700");
-      });
-      this.negotiateButton.on("pointerout", () => {
-        this.negotiateButton?.setColor("#88ddff");
-      });
-      this.negotiateButton.on("pointerdown", () => {
-        this.showNegotiationOptions();
-      });
       return;
     }
 
-    this.negotiateButton.removeAllListeners();
     this.negotiateButton.disableInteractive();
     const discount = getShopNegotiationDiscount(record);
     if (discount > 0) {
@@ -253,6 +256,9 @@ export class ShopScene extends Phaser.Scene {
       !this.shopSkillCheckId
       || this.player.progression.skillChecks[this.shopSkillCheckId]
       || this.negotiationOverlay
+      || this.confirmationOverlay
+      || this.shopLayout.hasItemDetails
+      || this.sceneTransitions.isPending
     ) {
       return;
     }
@@ -308,7 +314,7 @@ export class ShopScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       button.on("pointerover", () => button.setColor("#ffd700"));
       button.on("pointerout", () => button.setColor("#88ddff"));
-      button.on("pointerdown", () => {
+      bindPointerRelease(button, () => {
         this.resolveNegotiation(option);
       });
       container.add(button);
@@ -326,7 +332,7 @@ export class ShopScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     cancelButton.on("pointerover", () => cancelButton.setColor("#ffd700"));
     cancelButton.on("pointerout", () => cancelButton.setColor("#ff8888"));
-    cancelButton.on("pointerdown", () => {
+    bindPointerRelease(cancelButton, () => {
       container.destroy();
       this.negotiationOverlay = null;
     });
@@ -417,11 +423,18 @@ export class ShopScene extends Phaser.Scene {
       this.selectedItemAction = action ?? null;
     }
     if (action) {
-      text.setInteractive({ useHandCursor: true }).on("pointerup", () => {
+      text.setInteractive({ useHandCursor: true });
+      bindPointerRelease(text, () => {
         if (!this.shopLayout.hasItemDetails && !this.negotiationOverlay && !this.confirmationOverlay && !this.sceneTransitions.isPending) action();
       });
     }
-    info.setInteractive({ useHandCursor: true }).on("pointerup", () => this.shopLayout.showItemDetails(item.name, getItemDescription(item)));
+    info.setInteractive({ useHandCursor: true });
+    bindPointerRelease(info, () => {
+      if (!this.shopLayout.hasItemDetails && !this.negotiationOverlay && !this.confirmationOverlay
+        && !this.sceneTransitions.isPending) {
+        this.shopLayout.showItemDetails(item.name, getItemDescription(item));
+      }
+    });
     this.itemListContainer.add([icon, text, info]);
     return height;
   }
@@ -540,7 +553,9 @@ export class ShopScene extends Phaser.Scene {
     const h = this.cameras.main.height;
     const dim = this.add.graphics().fillStyle(0x000000, 0.7).fillRect(0, 0, w, h)
       .setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains);
-    dim.on("pointerup", () => container.destroy(true));
+    bindPointerRelease(dim, () => container.destroy(true));
+    const panelHitArea = new Phaser.Geom.Rectangle();
+    background.setInteractive(panelHitArea, Phaser.Geom.Rectangle.Contains);
     container.addAt(dim, 0);
     registerLayoutGroup(this, id, container, { x: 0, y: 0, width: w, height: h });
     const texts = container.list.filter((object): object is Phaser.GameObjects.Text => object instanceof Phaser.GameObjects.Text);
@@ -549,6 +564,7 @@ export class ShopScene extends Phaser.Scene {
       texts.forEach((text, index) => text.setWordWrapWidth(width - 32, true).setData("layoutId", `${id}-${index}`));
       const height = layoutTextStack(texts, { x: (w - width) / 2 + 16, y: 0, width: width - 32, gap: 10, align: "center" }) + 24;
       const top = (h - height) / 2;
+      panelHitArea.setTo((w - width) / 2, top, width, height);
       layoutTextStack(texts, { x: (w - width) / 2 + 16, y: top + 12, width: width - 32, gap: 10, align: "center" });
       background.clear().fillStyle(0x202c37, 0.98).fillRoundedRect((w - width) / 2, top, width, height, 6);
       background.lineStyle(2, 0xc4ad7c).strokeRoundedRect((w - width) / 2, top, width, height, 6);
@@ -601,7 +617,7 @@ export class ShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     sellOneBtn.on("pointerover", () => sellOneBtn.setColor("#ffd700"));
     sellOneBtn.on("pointerout", () => sellOneBtn.setColor("#88ff88"));
-    sellOneBtn.on("pointerdown", () => {
+    bindPointerRelease(sellOneBtn, () => {
       container.destroy();
       this.executeSell(sellableIndices, 1, sellValue);
     });
@@ -620,7 +636,7 @@ export class ShopScene extends Phaser.Scene {
       }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
       sellAllBtn.on("pointerover", () => sellAllBtn.setColor("#ffd700"));
       sellAllBtn.on("pointerout", () => sellAllBtn.setColor("#ffaa44"));
-      sellAllBtn.on("pointerdown", () => {
+      bindPointerRelease(sellAllBtn, () => {
         container.destroy();
         this.executeSell(sellableIndices, count, sellValue);
       });
@@ -638,7 +654,7 @@ export class ShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     cancelBtn.on("pointerover", () => cancelBtn.setColor("#ffd700"));
     cancelBtn.on("pointerout", () => cancelBtn.setColor("#ff8888"));
-    cancelBtn.on("pointerdown", () => container.destroy());
+    bindPointerRelease(cancelBtn, () => container.destroy());
     container.add(cancelBtn);
     this.installModalLayout(container, bg, "shop-sale");
   }
@@ -786,7 +802,7 @@ export class ShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     sleepBtn.on("pointerover", () => sleepBtn.setColor("#ffd700"));
     sleepBtn.on("pointerout", () => sleepBtn.setColor("#88ff88"));
-    sleepBtn.on("pointerdown", () => {
+    bindPointerRelease(sleepBtn, () => {
       container.destroy();
       // Advance to Dawn (step 0) of the next cycle
       const currentCycle = Math.floor(this.timeStep / CYCLE_LENGTH);
@@ -804,7 +820,7 @@ export class ShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     waitBtn.on("pointerover", () => waitBtn.setColor("#ffd700"));
     waitBtn.on("pointerout", () => waitBtn.setColor("#aaaaff"));
-    waitBtn.on("pointerdown", () => {
+    bindPointerRelease(waitBtn, () => {
       container.destroy();
       // Set to Night start of the current or next cycle
       const currentPos = ((this.timeStep % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH;
@@ -826,7 +842,7 @@ export class ShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     cancelBtn.on("pointerover", () => cancelBtn.setColor("#ffd700"));
     cancelBtn.on("pointerout", () => cancelBtn.setColor("#ff8888"));
-    cancelBtn.on("pointerdown", () => container.destroy());
+    bindPointerRelease(cancelBtn, () => container.destroy());
     container.add(cancelBtn);
     this.installModalLayout(container, bg, "shop-inn");
   }

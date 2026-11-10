@@ -28,6 +28,7 @@ import {
 import type { PlayerState } from "../systems/player";
 import { getScaledBounds, layoutTextStack, syncInteractiveHitArea } from "./layout";
 import {
+  bindPointerRelease,
   calcPanelLayout,
   createDimGraphics,
   createOverlayContainer,
@@ -153,7 +154,7 @@ export class DifficultyOverlayManager {
     const dim = createDimGraphics(this.scene, panel.w, panel.h, 0.82).setInteractive(
       new Phaser.Geom.Rectangle(0, 0, panel.w, panel.h), Phaser.Geom.Rectangle.Contains,
     );
-    dim.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+    bindPointerRelease(dim, (pointer: Phaser.Input.Pointer) => {
       if (pointer.x < px || pointer.x > px + panelW || pointer.y < py || pointer.y > py + panelH) {
         this.cancel();
       }
@@ -364,7 +365,7 @@ export class DifficultyOverlayManager {
       this.updateFocus();
       this.options?.onStateChange?.();
     });
-    text.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+    bindPointerRelease(text, (pointer: Phaser.Input.Pointer) => {
       if (adjust) {
         const bounds = getScaledBounds(text);
         adjust(pointer.x < bounds.x + bounds.width / 2 ? -1 : 1);

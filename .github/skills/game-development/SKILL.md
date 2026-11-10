@@ -174,7 +174,11 @@ Dice use stepped pixel silhouettes and bitmap numerals. Battle retains only
 its fading narrative notice and on-demand history; do not add another dice
 caption strip. Result captions belong to transient non-battle views.
 
-All release input routes through the semantic action layer. Standard gamepads
+All release input routes through the semantic action layer. Release-driven
+Phaser controls use `bindPointerRelease()` from `utils/ui.ts` unless they
+already capture stable intent. A newly opened control cannot inherit a release
+from its opener; modal panel interiors shield outside-dismiss backdrops.
+Standard gamepads
 use dead zones, digital fallback, repeat/debounce, source switching, and a
 visible right-stick cursor clicked by pressing the stick. Responsive touch
 controls use safe areas, pointer capture for held directions, pointer-release

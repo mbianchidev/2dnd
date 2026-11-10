@@ -232,6 +232,11 @@ available row, and Info or `I` opens a paged description. Equipment details page
 with their visible control or Tab. Escape closes item details or confirmations
 before leaving the shop. These views preserve inventory indexes and the
 existing buy/sell, price, protection and action owners.
+Negotiate, sale confirmations and item details stay open after their opening
+click or tap. Blank panel space does not dismiss a confirmation. Release-based
+controls require a matching press on that same live control, so opening,
+closing or replacing a menu cannot trigger a control beneath it. Blur and
+visibility loss cancel a held choice without spending the negotiation attempt.
 
 Dice keep the exact resolved receipt hidden while tumbling. Numbers, selected
 die markers, detailed roll feedback, announcements and outcome cues reveal

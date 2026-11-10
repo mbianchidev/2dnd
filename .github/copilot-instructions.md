@@ -1407,6 +1407,11 @@ Trap trigger profiles live in `src/systems/trapAudio.ts` and route through
 - Match D-pad navigation to visual grid rows and columns. Character creation
   must support directional selection plus A/confirm and B/cancel. Show MENU and
   TIPS touch actions only during safe exploration.
+- Use `bindPointerRelease()` from `utils/ui.ts` for release-based Phaser UI,
+  unless the surface already captures stable intent. A release must match the
+  same live control's press. Clear held gestures on blur, visibility loss,
+  control replacement and scene shutdown. Modal interiors shield their backdrop;
+  opening or closing a panel must never activate a newly exposed control.
 - Route title selection and direct pointer targets through
   `src/managers/titleMenu.ts`. Keep the new-game overwrite confirmation compact,
   centered, and directly tappable in mobile landscape.

@@ -19,6 +19,46 @@ export const BORDER_GOLD = UI_COLORS.gold;
 /** Alternate warm border color. */
 export const BORDER_WARM = UI_COLORS.border;
 
+/** A release belongs only to the same live control that received its press. */
+export function bindPointerRelease(
+  target: Phaser.GameObjects.GameObject,
+  activate: (pointer: Phaser.Input.Pointer) => void,
+): () => void {
+  const scene = target.scene;
+  const pressed = new Set<number>();
+  let disposed = false;
+  const acceptsInput = (): boolean => !disposed && target.active && target.input?.enabled === true;
+  const press = (pointer: Phaser.Input.Pointer): void => {
+    if (acceptsInput()) pressed.add(pointer.id);
+  };
+  const release = (pointer: Phaser.Input.Pointer): void => {
+    const owned = pressed.delete(pointer.id);
+    if (owned && acceptsInput()) activate(pointer);
+  };
+  const cancel = (pointer: Phaser.Input.Pointer): void => { pressed.delete(pointer.id); };
+  const clear = (): void => pressed.clear();
+  const dispose = (): void => {
+    if (disposed) return;
+    disposed = true;
+    clear();
+    target.off("pointerdown", press);
+    target.off("pointerup", release);
+    target.off("pointerupoutside", cancel);
+    target.off(Phaser.GameObjects.Events.DESTROY, dispose);
+    scene.game.events.off(Phaser.Core.Events.BLUR, clear);
+    scene.game.events.off(Phaser.Core.Events.HIDDEN, clear);
+    scene.events.off(Phaser.Scenes.Events.SHUTDOWN, dispose);
+  };
+  target.on("pointerdown", press);
+  target.on("pointerup", release);
+  target.on("pointerupoutside", cancel);
+  target.once(Phaser.GameObjects.Events.DESTROY, dispose);
+  scene.game.events.on(Phaser.Core.Events.BLUR, clear);
+  scene.game.events.on(Phaser.Core.Events.HIDDEN, clear);
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, dispose);
+  return dispose;
+}
+
 interface PanelLayout {
   w: number;
   h: number;

@@ -231,6 +231,10 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   qualification queries are optional extension points, not campaign gates.
 - Route all release input through semantic contexts; do not add scene-local
   gamepad/touch mappings or conflicting production/debug keys.
+- Release-based Phaser controls use `bindPointerRelease()` from `utils/ui.ts`
+  unless they already capture stable intent, as Battle targets and atlas drags
+  do. Require the same live control's press, clean up held gestures on blur/
+  visibility/replacement/shutdown, and shield modal interiors from the backdrop.
 - Shared `systems/textEntry.ts` / `managers/textEntry.ts` own the controller
   keyboard for names/slot labels/search, modal isolation, cancellation and
   focus restoration; the input adapter re-exports the existing text-entry API.

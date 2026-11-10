@@ -187,6 +187,14 @@ screens or duplicate state changes.
 
 ## Input, discovery, and accessible UI
 
+Release-based Phaser controls share `bindPointerRelease()` in `utils/ui.ts`.
+It accepts only a matching press/release on the same live control and owns
+blur, visibility, destruction and scene-shutdown cleanup. Shop, activity and
+difficulty controls use it so an opening release cannot dismiss a new menu or
+activate a replacement control. Battle targeting and atlas dragging retain
+their existing stable-intent capture. Modal panel backgrounds block hits from
+reaching their outside-dismiss layer.
+
 `src/systems/input.ts` defines typed semantic actions, contexts, mappings,
 dead zones, repeats, source switching, and duplicate suppression.
 `src/managers/input.ts` is the only browser adapter for keyboard, pointer,

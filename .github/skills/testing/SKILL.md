@@ -41,6 +41,13 @@ The folio stays visible but disabled while choosing an enemy; cancellation must
 restore command input without spending an action. City service coverage checks
 all banners against actual minimap bounds, both HUD corners, Night closure,
 retained inn clerks after paid rest, and ordinary unmarked but usable loot.
+
+`pointerRelease.test.ts` protects matching press/release ownership, independent
+pointers, disabled controls, blur/visibility cancellation and stale-callback
+cleanup. `menu-pointer-lifecycle.spec.ts` exercises Negotiate at every text scale,
+sale/details, activity records and difficulty with mouse/touch. Keep interior
+clicks inert, reject releases that started on another control, retain fresh
+outside dismissal, and prove blur does not consume a held negotiation attempt.
 Battle-owned display markers clear on shutdown; assert the new encounter is
 accepting decisions before checking a restored display preference. Standard
 spell/ability pagers retain `battle-<kind>-next/previous` IDs and reopen on the

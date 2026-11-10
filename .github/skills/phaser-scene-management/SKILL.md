@@ -51,6 +51,13 @@ updates or cleanup as class properties.
 
 ## Semantic input
 
+Use `bindPointerRelease()` from `utils/ui.ts` for release-driven controls and
+outside-dismiss backdrops. It requires the same live control's press and clears
+on blur, visibility loss, destruction and shutdown. A newly opened menu cannot
+inherit its opener's release. Make panel backgrounds interactive so blank
+interior clicks do not reach the backdrop. Preserve existing stable-intent
+capture for Battle targets and atlas dragging.
+
 `DifficultyOverlayManager` owns profile/Custom previews, measured bounds,
 spatial focus, the native screen-reader mirror, and cleanup. Enter/Space
 activation is deferred to release and held keys are cleared on close. Pass

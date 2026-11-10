@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { TILE_SIZE } from "../config";
 import { MINIGAME_VENUES } from "../data/minigames";
-import { createOverlayContainer } from "../utils/ui";
+import { bindPointerRelease, createOverlayContainer } from "../utils/ui";
 import type { MinigameVenueId } from "../data/minigames";
 import type { PlayerState } from "../systems/player";
 import { drawArcheryTarget, drawDicePlayer } from "./minigameVenueArt";
@@ -54,7 +54,8 @@ export class MinigameVenueRenderer {
       });
       target.setData("minigameProp", venue.activityId);
       target.setData("label", venue.name);
-      target.setInteractive({ useHandCursor: true }).on("pointerup", () => activate(venue.id));
+      target.setInteractive({ useHandCursor: true });
+      bindPointerRelease(target, () => activate(venue.id));
       prop.add(target);
       this.props.push({ x: venue.x, y: venue.y, container: prop, target });
     }

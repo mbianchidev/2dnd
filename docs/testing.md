@@ -167,6 +167,15 @@ district at 100%/125%/150% text, Night doorway and clerk rejection, safe exits,
 24-hour primary/district inns, retained clerks after paid rest, and ordinary
 unmarked discoveries that remain claimable.
 
+`menu-pointer-lifecycle.spec.ts` verifies that Negotiate, sale confirmations,
+item details, activity records and difficulty remain open after their opening
+mouse/touch gesture. It checks all text scales for negotiation, inert panel
+interiors, releases that began on another control, fresh outside dismissal,
+Escape ownership and blur without a spent negotiation attempt.
+`pointerRelease.test.ts` covers matching pointer IDs, once-only release,
+disabled controls and complete blur/visibility/destruction/shutdown cleanup,
+including an already-captured stale callback.
+
 The `e2e/*.spec.ts` suites own real browser behavior:
 
 - landing-page content, responsive layout, screenshots, and browser/download links

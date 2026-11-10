@@ -162,6 +162,9 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   controlled decisions, never during action presentation. Portrait HP/MP cards
   can compact through preference v4. Enemy HP appears only on a hovered/focused
   valid target with `hpRevealed`, never as persistent rows or hidden values.
+- Keep the selected Battle folio visible while choosing an enemy, with command
+  inputs disabled until cancel/commit. Read command readiness from
+  `data-battle-commands-enabled`, not the separate visibility marker.
 - The small portrait timeline is a read-only stable-ID initiative/surprise projection.
   Remove inactive actors immediately without splicing or advancing scheduling;
   never expose initiative arithmetic or persist presentation state.
@@ -267,6 +270,12 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   `FogOfWar.revealCity()` on entry and recovery, without revealing other places.
   Archery/dice venues are tangible props, not letter flags. Named cutscene NPCs
   share canonical city palettes/textures; bosses use monster-family art.
+- City services share `systems/cityServices.ts` hours and real doorway checks:
+  Night closes every non-inn service, including shipwright work; inns stay open.
+  Keep exterior category banners visible, retain clerks after inn rest, and
+  derive non-interactive rugs for walk-through floors without changing tiles.
+  Optional supplies/books have no plus signs, automatic search hints or minimap
+  loot markers; keep story guidance and the underlying interactions.
 - Install accessibility in every scene; support text scales, high contrast,
   reduced motion, non-color cues, touch, and gamepad cursor flows.
 - Inject `installSceneLayoutAudit` into `installSceneAccessibility`. Keep pure

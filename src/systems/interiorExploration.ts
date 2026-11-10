@@ -23,7 +23,8 @@ export function getCityInteriorProp(player: PlayerState, id?: string): InteriorP
   const room = city ? getCityChunk(city, position.cityChunkIndex) : undefined;
   return room?.interior?.props.find((prop) => (!id || prop.id === id)
     && (prop.reward || prop.kind === "counter")
-    && getInteriorPropDistance(prop, position.x, position.y) <= 1);
+    && (getInteriorPropDistance(prop, position.x, position.y) <= 1
+      || (prop.kind === "counter" && Math.abs(position.x - prop.x) + Math.abs(position.y - (prop.y - 1)) <= 1)));
 }
 
 /** Claim fixed offered supplies or reading knowledge once, with save-before-feedback rollback. */

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { CITIES, getCityChunk, getCityChunkCount } from "../src/data/cities";
 import { Terrain } from "../src/data/mapTypes";
-import { getCitySurfaceTerrainOverride } from "../src/systems/citySurface";
+import { getCitySurfaceTerrainOverride, getWalkthroughRugTiles } from "../src/systems/citySurface";
 import { createTerrainArt, getTerrainArtSpec } from "../src/systems/terrainArt";
 
 describe("city multi-tile surface ownership", () => {
@@ -41,5 +41,33 @@ describe("city multi-tile surface ownership", () => {
         }
       }
     }
+  });
+
+  it("decorates every separate walk-through floor without changing walkability or consuming RNG", () => {
+    const random = vi.spyOn(Math, "random").mockImplementation(() => { throw new Error("Shared RNG used."); });
+    try {
+      const map = [
+        [Terrain.ShopFloor, Terrain.ShopFloor, Terrain.CityWall, Terrain.ShopFloor],
+        [Terrain.ShopFloor, Terrain.ShopFloor, Terrain.CityWall, Terrain.ShopFloor],
+      ];
+      const before = structuredClone(map);
+      const rugs = getWalkthroughRugTiles(map);
+      expect(rugs).toHaveLength(2);
+      expect(rugs).toEqual(getWalkthroughRugTiles(map));
+      expect(rugs.some(({ x }) => x < 2)).toBe(true);
+      expect(rugs.some(({ x }) => x === 3)).toBe(true);
+      expect(map).toEqual(before);
+      for (const city of CITIES) {
+        for (let index = 0; index < getCityChunkCount(city); index++) {
+          const chunk = getCityChunk(city, index)!;
+          if (chunk.interior) continue;
+          const snapshot = JSON.stringify(chunk);
+          const tiles = getWalkthroughRugTiles(chunk.mapData);
+          for (const tile of tiles) expect(chunk.mapData[tile.y]![tile.x]).toBe(Terrain.ShopFloor);
+          if (chunk.mapData.some((row) => row.includes(Terrain.ShopFloor))) expect(tiles.length).toBeGreaterThan(0);
+          expect(JSON.stringify(chunk)).toBe(snapshot);
+        }
+      }
+    } finally { random.mockRestore(); }
   });
 });

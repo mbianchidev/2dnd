@@ -13,12 +13,17 @@ describe("cinematic Battle presentation", () => {
       controlledDecision: true, animationActive: false, blocked: false,
       submenuOpen: false, targeting: false,
     };
-    expect(getBattleDecisionVisibility(ready)).toEqual({ decision: true, commands: true });
-    expect(getBattleDecisionVisibility({ ...ready, animationActive: true })).toEqual({ decision: false, commands: false });
+    expect(getBattleDecisionVisibility(ready)).toEqual({ decision: true, commands: true, commandsEnabled: true });
+    expect(getBattleDecisionVisibility({ ...ready, animationActive: true }))
+      .toEqual({ decision: false, commands: false, commandsEnabled: false });
     expect(getBattleDecisionVisibility({ ...ready, controlledDecision: false }).commands).toBe(false);
     expect(getBattleDecisionVisibility({ ...ready, blocked: true }).decision).toBe(false);
-    expect(getBattleDecisionVisibility({ ...ready, submenuOpen: true })).toEqual({ decision: true, commands: false });
-    expect(getBattleDecisionVisibility({ ...ready, targeting: true })).toEqual({ decision: true, commands: false });
+    expect(getBattleDecisionVisibility({ ...ready, submenuOpen: true }))
+      .toEqual({ decision: true, commands: false, commandsEnabled: false });
+    expect(getBattleDecisionVisibility({ ...ready, targeting: true }))
+      .toEqual({ decision: true, commands: true, commandsEnabled: false });
+    expect(getBattleDecisionVisibility({ ...ready, targeting: true, animationActive: true }))
+      .toEqual({ decision: false, commands: false, commandsEnabled: false });
   });
 
   it("exposes enemy HP only for a valid known-health hovered or focused target", () => {

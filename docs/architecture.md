@@ -78,6 +78,13 @@ and fresh adjacent interactions. Rooms use the existing city position and
 connection contract, while original shop IDs remain authoritative for prices,
 negotiations and crafting discovery. Room visibility is derived rather than
 adding redundant persistent fog keys. See [Graphics](graphics.md).
+`systems/cityServices.ts` resolves real service doorways and shared Night
+closure, with inns open all day and no special shipwright bypass. Exterior
+category banners persist independently of proximity. Indoor clerks use
+canonical or deterministic `npcVisuals.ts` descriptors, and inn rest respawns
+the current room's clerk. `citySurface.ts` derives non-interactive street rugs
+without changing map authority. Optional furnishings and treasure do not emit
+automatic interaction hints or minimap loot markers.
 
 Shared raster art lives in `systems/pixelArt.ts`, `terrainArt.ts`,
 `humanoidArt.ts` and `monsterArt.ts`; `renderers/pixelTexture.ts` uploads
@@ -114,6 +121,10 @@ without changing Battle's turn scheduling or exposing enemy initiative values.
 projection and runtime feedback/history timing. `renderers/battleCommands.ts`
 owns the decision-only folio; `managers/battleLog.ts` owns brief action receipts
 and on-demand history, without controlling outcomes or saving partial combat.
+Visibility is separate from command input: the selected folio remains visible
+during enemy selection, but command hit targets and native buttons are disabled
+until cancel or confirmation. The local `data-battle-commands-enabled` marker
+reports accepted command input; `data-battle-commands-visible` reports art only.
 The existing measured `BattleDecisionMenu` now presents Standard and Timed
 choices while each mode retains its original validated action callbacks.
 Party sprites, portrait cards and timeline icons share the live hero descriptor

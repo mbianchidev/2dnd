@@ -146,7 +146,7 @@ async function useBattleMenuAction(
   command: BattleHudActionId,
   actionLayoutId: string,
 ): Promise<void> {
-  await expect(page.locator("#game-container canvas")).toHaveAttribute("data-battle-commands-visible", "true");
+  await expect(page.locator("#game-container canvas")).toHaveAttribute("data-battle-commands-enabled", "true");
   await clickLayoutItem(page, `battle-action-${command}`);
   await clickLayoutItem(page, actionLayoutId);
   await holdKey(page, "Enter", 100);

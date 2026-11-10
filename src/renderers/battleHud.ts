@@ -72,6 +72,7 @@ export class BattleHudRenderer {
   private enemyKey = "";
   private targetKey = "";
   private commandsEnabled = false;
+  private commandsVisible = false;
   private visualRevision = 0;
 
   constructor(
@@ -196,15 +197,16 @@ export class BattleHudRenderer {
     });
     this.native.append(button);
     this.commands.set(action, button);
-    button.hidden = !this.commandsEnabled;
+    button.hidden = !this.commandsVisible;
     button.disabled = !this.commandsEnabled;
   }
 
-  setCommandsEnabled(enabled: boolean): void {
+  setCommandsEnabled(enabled: boolean, visible = enabled): void {
     this.commandsEnabled = enabled;
+    this.commandsVisible = visible;
     for (const button of this.commands.values()) {
       if (button.disabled === enabled) button.disabled = !enabled;
-      if (button.hidden === enabled) button.hidden = !enabled;
+      if (button.hidden === visible) button.hidden = !visible;
     }
   }
 

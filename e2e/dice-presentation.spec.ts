@@ -997,7 +997,7 @@ test("rolls default on, disable easily, and actual positive/negative crits remai
   await debugCommand(page, "/spawn orc");
   await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
   for (const natural of [12, 20, 1]) {
-    await expect(page.locator("#game-container canvas")).toHaveAttribute("data-battle-commands-visible", "true");
+    await expect(page.locator("#game-container canvas")).toHaveAttribute("data-battle-commands-enabled", "true");
     await clickLayoutItem(page, "battle-action-attack");
     const from = evidence.packets.length;
     const capture = await armDisplayedDice(page, "Dice Tester attack");

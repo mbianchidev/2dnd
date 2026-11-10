@@ -53,6 +53,12 @@ Keep the failed captures/traces before rerunning a corrected fixture.
 
 ## Vitest responsibilities
 
+`cityServices.test.ts` covers every service and exact Night/Dawn boundaries,
+including the shipwright and 24-hour inns. NPC visual tests retain original
+merchant palettes across indoor relocation. City surface tests prove rugs are
+deterministic and leave map tiles unchanged. Minimap tests exclude optional
+loot while permitting explicit story guidance.
+
 Tests in `tests/*.test.ts` own Phaser-free behavior:
 
 - combat, physical/elemental profiles, sizes/anatomy, aimed parts, statuses,
@@ -149,6 +155,17 @@ high-contrast text. Touch/gamepad display controls, held target previews,
 fading feedback, complete history and paused timed budgets use actual inputs.
 Retain a removed native action node across battle replacement and prove its
 queued click cannot start an action or targeting in the new scene.
+The command folio must remain visible after Attack is selected and disappear
+only after target confirmation starts presentation. Assert its canvas and
+native inputs are disabled during targeting, cancellation restores input and
+selection, and clicking another visible command cannot spend an action.
+Use `data-battle-commands-enabled="true"` for command-readiness waits; visibility
+alone also covers pending target selection.
+
+`city-presentation.spec.ts` also checks every exterior banner from across a
+district at 100%/125%/150% text, Night doorway and clerk rejection, safe exits,
+24-hour primary/district inns, retained clerks after paid rest, and ordinary
+unmarked discoveries that remain claimable.
 
 The `e2e/*.spec.ts` suites own real browser behavior:
 

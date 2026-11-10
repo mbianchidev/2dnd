@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { CITY_NPCS, getNpcColors } from "../src/data/npcs";
 import { QUEST_NPCS } from "../src/data/quests";
 import { CUTSCENES } from "../src/data/cutscenes";
+import { CITIES, getCityChunk, getCityChunkCount } from "../src/data/cities";
 import { getMonster } from "../src/data/monsters";
-import { resolveNamedNpcVisual, resolveNpcVisual } from "../src/systems/npcVisuals";
+import { resolveCityShopkeeperVisual, resolveNamedNpcVisual, resolveNpcVisual } from "../src/systems/npcVisuals";
 
 describe("shared NPC appearance", () => {
   it("uses the same canonical instance and separate skin, hair and clothing colors in town and story scenes", () => {
@@ -37,6 +38,27 @@ describe("shared NPC appearance", () => {
     }
     expect(characters).toBeGreaterThanOrEqual(24);
     expect(bosses).toBeGreaterThanOrEqual(10);
+  });
+
+  it("gives every shop and inn a stable clerk, preserving canonical merchants when moved indoors", () => {
+    const random = vi.spyOn(Math, "random").mockImplementation(() => { throw new Error("Clerk art used gameplay RNG."); });
+    try {
+      for (const city of CITIES) {
+        for (let index = 0; index < getCityChunkCount(city); index++) {
+          const chunk = getCityChunk(city, index)!;
+          for (const shop of chunk.shops) {
+            const visual = resolveCityShopkeeperVisual(city, index, shop);
+            expect(visual).toEqual(resolveCityShopkeeperVisual(city, index, shop));
+            expect(visual.template.ageGroup).not.toBe("child");
+            if (shop.source) {
+              const original = getCityChunk(city, shop.source.chunkIndex)!.shops
+                .find((entry) => entry.x === shop.source!.x && entry.y === shop.source!.y)!;
+              expect(visual).toEqual(resolveCityShopkeeperVisual(city, shop.source.chunkIndex, original));
+            }
+          }
+        }
+      }
+    } finally { random.mockRestore(); }
   });
 
   it("is deterministic, does not consume RNG and rejects an invalid canonical instance", () => {

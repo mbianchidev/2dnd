@@ -188,26 +188,18 @@ export function findUnobscuredRect(
       - (b.x - preferred.x) ** 2 - (b.y - preferred.y) ** 2)[0];
 }
 
-/** Keep map labels near their anchor while avoiding already placed labels and map edges. */
+/** Keep map labels near their anchor without covering labels, reserved HUD surfaces or map edges. */
 export function layoutAnchoredLabels(
   items: readonly { id: string; bounds: LayoutRect }[],
   viewport: LayoutRect,
   gap = 4,
+  obstructions: readonly LayoutRect[] = [],
 ): Array<{ id: string; bounds: LayoutRect }> {
   const placed: Array<{ id: string; bounds: LayoutRect }> = [];
   for (const item of items) {
-    const preferred = clampRectToViewport(item.bounds, viewport);
-    const step = Math.max(1, preferred.height + gap);
-    const candidates = [preferred];
-    for (let distance = 1; distance <= Math.ceil(viewport.height / step); distance += 1) {
-      candidates.push({ ...preferred, y: preferred.y - distance * step });
-      candidates.push({ ...preferred, y: preferred.y + distance * step });
-    }
-    const bounds = candidates.find((candidate) => containsRect(viewport, candidate)
-      && placed.every((other) => !intersectRects(candidate, {
-        x: other.bounds.x - gap, y: other.bounds.y - gap,
-        width: other.bounds.width + gap * 2, height: other.bounds.height + gap * 2,
-      })));
+    const bounds = findUnobscuredRect(
+      item.bounds, viewport, [...obstructions, ...placed.map((other) => other.bounds)], gap,
+    );
     if (!bounds) throw new RangeError(`Map label ${item.id} cannot fit its viewport without overlap`);
     placed.push({ id: item.id, bounds });
   }

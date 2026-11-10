@@ -210,6 +210,21 @@ test("commands leave the battlefield during actual attack presentation and retur
   const canvas = page.locator("#game-container canvas");
   await expect(canvas).toHaveAttribute("data-battle-commands-visible", "true");
   await clickLayoutItem(page, "battle-action-attack");
+  await expect(canvas).toHaveAttribute("data-battle-commands-visible", "true");
+  await expect(canvas).toHaveAttribute("data-battle-commands-enabled", "false");
+  for (const action of BATTLE_HUD_ACTION_IDS) {
+    const button = page.locator(`#battle-vitals button[data-battle-action='${action}']`);
+    await expect(button).toBeDisabled();
+    await expect(button).not.toHaveAttribute("hidden", "");
+  }
+  await expectCleanLayout(page);
+  await clickLayoutItem(page, "battle-action-defend");
+  await expect(canvas).toHaveAttribute("data-battle-presentation-active", "false");
+  await expect(canvas).toHaveAttribute("data-battle-commands-enabled", "false");
+  await pressGameKey(page, "Escape");
+  await expect(canvas).toHaveAttribute("data-battle-commands-enabled", "true");
+  await clickLayoutItem(page, "battle-action-attack");
+  await expect(canvas).toHaveAttribute("data-battle-commands-visible", "true");
   await pressGameKey(page, "Enter");
   await expect(canvas).toHaveAttribute("data-battle-presentation-active", "true");
   await expect(canvas).toHaveAttribute("data-battle-commands-visible", "false");
@@ -217,6 +232,7 @@ test("commands leave the battlefield during actual attack presentation and retur
     await expect(page.locator(`#battle-vitals button[data-battle-action='${action}']`)).toBeDisabled();
   }
   await expect(canvas).toHaveAttribute("data-battle-commands-visible", "true");
+  await expect(canvas).toHaveAttribute("data-battle-commands-enabled", "true");
   await expect(canvas).toHaveAttribute("data-battle-presentation-active", "false");
   await command(page, "/kill");
   await expect(page.locator("#debug-state")).toContainText("OVERWORLD");

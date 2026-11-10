@@ -29,6 +29,7 @@ export class BattleCommandRenderer {
   private readonly rows: CommandRow[] = [];
   private readonly unsubscribe: () => void;
   private visible = false;
+  private enabled = false;
   private selected = 0;
   private destroyed = false;
 
@@ -44,8 +45,8 @@ export class BattleCommandRenderer {
         .setData("layoutId", `battle-action-${command.id}-icon`);
       const text = scene.add.text(0, 0, command.label, { fontSize: "12px", color: "#f1e9cf" })
         .setData("layoutId", `battle-action-${command.id}`);
-      hit.on("pointermove", () => { if (this.visible) this.select(index); });
-      hit.on("pointerdown", () => { if (this.visible) { this.select(index); command.activate(); } });
+      hit.on("pointermove", () => { if (this.enabled) this.select(index); });
+      hit.on("pointerdown", () => { if (this.enabled) { this.select(index); command.activate(); } });
       container.add([state, hit, icon, text]);
       this.container.add(container);
       this.rows.push({ command, container, hit, icon, text, state });
@@ -58,12 +59,13 @@ export class BattleCommandRenderer {
 
   get count(): number { return this.rows.length; }
 
-  setState(visible: boolean, selected: number): void {
+  setState(visible: boolean, selected: number, enabled = visible): void {
     if (this.destroyed) return;
     this.visible = visible;
+    this.enabled = visible && enabled;
     this.selected = selected;
     this.container.setVisible(visible);
-    for (const row of this.rows) if (row.hit.input) row.hit.input.enabled = visible;
+    for (const row of this.rows) if (row.hit.input) row.hit.input.enabled = this.enabled;
     this.paintSelection();
   }
 

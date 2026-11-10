@@ -51,6 +51,8 @@ import {
 - Terrain, time, weather, mount, and quest-danger modifiers pass through
   `getEffectiveEncounterRate()` and are capped at a 15% effective chance
 - `timeStep` is persisted in save data and passed through all scene transitions
+- City services use `systems/cityServices.ts`: only Night closes shops, banks,
+  stables and shipwright work. Inns remain open 24/7; existing visitors can leave.
 
 ## Weather System (`src/systems/weather.ts`)
 

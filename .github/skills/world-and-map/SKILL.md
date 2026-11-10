@@ -169,6 +169,15 @@ Temple visits and devotion never become world/quest access authority.
 
 ## Multi-chunk cities
 
+Every explored service has an exterior category banner. Night doorway, clerk
+and special-service checks share `systems/cityServices.ts`; inns alone stay
+open 24/7, including island inns. Existing visitors can exit closed services.
+Retain canonical merchant palettes and current-room clerks after inn rest.
+Walk-through street floors get deterministic non-interactive rugs without tile
+or collision mutation. Optional room loot/books have no plus signs, automatic
+search hints, hand cursor or minimap loot markers; their normal interactions
+and story guidance remain.
+
 `CityData.mapData`, `spawnX`, `spawnY`, and `shops` represent chunk 0. The
 optional `chunks` array stores additional districts starting at logical index
 1. Never index that array using the logical city chunk index.

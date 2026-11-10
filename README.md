@@ -29,7 +29,8 @@ and in towns, evolving arrangements, and weather- and battle-responsive layers.
 Pixel-art combat impacts accompany resolved actions without delaying their
 outcomes. A small portrait turn timeline, decision-only commands, fading action
 feedback, collapsible portrait HP/MP cards, grounded monsters, shaded terrain,
-full-size enterable buildings, furnished interiors, small one-time discoveries, and a fog-aware
+full-size enterable buildings, furnished interiors, clerk-run shops with
+category banners, 24-hour inns, unmarked one-time discoveries, and a fog-aware
 exploration minimap share the
 [procedural graphics pipeline](docs/graphics.md). Story and boss cutscenes have distinct illustrated settings, including
 changed aftermaths, live character portraits, and the epilogue. Distinct

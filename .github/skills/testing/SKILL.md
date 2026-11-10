@@ -41,6 +41,8 @@ Battle-owned display markers clear on shutdown; assert the new encounter is
 accepting decisions before checking a restored display preference. Standard
 spell/ability pagers retain `battle-<kind>-next/previous` IDs and reopen on the
 canonical first page; paging/reflow within an open menu preserves its selection.
+Arm a live dice DOM capture with an awaited handle before dispatching its input;
+starting an unawaited evaluation promise does not confirm observer installation.
 Reseed a second fixture only from a fresh title document, not a live exploration
 scene whose outgoing autosave can overwrite that fixture during reload.
 

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type JSHandle, type Page } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { createPlayer } from "../src/systems/player";
 import { createCodex } from "../src/systems/codex";
@@ -443,47 +443,63 @@ async function captureDisplayedDice(
   label: string,
   boundary: "present" | "skip" = "present",
 ): Promise<DisplayedDiceSnapshot> {
-  return page.evaluate(({ expected, boundary }) => new Promise<DisplayedDiceSnapshot>((resolve, reject) => {
-    const root = document.getElementById("dice-presentation");
-    if (!root) throw new Error("Missing live dice view");
-    const previousSequence = boundary === "skip"
-      ? root.dataset.lastSkippedSequence : root.dataset.sequence;
-    const read = (): boolean => {
-      const sequence = boundary === "skip"
+  const capture = await armDisplayedDice(page, label, boundary);
+  try {
+    return await capture.evaluate(({ result }) => result);
+  } finally {
+    await capture.dispose();
+  }
+}
+
+async function armDisplayedDice(
+  page: Page,
+  label: string,
+  boundary: "present" | "skip" = "present",
+): Promise<JSHandle<{ result: Promise<DisplayedDiceSnapshot> }>> {
+  return page.evaluateHandle(({ expected, boundary }) => {
+    const result = new Promise<DisplayedDiceSnapshot>((resolve, reject) => {
+      const root = document.getElementById("dice-presentation");
+      if (!root) throw new Error("Missing live dice view");
+      const previousSequence = boundary === "skip"
         ? root.dataset.lastSkippedSequence : root.dataset.sequence;
-      if (sequence === previousSequence) return false;
-      if (!root.dataset.label?.startsWith(expected)) return false;
-      const entries = document.querySelectorAll("#battle-log [data-category]");
-      const text = root.dataset.resultsRevealed === "true"
-        ? (root.querySelector("#dice-result") ?? entries[entries.length - 1])?.textContent ?? ""
-        : "";
-      observer.disconnect();
-      window.clearTimeout(timeout);
-      resolve({
-        text,
-        phase: root.dataset.phase,
-        motionCount: root.getAnimations({ subtree: true }).length,
-        hidden: root.hidden === true,
-        resultsRevealed: root.dataset.resultsRevealed === "true",
-        facesVisible: [...root.querySelectorAll(".die-number")]
-          .some((face) => face.getAttribute("visibility") === "visible"),
-        faces: [...root.querySelectorAll<HTMLElement>(".resolved-die")].map((die) => ({
-          sides: die.dataset.sides, natural: die.dataset.natural,
-        })),
-        rollingFaces: [...document.querySelectorAll<HTMLElement>("#dice-roll-stage .rolling-die")].map((die) => ({
-          sides: die.dataset.sides, natural: die.dataset.natural,
-        })),
-      });
-      return true;
-    };
-    const observer = new MutationObserver(read);
-    const timeout = window.setTimeout(() => {
-      observer.disconnect();
-      reject(new Error(`No live presentation for ${expected}`));
-    }, 5000);
-    observer.observe(root, { childList: true, subtree: true, attributes: true });
-    read();
-  }), { expected: label, boundary });
+      const read = (): boolean => {
+        const sequence = boundary === "skip"
+          ? root.dataset.lastSkippedSequence : root.dataset.sequence;
+        if (sequence === previousSequence) return false;
+        if (!root.dataset.label?.startsWith(expected)) return false;
+        const entries = document.querySelectorAll("#battle-log [data-category]");
+        const text = root.dataset.resultsRevealed === "true"
+          ? (root.querySelector("#dice-result") ?? entries[entries.length - 1])?.textContent ?? ""
+          : "";
+        observer.disconnect();
+        window.clearTimeout(timeout);
+        resolve({
+          text,
+          phase: root.dataset.phase,
+          motionCount: root.getAnimations({ subtree: true }).length,
+          hidden: root.hidden === true,
+          resultsRevealed: root.dataset.resultsRevealed === "true",
+          facesVisible: [...root.querySelectorAll(".die-number")]
+            .some((face) => face.getAttribute("visibility") === "visible"),
+          faces: [...root.querySelectorAll<HTMLElement>(".resolved-die")].map((die) => ({
+            sides: die.dataset.sides, natural: die.dataset.natural,
+          })),
+          rollingFaces: [...document.querySelectorAll<HTMLElement>("#dice-roll-stage .rolling-die")].map((die) => ({
+            sides: die.dataset.sides, natural: die.dataset.natural,
+          })),
+        });
+        return true;
+      };
+      const observer = new MutationObserver(read);
+      const timeout = window.setTimeout(() => {
+        observer.disconnect();
+        reject(new Error(`No live presentation for ${expected}`));
+      }, 5000);
+      observer.observe(root, { childList: true, subtree: true, attributes: true });
+      read();
+    });
+    return { result };
+  }, { expected: label, boundary });
 }
 
 test.describe("physical dice game-viewport demo", () => {
@@ -984,13 +1000,18 @@ test("rolls default on, disable easily, and actual positive/negative crits remai
     await expect(page.locator("#game-container canvas")).toHaveAttribute("data-battle-commands-visible", "true");
     await clickLayoutItem(page, "battle-action-attack");
     const from = evidence.packets.length;
-    const displayed = captureDisplayedDice(page, "Dice Tester attack");
-    await holdKey(page, "Enter");
+    const capture = await armDisplayedDice(page, "Dice Tester attack");
+    let visible: DisplayedDiceSnapshot;
+    try {
+      await holdKey(page, "Enter");
+      visible = await capture.evaluate(({ result }) => result);
+    } finally {
+      await capture.dispose();
+    }
     const packet = await evidence.find("attack", "party:hero", from);
     const result = packet.attack;
     if (!result?.rollResult) throw new Error("No canonical resolved attack");
     expect(result.rollResult.naturalRoll).toBe(natural);
-    const visible = await displayed;
     if (natural === 12) {
       expect(visible.text).toContain(`d20 ${natural}`);
       expect(result.critical ?? false).toBe(false);

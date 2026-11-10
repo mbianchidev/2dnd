@@ -37,6 +37,10 @@ scene creation alone can capture disabled commands before initiative dispatch.
 Action journeys wait for `data-battle-commands-visible="true"` and use stable
 `battle-action-*` layout IDs, not the former right-side coordinates. A mechanical
 `playerTurn` can coexist with outgoing presentation and is not an input-ready gate.
+Battle-owned display markers clear on shutdown; assert the new encounter is
+accepting decisions before checking a restored display preference. Standard
+spell/ability pagers retain `battle-<kind>-next/previous` IDs and reopen on the
+canonical first page; paging/reflow within an open menu preserves its selection.
 Reseed a second fixture only from a fresh title document, not a live exploration
 scene whose outgoing autosave can overwrite that fixture during reload.
 

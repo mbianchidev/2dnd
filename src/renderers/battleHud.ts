@@ -438,5 +438,6 @@ export class BattleHudRenderer {
     this.enemyRows.clear();
     this.portraits.clear();
     this.commands.clear();
+    delete this.scene.game.canvas.dataset.battleVitalsMode;
   }
 }

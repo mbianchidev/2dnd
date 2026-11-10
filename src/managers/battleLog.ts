@@ -187,6 +187,7 @@ export class BattleLogManager {
     this.nativeControl.remove();
     this.announcement.remove();
     this.model.reset();
+    delete this.scene.game.canvas.dataset.battleNoticeVisible;
   }
 
   private readonly isolateButton = (event: KeyboardEvent): void => {

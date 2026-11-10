@@ -113,13 +113,22 @@ export class BattleDecisionMenu {
   }
 
   clear(): void {
+    this.destroyView();
+    if (this.rowPrefix !== this.id) {
+      this.page = 0;
+      this.pageSize = 6;
+      this.selectedId = undefined;
+    }
+  }
+
+  private destroyView(): void {
     this.container?.destroy();
     this.container = null;
     this.visibleRows = [];
   }
 
   private render(): void {
-    this.clear();
+    this.destroyView();
     const width = Math.min(310, this.scene.cameras.main.width - 20);
     const contentWidth = width - 24;
     const totalPages = Math.max(1, Math.ceil(this.rows.length / this.pageSize));
@@ -155,13 +164,15 @@ export class BattleDecisionMenu {
     container.add([background, title]);
     this.container = container;
     this.visibleRows = entries.map((row) => {
+      // Standard menus retain their original pager IDs; timed lists keep theirs.
+      const layoutRowId = this.rowPrefix === this.id ? row.id : row.id.replace(/^page-/, "");
       const text = this.scene.add.text(12, 0, row.label, {
         fontSize: "11px", fontFamily: "monospace",
         color: row.enabled ? "#f4f1e8" : "#a9afbc",
         backgroundColor: "#121a2e",
         padding: { x: 6, y: 4 },
         wordWrap: { width: contentWidth - 16 },
-      }).setData("layoutId", `${this.rowPrefix}-${row.id}`);
+      }).setData("layoutId", `${this.rowPrefix}-${layoutRowId}`);
       if (row.enabled) {
         text.setInteractive({ useHandCursor: true });
         text.on("pointermove", () => {

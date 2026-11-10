@@ -282,7 +282,9 @@ for (const source of ["touch", "gamepad"] as const) {
     await expect(canvas).toHaveAttribute("data-battle-commands-visible", "true");
     await command(page, "/kill");
     await expect(page.locator("#debug-state")).toContainText("OVERWORLD");
+    await expect(canvas).not.toHaveAttribute("data-battle-vitals-mode");
     await command(page, "/spawn troll");
+    await expect(canvas).toHaveAttribute("data-battle-commands-visible", "true");
     await expect(canvas).toHaveAttribute("data-battle-vitals-mode", "compact");
     await command(page, "/kill");
     await expect(page.locator("#debug-state")).toContainText("OVERWORLD");

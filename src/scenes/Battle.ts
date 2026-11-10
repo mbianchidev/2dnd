@@ -673,6 +673,8 @@ export class BattleScene extends Phaser.Scene {
       this.playerSprite?.destroy();
       this.heroTextureLease?.release();
       this.heroTextureLease = null;
+      delete this.game.canvas.dataset.battleCommandsVisible;
+      delete this.game.canvas.dataset.battlePresentationActive;
     });
 
     this.rollForInitiative();

@@ -34,6 +34,9 @@ references from actual CI images, with unchanged 3%/8% tolerances. Soft snapshot
 assertions retain every independent reference while still failing on a mismatch.
 Battle goldens wait for `playerTurn` and the current hero initiative entry;
 scene creation alone can capture disabled commands before initiative dispatch.
+Action journeys wait for `data-battle-commands-visible="true"` and use stable
+`battle-action-*` layout IDs, not the former right-side coordinates. A mechanical
+`playerTurn` can coexist with outgoing presentation and is not an input-ready gate.
 Reseed a second fixture only from a fresh title document, not a live exploration
 scene whose outgoing autosave can overwrite that fixture during reload.
 

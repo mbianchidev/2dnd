@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clickLayoutItem } from "./helpers/layout";
 import type { BattleImpactKind } from "../src/systems/battleEffects";
+import type { BattleHudActionId } from "../src/systems/battleHud";
 
 const GAME_WIDTH = 640;
 const GAME_HEIGHT = 528;
@@ -142,12 +143,11 @@ async function finishBattle(page: Page, boss = false): Promise<void> {
 
 async function useBattleMenuAction(
   page: Page,
-  buttonX: number,
-  buttonY: number,
+  command: BattleHudActionId,
   actionLayoutId: string,
 ): Promise<void> {
-  await waitForState(page, "Phase: playerTurn");
-  await clickGame(page, buttonX, buttonY);
+  await expect(page.locator("#game-container canvas")).toHaveAttribute("data-battle-commands-visible", "true");
+  await clickLayoutItem(page, `battle-action-${command}`);
   await clickLayoutItem(page, actionLayoutId);
   await holdKey(page, "Enter", 100);
 }
@@ -222,7 +222,7 @@ test("battle, world, mount, companion, boss, and cutscene presentation animate",
 
   await startEncounter(page, "orc");
   await waitForState(page, "Phase: playerTurn");
-  await clickGame(page, 360, 435);
+  await clickLayoutItem(page, "battle-action-attack");
   await Promise.all([
     captureActiveImpact(page, "resolved-strike.png", "strike"),
     holdKey(page, "Enter", 100),
@@ -235,13 +235,13 @@ test("battle, world, mount, companion, boss, and cutscene presentation animate",
   await startEncounter(page, "orc");
   await Promise.all([
     captureActiveImpact(page, "resolved-spell.png", "spell"),
-    useBattleMenuAction(page, 510, 468, "battle-spell-huntersMark"),
+    useBattleMenuAction(page, "spells", "battle-spell-huntersMark"),
   ]);
   await waitForPresentation(page, "party:hero:cast:spell");
   await finishBattle(page);
 
   await startEncounter(page, "orc");
-  await useBattleMenuAction(page, 360, 468, "battle-ability-aimedShot");
+  await useBattleMenuAction(page, "abilities", "battle-ability-aimedShot");
   await waitForPresentation(page, "party:hero:ability:ability");
   await finishBattle(page);
 
@@ -251,7 +251,7 @@ test("battle, world, mount, companion, boss, and cutscene presentation animate",
   await holdKey(page, "Escape");
   await waitForState(page, "BATTLE");
   await waitForState(page, "Phase: playerTurn");
-  await clickGame(page, 360, 435);
+  await clickLayoutItem(page, "battle-action-attack");
   await holdKey(page, "Enter", 100);
   await waitForPresentation(page, ":enemy:troll:");
   await finishBattle(page, true);
@@ -301,7 +301,7 @@ test("reduced motion makes presentation immediate and readable", async ({
   );
   await startEncounter(page, "orc");
   await waitForState(page, "Phase: playerTurn");
-  await clickGame(page, 360, 435);
+  await clickLayoutItem(page, "battle-action-attack");
   await holdKey(page, "Enter", 100);
   await waitForPresentation(page, "party:hero:attack:attack:immediate");
   await waitForPresentation(page, "Impacts: 0");

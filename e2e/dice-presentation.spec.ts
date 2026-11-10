@@ -981,9 +981,10 @@ test("rolls default on, disable easily, and actual positive/negative crits remai
   await debugCommand(page, "/spawn orc");
   await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
   for (const natural of [12, 20, 1]) {
+    await expect(page.locator("#game-container canvas")).toHaveAttribute("data-battle-commands-visible", "true");
+    await clickLayoutItem(page, "battle-action-attack");
     const from = evidence.packets.length;
     const displayed = captureDisplayedDice(page, "Dice Tester attack");
-    await holdKey(page, "Enter");
     await holdKey(page, "Enter");
     const packet = await evidence.find("attack", "party:hero", from);
     const result = packet.attack;
@@ -1098,8 +1099,7 @@ test("a real flee check clears its battle log and dice on handoff without changi
   const before = await readSave(page);
   await debugCommand(page, "/spawn orc");
   await expect(page.locator("#debug-state")).toContainText("Phase: playerTurn");
-  const hasAbilities = (before.player.knownAbilities?.length ?? 0) > 0;
-  await clickGame(page, hasAbilities ? 510 : 360, 501);
+  await clickLayoutItem(page, "battle-action-flee");
   const packet = await evidence.find("flee");
   if (!packet.flee) throw new Error("Missing canonical flee receipt");
   expect(packet.flee.success).toBe(true);

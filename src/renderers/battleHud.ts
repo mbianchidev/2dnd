@@ -424,9 +424,9 @@ export class BattleHudRenderer {
   destroy(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
-    for (const row of this.partyRows.values()) row.lease?.release();
     this.partyGroup?.destroy(true);
     this.enemyGroup?.destroy(true);
+    for (const row of this.partyRows.values()) row.lease?.release();
     this.partyGroup = this.enemyGroup = null;
     this.background = null;
     this.toggle = null;

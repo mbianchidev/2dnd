@@ -2290,17 +2290,6 @@ export class OverworldScene extends Phaser.Scene {
         }
       }
 
-      // Shop interior only accessible via carpet entrance
-      if (!chunk.interior && targetTerrain === Terrain.ShopFloor) {
-        const curTerrain = cityMap[this.player.position.y]?.[this.player.position.x];
-        if (curTerrain !== Terrain.Carpet && curTerrain !== Terrain.CityGate && curTerrain !== Terrain.ShopFloor) return;
-      }
-
-      // Shop exit only through carpet (door)
-      const curTerrain = cityMap[this.player.position.y]?.[this.player.position.x];
-      if (!chunk.interior && curTerrain === Terrain.ShopFloor && targetTerrain !== Terrain.ShopFloor
-        && targetTerrain !== Terrain.Carpet && targetTerrain !== Terrain.CityGate) return;
-
       this.lastMoveTime = time;
       this.isMoving = true;
       this.player.position.x = newX;
@@ -2315,19 +2304,6 @@ export class OverworldScene extends Phaser.Scene {
         this.revealTileSprites();
         this.updateHUD();
         this.updateLocationText();
-        const city2 = getCity(this.player.position.cityId);
-        if (city2) {
-          const chunk2 = getCityChunk(city2, this.player.position.cityChunkIndex);
-          if (chunk2) {
-            const idx = this.cityRenderer.getPlayerShopIndex(
-              chunk2.mapData,
-              chunk2.shops,
-              this.player.position.x,
-              this.player.position.y,
-            );
-            this.cityRenderer.updateShopRoofAlpha(idx);
-          }
-        }
       });
       return;
     }
@@ -3444,7 +3420,6 @@ export class OverworldScene extends Phaser.Scene {
     this.mapRenderer.revealTileSprites(
       this.player,
       (x, y) => this.fogOfWar.isExplored(x, y, this.player),
-      this.cityRenderer,
     );
     this.dungeonTrapManager.render(
       this.player,

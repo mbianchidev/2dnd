@@ -1,9 +1,8 @@
 /**
- * CityRenderer — handles city NPC spawning, city animals, shop roofs,
- * and NPC texture generation.  Extracted from OverworldScene for modularity.
+ * CityRenderer — handles city NPC spawning, city animals and NPC textures.
  */
 
-import type { CityChunk, CityData, CityShopData } from "../data/map";
+import type { CityChunk, CityData } from "../data/map";
 import {
   MAP_WIDTH,
   MAP_HEIGHT,
@@ -23,7 +22,6 @@ import { TILE_SIZE } from "../config";
 import { resolveCityShopkeeperVisual, resolveNpcVisual } from "../systems/npcVisuals";
 import { getOrCreateNpcTexture } from "./npcTextures";
 import { getInteriorForShop } from "../data/cityInteriors";
-import { drawBuildingExterior } from "./buildings";
 import { getScaledBounds } from "../managers/layout";
 import { createOverlayContainer } from "../utils/ui";
 
@@ -42,14 +40,6 @@ export class CityRenderer {
   cityNpcData: NpcInstance[] = [];
   /** Quest markers aligned with the rendered city NPC arrays. */
   questNpcMarkers: Array<Phaser.GameObjects.Text | null> = [];
-  /** Graphics objects for shop roof overlays. */
-  shopRoofGraphics: Phaser.GameObjects.Graphics[] = [];
-  /** Bounding rectangles for each shop roof. */
-  shopRoofBounds: { x: number; y: number; w: number; h: number; shopX: number; shopY: number; shopIdx: number }[] = [];
-  /** Maps "x,y" → shop index for ShopFloor tiles. */
-  shopFloorMap: Map<string, number> = new Map();
-  /** Maps shop index → group id for merged shops sharing the same roof area. */
-  shopGroupMap: Map<number, number> = new Map();
   private shopkeeperContainer: Phaser.GameObjects.Container | null = null;
 
   constructor(scene: Phaser.Scene) {
@@ -109,7 +99,7 @@ export class CityRenderer {
       canyonwatch_city: [
         { sprite: "sprite_dog", x: 10, y: 8, moves: true },
         { sprite: "sprite_chicken", x: 8, y: 6, moves: true },
-        { sprite: "sprite_chicken", x: 12, y: 6, moves: true },
+        { sprite: "sprite_chicken", x: 12, y: 5, moves: true },
       ],
       ridgewatch_city: [
         { sprite: "sprite_sheep", x: 8, y: 7, moves: true },
@@ -201,207 +191,6 @@ export class CityRenderer {
           ease: "Sine.easeInOut",
         });
       }
-    }
-  }
-
-  // ── Shop Roofs ───────────────────────────────────────────────────────
-
-  /**
-   * Draw roof overlays over shop buildings.  Each shop has a cluster of
-   * CityWall + ShopFloor tiles that form the structure; the roof covers
-   * them and fades out when the player is inside.
-   */
-  createShopRoofs(
-    cityMap: Terrain[][],
-    shops: CityShopData[],
-    biome: Terrain,
-  ): void {
-    // Biome-based roof colour palettes
-    const BIOME_ROOF_COLORS: Record<number, { base: number; ridge: number; border: number }> = {
-      [Terrain.Grass]:      { base: 0xa56c48, ridge: 0x714731, border: 0x473928 },
-      [Terrain.Forest]:     { base: 0x5d7a4f, ridge: 0x3e5a30, border: 0x2e4420 },
-      [Terrain.DeepForest]: { base: 0x4a6040, ridge: 0x334830, border: 0x223420 },
-      [Terrain.Sand]:       { base: 0xc8a864, ridge: 0xa08844, border: 0x806830 },
-      [Terrain.Tundra]:     { base: 0x8899aa, ridge: 0x667788, border: 0x445566 },
-      [Terrain.Swamp]:      { base: 0x5a5a4a, ridge: 0x3e3e30, border: 0x2a2a20 },
-      [Terrain.Volcanic]:   { base: 0x6a3a2a, ridge: 0x4a2a1a, border: 0x3a1a0a },
-      [Terrain.Canyon]:     { base: 0xb07050, ridge: 0x905838, border: 0x704028 },
-    };
-    const palette = BIOME_ROOF_COLORS[biome] ?? BIOME_ROOF_COLORS[Terrain.Grass];
-
-    // Global visited set so merged shop areas are claimed by the first shop only
-    const globalVisited = new Set<string>();
-
-    for (let si = 0; si < shops.length; si++) {
-      const shop = shops[si];
-      const tiles: { x: number; y: number }[] = [];
-      const queue: { x: number; y: number }[] = [];
-
-      // Seed: scan a small area around the shop entrance for ShopFloor tiles
-      for (let dy = -3; dy < 0; dy++) {
-        for (let dx = -2; dx <= 2; dx++) {
-          const tx = shop.x + dx;
-          const ty = shop.y + dy;
-          if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-            const t = cityMap[ty][tx];
-            if (t === Terrain.ShopFloor) {
-              const key = `${tx},${ty}`;
-              if (!globalVisited.has(key)) {
-                globalVisited.add(key);
-                queue.push({ x: tx, y: ty });
-                tiles.push({ x: tx, y: ty });
-                this.shopFloorMap.set(key, si);
-              }
-            }
-          }
-        }
-      }
-
-      // Expand through connected ShopFloor tiles (walls are no longer part of shops)
-      while (queue.length > 0) {
-        const cur = queue.pop()!;
-        for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-          const nx = cur.x + ddx;
-          const ny = cur.y + ddy;
-          if (Math.abs(nx - shop.x) > 2 || ny < shop.y - 3 || ny >= shop.y) continue;
-          const key = `${nx},${ny}`;
-          if (globalVisited.has(key)) continue;
-          if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
-          const t = cityMap[ny][nx];
-          if (t === Terrain.ShopFloor) {
-            globalVisited.add(key);
-            queue.push({ x: nx, y: ny });
-            tiles.push({ x: nx, y: ny });
-            this.shopFloorMap.set(key, si);
-          }
-        }
-      }
-
-      if (tiles.length === 0) continue;
-
-      // Compute bounding box
-      let minX = tiles[0].x, maxX = tiles[0].x, minY = tiles[0].y, maxY = tiles[0].y;
-      for (const t of tiles) {
-        if (t.x < minX) minX = t.x;
-        if (t.x > maxX) maxX = t.x;
-        if (t.y < minY) minY = t.y;
-        if (t.y > maxY) maxY = t.y;
-      }
-
-      const bx = minX * TILE_SIZE;
-      const by = minY * TILE_SIZE;
-      const bw = (maxX - minX + 1) * TILE_SIZE;
-      const bh = (maxY - minY + 1) * TILE_SIZE;
-
-      // Draw a roof graphic over the building area
-      const gfx = this.scene.add.graphics();
-      gfx.setDepth(14); // above NPCs (11) and animals (11) but below HUD
-
-      // Main roof colour — vary slightly by shop type
-      const typeShift = shop.type === "inn" ? 0x101010 : shop.type === "weapon" ? -0x080808 : 0;
-      const roofColor = Math.max(0, palette.base + typeShift);
-      drawBuildingExterior(gfx, {
-        x: bx, y: by, width: bw, height: bh + TILE_SIZE, doorX: shop.x * TILE_SIZE + TILE_SIZE / 2,
-      }, roofColor);
-
-      this.shopRoofGraphics.push(gfx);
-      this.shopRoofBounds.push({
-        x: minX, y: minY,
-        w: maxX - minX + 1, h: maxY - minY + 1,
-        shopX: shop.x, shopY: shop.y, shopIdx: si,
-      });
-    }
-
-    // Build shop groups: shops whose carpet entrance is adjacent to ShopFloor
-    // tiles claimed by another shop are in the same group.
-    let nextGroup = 0;
-    for (let si = 0; si < shops.length; si++) {
-      if (this.shopGroupMap.has(si)) continue;
-      // Check if this shop's entrance area connects to another shop's floor
-      const shop = shops[si];
-      const adjacentShops = new Set<number>();
-      adjacentShops.add(si);
-      for (let dy = -1; dy <= 0; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const key = `${shop.x + dx},${shop.y + dy}`;
-          const owner = this.shopFloorMap.get(key);
-          if (owner !== undefined) adjacentShops.add(owner);
-        }
-      }
-      // Assign the same group to all connected shops
-      const groupId = nextGroup++;
-      for (const idx of adjacentShops) {
-        this.shopGroupMap.set(idx, groupId);
-      }
-    }
-    // Merge groups: if two shops map to different groups but share a connection
-    // (transitive closure)
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (let si = 0; si < shops.length; si++) {
-        const shop = shops[si];
-        const myGroup = this.shopGroupMap.get(si) ?? -1;
-        for (let dy = -1; dy <= 0; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            const key = `${shop.x + dx},${shop.y + dy}`;
-            const owner = this.shopFloorMap.get(key);
-            if (owner !== undefined) {
-              const otherGroup = this.shopGroupMap.get(owner) ?? -1;
-              if (otherGroup !== myGroup && otherGroup >= 0 && myGroup >= 0) {
-                // Merge: set all shops in otherGroup to myGroup
-                const minGroup = Math.min(myGroup, otherGroup);
-                const maxGroup = Math.max(myGroup, otherGroup);
-                for (const [k, v] of this.shopGroupMap) {
-                  if (v === maxGroup) this.shopGroupMap.set(k, minGroup);
-                }
-                changed = true;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  /** Return the shop index the player is currently inside (-1 if not in any shop). */
-  getPlayerShopIndex(
-    cityMap: Terrain[][],
-    shops: CityShopData[],
-    playerX: number,
-    playerY: number,
-  ): number {
-    const door = shops.findIndex((shop) => shop.x === playerX && shop.y === playerY);
-    if (door >= 0) return door;
-    const terrain = cityMap[playerY]?.[playerX];
-    if (terrain === Terrain.ShopFloor) {
-      return this.shopFloorMap.get(`${playerX},${playerY}`) ?? -1;
-    }
-    if (terrain === Terrain.Carpet) {
-      for (let si = 0; si < shops.length; si++) {
-        if (shops[si].x === playerX && shops[si].y === playerY) return si;
-      }
-      // Check if adjacent ShopFloor tiles belong to a shop
-      for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-        const key = `${playerX + ddx},${playerY + ddy}`;
-        const owner = this.shopFloorMap.get(key);
-        if (owner !== undefined) return owner;
-      }
-    }
-    return -1;
-  }
-
-  /** Fade shop roofs: transparent when the player is inside the shop or its merged group. */
-  updateShopRoofAlpha(activeShopIdx: number): void {
-    // Find the group id for the active shop
-    const activeGroup = activeShopIdx >= 0 ? (this.shopGroupMap.get(activeShopIdx) ?? -1) : -1;
-    for (let i = 0; i < this.shopRoofBounds.length; i++) {
-      const gfx = this.shopRoofGraphics[i];
-      if (!gfx) continue;
-      const roofShopIdx = this.shopRoofBounds[i].shopIdx;
-      const roofGroup = this.shopGroupMap.get(roofShopIdx) ?? -1;
-      const isActive = roofShopIdx === activeShopIdx || (activeGroup >= 0 && roofGroup === activeGroup);
-      gfx.setAlpha(isActive ? 0 : 1);
     }
   }
 
@@ -680,12 +469,5 @@ export class CityRenderer {
     for (const t of this.cityNpcTimers) t.destroy();
     this.cityNpcTimers = [];
     this.cityNpcData = [];
-
-    for (const g of this.shopRoofGraphics) g.destroy();
-    this.shopRoofGraphics = [];
-    this.shopRoofBounds = [];
-
-    this.shopFloorMap.clear();
-    this.shopGroupMap.clear();
   }
 }

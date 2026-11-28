@@ -2,7 +2,9 @@ import { getCityChunk, getCityConnectionAt } from "../data/cities";
 import type { CityData, CityShopData } from "../data/mapTypes";
 import { getTimePeriod, TimePeriod } from "./daynight";
 
-const SERVICE_LABELS: Readonly<Record<CityShopData["type"], string>> = {
+export type CityServiceId = CityShopData["type"] | "shipwright";
+
+const SERVICE_LABELS: Readonly<Record<CityServiceId, string>> = {
   weapon: "WEAPONS",
   armor: "ARMOR",
   magic: "MAGIC / POTIONS",
@@ -10,6 +12,7 @@ const SERVICE_LABELS: Readonly<Record<CityShopData["type"], string>> = {
   bank: "BANK",
   general: "GENERAL",
   stable: "MOUNTS",
+  shipwright: "SHIPWRIGHT",
 };
 
 /** Service hours apply equally to doorways, clerks and special shipwright work. */
@@ -17,8 +20,20 @@ export function isCityShopOpen(shop: Pick<CityShopData, "type">, timeStep: numbe
   return shop.type === "inn" || getTimePeriod(timeStep) !== TimePeriod.Night;
 }
 
+export function getCityServiceId(shop: CityShopData): CityServiceId {
+  return shop.name === "Tidehaven Shipwright" ? "shipwright" : shop.type;
+}
+
 export function getCityShopSignLabel(shop: CityShopData): string {
-  return shop.name === "Tidehaven Shipwright" ? "SHIPWRIGHT" : SERVICE_LABELS[shop.type];
+  return SERVICE_LABELS[getCityServiceId(shop)];
+}
+
+/** Provide text alternatives for explored pictograms without exposing hidden services. */
+export function getVisibleCityServiceDescriptions(
+  shops: readonly CityShopData[], isExplored: (x: number, y: number) => boolean,
+): string[] {
+  return shops.filter((shop) => isExplored(shop.x, shop.y)).map((shop) =>
+    `${getCityShopSignLabel(shop)}: ${shop.name} at tile ${shop.x + 1}, ${shop.y + 1}`);
 }
 
 /** Only an actual service-room connection owns a doorway's opening hours. */

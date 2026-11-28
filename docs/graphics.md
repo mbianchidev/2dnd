@@ -142,12 +142,13 @@ seen/pending IDs or character ownership.
 
 ## Buildings and rewards
 
-Libraries and guesthouses now occupy three- or four-tile-wide, three-tile-deep
-street footprints rather than a miniature one-tile house marker.
-`CityChunk.buildings` binds their facade to the same blocked map cells and real
-door connection. Boarded residences are scenery only: they have neither a
-connection nor an invisible interaction target. Existing shop identities and
-street district indexes remain stable.
+Libraries, guesthouses and shops with separate rooms have blocked street
+footprints and real door connections in `CityChunk.buildings`. Shops occupy
+three-by-two tiles; libraries and guesthouses occupy three or four by three.
+Boarded residences are scenery only: they have neither a connection nor an
+invisible interaction target. Existing shop identities and street district
+indexes remain stable. Old saves standing on a new facade recover to the
+district spawn.
 Facades sit below actors while roofs stay above them, keeping the hero visible
 when standing in a doorway. Both static graphics layers are owned and released
 by the map renderer.
@@ -156,12 +157,11 @@ Initial rendering and every movement reveal share `citySurface.ts` and
 furniture retains wooden floors and wall decorations retain masonry. Movement
 cannot restore the obsolete miniature house tiles behind a full-size facade.
 
-Every explored shop or inn displays a small exterior category banner, even
-from the far side of the district. Weapons, armor, magic/potions, general
-supplies, banks, mounts and the shipwright have explicit labels; inns say
-**INN 24H**. The banner is scenery, not another entrance or interaction target.
-Measured placement keeps every banner clear of the minimap, including when
-walking moves that HUD to the opposite corner.
+Every explored shop or inn displays a distinct exterior pictogram, even from the
+far side of the district: a sword, shield, potion, bag, bed, bank, horse or
+boat. Icons are scenery, not entrances or interaction targets. The accessible
+minimap describes explored services by category, name and location. Measured
+placement keeps icons clear of the minimap when it moves between corners.
 
 Use the existing interact control on a building door to enter its room.
 Move around counters, stock shelves, reading tables, beds and hearths. Interact
@@ -181,8 +181,9 @@ offered rather than treated as theft.
 Windows, framed pictures, candle stands, chairs, barrels, woven rugs and table
 settings complement the shelves, beds and hearths. Decoration never adds
 repeatable rewards or blocks the established counter, book or exit approaches.
-Walk-through street buildings also have a woven rug in every connected floor
-area. Those rugs are presentation-only and change neither tiles nor collision.
+Independent walk-through street floors can be entered and exited from any
+walkable edge, with a woven rug in each connected area. Rugs are
+presentation-only and change neither tiles nor collision.
 
 `data/cityInteriors.ts` appends immutable rooms after the existing city
 districts. It never renumbers street districts, changes an island's dock, or

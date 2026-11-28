@@ -1488,6 +1488,25 @@ describe("save system - PlayerState composition migration", () => {
     expect(loaded!.player.position.y).toBe(1);
   });
 
+  it("recovers saves standing on an old shop floor now occupied by a solid facade", () => {
+    const player = createPlayer("CityHero", {
+      strength: 10, dexterity: 10, constitution: 10,
+      intelligence: 10, wisdom: 10, charisma: 10,
+    });
+    Object.assign(player.position, {
+      inCity: true, cityId: "willowdale_city", cityChunkIndex: 0, x: 3, y: 3,
+    });
+    player.gold = 137;
+    saveGame(player, new Set(), createCodex(), "knight", 0, createWeatherState());
+
+    const loaded = loadGame()!;
+    const city = getCity("willowdale_city")!;
+    expect(loaded.player.position).toMatchObject({
+      inCity: true, cityId: city.id, cityChunkIndex: 0, x: city.spawnX, y: city.spawnY,
+    });
+    expect(loaded.player.gold).toBe(137);
+  });
+
   it("persists and normalizes active status effects", () => {
     const player = createPlayer("StatusHero", {
       strength: 10, dexterity: 10, constitution: 10,

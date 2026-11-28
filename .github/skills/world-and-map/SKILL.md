@@ -169,7 +169,8 @@ Temple visits and devotion never become world/quest access authority.
 
 ## Multi-chunk cities
 
-Every explored service has an exterior category banner. Night doorway, clerk
+Every explored service has an exterior category pictogram and an accessible
+minimap description. Night doorway, clerk
 and special-service checks share `systems/cityServices.ts`; inns alone stay
 open 24/7, including island inns. Existing visitors can exit closed services.
 Retain canonical merchant palettes and current-room clerks after inn rest.
@@ -204,10 +205,12 @@ Building rooms append after existing street districts through
 shop coordinates for negotiation and recipe IDs. Furniture dimensions drive
 collision, adjacent interactions, pointer bounds and minimap markers.
 Room visibility is derived rather than stored in campaign fog.
-Library/home/residential `CityChunk.buildings` metadata binds full-size facades
-to blocked three-tile-deep footprints. Validate safe door approaches and
+Shop/library/home/residential `CityChunk.buildings` metadata binds full-size
+facades to blocked footprints; shops are three by two tiles and the other
+buildings are three tiles deep. Validate safe door approaches and
 district reachability; closed residences have no door connection or hit target.
-Never enlarge the picture alone while leaving walkable cells underneath it.
+Never leave walkable cells under a facade with a separate room. Independent
+walk-through floors remain accessible from every walkable edge.
 Initial rendering and movement reveals share `citySurface.ts` /
 `getOrCreateCityTerrainTexture()`, never restore miniature building tiles or
 wall textures beneath scene-owned furniture during a reveal.

@@ -65,6 +65,8 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     if (!minimap) throw new Error("Missing actual minimap bounds.");
     const signs = report.groups["map-labels"]!.items
       .filter(({ id }) => id.startsWith("city-shop-") && !id.endsWith("-banner"));
+    await expect(page.locator("#exploration-minimap-summary"))
+      .toHaveAttribute("aria-label", /WEAPONS:.*ARMOR:.*GENERAL:.*INN 24H:.*MOUNTS:/);
     expect(auditLayout([...signs, minimap], { x: 0, y: 0, width: 640, height: 480 }))
       .toEqual({ overlaps: [], clipping: [] });
     await expectCleanLayout(page);
@@ -88,6 +90,36 @@ for (const textScale of [1, 1.25, 1.5] as const) {
     expect(errors).toEqual([]);
   });
 }
+
+test("shop doors lead indoors without letting the hero walk through their facade", async ({ page }) => {
+  const errors = minigameBrowserErrors(page);
+  const city = getCity("willowdale_city")!;
+  const shop = city.shops.find((entry) => entry.type === "weapon")!;
+  const door = getCityConnectionAt(city, 0, shop.x, shop.y)!;
+  const fixture = minigameFixture("willowdaleRange");
+  fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
+  Object.assign(fixture.player.position, { x: shop.x, y: shop.y + 1 });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
+  await seedMinigamePage(page, fixture, "keyboard");
+  await stepGameTile(page, "W", shop.x, shop.y);
+  await pressGameKey(page, "W", 300);
+  await expect(page.locator("#debug-state")).toContainText(`Pos: (${shop.x},${shop.y})`);
+  await pressGameKey(page, "Space");
+  await expect(page.locator("#debug-state")).toContainText(`[CITY:${city.id}:${door.toChunkIndex}]`);
+  expect(errors).toEqual([]);
+});
+
+test("independent street floors can be entered and exited without a shop door", async ({ page }) => {
+  const errors = minigameBrowserErrors(page);
+  const fixture = minigameFixture("willowdaleRange");
+  fixture.player.progression.seenCutsceneIds = [...CUTSCENE_IDS];
+  Object.assign(fixture.player.position, { x: 6, y: 3 });
+  await page.goto("game.html", { waitUntil: "domcontentloaded" });
+  await seedMinigamePage(page, fixture, "keyboard");
+  await stepGameTile(page, "A", 5, 3);
+  await stepGameTile(page, "D", 6, 3);
+  expect(errors).toEqual([]);
+});
 
 for (const [cityId, shopName] of [
   ["willowdale_city", "General Store"], ["tidehaven_city", "Tidehaven Shipwright"],

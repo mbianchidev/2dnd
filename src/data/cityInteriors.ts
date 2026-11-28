@@ -88,7 +88,7 @@ function createRoom(
 export function addCityInteriors(source: CityData): CityData {
   const primary: CityChunk = {
     name: source.name, mapData: source.mapData.map((row) => [...row]),
-    spawnX: source.spawnX, spawnY: source.spawnY, shops: source.shops,
+    spawnX: source.spawnX, spawnY: source.spawnY, shops: source.shops, buildings: source.buildings,
   };
   const streets = [primary, ...(source.chunks ?? []).map((chunk) => ({
     ...chunk, mapData: chunk.mapData.map((row) => [...row]),
@@ -111,7 +111,29 @@ export function addCityInteriors(source: CityData): CityData {
   };
   streets.forEach((street, chunkIndex) => {
     street.shops.forEach((shop, index) => {
-      if (shop.type !== "stable") appendRoom(chunkIndex, shop.x, shop.y, "shop", index);
+      if (shop.type === "stable") return;
+      appendRoom(chunkIndex, shop.x, shop.y, "shop", index);
+      const building = {
+        id: `${source.id}:shop:${chunkIndex}:${shop.x},${shop.y}`, kind: "shop" as const,
+        x: shop.x - 1, y: shop.y - 1, width: 3, height: 2, door: { x: shop.x, y: shop.y },
+      };
+      for (let y = building.y; y < building.y + building.height; y++) {
+        for (let x = building.x; x < building.x + building.width; x++) {
+          if (x === shop.x && y === shop.y) continue;
+          const terrain = street.mapData[y]?.[x];
+          const buildingGround = terrain === Terrain.CityFloor || terrain === Terrain.Grass
+            || terrain === Terrain.CityPath || terrain === Terrain.CityWall || terrain === Terrain.ShopFloor;
+          if (!buildingGround
+            || (x === street.spawnX && y === street.spawnY)
+            || street.shops.some((other) => other.x === x && other.y === y)
+            || connections.some((connection) => connection.toChunkIndex === chunkIndex
+              && connection.toX === x && connection.toY === y)) {
+            throw new Error(`[interiors] ${building.id} conflicts with a protected tile at ${x},${y}.`);
+          }
+          street.mapData[y]![x] = Terrain.House;
+        }
+      }
+      street.buildings = [...(street.buildings ?? []), building];
     });
   });
   const districtIndex = streets.length > 1 ? 1 : 0;

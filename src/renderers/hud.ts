@@ -4,6 +4,7 @@ import {
   getChunk, getCity, getCityChunk, getDungeon, getDungeonLevelMap,
 } from "../data/map";
 import { getAccessibilityPreferences } from "../systems/accessibility";
+import { getVisibleCityServiceDescriptions } from "../systems/cityServices";
 import { layoutVerticalStack } from "../systems/layout";
 import { createMinimapPlan, getMinimapBounds, type MinimapMarker } from "../systems/minimap";
 import { getScaledBounds, subscribeOverlayReflow } from "../managers/layout";
@@ -97,10 +98,12 @@ export class HUDRenderer {
     const markers = new Map<string, MinimapMarker | undefined>();
     for (const boss of chunk?.bosses ?? []) if (this.bosses.has(boss.monsterId)) markers.set(`${boss.x},${boss.y}`, undefined);
     const plan = createMinimapPlan(map, position.x, position.y, this.isExplored, markers);
+    const services = room && !room.interior ? getVisibleCityServiceDescriptions(room.shops, this.isExplored) : [];
+    const description = plan.description + (services.length ? ` Services: ${services.join("; ")}.` : "");
     const bounds = getMinimapBounds({ x: 0, y: 0, width: this.scene.cameras.main.width,
       height: this.scene.cameras.main.height }, position.x, position.y);
     const contrast = getAccessibilityPreferences().highContrast;
-    const key = JSON.stringify([plan, bounds, contrast]);
+    const key = JSON.stringify([plan, description, bounds, contrast]);
     if (key === this.lastKey) return;
     this.lastKey = key;
     this.graphics.setData("layoutBounds", bounds);
@@ -129,7 +132,7 @@ export class HUDRenderer {
     graphics.fillStyle(0xffffff).fillTriangle(cx, cy - 4, cx - 3, cy + 3, cx + 3, cy + 3);
     graphics.fillStyle(0xe7d7af).fillRect(cx - 1, bounds.y + 23, 2, 4);
     this.title.setPosition(cx, bounds.y + 6);
-    if (this.summary) this.summary.setAttribute("aria-label", plan.description);
+    if (this.summary) this.summary.setAttribute("aria-label", description);
     if (isLocalDev()) {
       this.dataset = JSON.stringify({ bounds, cells: plan.cells.length, explored: plan.cells.filter((cell) => cell.explored).length });
       this.scene.game.canvas.dataset.explorationMinimap = this.dataset;

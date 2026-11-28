@@ -80,10 +80,12 @@ negotiations and crafting discovery. Room visibility is derived rather than
 adding redundant persistent fog keys. See [Graphics](graphics.md).
 `systems/cityServices.ts` resolves real service doorways and shared Night
 closure, with inns open all day and no special shipwright bypass. Exterior
-category banners persist independently of proximity. Indoor clerks use
+service pictograms persist independently of proximity; the accessible minimap
+describes explored services. Indoor clerks use
 canonical or deterministic `npcVisuals.ts` descriptors, and inn rest respawns
-the current room's clerk. `citySurface.ts` derives non-interactive street rugs
-without changing map authority. Optional furnishings and treasure do not emit
+the current room's clerk. Shop facades have blocked footprints and real doors;
+independent walk-through floors remain freely traversable. `citySurface.ts`
+derives non-interactive street rugs without changing map authority. Optional furnishings and treasure do not emit
 automatic interaction hints or minimap loot markers.
 
 Shared raster art lives in `systems/pixelArt.ts`, `terrainArt.ts`,

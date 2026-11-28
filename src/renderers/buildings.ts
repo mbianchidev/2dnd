@@ -94,10 +94,11 @@ export function renderCityBuildings(
       width: building.width * TILE_SIZE - 4, height: building.height * TILE_SIZE - 5,
       doorX: ((building.door?.x ?? building.x + 1) + 0.5) * TILE_SIZE,
     };
-    const color = building.kind === "library" ? 0x647b79 : building.kind === "home" ? 0x9a6d50 : 0x77705f;
+    const color = building.kind === "library" ? 0x647b79
+      : building.kind === "home" || building.kind === "shop" ? 0x9a6d50 : 0x77705f;
     drawBuildingExterior(graphics, bounds, color, !!building.door, "facade");
     drawBuildingExterior(roofs, bounds, color, !!building.door, "roof");
-    if (building.door) {
+    if (building.door && building.kind !== "shop") {
       const x = building.x * TILE_SIZE + building.width * TILE_SIZE - 20;
       const y = (building.y + building.height) * TILE_SIZE - 26;
       graphics.fillStyle(0x423e32).fillRect(x - 2, y - 2, 14, 14);

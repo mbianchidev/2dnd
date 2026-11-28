@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { CITIES, getCityChunk, getCityChunkCount, getCityChunkMap } from "../src/data/cities";
+import { CITIES, getCityChunk, getCityChunkCount, getCityChunkMap, getCityConnectionAt } from "../src/data/cities";
 import { isWalkable } from "../src/data/map";
 import { MAP_HEIGHT, MAP_WIDTH, Terrain } from "../src/data/mapTypes";
 import { getItem } from "../src/data/items";
 import { INTERIOR_STUDIES } from "../src/data/interiorBooks";
+import { MINIGAME_VENUES } from "../src/data/minigames";
+import { CITY_NPCS } from "../src/data/npcs";
 import { getSpell } from "../src/data/spells";
 
 function reachable(map: Terrain[][], x: number, y: number): Set<string> {
@@ -67,7 +69,7 @@ describe("explorable city rooms", () => {
       expect(buildings.some(({ building }) => !building.door), city.id).toBe(true);
       for (const { chunk, building } of buildings) {
         expect(building.width, building.id).toBeGreaterThanOrEqual(3);
-        expect(building.height, building.id).toBeGreaterThanOrEqual(3);
+        expect(building.height, building.id).toBeGreaterThanOrEqual(building.kind === "shop" ? 2 : 3);
         if (building.door) expect(isWalkable(chunk.mapData[building.door.y + 1]![building.door.x]!)).toBe(true);
         for (let y = building.y; y < building.y + building.height; y++) {
           for (let x = building.x; x < building.x + building.width; x++) {
@@ -76,6 +78,47 @@ describe("explorable city rooms", () => {
           }
         }
         if (!building.door) expect(chunk.mapData.flat().filter((tile) => tile === Terrain.House).length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("gives every separate shop room a solid facade without blocking doors, NPCs or activities", () => {
+    for (const city of CITIES) {
+      for (let index = 0; index < getCityChunkCount(city); index++) {
+        const chunk = getCityChunk(city, index)!;
+        if (chunk.interior) continue;
+        const reached = reachable(chunk.mapData, chunk.spawnX, chunk.spawnY);
+        for (const shop of chunk.shops.filter((entry) => entry.type !== "stable")) {
+          const connection = getCityConnectionAt(city, index, shop.x, shop.y);
+          const room = connection && getCityChunk(city, connection.toChunkIndex);
+          expect(room?.interior?.kind, `${city.id}:${shop.name}`).toBe("shop");
+          const building = chunk.buildings?.find((entry) =>
+            entry.kind === "shop" && entry.door?.x === shop.x && entry.door.y === shop.y);
+          expect(building, `${city.id}:${shop.name}`).toBeDefined();
+          expect(reached.has(`${shop.x},${shop.y}`), `${city.id}:${shop.name}:door`).toBe(true);
+          expect(reached.has(`${shop.x},${shop.y + 1}`), `${city.id}:${shop.name}:approach`).toBe(true);
+          for (let y = building!.y; y < building!.y + building!.height; y++) {
+            for (let x = building!.x; x < building!.x + building!.width; x++) {
+              const door = x === shop.x && y === shop.y;
+              expect(isWalkable(chunk.mapData[y]![x]!), `${building!.id}:${x},${y}`).toBe(door);
+              for (const venue of MINIGAME_VENUES.filter((entry) =>
+                entry.cityId === city.id && entry.cityChunkIndex === index)) {
+                expect(x === venue.x && y === venue.y, venue.id).toBe(false);
+              }
+              if (index === 0) {
+                for (const npc of CITY_NPCS[city.id] ?? []) {
+                  if (npc.shopIndex !== undefined && chunk.shops[npc.shopIndex]?.type !== "stable") continue;
+                  expect(x === npc.x && y === npc.y, `${city.id}:${npc.questNpcId ?? npc.templateId}`).toBe(false);
+                }
+              }
+            }
+          }
+        }
+        for (const venue of MINIGAME_VENUES.filter((entry) =>
+          entry.cityId === city.id && entry.cityChunkIndex === index)) {
+          const approach = [[0, 0], [0, 1], [1, 0], [0, -1], [-1, 0]];
+          expect(approach.some(([dx, dy]) => reached.has(`${venue.x + dx!},${venue.y + dy!}`)), venue.id).toBe(true);
+        }
       }
     }
   });

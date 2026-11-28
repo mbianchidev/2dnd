@@ -845,8 +845,10 @@ Fixed offered rewards save before feedback and roll back on failure;
 Keep original shop identities for negotiations and recipe discovery.
 See `docs/graphics.md`.
 
-Every explored shop/inn has an exterior category banner and a clerk. Resolve
-Night closure through `systems/cityServices.ts` at doors and all service paths,
+Every explored shop/inn has an exterior category pictogram and a clerk; the
+accessible minimap describes known services. Interior-linked shops use blocked
+facades and real doors; independent walk-through floors remain freely traversable.
+Resolve Night closure through `systems/cityServices.ts` at doors and all service paths,
 including shipwright upgrades/repairs; inns alone remain open 24/7. Inn rest must
 respawn the current interior clerk, not only street NPCs. Walk-through floor rugs
 are deterministic, non-interactive art and never change collision. Optional loot

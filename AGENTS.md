@@ -263,8 +263,9 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   claims and canonical study tokens, not redundant room fog or presentation.
   Keep original shop identities for negotiations and crafting. See
   [Graphics and buildings](docs/graphics.md).
-- Library/home facades use blocked, at-least-three-tile street footprints;
-  closed residences have no connection or hit target. Scene scenery shares
+- Shop/library/home facades use blocked street footprints and real doors;
+  walk-through floors remain freely traversable. Closed residences have no
+  connection or hit target. Scene scenery shares
   `pixelArt.ts` scan conversion through `pixelScenery.ts`, retaining depth bands.
 - `uiTheme.ts` resolves local heading/body/data fonts before measurement.
   Appearance choices/normalization live in `appearance.ts`; schema-v28 optional
@@ -276,7 +277,8 @@ headless mode; native release gates belong on isolated CI/virtual displays.
   share canonical city palettes/textures; bosses use monster-family art.
 - City services share `systems/cityServices.ts` hours and real doorway checks:
   Night closes every non-inn service, including shipwright work; inns stay open.
-  Keep exterior category banners visible, retain clerks after inn rest, and
+  Keep exterior category pictograms and accessible service descriptions,
+  retain clerks after inn rest, and
   derive non-interactive rugs for walk-through floors without changing tiles.
   Optional supplies/books have no plus signs, automatic search hints or minimap
   loot markers; keep story guidance and the underlying interactions.

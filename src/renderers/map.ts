@@ -13,20 +13,19 @@ import {
   getDungeonLevelMap,
   getCity,
   getCityChunk,
-  getCityConnectionAt,
   getChestAt,
   getTownBiome,
   hasSparkleAt,
   Terrain,
   type WorldChunk,
-  type CityShopData,
 } from "../data/map";
 import { getTimePeriod, TimePeriod, PERIOD_TINT } from "../systems/daynight";
 import { getBlockedQuestEntranceAt } from "../systems/quests";
 import { getSecretIslands } from "../systems/islandAccess";
 import { WeatherType, WEATHER_TINT, type WeatherState } from "../systems/weather";
 import { getAccessibilityPreferences, isReducedMotionEnabled } from "../systems/accessibility";
-import { getCityShopSignLabel } from "../systems/cityServices";
+import { getCityServiceId, getCityShopSignLabel } from "../systems/cityServices";
+import { createCityServiceSignArt } from "../systems/cityServiceIcons";
 import { getWalkthroughRugTiles } from "../systems/citySurface";
 import { getMinimapBounds } from "../systems/minimap";
 import type { PlayerState } from "../systems/player";
@@ -44,18 +43,7 @@ import { renderCityLandmarks } from "./cityLandmarks";
 import { renderCityBuildings } from "./buildings";
 import { getWorldCityArtProfile } from "../systems/worldCityArt";
 import { WorldCityRenderer, getWorldCityGroundTexture } from "./worldCities";
-
-/** Biome wall texture overrides for city rendering. */
-const BIOME_WALL_MAP: Record<number, string> = {
-  [Terrain.Grass]: "tile_citywall_wood",
-  [Terrain.Forest]: "tile_citywall_moss",
-  [Terrain.DeepForest]: "tile_citywall_moss",
-  [Terrain.Sand]: "tile_citywall_sand",
-  [Terrain.Tundra]: "tile_citywall_ice",
-  [Terrain.Swamp]: "tile_citywall_dark",
-  [Terrain.Volcanic]: "tile_citywall_volcanic",
-  [Terrain.Canyon]: "tile_citywall_sand",
-};
+import { createPixelTexture } from "./pixelTexture";
 
 /** Biome path texture overrides for city rendering. */
 const BIOME_PATH_MAP: Record<number, string> = {
@@ -157,7 +145,7 @@ export class MapRenderer {
   biomeDecoEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
   private labelLayer: Phaser.GameObjects.Container | null = null;
   private labelRows: Array<{
-    text: Phaser.GameObjects.Text; id: string; x: number; y: number; maxWidth: number;
+    object: Phaser.GameObjects.Text | Phaser.GameObjects.Image; id: string; x: number; y: number; maxWidth: number;
     banner: Phaser.GameObjects.Graphics | null;
   }> = [];
   private labelObstructions: readonly LayoutRect[] = [];
@@ -236,7 +224,9 @@ export class MapRenderer {
     this.renderOverworld(player, defeatedBosses, isExplored);
   }
 
-  private addMapLabel(text: Phaser.GameObjects.Text, id: string, maxWidth = 160, serviceBanner = false): void {
+  private addMapLabel(
+    object: Phaser.GameObjects.Text | Phaser.GameObjects.Image, id: string, maxWidth = 160, serviceBanner = false,
+  ): void {
     if (!this.labelLayer) {
       this.labelLayer = createOverlayContainer(this.scene, "map-labels", 15, {
         x: 0, y: 0, width: MAP_WIDTH * TILE_SIZE, height: MAP_HEIGHT * TILE_SIZE,
@@ -244,35 +234,39 @@ export class MapRenderer {
       const unsubscribe = subscribeOverlayReflow(this.scene, () => this.reflowMapLabels());
       this.labelLayer.once(Phaser.GameObjects.Events.DESTROY, unsubscribe);
     }
-    text.setData("layoutId", id);
+    object.setData("layoutId", id);
     const banner = serviceBanner ? this.scene.add.graphics()
       .setData("layoutId", `${id}-banner`).setData("layoutAllowOverlapWith", [id]) : null;
     if (banner) {
-      text.setData("layoutAllowOverlapWith", [`${id}-banner`]);
+      object.setData("layoutAllowOverlapWith", [`${id}-banner`]);
       this.labelLayer.add(banner);
     }
-    this.labelRows.push({ text, id, x: text.x, y: text.y, maxWidth, banner });
-    this.labelLayer.add(text);
+    this.labelRows.push({ object, id, x: object.x, y: object.y, maxWidth, banner });
+    this.labelLayer.add(object);
     this.reflowMapLabels();
   }
 
   private reflowMapLabels(): void {
     const viewport = { x: 0, y: 0, width: MAP_WIDTH * TILE_SIZE, height: MAP_HEIGHT * TILE_SIZE };
-    this.labelRows.forEach(({ text, x, y, maxWidth }) => {
-      text.setPosition(x, y).setWordWrapWidth(
-        maxWidth - (text.padding.left ?? 0) - (text.padding.right ?? 0) - text.style.strokeThickness, true,
-      );
+    this.labelRows.forEach(({ object, x, y, maxWidth }) => {
+      object.setPosition(x, y);
+      if (object instanceof Phaser.GameObjects.Text) {
+        object.setWordWrapWidth(
+          maxWidth - (object.padding.left ?? 0) - (object.padding.right ?? 0) - object.style.strokeThickness, true,
+        );
+      }
     });
-    const layout = layoutAnchoredLabels(this.labelRows.map(({ text, id }) => ({
-      id, bounds: getScaledBounds(text),
+    const layout = layoutAnchoredLabels(this.labelRows.map(({ object, id }) => ({
+      id, bounds: getScaledBounds(object),
     })), viewport, 4, this.labelObstructions);
     layout.forEach((item, index) => {
-      const text = this.labelRows[index]!.text;
-      const bounds = getScaledBounds(text);
-      text.setPosition(text.x + item.bounds.x - bounds.x, text.y + item.bounds.y - bounds.y);
+      const object = this.labelRows[index]!.object;
+      const bounds = getScaledBounds(object);
+      object.setPosition(object.x + item.bounds.x - bounds.x, object.y + item.bounds.y - bounds.y);
+      if (object instanceof Phaser.GameObjects.Image) object.setData("layoutBounds", getScaledBounds(object));
       const banner = this.labelRows[index]!.banner;
       if (banner) {
-        const placed = getScaledBounds(text);
+        const placed = getScaledBounds(object);
         const contrast = getAccessibilityPreferences().highContrast;
         banner.setData("layoutBounds", placed).clear()
           .fillStyle(contrast ? 0x000000 : 0x253d3b).fillRect(placed.x, placed.y, placed.width, placed.height)
@@ -296,7 +290,6 @@ export class MapRenderer {
   revealTileSprites(
     player: PlayerState,
     isExplored: (x: number, y: number) => boolean,
-    cityRenderer: CityRenderer,
   ): void {
     if (player.position.inDungeon) {
       this.revealDungeonTiles(player, isExplored);
@@ -306,7 +299,7 @@ export class MapRenderer {
         this.labelObstructions = [bounds];
         this.reflowMapLabels();
       }
-      this.revealCityTiles(player, isExplored, cityRenderer);
+      this.revealCityTiles(player, isExplored);
     } else {
       this.revealOverworldTiles(player, isExplored);
     }
@@ -574,7 +567,6 @@ export class MapRenderer {
 
     const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
     const biomeFloorTex = `tile_${cityBiome}`;
-    const biomeWallTex = BIOME_WALL_MAP[cityBiome] ?? `tile_${Terrain.CityWall}`;
     const biomePathTex = BIOME_PATH_MAP[cityBiome] ?? "tile_path_cobble";
 
     // Build carpet map from shop types
@@ -583,49 +575,6 @@ export class MapRenderer {
       const carpetTex = SHOP_CARPET_TEX[shop.type];
       shopCarpetMap.set(`${shop.x},${shop.y}`, carpetTex ?? biomeFloorTex);
     }
-
-    // Build shop floor map via flood-fill from each shop entrance
-    cityRenderer.shopFloorMap.clear();
-    for (let si = 0; si < shops.length; si++) {
-      const shop: CityShopData = shops[si];
-      const queue: { x: number; y: number }[] = [];
-      const visited = new Set<string>();
-      for (let dy = -3; dy < 0; dy++) {
-        for (let dx = -2; dx <= 2; dx++) {
-          const tx = shop.x + dx;
-          const ty = shop.y + dy;
-          if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-            if (cityMap[ty][tx] === Terrain.ShopFloor) {
-              const key = `${tx},${ty}`;
-              if (!visited.has(key)) { visited.add(key); queue.push({ x: tx, y: ty }); }
-            }
-          }
-        }
-      }
-      while (queue.length > 0) {
-        const cur = queue.pop()!;
-        cityRenderer.shopFloorMap.set(`${cur.x},${cur.y}`, si);
-        for (const [ddx, ddy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-          const nx = cur.x + ddx;
-          const ny = cur.y + ddy;
-          if (Math.abs(nx - shop.x) > 2 || ny < shop.y - 3 || ny >= shop.y) continue;
-          const key = `${nx},${ny}`;
-          if (visited.has(key)) continue;
-          if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
-          if (cityMap[ny][nx] === Terrain.ShopFloor) {
-            visited.add(key);
-            queue.push({ x: nx, y: ny });
-          }
-        }
-      }
-    }
-
-    const activeShopIdx = cityRenderer.getPlayerShopIndex(
-      cityMap,
-      shops,
-      player.position.x,
-      player.position.y,
-    );
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       this.tileSprites[y] = [];
@@ -638,15 +587,6 @@ export class MapRenderer {
           if (carpetOverride) texKey = carpetOverride;
         }
         if (explored && terrain === Terrain.CityPath) texKey = biomePathTex;
-        if (explored && terrain === Terrain.CityGate && !chunk.interior) {
-          const connection = getCityConnectionAt(city, player.position.cityChunkIndex, x, y);
-          const destination = connection ? getCityChunk(city, connection.toChunkIndex)?.interior : undefined;
-          if (destination?.kind === "shop") texKey = `tile_${Terrain.ShopFloor}`;
-        }
-        if (terrain === Terrain.ShopFloor && !chunk.interior) {
-          const tileShopIdx = cityRenderer.shopFloorMap.get(`${x},${y}`) ?? -1;
-          if (tileShopIdx !== activeShopIdx) texKey = biomeWallTex;
-        }
         const sprite = this.scene.add.sprite(
           x * TILE_SIZE + TILE_SIZE / 2,
           y * TILE_SIZE + TILE_SIZE / 2,
@@ -686,18 +626,16 @@ export class MapRenderer {
     }
     for (const shop of chunk.interior ? [] : shops) {
       if (isExplored(shop.x, shop.y)) {
-        const label = this.scene.add
-          .text(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 6, getCityShopSignLabel(shop), {
-            fontSize: "8px",
-            fontFamily: "monospace",
-            color: "#ffffff",
-            stroke: "#000000",
-            strokeThickness: 3,
-            padding: { x: 7, y: 4 },
-          })
+        const service = getCityServiceId(shop);
+        const key = `city-service-${service}`;
+        if (!this.scene.textures.exists(key)) createPixelTexture(this.scene, key, createCityServiceSignArt(service));
+        const icon = this.scene.add
+          .image(shop.x * TILE_SIZE + TILE_SIZE / 2, shop.y * TILE_SIZE - 6, key)
           .setOrigin(0.5, 1)
-          .setDepth(15);
-        this.addMapLabel(label, `city-shop-${shop.x}-${shop.y}`, 144, true);
+          .setDepth(15)
+          .setName("city-service-sign")
+          .setData("accessibleLabel", getCityShopSignLabel(shop));
+        this.addMapLabel(icon, `city-shop-${shop.x}-${shop.y}`, 24, true);
       }
     }
 
@@ -707,7 +645,7 @@ export class MapRenderer {
       return;
     }
 
-    // City animals, NPCs, and shop roofs
+    // City animals, NPCs, and solid building facades
     this.surfaceSprites = getWalkthroughRugTiles(cityMap)
       .filter(({ x, y }) => isExplored(x, y))
       .map(({ x, y }) => this.scene.add.sprite(
@@ -727,15 +665,6 @@ export class MapRenderer {
       player.position.cityChunkIndex,
       timeStep,
       isExplored,
-    );
-    cityRenderer.createShopRoofs(cityMap, shops, cityBiome);
-    cityRenderer.updateShopRoofAlpha(
-      cityRenderer.getPlayerShopIndex(
-        cityMap,
-        shops,
-        player.position.x,
-        player.position.y,
-      ),
     );
   }
 
@@ -853,7 +782,6 @@ export class MapRenderer {
   private revealCityTiles(
     player: PlayerState,
     isExplored: (x: number, y: number) => boolean,
-    cityRenderer: CityRenderer,
   ): void {
     const city = getCity(player.position.cityId);
     if (!city) return;
@@ -863,7 +791,6 @@ export class MapRenderer {
     const shops = chunk.shops;
     const cityBiome = getTownBiome(city.chunkX, city.chunkY, city.tileX, city.tileY);
     const biomeFloorTex = `tile_${cityBiome}`;
-    const biomeWallTex = BIOME_WALL_MAP[cityBiome] ?? `tile_${Terrain.CityWall}`;
     const biomePathTex = BIOME_PATH_MAP[cityBiome] ?? "tile_path_cobble";
 
     const shopCarpetMap = new Map<string, string>();
@@ -871,13 +798,6 @@ export class MapRenderer {
       const ct = SHOP_CARPET_TEX[shop.type];
       shopCarpetMap.set(`${shop.x},${shop.y}`, ct ?? biomeFloorTex);
     }
-    const activeShopIdx = cityRenderer.getPlayerShopIndex(
-      cityMap,
-      shops,
-      player.position.x,
-      player.position.y,
-    );
-
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         if (isExplored(x, y) && this.tileSprites[y]?.[x]) {
@@ -888,15 +808,6 @@ export class MapRenderer {
             if (override) texKey = override;
           }
           if (terrain === Terrain.CityPath) texKey = biomePathTex;
-          if (terrain === Terrain.CityGate && !chunk.interior) {
-            const connection = getCityConnectionAt(city, player.position.cityChunkIndex, x, y);
-            const destination = connection ? getCityChunk(city, connection.toChunkIndex)?.interior : undefined;
-            if (destination?.kind === "shop") texKey = `tile_${Terrain.ShopFloor}`;
-          }
-          if (terrain === Terrain.ShopFloor && !chunk.interior) {
-            const tileShopIdx = cityRenderer.shopFloorMap.get(`${x},${y}`) ?? -1;
-            if (tileShopIdx !== activeShopIdx) texKey = biomeWallTex;
-          }
           this.tileSprites[y][x].setTexture(texKey);
         }
       }

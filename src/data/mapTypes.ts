@@ -154,7 +154,7 @@ export type InteriorPropKind =
 
 export interface CityBuildingData {
   readonly id: string;
-  readonly kind: "library" | "home" | "residence";
+  readonly kind: "shop" | "library" | "home" | "residence";
   readonly x: number;
   readonly y: number;
   readonly width: number;

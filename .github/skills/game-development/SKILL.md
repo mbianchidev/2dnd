@@ -53,9 +53,10 @@ speaker actor IDs and leased live hero/canonical NPC/boss portraits.
 The Battle turn chain projects initiative/surprise IDs read-only, removes
 inactive actors immediately and never changes scheduling or leaks roll totals.
 
-Library/home/residential exteriors have blocked multi-tile `buildings`
+Shop/library/home/residential exteriors have blocked multi-tile `buildings`
 footprints. Only explicit doors create connections. Cities use
 separate facade/roof layers around actor depth so doorways do not hide the hero.
+Independent walk-through floors remain accessible from every walkable edge.
 Battle and Cutscene use
 `pixelScenery.ts` with the shared `pixelArt.ts` integer scan converters and
 terrain palettes, preserving depth bands, one-buffer cutscenes and RNG isolation.
@@ -64,7 +65,8 @@ terrain palettes, preserving depth bands, one-buffer cutscenes and RNG isolation
 
 - City services use `systems/cityServices.ts` for true doorway identity and
   shared Night closure. Inns stay open all day; shipwright work has no bypass.
-  Exterior category banners remain visible without proximity checks. Clerks use
+  Exterior category pictograms remain visible without proximity checks, with
+  explored service descriptions on the accessible minimap. Clerks use
   canonical/deterministic NPC palettes and respawn in their room after inn rest.
   Street rugs never change collision. Optional loot/books have no plus signs,
   automatic Search/Read hints, hand cursor or minimap marker; preserve their

@@ -57,7 +57,10 @@ Keep the failed captures/traces before rerunning a corrected fixture.
 including the shipwright and 24-hour inns. NPC visual tests retain original
 merchant palettes across indoor relocation. City surface tests prove rugs are
 deterministic and leave map tiles unchanged. Minimap tests exclude optional
-loot while permitting explicit story guidance.
+loot while permitting explicit story guidance. `cityInteriors.test.ts` checks
+blocked shop facades and reachable doors; `cityAnimals.test.ts` protects animal
+spawns. `cityServiceIcons.test.ts` checks distinct, readable pictograms and
+explored-only accessible descriptions.
 
 Tests in `tests/*.test.ts` own Phaser-free behavior:
 
@@ -162,10 +165,10 @@ selection, and clicking another visible command cannot spend an action.
 Use `data-battle-commands-enabled="true"` for command-readiness waits; visibility
 alone also covers pending target selection.
 
-`city-presentation.spec.ts` also checks every exterior banner from across a
-district at 100%/125%/150% text, Night doorway and clerk rejection, safe exits,
-24-hour primary/district inns, retained clerks after paid rest, and ordinary
-unmarked discoveries that remain claimable.
+`city-presentation.spec.ts` also checks exterior pictograms at 100%/125%/150%
+text, solid facades and walk-through floors, Night doorway and clerk rejection,
+safe exits, 24-hour primary/district inns, retained clerks after paid rest, and
+ordinary unmarked discoveries that remain claimable.
 
 `menu-pointer-lifecycle.spec.ts` verifies that Negotiate, sale confirmations,
 item details, activity records and difficulty remain open after their opening
